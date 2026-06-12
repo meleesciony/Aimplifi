@@ -50,7 +50,7 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(page.getByTestId('review-creep')).not.toBeEmpty();
   await expect(page.getByTestId('review-next-action')).toContainText('One next action');
 
-  // the educational disclaimer is on the page
-  await expect(page.locator('text=Educational, not financial advice')).toBeVisible();
+  // the educational disclaimer is on the page (global footer)
+  await expect(page.locator('text=not financial advice')).toBeVisible();
 });
 

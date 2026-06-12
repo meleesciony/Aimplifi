@@ -26,6 +26,38 @@ export default async function GoalsPage() {
         they&apos;re both you, paying yourself first.
       </p>
 
+      {goals.length === 0 && (
+        <Card className="border-dashed" data-testid="goals-empty-example">
+          <CardHeader className="pb-2">
+            <CardDescription>Worked example — what this page does</CardDescription>
+            <CardTitle className="text-base">
+              Emergency fund: {formatCents(cents(coach.fi.annualExpensesCents / 2))} (6 months of expenses)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {(() => {
+              const target = cents(Math.round(coach.fi.annualExpensesCents / 2));
+              const impact = goalFIImpact({
+                portfolioCents: coach.fi.portfolioCents,
+                monthlySavingsCents: coach.fi.monthlySavingsCents,
+                annualReturnBps: coach.fi.expectedReturnBps,
+                fiTargetCents: coach.fi.fiNumberCents,
+                goalRemainingCents: target,
+                goalMonthlyContributionCents: cents(50000),
+              });
+              return (
+                <p>
+                  At $500/mo this would be funded in ~{impact.monthsToGoal} months and would move
+                  your FI date back ~{impact.fiDelayMonths ?? 0} months (assuming your current
+                  savings rate and expected return). Add your own below — every goal shows its
+                  real FI effect.
+                </p>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2" data-testid="goals-list">
         {goals.map((goal) => {
           const impact = goalFIImpact({

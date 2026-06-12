@@ -15,6 +15,7 @@ export default async function CardsPage() {
         payInFull={data.payInFull}
         minimum={data.minimum}
         paymentAccountName={data.paymentAccountName}
+        today={data.today}
       />
     </div>
   );

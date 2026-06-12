@@ -29,9 +29,12 @@ export function FICard({
   coastIsCoast,
   coastRequiredMonthlyCents,
   coastTargetYears,
+  latestMonthRateBps,
 }: {
   fiNumberCents: Cents;
   annualExpensesCents: Cents;
+  /** This month's savings rate (can differ from the 6-mo average the slider uses). */
+  latestMonthRateBps?: number | null;
   portfolioCents: Cents;
   monthlyIncomeCents: Cents;
   monthlySavingsCents: Cents;
@@ -86,6 +89,9 @@ export function FICard({
               {(sliderBps / 100).toFixed(0)}%
             </span>
           </label>
+          <p className="text-xs text-muted-foreground">
+            {COACH_COPY.sliderContext(currentRateBps, latestMonthRateBps ?? null)}
+          </p>
           <input
             id="fi-slider"
             type="range"

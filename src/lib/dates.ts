@@ -182,6 +182,15 @@ export function startOfMonth(date: ISODate): ISODate {
   return fromParts(y, m, 1);
 }
 
+/** Relative phrasing for a date vs "today": "today", "tomorrow", "in 3 days", "2 days ago". */
+export function formatRelativeDays(today: ISODate, date: ISODate): string {
+  const days = daysBetween(today, date);
+  if (days === 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  if (days === -1) return 'yesterday';
+  return days > 0 ? `in ${days} days` : `${-days} days ago`;
+}
+
 /** Format for display, e.g. "Mon, Jun 15". UI boundary only. */
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

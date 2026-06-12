@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { CheckCircle2, Eye, TrendingUp } from 'lucide-react';
 import { auth } from '@/auth';
 import { FICard } from '@/components/coach/fi-card';
 import { LifeEnergyCard } from '@/components/coach/life-energy-card';
@@ -38,6 +39,7 @@ export default async function CoachPage() {
           coastIsCoast={data.fi.coastIsCoast}
           coastRequiredMonthlyCents={data.fi.coastRequiredMonthlyCents}
           coastTargetYears={data.fi.coastTargetYears}
+          latestMonthRateBps={data.currentRateBps}
         />
       </div>
 
@@ -53,13 +55,19 @@ export default async function CoachPage() {
           )}
         </CardHeader>
         <CardContent>
-          <ul className="space-y-2 text-sm" data-testid="opportunities-list">
+          <ul className="space-y-3 text-sm" data-testid="opportunities-list">
             {data.opportunities.map((o, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <Badge variant={o.isEstimate ? 'outline' : 'secondary'} className="mt-0.5 shrink-0">
-                  {o.isEstimate ? 'est.' : formatCents(o.monthlyCents) + '/mo'}
-                </Badge>
-                <span>{COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}</span>
+              <li key={i} className="space-y-0.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium">{o.merchant}</span>
+                  <Badge variant={o.isEstimate ? 'outline' : 'secondary'} className="shrink-0">
+                    {o.isEstimate ? `~${formatCents(o.monthlyCents)}/mo est.` : `${formatCents(o.monthlyCents)}/mo`}
+                  </Badge>
+                </div>
+                {/* the actionable line first; the compounding math in a quiet second line */}
+                <p className="text-xs text-muted-foreground">
+                  {COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}
+                </p>
               </li>
             ))}
           </ul>
@@ -91,6 +99,22 @@ export default async function CoachPage() {
                 );
               })}
             </div>
+            {(() => {
+              const series = data.creep.monthlyDiscretionaryCents;
+              const first = series[0];
+              const last = series[series.length - 1];
+              if (!first || !last) return null;
+              return (
+                <div className="flex justify-between text-[10px] text-muted-foreground" data-testid="creep-axis">
+                  <span>
+                    {first.month} · {formatCents(first.amountCents)}
+                  </span>
+                  <span>
+                    {last.month} · {formatCents(last.amountCents)}
+                  </span>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
 
@@ -115,13 +139,20 @@ export default async function CoachPage() {
           <CardTitle className="text-base">{data.review.month}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <p data-testid="review-improvement">📈 {data.review.improvement}</p>
-          <p data-testid="review-creep">👀 {data.review.creep}</p>
-          <p data-testid="review-next-action">✅ {data.review.nextAction}</p>
+          <p className="flex items-start gap-2" data-testid="review-improvement">
+            <TrendingUp className="mt-0.5 size-4 shrink-0 text-emerald-500" aria-hidden />
+            <span>{data.review.improvement}</span>
+          </p>
+          <p className="flex items-start gap-2" data-testid="review-creep">
+            <Eye className="mt-0.5 size-4 shrink-0 text-amber-500" aria-hidden />
+            <span>{data.review.creep}</span>
+          </p>
+          <p className="flex items-start gap-2" data-testid="review-next-action">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" aria-hidden />
+            <span>{data.review.nextAction}</span>
+          </p>
         </CardContent>
       </Card>
-
-      <p className="text-xs text-muted-foreground">{COACH_COPY.disclaimer()}</p>
     </div>
   );
 }

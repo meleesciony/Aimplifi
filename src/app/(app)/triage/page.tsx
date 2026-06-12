@@ -9,15 +9,17 @@ export default async function TriagePage() {
   const items = await getTriageItems(session.user.id);
 
   return (
-    <div className="mx-auto max-w-md space-y-4">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-semibold">Review</h1>
+        <h1 className="text-xl font-semibold">Inbox</h1>
         <p className="text-sm text-muted-foreground">
           Only genuinely ambiguous transactions land here — everything else is
           filed automatically.
         </p>
       </div>
-      <TriageInbox initialItems={items} categories={ALL_CATEGORIES} />
+      <div className="mx-auto max-w-md">
+        <TriageInbox initialItems={items} categories={ALL_CATEGORIES} />
+      </div>
     </div>
   );
 }

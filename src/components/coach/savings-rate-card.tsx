@@ -21,6 +21,8 @@ export function SavingsRateCard({
 }) {
   const recent = flows.slice(-12);
   const max = Math.max(1, ...recent.map((f) => Math.abs(f.savingsRateBps ?? 0)));
+  const rates = recent.map((f) => f.savingsRateBps).filter((r): r is number => r !== null);
+  const avgBps = rates.length ? Math.round(rates.reduce((s, r) => s + r, 0) / rates.length) : null;
 
   return (
     <Card data-testid="savings-rate-card">
@@ -29,6 +31,12 @@ export function SavingsRateCard({
         <CardTitle className="text-2xl tabular-nums sm:text-3xl" data-testid="savings-rate-amount">
           {currentRateBps === null ? '—' : `${(currentRateBps / 100).toFixed(1)}%`}
         </CardTitle>
+        {currentRateBps !== null && avgBps !== null && (
+          <p className="text-xs text-muted-foreground" data-testid="savings-rate-context">
+            {currentRateBps >= avgBps ? 'above' : 'below'} your 12-month average of{' '}
+            {(avgBps / 100).toFixed(1)}%
+          </p>
+        )}
         <p className="text-sm text-muted-foreground">
           {currentRateBps === null
             ? COACH_COPY.savingsRateNoIncome()

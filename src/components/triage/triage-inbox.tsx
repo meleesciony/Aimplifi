@@ -14,6 +14,7 @@
  * human-time budget (<60s). See tests/e2e/phase2-triage.spec.ts.
  */
 import { useRef, useState, useTransition } from 'react';
+import { PartyPopper } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -266,7 +267,9 @@ export function TriageInbox({
   if (!top) {
     return (
       <div className="rounded-xl border border-dashed p-8 text-center" data-testid="triage-empty">
-        <p className="text-lg font-medium">Inbox zero 🎉</p>
+        <p className="flex items-center justify-center gap-2 text-lg font-medium">
+          <PartyPopper className="size-5 text-emerald-500" aria-hidden /> Inbox zero
+        </p>
         <p className="mt-1 text-sm text-muted-foreground">
           Nothing needs review. High-confidence transactions are filed
           automatically — the Inbox tab will show a badge when something needs

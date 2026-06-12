@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { ArrowDownLeft, ArrowUpRight, CreditCard } from 'lucide-react';
 import { auth } from '@/auth';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -78,7 +79,14 @@ export default async function CalendarPage({
                     {day.events.map((e, i) => (
                       <li key={i} className="flex items-baseline justify-between gap-2 text-sm">
                         <span className="flex items-center gap-1.5">
-                          {e.kind === 'card-due' ? '💳' : e.amountCents >= 0 ? '↓' : '↑'} {e.label}
+                          {e.kind === 'card-due' ? (
+                            <CreditCard className="size-3.5 text-muted-foreground" aria-hidden />
+                          ) : e.amountCents >= 0 ? (
+                            <ArrowDownLeft className="size-3.5 text-emerald-500" aria-hidden />
+                          ) : (
+                            <ArrowUpRight className="size-3.5 text-muted-foreground" aria-hidden />
+                          )}
+                          {e.label}
                           {e.kind === 'card-due' && (
                             <Badge variant="destructive" className="text-[10px]">
                               due
@@ -91,13 +99,25 @@ export default async function CalendarPage({
                       </li>
                     ))}
                   </ul>
+                  {/* the day the account is projected to go below $0 — the whole
+                      point of the dashboard warning, now visible where dates live */}
+                  {result.headline.shortfallDate === day.date && result.headline.recommendation && (
+                    <p
+                      className="mt-1.5 rounded-md border border-red-900/50 bg-red-950/40 px-2 py-1 text-xs text-red-300"
+                      data-testid="calendar-dip"
+                    >
+                      Projected low: {formatCents(result.intraPeriodMinimum?.balanceCents ?? cents(0))} —
+                      transfer {formatCents(result.headline.recommendation.amountCents)} by{' '}
+                      {formatISODate(isoDate(result.headline.recommendation.byDate))} to stay covered.
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
           )}
           <p className="mt-3 text-xs text-muted-foreground">
             Card amounts shown on their effective due dates (weekend/holiday dates roll back to the
-            prior business day). In-app reminders mark each due day.
+            prior business day). Each due day is badged; notification reminders are on the roadmap.
           </p>
         </CardContent>
       </Card>

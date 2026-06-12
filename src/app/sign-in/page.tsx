@@ -29,7 +29,9 @@ export default async function SignInPage() {
     <main className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Pulse Finance</CardTitle>
+          <CardTitle className="text-2xl">
+            Pulse<span className="text-emerald-500">Finance</span>
+          </CardTitle>
           <CardDescription>
             Know exactly how much money you need — and by when — to pay every
             card in full.

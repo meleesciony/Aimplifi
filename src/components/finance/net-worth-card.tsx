@@ -26,12 +26,16 @@ export function NetWorthCard({
   current: number;
   trend: NetWorthPoint[];
 }) {
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const tick = (date: string) => `${MONTHS[+date.slice(5, 7) - 1]} '${date.slice(2, 4)}`;
   const data = trend.map((p) => ({
-    date: p.date.slice(2, 7), // YY-MM tick
+    date: tick(p.date),
     fullDate: p.date,
     dollars: p.netWorthCents / 100,
     label: formatCents(cents(p.netWorthCents)),
   }));
+  const prev = trend.length >= 2 ? trend[trend.length - 2] : null;
+  const deltaCents = prev ? current - prev.netWorthCents : null;
 
   return (
     <Card data-testid="net-worth-card">
@@ -40,6 +44,14 @@ export function NetWorthCard({
         <CardTitle className="text-2xl tabular-nums sm:text-3xl" data-testid="net-worth-amount">
           {formatCents(cents(current))}
         </CardTitle>
+        {deltaCents !== null && (
+          <p
+            className={`text-xs ${deltaCents >= 0 ? 'text-emerald-500' : 'text-red-400'}`}
+            data-testid="net-worth-delta"
+          >
+            {formatCents(cents(deltaCents), { signDisplay: 'always' })} vs last month-end
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         <div className="h-36 w-full sm:h-44">

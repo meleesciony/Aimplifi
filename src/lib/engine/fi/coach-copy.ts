@@ -37,8 +37,18 @@ export const COACH_COPY = {
   notCoastFI: (requiredMonthly: Cents, targetYears: number, returnBps: number) =>
     `To be on pace over the next ${targetYears} years, it takes about ${formatCents(requiredMonthly)}/month, assuming ${pct(returnBps)} average returns.`,
 
-  sliderCaption: (fromBps: number, toBps: number, fromYears: number, toYears: number) =>
-    `Raising your savings rate from ${pct1(fromBps)} to ${pct1(toBps)} moves FI from ~${fromYears} years out to ~${toYears} — assumptions unchanged.`,
+  sliderCaption: (fromBps: number, toBps: number, fromYears: number, toYears: number) => {
+    if (toBps === fromBps) {
+      return `This is your current pace (${pct1(fromBps)} average over 6 months) — drag to see your FI date move. Same return assumptions throughout.`;
+    }
+    const direction = toBps > fromBps ? 'Raising' : 'Lowering';
+    return `${direction} your savings rate from ${pct1(fromBps)} to ${pct1(toBps)} moves FI from ~${fromYears} years out to ~${toYears} years — return assumptions unchanged.`;
+  },
+
+  sliderContext: (avgBps: number, latestBps: number | null) =>
+    latestBps !== null && Math.abs(latestBps - avgBps) >= 300
+      ? `The slider uses your 6-month average pace (${pct1(avgBps)}); this month alone was ${pct1(latestBps)}.`
+      : `The slider uses your 6-month average pace (${pct1(avgBps)}).`,
 
   opportunity: (o: Opportunity, expectedReturnBps: number) => {
     const base = `${o.merchant}: ${formatCents(o.monthlyCents)}/mo`;

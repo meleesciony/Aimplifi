@@ -3,6 +3,7 @@
  * to pay every card in full this cycle. Server component — all math comes
  * from the cash-needed engine; nothing is recomputed here.
  */
+import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -13,15 +14,20 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
-import { formatISODate, isoDate } from '@/lib/dates';
-import { formatCents } from '@/lib/money';
+import { formatISODate, formatRelativeDays, isoDate, type ISODate } from '@/lib/dates';
+import { cents, formatCents } from '@/lib/money';
 
 export function CashNeededCard({
   result,
   paymentAccountName,
+  today,
+  transferSource,
 }: {
   result: CashNeededResult;
   paymentAccountName: string;
+  today: string;
+  /** The real account the transfer can come from (name + live balance). */
+  transferSource?: { name: string; balanceCents: number } | null;
 }) {
   const { headline } = result;
 
@@ -83,8 +89,23 @@ export function CashNeededCard({
               )}
               {headline.recommendation && (
                 <span className="font-medium" data-testid="transfer-recommendation">
-                  Transfer {formatCents(headline.recommendation.amountCents)} (e.g. from
-                  savings) by {formatISODate(isoDate(headline.recommendation.byDate))}.
+                  Transfer {formatCents(headline.recommendation.amountCents)}
+                  {transferSource
+                    ? ` from ${transferSource.name} (${formatCents(cents(transferSource.balanceCents))} available)`
+                    : ' (e.g. from savings)'}{' '}
+                  by {formatISODate(isoDate(headline.recommendation.byDate))} —{' '}
+                  {formatRelativeDays(today as ISODate, headline.recommendation.byDate)}.
+                </span>
+              )}
+              {headline.recommendation && (
+                <span className="mt-1.5 block">
+                  <Link
+                    href={`/calendar?month=${headline.recommendation.byDate.slice(0, 7)}`}
+                    className="underline underline-offset-2 hover:no-underline"
+                    data-testid="shortfall-calendar-link"
+                  >
+                    See it on the calendar →
+                  </Link>
                 </span>
               )}
             </AlertDescription>
@@ -93,11 +114,15 @@ export function CashNeededCard({
 
         <ul className="space-y-1.5" data-testid="due-date-list">
           {result.perDueDate.map((point) => (
-            <li key={point.date} className="flex items-baseline justify-between gap-2 text-sm">
-              <span className="text-muted-foreground">
+            <li
+              key={point.date}
+              className="grid grid-cols-[auto_1fr_auto] items-baseline gap-x-3 text-sm"
+            >
+              <span className="whitespace-nowrap text-muted-foreground">
                 {formatISODate(isoDate(point.date))}
+                <span className="ml-1 text-xs">({formatRelativeDays(today as ISODate, point.date)})</span>
               </span>
-              <span className="truncate">
+              <span>
                 {point.cards
                   .map(
                     (c) =>
@@ -111,10 +136,10 @@ export function CashNeededCard({
           {result.upcoming.map((u) => (
             <li
               key={u.cardId}
-              className="flex items-baseline justify-between gap-2 text-sm text-muted-foreground"
+              className="grid grid-cols-[auto_1fr_auto] items-baseline gap-x-3 text-sm text-muted-foreground"
             >
-              <span>{formatISODate(isoDate(u.effectiveDueDate))}</span>
-              <span className="truncate">
+              <span className="whitespace-nowrap">{formatISODate(isoDate(u.effectiveDueDate))}</span>
+              <span>
                 {u.cardName} {formatCents(u.cashRequiredCents)}{' '}
                 <Badge variant="outline" className="ml-1 align-middle">
                   est.
@@ -124,6 +149,16 @@ export function CashNeededCard({
             </li>
           ))}
         </ul>
+
+        <div className="flex justify-end pt-1">
+          <Link
+            href="/cards"
+            className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            data-testid="see-card-breakdown"
+          >
+            Per-card breakdown →
+          </Link>
+        </div>
 
         <details className="text-xs text-muted-foreground">
           <summary className="cursor-pointer select-none">
