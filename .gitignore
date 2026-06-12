@@ -47,3 +47,4 @@ dev.db
 dev.db-journal
 /test-results/
 /playwright-report/
+_server*.log
