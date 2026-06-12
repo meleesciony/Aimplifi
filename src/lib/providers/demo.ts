@@ -61,8 +61,15 @@ export class DemoProvider implements DataProvider {
 export function getProvider(): DataProvider {
   const which = process.env.DATA_PROVIDER ?? 'demo';
   if (which === 'plaid') {
-    // PlaidProvider lands in Phase 4 behind this same interface.
-    throw new Error('DATA_PROVIDER=plaid is not available yet (Phase 4). Use demo.');
+    if (!process.env.PLAID_CLIENT_ID || !process.env.PLAID_SECRET) {
+      throw new Error(
+        'DATA_PROVIDER=plaid requires PLAID_CLIENT_ID and PLAID_SECRET (see docs/PLAID_WALKTHROUGH.md)',
+      );
+    }
+    // Lazy import keeps the dormant Plaid code out of the demo path entirely.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { PlaidProvider } = require('./plaid') as typeof import('./plaid');
+    return new PlaidProvider();
   }
   return new DemoProvider();
 }

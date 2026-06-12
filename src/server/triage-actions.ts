@@ -153,6 +153,7 @@ export async function splitTransaction(input: {
   if (input.parts.length < 2) throw new Error('A split needs at least 2 parts');
   const sign = Math.sign(txn.amountCents);
   for (const p of input.parts) {
+    if (!Number.isSafeInteger(p.amountCents)) throw new Error('Split parts must be whole cents');
     if (p.amountCents === 0) throw new Error('Split parts must be non-zero');
     if (Math.sign(p.amountCents) !== sign) {
       throw new Error('Split parts must keep the sign of the original transaction');

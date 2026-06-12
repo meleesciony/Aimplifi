@@ -94,6 +94,7 @@ export function TriageInbox({
   }
 
   function accept(item: TriageItem, categoryId: string, via: string) {
+    if (pending) return; // one action at a time — rollback snapshots stay valid
     logInteraction(via, `accept ${item.merchantCanonical} → ${nameOf(categoryId)}`);
     const rollback = items;
     advance();
@@ -112,6 +113,7 @@ export function TriageInbox({
   }
 
   function batchApply(item: TriageItem) {
+    if (pending) return;
     logInteraction('tap', `apply-to-all ${item.similarCount} ${item.merchantCanonical}`);
     const rollback = items;
     setItems((xs) => xs.filter((x) => x.merchantId !== item.merchantId));
@@ -121,6 +123,7 @@ export function TriageInbox({
         transactionId: item.id,
         categoryId: item.suggestedCategoryId,
       });
+      if (result.correctionIds.length === 0) return; // nothing matched (raced another session)
       setUndoStack((s) => [
         ...s,
         {
@@ -139,6 +142,7 @@ export function TriageInbox({
   }
 
   function doSplit(item: TriageItem, firstCents: number, catA: string, catB: string) {
+    if (pending) return;
     logInteraction('tap', `split ${item.merchantCanonical}`);
     const rollback = items;
     advance();

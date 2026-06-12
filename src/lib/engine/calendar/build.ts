@@ -1,0 +1,128 @@
+/**
+ * Cash-flow calendar (Phase 4): inflows, outflows, and card due dates on one
+ * timeline. Pure function — expands scheduled cadences and lays card
+ * obligations (from the cash-needed engine's per-card output) onto days.
+ */
+import { type Cents, cents } from '@/lib/money';
+import {
+  type ISODate,
+  addDays,
+  addMonthsClamped,
+  compareDates,
+  daysInMonth,
+  isoDate,
+} from '@/lib/dates';
+import type { CardObligation } from '@/lib/engine/cash-needed/types';
+import type { ScheduledLike } from '@/lib/engine/cash-needed/assemble';
+
+export interface CalendarEvent {
+  date: ISODate;
+  kind: 'inflow' | 'outflow' | 'card-due';
+  label: string;
+  amountCents: Cents; // signed; card-due negative (cash leaving)
+  isEstimated?: boolean;
+}
+
+export interface CalendarDay {
+  date: ISODate;
+  events: CalendarEvent[];
+  netCents: Cents;
+}
+
+export interface CashFlowCalendar {
+  month: string; // YYYY-MM
+  days: CalendarDay[];
+  totalInCents: Cents;
+  totalOutCents: Cents;
+  /** Days needing a reminder: a card-due event within the month. */
+  reminderDates: ISODate[];
+}
+
+/** Expand scheduled rows into dated occurrences within [from, to]. */
+export function expandScheduled(
+  rows: readonly ScheduledLike[],
+  from: ISODate,
+  to: ISODate,
+): CalendarEvent[] {
+  const out: CalendarEvent[] = [];
+  for (const row of rows) {
+    const start = isoDate(row.nextDate);
+    const push = (date: ISODate) => {
+      if (compareDates(date, from) >= 0 && compareDates(date, to) <= 0) {
+        out.push({
+          date,
+          kind: row.amountCents >= 0 ? 'inflow' : 'outflow',
+          label: row.description,
+          amountCents: cents(row.amountCents),
+        });
+      }
+    };
+    if (row.cadence === 'MONTHLY') {
+      for (let i = 0; ; i++) {
+        const occ = addMonthsClamped(start, i);
+        if (compareDates(occ, to) > 0) break;
+        push(occ);
+      }
+    } else if (row.cadence === 'WEEKLY' || row.cadence === 'BIWEEKLY') {
+      const step = row.cadence === 'WEEKLY' ? 7 : 14;
+      for (let occ = start; compareDates(occ, to) <= 0; occ = addDays(occ, step)) push(occ);
+    } else {
+      push(start);
+    }
+  }
+  return out;
+}
+
+export function buildCashFlowCalendar(params: {
+  month: string; // YYYY-MM
+  scheduled: readonly ScheduledLike[];
+  cardObligations: readonly CardObligation[]; // current + upcoming, from the engine
+}): CashFlowCalendar {
+  const { month } = params;
+  const year = +month.slice(0, 4);
+  const mo = +month.slice(5, 7);
+  const first = isoDate(`${month}-01`);
+  const last = isoDate(`${month}-${String(daysInMonth(year, mo)).padStart(2, '0')}`);
+
+  const events: CalendarEvent[] = expandScheduled(params.scheduled, first, last);
+  for (const ob of params.cardObligations) {
+    if (ob.cashRequiredCents <= 0) continue;
+    if (compareDates(ob.effectiveDueDate, first) >= 0 && compareDates(ob.effectiveDueDate, last) <= 0) {
+      events.push({
+        date: ob.effectiveDueDate,
+        kind: 'card-due',
+        label: `${ob.cardName} due${ob.isEstimated ? ' (est.)' : ''}`,
+        amountCents: cents(-ob.cashRequiredCents),
+        isEstimated: ob.isEstimated,
+      });
+    }
+  }
+
+  const byDate = new Map<ISODate, CalendarEvent[]>();
+  for (const e of events) {
+    const list = byDate.get(e.date) ?? [];
+    list.push(e);
+    byDate.set(e.date, list);
+  }
+
+  const days: CalendarDay[] = [];
+  let totalIn = 0;
+  let totalOut = 0;
+  for (let d = first; compareDates(d, last) <= 0; d = addDays(d, 1)) {
+    const dayEvents = (byDate.get(d) ?? []).sort((a, b) => b.amountCents - a.amountCents);
+    const net = dayEvents.reduce((s, e) => s + e.amountCents, 0);
+    for (const e of dayEvents) {
+      if (e.amountCents >= 0) totalIn += e.amountCents;
+      else totalOut += -e.amountCents;
+    }
+    days.push({ date: d, events: dayEvents, netCents: cents(net) });
+  }
+
+  return {
+    month,
+    days,
+    totalInCents: cents(totalIn),
+    totalOutCents: cents(totalOut),
+    reminderDates: days.filter((d) => d.events.some((e) => e.kind === 'card-due')).map((d) => d.date),
+  };
+}

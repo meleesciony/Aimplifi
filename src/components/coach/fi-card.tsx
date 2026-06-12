@@ -19,6 +19,7 @@ import { type Cents, cents, formatCents } from '@/lib/money';
 
 export function FICard({
   fiNumberCents,
+  annualExpensesCents,
   portfolioCents,
   monthlyIncomeCents,
   monthlySavingsCents,
@@ -30,6 +31,7 @@ export function FICard({
   coastTargetYears,
 }: {
   fiNumberCents: Cents;
+  annualExpensesCents: Cents;
   portfolioCents: Cents;
   monthlyIncomeCents: Cents;
   monthlySavingsCents: Cents;
@@ -42,7 +44,7 @@ export function FICard({
 }) {
   const currentRateBps =
     monthlyIncomeCents > 0 ? Math.round((monthlySavingsCents / monthlyIncomeCents) * 10000) : 0;
-  const [sliderBps, setSliderBps] = useState(Math.max(0, currentRateBps));
+  const [sliderBps, setSliderBps] = useState(Math.min(7000, Math.max(0, currentRateBps)));
 
   const sliderMonths = useMemo(() => {
     const savings = cents(Math.round((monthlyIncomeCents * sliderBps) / 10000));
@@ -58,7 +60,9 @@ export function FICard({
         <CardTitle className="text-2xl tabular-nums" data-testid="fi-number">
           {formatCents(fiNumberCents)}
         </CardTitle>
-        <p className="text-sm text-muted-foreground">{COACH_COPY.fiNumber(fiNumberCents, swrBps)}</p>
+        <p className="text-sm text-muted-foreground" data-testid="fi-basis">
+          {COACH_COPY.fiNumber(fiNumberCents, swrBps, annualExpensesCents)}
+        </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm" data-testid="years-to-fi">

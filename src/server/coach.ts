@@ -102,7 +102,7 @@ export async function getCoachData(userId: string): Promise<CoachData> {
   const coast = coastFI(portfolio, fiTarget, user.expectedReturnBps, COAST_TARGET_YEARS * 12);
 
   const series = detectRecurring(
-    txns.filter((t) => t.status === 'POSTED'),
+    txns.filter((t) => t.status === 'POSTED' && !t.isSplitParent),
     today,
   );
   const opportunities = findOpportunities(series, user.expectedReturnBps);
@@ -114,7 +114,10 @@ export async function getCoachData(userId: string): Promise<CoachData> {
   const cutoff = addMonthsClamped(today, -3);
   const wage = user.hourlyWageCents ?? 0;
   const lifeEnergy = txns
-    .filter((t) => !t.isTransfer && t.status === 'POSTED' && t.amountCents < 0 && t.date >= cutoff)
+    .filter(
+      (t) =>
+        !t.isTransfer && !t.isSplitParent && t.status === 'POSTED' && t.amountCents < 0 && t.date >= cutoff,
+    )
     .sort((a, b) => a.amountCents - b.amountCents)
     .slice(0, 5)
     .map((t) => ({

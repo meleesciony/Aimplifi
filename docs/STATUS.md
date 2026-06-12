@@ -47,6 +47,28 @@ probes live on as regressions in `tests/unit/critic2-*.test.ts`:
   `undoSplit` guards non-split rows; split input parses via
   `centsFromDollarString`. Remaining accepted P2s listed below.
 
+## Phase 3 (complete — critic cycle 2 green)
+
+Cycle 1 verdict: FAIL (1 P1). All hand-verified math passed (8/8 anchors to
+the cent). Fixed in cycle 2:
+
+- **P1-1 fixed:** the FI number now states its expense basis inline on the FI
+  card ("…on $X/yr of spending — estimated from your last 6 full months × 2").
+- P2s fixed: split parents excluded from life-energy list and recurring
+  detection input; runway "Infinity" rendered as "no expenses yet"; negative
+  savings-rate headline has honest copy; slider state clamped to its range;
+  Money Review fallback no longer claims an improvement it didn't measure
+  ("What held steady…"); opportunity projections state the assumed return rate.
+- Phase 2 cycle-2 hardening from the same review: integer-cents split
+  validation, one-action-at-a-time guard on triage gestures, empty-batch
+  prompt guard.
+
+## Phase 4 (complete — see commit)
+
+Calendar/goals/budgets/exports/PWA/cron/security headers + dormant Plaid
+provider (UNVERIFIED — docs/PLAID_WALKTHROUGH.md has the validation
+checklist). Unauthenticated API requests now return 401 JSON (middleware).
+
 ## Known limitations (accepted, by design or deferred)
 
 1. **Statement balances in seed history are plausible PRNG values**, not exact
@@ -73,3 +95,16 @@ probes live on as regressions in `tests/unit/critic2-*.test.ts`:
    netting refunds against spending is a roadmap refinement.
 9. **Equal-priority rules tie-break by creation order** (stable sort) — documented
    here rather than enforced.
+10. **Narrow concurrency races** (critic, P2): two concurrent splits of the same
+    row from different sessions could double-split (ownership check precedes the
+    transaction); "Always" tapped racing "Undo" can orphan a rule. No UI path
+    reaches either; server-side locks are a scale-out refinement.
+11. **Unknown billers containing a word-bounded "EPAY"** (e.g. "DUKE ENERGY
+    EPAY") classify as transfers consistently in both modules; a merchant-table
+    entry wins when added.
+12. **Plaid integration is UNVERIFIED** (no sandbox credentials in the build
+    environment) — implemented against the documented API behind the provider
+    seam; validation checklist in docs/PLAID_WALKTHROUGH.md.
+13. **Coast-FI with a 0-month target** and `detectLifestyleCreep(windowMonths=1)`
+    are degenerate for out-of-range inputs — unreachable from the app
+    (constants fixed), noted for API consumers.

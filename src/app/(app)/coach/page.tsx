@@ -28,6 +28,7 @@ export default async function CoachPage() {
         <SavingsRateCard flows={data.flows} currentRateBps={data.currentRateBps} />
         <FICard
           fiNumberCents={data.fi.fiNumberCents}
+          annualExpensesCents={data.fi.annualExpensesCents}
           portfolioCents={data.fi.portfolioCents}
           monthlyIncomeCents={data.fi.monthlyIncomeCents}
           monthlySavingsCents={data.fi.monthlySavingsCents}
@@ -58,7 +59,7 @@ export default async function CoachPage() {
                 <Badge variant={o.isEstimate ? 'outline' : 'secondary'} className="mt-0.5 shrink-0">
                   {o.isEstimate ? 'est.' : formatCents(o.monthlyCents) + '/mo'}
                 </Badge>
-                <span>{COACH_COPY.opportunity(o)}</span>
+                <span>{COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}</span>
               </li>
             ))}
           </ul>
@@ -97,7 +98,7 @@ export default async function CoachPage() {
           <CardHeader className="pb-2">
             <CardDescription>Room for error</CardDescription>
             <CardTitle className="text-2xl tabular-nums" data-testid="runway-months">
-              {data.runwayMonths} months
+              {Number.isFinite(data.runwayMonths) ? `${data.runwayMonths} months` : 'no expenses yet'}
             </CardTitle>
           </CardHeader>
           <CardContent>

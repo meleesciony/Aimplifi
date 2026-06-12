@@ -29,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="mx-auto max-w-5xl px-3 pb-12 sm:px-6">
       <header className="flex items-center justify-between gap-2 py-3">
-        <nav className="flex items-center gap-1 sm:gap-3" aria-label="Main">
+        <nav className="flex items-center gap-1 overflow-x-auto whitespace-nowrap sm:gap-2" aria-label="Main">
           <Link href="/dashboard" className="mr-1 text-base font-bold tracking-tight sm:text-lg">
             Pulse<span className="text-emerald-500">Finance</span>
           </Link>
@@ -60,6 +60,34 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             data-testid="nav-coach"
           >
             Coach
+          </Link>
+          <Link
+            href="/calendar"
+            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            data-testid="nav-calendar"
+          >
+            Calendar
+          </Link>
+          <Link
+            href="/goals"
+            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            data-testid="nav-goals"
+          >
+            Goals
+          </Link>
+          <Link
+            href="/budgets"
+            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            data-testid="nav-budgets"
+          >
+            Budgets
+          </Link>
+          <Link
+            href="/settings"
+            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            data-testid="nav-settings"
+          >
+            Settings
           </Link>
         </nav>
         <form action={doSignOut}>

@@ -1,0 +1,123 @@
+import { redirect } from 'next/navigation';
+import { auth } from '@/auth';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { prisma } from '@/lib/db';
+import { goalFIImpact } from '@/lib/engine/goals';
+import { cents, formatCents } from '@/lib/money';
+import { getCoachData } from '@/server/coach';
+import { createGoal, deleteGoal } from '@/server/goal-actions';
+
+export default async function GoalsPage() {
+  const session = await auth();
+  if (!session?.user?.id) redirect('/sign-in');
+  const userId = session.user.id;
+  const [goals, coach] = await Promise.all([
+    prisma.goal.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
+    getCoachData(userId),
+  ]);
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-xl font-semibold">Savings goals</h1>
+      <p className="text-sm text-muted-foreground">
+        Every goal shows its effect on your FI date, assuming your savings rate
+        and expected return stay as they are. Goals and FI aren&apos;t enemies —
+        they&apos;re both you, paying yourself first.
+      </p>
+
+      <div className="grid gap-3 sm:grid-cols-2" data-testid="goals-list">
+        {goals.map((goal) => {
+          const impact = goalFIImpact({
+            portfolioCents: coach.fi.portfolioCents,
+            monthlySavingsCents: coach.fi.monthlySavingsCents,
+            annualReturnBps: coach.fi.expectedReturnBps,
+            fiTargetCents: coach.fi.fiNumberCents,
+            goalRemainingCents: cents(Math.max(0, goal.targetCents - goal.savedCents)),
+            goalMonthlyContributionCents: cents(goal.monthlyContributionCents ?? 0),
+          });
+          return (
+            <Card key={goal.id} data-testid={`goal-${goal.id}`}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{goal.name}</CardTitle>
+                  <form
+                    action={async () => {
+                      'use server';
+                      await deleteGoal(goal.id);
+                    }}
+                  >
+                    <Button variant="ghost" size="sm" type="submit" aria-label={`Delete ${goal.name}`}>
+                      ✕
+                    </Button>
+                  </form>
+                </div>
+                <CardDescription>
+                  {formatCents(cents(goal.savedCents))} of {formatCents(cents(goal.targetCents))}
+                  {goal.monthlyContributionCents
+                    ? ` · ${formatCents(cents(goal.monthlyContributionCents))}/mo`
+                    : ''}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-sm">
+                {impact.monthsToGoal === null ? (
+                  <p className="text-muted-foreground">
+                    Add a monthly contribution to see the timeline and FI effect.
+                  </p>
+                ) : (
+                  <p data-testid="goal-fi-impact">
+                    Funded in ~{impact.monthsToGoal} months.{' '}
+                    {impact.fiDelayMonths === 0
+                      ? 'No measurable effect on your FI date.'
+                      : `Moves your FI date back ~${impact.fiDelayMonths} months — assuming your current savings rate and expected return.`}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">New goal</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form action={createGoal} className="flex flex-wrap items-end gap-2" data-testid="goal-form">
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Name
+              <input
+                name="name"
+                required
+                className="w-40 rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
+                placeholder="Emergency fund"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Target $
+              <input
+                name="target"
+                required
+                inputMode="decimal"
+                className="w-28 rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
+                placeholder="10000"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Monthly $ (optional)
+              <input
+                name="monthly"
+                inputMode="decimal"
+                className="w-28 rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
+                placeholder="500"
+              />
+            </label>
+            <Button type="submit" size="sm" data-testid="goal-create">
+              Add goal
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

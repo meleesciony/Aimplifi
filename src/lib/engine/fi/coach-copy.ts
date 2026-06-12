@@ -15,13 +15,15 @@ const pct1 = (bps: number) => `${(bps / 100).toFixed(1)}%`;
 
 export const COACH_COPY = {
   savingsRateHeadline: (rateBps: number) =>
-    `You kept ${pct(rateBps)} of your after-tax income this month — savings rate, not returns, is what moves your FI date.`,
+    rateBps >= 0
+      ? `You kept ${pct(rateBps)} of your after-tax income this month — savings rate, not returns, is what moves your FI date.`
+      : `Spending outpaced income this month. One month is weather, not climate — the trend below is what matters.`,
 
   savingsRateNoIncome: () =>
     `No income landed this month, so there's no savings rate to compute — the trend below still tells the story.`,
 
-  fiNumber: (fi: Cents, swrBps: number) =>
-    `Your FI number is ${formatCents(fi)}, assuming a ${pct(swrBps)} safe withdrawal rate on your current annual spending.`,
+  fiNumber: (fi: Cents, swrBps: number, annualExpenses: Cents) =>
+    `Your FI number is ${formatCents(fi)}, assuming a ${pct(swrBps)} safe withdrawal rate on ${formatCents(annualExpenses)}/yr of spending — estimated from your last 6 full months × 2, so an unusual month moves it.`,
 
   yearsToFI: (years: number, months: number, returnBps: number) =>
     `At your current savings rate you'd reach it in about ${years} years${months > 0 ? ` ${months} months` : ''}, assuming ${pct(returnBps)} average annual returns. Markets wobble — reasonable beats rational, and this number will too.`,
@@ -38,9 +40,9 @@ export const COACH_COPY = {
   sliderCaption: (fromBps: number, toBps: number, fromYears: number, toYears: number) =>
     `Raising your savings rate from ${pct1(fromBps)} to ${pct1(toBps)} moves FI from ~${fromYears} years out to ~${toYears} — assumptions unchanged.`,
 
-  opportunity: (o: Opportunity) => {
+  opportunity: (o: Opportunity, expectedReturnBps: number) => {
     const base = `${o.merchant}: ${formatCents(o.monthlyCents)}/mo`;
-    const fv = `is ${formatCents(o.fv30Cents)} of future wealth over 30 years (${formatCents(o.fv20Cents)} over 20, ${formatCents(o.fv10Cents)} over 10), assuming your expected return — compounding does the work, not willpower.`;
+    const fv = `is ${formatCents(o.fv30Cents)} of future wealth over 30 years (${formatCents(o.fv20Cents)} over 20, ${formatCents(o.fv10Cents)} over 10), assuming ${pct(expectedReturnBps)} average annual returns — compounding does the work, not willpower.`;
     switch (o.kind) {
       case 'unused-subscription':
         return `Still using it? ${base} ${fv}`;
@@ -75,7 +77,7 @@ export const COACH_COPY = {
     `What improved in ${month}: savings rate moved from ${pct(fromBps)} to ${pct(toBps)}.`,
 
   reviewImprovementRunway: (months: number) =>
-    `What improved: your cash runway now covers ${months} months of expenses.`,
+    `What held steady: your cash runway covers ${months} months of expenses — room for error is wealth working quietly.`,
 
   reviewCreep: (merchant: string, delta: Cents) =>
     `What crept: ${merchant} now costs ${formatCents(delta)}/mo more than it used to.`,
