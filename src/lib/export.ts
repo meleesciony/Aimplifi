@@ -15,9 +15,16 @@ export interface ExportTxn {
   status: string;
 }
 
-/** RFC-4180 quoting: quote when needed, double internal quotes. */
+/**
+ * RFC-4180 quoting + spreadsheet-formula-injection neutralization: fields
+ * beginning with = + - @ or a tab/CR get a leading apostrophe so Excel/Sheets
+ * treats them as text, never as a formula (final critic finding P2-1).
+ */
 function csvField(value: string): string {
-  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  const neutralized = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /[",\n\r]/.test(neutralized)
+    ? `"${neutralized.replace(/"/g, '""')}"`
+    : neutralized;
 }
 
 export function transactionsToCsv(rows: readonly ExportTxn[]): string {

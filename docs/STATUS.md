@@ -63,6 +63,18 @@ the cent). Fixed in cycle 2:
   validation, one-action-at-a-time guard on triage gestures, empty-batch
   prompt guard.
 
+## Phase 5 / final full-app critic: **PASS** (zero P0/P1)
+
+Financial correctness 10/10 (30 hand-verified assertions incl. 6 brand-new
+adversarial cash-needed scenarios, all exact to the cent), edge-case coverage
+10/10. Findings, all P2:
+- **P2-1 CSV formula injection — FIXED post-review**: `csvField` now prefixes
+  `= + - @` / tab / CR-leading fields with an apostrophe; the critic's evidence
+  probes were flipped to safe-behavior regressions (critic5-surface.test.ts).
+- P2-2 rate limiter is in-memory/single-instance — accepted for v1, documented
+  in authz.ts and ROADMAP #8.
+- P2-3 cosmetic Recharts width(-1) console warning during headless e2e.
+
 ## Phase 4 (complete — see commit)
 
 Calendar/goals/budgets/exports/PWA/cron/security headers + dormant Plaid
