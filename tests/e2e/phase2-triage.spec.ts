@@ -18,7 +18,7 @@ async function signInToTriage(page: Page) {
   await page.goto('/sign-in');
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
-  await page.getByTestId('nav-triage').click();
+  await page.getByTestId('bottom-nav-triage').click();
   await page.waitForURL('**/triage');
 }
 
@@ -33,20 +33,18 @@ test('gestures: swipe right accepts, swipe left reveals 3 alternatives, long-pre
   const before = Number(await page.getByTestId('triage-inbox').getAttribute('data-remaining'));
   expect(before).toBeGreaterThan(0);
 
-  // swipe RIGHT (mouse-driven pointer events) → accepts the suggestion
+  // swipe RIGHT (mouse-driven pointer events) → accepts the suggestion.
+  // Top item is a Zelle payment — an AGGREGATE merchant, so the durable-rule
+  // prompt must NOT be offered (one "Always" would mis-file all future Zelle).
   const box = (await card.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 140, box.y + box.height / 2, { steps: 8 });
   await page.mouse.up();
-  await expect(page.getByTestId('rule-prompt')).toBeVisible();
   await expect(page.getByTestId('triage-inbox')).toHaveAttribute('data-remaining', String(before - 1));
+  await expect(page.getByTestId('rule-prompt')).toHaveCount(0);
 
-  // one-tap durable rule offer is present (Always / Just this once)
-  await expect(page.getByTestId('rule-always')).toBeVisible();
-  await page.getByTestId('rule-once').click();
-
-  // swipe LEFT → exactly 3 alternatives
+  // swipe LEFT on the next card (Store Card — a real merchant) → 3 alternatives
   const box2 = (await card.boundingBox())!;
   await page.mouse.move(box2.x + box2.width / 2, box2.y + box2.height / 2);
   await page.mouse.down();
@@ -56,8 +54,10 @@ test('gestures: swipe right accepts, swipe left reveals 3 alternatives, long-pre
   await expect(page.getByTestId('triage-alternatives').locator('button')).toHaveCount(3);
   await page.getByTestId('triage-alternatives').locator('button').first().click();
 
-  // dismiss the rule prompt so the card position is stable, then long-press → split editor
+  // the one-tap durable rule IS offered for a real merchant, with an explanation
   await expect(page.getByTestId('rule-prompt')).toBeVisible();
+  await expect(page.getByTestId('rule-prompt')).toContainText('skip review');
+  await expect(page.getByTestId('rule-always')).toBeVisible();
   await page.getByTestId('rule-once').click();
   const box3 = (await card.boundingBox())!;
   await page.mouse.move(box3.x + box3.width / 2, box3.y + box3.height / 2);
@@ -116,3 +116,4 @@ test('a full review session completes in <15 interactions (→ <60s human time)'
   await page.goto('/dashboard');
   await expect(page.getByTestId('review-badge')).toHaveCount(0);
 });
+

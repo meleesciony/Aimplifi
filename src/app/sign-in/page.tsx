@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
-import { auth, signIn } from '@/auth';
+import { DEMO_USER_ID, auth, signIn } from '@/auth';
+import { prisma } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -15,6 +16,12 @@ export default async function SignInPage() {
 
   async function demoSignIn() {
     'use server';
+    // login audit (docs/PRIVACY.md) — never blocks sign-in if the DB is empty
+    try {
+      await prisma.auditLog.create({
+        data: { userId: DEMO_USER_ID, action: 'auth.signin', meta: '{}' },
+      });
+    } catch {}
     await signIn('demo', { redirectTo: '/dashboard' });
   }
 

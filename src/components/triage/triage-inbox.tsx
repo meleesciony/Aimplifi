@@ -104,11 +104,14 @@ export function TriageInbox({
         ...s,
         { kind: 'corrections', correctionIds: result.correctionIds, label: item.merchantCanonical },
       ]);
-      setRulePrompt({
-        correctionId: result.correctionIds[0],
-        merchant: item.merchantCanonical,
-        categoryName: nameOf(categoryId),
-      });
+      // never offer merchant-wide rules for aggregate merchants (Zelle/checks)
+      if (item.ruleEligible) {
+        setRulePrompt({
+          correctionId: result.correctionIds[0],
+          merchant: item.merchantCanonical,
+          categoryName: nameOf(categoryId),
+        });
+      }
     });
   }
 
@@ -133,11 +136,13 @@ export function TriageInbox({
         },
       ]);
       // durable rules are ALWAYS consensual — same one-tap prompt as singles
-      setRulePrompt({
-        correctionId: result.correctionIds[0],
-        merchant: item.merchantCanonical,
-        categoryName: nameOf(item.suggestedCategoryId),
-      });
+      if (item.ruleEligible) {
+        setRulePrompt({
+          correctionId: result.correctionIds[0],
+          merchant: item.merchantCanonical,
+          categoryName: nameOf(item.suggestedCategoryId),
+        });
+      }
     });
   }
 
@@ -216,14 +221,58 @@ export function TriageInbox({
     }
   }
 
+  // Rendered in BOTH the queue view and the empty state — accepting the LAST
+  // item must still offer the one-tap durable rule (cycle-1 H5).
+  function renderRulePrompt() {
+    if (!rulePrompt) return null;
+    return (
+      <div
+        className="space-y-1 rounded-lg border bg-accent/40 px-3 py-2 text-left text-sm"
+        data-testid="rule-prompt"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            Always file <b>{rulePrompt.merchant}</b> under <b>{rulePrompt.categoryName}</b>?
+          </span>
+          <span className="flex gap-1">
+            <Button
+              size="sm"
+              variant="secondary"
+              data-testid="rule-always"
+              onClick={() => {
+                logInteraction('tap', `always-rule ${rulePrompt.merchant}`);
+                const id = rulePrompt.correctionId;
+                setRulePrompt(null);
+                startTransition(async () => {
+                  await makeRuleFromCorrection(id);
+                });
+              }}
+            >
+              Always
+            </Button>
+            <Button size="sm" variant="ghost" data-testid="rule-once" onClick={() => setRulePrompt(null)}>
+              Just this once
+            </Button>
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          “Always” files future {rulePrompt.merchant} charges as {rulePrompt.categoryName}{' '}
+          automatically — they skip review. Undo removes the rule.
+        </p>
+      </div>
+    );
+  }
+
   if (!top) {
     return (
       <div className="rounded-xl border border-dashed p-8 text-center" data-testid="triage-empty">
         <p className="text-lg font-medium">Inbox zero 🎉</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Nothing needs review. High-confidence transactions are filed
-          automatically — only the genuinely ambiguous ones land here.
+          automatically — the Inbox tab will show a badge when something needs
+          you.
         </p>
+        <div className="mt-3">{renderRulePrompt()}</div>
         {undoStack.length > 0 && (
           <Button variant="outline" size="sm" className="mt-4" onClick={undoLast} data-testid="triage-undo">
             Undo last ({undoStack[undoStack.length - 1].label})
@@ -253,36 +302,7 @@ export function TriageInbox({
         )}
       </div>
 
-      {rulePrompt && (
-        <div
-          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-accent/40 px-3 py-2 text-sm"
-          data-testid="rule-prompt"
-        >
-          <span>
-            Always file <b>{rulePrompt.merchant}</b> under <b>{rulePrompt.categoryName}</b>?
-          </span>
-          <span className="flex gap-1">
-            <Button
-              size="sm"
-              variant="secondary"
-              data-testid="rule-always"
-              onClick={() => {
-                logInteraction('tap', `always-rule ${rulePrompt.merchant}`);
-                const id = rulePrompt.correctionId;
-                setRulePrompt(null);
-                startTransition(async () => {
-                  await makeRuleFromCorrection(id);
-                });
-              }}
-            >
-              Always
-            </Button>
-            <Button size="sm" variant="ghost" data-testid="rule-once" onClick={() => setRulePrompt(null)}>
-              Just this once
-            </Button>
-          </span>
-        </div>
-      )}
+      {renderRulePrompt()}
 
       <Card
         data-testid="triage-card"

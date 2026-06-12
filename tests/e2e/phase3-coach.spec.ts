@@ -14,7 +14,7 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(page.getByTestId('net-worth-card')).toBeVisible();
   await expect(page.getByTestId('savings-rate-card')).toBeVisible();
 
-  await page.getByTestId('nav-coach').click();
+  await page.getByTestId('bottom-nav-coach').click();
   await page.waitForURL('**/coach');
 
   // FI number present and formatted
@@ -53,3 +53,4 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   // the educational disclaimer is on the page
   await expect(page.locator('text=Educational, not financial advice')).toBeVisible();
 });
+

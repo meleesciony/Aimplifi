@@ -5,7 +5,6 @@ import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { CashNeededCard } from '@/components/finance/cash-needed-card';
 import { NetWorthCard } from '@/components/finance/net-worth-card';
 import { buttonVariants } from '@/components/ui/button';
-import { formatISODate, isoDate } from '@/lib/dates';
 import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
 
@@ -19,10 +18,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        Demo data as of {formatISODate(isoDate(data.today), 'long')}
-      </p>
-
       {/* THE answer — first thing on screen, zero navigation required */}
       <CashNeededCard result={data.payInFull} paymentAccountName={data.paymentAccountName} />
 

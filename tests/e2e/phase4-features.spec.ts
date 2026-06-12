@@ -12,7 +12,7 @@ async function signIn(page: Page) {
 
 test('calendar shows inflows, outflows, and effective card due dates on one timeline', async ({ page }) => {
   await signIn(page);
-  await page.getByTestId('nav-calendar').click();
+  await page.getByTestId('bottom-nav-calendar').click();
   await page.waitForURL('**/calendar');
   await expect(page.getByTestId('cal-month')).toHaveText('2026-06');
 
@@ -101,3 +101,4 @@ test('PWA: manifest is served and linked', async ({ page }) => {
   const icon = await page.request.get('/icon-192.png');
   expect(icon.status()).toBe(200);
 });
+

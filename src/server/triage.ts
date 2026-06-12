@@ -5,7 +5,9 @@
  */
 import { prisma } from '@/lib/db';
 import { CATEGORIES, categoryName } from '@/lib/engine/categorize/categories';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { categorize, suggestAlternatives } from '@/lib/engine/categorize/pipeline';
+import { loadUserRules } from '@/server/rules';
 
 export interface TriageItem {
   id: string;
@@ -22,24 +24,33 @@ export interface TriageItem {
   alternativeNames: string[];
   /** How many other transactions share this merchant (for batch apply). */
   similarCount: number;
+  /** False for aggregate pseudo-merchants (Zelle/checks/ATM): never offer "Always" rules. */
+  ruleEligible: boolean;
 }
 
 export async function getTriageItems(userId: string): Promise<TriageItem[]> {
-  const txns = await prisma.transaction.findMany({
-    where: { needsReview: true, account: { userId } },
-    include: { account: { select: { name: true } }, merchant: true },
-    orderBy: [{ date: 'desc' }, { id: 'desc' }],
-  });
+  const [txns, rules] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { needsReview: true, account: { userId } },
+      include: { account: { select: { name: true } }, merchant: true },
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    }),
+    loadUserRules(userId), // the user's own rules drive suggestions (cycle-1 C2)
+  ]);
 
   const items: TriageItem[] = [];
   for (const t of txns) {
-    const out = categorize({
-      rawDescriptor: t.rawDescriptor,
-      amountCents: t.amountCents,
-      date: t.date,
-      accountId: t.accountId,
-    });
+    const out = categorize(
+      {
+        rawDescriptor: t.rawDescriptor,
+        amountCents: t.amountCents,
+        date: t.date,
+        accountId: t.accountId,
+      },
+      rules,
+    );
     const suggested = out.categoryId === 'uncategorized' ? bestGuess(t.amountCents) : out.categoryId;
+    const ruleEligible = !normalizeMerchant(t.rawDescriptor).aggregate;
     const pool = suggestAlternatives({
       rawDescriptor: t.rawDescriptor,
       amountCents: t.amountCents,
@@ -69,6 +80,7 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
       alternativeIds: alts,
       alternativeNames: alts.map(categoryName),
       similarCount,
+      ruleEligible,
     });
   }
   return items;

@@ -1,7 +1,9 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth, signOut } from '@/auth';
+import { AppNav } from '@/components/app-nav';
 import { Button } from '@/components/ui/button';
+import { formatISODate, isoDate } from '@/lib/dates';
+import { getProvider } from '@/lib/providers/demo';
 import { getReviewCount } from '@/server/triage';
 
 async function ReviewBadge({ userId }: { userId: string }) {
@@ -20,6 +22,8 @@ async function ReviewBadge({ userId }: { userId: string }) {
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
+  const today = getProvider().today();
+  const isDemo = (process.env.DATA_PROVIDER ?? 'demo') === 'demo';
 
   async function doSignOut() {
     'use server';
@@ -27,75 +31,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-3 pb-12 sm:px-6">
+    <div className="mx-auto max-w-5xl px-3 pb-20 sm:px-6 sm:pb-12">
       <header className="flex items-center justify-between gap-2 py-3">
-        <nav className="flex items-center gap-1 overflow-x-auto whitespace-nowrap sm:gap-2" aria-label="Main">
-          <Link href="/dashboard" className="mr-1 text-base font-bold tracking-tight sm:text-lg">
-            Pulse<span className="text-emerald-500">Finance</span>
-          </Link>
-          <Link
-            href="/dashboard"
-            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            Dashboard
-          </Link>
-          <Link
-            href="/cards"
-            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-            data-testid="nav-cards"
-          >
-            Cards
-          </Link>
-          <Link
-            href="/triage"
-            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-            data-testid="nav-triage"
-          >
-            Review
-            <ReviewBadge userId={session.user.id} />
-          </Link>
-          <Link
-            href="/coach"
-            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-            data-testid="nav-coach"
-          >
-            Coach
-          </Link>
-          <Link
-            href="/calendar"
-            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-            data-testid="nav-calendar"
-          >
-            Calendar
-          </Link>
-          <Link
-            href="/goals"
-            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-            data-testid="nav-goals"
-          >
-            Goals
-          </Link>
-          <Link
-            href="/budgets"
-            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-            data-testid="nav-budgets"
-          >
-            Budgets
-          </Link>
-          <Link
-            href="/settings"
-            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-            data-testid="nav-settings"
-          >
-            Settings
-          </Link>
-        </nav>
+        <AppNav reviewBadge={<ReviewBadge userId={session.user.id} />} />
         <form action={doSignOut}>
           <Button variant="ghost" size="sm" type="submit">
             Sign out
           </Button>
         </form>
       </header>
+      {isDemo && (
+        <p className="mb-3 text-xs text-muted-foreground" data-testid="demo-banner">
+          Demo dataset · fictional accounts · as of {formatISODate(isoDate(today), 'long')}
+        </p>
+      )}
       <main>{children}</main>
       <footer className="mt-10 border-t pt-4 text-xs text-muted-foreground">
         Pulse Finance is an educational tool, not financial advice. Projections

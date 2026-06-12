@@ -26,6 +26,12 @@ export interface MerchantMatch {
   /** 0–10000. Known merchants ≥ 9000; ambiguous kinds (Zelle, checks) lower. */
   confidenceBps: number;
   known: boolean;
+  /**
+   * An AGGREGATE pseudo-merchant (Zelle, checks, ATM): one canonical name
+   * covers many unrelated payees, so durable merchant-wide rules must never
+   * be offered for it — one "Always" would permanently mis-file everything.
+   */
+  aggregate: boolean;
 }
 
 interface KnownMerchant {
@@ -33,6 +39,7 @@ interface KnownMerchant {
   canonical: string;
   categoryId: string;
   confidenceBps?: number; // default 9600
+  aggregate?: boolean;
 }
 
 /** Ordered: first match wins. Specific before generic. */
@@ -101,10 +108,13 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   // of truth; substring matching here once erased real spending — critic F4)
   { pattern: /^ONLINE TRANSFER/i, canonical: 'Account Transfer', categoryId: 'transfer' },
   { pattern: TRANSFER_DESCRIPTOR, canonical: 'Card Payment', categoryId: 'transfer' },
-  // Genuinely ambiguous — must go to review
-  { pattern: /^ZELLE PAYMENT/i, canonical: 'Zelle Payment', categoryId: 'uncategorized', confidenceBps: 4000 },
-  { pattern: /^CHECK #/i, canonical: 'Check', categoryId: 'uncategorized', confidenceBps: 4000 },
+  // Genuinely ambiguous — must go to review; aggregate ⇒ never offer rules
+  { pattern: /^ZELLE PAYMENT/i, canonical: 'Zelle Payment', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
+  { pattern: /^CHECK #/i, canonical: 'Check', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
 ];
+
+/** Aggregate canonical names that exist outside the ambiguous block too. */
+const AGGREGATE_CANONICALS = new Set(['ATM Withdrawal', 'Account Transfer', 'Card Payment', 'Unknown Merchant']);
 
 const DEFAULT_KNOWN_CONFIDENCE = 9600;
 const UNKNOWN_CONFIDENCE = 5000;
@@ -136,6 +146,7 @@ export function normalizeMerchant(rawDescriptor: string): MerchantMatch {
         categoryId: m.categoryId,
         confidenceBps: m.confidenceBps ?? DEFAULT_KNOWN_CONFIDENCE,
         known: true,
+        aggregate: m.aggregate ?? AGGREGATE_CANONICALS.has(m.canonical),
       };
     }
   }
@@ -145,5 +156,6 @@ export function normalizeMerchant(rawDescriptor: string): MerchantMatch {
     categoryId: 'uncategorized',
     confidenceBps: UNKNOWN_CONFIDENCE,
     known: false,
+    aggregate: !cleaned,
   };
 }

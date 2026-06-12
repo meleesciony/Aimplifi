@@ -7,15 +7,16 @@
  *  - is undoable (undo writes the INVERSE correction; created rules are removed).
  */
 import { revalidatePath } from 'next/cache';
-import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { auditLog, requireUserId } from '@/server/authz';
 import { getTriageItems, type TriageItem } from '@/server/triage';
 
-async function requireUserId(): Promise<string> {
-  const session = await auth();
-  const id = session?.user?.id;
-  if (!id) throw new Error('Unauthorized');
-  return id;
+/** Aggregate pseudo-merchants (Zelle/checks/ATM) never get merchant-wide rules. */
+function assertRuleEligible(rawDescriptor: string): void {
+  if (normalizeMerchant(rawDescriptor).aggregate) {
+    throw new Error('This merchant groups unrelated payees — rules are not offered for it');
+  }
 }
 
 async function ownedTransaction(userId: string, transactionId: string) {
@@ -53,6 +54,7 @@ export async function applyCategory(input: {
 
   let ruleId: string | null = null;
   if (input.always && txn.merchantId) {
+    assertRuleEligible(txn.rawDescriptor);
     const rule = await prisma.categorizationRule.create({
       data: {
         userId,
@@ -67,6 +69,7 @@ export async function applyCategory(input: {
       where: { id: correction.id },
       data: { becameRuleId: rule.id },
     });
+    await auditLog(userId, 'rule.create', { ruleId, merchantId: txn.merchantId, categoryId: input.categoryId });
   }
 
   await prisma.transaction.update({
@@ -86,6 +89,7 @@ export async function makeRuleFromCorrection(correctionId: string): Promise<{ ru
   if (correction.becameRuleId) return { ruleId: correction.becameRuleId };
   const txn = await ownedTransaction(userId, correction.transactionId);
   if (!txn.merchantId) return { ruleId: null };
+  assertRuleEligible(txn.rawDescriptor);
   const rule = await prisma.categorizationRule.create({
     data: {
       userId,
@@ -96,6 +100,7 @@ export async function makeRuleFromCorrection(correctionId: string): Promise<{ ru
     },
   });
   await prisma.correction.update({ where: { id: correction.id }, data: { becameRuleId: rule.id } });
+  await auditLog(userId, 'rule.create', { ruleId: rule.id, merchantId: txn.merchantId, categoryId: correction.toCategoryId });
   return { ruleId: rule.id };
 }
 
@@ -129,6 +134,11 @@ export async function applyToAllSimilar(input: {
       data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
     });
     return ids;
+  });
+  await auditLog(userId, 'rule.batch-apply', {
+    merchantId: txn.merchantId,
+    categoryId: input.categoryId,
+    affected: targets.length,
   });
 
   revalidatePath('/triage');
@@ -240,6 +250,11 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageIt
     if (correction.becameRuleId) {
       await prisma.categorizationRule.deleteMany({
         where: { id: correction.becameRuleId, userId },
+      });
+      // keep the audit lineage truthful — no pointer to a deleted rule
+      await prisma.correction.update({
+        where: { id: correction.id },
+        data: { becameRuleId: null },
       });
     }
   }
