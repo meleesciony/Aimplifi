@@ -9,7 +9,7 @@ async function ReviewBadge({ userId }: { userId: string }) {
   if (count === 0) return null;
   return (
     <span
-      className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-semibold text-white"
+      className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-800 px-1 text-[10px] font-semibold text-white"
       data-testid="review-badge"
     >
       {count}
