@@ -182,11 +182,14 @@ export function startOfMonth(date: ISODate): ISODate {
   return fromParts(y, m, 1);
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 /** Format a YYYY-MM month for humans: "Jun 2026" (long) or "Jun '26" (short). */
 export function formatMonth(ym: string, style: 'long' | 'short' = 'long'): string {
-  const m = /^(\d{4})-(\d{2})$/.exec(ym);
-  if (!m) return ym;
-  const name = MONTHS[+m[2] - 1] ?? ym;
+  const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(ym);
+  if (!m) return ym; // out-of-range/malformed input passes through unchanged
+  const name = MONTHS[+m[2] - 1];
   return style === 'long' ? `${name} ${m[1]}` : `${name} '${m[1].slice(2)}`;
 }
 
@@ -200,8 +203,6 @@ export function formatRelativeDays(today: ISODate, date: ISODate): string {
 }
 
 /** Format for display, e.g. "Mon, Jun 15". UI boundary only. */
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export function formatISODate(date: ISODate, style: 'short' | 'long' = 'short'): string {
   const { y, m, d } = parts(date);
   const base = `${DOW[dayOfWeek(date)]}, ${MONTHS[m - 1]} ${d}`;

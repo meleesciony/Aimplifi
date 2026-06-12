@@ -36,10 +36,11 @@ const flows: MonthlyFlow[] = [
 
 /** Every user-facing string the coach can emit, with representative args. */
 const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
-  { label: 'savingsRateHeadline', text: COACH_COPY.savingsRateHeadline(3197), isProjection: false },
-  { label: 'savingsRateNoIncome', text: COACH_COPY.savingsRateNoIncome(), isProjection: false },
+  { label: 'savingsRateHeadline', text: COACH_COPY.savingsRateHeadline(3197, 'May 2026'), isProjection: false },
+  { label: 'savingsRateNoIncome', text: COACH_COPY.savingsRateNoIncome('May 2026'), isProjection: false },
   { label: 'fiNumber', text: COACH_COPY.fiNumber(cents(150_000_000), 400, cents(6_000_000)), isProjection: true },
-  { label: 'savingsRateNegative', text: COACH_COPY.savingsRateHeadline(-2500), isProjection: false },
+  { label: 'savingsRateNegative', text: COACH_COPY.savingsRateHeadline(-2500, 'May 2026'), isProjection: false },
+  { label: 'sliderContext', text: COACH_COPY.sliderContext(2330, 3734, 'May 2026'), isProjection: false },
   { label: 'yearsToFI', text: COACH_COPY.yearsToFI(17, 3, 700), isProjection: true },
   { label: 'notOnTrack', text: COACH_COPY.notOnTrack(), isProjection: false },
   { label: 'coastFI', text: COACH_COPY.coastFI(25, 700), isProjection: true },
@@ -55,7 +56,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'runway', text: COACH_COPY.runway(3.2), isProjection: false },
   { label: 'lifeEnergy', text: COACH_COPY.lifeEnergy(cents(19000), 5), isProjection: true },
   { label: 'lifeEnergyFootnote', text: COACH_COPY.lifeEnergyFootnote(cents(3800)), isProjection: true },
-  { label: 'reviewImprovement', text: COACH_COPY.reviewImprovement('2026-05', 1836, 3197), isProjection: false },
+  { label: 'reviewImprovement', text: COACH_COPY.reviewImprovement('May 2026', 1836, 3197), isProjection: false },
   { label: 'reviewImprovementRunway', text: COACH_COPY.reviewImprovementRunway(3.2), isProjection: false },
   { label: 'reviewCreep', text: COACH_COPY.reviewCreep('Netflix', cents(250)), isProjection: false },
   { label: 'reviewCreepSpending', text: COACH_COPY.reviewCreepSpending(410), isProjection: false },

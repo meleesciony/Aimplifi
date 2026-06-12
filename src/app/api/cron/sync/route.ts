@@ -28,9 +28,13 @@ export async function GET(request: NextRequest) {
     } catch (e) {
       const message = e instanceof Error ? e.message : 'sync failed';
       results.push({ userId: user.id, ok: false, error: message });
-      await prisma.auditLog.create({
-        data: { userId: user.id, action: 'sync.cron.failed', meta: JSON.stringify({ message }) },
-      });
+      try {
+        await prisma.auditLog.create({
+          data: { userId: user.id, action: 'sync.cron.failed', meta: JSON.stringify({ message }) },
+        });
+      } catch {
+        // if the DB itself is down, the failure audit must not abort the sweep
+      }
     }
   }
   return NextResponse.json({ synced: results.length, results });

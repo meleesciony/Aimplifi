@@ -28,6 +28,21 @@ export interface TriageItem {
   ruleEligible: boolean;
 }
 
+/**
+ * THE batch scope — one definition shared by the count shown on the button
+ * and the rows the batch actually mutates, so they can never drift apart:
+ * exact descriptor for aggregate pseudo-merchants (Zelle/checks — "all 6 to
+ * J. Park", never "all Zelle"), merchant-wide otherwise. DECISIONS #23.
+ */
+export function similarTransactionsWhere(
+  userId: string,
+  txn: { merchantId: string | null; rawDescriptor: string; aggregate: boolean },
+) {
+  return txn.aggregate
+    ? { rawDescriptor: txn.rawDescriptor, needsReview: true, account: { userId } }
+    : { merchantId: txn.merchantId, needsReview: true, account: { userId } };
+}
+
 export async function getTriageItems(userId: string): Promise<TriageItem[]> {
   const [txns, rules] = await Promise.all([
     prisma.transaction.findMany({
@@ -62,14 +77,13 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
     const alts = [...new Set([...pool, 'dining', 'groceries', 'household', 'cash'])]
       .filter((c) => c !== suggested)
       .slice(0, 3);
-    // Batch scope: same merchant for real merchants; same EXACT descriptor for
-    // aggregates (one tap must never file unrelated Zelle payees together —
-    // cycle-2 finding; "all 6 to J. Park" is fine, "all Zelle" is not).
     const similarCount = t.merchantId
       ? await prisma.transaction.count({
-          where: aggregate
-            ? { rawDescriptor: t.rawDescriptor, needsReview: true, account: { userId } }
-            : { merchantId: t.merchantId, needsReview: true, account: { userId } },
+          where: similarTransactionsWhere(userId, {
+            merchantId: t.merchantId,
+            rawDescriptor: t.rawDescriptor,
+            aggregate,
+          }),
         })
       : 1;
     items.push({

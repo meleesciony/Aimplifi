@@ -18,12 +18,16 @@ export default async function CalendarPage({
   if (!session?.user?.id) redirect('/sign-in');
   const { today, snap, result } = await getCashNeeded(session.user.id);
   const params = await searchParams;
-  const month = /^\d{4}-\d{2}$/.test(params.month ?? '') ? params.month! : today.slice(0, 7);
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? '')
+    ? params.month!
+    : today.slice(0, 7);
 
+  // result.cards already contains every obligation (estimates included);
+  // upcoming is a SUBSET of it — spreading both double-counted (cycle-3 H1)
   const calendar = buildCashFlowCalendar({
     month,
     scheduled: snap.scheduled,
-    cardObligations: [...result.cards, ...result.upcoming],
+    cardObligations: result.cards,
   });
 
   const prev = addMonthsClamped(isoDate(`${month}-01`), -1).slice(0, 7);

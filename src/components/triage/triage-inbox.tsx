@@ -5,7 +5,8 @@
  *  - swipe RIGHT (or ✓) = accept the AI suggestion
  *  - swipe LEFT (or ⋯) = pick from 3 smart alternatives
  *  - long-press (or ⑂) = split the transaction
- *  - "apply to all N similar" batches a whole merchant in one tap
+ *  - "apply to all N similar" batches a merchant in one tap (exact-descriptor
+ *    scope for aggregate pseudo-merchants like Zelle/checks — DECISIONS #23)
  *  - universal undo (inverse corrections; created rules removed)
  *  - every correction offers a one-tap durable rule ("Always / Just this once")
  *
@@ -118,7 +119,15 @@ export function TriageInbox({
   function batchApply(item: TriageItem) {
     logInteraction('tap', `apply-to-all ${item.similarCount} ${item.merchantCanonical}`);
     const rollback = items;
-    setItems((xs) => xs.filter((x) => x.merchantId !== item.merchantId));
+    // optimistic removal mirrors the SERVER's batch scope exactly: exact
+    // descriptor for aggregates, merchant otherwise (cycle-3 H2)
+    setItems((xs) =>
+      xs.filter((x) =>
+        item.ruleEligible
+          ? x.merchantId !== item.merchantId
+          : x.rawDescriptor !== item.rawDescriptor,
+      ),
+    );
     setMode('idle');
     runAction(rollback, async () => {
       const result = await applyToAllSimilar({

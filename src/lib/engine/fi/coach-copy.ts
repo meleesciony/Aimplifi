@@ -8,19 +8,20 @@
  */
 
 import { formatCents, type Cents } from '@/lib/money';
+import { formatMonth } from '@/lib/dates';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
 
 const pct = (bps: number) => `${(bps / 100).toFixed(2)}%`;
 const pct1 = (bps: number) => `${(bps / 100).toFixed(1)}%`;
 
 export const COACH_COPY = {
-  savingsRateHeadline: (rateBps: number) =>
+  savingsRateHeadline: (rateBps: number, monthLabel: string) =>
     rateBps >= 0
-      ? `You kept ${pct(rateBps)} of your after-tax income this month — savings rate, not returns, is what moves your FI date.`
-      : `Spending outpaced income this month. One month is weather, not climate — the trend below is what matters.`,
+      ? `You kept ${pct1(rateBps)} of your after-tax income in ${monthLabel} — savings rate, not returns, is what moves your FI date.`
+      : `Spending outpaced income in ${monthLabel}. One month is weather, not climate — the trend below is what matters.`,
 
-  savingsRateNoIncome: () =>
-    `No income landed this month, so there's no savings rate to compute — the trend below still tells the story.`,
+  savingsRateNoIncome: (monthLabel: string) =>
+    `No income landed in ${monthLabel}, so there's no savings rate to compute — the trend below still tells the story.`,
 
   fiNumber: (fi: Cents, swrBps: number, annualExpenses: Cents) =>
     `Your FI number is ${formatCents(fi)}, assuming a ${pct(swrBps)} safe withdrawal rate on ${formatCents(annualExpenses)}/yr of spending — estimated from your last 6 full months × 2, so an unusual month moves it.`,
@@ -45,9 +46,9 @@ export const COACH_COPY = {
     return `${direction} your savings rate from ${pct1(fromBps)} to ${pct1(toBps)} moves FI from ~${fromYears} years out to ~${toYears} years — return assumptions unchanged.`;
   },
 
-  sliderContext: (avgBps: number, latestBps: number | null) =>
+  sliderContext: (avgBps: number, latestBps: number | null, latestMonthLabel?: string) =>
     latestBps !== null && Math.abs(latestBps - avgBps) >= 300
-      ? `The slider uses your 6-month average pace (${pct1(avgBps)}); this month alone was ${pct1(latestBps)}.`
+      ? `The slider uses your 6-month average pace (${pct1(avgBps)}); ${latestMonthLabel ?? 'your latest full month'} alone was ${pct1(latestBps)}.`
       : `The slider uses your 6-month average pace (${pct1(avgBps)}).`,
 
   opportunity: (o: Opportunity, expectedReturnBps: number) => {
@@ -83,8 +84,8 @@ export const COACH_COPY = {
   lifeEnergyFootnote: (wageCents: Cents) =>
     `Hours are computed assuming your after-tax wage of ${formatCents(wageCents)}/hr. A lens, not a judgment.`,
 
-  reviewImprovement: (month: string, fromBps: number, toBps: number) =>
-    `What improved in ${month}: savings rate moved from ${pct(fromBps)} to ${pct(toBps)}.`,
+  reviewImprovement: (monthLabel: string, fromBps: number, toBps: number) =>
+    `What improved in ${monthLabel}: savings rate moved from ${pct1(fromBps)} to ${pct1(toBps)}.`,
 
   reviewImprovementRunway: (months: number) =>
     `What held steady: your cash runway covers ${months} months of expenses — room for error is wealth working quietly.`,
@@ -132,7 +133,7 @@ export function generateMoneyReview(input: {
 
   const improvement =
     last && prev && last.savingsRateBps !== null && prev.savingsRateBps !== null && last.savingsRateBps > prev.savingsRateBps
-      ? COACH_COPY.reviewImprovement(last.month, prev.savingsRateBps, last.savingsRateBps)
+      ? COACH_COPY.reviewImprovement(formatMonth(last.month), prev.savingsRateBps, last.savingsRateBps)
       : COACH_COPY.reviewImprovementRunway(input.runwayMonths);
 
   const priceIncrease = opportunities.find((o) => o.kind === 'price-increase');

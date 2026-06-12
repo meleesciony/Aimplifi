@@ -10,7 +10,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { auditLog, requireUserId } from '@/server/authz';
-import { getTriageItems, type TriageItem } from '@/server/triage';
+import { getTriageItems, similarTransactionsWhere, type TriageItem } from '@/server/triage';
 
 /** Aggregate pseudo-merchants (Zelle/checks/ATM) never get merchant-wide rules. */
 function assertRuleEligible(rawDescriptor: string): void {
@@ -118,12 +118,14 @@ export async function applyToAllSimilar(input: {
   const txn = await ownedTransaction(userId, input.transactionId);
   if (!txn.merchantId) return applyCategory({ ...input });
 
-  // Aggregates (Zelle/checks): batch by EXACT descriptor — same payee only.
+  // SAME scope definition the button's count used (shared helper, can't drift)
   const aggregate = normalizeMerchant(txn.rawDescriptor).aggregate;
   const targets = await prisma.transaction.findMany({
-    where: aggregate
-      ? { rawDescriptor: txn.rawDescriptor, needsReview: true, account: { userId } }
-      : { merchantId: txn.merchantId, needsReview: true, account: { userId } },
+    where: similarTransactionsWhere(userId, {
+      merchantId: txn.merchantId,
+      rawDescriptor: txn.rawDescriptor,
+      aggregate,
+    }),
   });
   const correctionIds = await prisma.$transaction(async (tx) => {
     const ids: string[] = [];
@@ -235,33 +237,49 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageIt
   for (const id of correctionIds) {
     const correction = await prisma.correction.findFirst({ where: { id, userId } });
     if (!correction) continue;
-    await prisma.correction.create({
-      data: {
+    // idempotent retry: skip if this correction's inverse was already recorded
+    const alreadyUndone = await prisma.correction.findFirst({
+      where: {
         userId,
         transactionId: correction.transactionId,
         fromCategoryId: correction.toCategoryId,
         toCategoryId: correction.fromCategoryId ?? 'uncategorized',
+        createdAt: { gte: correction.createdAt },
       },
     });
-    // restore exactly what the inverse-correction record says (audit = state)
-    await prisma.transaction.updateMany({
-      where: { id: correction.transactionId, account: { userId } },
-      data: {
-        categoryId: correction.fromCategoryId ?? 'uncategorized',
-        needsReview: true,
-        confidenceBps: null,
-      },
+    if (alreadyUndone) continue;
+    // each correction's undo is atomic: inverse record + restore + rule
+    // cleanup land together or not at all, so a retried batch undo never
+    // appends duplicate inverse rows for already-undone items (cycle 3)
+    await prisma.$transaction(async (tx) => {
+      await tx.correction.create({
+        data: {
+          userId,
+          transactionId: correction.transactionId,
+          fromCategoryId: correction.toCategoryId,
+          toCategoryId: correction.fromCategoryId ?? 'uncategorized',
+        },
+      });
+      // restore exactly what the inverse-correction record says (audit = state)
+      await tx.transaction.updateMany({
+        where: { id: correction.transactionId, account: { userId } },
+        data: {
+          categoryId: correction.fromCategoryId ?? 'uncategorized',
+          needsReview: true,
+          confidenceBps: null,
+        },
+      });
+      if (correction.becameRuleId) {
+        await tx.categorizationRule.deleteMany({
+          where: { id: correction.becameRuleId, userId },
+        });
+        // keep the audit lineage truthful — no pointer to a deleted rule
+        await tx.correction.update({
+          where: { id: correction.id },
+          data: { becameRuleId: null },
+        });
+      }
     });
-    if (correction.becameRuleId) {
-      await prisma.categorizationRule.deleteMany({
-        where: { id: correction.becameRuleId, userId },
-      });
-      // keep the audit lineage truthful — no pointer to a deleted rule
-      await prisma.correction.update({
-        where: { id: correction.id },
-        data: { becameRuleId: null },
-      });
-    }
   }
   revalidatePath('/triage');
   return getTriageItems(userId);
