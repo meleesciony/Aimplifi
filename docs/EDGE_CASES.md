@@ -80,11 +80,69 @@ Calendar references use real 2026 dates (June 13, 2026 = Saturday; June 15 = Mon
 - Checking $1,000.00 with a pending −$250.00 → projection starts from effective
   **$750.00**. Test asserts pending is applied once (not again when it posts in seed).
 
-### §Seed-headline (compute in Phase 1)
-After the seed is finalized, hand-compute the expected dashboard headline (required
-amount, by-date, shortfall, recommendation) on paper from the seeded statements and
-scheduled flows, record the worked arithmetic HERE in a new subsection, then encode it
-as the golden integration test. The seed and this doc must always agree.
+### §Seed-headline (computed in Phase 1 — worked arithmetic)
+
+Seed `--asOf 2026-06-10` (Wednesday). Calendar facts: 2026-06-12 Fri, 06-15 Mon,
+06-24 Wed, 06-26 Fri, 06-28 Sun. Juneteenth (Fri 06-19) is a federal holiday but no
+due date or recommendation lands on it.
+
+**Inputs at asOf:**
+- Everyday Checking (payment account): posted **$3,400.00**, pending **−$250.00**
+  → effective start **$3,150.00** (edge case J).
+- Sapphire: statement **$2,712.33**, closed 05-18, due **06-15** (Mon), no autopay,
+  APR 24.99%. A $50.00 refund posted 05-20 (2 days after close) → informational note
+  only (edge case F); due unchanged.
+- Platinum: statement **$2,100.00**, closed 05-21, due **06-15**, autopay
+  STATEMENT_BALANCE (edge case A), APR 29.24%.
+- Freedom: statement **$1,000.00**, closed 06-01, issuer due **06-28 (Sunday)** →
+  effective **Fri 06-26** (edge case E); mid-cycle payment **$400.00** on 06-05 →
+  remaining **$600.00** (edge case B). APR 19.99%.
+- Store Card: statement NOT generated (skipped — $0 activity last cycle); current
+  balance **$43.50**; cycle closes 06-20, estimated due 07-15 → next-cycle estimate,
+  excluded from this cycle's headline, shown as upcoming (edge case C / G; DECISIONS #9).
+- Scheduled flows on checking inside the window [06-10 … 06-26]:
+  payroll **+$2,450.00** on 06-12 and 06-26 (biweekly Fridays); rent **−$1,800.00** on
+  06-24 (2 days before the second payroll Friday). The $500 savings auto-transfer
+  (next 07-01) and $385 auto-loan ACH (next 07-05) fall outside the window.
+
+**PAY_IN_FULL day walk (scheduled flows post before card draws):**
+
+| date | event | balance after |
+|---|---|---|
+| 06-10 | start 3,400.00 − 250.00 pending | **3,150.00** |
+| 06-12 | payroll +2,450.00 | 5,600.00 |
+| 06-15 | pay Sapphire 2,712.33 + Platinum 2,100.00 (= 4,812.33) | 787.67 |
+| 06-24 | rent −1,800.00 | **−1,012.33** ← first negative, worst dip |
+| 06-26 | payroll +2,450.00, then pay Freedom 600.00 | 837.67 |
+
+**Expected headline (golden test values):**
+- requiredCents = 2,712.33 + 2,100.00 + 600.00 = **$5,412.33** across **3 cards**
+- byDate = **2026-06-26** (last effective due date this cycle)
+- intraPeriodMinimum = (**2026-06-24, −$1,012.33**) — endpoint due dates are both
+  positive (787.67 and 837.67): this is a pure intra-period dip, mirror of edge case H
+- shortfallCents = **$1,012.33**, shortfallDate = **2026-06-24**
+- recommendation = round-up-to-$50(1,012.33) = **$1,050.00** by **2026-06-23**
+  (Tuesday, 1 business day before 06-24)
+- perDueDate: 06-15 → day total 4,812.33, cumulative 4,812.33, projected 787.67;
+  06-26 → day total 600.00, cumulative 5,412.33, projected 837.67
+- upcoming: Store Card estimated **$43.50** due 07-15, `isEstimated = true`
+
+**MINIMUM scenario:** minimums = max($35, 1% of statement): Sapphire $35
+(1% = 27.12), Platinum $35 (21.00), Freedom min already satisfied by the $400 payment
+→ $0. Autopay STATEMENT_BALANCE still pulls Platinum in full. Required =
+35.00 + 2,100.00 + 0 = **$2,135.00** by 06-15; walk 3,150 → 5,600 (06-12) →
+5,600 − 2,135 = 3,465.00 → **no shortfall**, recommendation null.
+Interest (v1 formula, per card, round-half-away-from-zero):
+- Sapphire: carried = 271,233 − 3,500 = 267,733¢ × 2499 / 120,000 =
+  669,064,767 / 120,000 = 5,575.54 → **$55.76**
+- Platinum: autopay pays full → carried 0 → $0.00
+- Freedom: carried = 60,000¢ (min path pays $0 more) × 1999 / 120,000 =
+  119,940,000 / 120,000 = 999.5 → rounds away from zero → **$10.00**
+- Total = **$65.76**
+
+**Net worth at asOf:** assets = 3,400 + 18,500 + 1,200 + 142,000 = 165,100.00;
+liabilities = 2,948.11 (Sapphire) + 2,260.45 (Platinum) + 743.20 (Freedom) +
+43.50 (Store) + 14,300.00 (auto loan) = 20,295.26 → net worth = **$144,804.74**.
 
 ---
 

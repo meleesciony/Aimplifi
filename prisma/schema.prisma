@@ -1,0 +1,256 @@
+// Pulse Finance — Prisma schema (Phase 1)
+//
+// Conventions (binding — see docs/PHASE_0_ARCHITECTURE.md and docs/DECISIONS.md):
+//  - All money fields are Int CENTS. Transactions: outflow negative, inflow positive.
+//    Account balances stored POSITIVE; `type` decides asset vs liability.
+//  - All business dates are String YYYY-MM-DD (10 chars), validated/manipulated only
+//    via src/lib/dates.ts. Timestamps (DateTime) exist only for audit/createdAt.
+//  - SQLite is the local/dev database (no enums, no Json type) — enum-like fields are
+//    String with the allowed values documented here and enforced by TS unions at the
+//    data layer. Schema stays portable to Postgres.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                String  @id @default(cuid())
+  email             String  @unique
+  name              String?
+  hourlyWageCents   Int? // YMOYL life-energy view (after-tax effective)
+  swrBps            Int     @default(400) // safe withdrawal rate, basis points
+  expectedReturnBps Int     @default(700) // opportunity-cost compounding
+  moneyDials        String? // JSON-encoded string[] (SQLite has no Json type)
+  paymentAccountId  String? // designated checking account for card payments
+
+  accounts  Account[]
+  rules     CategorizationRule[]
+  goals     Goal[]
+  budgets   Budget[]
+  auditLogs AuditLog[]
+}
+
+model Account {
+  id                    String  @id @default(cuid())
+  userId                String
+  provider              String // 'demo' | 'plaid'
+  providerRef           String?
+  name                  String
+  type                  String // CHECKING | SAVINGS | CREDIT | INVESTMENT | LOAN
+  mask                  String? // last 4 only — never full numbers
+  currentBalanceCents   Int // stored positive; type determines net-worth sign
+  availableBalanceCents Int?
+  creditLimitCents      Int?
+  aprBps                Int? // credit cards / loans
+  dueDayOfMonth         Int? // credit cards: issuer due day (e.g. 15, 28)
+  cycleCloseDayOfMonth  Int? // credit cards: statement close day
+
+  autopay      AutopayConfig?
+  statements   Statement[]
+  transactions Transaction[]
+  scheduled    ScheduledTransaction[]
+  snapshots    BalanceSnapshot[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AutopayConfig {
+  id               String @id @default(cuid())
+  accountId        String @unique
+  mode             String // STATEMENT_BALANCE | MINIMUM | FIXED_AMOUNT
+  fixedAmountCents Int?
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model Statement {
+  id                    String  @id @default(cuid())
+  accountId             String
+  cycleStart            String // YYYY-MM-DD
+  cycleEnd              String // YYYY-MM-DD (statement close)
+  dueDate               String // YYYY-MM-DD raw issuer due date (pre weekend-adjust)
+  statementBalanceCents Int
+  minimumPaymentCents   Int
+  isEstimated           Boolean @default(false)
+
+  payments CardPayment[]
+  account  Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, cycleEnd])
+  @@index([accountId, dueDate])
+}
+
+model CardPayment {
+  id          String @id @default(cuid())
+  statementId String
+  date        String // YYYY-MM-DD
+  amountCents Int // positive = amount paid
+  source      String // 'manual' | 'autopay' | 'detected-from-transactions'
+
+  statement Statement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id            String  @id @default(cuid())
+  accountId     String
+  providerRef   String?
+  date          String // YYYY-MM-DD
+  amountCents   Int // outflow negative, inflow positive
+  rawDescriptor String // "SQ *BLUE BOTTLE 0042 OAK"
+  merchantId    String?
+  categoryId    String?
+  confidenceBps Int? // categorization confidence, 0–10000
+  status        String  @default("POSTED") // PENDING | POSTED
+  needsReview   Boolean @default(false)
+  isTransfer    Boolean @default(false) // own-account transfers excluded from income/expense
+  splitParentId String?
+
+  account  Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  merchant Merchant? @relation(fields: [merchantId], references: [id])
+  category Category? @relation(fields: [categoryId], references: [id])
+
+  @@index([accountId, date])
+}
+
+model Merchant {
+  id                String  @id @default(cuid())
+  canonical         String  @unique // "Blue Bottle Coffee"
+  defaultCategoryId String?
+
+  patterns     MerchantPattern[]
+  transactions Transaction[]
+  recurring    RecurringSeries[]
+}
+
+model MerchantPattern {
+  id         String @id @default(cuid())
+  merchantId String
+  pattern    String
+  kind       String // PREFIX | CONTAINS | REGEX
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id       String  @id @default(cuid())
+  name     String  @unique
+  parentId String?
+  icon     String?
+  isSystem Boolean @default(false)
+
+  transactions Transaction[]
+  rules        CategorizationRule[]
+  budgets      Budget[]
+}
+
+model CategorizationRule {
+  id             String  @id @default(cuid())
+  userId         String
+  merchantId     String?
+  minAmountCents Int? // contextual conditions — all optional, ANDed
+  maxAmountCents Int?
+  weekendOnly    Boolean?
+  weekdayOnly    Boolean?
+  accountId      String?
+  categoryId     String
+  priority       Int // user rules beat merchant defaults beat suggestion
+  createdFrom    String? // correction id — provenance
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@index([userId])
+}
+
+model Correction {
+  id             String   @id @default(cuid())
+  userId         String
+  transactionId  String
+  fromCategoryId String?
+  toCategoryId   String
+  becameRuleId   String?
+  createdAt      DateTime @default(now())
+}
+
+model RecurringSeries {
+  id                 String  @id @default(cuid())
+  userId             String
+  merchantId         String
+  cadence            String // WEEKLY | BIWEEKLY | MONTHLY | ANNUAL | IRREGULAR
+  typicalAmountCents Int
+  lastAmountCents    Int
+  priceChangedAt     String? // YYYY-MM-DD
+  lastSeenAt         String // YYYY-MM-DD — drives "unused 90+ days"
+  nextExpectedAt     String? // YYYY-MM-DD
+  isSubscription     Boolean
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+
+  @@index([userId])
+}
+
+model ScheduledTransaction {
+  id          String  @id @default(cuid())
+  accountId   String
+  description String
+  amountCents Int // signed: outflow negative, inflow positive
+  nextDate    String // YYYY-MM-DD
+  cadence     String? // WEEKLY | BIWEEKLY | MONTHLY | null = one-off
+  source      String // 'payroll-detected' | 'user' | 'autopay' | 'recurring' | 'seed'
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, nextDate])
+}
+
+// Month-end balance history per account — drives the net-worth trend chart.
+// (Additive refinement over the Phase 0 draft; see docs/DECISIONS.md.)
+model BalanceSnapshot {
+  id           String @id @default(cuid())
+  accountId    String
+  date         String // YYYY-MM-DD (month end)
+  balanceCents Int // stored positive, like Account.currentBalanceCents
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, date])
+}
+
+model Goal {
+  id                       String  @id @default(cuid())
+  userId                   String
+  name                     String
+  targetCents              Int
+  savedCents               Int     @default(0)
+  targetDate               String? // YYYY-MM-DD
+  monthlyContributionCents Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Budget {
+  id         String @id @default(cuid())
+  userId     String
+  categoryId String
+  monthCents Int
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  meta      String // JSON-encoded (SQLite has no Json type)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

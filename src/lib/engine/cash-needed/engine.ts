@@ -1,0 +1,310 @@
+/**
+ * Cash-Needed Engine — THE killer feature.
+ *
+ * Pure function: typed snapshot in, typed answer out. No I/O, no Date.now(),
+ * no floats for money. Every rule here is pinned by a named unit test in
+ * tests/unit/cash-needed.test.ts against the hand-computed values in
+ * docs/EDGE_CASES.md §Cash-Needed.
+ *
+ * Binding rules (docs/PHASE_0_ARCHITECTURE.md §4, docs/DECISIONS.md):
+ *  - Effective due date = issuer due date walked BACK to the prior business day
+ *    when it falls on a weekend/holiday (conservative: funds early, never late).
+ *  - Autopay cards are INCLUDED in cash required (money must be present) but
+ *    EXCLUDED from "you must act" amounts; the autopay mode sets the amount.
+ *    A card is never double-counted: cash required = max(scenario amount, autopay amount).
+ *  - Mid-cycle payments reduce remaining due, floored at 0.
+ *  - No statement yet → obligation estimated from current balance, labeled.
+ *    Estimated obligations belong to the NEXT cycle (their close date is in the
+ *    future) and are excluded from this cycle's headline & projection — unless
+ *    there are no generated statements at all, in which case they ARE the answer.
+ *  - The projection walks day by day; the shortfall check is the running
+ *    minimum, not just due-date endpoints. Within a day: scheduled flows post
+ *    first, then card payments (documented in assumptions).
+ *  - Minimum-path interest (v1): round(carried × APR/12) per card, labeled approximate.
+ */
+
+import {
+  type Cents,
+  ZERO,
+  cents,
+  floorAtZero,
+  formatCents,
+  maxCents,
+  minCents,
+  mulBps,
+  roundHalfAwayFromZero,
+  roundUpToNext50Dollars,
+  subCents,
+  sumCents,
+} from '@/lib/money';
+import {
+  type ISODate,
+  addDays,
+  compareDates,
+  formatISODate,
+  isWeekend,
+  previousBusinessDay,
+  priorBusinessDayIfNonBusiness,
+} from '@/lib/dates';
+import type {
+  CardObligation,
+  CardSnapshot,
+  CashNeededInput,
+  CashNeededResult,
+  ObligationPoint,
+  Scenario,
+} from './types';
+
+/** Estimated minimum payment when a statement hasn't generated: max($35, 1% of balance). */
+function estimateMinimumPayment(balance: Cents): Cents {
+  return maxCents(cents(3500), roundHalfAwayFromZero(balance / 100));
+}
+
+function buildObligation(
+  card: CardSnapshot,
+  scenario: Scenario,
+  today: ISODate,
+  holidays: readonly ISODate[],
+  assumptions: Set<string>,
+): CardObligation | null {
+  const notes: string[] = [];
+  let statementBalance: Cents;
+  let minimumPayment: Cents;
+  let dueDate: ISODate;
+  let isEstimated: boolean;
+
+  if (card.statement) {
+    ({ statementBalanceCents: statementBalance, minimumPaymentCents: minimumPayment, dueDate } = card.statement);
+    isEstimated = false;
+  } else {
+    if (card.nextDueDate === undefined) return null; // nothing knowable about this card
+    statementBalance = card.currentBalanceCents;
+    minimumPayment = card.currentBalanceCents > 0 ? estimateMinimumPayment(card.currentBalanceCents) : ZERO;
+    dueDate = card.nextDueDate;
+    isEstimated = true;
+    if (statementBalance > 0) {
+      const msg = `${card.name}: statement not generated yet — due amount estimated from the current balance (${formatCents(statementBalance)}).`;
+      notes.push(msg);
+      assumptions.add(msg);
+    }
+  }
+
+  const remainingDue = floorAtZero(subCents(statementBalance, card.paymentsAppliedCents));
+  if (card.paymentsAppliedCents > 0 && statementBalance > 0) {
+    notes.push(
+      `${formatCents(card.paymentsAppliedCents)} already paid this cycle — remaining due ${formatCents(remainingDue)}.`,
+    );
+  }
+  const minimumDue = floorAtZero(
+    subCents(minCents(minimumPayment, statementBalance), card.paymentsAppliedCents),
+  );
+
+  // What this scenario asks the user to pay on this card.
+  const scenarioTarget = scenario === 'PAY_IN_FULL' ? remainingDue : minimumDue;
+
+  // What autopay will actually move, regardless of scenario.
+  let autopayAmount: Cents = ZERO;
+  if (card.autopay) {
+    switch (card.autopay.mode) {
+      case 'STATEMENT_BALANCE':
+        autopayAmount = remainingDue;
+        break;
+      case 'MINIMUM':
+        autopayAmount = minimumDue;
+        break;
+      case 'FIXED_AMOUNT':
+        autopayAmount = minCents(card.autopay.fixedAmountCents ?? ZERO, remainingDue);
+        break;
+    }
+  }
+
+  // The cash that must be present: the larger of what the scenario wants and
+  // what autopay will pull anyway. Counted exactly once.
+  const cashRequired = maxCents(scenarioTarget, autopayAmount);
+  const userAction = floorAtZero(subCents(scenarioTarget, autopayAmount));
+
+  if (card.autopay && cashRequired > 0) {
+    if (userAction === 0) {
+      notes.push(`Autopay handles this payment — ensure funds are present by the due date.`);
+    } else {
+      notes.push(
+        `Autopay covers ${formatCents(autopayAmount)}; you must pay the remaining ${formatCents(userAction)} yourself.`,
+      );
+    }
+  }
+
+  if ((card.postCloseCreditCents ?? 0) > 0) {
+    notes.push(
+      `A ${formatCents(card.postCloseCreditCents as Cents)} credit posted after statement close — it reduces your next statement, not this amount due.`,
+    );
+  }
+
+  // Effective due date: business-day walk-back, never before today.
+  let effectiveDueDate = priorBusinessDayIfNonBusiness(dueDate, holidays);
+  if (compareDates(effectiveDueDate, dueDate) !== 0) {
+    const reason = isWeekend(dueDate) ? 'a weekend' : 'a holiday';
+    const msg = `${card.name}: due date ${formatISODate(dueDate)} falls on ${reason} — treated as due ${formatISODate(effectiveDueDate)} (conservative: pay by the prior business day).`;
+    notes.push(msg);
+    assumptions.add(msg);
+  }
+  if (compareDates(effectiveDueDate, today) < 0) {
+    if (cashRequired > 0) notes.push(`Due date has passed — treated as due today.`);
+    effectiveDueDate = today;
+  }
+
+  return {
+    cardId: card.id,
+    cardName: card.name,
+    dueDate,
+    effectiveDueDate,
+    cashRequiredCents: cashRequired,
+    autopayCents: minCents(autopayAmount, cashRequired),
+    userActionCents: userAction,
+    remainingDueCents: remainingDue,
+    minimumDueCents: minimumDue,
+    isEstimated,
+    notes,
+  };
+}
+
+export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
+  const { today, scenario, holidayTable: holidays } = input;
+  const assumptions = new Set<string>();
+
+  const allObligations: CardObligation[] = [];
+  for (const card of input.cards) {
+    const ob = buildObligation(card, scenario, today, holidays, assumptions);
+    if (ob) allObligations.push(ob);
+  }
+
+  // "This cycle" = generated statements. Estimated (not-yet-generated) statements
+  // close in the future, so they are next cycle — informational unless there is
+  // no generated statement at all.
+  const real = allObligations.filter((o) => !o.isEstimated);
+  const estimated = allObligations.filter((o) => o.isEstimated);
+  const cycleObligations = real.length > 0 ? real : estimated;
+  const upcoming = real.length > 0 ? estimated : [];
+
+  const due = cycleObligations
+    .filter((o) => o.cashRequiredCents > 0)
+    .sort((a, b) => compareDates(a.effectiveDueDate, b.effectiveDueDate) || a.cardName.localeCompare(b.cardName));
+
+  const requiredCents = sumCents(due.map((o) => o.cashRequiredCents));
+  const byDate = due.length > 0 ? due[due.length - 1].effectiveDueDate : null;
+
+  // ── Day-by-day projection from today through the last due date ──
+  let startBalance = input.paymentAccount.balanceCents;
+  const pendingTotal = sumCents(input.paymentAccount.pending.map((p) => p.amountCents));
+  if (input.paymentAccount.pending.length > 0) {
+    startBalance = cents(startBalance + pendingTotal);
+    assumptions.add(
+      `${input.paymentAccount.pending.length} pending transaction(s) totaling ${formatCents(pendingTotal)} applied to today's balance once (not re-counted when they post).`,
+    );
+  }
+
+  const flowsByDate = new Map<ISODate, Cents>();
+  if (byDate) {
+    for (const s of input.scheduled) {
+      if (compareDates(s.date, today) >= 0 && compareDates(s.date, byDate) <= 0) {
+        flowsByDate.set(s.date, cents((flowsByDate.get(s.date) ?? 0) + s.amountCents));
+      }
+    }
+  }
+  const dueByDate = new Map<ISODate, CardObligation[]>();
+  for (const o of due) {
+    const list = dueByDate.get(o.effectiveDueDate) ?? [];
+    list.push(o);
+    dueByDate.set(o.effectiveDueDate, list);
+  }
+
+  let balance = startBalance;
+  let minPoint: { date: ISODate; balanceCents: Cents } | null = null;
+  let firstNegativeDate: ISODate | null = null;
+  let worstDip: Cents = ZERO;
+  const points: ObligationPoint[] = [];
+  let cumulative: Cents = ZERO;
+
+  if (byDate) {
+    assumptions.add(
+      'Within a day, scheduled deposits/withdrawals post before card payments are drawn.',
+    );
+    for (let d = today; compareDates(d, byDate) <= 0; d = addDays(d, 1)) {
+      balance = cents(balance + (flowsByDate.get(d) ?? 0));
+      const todaysCards = dueByDate.get(d);
+      if (todaysCards) {
+        const dayTotal = sumCents(todaysCards.map((o) => o.cashRequiredCents));
+        balance = subCents(balance, dayTotal);
+        cumulative = cents(cumulative + dayTotal);
+        points.push({
+          date: d,
+          cards: todaysCards.map((o) => ({
+            cardId: o.cardId,
+            cardName: o.cardName,
+            amountCents: o.cashRequiredCents,
+            autopayCents: o.autopayCents,
+            isEstimated: o.isEstimated,
+          })),
+          dayTotalCents: dayTotal,
+          cumulativeNeedCents: cumulative,
+          projectedBalanceAfterCents: balance,
+          shortfallCents: floorAtZero(cents(-balance)),
+        });
+      }
+      if (minPoint === null || balance < minPoint.balanceCents) {
+        minPoint = { date: d, balanceCents: balance };
+      }
+      if (balance < 0) {
+        if (firstNegativeDate === null) firstNegativeDate = d;
+        if (cents(-balance) > worstDip) worstDip = cents(-balance);
+      }
+    }
+  }
+
+  const recommendation =
+    worstDip > 0 && firstNegativeDate
+      ? {
+          amountCents: roundUpToNext50Dollars(worstDip),
+          byDate: previousBusinessDay(firstNegativeDate, holidays),
+        }
+      : null;
+  if (recommendation) {
+    assumptions.add(
+      'Transfer recommendation is the projected shortfall rounded UP to the next $50, timed one business day before the first short date.',
+    );
+  }
+
+  // ── Minimum-path interest (approximate, v1 formula — see DECISIONS.md #5) ──
+  let minimumPathInterestCents: Cents | null = null;
+  if (scenario === 'MINIMUM') {
+    const perCard = cycleObligations.map((o) => {
+      const card = input.cards.find((c) => c.id === o.cardId);
+      if (!card) return ZERO;
+      // Autopay STATEMENT_BALANCE pays in full regardless of scenario — no carry.
+      const actuallyPaid = maxCents(o.minimumDueCents, o.autopayCents);
+      const carried = floorAtZero(subCents(o.remainingDueCents, actuallyPaid));
+      return mulBps(carried, card.aprBps, 12);
+    });
+    minimumPathInterestCents = sumCents(perCard);
+    assumptions.add(
+      'Minimum-path interest is approximate: simple monthly interest (carried balance × APR ÷ 12); the average-daily-balance method is on the roadmap.',
+    );
+  }
+
+  return {
+    scenario,
+    headline: {
+      requiredCents,
+      byDate,
+      cardsDueCount: due.length,
+      shortfallCents: worstDip,
+      shortfallDate: firstNegativeDate,
+      recommendation,
+    },
+    perDueDate: points,
+    cards: allObligations,
+    upcoming,
+    intraPeriodMinimum: minPoint,
+    minimumPathInterestCents,
+    assumptions: [...assumptions],
+  };
+}
