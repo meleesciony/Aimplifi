@@ -102,13 +102,17 @@ export function categorize(txn: TxnInput, rules: readonly RuleLike[] = []): Cate
     };
   }
 
-  // If the user has amount-banded rules for this merchant and the amount falls
-  // outside every band, the user has declared this merchant context-dependent:
-  // the gap is genuinely ambiguous → review (EDGE_CASES §Categorization).
+  // If the user has amount-banded rules for this merchant — whose OTHER
+  // conditions (account, weekday/weekend) also apply to this transaction —
+  // and the amount falls outside every band, the user has declared this
+  // context ambiguous → review (EDGE_CASES §Categorization). Rules scoped to
+  // a different account or day must NOT poison unrelated transactions
+  // (Hostile Critic finding F5).
   const amountBanded = rules.filter(
     (r) =>
       r.merchantCanonical === merchant.canonical &&
-      (r.minAmountCents !== null || r.maxAmountCents !== null),
+      (r.minAmountCents !== null || r.maxAmountCents !== null) &&
+      ruleMatches({ ...r, minAmountCents: null, maxAmountCents: null }, txn, merchant.canonical),
   );
   if (amountBanded.length > 0) {
     return {

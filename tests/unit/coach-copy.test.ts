@@ -1,0 +1,115 @@
+/**
+ * Coach copy guardrails (docs/EDGE_CASES.md §Coach copy guardrails):
+ *  - zero shame phrases anywhere
+ *  - every projection string states its assumptions
+ *  - no security/ticker recommendations
+ * Scans EVERY string COACH_COPY can produce, with representative args.
+ */
+import { describe, expect, it } from 'vitest';
+import { COACH_COPY, generateMoneyReview } from '@/lib/engine/fi/coach-copy';
+import type { CreepResult, MonthlyFlow, Opportunity } from '@/lib/engine/fi/insights';
+import { cents } from '@/lib/money';
+
+const creepFlagged: CreepResult = {
+  flagged: true,
+  spendGrowthBps: 1240,
+  incomeGrowthBps: 10,
+  monthlyDiscretionaryCents: [],
+  windowMonths: 6,
+};
+const creepClear: CreepResult = { ...creepFlagged, flagged: false, spendGrowthBps: 20 };
+
+const opportunity = (kind: Opportunity['kind']): Opportunity => ({
+  kind,
+  merchant: 'LA Fitness',
+  monthlyCents: cents(3499),
+  fv10Cents: cents(605000),
+  fv20Cents: cents(1822000),
+  fv30Cents: cents(4267000),
+  isEstimate: kind === 'insurance-reshop' || kind === 'negotiable-bill',
+});
+
+const flows: MonthlyFlow[] = [
+  { month: '2026-04', incomeCents: cents(490000), expensesCents: cents(400000), savingsRateBps: 1836 },
+  { month: '2026-05', incomeCents: cents(735000), expensesCents: cents(500000), savingsRateBps: 3197 },
+];
+
+/** Every user-facing string the coach can emit, with representative args. */
+const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
+  { label: 'savingsRateHeadline', text: COACH_COPY.savingsRateHeadline(3197), isProjection: false },
+  { label: 'savingsRateNoIncome', text: COACH_COPY.savingsRateNoIncome(), isProjection: false },
+  { label: 'fiNumber', text: COACH_COPY.fiNumber(cents(150_000_000), 400), isProjection: true },
+  { label: 'yearsToFI', text: COACH_COPY.yearsToFI(17, 3, 700), isProjection: true },
+  { label: 'notOnTrack', text: COACH_COPY.notOnTrack(), isProjection: false },
+  { label: 'coastFI', text: COACH_COPY.coastFI(25, 700), isProjection: true },
+  { label: 'notCoastFI', text: COACH_COPY.notCoastFI(cents(120000), 25, 700), isProjection: true },
+  { label: 'sliderCaption', text: COACH_COPY.sliderCaption(2200, 3000, 23, 17), isProjection: true },
+  { label: 'opportunity:unused', text: COACH_COPY.opportunity(opportunity('unused-subscription')), isProjection: true },
+  { label: 'opportunity:price', text: COACH_COPY.opportunity(opportunity('price-increase')), isProjection: true },
+  { label: 'opportunity:insurance', text: COACH_COPY.opportunity(opportunity('insurance-reshop')), isProjection: true },
+  { label: 'opportunity:bill', text: COACH_COPY.opportunity(opportunity('negotiable-bill')), isProjection: true },
+  { label: 'moneyDials', text: COACH_COPY.moneyDials(['Travel', 'Dining Out']), isProjection: false },
+  { label: 'creepFlagged', text: COACH_COPY.creepFlagged(creepFlagged), isProjection: false },
+  { label: 'creepClear', text: COACH_COPY.creepClear(creepClear), isProjection: false },
+  { label: 'runway', text: COACH_COPY.runway(3.2), isProjection: false },
+  { label: 'lifeEnergy', text: COACH_COPY.lifeEnergy(cents(19000), 5), isProjection: true },
+  { label: 'lifeEnergyFootnote', text: COACH_COPY.lifeEnergyFootnote(cents(3800)), isProjection: true },
+  { label: 'reviewImprovement', text: COACH_COPY.reviewImprovement('2026-05', 1836, 3197), isProjection: false },
+  { label: 'reviewImprovementRunway', text: COACH_COPY.reviewImprovementRunway(3.2), isProjection: false },
+  { label: 'reviewCreep', text: COACH_COPY.reviewCreep('Netflix', cents(250)), isProjection: false },
+  { label: 'reviewCreepSpending', text: COACH_COPY.reviewCreepSpending(410), isProjection: false },
+  { label: 'nextAction:cancel', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionCancelSub('LA Fitness', cents(3499))), isProjection: false },
+  { label: 'nextAction:transfer', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionTransfer(cents(105000), 'Tue, Jun 23')), isProjection: false },
+  { label: 'nextAction:automate', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionAutomate()), isProjection: false },
+  { label: 'disclaimer', text: COACH_COPY.disclaimer(), isProjection: false },
+  ...(() => {
+    const review = generateMoneyReview({
+      flows,
+      creep: creepFlagged,
+      opportunities: [opportunity('unused-subscription'), opportunity('price-increase')],
+      runwayMonths: 3.2,
+    });
+    return [
+      { label: 'review.improvement', text: review.improvement, isProjection: false },
+      { label: 'review.creep', text: review.creep, isProjection: false },
+      { label: 'review.nextAction', text: review.nextAction, isProjection: false },
+    ];
+  })(),
+];
+
+const BANNED = [
+  /you wasted/i,
+  /stop buying/i,
+  /\bguilty\b/i,
+  /\bshame\b/i,
+  /you should have/i,
+  /\bsplurg/i,
+  /cut back on your latte/i,
+  /\birresponsib/i,
+  /\bbad with money\b/i,
+];
+
+const TICKERS = /\b(VTSAX|VTI|VOO|SPY|AAPL|TSLA|bitcoin|crypto|buy (shares|stocks?|the dip)|ticker)\b/i;
+
+describe('coach copy guardrails — zero shame, assumptions everywhere, no tickers', () => {
+  it.each(ALL_STRINGS.map((s) => [s.label, s] as const))('%s: no shame language', (_, s) => {
+    for (const banned of BANNED) {
+      expect(s.text, `"${s.text}" must not match ${banned}`).not.toMatch(banned);
+    }
+  });
+
+  it.each(
+    ALL_STRINGS.filter((s) => s.isProjection).map((s) => [s.label, s] as const),
+  )('%s: projection states its assumptions', (_, s) => {
+    expect(s.text).toMatch(/assum(es|ing|ption)/i);
+  });
+
+  it.each(ALL_STRINGS.map((s) => [s.label, s] as const))('%s: no security recommendations', (_, s) => {
+    expect(s.text).not.toMatch(TICKERS);
+  });
+
+  it('the disclaimer marks the coach as educational, not advice', () => {
+    expect(COACH_COPY.disclaimer()).toMatch(/educational/i);
+    expect(COACH_COPY.disclaimer()).toMatch(/not financial advice/i);
+  });
+});

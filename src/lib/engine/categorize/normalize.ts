@@ -10,6 +10,16 @@
  *     phone numbers, city/state suffixes → title-cased candidate, low confidence.
  */
 
+/**
+ * THE transfer-descriptor pattern. Anchored/word-bounded on purpose: substring
+ * matches silently erased real spending ("T-MOBILE PREPAY" ⊃ "EPAY",
+ * "GIFT CARD PAYMENT" ⊃ "CARD PAYMENT") — Hostile Critic finding F4.
+ * Transfer DETECTION consumes the normalizer's verdict, so the two modules
+ * cannot disagree.
+ */
+export const TRANSFER_DESCRIPTOR =
+  /\bEPAY(MENT)?\b|^PAYMENT THANK YOU\b|^ONLINE TRANSFER\b|^SYNCB STORE CARD PAYMENT\b|^AUTOPAY PAYMENT\b|^ACH WITHDRAWAL CARMAX/i;
+
 export interface MerchantMatch {
   canonical: string;
   categoryId: string;
@@ -87,9 +97,10 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^ACH WITHDRAWAL CARMAX/i, canonical: 'CarMax Auto Finance', categoryId: 'auto-loan' },
   { pattern: /^STORE CARD PURCHASE/i, canonical: 'Store Card Purchase', categoryId: 'shopping', confidenceBps: 6000 },
   { pattern: /^ATM WITHDRAWAL/i, canonical: 'ATM Withdrawal', categoryId: 'cash' },
-  // Transfers (also caught by transfer detection; belt and suspenders)
+  // Transfers — the SAME anchored pattern transfer detection uses (one source
+  // of truth; substring matching here once erased real spending — critic F4)
   { pattern: /^ONLINE TRANSFER/i, canonical: 'Account Transfer', categoryId: 'transfer' },
-  { pattern: /EPAY|PAYMENT THANK YOU|CARD PAYMENT/i, canonical: 'Card Payment', categoryId: 'transfer' },
+  { pattern: TRANSFER_DESCRIPTOR, canonical: 'Card Payment', categoryId: 'transfer' },
   // Genuinely ambiguous — must go to review
   { pattern: /^ZELLE PAYMENT/i, canonical: 'Zelle Payment', categoryId: 'uncategorized', confidenceBps: 4000 },
   { pattern: /^CHECK #/i, canonical: 'Check', categoryId: 'uncategorized', confidenceBps: 4000 },
@@ -130,7 +141,7 @@ export function normalizeMerchant(rawDescriptor: string): MerchantMatch {
   }
   const cleaned = cleanDescriptor(rawDescriptor);
   return {
-    canonical: cleaned || rawDescriptor,
+    canonical: cleaned || 'Unknown Merchant',
     categoryId: 'uncategorized',
     confidenceBps: UNKNOWN_CONFIDENCE,
     known: false,

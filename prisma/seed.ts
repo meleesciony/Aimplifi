@@ -117,6 +117,8 @@ async function main() {
         cadence: s.cadence,
         typicalAmountCents: s.typicalAmountCents,
         lastAmountCents: s.lastAmountCents,
+        previousAmountCents: s.previousAmountCents,
+        possiblyUnused: s.possiblyUnused,
         priceChangedAt: s.priceChangedAt,
         lastSeenAt: s.lastSeenAt,
         nextExpectedAt: s.nextExpectedAt,

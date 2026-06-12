@@ -110,6 +110,7 @@ model Transaction {
   status        String  @default("POSTED") // PENDING | POSTED
   needsReview   Boolean @default(false)
   isTransfer    Boolean @default(false) // own-account transfers excluded from income/expense
+  isSplitParent Boolean @default(false) // container row after a split — excluded from ALL sums
   splitParentId String?
 
   account  Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -186,6 +187,8 @@ model RecurringSeries {
   cadence            String // WEEKLY | BIWEEKLY | MONTHLY | ANNUAL | IRREGULAR
   typicalAmountCents Int
   lastAmountCents    Int
+  previousAmountCents Int? // pre-price-change amount (old vs new, EDGE_CASES §Categorization)
+  possiblyUnused     Boolean @default(false) // heuristic — surfaced as a question, never an accusation
   priceChangedAt     String? // YYYY-MM-DD
   lastSeenAt         String // YYYY-MM-DD — drives "unused 90+ days"
   nextExpectedAt     String? // YYYY-MM-DD

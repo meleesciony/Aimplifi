@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatISODate, isoDate } from '@/lib/dates';
-import { cents, formatCents } from '@/lib/money';
+import { cents, centsFromDollarString, formatCents } from '@/lib/money';
 import type { TriageItem } from '@/server/triage';
 import {
   applyCategory,
@@ -63,6 +63,7 @@ export function TriageInbox({
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [rulePrompt, setRulePrompt] = useState<RulePrompt | null>(null);
   const [splitFirstHalf, setSplitFirstHalf] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [dragX, setDragX] = useState(0);
   const dragStart = useRef<number | null>(null);
@@ -77,10 +78,26 @@ export function TriageInbox({
     setDragX(0);
   }
 
+  /** Optimistic update with rollback: a failed action restores the queue and
+   *  surfaces the error — a correction is never silently lost (critic F6). */
+  function runAction(rollback: TriageItem[], fn: () => Promise<void>) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await fn();
+      } catch (e) {
+        setItems(rollback);
+        setMode('idle');
+        setError(e instanceof Error ? e.message : 'Something went wrong — nothing was saved.');
+      }
+    });
+  }
+
   function accept(item: TriageItem, categoryId: string, via: string) {
     logInteraction(via, `accept ${item.merchantCanonical} → ${nameOf(categoryId)}`);
+    const rollback = items;
     advance();
-    startTransition(async () => {
+    runAction(rollback, async () => {
       const result = await applyCategory({ transactionId: item.id, categoryId });
       setUndoStack((s) => [
         ...s,
@@ -96,9 +113,10 @@ export function TriageInbox({
 
   function batchApply(item: TriageItem) {
     logInteraction('tap', `apply-to-all ${item.similarCount} ${item.merchantCanonical}`);
+    const rollback = items;
     setItems((xs) => xs.filter((x) => x.merchantId !== item.merchantId));
     setMode('idle');
-    startTransition(async () => {
+    runAction(rollback, async () => {
       const result = await applyToAllSimilar({
         transactionId: item.id,
         categoryId: item.suggestedCategoryId,
@@ -111,13 +129,20 @@ export function TriageInbox({
           label: `${result.affected} × ${item.merchantCanonical}`,
         },
       ]);
+      // durable rules are ALWAYS consensual — same one-tap prompt as singles
+      setRulePrompt({
+        correctionId: result.correctionIds[0],
+        merchant: item.merchantCanonical,
+        categoryName: nameOf(item.suggestedCategoryId),
+      });
     });
   }
 
   function doSplit(item: TriageItem, firstCents: number, catA: string, catB: string) {
     logInteraction('tap', `split ${item.merchantCanonical}`);
+    const rollback = items;
     advance();
-    startTransition(async () => {
+    runAction(rollback, async () => {
       const sign = item.amountCents < 0 ? -1 : 1;
       const a = sign * Math.abs(firstCents);
       const b = item.amountCents - a;
@@ -206,6 +231,15 @@ export function TriageInbox({
 
   return (
     <div className="space-y-3" data-testid="triage-inbox" data-remaining={items.length}>
+      {error && (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-300"
+          data-testid="triage-error"
+        >
+          {error} Your queue was restored.
+        </div>
+      )}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span data-testid="triage-count">{items.length} to review</span>
         {undoStack.length > 0 && (
@@ -292,27 +326,37 @@ export function TriageInbox({
         <div className="space-y-2 rounded-lg border p-3" data-testid="triage-split">
           <p className="text-sm font-medium">Split {formatCents(cents(top.amountCents))}</p>
           <div className="flex items-center gap-2">
+            <label htmlFor="split-amount" className="text-xs text-muted-foreground">
+              First part $
+            </label>
             <input
-              type="number"
+              id="split-amount"
+              type="text"
               inputMode="decimal"
-              placeholder="First part $"
-              className="w-28 rounded-md border bg-background px-2 py-1 text-sm"
+              placeholder="0.00"
+              className="w-24 rounded-md border bg-background px-2 py-1 text-sm"
               value={splitFirstHalf}
               onChange={(e) => setSplitFirstHalf(e.target.value)}
               data-testid="split-amount"
             />
-            <span className="text-xs text-muted-foreground">
-              rest → second part
-            </span>
+            <span className="text-xs text-muted-foreground">rest → second part</span>
           </div>
           <div className="flex gap-2">
             <Button
               size="sm"
               data-testid="split-confirm"
               onClick={() => {
-                const v = Math.round(parseFloat(splitFirstHalf || '0') * 100);
+                let v: number;
+                try {
+                  v = centsFromDollarString(splitFirstHalf.trim());
+                } catch {
+                  setError('Enter the first part as dollars and cents, e.g. 5.00.');
+                  return;
+                }
                 if (v > 0 && v < Math.abs(top.amountCents)) {
                   doSplit(top, v, top.suggestedCategoryId, 'shopping');
+                } else {
+                  setError('The first part must be more than $0 and less than the full amount.');
                 }
               }}
             >

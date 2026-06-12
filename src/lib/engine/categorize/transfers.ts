@@ -6,6 +6,7 @@
  * two of the user's own accounts within ±3 days.
  */
 import { daysBetween, isoDate } from '@/lib/dates';
+import { normalizeMerchant } from './normalize';
 
 export interface TransferTxn {
   id: string;
@@ -13,16 +14,19 @@ export interface TransferTxn {
   date: string;
   amountCents: number;
   rawDescriptor: string;
+  isSplitParent?: boolean;
 }
-
-const TRANSFER_DESCRIPTOR =
-  /EPAY|PAYMENT THANK YOU|ONLINE TRANSFER|CARD PAYMENT|AUTOPAY|ACH WITHDRAWAL CARMAX/i;
 
 export function detectTransfers(transactions: readonly TransferTxn[]): Set<string> {
   const transferIds = new Set<string>();
 
+  // Descriptor heuristic goes THROUGH the normalizer (one decision path —
+  // critic F4): a descriptor is transfer-like only if the merchant table says
+  // so. The auto-loan ACH is an own-obligation payment, excluded from
+  // income/expense like a transfer.
   for (const t of transactions) {
-    if (TRANSFER_DESCRIPTOR.test(t.rawDescriptor)) transferIds.add(t.id);
+    const categoryId = normalizeMerchant(t.rawDescriptor).categoryId;
+    if (categoryId === 'transfer' || categoryId === 'auto-loan') transferIds.add(t.id);
   }
 
   // Pair matching: equal/opposite amounts, different accounts, within 3 days.
@@ -55,7 +59,7 @@ export function spendingExcludingTransfers(
 ): number {
   let total = 0;
   for (const t of transactions) {
-    if (t.amountCents < 0 && !transferIds.has(t.id)) total += -t.amountCents;
+    if (t.amountCents < 0 && !transferIds.has(t.id) && !t.isSplitParent) total += -t.amountCents;
   }
   return total;
 }
@@ -67,7 +71,7 @@ export function incomeExcludingTransfers(
 ): number {
   let total = 0;
   for (const t of transactions) {
-    if (t.amountCents > 0 && !transferIds.has(t.id)) total += t.amountCents;
+    if (t.amountCents > 0 && !transferIds.has(t.id) && !t.isSplitParent) total += t.amountCents;
   }
   return total;
 }

@@ -54,6 +54,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             Review
             <ReviewBadge userId={session.user.id} />
           </Link>
+          <Link
+            href="/coach"
+            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            data-testid="nav-coach"
+          >
+            Coach
+          </Link>
         </nav>
         <form action={doSignOut}>
           <Button variant="ghost" size="sm" type="submit">

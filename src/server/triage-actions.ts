@@ -99,7 +99,12 @@ export async function makeRuleFromCorrection(correctionId: string): Promise<{ ru
   return { ruleId: rule.id };
 }
 
-/** Batch: apply a category to every review-queued transaction of the same merchant. */
+/**
+ * Batch: apply a category to every review-queued transaction of the same
+ * merchant. Does NOT create a rule — durable rules always go through the
+ * explicit "Always / Just this once" consent prompt (critic finding F3);
+ * the client offers it after the batch, wired to the first correction.
+ */
 export async function applyToAllSimilar(input: {
   transactionId: string;
   categoryId: string;
@@ -111,47 +116,57 @@ export async function applyToAllSimilar(input: {
   const targets = await prisma.transaction.findMany({
     where: { merchantId: txn.merchantId, needsReview: true, account: { userId } },
   });
-  const correctionIds: string[] = [];
-  for (const t of targets) {
-    const c = await prisma.correction.create({
-      data: { userId, transactionId: t.id, fromCategoryId: t.categoryId, toCategoryId: input.categoryId },
+  const correctionIds = await prisma.$transaction(async (tx) => {
+    const ids: string[] = [];
+    for (const t of targets) {
+      const c = await tx.correction.create({
+        data: { userId, transactionId: t.id, fromCategoryId: t.categoryId, toCategoryId: input.categoryId },
+      });
+      ids.push(c.id);
+    }
+    await tx.transaction.updateMany({
+      where: { id: { in: targets.map((t) => t.id) } },
+      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
     });
-    correctionIds.push(c.id);
-  }
-  const rule = await prisma.categorizationRule.create({
-    data: {
-      userId,
-      merchantId: txn.merchantId,
-      categoryId: input.categoryId,
-      priority: 100,
-      createdFrom: correctionIds[0],
-    },
-  });
-  await prisma.transaction.updateMany({
-    where: { id: { in: targets.map((t) => t.id) } },
-    data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
+    return ids;
   });
 
   revalidatePath('/triage');
-  return { correctionIds, ruleId: rule.id, affected: targets.length };
+  return { correctionIds, ruleId: null, affected: targets.length };
 }
 
-/** Split a transaction into parts (long-press flow). Parts must sum exactly. */
+/**
+ * Split a transaction into parts (long-press flow). Validation (critic F2):
+ * parts sum exactly, every part shares the parent's sign and is non-zero,
+ * and neither split children nor already-split parents can be split again.
+ * The parent is marked `isSplitParent` and is excluded from every aggregation
+ * (pending projection, flows, spending) — only the children count.
+ */
 export async function splitTransaction(input: {
   transactionId: string;
   parts: { amountCents: number; categoryId: string }[];
 }): Promise<{ childIds: string[] }> {
   const userId = await requireUserId();
   const txn = await ownedTransaction(userId, input.transactionId);
+  if (txn.splitParentId) throw new Error('Cannot split a split child');
+  if (txn.isSplitParent) throw new Error('Transaction is already split');
+  if (input.parts.length < 2) throw new Error('A split needs at least 2 parts');
+  const sign = Math.sign(txn.amountCents);
+  for (const p of input.parts) {
+    if (p.amountCents === 0) throw new Error('Split parts must be non-zero');
+    if (Math.sign(p.amountCents) !== sign) {
+      throw new Error('Split parts must keep the sign of the original transaction');
+    }
+  }
   const sum = input.parts.reduce((s, p) => s + p.amountCents, 0);
   if (sum !== txn.amountCents) {
     throw new Error(`Split parts must sum to the original amount (${txn.amountCents}¢), got ${sum}¢`);
   }
-  if (input.parts.length < 2) throw new Error('A split needs at least 2 parts');
 
-  const children = await Promise.all(
-    input.parts.map((p) =>
-      prisma.transaction.create({
+  const childIds = await prisma.$transaction(async (tx) => {
+    const ids: string[] = [];
+    for (const p of input.parts) {
+      const child = await tx.transaction.create({
         data: {
           accountId: txn.accountId,
           date: txn.date,
@@ -165,28 +180,32 @@ export async function splitTransaction(input: {
           isTransfer: txn.isTransfer,
           splitParentId: txn.id,
         },
-      }),
-    ),
-  );
-  // Parent becomes a container: out of review, transfer-like (excluded from sums).
-  await prisma.transaction.update({
-    where: { id: txn.id },
-    data: { needsReview: false, categoryId: null, confidenceBps: null },
+      });
+      ids.push(child.id);
+    }
+    await tx.transaction.update({
+      where: { id: txn.id },
+      data: { needsReview: false, categoryId: null, confidenceBps: null, isSplitParent: true },
+    });
+    return ids;
   });
 
   revalidatePath('/triage');
-  return { childIds: children.map((c) => c.id) };
+  return { childIds };
 }
 
 /** Undo a split: remove children, put the parent back in review. Returns the fresh queue. */
 export async function undoSplit(transactionId: string): Promise<TriageItem[]> {
   const userId = await requireUserId();
-  await ownedTransaction(userId, transactionId);
-  await prisma.transaction.deleteMany({ where: { splitParentId: transactionId } });
-  await prisma.transaction.update({
-    where: { id: transactionId },
-    data: { needsReview: true },
-  });
+  const txn = await ownedTransaction(userId, transactionId);
+  if (!txn.isSplitParent) throw new Error('Transaction is not a split parent');
+  await prisma.$transaction([
+    prisma.transaction.deleteMany({ where: { splitParentId: transactionId } }),
+    prisma.transaction.update({
+      where: { id: transactionId },
+      data: { needsReview: true, isSplitParent: false },
+    }),
+  ]);
   revalidatePath('/triage');
   return getTriageItems(userId);
 }

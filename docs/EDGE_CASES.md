@@ -175,6 +175,9 @@ liabilities = 2,948.11 (Sapphire) + 2,260.45 (Platinum) + 743.20 (Freedom) +
   end-of-month) ≈ **$153,101** — recompute exactly with the implemented formula, verify
   it lands within $153,000–$153,300, then pin the exact cent value as the regression
   expectation and record it here.
+  **Pinned (Phase 3):** FV = 18,900 × ((1 + 0.07/12)^300 − 1)/(0.07/12) =
+  **$153,103.55** (15,310,355¢) — inside the verification window; encoded in
+  `tests/unit/fi.test.ts`.
 - **Savings rate:** month with after-tax income $6,000.00 and expenses $4,200.00 →
   **30.00%**. Transfers between own accounts excluded from both sides (test with a
   $500 savings transfer present — rate unchanged).

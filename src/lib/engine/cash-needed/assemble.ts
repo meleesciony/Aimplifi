@@ -48,6 +48,8 @@ export interface TransactionLike {
   rawDescriptor: string;
   status: string;
   isTransfer: boolean;
+  /** Container row left behind by a split — its children carry the amounts. */
+  isSplitParent?: boolean;
 }
 export interface ScheduledLike {
   accountId: string;
@@ -90,8 +92,10 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
   const paymentAccount = p.accounts.find((a) => a.id === p.paymentAccountId);
   if (!paymentAccount) throw new Error(`assemble: payment account ${p.paymentAccountId} not found`);
 
+  // Split parents are containers — counting them AND their children would
+  // double-apply the amount (Hostile Critic finding F1, Phase 2 cycle 2).
   const pending: PendingTx[] = p.transactions
-    .filter((t) => t.accountId === p.paymentAccountId && t.status === 'PENDING')
+    .filter((t) => t.accountId === p.paymentAccountId && t.status === 'PENDING' && !t.isSplitParent)
     .map((t) => ({ amountCents: cents(t.amountCents), description: t.rawDescriptor }));
 
   const autopayByAccount = new Map(p.autopays.map((a) => [a.accountId, a]));
@@ -126,6 +130,7 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
               t.accountId === card.id &&
               t.status === 'POSTED' &&
               !t.isTransfer &&
+              !t.isSplitParent &&
               t.amountCents > 0 &&
               compareDates(isoDate(t.date), isoDate(current.cycleEnd)) > 0,
           )
