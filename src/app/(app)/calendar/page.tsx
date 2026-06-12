@@ -5,7 +5,7 @@ import { auth } from '@/auth';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { buildCashFlowCalendar } from '@/lib/engine/calendar/build';
-import { addMonthsClamped, formatISODate, isoDate } from '@/lib/dates';
+import { addMonthsClamped, formatISODate, formatMonth, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { getCashNeeded } from '@/server/finance';
 
@@ -38,8 +38,8 @@ export default async function CalendarPage({
           <Link href={`/calendar?month=${prev}`} className="rounded-md border px-2 py-1 hover:bg-accent" data-testid="cal-prev">
             ←
           </Link>
-          <span className="font-medium tabular-nums" data-testid="cal-month">
-            {month}
+          <span className="font-medium" data-testid="cal-month" data-month={month}>
+            {formatMonth(month)}
           </span>
           <Link href={`/calendar?month=${next}`} className="rounded-md border px-2 py-1 hover:bg-accent" data-testid="cal-next">
             →
@@ -50,8 +50,14 @@ export default async function CalendarPage({
       <Card>
         <CardHeader className="pb-2">
           <CardDescription>
-            In {formatCents(calendar.totalInCents)} · out {formatCents(calendar.totalOutCents)} ·{' '}
-            {calendar.reminderDates.length} card due date{calendar.reminderDates.length === 1 ? '' : 's'}
+            {(() => {
+              const cardCount = calendar.days.reduce(
+                (n, d) => n + d.events.filter((e) => e.kind === 'card-due').length,
+                0,
+              );
+              const dates = calendar.reminderDates.length;
+              return `In ${formatCents(calendar.totalInCents)} · out ${formatCents(calendar.totalOutCents)} · ${cardCount} card${cardCount === 1 ? '' : 's'} due across ${dates} date${dates === 1 ? '' : 's'}`;
+            })()}
           </CardDescription>
           <CardTitle className="text-base">Inflows, outflows, and card due dates</CardTitle>
         </CardHeader>

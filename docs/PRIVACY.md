@@ -13,7 +13,7 @@ fictional dataset; everything below applies fully once Plaid is connected.
   32 bytes) — applies to the dormant Plaid path; demo mode stores no tokens.
   Tokens are never logged and never sent to the client. Raw bank credentials
   never touch this system (they go to Plaid Link directly).
-- Audit log — what is logged TODAY: sign-in, data exports (CSV/PDF), goal
+- Audit log — what is logged TODAY: sign-in (best-effort — never blocks login), data exports (CSV/PDF), goal
   create/delete, rule creation and batch-apply, cron sync runs, and (dormant
   Plaid path) item link/remove. Account-deletion logging ships with the
   deletion UI (roadmap).

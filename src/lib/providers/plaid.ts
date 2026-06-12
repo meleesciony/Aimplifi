@@ -121,7 +121,11 @@ export class PlaidProvider implements DataProvider {
       await plaidPost('/item/remove', { access_token: token });
     }
     await prisma.auditLog.create({
-      data: { userId, action: 'plaid.item.remove', meta: JSON.stringify({ itemId }) },
+      data: {
+        userId,
+        action: 'plaid.item.remove',
+        meta: JSON.stringify({ itemId, tokensRevoked: tokens.length }),
+      },
     });
   }
 }

@@ -31,7 +31,8 @@ export default async function GoalsPage() {
           <CardHeader className="pb-2">
             <CardDescription>Worked example — what this page does</CardDescription>
             <CardTitle className="text-base">
-              Emergency fund: {formatCents(cents(coach.fi.annualExpensesCents / 2))} (6 months of expenses)
+              Emergency fund: {formatCents(cents(Math.round(coach.fi.annualExpensesCents / 2)))} (6
+              months of expenses)
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">

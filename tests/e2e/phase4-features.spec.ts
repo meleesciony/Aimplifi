@@ -14,7 +14,7 @@ test('calendar shows inflows, outflows, and effective card due dates on one time
   await signIn(page);
   await page.getByTestId('bottom-nav-calendar').click();
   await page.waitForURL('**/calendar');
-  await expect(page.getByTestId('cal-month')).toHaveText('2026-06');
+  await expect(page.getByTestId('cal-month')).toHaveText('Jun 2026');
 
   const list = page.getByTestId('calendar-list');
   await expect(list).toContainText('Payroll');
@@ -26,7 +26,7 @@ test('calendar shows inflows, outflows, and effective card due dates on one time
 
   // month navigation
   await page.getByTestId('cal-next').click();
-  await expect(page.getByTestId('cal-month')).toHaveText('2026-07');
+  await expect(page.getByTestId('cal-month')).toHaveText('Jul 2026');
 });
 
 test('goals: creating a goal shows its effect on the FI date', async ({ page }) => {
@@ -101,4 +101,5 @@ test('PWA: manifest is served and linked', async ({ page }) => {
   const icon = await page.request.get('/icon-192.png');
   expect(icon.status()).toBe(200);
 });
+
 

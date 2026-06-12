@@ -32,10 +32,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background text-foreground`}
-      >
+    // font variables live on <html> — globals.css applies font-sans at the
+    // html level, and CSS custom properties don't inherit upward (cycle-2 UI H1)
+    <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
+      <body className="min-h-screen bg-background text-foreground antialiased">
         {children}
       </body>
     </html>

@@ -274,7 +274,8 @@ Engine rules (binding):
 - Minimum-path interest: average daily balance method, APR/365, compounded monthly at
   cycle close, rounded to cents per cycle; tested against the hand-computed values in
   `docs/EDGE_CASES.md` (which also documents the exact formula so test values and code
-  share one definition).
+  share one definition). **[As built: superseded for v1 by DECISIONS #5 — simple
+  monthly interest, labeled approximate in the UI; ADB is ROADMAP #3.]**
 
 ## 5. Categorization engine — pipeline contract (Phase 2)
 

@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/card';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { MonthlyFlow } from '@/lib/engine/fi/insights';
+import { formatMonth } from '@/lib/dates';
 
 /**
  * Savings rate — the headline metric, displayed with the same prominence as
@@ -33,8 +34,8 @@ export function SavingsRateCard({
         </CardTitle>
         {currentRateBps !== null && avgBps !== null && (
           <p className="text-xs text-muted-foreground" data-testid="savings-rate-context">
-            {currentRateBps >= avgBps ? 'above' : 'below'} your 12-month average of{' '}
-            {(avgBps / 100).toFixed(1)}%
+            {currentRateBps > avgBps ? 'above' : currentRateBps < avgBps ? 'below' : 'matching'} your{' '}
+            {rates.length}-month average of {(avgBps / 100).toFixed(1)}%
           </p>
         )}
         <p className="text-sm text-muted-foreground">
@@ -60,8 +61,10 @@ export function SavingsRateCard({
           })}
         </div>
         <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-          <span>{recent[0]?.month}</span>
-          <span>{recent[recent.length - 1]?.month}</span>
+          <span>{recent[0] ? formatMonth(recent[0].month, 'short') : ''}</span>
+          <span>
+            {recent.length > 1 ? formatMonth(recent[recent.length - 1].month, 'short') : ''}
+          </span>
         </div>
       </CardContent>
     </Card>

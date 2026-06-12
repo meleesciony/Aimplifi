@@ -5,6 +5,7 @@
  * created by "Always" were write-only.
  */
 import { prisma } from '@/lib/db';
+import { isAggregateCanonical } from '@/lib/engine/categorize/normalize';
 import type { RuleLike } from '@/lib/engine/categorize/pipeline';
 
 export interface RuleRow {
@@ -33,6 +34,9 @@ export function toRuleLike(
   if (rule.merchantId) {
     const canonical = canonicalByMerchantId.get(rule.merchantId);
     if (!canonical) return null; // orphaned merchant reference
+    // defense in depth: aggregate pseudo-merchants never steer suggestions,
+    // even if a rule row predates the creation-time guard
+    if (isAggregateCanonical(canonical)) return null;
     merchantCanonical = canonical;
   }
   return {

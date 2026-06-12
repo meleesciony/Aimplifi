@@ -50,7 +50,8 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
       rules,
     );
     const suggested = out.categoryId === 'uncategorized' ? bestGuess(t.amountCents) : out.categoryId;
-    const ruleEligible = !normalizeMerchant(t.rawDescriptor).aggregate;
+    const aggregate = normalizeMerchant(t.rawDescriptor).aggregate;
+    const ruleEligible = !aggregate;
     const pool = suggestAlternatives({
       rawDescriptor: t.rawDescriptor,
       amountCents: t.amountCents,
@@ -61,9 +62,14 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
     const alts = [...new Set([...pool, 'dining', 'groceries', 'household', 'cash'])]
       .filter((c) => c !== suggested)
       .slice(0, 3);
+    // Batch scope: same merchant for real merchants; same EXACT descriptor for
+    // aggregates (one tap must never file unrelated Zelle payees together —
+    // cycle-2 finding; "all 6 to J. Park" is fine, "all Zelle" is not).
     const similarCount = t.merchantId
       ? await prisma.transaction.count({
-          where: { merchantId: t.merchantId, needsReview: true, account: { userId } },
+          where: aggregate
+            ? { rawDescriptor: t.rawDescriptor, needsReview: true, account: { userId } }
+            : { merchantId: t.merchantId, needsReview: true, account: { userId } },
         })
       : 1;
     items.push({

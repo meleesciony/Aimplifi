@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import { formatMonth } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
 import { getCoachData } from '@/server/coach';
 
@@ -107,10 +108,10 @@ export default async function CoachPage() {
               return (
                 <div className="flex justify-between text-[10px] text-muted-foreground" data-testid="creep-axis">
                   <span>
-                    {first.month} · {formatCents(first.amountCents)}
+                    {formatMonth(first.month, 'short')} · {formatCents(first.amountCents)}
                   </span>
                   <span>
-                    {last.month} · {formatCents(last.amountCents)}
+                    {formatMonth(last.month, 'short')} · {formatCents(last.amountCents)}
                   </span>
                 </div>
               );
@@ -136,7 +137,7 @@ export default async function CoachPage() {
       <Card data-testid="money-review-card">
         <CardHeader className="pb-2">
           <CardDescription>Monthly Money Review</CardDescription>
-          <CardTitle className="text-base">{data.review.month}</CardTitle>
+          <CardTitle className="text-base">{formatMonth(data.review.month)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p className="flex items-start gap-2" data-testid="review-improvement">

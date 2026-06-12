@@ -88,13 +88,20 @@ export function CashNeededCard({
                 </span>
               )}
               {headline.recommendation && (
-                <span className="font-medium" data-testid="transfer-recommendation">
+                <span className="font-medium text-foreground" data-testid="transfer-recommendation">
                   Transfer {formatCents(headline.recommendation.amountCents)}
                   {transferSource
                     ? ` from ${transferSource.name} (${formatCents(cents(transferSource.balanceCents))} available)`
                     : ' (e.g. from savings)'}{' '}
                   by {formatISODate(isoDate(headline.recommendation.byDate))} —{' '}
                   {formatRelativeDays(today as ISODate, headline.recommendation.byDate)}.
+                  {transferSource &&
+                    transferSource.balanceCents < headline.recommendation.amountCents && (
+                      <span className="font-normal">
+                        {' '}
+                        That account alone doesn&apos;t cover it — combine sources or move what you can.
+                      </span>
+                    )}
                 </span>
               )}
               {headline.recommendation && (

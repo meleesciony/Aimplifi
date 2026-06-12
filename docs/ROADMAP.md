@@ -21,7 +21,10 @@
 
 1. **Plaid sandbox validation** — run docs/PLAID_WALKTHROUGH.md; transaction
    ingest mapping (sign flip), liabilities→statements, webhook handler,
-   dedicated PlaidItem token table; then production OAuth flow.
+   dedicated PlaidItem token table; then production OAuth flow. Ingest MUST
+   follow the pipeline order in DECISIONS #22 (rules + transfer + recurring
+   processing on every ingested row) — the rule prompt's "future charges skip
+   review" promise depends on it.
 2. **Real authentication** — Auth.js magic link + Google; per-user onboarding
    (designate payment account, money dials, wage, SWR).
 3. **Average-daily-balance interest** for the minimum path (replaces the

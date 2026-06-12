@@ -116,6 +116,16 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
 /** Aggregate canonical names that exist outside the ambiguous block too. */
 const AGGREGATE_CANONICALS = new Set(['ATM Withdrawal', 'Account Transfer', 'Card Payment', 'Unknown Merchant']);
 
+/**
+ * Is this canonical merchant name an aggregate pseudo-merchant? Used by the
+ * RULE READ PATH as defense in depth: even a rule row written before the
+ * creation-time guard existed must never steer suggestions for an aggregate.
+ */
+export function isAggregateCanonical(canonical: string): boolean {
+  if (AGGREGATE_CANONICALS.has(canonical)) return true;
+  return KNOWN_MERCHANTS.some((m) => m.aggregate && m.canonical === canonical);
+}
+
 const DEFAULT_KNOWN_CONFIDENCE = 9600;
 const UNKNOWN_CONFIDENCE = 5000;
 

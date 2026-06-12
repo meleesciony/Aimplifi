@@ -170,14 +170,21 @@ export function TriageInbox({
     logInteraction('tap', `undo ${last.label}`);
     setUndoStack((s) => s.slice(0, -1));
     setRulePrompt(null);
+    setError(null);
     startTransition(async () => {
-      const fresh =
-        last.kind === 'corrections'
-          ? await undoCorrections(last.correctionIds)
-          : await undoSplit(last.transactionId);
-      setItems(fresh);
-      setMode('idle');
-      setDragX(0);
+      try {
+        const fresh =
+          last.kind === 'corrections'
+            ? await undoCorrections(last.correctionIds)
+            : await undoSplit(last.transactionId);
+        setItems(fresh);
+        setMode('idle');
+        setDragX(0);
+      } catch (e) {
+        // the undo opportunity must not silently vanish — restore it
+        setUndoStack((s) => [...s, last]);
+        setError(e instanceof Error ? e.message : 'Undo failed — nothing was changed.');
+      }
     });
   }
 
@@ -208,6 +215,10 @@ export function TriageInbox({
     dragStart.current = null;
     if (!top) return;
     if (dragX > 70) {
+      if (pending) {
+        setDragX(0); // visible snap-back while the previous action lands — never a silent drop
+        return;
+      }
       logInteraction('swipe', 'right');
       accept(top, top.suggestedCategoryId, 'swipe');
     } else if (dragX < -70) {
@@ -438,7 +449,10 @@ export function TriageInbox({
           onClick={() => batchApply(top)}
           data-testid="triage-batch"
         >
-          Apply “{top.suggestedCategoryName}” to all {top.similarCount} {top.merchantCanonical} items
+          <span className="truncate">
+            Apply “{top.suggestedCategoryName}” to all {top.similarCount}{' '}
+            {top.ruleEligible ? `${top.merchantCanonical} items` : 'identical payments'}
+          </span>
         </Button>
       )}
 

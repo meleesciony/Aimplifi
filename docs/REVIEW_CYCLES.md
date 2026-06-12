@@ -61,4 +61,13 @@ null-APR assumption note; aprBps-null interest disclosure.
 - **Localization** (Adapt L4): USD/en-US declared a v1 non-goal in README.
 
 ## CYCLE 1 fix verification
-(to be filled after fixes: verify output + commits)
+
+All 5 Critical and all 14 High findings fixed (Plaid ingestion itself remains
+deferred — the FINDING was the dishonest labeling, which is fixed; the feature
+is honestly roadmapped). Gate after fixes:
+`VERIFY_E2E=1 bash scripts/verify.sh` → **VERIFY GREEN: 406 unit / 18 e2e,
+typecheck + lint + build clean.** Fixes landed in 5 commits (`git log
+--oneline -5`). One regression introduced-and-caught during the cycle: a
+silent `if (pending) return` tap-drop guard (replaced with visibly disabled
+buttons), and an orphan-rule mapping that would have matched everything
+(caught by the new unit test before commit).

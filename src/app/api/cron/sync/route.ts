@@ -1,7 +1,8 @@
 /**
- * Background sync (Phase 4): Vercel-cron-compatible route. Guarded by
- * CRON_SECRET (Authorization: Bearer <secret>); queue-safe — syncAllUsers is
- * idempotent (cursor-based in the Plaid provider; no-op in demo).
+ * Background sync: Vercel-cron-compatible route, guarded by CRON_SECRET
+ * (Authorization: Bearer <secret>). Demo provider: no-op. Plaid provider:
+ * syncTransactions currently THROWS (persistence not implemented — ROADMAP #1);
+ * per-user failures are recorded and do not abort the sweep.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
@@ -18,11 +19,19 @@ export async function GET(request: NextRequest) {
   const users = await prisma.user.findMany({ select: { id: true } });
   const results = [];
   for (const user of users) {
-    const result = await provider.syncTransactions(user.id);
-    results.push({ userId: user.id, ...result });
-    await prisma.auditLog.create({
-      data: { userId: user.id, action: 'sync.cron', meta: JSON.stringify(result) },
-    });
+    try {
+      const result = await provider.syncTransactions(user.id);
+      results.push({ userId: user.id, ok: true, ...result });
+      await prisma.auditLog.create({
+        data: { userId: user.id, action: 'sync.cron', meta: JSON.stringify(result) },
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'sync failed';
+      results.push({ userId: user.id, ok: false, error: message });
+      await prisma.auditLog.create({
+        data: { userId: user.id, action: 'sync.cron.failed', meta: JSON.stringify({ message }) },
+      });
+    }
   }
   return NextResponse.json({ synced: results.length, results });
 }

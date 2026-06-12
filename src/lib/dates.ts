@@ -182,6 +182,14 @@ export function startOfMonth(date: ISODate): ISODate {
   return fromParts(y, m, 1);
 }
 
+/** Format a YYYY-MM month for humans: "Jun 2026" (long) or "Jun '26" (short). */
+export function formatMonth(ym: string, style: 'long' | 'short' = 'long'): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(ym);
+  if (!m) return ym;
+  const name = MONTHS[+m[2] - 1] ?? ym;
+  return style === 'long' ? `${name} ${m[1]}` : `${name} '${m[1].slice(2)}`;
+}
+
 /** Relative phrasing for a date vs "today": "today", "tomorrow", "in 3 days", "2 days ago". */
 export function formatRelativeDays(today: ISODate, date: ISODate): string {
   const days = daysBetween(today, date);

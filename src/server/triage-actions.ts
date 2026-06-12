@@ -118,8 +118,12 @@ export async function applyToAllSimilar(input: {
   const txn = await ownedTransaction(userId, input.transactionId);
   if (!txn.merchantId) return applyCategory({ ...input });
 
+  // Aggregates (Zelle/checks): batch by EXACT descriptor — same payee only.
+  const aggregate = normalizeMerchant(txn.rawDescriptor).aggregate;
   const targets = await prisma.transaction.findMany({
-    where: { merchantId: txn.merchantId, needsReview: true, account: { userId } },
+    where: aggregate
+      ? { rawDescriptor: txn.rawDescriptor, needsReview: true, account: { userId } }
+      : { merchantId: txn.merchantId, needsReview: true, account: { userId } },
   });
   const correctionIds = await prisma.$transaction(async (tx) => {
     const ids: string[] = [];
@@ -239,10 +243,11 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageIt
         toCategoryId: correction.fromCategoryId ?? 'uncategorized',
       },
     });
+    // restore exactly what the inverse-correction record says (audit = state)
     await prisma.transaction.updateMany({
       where: { id: correction.transactionId, account: { userId } },
       data: {
-        categoryId: correction.fromCategoryId,
+        categoryId: correction.fromCategoryId ?? 'uncategorized',
         needsReview: true,
         confidenceBps: null,
       },
