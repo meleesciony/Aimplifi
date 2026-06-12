@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
@@ -33,17 +33,27 @@ export function CardsBreakdown({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Tabs value={scenario} onValueChange={(v) => setScenario(v as typeof scenario)}>
-          <TabsList>
-            <TabsTrigger value="PAY_IN_FULL" data-testid="toggle-pay-in-full">
-              Pay in full
-            </TabsTrigger>
-            <TabsTrigger value="MINIMUM" data-testid="toggle-minimum">
-              Minimum payments
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <div className="text-sm text-muted-foreground" data-testid="scenario-summary">
+        <div role="group" aria-label="Payment scenario" className="inline-flex rounded-lg border p-0.5">
+          <Button
+            variant={scenario === 'PAY_IN_FULL' ? 'secondary' : 'ghost'}
+            size="sm"
+            aria-pressed={scenario === 'PAY_IN_FULL'}
+            onClick={() => setScenario('PAY_IN_FULL')}
+            data-testid="toggle-pay-in-full"
+          >
+            Pay in full
+          </Button>
+          <Button
+            variant={scenario === 'MINIMUM' ? 'secondary' : 'ghost'}
+            size="sm"
+            aria-pressed={scenario === 'MINIMUM'}
+            onClick={() => setScenario('MINIMUM')}
+            data-testid="toggle-minimum"
+          >
+            Minimum payments
+          </Button>
+        </div>
+        <div className="text-sm text-muted-foreground" aria-live="polite" data-testid="scenario-summary">
           {result.headline.byDate ? (
             <>
               Needs{' '}

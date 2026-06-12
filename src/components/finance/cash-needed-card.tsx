@@ -42,7 +42,7 @@ export function CashNeededCard({
     <Card data-testid="cash-needed-card" className="border-emerald-900/40">
       <CardHeader className="pb-2">
         <CardDescription>Cash needed for cards this cycle</CardDescription>
-        <CardTitle className="text-3xl sm:text-4xl" data-testid="cash-needed-amount">
+        <CardTitle className="text-3xl tabular-nums sm:text-4xl" data-testid="cash-needed-amount">
           {formatCents(headline.requiredCents)}
         </CardTitle>
         <p className="text-sm text-muted-foreground" data-testid="cash-needed-headline">

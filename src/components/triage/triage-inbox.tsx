@@ -1,0 +1,374 @@
+'use client';
+
+/**
+ * Triage inbox — built for thumbs (380px first).
+ *  - swipe RIGHT (or ✓) = accept the AI suggestion
+ *  - swipe LEFT (or ⋯) = pick from 3 smart alternatives
+ *  - long-press (or ⑂) = split the transaction
+ *  - "apply to all N similar" batches a whole merchant in one tap
+ *  - universal undo (inverse corrections; created rules removed)
+ *  - every correction offers a one-tap durable rule ("Always / Just this once")
+ *
+ * Instrumentation: every user interaction appends to window.__triageLog so the
+ * Phase 2 e2e can count interactions (<15) and map them to the documented
+ * human-time budget (<60s). See tests/e2e/phase2-triage.spec.ts.
+ */
+import { useRef, useState, useTransition } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { formatISODate, isoDate } from '@/lib/dates';
+import { cents, formatCents } from '@/lib/money';
+import type { TriageItem } from '@/server/triage';
+import {
+  applyCategory,
+  applyToAllSimilar,
+  makeRuleFromCorrection,
+  splitTransaction,
+  undoCorrections,
+  undoSplit,
+} from '@/server/triage-actions';
+
+declare global {
+  interface Window {
+    __triageLog?: { type: string; detail: string; at: number }[];
+  }
+}
+
+function logInteraction(type: string, detail: string) {
+  if (typeof window === 'undefined') return;
+  window.__triageLog = window.__triageLog ?? [];
+  window.__triageLog.push({ type, detail, at: window.__triageLog.length + 1 });
+}
+
+type UndoEntry =
+  | { kind: 'corrections'; correctionIds: string[]; label: string }
+  | { kind: 'split'; transactionId: string; label: string };
+
+interface RulePrompt {
+  correctionId: string;
+  merchant: string;
+  categoryName: string;
+}
+
+export function TriageInbox({
+  initialItems,
+  categories,
+}: {
+  initialItems: TriageItem[];
+  categories: { id: string; name: string }[];
+}) {
+  const [items, setItems] = useState(initialItems);
+  const [mode, setMode] = useState<'idle' | 'alternatives' | 'split'>('idle');
+  const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
+  const [rulePrompt, setRulePrompt] = useState<RulePrompt | null>(null);
+  const [splitFirstHalf, setSplitFirstHalf] = useState<string>('');
+  const [pending, startTransition] = useTransition();
+  const [dragX, setDragX] = useState(0);
+  const dragStart = useRef<number | null>(null);
+  const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const top = items[0];
+  const nameOf = (id: string) => categories.find((c) => c.id === id)?.name ?? id;
+
+  function advance() {
+    setItems((xs) => xs.slice(1));
+    setMode('idle');
+    setDragX(0);
+  }
+
+  function accept(item: TriageItem, categoryId: string, via: string) {
+    logInteraction(via, `accept ${item.merchantCanonical} → ${nameOf(categoryId)}`);
+    advance();
+    startTransition(async () => {
+      const result = await applyCategory({ transactionId: item.id, categoryId });
+      setUndoStack((s) => [
+        ...s,
+        { kind: 'corrections', correctionIds: result.correctionIds, label: item.merchantCanonical },
+      ]);
+      setRulePrompt({
+        correctionId: result.correctionIds[0],
+        merchant: item.merchantCanonical,
+        categoryName: nameOf(categoryId),
+      });
+    });
+  }
+
+  function batchApply(item: TriageItem) {
+    logInteraction('tap', `apply-to-all ${item.similarCount} ${item.merchantCanonical}`);
+    setItems((xs) => xs.filter((x) => x.merchantId !== item.merchantId));
+    setMode('idle');
+    startTransition(async () => {
+      const result = await applyToAllSimilar({
+        transactionId: item.id,
+        categoryId: item.suggestedCategoryId,
+      });
+      setUndoStack((s) => [
+        ...s,
+        {
+          kind: 'corrections',
+          correctionIds: result.correctionIds,
+          label: `${result.affected} × ${item.merchantCanonical}`,
+        },
+      ]);
+    });
+  }
+
+  function doSplit(item: TriageItem, firstCents: number, catA: string, catB: string) {
+    logInteraction('tap', `split ${item.merchantCanonical}`);
+    advance();
+    startTransition(async () => {
+      const sign = item.amountCents < 0 ? -1 : 1;
+      const a = sign * Math.abs(firstCents);
+      const b = item.amountCents - a;
+      await splitTransaction({
+        transactionId: item.id,
+        parts: [
+          { amountCents: a, categoryId: catA },
+          { amountCents: b, categoryId: catB },
+        ],
+      });
+      setUndoStack((s) => [...s, { kind: 'split', transactionId: item.id, label: `split ${item.merchantCanonical}` }]);
+    });
+  }
+
+  function undoLast() {
+    const last = undoStack[undoStack.length - 1];
+    if (!last) return;
+    logInteraction('tap', `undo ${last.label}`);
+    setUndoStack((s) => s.slice(0, -1));
+    setRulePrompt(null);
+    startTransition(async () => {
+      const fresh =
+        last.kind === 'corrections'
+          ? await undoCorrections(last.correctionIds)
+          : await undoSplit(last.transactionId);
+      setItems(fresh);
+      setMode('idle');
+      setDragX(0);
+    });
+  }
+
+  // ── swipe + long-press gesture handling ──
+  function onPointerDown(e: React.PointerEvent) {
+    dragStart.current = e.clientX;
+    longPress.current = setTimeout(() => {
+      logInteraction('longpress', 'split-mode');
+      setMode('split');
+      dragStart.current = null;
+    }, 500);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    if (dragStart.current === null) return;
+    const dx = e.clientX - dragStart.current;
+    if (Math.abs(dx) > 8 && longPress.current) {
+      clearTimeout(longPress.current);
+      longPress.current = null;
+    }
+    setDragX(dx);
+  }
+  function onPointerUp() {
+    if (longPress.current) {
+      clearTimeout(longPress.current);
+      longPress.current = null;
+    }
+    if (dragStart.current === null) return;
+    dragStart.current = null;
+    if (!top) return;
+    if (dragX > 70) {
+      logInteraction('swipe', 'right');
+      accept(top, top.suggestedCategoryId, 'swipe');
+    } else if (dragX < -70) {
+      logInteraction('swipe', 'left → alternatives');
+      setMode('alternatives');
+      setDragX(0);
+    } else {
+      setDragX(0);
+    }
+  }
+
+  if (!top) {
+    return (
+      <div className="rounded-xl border border-dashed p-8 text-center" data-testid="triage-empty">
+        <p className="text-lg font-medium">Inbox zero 🎉</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Nothing needs review. High-confidence transactions are filed
+          automatically — only the genuinely ambiguous ones land here.
+        </p>
+        {undoStack.length > 0 && (
+          <Button variant="outline" size="sm" className="mt-4" onClick={undoLast} data-testid="triage-undo">
+            Undo last ({undoStack[undoStack.length - 1].label})
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3" data-testid="triage-inbox" data-remaining={items.length}>
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span data-testid="triage-count">{items.length} to review</span>
+        {undoStack.length > 0 && (
+          <Button variant="ghost" size="sm" onClick={undoLast} disabled={pending} data-testid="triage-undo">
+            ↩ Undo
+          </Button>
+        )}
+      </div>
+
+      {rulePrompt && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-accent/40 px-3 py-2 text-sm"
+          data-testid="rule-prompt"
+        >
+          <span>
+            Always file <b>{rulePrompt.merchant}</b> under <b>{rulePrompt.categoryName}</b>?
+          </span>
+          <span className="flex gap-1">
+            <Button
+              size="sm"
+              variant="secondary"
+              data-testid="rule-always"
+              onClick={() => {
+                logInteraction('tap', `always-rule ${rulePrompt.merchant}`);
+                const id = rulePrompt.correctionId;
+                setRulePrompt(null);
+                startTransition(async () => {
+                  await makeRuleFromCorrection(id);
+                });
+              }}
+            >
+              Always
+            </Button>
+            <Button size="sm" variant="ghost" data-testid="rule-once" onClick={() => setRulePrompt(null)}>
+              Just this once
+            </Button>
+          </span>
+        </div>
+      )}
+
+      <Card
+        data-testid="triage-card"
+        className="touch-pan-y select-none"
+        style={{ transform: `translateX(${dragX}px) rotate(${dragX / 40}deg)`, transition: dragX === 0 ? 'transform 150ms' : 'none' }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerUp}
+      >
+        <CardContent className="space-y-2 pt-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-medium">{top.merchantCanonical}</span>
+            <span className="text-lg font-semibold tabular-nums">
+              {formatCents(cents(top.amountCents), { signDisplay: 'always' })}
+            </span>
+          </div>
+          <p className="break-all font-mono text-xs text-muted-foreground">{top.rawDescriptor}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatISODate(isoDate(top.date))} · {top.accountName}
+            {top.status === 'PENDING' && (
+              <Badge variant="outline" className="ml-1">
+                pending
+              </Badge>
+            )}
+          </p>
+          <div className="flex items-center gap-2 pt-1">
+            <span className="text-sm text-muted-foreground">Suggestion:</span>
+            <Badge data-testid="triage-suggestion">{top.suggestedCategoryName}</Badge>
+          </div>
+        </CardContent>
+      </Card>
+
+      {mode === 'alternatives' && (
+        <div className="grid grid-cols-3 gap-2" data-testid="triage-alternatives">
+          {top.alternativeIds.map((id, i) => (
+            <Button key={id} variant="outline" size="sm" onClick={() => accept(top, id, 'tap')}>
+              {top.alternativeNames[i]}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {mode === 'split' && (
+        <div className="space-y-2 rounded-lg border p-3" data-testid="triage-split">
+          <p className="text-sm font-medium">Split {formatCents(cents(top.amountCents))}</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              inputMode="decimal"
+              placeholder="First part $"
+              className="w-28 rounded-md border bg-background px-2 py-1 text-sm"
+              value={splitFirstHalf}
+              onChange={(e) => setSplitFirstHalf(e.target.value)}
+              data-testid="split-amount"
+            />
+            <span className="text-xs text-muted-foreground">
+              rest → second part
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              data-testid="split-confirm"
+              onClick={() => {
+                const v = Math.round(parseFloat(splitFirstHalf || '0') * 100);
+                if (v > 0 && v < Math.abs(top.amountCents)) {
+                  doSplit(top, v, top.suggestedCategoryId, 'shopping');
+                }
+              }}
+            >
+              Split: {top.suggestedCategoryName} + Shopping
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setMode('idle')}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          variant="outline"
+          onClick={() => {
+            logInteraction('tap', 'alternatives');
+            setMode(mode === 'alternatives' ? 'idle' : 'alternatives');
+          }}
+          data-testid="triage-more"
+        >
+          ⋯ Pick
+        </Button>
+        <Button
+          onClick={() => accept(top, top.suggestedCategoryId, 'tap')}
+          disabled={pending}
+          data-testid="triage-accept"
+        >
+          ✓ Accept
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            logInteraction('tap', 'split-mode');
+            setMode(mode === 'split' ? 'idle' : 'split');
+          }}
+          data-testid="triage-split-btn"
+        >
+          ⑂ Split
+        </Button>
+      </div>
+
+      {top.similarCount > 1 && (
+        <Button
+          variant="secondary"
+          className="w-full"
+          onClick={() => batchApply(top)}
+          data-testid="triage-batch"
+        >
+          Apply “{top.suggestedCategoryName}” to all {top.similarCount} {top.merchantCanonical} items
+        </Button>
+      )}
+
+      <p className="text-center text-xs text-muted-foreground">
+        Swipe right to accept · swipe left for options · long-press to split
+      </p>
+    </div>
+  );
+}

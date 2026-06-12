@@ -260,13 +260,17 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
     }
   }
 
-  const recommendation =
-    worstDip > 0 && firstNegativeDate
-      ? {
-          amountCents: roundUpToNext50Dollars(worstDip),
-          byDate: previousBusinessDay(firstNegativeDate, holidays),
-        }
-      : null;
+  let recommendation: { amountCents: Cents; byDate: ISODate } | null = null;
+  if (worstDip > 0 && firstNegativeDate) {
+    // One business day ahead of the first short date — but never dated in the
+    // past: if the shortfall is today (or the prior business day already
+    // passed), the answer is "transfer TODAY".
+    const ideal = previousBusinessDay(firstNegativeDate, holidays);
+    recommendation = {
+      amountCents: roundUpToNext50Dollars(worstDip),
+      byDate: compareDates(ideal, today) < 0 ? today : ideal,
+    };
+  }
   if (recommendation) {
     assumptions.add(
       'Transfer recommendation is the projected shortfall rounded UP to the next $50, timed one business day before the first short date.',

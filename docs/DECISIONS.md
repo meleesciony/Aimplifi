@@ -19,3 +19,7 @@ considered. Append-only.
 | 12 | 1 | Demo mode pins "today" via `DEMO_TODAY` env (default = seed asOf 2026-06-10) | Engines take `today` as input; keeps the seeded dataset coherent and e2e deterministic |
 | 13 | 1 | Phase 1 auth = Auth.js v5 Credentials "demo sign-in" (one click, demo user only); magic-link/Google land in Phase 4 with the security pass | Demo mode must work with zero secrets; full auth is a Phase 4 acceptance item |
 | 14 | 1 | Seed statement history balances are plausible PRNG values, not exact sums of that cycle's card transactions | Reconciliation adds heavy complexity with no Phase 1–3 test value; noted as a known limitation in STATUS |
+| 15 | 1 | Transfer recommendation byDate clamped to `today` (critic P1-1) | "Transfer by yesterday" is an impossible instruction; same-day transfer is the correct remedy |
+| 16 | 1 | Current statement = most recent with dueDate ≥ today OR an unpaid remainder (critic P1-2) | A delinquent statement is real debt due NOW, never a next-cycle estimate |
+| 17 | 2 | Mid-band amounts on a merchant with user amount-banded rules go to review | The user declared the merchant context-dependent; the gap between bands is genuinely ambiguous (EDGE_CASES §Categorization) |
+| 18 | 2 | "Possibly unused" subscription heuristic = fitness-category memberships (usage is not observable in transaction data) | Surfaced as a question to the user, never an accusation; consistent with coach guardrails |

@@ -19,8 +19,9 @@ Acceptance criteria:
 2. Every edge case in `docs/EDGE_CASES.md` §Cash-Needed has a named, passing unit test
    whose expected value matches the hand-computed value in that doc.
 3. Engine returns correct headline for the seed dataset: required amount, by-date,
-   shortfall, transfer recommendation (rounded up to next $50, dated due-date − 1
-   business day). Expected values are pre-computed in `docs/EDGE_CASES.md` §Seed-headline
+   shortfall, transfer recommendation (rounded up to next $50, dated 1 business day
+   before the first short date, never in the past — see EDGE_CASES §Seed-headline,
+   wording aligned in critic cycle 2). Expected values are pre-computed in `docs/EDGE_CASES.md` §Seed-headline
    — the seed and the doc must agree; if the seed changes, recompute by hand and update
    both.
 4. Intra-period minimum: the engine flags the seed's engineered mid-period dip (see

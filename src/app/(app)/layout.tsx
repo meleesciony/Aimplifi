@@ -2,10 +2,24 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth, signOut } from '@/auth';
 import { Button } from '@/components/ui/button';
+import { getReviewCount } from '@/server/triage';
+
+async function ReviewBadge({ userId }: { userId: string }) {
+  const count = await getReviewCount(userId);
+  if (count === 0) return null;
+  return (
+    <span
+      className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-semibold text-white"
+      data-testid="review-badge"
+    >
+      {count}
+    </span>
+  );
+}
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session?.user) redirect('/sign-in');
+  if (!session?.user?.id) redirect('/sign-in');
 
   async function doSignOut() {
     'use server';
@@ -31,6 +45,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             data-testid="nav-cards"
           >
             Cards
+          </Link>
+          <Link
+            href="/triage"
+            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            data-testid="nav-triage"
+          >
+            Review
+            <ReviewBadge userId={session.user.id} />
           </Link>
         </nav>
         <form action={doSignOut}>

@@ -62,11 +62,14 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     const sign = liabilityTypes.has(typeById.get(s.accountId) ?? '') ? -1 : 1;
     byDate.set(s.date, (byDate.get(s.date) ?? 0) + sign * s.balanceCents);
   }
+  // Today's live point replaces any same-dated snapshot; drop anything dated
+  // beyond "today" so the x-axis is strictly chronological history.
+  const current = netWorthCents(snap.accounts);
+  byDate.set(today, current);
   const netWorthTrend = [...byDate.entries()]
+    .filter(([date]) => date <= today)
     .map(([date, value]) => ({ date, netWorthCents: value }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
-  const current = netWorthCents(snap.accounts);
-  netWorthTrend.push({ date: today, netWorthCents: current });
 
   const accounts = snap.accounts.map((a) => ({
     id: a.id,

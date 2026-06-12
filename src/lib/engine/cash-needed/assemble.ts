@@ -102,14 +102,24 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
       const own = p.statements
         .filter((s) => s.accountId === card.id)
         .sort((a, b) => compareDates(isoDate(b.cycleEnd), isoDate(a.cycleEnd)));
-      const current = own.find((s) => compareDates(isoDate(s.dueDate), p.today) >= 0) ?? null;
+      const paidAgainst = (statementId: string) =>
+        p.cardPayments
+          .filter((cp) => cp.statementId === statementId)
+          .reduce((sum, cp) => sum + cp.amountCents, 0);
+      // Current obligation = the most recent statement that is either not yet
+      // due OR still carries an unpaid remainder (delinquent statements must
+      // NEVER vanish into the estimate path — Hostile Critic finding P1-2).
+      const current =
+        own.find(
+          (s) =>
+            compareDates(isoDate(s.dueDate), p.today) >= 0 ||
+            s.statementBalanceCents - paidAgainst(s.id) > 0,
+        ) ?? null;
 
       let paymentsApplied = 0;
       let postCloseCredit = 0;
       if (current) {
-        paymentsApplied = p.cardPayments
-          .filter((cp) => cp.statementId === current.id)
-          .reduce((sum, cp) => sum + cp.amountCents, 0);
+        paymentsApplied = paidAgainst(current.id);
         postCloseCredit = p.transactions
           .filter(
             (t) =>

@@ -171,9 +171,7 @@ const DISCRETIONARY: { raw: string; bucket: Bucket; min: number; max: number }[]
   { raw: 'WAFFLE HOUSE 1042 ATL', bucket: 'dining', min: 900, max: 2400 },
   { raw: 'TRADER JOE S #735', bucket: 'grocery', min: 2400, max: 9800 },
   { raw: 'CHEVRON 0093552 SMYRNA', bucket: 'fuel', min: 2600, max: 6000 },
-  { raw: 'ZELLE PAYMENT TO J. PARK', bucket: 'misc', min: 2000, max: 12000 },
   { raw: 'ATM WITHDRAWAL 00482 PEACHTREE ST', bucket: 'misc', min: 4000, max: 12000 },
-  { raw: 'CHECK #1042', bucket: 'misc', min: 5000, max: 22000 },
   { raw: 'SPIRIT HALLOWEEN 80012', bucket: 'shopping', min: 1800, max: 7500 },
 ];
 
@@ -355,6 +353,21 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
     m = addMonthsClamped(m, 1);
   }
 
+  // ── occasional genuinely-ambiguous items (checks, Zelle) ──
+  // Sparse and realistic: one personal check every other month (incrementing
+  // numbers) and a Zelle every third month. These are the items that SHOULD
+  // land in the triage inbox — kept rare so the 60-day review rate stays <5%.
+  {
+    let checkNo = 1031;
+    let i = 0;
+    for (const t of monthCursor(18)) {
+      i++;
+      if (compareDates(t, asOf) > 0) continue;
+      if (i % 2 === 0) addTxn('acct-checking', t, -randInt(5000, 22000), `CHECK #${++checkNo}`);
+      if (i % 3 === 0) addTxn('acct-checking', t, -randInt(2000, 12000), 'ZELLE PAYMENT TO J. PARK');
+    }
+  }
+
   // ── statements: 18 months per card; current cycle pinned to EDGE_CASES values ──
   const statements: SeedStatement[] = [];
   const cardPayments: SeedCardPayment[] = [];
@@ -510,7 +523,11 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
       const monthStart = addMonthsClamped(isoDate(`${asOf.slice(0, 7)}-01`), -back);
       const y = +monthStart.slice(0, 4);
       const mo = +monthStart.slice(5, 7);
-      const date = isoDate(`${monthStart.slice(0, 7)}-${String(daysInMonth(y, mo)).padStart(2, '0')}`);
+      // current month's snapshot is dated asOf (never a future month-end)
+      const date =
+        back === 0
+          ? asOf
+          : isoDate(`${monthStart.slice(0, 7)}-${String(daysInMonth(y, mo)).padStart(2, '0')}`);
       const progress = (17 - back) / 17;
       const base = d.start + (d.end - d.start) * progress;
       const noise = (rand() - 0.5) * d.noise * (back === 0 ? 0 : 1);

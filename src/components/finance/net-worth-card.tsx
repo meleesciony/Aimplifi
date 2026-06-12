@@ -37,7 +37,7 @@ export function NetWorthCard({
     <Card data-testid="net-worth-card">
       <CardHeader className="pb-2">
         <CardDescription>Net worth (assets − liabilities)</CardDescription>
-        <CardTitle className="text-2xl sm:text-3xl" data-testid="net-worth-amount">
+        <CardTitle className="text-2xl tabular-nums sm:text-3xl" data-testid="net-worth-amount">
           {formatCents(cents(current))}
         </CardTitle>
       </CardHeader>
@@ -66,8 +66,7 @@ export function NetWorthCard({
           </ResponsiveContainer>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Trend uses month-end balances across all accounts. Wealth is what you
-          don&apos;t see — steady beats flashy.
+          Trend uses month-end balances across all accounts.
         </p>
       </CardContent>
     </Card>
