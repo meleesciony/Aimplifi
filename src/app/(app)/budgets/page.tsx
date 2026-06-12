@@ -26,6 +26,7 @@ export default async function BudgetsPage() {
         date: { startsWith: month },
         isTransfer: false,
         isSplitParent: false,
+        status: 'POSTED', // same inclusion rule as every other aggregation
         amountCents: { lt: 0 },
       },
     }),

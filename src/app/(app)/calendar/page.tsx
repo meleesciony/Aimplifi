@@ -4,11 +4,9 @@ import { auth } from '@/auth';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { buildCashFlowCalendar } from '@/lib/engine/calendar/build';
-import { assembleCashNeededInput } from '@/lib/engine/cash-needed/assemble';
-import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
-import { addMonthsClamped, formatISODate, holidayTable, isoDate } from '@/lib/dates';
+import { addMonthsClamped, formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
-import { getProvider } from '@/lib/providers/demo';
+import { getCashNeeded } from '@/server/finance';
 
 export default async function CalendarPage({
   searchParams,
@@ -17,27 +15,9 @@ export default async function CalendarPage({
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
-  const provider = getProvider();
-  const today = provider.today();
-  const snap = await provider.getFinanceSnapshot(session.user.id);
+  const { today, snap, result } = await getCashNeeded(session.user.id);
   const params = await searchParams;
   const month = /^\d{4}-\d{2}$/.test(params.month ?? '') ? params.month! : today.slice(0, 7);
-
-  const year = Number(today.slice(0, 4));
-  const result = computeCashNeeded(
-    assembleCashNeededInput({
-      today,
-      scenario: 'PAY_IN_FULL',
-      paymentAccountId: snap.paymentAccountId ?? snap.accounts[0].id,
-      accounts: snap.accounts,
-      autopays: snap.autopays,
-      statements: snap.statements,
-      cardPayments: snap.cardPayments,
-      transactions: snap.transactions,
-      scheduled: snap.scheduled,
-      holidayTable: holidayTable(year - 1, year + 1),
-    }),
-  );
 
   const calendar = buildCashFlowCalendar({
     month,

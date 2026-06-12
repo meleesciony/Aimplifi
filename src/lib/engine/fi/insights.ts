@@ -20,6 +20,8 @@ export interface TxnLike {
   accountId: string;
   isTransfer: boolean;
   status: string;
+  /** Stored category (reflects user corrections). Preferred over re-categorizing. */
+  categoryId?: string | null;
   /** Container rows from splits are excluded; their CHILDREN carry the amounts. */
   isSplitParent?: boolean;
   splitParentId?: string | null;
@@ -154,13 +156,19 @@ export function detectLifestyleCreep(
       income.set(month, income.get(month)! + t.amountCents);
       continue;
     }
-    const cat = categorize({
-      rawDescriptor: t.rawDescriptor,
-      amountCents: t.amountCents,
-      date: t.date,
-      accountId: t.accountId,
-    });
-    if (CATEGORY_BY_ID.get(cat.categoryId)?.discretionary) {
+    // The STORED category is the truth — it reflects the user's triage
+    // corrections (cycle-1 H2: re-categorizing here ignored them, so budgets
+    // and the creep detector could permanently disagree). The pipeline is
+    // only a fallback for uncategorized rows.
+    const categoryId =
+      t.categoryId ??
+      categorize({
+        rawDescriptor: t.rawDescriptor,
+        amountCents: t.amountCents,
+        date: t.date,
+        accountId: t.accountId,
+      }).categoryId;
+    if (CATEGORY_BY_ID.get(categoryId)?.discretionary) {
       discSpend.set(month, discSpend.get(month)! - t.amountCents);
     }
   }

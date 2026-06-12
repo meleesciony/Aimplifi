@@ -38,7 +38,7 @@ describe('C2 — the rule loader bridges merchantId → canonical', () => {
   it('the loaded rule actually changes the next matching suggestion (the loop is closed)', () => {
     const out = categorize(
       { rawDescriptor: 'STARBUCKS 800-782-7282', amountCents: -500, date: '2026-06-08', accountId: 'a' },
-      [toRuleLike(row, canonicalById)],
+      [toRuleLike(row, canonicalById)!],
     );
     expect(out.categoryId).toBe('entertainment');
     expect(out.source).toBe('user-rule');

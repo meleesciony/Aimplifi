@@ -3,11 +3,12 @@
  * All entry points take the session userId; every underlying query is
  * row-ownership scoped in the provider.
  */
-import { holidayTable } from '@/lib/dates';
+import { holidayTable, type ISODate } from '@/lib/dates';
 import { assembleCashNeededInput, netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { getProvider } from '@/lib/providers/demo';
+import type { FinanceSnapshot } from '@/lib/providers/types';
 import type { Cents } from '@/lib/money';
 import { cents } from '@/lib/money';
 
@@ -26,22 +27,31 @@ export interface DashboardData {
   accounts: { id: string; name: string; type: string; currentBalanceCents: number; mask: string | null }[];
 }
 
-export async function getDashboardData(userId: string): Promise<DashboardData> {
-  const provider = getProvider();
-  const today = provider.today();
-  const snap = await provider.getFinanceSnapshot(userId);
-
+/**
+ * THE payment-account resolution — one definition (cycle-1 H1: three pages
+ * had drifted copies that could disagree about which account "the answer"
+ * is computed against).
+ */
+export function resolvePaymentAccount(snap: FinanceSnapshot) {
   const paymentAccount =
     snap.accounts.find((a) => a.id === snap.paymentAccountId) ??
     snap.accounts.find((a) => a.type === 'CHECKING') ??
     snap.accounts[0];
   if (!paymentAccount) throw new Error('No accounts found — run `npx prisma db seed`.');
+  return paymentAccount;
+}
 
+/** THE cash-needed assembly — every page goes through this one path. */
+export function cashNeededFromSnapshot(
+  snap: FinanceSnapshot,
+  today: ISODate,
+  scenario: 'PAY_IN_FULL' | 'MINIMUM' = 'PAY_IN_FULL',
+) {
   const year = Number(today.slice(0, 4));
   const input = assembleCashNeededInput({
     today,
-    scenario: 'PAY_IN_FULL',
-    paymentAccountId: paymentAccount.id,
+    scenario,
+    paymentAccountId: resolvePaymentAccount(snap).id,
     accounts: snap.accounts,
     autopays: snap.autopays,
     statements: snap.statements,
@@ -50,8 +60,23 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     scheduled: snap.scheduled,
     holidayTable: holidayTable(year - 1, year + 1),
   });
+  return { input, result: computeCashNeeded(input) };
+}
 
-  const payInFull = computeCashNeeded(input);
+export async function getCashNeeded(userId: string, scenario: 'PAY_IN_FULL' | 'MINIMUM' = 'PAY_IN_FULL') {
+  const provider = getProvider();
+  const today = provider.today();
+  const snap = await provider.getFinanceSnapshot(userId);
+  return { today, snap, ...cashNeededFromSnapshot(snap, today, scenario) };
+}
+
+export async function getDashboardData(userId: string): Promise<DashboardData> {
+  const provider = getProvider();
+  const today = provider.today();
+  const snap = await provider.getFinanceSnapshot(userId);
+  const paymentAccount = resolvePaymentAccount(snap);
+
+  const { input, result: payInFull } = cashNeededFromSnapshot(snap, today, 'PAY_IN_FULL');
   const minimum = computeCashNeeded({ ...input, scenario: 'MINIMUM' });
 
   // Net-worth trend from month-end snapshots (assets − liabilities per date).

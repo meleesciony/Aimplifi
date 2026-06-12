@@ -7,10 +7,8 @@
  *  - liquid (runway) = checking + savings balances
  */
 import { isoDate, addMonthsClamped } from '@/lib/dates';
-import { type Cents, cents } from '@/lib/money';
-import { holidayTable } from '@/lib/dates';
-import { assembleCashNeededInput } from '@/lib/engine/cash-needed/assemble';
-import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
+import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
+import { cashNeededFromSnapshot } from '@/server/finance';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { coastFI, fiNumberCents, monthsToFI } from '@/lib/engine/fi/fi';
 import {
@@ -73,6 +71,7 @@ export async function getCoachData(userId: string): Promise<CoachData> {
     isTransfer: t.isTransfer,
     status: t.status,
     isSplitParent: t.isSplitParent ?? false,
+    categoryId: (t as { categoryId?: string | null }).categoryId ?? null,
     splitParentId: (t as { splitParentId?: string | null }).splitParentId ?? null,
   }));
 
@@ -85,8 +84,9 @@ export async function getCoachData(userId: string): Promise<CoachData> {
   const expenses6 = last6.reduce((s, f) => s + f.expensesCents, 0);
   const income6 = last6.reduce((s, f) => s + f.incomeCents, 0);
   const annualExpenses = cents(expenses6 * 2);
-  const monthlySavings = cents(Math.round((income6 - expenses6) / Math.max(1, last6.length)));
-  const monthlyIncome = cents(Math.round(income6 / Math.max(1, last6.length)));
+  // documented rounding rule, not Math.round (half-toward-+∞ on negatives)
+  const monthlySavings = roundHalfAwayFromZero((income6 - expenses6) / Math.max(1, last6.length));
+  const monthlyIncome = roundHalfAwayFromZero(income6 / Math.max(1, last6.length));
 
   const portfolio = cents(
     snap.accounts.filter((a) => a.type === 'INVESTMENT').reduce((s, a) => s + a.currentBalanceCents, 0),
@@ -128,21 +128,8 @@ export async function getCoachData(userId: string): Promise<CoachData> {
     }));
 
   // the Money Review's "one next action" prefers the live cash-needed remedy
-  const year = Number(today.slice(0, 4));
-  const cash = computeCashNeeded(
-    assembleCashNeededInput({
-      today,
-      scenario: 'PAY_IN_FULL',
-      paymentAccountId: snap.paymentAccountId ?? snap.accounts[0].id,
-      accounts: snap.accounts,
-      autopays: snap.autopays,
-      statements: snap.statements,
-      cardPayments: snap.cardPayments,
-      transactions: snap.transactions,
-      scheduled: snap.scheduled,
-      holidayTable: holidayTable(year - 1, year + 1),
-    }),
-  );
+  // (single shared assembly path — cycle-1 H1)
+  const { result: cash } = cashNeededFromSnapshot(snap, today, 'PAY_IN_FULL');
   const review = generateMoneyReview({
     flows,
     creep,
