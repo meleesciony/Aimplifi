@@ -48,3 +48,7 @@ dev.db-journal
 /test-results/
 /playwright-report/
 _server*.log
+
+# scratch/probe artifacts
+_*
+*.tsbuildinfo
