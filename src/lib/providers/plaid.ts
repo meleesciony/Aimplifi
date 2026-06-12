@@ -1,16 +1,19 @@
 /**
- * PlaidProvider (Phase 4) — DORMANT until PLAID_CLIENT_ID/PLAID_SECRET are set
- * and DATA_PROVIDER=plaid. Implements the documented Plaid API flows:
+ * PlaidProvider — DORMANT, and honestly labeled: a PARTIAL SCAFFOLD, not an
+ * implementation (adversarial review cycle 1, finding C3).
+ *
+ * Implemented (untested against a live sandbox):
  *   - POST /link/token/create → Link token for the client SDK
- *   - POST /item/public_token/exchange → access_token (encrypted at rest)
- *   - POST /transactions/sync → cursor-based added/modified/removed
- *   - POST /liabilities/get → credit-card statement data (statement balance,
- *     minimum payment, due date) mapped onto the Statement model
+ *   - POST /item/public_token/exchange → access token, AES-256-GCM encrypted
  *   - POST /item/remove → part of the data-deletion path (docs/PRIVACY.md)
  *
- * STATUS: UNVERIFIED — this build environment has no Plaid sandbox
- * credentials, so these calls are implemented against the documented API and
- * exercised only by the manual walkthrough in docs/PLAID_WALKTHROUGH.md.
+ * NOT IMPLEMENTED (ROADMAP #1 — calling these throws rather than silently
+ * doing nothing):
+ *   - /transactions/sync persistence: mapping Plaid rows into Transaction
+ *     records (incl. the outflow-sign flip), per-item cursor storage
+ *   - /liabilities/get → Statement mapping
+ *   - rules/transfer/recurring processing on ingest
+ *
  * Demo mode is unaffected: the DataProvider seam keeps this code dormant.
  */
 import { type ISODate, isoDate } from '@/lib/dates';
@@ -84,29 +87,15 @@ export class PlaidProvider implements DataProvider {
     });
   }
 
-  async syncTransactions(userId: string, cursor?: string): Promise<SyncResult> {
-    const tokens = await loadAccessTokens(userId);
-    let added = 0;
-    let modified = 0;
-    let removed = 0;
-    let nextCursor: string | null = cursor ?? null;
-    for (const token of tokens) {
-      const result = await plaidPost<{
-        added: unknown[];
-        modified: unknown[];
-        removed: unknown[];
-        next_cursor: string;
-        has_more: boolean;
-      }>('/transactions/sync', { access_token: token, cursor });
-      added += result.added.length;
-      modified += result.modified.length;
-      removed += result.removed.length;
-      nextCursor = result.next_cursor;
-      // Mapping into Transaction rows mirrors the demo shape (date, amountCents
-      // with outflow-negative sign flip — Plaid uses outflow-positive! —
-      // rawDescriptor from `name`/`merchant_name`).
-    }
-    return { added, modified, removed, nextCursor };
+  async syncTransactions(): Promise<SyncResult> {
+    // Refusing to pretend: fetching without persisting would report a
+    // "successful" sync that stores nothing (cycle-1 finding C3). Fails loudly
+    // until the ingestion trunk lands (ROADMAP #1).
+    throw new Error(
+      'PlaidProvider.syncTransactions is not implemented: transaction persistence, ' +
+        'per-item cursors, and liabilities→Statement mapping are ROADMAP #1. ' +
+        'See docs/PLAID_WALKTHROUGH.md.',
+    );
   }
 
   async listAccounts(userId: string) {
@@ -145,10 +134,17 @@ export class PlaidProvider implements DataProvider {
  */
 async function storeAccessToken(userId: string, itemId: string, accessToken: string): Promise<void> {
   const encrypted = encryptToken(accessToken);
-  await prisma.account.updateMany({
+  const result = await prisma.account.updateMany({
     where: { userId, provider: 'plaid' },
     data: { providerRef: `${itemId}::${encrypted}` },
   });
+  if (result.count === 0) {
+    // Never silently drop a token (cycle-1 C3): with no plaid account rows yet
+    // there is nowhere to store it — fail the exchange instead of "succeeding".
+    throw new Error(
+      'No plaid accounts exist for this user yet — account rows must be created before token storage (ROADMAP #1).',
+    );
+  }
 }
 
 async function loadAccessTokens(userId: string): Promise<string[]> {

@@ -78,7 +78,9 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
 
       {/* bottom tab bar — phones only */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-background/95 backdrop-blur sm:hidden"
+        // pointer-events-none on the strip so content scrolled flush to the
+        // viewport bottom stays clickable; links re-enable their own events
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex border-t bg-background/95 backdrop-blur sm:hidden"
         aria-label="Primary"
         data-testid="bottom-nav"
       >
@@ -91,7 +93,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
               href={item.href}
               aria-current={active ? 'page' : undefined}
               data-testid={`bottom-${item.testid}`}
-              className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] ${
+              className={`pointer-events-auto relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] ${
                 active ? 'text-emerald-500' : 'text-muted-foreground'
               }`}
             >

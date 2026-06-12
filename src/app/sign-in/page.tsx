@@ -44,8 +44,9 @@ export default async function SignInPage() {
             </Button>
           </form>
           <p className="text-xs text-muted-foreground">
-            Demo mode uses a realistic seeded dataset — no bank credentials, no
-            sign-up. Bank connections (Plaid) arrive in a later phase.
+            Demo mode uses a realistic seeded dataset — fictional accounts, no
+            bank credentials, no sign-up. Live bank connections activate when
+            Plaid is configured (see Settings).
           </p>
         </CardContent>
       </Card>

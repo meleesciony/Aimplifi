@@ -97,7 +97,9 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
 5. **A card payment in transit that is recorded nowhere** (neither CardPayment
    row nor pending debit) is conservatively double-demanded (full statement +
    money still in checking). Documented behavior (critic scenario S2).
-6. **WCAG AA is not yet audited** — axe + contrast pass is Phase 5 per PHASES.md.
+6. WCAG AA: axe (wcag2a/aa + wcag21a/aa tags) passes on all core pages plus a
+   keyboard-only flow (tests/e2e/phase5-a11y.spec.ts); a full manual audit
+   (screen readers, zoom, cognitive review) has not been performed.
 7. **Recurring-detection fragilities (critic F8, P2):** a refund+rebill inside a
    series drops it for the period; annual subscriptions need 3 occurrences
    (2+ years of history); `possiblyUnused` is a fitness-category proxy

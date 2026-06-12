@@ -95,7 +95,6 @@ export function TriageInbox({
   }
 
   function accept(item: TriageItem, categoryId: string, via: string) {
-    if (pending) return; // one action at a time — rollback snapshots stay valid
     logInteraction(via, `accept ${item.merchantCanonical} → ${nameOf(categoryId)}`);
     const rollback = items;
     advance();
@@ -117,7 +116,6 @@ export function TriageInbox({
   }
 
   function batchApply(item: TriageItem) {
-    if (pending) return;
     logInteraction('tap', `apply-to-all ${item.similarCount} ${item.merchantCanonical}`);
     const rollback = items;
     setItems((xs) => xs.filter((x) => x.merchantId !== item.merchantId));
@@ -148,7 +146,6 @@ export function TriageInbox({
   }
 
   function doSplit(item: TriageItem, firstCents: number, catA: string, catB: string) {
-    if (pending) return;
     logInteraction('tap', `split ${item.merchantCanonical}`);
     const rollback = items;
     advance();
@@ -342,7 +339,13 @@ export function TriageInbox({
       {mode === 'alternatives' && (
         <div className="grid grid-cols-3 gap-2" data-testid="triage-alternatives">
           {top.alternativeIds.map((id, i) => (
-            <Button key={id} variant="outline" size="sm" onClick={() => accept(top, id, 'tap')}>
+            <Button
+              key={id}
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => accept(top, id, 'tap')}
+            >
               {top.alternativeNames[i]}
             </Button>
           ))}
@@ -371,6 +374,7 @@ export function TriageInbox({
           <div className="flex gap-2">
             <Button
               size="sm"
+              disabled={pending}
               data-testid="split-confirm"
               onClick={() => {
                 let v: number;
@@ -430,6 +434,7 @@ export function TriageInbox({
         <Button
           variant="secondary"
           className="w-full"
+          disabled={pending}
           onClick={() => batchApply(top)}
           data-testid="triage-batch"
         >
@@ -443,3 +448,4 @@ export function TriageInbox({
     </div>
   );
 }
+

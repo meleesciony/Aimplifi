@@ -14,7 +14,7 @@
 - FI Coach: savings rate, FI/Coast/years-to-FI, opportunity compounding,
   lifestyle creep, runway, life energy, Money Review, copy guardrails.
 - Calendar, goals→FI impact, budgets view, CSV/PDF export with audit log,
-  CSP/rate-limit/401 middleware, AES-256-GCM token crypto, PWA manifest,
+  CSP/rate-limit/401 middleware, AES-256-GCM token-crypto helper (live use awaits Plaid), PWA manifest,
   cron sync route, demo auth. WCAG AA (axe) green on all core pages.
 
 ## Roadmap (in rough priority order)
@@ -29,7 +29,7 @@
 4. **Refund netting** (refunds reduce category spend instead of counting as
    income) and split-aware recurring detection.
 5. **Service worker** for full offline PWA (manifest + icons ship in v1).
-6. **Email/push payment reminders** (in-app reminders ship in v1's calendar).
+6. **Email/push payment reminders** (v1 badges due days on the calendar; no notification mechanism yet).
 7. **Budget targets UI** (model + actuals view ship in v1).
 8. **Performance**: snapshot pagination/caching once data exceeds demo scale;
    Redis-backed rate limiting for multi-instance deployments.
@@ -37,3 +37,4 @@
    (documented races in docs/STATUS.md #10).
 10. **Data deletion UI** (path documented in docs/PRIVACY.md; cascade schema
     already in place).
+

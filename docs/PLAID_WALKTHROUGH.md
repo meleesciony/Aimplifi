@@ -1,9 +1,12 @@
 # Plaid sandbox walkthrough (manual)
 
-**Status: UNVERIFIED in this build** — the build environment has no Plaid
-credentials, so `src/lib/providers/plaid.ts` is implemented against the
-documented Plaid API and must be validated with this walkthrough before
-production use. Demo mode is unaffected.
+**Status: PARTIAL SCAFFOLD — not implemented end to end.** Link-token
+creation, public-token exchange (with AES-256-GCM token storage), and
+`/item/remove` are written but have never run against a live sandbox.
+**Transaction-sync persistence and `/liabilities/get` → Statement mapping are
+NOT implemented** (`syncTransactions` throws; ROADMAP #1). Steps 3–4 below
+describe the work to be done and validated, not existing behavior. Demo mode
+is unaffected.
 
 ## 1. Credentials
 

@@ -28,11 +28,13 @@ model User {
   moneyDials        String? // JSON-encoded string[] (SQLite has no Json type)
   paymentAccountId  String? // designated checking account for card payments
 
-  accounts  Account[]
-  rules     CategorizationRule[]
-  goals     Goal[]
-  budgets   Budget[]
-  auditLogs AuditLog[]
+  accounts    Account[]
+  rules       CategorizationRule[]
+  goals       Goal[]
+  budgets     Budget[]
+  auditLogs   AuditLog[]
+  corrections Correction[]
+  recurring   RecurringSeries[]
 }
 
 model Account {
@@ -178,6 +180,10 @@ model Correction {
   toCategoryId   String
   becameRuleId   String?
   createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model RecurringSeries {
@@ -195,6 +201,7 @@ model RecurringSeries {
   isSubscription     Boolean
 
   merchant Merchant @relation(fields: [merchantId], references: [id])
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

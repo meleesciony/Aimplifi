@@ -1,8 +1,10 @@
 /**
- * Auth.js v5 — Phase 1: one-click demo sign-in (no secrets required).
- * Magic-link/Google + the full security pass land in Phase 4 (docs/DECISIONS.md #13).
+ * Auth.js v5 — one-click demo sign-in (no secrets required). Real credential
+ * flows (magic link / Google) are wired-but-dormant: enable the providers here
+ * and supply AUTH_GOOGLE_* env vars (see README "Dormant pending keys").
  *
- * Kept Prisma-free so it can be imported from middleware (edge runtime).
+ * Kept Prisma-free so it can be imported from middleware (edge runtime);
+ * the sign-in audit log lives in the sign-in page's server action instead.
  */
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
@@ -18,8 +20,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       id: 'demo',
       name: 'Demo account',
       credentials: {},
-      // Demo mode: the seeded demo user is the only account. Real credential
-      // flows (magic link / OAuth) are Phase 4 work.
+      // Demo mode: the seeded demo user is the only account.
       authorize: async () => ({
         id: DEMO_USER_ID,
         email: 'demo@pulse.finance',

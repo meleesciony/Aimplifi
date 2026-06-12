@@ -13,7 +13,7 @@ as the headline metric.
 
 ```bash
 npm install              # postinstall runs `prisma generate`
-npx prisma db push       # creates dev.db (SQLite)
+npx prisma migrate deploy # creates dev.db (SQLite) from prisma/migrations
 npx prisma db seed       # deterministic demo dataset (asOf 2026-06-10)
 npm run dev              # http://localhost:3000 → “Explore the demo”
 ```
@@ -28,7 +28,7 @@ hand-verified expected values in `docs/EDGE_CASES.md`.
 ## Verification (Definition of Done)
 
 ```bash
-bash scripts/verify.sh              # typecheck + lint + 363 unit tests + build
+bash scripts/verify.sh              # typecheck + lint + 406 unit tests + build
 VERIFY_E2E=1 bash scripts/verify.sh # + 18 Playwright e2e at 380×800 (incl. axe WCAG AA)
 ```
 
@@ -54,7 +54,7 @@ in `tests/unit/critic*-*.test.ts`.
 - **Triage inbox** (`/triage`) — swipe right accept, swipe left for 3
   alternatives, long-press split, batch “apply to all N similar”, universal
   undo (inverse corrections), one-tap durable rules with explicit consent.
-  A full seeded review session: **4 interactions ≈ 16 s** (targets: <15, <60 s).
+  A full seeded review session: **4 interactions (≈16 s at a documented 4 s/interaction budget)** (targets: <15, <60 s).
 - **Recurring detection** (`engine/recurring/`) — cadence, price-change
   tracking, possibly-unused flag, biweekly payroll feeding the cash projection.
 - **FI Coach** (`/coach`) — savings rate with net-worth-parity placement, FI
@@ -66,13 +66,13 @@ in `tests/unit/critic*-*.test.ts`.
 - **Cash-flow calendar** (`/calendar`), **goals with FI-date impact**
   (`/goals`), **budgets** (`/budgets`), **CSV/PDF export** (audit-logged),
   **PWA manifest**, **security headers (CSP)**, **rate limiting**, **cron sync
-  route**, **AES-256-GCM token encryption**.
+  route**, **AES-256-GCM token-encryption helper (used by the dormant Plaid path)**.
 
 ## Dormant pending keys
 
 | Feature | Activate by |
 |---|---|
-| Plaid bank connections | `.env.local`: `DATA_PROVIDER=plaid`, `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV=sandbox`, `DATA_ENCRYPTION_KEY` (32-byte base64). Then follow **docs/PLAID_WALKTHROUGH.md** — the provider is implemented against the documented API but **UNVERIFIED** (no sandbox credentials in the build environment). |
+| Plaid bank connections | `.env.local`: `DATA_PROVIDER=plaid`, `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV=sandbox`, `DATA_ENCRYPTION_KEY` (32-byte base64). **The provider is a partial scaffold**: Link/exchange/remove are written (never run against a live sandbox); transaction-sync persistence and liabilities→statement mapping are **not implemented** and fail loudly (ROADMAP #1). See docs/PLAID_WALKTHROUGH.md. |
 | Real auth (magic link / Google) | `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` + enabling the providers in `src/auth.ts` (demo sign-in is the Phase-1–5 default). |
 | Background sync schedule | `CRON_SECRET` + a Vercel cron hitting `/api/cron/sync`. |
 
@@ -85,7 +85,7 @@ without touching the engines — that is also how you’d add any other data API
 1. Push the repo to GitHub; import into Vercel (framework: Next.js).
 2. Database: switch `datasource` to Postgres (schema is portable; money is
    `Int` cents, dates are `YYYY-MM-DD` strings) — e.g. Vercel Postgres/Neon —
-   set `DATABASE_URL`, run `prisma db push && prisma db seed`.
+   set `DATABASE_URL`, run `prisma migrate deploy && prisma db seed`.
 3. Env: `AUTH_SECRET` (`npx auth secret`), optionally the Plaid/Google/cron
    vars above. A blank Plaid config still builds and runs (demo mode).
 4. Cron: add `{ "crons": [{ "path": "/api/cron/sync", "schedule": "0 11 * * *" }] }`
@@ -102,8 +102,9 @@ src/server/                    # session+ownership-scoped data assembly & action
 prisma/seed.ts + src/lib/seed/ # deterministic demo dataset (pure builder)
 docs/                          # architecture, edge cases (hand math), critic
                                # rubric, status, privacy, Plaid walkthrough
-tests/unit + tests/e2e         # 363 unit tests; 18 e2e incl. axe WCAG AA
+tests/unit + tests/e2e         # 406 unit tests; 18 e2e incl. axe WCAG AA
 ```
 
 Known limitations are honestly listed in `docs/STATUS.md`; the v1-vs-future
 split is in `docs/ROADMAP.md`. Educational software, not financial advice.
+
