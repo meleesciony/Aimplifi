@@ -60,6 +60,30 @@ null-APR assumption note; aprBps-null interest disclosure.
   for issuers that don't roll balances forward; noted in STATUS.
 - **Localization** (Adapt L4): USD/en-US declared a v1 non-goal in README.
 
+## CYCLE 2 (2026-06-12, post-cycle-1 state; fresh agents — two died on API
+## stream errors and were re-run focused)
+
+**Critical: 0 · High: 3 · all fixed same cycle.**
+
+| Sev | Finding (agent) | Fix |
+|---|---|---|
+| High | The Geist font fix only half-landed: variables on `<body>`, `font-sans` applied on `<html>` — most body text still serif (UI) | variables moved to `<html>` |
+| High | This ledger claimed a DECISIONS entry that didn't exist (engine-copy convention) — doc-integrity violation (Arch) | DECISIONS #19 written; #20-23 added for the other as-built deviations |
+| High | Calendar header counted due DATES as "card due dates" — 3 badges vs "2" (UI) | "N cards due across M dates" |
+| Med | loadUserRules trusted pre-guard aggregate rules (Logic) | read-path aggregate filter |
+| Med | Batch apply offered merchant-wide on aggregates — one tap files 7 unrelated Zelle payees (Logic+UI) | batch scoped to exact descriptor for aggregates |
+| Med | ROADMAP #1 omitted rules-on-ingest; no single documented ingestion order (Adapt) | DECISIONS #22 + ROADMAP clause |
+| Med | goals empty-state `cents(x/2)` crashes on odd cents; cron comment claimed unimplemented cursors; PHASE_0 "binding" ADB stale; stale 406 test count | all fixed |
+| Low | undo not retryable; swipe could race pending actions (snap-back now); savings "12-month average" overstated window; transfer advice could exceed stated balance; removeItem audit under-described | all fixed |
+
+Discovered during fixing: the new mobile header overflowed 380px (secondary
+nav labels), zooming the layout viewport to 401px — found by the gate, fixed
+with icon-only secondary links. Gate after fixes: **VERIFY GREEN, 407 unit /
+18 e2e.**
+
+Cycle 2 had >0 High findings ⇒ the two-clean-cycles exit clock starts at
+cycle 3.
+
 ## CYCLE 1 fix verification
 
 All 5 Critical and all 14 High findings fixed (Plaid ingestion itself remains

@@ -28,7 +28,7 @@ hand-verified expected values in `docs/EDGE_CASES.md`.
 ## Verification (Definition of Done)
 
 ```bash
-bash scripts/verify.sh              # typecheck + lint + 406 unit tests + build
+bash scripts/verify.sh              # typecheck + lint + 407 unit tests + build
 VERIFY_E2E=1 bash scripts/verify.sh # + 18 Playwright e2e at 380×800 (incl. axe WCAG AA)
 ```
 
@@ -102,9 +102,10 @@ src/server/                    # session+ownership-scoped data assembly & action
 prisma/seed.ts + src/lib/seed/ # deterministic demo dataset (pure builder)
 docs/                          # architecture, edge cases (hand math), critic
                                # rubric, status, privacy, Plaid walkthrough
-tests/unit + tests/e2e         # 406 unit tests; 18 e2e incl. axe WCAG AA
+tests/unit + tests/e2e         # 407 unit tests; 18 e2e incl. axe WCAG AA
 ```
 
 Known limitations are honestly listed in `docs/STATUS.md`; the v1-vs-future
 split is in `docs/ROADMAP.md`. Educational software, not financial advice.
+
 
