@@ -27,12 +27,14 @@
 
 ## Roadmap (in rough priority order)
 
-1. **Plaid sandbox validation** — run docs/PLAID_WALKTHROUGH.md; transaction
-   ingest mapping (sign flip), liabilities→statements, webhook handler,
-   dedicated PlaidItem token table; then production OAuth flow. Ingest MUST
-   follow the pipeline order in DECISIONS #22 (rules + transfer + recurring
-   processing on every ingested row) — the rule prompt's "future charges skip
-   review" promise depends on it.
+1. **Plaid sandbox validation** — the ingest path is now IMPLEMENTED (mapping +
+   sign flip unit-tested in plaid-map.test.ts; `/accounts`, `/transactions/sync`
+   cursor loop, `/liabilities`→statements, webhook, cron, and the dedicated
+   `PlaidItem` token+cursor table all written). REMAINING: (a) run
+   docs/PLAID_WALKTHROUGH.md §5 against a live sandbox to verify the network
+   paths; (b) wire the DECISIONS #22 tail — recurring re-detection + scheduled
+   refresh after ingest (per-row normalize→rules→categorize→transfer is done);
+   (c) Plaid-Verification JWT check on the webhook; (d) production OAuth flow.
 2. **Real authentication** — Auth.js magic link + Google; per-user onboarding
    (designate payment account, money dials, wage, SWR).
 3. **Average-daily-balance interest** for the minimum path (replaces the

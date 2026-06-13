@@ -35,6 +35,25 @@ model User {
   auditLogs   AuditLog[]
   corrections Correction[]
   recurring   RecurringSeries[]
+  plaidItems  PlaidItem[]
+}
+
+// One linked Plaid Item (institution connection) per row. Holds the access
+// token (AES-256-GCM encrypted at rest — never plaintext, never logged) and
+// the per-item /transactions/sync cursor. Replaces the v1 stopgap of packing
+// the token into Account.providerRef (ROADMAP #1).
+model PlaidItem {
+  id          String   @id @default(cuid())
+  userId      String
+  itemId      String   @unique
+  accessToken String // AES-256-GCM ciphertext (see src/lib/crypto.ts)
+  cursor      String? // /transactions/sync incremental cursor
+  institution String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Account {

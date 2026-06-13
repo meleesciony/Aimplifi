@@ -116,9 +116,15 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
 11. **Unknown billers containing a word-bounded "EPAY"** (e.g. "DUKE ENERGY
     EPAY") classify as transfers consistently in both modules; a merchant-table
     entry wins when added.
-12. **Plaid integration is UNVERIFIED** (no sandbox credentials in the build
-    environment) — implemented against the documented API behind the provider
-    seam; validation checklist in docs/PLAID_WALKTHROUGH.md.
+12. **Plaid integration is IMPLEMENTED but UNVERIFIED** (no sandbox credentials
+    in the build environment). The pure mapping layer (sign flip, account-type,
+    liability→statement, per-row categorization) is unit-tested
+    (tests/unit/plaid-map.test.ts, 18 cases); the network orchestration in
+    plaid.ts (accounts/transactions-sync/liabilities/webhook/item-remove, with a
+    dedicated `PlaidItem` token+cursor table) is real code that has never run
+    against a live sandbox. PENDING: recurring/scheduled refresh after ingest
+    (DECISIONS #22 tail) and webhook JWT verification. Validation checklist in
+    docs/PLAID_WALKTHROUGH.md §5.
 13. **Coast-FI with a 0-month target** and `detectLifestyleCreep(windowMonths=1)`
     are degenerate for out-of-range inputs — unreachable from the app
     (constants fixed), noted for API consumers.

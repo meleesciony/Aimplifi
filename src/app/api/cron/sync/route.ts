@@ -1,8 +1,9 @@
 /**
  * Background sync: Vercel-cron-compatible route, guarded by CRON_SECRET
  * (Authorization: Bearer <secret>). Demo provider: no-op. Plaid provider:
- * syncTransactions currently THROWS (persistence not implemented — ROADMAP #1);
- * per-user failures are recorded and do not abort the sweep.
+ * runs the real /transactions/sync ingestion (implemented, UNVERIFIED against a
+ * live sandbox — see plaid.ts); per-user failures are recorded and do not abort
+ * the sweep.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';

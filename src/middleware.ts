@@ -4,8 +4,8 @@ import { auth } from '@/auth';
 /**
  * Route protection: pages redirect to sign-in; API routes get a proper 401
  * JSON (clients shouldn't receive HTML). /api/auth (Auth.js), /api/cron
- * (Bearer CRON_SECRET guard inside the route), the sign-in page, and static
- * assets are excluded.
+ * (Bearer CRON_SECRET guard inside the route), /api/plaid/webhook (called by
+ * Plaid, not a logged-in user), the sign-in page, and static assets are excluded.
  */
 export default auth((req) => {
   if (req.auth?.user) return NextResponse.next();
@@ -18,6 +18,6 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    '/((?!api/auth|api/cron|sign-in|_next/static|_next/image|favicon.ico|manifest|icon).*)',
+    '/((?!api/auth|api/cron|api/plaid/webhook|sign-in|_next/static|_next/image|favicon.ico|manifest|icon).*)',
   ],
 };

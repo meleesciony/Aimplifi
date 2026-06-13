@@ -1,12 +1,21 @@
 # Plaid sandbox walkthrough (manual)
 
-**Status: PARTIAL SCAFFOLD — not implemented end to end.** Link-token
-creation, public-token exchange (with AES-256-GCM token storage), and
-`/item/remove` are written but have never run against a live sandbox.
-**Transaction-sync persistence and `/liabilities/get` → Statement mapping are
-NOT implemented** (`syncTransactions` throws; ROADMAP #1). Steps 3–4 below
-describe the work to be done and validated, not existing behavior. Demo mode
-is unaffected.
+**Status: IMPLEMENTED, UNVERIFIED against a live sandbox.** The full path is now
+real code, not a stub: link-token creation, public-token exchange (AES-256-GCM
+token storage in the `PlaidItem` table), `/accounts/get`, `/transactions/sync`
+(cursor loop, categorized through the standard pipeline), `/liabilities/get` →
+`Statement`, the webhook receiver, and `/item/remove`.
+
+What is **tested** (pure, no network): every Plaid→Pulse mapping in
+`src/lib/providers/plaid-map.ts` — sign flip, account-type mapping,
+liability→statement, per-row categorization — see `tests/unit/plaid-map.test.ts`
+(18 cases). What is **UNVERIFIED**: all network orchestration in `plaid.ts` has
+never run against a live Plaid sandbox (no credentials in the build env). What
+is **PENDING**: (a) recurring re-detection + `ScheduledTransaction` refresh after
+ingest — per-row normalize→rules→categorize→transfer is wired, the cross-account
+recurring/scheduled tail of DECISIONS #22 is not yet called from `syncTransactions`;
+(b) Plaid-Verification (JWT) signature checking on the webhook. Demo mode is
+entirely unaffected. Run §5 to validate before trusting this with real money.
 
 ## 1. Credentials
 
@@ -30,14 +39,19 @@ is unaffected.
 3. Link yields a `public_token` → `PlaidProvider.exchangePublicToken` stores
    the access token AES-256-GCM-encrypted and audit-logs the link.
 
-## 3. Transactions sync
+## 3. Transactions sync (implemented in `PlaidProvider.syncTransactions`)
 
-- `POST /transactions/sync` with the stored cursor; map results into
-  `Transaction` rows. **Sign convention flip:** Plaid amounts are
-  outflow-POSITIVE; Pulse stores outflow-NEGATIVE — negate on ingest.
-- Re-run until `has_more` is false; persist `next_cursor` per item.
-- Webhook `SYNC_UPDATES_AVAILABLE` → call the sync route; also covered by the
-  cron sweep (`/api/cron/sync`, `Authorization: Bearer $CRON_SECRET`).
+- `POST /transactions/sync` with the stored per-item cursor; added/modified rows
+  map into `Transaction` via `prepareIngestedTransaction` (normalize → user
+  rules → categorize → set category/confidence/needsReview/isTransfer), removed
+  rows are deleted, the cursor is persisted on the `PlaidItem`.
+- **Sign convention flip** (tested): Plaid amounts are outflow-POSITIVE; Pulse
+  stores outflow-NEGATIVE — `plaidAmountToCents` negates on ingest.
+- Re-runs until `has_more` is false. After ingest, `detectTransfers` re-derives
+  `isTransfer` across the user's full set (descriptor + pair matching).
+- Triggered by the webhook (`/api/plaid/webhook`, TRANSACTIONS) and by the cron
+  sweep (`/api/cron/sync`, `Authorization: Bearer $CRON_SECRET`).
+- **PENDING:** recurring re-detection + scheduled refresh (DECISIONS #22 tail).
 
 ## 4. Liabilities → statements
 
