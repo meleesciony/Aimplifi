@@ -11,8 +11,10 @@ import {
   Calendar,
   CreditCard,
   Inbox,
+  Landmark,
   LayoutDashboard,
   PiggyBank,
+  Receipt,
   Settings,
   Sprout,
   Wallet,
@@ -27,6 +29,8 @@ const PRIMARY = [
 ] as const;
 
 const SECONDARY = [
+  { href: '/accounts', label: 'Accounts', icon: Landmark, testid: 'nav-accounts' },
+  { href: '/transactions', label: 'Activity', icon: Receipt, testid: 'nav-transactions' },
   { href: '/goals', label: 'Goals', icon: PiggyBank, testid: 'nav-goals' },
   { href: '/budgets', label: 'Spending', icon: Wallet, testid: 'nav-budgets' },
   { href: '/settings', label: 'Settings', icon: Settings, testid: 'nav-settings' },

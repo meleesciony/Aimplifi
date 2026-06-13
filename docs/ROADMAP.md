@@ -16,6 +16,14 @@
 - Calendar, goals→FI impact, budgets view, CSV/PDF export with audit log,
   CSP/rate-limit/401 middleware, AES-256-GCM token-crypto helper (live use awaits Plaid), PWA manifest,
   cron sync route, demo auth. WCAG AA (axe) green on all core pages.
+- Transaction register (`/transactions`): every transaction across all
+  accounts, with search + account/category/type/date filters and money-in /
+  out / net totals (transfers excluded); pure query engine, unit-tested.
+- Accounts page (`/accounts`): all accounts grouped into assets vs liabilities
+  with subtotals and net worth (matches the dashboard golden value).
+- Manual transaction entry (`/transactions/new`): cash/check/missed-feed rows,
+  categorized through the standard pipeline; records activity only — balances
+  stay provider-authoritative (DECISIONS #24).
 
 ## Roadmap (in rough priority order)
 

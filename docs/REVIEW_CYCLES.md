@@ -84,6 +84,22 @@ with icon-only secondary links. Gate after fixes: **VERIFY GREEN, 407 unit /
 Cycle 2 had >0 High findings ⇒ the two-clean-cycles exit clock starts at
 cycle 3.
 
+## CYCLE 3 (2026-06-12, post-cycle-2 state, fresh agents)
+
+**Critical: 0 · High: 3 · all fixed same cycle.** Arch/Adapt and Trust lanes
+were fully clean; Logic found two engine-adjacent Highs and UI one copy High:
+
+| Sev | Finding | Fix |
+|---|---|---|
+| High | Calendar spread `[...cards, ...upcoming]` — upcoming is a SUBSET of cards, so estimated obligations double-counted in events/totals/card-count | pass `result.cards` only |
+| High | Aggregate batch: server scoped to exact descriptor, client optimistic removal still merchant-wide — unrelated Zelle payees vanished from the queue unfiled | client filter mirrors server scope; ONE shared `similarTransactionsWhere` helper for button-count and mutation |
+| High | Savings copy said "this month" for last-FULL-month data (June reader sees May's number) | month named explicitly everywhere ("in May 2026"); card description carries the month |
+| Med | `/calendar?month=2026-13` 500; formatMonth garbled out-of-range; batch undo retry duplicated inverse rows; batch where-clause duplicated in two files | month guards; idempotent atomic per-correction undo; shared helper |
+| Low | cron failure-audit could abort the sweep if the DB is down; MONTHS const after first use; stale batch docstring; headline/body precision mismatch (1dp everywhere now) | fixed |
+
+Gate after fixes: **VERIFY GREEN, 409 unit / 18 e2e.** Cycle 3 had >0 High ⇒
+clean-exit clock restarts: cycles 4 and 5 must both be clean.
+
 ## CYCLE 1 fix verification
 
 All 5 Critical and all 14 High findings fixed (Plaid ingestion itself remains

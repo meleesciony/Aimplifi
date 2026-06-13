@@ -1,0 +1,89 @@
+/**
+ * Server-side transaction & account reads for the register and accounts pages.
+ * Every query is row-ownership scoped by userId (via the owning account).
+ * Display formatting (merchant/category names) happens here; the pure query
+ * engine in src/lib/engine/transactions/query.ts does the filtering/totals.
+ */
+import { prisma } from '@/lib/db';
+import { categoryName } from '@/lib/engine/categorize/categories';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import {
+  type AccountView,
+  type AccountsSummary,
+  type TxnFilter,
+  type TxnSummary,
+  type TxnView,
+  filterTransactions,
+  groupAccounts,
+  sortByDateDesc,
+  summarizeTransactions,
+} from '@/lib/engine/transactions/query';
+
+export interface TransactionsResult {
+  rows: TxnView[];
+  summary: TxnSummary;
+  /** Distinct accounts for the filter dropdown (id + name). */
+  accountOptions: { id: string; name: string }[];
+}
+
+/**
+ * All of a user's transactions, mapped to display rows, then filtered/sorted by
+ * the pure engine. Split PARENT containers are excluded — their children carry
+ * the real amounts, so including both would double-count every split (the same
+ * rule the cash-needed assembler enforces). Split CHILDREN are shown normally.
+ *
+ * Loads the full set per call — fine at demo scale; server-side pagination is a
+ * scale concern (see docs/ROADMAP.md #8), consistent with getDashboardData.
+ */
+export async function getTransactions(userId: string, filter: TxnFilter = {}): Promise<TransactionsResult> {
+  const txns = await prisma.transaction.findMany({
+    where: { account: { userId }, isSplitParent: false },
+    include: { account: { select: { id: true, name: true } }, merchant: true },
+    orderBy: [{ date: 'desc' }, { id: 'desc' }],
+  });
+
+  const rows: TxnView[] = txns.map((t) => ({
+    id: t.id,
+    date: t.date,
+    accountId: t.accountId,
+    accountName: t.account.name,
+    merchantName: t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical,
+    rawDescriptor: t.rawDescriptor,
+    categoryId: t.categoryId ?? 'uncategorized',
+    categoryName: categoryName(t.categoryId),
+    amountCents: t.amountCents,
+    status: t.status,
+    isTransfer: t.isTransfer,
+  }));
+
+  const filtered = sortByDateDesc(filterTransactions(rows, filter));
+
+  // Account options come from the full (unfiltered) set so the dropdown is stable.
+  const seen = new Map<string, string>();
+  for (const r of rows) if (!seen.has(r.accountId)) seen.set(r.accountId, r.accountName);
+  const accountOptions = [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => (a.name < b.name ? -1 : 1));
+
+  return { rows: filtered, summary: summarizeTransactions(filtered), accountOptions };
+}
+
+export interface AccountsView extends AccountsSummary {
+  paymentAccountId: string | null;
+}
+
+/** Every account, grouped into assets vs liabilities with net worth. */
+export async function getAccountsView(userId: string): Promise<AccountsView> {
+  const [user, accounts] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
+    prisma.account.findMany({ where: { userId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
+  ]);
+
+  const views: AccountView[] = accounts.map((a) => ({
+    id: a.id,
+    name: a.name,
+    type: a.type,
+    mask: a.mask,
+    currentBalanceCents: a.currentBalanceCents,
+  }));
+
+  return { ...groupAccounts(views), paymentAccountId: user?.paymentAccountId ?? null };
+}
