@@ -63,10 +63,22 @@ entirely unaffected. Run §5 to validate before trusting this with real money.
 - Autopay flags from `is_overdue`/issuer data are NOT provided by Plaid —
   autopay config remains a user setting in Pulse.
 
-## 5. Validation checklist (run before calling this integration done)
+## 5. Validation
 
-- [ ] Link → exchange → token row encrypted (inspect DB: no plaintext)
-- [ ] Sync inserts transactions with correct signs and dates
+**Automated (headless, no Link UI):** with sandbox credentials in `.env.local`,
+run `npm run plaid:validate`. It drives the real `PlaidProvider` end to end via
+`/sandbox/public_token/create` — exchange (encrypted `PlaidItem`), `/accounts`,
+`/transactions/sync` (with sign assertions), `/liabilities/get` — against a
+throwaway test user, prints real counts/samples, asserts, and cleans up. This
+flips the integration from UNVERIFIED to verified for the network paths it
+exercises. Paste its real output as the evidence.
+
+**Manual checklist (full Link UI + production concerns):**
+- [ ] `npm run plaid:validate` prints `✅ VALIDATION PASSED`
+- [ ] Token row encrypted in `PlaidItem` (inspect DB: no plaintext)
+- [ ] Sync inserts transactions with correct signs and dates (asserted by the script)
 - [ ] Liabilities populate statements; cash-needed headline computes
-- [ ] Webhook triggers an incremental sync
+- [ ] Real Link UI flow (browser) for a human-linked item
+- [ ] Webhook triggers an incremental sync + Plaid-Verification JWT check added
+- [ ] Recurring/scheduled refresh wired after ingest (DECISIONS #22 tail)
 - [ ] `/item/remove` + cascade delete leaves zero user rows

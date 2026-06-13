@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
+    "plaid:validate": "tsx scripts/plaid-sandbox-validate.ts",
     "verify": "bash scripts/verify.sh",
     "postinstall": "prisma generate"
   },
