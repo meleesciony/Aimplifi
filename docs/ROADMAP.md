@@ -24,6 +24,12 @@
 - Manual transaction entry (`/transactions/new`): cash/check/missed-feed rows,
   categorized through the standard pipeline; records activity only — balances
   stay provider-authoritative (DECISIONS #24).
+- CSV import (`/transactions/import`): paste a bank/Mint export → parsed,
+  validated (per-row line errors), categorized through the pipeline, bulk
+  inserted. The credential-free way to get real transactions in (DECISIONS #27);
+  pure parser unit-tested.
+- Plaid ingestion implemented behind the provider seam (mappers unit-tested;
+  network UNVERIFIED — see roadmap #1 below and docs/PLAID_WALKTHROUGH.md).
 
 ## Roadmap (in rough priority order)
 

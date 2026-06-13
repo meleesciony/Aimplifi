@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { Plus, Upload } from 'lucide-react';
 import { auth } from '@/auth';
 import { TransactionFilters } from '@/components/finance/transaction-filters';
 import { TransactionList } from '@/components/finance/transaction-list';
@@ -46,13 +46,22 @@ export default async function TransactionsPage({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Transactions</h1>
-        <Link
-          href="/transactions/new"
-          data-testid="add-txn-link"
-          className={buttonVariants({ variant: 'outline', size: 'sm' })}
-        >
-          <Plus className="size-4" aria-hidden /> Add
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/transactions/import"
+            data-testid="import-txn-link"
+            className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+          >
+            <Upload className="size-4" aria-hidden /> Import
+          </Link>
+          <Link
+            href="/transactions/new"
+            data-testid="add-txn-link"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          >
+            <Plus className="size-4" aria-hidden /> Add
+          </Link>
+        </div>
       </div>
       <p className="text-sm text-muted-foreground">
         Every transaction across all your accounts — checking, savings, credit,

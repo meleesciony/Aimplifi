@@ -34,9 +34,11 @@ test('accounts page groups assets/liabilities and matches dashboard net worth', 
   await expect(page.getByTestId('account-group-asset')).toBeVisible();
   await expect(page.getByTestId('account-group-liability')).toBeVisible();
 
-  // Tapping an account drills into its filtered transactions.
+  // Tapping an account drills into its filtered transactions. The register
+  // SSRs the full transaction set, which can be slow under parallel-worker
+  // load — wait for the navigation rather than the default 5s URL poll.
   await page.getByTestId('account-row').first().click();
-  await expect(page).toHaveURL(/\/transactions\?account=/);
+  await page.waitForURL(/\/transactions\?account=/, { timeout: 20000 });
   await expect(page.getByTestId('txn-list')).toBeVisible();
 });
 
@@ -48,16 +50,17 @@ test('transaction register lists, summarizes, filters, and searches', async ({ p
   await expect(page.getByTestId('txn-summary')).toBeVisible();
   await expect(page.getByTestId('txn-row').first()).toBeVisible();
 
-  // Type filter → URL reflects it and rows remain.
+  // Type filter → URL reflects it and rows remain. (Generous timeout: each
+  // filter change re-SSRs the full register, slow under parallel load.)
   await page.getByTestId('txn-filter-type').selectOption('income');
-  await expect(page).toHaveURL(/type=income/);
+  await expect(page).toHaveURL(/type=income/, { timeout: 20000 });
   await expect(page.getByTestId('txn-row').first()).toBeVisible();
 
   // Search a known seed merchant (fresh load so filter state can't race).
   await page.goto('/transactions');
   await page.getByTestId('txn-search').fill('Blue Bottle');
   await page.getByTestId('txn-search').press('Enter');
-  await expect(page).toHaveURL(/q=Blue/);
+  await expect(page).toHaveURL(/q=Blue/, { timeout: 20000 });
   const first = page.getByTestId('txn-row').first();
   await expect(first).toBeVisible();
   await expect(first).toContainText('Blue Bottle');
@@ -83,7 +86,33 @@ test('manual entry: add a cash transaction and see it in the register', async ({
   await expect(row).toContainText('Dining Out');
 });
 
-test('accounts, register, and add-transaction pages pass WCAG AA (380×800)', async ({ page }) => {
+test('CSV import: valid rows imported, bad rows skipped with line errors', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/transactions/import');
+
+  const csv = [
+    'date,description,amount,category',
+    '2026-06-02,E2E Import Bookstore,-18.75,shopping',
+    'bad-date,E2E Import Bad Row,-1.00,shopping',
+  ].join('\n');
+  await page.getByTestId('import-csv-text').fill(csv);
+  await page.getByTestId('import-submit').click();
+
+  const result = page.getByTestId('import-result');
+  await expect(result).toContainText('Imported 1');
+  await expect(result).toContainText('skipped 1');
+  await expect(page.getByTestId('import-errors')).toContainText('Line 3');
+
+  // The imported row shows up in the register.
+  await page.goto('/transactions');
+  await page.getByTestId('txn-search').fill('E2E Import Bookstore');
+  await page.getByTestId('txn-search').press('Enter');
+  const row = page.getByTestId('txn-row').filter({ hasText: 'E2E Import Bookstore' });
+  await expect(row).toBeVisible();
+  await expect(row).toContainText('-$18.75');
+});
+
+test('accounts, register, add, and import pages pass WCAG AA (380×800)', async ({ page }) => {
   await signIn(page);
   await page.goto('/accounts');
   await expect(page.getByTestId('accounts-net-worth')).toBeVisible();
@@ -96,4 +125,8 @@ test('accounts, register, and add-transaction pages pass WCAG AA (380×800)', as
   await page.goto('/transactions/new');
   await expect(page.getByTestId('add-txn-form')).toBeVisible();
   await expectNoViolations(page, 'transactions/new');
+
+  await page.goto('/transactions/import');
+  await expect(page.getByTestId('import-csv-form')).toBeVisible();
+  await expectNoViolations(page, 'transactions/import');
 });
