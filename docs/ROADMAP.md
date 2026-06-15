@@ -69,6 +69,11 @@
    Redis-backed rate limiting for multi-instance deployments.
 9. **Concurrency hardening**: row-level locks around split/undo paths
    (documented races in docs/STATUS.md #10).
-10. **Data deletion UI** (path documented in docs/PRIVACY.md; cascade schema
-    already in place).
+10. ~~**Data deletion UI**~~ — **DONE** (DECISIONS #31): Settings → "Delete my
+    data" with a typed-confirmation gate, a live summary of what's removed, and an
+    idempotent ownership-scoped cascade (`prisma.user.delete`) + best-effort Plaid
+    revoke + sign-out. Pure gate/summary engine + action-level integration test;
+    `(app)/error.tsx` added for graceful degradation. Remaining for the real-auth
+    release: multi-device session invalidation (JWT) and a non-cascading
+    compliance deletion-record.
 

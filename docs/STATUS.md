@@ -181,6 +181,33 @@ Accepted P2s (consistent with the codebase): action throws on invalid input like
 sibling `createGoal` (no error boundary app-wide), per-action rate limit deferred
 (ROADMAP #8), and the pre-existing exact-name money-dial match.
 
+## Post-Phase-5 refinement: account-deletion UI (DECISIONS #31, ROADMAP #10)
+
+Settings → "Delete my data": typed-confirmation gate → ownership-scoped
+`prisma.user.delete` (cascades every user-owned row; shared Merchant/Category
+left intact) → best-effort Plaid revoke → signOut. Idempotent (existence guard
+skips audit+delete on an already-gone row, still signs out). Pure gate/summary
+engine (`engine/account/deletion.ts`) + an integration test that drives the REAL
+`deleteMyData` against throwaway users (gate-reject → no deletion; exact phrase →
+scoped wipe + signOut; idempotent re-run). `(app)/error.tsx` added so a
+post-deletion no-accounts render (or any action throw) degrades gracefully.
+
+Gate (real output 2026-06-15): `VERIFY_E2E=1 bash scripts/verify.sh` →
+**✅ VERIFY GREEN** — typecheck/lint clean, unit suite green, build clean, e2e green
+(incl. the gate/summary flow; the destructive execution is deliberately not e2e'd
+against the shared demo — proven by the integration test instead).
+
+Hostile Critic (multi-agent, adversarial verification): **PASS after fixes** —
+security 7 / correctness 8 / ux-tests 6; cascade correctness verified down to live
+`PRAGMA foreign_keys`. Four P1s found and FIXED: (1) the action had zero execution
+coverage → action-level integration test; (2)+(4) non-idempotent crash (P2003/P2025)
+on an absent/double-submitted row → existence guard; (3) post-deletion demo
+re-sign-in 500 with no error boundary → `(app)/error.tsx`. P2s fixed: honest
+summary catch-all, permanence warning moved above the form + `aria-describedby`,
+form suppressed in the no-data state, de-flaked the integration test (unique ids).
+Accepted P2s (real-auth release): multi-device JWT session invalidation and a
+non-cascading compliance deletion-record (documented in PRIVACY.md §Deletion).
+
 ## Phase 4 (complete — see commit)
 
 Calendar/goals/budgets/exports/PWA/cron/security headers + dormant Plaid

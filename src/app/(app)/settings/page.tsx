@@ -3,7 +3,9 @@ import { auth } from '@/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
 import { MoneyDialsForm } from '@/components/settings/money-dials-form';
+import { DeleteMyDataForm } from '@/components/settings/delete-my-data-form';
 import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/dials';
+import { deletionSummary } from '@/lib/engine/account/deletion';
 import { prisma } from '@/lib/db';
 
 export default async function SettingsPage() {
@@ -11,28 +13,43 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/sign-in');
 
   const userId = session.user.id;
-  const [user, accounts] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        hourlyWageCents: true,
-        swrBps: true,
-        expectedReturnBps: true,
-        moneyDials: true,
-        paymentAccountId: true,
-      },
-    }),
-    prisma.account.findMany({
-      where: { userId },
-      select: { id: true, name: true, type: true },
-      orderBy: [{ type: 'asc' }, { name: 'asc' }],
-    }),
-  ]);
+  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount] =
+    await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          hourlyWageCents: true,
+          swrBps: true,
+          expectedReturnBps: true,
+          moneyDials: true,
+          paymentAccountId: true,
+        },
+      }),
+      prisma.account.findMany({
+        where: { userId },
+        select: { id: true, name: true, type: true },
+        orderBy: [{ type: 'asc' }, { name: 'asc' }],
+      }),
+      prisma.transaction.count({ where: { account: { userId } } }),
+      prisma.statement.count({ where: { account: { userId } } }),
+      prisma.goal.count({ where: { userId } }),
+      prisma.budget.count({ where: { userId } }),
+      prisma.categorizationRule.count({ where: { userId } }),
+    ]);
   if (!user) redirect('/sign-in');
 
   const eligibleAccounts = accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))
     .map((a) => ({ id: a.id, name: a.name }));
+
+  const deletion = deletionSummary({
+    accounts: accounts.length,
+    transactions: txnCount,
+    statements: statementCount,
+    goals: goalCount,
+    budgets: budgetCount,
+    rules: ruleCount,
+  });
 
   return (
     <div className="space-y-4">
@@ -96,17 +113,11 @@ export default async function SettingsPage() {
 
       <Card data-testid="privacy-card">
         <CardHeader className="pb-2">
-          <CardDescription>Privacy</CardDescription>
+          <CardDescription>Privacy — your data is yours to erase</CardDescription>
           <CardTitle className="text-base">Delete my data</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Deleting your account removes every account, transaction, statement,
-          rule, correction, goal, and audit record (cascade delete), and — when
-          Plaid is connected — calls <code className="rounded bg-accent px-1">/item/remove</code>{' '}
-          to revoke bank access. The full path is documented in{' '}
-          <code className="rounded bg-accent px-1">docs/PRIVACY.md</code>. In demo mode the
-          dataset is re-creatable with <code className="rounded bg-accent px-1">npx prisma db seed</code>,
-          so deletion is exposed once real accounts exist (Phase 5 UI).
+        <CardContent>
+          <DeleteMyDataForm summary={deletion} />
         </CardContent>
       </Card>
     </div>

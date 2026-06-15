@@ -14,9 +14,10 @@ fictional dataset; everything below applies fully once Plaid is connected.
   Tokens are never logged and never sent to the client. Raw bank credentials
   never touch this system (they go to Plaid Link directly).
 - Audit log — what is logged TODAY: sign-in (best-effort — never blocks login), data exports (CSV/PDF), goal
-  create/delete, rule creation and batch-apply, cron sync runs, and (dormant
-  Plaid path) item link/remove. Account-deletion logging ships with the
-  deletion UI (roadmap).
+  create/delete, budget set/clear, money-dials update, rule creation and
+  batch-apply, cron sync runs, (dormant Plaid path) item link/remove, and
+  account deletion (`account.delete`, written immediately before the cascade that
+  also removes it — per §Deletion, nothing about the user is retained).
 
 ## What is NOT stored
 
@@ -30,15 +31,26 @@ Settings → Export: transactions (CSV), net worth (CSV/PDF) via
 
 ## Deletion path
 
-1. User requests deletion (Settings → "Delete my data"; UI button ships with
-   the first real-account release — demo data is re-creatable by reseeding).
+1. User requests deletion (Settings → "Delete my data") behind a **typed
+   confirmation gate** — the destructive button is inert until the user types the
+   exact phrase, the deliberate-action safety. A live summary shows what will be
+   removed. In demo mode the sample dataset is re-creatable by reseeding
+   (`npx prisma db seed`).
 2. For each linked Plaid item: `POST /item/remove` revokes the token at Plaid
-   (`PlaidProvider.removeItem`).
+   (`PlaidProvider.removeItem`), best-effort — a Plaid failure never blocks the
+   user's right to delete.
 3. `DELETE FROM User WHERE id = ?` — the schema cascades (`onDelete: Cascade`)
    to accounts, transactions, statements, payments, scheduled transactions,
    balance snapshots, rules, corrections, recurring series, goals, budgets,
-   **and audit log rows**: deletion removes everything, audit trail included
-   (nothing about the user is retained).
+   Plaid items, **and audit log rows**: deletion removes everything, audit trail
+   included (nothing about the user is retained). The action is idempotent — if
+   the row is already gone it simply signs out (no error).
+
+**Known limitations (real-auth release):** the session is stateless JWT, so
+`signOut` clears only the current browser — other active devices stay valid until
+token expiry (move to DB sessions or add a user-existence check then). No durable,
+non-cascading deletion record is kept (the audit row is cascade-removed by design);
+a separate PII-free compliance sink is the future path.
 
 ## Security measures
 
