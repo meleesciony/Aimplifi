@@ -18,6 +18,10 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    '/((?!api/auth|api/cron|api/plaid/webhook|sign-in|_next/static|_next/image|favicon.ico|manifest|icon).*)',
+    // /sw.js (must serve as JS) and /offline (public fallback shell) are excluded
+    // so the service worker registers and the offline page renders without a session.
+    // These two are anchored ($) + the dot escaped so /offline-* and /swXjs can't
+    // skip auth via a prefix collision.
+    '/((?!api/auth|api/cron|api/plaid/webhook|sign-in|offline$|sw\\.js$|_next/static|_next/image|favicon.ico|manifest|icon).*)',
   ],
 };

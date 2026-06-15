@@ -208,6 +208,32 @@ form suppressed in the no-data state, de-flaked the integration test (unique ids
 Accepted P2s (real-auth release): multi-device JWT session invalidation and a
 non-cascading compliance deletion-record (documented in PRIVACY.md §Deletion).
 
+## Post-Phase-5 refinement: offline PWA service worker (DECISIONS #32, ROADMAP #5)
+
+`public/sw.js` + a precached self-contained `/offline` shell + production-only
+registration (`sw-register.tsx`, wired into the root layout). Conservative by
+design: navigations network-first (online always fresh, never cached → no stale/
+cross-user data), icon/manifest cache-first with a `res.ok` guard, hashed
+`/_next/static/*` passthrough (bounded SW storage — no per-deploy accumulation).
+Middleware excludes `/sw.js` + `/offline` (anchored so prefix collisions can't
+skip auth).
+
+Gate (real output 2026-06-15): `VERIFY_E2E=1 bash scripts/verify.sh` →
+**✅ VERIFY GREEN** — typecheck/lint clean, unit suite green, build clean, e2e green
+(new pwa-offline spec: SW registers + an offline reload serves the shell; existing
+PWA-manifest + security-header specs unaffected — network-first means online specs
+always hit the network).
+
+Hostile Critic (multi-agent, adversarial verification): **PASS** — suite-safety 8 /
+correctness 9 / privacy-robustness 7, **0 P0/P1** (the 3 review-phase "P1"s —
+fixed cache name, atomic-precache-swallow, cache-first-stale-offline — were all
+adversarially downgraded to P2: no online stale-serving, no leak, no suite
+destabilization). P2s fixed proactively: `res.ok` cache guard, resilient per-asset
+precache, network-first `/offline`, self-contained inline-styled shell, anchored
+middleware matcher. Deferred P2s (documented): a build-stamped cache name and an
+in-app "update available" affordance — unneeded while hashed assets are passthrough
+and online navigations are network-first.
+
 ## Phase 4 (complete — see commit)
 
 Calendar/goals/budgets/exports/PWA/cron/security headers + dormant Plaid

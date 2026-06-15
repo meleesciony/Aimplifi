@@ -60,7 +60,11 @@
    income) and split-aware recurring detection. (Note: the /budgets view already
    nets refunds locally per DECISIONS #30; this item is the engine-wide change to
    income/savings-rate aggregations.)
-5. **Service worker** for full offline PWA (manifest + icons ship in v1).
+5. ~~**Service worker** for offline PWA~~ — **DONE** (DECISIONS #32): `public/sw.js`
+   + a precached, self-contained `/offline` shell + production-only registration.
+   Network-first navigations (online stays fresh, nothing personal cached),
+   passthrough hashed assets (bounded SW storage), offline fallback. Deferred: a
+   build-stamped cache name + an in-app "update available" affordance.
 6. **Email/push payment reminders** (v1 badges due days on the calendar; no notification mechanism yet).
 7. ~~**Budget targets UI**~~ — **DONE** (DECISIONS #30): set/clear a per-category
    monthly target on `/budgets` (atomic upsert on a new `@@unique`, refunds netted,
