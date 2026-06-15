@@ -20,6 +20,10 @@ export interface NetWorthPoint {
 export interface DashboardData {
   today: string;
   paymentAccountName: string;
+  /** The user's stored choice (may be null/unset) — distinct from the resolved
+   *  paymentAccountName, which always falls back to a real account. Used to
+   *  decide the onboarding nudge without a second user read. */
+  paymentAccountId: string | null;
   payInFull: CashNeededResult;
   minimum: CashNeededResult;
   netWorthCents: Cents;
@@ -107,6 +111,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   return {
     today,
     paymentAccountName: paymentAccount.name,
+    paymentAccountId: snap.paymentAccountId,
     payInFull,
     minimum,
     netWorthCents: cents(current),

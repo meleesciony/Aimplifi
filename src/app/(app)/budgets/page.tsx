@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CATEGORY_BY_ID, categoryName } from '@/lib/engine/categorize/categories';
+import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { cents, formatCents } from '@/lib/money';
 import { getProvider } from '@/lib/providers/demo';
 import { prisma } from '@/lib/db';
@@ -34,7 +35,7 @@ export default async function BudgetsPage() {
     prisma.user.findUnique({ where: { id: userId } }),
   ]);
 
-  const dials = new Set<string>(user?.moneyDials ? JSON.parse(user.moneyDials) : []);
+  const dials = new Set<string>(parseStoredDials(user?.moneyDials));
   const budgetByCategory = new Map(budgets.map((b) => [b.categoryId, b.monthCents]));
 
   const spendByCategory = new Map<string, number>();

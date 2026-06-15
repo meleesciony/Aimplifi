@@ -75,6 +75,54 @@ adversarial cash-needed scenarios, all exact to the cent), edge-case coverage
   in authz.ts and ROADMAP #8.
 - P2-3 cosmetic Recharts width(-1) console warning during headless e2e.
 
+## Post-Phase-5 refinement: Money Dials settings/onboarding (DECISIONS #28)
+
+The five per-user dials the engines read (payment account, SWR, expected return,
+hourly wage, money dials) were seed-only with no editing path. Added the
+credential-free half of ROADMAP #2:
+- Pure validation engine `src/lib/engine/settings/dials.ts` (string-only parse,
+  all-fields-at-once errors, bounds that keep the FI engine defined — SWR
+  rejected ≤ 0 because `fiNumberCents` divides by it). `tests/unit/settings-dials.test.ts`
+  (70 cases) + hand-verified parse table in EDGE_CASES §Money-Dials.
+- Thin ownership-scoped `updateMoneyDials` server action (validate → persist →
+  audit → revalidate dashboard/coach/cards/accounts/settings).
+- `MoneyDialsForm` (useActionState, inline per-field errors + ARIA, assumptions
+  in copy) on `/settings`; dashboard onboarding nudge gated on `paymentAccountId
+  == null` (dormant in demo, activates for real new users post-auth).
+- E2e `tests/e2e/settings-dials.spec.ts`: one sequential test (mutates only
+  `moneyDials`, the dial with no golden coupling, and restores it) — proves
+  pre-population, validation-without-persist, and a DB round-trip, golden-safe
+  under fullyParallel.
+
+Gate (real output 2026-06-15): `VERIFY_E2E=1 bash scripts/verify.sh` →
+**✅ VERIFY GREEN** — typecheck/lint clean, unit suite green (27 files), build
+clean, **24 e2e** green (was 23 + the new dials flow).
+
+Hostile Critic (multi-agent workflow, 4 dimension critics + adversarial
+verification of every P0/P1): **PASS** — scorecard financial 9 / security 9 /
+UX-a11y 8 / code-tests 8, **0 P0/P1** (the lone P1 candidate — a stale
+`paymentAccountId` silently falling back — was independently verified to P2:
+no account-deletion path exists anywhere in the codebase, so it is latent /
+forward-looking). P2s fixed in this pass: centralized the triplicated
+`JSON.parse(moneyDials)` into a malformed-safe `parseStoredDials`/`encodeDials`
+engine boundary (used by coach/settings/budgets/action); made `needsOnboarding`
+existence-aware (a dangling/ineligible saved id re-fires the nudge instead of a
+silent fallback) and removed the redundant 3rd dashboard user-read (single
+source via `DashboardData.paymentAccountId`); added a `role="status"` live region
+for the "saved" confirmation (WCAG SC 4.1.3); code-point-aware dial length;
+zero-eligible-account empty state; tightened the nudge copy (money dials don't
+move the headline); `autoComplete="off"` on the numeric inputs. Deferred P2s
+(documented, not fixed): per-action rate limit (consistent with the codebase's
+other mutations — DECISIONS/ROADMAP #8), focus-to-first-error + error summary,
+and light-theme error/success contrast (light theme is unreachable today).
+
+NOTE (env, not a code defect): the first e2e run failed with `ChunkLoadError`
+because a stale `next start` (the desktop launcher app) held port 3100 and
+Playwright's `reuseExistingServer` reused it after the rebuild overwrote its
+chunks. Stopping that process and re-running clean was green. If e2e ever shows
+chunk-load / 400-on-`_next/static` errors, check for a stray server on 3100
+(`netstat -ano | grep :3100`).
+
 ## Phase 4 (complete — see commit)
 
 Calendar/goals/budgets/exports/PWA/cron/security headers + dormant Plaid

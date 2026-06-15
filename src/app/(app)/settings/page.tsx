@@ -2,14 +2,52 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
+import { MoneyDialsForm } from '@/components/settings/money-dials-form';
+import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/dials';
+import { prisma } from '@/lib/db';
 
 export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
 
+  const userId = session.user.id;
+  const [user, accounts] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        hourlyWageCents: true,
+        swrBps: true,
+        expectedReturnBps: true,
+        moneyDials: true,
+        paymentAccountId: true,
+      },
+    }),
+    prisma.account.findMany({
+      where: { userId },
+      select: { id: true, name: true, type: true },
+      orderBy: [{ type: 'asc' }, { name: 'asc' }],
+    }),
+  ]);
+  if (!user) redirect('/sign-in');
+
+  const eligibleAccounts = accounts
+    .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))
+    .map((a) => ({ id: a.id, name: a.name }));
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Settings</h1>
+
+      <MoneyDialsForm
+        current={{
+          hourlyWageCents: user.hourlyWageCents,
+          swrBps: user.swrBps,
+          expectedReturnBps: user.expectedReturnBps,
+          moneyDials: parseStoredDials(user.moneyDials),
+          paymentAccountId: user.paymentAccountId,
+        }}
+        accounts={eligibleAccounts}
+      />
 
       <Card data-testid="export-card">
         <CardHeader className="pb-2">

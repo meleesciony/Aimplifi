@@ -28,6 +28,13 @@
   validated (per-row line errors), categorized through the pipeline, bulk
   inserted. The credential-free way to get real transactions in (DECISIONS #27);
   pure parser unit-tested.
+- Money Dials settings (`/settings`): edit the five per-user dials the engines
+  read — payment account, safe withdrawal rate, expected return, hourly wage,
+  and personal money dials. Pure validation engine (string-only parse,
+  all-fields-at-once errors, bounds that keep the FI engine defined), thin
+  ownership-scoped persist + audit, e2e round-trip (DECISIONS #28). A dashboard
+  onboarding nudge activates for users with no payment account set (dormant in
+  demo). This is the credential-free half of roadmap #2.
 - Plaid ingestion implemented behind the provider seam (mappers unit-tested;
   network UNVERIFIED — see roadmap #1 below and docs/PLAID_WALKTHROUGH.md).
 
@@ -41,8 +48,10 @@
    paths; (b) wire the DECISIONS #22 tail — recurring re-detection + scheduled
    refresh after ingest (per-row normalize→rules→categorize→transfer is done);
    (c) Plaid-Verification JWT check on the webhook; (d) production OAuth flow.
-2. **Real authentication** — Auth.js magic link + Google; per-user onboarding
-   (designate payment account, money dials, wage, SWR).
+2. **Real authentication** — Auth.js magic link + Google. The per-user dials
+   themselves now ship (the Money Dials editor above); what remains here is
+   multi-user signup + a true first-run onboarding flow (the dashboard nudge is
+   already wired and waiting on a real "new user with no payment account").
 3. **Average-daily-balance interest** for the minimum path (replaces the
    labeled v1 simple-monthly approximation).
 4. **Refund netting** (refunds reduce category spend instead of counting as

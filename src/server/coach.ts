@@ -22,6 +22,7 @@ import {
   type Opportunity,
 } from '@/lib/engine/fi/insights';
 import { generateMoneyReview, type MoneyReview } from '@/lib/engine/fi/coach-copy';
+import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { formatISODate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
@@ -165,7 +166,7 @@ export async function getCoachData(userId: string): Promise<CoachData> {
     runwayMonths: runway,
     lifeEnergy,
     hourlyWageCents: wage,
-    moneyDials: user.moneyDials ? (JSON.parse(user.moneyDials) as string[]) : [],
+    moneyDials: parseStoredDials(user.moneyDials),
     review,
   };
 }
