@@ -156,9 +156,11 @@ describe('critic5: EDGE_CASES §H — the intra-period dip (re-verified)', () =>
   });
 });
 
-describe('critic5: EDGE_CASES §I — minimum-path interest v1 formula', () => {
-  it('$3,000 stmt, $35 min, 24.00% APR → carried $2,965 → $59.30', () => {
-    // Hand: 296500 × 2400 / 10000 / 12 = 296500 × 0.02 = 5930.
+describe('critic5: EDGE_CASES §I — minimum-path interest (average-daily-balance)', () => {
+  it('$3,000 stmt, $35 min, 24.00% APR, cycle 06-01→07-01 (30d), due 06-15 → $58.81', () => {
+    // ADB hand math (different cycle dates than the §I unit test → different value):
+    // full $3,000 for 14 days (close 06-01 → due 06-15), carried $2,965 for 16 days.
+    // Σ = 300000·14 + 296500·16 = 8,944,000; × 2400/10000/365 = 2,146,560/365 = 5880.99 → 5881.
     const r = computeCashNeeded(input({
       scenario: 'MINIMUM',
       paymentAccount: { name: 'Checking', balanceCents: c(500000), pending: [] },
@@ -167,7 +169,7 @@ describe('critic5: EDGE_CASES §I — minimum-path interest v1 formula', () => {
         statement: { statementBalanceCents: c(300000), minimumPaymentCents: c(3500), dueDate: d('2026-06-15'), cycleEnd: d('2026-06-01') },
       })],
     }));
-    expect(r.minimumPathInterestCents).toBe(5930);
+    expect(r.minimumPathInterestCents).toBe(5881);
   });
 });
 
@@ -223,15 +225,23 @@ describe('critic5: §Seed-headline re-derived through the PURE engine', () => {
     expect(r.upcoming[0]).toMatchObject({ cardId: 'store', isEstimated: true, cashRequiredCents: 4350 });
   });
 
-  it('MINIMUM: $2,135.00 by 06-15, no shortfall, interest $65.76', () => {
+  it('MINIMUM: $2,135.00 by 06-15, no shortfall, ADB interest $67.36', () => {
     // Hand: 35 + 2100 (autopay full) + 0 (Freedom min satisfied) = 2135.00 due 06-15.
-    // Interest: Sapphire 267733×2499/120000 = 5575.54 → 5576; Platinum 0; Freedom 60000×1999/120000 = 999.5 → 1000.
+    // ADB interest per card (daily rate × Σ daily balances, ÷ 365):
+    //  Sapphire (2499 bps, close 05-18, due 06-15, 31d cycle): full 271233 for 28d,
+    //    carried 267733 for 3d → Σ = 271233·28 + 267733·3 = 8,397,723;
+    //    × 2499/10000/365 = 2,098,590.98/365 = 5749.56 → 5750.
+    //  Platinum: STATEMENT_BALANCE autopay → paid in full → 0.
+    //  Freedom (1999 bps, close 06-01, 30d): min already satisfied by the $400
+    //    mid-cycle payment, so nothing more is paid → $600 carried constant 30 days
+    //    → 60000·30 = 1,800,000; × 1999/10000/365 = 359,820/365 = 985.81 → 986.
+    //  Total = 5750 + 0 + 986 = 6736. (Store Card is an estimate → upcoming, excluded.)
     const r = computeCashNeeded(seedInput('MINIMUM'));
     expect(r.headline.requiredCents).toBe(213500);
     expect(r.headline.byDate).toBe('2026-06-15');
     expect(r.headline.shortfallCents).toBe(0);
     expect(r.headline.recommendation).toBeNull();
-    expect(r.minimumPathInterestCents).toBe(6576);
+    expect(r.minimumPathInterestCents).toBe(6736);
   });
 });
 
@@ -363,9 +373,11 @@ describe('critic5 N5: every generated statement is $0 but an estimated card exis
 });
 
 describe('critic5 N6: MINIMUM scenario + autopay MINIMUM + partial payment', () => {
-  it('partial $20 against a $35 min → cash $15, action $0, interest on the true carry', () => {
-    // Hand: minimumDue = 3500 − 2000 = 1500; autopay MINIMUM pulls 1500;
-    // carried = (100000 − 2000) − 1500 = 96500 → 96500 × 2400/120000 = 1930.
+  it('partial $20 against a $35 min → cash $15, action $0, ADB interest on the true carry', () => {
+    // minimumDue = 3500 − 2000 = 1500; autopay MINIMUM pulls 1500;
+    // remainingDue = 100000 − 2000 = 98000; carried = 98000 − 1500 = 96500.
+    // ADB (close 06-01, due 06-15, 30d): full 98000 for 14d, carried 96500 for 16d →
+    // Σ = 98000·14 + 96500·16 = 2,916,000; × 2400/10000/365 = 699,840/365 = 1917.37 → 1917.
     const r = computeCashNeeded(input({
       scenario: 'MINIMUM',
       paymentAccount: { name: 'Checking', balanceCents: c(50000), pending: [] },
@@ -379,13 +391,13 @@ describe('critic5 N6: MINIMUM scenario + autopay MINIMUM + partial payment', () 
     expect(r.headline.requiredCents).toBe(1500);
     expect(r.cards[0].autopayCents).toBe(1500);
     expect(r.cards[0].userActionCents).toBe(0);
-    expect(r.minimumPathInterestCents).toBe(1930);
+    expect(r.minimumPathInterestCents).toBe(1917);
   });
 
-  it('partial $50 already exceeds the min → $0 due, interest still computed ($19.00)', () => {
-    // Hand: minimumDue = floorAtZero(3500 − 5000) = 0; carried = 95000 − 0 = 95000
-    // → 95000 × 2400/120000 = 1900. Card owes nothing this cycle but interest
-    // on the carried balance must still appear.
+  it('partial $50 already exceeds the min → $0 due, ADB interest still computed ($18.74)', () => {
+    // minimumDue = floorAtZero(3500 − 5000) = 0; nothing more is paid in the MINIMUM
+    // scenario, so $950 (= 100000 − 5000) is carried constant for the 30-day cycle
+    // (close 06-01) → 95000·30 = 2,850,000; × 2400/10000/365 = 684,000/365 = 1873.97 → 1874.
     const r = computeCashNeeded(input({
       scenario: 'MINIMUM',
       paymentAccount: { name: 'Checking', balanceCents: c(50000), pending: [] },
@@ -397,6 +409,6 @@ describe('critic5 N6: MINIMUM scenario + autopay MINIMUM + partial payment', () 
       })],
     }));
     expect(r.headline.requiredCents).toBe(0);
-    expect(r.minimumPathInterestCents).toBe(1900);
+    expect(r.minimumPathInterestCents).toBe(1874);
   });
 });

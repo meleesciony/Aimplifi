@@ -232,13 +232,15 @@ describe('GOLDEN: seed → assembler → engine matches EDGE_CASES §Seed-headli
     });
   });
 
-  it('MINIMUM scenario: $2,135.00 required, no shortfall, interest $65.76 (hand math)', () => {
+  it('MINIMUM scenario: $2,135.00 required, no shortfall, ADB interest $67.36 (hand math)', () => {
+    // ADB per card (see critic5 seed re-derivation): Sapphire 5750 + Platinum 0
+    // (autopay full) + Freedom 986 = 6736. Store Card is an estimate (upcoming), excluded.
     const min = computeCashNeeded(assemble('MINIMUM'));
     expect(min.headline.requiredCents).toBe(213500);
     expect(min.headline.byDate).toBe('2026-06-15');
     expect(min.headline.shortfallCents).toBe(0);
     expect(min.headline.recommendation).toBeNull();
-    expect(min.minimumPathInterestCents).toBe(6576);
+    expect(min.minimumPathInterestCents).toBe(6736);
   });
 });
 

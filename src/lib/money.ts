@@ -60,12 +60,37 @@ export function maxCents(a: Cents, b: Cents): Cents {
 }
 
 /**
- * Multiply an amount by a basis-points rate (e.g. APR), with the documented
- * rounding rule. `divisor` lets callers express e.g. monthly interest:
- *   mulBps(carried, aprBps, 12)  ==  round(carried * aprBps / 10000 / 12)
+ * Average-daily-balance interest for one billing cycle (two-balance form).
+ * The balance is `startBalanceCents` for `daysAtStartBalance` days, then
+ * `endBalanceCents` for the remaining `cycleDays - daysAtStartBalance` days.
+ * Interest = daily periodic rate × Σ(daily balances), rounded ONCE at the end:
+ *   DPR = aprBps / 10000 / 365   (365-day year — the standard issuer convention)
+ *   interest = round( (startBalance·dStart + endBalance·(cycleDays−dStart)) · DPR )
+ * Integer cents in; the only float arithmetic is the single rate multiply, with
+ * round-half-away-from-zero at that one materialized step (the same
+ * single-materialized-round discipline used throughout money.ts).
+ * `daysAtStartBalance` is clamped to [0, cycleDays]. New purchases are NOT
+ * modeled — callers project interest on the existing balance and say so. The
+ * grace-period decision (paid in full ⇒ no interest) belongs to the caller,
+ * which simply doesn't call this when nothing is carried. The integer numerator
+ * is asserted safe before the divide so overflow fails loud, never silently.
  */
-export function mulBps(amount: Cents, bps: number, divisor = 1): Cents {
-  return roundHalfAwayFromZero((amount * bps) / 10000 / divisor);
+export function averageDailyBalanceInterestCents(args: {
+  startBalanceCents: Cents;
+  endBalanceCents: Cents;
+  aprBps: number;
+  cycleDays: number;
+  daysAtStartBalance: number;
+}): Cents {
+  const { startBalanceCents, endBalanceCents, aprBps, cycleDays } = args;
+  if (cycleDays <= 0 || aprBps <= 0) return ZERO;
+  const dStart = Math.max(0, Math.min(args.daysAtStartBalance, cycleDays));
+  const sumDailyBalances = startBalanceCents * dStart + endBalanceCents * (cycleDays - dStart);
+  const numerator = sumDailyBalances * aprBps;
+  if (!Number.isSafeInteger(numerator)) {
+    throw new Error(`averageDailyBalanceInterestCents: numerator ${numerator} exceeds safe-integer range`);
+  }
+  return roundHalfAwayFromZero(numerator / 10000 / 365);
 }
 
 /** Round UP to the next multiple of $50 (5000 cents). Used for transfer advice. */

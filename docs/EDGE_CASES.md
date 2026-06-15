@@ -68,13 +68,28 @@ Calendar references use real 2026 dates (June 13, 2026 = Saturday; June 15 = Mon
   headline reports the 06-04 need; intraPeriodMinimum = (2026-06-04, −$300.00 before
   remedy); transfer recommendation **$300.00 by 2026-06-03**.
 
-### I. Minimum-payment path interest (v1 formula — documented simplification)
-- Formula (binding for v1): carried = statementBalance − minimumPayment;
-  monthly interest = round(carried × aprBps / 10000 / 12).
-- Statement $3,000.00, min $35.00, APR 24.00% (2400 bps).
-- carried = $2,965.00 → interest = 296500 × 0.02 = **$59.30** for the next cycle.
-- Test also asserts the UI labels this "approximate, simple monthly interest" — the
-  average-daily-balance method is a Phase 5/roadmap refinement.
+### I. Minimum-payment path interest (average-daily-balance method)
+- Method: for each card NOT paid in full, interest accrues on the average daily
+  balance of the next cycle [statement close → next close], at the daily periodic
+  rate DPR = aprBps / 10000 / 365. The balance is the full statement balance until
+  the minimum posts on the due date, then the carried balance after; new purchases
+  are not projected. Interest = round(DPR × Σ daily balances), where
+  Σ = startBalance·daysUntilDue + carried·(cycleDays − daysUntilDue), and
+  cycleDays = daysBetween(close, close+1mo). Paying in full (incl. STATEMENT_BALANCE
+  autopay) carries nothing → **$0** (grace period preserved).
+- Anchor: statement $3,000.00, min $35.00, APR 24.00% (2400 bps); cycle close
+  2026-05-18 → 2026-06-18 (31 days), due 2026-06-15.
+  - full $3,000 for 28 days (close→due), carried $2,965 for 3 days (due→next close).
+  - Σ = 300000·28 + 296500·3 = 9,289,500; interest = round(9,289,500 × 2400 / 10000 / 365)
+    = round(2,229,480 / 365) = round(6108.16) = **$61.08**.
+- The value depends on the cycle dates: the same statement on a 2026-06-01 → 07-01
+  cycle (30 days, due 06-15 → 14 days at full) gives Σ = 300000·14 + 296500·16 =
+  8,944,000 → 2,146,560/365 = **$58.81** (critic5 §I). Both are pinned.
+- Seed (MINIMUM): Sapphire $57.50 (271233·28 + 267733·3 = 8,397,723 × 2499/10000/365)
+  + Platinum $0 (STATEMENT_BALANCE autopay) + Freedom $9.86 (600 carried constant
+  30 days × 1999/10000/365) = **$67.36** (was $59.30/$65.76 under the retired
+  simple-monthly formula). Store Card is an estimate (upcoming) → excluded.
+- Supersedes the v1 simple-monthly approximation (carried × APR/12); see DECISIONS #29.
 
 ### J. Pending transactions affect projection
 - Checking $1,000.00 with a pending −$250.00 → projection starts from effective
@@ -132,13 +147,17 @@ due date or recommendation lands on it.
 → $0. Autopay STATEMENT_BALANCE still pulls Platinum in full. Required =
 35.00 + 2,100.00 + 0 = **$2,135.00** by 06-15; walk 3,150 → 5,600 (06-12) →
 5,600 − 2,135 = 3,465.00 → **no shortfall**, recommendation null.
-Interest (v1 formula, per card, round-half-away-from-zero):
-- Sapphire: carried = 271,233 − 3,500 = 267,733¢ × 2499 / 120,000 =
-  669,064,767 / 120,000 = 5,575.54 → **$55.76**
-- Platinum: autopay pays full → carried 0 → $0.00
-- Freedom: carried = 60,000¢ (min path pays $0 more) × 1999 / 120,000 =
-  119,940,000 / 120,000 = 999.5 → rounds away from zero → **$10.00**
-- Total = **$65.76**
+Interest (average-daily-balance method, per card, round-half-away-from-zero;
+DPR = APR / 10,000 / 365 applied to Σ daily balances over the next cycle):
+- Sapphire (2499 bps, close 05-18 → next close 06-18 = 31 days, due 06-15):
+  full 271,233 for 28 days, carried 267,733 for 3 days → Σ = 271,233·28 +
+  267,733·3 = 8,397,723; × 2499 / 10,000 / 365 = 2,098,590.98 / 365 = 5,749.56
+  → **$57.50**
+- Platinum: autopay STATEMENT_BALANCE pays full → carried 0 → **$0.00**
+- Freedom (1999 bps, close 06-01 → 07-01 = 30 days): min already satisfied, so
+  $600 stays outstanding the full cycle → 60,000·30 = 1,800,000; × 1999 / 10,000 /
+  365 = 359,820 / 365 = 985.81 → **$9.86**
+- Total = **$67.36** (see §I; supersedes the retired simple-monthly $65.76)
 
 **Net worth at asOf:** assets = 3,400 + 18,500 + 1,200 + 142,000 = 165,100.00;
 liabilities = 2,948.11 (Sapphire) + 2,260.45 (Platinum) + 743.20 (Freedom) +

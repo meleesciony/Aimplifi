@@ -102,7 +102,8 @@ export interface CashNeededResult {
   /** Estimated next-cycle obligations (statement not yet generated) — informational. */
   upcoming: CardObligation[];
   intraPeriodMinimum: { date: ISODate; balanceCents: Cents } | null;
-  /** Approximate interest cost of the minimum path (MINIMUM scenario only). */
+  /** Estimated next-cycle interest cost of the minimum path via the
+   *  average-daily-balance method (MINIMUM scenario only; new purchases not projected). */
   minimumPathInterestCents: Cents | null;
   assumptions: string[];
 }

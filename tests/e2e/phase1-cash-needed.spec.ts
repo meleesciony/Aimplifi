@@ -59,8 +59,8 @@ test('per-card breakdown shows each obligation and the scenario toggle works', a
   // Scenario toggle: minimum path
   await page.getByTestId('toggle-minimum').click();
   await expect(page.getByTestId('scenario-required')).toHaveText('$2,135.00');
-  await expect(page.getByTestId('minimum-interest')).toContainText('$65.76');
-  await expect(page.getByTestId('minimum-interest')).toContainText('approximate');
+  await expect(page.getByTestId('minimum-interest')).toContainText('$67.36');
+  await expect(page.getByTestId('minimum-interest')).toContainText('average-daily-balance');
 
   // and back
   await page.getByTestId('toggle-pay-in-full').click();

@@ -123,6 +123,36 @@ chunks. Stopping that process and re-running clean was green. If e2e ever shows
 chunk-load / 400-on-`_next/static` errors, check for a stray server on 3100
 (`netstat -ano | grep :3100`).
 
+## Post-Phase-5 refinement: average-daily-balance interest (DECISIONS #29, ROADMAP #3)
+
+Minimum-path interest moved from the labeled v1 simple-monthly approximation
+(carried × APR/12) to the **average-daily-balance method**: per card not paid in
+full, interest = round(DPR × Σ daily balances) over the next cycle
+[close → close+1mo], DPR = APR/10000/365, balance = full statement until the
+minimum posts on the due date then carried after; grace-gated (paid in full → $0).
+New pure primitive `averageDailyBalanceInterestCents` in money.ts (own known-answer
+tests incl. a fail-loud overflow guard); engine derives cycleDays/daysUntilDue from
+the statement close+due dates. The retired `mulBps` (its sole caller) was removed.
+Every pinned value recomputed BY HAND and updated with its test + doc (EDGE_CASES
+§I/§Seed-headline: §I $61.08, the 06-01-cycle §I anchor $58.81, seed $65.76→$67.36,
+S8 $12.23, N6 $19.17/$18.74).
+
+Gate (real output 2026-06-15): `VERIFY_E2E=1 bash scripts/verify.sh` →
+**✅ VERIFY GREEN** — typecheck/lint clean, unit suite green (27 files), build
+clean, 24 e2e green. (One full-run failure was a confirmed environment flake —
+`net::ERR_NETWORK_IO_SUSPENDED` from the machine suspending network I/O mid-run;
+the 3 affected specs, all on pages untouched by this change, passed on a clean
+re-run, and the subsequent full verify was green.)
+
+Hostile Critic (multi-agent, adversarial verification): **PASS** — financial 9 /
+regression 9 / code-tests 9, **0 P0/P1**, 0 refuted; all three critics
+independently hand-derived every pinned ADB value and each matched exactly, and
+confirmed PAY_IN_FULL + all non-interest golden values are unchanged. Critic P2s
+fixed: removed dead `mulBps` + its fossil test, overflow guard, citation #5/#21→#29,
+type-comment + assumption-string transparency (mid-cycle payment timing). Accepted
+P2s: theoretical float-half fragility and the latent estimate-path clamp (unreached;
+estimates are excluded from MINIMUM interest whenever a real statement exists).
+
 ## Phase 4 (complete — see commit)
 
 Calendar/goals/budgets/exports/PWA/cron/security headers + dormant Plaid
@@ -135,9 +165,15 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
    sums of that cycle's card transactions (DECISIONS #14). Likewise the
    checking account's posted balance is not reconciled against its full
    transaction history. No engine math depends on this reconciliation.
-2. **Minimum-path interest is the v1 simple-monthly formula** (carried × APR/12),
-   labeled "approximate" in the UI. Average-daily-balance method is roadmap
-   (DECISIONS #5).
+2. **Minimum-path interest uses the average-daily-balance method** (DECISIONS #29,
+   supersedes the v1 simple-monthly approximation): APR÷365 × the cycle's average
+   balance (full statement until the minimum posts, carried after), grace-gated so
+   paid-in-full cards show $0. New purchases are not projected (a stated
+   assumption); the minimum is modeled as posting on the due date, and any
+   mid-cycle payment already made is treated as reducing the balance from the
+   statement's close date (its exact posting date is not modeled — a conservative,
+   user-favorable simplification). Two §I anchors in EDGE_CASES differ purely by
+   cycle dates ($61.08 vs $58.81) — expected, both pinned.
 3. **Demo auth is one-click** (anyone can open the demo user). Real auth
    (magic link / Google) plus the security pass land in Phase 4 (DECISIONS #13).
 4. **`getDashboardData` loads the full snapshot per render** — fine at seed

@@ -20,18 +20,19 @@
  *  - The projection walks day by day; the shortfall check is the running
  *    minimum, not just due-date endpoints. Within a day: scheduled flows post
  *    first, then card payments (documented in assumptions).
- *  - Minimum-path interest (v1): round(carried × APR/12) per card, labeled approximate.
+ *  - Minimum-path interest: average-daily-balance method per card (APR÷365 × the
+ *    cycle's average balance), grace-gated so paid-in-full cards carry no interest.
  */
 
 import {
   type Cents,
   ZERO,
+  averageDailyBalanceInterestCents,
   cents,
   floorAtZero,
   formatCents,
   maxCents,
   minCents,
-  mulBps,
   roundHalfAwayFromZero,
   roundUpToNext50Dollars,
   subCents,
@@ -40,7 +41,9 @@ import {
 import {
   type ISODate,
   addDays,
+  addMonthsClamped,
   compareDates,
+  daysBetween,
   formatISODate,
   isWeekend,
   previousBusinessDay,
@@ -277,20 +280,41 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
     );
   }
 
-  // ── Minimum-path interest (approximate, v1 formula — see DECISIONS.md #5) ──
+  // ── Minimum-path interest (average-daily-balance method — see DECISIONS #29, supersedes #5/#21) ──
+  // For each card not paid in full, interest accrues on the average daily balance
+  // of the NEXT cycle [statement close → next close]: the full statement balance
+  // until the minimum posts on the due date, then the carried balance after, at
+  // the daily periodic rate (APR ÷ 365). Paying in full (incl. STATEMENT_BALANCE
+  // autopay) carries nothing → no interest (grace period preserved). New purchases
+  // are not projected.
   let minimumPathInterestCents: Cents | null = null;
   if (scenario === 'MINIMUM') {
     const perCard = cycleObligations.map((o) => {
       const card = input.cards.find((c) => c.id === o.cardId);
       if (!card) return ZERO;
-      // Autopay STATEMENT_BALANCE pays in full regardless of scenario — no carry.
       const actuallyPaid = maxCents(o.minimumDueCents, o.autopayCents);
       const carried = floorAtZero(subCents(o.remainingDueCents, actuallyPaid));
-      return mulBps(carried, card.aprBps, 12);
+      if (carried <= 0) return ZERO; // paid in full → grace period, no interest
+
+      // Cycle bounds: the statement's close → the next close one month later.
+      // Estimate path (no generated statement) uses the projected cycle dates.
+      const close = card.statement?.cycleEnd ?? card.nextCycleCloseDate;
+      const due = card.statement?.dueDate ?? card.nextDueDate;
+      if (!close || !due) return ZERO; // can't date the cycle → no estimate
+      const cycleDays = daysBetween(close, addMonthsClamped(close, 1));
+      const daysAtStartBalance = daysBetween(close, due);
+
+      return averageDailyBalanceInterestCents({
+        startBalanceCents: o.remainingDueCents, // full balance until the min posts
+        endBalanceCents: carried, // carried balance after the min posts
+        aprBps: card.aprBps,
+        cycleDays,
+        daysAtStartBalance,
+      });
     });
     minimumPathInterestCents = sumCents(perCard);
     assumptions.add(
-      'Minimum-path interest is approximate: simple monthly interest (carried balance × APR ÷ 12); the average-daily-balance method is on the roadmap.',
+      'Minimum-path interest uses the average-daily-balance method: each card’s daily periodic rate (APR ÷ 365) times its average balance over the next cycle — the full statement balance until the minimum posts on the due date, then the carried balance — summed across the cycle. New purchases are not projected, and any mid-cycle payment already made is treated as reducing the balance from the statement’s close date (its exact posting date is not modeled).',
     );
   }
 

@@ -224,8 +224,10 @@ describe('S7 — two scheduled items land ON a due date', () => {
 
 describe('S8 — MINIMUM scenario, mid-cycle payment exceeds the minimum but not the statement', () => {
   // Hand: statement 1,000, min 35, paid 400 → minimum already satisfied → required $0.
-  // Carried into next cycle = 1,000 − 400 = 600 → interest = 600 × 24% / 12 = $12.00.
-  it('requires nothing more and prices the carried $600 at $12.00', () => {
+  // Carried into next cycle = 1,000 − 400 = 600. Nothing more is paid, so $600 is
+  // outstanding the full cycle (close 05-18 → 06-18, 31 days) → ADB interest =
+  // 60000·31 = 1,860,000; × 2400/10000/365 = 446,400/365 = 1223.01 → $12.23.
+  it('requires nothing more and prices the carried $600 at $12.23 (ADB)', () => {
     const c = card({
       id: 'c',
       name: 'C',
@@ -236,7 +238,7 @@ describe('S8 — MINIMUM scenario, mid-cycle payment exceeds the minimum but not
     const r = computeCashNeeded(input({ cards: [c], scenario: 'MINIMUM' }));
     expect(r.headline.requiredCents).toBe(0);
     expect(r.cards[0].minimumDueCents).toBe(0);
-    expect(r.minimumPathInterestCents).toBe(1200);
+    expect(r.minimumPathInterestCents).toBe(1223);
   });
 });
 

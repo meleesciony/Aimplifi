@@ -52,8 +52,10 @@
    themselves now ship (the Money Dials editor above); what remains here is
    multi-user signup + a true first-run onboarding flow (the dashboard nudge is
    already wired and waiting on a real "new user with no payment account").
-3. **Average-daily-balance interest** for the minimum path (replaces the
-   labeled v1 simple-monthly approximation).
+3. ~~**Average-daily-balance interest** for the minimum path~~ — **DONE**
+   (DECISIONS #29): the minimum-path interest now uses the average-daily-balance
+   method (APR÷365 × the cycle's average balance, grace-gated), replacing the
+   labeled v1 simple-monthly approximation. Pure primitive + known-answer tests.
 4. **Refund netting** (refunds reduce category spend instead of counting as
    income) and split-aware recurring detection.
 5. **Service worker** for full offline PWA (manifest + icons ship in v1).

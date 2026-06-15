@@ -253,8 +253,11 @@ describe('H — intra-period dip (the killer test)', () => {
   });
 });
 
-describe('I — minimum-payment path interest (v1 simple-monthly formula)', () => {
-  it('statement $3,000, min $35, APR 24.00% → carried $2,965.00 → interest $59.30', () => {
+describe('I — minimum-payment path interest (average-daily-balance method)', () => {
+  it('statement $3,000, min $35, APR 24.00%, cycle 05-18→06-18 (31d), due 06-15 → interest $61.08', () => {
+    // ADB hand math: full $3,000 for 28 days (close 05-18 → due 06-15), then the
+    // carried $2,965 for 3 days (→ next close 06-18). Σ daily balances =
+    // 300000·28 + 296500·3 = 9,289,500; × 2400/10000/365 = 2,229,480/365 = 6108.16 → 6108.
     const c = card({
       id: 'c',
       name: 'C',
@@ -262,13 +265,13 @@ describe('I — minimum-payment path interest (v1 simple-monthly formula)', () =
       statement: statement(300000, '2026-06-15'),
     });
     const r = computeCashNeeded(input({ cards: [c], scenario: 'MINIMUM' }));
-    expect(r.minimumPathInterestCents).toBe(5930);
+    expect(r.minimumPathInterestCents).toBe(6108);
     expect(r.headline.requiredCents).toBe(3500); // minimum scenario needs only the min
   });
-  it('labels the interest approximate (simple monthly) in assumptions', () => {
+  it('labels the interest as the average-daily-balance method in assumptions', () => {
     const c = card({ id: 'c', name: 'C', statement: statement(300000, '2026-06-15') });
     const r = computeCashNeeded(input({ cards: [c], scenario: 'MINIMUM' }));
-    expect(r.assumptions.join(' ')).toMatch(/approximate.*simple monthly/i);
+    expect(r.assumptions.join(' ')).toMatch(/average-daily-balance/i);
   });
   it('autopay STATEMENT_BALANCE card carries nothing on the minimum path', () => {
     const auto = card({

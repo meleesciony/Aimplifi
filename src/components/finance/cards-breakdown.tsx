@@ -73,7 +73,8 @@ export function CardsBreakdown({
       {scenario === 'MINIMUM' && result.minimumPathInterestCents !== null && (
         <p className="text-sm text-amber-500" data-testid="minimum-interest">
           Minimum path costs ≈ {formatCents(result.minimumPathInterestCents)} in interest
-          next cycle (approximate, simple monthly interest at each card&apos;s APR).
+          next cycle (estimated by the average-daily-balance method at each card&apos;s APR;
+          new purchases aren&apos;t included).
         </p>
       )}
 

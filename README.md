@@ -45,8 +45,9 @@ in `tests/unit/critic*-*.test.ts`.
   intelligence, aggregate obligation timeline, day-by-day projection with
   intra-period minimum (not just endpoints), autopay handled without double
   counting, weekend/holiday due-date walk-back, estimates labeled, pay-in-full
-  ⇄ minimum toggle with approximate interest cost, transfer recommendation
-  (rounded up to $50, never dated in the past).
+  ⇄ minimum toggle with average-daily-balance interest cost (APR÷365 × the
+  cycle's average balance, grace-gated), transfer recommendation (rounded up to
+  $50, never dated in the past).
 - **Categorization** (`engine/categorize/`) — merchant normalization (SQ\*,
   TST\*, AMZN Mktp, PAYPAL \*, airport POS…), confidence routing (auto-silent ≥
   90%, AI-badge 70–90%, review < 70%), contextual rules (amount bands, weekend,

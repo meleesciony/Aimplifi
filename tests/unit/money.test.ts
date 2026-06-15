@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  averageDailyBalanceInterestCents,
   cents,
   centsFromDollarString,
   floorAtZero,
   formatCents,
   maxCents,
   minCents,
-  mulBps,
   roundHalfAwayFromZero,
   roundUpToNext50Dollars,
   subCents,
@@ -43,14 +43,67 @@ describe('rounding rule: round-half-away-from-zero (docs/EDGE_CASES.md §Money)'
   });
 });
 
-describe('mulBps — basis-point interest math', () => {
-  it('computes EDGE_CASES §I: carried $2,965.00 at 2400 bps / 12 → $59.30', () => {
-    expect(mulBps(cents(296500), 2400, 12)).toBe(5930);
+describe('averageDailyBalanceInterestCents (docs/EDGE_CASES.md §I — ADB)', () => {
+  it('EDGE_CASES §I two-phase ADB: $3,000 full for 28d, $2,965 carried for 3d, 24% APR, 31-day cycle → $61.08', () => {
+    // Σ daily balances = 300000·28 + 296500·3 = 9,289,500
+    // interest = 9,289,500 × 2400 / 10000 / 365 = 2,229,480 / 365 = 6108.16 → 6108
+    expect(
+      averageDailyBalanceInterestCents({
+        startBalanceCents: cents(300000),
+        endBalanceCents: cents(296500),
+        aprBps: 2400,
+        cycleDays: 31,
+        daysAtStartBalance: 28,
+      }),
+    ).toBe(6108);
   });
-  it('rounds half away from zero at the materialized step', () => {
-    // 100 * 50 / 10000 = 0.5 → 1 cent
-    expect(mulBps(cents(100), 50)).toBe(1);
-    expect(mulBps(cents(-100), 50)).toBe(-1);
+  it('constant balance: $1,000 all 30 days at 24% APR → 1,000·30·0.24/365 = $19.73', () => {
+    // 100000·30 = 3,000,000; ×2400/10000/365 = 720,000/365 = 1972.6 → 1973
+    expect(
+      averageDailyBalanceInterestCents({
+        startBalanceCents: cents(100000),
+        endBalanceCents: cents(100000),
+        aprBps: 2400,
+        cycleDays: 30,
+        daysAtStartBalance: 15,
+      }),
+    ).toBe(1973);
+  });
+  it('clamps daysAtStartBalance into [0, cycleDays]', () => {
+    // >cycleDays → all at start balance: 200000·30 ×1200/10000/365 = 720,000/365 = 1972.6 → 1973
+    expect(
+      averageDailyBalanceInterestCents({
+        startBalanceCents: cents(200000),
+        endBalanceCents: cents(100000),
+        aprBps: 1200,
+        cycleDays: 30,
+        daysAtStartBalance: 40,
+      }),
+    ).toBe(1973);
+    // <0 → all at end balance: 100000·30 ×1200/10000/365 = 360,000/365 = 986.3 → 986
+    expect(
+      averageDailyBalanceInterestCents({
+        startBalanceCents: cents(200000),
+        endBalanceCents: cents(100000),
+        aprBps: 1200,
+        cycleDays: 30,
+        daysAtStartBalance: -5,
+      }),
+    ).toBe(986);
+  });
+  it('zero APR or zero cycle days → no interest', () => {
+    expect(
+      averageDailyBalanceInterestCents({ startBalanceCents: cents(100000), endBalanceCents: cents(100000), aprBps: 0, cycleDays: 30, daysAtStartBalance: 10 }),
+    ).toBe(0);
+    expect(
+      averageDailyBalanceInterestCents({ startBalanceCents: cents(100000), endBalanceCents: cents(100000), aprBps: 2400, cycleDays: 0, daysAtStartBalance: 0 }),
+    ).toBe(0);
+  });
+  it('fails loud (throws) rather than silently losing precision on an overflowing numerator', () => {
+    // ~$900B balance × 30 days × 2400 bps overflows 2^53 → must throw, not round a wrong value.
+    expect(() =>
+      averageDailyBalanceInterestCents({ startBalanceCents: cents(90_000_000_000_00), endBalanceCents: cents(90_000_000_000_00), aprBps: 2400, cycleDays: 30, daysAtStartBalance: 15 }),
+    ).toThrow(/safe-integer/);
   });
 });
 
