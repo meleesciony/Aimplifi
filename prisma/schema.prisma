@@ -272,6 +272,10 @@ model Budget {
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   category Category @relation(fields: [categoryId], references: [id])
+
+  // One target per (user, category) — makes setBudget a single atomic upsert and
+  // structurally precludes duplicate rows / the find-then-write race.
+  @@unique([userId, categoryId])
 }
 
 model AuditLog {

@@ -153,6 +153,34 @@ type-comment + assumption-string transparency (mid-cycle payment timing). Accept
 P2s: theoretical float-half fragility and the latent estimate-path clamp (unreached;
 estimates are excluded from MINIMUM interest whenever a real statement exists).
 
+## Post-Phase-5 refinement: budget-targets UI (DECISIONS #30, ROADMAP #7)
+
+Set/clear a per-category monthly target against actuals on `/budgets`. Pure engine
+`engine/budgets/status.ts` (summarizeBudgets over the union of spent+target
+categories; netSpendByCategory nets refunds; isBudgetable; parseBudgetTargetCents),
+22 unit cases. `setBudget` is an atomic `prisma.budget.upsert` on a new
+`@@unique([userId, categoryId])` (applied via `prisma db push`); `clearBudget` is
+ownership-scoped. Budget targets are display-only — they feed nothing but /budgets
+(not cash-needed/FI/net-worth) — so writes perturb no golden value.
+
+Gate (real output 2026-06-15): `VERIFY_E2E=1 bash scripts/verify.sh` →
+**✅ VERIFY GREEN** — typecheck/lint clean, unit suite green, build clean, e2e green
+(incl. the new budget-targets flow: set → axe scan → atomic overwrite → clear).
+
+Hostile Critic (multi-agent, adversarial verification): **PASS after fixes** —
+correctness 8 / security 9 / ux-tests 7. Two P1s found and FIXED before sign-off:
+(1) budget actuals ignored refunds → a net-under-target category could show a false
+"over target" bar — fixed by netting refunds in the budgets spend calc (scoped to
+the display; income/savings-rate aggregations stay gross per the documented
+convention, ROADMAP #4); (2) the overwrite path was untested with no DB uniqueness
+guard → fixed with `@@unique` + `upsert` (structurally one row, no race) + an e2e
+overwrite step. P2s fixed: non-spendable categories no longer selectable (shared
+`isBudgetable` allow-list on picker AND server), progress bar gained
+`role="progressbar"` + aria, and the e2e now runs axe on the target-bearing DOM.
+Accepted P2s (consistent with the codebase): action throws on invalid input like the
+sibling `createGoal` (no error boundary app-wide), per-action rate limit deferred
+(ROADMAP #8), and the pre-existing exact-name money-dial match.
+
 ## Phase 4 (complete — see commit)
 
 Calendar/goals/budgets/exports/PWA/cron/security headers + dormant Plaid

@@ -57,10 +57,14 @@
    method (APR÷365 × the cycle's average balance, grace-gated), replacing the
    labeled v1 simple-monthly approximation. Pure primitive + known-answer tests.
 4. **Refund netting** (refunds reduce category spend instead of counting as
-   income) and split-aware recurring detection.
+   income) and split-aware recurring detection. (Note: the /budgets view already
+   nets refunds locally per DECISIONS #30; this item is the engine-wide change to
+   income/savings-rate aggregations.)
 5. **Service worker** for full offline PWA (manifest + icons ship in v1).
 6. **Email/push payment reminders** (v1 badges due days on the calendar; no notification mechanism yet).
-7. **Budget targets UI** (model + actuals view ship in v1).
+7. ~~**Budget targets UI**~~ — **DONE** (DECISIONS #30): set/clear a per-category
+   monthly target on `/budgets` (atomic upsert on a new `@@unique`, refunds netted,
+   progress bar + remaining). Pure engine + known-answer tests + e2e.
 8. **Performance**: snapshot pagination/caching once data exceeds demo scale;
    Redis-backed rate limiting for multi-instance deployments.
 9. **Concurrency hardening**: row-level locks around split/undo paths
