@@ -45,23 +45,38 @@ export interface MonthlyFlow {
 /**
  * Monthly income/expenses/savings-rate, transfers and split parents excluded,
  * POSTED only. Savings rate = (after-tax income − expenses) / income.
+ *
+ * Refunds are NETTED against spend (ROADMAP #4): a positive transaction in a
+ * NON-income category (e.g. a return to 'shopping') reduces that month's
+ * expenses rather than counting as income — so a $450 purchase with a $100
+ * return shows $350 of spend, not $450 of spend + $100 of "income". Payroll and
+ * other true income (category 'income') still count as income; a positive with
+ * no/unknown category stays income (we don't net an ambiguous inflow against
+ * spend). A month's expenses never go below 0.
  */
 export function monthlyFlows(transactions: readonly TxnLike[]): MonthlyFlow[] {
   const byMonth = new Map<string, { income: number; expenses: number }>();
   for (const t of transactions) {
     if (!countsInFlows(t)) continue;
     const slot = byMonth.get(ym(t.date)) ?? { income: 0, expenses: 0 };
-    if (t.amountCents > 0) slot.income += t.amountCents;
-    else slot.expenses += -t.amountCents;
+    if (t.amountCents > 0) {
+      if (t.categoryId && t.categoryId !== 'income') slot.expenses -= t.amountCents; // refund
+      else slot.income += t.amountCents;
+    } else {
+      slot.expenses += -t.amountCents;
+    }
     byMonth.set(ym(t.date), slot);
   }
   return [...byMonth.entries()]
-    .map(([month, { income, expenses }]) => ({
-      month,
-      incomeCents: cents(income),
-      expensesCents: cents(expenses),
-      savingsRateBps: savingsRateBps(cents(income), cents(expenses)),
-    }))
+    .map(([month, { income, expenses }]) => {
+      const exp = Math.max(0, expenses); // refunds can't drive a month's spend below 0
+      return {
+        month,
+        incomeCents: cents(income),
+        expensesCents: cents(exp),
+        savingsRateBps: savingsRateBps(cents(income), cents(exp)),
+      };
+    })
     .sort((a, b) => (a.month < b.month ? -1 : 1));
 }
 

@@ -56,10 +56,9 @@
    (DECISIONS #29): the minimum-path interest now uses the average-daily-balance
    method (APR÷365 × the cycle's average balance, grace-gated), replacing the
    labeled v1 simple-monthly approximation. Pure primitive + known-answer tests.
-4. **Refund netting** (refunds reduce category spend instead of counting as
-   income) and split-aware recurring detection. (Note: the /budgets view already
-   nets refunds locally per DECISIONS #30; this item is the engine-wide change to
-   income/savings-rate aggregations.)
+4. ~~**Refund netting**~~ — **DONE** (DECISIONS #33): refunds reduce category
+   spend instead of counting as income, engine-wide in `monthlyFlows` (savings
+   rate + FI). Known-answer tested. (Still open: split-aware recurring detection.)
 5. ~~**Service worker** for offline PWA~~ — **DONE** (DECISIONS #32): `public/sw.js`
    + a precached, self-contained `/offline` shell + production-only registration.
    Network-first navigations (online stays fresh, nothing personal cached),

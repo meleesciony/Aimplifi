@@ -59,6 +59,47 @@ describe('monthly savings rate from seed data (3 hand-verified months)', () => {
   });
 });
 
+describe('refund netting (ROADMAP #4): a return reduces spend, not inflates income', () => {
+  it('$450 purchase + $100 return in shopping → $350 net spend, NOT counted as income', () => {
+    // income 200000; expenses 45000 − 10000 = 35000; rate = (200000−35000)/200000 = 82.50%.
+    const f = monthlyFlows([
+      { date: '2026-03-01', amountCents: 200000, rawDescriptor: 'PAYROLL', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'income' },
+      { date: '2026-03-05', amountCents: -45000, rawDescriptor: 'AMZN', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'shopping' },
+      { date: '2026-03-12', amountCents: 10000, rawDescriptor: 'AMZN REFUND', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'shopping' },
+    ])[0];
+    expect(f.incomeCents).toBe(200000);
+    expect(f.expensesCents).toBe(35000);
+    expect(f.savingsRateBps).toBe(8250);
+  });
+
+  it('a positive in the income category still counts as income (not netted)', () => {
+    const f = monthlyFlows([
+      { date: '2026-03-01', amountCents: 100000, rawDescriptor: 'PAYROLL', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'income' },
+      { date: '2026-03-05', amountCents: -40000, rawDescriptor: 'KROGER', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'groceries' },
+    ])[0];
+    expect(f.incomeCents).toBe(100000);
+    expect(f.expensesCents).toBe(40000);
+  });
+
+  it('a positive with no/unknown category stays income (ambiguous inflow not netted)', () => {
+    const f = monthlyFlows([
+      { date: '2026-03-01', amountCents: 50000, rawDescriptor: 'UNKNOWN DEPOSIT', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: null },
+      { date: '2026-03-05', amountCents: -20000, rawDescriptor: 'STORE', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'shopping' },
+    ])[0];
+    expect(f.incomeCents).toBe(50000);
+    expect(f.expensesCents).toBe(20000);
+  });
+
+  it('refunds never drive a month’s spend below $0 (floored)', () => {
+    const f = monthlyFlows([
+      { date: '2026-03-05', amountCents: -5000, rawDescriptor: 'STORE', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'shopping' },
+      { date: '2026-03-06', amountCents: 20000, rawDescriptor: 'BIG REFUND', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'shopping' },
+    ])[0];
+    expect(f.expensesCents).toBe(0);
+    expect(f.incomeCents).toBe(0);
+  });
+});
+
 describe('savings opportunities ranked by compounded impact', () => {
   const opportunities = findOpportunities(series, 700);
 

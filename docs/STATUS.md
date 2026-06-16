@@ -234,6 +234,21 @@ middleware matcher. Deferred P2s (documented): a build-stamped cache name and an
 in-app "update available" affordance — unneeded while hashed assets are passthrough
 and online navigations are network-first.
 
+## Post-Phase-5 refinement: app-wide refund netting (DECISIONS #33, ROADMAP #4)
+
+`monthlyFlows` (the single income/expense classifier feeding savings rate + FI)
+now nets refunds: a positive transaction in a non-income category reduces that
+month's expenses instead of counting as income (payroll/income unaffected;
+ambiguous no-category positives stay income; a month's spend is floored at 0). The
+demo's lone refund (+$50 AMZN return, May) now reduces shopping spend rather than
+inflating May income — a small, correct shift (no pinned golden value depended on
+it). Verified by 4 known-answer fixture tests in insights.test.ts; the only
+in-app income path is `monthlyFlows` (`incomeExcludingTransfers` is test-only), so
+the change is consistent. Reviewed by a focused self-check (income-detection edge
+cases + single-path confirmation) rather than the full multi-agent critic, given
+the 6-line, well-tested, single-path scope. `VERIFY_E2E=1 bash scripts/verify.sh`
+→ **✅ VERIFY GREEN** (585 unit / 29 files, 27 e2e, clean typecheck/lint/build).
+
 ## Phase 4 (complete — see commit)
 
 Calendar/goals/budgets/exports/PWA/cron/security headers + dormant Plaid
@@ -270,8 +285,13 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
    (2+ years of history); `possiblyUnused` is a fitness-category proxy
    (usage is not observable in transaction data — DECISIONS #18) and is always
    phrased as a question in the UI.
-8. **Refunds count as inflows** in income aggregation (consistently, engine-wide);
-   netting refunds against spending is a roadmap refinement.
+8. **Refunds are NETTED against spend** (DECISIONS #33, ROADMAP #4 — supersedes the
+   prior "refunds count as inflows" stance): a positive transaction in a non-income
+   category reduces that month's expenses in `monthlyFlows` rather than counting as
+   income, so savings rate and FI inputs reflect net spend. Payroll (category
+   `income`) still counts as income; a positive with no/unknown category stays
+   income (ambiguous inflow not netted). The /budgets view already did this locally
+   (DECISIONS #30); this makes it consistent engine-wide.
 9. **Equal-priority rules tie-break by creation order** (stable sort) — documented
    here rather than enforced.
 10. **Narrow concurrency races** (critic, P2): two concurrent splits of the same
