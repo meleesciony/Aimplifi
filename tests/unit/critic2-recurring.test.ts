@@ -43,7 +43,7 @@ describe('critic: recurring detection adversarial cases', () => {
     expect(series).toHaveLength(0); // txns.length < 3 → skipped (detect.ts:93)
   });
 
-  it('FINDING P2: a single refund + rebill DESTROYS subscription detection for the merchant entirely', () => {
+  it('FIXED (ROADMAP #4): a single refund + rebill no longer destroys detection', () => {
     const txns = [
       t('2026-01-03', -1799, 'NETFLIX.COM 866-579-7172'),
       t('2026-02-03', -1799, 'NETFLIX.COM 866-579-7172'),
@@ -54,10 +54,16 @@ describe('critic: recurring detection adversarial cases', () => {
       t('2026-05-03', -1799, 'NETFLIX.COM 866-579-7172'),
     ];
     const series = detectRecurring(txns, today);
-    // distinct = {-1799, +1799}; last = -1799; firstNewIdx = 0 → `continue`
-    // (detect.ts:120) — the whole series is dropped, the subscription vanishes
-    // from detection (and so would the price-increase insight).
-    expect(series.find((s) => s.merchantCanonical === 'Netflix')).toBeUndefined();
+    // The +$17.99 refund is the minority sign → excluded; the 6 charges still
+    // form the series. (Previously distinct={-1799,+1799} with firstNewIdx=0
+    // dropped the whole subscription — STATUS #7, now resolved by the
+    // dominant-sign filter in detect.ts.)
+    const netflix = series.find((s) => s.merchantCanonical === 'Netflix');
+    expect(netflix).toBeDefined();
+    expect(netflix!.cadence).toBe('MONTHLY');
+    expect(netflix!.typicalAmountCents).toBe(-1799);
+    expect(netflix!.isSubscription).toBe(true);
+    expect(netflix!.previousAmountCents).toBeNull(); // a clean series, not a price change
   });
 
   it('payroll survives a ONE-WEEK shifted paycheck (median gap still 14)', () => {
@@ -90,7 +96,7 @@ describe('critic: recurring detection adversarial cases', () => {
     expect(series[0].possiblyUnused).toBe(true); // flagged with zero 90-day evidence
   });
 
-  it('FINDING P2: a price change where the LAST txn is a refund flips isIncome and inverts the plateau', () => {
+  it('FIXED: a trailing refund no longer flips isIncome or inverts the plateau', () => {
     const txns = [
       t('2026-03-03', -1549, 'NETFLIX.COM 866-579-7172'),
       t('2026-04-03', -1549, 'NETFLIX.COM 866-579-7172'),
@@ -99,11 +105,12 @@ describe('critic: recurring detection adversarial cases', () => {
     ];
     const series = detectRecurring(txns, today);
     const s = series.find((x) => x.merchantCanonical === 'Netflix');
-    // distinct = 2, plateaus [-1549×3 | +1549×1] → treated as a PRICE CHANGE to
-    // +$15.49 and classified as INCOME.
+    // The trailing +$15.49 refund (minority sign) is excluded; the 3 charges are
+    // a clean monthly expense subscription — NOT phantom +$15.49/mo "income".
     expect(s).toBeDefined();
-    expect(s!.isIncome).toBe(true); // Netflix "income" of +$15.49/mo
-    expect(s!.previousAmountCents).toBe(-1549);
-    expect(s!.isSubscription).toBe(false); // and the real subscription disappears
+    expect(s!.isIncome).toBe(false);
+    expect(s!.isSubscription).toBe(true);
+    expect(s!.typicalAmountCents).toBe(-1549);
+    expect(s!.previousAmountCents).toBeNull();
   });
 });

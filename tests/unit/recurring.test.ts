@@ -100,3 +100,31 @@ describe('wiring back into the Phase 1 engine (acceptance #6)', () => {
     expect(result.headline.recommendation).toEqual({ amountCents: 105000, byDate: '2026-06-23' });
   });
 });
+
+describe('refund robustness (STATUS #7 / ROADMAP #4): a refund+rebill keeps the series', () => {
+  // A monthly $15.99 charge with a refund (same merchant) in month 2. The refund
+  // is opposite-signed → a one-off, not part of the cadence; the 4 charges still
+  // form the series. (Before the dominant-sign fix the +$15.99 made the amounts
+  // non-plateaued and the whole subscription was dropped — STATUS #7.)
+  it('excludes the refund and still detects the monthly series', () => {
+    const txns = [
+      { id: '1', accountId: 'a', date: '2026-01-05', amountCents: -1599, rawDescriptor: 'GLOWBOX MONTHLY' },
+      { id: '2', accountId: 'a', date: '2026-02-05', amountCents: -1599, rawDescriptor: 'GLOWBOX MONTHLY' },
+      { id: 'r', accountId: 'a', date: '2026-02-09', amountCents: 1599, rawDescriptor: 'GLOWBOX MONTHLY' }, // refund
+      { id: '3', accountId: 'a', date: '2026-03-05', amountCents: -1599, rawDescriptor: 'GLOWBOX MONTHLY' },
+      { id: '4', accountId: 'a', date: '2026-04-05', amountCents: -1599, rawDescriptor: 'GLOWBOX MONTHLY' },
+    ];
+    const out = detectRecurring(txns, isoDate('2026-06-10'));
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ cadence: 'MONTHLY', typicalAmountCents: -1599, occurrences: 4 });
+  });
+
+  it('does not fabricate a series when fewer than 3 same-signed charges remain', () => {
+    const txns = [
+      { id: '1', accountId: 'a', date: '2026-01-05', amountCents: -1599, rawDescriptor: 'GLOWBOX MONTHLY' },
+      { id: '2', accountId: 'a', date: '2026-02-05', amountCents: -1599, rawDescriptor: 'GLOWBOX MONTHLY' },
+      { id: 'r', accountId: 'a', date: '2026-02-09', amountCents: 1599, rawDescriptor: 'GLOWBOX MONTHLY' },
+    ];
+    expect(detectRecurring(txns, isoDate('2026-06-10'))).toHaveLength(0); // only 2 charges < 3
+  });
+});

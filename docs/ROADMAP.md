@@ -58,7 +58,9 @@
    labeled v1 simple-monthly approximation. Pure primitive + known-answer tests.
 4. ~~**Refund netting**~~ — **DONE** (DECISIONS #33): refunds reduce category
    spend instead of counting as income, engine-wide in `monthlyFlows` (savings
-   rate + FI). Known-answer tested. (Still open: split-aware recurring detection.)
+   rate + FI). Known-answer tested. Recurring detection is now refund-robust too
+   (DECISIONS #34): a refund+rebill no longer drops a subscription. (Still open:
+   split-CHILDREN handling — a niche, low-impact edge.)
 5. ~~**Service worker** for offline PWA~~ — **DONE** (DECISIONS #32): `public/sw.js`
    + a precached, self-contained `/offline` shell + production-only registration.
    Network-first navigations (online stays fresh, nothing personal cached),

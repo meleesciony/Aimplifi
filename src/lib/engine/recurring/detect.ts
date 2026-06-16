@@ -89,7 +89,16 @@ export function detectRecurring(
   }
 
   const results: RecurringSeriesResult[] = [];
-  for (const [canonical, { txns, categoryId }] of byMerchant) {
+  for (const [canonical, group] of byMerchant) {
+    const { categoryId } = group;
+    // A recurring series is same-signed charges; a stray opposite-sign txn — a
+    // refund inside an expense subscription, say — is a one-off, NOT part of the
+    // cadence. Analyze only the dominant sign so a refund+rebill doesn't drop the
+    // whole series (STATUS #7 fragility / ROADMAP #4). Pure-signed groups (every
+    // seed series) are unchanged: the minority list is empty, so `txns` is the full set.
+    const negatives = group.txns.filter((t) => t.amountCents < 0);
+    const positives = group.txns.filter((t) => t.amountCents > 0);
+    const txns = negatives.length >= positives.length ? negatives : positives;
     if (txns.length < 3) continue;
     const sorted = [...txns].sort((a, b) => compareDates(isoDate(a.date), isoDate(b.date)));
     const gaps: number[] = [];

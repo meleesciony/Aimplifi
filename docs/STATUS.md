@@ -280,11 +280,14 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
 6. WCAG AA: axe (wcag2a/aa + wcag21a/aa tags) passes on all core pages plus a
    keyboard-only flow (tests/e2e/phase5-a11y.spec.ts); a full manual audit
    (screen readers, zoom, cognitive review) has not been performed.
-7. **Recurring-detection fragilities (critic F8, P2):** a refund+rebill inside a
-   series drops it for the period; annual subscriptions need 3 occurrences
-   (2+ years of history); `possiblyUnused` is a fitness-category proxy
-   (usage is not observable in transaction data — DECISIONS #18) and is always
-   phrased as a question in the UI.
+7. **Recurring-detection fragilities (critic F8, P2):** ~~a refund+rebill inside a
+   series drops it for the period~~ — **FIXED** (DECISIONS #34, ROADMAP #4): the
+   detector analyzes only the dominant sign per merchant, so a refund (the minority
+   sign) no longer breaks amount-stability or flips a series to "income"; the two
+   critic2-recurring probes now assert the survived behavior. Still open: annual
+   subscriptions need 3 occurrences (2+ years of history); `possiblyUnused` is a
+   fitness-category proxy (usage is not observable in transaction data —
+   DECISIONS #18) and is always phrased as a question in the UI.
 8. **Refunds are NETTED against spend** (DECISIONS #33, ROADMAP #4 — supersedes the
    prior "refunds count as inflows" stance): a positive transaction in a non-income
    category reduces that month's expenses in `monthlyFlows` rather than counting as
