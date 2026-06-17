@@ -8,6 +8,8 @@ import { prisma } from '@/lib/db';
 import { isRuleEligibleMerchant } from '@/lib/engine/categorize/assign';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { type NetWorthSeriesPoint, netWorthSeries } from '@/lib/engine/networth/series';
+import { DEFAULT_AS_OF } from '@/lib/seed/build';
 import {
   type AccountView,
   type AccountsSummary,
@@ -80,13 +82,19 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}): P
 
 export interface AccountsView extends AccountsSummary {
   paymentAccountId: string | null;
+  /** Net worth over time (DECISIONS #40), oldest → newest, ending at today. */
+  trend: NetWorthSeriesPoint[];
 }
 
-/** Every account, grouped into assets vs liabilities with net worth. */
+/** Every account, grouped into assets vs liabilities with net worth + trend. */
 export async function getAccountsView(userId: string): Promise<AccountsView> {
-  const [user, accounts] = await Promise.all([
+  const [user, accounts, snapshots] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
+    prisma.balanceSnapshot.findMany({
+      where: { account: { userId } },
+      select: { accountId: true, date: true, balanceCents: true },
+    }),
   ]);
 
   const views: AccountView[] = accounts.map((a) => ({
@@ -98,5 +106,8 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     manual: a.provider === 'manual',
   }));
 
-  return { ...groupAccounts(views), paymentAccountId: user?.paymentAccountId ?? null };
+  const today = process.env.DEMO_TODAY ?? DEFAULT_AS_OF;
+  const trend = netWorthSeries({ snapshots, accounts: views, today });
+
+  return { ...groupAccounts(views), paymentAccountId: user?.paymentAccountId ?? null, trend };
 }

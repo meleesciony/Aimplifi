@@ -10,6 +10,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cents, formatCents } from '@/lib/money';
 import { MANUAL_ASSET_TYPES, MANUAL_LIABILITY_TYPES } from '@/lib/engine/networth/manual';
@@ -39,6 +40,69 @@ function typeLabel(t: string): string {
   return TYPE_LABEL[t] ?? t;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Net worth headline + over-time trend (DECISIONS #40). */
+function NetWorthCard({ data }: { data: AccountsView }) {
+  const chartData = data.trend.map((p) => ({
+    label: `${MONTHS[+p.date.slice(5, 7) - 1]} '${p.date.slice(2, 4)}`,
+    fullDate: p.date,
+    dollars: p.netWorthCents / 100,
+  }));
+  const t = data.trend;
+  const deltaCents = t.length >= 2 ? t[t.length - 1].netWorthCents - t[t.length - 2].netWorthCents : null;
+
+  return (
+    <Card data-testid="accounts-net-worth">
+      <CardHeader className="pb-2">
+        <CardDescription>Net worth (assets − liabilities)</CardDescription>
+        <CardTitle
+          className={`text-2xl tabular-nums sm:text-3xl ${data.netWorthCents < 0 ? 'text-red-400' : ''}`}
+          data-testid="accounts-net-worth-amount"
+        >
+          {formatCents(data.netWorthCents)}
+        </CardTitle>
+        {deltaCents !== null && (
+          <p
+            className={`text-xs ${deltaCents >= 0 ? 'text-emerald-500' : 'text-red-400'}`}
+            data-testid="accounts-net-worth-delta"
+          >
+            {formatCents(cents(deltaCents), { signDisplay: 'always' })} vs last month-end
+          </p>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-6 text-sm text-muted-foreground">
+          <span>Assets {formatCents(data.assets.subtotalCents)}</span>
+          <span>Liabilities {formatCents(data.liabilities.subtotalCents)}</span>
+        </div>
+        {chartData.length >= 2 && (
+          <div className="h-36 w-full sm:h-44" data-testid="accounts-net-worth-trend">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                <defs>
+                  <linearGradient id="nwacct" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" tickLine={false} axisLine={false} />
+                <YAxis hide domain={['dataMin - 5000', 'dataMax + 5000']} />
+                <Tooltip
+                  formatter={(value) => [formatCents(cents(Math.round((value as number) * 100))), 'Net worth']}
+                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullDate ?? ''}
+                  contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                />
+                <Area type="monotone" dataKey="dollars" stroke="#10b981" strokeWidth={2} fill="url(#nwacct)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function AccountsList({ data }: { data: AccountsView }) {
   const router = useRouter();
   const [adding, setAdding] = useState<null | 'asset' | 'liability'>(null);
@@ -66,21 +130,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
 
   return (
     <div className="space-y-4">
-      <Card data-testid="accounts-net-worth">
-        <CardHeader className="pb-2">
-          <CardDescription>Net worth (assets − liabilities)</CardDescription>
-          <CardTitle
-            className={`text-2xl tabular-nums sm:text-3xl ${data.netWorthCents < 0 ? 'text-red-400' : ''}`}
-            data-testid="accounts-net-worth-amount"
-          >
-            {formatCents(data.netWorthCents)}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex gap-6 text-sm text-muted-foreground">
-          <span>Assets {formatCents(data.assets.subtotalCents)}</span>
-          <span>Liabilities {formatCents(data.liabilities.subtotalCents)}</span>
-        </CardContent>
-      </Card>
+      <NetWorthCard data={data} />
 
       {error && (
         <p role="alert" className="rounded-md border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-300" data-testid="manual-error">

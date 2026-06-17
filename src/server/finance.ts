@@ -6,6 +6,7 @@
 import { holidayTable, type ISODate } from '@/lib/dates';
 import { assembleCashNeededInput, netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
+import { netWorthSeries } from '@/lib/engine/networth/series';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { getProvider } from '@/lib/providers/demo';
 import type { FinanceSnapshot } from '@/lib/providers/types';
@@ -83,22 +84,15 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   const { input, result: payInFull } = cashNeededFromSnapshot(snap, today, 'PAY_IN_FULL');
   const minimum = computeCashNeeded({ ...input, scenario: 'MINIMUM' });
 
-  // Net-worth trend from month-end snapshots (assets − liabilities per date).
-  const liabilityTypes = new Set(['CREDIT', 'LOAN']);
-  const typeById = new Map(snap.accounts.map((a) => [a.id, a.type]));
-  const byDate = new Map<string, number>();
-  for (const s of snap.balanceSnapshots) {
-    const sign = liabilityTypes.has(typeById.get(s.accountId) ?? '') ? -1 : 1;
-    byDate.set(s.date, (byDate.get(s.date) ?? 0) + sign * s.balanceCents);
-  }
-  // Today's live point replaces any same-dated snapshot; drop anything dated
-  // beyond "today" so the x-axis is strictly chronological history.
+  // Net-worth trend from month-end snapshots (assets − liabilities per date),
+  // via the one shared series builder (DECISIONS #40) — same classifier as the
+  // headline + the /accounts page, so manual liabilities can't be miscounted.
   const current = netWorthCents(snap.accounts);
-  byDate.set(today, current);
-  const netWorthTrend = [...byDate.entries()]
-    .filter(([date]) => date <= today)
-    .map(([date, value]) => ({ date, netWorthCents: value }))
-    .sort((a, b) => (a.date < b.date ? -1 : 1));
+  const netWorthTrend = netWorthSeries({
+    snapshots: snap.balanceSnapshots,
+    accounts: snap.accounts,
+    today,
+  });
 
   const accounts = snap.accounts.map((a) => ({
     id: a.id,
