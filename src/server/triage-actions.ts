@@ -76,6 +76,12 @@ export async function applyCategory(input: {
     where: { id: txn.id },
     data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
   });
+  // Ground truth for the accuracy metric (DECISIONS #37): the user just confirmed
+  // the real category for this transaction's prediction.
+  await prisma.categoryPrediction.updateMany({
+    where: { transactionId: txn.id, userId },
+    data: { actualCategoryId: input.categoryId },
+  });
 
   revalidatePath('/triage');
   revalidatePath('/transactions');
@@ -139,6 +145,10 @@ export async function applyToAllSimilar(input: {
     await tx.transaction.updateMany({
       where: { id: { in: targets.map((t) => t.id) } },
       data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
+    });
+    await tx.categoryPrediction.updateMany({
+      where: { transactionId: { in: targets.map((t) => t.id) }, userId },
+      data: { actualCategoryId: input.categoryId },
     });
     return ids;
   });
@@ -216,6 +226,10 @@ export async function recategorize(input: {
     await tx.transaction.updateMany({
       where: { id: { in: targets.map((t) => t.id) } },
       data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
+    });
+    await tx.categoryPrediction.updateMany({
+      where: { transactionId: { in: targets.map((t) => t.id) }, userId },
+      data: { actualCategoryId: input.categoryId },
     });
     return { correctionIds: ids, ruleId: rule.id };
   });

@@ -61,12 +61,21 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}): P
 
   const filtered = sortByDateDesc(filterTransactions(rows, filter));
 
+  // Render only the most-recent slice. The summary totals are computed over the
+  // FULL filtered set (accurate), but rendering 800+ interactive rows made the
+  // page heavy enough to delay hydration (search/filters racing load). Capping
+  // the DOM keeps the register responsive; refine with filters to see older rows
+  // (server-side pagination is the eventual scale answer, ROADMAP #8).
+  const DISPLAY_CAP = 200;
+  const summary = summarizeTransactions(filtered);
+  const display = filtered.slice(0, DISPLAY_CAP);
+
   // Account options come from the full (unfiltered) set so the dropdown is stable.
   const seen = new Map<string, string>();
   for (const r of rows) if (!seen.has(r.accountId)) seen.set(r.accountId, r.accountName);
   const accountOptions = [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => (a.name < b.name ? -1 : 1));
 
-  return { rows: filtered, summary: summarizeTransactions(filtered), accountOptions };
+  return { rows: display, summary, accountOptions };
 }
 
 export interface AccountsView extends AccountsSummary {

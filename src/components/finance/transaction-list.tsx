@@ -91,6 +91,9 @@ export function TransactionList({ rows, summary }: { rows: TxnView[]; summary: T
       <p className="text-xs text-muted-foreground">
         {summary.count} transaction{summary.count === 1 ? '' : 's'}. Totals exclude
         transfers between your own accounts.
+        {rows.length < summary.count && (
+          <> Showing the most recent {rows.length} — refine with filters to see older ones.</>
+        )}
       </p>
 
       {rows.length === 0 ? (

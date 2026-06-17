@@ -36,6 +36,7 @@ model User {
   corrections Correction[]
   recurring   RecurringSeries[]
   plaidItems  PlaidItem[]
+  predictions CategoryPrediction[]
 }
 
 // One linked Plaid Item (institution connection) per row. Holds the access
@@ -199,6 +200,25 @@ model Correction {
   toCategoryId   String
   becameRuleId   String?
   createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Prediction log for the categorizer (DECISIONS #37): one row per transaction,
+// recording what the pipeline predicted and with what confidence, plus the
+// realized/confirmed category once known. Powers the accuracy + calibration
+// (Brier) metric. actualCategoryId stays null until ground truth arrives
+// (a known-merchant seed label, or a user confirmation/correction).
+model CategoryPrediction {
+  id                  String   @id @default(cuid())
+  userId              String
+  transactionId       String   @unique
+  predictedCategoryId String
+  confidenceBps       Int
+  actualCategoryId    String? // null until confirmed/known
+  createdAt           DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

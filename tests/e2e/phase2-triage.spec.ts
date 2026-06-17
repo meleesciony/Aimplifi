@@ -117,3 +117,12 @@ test('a full review session completes in <15 interactions (→ <60s human time)'
   await expect(page.getByTestId('review-badge')).toHaveCount(0);
 });
 
+test('categorization accuracy card shows a measured value (DECISIONS #37)', async ({ page }) => {
+  await signInToTriage(page);
+  const card = page.getByTestId('accuracy-card');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('Categorization accuracy');
+  // seeded known-merchant labels guarantee a measured percentage (n > 0)
+  await expect(page.getByTestId('accuracy-value')).toContainText('%');
+});
+

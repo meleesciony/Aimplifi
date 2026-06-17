@@ -15,6 +15,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { auth } from '@/auth';
 import { recategorize } from '@/server/triage-actions';
+import { getCategorizationAccuracy } from '@/server/accuracy';
 import { prisma } from '@/lib/db';
 
 describe('recategorize (real action, throwaway data — DECISIONS #36)', () => {
@@ -62,6 +63,10 @@ describe('recategorize (real action, throwaway data — DECISIONS #36)', () => {
         },
       });
       mIds.push(t.id);
+      // a logged prediction (predicted 'shopping', confidence 95%, not yet labeled)
+      await prisma.categoryPrediction.create({
+        data: { userId: USER, transactionId: t.id, predictedCategoryId: 'shopping', confidenceBps: 9500 },
+      });
     }
     // A different transaction — must never be touched by the merchant-scoped change.
     const other = await prisma.transaction.create({
@@ -84,6 +89,13 @@ describe('recategorize (real action, throwaway data — DECISIONS #36)', () => {
     expect((await prisma.transaction.findUnique({ where: { id: mIds[1] } }))!.categoryId).toBe('shopping');
     expect(await prisma.categorizationRule.count({ where: { userId: USER } })).toBe(0);
     expect(await prisma.correction.count({ where: { userId: USER, transactionId: mIds[0] } })).toBeGreaterThanOrEqual(1);
+    // the prediction is now labeled with the user's confirmed truth (DECISIONS #37)
+    expect(
+      (await prisma.categoryPrediction.findUnique({ where: { transactionId: mIds[0] } }))!.actualCategoryId,
+    ).toBe('dining');
+    const acc = await getCategorizationAccuracy(USER);
+    expect(acc.n).toBe(1); // one labeled so far; predicted 'shopping' ≠ 'dining' → a miss
+    expect(acc.correct).toBe(0);
   });
 
   it("scope 'merchant' re-files every transaction of the merchant (already-filed included) + a priority-100 rule", async () => {
@@ -98,5 +110,9 @@ describe('recategorize (real action, throwaway data — DECISIONS #36)', () => {
     const rule = await prisma.categorizationRule.findFirst({ where: { userId: USER, merchantId: merchId } });
     expect(rule?.categoryId).toBe('fuel');
     expect(rule?.priority).toBe(100);
+    // all three predictions are now labeled 'fuel' (DECISIONS #37)
+    const acc = await getCategorizationAccuracy(USER);
+    expect(acc.n).toBe(3);
+    expect(acc.correct).toBe(0); // predicted 'shopping' vs actual 'fuel' → all misses
   });
 });

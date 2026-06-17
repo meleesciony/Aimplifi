@@ -100,6 +100,23 @@ async function main() {
     })),
   });
 
+  // ── Prediction log for the accuracy/calibration metric (DECISIONS #37) ──
+  // One row per transaction: what the pipeline predicted + its confidence.
+  // Ground truth (actualCategoryId) is set only where we genuinely know it — a
+  // known merchant's canonical category — so the metric is honest: confident
+  // known-merchant hits score well; low-confidence items routed to review count
+  // as not-yet-correct with low confidence (good calibration). Unknown/ambiguous
+  // rows stay unlabeled until the user reviews them.
+  await prisma.categoryPrediction.createMany({
+    data: categorized.map(({ txn, out }) => ({
+      userId: data.user.id,
+      transactionId: txn.id,
+      predictedCategoryId: out.categoryId,
+      confidenceBps: out.confidenceBps,
+      actualCategoryId: knownByCanonical.get(out.merchantCanonical)?.categoryId ?? null,
+    })),
+  });
+
   // ── Phase 2: detected recurring series ──
   const series = detectRecurring(
     data.transactions.filter((t) => t.status === 'POSTED'),
