@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowDownLeft, ArrowUpRight, CreditCard } from 'lucide-react';
 import { auth } from '@/auth';
+import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { prisma } from '@/lib/db';
 import { buildCashFlowCalendar } from '@/lib/engine/calendar/build';
 import { addMonthsClamped, formatISODate, formatMonth, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
@@ -16,6 +18,8 @@ export default async function CalendarPage({
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
+  // No accounts yet → onboarding; getCashNeeded throws on empty (DECISIONS #44).
+  if ((await prisma.account.count({ where: { userId: session.user.id } })) === 0) return <EmptyDashboard />;
   const { today, snap, result } = await getCashNeeded(session.user.id);
   const params = await searchParams;
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? '')

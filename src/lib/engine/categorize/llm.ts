@@ -11,9 +11,9 @@
  * (src/server/llm-categorize.ts); with no ANTHROPIC_API_KEY it returns null and
  * the deterministic result stands unchanged (the demo-mode invariant).
  */
-import { ASSIGNABLE_CATEGORIES, } from './assign';
+import { ASSIGNABLE_CATEGORIES } from './assign';
 import { CATEGORY_BY_ID } from './categories';
-import { AUTO_FLAGGED_BPS } from './pipeline';
+import { AUTO_SILENT_BPS } from './pipeline';
 
 export interface LlmCategory {
   categoryId: string;
@@ -61,8 +61,11 @@ export function pickAssistedCategory(
   deterministic: { categoryId: string; confidenceBps: number; needsReview: boolean },
   llm: LlmCategory | null,
 ): { categoryId: string; confidenceBps: number; source: 'deterministic' | 'llm' } {
+  // The LLM is an unproven source, so its auto-file bar is the HIGH-confidence
+  // threshold (AUTO_SILENT 9000), not the merchant-table's AUTO_FLAGGED (7000) —
+  // until its logged-prediction Brier score (#37) justifies lowering it (#44).
   const unsure = deterministic.needsReview || deterministic.categoryId === 'uncategorized';
-  if (unsure && llm && llm.confidenceBps >= AUTO_FLAGGED_BPS) {
+  if (unsure && llm && llm.confidenceBps >= AUTO_SILENT_BPS) {
     return { categoryId: llm.categoryId, confidenceBps: llm.confidenceBps, source: 'llm' };
   }
   return {

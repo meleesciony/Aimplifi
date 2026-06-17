@@ -18,6 +18,14 @@ interface PlaidWebhook {
 }
 
 export async function POST(request: NextRequest) {
+  // Interim mitigation (DECISIONS #44): this endpoint is excluded from auth so
+  // Plaid can reach it, but the JWT signature check isn't wired yet (ROADMAP
+  // #1c). Until it is, refuse outside live Plaid mode so the demo deploy never
+  // exposes an unauthenticated, DB-touching, sync-triggering endpoint.
+  if ((process.env.DATA_PROVIDER ?? 'demo') !== 'plaid') {
+    return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
+
   let body: PlaidWebhook;
   try {
     body = (await request.json()) as PlaidWebhook;

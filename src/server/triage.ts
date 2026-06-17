@@ -44,12 +44,15 @@ export function similarTransactionsWhere(
   // onlyNeedsReview:false (DECISIONS #36). The merchant-vs-descriptor scope is
   // identical either way, so the two surfaces can never drift (DECISIONS #23).
   const onlyNeedsReview = opts.onlyNeedsReview ?? true;
+  // Never re-file split-PARENT containers (categoryId is intentionally null and
+  // they're excluded from every aggregation) — and excluding them keeps the
+  // register's "re-file all N" count equal to the rows actually mutated (#44).
   const scope = txn.aggregate
     ? { rawDescriptor: txn.rawDescriptor }
     : { merchantId: txn.merchantId };
   return onlyNeedsReview
-    ? { ...scope, needsReview: true, account: { userId } }
-    : { ...scope, account: { userId } };
+    ? { ...scope, needsReview: true, isSplitParent: false, account: { userId } }
+    : { ...scope, isSplitParent: false, account: { userId } };
 }
 
 export async function getTriageItems(userId: string): Promise<TriageItem[]> {

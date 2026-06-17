@@ -46,4 +46,30 @@ describe('assistUnsureRows — LLM auto-apply at ingest (DECISIONS #42)', () => 
     expect(suggest).not.toHaveBeenCalled();
     expect(out).toEqual([confident]);
   });
+
+  it('does NOT auto-file an INFLOW as a spend category (sign guard, #44)', async () => {
+    const inflow: AssistableRow = {
+      rawDescriptor: 'ACME REFUND',
+      amountCents: 5000, // positive = money in
+      categoryId: 'uncategorized',
+      confidenceBps: 4000,
+      needsReview: true,
+    };
+    const suggest = vi.fn(async (): Promise<LlmCategory> => ({ categoryId: 'dining', confidenceBps: 9500 }));
+    const out = await assistUnsureRows([inflow], suggest);
+    expect(out[0]).toMatchObject({ categoryId: 'uncategorized', needsReview: true }); // left for review
+  });
+
+  it('DOES auto-file an inflow when the LLM picks income/transfer', async () => {
+    const inflow: AssistableRow = {
+      rawDescriptor: 'PAYROLL XYZ',
+      amountCents: 500000,
+      categoryId: 'uncategorized',
+      confidenceBps: 4000,
+      needsReview: true,
+    };
+    const suggest = vi.fn(async (): Promise<LlmCategory> => ({ categoryId: 'income', confidenceBps: 9500 }));
+    const out = await assistUnsureRows([inflow], suggest);
+    expect(out[0]).toMatchObject({ categoryId: 'income', needsReview: false });
+  });
 });

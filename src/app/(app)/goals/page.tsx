@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { prisma } from '@/lib/db';
@@ -12,6 +13,8 @@ export default async function GoalsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
   const userId = session.user.id;
+  // No accounts yet → onboarding; getCoachData runs the cash engine which throws on empty (DECISIONS #44).
+  if ((await prisma.account.count({ where: { userId } })) === 0) return <EmptyDashboard />;
   const [goals, coach] = await Promise.all([
     prisma.goal.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
     getCoachData(userId),

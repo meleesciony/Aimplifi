@@ -23,11 +23,18 @@ test('email/password sign-up → empty onboarding → sign out → sign back in'
   await expect(page.getByTestId('empty-dashboard')).toBeVisible();
   await expect(page.getByTestId('demo-banner')).toHaveCount(0);
 
-  // Other engine-backed pages must show onboarding too, not crash (DECISIONS #43).
-  await page.goto('/cards');
-  await expect(page.getByTestId('empty-dashboard')).toBeVisible();
-  await page.goto('/coach');
-  await expect(page.getByTestId('empty-dashboard')).toBeVisible();
+  // Every cash-engine-backed page shows onboarding (not a crash) for a zero-account user (#44).
+  for (const path of ['/cards', '/coach', '/goals', '/calendar']) {
+    await page.goto(path);
+    await expect(page.getByTestId('empty-dashboard'), `${path} should onboard, not crash`).toBeVisible({
+      timeout: 20000,
+    });
+  }
+  // The remaining nav pages render their own empty states — assert no error boundary.
+  for (const path of ['/transactions', '/accounts', '/budgets', '/triage', '/settings']) {
+    await page.goto(path);
+    await expect(page.getByTestId('app-error'), `${path} should not crash`).toHaveCount(0);
+  }
 
   // Sign out.
   await page.getByRole('button', { name: 'Sign out' }).click();

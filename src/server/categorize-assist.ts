@@ -45,6 +45,10 @@ export async function assistUnsureRows<T extends AssistableRow>(
       byDescriptor.get(r.rawDescriptor) ?? null,
     );
     if (picked.source !== 'llm') return r;
+    // Don't auto-file an INFLOW (refund/credit, positive amount) as a spend
+    // category — only income/transfer are sign-appropriate; else leave for
+    // review so refund-netting and the user decide (#44).
+    if (r.amountCents > 0 && picked.categoryId !== 'income' && picked.categoryId !== 'transfer') return r;
     return { ...r, categoryId: picked.categoryId, confidenceBps: picked.confidenceBps, needsReview: false };
   });
 }

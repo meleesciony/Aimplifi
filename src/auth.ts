@@ -41,11 +41,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: async ({ account, profile }) => {
       if (account?.provider === 'google' && profile?.email) {
         const email = normalizeEmail(String(profile.email));
-        await prisma.user.upsert({
-          where: { id: `google:${email}` },
-          create: { id: `google:${email}`, email, name: (profile.name as string | undefined) ?? null },
-          update: {},
-        });
+        const id = `google:${email}`;
+        try {
+          // If the email already belongs to another sign-in method (e.g. a
+          // password account), refuse rather than crash on the unique-email
+          // constraint. Proper account-linking is a documented follow-up (#43).
+          const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+          if (existing && existing.id !== id) return false;
+          await prisma.user.upsert({
+            where: { id },
+            create: { id, email, name: (profile.name as string | undefined) ?? null },
+            update: {},
+          });
+        } catch {
+          return false; // never surface a raw 500 from the OAuth callback
+        }
       }
       return true;
     },
