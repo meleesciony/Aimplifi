@@ -14,7 +14,9 @@ import {
   parseTransactionCsv,
   prepareImportedTransaction,
 } from '@/lib/engine/transactions/csv-import';
+import { pickAssistedCategory } from '@/lib/engine/categorize/llm';
 import { auditLog, requireUserId } from '@/server/authz';
+import { suggestCategoryViaLLM } from '@/server/llm-categorize';
 import { loadUserRules } from '@/server/rules';
 
 export async function createManualTransaction(formData: FormData): Promise<void> {
@@ -38,16 +40,40 @@ export async function createManualTransaction(formData: FormData): Promise<void>
     rules,
   );
 
+  // When the user didn't dictate a category, let the optional LLM assist an
+  // UNKNOWN merchant (DECISIONS #38). No ANTHROPIC_API_KEY → null → the
+  // deterministic result stands unchanged (demo-mode invariant).
+  let categoryId = prepared.categoryId;
+  let confidenceBps = prepared.confidenceBps;
+  let needsReview = prepared.needsReview;
+  if (!categoryRaw) {
+    const llm = await suggestCategoryViaLLM({
+      rawDescriptor: prepared.rawDescriptor,
+      amountCents: prepared.amountCents,
+    });
+    const picked = pickAssistedCategory(
+      {
+        categoryId: prepared.categoryId ?? 'uncategorized',
+        confidenceBps: prepared.confidenceBps ?? 0,
+        needsReview: prepared.needsReview,
+      },
+      llm,
+    );
+    categoryId = picked.categoryId;
+    confidenceBps = picked.confidenceBps;
+    if (picked.source === 'llm') needsReview = false; // a confident LLM pick auto-files
+  }
+
   await prisma.transaction.create({
     data: {
       accountId: prepared.accountId,
       date: prepared.date,
       amountCents: prepared.amountCents,
       rawDescriptor: prepared.rawDescriptor,
-      categoryId: prepared.categoryId,
-      confidenceBps: prepared.confidenceBps,
+      categoryId,
+      confidenceBps,
       status: prepared.status,
-      needsReview: prepared.needsReview,
+      needsReview,
       isTransfer: prepared.isTransfer,
     },
   });
