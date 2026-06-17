@@ -12,6 +12,7 @@
 
 import { type Cents, cents } from '@/lib/money';
 import { type ISODate, addDays, addMonthsClamped, compareDates, daysInMonth, isoDate } from '@/lib/dates';
+import { isLiabilityType } from '@/lib/engine/transactions/query';
 import type { CardSnapshot, CashNeededInput, PendingTx, Scenario, ScheduledItem } from './types';
 
 export interface AccountLike {
@@ -216,8 +217,7 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
 export function netWorthCents(accounts: { type: string; currentBalanceCents: number }[]): Cents {
   let total = 0;
   for (const a of accounts) {
-    const isLiability = a.type === 'CREDIT' || a.type === 'LOAN';
-    total += isLiability ? -a.currentBalanceCents : a.currentBalanceCents;
+    total += isLiabilityType(a.type) ? -a.currentBalanceCents : a.currentBalanceCents;
   }
   return cents(total);
 }

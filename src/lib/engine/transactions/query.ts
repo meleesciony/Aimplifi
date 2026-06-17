@@ -115,14 +115,24 @@ export function summarizeTransactions(rows: readonly TxnView[]): TxnSummary {
 
 // ── Accounts page ──────────────────────────────────────────────────────────
 
-export const LIABILITY_TYPES: ReadonlySet<string> = new Set(['CREDIT', 'LOAN']);
+// Liability account types — linked (CREDIT/LOAN) plus the manual ones a user can
+// add for a complete net worth (DECISIONS #39). Everything else is an asset.
+// New types are absent from the seed, so the golden net worth is unchanged.
+export const LIABILITY_TYPES: ReadonlySet<string> = new Set([
+  'CREDIT',
+  'LOAN',
+  'MORTGAGE',
+  'OTHER_LIABILITY',
+]);
 
 export interface AccountView {
   id: string;
   name: string;
-  type: string; // CHECKING | SAVINGS | CREDIT | INVESTMENT | LOAN
+  type: string; // CHECKING | SAVINGS | CREDIT | INVESTMENT | LOAN | REAL_ESTATE | VEHICLE | CASH | OTHER_ASSET | MORTGAGE | OTHER_LIABILITY
   mask: string | null;
   currentBalanceCents: number; // stored positive
+  /** True for user-added manual assets/liabilities (editable; no transactions). */
+  manual?: boolean;
 }
 
 export interface AccountGroup {

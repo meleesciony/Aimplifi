@@ -95,6 +95,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     type: a.type,
     mask: a.mask,
     currentBalanceCents: a.currentBalanceCents,
+    manual: a.provider === 'manual',
   }));
 
   return { ...groupAccounts(views), paymentAccountId: user?.paymentAccountId ?? null };

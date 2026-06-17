@@ -42,6 +42,34 @@ test('accounts page groups assets/liabilities and matches dashboard net worth', 
   await expect(page.getByTestId('txn-list')).toBeVisible();
 });
 
+test('manual net-worth items: add a home asset (net worth updates), then delete it (DECISIONS #39)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/accounts');
+
+  // Add a $100,000 home → net worth goes from the seed golden value to +100k.
+  // Add-then-delete keeps the shared seed net worth intact for the golden specs
+  // (Playwright's toHaveText retries through the brief window).
+  await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$144,804.74');
+  await page.getByTestId('add-asset-btn').click();
+  await page.getByTestId('manual-name').fill('E2E Test Home');
+  await page.getByTestId('manual-type').selectOption('REAL_ESTATE');
+  await page.getByTestId('manual-value').fill('100000');
+  await page.getByTestId('manual-submit').click();
+
+  const row = page.getByTestId('manual-account-row').filter({ hasText: 'E2E Test Home' });
+  await expect(row).toBeVisible({ timeout: 20000 });
+  // it lands in the ASSETS group and net worth reflects it
+  await expect(page.getByTestId('account-group-asset')).toContainText('E2E Test Home');
+  await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$244,804.74');
+
+  // delete → reverts (so the golden value is restored for parallel specs)
+  await row.getByTestId('manual-delete').click();
+  await expect(page.getByTestId('manual-account-row').filter({ hasText: 'E2E Test Home' })).toHaveCount(0, {
+    timeout: 20000,
+  });
+  await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$144,804.74');
+});
+
 test('transaction register lists, summarizes, filters, and searches', async ({ page }) => {
   await signIn(page);
   await page.goto('/transactions');
