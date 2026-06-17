@@ -37,6 +37,13 @@
   demo). This is the credential-free half of roadmap #2.
 - Plaid ingestion implemented behind the provider seam (mappers unit-tested;
   network UNVERIFIED — see roadmap #1 below and docs/PLAID_WALKTHROUGH.md).
+- Postgres deploy path (DECISIONS #35): the app runs on SQLite locally + in all
+  tests (zero credentials) and on Postgres in production, chosen by DATABASE_URL
+  scheme (`src/lib/db-adapter.ts`). One canonical schema; `scripts/gen-pg-schema.mjs`
+  derives the postgresql variant; `vercel.json` build = derive → generate → db
+  push → next build. Provisioned + seeded against a dedicated Neon `pulse`
+  database for real (842 txns). REMAINING for a confirmed-live deploy: set
+  `DATABASE_URL` (Neon direct endpoint) + `AUTH_SECRET` in Vercel env and redeploy.
 
 ## Roadmap (in rough priority order)
 

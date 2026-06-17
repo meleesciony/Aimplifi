@@ -6,8 +6,8 @@
  * Usage: npx prisma db seed [-- --asOf 2026-06-10]
  * Same --asOf ⇒ identical dataset (asserted by tests/unit/seed.test.ts).
  */
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { PrismaClient } from '../src/generated/prisma/client';
+import { makeAdapter } from '../src/lib/db-adapter';
 import { DEFAULT_AS_OF, buildSeedData } from '../src/lib/seed/build';
 import { CATEGORIES } from '../src/lib/engine/categorize/categories';
 import { KNOWN_MERCHANTS } from '../src/lib/engine/categorize/normalize';
@@ -15,9 +15,7 @@ import { categorize } from '../src/lib/engine/categorize/pipeline';
 import { detectRecurring } from '../src/lib/engine/recurring/detect';
 import { isoDate } from '../src/lib/dates';
 
-const prisma = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? 'file:./dev.db' }),
-});
+const prisma = new PrismaClient({ adapter: makeAdapter(process.env.DATABASE_URL) });
 
 const slug = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');

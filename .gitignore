@@ -42,6 +42,9 @@ next-env.d.ts
 
 /src/generated/prisma
 
+# derived Postgres schema (generated at build by scripts/gen-pg-schema.mjs)
+prisma/.generated.postgres.prisma
+
 # local sqlite + e2e artifacts
 dev.db
 dev.db-journal

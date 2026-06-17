@@ -4,7 +4,10 @@ import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
 export default defineConfig({
-  schema: "prisma/schema.prisma",
+  // Canonical schema is SQLite (local dev + tests, zero credentials). For a
+  // Postgres deploy, scripts/gen-pg-schema.mjs derives a postgresql schema and
+  // PRISMA_SCHEMA points generate/db push at it (see vercel.json). DECISIONS #35.
+  schema: process.env["PRISMA_SCHEMA"] ?? "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
     seed: "tsx prisma/seed.ts",

@@ -27,6 +27,15 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Driver packages must stay external to the server bundle so the correct
+  // runtime binary loads (better-sqlite3 native addon locally; pg in
+  // production). See src/lib/db-adapter.ts and DECISIONS #35.
+  serverExternalPackages: [
+    "@prisma/adapter-pg",
+    "@prisma/adapter-better-sqlite3",
+    "better-sqlite3",
+    "pg",
+  ],
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
