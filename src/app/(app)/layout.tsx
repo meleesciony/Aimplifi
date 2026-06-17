@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { auth, signOut } from '@/auth';
+import { DEMO_USER_ID, auth, signOut } from '@/auth';
 import { AppNav } from '@/components/app-nav';
 import { Button } from '@/components/ui/button';
 import { formatISODate, isoDate } from '@/lib/dates';
@@ -23,7 +23,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
   const today = getProvider().today();
-  const isDemo = (process.env.DATA_PROVIDER ?? 'demo') === 'demo';
+  // The "demo dataset" banner is about fictional data — true only for the demo
+  // user, not real signed-up accounts (DECISIONS #43).
+  const isDemo = session.user.id === DEMO_USER_ID;
 
   async function doSignOut() {
     'use server';

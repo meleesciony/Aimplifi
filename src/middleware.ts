@@ -1,5 +1,9 @@
+import NextAuth from 'next-auth';
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import authConfig from '@/auth.config';
+
+// Edge-safe instance (no Prisma) — middleware only checks the session.
+const { auth } = NextAuth(authConfig);
 
 /**
  * Route protection: pages redirect to sign-in; API routes get a proper 401

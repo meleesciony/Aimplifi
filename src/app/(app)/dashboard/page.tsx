@@ -3,14 +3,22 @@ import { auth } from '@/auth';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { CashNeededCard } from '@/components/finance/cash-needed-card';
 import { NetWorthCard } from '@/components/finance/net-worth-card';
+import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { OnboardingNudge } from '@/components/settings/onboarding-nudge';
 import { PAYMENT_ACCOUNT_TYPES, needsOnboarding } from '@/lib/engine/settings/dials';
+import { prisma } from '@/lib/db';
 import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
 
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
+
+  // Brand-new users have no accounts yet — the cash-needed engine needs some, so
+  // show first-run onboarding instead of computing over nothing (DECISIONS #43).
+  const accountCount = await prisma.account.count({ where: { userId: session.user.id } });
+  if (accountCount === 0) return <EmptyDashboard />;
+
   const [data, coach] = await Promise.all([
     getDashboardData(session.user.id),
     getCoachData(session.user.id),

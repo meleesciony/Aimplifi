@@ -1,42 +1,53 @@
 /**
- * Auth.js v5 — one-click demo sign-in (no secrets required). Real credential
- * flows (magic link / Google) are wired-but-dormant: enable the providers here
- * and supply AUTH_GOOGLE_* env vars (see README "Dormant pending keys").
+ * Full Auth.js v5 instance (Node runtime — uses Prisma). Spreads the edge-safe
+ * authConfig and adds the email/password Credentials provider (DB lookup) plus
+ * the Google user-upsert signIn callback (DECISIONS #43). Demo sign-in and the
+ * dormant Google provider come from authConfig.
  *
- * Kept Prisma-free so it can be imported from middleware (edge runtime);
- * the sign-in audit log lives in the sign-in page's server action instead.
+ * Middleware does NOT import this file — it uses auth.config.ts directly so the
+ * edge bundle stays Prisma-free.
  */
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import { verifyPassword } from '@/lib/auth/password';
+import { normalizeEmail } from '@/lib/auth/validate';
+import { prisma } from '@/lib/db';
+import { DEMO_USER_ID, authConfig } from '@/auth.config';
 
-export const DEMO_USER_ID = 'user-demo';
+export { DEMO_USER_ID };
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  trustHost: true,
-  session: { strategy: 'jwt' },
-  pages: { signIn: '/sign-in' },
+  ...authConfig,
   providers: [
+    ...authConfig.providers,
     Credentials({
-      id: 'demo',
-      name: 'Demo account',
-      credentials: {},
-      // Demo mode: the seeded demo user is the only account.
-      authorize: async () => ({
-        id: DEMO_USER_ID,
-        email: 'demo@pulse.finance',
-        name: 'Demo User',
-      }),
+      id: 'password',
+      name: 'Email and password',
+      credentials: { email: {}, password: {} },
+      authorize: async (creds) => {
+        const email = normalizeEmail(String(creds?.email ?? ''));
+        const password = String(creds?.password ?? '');
+        if (!email || !password) return null;
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user || !verifyPassword(password, user.passwordHash)) return null; // same response either way
+        return { id: user.id, email: user.email, name: user.name ?? undefined };
+      },
     }),
   ],
   callbacks: {
-    authorized: ({ auth: session }) => Boolean(session?.user),
-    jwt: ({ token, user }) => {
-      if (user?.id) token.sub = user.id;
-      return token;
-    },
-    session: ({ session, token }) => {
-      if (token.sub) session.user.id = token.sub;
-      return session;
+    ...authConfig.callbacks,
+    // Google: ensure the User row exists, keyed by the same deterministic id the
+    // jwt callback derives. No adapter, no Account-model collision.
+    signIn: async ({ account, profile }) => {
+      if (account?.provider === 'google' && profile?.email) {
+        const email = normalizeEmail(String(profile.email));
+        await prisma.user.upsert({
+          where: { id: `google:${email}` },
+          create: { id: `google:${email}`, email, name: (profile.name as string | undefined) ?? null },
+          update: {},
+        });
+      }
+      return true;
     },
   },
 });

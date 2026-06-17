@@ -1,26 +1,21 @@
 import { redirect } from 'next/navigation';
 import { DEMO_USER_ID, auth, signIn } from '@/auth';
-import { prisma } from '@/lib/db';
+import { EmailPasswordForm } from '@/components/auth/email-password-form';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { googleSignIn } from '@/server/auth-actions';
+import { prisma } from '@/lib/db';
 
 export default async function SignInPage() {
   const session = await auth();
   if (session?.user) redirect('/dashboard');
 
+  const googleEnabled = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
+
   async function demoSignIn() {
     'use server';
-    // login audit (docs/PRIVACY.md) — never blocks sign-in if the DB is empty
     try {
-      await prisma.auditLog.create({
-        data: { userId: DEMO_USER_ID, action: 'auth.signin', meta: '{}' },
-      });
+      await prisma.auditLog.create({ data: { userId: DEMO_USER_ID, action: 'auth.signin', meta: '{}' } });
     } catch {}
     await signIn('demo', { redirectTo: '/dashboard' });
   }
@@ -33,20 +28,34 @@ export default async function SignInPage() {
             Aim<span className="text-emerald-500">plifi</span>
           </CardTitle>
           <CardDescription>
-            Know exactly how much money you need — and by when — to pay every
-            card in full.
+            Know exactly how much money you need — and by when — to pay every card in full.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+          <EmailPasswordForm />
+
+          {googleEnabled && (
+            <form action={googleSignIn}>
+              <Button type="submit" variant="outline" className="w-full" data-testid="google-sign-in">
+                Continue with Google
+              </Button>
+            </form>
+          )}
+
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            or just look around
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
           <form action={demoSignIn}>
-            <Button type="submit" className="w-full" data-testid="demo-sign-in">
+            <Button type="submit" variant="outline" className="w-full" data-testid="demo-sign-in">
               Explore the demo
             </Button>
           </form>
           <p className="text-xs text-muted-foreground">
-            Demo mode uses a realistic seeded dataset — fictional accounts, no
-            bank credentials, no sign-up. Live bank connections activate when
-            Plaid is configured (see Settings).
+            The demo uses a realistic seeded dataset — fictional accounts, no sign-up. Create an account
+            to track your own money; connect a bank (Plaid) or import a CSV to get started.
           </p>
         </CardContent>
       </Card>
