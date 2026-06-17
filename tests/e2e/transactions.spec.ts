@@ -32,6 +32,7 @@ test('accounts page groups assets/liabilities and matches dashboard net worth', 
 
   await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$144,804.74');
   await expect(page.getByTestId('accounts-net-worth-trend')).toBeVisible(); // net worth over time (DECISIONS #40)
+  await expect(page.getByTestId('connect-bank-btn')).toBeVisible(); // Plaid Link entry point (DECISIONS #41)
   await expect(page.getByTestId('account-group-asset')).toBeVisible();
   await expect(page.getByTestId('account-group-liability')).toBeVisible();
 

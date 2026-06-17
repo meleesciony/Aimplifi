@@ -59,9 +59,12 @@
    The network path is no longer UNVERIFIED. REMAINING: (b) wire the DECISIONS #22
    tail — recurring re-detection + scheduled refresh after ingest (per-row
    normalize→rules→categorize→transfer is done); (c) Plaid-Verification JWT check
-   on the webhook; (d) production OAuth flow; (e) **a "Connect a bank" Plaid Link
-   UI** — the ingest/validator are headless; users can't yet link an account from
-   the app, so the deployed app stays in demo mode until this ships.
+   on the webhook; (d) production OAuth flow; (e) **DONE** — a "Connect a bank or
+   brokerage" Plaid Link UI (DECISIONS #41, `connect-accounts-button.tsx` +
+   `plaid-actions.ts`, react-plaid-link). Enabled for SANDBOX. The deployed app
+   stays in demo until **real multi-user auth** (roadmap #2) lands — linking real
+   banks to the shared demo user would leak one person's data to all; that's the
+   gate to production Plaid, not a code gap.
 2. **Real authentication** — Auth.js magic link + Google. The per-user dials
    themselves now ship (the Money Dials editor above); what remains here is
    multi-user signup + a true first-run onboarding flow (the dashboard nudge is

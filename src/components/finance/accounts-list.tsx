@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { cents, formatCents } from '@/lib/money';
 import { MANUAL_ASSET_TYPES, MANUAL_LIABILITY_TYPES } from '@/lib/engine/networth/manual';
 import {
@@ -160,6 +161,9 @@ export function AccountsList({ data }: { data: AccountsView }) {
         onDelete={(accountId) => refreshAfter(() => deleteManualAccount(accountId))}
         onCancelEdit={() => setEditingId(null)}
       />
+
+      {/* Link real accounts (bank, brokerage, credit, loans) via Plaid */}
+      <ConnectAccountsButton />
 
       {/* Add manual items */}
       <div className="flex gap-2">

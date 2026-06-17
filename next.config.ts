@@ -10,11 +10,14 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'", // Next.js inline runtime bootstrap
+      // cdn.plaid.com hosts the Plaid Link SDK; *.plaid.com is the Link iframe +
+      // its API calls (DECISIONS #41). Scoped to Plaid only.
+      "script-src 'self' 'unsafe-inline' https://cdn.plaid.com", // Next.js inline runtime bootstrap
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
-      "connect-src 'self'",
+      "connect-src 'self' https://*.plaid.com",
+      "frame-src https://*.plaid.com",
       "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",
