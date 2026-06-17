@@ -51,14 +51,17 @@
 
 ## Roadmap (in rough priority order)
 
-1. **Plaid sandbox validation** — the ingest path is now IMPLEMENTED (mapping +
-   sign flip unit-tested in plaid-map.test.ts; `/accounts`, `/transactions/sync`
-   cursor loop, `/liabilities`→statements, webhook, cron, and the dedicated
-   `PlaidItem` token+cursor table all written). REMAINING: (a) run
-   docs/PLAID_WALKTHROUGH.md §5 against a live sandbox to verify the network
-   paths; (b) wire the DECISIONS #22 tail — recurring re-detection + scheduled
-   refresh after ingest (per-row normalize→rules→categorize→transfer is done);
-   (c) Plaid-Verification JWT check on the webhook; (d) production OAuth flow.
+1. **Plaid sandbox validation** — ingest path IMPLEMENTED and now VERIFIED.
+   (a) **DONE (2026-06-17):** `npm run plaid:validate` (docs/PLAID_WALKTHROUGH.md §5)
+   run against a live sandbox with real credentials — PASSED: public_token →
+   exchange (encrypted PlaidItem stored) → 12 accounts synced → /transactions/sync
+   16 txns with correct signs → /liabilities/get 1 statement; temp user cleaned up.
+   The network path is no longer UNVERIFIED. REMAINING: (b) wire the DECISIONS #22
+   tail — recurring re-detection + scheduled refresh after ingest (per-row
+   normalize→rules→categorize→transfer is done); (c) Plaid-Verification JWT check
+   on the webhook; (d) production OAuth flow; (e) **a "Connect a bank" Plaid Link
+   UI** — the ingest/validator are headless; users can't yet link an account from
+   the app, so the deployed app stays in demo mode until this ships.
 2. **Real authentication** — Auth.js magic link + Google. The per-user dials
    themselves now ship (the Money Dials editor above); what remains here is
    multi-user signup + a true first-run onboarding flow (the dashboard nudge is
