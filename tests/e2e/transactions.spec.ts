@@ -86,6 +86,39 @@ test('manual entry: add a cash transaction and see it in the register', async ({
   await expect(row).toContainText('Dining Out');
 });
 
+test('inline recategorization on the register refiles a transaction (DECISIONS #36)', async ({ page }) => {
+  await signIn(page);
+
+  // Operate on our OWN manual row — manual entry never moves balances
+  // (DECISIONS #24), so recategorizing it can't disturb the golden specs on the
+  // shared seed DB. This also exercises the gap the feature closes: the row is
+  // POSTED/auto-filed (never enters triage), yet must still be correctable.
+  await page.goto('/transactions/new');
+  const label = 'E2E Recat Row';
+  await page.getByTestId('txn-descriptor').fill(label);
+  await page.getByTestId('txn-amount').fill('9.99');
+  await page.getByTestId('txn-category').selectOption('dining');
+  await page.getByTestId('txn-submit').click();
+  await page.waitForURL('**/transactions');
+
+  await page.getByTestId('txn-search').fill(label);
+  await page.getByTestId('txn-search').press('Enter');
+  const row = page.getByTestId('txn-row').filter({ hasText: label });
+  await expect(row).toBeVisible({ timeout: 20000 });
+  await expect(row).toContainText('Dining Out');
+
+  // Open the inline editor and refile as Groceries (just this once).
+  await row.getByTestId('category-chip').click();
+  await page.getByTestId('category-menu').waitFor();
+  await page.locator('[data-testid="cat-option"][data-cat="groceries"]').click();
+  await page.getByTestId('recat-once').click();
+
+  // The register reflects the new category after the action + refresh.
+  const updated = page.getByTestId('txn-row').filter({ hasText: label });
+  await expect(updated).toContainText('Groceries', { timeout: 20000 });
+  await expect(updated).not.toContainText('Dining Out');
+});
+
 test('CSV import: valid rows imported, bad rows skipped with line errors', async ({ page }) => {
   await signIn(page);
   await page.goto('/transactions/import');

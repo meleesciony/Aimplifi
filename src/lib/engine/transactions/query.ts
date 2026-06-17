@@ -26,6 +26,10 @@ export interface TxnView {
   amountCents: number; // signed: outflow negative, inflow positive
   status: string; // PENDING | POSTED
   isTransfer: boolean;
+  /** Owning merchant row id, if known — needed for "always for this merchant". */
+  merchantId?: string | null;
+  /** False for aggregate pseudo-merchants (Zelle/checks) — no merchant-wide rule. */
+  ruleEligible?: boolean;
 }
 
 export type FlowType = 'all' | 'income' | 'expense' | 'transfer';

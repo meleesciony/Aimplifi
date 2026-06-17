@@ -5,6 +5,7 @@
  * engine in src/lib/engine/transactions/query.ts does the filtering/totals.
  */
 import { prisma } from '@/lib/db';
+import { isRuleEligibleMerchant } from '@/lib/engine/categorize/assign';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import {
@@ -54,6 +55,8 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}): P
     amountCents: t.amountCents,
     status: t.status,
     isTransfer: t.isTransfer,
+    merchantId: t.merchantId,
+    ruleEligible: isRuleEligibleMerchant(t.rawDescriptor),
   }));
 
   const filtered = sortByDateDesc(filterTransactions(rows, filter));

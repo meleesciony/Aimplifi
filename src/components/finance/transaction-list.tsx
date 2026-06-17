@@ -1,12 +1,25 @@
+'use client';
+
 /**
- * Presentational transaction register: groups rows by date (rows arrive
- * pre-sorted most-recent-first) and renders each with merchant, category,
- * account, status, and signed amount. Inflows are green; transfers are muted.
+ * Transaction register (380px-first). Rows arrive pre-sorted most-recent-first
+ * and are grouped by date. Each row's category is inline-editable (DECISIONS
+ * #36): tap it → pick a category → "Just this once" (this transaction) or
+ * "Always · all <merchant>" (re-file every transaction of the merchant + a
+ * durable rule).
+ *
+ * Editing state is held HERE, once, with a single open row — NOT per row. The
+ * register loads the full set (no pagination yet, ROADMAP #8), so 800+ rows each
+ * owning hooks would balloon hydration and delay the search box becoming
+ * interactive. One controller + lightweight row buttons keeps hydration cheap.
  */
-import { Receipt } from 'lucide-react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Check, Pencil, Receipt } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
+import { ASSIGNABLE_CATEGORIES } from '@/lib/engine/categorize/assign';
+import { recategorize } from '@/server/triage-actions';
 import type { TxnSummary, TxnView } from '@/lib/engine/transactions/query';
 
 function amountClass(t: TxnView): string {
@@ -15,6 +28,32 @@ function amountClass(t: TxnView): string {
 }
 
 export function TransactionList({ rows, summary }: { rows: TxnView[]; summary: TxnSummary }) {
+  const router = useRouter();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<{ id: string; name: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function close() {
+    setOpenId(null);
+    setChosen(null);
+    setError(null);
+  }
+
+  function commit(t: TxnView, scope: 'one' | 'merchant') {
+    if (!chosen) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await recategorize({ transactionId: t.id, categoryId: chosen.id, scope });
+        close();
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not save — nothing was changed.');
+      }
+    });
+  }
+
   // Group consecutive rows by date (input is already date-desc sorted).
   const groups: { date: string; items: TxnView[] }[] = [];
   for (const t of rows) {
@@ -69,30 +108,122 @@ export function TransactionList({ rows, summary }: { rows: TxnView[]; summary: T
               {formatISODate(isoDate(g.date))}
             </div>
             <ul className="divide-y rounded-md border">
-              {g.items.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-center justify-between gap-3 px-3 py-2"
-                  data-testid="txn-row"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-medium">{t.merchantName}</span>
-                      {t.status === 'PENDING' && (
-                        <Badge variant="outline" className="shrink-0 text-[10px]">
-                          Pending
-                        </Badge>
-                      )}
+              {g.items.map((t) => {
+                const canAlways = Boolean(t.ruleEligible && t.merchantId);
+                const open = openId === t.id;
+                return (
+                  <li
+                    key={t.id}
+                    className="flex items-center justify-between gap-3 px-3 py-2"
+                    data-testid="txn-row"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium">{t.merchantName}</span>
+                        {t.status === 'PENDING' && (
+                          <Badge variant="outline" className="shrink-0 text-[10px]">
+                            Pending
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="relative text-xs text-muted-foreground">
+                        <button
+                          type="button"
+                          data-testid="category-chip"
+                          aria-haspopup="listbox"
+                          aria-expanded={open}
+                          className="inline-flex items-center gap-1 rounded underline decoration-dotted decoration-muted-foreground/50 underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                          onClick={() => (open ? close() : (setOpenId(t.id), setChosen(null), setError(null)))}
+                        >
+                          {t.categoryName}
+                          <Pencil className="size-3 opacity-50" aria-hidden />
+                        </button>{' '}
+                        · <span className="break-all">{t.accountName}</span>
+
+                        {open && (
+                          <div
+                            role="listbox"
+                            data-testid="category-menu"
+                            className="absolute left-0 z-50 mt-1 max-h-72 w-56 overflow-auto rounded-lg border bg-card p-1 text-foreground shadow-lg ring-1 ring-foreground/10"
+                          >
+                            {!chosen ? (
+                              ASSIGNABLE_CATEGORIES.map((c) => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={c.id === t.categoryId}
+                                  data-testid="cat-option"
+                                  data-cat={c.id}
+                                  disabled={pending}
+                                  className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                                  onClick={() => (c.id === t.categoryId ? close() : setChosen(c))}
+                                >
+                                  {c.name}
+                                  {c.id === t.categoryId && (
+                                    <Check className="size-3.5 text-emerald-500" aria-hidden />
+                                  )}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="space-y-2 p-1" data-testid="recat-confirm">
+                                <p className="text-sm">
+                                  File as <b>{chosen.name}</b>?
+                                </p>
+                                <div className="flex flex-col gap-1">
+                                  <button
+                                    type="button"
+                                    data-testid="recat-once"
+                                    disabled={pending}
+                                    className="rounded bg-primary px-2 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
+                                    onClick={() => commit(t, 'one')}
+                                  >
+                                    Just this once
+                                  </button>
+                                  {canAlways && (
+                                    <button
+                                      type="button"
+                                      data-testid="recat-always"
+                                      disabled={pending}
+                                      className="rounded border px-2 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                                      onClick={() => commit(t, 'merchant')}
+                                    >
+                                      Always · all {t.merchantName}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    data-testid="recat-cancel"
+                                    disabled={pending}
+                                    className="rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
+                                    onClick={() => setChosen(null)}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                                {canAlways && (
+                                  <p className="text-[11px] text-muted-foreground">
+                                    “Always” re-files every {t.merchantName} charge and auto-files future
+                                    ones. Undo from the review inbox.
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                            {error && (
+                              <p role="alert" className="px-2 py-1 text-xs text-red-400" data-testid="recat-error">
+                                {error}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">
-                      {t.categoryName} · {t.accountName}
+                    <div className={`shrink-0 tabular-nums ${amountClass(t)}`}>
+                      {formatCents(cents(t.amountCents), { signDisplay: 'always' })}
                     </div>
-                  </div>
-                  <div className={`shrink-0 tabular-nums ${amountClass(t)}`}>
-                    {formatCents(cents(t.amountCents), { signDisplay: 'always' })}
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ))

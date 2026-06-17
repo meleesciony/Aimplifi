@@ -8,7 +8,11 @@
   delinquent statements, past-date-proof recommendations).
 - Categorization: normalization table + cleanup fallback, confidence routing,
   contextual rules, 3.60% review rate on seed; triage inbox with gestures,
-  batch, splits, consented durable rules, universal undo.
+  batch, splits, consented durable rules, universal undo. Register rows are also
+  inline-recategorizable — ANY transaction, not just the review queue — with
+  just-once / always-for-merchant (durable rule), reusing the triage correction
+  machinery (DECISIONS #36). LLM-assisted categorization + accuracy/Brier
+  surfacing remain open (the "B/C" options).
 - Recurring/subscription detection (cadence, price change, possibly-unused,
   payroll → projection wiring); transfer detection through one decision path.
 - FI Coach: savings rate, FI/Coast/years-to-FI, opportunity compounding,

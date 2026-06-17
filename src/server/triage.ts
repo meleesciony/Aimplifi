@@ -37,10 +37,19 @@ export interface TriageItem {
 export function similarTransactionsWhere(
   userId: string,
   txn: { merchantId: string | null; rawDescriptor: string; aggregate: boolean },
+  opts: { onlyNeedsReview?: boolean } = {},
 ) {
-  return txn.aggregate
-    ? { rawDescriptor: txn.rawDescriptor, needsReview: true, account: { userId } }
-    : { merchantId: txn.merchantId, needsReview: true, account: { userId } };
+  // Triage batches only the REVIEW queue (default). The register recategorizes
+  // EVERY matching transaction — already-filed ones included — so it passes
+  // onlyNeedsReview:false (DECISIONS #36). The merchant-vs-descriptor scope is
+  // identical either way, so the two surfaces can never drift (DECISIONS #23).
+  const onlyNeedsReview = opts.onlyNeedsReview ?? true;
+  const scope = txn.aggregate
+    ? { rawDescriptor: txn.rawDescriptor }
+    : { merchantId: txn.merchantId };
+  return onlyNeedsReview
+    ? { ...scope, needsReview: true, account: { userId } }
+    : { ...scope, account: { userId } };
 }
 
 export async function getTriageItems(userId: string): Promise<TriageItem[]> {

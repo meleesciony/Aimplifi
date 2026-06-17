@@ -78,6 +78,7 @@ export async function applyCategory(input: {
   });
 
   revalidatePath('/triage');
+  revalidatePath('/transactions');
   return { correctionIds: [correction.id], ruleId, affected: 1 };
 }
 
@@ -148,7 +149,88 @@ export async function applyToAllSimilar(input: {
   });
 
   revalidatePath('/triage');
+  revalidatePath('/transactions');
   return { correctionIds, ruleId: null, affected: targets.length };
+}
+
+/**
+ * Register inline recategorization (DECISIONS #36). Unlike triage, this acts on
+ * ANY transaction — including confidently auto-filed ones the pipeline never
+ * routed to review. Two scopes:
+ *   'one'      → just this transaction (records a reversible Correction, no rule)
+ *   'merchant' → re-file EVERY transaction of this merchant (already-categorized
+ *                included) AND create a durable priority-100 rule, so past and
+ *                future are fixed in one action.
+ * 'merchant' falls back to 'one' when the row has no merchant or is an aggregate
+ * pseudo-merchant (Zelle/checks) — those never carry merchant-wide rules (#23).
+ * Every write is ownership-scoped and audit-logged.
+ */
+export async function recategorize(input: {
+  transactionId: string;
+  categoryId: string;
+  scope: 'one' | 'merchant';
+}): Promise<ApplyResult> {
+  const userId = await requireUserId();
+  const txn = await ownedTransaction(userId, input.transactionId);
+
+  const merchantWide =
+    input.scope === 'merchant' &&
+    !!txn.merchantId &&
+    !normalizeMerchant(txn.rawDescriptor).aggregate;
+
+  if (!merchantWide) {
+    // Single row: reuse the triage single-apply path (correction + update, no rule).
+    return applyCategory({ transactionId: input.transactionId, categoryId: input.categoryId });
+  }
+
+  const targets = await prisma.transaction.findMany({
+    where: similarTransactionsWhere(
+      userId,
+      { merchantId: txn.merchantId, rawDescriptor: txn.rawDescriptor, aggregate: false },
+      { onlyNeedsReview: false },
+    ),
+  });
+
+  const { correctionIds, ruleId } = await prisma.$transaction(async (tx) => {
+    const ids: string[] = [];
+    let firstCorrectionId: string | null = null;
+    for (const t of targets) {
+      const c = await tx.correction.create({
+        data: { userId, transactionId: t.id, fromCategoryId: t.categoryId, toCategoryId: input.categoryId },
+      });
+      ids.push(c.id);
+      if (!firstCorrectionId) firstCorrectionId = c.id;
+    }
+    const rule = await tx.categorizationRule.create({
+      data: {
+        userId,
+        merchantId: txn.merchantId!,
+        categoryId: input.categoryId,
+        priority: 100,
+        createdFrom: firstCorrectionId,
+      },
+    });
+    if (firstCorrectionId) {
+      await tx.correction.update({ where: { id: firstCorrectionId }, data: { becameRuleId: rule.id } });
+    }
+    await tx.transaction.updateMany({
+      where: { id: { in: targets.map((t) => t.id) } },
+      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
+    });
+    return { correctionIds: ids, ruleId: rule.id };
+  });
+
+  await auditLog(userId, 'rule.create', {
+    ruleId,
+    merchantId: txn.merchantId,
+    categoryId: input.categoryId,
+    affected: targets.length,
+    via: 'register',
+  });
+
+  revalidatePath('/triage');
+  revalidatePath('/transactions');
+  return { correctionIds, ruleId, affected: targets.length };
 }
 
 /**
