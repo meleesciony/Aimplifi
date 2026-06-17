@@ -16,7 +16,7 @@ export function OnboardingNudge() {
         <div className="space-y-1">
           <p className="text-sm font-medium">Make this yours in 30 seconds</p>
           <p className="text-sm text-muted-foreground">
-            Tell Pulse which account pays your cards so the amount above is measured against
+            Tell Aimplifi which account pays your cards so the amount above is measured against
             your real balance — and set your money dials to personalize your coaching.
           </p>
         </div>

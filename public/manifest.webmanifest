@@ -1,6 +1,6 @@
 {
-  "name": "Pulse Finance",
-  "short_name": "Pulse",
+  "name": "Aimplifi",
+  "short_name": "Aimplifi",
   "description": "Know exactly how much money you need, and by when, to pay every card in full.",
   "start_url": "/dashboard",
   "display": "standalone",

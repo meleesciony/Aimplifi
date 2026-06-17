@@ -96,7 +96,7 @@ test('PWA: manifest is served and linked', async ({ page }) => {
   const manifest = await page.request.get('/manifest.webmanifest');
   expect(manifest.status()).toBe(200);
   const json = await manifest.json();
-  expect(json.name).toBe('Pulse Finance');
+  expect(json.name).toBe('Aimplifi');
   expect(json.icons.length).toBeGreaterThanOrEqual(2);
   const icon = await page.request.get('/icon-192.png');
   expect(icon.status()).toBe(200);

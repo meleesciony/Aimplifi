@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Offline · Pulse Finance' };
+export const metadata: Metadata = { title: 'Offline · Aimplifi' };
 
 /**
  * Offline fallback shell (precached by the service worker, public/sw.js). Served
@@ -27,13 +27,13 @@ export default function OfflinePage() {
       }}
     >
       <p style={{ fontSize: '1.125rem', fontWeight: 700, letterSpacing: '-0.01em' }}>
-        Pulse<span style={{ color: '#10b981' }}>Finance</span>
+        Aim<span style={{ color: '#10b981' }}>plifi</span>
       </p>
       <h1 style={{ fontSize: '1.25rem', fontWeight: 600 }} data-testid="offline-heading">
         You&apos;re offline
       </h1>
       <p style={{ maxWidth: '24rem', fontSize: '0.875rem', color: '#a1a1aa' }}>
-        Pulse needs a connection to show your latest numbers. Reconnect and reload — your
+        Aimplifi needs a connection to show your latest numbers. Reconnect and reload — your
         data is safe and waiting.
       </p>
     </main>

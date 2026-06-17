@@ -30,7 +30,7 @@ export default async function SignInPage() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-2xl">
-            Pulse<span className="text-emerald-500">Finance</span>
+            Aim<span className="text-emerald-500">plifi</span>
           </CardTitle>
           <CardDescription>
             Know exactly how much money you need — and by when — to pay every

@@ -79,7 +79,7 @@ export class PlaidProvider implements DataProvider {
   async createLinkToken(userId: string): Promise<string> {
     const result = await plaidPost<{ link_token: string }>('/link/token/create', {
       user: { client_user_id: userId },
-      client_name: 'Pulse Finance',
+      client_name: 'Aimplifi',
       products: ['transactions', 'liabilities'],
       country_codes: ['US'],
       language: 'en',

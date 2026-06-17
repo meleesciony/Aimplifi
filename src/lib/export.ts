@@ -78,7 +78,7 @@ export async function netWorthReportPdf(params: {
     y -= (opts.size ?? 11) + 7;
   };
 
-  draw('Pulse Finance — Net Worth Report', { size: 18, isBold: true });
+  draw('Aimplifi — Net Worth Report', { size: 18, isBold: true });
   draw(`Generated for ${params.generatedFor} - data as of ${params.asOf}`, { size: 9 });
   y -= 8;
   draw(`Net worth: ${formatCents(params.netWorthCents)}`, { size: 14, isBold: true });

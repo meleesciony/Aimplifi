@@ -53,7 +53,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
       {/* top nav: full set from sm up; secondary-only on phones (primary moves to the bottom bar) */}
       <nav className="flex items-center gap-0.5 sm:gap-1" aria-label="Main">
         <Link href="/dashboard" className="mr-1 text-base font-bold tracking-tight sm:mr-2 sm:text-lg">
-          Pulse<span className="text-emerald-500">Finance</span>
+          Aim<span className="text-emerald-500">plifi</span>
         </Link>
         {PRIMARY.map((item) => (
           <Link

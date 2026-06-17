@@ -1,5 +1,5 @@
 /**
- * Pulse Finance service worker (ROADMAP #5) — installable, offline-aware PWA.
+ * Aimplifi service worker (ROADMAP #5) — installable, offline-aware PWA.
  *
  * Deliberately minimal and conservative so it can never serve stale or
  * cross-user data and can't grow unbounded:

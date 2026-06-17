@@ -1,4 +1,4 @@
-# Pulse Finance
+# Aimplifi
 
 A personal-finance web app built around one killer question, answered to the cent:
 

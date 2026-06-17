@@ -47,7 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       )}
       <main>{children}</main>
       <footer className="mt-10 border-t pt-4 text-xs text-muted-foreground">
-        Pulse Finance is an educational tool, not financial advice. Projections
+        Aimplifi is an educational tool, not financial advice. Projections
         state their assumptions; verify amounts with your card issuer before
         paying.
       </footer>

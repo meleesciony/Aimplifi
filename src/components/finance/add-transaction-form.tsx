@@ -113,7 +113,7 @@ export function AddTransactionForm({
               ))}
             </select>
             <span className="text-xs text-muted-foreground">
-              Leave on Auto-detect to let Pulse categorize it (ambiguous ones go
+              Leave on Auto-detect to let Aimplifi categorize it (ambiguous ones go
               to your Inbox).
             </span>
           </label>
