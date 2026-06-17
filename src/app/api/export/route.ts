@@ -46,6 +46,10 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // Net-worth/PDF exports need accounts; a brand-new user has none.
+  if ((await prisma.account.count({ where: { userId } })) === 0) {
+    return NextResponse.json({ error: 'Nothing to export yet — add an account first.' }, { status: 400 });
+  }
   const data = await getDashboardData(userId);
 
   if (format === 'net-worth-csv') {

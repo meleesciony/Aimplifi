@@ -12,14 +12,18 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { formatMonth } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
+import { prisma } from '@/lib/db';
 import { getCoachData } from '@/server/coach';
 
 export default async function CoachPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
+  // No accounts yet → first-run onboarding (the FI/cash engine needs accounts).
+  if ((await prisma.account.count({ where: { userId: session.user.id } })) === 0) return <EmptyDashboard />;
   const data = await getCoachData(session.user.id);
 
   return (

@@ -23,6 +23,12 @@ test('email/password sign-up → empty onboarding → sign out → sign back in'
   await expect(page.getByTestId('empty-dashboard')).toBeVisible();
   await expect(page.getByTestId('demo-banner')).toHaveCount(0);
 
+  // Other engine-backed pages must show onboarding too, not crash (DECISIONS #43).
+  await page.goto('/cards');
+  await expect(page.getByTestId('empty-dashboard')).toBeVisible();
+  await page.goto('/coach');
+  await expect(page.getByTestId('empty-dashboard')).toBeVisible();
+
   // Sign out.
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.waitForURL('**/sign-in', { timeout: 20000 });
