@@ -45,6 +45,13 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}): P
     orderBy: [{ date: 'desc' }, { id: 'desc' }],
   });
 
+  // How many transactions share each merchant — drives the "apply to N" count
+  // on the register's "Always" action (DECISIONS #42).
+  const merchantCounts = new Map<string, number>();
+  for (const t of txns) {
+    if (t.merchantId) merchantCounts.set(t.merchantId, (merchantCounts.get(t.merchantId) ?? 0) + 1);
+  }
+
   const rows: TxnView[] = txns.map((t) => ({
     id: t.id,
     date: t.date,
@@ -59,6 +66,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}): P
     isTransfer: t.isTransfer,
     merchantId: t.merchantId,
     ruleEligible: isRuleEligibleMerchant(t.rawDescriptor),
+    merchantCount: t.merchantId ? merchantCounts.get(t.merchantId) : undefined,
   }));
 
   const filtered = sortByDateDesc(filterTransactions(rows, filter));

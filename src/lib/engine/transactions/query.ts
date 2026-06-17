@@ -30,6 +30,8 @@ export interface TxnView {
   merchantId?: string | null;
   /** False for aggregate pseudo-merchants (Zelle/checks) — no merchant-wide rule. */
   ruleEligible?: boolean;
+  /** How many of the user's transactions share this merchant (for the "apply to N" bar). */
+  merchantCount?: number;
 }
 
 export type FlowType = 'all' | 'income' | 'expense' | 'transfer';

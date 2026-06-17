@@ -191,7 +191,7 @@ export function TransactionList({ rows, summary }: { rows: TxnView[]; summary: T
                                       className="rounded border px-2 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
                                       onClick={() => commit(t, 'merchant')}
                                     >
-                                      Always · all {t.merchantName}
+                                      Always — re-file all {t.merchantCount ?? ''} {t.merchantName}
                                     </button>
                                   )}
                                   <button
@@ -206,8 +206,8 @@ export function TransactionList({ rows, summary }: { rows: TxnView[]; summary: T
                                 </div>
                                 {canAlways && (
                                   <p className="text-[11px] text-muted-foreground">
-                                    “Always” re-files every {t.merchantName} charge and auto-files future
-                                    ones. Undo from the review inbox.
+                                    Re-files all {t.merchantCount ?? ''} past {t.merchantName} charges and
+                                    auto-files every future one. Undo from the review inbox.
                                   </p>
                                 )}
                               </div>

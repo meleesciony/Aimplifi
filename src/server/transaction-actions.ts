@@ -16,6 +16,7 @@ import {
 } from '@/lib/engine/transactions/csv-import';
 import { pickAssistedCategory } from '@/lib/engine/categorize/llm';
 import { auditLog, requireUserId } from '@/server/authz';
+import { assistUnsureRows } from '@/server/categorize-assist';
 import { suggestCategoryViaLLM } from '@/server/llm-categorize';
 import { loadUserRules } from '@/server/rules';
 
@@ -119,7 +120,7 @@ export async function importTransactionsCsv(
 
   const { rows, errors } = parseTransactionCsv(text);
   const rules = await loadUserRules(userId);
-  const data = rows.map((row) => {
+  const prepared = rows.map((row) => {
     const p = prepareImportedTransaction(row, accountId, rules);
     return {
       accountId,
@@ -133,6 +134,11 @@ export async function importTransactionsCsv(
       isTransfer: p.isTransfer,
     };
   });
+
+  // LLM-assist unsure rows at ingest (DECISIONS #42): a confident suggestion
+  // auto-files instead of landing in review. No ANTHROPIC_API_KEY → suggest
+  // returns null → rows unchanged (demo stays deterministic + credential-free).
+  const data = await assistUnsureRows(prepared, suggestCategoryViaLLM);
 
   if (data.length > 0) await prisma.transaction.createMany({ data });
 
