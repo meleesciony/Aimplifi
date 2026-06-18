@@ -16,6 +16,12 @@ export interface ManualType {
 }
 
 export const MANUAL_ASSET_TYPES: ManualType[] = [
+  // Bank-type accounts first — these can hold imported/manual transactions, and
+  // a manual checking/savings can be the cash-needed payment account.
+  { id: 'CHECKING', label: 'Checking' },
+  { id: 'SAVINGS', label: 'Savings' },
+  { id: 'INVESTMENT', label: 'Investment / brokerage' },
+  // Net-worth-only items (no transactions).
   { id: 'REAL_ESTATE', label: 'Real estate / home' },
   { id: 'VEHICLE', label: 'Vehicle' },
   { id: 'CASH', label: 'Cash' },
@@ -23,6 +29,8 @@ export const MANUAL_ASSET_TYPES: ManualType[] = [
 ];
 
 export const MANUAL_LIABILITY_TYPES: ManualType[] = [
+  { id: 'CREDIT', label: 'Credit card' },
+  { id: 'LOAN', label: 'Loan' },
   { id: 'MORTGAGE', label: 'Mortgage' },
   { id: 'OTHER_LIABILITY', label: 'Other debt' },
 ];

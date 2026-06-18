@@ -13,11 +13,13 @@ describe('manual type catalog (DECISIONS #39)', () => {
     for (const t of MANUAL_ASSET_TYPES) expect(isLiabilityType(t.id)).toBe(false);
     for (const t of MANUAL_LIABILITY_TYPES) expect(isLiabilityType(t.id)).toBe(true);
   });
-  it('isManualType recognizes manual types but not linked ones', () => {
+  it('recognizes every manual-addable type (incl. bank accounts) and rejects unknown ones', () => {
     expect(isManualType('REAL_ESTATE')).toBe(true);
     expect(isManualType('MORTGAGE')).toBe(true);
-    expect(isManualType('CHECKING')).toBe(false);
-    expect(isManualType('CREDIT')).toBe(false);
+    expect(isManualType('CHECKING')).toBe(true); // bank accounts now manually addable (#45)
+    expect(isManualType('CREDIT')).toBe(true);
+    expect(isManualType('NOT_A_TYPE')).toBe(false);
+    expect(isManualType('uncategorized')).toBe(false);
   });
 });
 
@@ -39,6 +41,13 @@ describe('parseManualAccount', () => {
     expect(parseManualAccount({ name: 'Primary home', type: 'REAL_ESTATE', value: '525000' })).toEqual({
       ok: true,
       account: { name: 'Primary home', type: 'REAL_ESTATE', currentBalanceCents: 52_500_000 },
+    });
+  });
+
+  it('accepts a manual bank account (checking) so CSVs can import into it (#45)', () => {
+    expect(parseManualAccount({ name: 'Joint Checking', type: 'CHECKING', value: '3400' })).toEqual({
+      ok: true,
+      account: { name: 'Joint Checking', type: 'CHECKING', currentBalanceCents: 340_000 },
     });
   });
   it('reports all problems at once', () => {

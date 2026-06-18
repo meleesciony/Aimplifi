@@ -197,8 +197,9 @@ export function AccountsList({ data }: { data: AccountsView }) {
       )}
 
       <p className="text-xs text-muted-foreground">
-        Add things a bank feed can’t see — your home, car, or other property and debts — for a complete
-        net worth. Linked accounts (including your brokerage balance) update automatically.
+        Add any account — checking, savings, credit, brokerage, loan — plus things a feed can’t see like
+        your home or car. Set a balance for net worth, then import a CSV (Transactions → Import) to fill in
+        a bank/credit account’s activity. Connecting a bank does all of this automatically.
       </p>
     </div>
   );
