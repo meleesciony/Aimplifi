@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { CashNeededCard } from '@/components/finance/cash-needed-card';
 import { NetWorthCard } from '@/components/finance/net-worth-card';
+import { PaymentRemindersCard } from '@/components/finance/payment-reminders-card';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { OnboardingNudge } from '@/components/settings/onboarding-nudge';
 import { PAYMENT_ACCOUNT_TYPES, needsOnboarding } from '@/lib/engine/settings/dials';
@@ -62,6 +63,9 @@ export default async function DashboardPage() {
         <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} />
         <SavingsRateCard flows={coach.flows} currentRateBps={coach.currentRateBps} />
       </div>
+
+      {/* upcoming card payments (ROADMAP #6) — same obligations as the headline */}
+      <PaymentRemindersCard reminders={data.reminders} today={data.today} />
     </div>
   );
 }

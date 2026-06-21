@@ -89,7 +89,15 @@
    Network-first navigations (online stays fresh, nothing personal cached),
    passthrough hashed assets (bounded SW storage), offline fallback. Deferred: a
    build-stamped cache name + an in-app "update available" affordance.
-6. **Email/push payment reminders** (v1 badges due days on the calendar; no notification mechanism yet).
+6. ~~**Email/push payment reminders**~~ — **DONE** (DECISIONS #47): a pure reminder
+   engine (selection + email rendering) shared by an in-app dashboard "Payment
+   reminders" card AND a `CRON_SECRET`-guarded `/api/cron/reminders` sweep that emails
+   imminent reminders. Email is DORMANT by default (no `RESEND_API_KEY` → nothing sent,
+   no network call); set a Resend key to activate. Known-answer + dormant + real-handler
+   tests; hostile-critic clean after fixing a cards/upcoming double-count and the
+   partial-autopay disclosure. REMAINING to actually fire on a schedule: add the cron
+   path(s) to `vercel.json` crons + set `CRON_SECRET` (+ `RESEND_API_KEY` to send) — a
+   documented operator deploy step, like the sync cron.
 7. ~~**Budget targets UI**~~ — **DONE** (DECISIONS #30): set/clear a per-category
    monthly target on `/budgets` (atomic upsert on a new `@@unique`, refunds netted,
    progress bar + remaining). Pure engine + known-answer tests + e2e.

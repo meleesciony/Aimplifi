@@ -131,7 +131,8 @@ export default async function CalendarPage({
           )}
           <p className="mt-3 text-xs text-muted-foreground">
             Card amounts shown on their effective due dates (weekend/holiday dates roll back to the
-            prior business day). Each due day is badged; notification reminders are on the roadmap.
+            prior business day). Each due day is badged here, the dashboard shows your upcoming payment
+            reminders, and email reminders activate once an email provider is configured.
           </p>
         </CardContent>
       </Card>

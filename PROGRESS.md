@@ -39,5 +39,35 @@ counting only toward net worth. Goal: let a manual card carry a current statemen
    IN FLIGHT: multi-agent hostile critic (wf_786483e0). TODO after: apply confirmed P0/P1,
    re-verify, write DECISIONS #46 + ROADMAP/STATUS, commit.
 
-## Feature 2 — Payment reminders (ROADMAP #6) — PENDING
-## Feature 3 — Harden for production (#9 locks + #8 durable rate-limit) — PENDING
+## Feature 1 — DONE ✅ (commit dc223fe, verify+e2e green, critic 0 P0/P1)
+
+## Feature 2 — Payment reminders (ROADMAP #6) — IN PROGRESS
+**Why:** calendar badges due days but there's NO notification mechanism. Add a
+credential-free notification pipeline + an in-app reminders surface.
+**Found:** cron pattern = CRON_SECRET Bearer + per-user sweep + audit + no-abort
+(api/cron/sync). No email infra exists. DEMO_TODAY=2026-06-10; demo cards due
+Jun 23–26 (~13–16 days out) → dashboard panel needs the whole cycle (no tight window);
+cron email uses a short imminent window. calendar/build.ts already lays obligations on days.
+**Plan:**
+1. [ ] `engine/reminders/select.ts` — pure `selectPaymentReminders` (obligations within
+   window, urgency today/soon/upcoming, autopay-covered, dismissed) + `buildReminderEmail`
+   (pure text, educational/no-shame). Known-answer tests.
+2. [ ] `lib/email.ts` — `sendEmail` dormant fallback (no RESEND_API_KEY → {sent:false} no
+   network; with key → Resend POST; never throws). Tests: no-key + mocked success/fail.
+3. [ ] `api/cron/reminders/route.ts` — CRON_SECRET-guarded sweep: per user build+dispatch
+   reminders (email dormant → logs would-send), audit, summary. Route test (auth gate + dormant).
+4. [ ] dashboard `PaymentRemindersCard` (derived from payInFull obligations, whole cycle),
+   wired below the cash-needed card (above-the-fold unaffected). e2e: panel renders.
+5. [x] DONE — critic ran (wf_3889cb35): 2 P1s FIXED (F1 cards/upcoming double-count →
+   pass cards only + selector dedup + e2e uniqueness; PR6-001 autopay-topup disclosure
+   → both-portions in email+card + fixture). P2s fixed: shared constant-time cron compare
+   (SEC-1), keyed-send cron test, tomorrow/soon-boundary tests, long email dates, calendar
+   footer copy. `VERIFY_E2E=1 verify.sh` → GREEN (686 unit/48 files, 35 e2e). DECISIONS #47
+   + ROADMAP #6 done + STATUS written.
+
+## Feature 2 — DONE ✅ (verify+e2e green, critic 2 P1s fixed)
+
+## Feature 3 — Harden for production (#9 locks + #8 durable rate-limit) — NEXT
+**Why:** the deferred P2s gating a real multi-user launch. (#9) row-level/atomic guards
+on the split & undo races (STATUS #10); (#8) durable (DB-backed, SQLite-safe) rate-limit
++ sign-in throttle replacing the in-memory no-op (authz.ts:26 `rateLimit` is per-instance).

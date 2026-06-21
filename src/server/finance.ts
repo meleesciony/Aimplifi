@@ -7,6 +7,7 @@ import { holidayTable, type ISODate } from '@/lib/dates';
 import { assembleCashNeededInput, netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
 import { netWorthSeries } from '@/lib/engine/networth/series';
+import { type PaymentReminder, selectPaymentReminders } from '@/lib/engine/reminders/select';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { getProvider } from '@/lib/providers/demo';
 import type { FinanceSnapshot } from '@/lib/providers/types';
@@ -29,6 +30,8 @@ export interface DashboardData {
   minimum: CashNeededResult;
   netWorthCents: Cents;
   netWorthTrend: NetWorthPoint[];
+  /** Upcoming card payments this cycle (ROADMAP #6) — derived from the same obligations. */
+  reminders: PaymentReminder[];
   accounts: { id: string; name: string; type: string; currentBalanceCents: number; mask: string | null }[];
 }
 
@@ -84,6 +87,12 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   const { input, result: payInFull } = cashNeededFromSnapshot(snap, today, 'PAY_IN_FULL');
   const minimum = computeCashNeeded({ ...input, scenario: 'MINIMUM' });
 
+  // Upcoming payment reminders — the same obligations the headline counts, as a
+  // dated list (the in-app half of ROADMAP #6; the cron route emails the same).
+  // `cards` is the COMPLETE obligation set (real + estimated); `upcoming` is a
+  // subset of it, so spreading both would double-count estimated cards.
+  const reminders = selectPaymentReminders({ obligations: payInFull.cards, today });
+
   // Net-worth trend from month-end snapshots (assets − liabilities per date),
   // via the one shared series builder (DECISIONS #40) — same classifier as the
   // headline + the /accounts page, so manual liabilities can't be miscounted.
@@ -110,6 +119,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     minimum,
     netWorthCents: cents(current),
     netWorthTrend,
+    reminders,
     accounts,
   };
 }

@@ -8,11 +8,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
+import { checkCronBearer } from '@/lib/cron-auth';
 
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const header = request.headers.get('authorization');
-  if (!secret || header !== `Bearer ${secret}`) {
+  if (!checkCronBearer(request.headers.get('authorization'), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

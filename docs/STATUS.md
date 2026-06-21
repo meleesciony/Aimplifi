@@ -249,6 +249,36 @@ cases + single-path confirmation) rather than the full multi-agent critic, given
 the 6-line, well-tested, single-path scope. `VERIFY_E2E=1 bash scripts/verify.sh`
 → **✅ VERIFY GREEN** (585 unit / 29 files, 27 e2e, clean typecheck/lint/build).
 
+## Post-Phase-5 refinement: payment reminders (DECISIONS #47, ROADMAP #6)
+
+The calendar badged due days but nothing delivered a reminder. Added the MECHANISM:
+a pure `engine/reminders/select.ts` (selection + email text) shared by an in-app
+dashboard "Payment reminders" card and a `CRON_SECRET`-guarded `/api/cron/reminders`
+sweep. Email dispatch (`lib/email.ts`) is DORMANT by default — no `RESEND_API_KEY` →
+nothing sent, no network call (zero-credential demo, fetch-spy tested); set a Resend
+key to switch on. Both surfaces derive from the same Cash-Needed obligations so they
+can't disagree.
+
+Gate (real output 2026-06-21): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — typecheck/lint clean, **686 unit / 48 files**, build clean, **35 e2e**
+(dashboard reminders panel + no-duplicate-card assertion + reminder-cron-secret 401).
+
+Hostile Critic (4 parallel dimension critics + adversarial verification): **2 P1s found
++ FIXED** before sign-off. (F1) both callers spread `[...result.cards, ...result.upcoming]`,
+but the engine's `cards` already includes `upcoming` (a subset) → estimated obligations
+double-counted (demo showed "Store Card" twice) → pass `cards` only + made the selector
+idempotent under overlap (dedup) + an e2e uniqueness check. (PR6-001) the partial-autopay
+(top-up) case dropped the autopay portion in the email/card against the larger headline
+→ added the both-portions disclosure + a known-answer fixture. P2s fixed: shared
+constant-time cron compare (now used by sync too), keyed-send cron test, tomorrow/soon-
+boundary coverage, long email dates, stale calendar-footer copy. Deferred P2s
+(documented): scheduling is an operator deploy step (`vercel.json` crons + `CRON_SECRET`),
+consistent with the sync cron; the cron response lists userIds to the secret-holder only.
+
+NOTE (deploy): to actually fire, add `{ "crons": [{ "path": "/api/cron/reminders",
+"schedule": "0 13 * * *" }, { "path": "/api/cron/sync", "schedule": "0 * * * *" }] }` to
+`vercel.json` and set `CRON_SECRET` (+ `RESEND_API_KEY` to send email). Dormant otherwise.
+
 ## Post-Phase-5 refinement: manual card statements (DECISIONS #46, extends #45)
 
 A manual CREDIT card was treated as a card by the Cash-Needed Engine but, lacking a
