@@ -67,7 +67,12 @@ cron email uses a short imminent window. calendar/build.ts already lays obligati
 
 ## Feature 2 — DONE ✅ (verify+e2e green, critic 2 P1s fixed)
 
-## Feature 3 — Harden for production (#9 locks + #8 durable rate-limit) — NEXT
-**Why:** the deferred P2s gating a real multi-user launch. (#9) row-level/atomic guards
-on the split & undo races (STATUS #10); (#8) durable (DB-backed, SQLite-safe) rate-limit
-+ sign-in throttle replacing the in-memory no-op (authz.ts:26 `rateLimit` is per-instance).
+## Feature 3 — DONE ✅ (verify+e2e green, critic 3 P1s fixed). ALL THREE SHIPPED.
+**Built:** (#9) splitTransaction conditional-claim guard inside the tx. (#8) new RateLimit
+table + `rateLimitDurable` on export + per-account sign-in throttle. Critic (wf_f2438c81):
+split fix 10/10 (20/20). 3 P1s in the limiter FIXED: (CONC-1/SEC-1) reset branch returned
+true unconditionally → concurrent burst bypassed → decide from an atomic increment count
+(12-burst→4 allowed); (OPS-1) unbounded RateLimit growth → `@@index([resetAt])` +
+self-pruning. P2s fixed: export 401/429 test, undo→resplit test, fail-closed comments,
+lockout doc. Deferred: Always/Undo orphan-rule race (STATUS #10). `VERIFY_E2E=1 verify.sh`
+→ GREEN (698 unit/51 files, 35 e2e). DECISIONS #48 + ROADMAP + STATUS + REGRESSION_LEDGER done.

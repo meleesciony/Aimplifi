@@ -249,6 +249,34 @@ cases + single-path confirmation) rather than the full multi-agent critic, given
 the 6-line, well-tested, single-path scope. `VERIFY_E2E=1 bash scripts/verify.sh`
 → **✅ VERIFY GREEN** (585 unit / 29 files, 27 e2e, clean typecheck/lint/build).
 
+## Post-Phase-5 refinement: production hardening (DECISIONS #48, ROADMAP #8 + #9)
+
+Closed two deferred launch-gating items. (#9) The `splitTransaction` double-split race
+— it read `isSplitParent` before its transaction, so two concurrent splits could each
+create children (doubling the txn in every aggregate). Now the parent is CLAIMED
+atomically inside the transaction (conditional `updateMany`; a racing loser aborts before
+creating children). (#8) The in-memory rate limiter was a per-instance no-op on
+serverless; replaced with a durable, DB-backed `rateLimitDurable` (new `RateLimit` table,
+applied via `prisma db push`) on the export route + a new per-account sign-in throttle.
+
+Gate (real output 2026-06-21): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — typecheck/lint clean, **698 unit / 51 files**, build clean, **35 e2e** (existing
+split + export flows unaffected).
+
+Hostile Critic (4 parallel dimension critics + adversarial verification): the split fix
+scored 10/10 (proven 20/20; the loser is rejected by the claim, not the pre-read). But it
+found **3 P1s in the limiter, all FIXED**: (CONC-1/SEC-1) the reset branch returned `true`
+UNCONDITIONALLY, so a concurrent burst of N first-hits ALL bypassed (50/50 at limit 8) —
+fully defeating the brute-force throttle; fixed by deciding from an atomic
+increment-or-create's returned count (regression: a 12-call burst at limit 4 allows exactly
+4). (OPS-1) the `RateLimit` table grew unboundedly (no prune/index, attacker-controlled
+`signin:<email>` keys, CWE-770); fixed with `@@index([resetAt])` + a self-pruning
+`pruneExpiredRateLimits()` (≤1/min/instance, no cron needed). P2s fixed: export 401/429
+tests, undo→resplit test, honest dead-code comment, explicit fail-closed comments. Deferred
+P2s (documented): email-keyed sign-in throttle allows a bounded ≤60s account lockout
+(IP-scoping is the next step); the limiter is two Prisma statements vs a single raw
+ON-CONFLICT (a Postgres-only optimization); the Always/Undo orphan-rule race (STATUS #10).
+
 ## Post-Phase-5 refinement: payment reminders (DECISIONS #47, ROADMAP #6)
 
 The calendar badged due days but nothing delivered a reminder. Added the MECHANISM:
@@ -356,10 +384,13 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
    (DECISIONS #30); this makes it consistent engine-wide.
 9. **Equal-priority rules tie-break by creation order** (stable sort) — documented
    here rather than enforced.
-10. **Narrow concurrency races** (critic, P2): two concurrent splits of the same
-    row from different sessions could double-split (ownership check precedes the
-    transaction); "Always" tapped racing "Undo" can orphan a rule. No UI path
-    reaches either; server-side locks are a scale-out refinement.
+10. **Concurrency races:** ~~two concurrent splits of the same row could
+    double-split~~ — **FIXED** (DECISIONS #48): `splitTransaction` now claims its
+    parent atomically inside the transaction (conditional `updateMany`; a racing
+    loser creates no children), regression-tested with parallel splits. STILL OPEN
+    (deferred, no UI path, non-financial): "Always" tapped racing "Undo" can orphan a
+    priority-100 rule — the fix is the same conditional-claim on `undoCorrections`'
+    rule deletion (delete only WHERE it still points back to this correction).
 11. **Unknown billers containing a word-bounded "EPAY"** (e.g. "DUKE ENERGY
     EPAY") classify as transfers consistently in both modules; a merchant-table
     entry wins when added.

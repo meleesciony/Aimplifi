@@ -308,3 +308,18 @@ model AuditLog {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// Durable, multi-instance rate-limit buckets (ROADMAP #8). The in-memory limiter
+// in authz.ts is per-instance (a no-op across serverless invocations); this
+// fixed-window counter lives in the DB so a limit holds across instances. `key`
+// scopes the bucket (e.g. "signin:<email>", "export:<userId>"); `resetAt` is the
+// window end. Rows are inert once expired and overwritten on the next hit.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  // Index-backed pruning of expired windows (the key space is attacker-controlled
+  // via signin:<email>, so expired rows must be reclaimable without a table scan).
+  @@index([resetAt])
+}

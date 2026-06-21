@@ -277,6 +277,17 @@ export async function splitTransaction(input: {
   }
 
   const childIds = await prisma.$transaction(async (tx) => {
+    // Atomically CLAIM the parent FIRST: only a not-yet-split, non-child row flips
+    // to split. A concurrent split that already claimed it makes this affect 0
+    // rows → we abort (the transaction rolls back) BEFORE creating any children,
+    // so a racing double-split can never produce a second set of children
+    // (closes the STATUS #10 race; the pre-read above is just a fast UX fail).
+    const claimed = await tx.transaction.updateMany({
+      where: { id: txn.id, isSplitParent: false, splitParentId: null },
+      data: { needsReview: false, categoryId: null, confidenceBps: null, isSplitParent: true },
+    });
+    if (claimed.count === 0) throw new Error('Transaction is already split');
+
     const ids: string[] = [];
     for (const p of input.parts) {
       const child = await tx.transaction.create({
@@ -296,10 +307,6 @@ export async function splitTransaction(input: {
       });
       ids.push(child.id);
     }
-    await tx.transaction.update({
-      where: { id: txn.id },
-      data: { needsReview: false, categoryId: null, confidenceBps: null, isSplitParent: true },
-    });
     return ids;
   });
 

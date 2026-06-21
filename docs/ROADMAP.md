@@ -101,10 +101,17 @@
 7. ~~**Budget targets UI**~~ — **DONE** (DECISIONS #30): set/clear a per-category
    monthly target on `/budgets` (atomic upsert on a new `@@unique`, refunds netted,
    progress bar + remaining). Pure engine + known-answer tests + e2e.
-8. **Performance**: snapshot pagination/caching once data exceeds demo scale;
-   Redis-backed rate limiting for multi-instance deployments.
-9. **Concurrency hardening**: row-level locks around split/undo paths
-   (documented races in docs/STATUS.md #10).
+8. **Performance**: snapshot pagination/caching once data exceeds demo scale.
+   ~~Multi-instance rate limiting~~ — **DONE** (DECISIONS #48): a durable, DB-backed
+   `rateLimitDurable` (atomic increment-or-create, self-pruning, `@@index([resetAt])`)
+   replaces the per-instance in-memory limiter on the export route and adds a per-account
+   sign-in throttle. (Redis is no longer required — the DB counter gives the cross-instance
+   property.) Remaining: snapshot pagination/caching at scale.
+9. **Concurrency hardening** — split double-split race **DONE** (DECISIONS #48): the
+   split now claims its parent atomically inside the transaction (a racing second split
+   creates no orphan children); regression-tested with parallel splits. Remaining
+   (deferred, no UI path): the Always/Undo orphan-rule race (docs/STATUS.md #10) needs the
+   same conditional-claim on rule deletion.
 10. ~~**Data deletion UI**~~ — **DONE** (DECISIONS #31): Settings → "Delete my
     data" with a typed-confirmation gate, a live summary of what's removed, and an
     idempotent ownership-scoped cascade (`prisma.user.delete`) + best-effort Plaid

@@ -10,7 +10,12 @@ import { AuthError } from 'next-auth';
 import { signIn } from '@/auth';
 import { hashPassword } from '@/lib/auth/password';
 import { normalizeEmail, validateSignup } from '@/lib/auth/validate';
+import { rateLimitDurable } from '@/server/authz';
 import { prisma } from '@/lib/db';
+
+/** Per-account sign-in throttle (ROADMAP #8): durable so it holds across instances. */
+const SIGNIN_LIMIT = 8;
+const SIGNIN_WINDOW_MS = 60_000;
 
 export interface AuthFormState {
   error?: string;
@@ -45,6 +50,14 @@ export async function signInWithPassword(
   const email = normalizeEmail(String(formData.get('email') ?? ''));
   const password = String(formData.get('password') ?? '');
   if (!email || !password) return { error: 'Enter your email and password.' };
+  // Throttle by account to blunt password brute-forcing (durable across instances;
+  // fails CLOSED — a limiter DB error denies the attempt). KNOWN TRADEOFF (DECISIONS
+  // #48): an email-keyed throttle lets someone who knows a victim's address spam
+  // failed attempts to lock that account for the short (60s) window; an IP-scoped
+  // dimension is the documented next step. The 60s bound keeps the lockout minor.
+  if (!(await rateLimitDurable(`signin:${email}`, SIGNIN_LIMIT, SIGNIN_WINDOW_MS))) {
+    return { error: 'Too many sign-in attempts. Please wait a minute and try again.' };
+  }
   try {
     await signIn('password', { email, password, redirectTo: '/dashboard' });
   } catch (e) {

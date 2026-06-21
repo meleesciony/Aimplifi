@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { auditLog, rateLimit } from '@/server/authz';
+import { auditLog, rateLimitDurable } from '@/server/authz';
 import { getDashboardData } from '@/server/finance';
 import { netWorthReportPdf, netWorthToCsv, transactionsToCsv } from '@/lib/export';
 import { categoryName } from '@/lib/engine/categorize/categories';
@@ -14,7 +14,10 @@ export async function GET(request: NextRequest) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!rateLimit(`export:${userId}`, 10, 60_000)) {
+  // Durable limit (holds across serverless instances, ROADMAP #8). Fails CLOSED:
+  // if the limiter DB call throws, the export is denied (500) rather than served
+  // unthrottled — the safe default for a data-export endpoint.
+  if (!(await rateLimitDurable(`export:${userId}`, 10, 60_000))) {
     return NextResponse.json({ error: 'Too many export requests' }, { status: 429 });
   }
 
