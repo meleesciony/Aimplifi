@@ -11,10 +11,19 @@ import { signIn } from '@/auth';
 import { hashPassword } from '@/lib/auth/password';
 import { normalizeEmail, validateSignup } from '@/lib/auth/validate';
 import { rateLimitDurable } from '@/server/authz';
+import { clientIp } from '@/lib/request-ip';
 import { prisma } from '@/lib/db';
 
-/** Per-account sign-in throttle (ROADMAP #8): durable so it holds across instances. */
-const SIGNIN_LIMIT = 8;
+/**
+ * Sign-in throttle (ROADMAP #8, hardened per Critic SEC-2). Two durable, cross-instance
+ * dimensions that together stop brute-force WITHOUT enabling a targeted-account lockout:
+ *  - PER-IP, checked BEFORE auth — the volume cap on a single attacker. Keyed on the
+ *    caller's device, so it can never lock a victim out of their own account.
+ *  - PER-ACCOUNT FAILED attempts, checked AFTER a failed sign-in — a correct password
+ *    always succeeds before this runs, so a legitimate user is never blocked.
+ */
+const SIGNIN_FAIL_LIMIT = 8; // failed attempts per account / window
+const SIGNIN_IP_LIMIT = 20; // attempts per device / window
 const SIGNIN_WINDOW_MS = 60_000;
 
 export interface AuthFormState {
@@ -50,18 +59,27 @@ export async function signInWithPassword(
   const email = normalizeEmail(String(formData.get('email') ?? ''));
   const password = String(formData.get('password') ?? '');
   if (!email || !password) return { error: 'Enter your email and password.' };
-  // Throttle by account to blunt password brute-forcing (durable across instances;
-  // fails CLOSED — a limiter DB error denies the attempt). KNOWN TRADEOFF (DECISIONS
-  // #48): an email-keyed throttle lets someone who knows a victim's address spam
-  // failed attempts to lock that account for the short (60s) window; an IP-scoped
-  // dimension is the documented next step. The 60s bound keeps the lockout minor.
-  if (!(await rateLimitDurable(`signin:${email}`, SIGNIN_LIMIT, SIGNIN_WINDOW_MS))) {
-    return { error: 'Too many sign-in attempts. Please wait a minute and try again.' };
+
+  // (1) Per-device volume cap, BEFORE any auth work (fails CLOSED on a limiter DB
+  //     error). Keyed on the caller's IP, so it bounds an attacker's guess rate but
+  //     can never lock a victim out of their own account.
+  const ip = await clientIp();
+  if (!(await rateLimitDurable(`signin-ip:${ip}`, SIGNIN_IP_LIMIT, SIGNIN_WINDOW_MS))) {
+    return { error: 'Too many sign-in attempts from this device. Please wait a minute and try again.' };
   }
+
   try {
     await signIn('password', { email, password, redirectTo: '/dashboard' });
   } catch (e) {
-    if (e instanceof AuthError) return { error: 'Invalid email or password.' };
+    if (e instanceof AuthError) {
+      // (2) Per-account FAILED-attempt cap, consumed ONLY on a failure and checked
+      //     AFTER sign-in — so a correct password is never blocked (no targeted
+      //     account lockout, Critic SEC-2).
+      if (!(await rateLimitDurable(`signin-fail:${email}`, SIGNIN_FAIL_LIMIT, SIGNIN_WINDOW_MS))) {
+        return { error: 'Too many failed attempts for this account. Please wait a minute and try again.' };
+      }
+      return { error: 'Invalid email or password.' };
+    }
     throw e; // NEXT_REDIRECT
   }
   return {};

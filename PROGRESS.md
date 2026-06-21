@@ -67,6 +67,17 @@ cron email uses a short imminent window. calendar/build.ts already lays obligati
 
 ## Feature 2 — DONE ✅ (verify+e2e green, critic 2 P1s fixed)
 
+## Deferred hardening (post-"do all three", user-requested) — DONE ✅
+(A) Always/Undo orphan-rule race: `undoCorrections` rule deletion now lineage-scoped
+(`createdFrom: correction.id`) — `tests/unit/undo-orphan-rule.test.ts`. (B) Sign-in
+throttle redesigned to kill the targeted-account lockout (#48 residual): per-IP cap
+before auth + per-account-FAIL after, so a correct password is never blocked
+(`src/lib/request-ip.ts` + `tests/unit/rate-limit-durable.test.ts` no-lockout proof).
+Focused adversarial review: both PASS, 0 P0/P1 (1 accepted P2: shared 'unknown' bucket
+local-only). `VERIFY_E2E=1 verify.sh` → GREEN (702 unit/52 files, 35 e2e). DECISIONS #49
++ ROADMAP #9 done + STATUS #10 + REGRESSION_LEDGER updated. Deferred: alreadyUndone TOCTOU
+(append-only audit, no UI path).
+
 ## Feature 3 — DONE ✅ (verify+e2e green, critic 3 P1s fixed). ALL THREE SHIPPED.
 **Built:** (#9) splitTransaction conditional-claim guard inside the tx. (#8) new RateLimit
 table + `rateLimitDurable` on export + per-account sign-in throttle. Critic (wf_f2438c81):

@@ -373,8 +373,12 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageIt
         },
       });
       if (correction.becameRuleId) {
+        // Conditional-claim (STATUS #10 / ROADMAP #9): delete the rule ONLY while it
+        // still points back to THIS correction (createdFrom === correction.id). If a
+        // concurrent re-apply has already replaced the rule's lineage, this affects 0
+        // rows and we leave the new owner's rule intact instead of orphaning it.
         await tx.categorizationRule.deleteMany({
-          where: { id: correction.becameRuleId, userId },
+          where: { id: correction.becameRuleId, userId, createdFrom: correction.id },
         });
         // keep the audit lineage truthful — no pointer to a deleted rule
         await tx.correction.update({

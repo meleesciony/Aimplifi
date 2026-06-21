@@ -107,11 +107,12 @@
    replaces the per-instance in-memory limiter on the export route and adds a per-account
    sign-in throttle. (Redis is no longer required — the DB counter gives the cross-instance
    property.) Remaining: snapshot pagination/caching at scale.
-9. **Concurrency hardening** — split double-split race **DONE** (DECISIONS #48): the
-   split now claims its parent atomically inside the transaction (a racing second split
-   creates no orphan children); regression-tested with parallel splits. Remaining
-   (deferred, no UI path): the Always/Undo orphan-rule race (docs/STATUS.md #10) needs the
-   same conditional-claim on rule deletion.
+9. ~~**Concurrency hardening**~~ — **DONE**: the split double-split race (DECISIONS #48,
+   atomic conditional claim) and the Always/Undo orphan-rule race (DECISIONS #49,
+   lineage-scoped rule deletion) are both fixed and regression-tested. Plus a sign-in
+   throttle hardened to remove a targeted-account lockout (per-IP + per-account-fail
+   dimensions, #49). Remaining (deferred, no UI path, append-only audit data): the
+   `alreadyUndone` TOCTOU on a double-undo of the same correction (docs/STATUS.md #10).
 10. ~~**Data deletion UI**~~ — **DONE** (DECISIONS #31): Settings → "Delete my
     data" with a typed-confirmation gate, a live summary of what's removed, and an
     idempotent ownership-scoped cascade (`prisma.user.delete`) + best-effort Plaid

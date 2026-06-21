@@ -384,13 +384,15 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
    (DECISIONS #30); this makes it consistent engine-wide.
 9. **Equal-priority rules tie-break by creation order** (stable sort) — documented
    here rather than enforced.
-10. **Concurrency races:** ~~two concurrent splits of the same row could
-    double-split~~ — **FIXED** (DECISIONS #48): `splitTransaction` now claims its
-    parent atomically inside the transaction (conditional `updateMany`; a racing
-    loser creates no children), regression-tested with parallel splits. STILL OPEN
-    (deferred, no UI path, non-financial): "Always" tapped racing "Undo" can orphan a
-    priority-100 rule — the fix is the same conditional-claim on `undoCorrections`'
-    rule deletion (delete only WHERE it still points back to this correction).
+10. **Concurrency races:** ~~two concurrent splits could double-split~~ — **FIXED**
+    (DECISIONS #48: `splitTransaction` claims its parent atomically inside the tx).
+    ~~"Always" racing "Undo" can orphan a rule~~ — **FIXED** (DECISIONS #49:
+    `undoCorrections` deletes the rule only WHERE `createdFrom` still points back to
+    this correction; regression-tested). STILL OPEN (deferred, no UI path, append-only
+    audit data — self-heals in every sum): the `alreadyUndone` pre-read is a TOCTOU two
+    concurrent undos of the SAME correction could both pass (a duplicate inverse
+    correction); a `@@unique` on the inverse or a conditional-claim on the correction
+    would close it.
 11. **Unknown billers containing a word-bounded "EPAY"** (e.g. "DUKE ENERGY
     EPAY") classify as transfers consistently in both modules; a merchant-table
     entry wins when added.

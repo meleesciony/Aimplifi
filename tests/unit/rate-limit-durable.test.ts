@@ -3,14 +3,17 @@
  * holds across instances (the in-memory one is a per-instance no-op on
  * serverless), and the sign-in action throttles repeated attempts per account.
  */
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/auth', () => ({ auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() }));
 // next-auth's index pulls `next/server`, which vitest's node resolver can't load
 // (fine in the Next build). We only need AuthError to exist for the import.
 vi.mock('next-auth', () => ({ AuthError: class AuthError extends Error {} }));
+// clientIp dynamically imports next/headers — mock it so we control the per-IP key.
+vi.mock('next/headers', () => ({ headers: vi.fn() }));
 
 import { AuthError } from 'next-auth';
+import { headers } from 'next/headers';
 import { signIn } from '@/auth';
 import { pruneExpiredRateLimits, rateLimitDurable } from '@/server/authz';
 import { signInWithPassword } from '@/server/auth-actions';
@@ -60,32 +63,61 @@ describe('rateLimitDurable (DB-backed, multi-instance)', () => {
   });
 });
 
-describe('signInWithPassword throttle (ROADMAP #8)', () => {
-  const EMAIL = `throttle-${Date.now()}-${process.pid}@test.local`;
+describe('signInWithPassword throttle — IP cap + no lockout (ROADMAP #8, Critic SEC-2)', () => {
+  const stamp = `${Date.now()}-${process.pid}`;
+  const keys: string[] = [];
   function fd(email: string, password: string) {
     const f = new FormData();
     f.set('email', email);
     f.set('password', password);
     return f;
   }
+  function mockIp(ip: string) {
+    vi.mocked(headers).mockResolvedValue({ get: (k: string) => (k === 'x-forwarded-for' ? ip : null) } as never);
+  }
   afterEach(() => vi.clearAllMocks());
   afterAll(async () => {
-    await prisma.rateLimit.deleteMany({ where: { key: `signin:${EMAIL}` } });
+    await prisma.rateLimit.deleteMany({ where: { key: { in: keys } } });
   });
-  beforeEach(() => {
-    // Every attempt "fails" as a bad credential (AuthError), so signIn never redirects.
+
+  it('counts only FAILED attempts per account; the 9th failure is throttled', async () => {
+    const email = `fail-${stamp}@test.local`;
+    const ip = `10.0.0.${(process.pid % 200) + 1}`;
+    keys.push(`signin-fail:${email}`, `signin-ip:${ip}`);
+    mockIp(ip);
     vi.mocked(signIn).mockRejectedValue(new AuthError('bad'));
+    for (let i = 0; i < 8; i++) {
+      expect((await signInWithPassword(null, fd(email, 'wrong'))).error).toBe('Invalid email or password.');
+    }
+    expect((await signInWithPassword(null, fd(email, 'wrong'))).error).toMatch(/too many failed attempts/i);
   });
 
-  it('lets 8 attempts through to auth, then throttles the 9th without calling signIn', async () => {
-    for (let i = 0; i < 8; i++) {
-      const r = await signInWithPassword(null, fd(EMAIL, 'wrong'));
-      expect(r.error).toBe('Invalid email or password.');
-    }
-    expect(signIn).toHaveBeenCalledTimes(8);
+  it('NEVER locks out a correct password — it succeeds even after the fail budget is spent', async () => {
+    const email = `nolock-${stamp}@test.local`;
+    const ip = `10.0.1.${(process.pid % 200) + 1}`;
+    keys.push(`signin-fail:${email}`, `signin-ip:${ip}`);
+    mockIp(ip);
+    vi.mocked(signIn).mockRejectedValue(new AuthError('bad'));
+    for (let i = 0; i < 8; i++) await signInWithPassword(null, fd(email, 'wrong')); // spend the fail budget
+    // A correct password: signIn resolves (in prod it throws NEXT_REDIRECT) → no error,
+    // and the per-account-fail check (catch-only) is never reached, so it's not blocked.
+    vi.mocked(signIn).mockResolvedValue(undefined as never);
+    expect((await signInWithPassword(null, fd(email, 'correct'))).error).toBeUndefined();
+  });
 
-    const throttled = await signInWithPassword(null, fd(EMAIL, 'wrong'));
-    expect(throttled.error).toMatch(/too many sign-in attempts/i);
-    expect(signIn).toHaveBeenCalledTimes(8); // not called again — throttled before auth
+  it('caps total attempts per device (IP) BEFORE any auth work', async () => {
+    const ip = `10.0.2.${(process.pid % 200) + 1}`;
+    keys.push(`signin-ip:${ip}`);
+    mockIp(ip);
+    // Pre-fill the per-IP window to its limit; the next attempt is blocked before signIn.
+    await prisma.rateLimit.upsert({
+      where: { key: `signin-ip:${ip}` },
+      create: { key: `signin-ip:${ip}`, count: 20, resetAt: new Date(Date.now() + 60_000) },
+      update: { count: 20, resetAt: new Date(Date.now() + 60_000) },
+    });
+    vi.mocked(signIn).mockRejectedValue(new AuthError('bad'));
+    const blocked = await signInWithPassword(null, fd(`anyone-${stamp}@test.local`, 'x'));
+    expect(blocked.error).toMatch(/too many sign-in attempts from this device/i);
+    expect(signIn).not.toHaveBeenCalled();
   });
 });
