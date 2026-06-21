@@ -13,15 +13,21 @@ import { useRouter } from 'next/navigation';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
+import {
+  ManualCardStatementForm,
+  type ManualStatementFormValues,
+} from '@/components/finance/manual-card-statement-form';
 import { cents, formatCents } from '@/lib/money';
+import { formatISODate, isoDate } from '@/lib/dates';
 import { MANUAL_ASSET_TYPES, MANUAL_LIABILITY_TYPES } from '@/lib/engine/networth/manual';
 import {
   addManualAccount,
   deleteManualAccount,
   updateManualAccountValue,
 } from '@/server/networth-actions';
+import { clearManualCardStatement, setManualCardStatement } from '@/server/card-actions';
 import type { AccountGroup, AccountView } from '@/lib/engine/transactions/query';
-import type { AccountsView } from '@/server/transactions';
+import type { AccountsView, ManualCardBilling } from '@/server/transactions';
 
 const TYPE_LABEL: Record<string, string> = {
   CHECKING: 'Checking',
@@ -108,11 +114,14 @@ export function AccountsList({ data }: { data: AccountsView }) {
   const router = useRouter();
   const [adding, setAdding] = useState<null | 'asset' | 'liability'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [statementCardId, setStatementCardId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function refreshAfter(fn: () => Promise<{ ok: boolean; errors?: string[] }>) {
+  function refreshAfter(fn: () => Promise<{ ok: boolean; errors?: string[] }>, successMsg?: string) {
     setError(null);
+    setSuccess(null);
     startTransition(async () => {
       try {
         const res = await fn();
@@ -122,6 +131,8 @@ export function AccountsList({ data }: { data: AccountsView }) {
         }
         setAdding(null);
         setEditingId(null);
+        setStatementCardId(null);
+        if (successMsg) setSuccess(successMsg);
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Something went wrong.');
@@ -139,27 +150,45 @@ export function AccountsList({ data }: { data: AccountsView }) {
         </p>
       )}
 
+      {success && (
+        <p role="status" className="rounded-md border border-emerald-900/50 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300" data-testid="manual-success">
+          {success}
+        </p>
+      )}
+
       <Group
         group={data.assets}
         title="Assets"
         paymentAccountId={data.paymentAccountId}
+        cardBilling={data.cardBilling}
         editingId={editingId}
+        statementCardId={statementCardId}
         pending={pending}
         onEdit={setEditingId}
         onSaveValue={(accountId, value) => refreshAfter(() => updateManualAccountValue({ accountId, value }))}
         onDelete={(accountId) => refreshAfter(() => deleteManualAccount(accountId))}
         onCancelEdit={() => setEditingId(null)}
+        onEditStatement={(id) => { setStatementCardId(id); setError(null); setSuccess(null); }}
+        onSaveStatement={(accountId, values) => refreshAfter(() => setManualCardStatement({ accountId, ...values }), 'Statement saved — this card is now in your “how much & when” answer.')}
+        onClearStatement={(accountId) => refreshAfter(() => clearManualCardStatement(accountId), 'Statement cleared.')}
+        onCancelStatement={() => setStatementCardId(null)}
       />
       <Group
         group={data.liabilities}
         title="Liabilities"
         paymentAccountId={data.paymentAccountId}
+        cardBilling={data.cardBilling}
         editingId={editingId}
+        statementCardId={statementCardId}
         pending={pending}
         onEdit={setEditingId}
         onSaveValue={(accountId, value) => refreshAfter(() => updateManualAccountValue({ accountId, value }))}
         onDelete={(accountId) => refreshAfter(() => deleteManualAccount(accountId))}
         onCancelEdit={() => setEditingId(null)}
+        onEditStatement={(id) => { setStatementCardId(id); setError(null); setSuccess(null); }}
+        onSaveStatement={(accountId, values) => refreshAfter(() => setManualCardStatement({ accountId, ...values }), 'Statement saved — this card is now in your “how much & when” answer.')}
+        onClearStatement={(accountId) => refreshAfter(() => clearManualCardStatement(accountId), 'Statement cleared.')}
+        onCancelStatement={() => setStatementCardId(null)}
       />
 
       {/* Link real accounts (bank, brokerage, credit, loans) via Plaid */}
@@ -209,22 +238,34 @@ function Group({
   group,
   title,
   paymentAccountId,
+  cardBilling,
   editingId,
+  statementCardId,
   pending,
   onEdit,
   onSaveValue,
   onDelete,
   onCancelEdit,
+  onEditStatement,
+  onSaveStatement,
+  onClearStatement,
+  onCancelStatement,
 }: {
   group: AccountGroup;
   title: string;
   paymentAccountId: string | null;
+  cardBilling: Record<string, ManualCardBilling>;
   editingId: string | null;
+  statementCardId: string | null;
   pending: boolean;
   onEdit: (id: string) => void;
   onSaveValue: (id: string, value: string) => void;
   onDelete: (id: string) => void;
   onCancelEdit: () => void;
+  onEditStatement: (id: string) => void;
+  onSaveStatement: (id: string, values: ManualStatementFormValues) => void;
+  onClearStatement: (id: string) => void;
+  onCancelStatement: () => void;
 }) {
   const isLiability = group.kind === 'liability';
   if (group.accounts.length === 0) return null;
@@ -245,12 +286,18 @@ function Group({
                 key={a.id}
                 account={a}
                 isLiability={isLiability}
+                billing={cardBilling[a.id]}
                 editing={editingId === a.id}
+                statementOpen={statementCardId === a.id}
                 pending={pending}
                 onEdit={() => onEdit(a.id)}
                 onSave={(value) => onSaveValue(a.id, value)}
                 onDelete={() => onDelete(a.id)}
                 onCancel={onCancelEdit}
+                onEditStatement={() => onEditStatement(a.id)}
+                onSaveStatement={(values) => onSaveStatement(a.id, values)}
+                onClearStatement={() => onClearStatement(a.id)}
+                onCancelStatement={onCancelStatement}
               />
             ) : (
               <LinkedRow
@@ -307,23 +354,36 @@ function LinkedRow({
 function ManualRow({
   account,
   isLiability,
+  billing,
   editing,
+  statementOpen,
   pending,
   onEdit,
   onSave,
   onDelete,
   onCancel,
+  onEditStatement,
+  onSaveStatement,
+  onClearStatement,
+  onCancelStatement,
 }: {
   account: AccountView;
   isLiability: boolean;
+  billing?: ManualCardBilling;
   editing: boolean;
+  statementOpen: boolean;
   pending: boolean;
   onEdit: () => void;
   onSave: (value: string) => void;
   onDelete: () => void;
   onCancel: () => void;
+  onEditStatement: () => void;
+  onSaveStatement: (values: ManualStatementFormValues) => void;
+  onClearStatement: () => void;
+  onCancelStatement: () => void;
 }) {
   const [value, setValue] = useState((account.currentBalanceCents / 100).toFixed(2));
+  const isCard = account.type === 'CREDIT' && billing !== undefined;
   return (
     <li className="px-3 py-2" data-testid="manual-account-row">
       <div className="flex items-center justify-between gap-3">
@@ -356,6 +416,34 @@ function ManualRow({
           </div>
         )}
       </div>
+
+      {isCard && (
+        <div className="mt-1.5" data-testid="manual-card-billing">
+          {billing!.hasStatement ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span data-testid="card-statement-summary">
+                Statement {formatCents(cents(billing!.statementBalanceCents ?? 0))} · due{' '}
+                {billing!.dueDate ? formatISODate(isoDate(billing!.dueDate)) : '—'} · min{' '}
+                {formatCents(cents(billing!.minimumPaymentCents ?? 0))}
+              </span>
+              <button type="button" data-testid="card-statement-edit" disabled={pending} onClick={onEditStatement} className="rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent disabled:opacity-50">Edit</button>
+              <button type="button" data-testid="card-statement-clear" disabled={pending} onClick={onClearStatement} className="rounded px-1.5 py-0.5 text-red-400 hover:bg-accent disabled:opacity-50">Clear</button>
+            </div>
+          ) : (
+            <button type="button" data-testid="card-statement-add" disabled={pending} onClick={onEditStatement} className="rounded border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50">
+              + Add statement — get “how much &amp; when” for this card
+            </button>
+          )}
+          {statementOpen && (
+            <ManualCardStatementForm
+              billing={billing}
+              pending={pending}
+              onCancel={onCancelStatement}
+              onSubmit={onSaveStatement}
+            />
+          )}
+        </div>
+      )}
     </li>
   );
 }

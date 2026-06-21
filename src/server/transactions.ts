@@ -88,20 +88,48 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}): P
   return { rows: display, summary, accountOptions };
 }
 
+/**
+ * Billing state for a manual CREDIT card (extends DECISIONS #45) — surfaced on
+ * /accounts so the user can attach/edit the statement that lets the Cash-Needed
+ * Engine answer "how much & when" for it. Present only for manual credit cards.
+ */
+export interface ManualCardBilling {
+  hasStatement: boolean;
+  statementBalanceCents?: number;
+  minimumPaymentCents?: number;
+  dueDate?: string; // YYYY-MM-DD
+  cycleEnd?: string; // YYYY-MM-DD (statement close)
+  aprBps: number | null;
+  autopayMode: string | null;
+  /** Set only for FIXED_AMOUNT autopay — lets the editor re-hydrate the amount. */
+  autopayFixedAmountCents: number | null;
+}
+
 export interface AccountsView extends AccountsSummary {
   paymentAccountId: string | null;
   /** Net worth over time (DECISIONS #40), oldest → newest, ending at today. */
   trend: NetWorthSeriesPoint[];
+  /** Per-account billing for manual credit cards, keyed by account id. */
+  cardBilling: Record<string, ManualCardBilling>;
 }
 
 /** Every account, grouped into assets vs liabilities with net worth + trend. */
 export async function getAccountsView(userId: string): Promise<AccountsView> {
-  const [user, accounts, snapshots] = await Promise.all([
+  const [user, accounts, snapshots, statements, autopays] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
     prisma.balanceSnapshot.findMany({
       where: { account: { userId } },
       select: { accountId: true, date: true, balanceCents: true },
+    }),
+    prisma.statement.findMany({
+      where: { account: { userId } },
+      orderBy: { cycleEnd: 'desc' },
+      select: { accountId: true, cycleEnd: true, dueDate: true, statementBalanceCents: true, minimumPaymentCents: true },
+    }),
+    prisma.autopayConfig.findMany({
+      where: { account: { userId } },
+      select: { accountId: true, mode: true, fixedAmountCents: true },
     }),
   ]);
 
@@ -114,8 +142,40 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     manual: a.provider === 'manual',
   }));
 
+  // Newest statement per account (orderBy cycleEnd desc → first seen wins).
+  const newestStatement = new Map<string, (typeof statements)[number]>();
+  for (const s of statements) if (!newestStatement.has(s.accountId)) newestStatement.set(s.accountId, s);
+  const autopayByAccount = new Map(autopays.map((a) => [a.accountId, a]));
+
+  const cardBilling: Record<string, ManualCardBilling> = {};
+  for (const a of accounts) {
+    if (a.provider !== 'manual' || a.type !== 'CREDIT') continue;
+    const ap = autopayByAccount.get(a.id);
+    const s = newestStatement.get(a.id);
+    const common = {
+      aprBps: a.aprBps,
+      autopayMode: ap?.mode ?? null,
+      autopayFixedAmountCents: ap?.mode === 'FIXED_AMOUNT' ? ap.fixedAmountCents : null,
+    };
+    cardBilling[a.id] = s
+      ? {
+          hasStatement: true,
+          statementBalanceCents: s.statementBalanceCents,
+          minimumPaymentCents: s.minimumPaymentCents,
+          dueDate: s.dueDate,
+          cycleEnd: s.cycleEnd,
+          ...common,
+        }
+      : { hasStatement: false, ...common };
+  }
+
   const today = process.env.DEMO_TODAY ?? DEFAULT_AS_OF;
   const trend = netWorthSeries({ snapshots, accounts: views, today });
 
-  return { ...groupAccounts(views), paymentAccountId: user?.paymentAccountId ?? null, trend };
+  return {
+    ...groupAccounts(views),
+    paymentAccountId: user?.paymentAccountId ?? null,
+    trend,
+    cardBilling,
+  };
 }

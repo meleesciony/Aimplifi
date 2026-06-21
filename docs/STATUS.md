@@ -249,6 +249,35 @@ cases + single-path confirmation) rather than the full multi-agent critic, given
 the 6-line, well-tested, single-path scope. `VERIFY_E2E=1 bash scripts/verify.sh`
 → **✅ VERIFY GREEN** (585 unit / 29 files, 27 e2e, clean typecheck/lint/build).
 
+## Post-Phase-5 refinement: manual card statements (DECISIONS #46, extends #45)
+
+A manual CREDIT card was treated as a card by the Cash-Needed Engine but, lacking a
+Statement and cycle days, `buildObligation` returned null (engine.ts:83) → it was
+DROPPED from "how much do I need & when", counting only toward net worth. Now a user
+attaches a statement (+ optional APR + autopay) on `/accounts` so the card runs the
+PRECISE path. No schema change (Statement/AutopayConfig already exist; the snapshot
+already loads all of them). Pure parser `engine/cards/manual-statement.ts`, atomic
+manual+CREDIT-guarded `card-actions.ts` (ARRAY-form `$transaction` — the interactive
+form timed out under parallel SQLite), `getAccountsView` billing + `/accounts` UI.
+
+Gate (real output 2026-06-21): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — typecheck/lint clean, **666 unit / 44 files**, build clean, **33 e2e**
+(new manual-card-statement flow: add card → add $0 statement [headline-neutral] →
+FIXED_AMOUNT autopay re-hydrates on edit → clear → delete-revert).
+
+Hostile Critic (4 parallel dimension critics + adversarial verification of every
+P0/P1): **0 P0/P1** — all three P0/P1 candidates reproduced then downgraded to P2
+(parse failure returns before any DB write → no data loss; clear error surfaced in
+the role=alert banner; narrow blast radius). Scorecard: security 9–10, code/tests
+6–9, UX/a11y 6–9. P2s FIXED: FIXED_AMOUNT autopay round-trip on edit (billing now
+carries the amount), blank-APR inline disclosure, `role="group"` on the form, an
+aria-live `role="status"` success confirmation, + 3 missing tests (FIXED_AMOUNT split,
+idempotent clear, APR-wipe). Accepted/deferred P2s (documented): manual estimate path
+uses the user-entered balance for the next cycle; input-prefill `toFixed` (consistent
+with existing prefill code); read-then-write single-statement race (STATUS #10 /
+ROADMAP #9); one-tap Clear without confirm (consistent with the more-destructive
+sibling `manual-delete`, reversible, no money/history loss).
+
 ## Phase 4 (complete — see commit)
 
 Calendar/goals/budgets/exports/PWA/cron/security headers + dormant Plaid

@@ -25,6 +25,12 @@
   out / net totals (transfers excluded); pure query engine, unit-tested.
 - Accounts page (`/accounts`): all accounts grouped into assets vs liabilities
   with subtotals and net worth (matches the dashboard golden value).
+- Manual card statements (`/accounts`, DECISIONS #46): a manual CREDIT card can
+  carry a current statement (balance, minimum, close + due dates) + optional APR +
+  autopay, so the Cash-Needed Engine runs the PRECISE "how much do I need & when"
+  path for a no-Plaid card instead of dropping it. Pure parser + known-answer +
+  end-to-end engine tests + a throwaway-user integration test + a golden-safe e2e;
+  hostile-critic clean (0 P0/P1). Closes the documented gap in #45.
 - Manual transaction entry (`/transactions/new`): cash/check/missed-feed rows,
   categorized through the standard pipeline; records activity only — balances
   stay provider-authoritative (DECISIONS #24).
