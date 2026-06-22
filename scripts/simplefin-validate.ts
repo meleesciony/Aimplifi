@@ -8,6 +8,7 @@
 import { claimAccessUrl, fetchSimplefinAccounts } from '@/lib/providers/simplefin';
 import { mapSimplefinAccount, prepareSimplefinTransaction } from '@/lib/providers/simplefin-map';
 import { categoryName } from '@/lib/engine/categorize/categories';
+import { isoDate } from '@/lib/dates';
 
 const token = process.argv[2] ?? process.env.SIMPLEFIN_SETUP_TOKEN;
 if (!token) {
@@ -24,7 +25,7 @@ async function main(setupToken: string) {
   const data = await fetchSimplefinAccounts(accessUrl);
   console.log(`   ✓ ${data.accounts?.length ?? 0} account(s); server errors: ${JSON.stringify(data.errors ?? [])}`);
 
-  const today = '2026-06-22';
+  const today = isoDate('2026-06-22');
   for (const acct of data.accounts ?? []) {
     const m = mapSimplefinAccount(acct);
     console.log(`\n   ACCOUNT "${acct.name}" (balance "${acct.balance}")`);

@@ -91,3 +91,27 @@ describe('invite-only allowlist gates signup (DECISIONS #57)', () => {
     expect(await prisma.user.findUnique({ where: { email: allowed } })).not.toBeNull();
   });
 });
+
+describe('household owners are always allowed on Vercel, even with a mis-set allowlist (DECISIONS #60)', () => {
+  const owner = 'lizysuh55@gmail.com'; // an OWNER_ALLOWLIST entry
+  const stranger = `stranger-${stamp}@nope.test`;
+
+  afterAll(async () => {
+    vi.unstubAllEnvs();
+    await prisma.user.deleteMany({ where: { email: { in: [owner, stranger] } } });
+  });
+
+  it('lets an owner sign up despite a wrong SIGNUP_ALLOWLIST, still rejects a stranger', async () => {
+    await prisma.user.deleteMany({ where: { email: owner } }); // clear any prior-run residue
+    vi.stubEnv('VERCEL', '1'); // simulate the deployed environment
+    vi.stubEnv('SIGNUP_ALLOWLIST', 'someone-else@example.com'); // env set, owner NOT in it
+
+    const ok = await signUpWithPassword(null, fd(owner, 'supersecret1'));
+    expect(ok.error).toBeUndefined(); // owner always allowed → not locked out
+    expect(await prisma.user.findUnique({ where: { email: owner } })).not.toBeNull();
+
+    const bad = await signUpWithPassword(null, fd(stranger, 'supersecret1'));
+    expect(bad.error).toMatch(/invite-only/i); // a non-owner not on the env list is still blocked
+    expect(await prisma.user.findUnique({ where: { email: stranger } })).toBeNull();
+  });
+});

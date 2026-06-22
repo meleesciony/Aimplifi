@@ -55,7 +55,7 @@ export default async function SignInPage() {
           </form>
           <p className="text-xs text-muted-foreground">
             The demo uses a realistic seeded dataset — fictional accounts, no sign-up. Create an account
-            to track your own money; connect a bank (Plaid) or import a CSV to get started.
+            to track your own money; connect your banks, cards, and brokerages to get started.
           </p>
         </CardContent>
       </Card>

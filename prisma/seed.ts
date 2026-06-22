@@ -37,6 +37,11 @@ async function main() {
   await prisma.balanceSnapshot.deleteMany();
   await prisma.scheduledTransaction.deleteMany();
   await prisma.transaction.deleteMany();
+  // These also FK-reference Category and must go before it, else a re-seed over an
+  // existing DB (e.g. after the budget-targets test created Budget rows) fails with
+  // a P2003 foreign-key violation on category.deleteMany():
+  await prisma.categoryPrediction.deleteMany();
+  await prisma.budget.deleteMany();
   await prisma.merchant.deleteMany();
   await prisma.category.deleteMany();
   await prisma.autopayConfig.deleteMany();

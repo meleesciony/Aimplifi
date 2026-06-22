@@ -27,6 +27,24 @@ const SIGNIN_FAIL_LIMIT = 8; // failed attempts per account / window
 const SIGNIN_IP_LIMIT = 20; // attempts per device / window
 const SIGNIN_WINDOW_MS = 60_000;
 
+/**
+ * Household owners — ALWAYS allowed to create an account on the deployed app
+ * (DECISIONS #60), so a missing/mis-set SIGNUP_ALLOWLIST can never lock the
+ * owners out of their own app. On Vercel this is unioned into the allowlist, so
+ * with no env var the deploy is invite-only to exactly these two; with one, it's
+ * these two PLUS whatever it lists. Off Vercel (tests/local) it's dormant, so the
+ * suite's open-signup behavior is unchanged.
+ */
+const OWNER_ALLOWLIST = 'michael.lee.p@gmail.com, lizysuh55@gmail.com';
+
+/** The effective signup allowlist: on Vercel, the env list ∪ the owners (owners
+ *  always allowed); elsewhere, the env list verbatim (unset → open, for tests). */
+function effectiveAllowlist(): string {
+  const env = process.env.SIGNUP_ALLOWLIST?.trim() ?? '';
+  if (!process.env.VERCEL) return env; // local/test: unchanged (dormant by default)
+  return [env, OWNER_ALLOWLIST].filter(Boolean).join(', ');
+}
+
 export interface AuthFormState {
   error?: string;
 }
@@ -40,10 +58,11 @@ export async function signUpWithPassword(
   const parsed = validateSignup({ email, password });
   if (!parsed.ok) return { error: parsed.errors.join(' ') };
 
-  // Invite-only gate (DECISIONS #57): DORMANT unless SIGNUP_ALLOWLIST is set, so
-  // demo/local/test signup stays open. Checked on the normalized email, before any
-  // DB write, so an un-invited address never creates a row.
-  if (!isSignupAllowed(parsed.email, process.env.SIGNUP_ALLOWLIST)) {
+  // Invite-only gate (DECISIONS #57, #60). On Vercel the household owners are always
+  // allowed (env ∪ OWNER_ALLOWLIST) so a mis-set env var can't lock them out; off
+  // Vercel it stays dormant unless SIGNUP_ALLOWLIST is set. Checked on the normalized
+  // email, before any DB write, so an un-invited address never creates a row.
+  if (!isSignupAllowed(parsed.email, effectiveAllowlist())) {
     return { error: 'This app is invite-only. Ask the owner to add your email to the allowlist.' };
   }
 
