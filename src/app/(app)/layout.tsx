@@ -34,7 +34,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="mx-auto max-w-5xl px-3 pb-20 sm:px-6 sm:pb-12">
-      <header className="flex items-center justify-between gap-2 py-3">
+      {/* sticky glass header on desktop; on phones it stays static (the fixed
+          bottom tab bar is the primary nav there, and a sticky top bar trips a
+          mobile scroll-into-view quirk) */}
+      <header className="-mx-3 flex items-center justify-between gap-2 border-b bg-background px-3 py-3 sm:sticky sm:top-0 sm:z-30 sm:-mx-6 sm:bg-background/80 sm:px-6 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-background/60">
         <AppNav reviewBadge={<ReviewBadge userId={session.user.id} />} />
         <form action={doSignOut}>
           <Button variant="ghost" size="sm" type="submit">
@@ -43,7 +46,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </form>
       </header>
       {isDemo && (
-        <p className="mb-3 text-xs text-muted-foreground" data-testid="demo-banner">
+        <p className="mb-3 flex items-center gap-2 text-xs text-muted-foreground" data-testid="demo-banner">
+          <span className="inline-block size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
           Demo dataset · fictional accounts · as of {formatISODate(isoDate(today), 'long')}
         </p>
       )}
