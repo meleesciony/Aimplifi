@@ -19,6 +19,7 @@
  *
  * Demo mode is entirely unaffected — the DataProvider seam keeps this dormant.
  */
+import type { JWK } from 'jose';
 import { type ISODate, isoDate } from '@/lib/dates';
 import { decryptToken, encryptToken } from '@/lib/crypto';
 import { prisma } from '@/lib/db';
@@ -63,6 +64,31 @@ async function plaidPost<T>(path: string, body: Record<string, unknown>): Promis
     throw new Error(`Plaid ${path} failed: ${response.status}`);
   }
   return response.json() as Promise<T>;
+}
+
+/**
+ * Webhook verification key resolver (ROADMAP #1c). Fetches Plaid's published ES256
+ * public key for a `kid` via /webhook_verification_key/get and caches non-expired
+ * keys (Plaid rotates them). Returns null on any failure so the verifier rejects
+ * cleanly. UNVERIFIED against live Plaid (no sandbox creds in this env); the
+ * verification LOGIC is unit-tested with a real keypair (plaid-webhook.test.ts).
+ */
+const webhookKeyCache = new Map<string, JWK>();
+
+export async function fetchPlaidWebhookKey(kid: string): Promise<JWK | null> {
+  const cached = webhookKeyCache.get(kid);
+  if (cached) return cached;
+  try {
+    const { key } = await plaidPost<{ key: (JWK & { expired_at?: string | null }) | null }>(
+      '/webhook_verification_key/get',
+      { key_id: kid },
+    );
+    if (!key) return null;
+    if (!key.expired_at) webhookKeyCache.set(kid, key); // don't cache an already-rotated key
+    return key;
+  } catch {
+    return null;
+  }
 }
 
 export class PlaidProvider implements DataProvider {

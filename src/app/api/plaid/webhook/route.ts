@@ -3,13 +3,16 @@
  * an incremental sync for that item's owner. In demo mode syncTransactions is a
  * no-op, so this is inert unless DATA_PROVIDER=plaid.
  *
- * UNVERIFIED / SECURITY TODO: Plaid-Verification (JWT) signature verification is
- * NOT yet implemented — wire it before production so only Plaid can trigger a
- * sync (docs/PLAID_WALKTHROUGH.md §5). Unknown items are acked and ignored.
+ * SECURITY (ROADMAP #1c): the `Plaid-Verification` JWT is verified (ES256 +
+ * request_body_sha256 + freshness) against Plaid's published key BEFORE any DB
+ * work, so only Plaid can trigger a sync. The verification logic is unit-tested
+ * (tests/unit/plaid-webhook.test.ts); the live key fetch is UNVERIFIED pending
+ * real Plaid credentials (docs/PLAID_WALKTHROUGH.md §5). Unknown items are acked.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
+import { verifyPlaidWebhook } from '@/lib/plaid-webhook';
 
 interface PlaidWebhook {
   webhook_type?: string;
@@ -18,17 +21,29 @@ interface PlaidWebhook {
 }
 
 export async function POST(request: NextRequest) {
-  // Interim mitigation (DECISIONS #44): this endpoint is excluded from auth so
-  // Plaid can reach it, but the JWT signature check isn't wired yet (ROADMAP
-  // #1c). Until it is, refuse outside live Plaid mode so the demo deploy never
-  // exposes an unauthenticated, DB-touching, sync-triggering endpoint.
+  // The verification key fetch needs Plaid credentials, which only exist in live
+  // Plaid mode — so the demo deploy never exposes this DB-touching, sync-triggering
+  // endpoint (it 404s), and in Plaid mode every request must carry a valid signature.
   if ((process.env.DATA_PROVIDER ?? 'demo') !== 'plaid') {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
   }
 
+  // Read the RAW body for the signature's body-hash check, then verify the JWT
+  // against Plaid's key BEFORE touching the DB. Forged/replayed → clean 401.
+  const raw = await request.text();
+  const { fetchPlaidWebhookKey } = await import('@/lib/providers/plaid');
+  const verified = await verifyPlaidWebhook({
+    token: request.headers.get('plaid-verification') ?? '',
+    rawBody: raw,
+    getKey: fetchPlaidWebhookKey,
+  });
+  if (!verified.ok) {
+    return NextResponse.json({ error: 'invalid signature' }, { status: 401 });
+  }
+
   let body: PlaidWebhook;
   try {
-    body = (await request.json()) as PlaidWebhook;
+    body = JSON.parse(raw) as PlaidWebhook;
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 });
   }

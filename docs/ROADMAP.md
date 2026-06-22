@@ -64,8 +64,10 @@
    16 txns with correct signs → /liabilities/get 1 statement; temp user cleaned up.
    The network path is no longer UNVERIFIED. REMAINING: (b) wire the DECISIONS #22
    tail — recurring re-detection + scheduled refresh after ingest (per-row
-   normalize→rules→categorize→transfer is done); (c) Plaid-Verification JWT check
-   on the webhook; (d) production OAuth flow; (e) **DONE** — a "Connect a bank or
+   normalize→rules→categorize→transfer is done); (c) **DONE** (DECISIONS #52) —
+   Plaid-Verification JWT check on the webhook (ES256 + body-SHA-256 + freshness,
+   verified before any DB work; logic unit-tested with a real keypair, live key
+   fetch UNVERIFIED pending creds); (d) production OAuth flow; (e) **DONE** — a "Connect a bank or
    brokerage" Plaid Link UI (DECISIONS #41, `connect-accounts-button.tsx` +
    `plaid-actions.ts`, react-plaid-link). Enabled for SANDBOX. The deployed app
    stays in demo until **real multi-user auth** (roadmap #2) lands — linking real
