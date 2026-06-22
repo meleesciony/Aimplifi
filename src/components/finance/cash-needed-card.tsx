@@ -157,7 +157,14 @@ export function CashNeededCard({
           ))}
         </ul>
 
-        <div className="flex justify-end pt-1">
+        <div className="flex justify-between pt-1">
+          <Link
+            href="/forecast"
+            className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            data-testid="see-forecast"
+          >
+            90-day forecast →
+          </Link>
           <Link
             href="/cards"
             className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
