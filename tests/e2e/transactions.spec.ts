@@ -165,6 +165,9 @@ test('inline recategorization on the register refiles a transaction (DECISIONS #
   // Open the inline editor and refile as Groceries (just this once).
   await row.getByTestId('category-chip').click();
   await page.getByTestId('category-menu').waitFor();
+  // Type-to-filter the picker (DECISIONS #68) to the target, then click — no
+  // scrolling past 80+ options.
+  await page.getByTestId('cat-search').fill('Groceries');
   await page.locator('[data-testid="cat-option"][data-cat="groceries"]').click();
   await page.getByTestId('recat-once').click();
 

@@ -43,12 +43,14 @@ export function TransactionList({ rows, summary, pageInfo }: { rows: TxnView[]; 
   }
   const [chosen, setChosen] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   const [pending, startTransition] = useTransition();
 
   function close() {
     setOpenId(null);
     setChosen(null);
     setError(null);
+    setQuery('');
   }
 
   function commit(t: TxnView, scope: 'one' | 'merchant') {
@@ -147,7 +149,9 @@ export function TransactionList({ rows, summary, pageInfo }: { rows: TxnView[]; 
                           aria-haspopup="listbox"
                           aria-expanded={open}
                           className="inline-flex items-center gap-1 rounded underline decoration-dotted decoration-muted-foreground/50 underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                          onClick={() => (open ? close() : (setOpenId(t.id), setChosen(null), setError(null)))}
+                          onClick={() =>
+                            open ? close() : (setOpenId(t.id), setChosen(null), setError(null), setQuery(''))
+                          }
                         >
                           {t.categoryName}
                           <Pencil className="size-3 opacity-50" aria-hidden />
@@ -161,31 +165,48 @@ export function TransactionList({ rows, summary, pageInfo }: { rows: TxnView[]; 
                             className="absolute left-0 z-50 mt-1 max-h-72 w-56 overflow-auto rounded-lg border bg-card p-1 text-foreground shadow-lg ring-1 ring-foreground/10"
                           >
                             {!chosen ? (
-                              ASSIGNABLE_GROUPS.map((grp) => (
-                                <div key={grp.group}>
-                                  <div className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                    {grp.group}
-                                  </div>
-                                  {grp.categories.map((c) => (
-                                    <button
-                                      key={c.id}
-                                      type="button"
-                                      role="option"
-                                      aria-selected={c.id === t.categoryId}
-                                      data-testid="cat-option"
-                                      data-cat={c.id}
-                                      disabled={pending}
-                                      className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
-                                      onClick={() => (c.id === t.categoryId ? close() : setChosen(c))}
-                                    >
-                                      {c.name}
-                                      {c.id === t.categoryId && (
-                                        <Check className="size-3.5 text-emerald-500" aria-hidden />
-                                      )}
-                                    </button>
+                              <>
+                                <input
+                                  data-testid="cat-search"
+                                  autoFocus
+                                  value={query}
+                                  onChange={(e) => setQuery(e.target.value)}
+                                  placeholder="Search categories…"
+                                  className="sticky top-0 z-10 mb-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring/50"
+                                />
+                                {ASSIGNABLE_GROUPS.map((grp) => ({
+                                  group: grp.group,
+                                  categories: grp.categories.filter((c) =>
+                                    c.name.toLowerCase().includes(query.trim().toLowerCase()),
+                                  ),
+                                }))
+                                  .filter((grp) => grp.categories.length > 0)
+                                  .map((grp) => (
+                                    <div key={grp.group}>
+                                      <div className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                        {grp.group}
+                                      </div>
+                                      {grp.categories.map((c) => (
+                                        <button
+                                          key={c.id}
+                                          type="button"
+                                          role="option"
+                                          aria-selected={c.id === t.categoryId}
+                                          data-testid="cat-option"
+                                          data-cat={c.id}
+                                          disabled={pending}
+                                          className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                                          onClick={() => (c.id === t.categoryId ? close() : setChosen(c))}
+                                        >
+                                          {c.name}
+                                          {c.id === t.categoryId && (
+                                            <Check className="size-3.5 text-emerald-500" aria-hidden />
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
                                   ))}
-                                </div>
-                              ))
+                              </>
                             ) : (
                               <div className="space-y-2 p-1" data-testid="recat-confirm">
                                 <p className="text-sm">

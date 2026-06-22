@@ -8,6 +8,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  BarChart3,
   Calendar,
   CreditCard,
   Gauge,
@@ -31,6 +32,7 @@ const PRIMARY = [
 
 const SECONDARY = [
   { href: '/spending-plan', label: 'Plan', icon: Gauge, testid: 'nav-spending-plan' },
+  { href: '/reports', label: 'Reports', icon: BarChart3, testid: 'nav-reports' },
   { href: '/accounts', label: 'Accounts', icon: Landmark, testid: 'nav-accounts' },
   { href: '/transactions', label: 'Activity', icon: Receipt, testid: 'nav-transactions' },
   { href: '/goals', label: 'Goals', icon: PiggyBank, testid: 'nav-goals' },
