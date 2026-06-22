@@ -5,14 +5,23 @@ business onboarding/approval gate and costs a few dollars a year. Pulse talks to
 over a dead-simple read-only HTTP protocol and stores only an **encrypted access
 URL** — never your bank password (SimpleFIN holds that, not us).
 
-## ⚠️ Status: implemented, live path UNVERIFIED
+## ✅ Status: implemented AND live-path VERIFIED (against the SimpleFIN demo server)
 
-The SimpleFIN protocol here was implemented from the documented spec as of the
-**Jan-2026 knowledge cutoff** and has **never run against a live SimpleFIN server**
-in this build (there's no token in the environment). The parts that would corrupt
-your ledger if wrong — sign convention, cents, dates, account-type inference,
-categorization, dedup — are unit-tested (`tests/unit/simplefin-map.test.ts`), and the
-claim+sync orchestration is tested against a mocked server (`tests/unit/simplefin.test.ts`).
+The SimpleFIN protocol here was implemented from the documented spec, and the live
+network path is now **VERIFIED end-to-end** by `npm run simplefin:validate <token>`
+(`scripts/simplefin-validate.ts`), which runs the app's REAL functions —
+`claimAccessUrl` → `fetchSimplefinAccounts` → `mapSimplefinAccount` /
+`prepareSimplefinTransaction` — against SimpleFIN's public **demo** server
+(`beta-bridge.simplefin.org`, the free `demo:demo` dataset). Confirmed on 2026-06-22:
+claim POST → access URL → GET /accounts → 3 accounts (Savings/Checking/Empty), correct
+account types, balances to the cent (`"114405.51"` → `11440551`), and signed
+transaction cents/dates (`"-110.00"` → `-11000`, unix `posted` → calendar date). The
+parts that would corrupt your ledger if wrong — sign, cents, dates, account-type,
+categorization, dedup — are also unit-tested (`tests/unit/simplefin-map.test.ts`), and
+the claim+sync orchestration is tested against a mocked server
+(`tests/unit/simplefin.test.ts`). Remaining caveat: only the demo bank was exercised;
+a specific real institution could still surface a field quirk, but the protocol round-trip
+and the money-critical mapping are proven.
 
 **Before trusting it with real money data, confirm the field shapes against the current
 SimpleFIN spec** (`https://www.simplefin.org/protocol.html`), specifically:
