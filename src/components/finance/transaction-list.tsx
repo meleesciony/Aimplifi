@@ -19,7 +19,7 @@ import { Check, Pencil, Receipt } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
-import { ASSIGNABLE_CATEGORIES } from '@/lib/engine/categorize/assign';
+import { ASSIGNABLE_GROUPS } from '@/lib/engine/categorize/assign';
 import { recategorize } from '@/server/triage-actions';
 import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
 
@@ -161,23 +161,30 @@ export function TransactionList({ rows, summary, pageInfo }: { rows: TxnView[]; 
                             className="absolute left-0 z-50 mt-1 max-h-72 w-56 overflow-auto rounded-lg border bg-card p-1 text-foreground shadow-lg ring-1 ring-foreground/10"
                           >
                             {!chosen ? (
-                              ASSIGNABLE_CATEGORIES.map((c) => (
-                                <button
-                                  key={c.id}
-                                  type="button"
-                                  role="option"
-                                  aria-selected={c.id === t.categoryId}
-                                  data-testid="cat-option"
-                                  data-cat={c.id}
-                                  disabled={pending}
-                                  className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
-                                  onClick={() => (c.id === t.categoryId ? close() : setChosen(c))}
-                                >
-                                  {c.name}
-                                  {c.id === t.categoryId && (
-                                    <Check className="size-3.5 text-emerald-500" aria-hidden />
-                                  )}
-                                </button>
+                              ASSIGNABLE_GROUPS.map((grp) => (
+                                <div key={grp.group}>
+                                  <div className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    {grp.group}
+                                  </div>
+                                  {grp.categories.map((c) => (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      role="option"
+                                      aria-selected={c.id === t.categoryId}
+                                      data-testid="cat-option"
+                                      data-cat={c.id}
+                                      disabled={pending}
+                                      className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                                      onClick={() => (c.id === t.categoryId ? close() : setChosen(c))}
+                                    >
+                                      {c.name}
+                                      {c.id === t.categoryId && (
+                                        <Check className="size-3.5 text-emerald-500" aria-hidden />
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
                               ))
                             ) : (
                               <div className="space-y-2 p-1" data-testid="recat-confirm">

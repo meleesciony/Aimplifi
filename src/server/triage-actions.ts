@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { auditLog, requireUserId } from '@/server/authz';
+import { ensureCategories } from '@/server/ensure-categories';
 import { getTriageItems, similarTransactionsWhere, type TriageItem } from '@/server/triage';
 
 /** Aggregate pseudo-merchants (Zelle/checks/ATM) never get merchant-wide rules. */
@@ -41,6 +42,7 @@ export async function applyCategory(input: {
   always?: boolean;
 }): Promise<ApplyResult> {
   const userId = await requireUserId();
+  await ensureCategories(); // new subcategory ids need a Category row (FK) (#65)
   const txn = await ownedTransaction(userId, input.transactionId);
 
   const correction = await prisma.correction.create({

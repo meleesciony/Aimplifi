@@ -15,9 +15,26 @@ import { normalizeMerchant } from './normalize';
  * Excludes the internal `uncategorized` placeholder — you can't deliberately
  * file something as "uncategorized" (that's the absence of a decision).
  */
-export const ASSIGNABLE_CATEGORIES: { id: string; name: string }[] = CATEGORIES.filter(
+export const ASSIGNABLE_CATEGORIES: { id: string; name: string; group: string }[] = CATEGORIES.filter(
   (c) => c.id !== 'uncategorized',
-).map((c) => ({ id: c.id, name: c.name }));
+).map((c) => ({ id: c.id, name: c.name, group: c.group }));
+
+/**
+ * Subcategories grouped under their parent category, for the two-level picker
+ * (DECISIONS #65). Group order follows CATEGORIES; `uncategorized` excluded.
+ */
+export const ASSIGNABLE_GROUPS: { group: string; categories: { id: string; name: string }[] }[] = (() => {
+  const out: { group: string; categories: { id: string; name: string }[] }[] = [];
+  for (const c of ASSIGNABLE_CATEGORIES) {
+    let g = out.find((o) => o.group === c.group);
+    if (!g) {
+      g = { group: c.group, categories: [] };
+      out.push(g);
+    }
+    g.categories.push({ id: c.id, name: c.name });
+  }
+  return out;
+})();
 
 /**
  * A merchant-wide "always" rule is offered only for real merchants — never for

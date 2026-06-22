@@ -1,17 +1,18 @@
 /**
- * System category set (Phase 2; expanded to Mint/Simplifi breadth in DECISIONS #63).
- * IDs are stable slugs so pure-engine output can be persisted without a lookup
- * table; names are display strings. The original 21 IDs are preserved EXACTLY so
- * the demo's pinned categorization (and every golden value) is unchanged — the new
- * categories are purely additive.
+ * System category set (Phase 2; Mint/Simplifi two-level taxonomy in DECISIONS #63/#65).
+ * IDs are stable slugs; `group` is the PARENT category, the entry itself a
+ * subcategory (the picker renders parent headers with their subcategories under
+ * them). Every original ID + name is preserved EXACTLY so the demo's pinned
+ * categorization and all golden values are unchanged — new subcategories are
+ * purely additive.
  *
- * `discretionary` feeds lifestyle-creep detection (Phase 3): true = "wants"
- * (dining, travel, shopping…), false = "needs"/income/transfers.
+ * `discretionary` feeds lifestyle-creep detection: true = "wants", false =
+ * "needs"/income/transfers.
  */
 export interface SystemCategory {
   id: string;
   name: string;
-  /** Coarse group for picker organization (display only). */
+  /** Parent category (the subcategory grouping shown in the picker). */
   group: string;
   discretionary: boolean;
 }
@@ -21,7 +22,12 @@ export const CATEGORIES: SystemCategory[] = [
   { id: 'income', name: 'Income', group: 'Income', discretionary: false },
   { id: 'paycheck', name: 'Paycheck', group: 'Income', discretionary: false },
   { id: 'bonus', name: 'Bonus', group: 'Income', discretionary: false },
+  { id: 'side-income', name: 'Side Gig / Freelance', group: 'Income', discretionary: false },
   { id: 'interest-income', name: 'Interest Income', group: 'Income', discretionary: false },
+  { id: 'investment-income', name: 'Investment Income', group: 'Income', discretionary: false },
+  { id: 'rental-income', name: 'Rental Income', group: 'Income', discretionary: false },
+  { id: 'govt-benefits', name: 'Government Benefits', group: 'Income', discretionary: false },
+  { id: 'tax-refund', name: 'Tax Refund', group: 'Income', discretionary: false },
   { id: 'reimbursement', name: 'Reimbursement', group: 'Income', discretionary: false },
   { id: 'refund', name: 'Refund', group: 'Income', discretionary: false },
 
@@ -35,10 +41,12 @@ export const CATEGORIES: SystemCategory[] = [
 
   // ── Shopping ────────────────────────────────────────────────────────
   { id: 'shopping', name: 'Shopping', group: 'Shopping', discretionary: true },
+  { id: 'general-merchandise', name: 'General Merchandise', group: 'Shopping', discretionary: true },
   { id: 'clothing', name: 'Clothing', group: 'Shopping', discretionary: true },
   { id: 'electronics', name: 'Electronics', group: 'Shopping', discretionary: true },
   { id: 'hobbies', name: 'Hobbies & Sporting Goods', group: 'Shopping', discretionary: true },
   { id: 'books', name: 'Books & Supplies', group: 'Shopping', discretionary: true },
+  { id: 'office-supplies', name: 'Office Supplies', group: 'Shopping', discretionary: false },
   { id: 'furnishings', name: 'Home Furnishings', group: 'Shopping', discretionary: true },
 
   // ── Home ────────────────────────────────────────────────────────────
@@ -47,12 +55,19 @@ export const CATEGORIES: SystemCategory[] = [
   { id: 'home-improvement', name: 'Home Improvement', group: 'Home', discretionary: true },
   { id: 'home-services', name: 'Home Services', group: 'Home', discretionary: false },
   { id: 'lawn-garden', name: 'Lawn & Garden', group: 'Home', discretionary: true },
+  { id: 'property-tax', name: 'Property Tax', group: 'Home', discretionary: false },
+  { id: 'hoa', name: 'HOA Dues', group: 'Home', discretionary: false },
+  { id: 'storage', name: 'Storage', group: 'Home', discretionary: false },
 
   // ── Bills & Utilities ───────────────────────────────────────────────
   { id: 'utilities', name: 'Internet & Utilities', group: 'Bills & Utilities', discretionary: false },
   { id: 'phone', name: 'Mobile Phone', group: 'Bills & Utilities', discretionary: false },
   { id: 'internet', name: 'Internet & Cable', group: 'Bills & Utilities', discretionary: false },
+  { id: 'subscriptions', name: 'Subscriptions', group: 'Bills & Utilities', discretionary: true },
   { id: 'insurance', name: 'Insurance', group: 'Bills & Utilities', discretionary: false },
+  { id: 'auto-insurance', name: 'Auto Insurance', group: 'Bills & Utilities', discretionary: false },
+  { id: 'health-insurance', name: 'Health Insurance', group: 'Bills & Utilities', discretionary: false },
+  { id: 'life-insurance', name: 'Life Insurance', group: 'Bills & Utilities', discretionary: false },
 
   // ── Auto & Transport ────────────────────────────────────────────────
   { id: 'fuel', name: 'Fuel', group: 'Auto & Transport', discretionary: false },
@@ -60,6 +75,7 @@ export const CATEGORIES: SystemCategory[] = [
   { id: 'public-transit', name: 'Public Transit', group: 'Auto & Transport', discretionary: false },
   { id: 'parking', name: 'Parking & Tolls', group: 'Auto & Transport', discretionary: false },
   { id: 'auto-maintenance', name: 'Auto Maintenance', group: 'Auto & Transport', discretionary: false },
+  { id: 'auto-registration', name: 'Registration & Fees', group: 'Auto & Transport', discretionary: false },
   { id: 'auto-loan', name: 'Auto & Loans', group: 'Auto & Transport', discretionary: false },
 
   // ── Travel ──────────────────────────────────────────────────────────
@@ -67,12 +83,15 @@ export const CATEGORIES: SystemCategory[] = [
   { id: 'air-travel', name: 'Air Travel', group: 'Travel', discretionary: true },
   { id: 'hotel', name: 'Hotel & Lodging', group: 'Travel', discretionary: true },
   { id: 'rental-car', name: 'Rental Car', group: 'Travel', discretionary: true },
+  { id: 'vacation', name: 'Vacation', group: 'Travel', discretionary: true },
 
   // ── Health & Fitness ────────────────────────────────────────────────
   { id: 'health', name: 'Health & Pharmacy', group: 'Health & Fitness', discretionary: false },
   { id: 'pharmacy', name: 'Pharmacy', group: 'Health & Fitness', discretionary: false },
   { id: 'dental', name: 'Dental', group: 'Health & Fitness', discretionary: false },
   { id: 'vision', name: 'Vision', group: 'Health & Fitness', discretionary: false },
+  { id: 'mental-health', name: 'Mental Health', group: 'Health & Fitness', discretionary: false },
+  { id: 'medical-supplies', name: 'Medical Supplies', group: 'Health & Fitness', discretionary: false },
   { id: 'fitness', name: 'Fitness', group: 'Health & Fitness', discretionary: false },
 
   // ── Personal & Family ───────────────────────────────────────────────
@@ -84,13 +103,23 @@ export const CATEGORIES: SystemCategory[] = [
 
   // ── Entertainment ───────────────────────────────────────────────────
   { id: 'entertainment', name: 'Entertainment & Streaming', group: 'Entertainment', discretionary: true },
+  { id: 'games', name: 'Games', group: 'Entertainment', discretionary: true },
+  { id: 'music', name: 'Music', group: 'Entertainment', discretionary: true },
+  { id: 'events', name: 'Events & Concerts', group: 'Entertainment', discretionary: true },
   { id: 'software', name: 'Software & Cloud', group: 'Entertainment', discretionary: false },
 
   // ── Financial & Fees ────────────────────────────────────────────────
   { id: 'fees', name: 'Fees & Charges', group: 'Financial', discretionary: false },
+  { id: 'fees-interest', name: 'Interest & Finance Charges', group: 'Financial', discretionary: false },
   { id: 'taxes', name: 'Taxes', group: 'Financial', discretionary: false },
   { id: 'financial', name: 'Financial & Professional', group: 'Financial', discretionary: false },
-  { id: 'business', name: 'Business Services', group: 'Financial', discretionary: false },
+  { id: 'legal', name: 'Legal', group: 'Financial', discretionary: false },
+  { id: 'investment', name: 'Investment & Savings', group: 'Financial', discretionary: false },
+  { id: 'loan-payment', name: 'Loan Payment', group: 'Financial', discretionary: false },
+
+  // ── Business ────────────────────────────────────────────────────────
+  { id: 'business', name: 'Business Services', group: 'Business', discretionary: false },
+  { id: 'advertising', name: 'Advertising & Marketing', group: 'Business', discretionary: false },
 
   // ── Giving ──────────────────────────────────────────────────────────
   { id: 'gifts', name: 'Gifts', group: 'Giving', discretionary: true },
@@ -98,8 +127,8 @@ export const CATEGORIES: SystemCategory[] = [
 
   // ── Transfers & Other ───────────────────────────────────────────────
   { id: 'transfer', name: 'Transfer', group: 'Transfers & Other', discretionary: false },
+  { id: 'credit-card-payment', name: 'Credit Card Payment', group: 'Transfers & Other', discretionary: false },
   { id: 'cash', name: 'Cash & ATM', group: 'Transfers & Other', discretionary: false },
-  { id: 'fees-interest', name: 'Interest & Finance Charges', group: 'Financial', discretionary: false },
   { id: 'uncategorized', name: 'Uncategorized', group: 'Transfers & Other', discretionary: false },
 ];
 
