@@ -26,6 +26,6 @@ export const config = {
     // so the service worker registers and the offline page renders without a session.
     // These two are anchored ($) + the dot escaped so /offline-* and /swXjs can't
     // skip auth via a prefix collision.
-    '/((?!api/auth|api/cron|api/plaid/webhook|sign-in|offline$|sw\\.js$|_next/static|_next/image|favicon.ico|manifest|icon).*)',
+    '/((?!api/auth|api/cron|api/plaid/webhook|api/owner-connect|sign-in|offline$|sw\\.js$|_next/static|_next/image|favicon.ico|manifest|icon).*)',
   ],
 };
