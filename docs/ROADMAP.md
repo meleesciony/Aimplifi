@@ -62,9 +62,10 @@
    run against a live sandbox with real credentials — PASSED: public_token →
    exchange (encrypted PlaidItem stored) → 12 accounts synced → /transactions/sync
    16 txns with correct signs → /liabilities/get 1 statement; temp user cleaned up.
-   The network path is no longer UNVERIFIED. REMAINING: (b) wire the DECISIONS #22
-   tail — recurring re-detection + scheduled refresh after ingest (per-row
-   normalize→rules→categorize→transfer is done); (c) **DONE** (DECISIONS #52) —
+   The network path is no longer UNVERIFIED. REMAINING: (b) **DONE** (DECISIONS #53)
+   — the #22 tail: `syncTransactions` now re-detects recurring series + refreshes the
+   detected scheduled projections after ingest (`refreshRecurringForUser`, unit-tested;
+   the sync that triggers it stays sandbox-UNVERIFIED); (c) **DONE** (DECISIONS #52) —
    Plaid-Verification JWT check on the webhook (ES256 + body-SHA-256 + freshness,
    verified before any DB work; logic unit-tested with a real keypair, live key
    fetch UNVERIFIED pending creds); (d) production OAuth flow; (e) **DONE** — a "Connect a bank or

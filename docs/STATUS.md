@@ -404,8 +404,10 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
     dedicated `PlaidItem` token+cursor table) is real code that has never run
     against a live sandbox. Webhook JWT verification — **DONE** (DECISIONS #52:
     ES256 + body-SHA-256 + freshness, unit-tested with a real keypair; the live
-    key fetch is the only UNVERIFIED part). PENDING: recurring/scheduled refresh
-    after ingest (DECISIONS #22 tail). Validation checklist in
+    key fetch is the only UNVERIFIED part). Recurring/scheduled refresh after ingest
+    — **DONE** (DECISIONS #53: `refreshRecurringForUser`, unit-tested). The only thing
+    still UNVERIFIED is the live Plaid NETWORK orchestration itself (no sandbox creds
+    here); production OAuth (ROADMAP #1d) is the remaining gap. Validation checklist in
     docs/PLAID_WALKTHROUGH.md §5.
 13. **Coast-FI with a 0-month target** and `detectLifestyleCreep(windowMonths=1)`
     are degenerate for out-of-range inputs — unreachable from the app

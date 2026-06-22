@@ -12,10 +12,11 @@
  *   /item/remove. It is real code, not a stub, but has never run against a live
  *   Plaid sandbox. Run docs/PLAID_WALKTHROUGH.md §5 to validate before trusting.
  *
- *   PENDING (DECISIONS #22 tail): recurring re-detection + ScheduledTransaction
- *   refresh after ingest. Per-row normalize→rules→categorize→transfer IS wired;
- *   cross-account recurring/scheduled refresh reuses detect.ts and is the one
- *   documented step not yet called here (noted in the walkthrough, not hidden).
+ *   WIRED (DECISIONS #53): recurring re-detection + ScheduledTransaction refresh
+ *   after ingest — syncTransactions now calls refreshRecurringForUser (best-effort)
+ *   so a sync updates the recurring/subscription series and the cash-needed/FI
+ *   projections. The refresh is unit-tested (recurring-refresh.test.ts); the Plaid
+ *   sync that triggers it remains UNVERIFIED against a live sandbox.
  *
  * Demo mode is entirely unaffected — the DataProvider seam keeps this dormant.
  */
@@ -25,6 +26,7 @@ import { decryptToken, encryptToken } from '@/lib/crypto';
 import { prisma } from '@/lib/db';
 import { detectTransfers } from '@/lib/engine/categorize/transfers';
 import { loadUserRules } from '@/server/rules';
+import { refreshRecurringForUser } from '@/server/recurring';
 import {
   type PlaidAccount,
   type PlaidCreditLiability,
@@ -242,6 +244,16 @@ export class PlaidProvider implements DataProvider {
     }
 
     await this.refreshTransferFlags(userId);
+
+    // Recompute recurring series + the detected scheduled projections from the
+    // freshly-ingested data (DECISIONS #22 tail). Best-effort: a derived-projection
+    // failure must never fail the ingest itself.
+    try {
+      await refreshRecurringForUser(userId, this.today());
+    } catch {
+      // detection is a derived view; the ingest already succeeded
+    }
+
     return { added, modified, removed, nextCursor: lastCursor };
   }
 
