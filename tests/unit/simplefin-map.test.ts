@@ -54,6 +54,21 @@ describe('inferAccountType (SimpleFIN has no type field)', () => {
     expect(inferAccountType('Everyday Checking')).toBe('CHECKING');
     expect(inferAccountType('My Account')).toBe('CHECKING'); // default
   });
+
+  it('classifies real-bank names that omit "card" / use product lines (DECISIONS #61)', () => {
+    // Credit cards whose name has no "card"/issuer-type word (would have defaulted
+    // to CHECKING and — at $0 balance — escaped the negative-balance safety net):
+    expect(inferAccountType('Capital One QuicksilverOne (2079)')).toBe('CREDIT');
+    expect(inferAccountType('Capital One VentureOne (2689)')).toBe('CREDIT');
+    expect(inferAccountType('Chase Sapphire Reserve (0977)')).toBe('CREDIT');
+    expect(inferAccountType('Capital One Spark Miles (5154)')).toBe('CREDIT');
+    // 529 plans + retirement plans are investments, not checking:
+    expect(inferAccountType('Charles Schwab US Schwab 529 Plan ...-01 (01)')).toBe('INVESTMENT');
+    expect(inferAccountType('Vanguard Retirement Plan Account')).toBe('INVESTMENT');
+    // Regression: an investor *checking* account must stay CHECKING (not investment):
+    expect(inferAccountType('Charles Schwab US Investor Checking ...927 (927)')).toBe('CHECKING');
+    expect(inferAccountType('Charles Schwab US Roth Contributory IRA ...156 (156)')).toBe('INVESTMENT');
+  });
 });
 
 describe('mapSimplefinAccount', () => {

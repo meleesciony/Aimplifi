@@ -154,8 +154,11 @@ export async function syncFromSimplefin(userId: string, today: ISODate): Promise
 
   const accessUrl = decryptToken(conn.accessUrl);
   const rules = await loadUserRules(userId);
-  // Overlap a few days before the last sync so late-posting transactions aren't missed.
-  const startDate = conn.lastSyncedAt ? addDays(isoDate(conn.lastSyncedAt), -5) : undefined;
+  // Incremental syncs overlap a few days before the last sync so late-posting
+  // transactions aren't missed; the FIRST sync pulls ~90 days of history so the
+  // register/spending/recurring views aren't empty (SimpleFIN returns no
+  // transactions without a start-date — real-bank sync, DECISIONS #61).
+  const startDate = conn.lastSyncedAt ? addDays(isoDate(conn.lastSyncedAt), -5) : addDays(today, -90);
   const data = await fetchSimplefinAccounts(accessUrl, startDate);
 
   let added = 0;

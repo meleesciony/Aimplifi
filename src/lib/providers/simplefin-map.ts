@@ -60,9 +60,18 @@ export function simplefinPostedToDate(posted: number): ISODate {
 export function inferAccountType(name: string): PulseAccountType {
   const n = name.toLowerCase();
   if (/\b(credit|card|visa|mastercard|amex|discover)\b/.test(n)) return 'CREDIT';
+  // Common credit-card PRODUCT lines, matched as substrings so a zero-balance card
+  // (no sign signal) whose name omits "card" still classifies — e.g. "QuicksilverOne",
+  // "VentureOne", "Sapphire Reserve" (real-bank sync, DECISIONS #61).
+  if (/(quicksilver|venture|savor|spark|sapphire|skymiles|bonvoy|freedom)/.test(n)) return 'CREDIT';
   if (/\b(savings|save|money ?market|cd|certificate)\b/.test(n)) return 'SAVINGS';
   if (/\b(mortgage|loan|student)\b/.test(n)) return 'LOAN';
-  if (/\b(invest|brokerage|401k?|ira|roth|securities|portfolio)\b/.test(n)) return 'INVESTMENT';
+  // Investments incl. 529 plans + retirement plans (came through as CHECKING before).
+  // \binvest\b deliberately does NOT match "Investor Checking" (no boundary), so a
+  // Schwab/Fidelity investor *checking* account stays CHECKING.
+  if (/\b(invest|brokerage|401k?|ira|roth|securities|portfolio|annuity|pension)\b/.test(n) || /\b529\b/.test(n) || /retirement/.test(n)) {
+    return 'INVESTMENT';
+  }
   return 'CHECKING';
 }
 
