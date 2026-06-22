@@ -68,6 +68,12 @@ describe('inferAccountType (SimpleFIN has no type field)', () => {
     // Regression: an investor *checking* account must stay CHECKING (not investment):
     expect(inferAccountType('Charles Schwab US Investor Checking ...927 (927)')).toBe('CHECKING');
     expect(inferAccountType('Charles Schwab US Roth Contributory IRA ...156 (156)')).toBe('INVESTMENT');
+    // Brokerage institution with an ambiguous name → INVESTMENT (so its tickers
+    // don't leak into the spending register), but a deposit account stays put:
+    expect(inferAccountType('Charles Schwab US Community Property ...383 (383)')).toBe('INVESTMENT');
+    expect(inferAccountType('Vanguard Brokerage Account')).toBe('INVESTMENT');
+    expect(inferAccountType('Fidelity Cash Management')).toBe('CHECKING');
+    expect(inferAccountType('Wells Fargo Everyday Checking')).toBe('CHECKING');
   });
 });
 

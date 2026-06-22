@@ -72,6 +72,18 @@ export function inferAccountType(name: string): PulseAccountType {
   if (/\b(invest|brokerage|401k?|ira|roth|securities|portfolio|annuity|pension)\b/.test(n) || /\b529\b/.test(n) || /retirement/.test(n)) {
     return 'INVESTMENT';
   }
+  // Brokerage INSTITUTION fallback (DECISIONS #63): a Schwab/Vanguard/Fidelity/etc.
+  // account whose name is NOT explicitly a deposit/checking/savings account is a
+  // brokerage → INVESTMENT, so its holdings (stock tickers, fund names) don't leak
+  // into the spending register. Guarded against "...Investor Checking" so a real
+  // brokerage CHECKING account stays CHECKING. Catches ambiguous names like
+  // "Charles Schwab US Community Property".
+  if (
+    /\b(schwab|vanguard|fidelity|merrill|e-?trade|t\.? ?rowe|robinhood|betterment|wealthfront|edward jones|raymond james|morgan stanley|ameritrade|sofi invest|webull|m1 finance)\b/.test(n) &&
+    !/\b(checking|chequing|savings|debit|deposit|money ?market|cash management)\b/.test(n)
+  ) {
+    return 'INVESTMENT';
+  }
   return 'CHECKING';
 }
 

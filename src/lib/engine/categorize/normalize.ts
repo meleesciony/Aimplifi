@@ -120,6 +120,77 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^CHECK #/i, canonical: 'Check', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
 ];
 
+/**
+ * GENERIC keyword rules (DECISIONS #63) — applied ONLY after the specific
+ * KNOWN_MERCHANTS table misses, so the demo (whose descriptors all match the
+ * specific table) is untouched and every golden value holds. These broaden
+ * auto-categorization to real-world merchant names a no-Plaid/SimpleFIN user
+ * actually sees, mapping into the expanded taxonomy. Ordered: a more specific
+ * category beats a broader one (fast-food/coffee before dining; pharmacy before
+ * health; air-travel/hotel before travel). First match wins; confidence is high
+ * enough to auto-file with a subtle "AI" badge, never silently.
+ */
+interface GenericRule {
+  pattern: RegExp;
+  categoryId: string;
+}
+const GENERIC_CONFIDENCE_BPS = 8500;
+export const GENERIC_CATEGORY_RULES: GenericRule[] = [
+  // Food & dining (specific → broad)
+  { pattern: /\b(DOORDASH|GRUBHUB|UBER ?EATS|POSTMATES|SEAMLESS|INSTACART|GOPUFF|CAVIAR)\b/i, categoryId: 'food-delivery' },
+  { pattern: /\b(DUNKIN|PEET'?S|DUTCH BROS|CARIBOU COFFEE|COFFEE|CAFE|CAFÉ|ESPRESSO|ROASTER)\b/i, categoryId: 'coffee' },
+  { pattern: /\b(BURGER KING|WENDY|TACO BELL|CHIPOTLE|POPEYE|ARBY|SONIC DRIVE|FIVE GUYS|SHAKE SHACK|RAISING CANE|WHATABURGER|JACK IN THE BOX|DEL TACO|HARDEE|JIMMY JOHN|PANERA|JERSEY MIKE|FIREHOUSE SUB|KFC)\b/i, categoryId: 'fast-food' },
+  { pattern: /\b(LIQUOR|WINE|SPIRITS|BREWING|BREWERY|TAPROOM|PUB|TAVERN|TOTAL WINE|ABC STORE|DISTILLER)\b/i, categoryId: 'alcohol' },
+  { pattern: /\b(GROCER|GROCERY|SUPERMARKET|WHOLE FOODS|SAFEWAY|ALDI|WEGMAN|SPROUTS|H-?E-?B|FOOD LION|GIANT FOOD|STOP & SHOP|HARRIS TEETER|WINCO|FRESH MARKET|MEIJER|VONS|RALPHS|ALBERTSON|FOOD 4 LESS)\b/i, categoryId: 'groceries' },
+  { pattern: /\b(RESTAURANT|GRILL|KITCHEN|BISTRO|DINER|EATERY|TAQUERIA|PIZZA|PIZZERIA|SUSHI|RAMEN|STEAKHOUSE|CANTINA|TRATTORIA|OYSTER|SEAFOOD|NOODLE|BAKERY|CREAMERY|ICE CREAM|JUICE|SMOOTHIE|BAR ?& ?GRILL|BBQ)\b/i, categoryId: 'dining' },
+  // Auto & transport
+  { pattern: /\b(EXXON|MOBIL|TEXACO|MARATHON|SUNOCO|CITGO|VALERO|CONOCO|PHILLIPS 66|ARCO|SPEEDWAY|WAWA|RACETRAC|CIRCLE K|FUEL|PETRO|GASOLINE)\b/i, categoryId: 'fuel' },
+  { pattern: /\b(TAXI|YELLOW CAB)\b/i, categoryId: 'transport' },
+  { pattern: /\b(METRO TRANSIT|TRANSIT|MTA|BART|MARTA|SEPTA|AMTRAK|GREYHOUND|MEGABUS)\b/i, categoryId: 'public-transit' },
+  { pattern: /\b(PARKING|PARKMOBILE|PAYBYPHONE|SPOTHERO|TOLL|EZ ?PASS|E-?ZPASS|SUNPASS|FASTRAK)\b/i, categoryId: 'parking' },
+  { pattern: /\b(AUTOZONE|O'?REILLY|PEP BOYS|ADVANCE AUTO|NAPA|JIFFY LUBE|VALVOLINE|FIRESTONE|MIDAS|MEINEKE|DISCOUNT TIRE|CAR WASH|AUTO REPAIR|COLLISION|BODY SHOP)\b/i, categoryId: 'auto-maintenance' },
+  // Travel
+  { pattern: /\b(UNITED AIR|AMERICAN AIR|SOUTHWEST AIR|JETBLUE|ALASKA AIR|SPIRIT AIR|FRONTIER AIR|AIRLINE|AIR ?LINES?|ALLEGIANT|HAWAIIAN AIR)\b/i, categoryId: 'air-travel' },
+  { pattern: /\b(HILTON|HYATT|HOLIDAY INN|HAMPTON INN|SHERATON|WESTIN|RITZ|COURTYARD|RESIDENCE INN|MOTEL|HOTEL|RAMADA|BEST WESTERN|LA QUINTA|DOUBLETREE|EMBASSY SUITES|FAIRFIELD INN|RESORT)\b/i, categoryId: 'hotel' },
+  { pattern: /\b(HERTZ|ENTERPRISE RENT|AVIS|BUDGET RENT|NATIONAL CAR|ALAMO|THRIFTY|DOLLAR RENT|SIXT|TURO|RENTAL CAR)\b/i, categoryId: 'rental-car' },
+  { pattern: /\b(EXPEDIA|BOOKING\.COM|PRICELINE|TRAVELOCITY|KAYAK|ORBITZ|HOTWIRE|TRIPADVISOR|VACATION|CRUISE)\b/i, categoryId: 'travel' },
+  // Health
+  { pattern: /\b(RITE AID|PHARMACY|DRUG ?STORE)\b/i, categoryId: 'pharmacy' },
+  { pattern: /\b(DENTAL|DENTIST|ORTHODONT|ENDODONT|PERIODONT)\b/i, categoryId: 'dental' },
+  { pattern: /\b(VISION|OPTICAL|OPTOMETR|EYE CARE|LENSCRAFTER|WARBY PARKER|EYEGLASS|PEARLE)\b/i, categoryId: 'vision' },
+  { pattern: /\b(GYM|FITNESS|YOGA|PILATES|CROSSFIT|PELOTON|EQUINOX|PLANET FIT|LIFE ?TIME|ORANGETHEORY|ANYTIME FITNESS|CYCLEBAR|SOULCYCLE)\b/i, categoryId: 'fitness' },
+  { pattern: /\b(HOSPITAL|CLINIC|MEDICAL|PHYSICIAN|HEALTHCARE|URGENT CARE|LABCORP|QUEST DIAGNOST|RADIOLOGY|DERMATOLOG|PEDIATRIC|WELLNESS|CHIROPRACT|THERAPY)\b/i, categoryId: 'health' },
+  // Personal & family
+  { pattern: /\b(SALON|SPA|BARBER|HAIRCUT|NAIL|MASSAGE|SEPHORA|ULTA|GREAT CLIPS|SUPERCUTS|WAXING)\b/i, categoryId: 'personal-care' },
+  { pattern: /\b(PETCO|PETSMART|CHEWY|VETERINAR|ANIMAL HOSPITAL|PET ?SUPPL|PET ?FOOD|BARKBOX)\b/i, categoryId: 'pets' },
+  { pattern: /\b(DAYCARE|CHILD ?CARE|PRESCHOOL|KINDERCARE|BRIGHT HORIZONS|BABYSIT|LEARNING CENTER)\b/i, categoryId: 'childcare' },
+  { pattern: /\b(TUITION|UNIVERSITY|COLLEGE|COURSERA|UDEMY|CHEGG|SCHOLAST)\b/i, categoryId: 'education' },
+  // Shopping
+  { pattern: /\b(BEST BUY|APPLE STORE|MICRO CENTER|NEWEGG|B&H PHOTO|GAMESTOP)\b/i, categoryId: 'electronics' },
+  { pattern: /\b(NIKE|ADIDAS|LULULEMON|OLD NAVY|H&M|ZARA|UNIQLO|FOREVER 21|BANANA REPUBLIC|J\.?CREW|MADEWELL|NORDSTROM|MACY|DILLARD|TJ ?MAXX|MARSHALL|BURLINGTON|UNDER ARMOUR|FOOT LOCKER|CLOTHING|APPAREL)\b/i, categoryId: 'clothing' },
+  { pattern: /\b(IKEA|WAYFAIR|ASHLEY FURN|POTTERY BARN|CRATE ?& ?BARREL|WEST ELM|HOME ?GOODS|FURNITURE|MATTRESS|BED BATH|CB2|ROOMS TO GO)\b/i, categoryId: 'furnishings' },
+  { pattern: /\b(DICK'?S SPORTING|REI|ACADEMY SPORTS|BASS PRO|CABELA|HOBBY LOBBY|MICHAELS|JOANN|GUITAR CENTER|SPORTING GOODS)\b/i, categoryId: 'hobbies' },
+  { pattern: /\b(BARNES ?& ?NOBLE|BOOKSTORE|BOOKS-?A-?MILLION|AUDIBLE)\b/i, categoryId: 'books' },
+  { pattern: /\b(SAM'?S CLUB|EBAY|ALIEXPRESS|TEMU|SHEIN|DOLLAR TREE|DOLLAR GENERAL|FAMILY DOLLAR|BIG LOTS|FIVE BELOW|KOHL|JCPENNEY)\b/i, categoryId: 'shopping' },
+  // Home
+  { pattern: /\b(ACE HARDWARE|MENARDS|HARBOR FREIGHT|HARDWARE|TRUE VALUE|SHERWIN[- ]?WILLIAMS)\b/i, categoryId: 'home-improvement' },
+  { pattern: /\b(PLUMB|HVAC|ELECTRICIAN|PEST CONTROL|TERMINIX|ORKIN|CLEANING SERVICE|LANDSCAP|HANDYMAN|ROOFING|TRUGREEN)\b/i, categoryId: 'home-services' },
+  { pattern: /\b(NURSERY|GARDEN CENTER|TRACTOR SUPPLY)\b/i, categoryId: 'lawn-garden' },
+  // Bills & utilities
+  { pattern: /\b(VERIZON|SPRINT|CRICKET WIRELESS|MINT MOBILE|BOOST MOBILE|US CELLULAR|STRAIGHT TALK|METRO ?PCS|VISIBLE WIRELESS)\b/i, categoryId: 'phone' },
+  { pattern: /\b(SPECTRUM|COX COMM|CENTURYLINK|FRONTIER COMM|OPTIMUM|WINDSTREAM|FIOS|GOOGLE FIBER|HUGHESNET|STARLINK)\b/i, categoryId: 'internet' },
+  { pattern: /\b(POWER|ELECTRIC|ENERGY|WATER (DEPT|UTILIT|BILL)|GAS COMPANY|UTILITY|MUNICIPAL|SEWER|WASTE MANAGEMENT|REPUBLIC SERVICES|DUKE ENERGY|GEORGIA POWER|DOMINION|NATIONAL GRID)\b/i, categoryId: 'utilities' },
+  { pattern: /\b(PROGRESSIVE|STATE FARM|ALLSTATE|LIBERTY MUTUAL|NATIONWIDE|USAA|FARMERS INS|TRAVELERS INS|METLIFE|PRUDENTIAL|AFLAC|INSURANCE)\b/i, categoryId: 'insurance' },
+  // Entertainment & software
+  { pattern: /\b(HULU|DISNEY ?\+|DISNEY PLUS|HBO|PARAMOUNT ?\+|PEACOCK|APPLE TV|PRIME VIDEO|TWITCH|AMC|CINEMARK|REGAL CIN|CINEMA|THEATER|THEATRE|TICKETMASTER|STUBHUB|FANDANGO|XBOX|PLAYSTATION|NINTENDO|EPIC GAMES|LIVE NATION|TOPGOLF|BOWLING|ARCADE|MUSEUM|AQUARIUM|SIX FLAGS|UNIVERSAL STUDIO)\b/i, categoryId: 'entertainment' },
+  { pattern: /\b(ADOBE|MICROSOFT|GITHUB|GOOGLE CLOUD|DROPBOX|NOTION|SLACK|ZOOM|OPENAI|ANTHROPIC|FIGMA|ATLASSIAN|GODADDY|NAMECHEAP|SQUARESPACE|MAILCHIMP|ICLOUD|GOOGLE WORKSPACE|GRAMMARLY|1PASSWORD|NORDVPN)\b/i, categoryId: 'software' },
+  // Financial / giving
+  { pattern: /\b(IRS|TAXES?|TURBOTAX|H&R BLOCK|TAX PREP|DEPT OF REVENUE|FRANCHISE TAX)\b/i, categoryId: 'taxes' },
+  { pattern: /\b(STAPLES|OFFICE DEPOT|OFFICEMAX|FEDEX|UPS STORE|USPS|WEWORK)\b/i, categoryId: 'business' },
+  { pattern: /\b(RED CROSS|GOFUNDME|UNICEF|SALVATION ARMY|GOODWILL|CHARITY|DONATION|UNITED WAY|ST JUDE|HABITAT FOR|NONPROFIT)\b/i, categoryId: 'charity' },
+  { pattern: /\b(1-?800-?FLOWERS|TELEFLORA|HALLMARK|EDIBLE ARRANG)\b/i, categoryId: 'gifts' },
+];
+
 /** Aggregate canonical names that exist outside the ambiguous block too. */
 const AGGREGATE_CANONICALS = new Set(['ATM Withdrawal', 'Account Transfer', 'Card Payment', 'Unknown Merchant']);
 
@@ -168,6 +239,19 @@ export function normalizeMerchant(rawDescriptor: string): MerchantMatch {
     }
   }
   const cleaned = cleanDescriptor(rawDescriptor);
+  // Generic keyword fallback: a real-world merchant name we can categorize even
+  // without a specific pattern (#63). Auto-files (with an "AI" badge), not silent.
+  for (const g of GENERIC_CATEGORY_RULES) {
+    if (g.pattern.test(rawDescriptor)) {
+      return {
+        canonical: cleaned || 'Unknown Merchant',
+        categoryId: g.categoryId,
+        confidenceBps: GENERIC_CONFIDENCE_BPS,
+        known: true,
+        aggregate: false,
+      };
+    }
+  }
   return {
     canonical: cleaned || 'Unknown Merchant',
     categoryId: 'uncategorized',

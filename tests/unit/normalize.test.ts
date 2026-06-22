@@ -95,3 +95,37 @@ describe('merchant normalization fixture (≥40 rows, table-driven)', () => {
     expect(cleanDescriptor('PAYPAL *SOMESHOP 866-579-7172')).toBe('Someshop');
   });
 });
+
+describe('generic keyword categorization for real-world merchants (DECISIONS #63)', () => {
+  // Descriptors NOT in the specific KNOWN_MERCHANTS table — the layer that broadens
+  // auto-categorization for a real bank feed. Each should auto-file (conf ≥ 7000).
+  const cases: [string, string][] = [
+    ['CHEWY.COM 800-555-1234', 'pets'],
+    ['PLANET FITNESS CLUB FEE', 'fitness'],
+    ['SOUTHWEST AIRLINES 5267', 'air-travel'],
+    ['HILTON GARDEN INN ATLANTA', 'hotel'],
+    ['HERTZ RENT A CAR', 'rental-car'],
+    ['VERIZON WIRELESS PMT', 'phone'],
+    ['GEORGIA POWER BILL', 'utilities'],
+    ['AMC THEATRES 0456', 'entertainment'],
+    ['DELTA DENTAL OF GA', 'dental'],
+    ['JOES PIZZA NYC', 'dining'],
+    ['DOORDASH*WENDYS', 'food-delivery'],
+    ['NORDSTROM RACK #12', 'clothing'],
+    ['IKEA ATLANTA', 'furnishings'],
+  ];
+  for (const [raw, categoryId] of cases) {
+    it(`"${raw}" -> ${categoryId}, auto-filed`, () => {
+      const m = normalizeMerchant(raw);
+      expect(m.categoryId).toBe(categoryId);
+      expect(m.confidenceBps).toBeGreaterThanOrEqual(7000);
+      expect(m.aggregate).toBe(false);
+    });
+  }
+
+  it('a descriptor with no known merchant AND no keyword stays uncategorized', () => {
+    const m = normalizeMerchant('ACME WIDGETS LLC 7781');
+    expect(m.categoryId).toBe('uncategorized');
+    expect(m.known).toBe(false);
+  });
+});
