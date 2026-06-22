@@ -393,9 +393,12 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
     (DECISIONS #50: the inverse correction carries `undoesId` with a `@@unique`, so the
     racing loser's insert violates the unique and rolls back; regression-tested with two
     concurrent undos → exactly one inverse). **All of #10 is now closed.**
-11. **Unknown billers containing a word-bounded "EPAY"** (e.g. "DUKE ENERGY
-    EPAY") classify as transfers consistently in both modules; a merchant-table
-    entry wins when added.
+11. ~~**Unknown billers containing a word-bounded "EPAY"** (e.g. "DUKE ENERGY
+    EPAY") classify as transfers~~ — **FIXED** (DECISIONS #55): a utility-token +
+    biller-payment-token pattern now wins before the transfer pattern, so utility
+    e-payments are categorized as `utilities` (real spend) instead of being dropped
+    as transfers — without affecting card payments. Surfaced by the adversarial
+    categorization eval (`npm run eval:categorize`) + regression-tested.
 12. **Plaid integration is IMPLEMENTED but UNVERIFIED** (no sandbox credentials
     in the build environment). The pure mapping layer (sign flip, account-type,
     liability→statement, per-row categorization) is unit-tested

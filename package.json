@@ -15,6 +15,7 @@
     "db:seed": "prisma db seed",
     "plaid:validate": "tsx scripts/plaid-sandbox-validate.ts",
     "benchmark": "tsx scripts/benchmark.ts",
+    "eval:categorize": "tsx scripts/categorize-eval.ts",
     "verify": "bash scripts/verify.sh",
     "postinstall": "prisma generate"
   },

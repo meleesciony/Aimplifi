@@ -104,6 +104,13 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^ACH WITHDRAWAL CARMAX/i, canonical: 'CarMax Auto Finance', categoryId: 'auto-loan' },
   { pattern: /^STORE CARD PURCHASE/i, canonical: 'Store Card Purchase', categoryId: 'shopping', confidenceBps: 6000 },
   { pattern: /^ATM WITHDRAWAL/i, canonical: 'ATM Withdrawal', categoryId: 'cash' },
+  // Utility e-payments (electric/gas/water billers pay via "EPAY"/"BILLMATRIX")
+  // must be caught BEFORE the generic transfer pattern below, which would
+  // otherwise mislabel a real utility bill as a transfer and silently drop it
+  // from spend. Requires BOTH a utility token AND a biller-payment token, so card
+  // payments ("CHASE EPAY", "AMEX EPAYMENT") are untouched. (Surfaced by the
+  // adversarial categorization eval; resolves STATUS #11.)
+  { pattern: /\b(ENERGY|ELECTRIC|POWER|WATER|UTILIT)\b.*\b(EPAY(MENT)?|BILLMATRIX|BILL ?PAY)\b/i, canonical: 'Utility Bill', categoryId: 'utilities' },
   // Transfers — the SAME anchored pattern transfer detection uses (one source
   // of truth; substring matching here once erased real spending — critic F4)
   { pattern: /^ONLINE TRANSFER/i, canonical: 'Account Transfer', categoryId: 'transfer' },
