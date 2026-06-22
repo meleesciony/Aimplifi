@@ -37,7 +37,21 @@ model User {
   corrections Correction[]
   recurring   RecurringSeries[]
   plaidItems  PlaidItem[]
+  simplefin   SimpleFinConnection?
   predictions CategoryPrediction[]
+}
+
+// A user's SimpleFIN connection (ROADMAP: cheaper Plaid alternative). The access
+// URL embeds basic-auth credentials, so it is AES-256-GCM encrypted at rest
+// (src/lib/crypto.ts) — never plaintext, never logged. One connection per user.
+model SimpleFinConnection {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  accessUrl    String // AES-256-GCM ciphertext (the URL carries the credentials)
+  lastSyncedAt String? // YYYY-MM-DD
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // One linked Plaid Item (institution connection) per row. Holds the access
@@ -140,6 +154,9 @@ model Transaction {
   merchant Merchant? @relation(fields: [merchantId], references: [id])
   category Category? @relation(fields: [categoryId], references: [id])
 
+  @@unique([accountId, providerRef]) // ingest idempotency: one row per provider txn id
+  // (providerRef is null for manual/seed rows; multiple NULLs are allowed, so they're
+  // unconstrained. Makes Plaid/SimpleFIN re-sync race-safe — Hostile Critic CQ-2.)
   @@index([accountId, date])
 }
 

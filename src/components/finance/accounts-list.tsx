@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
+import { ConnectSimplefin } from '@/components/finance/connect-simplefin';
 import {
   ManualCardStatementForm,
   type ManualStatementFormValues,
@@ -191,7 +192,8 @@ export function AccountsList({ data }: { data: AccountsView }) {
         onCancelStatement={() => setStatementCardId(null)}
       />
 
-      {/* Link real accounts (bank, brokerage, credit, loans) via Plaid */}
+      {/* Link real accounts: SimpleFIN (cheaper, no Plaid gatekeeping) or Plaid */}
+      <ConnectSimplefin connected={data.simplefin.connected} lastSyncedAt={data.simplefin.lastSyncedAt} />
       <ConnectAccountsButton />
 
       {/* Add manual items */}

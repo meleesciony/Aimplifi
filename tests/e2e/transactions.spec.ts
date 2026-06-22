@@ -96,6 +96,16 @@ test('transaction register lists, summarizes, filters, and searches', async ({ p
   await expect(first).toContainText('Blue Bottle');
 });
 
+test('SimpleFIN connect affordance is present and opens its token form (dormant)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/accounts');
+  const btn = page.getByTestId('simplefin-connect-btn');
+  await expect(btn).toBeVisible();
+  await btn.click();
+  await expect(page.getByTestId('simplefin-form')).toBeVisible();
+  await expect(page.getByTestId('simplefin-token')).toBeVisible();
+});
+
 test('transaction register paginates: Next advances to page 2 (ROADMAP #8)', async ({ page }) => {
   await signIn(page);
   await page.goto('/transactions');

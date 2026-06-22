@@ -336,6 +336,44 @@ with existing prefill code); read-then-write single-statement race (STATUS #10 /
 ROADMAP #9); one-tap Clear without confirm (consistent with the more-destructive
 sibling `manual-delete`, reversible, no money/history loss).
 
+## Post-Phase-5 refinement: SimpleFIN aggregator (DECISIONS #56, ROADMAP)
+
+A user hit Plaid's approval/cost wall and asked for an aggregator. Answer: don't
+clone Plaid — wire SimpleFIN, a read-only documented protocol with no business
+gate. Split like Plaid (#26): a TESTED pure mapper (`simplefin-map.ts` — signs,
+cents, dates, account-type, dedup) + an UNVERIFIED network layer (`simplefin.ts`).
+A `SimpleFinConnection` row stores ONLY the AES-256-GCM-encrypted access URL.
+Re-sync is idempotent + race-safe on a new `@@unique([accountId, providerRef])`
+(seed/Plaid goldens unaffected — providerRef nullable), 5-day overlap, then
+cross-account transfer pairing (Plaid parity). SimpleFIN amounts are
+outflow-NEGATIVE like Pulse, so — unlike Plaid — the sign is NOT flipped.
+
+Gate (real output 2026-06-21): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — typecheck/lint clean, **740 unit / 58 files**, build clean, **37 e2e**.
+20 new SimpleFIN tests (mapper fixtures + real connect/sync actions vs a mocked
+server: encrypted-at-rest, correct signs/categories, idempotent re-sync, SSRF
+rejection incl. an internal access URL returned BY the claim server, IPv6 internal
+tokens, malformed-row skip).
+
+Hostile Critic (4 parallel dimension critics + adversarial verification of every
+P0/P1): **5 P1s confirmed and FIXED + tested** — (1) SSRF redirect-follow bypass →
+`safeFetch` re-validates every hop + drops Authorization on cross-host redirect;
+(2) IPv6 private/ULA/link-local not blocked → added (`::`, fc00::/7, fe80::/10,
+::ffff: mapped); (3) `posted:0` pending sentinel → 1970-01-01 → falls back to
+`transacted_at` then sync date; (4) ambiguous account + negative balance could
+INVERT net-worth sign → classified as liability + UI notice; (5) action errors
+echoed `e.message` (could leak the credentialed URL) → fixed strings. P2s fixed:
+amount parser tolerant of thousands-separators + >2 decimals (integer math, no
+float); malformed-row skip not fatal.
+
+**UNVERIFIED (honest, documented — docs/SIMPLEFIN_WALKTHROUGH.md):** the live
+network path has NEVER run against a real SimpleFIN server here (no token in env).
+The ledger-corrupting logic is unit-tested; the socket isn't. Confirm field shapes
+vs the current spec before trusting real money data. Like Plaid, a real bank
+linking to the *deployed* app also waits on real multi-user auth (ROADMAP #2) —
+linking to the shared demo user would leak data. DNS-rebinding (pin-resolved-IP)
+and scheduled auto-sync are deferred follow-ups.
+
 ## Phase 4 (complete — see commit)
 
 Calendar/goals/budgets/exports/PWA/cron/security headers + dormant Plaid

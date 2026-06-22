@@ -47,6 +47,13 @@
   demo). This is the credential-free half of roadmap #2.
 - Plaid ingestion implemented behind the provider seam (mappers unit-tested;
   network UNVERIFIED — see roadmap #1 below and docs/PLAID_WALKTHROUGH.md).
+- SimpleFIN ingestion (DECISIONS #56) — a cheaper, no-business-gate Plaid
+  alternative. Paste a setup token at `/accounts` → claim → encrypted access URL
+  → accounts + transactions flow through the standard pipeline into net worth,
+  the register, cash-needed, reminders. Pure mapper + connect/sync actions
+  unit-tested (20) against a mocked server; idempotent re-sync (DB unique) +
+  SSRF/redirect/credential-leak hardened (hostile-critic clean, 5 P1s fixed). The
+  LIVE network path is UNVERIFIED (no token in env) — docs/SIMPLEFIN_WALKTHROUGH.md.
 - Postgres deploy path (DECISIONS #35): the app runs on SQLite locally + in all
   tests (zero credentials) and on Postgres in production, chosen by DATABASE_URL
   scheme (`src/lib/db-adapter.ts`). One canonical schema; `scripts/gen-pg-schema.mjs`

@@ -116,11 +116,13 @@ export interface AccountsView extends AccountsSummary {
   trend: NetWorthSeriesPoint[];
   /** Per-account billing for manual credit cards, keyed by account id. */
   cardBilling: Record<string, ManualCardBilling>;
+  /** SimpleFIN bank-sync connection status (ROADMAP: cheaper Plaid alternative). */
+  simplefin: { connected: boolean; lastSyncedAt: string | null };
 }
 
 /** Every account, grouped into assets vs liabilities with net worth + trend. */
 export async function getAccountsView(userId: string): Promise<AccountsView> {
-  const [user, accounts, snapshots, statements, autopays] = await Promise.all([
+  const [user, accounts, snapshots, statements, autopays, sfConn] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
     prisma.balanceSnapshot.findMany({
@@ -136,6 +138,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       where: { account: { userId } },
       select: { accountId: true, mode: true, fixedAmountCents: true },
     }),
+    prisma.simpleFinConnection.findUnique({ where: { userId }, select: { lastSyncedAt: true } }),
   ]);
 
   const views: AccountView[] = accounts.map((a) => ({
@@ -182,5 +185,6 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     paymentAccountId: user?.paymentAccountId ?? null,
     trend,
     cardBilling,
+    simplefin: { connected: sfConn !== null, lastSyncedAt: sfConn?.lastSyncedAt ?? null },
   };
 }
