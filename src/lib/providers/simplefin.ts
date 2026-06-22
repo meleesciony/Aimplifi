@@ -16,6 +16,7 @@ import { type ISODate, addDays, isoDate, toEpochDays } from '@/lib/dates';
 import { decryptToken } from '@/lib/crypto';
 import { prisma } from '@/lib/db';
 import { detectTransfers } from '@/lib/engine/categorize/transfers';
+import { ensureCategories } from '@/server/ensure-categories';
 import { loadUserRules } from '@/server/rules';
 import { refreshRecurringForUser } from '@/server/recurring';
 import {
@@ -152,6 +153,7 @@ export async function syncFromSimplefin(userId: string, today: ISODate): Promise
   const conn = await prisma.simpleFinConnection.findUnique({ where: { userId } });
   if (!conn) return { added: 0, modified: 0, removed: 0, nextCursor: null };
 
+  await ensureCategories(); // FK target for every txn.categoryId the categorizer emits (#63)
   const accessUrl = decryptToken(conn.accessUrl);
   const rules = await loadUserRules(userId);
   // Incremental syncs overlap a few days before the last sync so late-posting
