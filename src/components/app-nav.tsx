@@ -10,6 +10,7 @@ import { usePathname } from 'next/navigation';
 import {
   Calendar,
   CreditCard,
+  Gauge,
   Inbox,
   Landmark,
   LayoutDashboard,
@@ -29,6 +30,7 @@ const PRIMARY = [
 ] as const;
 
 const SECONDARY = [
+  { href: '/spending-plan', label: 'Plan', icon: Gauge, testid: 'nav-spending-plan' },
   { href: '/accounts', label: 'Accounts', icon: Landmark, testid: 'nav-accounts' },
   { href: '/transactions', label: 'Activity', icon: Receipt, testid: 'nav-transactions' },
   { href: '/goals', label: 'Goals', icon: PiggyBank, testid: 'nav-goals' },
