@@ -73,14 +73,14 @@ export function cashNeededFromSnapshot(
 
 export async function getCashNeeded(userId: string, scenario: 'PAY_IN_FULL' | 'MINIMUM' = 'PAY_IN_FULL') {
   const provider = getProvider();
-  const today = provider.today();
+  const today = provider.today(userId);
   const snap = await provider.getFinanceSnapshot(userId);
   return { today, snap, ...cashNeededFromSnapshot(snap, today, scenario) };
 }
 
 export async function getDashboardData(userId: string): Promise<DashboardData> {
   const provider = getProvider();
-  const today = provider.today();
+  const today = provider.today(userId);
   const snap = await provider.getFinanceSnapshot(userId);
   const paymentAccount = resolvePaymentAccount(snap);
 

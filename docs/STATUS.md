@@ -336,6 +336,46 @@ with existing prefill code); read-then-write single-statement race (STATUS #10 /
 ROADMAP #9); one-tap Clear without confirm (consistent with the more-destructive
 sibling `manual-delete`, reversible, no money/history loss).
 
+## Post-Phase-5 refinement: real-clock "today" for real users (DECISIONS #58)
+
+Found while prepping the multi-user deploy: the app resolved "today" as
+`DEMO_TODAY ?? DEFAULT_AS_OF('2026-06-10')`, so a production deploy with
+`DEMO_TODAY` unset would FREEZE every real user's "today" at the seed date —
+wrong days-until-due, reminders, and net-worth "today" point. Fixed with one
+sanctioned wall-clock read (`src/lib/business-today.ts` `businessToday(userId?)`):
+DEMO_TODAY pin → demo user pinned to the seed date → real users get the real
+clock. Threaded `userId` through `DataProvider.today(userId?)` and all call sites
+(finance/coach/budgets/layout/new-txn/accounts/simplefin/plaid + the reminders
+cron via getCashNeeded). Golden-safe by construction: tests set DEMO_TODAY, the
+demo path still resolves to 2026-06-10.
+
+Gate (real output 2026-06-21): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — **753 unit / 60 files** (+4 known-answer: DEMO_TODAY-wins, demo-pinned,
+real-user-real-clock, no-userId-real-clock), build clean, **37 e2e**.
+
+## Post-Phase-5 refinement: invite-only signup (DECISIONS #57, ROADMAP #2)
+
+The user needs the app for themselves + spouse + chosen testers, not the public.
+Real multi-user auth already existed (DECISIONS #43) and its data isolation is
+tested (re-confirmed live: `auth-actions`/`auth-password` → 10 passed, incl. the
+two-user isolation check). What was missing was a way to keep signup private. Added
+a pure env-driven allowlist (`src/lib/auth/allowlist.ts`) wired into
+`signUpWithPassword` before any DB write. DORMANT by default (`SIGNUP_ALLOWLIST`
+unset → open, so demo/local/tests are unchanged); set it → invite-only (exact
+emails and/or whole `@domains`, case-insensitive). Gates creation only; existing
+logins are unaffected.
+
+Inline hostile-critic (proportionate to a ~45-line pure gate), 0 P0/P1: rejected
+domain-suffix spoofing (`@team.com` ≠ `evilteam.com` / `team.com.attacker.net`),
+multi-`@`/malformed (regex gate runs first + independent no-local/no-domain guard),
+typo'd entries fail closed, no eval/SQL. KNOWN OPERATIONAL RISK (documented, bold in
+docs/DEPLOY.md, not a code defect): forget to set `SIGNUP_ALLOWLIST` on deploy →
+open signup.
+
+Gate (real output 2026-06-21): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — typecheck/lint clean, **749 unit / 59 files** (+9: 8 known-answer allowlist
++ 1 action-level gate test), build clean, **37 e2e**. New deploy runbook docs/DEPLOY.md.
+
 ## Post-Phase-5 refinement: SimpleFIN aggregator (DECISIONS #56, ROADMAP)
 
 A user hit Plaid's approval/cost wall and asked for an aggregator. Answer: don't

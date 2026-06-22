@@ -81,10 +81,18 @@
    stays in demo until **real multi-user auth** (roadmap #2) lands — linking real
    banks to the shared demo user would leak one person's data to all; that's the
    gate to production Plaid, not a code gap.
-2. **Real authentication** — Auth.js magic link + Google. The per-user dials
-   themselves now ship (the Money Dials editor above); what remains here is
-   multi-user signup + a true first-run onboarding flow (the dashboard nudge is
-   already wired and waiting on a real "new user with no payment account").
+2. **Real authentication** — **DONE** (DECISIONS #43, #57). Real multi-user
+   email/password signup (scrypt-hashed) + sign-in with durable per-IP and
+   per-account rate limiting; JWT sessions; middleware route protection; dormant
+   Google. Every server action resolves `requireUserId()` from the verified
+   session with NO demo fallback, and data isolation is TESTED (two users; user
+   A's view returns only A's accounts/net worth) + an e2e (brand-new signup →
+   empty onboarding, no demo-data leak → sign out → back in). Invite-only signup
+   (DECISIONS #57) gates account creation behind a `SIGNUP_ALLOWLIST` env var
+   (dormant = open for demo/tests). REMAINING is purely operational: **deploy**
+   so users reach it from their own devices — Vercel + Neon Postgres, env vars
+   set (`DATABASE_URL`, `AUTH_SECRET`, `DATA_ENCRYPTION_KEY`, and
+   `SIGNUP_ALLOWLIST` to lock signup down). Step-by-step in **docs/DEPLOY.md**.
 3. ~~**Average-daily-balance interest** for the minimum path~~ — **DONE**
    (DECISIONS #29): the minimum-path interest now uses the average-daily-balance
    method (APR÷365 × the cycle's average balance, grace-gated), replacing the

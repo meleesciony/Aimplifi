@@ -7,13 +7,13 @@
  * owning account relation) — see docs/CRITIC_RUBRIC.md standing checks.
  */
 import { prisma } from '@/lib/db';
-import { type ISODate, isoDate } from '@/lib/dates';
-import { DEFAULT_AS_OF } from '@/lib/seed/build';
+import type { ISODate } from '@/lib/dates';
+import { businessToday } from '@/lib/business-today';
 import type { DataProvider, FinanceSnapshot, SyncResult } from './types';
 
 export class DemoProvider implements DataProvider {
-  today(): ISODate {
-    return isoDate(process.env.DEMO_TODAY ?? DEFAULT_AS_OF);
+  today(userId?: string): ISODate {
+    return businessToday(userId);
   }
 
   async listAccounts(userId: string) {

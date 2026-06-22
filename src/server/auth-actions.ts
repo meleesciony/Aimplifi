@@ -9,6 +9,7 @@
 import { AuthError } from 'next-auth';
 import { signIn } from '@/auth';
 import { hashPassword } from '@/lib/auth/password';
+import { isSignupAllowed } from '@/lib/auth/allowlist';
 import { normalizeEmail, validateSignup } from '@/lib/auth/validate';
 import { rateLimitDurable } from '@/server/authz';
 import { clientIp } from '@/lib/request-ip';
@@ -38,6 +39,13 @@ export async function signUpWithPassword(
   const password = String(formData.get('password') ?? '');
   const parsed = validateSignup({ email, password });
   if (!parsed.ok) return { error: parsed.errors.join(' ') };
+
+  // Invite-only gate (DECISIONS #57): DORMANT unless SIGNUP_ALLOWLIST is set, so
+  // demo/local/test signup stays open. Checked on the normalized email, before any
+  // DB write, so an un-invited address never creates a row.
+  if (!isSignupAllowed(parsed.email, process.env.SIGNUP_ALLOWLIST)) {
+    return { error: 'This app is invite-only. Ask the owner to add your email to the allowlist.' };
+  }
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.email }, select: { id: true } });
   if (existing) return { error: 'An account with that email already exists — sign in instead.' };

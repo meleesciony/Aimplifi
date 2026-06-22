@@ -22,7 +22,7 @@ async function ReviewBadge({ userId }: { userId: string }) {
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
-  const today = getProvider().today();
+  const today = getProvider().today(session.user.id);
   // The "demo dataset" banner is about fictional data — true only for the demo
   // user, not real signed-up accounts (DECISIONS #43).
   const isDemo = session.user.id === DEMO_USER_ID;

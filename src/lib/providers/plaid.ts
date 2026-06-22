@@ -21,7 +21,8 @@
  * Demo mode is entirely unaffected — the DataProvider seam keeps this dormant.
  */
 import type { JWK } from 'jose';
-import { type ISODate, isoDate } from '@/lib/dates';
+import type { ISODate } from '@/lib/dates';
+import { businessToday } from '@/lib/business-today';
 import { decryptToken, encryptToken } from '@/lib/crypto';
 import { prisma } from '@/lib/db';
 import { detectTransfers } from '@/lib/engine/categorize/transfers';
@@ -94,13 +95,10 @@ export async function fetchPlaidWebhookKey(kid: string): Promise<JWK | null> {
 }
 
 export class PlaidProvider implements DataProvider {
-  today(): ISODate {
-    // Real data uses the real clock — formatted as a calendar date once, here.
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    return isoDate(`${y}-${m}-${d}`);
+  today(userId?: string): ISODate {
+    // Real Plaid users get the real clock; DEMO_TODAY still pins it for tests
+    // (DECISIONS #58). Single source of truth with the demo provider.
+    return businessToday(userId);
   }
 
   /** Step 1 of Link: create a link token for the client-side Plaid Link SDK. */
@@ -249,7 +247,7 @@ export class PlaidProvider implements DataProvider {
     // freshly-ingested data (DECISIONS #22 tail). Best-effort: a derived-projection
     // failure must never fail the ingest itself.
     try {
-      await refreshRecurringForUser(userId, this.today());
+      await refreshRecurringForUser(userId, this.today(userId));
     } catch {
       // detection is a derived view; the ingest already succeeded
     }

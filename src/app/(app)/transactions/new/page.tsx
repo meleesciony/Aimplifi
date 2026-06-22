@@ -20,7 +20,7 @@ export default async function NewTransactionPage() {
       <p className="text-sm text-muted-foreground">
         Record cash, a check, or anything not pulled in automatically.
       </p>
-      <AddTransactionForm accounts={accounts} defaultDate={getProvider().today()} />
+      <AddTransactionForm accounts={accounts} defaultDate={getProvider().today(session.user.id)} />
     </div>
   );
 }

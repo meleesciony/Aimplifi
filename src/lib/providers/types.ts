@@ -40,8 +40,9 @@ export interface SyncResult {
 }
 
 export interface DataProvider {
-  /** Business "today" — pinned in demo mode so the seed stays coherent. */
-  today(): ISODate;
+  /** Business "today" — the real clock for real users; pinned for the demo user
+   *  / when DEMO_TODAY is set so the seed stays coherent (DECISIONS #58). */
+  today(userId?: string): ISODate;
   listAccounts(userId: string): Promise<AccountLike[]>;
   getStatements(userId: string, accountId: string): Promise<StatementLike[]>;
   /** Demo: no-op. Plaid (Phase 4): cursor-based /transactions/sync. */

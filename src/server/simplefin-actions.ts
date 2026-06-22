@@ -8,7 +8,7 @@
  * credential in plaintext. Ownership-scoped + audit-logged.
  */
 import { revalidatePath } from 'next/cache';
-import { type ISODate, isoDate } from '@/lib/dates';
+import { businessToday } from '@/lib/business-today';
 import { encryptToken } from '@/lib/crypto';
 import { prisma } from '@/lib/db';
 import { auditLog, requireUserId } from '@/server/authz';
@@ -19,14 +19,6 @@ export interface SimplefinResult {
   error?: string;
   added?: number;
   message?: string;
-}
-
-/** Business "today": pinned via DEMO_TODAY (tests/demo), else the real clock. */
-function today(): ISODate {
-  const pinned = process.env.DEMO_TODAY;
-  if (pinned) return isoDate(pinned);
-  const d = new Date();
-  return isoDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
 }
 
 function revalidateAll() {
@@ -59,7 +51,7 @@ export async function connectSimplefin(setupToken: string): Promise<SimplefinRes
   await auditLog(userId, 'simplefin.connect', {});
 
   try {
-    const r = await syncFromSimplefin(userId, today());
+    const r = await syncFromSimplefin(userId, businessToday(userId));
     revalidateAll();
     return { ok: true, added: r.added };
   } catch {
@@ -74,7 +66,7 @@ export async function connectSimplefin(setupToken: string): Promise<SimplefinRes
 export async function syncSimplefinNow(): Promise<SimplefinResult> {
   const userId = await requireUserId();
   try {
-    const r = await syncFromSimplefin(userId, today());
+    const r = await syncFromSimplefin(userId, businessToday(userId));
     revalidateAll();
     return { ok: true, added: r.added };
   } catch {

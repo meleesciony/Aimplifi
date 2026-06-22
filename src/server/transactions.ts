@@ -9,7 +9,7 @@ import { isRuleEligibleMerchant } from '@/lib/engine/categorize/assign';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type NetWorthSeriesPoint, netWorthSeries } from '@/lib/engine/networth/series';
-import { DEFAULT_AS_OF } from '@/lib/seed/build';
+import { businessToday } from '@/lib/business-today';
 import {
   type AccountView,
   type AccountsSummary,
@@ -177,7 +177,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       : { hasStatement: false, ...common };
   }
 
-  const today = process.env.DEMO_TODAY ?? DEFAULT_AS_OF;
+  const today = businessToday(userId);
   const trend = netWorthSeries({ snapshots, accounts: views, today });
 
   return {

@@ -69,3 +69,25 @@ describe('data isolation between users', () => {
     expect(viewA.netWorthCents).toBe(100); // only A's account
   });
 });
+
+describe('invite-only allowlist gates signup (DECISIONS #57)', () => {
+  const allowed = `allow-${stamp}@invited.test`;
+  const denied = `deny-${stamp}@stranger.test`;
+
+  afterAll(async () => {
+    vi.unstubAllEnvs();
+    await prisma.user.deleteMany({ where: { email: { in: [allowed, denied] } } });
+  });
+
+  it('rejects an un-invited email (no user created) but lets a listed one through', async () => {
+    vi.stubEnv('SIGNUP_ALLOWLIST', `${allowed}, @nobody.test`);
+
+    const deny = await signUpWithPassword(null, fd(denied, 'supersecret1'));
+    expect(deny.error).toMatch(/invite-only/i);
+    expect(await prisma.user.findUnique({ where: { email: denied } })).toBeNull();
+
+    const ok = await signUpWithPassword(null, fd(allowed, 'supersecret1'));
+    expect(ok.error).toBeUndefined();
+    expect(await prisma.user.findUnique({ where: { email: allowed } })).not.toBeNull();
+  });
+});

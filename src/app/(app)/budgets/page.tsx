@@ -23,7 +23,7 @@ export default async function BudgetsPage() {
   if (!session?.user?.id) redirect('/sign-in');
   const userId = session.user.id;
   const provider = getProvider();
-  const today = provider.today();
+  const today = provider.today(userId);
   const month = today.slice(0, 7);
 
   const [txns, budgets, user] = await Promise.all([

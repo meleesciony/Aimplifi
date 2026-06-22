@@ -58,7 +58,7 @@ const COAST_TARGET_YEARS = 25;
 
 export async function getCoachData(userId: string): Promise<CoachData> {
   const provider = getProvider();
-  const today = provider.today();
+  const today = provider.today(userId);
   const snap = await provider.getFinanceSnapshot(userId);
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('User not found');
