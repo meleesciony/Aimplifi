@@ -17,6 +17,7 @@ import {
   type TxnFilter,
   type TxnSummary,
   type TxnView,
+  SPENDING_ACCOUNT_TYPES,
   filterTransactions,
   groupAccounts,
   paginate,
@@ -47,7 +48,8 @@ const PAGE_SIZE = 100;
  */
 export async function getTransactions(userId: string, filter: TxnFilter = {}, page = 1): Promise<TransactionsResult> {
   const txns = await prisma.transaction.findMany({
-    where: { account: { userId }, isSplitParent: false },
+    // Spending accounts only — bank + cards; brokerage/loan activity isn't spending (#62).
+    where: { account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } }, isSplitParent: false },
     include: { account: { select: { id: true, name: true } }, merchant: true },
     orderBy: [{ date: 'desc' }, { id: 'desc' }],
   });

@@ -9,6 +9,7 @@ import { auditLog, rateLimitDurable } from '@/server/authz';
 import { getDashboardData } from '@/server/finance';
 import { netWorthReportPdf, netWorthToCsv, transactionsToCsv } from '@/lib/export';
 import { categoryName } from '@/lib/engine/categorize/categories';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -25,7 +26,8 @@ export async function GET(request: NextRequest) {
 
   if (format === 'transactions-csv') {
     const txns = await prisma.transaction.findMany({
-      where: { account: { userId } },
+      // Transactions = spending (bank + cards); brokerage/loan activity excluded (#62).
+      where: { account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
       include: { account: { select: { name: true } }, merchant: true },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
     });

@@ -166,6 +166,14 @@ export const LIABILITY_TYPES: ReadonlySet<string> = new Set([
   'OTHER_LIABILITY',
 ]);
 
+// Account types whose transactions are real CASH SPENDING — bank + cards. A
+// brokerage's buys/sells/dividends and a loan's interest postings are NOT spending,
+// so their transactions are excluded from the register, spending, categorization,
+// and recurring views (DECISIONS #62). Net worth still uses EVERY account's balance,
+// so investments/loans remain in the net-worth picture. The demo seed attaches
+// transactions only to spending accounts, so the golden values are unchanged.
+export const SPENDING_ACCOUNT_TYPES: readonly string[] = ['CHECKING', 'SAVINGS', 'CREDIT'];
+
 export interface AccountView {
   id: string;
   name: string;

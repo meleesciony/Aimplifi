@@ -9,6 +9,7 @@
 import { prisma } from '@/lib/db';
 import type { ISODate } from '@/lib/dates';
 import { businessToday } from '@/lib/business-today';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import type { DataProvider, FinanceSnapshot, SyncResult } from './types';
 
 export class DemoProvider implements DataProvider {
@@ -41,7 +42,11 @@ export class DemoProvider implements DataProvider {
         prisma.autopayConfig.findMany({ where: ownedByUser }),
         prisma.statement.findMany({ where: ownedByUser, orderBy: { cycleEnd: 'asc' } }),
         prisma.cardPayment.findMany({ where: { statement: { account: { userId } } } }),
-        prisma.transaction.findMany({ where: ownedByUser, orderBy: [{ date: 'asc' }, { id: 'asc' }] }),
+        // Spending accounts only — investment/loan activity isn't spending (#62).
+        prisma.transaction.findMany({
+          where: { account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
+          orderBy: [{ date: 'asc' }, { id: 'asc' }],
+        }),
         prisma.scheduledTransaction.findMany({ where: ownedByUser }),
         prisma.balanceSnapshot.findMany({ where: ownedByUser, orderBy: { date: 'asc' } }),
       ]);

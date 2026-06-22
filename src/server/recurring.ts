@@ -13,6 +13,7 @@ import {
   detectRecurring,
   toScheduledTransactions,
 } from '@/lib/engine/recurring/detect';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
 
 /** Scheduled-row sources that are DERIVED from detection (and so safe to replace). */
@@ -23,7 +24,12 @@ export async function refreshRecurringForUser(
   today: ISODate,
 ): Promise<{ series: number; scheduled: number }> {
   const txns = await prisma.transaction.findMany({
-    where: { account: { userId }, status: 'POSTED', isSplitParent: false },
+    // Spending accounts only — don't detect "recurring" from brokerage/loan activity (#62).
+    where: {
+      account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } },
+      status: 'POSTED',
+      isSplitParent: false,
+    },
     select: { id: true, accountId: true, date: true, amountCents: true, rawDescriptor: true, isTransfer: true },
   });
   const series = detectRecurring(txns as RecurringTxn[], today);

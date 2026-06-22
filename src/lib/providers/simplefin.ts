@@ -191,6 +191,10 @@ export async function syncFromSimplefin(userId: string, today: ISODate): Promise
       });
     }
 
+    // Keep the account + balance (for net worth) but DON'T ingest a brokerage's
+    // trades/dividends or a loan's interest as spending transactions (#62).
+    if (mapped.type === 'INVESTMENT' || mapped.type === 'LOAN') continue;
+
     for (const txn of acct.transactions ?? []) {
       let row;
       try {

@@ -7,6 +7,7 @@ import { prisma } from '@/lib/db';
 import { CATEGORIES, categoryName } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { categorize, suggestAlternatives } from '@/lib/engine/categorize/pipeline';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { loadUserRules } from '@/server/rules';
 
 export interface TriageItem {
@@ -58,7 +59,7 @@ export function similarTransactionsWhere(
 export async function getTriageItems(userId: string): Promise<TriageItem[]> {
   const [txns, rules] = await Promise.all([
     prisma.transaction.findMany({
-      where: { needsReview: true, account: { userId } },
+      where: { needsReview: true, account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
       include: { account: { select: { name: true } }, merchant: true },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
     }),
@@ -123,7 +124,9 @@ function bestGuess(amountCents: number): string {
 }
 
 export async function getReviewCount(userId: string): Promise<number> {
-  return prisma.transaction.count({ where: { needsReview: true, account: { userId } } });
+  return prisma.transaction.count({
+    where: { needsReview: true, account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
+  });
 }
 
 export const ALL_CATEGORIES = CATEGORIES.filter((c) => c.id !== 'uncategorized').map((c) => ({
