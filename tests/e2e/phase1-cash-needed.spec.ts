@@ -36,6 +36,14 @@ test('demo sign-in lands on the dashboard with the cash-needed answer above the 
 
   // Net worth + trend present (Phase 1 acceptance #7)
   await expect(page.getByTestId('net-worth-amount')).toHaveText('$144,804.74');
+
+  // At-a-glance summary cards (dashboard redesign): safe-to-spend + top spending,
+  // each present and linking to their full view.
+  await expect(page.getByTestId('dashboard-safe-to-spend-amount')).toBeVisible();
+  await expect(page.getByTestId('dashboard-top-spending')).toBeVisible();
+  await page.getByTestId('dashboard-safe-to-spend').click();
+  await page.waitForURL('**/spending-plan');
+  await expect(page.getByTestId('safe-to-spend')).toBeVisible();
 });
 
 test('per-card breakdown shows each obligation and the scenario toggle works', async ({ page }) => {

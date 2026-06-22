@@ -4,12 +4,16 @@ import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { CashNeededCard } from '@/components/finance/cash-needed-card';
 import { NetWorthCard } from '@/components/finance/net-worth-card';
 import { PaymentRemindersCard } from '@/components/finance/payment-reminders-card';
+import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
+import { TopSpendingCard } from '@/components/finance/top-spending-card';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { OnboardingNudge } from '@/components/settings/onboarding-nudge';
 import { PAYMENT_ACCOUNT_TYPES, needsOnboarding } from '@/lib/engine/settings/dials';
 import { prisma } from '@/lib/db';
 import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
+import { getReports } from '@/server/reports';
+import { getSpendingPlan } from '@/server/spending-plan';
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -20,9 +24,11 @@ export default async function DashboardPage() {
   const accountCount = await prisma.account.count({ where: { userId: session.user.id } });
   if (accountCount === 0) return <EmptyDashboard />;
 
-  const [data, coach] = await Promise.all([
+  const [data, coach, plan, reports] = await Promise.all([
     getDashboardData(session.user.id),
     getCoachData(session.user.id),
+    getSpendingPlan(session.user.id),
+    getReports(session.user.id),
   ]);
 
   // Single source of truth: the dashboard snapshot already carries the stored
@@ -58,14 +64,21 @@ export default async function DashboardPage() {
           (dormant for the seeded demo user, who always has one) */}
       {showOnboarding && <OnboardingNudge />}
 
-      {/* headline parity: net worth and savings rate side by side */}
+      {/* at-a-glance summaries: this month's safe-to-spend + savings rate.
+          Each links through to its full view (Plan / Coach). */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} />
+        <SafeToSpendCard plan={plan} />
         <SavingsRateCard flows={coach.flows} currentRateBps={coach.currentRateBps} />
       </div>
 
-      {/* upcoming card payments (ROADMAP #6) — same obligations as the headline */}
-      <PaymentRemindersCard reminders={data.reminders} today={data.today} />
+      {/* net worth + trend, full width for the chart */}
+      <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} />
+
+      {/* this month's top spending (links to Reports) beside upcoming bills */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TopSpendingCard breakdown={reports.breakdown} />
+        <PaymentRemindersCard reminders={data.reminders} today={data.today} />
+      </div>
     </div>
   );
 }
