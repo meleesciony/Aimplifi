@@ -5,9 +5,40 @@ import {
   filterTransactions,
   groupAccounts,
   isLiabilityType,
+  paginate,
   sortByDateDesc,
   summarizeTransactions,
 } from '@/lib/engine/transactions/query';
+
+describe('paginate (register pagination, ROADMAP #8)', () => {
+  const rows = Array.from({ length: 250 }, (_, i) => i); // 0..249
+
+  it('returns a full first page with correct page info', () => {
+    const { items, info } = paginate(rows, 1, 100);
+    expect(items).toHaveLength(100);
+    expect(items[0]).toBe(0);
+    expect(info).toEqual({ page: 1, pageSize: 100, pageCount: 3, total: 250, fromIndex: 1, toIndex: 100 });
+  });
+
+  it('returns the partial last page', () => {
+    const { items, info } = paginate(rows, 3, 100);
+    expect(items).toHaveLength(50); // 201..250
+    expect(items[0]).toBe(200);
+    expect(info).toMatchObject({ page: 3, pageCount: 3, fromIndex: 201, toIndex: 250 });
+  });
+
+  it('clamps an out-of-range page into [1, pageCount]', () => {
+    expect(paginate(rows, 99, 100).info.page).toBe(3);
+    expect(paginate(rows, 0, 100).info.page).toBe(1);
+    expect(paginate(rows, -5, 100).info.page).toBe(1);
+  });
+
+  it('handles an empty list gracefully', () => {
+    const { items, info } = paginate([], 1, 100);
+    expect(items).toHaveLength(0);
+    expect(info).toEqual({ page: 1, pageSize: 100, pageCount: 1, total: 0, fromIndex: 0, toIndex: 0 });
+  });
+});
 
 /**
  * Fixture: 6 transactions across 2 accounts. Hand-verified totals below.

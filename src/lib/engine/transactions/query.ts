@@ -99,6 +99,45 @@ export function filterTransactions(rows: readonly TxnView[], filter: TxnFilter =
   });
 }
 
+export interface PageInfo {
+  /** 1-based current page, clamped to [1, pageCount]. */
+  page: number;
+  pageSize: number;
+  /** Total pages (always ≥ 1, even when empty). */
+  pageCount: number;
+  /** Total rows across all pages. */
+  total: number;
+  /** 1-based index of the first row on this page (0 when empty). */
+  fromIndex: number;
+  /** 1-based index of the last row on this page. */
+  toIndex: number;
+}
+
+/**
+ * Slice `rows` into a 1-based page. `page` and `pageSize` are sanitized (page
+ * clamped into range, pageSize floored at 1), so out-of-range input degrades
+ * gracefully rather than returning an empty/garbage page.
+ */
+export function paginate<T>(rows: readonly T[], page: number, pageSize: number): { items: T[]; info: PageInfo } {
+  const size = Math.max(1, Math.floor(pageSize) || 1);
+  const total = rows.length;
+  const pageCount = Math.max(1, Math.ceil(total / size));
+  const clamped = Math.min(Math.max(1, Math.floor(page) || 1), pageCount);
+  const start = (clamped - 1) * size;
+  const items = rows.slice(start, start + size);
+  return {
+    items: [...items],
+    info: {
+      page: clamped,
+      pageSize: size,
+      pageCount,
+      total,
+      fromIndex: total === 0 ? 0 : start + 1,
+      toIndex: start + items.length,
+    },
+  };
+}
+
 export function summarizeTransactions(rows: readonly TxnView[]): TxnSummary {
   let inflow = 0;
   let outflow = 0;

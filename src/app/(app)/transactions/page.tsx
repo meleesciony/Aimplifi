@@ -30,6 +30,7 @@ export default async function TransactionsPage({
   const type = (VALID_TYPES as string[]).includes(typeRaw) ? (typeRaw as FlowType) : 'all';
   const from = str(sp.from);
   const to = str(sp.to);
+  const page = Math.max(1, parseInt(str(sp.page), 10) || 1);
 
   const filter: TxnFilter = {
     search,
@@ -40,7 +41,7 @@ export default async function TransactionsPage({
     to: to || null,
   };
 
-  const { rows, summary, accountOptions } = await getTransactions(session.user.id, filter);
+  const { rows, summary, accountOptions, pageInfo } = await getTransactions(session.user.id, filter, page);
 
   return (
     <div className="space-y-4">
@@ -73,7 +74,7 @@ export default async function TransactionsPage({
         accountOptions={accountOptions}
         current={{ search, account, category, type, from, to }}
       />
-      <TransactionList rows={rows} summary={summary} />
+      <TransactionList rows={rows} summary={summary} pageInfo={pageInfo} />
     </div>
   );
 }

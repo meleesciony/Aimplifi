@@ -101,12 +101,14 @@
 7. ~~**Budget targets UI**~~ — **DONE** (DECISIONS #30): set/clear a per-category
    monthly target on `/budgets` (atomic upsert on a new `@@unique`, refunds netted,
    progress bar + remaining). Pure engine + known-answer tests + e2e.
-8. **Performance**: snapshot pagination/caching once data exceeds demo scale.
-   ~~Multi-instance rate limiting~~ — **DONE** (DECISIONS #48): a durable, DB-backed
-   `rateLimitDurable` (atomic increment-or-create, self-pruning, `@@index([resetAt])`)
-   replaces the per-instance in-memory limiter on the export route and adds a per-account
-   sign-in throttle. (Redis is no longer required — the DB counter gives the cross-instance
-   property.) Remaining: snapshot pagination/caching at scale.
+8. **Performance**: ~~multi-instance rate limiting~~ — **DONE** (DECISIONS #48): durable,
+   DB-backed `rateLimitDurable` (atomic, self-pruning, indexed) on the export route + a
+   sign-in throttle (Redis no longer required). ~~Register pagination~~ — **DONE**
+   (DECISIONS #51): the transaction register now paginates (pure `paginate` + Prev/Next,
+   filter-preserving, accurate full-set summary) instead of a silent 200-row cap.
+   Remaining (deferred, not needed at household scale): true DB-level LIMIT/OFFSET for the
+   register (needs the normalized merchant denormalized onto the row to keep search
+   SQL-able) and snapshot caching once data far exceeds demo scale.
 9. ~~**Concurrency hardening**~~ — **DONE**: the split double-split race (DECISIONS #48,
    atomic conditional claim) and the Always/Undo orphan-rule race (DECISIONS #49,
    lineage-scoped rule deletion) are both fixed and regression-tested. Plus a sign-in

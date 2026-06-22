@@ -13,11 +13,13 @@ import { DEFAULT_AS_OF } from '@/lib/seed/build';
 import {
   type AccountView,
   type AccountsSummary,
+  type PageInfo,
   type TxnFilter,
   type TxnSummary,
   type TxnView,
   filterTransactions,
   groupAccounts,
+  paginate,
   sortByDateDesc,
   summarizeTransactions,
 } from '@/lib/engine/transactions/query';
@@ -27,7 +29,12 @@ export interface TransactionsResult {
   summary: TxnSummary;
   /** Distinct accounts for the filter dropdown (id + name). */
   accountOptions: { id: string; name: string }[];
+  /** Pagination state for the current (filtered) page (ROADMAP #8). */
+  pageInfo: PageInfo;
 }
+
+/** Rows per register page. */
+const PAGE_SIZE = 100;
 
 /**
  * All of a user's transactions, mapped to display rows, then filtered/sorted by
@@ -38,7 +45,7 @@ export interface TransactionsResult {
  * Loads the full set per call — fine at demo scale; server-side pagination is a
  * scale concern (see docs/ROADMAP.md #8), consistent with getDashboardData.
  */
-export async function getTransactions(userId: string, filter: TxnFilter = {}): Promise<TransactionsResult> {
+export async function getTransactions(userId: string, filter: TxnFilter = {}, page = 1): Promise<TransactionsResult> {
   const txns = await prisma.transaction.findMany({
     where: { account: { userId }, isSplitParent: false },
     include: { account: { select: { id: true, name: true } }, merchant: true },
@@ -71,21 +78,19 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}): P
 
   const filtered = sortByDateDesc(filterTransactions(rows, filter));
 
-  // Render only the most-recent slice. The summary totals are computed over the
-  // FULL filtered set (accurate), but rendering 800+ interactive rows made the
-  // page heavy enough to delay hydration (search/filters racing load). Capping
-  // the DOM keeps the register responsive; refine with filters to see older rows
-  // (server-side pagination is the eventual scale answer, ROADMAP #8).
-  const DISPLAY_CAP = 200;
+  // Summary totals are over the FULL filtered set (accurate); the page slice keeps
+  // the DOM light (rendering 800+ interactive rows delays hydration). Page
+  // navigation (ROADMAP #8) lets the user reach EVERY filtered row, replacing the
+  // old silent "most recent 200" cap.
   const summary = summarizeTransactions(filtered);
-  const display = filtered.slice(0, DISPLAY_CAP);
+  const { items, info } = paginate(filtered, page, PAGE_SIZE);
 
   // Account options come from the full (unfiltered) set so the dropdown is stable.
   const seen = new Map<string, string>();
   for (const r of rows) if (!seen.has(r.accountId)) seen.set(r.accountId, r.accountName);
   const accountOptions = [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => (a.name < b.name ? -1 : 1));
 
-  return { rows: display, summary, accountOptions };
+  return { rows: items, summary, accountOptions, pageInfo: info };
 }
 
 /**

@@ -13,23 +13,34 @@
  * interactive. One controller + lightweight row buttons keeps hydration cheap.
  */
 import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Check, Pencil, Receipt } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { ASSIGNABLE_CATEGORIES } from '@/lib/engine/categorize/assign';
 import { recategorize } from '@/server/triage-actions';
-import type { TxnSummary, TxnView } from '@/lib/engine/transactions/query';
+import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
 
 function amountClass(t: TxnView): string {
   if (t.isTransfer) return 'text-muted-foreground';
   return t.amountCents > 0 ? 'text-emerald-500' : 'text-foreground';
 }
 
-export function TransactionList({ rows, summary }: { rows: TxnView[]; summary: TxnSummary }) {
+export function TransactionList({ rows, summary, pageInfo }: { rows: TxnView[]; summary: TxnSummary; pageInfo: PageInfo }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(null);
+
+  /** A page URL that preserves the current filters (page 1 drops the param). */
+  function pageHref(p: number): string {
+    const q = new URLSearchParams(searchParams?.toString() ?? '');
+    if (p <= 1) q.delete('page');
+    else q.set('page', String(p));
+    const qs = q.toString();
+    return qs ? `/transactions?${qs}` : '/transactions';
+  }
   const [chosen, setChosen] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -91,8 +102,8 @@ export function TransactionList({ rows, summary }: { rows: TxnView[]; summary: T
       <p className="text-xs text-muted-foreground">
         {summary.count} transaction{summary.count === 1 ? '' : 's'}. Totals exclude
         transfers between your own accounts.
-        {rows.length < summary.count && (
-          <> Showing the most recent {rows.length} — refine with filters to see older ones.</>
+        {pageInfo.total > pageInfo.pageSize && (
+          <> Showing {pageInfo.fromIndex}–{pageInfo.toIndex}.</>
         )}
       </p>
 
@@ -230,6 +241,32 @@ export function TransactionList({ rows, summary }: { rows: TxnView[]; summary: T
             </ul>
           </div>
         ))
+      )}
+
+      {pageInfo.pageCount > 1 && (
+        <nav
+          className="flex items-center justify-between gap-2 pt-1 text-xs"
+          aria-label="Transaction pages"
+          data-testid="txn-pagination"
+        >
+          {pageInfo.page > 1 ? (
+            <Link href={pageHref(pageInfo.page - 1)} data-testid="txn-prev-page" className="rounded-md border px-3 py-1.5 hover:bg-accent">
+              ← Prev
+            </Link>
+          ) : (
+            <span className="rounded-md border px-3 py-1.5 text-muted-foreground opacity-40" aria-disabled="true">← Prev</span>
+          )}
+          <span className="text-muted-foreground" data-testid="txn-page-indicator">
+            Page {pageInfo.page} of {pageInfo.pageCount}
+          </span>
+          {pageInfo.page < pageInfo.pageCount ? (
+            <Link href={pageHref(pageInfo.page + 1)} data-testid="txn-next-page" className="rounded-md border px-3 py-1.5 hover:bg-accent">
+              Next →
+            </Link>
+          ) : (
+            <span className="rounded-md border px-3 py-1.5 text-muted-foreground opacity-40" aria-disabled="true">Next →</span>
+          )}
+        </nav>
       )}
     </div>
   );

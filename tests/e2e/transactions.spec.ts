@@ -96,6 +96,21 @@ test('transaction register lists, summarizes, filters, and searches', async ({ p
   await expect(first).toContainText('Blue Bottle');
 });
 
+test('transaction register paginates: Next advances to page 2 (ROADMAP #8)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/transactions');
+  await expect(page.getByTestId('txn-list')).toBeVisible();
+
+  // The seed has 800+ transactions → multiple pages of 100.
+  await expect(page.getByTestId('txn-pagination')).toBeVisible();
+  await expect(page.getByTestId('txn-page-indicator')).toContainText('Page 1 of');
+
+  await page.getByTestId('txn-next-page').click();
+  await expect(page).toHaveURL(/page=2/, { timeout: 20000 });
+  await expect(page.getByTestId('txn-page-indicator')).toContainText('Page 2 of');
+  await expect(page.getByTestId('txn-row').first()).toBeVisible();
+});
+
 test('manual entry: add a cash transaction and see it in the register', async ({ page }) => {
   await signIn(page);
   await page.goto('/transactions/new');
