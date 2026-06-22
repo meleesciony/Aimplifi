@@ -353,16 +353,22 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageIt
     if (alreadyUndone) continue;
     // each correction's undo is atomic: inverse record + restore + rule
     // cleanup land together or not at all, so a retried batch undo never
-    // appends duplicate inverse rows for already-undone items (cycle 3)
-    await prisma.$transaction(async (tx) => {
-      await tx.correction.create({
-        data: {
-          userId,
-          transactionId: correction.transactionId,
-          fromCategoryId: correction.toCategoryId,
-          toCategoryId: correction.fromCategoryId ?? 'uncategorized',
-        },
-      });
+    // appends duplicate inverse rows for already-undone items (cycle 3). The
+    // `undoesId` unique constraint closes the concurrent double-undo race (two
+    // undos of the SAME correction both passing the pre-read above): the loser's
+    // inverse insert violates the unique and its whole transaction rolls back
+    // (STATUS #10).
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.correction.create({
+          data: {
+            userId,
+            transactionId: correction.transactionId,
+            fromCategoryId: correction.toCategoryId,
+            toCategoryId: correction.fromCategoryId ?? 'uncategorized',
+            undoesId: correction.id,
+          },
+        });
       // restore exactly what the inverse-correction record says (audit = state)
       await tx.transaction.updateMany({
         where: { id: correction.transactionId, account: { userId } },
@@ -386,7 +392,12 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageIt
           data: { becameRuleId: null },
         });
       }
-    });
+      });
+    } catch (e) {
+      // P2002 on undoesId = a concurrent undo of this same correction already recorded
+      // the inverse; that transaction did the restore, so skip idempotently.
+      if ((e as { code?: string }).code !== 'P2002') throw e;
+    }
   }
   revalidatePath('/triage');
   return getTriageItems(userId);

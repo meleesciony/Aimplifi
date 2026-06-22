@@ -388,11 +388,11 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
     (DECISIONS #48: `splitTransaction` claims its parent atomically inside the tx).
     ~~"Always" racing "Undo" can orphan a rule~~ — **FIXED** (DECISIONS #49:
     `undoCorrections` deletes the rule only WHERE `createdFrom` still points back to
-    this correction; regression-tested). STILL OPEN (deferred, no UI path, append-only
-    audit data — self-heals in every sum): the `alreadyUndone` pre-read is a TOCTOU two
-    concurrent undos of the SAME correction could both pass (a duplicate inverse
-    correction); a `@@unique` on the inverse or a conditional-claim on the correction
-    would close it.
+    this correction; regression-tested). ~~The `alreadyUndone` pre-read TOCTOU lets two
+    concurrent undos of the same correction write a duplicate inverse~~ — **FIXED**
+    (DECISIONS #50: the inverse correction carries `undoesId` with a `@@unique`, so the
+    racing loser's insert violates the unique and rolls back; regression-tested with two
+    concurrent undos → exactly one inverse). **All of #10 is now closed.**
 11. **Unknown billers containing a word-bounded "EPAY"** (e.g. "DUKE ENERGY
     EPAY") classify as transfers consistently in both modules; a merchant-table
     entry wins when added.

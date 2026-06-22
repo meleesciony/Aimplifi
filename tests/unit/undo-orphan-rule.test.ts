@@ -70,4 +70,15 @@ describe('undoCorrections rule cleanup is lineage-scoped (STATUS #10)', () => {
     // The rule survives — it now belongs to a different correction, not this undo's.
     expect(await prisma.categorizationRule.findUnique({ where: { id: ruleId } })).not.toBeNull();
   });
+
+  it('two concurrent undos of the SAME correction record exactly ONE inverse (no duplicate, STATUS #10)', async () => {
+    const c = await prisma.correction.create({
+      data: { userId: USER, transactionId: txnId, fromCategoryId: cat0, toCategoryId: cat1 },
+    });
+    const settled = await Promise.allSettled([undoCorrections([c.id]), undoCorrections([c.id])]);
+    // Both resolve — the loser skips idempotently (unique on undoesId) instead of throwing.
+    expect(settled.every((s) => s.status === 'fulfilled')).toBe(true);
+    // Exactly one inverse correction was recorded for this correction.
+    expect(await prisma.correction.count({ where: { undoesId: c.id } })).toBe(1);
+  });
 });

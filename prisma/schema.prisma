@@ -200,6 +200,12 @@ model Correction {
   fromCategoryId String?
   toCategoryId   String
   becameRuleId   String?
+  // The id of the correction this row UNDOES (set only on inverse corrections from
+  // undoCorrections). @@unique makes a double-undo of the same correction idempotent:
+  // a second concurrent inverse insert hits the unique constraint and is skipped
+  // (closes the alreadyUndone TOCTOU — STATUS #10). Multiple NULLs are allowed, so
+  // ordinary corrections are unaffected.
+  undoesId       String?  @unique
   createdAt      DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
