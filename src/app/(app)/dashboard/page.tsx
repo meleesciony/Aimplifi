@@ -4,6 +4,7 @@ import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { CashNeededCard } from '@/components/finance/cash-needed-card';
 import { NetWorthCard } from '@/components/finance/net-worth-card';
 import { PaymentRemindersCard } from '@/components/finance/payment-reminders-card';
+import { RecurringSummaryCard } from '@/components/finance/recurring-summary-card';
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
 import { TopSpendingCard } from '@/components/finance/top-spending-card';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
@@ -12,6 +13,7 @@ import { PAYMENT_ACCOUNT_TYPES, needsOnboarding } from '@/lib/engine/settings/di
 import { prisma } from '@/lib/db';
 import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
+import { getRecurring } from '@/server/recurring';
 import { getReports } from '@/server/reports';
 import { getSpendingPlan } from '@/server/spending-plan';
 
@@ -24,11 +26,12 @@ export default async function DashboardPage() {
   const accountCount = await prisma.account.count({ where: { userId: session.user.id } });
   if (accountCount === 0) return <EmptyDashboard />;
 
-  const [data, coach, plan, reports] = await Promise.all([
+  const [data, coach, plan, reports, recurring] = await Promise.all([
     getDashboardData(session.user.id),
     getCoachData(session.user.id),
     getSpendingPlan(session.user.id),
     getReports(session.user.id),
+    getRecurring(session.user.id),
   ]);
 
   // Single source of truth: the dashboard snapshot already carries the stored
@@ -74,11 +77,14 @@ export default async function DashboardPage() {
       {/* net worth + trend, full width for the chart */}
       <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} />
 
-      {/* this month's top spending (links to Reports) beside upcoming bills */}
+      {/* this month's top spending + monthly recurring (each links to its view) */}
       <div className="grid gap-4 sm:grid-cols-2">
         <TopSpendingCard breakdown={reports.breakdown} />
-        <PaymentRemindersCard reminders={data.reminders} today={data.today} />
+        <RecurringSummaryCard summary={recurring.summary} />
       </div>
+
+      {/* upcoming card payments (ROADMAP #6) — same obligations as the headline */}
+      <PaymentRemindersCard reminders={data.reminders} today={data.today} />
     </div>
   );
 }

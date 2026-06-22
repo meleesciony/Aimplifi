@@ -6,15 +6,57 @@
  * persist them (full replace). Pure detection lives in engine/recurring/detect.ts;
  * this is the thin server-side persist.
  */
-import type { ISODate } from '@/lib/dates';
+import { type ISODate, isoDate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import {
   type RecurringTxn,
   detectRecurring,
   toScheduledTransactions,
 } from '@/lib/engine/recurring/detect';
+import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurring/summary';
+import { getProvider } from '@/lib/providers/demo';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
+
+export interface RecurringData {
+  summary: RecurringSummary;
+  accountNames: Record<string, string>;
+}
+
+/**
+ * Read path for the Recurring page (DECISIONS #71). Detects live from the
+ * shared snapshot — spending accounts only (#62), posted, non-split — so it
+ * works identically for the demo seed and real synced users without depending
+ * on the persisted RecurringSeries table.
+ */
+export async function getRecurring(userId: string): Promise<RecurringData> {
+  const provider = getProvider();
+  const today = provider.today(userId);
+  const snap = await provider.getFinanceSnapshot(userId);
+
+  const spendingIds = new Set(
+    snap.accounts
+      .filter((a) => (SPENDING_ACCOUNT_TYPES as readonly string[]).includes(a.type))
+      .map((a) => a.id),
+  );
+  const txns: RecurringTxn[] = snap.transactions
+    .filter((t) => t.status === 'POSTED' && !t.isSplitParent && spendingIds.has(t.accountId))
+    .map((t, i) => ({
+      id: String(i),
+      accountId: t.accountId,
+      date: t.date,
+      amountCents: t.amountCents,
+      rawDescriptor: t.rawDescriptor,
+      isTransfer: t.isTransfer,
+    }));
+
+  const series = detectRecurring(txns, isoDate(today));
+  const summary = summarizeRecurring(series, today);
+
+  const accountNames: Record<string, string> = {};
+  for (const a of snap.accounts) accountNames[a.id] = a.name;
+  return { summary, accountNames };
+}
 
 /** Scheduled-row sources that are DERIVED from detection (and so safe to replace). */
 const DETECTED_SCHEDULED_SOURCES = ['payroll-detected', 'recurring'];
