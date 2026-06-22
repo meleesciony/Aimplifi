@@ -16,10 +16,13 @@ import { type ISODate, addDays, isoDate, toEpochDays } from '@/lib/dates';
 import { decryptToken } from '@/lib/crypto';
 import { prisma } from '@/lib/db';
 import { detectTransfers } from '@/lib/engine/categorize/transfers';
+import { assistUnsureRows } from '@/server/categorize-assist';
 import { ensureCategories } from '@/server/ensure-categories';
+import { suggestCategoryViaLLM } from '@/server/llm-categorize';
 import { loadUserRules } from '@/server/rules';
 import { refreshRecurringForUser } from '@/server/recurring';
 import {
+  type IngestedSfTransaction,
   type SimplefinAccount,
   mapSimplefinAccount,
   prepareSimplefinTransaction,
@@ -165,6 +168,8 @@ export async function syncFromSimplefin(userId: string, today: ISODate): Promise
 
   let added = 0;
   let modified = 0;
+  // Pass 1: upsert accounts + balances, and PREPARE spending-account rows.
+  const prepared: IngestedSfTransaction[] = [];
   for (const acct of data.accounts ?? []) {
     const mapped = mapSimplefinAccount(acct);
     const existingAcct = await prisma.account.findFirst({
@@ -198,43 +203,48 @@ export async function syncFromSimplefin(userId: string, today: ISODate): Promise
     if (mapped.type === 'INVESTMENT' || mapped.type === 'LOAN') continue;
 
     for (const txn of acct.transactions ?? []) {
-      let row;
       try {
-        row = prepareSimplefinTransaction(txn, accountId, today, rules);
+        prepared.push(prepareSimplefinTransaction(txn, accountId, today, rules));
       } catch {
         continue; // malformed row (e.g. unparseable amount) — skip, don't abort the sync
       }
-      const merchant = await prisma.merchant.upsert({
-        where: { canonical: row.merchantCanonical },
-        create: { canonical: row.merchantCanonical, defaultCategoryId: row.categoryId },
-        update: {},
-      });
-      const data2 = {
-        date: row.date,
-        amountCents: row.amountCents,
-        rawDescriptor: row.rawDescriptor,
-        merchantId: merchant.id,
-        categoryId: row.categoryId,
-        confidenceBps: row.confidenceBps,
-        status: row.status,
-        needsReview: row.needsReview,
-        isTransfer: row.isTransfer,
-      };
-      // The read is only for the added/modified count; correctness is the ATOMIC
-      // upsert on @@unique([accountId, providerRef]) — a concurrent/retried sync
-      // can't race two inserts (Hostile Critic CQ-2).
-      const exists = await prisma.transaction.findFirst({
-        where: { accountId, providerRef: row.providerRef },
-        select: { id: true },
-      });
-      await prisma.transaction.upsert({
-        where: { accountId_providerRef: { accountId, providerRef: row.providerRef } },
-        create: { accountId, providerRef: row.providerRef, ...data2 },
-        update: data2,
-      });
-      if (exists) modified++;
-      else added++;
     }
+  }
+
+  // LLM-assist the rows the deterministic pipeline was unsure about — deduped per
+  // descriptor, only the unknown long tail (DECISIONS #64). Provider is xAI/Grok
+  // when XAI_API_KEY is set (cheaper), else Anthropic, else no-op → rows unchanged.
+  const assisted = await assistUnsureRows(prepared, suggestCategoryViaLLM);
+
+  // Pass 2: upsert transactions (idempotent on @@unique([accountId, providerRef])).
+  for (const row of assisted) {
+    const merchant = await prisma.merchant.upsert({
+      where: { canonical: row.merchantCanonical },
+      create: { canonical: row.merchantCanonical, defaultCategoryId: row.categoryId },
+      update: {},
+    });
+    const data2 = {
+      date: row.date,
+      amountCents: row.amountCents,
+      rawDescriptor: row.rawDescriptor,
+      merchantId: merchant.id,
+      categoryId: row.categoryId,
+      confidenceBps: row.confidenceBps,
+      status: row.status,
+      needsReview: row.needsReview,
+      isTransfer: row.isTransfer,
+    };
+    const exists = await prisma.transaction.findFirst({
+      where: { accountId: row.accountId, providerRef: row.providerRef },
+      select: { id: true },
+    });
+    await prisma.transaction.upsert({
+      where: { accountId_providerRef: { accountId: row.accountId, providerRef: row.providerRef } },
+      create: { accountId: row.accountId, providerRef: row.providerRef, ...data2 },
+      update: data2,
+    });
+    if (exists) modified++;
+    else added++;
   }
 
   // Cross-account transfer PAIRING (parity with Plaid; Hostile Critic CQ-5): the
