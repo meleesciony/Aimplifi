@@ -140,6 +140,54 @@ describe('SimpleFIN connect + sync (real actions, mocked server)', () => {
     expect(gets.some(([u]) => String(u).includes(`start-date=${startSec}`))).toBe(true);
   });
 
+  it('backfills the full history of an account first seen on an incremental sync (DECISIONS #73)', async () => {
+    await connectSimplefin(SETUP_TOKEN); // 1st sync → only acc-1, lastSyncedAt = 2026-06-10
+
+    // 2nd (incremental) sync: a NEW acc-2 appears whose only transaction is OLDER
+    // than the 5-day overlap — so it shows up only in the 90-day backfill window,
+    // never the incremental one. The mock branches on the requested start-date.
+    const oldPosted = toEpochDays(isoDate('2026-05-15')) * 86400; // within 90d, outside 5d
+    const incrementalCutoff = toEpochDays(isoDate('2026-05-01')) * 86400;
+    const acc2Tx = {
+      id: 'acc-2',
+      name: 'Card',
+      balance: '-111.99',
+      org: { name: 'Chase' },
+      transactions: [{ id: 'tx-bf', posted: oldPosted, amount: '-111.99', description: 'ZONE PEST SOLUTIONS INC' }],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown, init?: { method?: string }) => {
+        const url = String(input);
+        if (init?.method === 'POST' && url === CLAIM_URL) {
+          return { ok: true, status: 200, text: async () => ACCESS_URL } as Response;
+        }
+        if (url.startsWith('https://bridge.example/simplefin/accounts')) {
+          const sd = Number(new URL(url).searchParams.get('start-date') ?? '0');
+          // incremental window: acc-2 is new but has no recent activity;
+          // backfill (90-day) window: acc-2's older transaction is returned.
+          const accounts =
+            sd >= incrementalCutoff
+              ? [ACCOUNTS.accounts[0], { ...acc2Tx, transactions: [] }]
+              : [ACCOUNTS.accounts[0], acc2Tx];
+          return { ok: true, status: 200, json: async () => ({ accounts }) } as Response;
+        }
+        return { ok: false, status: 404, text: async () => '', json: async () => ({}) } as Response;
+      }),
+    );
+
+    const r = await syncSimplefinNow();
+    expect(r.ok).toBe(true);
+
+    // The new account exists AND its older transaction was backfilled (it would be
+    // missed by the 5-day incremental window alone — the real-bank bug).
+    const acc2 = await prisma.account.findFirst({ where: { userId: USER, provider: 'simplefin', providerRef: 'acc-2' } });
+    expect(acc2).not.toBeNull();
+    const tx = await prisma.transaction.findFirst({ where: { providerRef: 'tx-bf', account: { userId: USER } } });
+    expect(tx).not.toBeNull();
+    expect(tx!.amountCents).toBe(-11199);
+  });
+
   it('rejects an INTERNAL access URL returned by the claim server, before fetching it (CQ-3)', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: unknown, init?: { method?: string }) => {
       if (init?.method === 'POST' && String(input) === CLAIM_URL) {

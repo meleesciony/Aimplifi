@@ -11,12 +11,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { decryptToken } from '@/lib/crypto';
-import { fetchSimplefinAccounts } from '@/lib/providers/simplefin';
+import { fetchSimplefinAccounts, syncFromSimplefin } from '@/lib/providers/simplefin';
 import { inferAccountType, mapSimplefinAccount } from '@/lib/providers/simplefin-map';
 import { addDays, isoDate } from '@/lib/dates';
 import { getProvider } from '@/lib/providers/demo';
 
 const DIAG_TOKEN = 'diag-a7F3kQ9mZ2pX5rL8wB4nC6tV';
+
+/**
+ * One-time full re-sync (365-day window) to backfill accounts whose history was
+ * never pulled (added after the first sync, so only the 5-day incremental window
+ * ever applied — DECISIONS #73). Idempotent upserts; recovers the already-missed
+ * transactions. Removed with the rest of this route once run.
+ */
+export async function POST(request: NextRequest) {
+  if (request.headers.get('authorization') !== `Bearer ${DIAG_TOKEN}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const conns = await prisma.simpleFinConnection.findMany({ select: { userId: true } });
+  const results: unknown[] = [];
+  for (const conn of conns) {
+    const today = getProvider().today(conn.userId);
+    try {
+      const r = await syncFromSimplefin(conn.userId, today, { fullLookbackDays: 365 });
+      results.push({ userId: conn.userId, ok: true, ...r });
+    } catch (e) {
+      results.push({ userId: conn.userId, ok: false, error: e instanceof Error ? e.message : 'sync failed' });
+    }
+  }
+  return NextResponse.json({ resynced: results.length, results }, { status: 200 });
+}
 
 export async function GET(request: NextRequest) {
   const auth = request.headers.get('authorization');

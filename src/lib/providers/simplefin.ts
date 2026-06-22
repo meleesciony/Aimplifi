@@ -152,24 +152,52 @@ export async function fetchSimplefinAccounts(
  * by providerRef). Runs the shared ingest pipeline per row, then re-detects
  * recurring series. Best-effort recurring refresh — never fails the sync over it.
  */
-export async function syncFromSimplefin(userId: string, today: ISODate): Promise<SyncResult> {
+export async function syncFromSimplefin(
+  userId: string,
+  today: ISODate,
+  opts: { fullLookbackDays?: number } = {},
+): Promise<SyncResult> {
   const conn = await prisma.simpleFinConnection.findUnique({ where: { userId } });
   if (!conn) return { added: 0, modified: 0, removed: 0, nextCursor: null };
 
   await ensureCategories(); // FK target for every txn.categoryId the categorizer emits (#63)
   const accessUrl = decryptToken(conn.accessUrl);
   const rules = await loadUserRules(userId);
-  // Incremental syncs overlap a few days before the last sync so late-posting
-  // transactions aren't missed; the FIRST sync pulls ~90 days of history so the
-  // register/spending/recurring views aren't empty (SimpleFIN returns no
-  // transactions without a start-date — real-bank sync, DECISIONS #61).
-  const startDate = conn.lastSyncedAt ? addDays(isoDate(conn.lastSyncedAt), -5) : addDays(today, -90);
+
+  // Window: a forced full refresh (opts.fullLookbackDays) or the FIRST sync pulls
+  // a wide history so the views aren't empty; incremental syncs overlap 5 days so
+  // late-posting rows aren't missed (SimpleFIN returns nothing without a
+  // start-date — DECISIONS #61). A "full pull" ingests every account directly;
+  // an incremental pull additionally BACKFILLS accounts seen for the first time
+  // on this sync (they'd otherwise only ever get the 5-day window and silently
+  // miss all their history — the real-bank bug behind missing checking/card
+  // expenses, DECISIONS #73).
+  const forceFull = opts.fullLookbackDays != null;
+  const isFullPull = forceFull || !conn.lastSyncedAt;
+  const startDate = forceFull
+    ? addDays(today, -opts.fullLookbackDays!)
+    : conn.lastSyncedAt
+      ? addDays(isoDate(conn.lastSyncedAt), -5)
+      : addDays(today, -90);
   const data = await fetchSimplefinAccounts(accessUrl, startDate);
 
   let added = 0;
   let modified = 0;
-  // Pass 1: upsert accounts + balances, and PREPARE spending-account rows.
   const prepared: IngestedSfTransaction[] = [];
+  const accountIdByRef = new Map<string, string>();
+  const newSpendingRefs: string[] = []; // first-seen spending accounts to backfill
+
+  const prepareAccountTxns = (acct: SimplefinAccount, accountId: string) => {
+    for (const txn of acct.transactions ?? []) {
+      try {
+        prepared.push(prepareSimplefinTransaction(txn, accountId, today, rules));
+      } catch {
+        continue; // malformed row (e.g. unparseable amount) — skip, don't abort the sync
+      }
+    }
+  };
+
+  // Pass 1: upsert accounts + balances, and PREPARE spending-account rows.
   for (const acct of data.accounts ?? []) {
     const mapped = mapSimplefinAccount(acct);
     const existingAcct = await prisma.account.findFirst({
@@ -190,6 +218,7 @@ export async function syncFromSimplefin(userId: string, today: ISODate): Promise
             },
           })
         ).id;
+    accountIdByRef.set(mapped.providerRef, accountId);
     if (existingAcct) {
       // refresh the institution-authoritative balance/name on every sync
       await prisma.account.update({
@@ -202,12 +231,26 @@ export async function syncFromSimplefin(userId: string, today: ISODate): Promise
     // trades/dividends or a loan's interest as spending transactions (#62).
     if (mapped.type === 'INVESTMENT' || mapped.type === 'LOAN') continue;
 
-    for (const txn of acct.transactions ?? []) {
-      try {
-        prepared.push(prepareSimplefinTransaction(txn, accountId, today, rules));
-      } catch {
-        continue; // malformed row (e.g. unparseable amount) — skip, don't abort the sync
-      }
+    // A spending account first seen on an INCREMENTAL sync has only the 5-day
+    // window here — defer it to the backfill pass for its full history instead of
+    // storing a partial slice (DECISIONS #73).
+    if (!existingAcct && !isFullPull) {
+      newSpendingRefs.push(mapped.providerRef);
+      continue;
+    }
+    prepareAccountTxns(acct, accountId);
+  }
+
+  // Backfill pass: pull full history for spending accounts first seen on this
+  // incremental sync, so their past transactions (older than the 5-day overlap)
+  // are ingested — not just whatever happened to land in the last few days.
+  if (newSpendingRefs.length > 0) {
+    const refs = new Set(newSpendingRefs);
+    const backfill = await fetchSimplefinAccounts(accessUrl, addDays(today, -90));
+    for (const acct of backfill.accounts ?? []) {
+      const accountId = accountIdByRef.get(acct.id);
+      if (!accountId || !refs.has(acct.id)) continue;
+      prepareAccountTxns(acct, accountId);
     }
   }
 
