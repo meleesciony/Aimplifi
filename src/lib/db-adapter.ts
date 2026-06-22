@@ -31,7 +31,13 @@ export function isPostgresUrl(url: string | undefined | null): boolean {
  */
 export function makeAdapter(url: string | undefined | null) {
   const resolved = url && url.length > 0 ? url : DEFAULT_SQLITE_URL;
+  // SQLite is a single-writer DB; the parallel test suite (and any concurrent dev
+  // request) opens it from multiple processes against one file. `timeout` is the
+  // busy_timeout — wait this long for the write lock instead of erroring
+  // immediately with SQLITE_BUSY. Set above the test timeout so a lock wait
+  // resolves within the test budget (production uses Postgres, so this is the
+  // local/test path only).
   return isPostgresUrl(resolved)
     ? new PrismaPg({ connectionString: resolved })
-    : new PrismaBetterSqlite3({ url: resolved });
+    : new PrismaBetterSqlite3({ url: resolved, timeout: 15_000 });
 }
