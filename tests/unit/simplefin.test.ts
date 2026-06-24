@@ -96,6 +96,10 @@ describe('SimpleFIN connect + sync (real actions, mocked server)', () => {
   it('claims the token, stores the access URL encrypted, and ingests accounts + transactions', async () => {
     const r = await connectSimplefin(SETUP_TOKEN);
     expect(r.ok).toBe(true);
+    // A swallowed first-sync throw (e.g. SQLITE_BUSY under load) returns ok:true
+    // with an error set and added:0 — assert no error so it fails legibly as a sync
+    // failure, not as a baffling wrong row count (the original flake's masking).
+    expect(r.error).toBeUndefined();
     expect(r.added).toBe(2);
 
     // access URL stored ENCRYPTED (decrypts back to the original)

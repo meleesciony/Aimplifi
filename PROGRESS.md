@@ -143,3 +143,18 @@ confirmed + FIXED**, each with a locking regression test:
   per-user `rateLimitDurable`; question clamped 500 chars; `interpreted` flag surfaced in UI.
 P2s fixed: dead answerUnknown source line, 3rd-party disclosure footnote (assistEnabled), no-flicker
 re-ask, dashboard card non-interactive example text. Confirmation critic (wf_83f7b0a3) running.
+
+## 2026-06-24 (session: "aimplifi") — crash recovery + flake hardening — DONE ✅
+Resumed after a crash. Ask Aimplifi (#75) was already committed verify-green; the crash
+left only doc/index housekeeping in the tree (no half-done feature). On the first
+post-restart `verify`, tests/unit/simplefin.test.ts flaked once ("expected 0 to be 2")
+— root-caused to SQLITE_BUSY (rollback-journal writer starvation on the shared dev.db
+under the codegraph re-index I/O spike), masked by connectSimplefin's credential-safe
+catch as added:0. NOT a regression (23+ clean reruns). Fix (TEST-ONLY; prod=Postgres):
+WAL via a vitest globalSetup + fail-loud r.error assertion + retry-bounded WAL
+regression test + gitignore (/.codegraph/, dev.db-wal/-shm). Proven fail-before/
+pass-after; independent hostile Checker 0 P0/0 P1/4 P2 (accepted — STATUS #14-16 +
+DECISIONS #76). Also cleanly reconstructed the corrupted LOOP_ENGINEERING.md (kept the
+new Token-discipline section). Gate (real 2026-06-24): bash scripts/verify.sh → GREEN,
+901 unit/71 files, typecheck/lint/build clean; e2e 51 passed; 10/10 consecutive
+full-suite runs. NEXT: deploy/go-live prep handoff (Vercel + Neon, env vars) — DEPLOY.md.

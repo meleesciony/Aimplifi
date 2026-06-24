@@ -573,3 +573,26 @@ no-flicker re-ask (prior answer dimmed while pending), dashboard card examples n
 500-char question clamp. Accepted/deferred P2s (documented): a shared `toFlowTxns`/`isPurchaseRow`/month-name
 extraction across coach/trends/assistant (future DRY refactor); the pre-existing `monthlyFlows` income rule
 (positive = income only for category null/'income', else nets) is unchanged.
+
+## 2026-06-24 — SimpleFIN test flake hardened (DECISIONS #76)
+
+A post-restart `verify` once failed `tests/unit/simplefin.test.ts` as "expected 0 to
+be 2". Root cause: the parallel unit suite shares ONE rollback-journal SQLite dev.db
+across worker processes; under an I/O spike (the codegraph daemon re-indexing) a write
+was starved past the 15s busy_timeout → SQLITE_BUSY, which connectSimplefin's
+intentional credential-safe catch masks as `added:0`. The code was never wrong (23+
+clean full-suite reruns). Fix is TEST-ONLY (prod is Postgres): a vitest globalSetup
+puts dev.db in WAL (concurrent readers + one writer no longer block), the SimpleFIN
+test now asserts no swallowed error, and a regression test locks WAL on. Proven
+fail-before/pass-after; verify GREEN (901 unit / 71 files), e2e 51 passed, 10/10
+consecutive full-suite reruns clean.
+
+Accepted P2s (independent hostile Checker, 0 P0/P1):
+14. The WAL regression test catches an unwired globalSetup on a fresh/CI checkout
+    (dev.db created in rollback mode) but NOT on a dev machine whose dev.db is already
+    persistently WAL — an accepted blind spot (the pipeline path is covered).
+15. The e2e global-setup does not separately enforce WAL; e2e is low-contention and
+    inherits the persistent-WAL file in practice.
+16. OneDrive (the repo lives under OneDrive\) can hold a transient OS lock on dev.db /
+    -wal / -shm that WAL cannot prevent; a future transient SQLITE_BUSY there is NOT a
+    WAL regression. Deferred bigger fix: move the test DB out of the synced tree (%TEMP%).

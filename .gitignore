@@ -48,9 +48,14 @@ prisma/.generated.postgres.prisma
 # local sqlite + e2e artifacts
 dev.db
 dev.db-journal
+dev.db-wal
+dev.db-shm
 /test-results/
 /playwright-report/
 _server*.log
+
+# code index (CodeGraph) — local + machine-specific (db, daemon pid/log/sockets); never committed
+/.codegraph/
 
 # scratch/probe artifacts
 _*
