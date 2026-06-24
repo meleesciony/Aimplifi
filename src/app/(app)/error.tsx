@@ -17,8 +17,8 @@ export default function AppError({ reset }: { error: Error & { digest?: string }
     <div className="mx-auto max-w-md space-y-4 py-12 text-center" data-testid="app-error">
       <h1 className="text-xl font-semibold">Something went wrong</h1>
       <p className="text-sm text-muted-foreground">
-        This page couldn&apos;t load — try again, or sign in again. (If you reset the demo&apos;s
-        sample data, restore it with <code className="rounded bg-accent px-1">npx prisma db seed</code>.)
+        This page couldn&apos;t load. Try again, or sign in again — if it keeps happening, please reach
+        out for help.
       </p>
       <div className="flex justify-center gap-2">
         <button

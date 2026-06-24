@@ -191,3 +191,14 @@ sandbox can't reach Neon anyway). Added: (1) a guard in prisma/seed.ts refusing 
 no wipe); sqlite seed → normal; additive script → "Upserted 5 … Nothing else was touched". Also confirmed
 the #78 prod deploy 516b3d6 reached READY (Holding table live in Neon via the build's db push). Gate (real
 2026-06-24): verify GREEN, 931 unit/73 files, build clean.
+
+## 2026-06-24 (session: "aimplifi") — Investments UI + production-readiness pass (#80) — DONE ✅
+The owner invited UI work ("make it more user-friendly … get ready for production", still
+"only change if markedly better"). Ran an 11-agent UX/prod audit (background workflow) and:
+(a) built the additive /investments view (page + view reusing the Card system + a reciprocal
+/accounts link; 2 e2e incl. axe); (b) fixed all 3 audit production-BLOCKERS — dev command on
+the prod error screen removed; "Pulse"→"Aimplifi" brand leaks on bank-connect/reminder copy
+(reminders.test updated to match); Settings "demo mode" card rewritten to a real connect path
+correct for all users. Audit's remaining items recorded as a prioritized roadmap (docs/ROADMAP.md)
+for owner approval — proposed, not unilaterally changed. Gate (real 2026-06-24): VERIFY_E2E=1
+bash scripts/verify.sh → GREEN, 931 unit/73 files, 53 e2e, typecheck/lint/build clean.

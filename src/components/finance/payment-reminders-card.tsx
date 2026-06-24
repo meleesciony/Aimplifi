@@ -24,7 +24,7 @@ export function PaymentRemindersCard({ reminders, today }: { reminders: PaymentR
         <CardDescription>
           {reminders.length === 0
             ? 'You’re all caught up — no card payments coming up.'
-            : 'Upcoming card payments this cycle. Pulse never moves money for you — this is just a heads-up.'}
+            : 'Upcoming card payments this cycle. Aimplifi never moves money for you — this is just a heads-up.'}
         </CardDescription>
       </CardHeader>
       {reminders.length > 0 && (

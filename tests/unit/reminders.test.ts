@@ -106,13 +106,13 @@ describe('buildReminderEmail', () => {
     const reminders = selectPaymentReminders({ obligations, today });
     const email = buildReminderEmail(reminders, today);
     expect(email).not.toBeNull();
-    expect(email!.subject).toBe('Pulse: 4 card payments coming up');
+    expect(email!.subject).toBe('Aimplifi: 4 card payments coming up');
     expect(email!.text).toContain('Sapphire: $1,000.00 due');
     expect(email!.text).toContain('(today)');
     expect(email!.text).toContain('autopay will handle it'); // Platinum line
     expect(email!.text).toContain("you'll pay $600.00 yourself"); // Freedom line
     expect(email!.text).toContain('[estimated]'); // Store line
-    expect(email!.text).toContain('Pulse never moves money for you'); // guardrail
+    expect(email!.text).toContain('Aimplifi never moves money for you'); // guardrail
   });
 
   it('singularizes the subject for one reminder', () => {
@@ -120,7 +120,7 @@ describe('buildReminderEmail', () => {
       selectPaymentReminders({ obligations: [obligations[0]], today }),
       today,
     );
-    expect(email!.subject).toBe('Pulse: 1 card payment coming up');
+    expect(email!.subject).toBe('Aimplifi: 1 card payment coming up');
   });
 
   it('discloses BOTH portions for a partial-autopay (top-up) card', () => {

@@ -88,7 +88,7 @@ export function ConnectSimplefin({ connected, lastSyncedAt }: { connected: boole
         <div className="space-y-2 rounded-lg border p-3" data-testid="simplefin-form">
           <p className="text-xs text-muted-foreground">
             A cheaper, privacy-first alternative to Plaid. Create a one-time <b>setup token</b> at
-            simplefin.org (a few dollars/year, read-only) and paste it below — Pulse stores only an
+            simplefin.org (a few dollars/year, read-only) and paste it below — Aimplifi stores only an
             encrypted read-only access URL, never your bank password.
           </p>
           <textarea

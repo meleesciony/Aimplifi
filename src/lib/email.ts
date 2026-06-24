@@ -29,7 +29,7 @@ export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { sent: false, reason: 'no-provider' };
 
-  const from = process.env.REMINDER_FROM_EMAIL ?? 'Pulse Finance <reminders@pulsefinance.app>';
+  const from = process.env.REMINDER_FROM_EMAIL ?? 'Aimplifi <reminders@aimplifi.app>';
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',

@@ -99,15 +99,13 @@ export default async function SettingsPage() {
       <Card data-testid="connections-card">
         <CardHeader className="pb-2">
           <CardDescription>Bank connections</CardDescription>
-          <CardTitle className="text-base">Plaid (dormant)</CardTitle>
+          <CardTitle className="text-base">Connect a bank or brokerage</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          This deployment runs in demo mode with seeded data. To connect real
-          accounts, add <code className="rounded bg-accent px-1">PLAID_CLIENT_ID</code>,{' '}
-          <code className="rounded bg-accent px-1">PLAID_SECRET</code> and set{' '}
-          <code className="rounded bg-accent px-1">DATA_PROVIDER=plaid</code> — see{' '}
-          <code className="rounded bg-accent px-1">docs/PLAID_WALKTHROUGH.md</code>. Access tokens
-          are encrypted at rest (AES-256-GCM); only account masks (last 4) are ever stored.
+          Link an account from the{' '}
+          <a href="/accounts" className="underline hover:text-foreground">Accounts</a> page —
+          SimpleFIN (a few dollars/year, no business gate) or Plaid. Access tokens are encrypted at
+          rest (AES-256-GCM); only account masks (last 4) are ever stored.
         </CardContent>
       </Card>
 

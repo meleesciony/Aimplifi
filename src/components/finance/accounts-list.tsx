@@ -145,6 +145,16 @@ export function AccountsList({ data }: { data: AccountsView }) {
     <div className="space-y-4">
       <NetWorthCard data={data} />
 
+      <div className="flex justify-end">
+        <Link
+          href="/investments"
+          data-testid="investments-link"
+          className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+        >
+          View investments →
+        </Link>
+      </div>
+
       {error && (
         <p role="alert" className="rounded-md border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-300" data-testid="manual-error">
           {error}

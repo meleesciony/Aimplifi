@@ -97,7 +97,7 @@ export function buildReminderEmail(
 ): ReminderEmail | null {
   if (reminders.length === 0) return null;
   const n = reminders.length;
-  const subject = `Pulse: ${n} card payment${n === 1 ? '' : 's'} coming up`;
+  const subject = `Aimplifi: ${n} card payment${n === 1 ? '' : 's'} coming up`;
 
   const lines = reminders.map((r) => {
     const when = r.daysUntil === 0 ? 'today' : r.daysUntil === 1 ? 'tomorrow' : `in ${r.daysUntil} days`;
@@ -118,7 +118,7 @@ export function buildReminderEmail(
     '',
     ...lines,
     '',
-    `A heads-up so nothing catches you by surprise. Pulse never moves money for you — this is just a reminder.`,
+    `A heads-up so nothing catches you by surprise. Aimplifi never moves money for you — this is just a reminder.`,
   ].join('\n');
 
   return { subject, text };

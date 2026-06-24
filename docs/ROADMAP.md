@@ -181,3 +181,32 @@ the engine + ownership-scoped `addHolding`/`removeHolding`), all integration-tes
 and hostile-critic clean (1 P0 + 3 P1 fixed). REMAINING (owner's UI): an `/investments`
 view consuming `getInvestments()` and an optional manual-entry form calling `addHolding`,
 plus an e2e. Later: a retirement planner and live brokerage-holdings ingest.
+
+## Production-readiness roadmap (UX/prod audit, 2026-06-24)
+
+An 11-agent UX + production-readiness audit (DECISIONS #80). Blockers and the
+investments UI are DONE; the rest is a prioritized backlog for the owner to approve
+(each "only change if markedly better").
+
+DONE this pass: /investments view; removed the dev command from the production error
+screen; fixed "Pulse"→"Aimplifi" brand leaks on bank-connect + reminder copy;
+corrected the Settings card that told real users they were in "demo mode".
+
+DO NEXT (high-value, mostly additive):
+- Add `src/app/(app)/loading.tsx` skeleton(s) so routes stream instead of blocking on
+  server queries (protects the <10s "how much do I need?" goal).
+- Empty states for charts/cards with no data (reports, coach, life-energy, forecast, cards).
+- Heading structure for screen readers: a single <h1> per page + make CardTitle render a
+  real heading (shared primitive — verify visually).
+- Per-page <title> via a root template ('%s · Aimplifi'); add a branded global-error.tsx.
+- Confirmation step before destructive deletes (manual accounts, goals).
+- Escape/outside-click dismissal for the inline recategorize popover.
+- An "Investments" nav entry (page already exists; or link INVESTMENT rows to /investments).
+
+ALSO CONSIDER: distinguish empty-register states (no data vs no match); make the triage
+split flow usable (2nd category hardcoded to "Shopping", no preview); budgets first-run
+empty state; inline goal/budget amount validation (currently throws to the masked error
+boundary); calendar shortfall warning shown unconditionally; aria-labels on calendar
+arrows; skip-to-content link; iOS PWA safe-area; reframe overspent "Safe to spend" as
+"Over plan by $X"; spending-plan allocation legend. (Mobile nav redesign — 7 unlabeled
+icons, sub-44px targets — is a real issue but a rework of existing UI: scope with owner.)
