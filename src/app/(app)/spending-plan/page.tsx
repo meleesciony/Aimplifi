@@ -32,6 +32,7 @@ export default async function SpendingPlanPage() {
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
+      <h1 className="sr-only">Spending plan</h1>
       {/* Hero: the answer */}
       <section
         data-testid="spending-plan-hero"

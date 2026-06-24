@@ -33,9 +33,16 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+function CardTitle({
+  className,
+  as: Comp = "h2",
+  ...props
+}: React.ComponentProps<"div"> & { as?: React.ElementType }) {
+  // Renders a real heading by default (document outline for screen readers); Tailwind
+  // preflight neutralizes the element's default size/margin so the look is unchanged.
+  // Pass `as` to override (e.g. as="div" for a value, as="h3" to fit a deeper outline).
   return (
-    <div
+    <Comp
       data-slot="card-title"
       className={cn(
         "font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm",

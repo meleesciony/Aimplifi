@@ -24,6 +24,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      <h1 className="sr-only">Cash-flow forecast</h1>
       {/* Hero */}
       <section
         data-testid="forecast-hero"

@@ -110,6 +110,7 @@ export function RecurringView({ data }: { data: RecurringData }) {
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
+      <h1 className="sr-only">Recurring &amp; subscriptions</h1>
       {/* Hero: total monthly recurring */}
       <section
         data-testid="recurring-hero"

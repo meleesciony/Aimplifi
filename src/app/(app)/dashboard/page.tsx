@@ -61,6 +61,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-4">
+      <h1 className="sr-only">Dashboard</h1>
       {/* THE answer — first thing on screen, zero navigation required */}
       <CashNeededCard
         result={data.payInFull}
