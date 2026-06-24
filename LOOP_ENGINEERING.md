@@ -75,3 +75,33 @@ The project's `CLAUDE.md` / `SYSTEM_PROMPT.md` defines the per-phase build loop 
 verify → simulate → hostile critic → fix; **4-cycle cap, then an honest stop**). Its "verify" step is
 loop closure (run the project's verify gate, paste output); its "fix" step is the self-healing loop
 above; its "critic" step is the Checker at phase scope. The four craft rules apply inside every step.
+
+## Token discipline (app-agnostic)
+1. **Explore in a subagent, not the main thread.** For any structural / "how does this work" / "where is
+   X used" / dependency / impact question — or any task that needs more than ~2 files read to answer it —
+   delegate to the `explorer` subagent (read-only, Haiku) and work from its summary. Read / grep / glob
+   directly in the main thread only for the specific files you are about to edit, or after the explorer
+   has narrowed it. The point is to keep large file reads out of the main (Opus/Fable) context, where they
+   cost the most and degrade attention.
+2. **Consult the map before the files.** If this repo has a generated import graph (e.g. `CODEGRAPH.md`)
+   or a code-graph MCP, query it before opening files. If it has neither, do NOT block on one or "confirm
+   it's available" — just explore via the subagent. (Code-graph tooling is per-repo and optional, not a
+   precondition.)
+3. **Compress diagnostics — never the gate proof.** Long logs, stack traces, and command spew → reduce to
+   the decision-critical lines plus a pointer to where the full output lives. **Hard exception:** output
+   the no-fabrication rule requires verbatim — `scripts/verify.sh` / `npm run verify` / the unittest
+   summary, and any proof-of-work a Definition-of-Done gate depends on — is pasted **real and unedited**.
+   Never paraphrase, trim, or "summarize" proof-of-work. Compression applies to exploratory noise, not to
+   evidence.
+4. **State lives in the ledger, not the scrollback.** Decisions → `DECISIONS.md`; status + verification
+   evidence → `PROGRESS.md`; fixes → the regression ledger. Once it is written there, it is safe to drop
+   from working context. Resume from the checkpoint; do not re-explore what `PROGRESS.md` already records.
+   Use `/compact` before auto-compact fires (auto-compact runs at the worst moment in a long session); use
+   `/clear` when starting genuinely new work.
+5. **Routing is config, not vibes.** Heavy reads, search, and summarization run on Haiku (the `explorer`
+   subagent, or the built-in Explore agent). Reserve the main Opus/Fable thread for architecture, §4
+   belief-math, and final high-stakes edits. A line in a markdown file cannot switch the running model —
+   only the subagent `model:` field (or `CLAUDE_CODE_SUBAGENT_MODEL` / `--model`) does.
+6. **Don't re-read what's already loaded.** Before opening a file, check whether its content — or a
+   sufficient summary — is already in this session or already captured in `PROGRESS.md`. The cheapest
+   token is the one you don't spend twice.
