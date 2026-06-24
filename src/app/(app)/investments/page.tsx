@@ -5,6 +5,8 @@ import { InvestmentsView } from '@/components/finance/investments-view';
 import { getInvestments } from '@/server/investments';
 import { prisma } from '@/lib/db';
 
+export const metadata = { title: 'Investments' };
+
 export default async function InvestmentsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

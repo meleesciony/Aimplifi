@@ -202,3 +202,10 @@ the prod error screen removed; "Pulse"→"Aimplifi" brand leaks on bank-connect/
 correct for all users. Audit's remaining items recorded as a prioritized roadmap (docs/ROADMAP.md)
 for owner approval — proposed, not unilaterally changed. Gate (real 2026-06-24): VERIFY_E2E=1
 bash scripts/verify.sh → GREEN, 931 unit/73 files, 53 e2e, typecheck/lint/build clean.
+
+## 2026-06-24 (session: "aimplifi") — production-readiness a11y/resilience batch (#81) — DONE ✅
+First half of the approved audit batch (additive, no screen rewrites): route-group loading.tsx
+skeleton; global-error.tsx branded recovery; skip-to-content link + focusable <main> landmark;
+calendar prev/next aria-labels; per-page <title> template (+ /investments override). Gate (real
+2026-06-24): VERIFY_E2E=1 verify → GREEN, 931 unit/73 files, 53 e2e, build clean. NEXT (same approved
+batch): delete confirmations (goals + manual accounts) and empty states (reports/coach/forecast/cards).

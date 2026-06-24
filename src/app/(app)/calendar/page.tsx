@@ -43,13 +43,13 @@ export default async function CalendarPage({
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Cash-flow calendar</h1>
         <div className="flex items-center gap-2 text-sm">
-          <Link href={`/calendar?month=${prev}`} className="rounded-md border px-2 py-1 hover:bg-accent" data-testid="cal-prev">
+          <Link href={`/calendar?month=${prev}`} aria-label="Previous month" className="rounded-md border px-2 py-1 hover:bg-accent" data-testid="cal-prev">
             ←
           </Link>
           <span className="font-medium" data-testid="cal-month" data-month={month}>
             {formatMonth(month)}
           </span>
-          <Link href={`/calendar?month=${next}`} className="rounded-md border px-2 py-1 hover:bg-accent" data-testid="cal-next">
+          <Link href={`/calendar?month=${next}`} aria-label="Next month" className="rounded-md border px-2 py-1 hover:bg-accent" data-testid="cal-next">
             →
           </Link>
         </div>

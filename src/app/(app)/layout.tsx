@@ -34,6 +34,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="mx-auto max-w-5xl px-3 pb-20 sm:px-6 sm:pb-12">
+      <a
+        href="#content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        Skip to content
+      </a>
       {/* sticky glass header on desktop; on phones it stays static (the fixed
           bottom tab bar is the primary nav there, and a sticky top bar trips a
           mobile scroll-into-view quirk) */}
@@ -51,7 +57,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           Demo dataset · fictional accounts · as of {formatISODate(isoDate(today), 'long')}
         </p>
       )}
-      <main>{children}</main>
+      <main id="content" tabIndex={-1} className="outline-none">
+        {children}
+      </main>
       <footer className="mt-10 border-t pt-4 text-xs text-muted-foreground">
         Aimplifi is an educational tool, not financial advice. Projections
         state their assumptions; verify amounts with your card issuer before

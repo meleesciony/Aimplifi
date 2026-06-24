@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aimplifi",
+  title: { default: "Aimplifi", template: "%s · Aimplifi" },
   description:
     "Know exactly how much money you need, and by when, to pay every card in full.",
   manifest: "/manifest.webmanifest",
