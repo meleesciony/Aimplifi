@@ -180,3 +180,14 @@ the full threat model. Independent hostile critic: authz / net-worth / determini
 length/charset, threat tests); P2s done. Touched NO existing UI. Gate (real 2026-06-24):
 verify GREEN, 931 unit/73 files, build clean; seed holdings:5. NEXT (owner): an /investments
 view consuming getInvestments() (+ optional manual-entry form using addHolding).
+
+## 2026-06-24 (session: "aimplifi") — prod-seed safety guard + additive holdings script (#79) — DONE ✅
+Caught a footgun before it fired: `prisma db seed` deleteMany-wipes every table, and the live Neon DB
+holds the owner's REAL SimpleFIN data — a "re-seed to add demo holdings" would have destroyed it (and the
+sandbox can't reach Neon anyway). Added: (1) a guard in prisma/seed.ts refusing a Postgres seed without
+`-- --force-prod` / SEED_ALLOW_PROD=1 (sqlite unaffected); (2) an additive-only scripts/seed-demo-holdings.ts
+(+ npm seed:demo-holdings) that upserts the 5 demo holdings onto one INVESTMENT account and deletes nothing;
+(3) DEPLOY.md §6 rewritten with the wipe warning + the safe paths. Verified: postgres seed → exit 1 (blocked,
+no wipe); sqlite seed → normal; additive script → "Upserted 5 … Nothing else was touched". Also confirmed
+the #78 prod deploy 516b3d6 reached READY (Holding table live in Neon via the build's db push). Gate (real
+2026-06-24): verify GREEN, 931 unit/73 files, build clean.

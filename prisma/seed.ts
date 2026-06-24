@@ -7,7 +7,7 @@
  * Same --asOf ⇒ identical dataset (asserted by tests/unit/seed.test.ts).
  */
 import { PrismaClient } from '../src/generated/prisma/client';
-import { makeAdapter } from '../src/lib/db-adapter';
+import { isPostgresUrl, makeAdapter } from '../src/lib/db-adapter';
 import { DEFAULT_AS_OF, buildSeedData } from '../src/lib/seed/build';
 import { CATEGORIES } from '../src/lib/engine/categorize/categories';
 import { KNOWN_MERCHANTS } from '../src/lib/engine/categorize/normalize';
@@ -21,6 +21,24 @@ const slug = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
 async function main() {
+  // GUARD: this seed DELETES EVERY ROW (the deleteMany calls below) and re-inserts the
+  // demo dataset — catastrophic against a production DB that holds real data. Refuse to
+  // run on a Postgres URL unless explicitly forced (a fresh, empty prod before any real
+  // signups). Local dev + tests use SQLite, so they are unaffected. To add ONLY demo
+  // holdings without wiping, use scripts/seed-demo-holdings.ts instead (DECISIONS #79).
+  if (
+    isPostgresUrl(process.env.DATABASE_URL) &&
+    !process.argv.includes('--force-prod') &&
+    process.env.SEED_ALLOW_PROD !== '1'
+  ) {
+    console.error(
+      'Refusing to seed a Postgres (production) database: `prisma db seed` DELETES ALL DATA\n' +
+        'and replaces it with the demo dataset. If this DB has real users/accounts, DO NOT seed it.\n' +
+        '  • To add ONLY demo holdings without wiping: npx tsx scripts/seed-demo-holdings.ts\n' +
+        '  • To force a full seed of a genuinely EMPTY prod DB: re-run with -- --force-prod (or SEED_ALLOW_PROD=1)',
+    );
+    process.exit(1);
+  }
   const asOfFlag = process.argv.indexOf('--asOf');
   const asOf = asOfFlag !== -1 ? process.argv[asOfFlag + 1] : DEFAULT_AS_OF;
   const data = buildSeedData(asOf);

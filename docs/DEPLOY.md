@@ -82,18 +82,27 @@ Click **Deploy**. The build runs `node scripts/gen-pg-schema.mjs` → `prisma
 generate` → `prisma db push` (creates the tables in Neon) → `next build`. When it
 finishes you get a URL like `https://your-app.vercel.app`.
 
-## 6. (Optional) seed the demo account
+## 6. (Optional) seed the demo account — ⚠️ EMPTY databases only
 
-The "Explore the demo" button needs the seeded dataset to exist in the Neon DB. If
-you want it populated (purely fictional data), run once from your laptop against
-the **same** Neon URL:
+`prisma db seed` **DELETES EVERY ROW** (all users, accounts, transactions) and replaces
+them with the fictional demo dataset. It is safe ONLY on a brand-new, empty Neon DB —
+**never** once real users have signed up or you've connected real accounts, or it will
+wipe that real data. As a safeguard the seed now **refuses to run against a Postgres URL**
+unless you pass `--force-prod`:
 
 ```bash
-DATABASE_URL="postgresql://…/pulse?sslmode=require" npx prisma db seed
+# ONLY on a fresh, empty prod DB:
+DATABASE_URL="postgresql://…/pulse?sslmode=require" npx prisma db seed -- --force-prod
 ```
 
-If you'd rather not offer a demo at all, you can skip this — real signups don't
-need it.
+To add (or refresh) just the **demo investment holdings** without wiping anything — safe
+even on a DB that already has real data — use the additive-only script instead:
+
+```bash
+DATABASE_URL="postgresql://…/pulse?sslmode=require" npx tsx scripts/seed-demo-holdings.ts
+```
+
+If you'd rather not offer a demo at all, skip this — real signups don't need it.
 
 ## 7. First logins + the privacy check
 
