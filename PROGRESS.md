@@ -238,3 +238,12 @@ Added title metadata to all 18 (app) pages (→ "<Page> · Aimplifi" via the #81
 idempotent bulk script. Gate (real 2026-06-24): bash scripts/verify.sh → GREEN, 931 unit/73 files,
 build clean. Approved audit batch (1–5) now complete bar deferred items (CardTitle-as-heading,
 triage split flow, mobile nav — all need owner nod), captured in docs/ROADMAP.md.
+
+## 2026-06-24 (session: "aimplifi") — mobile nav tap targets (#86) — DONE ✅
+Phone top-bar secondary nav: sub-44px cramped icons → 44px-tall targets (min-h-11; sm+ text link
+unchanged), fits 380px, no overflow. iOS safe-area inset attempted but reverted (viewport-fit=cover
+grew the fixed bar past content clearance → e2e caught bottom-nav interception); deferred — needs the
+content pb to track env(safe-area-inset-bottom) too. A scrollable-strip attempt caused page-wide
+overflow and was dropped. Gate (real 2026-06-24): verify.sh → GREEN, 931 unit/73 files; e2e 53 passed.
+Remaining roadmap tail: safe-area inset (careful follow-up), CardTitle-as-heading (shared primitive),
+triage split flow.

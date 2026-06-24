@@ -72,19 +72,25 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
           </Link>
         ))}
         {SECONDARY.map((item) => {
+          const active = isActive(item.href);
           const Icon = item.icon;
           return (
             <Link
               key={item.href}
               href={item.href}
               data-testid={item.testid}
-              aria-current={isActive(item.href) ? 'page' : undefined}
+              aria-current={active ? 'page' : undefined}
               aria-label={item.label}
               title={item.label}
-              className={topLinkClass(isActive(item.href))}
+              // phones: a 44px-tall icon target (was a sub-44px cramped icon); sm+: the
+              // labelled text link, unchanged. px swaps so the two never both apply.
+              className={`flex min-h-11 items-center justify-center rounded-md px-1.5 text-sm sm:block sm:min-h-0 sm:px-2 sm:py-1 ${
+                active
+                  ? 'bg-accent font-medium text-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              }`}
             >
-              {/* icon-only on phones — labels would overflow 380px (cycle-2 regression) */}
-              <Icon className="size-4 sm:hidden" aria-hidden />
+              <Icon className="size-5 sm:hidden" aria-hidden />
               <span className="hidden sm:inline">{item.label}</span>
             </Link>
           );
