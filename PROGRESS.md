@@ -158,3 +158,14 @@ DECISIONS #76). Also cleanly reconstructed the corrupted LOOP_ENGINEERING.md (ke
 new Token-discipline section). Gate (real 2026-06-24): bash scripts/verify.sh → GREEN,
 901 unit/71 files, typecheck/lint/build clean; e2e 51 passed; 10/10 consecutive
 full-suite runs. NEXT: deploy/go-live prep handoff (Vercel + Neon, env vars) — DEPLOY.md.
+
+## 2026-06-24 (session: "aimplifi") — Investments engine (#77) — engine increment DONE ✅
+An honest Aimplifi-vs-Simplifi scorecard (skeptical adjudicator: Simplifi 6 / Aimplifi 5 / 2 ties)
+identified investments as the clearest Simplifi win + the app's own declared gap. Started closing it
+ENGINE-FIRST (§5): pure src/lib/engine/investments/portfolio.ts — valuation (market value, cost basis,
+unrealized gain, allocation), TWR, and XIRR (Newton + full-domain bracketing bisection). 20 known-answer
+tests. Independent hostile critic found 2 P0 + 4 P1 (XIRR null on deep losses + missed roots; Newton
+accepted on step not residual; missing safe-int guard; flow ordering) — ALL fixed + regression-locked;
+docstrings narrowed to honest conventional-flow scope. Gate (real 2026-06-24): bash scripts/verify.sh →
+GREEN, 921 unit/72 files, typecheck/lint/build clean. NEXT increment: Holding schema (additive, pg-safe)
++ manual holdings entry + /investments view (from /accounts, no 8th nav icon) + demo seed + e2e.

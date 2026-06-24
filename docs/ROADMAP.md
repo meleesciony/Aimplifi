@@ -159,3 +159,16 @@
     release: multi-device session invalidation (JWT) and a non-cascading
     compliance deletion-record.
 
+
+## Investments / portfolio tracking (in progress, DECISIONS #77)
+
+The clearest gap from the honest Aimplifi-vs-Simplifi scorecard (Simplifi wins
+investments decisively: holdings, TWR/IRR, a retirement planner). Closing it
+engine-first: the pure performance/valuation engine
+(`src/lib/engine/investments/portfolio.ts`) is **landed + tested + hostile-critic
+clean** — market value, cost basis, unrealized gain, allocation, time-weighted
+return, and money-weighted XIRR (20 known-answer tests). REMAINING (next increment):
+a `Holding` data model (additive, Postgres-safe), manual holdings entry, an
+`/investments` view surfaced from `/accounts` (no 8th nav icon, #71), demo seed
+holdings, and an e2e. A retirement planner and live brokerage-holdings ingest are
+later increments.
