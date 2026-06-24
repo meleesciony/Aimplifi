@@ -24,6 +24,7 @@ export function ReportsView({ data }: { data: ReportsData }) {
   }));
   const top = data.breakdown.byCategory.slice(0, 12);
   const max = Math.max(1, ...top.map((c) => c.amountCents));
+  const hasFlows = data.months.some((m) => m.incomeCents !== 0 || m.expensesCents !== 0);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -47,21 +48,27 @@ export function ReportsView({ data }: { data: ReportsData }) {
             </span>
           </div>
         </div>
-        <div className="h-48" data-testid="income-expense-chart">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-              <CartesianGrid vertical={false} strokeOpacity={0.15} />
-              <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
-              <Tooltip
-                cursor={{ fillOpacity: 0.06 }}
-                formatter={(v) => formatCents(cents(Math.round(Number(v) * 100)))}
-                contentStyle={{ borderRadius: 8, fontSize: 12 }}
-              />
-              <Bar dataKey="income" fill="#34d399" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="expense" fill="#fb7185" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {hasFlows ? (
+          <div className="h-48" data-testid="income-expense-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                <CartesianGrid vertical={false} strokeOpacity={0.15} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
+                <Tooltip
+                  cursor={{ fillOpacity: 0.06 }}
+                  formatter={(v) => formatCents(cents(Math.round(Number(v) * 100)))}
+                  contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                />
+                <Bar dataKey="income" fill="#34d399" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="expense" fill="#fb7185" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p className="py-6 text-center text-sm text-muted-foreground" data-testid="income-expense-empty">
+            No income or spending recorded in the last 6 months.
+          </p>
+        )}
       </section>
 
       {/* Spending by category */}

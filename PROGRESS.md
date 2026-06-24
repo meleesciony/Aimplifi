@@ -223,3 +223,12 @@ pattern; no e2e drove goal-delete, but phase4-features' goal cleanup did — upd
 confirm) and added a "No credit cards yet" empty state on /cards. Gate (real 2026-06-24):
 VERIFY_E2E=1 verify → GREEN, 931 unit/73 files, 53 e2e. Remaining empty states: reports / forecast
 (blank charts) and coach / life-energy (nuanced) — investments + cards done.
+
+## 2026-06-24 (session: "aimplifi") — empty-state completion (#84) — DONE ✅
+Reports income/expense chart empty state ("No income or spending …") for the all-zero case; the
+category breakdown already had one. Assessed forecast + coach — neither goes blank (forecast = flat
+line + starting balance; coach = degenerate values), so no change. With investments + cards, the
+genuine blank cases are covered. Gate (real 2026-06-24): VERIFY_E2E=1 verify → GREEN, 931/73, 53 e2e.
+Approved audit batch substantially complete. Remaining tail (low priority / needs owner nod): per-page
+<title> overrides for the rest of the pages; CardTitle-as-heading (shared primitive — verify visually);
+triage split flow (2nd category hardcoded); mobile nav redesign. All in docs/ROADMAP.md.
