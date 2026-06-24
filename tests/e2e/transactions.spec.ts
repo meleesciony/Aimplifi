@@ -64,8 +64,9 @@ test('manual net-worth items: add a home asset (net worth updates), then delete 
   await expect(page.getByTestId('account-group-asset')).toContainText('E2E Test Home');
   await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$244,804.74');
 
-  // delete → reverts (so the golden value is restored for parallel specs)
+  // delete (two-step confirm) → reverts (so the golden value is restored for parallel specs)
   await row.getByTestId('manual-delete').click();
+  await row.getByTestId('manual-delete-confirm').click();
   await expect(page.getByTestId('manual-account-row').filter({ hasText: 'E2E Test Home' })).toHaveCount(0, {
     timeout: 20000,
   });

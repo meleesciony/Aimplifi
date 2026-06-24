@@ -71,8 +71,10 @@ test('attach a statement to a manual credit card, then clear + delete (extends #
     page.getByTestId('manual-account-row').filter({ hasText: 'E2E Stmt Card' }).getByTestId('card-statement-add'),
   ).toBeVisible({ timeout: 20000 });
 
-  // Delete the card → net worth reverts for the concurrent golden specs.
-  await page.getByTestId('manual-account-row').filter({ hasText: 'E2E Stmt Card' }).getByTestId('manual-delete').click();
+  // Delete the card (two-step confirm) → net worth reverts for the concurrent golden specs.
+  const stmtRow = page.getByTestId('manual-account-row').filter({ hasText: 'E2E Stmt Card' });
+  await stmtRow.getByTestId('manual-delete').click();
+  await stmtRow.getByTestId('manual-delete-confirm').click();
   await expect(page.getByTestId('manual-account-row').filter({ hasText: 'E2E Stmt Card' })).toHaveCount(0, {
     timeout: 20000,
   });

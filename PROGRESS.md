@@ -209,3 +209,10 @@ skeleton; global-error.tsx branded recovery; skip-to-content link + focusable <m
 calendar prev/next aria-labels; per-page <title> template (+ /investments override). Gate (real
 2026-06-24): VERIFY_E2E=1 verify → GREEN, 931 unit/73 files, 53 e2e, build clean. NEXT (same approved
 batch): delete confirmations (goals + manual accounts) and empty states (reports/coach/forecast/cards).
+
+## 2026-06-24 (session: "aimplifi") — manual-account delete confirmation (#82) — DONE ✅
+Two-step inline confirm on the manual-account Delete (accounts-list ManualRow); two e2e specs
+updated to click through it. Gate (real 2026-06-24): VERIFY_E2E=1 verify → GREEN, 931 unit/73
+files, 53 e2e. REMAINING from the approved audit batch: empty states (reports/coach/forecast/cards)
+and the goals delete confirm (needs a small client component); plus per-page title overrides and
+the CardTitle-as-heading change (deferred — shared primitive).

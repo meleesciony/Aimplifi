@@ -395,6 +395,7 @@ function ManualRow({
   onCancelStatement: () => void;
 }) {
   const [value, setValue] = useState((account.currentBalanceCents / 100).toFixed(2));
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const isCard = account.type === 'CREDIT' && billing !== undefined;
   return (
     <li className="px-3 py-2" data-testid="manual-account-row">
@@ -410,7 +411,15 @@ function ManualRow({
               {formatCents(cents(account.currentBalanceCents))}
             </span>
             <button type="button" data-testid="manual-edit" disabled={pending} onClick={onEdit} className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50">Edit</button>
-            <button type="button" data-testid="manual-delete" disabled={pending} onClick={onDelete} className="rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50">Delete</button>
+            {!confirmDelete ? (
+              <button type="button" data-testid="manual-delete" disabled={pending} onClick={() => setConfirmDelete(true)} className="rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50">Delete</button>
+            ) : (
+              <span className="flex items-center gap-1 text-xs" data-testid="manual-delete-confirm-row">
+                <span className="text-muted-foreground">Delete?</span>
+                <button type="button" data-testid="manual-delete-confirm" disabled={pending} onClick={onDelete} className="rounded px-1.5 py-0.5 text-red-400 hover:bg-accent disabled:opacity-50">Yes</button>
+                <button type="button" disabled={pending} onClick={() => setConfirmDelete(false)} className="rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent disabled:opacity-50">Cancel</button>
+              </span>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-1">
