@@ -61,6 +61,17 @@
   spend definition, no model calls). A dashboard `SpendingInsightsCard` +
   reciprocal /reports link (no 8th nav icon, #71). Pure engine + 16 known-answer
   unit tests + 3 e2e (incl. axe AA); hostile-critic reviewed (1 P1 resolved).
+- Ask Aimplifi (`/ask`, DECISIONS #75): a grounded natural-language assistant —
+  ask about your money in plain English and get answers computed from your own
+  data. The LLM never originates a fact: a pure rule-based parser routes the
+  question to a typed intent (no model call) and the server answers from the SAME
+  tested engines the dedicated views use (reports/spending-plan/cash-needed/
+  recurring/forecast/coach/net-worth), so /ask can't drift from /reports, /coach,
+  or /trends. An optional, key-gated, rate-limited, 7s-timeout LLM only classifies
+  an unrecognized question (and can abstain); the demo works with zero keys.
+  Dashboard card + page, no 8th nav icon (#71/#74). Pure engine + 93 unit tests
+  (parser, formatters, seed grounding, no-key no-network) + 5 e2e; two hostile-
+  critic cycles, all P0/P1 fixed and regression-locked.
 - Postgres deploy path (DECISIONS #35): the app runs on SQLite locally + in all
   tests (zero credentials) and on Postgres in production, chosen by DATABASE_URL
   scheme (`src/lib/db-adapter.ts`). One canonical schema; `scripts/gen-pg-schema.mjs`

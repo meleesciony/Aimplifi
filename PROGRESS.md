@@ -104,3 +104,42 @@ true unconditionally → concurrent burst bypassed → decide from an atomic inc
 self-pruning. P2s fixed: export 401/429 test, undo→resplit test, fail-closed comments,
 lockout doc. Deferred: Always/Undo orphan-rule race (STATUS #10). `VERIFY_E2E=1 verify.sh`
 → GREEN (698 unit/51 files, 35 e2e). DECISIONS #48 + ROADMAP + STATUS + REGRESSION_LEDGER done.
+
+## 2026-06-23 (session: "aimplifi") — Ask Aimplifi: grounded NL assistant (#75, surpass #8) — IN PROGRESS
+User "cont" after renaming the session "aimplifi". Baseline `bash scripts/verify.sh` →
+**GREEN** (807 unit/65 files, typecheck+lint+build clean). Next surpass feature = the
+AI-native conversational surface the app is literally named for (nav brand "Aim·plifi"),
+which none of the match-and-surpass features (#1–#7) provided.
+
+DESIGN (engine-first, no-fabrication soul): a grounded financial Q&A where **the LLM
+never originates a fact**. Deterministic NL→typed-intent parser (no model calls — rule #5)
+→ routes to the EXISTING tested engines (spendingByCategory/spending-plan/cash-needed/
+recurring/forecast/monthlyFlows/netWorthCents) → pure answer formatters. The LLM is an
+OPTIONAL routing fallback for genuinely-unknown questions only, gated on a key, and its
+proposed routing is re-resolved + validated deterministically before any data is touched
+(mirrors the categorize/llm.ts pattern: provider-agnostic xAI→Anthropic→null, never throws).
+Zero-key demo is fully functional (deterministic parse + answers). No new dep (hand-written
+validator like parseLlmCategory, not zod). No 8th nav icon (#71/#74) — dashboard card + /ask.
+
+Files: engine/assistant/{intent,answer,llm}.ts (pure) + server/{assistant,assistant-llm}.ts
++ components/finance/{ask-view,ask-aimplifi-card}.tsx + app/(app)/ask/page.tsx + dashboard wiring.
+Tests: assistant-intent (hand-derived intents), assistant-answer (hand-computed $),
+assistant-grounding (buildSeedData: answers == dedicated engine outputs, no drift),
+assistant-llm (parse + no-key no-network), e2e ask.spec.
+
+### Update — verify GREEN + hostile critic cycle 1 (6 P1s fixed)
+Gate (real, 2026-06-24): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ GREEN** —
+typecheck/lint/build clean, **899 unit / 70 files** (+92), **51 e2e** (+5; off-topic
+case 7.0s confirms the LLM 7s-timeout→deterministic fallback), axe AA.
+Hostile critic (wf_0df635e6, 12 agents): fin 7 / sec 8 / code 6 / UX 8 — **6 P1s
+confirmed + FIXED**, each with a locking regression test:
+- P1 net-worth used a truncated liability set → now canonical `isLiabilityType`
+  (CREDIT/LOAN/MORTGAGE/OTHER_LIABILITY); facts reconcile to headline (test: MORTGAGE/OTHER_LIABILITY).
+- P1 income/savings dropped categoryId+isSplitParent → income now `monthlyFlows(snap.transactions)`
+  (full rows; refunds net, splits excluded — F3 synthetic regression); savings_rate delegates to
+  `getCoachData` → byte-identical to /coach.
+- P1 largest omitted POSTED filter → now POSTED-only; grounding test pins top-5 == /trends `computeLargest`.
+- P1 off-topic misroute (key set) → LLM prompt offers `none` abstention → answerUnknown; LLM gated by
+  per-user `rateLimitDurable`; question clamped 500 chars; `interpreted` flag surfaced in UI.
+P2s fixed: dead answerUnknown source line, 3rd-party disclosure footnote (assistEnabled), no-flicker
+re-ask, dashboard card non-interactive example text. Confirmation critic (wf_83f7b0a3) running.

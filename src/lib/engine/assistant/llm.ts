@@ -1,0 +1,92 @@
+/**
+ * Ask Aimplifi — pure LLM routing helpers (DECISIONS #75).
+ *
+ * The deterministic parser (intent.ts) handles the overwhelming majority of
+ * questions. For a genuinely-unrecognized phrasing, an optional LLM may CLASSIFY
+ * the question into one of our known intent kinds — and nothing more. Every
+ * parameter (timeframe, category) is then re-derived DETERMINISTICALLY from the
+ * user's own words via the same parser, so the model can never inject an unknown
+ * category id, a bad date window, or a fabricated number. The model picks a route;
+ * the engines produce the facts.
+ *
+ * Pure + testable; the network call lives in server/assistant-llm.ts (returns
+ * null with no key, exactly like categorize/llm.ts → the demo needs no key).
+ */
+import type { ISODate } from '@/lib/dates';
+import {
+  type AssistantIntent,
+  ASSISTANT_INTENT_KINDS,
+  parseTimeframe,
+  resolveSpendTarget,
+} from './intent';
+
+/** The kinds the model is allowed to choose (everything except the fallback). */
+export const LLM_ROUTABLE_KINDS = ASSISTANT_INTENT_KINDS.filter((k) => k !== 'unknown');
+
+/** Build the (deterministic) classification prompt for one question. */
+export function buildIntentPrompt(question: string): string {
+  return [
+    'You route a personal-finance question to exactly one intent. Do NOT answer it.',
+    'Allowed intents:',
+    '- net_worth: total assets minus liabilities',
+    '- account_balance: the balance of a specific account (checking, savings, brokerage)',
+    '- spend_total: total spending over a period',
+    '- spend_by_category: spending in one category/group over a period',
+    '- top_categories: the biggest spending categories',
+    '- largest_purchases: the single biggest individual purchases',
+    '- income: money earned over a period',
+    '- safe_to_spend: how much is safe to spend this month',
+    '- cash_needed: how much is owed on credit cards and by when',
+    '- subscriptions: recurring subscriptions and their cost',
+    '- forecast: projected cash balance / running out of money',
+    '- savings_rate: percent of income saved',
+    '- none: the question is NOT about the user\'s own personal finances (off-topic, chit-chat, advice, or unanswerable from their accounts) — use this rather than forcing a fit',
+    `Question: ${question}`,
+    'Respond with ONLY a JSON object, no prose: {"intent":"<one allowed intent, or none>"}.',
+  ].join('\n');
+}
+
+/** Extract `intent` from a parsed model object (→ null if missing/unknown). */
+export function parseIntentKind(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const v = (raw as Record<string, unknown>).intent;
+  if (typeof v !== 'string') return null;
+  return (LLM_ROUTABLE_KINDS as readonly string[]).includes(v) ? v : null;
+}
+
+/**
+ * Turn a model-chosen kind into a fully-typed intent, with EVERY parameter
+ * resolved deterministically from the original question. Returns null when the
+ * kind is invalid or a category-scoped route has no resolvable target (the caller
+ * then keeps the honest `unknown` answer rather than guessing).
+ */
+export function intentFromKind(kindRaw: string | null, question: string, today: ISODate): AssistantIntent | null {
+  if (!kindRaw || !(LLM_ROUTABLE_KINDS as readonly string[]).includes(kindRaw)) return null;
+  const kind = kindRaw as (typeof LLM_ROUTABLE_KINDS)[number];
+  const timeframe = parseTimeframe(question, today);
+  switch (kind) {
+    case 'net_worth':
+    case 'safe_to_spend':
+    case 'cash_needed':
+    case 'subscriptions':
+    case 'forecast':
+    case 'savings_rate':
+      return { kind };
+    case 'account_balance':
+      return { kind, query: question.toLowerCase() };
+    case 'spend_total':
+      return { kind, timeframe };
+    case 'income':
+      return { kind, timeframe };
+    case 'top_categories':
+      return { kind, timeframe, limit: 5 };
+    case 'largest_purchases':
+      return { kind, timeframe, limit: 5 };
+    case 'spend_by_category': {
+      const target = resolveSpendTarget(question.toLowerCase());
+      return target ? { kind, timeframe, target } : { kind: 'spend_total', timeframe };
+    }
+    default:
+      return null;
+  }
+}

@@ -539,3 +539,37 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
 13. **Coast-FI with a 0-month target** and `detectLifestyleCreep(windowMonths=1)`
     are degenerate for out-of-range inputs — unreachable from the app
     (constants fixed), noted for API consumers.
+
+## Post-Phase-5 refinement: Ask Aimplifi — grounded NL assistant (DECISIONS #75, surpass feature #8)
+
+The conversational surface the app is named for, built on the no-fabrication soul:
+the LLM never originates a fact. A pure rule-based parser (`engine/assistant/intent.ts`,
+no model call — LOOP #5) maps a question to a typed intent; the server answers it from
+the SAME tested engines/read-paths the dedicated views use (`spendingByCategory` == /reports,
+spending-plan, cash-needed, recurring, forecast, `monthlyFlows`, `netWorthCents`, coach),
+rendered by pure formatters via `formatCents`. The LLM is an optional, key-gated,
+7s-timeout-bounded, per-user-rate-limited fallback that ONLY classifies an unknown question
+into a kind (can abstain via "none"); params are re-derived deterministically + re-validated
+before any data is touched, and answers flag `interpreted` so a guess is never silent.
+Zero-key demo fully functional. Dashboard `AskAimplifiCard` + `/ask` (no 8th nav icon, #71/#74).
+
+Gate (real output 2026-06-24): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+typecheck/lint clean, **900 unit / 70 files** (+93), build clean, **51 e2e** (+5; the off-topic
+case at 7.0s confirms the LLM-timeout → deterministic-fallback path), axe WCAG-AA green.
+
+Hostile Critic (2 cycles, 16 agents, adversarial verification): cycle 1 financial 7 / security 8 /
+code 6 / UX 8 — **6 P1s confirmed + FIXED**, each regression-locked: (1) net-worth used a truncated
+liability set → canonical `isLiabilityType` (incl. MORTGAGE/OTHER_LIABILITY), facts reconcile to the
+headline; (2) income/savings dropped `categoryId`+`isSplitParent` → income now `monthlyFlows(snap.transactions)`
+(full rows; refunds net, splits excluded — F3 synthetic regression) and savings_rate delegates to
+`getCoachData` (byte-identical to /coach); (3) largest omitted the POSTED filter → POSTED-only, grounding
+test pins top-5 == /trends `computeLargest`; (4) off-topic could be silently misrouted when a key is set →
+LLM `none` abstention + per-user `rateLimitDurable` + visible `interpreted` note. Confirmation cycle
+(financial 93 / security 95 / code 88 / UX 88) confirmed all six and surfaced **1 further P1** — largest
+diverged from /trends on the `<= today` guard + locale-vs-code-point tie-break — now FIXED to mirror
+`computeLargest` exactly, with a non-tautological test (future-dated exclusion + code-point tie).
+P2s FIXED: dead `answerUnknown` source line, third-party disclosure footnote (gated on `assistEnabled`),
+no-flicker re-ask (prior answer dimmed while pending), dashboard card examples no longer fake-interactive,
+500-char question clamp. Accepted/deferred P2s (documented): a shared `toFlowTxns`/`isPurchaseRow`/month-name
+extraction across coach/trends/assistant (future DRY refactor); the pre-existing `monthlyFlows` income rule
+(positive = income only for category null/'income', else nets) is unchanged.

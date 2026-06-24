@@ -1,0 +1,184 @@
+'use client';
+
+/**
+ * Ask Aimplifi view (DECISIONS #75). A grounded Q&A box over the user's own
+ * data: type a question → the server parses it to a typed intent and answers it
+ * from the tested engines (never the LLM). This is a thin client shell; all the
+ * math + phrasing happen server-side in pure, tested code. Copy follows the
+ * coaching guardrails (educational, assumptions stated, no shame).
+ */
+import { useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
+import { ArrowRight, CornerDownLeft, Sparkles } from 'lucide-react';
+import { askAssistant } from '@/server/assistant';
+import { ASSISTANT_SUGGESTIONS, type AssistantAnswer } from '@/lib/engine/assistant/answer';
+
+export function AskView({
+  suggestions = ASSISTANT_SUGGESTIONS,
+  assistEnabled = false,
+}: {
+  suggestions?: readonly string[];
+  /** True when an LLM provider key is configured (unknown questions may be routed
+   *  by the model) — drives the third-party disclosure footnote. */
+  assistEnabled?: boolean;
+}) {
+  const [question, setQuestion] = useState('');
+  const [asked, setAsked] = useState<string | null>(null);
+  const [answer, setAnswer] = useState<AssistantAnswer | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function run(q: string) {
+    const trimmed = q.trim();
+    if (!trimmed || pending) return;
+    setAsked(trimmed);
+    setError(null);
+    startTransition(async () => {
+      try {
+        setAnswer(await askAssistant(trimmed));
+      } catch {
+        setError('Something went wrong answering that. Please try again.');
+        setAnswer(null);
+      }
+    });
+  }
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    run(question);
+  }
+
+  function pick(s: string) {
+    setQuestion(s);
+    inputRef.current?.focus();
+    run(s);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <Sparkles className="size-5 text-emerald-500" aria-hidden /> Ask Aimplifi
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ask about your money in plain language. Every answer is computed from your own accounts and
+          transactions — nothing is made up.
+        </p>
+      </div>
+
+      <form onSubmit={onSubmit} className="flex gap-2">
+        <input
+          ref={inputRef}
+          type="text"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="e.g. How much did I spend on groceries last month?"
+          aria-label="Ask a question about your finances"
+          data-testid="ask-input"
+          autoComplete="off"
+          className="flex-1 rounded-xl border bg-background px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        />
+        <button
+          type="submit"
+          disabled={pending || !question.trim()}
+          data-testid="ask-submit"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80 disabled:opacity-50"
+        >
+          <CornerDownLeft className="size-4" aria-hidden /> Ask
+        </button>
+      </form>
+
+      <div aria-live="polite" role="status" className="min-h-[1px] space-y-2">
+        {pending && <p className="text-sm text-muted-foreground">Thinking…</p>}
+
+        {error && !pending && (
+          <p data-testid="ask-error" className="text-sm text-rose-600 dark:text-rose-400">
+            {error}
+          </p>
+        )}
+
+        {/* keep the prior answer visible (dimmed) while a follow-up is pending,
+            so re-asking doesn't flash the card away */}
+        {answer && !error && (
+          <div data-testid="ask-answer" className={`rounded-2xl border bg-card p-4 shadow-sm ${pending ? 'opacity-60' : ''}`}>
+            {asked && <p className="mb-2 text-xs text-muted-foreground">“{asked}”</p>}
+            {answer.interpreted && (
+              <p className="mb-2 text-xs text-muted-foreground">
+                I interpreted your question — double-check this is what you meant.
+              </p>
+            )}
+            <p data-testid="ask-headline" className="text-base font-semibold tabular-nums">
+              {answer.headline}
+            </p>
+            {answer.detail && <p className="mt-1 text-sm text-muted-foreground">{answer.detail}</p>}
+
+            {answer.facts.length > 0 && (
+              <dl className="mt-3 space-y-1.5 border-t pt-3">
+                {answer.facts.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 text-sm">
+                    <dt className="truncate text-muted-foreground">{f.label}</dt>
+                    <dd className="shrink-0 font-medium tabular-nums">{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+
+            {answer.source && (
+              <Link
+                href={answer.source.href}
+                data-testid="ask-source"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+              >
+                {answer.source.label} <ArrowRight className="size-3.5" aria-hidden />
+              </Link>
+            )}
+
+            {answer.suggestions && answer.suggestions.length > 0 && (
+              <ul className="mt-3 flex flex-wrap gap-2 border-t pt-3">
+                {answer.suggestions.map((s) => (
+                  <li key={s}>
+                    <button
+                      type="button"
+                      onClick={() => pick(s)}
+                      className="rounded-full border px-3 py-1 text-xs text-muted-foreground transition hover:border-foreground/30 hover:text-foreground"
+                    >
+                      {s}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
+      {!answer && !pending && (
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Try asking</p>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {suggestions.map((s) => (
+              <li key={s}>
+                <button
+                  type="button"
+                  onClick={() => pick(s)}
+                  data-testid="ask-suggestion"
+                  className="rounded-full border bg-card px-3 py-1.5 text-sm text-muted-foreground shadow-sm transition hover:border-foreground/30 hover:text-foreground"
+                >
+                  {s}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {assistEnabled && (
+        <p className="text-xs text-muted-foreground">
+          Answers come from your own data. Unrecognized questions may be interpreted by an AI model to
+          route them; your account data is never sent to it.
+        </p>
+      )}
+    </div>
+  );
+}

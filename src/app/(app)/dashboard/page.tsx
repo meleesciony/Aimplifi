@@ -5,6 +5,7 @@ import { CashNeededCard } from '@/components/finance/cash-needed-card';
 import { NetWorthCard } from '@/components/finance/net-worth-card';
 import { PaymentRemindersCard } from '@/components/finance/payment-reminders-card';
 import { RecurringSummaryCard } from '@/components/finance/recurring-summary-card';
+import { AskAimplifiCard } from '@/components/finance/ask-aimplifi-card';
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
 import { SpendingInsightsCard } from '@/components/finance/spending-insights-card';
 import { TopSpendingCard } from '@/components/finance/top-spending-card';
@@ -69,6 +70,9 @@ export default async function DashboardPage() {
       {/* one-time setup nudge — only until a payment account is confirmed
           (dormant for the seeded demo user, who always has one) */}
       {showOnboarding && <OnboardingNudge />}
+
+      {/* the flagship conversational surface — ask anything, grounded in your data */}
+      <AskAimplifiCard />
 
       {/* at-a-glance summaries: this month's safe-to-spend + savings rate.
           Each links through to its full view (Plan / Coach). */}
