@@ -5,6 +5,7 @@
  * spending by category with parent-group rollup. Recharts for the bars; inline
  * bars for the category breakdown (crisp, no axis clutter).
  */
+import Link from 'next/link';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { cents, formatCents } from '@/lib/money';
 import type { ReportsData } from '@/server/reports';
@@ -26,6 +27,13 @@ export function ReportsView({ data }: { data: ReportsData }) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-lg font-semibold">Reports</h1>
+        <Link href="/trends" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
+          See trends →
+        </Link>
+      </div>
+
       {/* Income vs Expense */}
       <section className="rounded-2xl border bg-card p-5 shadow-sm">
         <div className="mb-3 flex items-center justify-between">

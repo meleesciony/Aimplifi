@@ -1,0 +1,311 @@
+/**
+ * Spending Trends engine (DECISIONS #74, surpass feature #7) — the
+ * "what changed and what should I look at" surface that the category /
+ * recurring / forecast views don't expose. Pure, deterministic, integer cents,
+ * no I/O and NO model calls (every threshold is a constant here, LOOP rule 5).
+ *
+ * It is a thin, exact layer ON TOP of the already-tested reports engine
+ * (`spendingByCategory`), so "what counts as spend" has ONE definition
+ * (expenses only; transfers / split parents / income excluded; refunds net
+ * down their own category, a net-refund category drops to 0). Every figure is
+ * hand-verifiable to the cent.
+ *
+ * Four insights, each honest about its own basis:
+ *  - pace      : the IN-PROGRESS month projected to month-end at the current
+ *                daily rate (a stated assumption), vs last month's actual.
+ *  - movers    : the LAST COMPLETED month vs the average of up to 3 completed
+ *                months before it — exact, no partial-month distortion.
+ *  - largest   : the biggest single purchases so far this month.
+ *  - newMerchants: merchants you spent at this month but not in the prior 6.
+ */
+import { addMonthsClamped, daysInMonth, isoDate } from '@/lib/dates';
+import { roundHalfAwayFromZero } from '@/lib/money';
+import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
+
+// ── Tunable thresholds (deterministic, in code) ─────────────────────────────
+/** A mover must move at least this many cents to be worth surfacing. */
+export const MOVER_MIN_ABS_CENTS = 2000; // $20
+/** …and (for up/down) at least this fraction vs its baseline. */
+export const MOVER_MIN_PCT = 0.2; // 20%
+export const MAX_MOVERS = 6;
+export const MAX_LARGEST = 5;
+export const MAX_NEW_MERCHANTS = 5;
+/** Completed months averaged into a mover's baseline. */
+export const BASELINE_MONTHS = 3;
+/** A merchant absent from this many prior months counts as "new". */
+export const NEW_MERCHANT_LOOKBACK_MONTHS = 6;
+/**
+ * The catch-all group (transfer, credit-card-payment, cash/ATM, uncategorized).
+ * Its members are money movement, not actionable spending, so they are kept out
+ * of the category movers and the "largest purchases" / "new merchants" lists.
+ * (They still count toward the pace total, which mirrors the /reports and
+ * /spending-plan definition of "money out this month" — one spend definition.)
+ */
+const NON_ACTIONABLE_GROUP = 'Transfers & Other';
+
+export interface TrendTxn extends ReportTxn {
+  /** Display/canonical merchant — used for largest + new-merchant insights. */
+  merchant?: string | null;
+  /**
+   * True for AGGREGATE pseudo-merchants — those `normalizeMerchant` marks
+   * aggregate (Zelle, checks, ATM withdrawals, card payments, account transfers,
+   * Unknown Merchant): one canonical name covers many unrelated payees, so "new
+   * merchant" is meaningless for them and they are excluded from that list.
+   * (A "Store Card Purchase" is intentionally NOT aggregate in this codebase —
+   * it is a rule-eligible real merchant, see assign.ts `isRuleEligibleMerchant`
+   * + the triage flow — so it can legitimately appear here, like on /reports.)
+   */
+  aggregateMerchant?: boolean;
+}
+
+export interface SpendingPace {
+  ym: string; // the in-progress month, YYYY-MM
+  daysElapsed: number; // 1..daysInMonth (inclusive of today)
+  daysInMonth: number;
+  spentSoFarCents: number;
+  projectedCents: number; // spentSoFar / daysElapsed * daysInMonth, rounded
+  priorMonthCents: number; // last full month's total spend
+  deltaVsPriorCents: number; // projected − prior (positive = trending higher)
+}
+
+export interface CategoryMover {
+  categoryId: string;
+  name: string;
+  group: string;
+  currentCents: number; // last completed month
+  baselineCents: number; // averaged prior months (0 ⇒ new)
+  deltaCents: number; // current − baseline (positive = up)
+  pctChange: number | null; // deltaCents / baselineCents (null when baseline 0)
+  direction: 'up' | 'down' | 'new';
+}
+
+export interface LargestTxn {
+  date: string;
+  merchant: string;
+  categoryName: string;
+  amountCents: number; // positive magnitude of the spend
+}
+
+export interface NewMerchant {
+  merchant: string;
+  categoryName: string;
+  // this month's purchases at the merchant. Refunds aren't netted — a brand-new
+  // merchant rarely has a same-month return, and netting would risk a confusing
+  // negative "new merchant" line; an accepted simplification (STATUS / #74).
+  amountCents: number;
+  firstDate: string; // earliest this-month date
+}
+
+export interface SpendingTrends {
+  asOfYm: string; // the in-progress month
+  comparedYm: string | null; // the last completed month the movers describe
+  baselineMonths: string[]; // the completed months averaged into the baseline
+  pace: SpendingPace | null;
+  movers: CategoryMover[];
+  largest: LargestTxn[];
+  newMerchants: NewMerchant[];
+}
+
+export interface TrendsInput {
+  txns: readonly TrendTxn[];
+  today: string; // YYYY-MM-DD anchor
+}
+
+const ymOf = (date: string) => date.slice(0, 7);
+const priorYm = (ym: string, n: number) => addMonthsClamped(isoDate(`${ym}-01`), -n).slice(0, 7);
+const groupOf = (id: string | null | undefined) => CATEGORY_BY_ID.get(id ?? 'uncategorized')?.group;
+const catName = (id: string | null | undefined) =>
+  (id ? CATEGORY_BY_ID.get(id)?.name : undefined) ?? 'Uncategorized';
+
+/** One spend row = a real outflow that the reports engine would count. */
+function isSpendRow(t: TrendTxn): boolean {
+  if (t.isSplitParent || t.isTransfer) return false;
+  if (t.amountCents >= 0) return false; // refunds/inflows are not "purchases"
+  const id = t.categoryId ?? 'uncategorized';
+  if (id === 'transfer') return false;
+  if (CATEGORY_BY_ID.get(id)?.group === 'Income') return false;
+  return true;
+}
+
+/** A spend row in an actionable category (excludes cash/transfer/cc-payment/uncategorized). */
+function isPurchaseRow(t: TrendTxn): boolean {
+  return isSpendRow(t) && groupOf(t.categoryId) !== NON_ACTIONABLE_GROUP;
+}
+
+/** Per-leaf-category spend for a single month, via the shared reports engine. */
+function categorySpendMap(txns: readonly TrendTxn[], ym: string): Map<string, number> {
+  const { byCategory } = spendingByCategory(txns, { fromYm: ym, toYm: ym });
+  return new Map(byCategory.map((c) => [c.categoryId, c.amountCents]));
+}
+
+function computePace(txns: readonly TrendTxn[], today: string): SpendingPace | null {
+  const ym = ymOf(today);
+  // Only money already spent counts toward "so far": ignore any future-dated rows.
+  const soFar = txns.filter((t) => t.date <= today);
+  const spentSoFarCents = spendingByCategory(soFar, { fromYm: ym, toYm: ym }).totalCents;
+  const prior = priorYm(ym, 1);
+  const priorMonthCents = spendingByCategory(txns, { fromYm: prior, toYm: prior }).totalCents;
+  if (spentSoFarCents === 0 && priorMonthCents === 0) return null; // nothing to say yet
+
+  const [y, m] = [Number(ym.slice(0, 4)), Number(ym.slice(5, 7))];
+  const dim = daysInMonth(y, m);
+  const daysElapsed = Math.min(Number(today.slice(8, 10)), dim); // ≥1 for a real date
+  const projectedCents = roundHalfAwayFromZero((spentSoFarCents / daysElapsed) * dim);
+  return {
+    ym,
+    daysElapsed,
+    daysInMonth: dim,
+    spentSoFarCents,
+    projectedCents,
+    priorMonthCents,
+    deltaVsPriorCents: projectedCents - priorMonthCents,
+  };
+}
+
+function computeMovers(
+  txns: readonly TrendTxn[],
+  today: string,
+): { comparedYm: string | null; baselineMonths: string[]; movers: CategoryMover[] } {
+  const current = priorYm(ymOf(today), 1); // last completed month
+  const currentMap = categorySpendMap(txns, current);
+
+  // Baseline = the up-to-3 completed months before `current` that actually have
+  // spend (never average in pre-history zero months — it would understate the norm).
+  const baselineMaps: { ym: string; map: Map<string, number> }[] = [];
+  for (let i = 1; i <= BASELINE_MONTHS; i++) {
+    const ym = priorYm(current, i);
+    const map = categorySpendMap(txns, ym);
+    let total = 0;
+    for (const v of map.values()) total += v;
+    if (total > 0) baselineMaps.push({ ym, map });
+  }
+
+  if (currentMap.size === 0 && baselineMaps.length === 0) {
+    return { comparedYm: null, baselineMonths: [], movers: [] };
+  }
+
+  const ids = new Set<string>([...currentMap.keys(), ...baselineMaps.flatMap((b) => [...b.map.keys()])]);
+  const movers: CategoryMover[] = [];
+  for (const id of ids) {
+    if (groupOf(id) === NON_ACTIONABLE_GROUP) continue; // cash/transfer/cc-pay/uncategorized aren't insights
+    const currentCents = currentMap.get(id) ?? 0;
+    const baselineCents =
+      baselineMaps.length === 0
+        ? 0
+        : roundHalfAwayFromZero(
+            baselineMaps.reduce((s, b) => s + (b.map.get(id) ?? 0), 0) / baselineMaps.length,
+          );
+    const deltaCents = currentCents - baselineCents;
+
+    let direction: CategoryMover['direction'];
+    let surfaced: boolean;
+    if (baselineCents === 0) {
+      direction = 'new';
+      surfaced = currentCents >= MOVER_MIN_ABS_CENTS;
+    } else {
+      direction = deltaCents >= 0 ? 'up' : 'down';
+      surfaced =
+        Math.abs(deltaCents) >= MOVER_MIN_ABS_CENTS &&
+        Math.abs(deltaCents / baselineCents) >= MOVER_MIN_PCT;
+    }
+    if (!surfaced) continue;
+
+    const cat = CATEGORY_BY_ID.get(id);
+    movers.push({
+      categoryId: id,
+      name: cat?.name ?? 'Uncategorized',
+      group: cat?.group ?? 'Other',
+      currentCents,
+      baselineCents,
+      deltaCents,
+      pctChange: baselineCents === 0 ? null : deltaCents / baselineCents,
+      direction,
+    });
+  }
+
+  // Biggest absolute swings first; stable tie-break by category id.
+  movers.sort(
+    (a, b) => Math.abs(b.deltaCents) - Math.abs(a.deltaCents) || (a.categoryId < b.categoryId ? -1 : 1),
+  );
+  return {
+    comparedYm: current,
+    baselineMonths: baselineMaps.map((b) => b.ym),
+    movers: movers.slice(0, MAX_MOVERS),
+  };
+}
+
+function computeLargest(txns: readonly TrendTxn[], today: string): LargestTxn[] {
+  const ym = ymOf(today);
+  return txns
+    .filter((t) => t.date <= today && ymOf(t.date) === ym && isPurchaseRow(t))
+    .map((t) => ({
+      date: t.date,
+      merchant: t.merchant?.trim() || 'Unknown merchant',
+      categoryName: catName(t.categoryId),
+      amountCents: -t.amountCents,
+    }))
+    // amount desc, then date, then merchant — fully deterministic on ties.
+    .sort(
+      (a, b) =>
+        b.amountCents - a.amountCents ||
+        (a.date < b.date ? -1 : a.date > b.date ? 1 : 0) ||
+        (a.merchant < b.merchant ? -1 : a.merchant > b.merchant ? 1 : 0),
+    )
+    .slice(0, MAX_LARGEST);
+}
+
+function computeNewMerchants(txns: readonly TrendTxn[], today: string): NewMerchant[] {
+  const ym = ymOf(today);
+  const earliestPrior = priorYm(ym, NEW_MERCHANT_LOOKBACK_MONTHS); // inclusive lower bound
+
+  // Merchants seen in the lookback window [earliestPrior, prior month].
+  // Aggregate pseudo-merchants are skipped entirely — "new" is meaningless for them.
+  const seenBefore = new Set<string>();
+  for (const t of txns) {
+    if (!isPurchaseRow(t) || t.aggregateMerchant || !t.merchant) continue;
+    const m = ymOf(t.date);
+    if (m >= earliestPrior && m < ym) seenBefore.add(t.merchant.trim().toLowerCase());
+  }
+
+  const thisMonth = new Map<
+    string,
+    { merchant: string; categoryName: string; amountCents: number; firstDate: string }
+  >();
+  for (const t of txns) {
+    if (t.date > today || ymOf(t.date) !== ym || !isPurchaseRow(t) || t.aggregateMerchant || !t.merchant)
+      continue;
+    const key = t.merchant.trim().toLowerCase();
+    if (seenBefore.has(key)) continue;
+    const prev = thisMonth.get(key);
+    if (prev) {
+      prev.amountCents += -t.amountCents;
+      if (t.date < prev.firstDate) prev.firstDate = t.date;
+    } else {
+      thisMonth.set(key, {
+        merchant: t.merchant.trim(),
+        categoryName: catName(t.categoryId),
+        amountCents: -t.amountCents,
+        firstDate: t.date,
+      });
+    }
+  }
+
+  return [...thisMonth.values()]
+    .sort((a, b) => b.amountCents - a.amountCents || (a.merchant < b.merchant ? -1 : 1))
+    .slice(0, MAX_NEW_MERCHANTS);
+}
+
+/** Compute all spending-trend insights from a posted-spend transaction list. */
+export function computeSpendingTrends({ txns, today }: TrendsInput): SpendingTrends {
+  const { comparedYm, baselineMonths, movers } = computeMovers(txns, today);
+  return {
+    asOfYm: ymOf(today),
+    comparedYm,
+    baselineMonths,
+    pace: computePace(txns, today),
+    movers,
+    largest: computeLargest(txns, today),
+    newMerchants: computeNewMerchants(txns, today),
+  };
+}

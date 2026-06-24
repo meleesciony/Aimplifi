@@ -1,5 +1,22 @@
 # PROGRESS.md — session resume log
 
+## 2026-06-23 — Spending Trends / insights (#74, surpass feature #7) — DONE ✅
+User "cont" → continued the match-and-surpass series after the #73 SimpleFIN bug
+fix. Chose feature #7: the "what changed" lens (movers/pace/largest/new merchants)
+the category/recurring/forecast views never exposed. Engine-first: pure
+`engine/trends/trends.ts` as a thin exact layer over the tested
+`spendingByCategory` (one spend definition, no model calls) → `server/trends.ts`
+(shared ownership-scoped snapshot) → `/trends` page + dashboard
+`SpendingInsightsCard` + reciprocal /reports link (no 8th nav icon, #71).
+Verify: typecheck/lint clean, **807 unit/65 files, 46 e2e**, build clean (✅ GREEN).
+Hostile critic (wf_a12a2a9e, 4 dims + adversarial verify): fin 7/edge 7/sec 9/UX 8;
+1 P1 (Store Card as "new merchant") resolved as a docstring over-claim — this repo
+deliberately treats Store Card Purchase as a real rule-eligible merchant
+(assign.ts + triage e2e), so corrected the doc + added an integrated normalize→engine
+test instead of breaking that decision. Cheap P2s fixed; rest accepted (STATUS #74).
+Earlier e2e caught a real dark-mode contrast miss (opacity-80 % label) → fixed.
+
+
 Session goal (user: "lets go one by one and do all"): build three roadmap threads
 in order, each engine-first → verify green → hostile critic → commit.
 

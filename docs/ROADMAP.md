@@ -54,6 +54,13 @@
   unit-tested (20) against a mocked server; idempotent re-sync (DB unique) +
   SSRF/redirect/credential-leak hardened (hostile-critic clean, 5 P1s fixed). The
   LIVE network path is UNVERIFIED (no token in env) — docs/SIMPLEFIN_WALKTHROUGH.md.
+- Spending Trends (`/trends`, DECISIONS #74): the "what changed & what to look
+  at" surface — a pace projection for the in-progress month, completed-month
+  category movers (last month vs a 3-month average), the biggest purchases, and
+  new merchants — all from the shared snapshot via the tested reports engine (one
+  spend definition, no model calls). A dashboard `SpendingInsightsCard` +
+  reciprocal /reports link (no 8th nav icon, #71). Pure engine + 16 known-answer
+  unit tests + 3 e2e (incl. axe AA); hostile-critic reviewed (1 P1 resolved).
 - Postgres deploy path (DECISIONS #35): the app runs on SQLite locally + in all
   tests (zero credentials) and on Postgres in production, chosen by DATABASE_URL
   scheme (`src/lib/db-adapter.ts`). One canonical schema; `scripts/gen-pg-schema.mjs`

@@ -6,6 +6,7 @@ import { NetWorthCard } from '@/components/finance/net-worth-card';
 import { PaymentRemindersCard } from '@/components/finance/payment-reminders-card';
 import { RecurringSummaryCard } from '@/components/finance/recurring-summary-card';
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
+import { SpendingInsightsCard } from '@/components/finance/spending-insights-card';
 import { TopSpendingCard } from '@/components/finance/top-spending-card';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { OnboardingNudge } from '@/components/settings/onboarding-nudge';
@@ -16,6 +17,7 @@ import { getDashboardData } from '@/server/finance';
 import { getRecurring } from '@/server/recurring';
 import { getReports } from '@/server/reports';
 import { getSpendingPlan } from '@/server/spending-plan';
+import { getSpendingTrends } from '@/server/trends';
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -26,12 +28,13 @@ export default async function DashboardPage() {
   const accountCount = await prisma.account.count({ where: { userId: session.user.id } });
   if (accountCount === 0) return <EmptyDashboard />;
 
-  const [data, coach, plan, reports, recurring] = await Promise.all([
+  const [data, coach, plan, reports, recurring, trends] = await Promise.all([
     getDashboardData(session.user.id),
     getCoachData(session.user.id),
     getSpendingPlan(session.user.id),
     getReports(session.user.id),
     getRecurring(session.user.id),
+    getSpendingTrends(session.user.id),
   ]);
 
   // Single source of truth: the dashboard snapshot already carries the stored
@@ -77,11 +80,14 @@ export default async function DashboardPage() {
       {/* net worth + trend, full width for the chart */}
       <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} />
 
-      {/* this month's top spending + monthly recurring (each links to its view) */}
+      {/* spending analytics: this month's top categories + what changed (Trends) */}
       <div className="grid gap-4 sm:grid-cols-2">
         <TopSpendingCard breakdown={reports.breakdown} />
-        <RecurringSummaryCard summary={recurring.summary} />
+        <SpendingInsightsCard trends={trends} />
       </div>
+
+      {/* monthly recurring / subscriptions (links to its view) */}
+      <RecurringSummaryCard summary={recurring.summary} />
 
       {/* upcoming card payments (ROADMAP #6) — same obligations as the headline */}
       <PaymentRemindersCard reminders={data.reminders} today={data.today} />

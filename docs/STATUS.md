@@ -75,6 +75,52 @@ adversarial cash-needed scenarios, all exact to the cent), edge-case coverage
   in authz.ts and ROADMAP #8.
 - P2-3 cosmetic Recharts width(-1) console warning during headless e2e.
 
+## Post-Phase-5 refinement: Spending Trends / insights (DECISIONS #74, surpass feature #7)
+
+The "what changed & what to look at" surface (Copilot/Cleo/Monarch lead with it)
+that the category/recurring/forecast views never exposed. Pure engine
+`engine/trends/trends.ts` — a thin, exact layer over the tested
+`spendingByCategory` (one spend definition, integer cents, no model calls):
+pace projection for the in-progress month, completed-month category movers (last
+month vs a ≤3-month average, ≥$20 AND ≥20%), largest purchases, and new merchants
+(vs the prior 6 months). Non-actionable money movement ('Transfers & Other':
+cash/transfer/cc-payment/uncategorized) is kept out of movers/largest/new and
+aggregate pseudo-merchants out of new-merchants; pace alone keeps the full reports
+total so the headline matches /reports & /spending-plan. `getSpendingTrends`
+reads the same ownership-scoped snapshot; `/trends` page + a dashboard
+`SpendingInsightsCard` + a reciprocal /reports link, NO 8th nav icon (380px bar
+full at 7, #71).
+
+Gate (real output 2026-06-23): `VERIFY_E2E=1 bash scripts/verify.sh` →
+**✅ VERIFY GREEN** — typecheck/lint clean, **807 unit / 65 files** (+16: hand-
+derived synthetic + a real-seed pinned run + an integrated normalize→engine test),
+build clean, **46 e2e** (+3: discovery, render incl. Costco as the seed's biggest
+June buy, WCAG-AA axe). One e2e iteration first caught a real dark-mode contrast
+miss (an `opacity-80` on the % label, 4.42 vs 4.5:1) — FIXED before sign-off.
+
+Hostile Critic (4 dimension critics + adversarial verification of every P0/P1):
+financial 7 / edge-case 7 / security 9 / UX-a11y 8. **1 P1 confirmed + RESOLVED:**
+"Store Card Purchase" surfaced as a new merchant — traced to a docstring
+OVER-CLAIM, not a code bug. This codebase deliberately treats "Store Card
+Purchase" as a real, rule-eligible merchant (`assign.ts isRuleEligibleMerchant`
++ the triage flow assert `rule-always` for it), so flagging it aggregate would
+have broken that tested decision; fixed by correcting the doc + adding an
+INTEGRATED test (derives the aggregate flag via `normalizeMerchant` like the
+server does, proves genuine aggregates Zelle/Check ARE excluded while Store Card
+legitimately appears). P2s FIXED: deterministic largest tie-break
+(amount→date→merchant), no-history-vs-steady empty-state copy, pace `h2` for
+heading order, reciprocal /reports→/trends link, new-merchant amount doc clarified.
+Accepted P2s (documented, by design): (1) pace counts money-movement to MATCH
+/reports & /spending-plan (movers exclude it for actionability — a deliberate,
+documented split, not a third spend definition); (2) largest excludes
+uncategorized to avoid Unknown-Merchant noise (consistent with movers); (3)
+refunds are not netted from the new-merchant total (a brand-new merchant rarely
+has a same-month return; netting would risk a confusing negative line); (4) the
+day-1/2 pace projection is volatile but explicitly caveated ("a projection, not a
+prediction"); (5) the mover baseline averages over months-with-any-spend — a true
+calendar-monthly average including $0 months; (6) trends copy is hand-verified
+against the coaching guardrails but isn't yet in the automated guardrail-scan set.
+
 ## Post-Phase-5 refinement: Money Dials settings/onboarding (DECISIONS #28)
 
 The five per-user dials the engines read (payment account, SWR, expected return,
