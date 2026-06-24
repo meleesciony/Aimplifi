@@ -6,6 +6,8 @@ import { formatCents } from '@/lib/money';
 import { cents } from '@/lib/money';
 import { prisma } from '@/lib/db';
 
+export const metadata = { title: "Spending plan" };
+
 export default async function SpendingPlanPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

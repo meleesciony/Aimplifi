@@ -232,3 +232,9 @@ genuine blank cases are covered. Gate (real 2026-06-24): VERIFY_E2E=1 verify →
 Approved audit batch substantially complete. Remaining tail (low priority / needs owner nod): per-page
 <title> overrides for the rest of the pages; CardTitle-as-heading (shared primitive — verify visually);
 triage split flow (2nd category hardcoded); mobile nav redesign. All in docs/ROADMAP.md.
+
+## 2026-06-24 (session: "aimplifi") — per-page titles (#85) — DONE ✅
+Added title metadata to all 18 (app) pages (→ "<Page> · Aimplifi" via the #81 template) via one
+idempotent bulk script. Gate (real 2026-06-24): bash scripts/verify.sh → GREEN, 931 unit/73 files,
+build clean. Approved audit batch (1–5) now complete bar deferred items (CardTitle-as-heading,
+triage split flow, mobile nav — all need owner nod), captured in docs/ROADMAP.md.

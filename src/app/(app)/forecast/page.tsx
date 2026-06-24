@@ -5,6 +5,8 @@ import { ForecastView } from '@/components/finance/forecast-view';
 import { getCashFlowForecast } from '@/server/forecast';
 import { prisma } from '@/lib/db';
 
+export const metadata = { title: "Forecast" };
+
 export default async function ForecastPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

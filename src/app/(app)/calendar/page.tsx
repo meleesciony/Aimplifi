@@ -11,6 +11,8 @@ import { addMonthsClamped, formatISODate, formatMonth, isoDate } from '@/lib/dat
 import { cents, formatCents } from '@/lib/money';
 import { getCashNeeded } from '@/server/finance';
 
+export const metadata = { title: "Calendar" };
+
 export default async function CalendarPage({
   searchParams,
 }: {

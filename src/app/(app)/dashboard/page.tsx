@@ -20,6 +20,8 @@ import { getReports } from '@/server/reports';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { getSpendingTrends } from '@/server/trends';
 
+export const metadata = { title: "Dashboard" };
+
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

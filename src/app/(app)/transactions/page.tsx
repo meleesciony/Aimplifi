@@ -14,6 +14,8 @@ function str(v: string | string[] | undefined): string {
   return Array.isArray(v) ? (v[0] ?? '') : (v ?? '');
 }
 
+export const metadata = { title: "Transactions" };
+
 export default async function TransactionsPage({
   searchParams,
 }: {

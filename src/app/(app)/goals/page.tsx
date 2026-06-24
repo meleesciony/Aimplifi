@@ -10,6 +10,8 @@ import { getCoachData } from '@/server/coach';
 import { DeleteGoalButton } from '@/components/finance/delete-goal-button';
 import { createGoal } from '@/server/goal-actions';
 
+export const metadata = { title: "Goals" };
+
 export default async function GoalsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

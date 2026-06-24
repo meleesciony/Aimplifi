@@ -5,6 +5,8 @@ import { TriageInbox } from '@/components/triage/triage-inbox';
 import { getCategorizationAccuracy } from '@/server/accuracy';
 import { ALL_CATEGORIES, getTriageItems } from '@/server/triage';
 
+export const metadata = { title: "Review" };
+
 export default async function TriagePage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

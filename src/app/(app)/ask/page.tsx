@@ -4,6 +4,8 @@ import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { AskView } from '@/components/finance/ask-view';
 import { prisma } from '@/lib/db';
 
+export const metadata = { title: "Ask Aimplifi" };
+
 export default async function AskPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

@@ -8,6 +8,8 @@ import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/d
 import { deletionSummary } from '@/lib/engine/account/deletion';
 import { prisma } from '@/lib/db';
 
+export const metadata = { title: "Settings" };
+
 export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

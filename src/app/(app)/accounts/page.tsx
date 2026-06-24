@@ -3,6 +3,8 @@ import { auth } from '@/auth';
 import { AccountsList } from '@/components/finance/accounts-list';
 import { getAccountsView } from '@/server/transactions';
 
+export const metadata = { title: "Accounts" };
+
 export default async function AccountsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

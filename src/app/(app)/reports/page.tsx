@@ -5,6 +5,8 @@ import { ReportsView } from '@/components/finance/reports-view';
 import { getReports } from '@/server/reports';
 import { prisma } from '@/lib/db';
 
+export const metadata = { title: "Reports" };
+
 export default async function ReportsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

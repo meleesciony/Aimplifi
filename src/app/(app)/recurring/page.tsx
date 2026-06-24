@@ -5,6 +5,8 @@ import { RecurringView } from '@/components/finance/recurring-view';
 import { getRecurring } from '@/server/recurring';
 import { prisma } from '@/lib/db';
 
+export const metadata = { title: "Recurring" };
+
 export default async function RecurringPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

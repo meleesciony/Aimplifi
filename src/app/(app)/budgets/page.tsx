@@ -18,6 +18,8 @@ const CATEGORY_OPTIONS = CATEGORIES.filter((c) => isBudgetable(c.id));
  * math lives in src/lib/engine/budgets/status.ts; this page only renders it and
  * posts target edits. No guilt meters; money-dial categories are labeled, not policed.
  */
+export const metadata = { title: "Budgets" };
+
 export default async function BudgetsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

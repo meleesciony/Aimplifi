@@ -19,6 +19,8 @@ import { formatCents } from '@/lib/money';
 import { prisma } from '@/lib/db';
 import { getCoachData } from '@/server/coach';
 
+export const metadata = { title: "Coach" };
+
 export default async function CoachPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

@@ -6,6 +6,8 @@ import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { prisma } from '@/lib/db';
 import { getDashboardData } from '@/server/finance';
 
+export const metadata = { title: "Credit cards" };
+
 export default async function CardsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

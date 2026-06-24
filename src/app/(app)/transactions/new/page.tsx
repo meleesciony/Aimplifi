@@ -4,6 +4,8 @@ import { AddTransactionForm } from '@/components/finance/add-transaction-form';
 import { getProvider } from '@/lib/providers/demo';
 import { prisma } from '@/lib/db';
 
+export const metadata = { title: "Add transaction" };
+
 export default async function NewTransactionPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

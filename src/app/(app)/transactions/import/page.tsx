@@ -3,6 +3,8 @@ import { auth } from '@/auth';
 import { ImportCsvForm } from '@/components/finance/import-csv-form';
 import { prisma } from '@/lib/db';
 
+export const metadata = { title: "Import transactions" };
+
 export default async function ImportTransactionsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');

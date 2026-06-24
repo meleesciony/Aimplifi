@@ -5,6 +5,8 @@ import { TrendsView } from '@/components/finance/trends-view';
 import { getSpendingTrends } from '@/server/trends';
 import { prisma } from '@/lib/db';
 
+export const metadata = { title: "Trends" };
+
 export default async function TrendsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
