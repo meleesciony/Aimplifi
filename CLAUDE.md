@@ -7,6 +7,17 @@ meaningfully better than Mint and Simplifi. The full product spec is in `SPEC.md
 Phase 0 (architecture) is complete: see `docs/PHASE_0_ARCHITECTURE.md`. Work proceeds
 phase by phase per `docs/PHASES.md`.
 
+## Working location
+
+The canonical local checkout is `C:\dev\Pulse Finance` (moved off OneDrive on
+2026-06-23; GitHub remote: `github.com/meleesciony/Aimplifi`). Do **not** develop
+inside a cloud-synced folder (OneDrive / Dropbox / iCloud): background sync holds
+file locks that cause spurious `verify` failures — a cold `tsc` / `eslint` /
+`next build` can fail once and then pass on a clean rerun — and it forces LF→CRLF
+churn on every touched file. Keep the working copy on a plain local disk path; treat
+any one-off cold-start verify failure that doesn't reproduce on rerun as an
+environment flake, not a code defect.
+
 ## Non-negotiable operating rules
 
 1. **No fabrication.** Never claim a test passed, a build succeeded, or a feature works
