@@ -44,8 +44,9 @@ test('goals: creating a goal shows its effect on the FI date', async ({ page }) 
   await expect(card.getByTestId('goal-fi-impact')).toContainText('Funded in ~12 months');
   await expect(card.getByTestId('goal-fi-impact')).toContainText(/FI date|No measurable effect/);
 
-  // cleanup so reruns stay deterministic
+  // cleanup so reruns stay deterministic (two-step delete confirm)
   await card.getByRole('button', { name: 'Delete Japan trip' }).click();
+  await card.getByTestId('goal-delete-confirm').click();
   await expect(card).toHaveCount(0);
 });
 

@@ -216,3 +216,10 @@ updated to click through it. Gate (real 2026-06-24): VERIFY_E2E=1 verify → GRE
 files, 53 e2e. REMAINING from the approved audit batch: empty states (reports/coach/forecast/cards)
 and the goals delete confirm (needs a small client component); plus per-page title overrides and
 the CardTitle-as-heading change (deferred — shared primitive).
+
+## 2026-06-24 (session: "aimplifi") — goals delete-confirm + cards empty state (#83) — DONE ✅
+Completed the delete-confirmation guard (goals, via a new client component matching the accounts
+pattern; no e2e drove goal-delete, but phase4-features' goal cleanup did — updated to click the
+confirm) and added a "No credit cards yet" empty state on /cards. Gate (real 2026-06-24):
+VERIFY_E2E=1 verify → GREEN, 931 unit/73 files, 53 e2e. Remaining empty states: reports / forecast
+(blank charts) and coach / life-energy (nuanced) — investments + cards done.

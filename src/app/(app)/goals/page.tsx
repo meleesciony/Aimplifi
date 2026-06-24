@@ -7,7 +7,8 @@ import { prisma } from '@/lib/db';
 import { goalFIImpact } from '@/lib/engine/goals';
 import { cents, formatCents } from '@/lib/money';
 import { getCoachData } from '@/server/coach';
-import { createGoal, deleteGoal } from '@/server/goal-actions';
+import { DeleteGoalButton } from '@/components/finance/delete-goal-button';
+import { createGoal } from '@/server/goal-actions';
 
 export default async function GoalsPage() {
   const session = await auth();
@@ -77,16 +78,7 @@ export default async function GoalsPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">{goal.name}</CardTitle>
-                  <form
-                    action={async () => {
-                      'use server';
-                      await deleteGoal(goal.id);
-                    }}
-                  >
-                    <Button variant="ghost" size="sm" type="submit" aria-label={`Delete ${goal.name}`}>
-                      ✕
-                    </Button>
-                  </form>
+                  <DeleteGoalButton goalId={goal.id} goalName={goal.name} />
                 </div>
                 <CardDescription>
                   {formatCents(cents(goal.savedCents))} of {formatCents(cents(goal.targetCents))}
