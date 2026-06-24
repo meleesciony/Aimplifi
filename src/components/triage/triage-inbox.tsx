@@ -65,6 +65,7 @@ export function TriageInbox({
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [rulePrompt, setRulePrompt] = useState<RulePrompt | null>(null);
   const [splitFirstHalf, setSplitFirstHalf] = useState<string>('');
+  const [splitSecondCat, setSplitSecondCat] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [dragX, setDragX] = useState(0);
@@ -78,6 +79,8 @@ export function TriageInbox({
     setItems((xs) => xs.slice(1));
     setMode('idle');
     setDragX(0);
+    setSplitFirstHalf('');
+    setSplitSecondCat('');
   }
 
   /** Optimistic update with rollback: a failed action restores the queue and
@@ -302,6 +305,24 @@ export function TriageInbox({
     );
   }
 
+  // ── live split preview (top is defined past the empty-state return above) ──
+  const splitTotal = Math.abs(top.amountCents);
+  const defaultSecondCatId =
+    categories.find((c) => c.id === 'shopping')?.id ??
+    categories.find((c) => c.id !== top.suggestedCategoryId)?.id ??
+    categories[0]?.id ??
+    '';
+  const secondCatId = splitSecondCat || defaultSecondCatId;
+  let splitFirstCents: number | null = null;
+  try {
+    splitFirstCents =
+      splitFirstHalf.trim() === '' ? null : centsFromDollarString(splitFirstHalf.trim());
+  } catch {
+    splitFirstCents = null;
+  }
+  const splitValid = splitFirstCents !== null && splitFirstCents > 0 && splitFirstCents < splitTotal;
+  const splitSecondCents = splitValid ? splitTotal - (splitFirstCents as number) : null;
+
   return (
     <div className="space-y-3" data-testid="triage-inbox" data-remaining={items.length}>
       {error && (
@@ -374,8 +395,8 @@ export function TriageInbox({
 
       {mode === 'split' && (
         <div className="space-y-2 rounded-lg border p-3" data-testid="triage-split">
-          <p className="text-sm font-medium">Split {formatCents(cents(top.amountCents))}</p>
-          <div className="flex items-center gap-2">
+          <p className="text-sm font-medium">Split {formatCents(cents(top.amountCents))} into two categories</p>
+          <div className="flex flex-wrap items-center gap-2">
             <label htmlFor="split-amount" className="text-xs text-muted-foreground">
               First part $
             </label>
@@ -389,14 +410,50 @@ export function TriageInbox({
               onChange={(e) => setSplitFirstHalf(e.target.value)}
               data-testid="split-amount"
             />
-            <span className="text-xs text-muted-foreground">rest → second part</span>
+            <span className="text-xs text-muted-foreground">
+              → {top.suggestedCategoryName} · rest →
+            </span>
+            <label htmlFor="split-second-cat" className="sr-only">
+              Second part category
+            </label>
+            <select
+              id="split-second-cat"
+              className="rounded-md border bg-background px-2 py-1 text-sm"
+              value={secondCatId}
+              onChange={(e) => setSplitSecondCat(e.target.value)}
+              data-testid="split-second-cat"
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           </div>
+          <p className="text-xs" data-testid="split-preview">
+            {splitValid ? (
+              <span className="text-muted-foreground tabular-nums">
+                <b className="text-foreground">{nameOf(top.suggestedCategoryId)}</b>{' '}
+                {formatCents(cents(splitFirstCents as number))}
+                {'   +   '}
+                <b className="text-foreground">{nameOf(secondCatId)}</b>{' '}
+                {formatCents(cents(splitSecondCents as number))}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">
+                Enter a first part between {formatCents(cents(1))} and{' '}
+                {formatCents(cents(splitTotal - 1))} — the rest goes to the second category.
+              </span>
+            )}
+          </p>
           <div className="flex gap-2">
             <Button
               size="sm"
-              disabled={pending}
+              disabled={pending || !splitValid}
               data-testid="split-confirm"
               onClick={() => {
+                // splitValid already gates this button, but re-derive defensively so a
+                // stale render can never persist an out-of-range or unparseable amount.
                 let v: number;
                 try {
                   v = centsFromDollarString(splitFirstHalf.trim());
@@ -405,13 +462,13 @@ export function TriageInbox({
                   return;
                 }
                 if (v > 0 && v < Math.abs(top.amountCents)) {
-                  doSplit(top, v, top.suggestedCategoryId, 'shopping');
+                  doSplit(top, v, top.suggestedCategoryId, secondCatId);
                 } else {
                   setError('The first part must be more than $0 and less than the full amount.');
                 }
               }}
             >
-              Split: {top.suggestedCategoryName} + Shopping
+              Split
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setMode('idle')}>
               Cancel
