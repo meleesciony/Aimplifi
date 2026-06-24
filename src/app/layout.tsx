@@ -25,6 +25,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#10b981",
+  // draw into the iOS safe areas so the fixed bottom tab bar can extend behind
+  // the home indicator (its contents are padded back up via .pb-safe-bottom)
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

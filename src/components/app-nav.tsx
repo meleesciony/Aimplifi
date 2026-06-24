@@ -101,7 +101,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
       <nav
         // pointer-events-none on the strip so content scrolled flush to the
         // viewport bottom stays clickable; links re-enable their own events
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex border-t bg-background/95 backdrop-blur sm:hidden"
+        className="pb-safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-40 flex border-t bg-background/95 backdrop-blur sm:hidden"
         aria-label="Primary"
         data-testid="bottom-nav"
       >

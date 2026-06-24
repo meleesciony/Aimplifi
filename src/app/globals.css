@@ -4,9 +4,29 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* the mobile bottom tab bar is fixed — keep scrolled-to elements clear of it */
+/* the mobile bottom tab bar is fixed — keep scrolled-to elements clear of it
+   (plus the iOS home-indicator inset; env() is 0 on non-notched devices and in
+   the test emulator, so this is inert there and only grows on real iOS) */
 html {
-  scroll-padding-bottom: 5rem;
+  scroll-padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+}
+
+/* iOS safe-area helpers. The fixed bottom bar's background fills to the screen
+   edge, but its tappable row must sit above the home indicator (.pb-safe-bottom),
+   and page content must clear the now-taller bar (.pb-bottom-nav: 5rem + inset on
+   phones; 3rem from sm up, where the bar is hidden). Every env() term is 0 off
+   real iOS, so these reproduce the previous pb-20 / sm:pb-12 / 5rem exactly in
+   the emulator and on desktop — the change is inert except on a notched device. */
+.pb-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pb-bottom-nav {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  .pb-bottom-nav {
+    padding-bottom: 3rem;
+  }
 }
 
 @theme inline {

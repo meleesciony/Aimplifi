@@ -33,7 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-3 pb-20 sm:px-6 sm:pb-12">
+    <div className="pb-bottom-nav mx-auto max-w-5xl px-3 sm:px-6">
       <a
         href="#content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
