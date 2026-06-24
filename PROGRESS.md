@@ -247,3 +247,10 @@ content pb to track env(safe-area-inset-bottom) too. A scrollable-strip attempt 
 overflow and was dropped. Gate (real 2026-06-24): verify.sh → GREEN, 931 unit/73 files; e2e 53 passed.
 Remaining roadmap tail: safe-area inset (careful follow-up), CardTitle-as-heading (shared primitive),
 triage split flow.
+
+## 2026-06-24 (session: "aimplifi") — budgets first-run empty state (#87) — DONE ✅
+Added the zero-account EmptyDashboard guard to /budgets (the one page missing it). Gate (real
+2026-06-24): VERIFY_E2E=1 verify → GREEN, 931 unit/73 files, 53 e2e. Remaining roadmap items are the
+RISKY/dedicated ones (iOS safe-area inset — cascades through every bottom-anchored element; CardTitle-as-
+heading — shared primitive used by every card; triage split-flow rework). Recommended as focused tasks,
+not end-of-session work.

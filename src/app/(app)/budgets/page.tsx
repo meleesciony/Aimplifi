@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CATEGORIES, categoryName } from '@/lib/engine/categorize/categories';
@@ -27,6 +28,10 @@ export default async function BudgetsPage() {
   const provider = getProvider();
   const today = provider.today(userId);
   const month = today.slice(0, 7);
+
+  // No accounts yet → first-run onboarding, matching every other section (and so a
+  // target can't be set before any account exists).
+  if ((await prisma.account.count({ where: { userId } })) === 0) return <EmptyDashboard />;
 
   const [txns, budgets, user] = await Promise.all([
     // All non-transfer, non-split, posted activity this month (BOTH signs) so the
