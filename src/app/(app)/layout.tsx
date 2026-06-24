@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
 import { DEMO_USER_ID, auth, signOut } from '@/auth';
 import { AppNav } from '@/components/app-nav';
+import { AutoSync } from '@/components/auto-sync';
 import { Button } from '@/components/ui/button';
 import { formatISODate, isoDate } from '@/lib/dates';
+import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
 import { getReviewCount } from '@/server/triage';
 
@@ -26,6 +28,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // The "demo dataset" banner is about fictional data — true only for the demo
   // user, not real signed-up accounts (DECISIONS #43).
   const isDemo = session.user.id === DEMO_USER_ID;
+  // Auto-sync on load is only meaningful for a user with a live bank connection;
+  // a cheap indexed lookup gates the client component so demo/manual-only users
+  // never fire a background sync (DECISIONS #91).
+  const hasSimplefin =
+    (await prisma.simpleFinConnection.findUnique({
+      where: { userId: session.user.id },
+      select: { userId: true },
+    })) !== null;
 
   async function doSignOut() {
     'use server';
@@ -34,6 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="pb-bottom-nav mx-auto max-w-5xl px-3 sm:px-6">
+      <AutoSync enabled={hasSimplefin} />
       <a
         href="#content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
