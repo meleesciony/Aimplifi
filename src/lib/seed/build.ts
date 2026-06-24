@@ -121,6 +121,16 @@ export interface SeedSnapshot {
   balanceCents: number;
 }
 
+export interface SeedHolding {
+  id: string;
+  accountId: string;
+  symbol: string;
+  name: string;
+  quantity: number; // shares (may be fractional)
+  costBasisCents: number; // total invested
+  priceCents: number; // current price per share
+}
+
 export interface SeedData {
   asOf: ISODate;
   user: SeedUser;
@@ -131,6 +141,7 @@ export interface SeedData {
   transactions: SeedTransaction[];
   scheduled: SeedScheduled[];
   snapshots: SeedSnapshot[];
+  holdings: SeedHolding[];
 }
 
 // ── descriptor pool (≥40 distinct messy raw forms; docs/SEED_SPEC.md) ───────
@@ -542,6 +553,19 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
 
   transactions.sort((a, b) => compareDates(a.date, b.date) || a.id.localeCompare(b.id));
 
+  // ── investment holdings: a position breakdown of the Brokerage (acct-brokerage),
+  // summing to its $142,000.00 market value, with cost bases that show realistic gains
+  // (DECISIONS #78). Fixed/asOf-independent — a deterministic demo portfolio. Market
+  // values: 5,700,000 + 2,500,000 + 2,160,000 + 2,400,000 + 1,440,000 = 14,200,000
+  // (= acct-brokerage.currentBalanceCents); cost 10,700,000 → +$35,000.00 (+32.71%). ──
+  const holdings: SeedHolding[] = [
+    { id: 'hold-vti', accountId: 'acct-brokerage', symbol: 'VTI', name: 'Vanguard Total Stock Market ETF', quantity: 200, costBasisCents: 4400000, priceCents: 28500 },
+    { id: 'hold-vxus', accountId: 'acct-brokerage', symbol: 'VXUS', name: 'Vanguard Total International Stock ETF', quantity: 400, costBasisCents: 2200000, priceCents: 6250 },
+    { id: 'hold-bnd', accountId: 'acct-brokerage', symbol: 'BND', name: 'Vanguard Total Bond Market ETF', quantity: 300, costBasisCents: 2300000, priceCents: 7200 },
+    { id: 'hold-aapl', accountId: 'acct-brokerage', symbol: 'AAPL', name: 'Apple Inc.', quantity: 100, costBasisCents: 1200000, priceCents: 24000 },
+    { id: 'hold-nvda', accountId: 'acct-brokerage', symbol: 'NVDA', name: 'NVIDIA Corp.', quantity: 30, costBasisCents: 600000, priceCents: 48000 },
+  ];
+
   return {
     asOf,
     user,
@@ -552,6 +576,7 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
     transactions,
     scheduled,
     snapshots,
+    holdings,
   };
 }
 

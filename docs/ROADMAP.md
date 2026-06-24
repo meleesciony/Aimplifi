@@ -172,3 +172,12 @@ a `Holding` data model (additive, Postgres-safe), manual holdings entry, an
 `/investments` view surfaced from `/accounts` (no 8th nav icon, #71), demo seed
 holdings, and an e2e. A retirement planner and live brokerage-holdings ingest are
 later increments.
+
+### Investments — update (DECISIONS #78)
+
+Engine (#77) is now wired into the app: an additive `Holding` model, a demo-seeded
+$142k portfolio, and `src/server/investments.ts` (`getInvestments` read-path running
+the engine + ownership-scoped `addHolding`/`removeHolding`), all integration-tested
+and hostile-critic clean (1 P0 + 3 P1 fixed). REMAINING (owner's UI): an `/investments`
+view consuming `getInvestments()` and an optional manual-entry form calling `addHolding`,
+plus an e2e. Later: a retirement planner and live brokerage-holdings ingest.

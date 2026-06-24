@@ -44,6 +44,7 @@ async function main() {
   await prisma.budget.deleteMany();
   await prisma.merchant.deleteMany();
   await prisma.category.deleteMany();
+  await prisma.holding.deleteMany();
   await prisma.autopayConfig.deleteMany();
   await prisma.account.deleteMany();
   await prisma.user.deleteMany();
@@ -51,6 +52,7 @@ async function main() {
   await prisma.user.create({ data: data.user });
   await prisma.account.createMany({ data: data.accounts });
   await prisma.autopayConfig.createMany({ data: data.autopays });
+  await prisma.holding.createMany({ data: data.holdings });
   await prisma.statement.createMany({ data: data.statements });
   await prisma.cardPayment.createMany({ data: data.cardPayments });
 
@@ -159,6 +161,7 @@ async function main() {
     needsReview: categorized.filter((c) => c.out.needsReview).length,
     scheduled: data.scheduled.length,
     snapshots: data.snapshots.length,
+    holdings: data.holdings.length,
   };
   console.log('Seeded:', JSON.stringify(counts));
 }

@@ -169,3 +169,14 @@ accepted on step not residual; missing safe-int guard; flow ordering) — ALL fi
 docstrings narrowed to honest conventional-flow scope. Gate (real 2026-06-24): bash scripts/verify.sh →
 GREEN, 921 unit/72 files, typecheck/lint/build clean. NEXT increment: Holding schema (additive, pg-safe)
 + manual holdings entry + /investments view (from /accounts, no 8th nav icon) + demo seed + e2e.
+
+## 2026-06-24 (session: "aimplifi") — Investments persistence + server (#78) — DONE ✅
+Wired the #77 engine into the app — data + server only (owner handles UI; "only change if
+markedly better"). Additive Holding model (pg-safe, cascade) + demo seed holdings ($142k
+Brokerage, +$35k) + src/server/investments.ts (getInvestments read-path runs the engine;
+ownership-scoped + type-gated addHolding/removeHolding + audit). 10 integration tests incl.
+the full threat model. Independent hostile critic: authz / net-worth / determinism clean;
+1 P0 (unbounded quantity → read-path break) + 3 P1 FIXED + locked (safe-integer cents, symbol
+length/charset, threat tests); P2s done. Touched NO existing UI. Gate (real 2026-06-24):
+verify GREEN, 931 unit/73 files, build clean; seed holdings:5. NEXT (owner): an /investments
+view consuming getInvestments() (+ optional manual-entry form using addHolding).

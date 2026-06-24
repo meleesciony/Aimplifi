@@ -92,10 +92,32 @@ model Account {
   transactions Transaction[]
   scheduled    ScheduledTransaction[]
   snapshots    BalanceSnapshot[]
+  holdings     Holding[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// Investment holdings — a position breakdown of an INVESTMENT account (DECISIONS #78).
+// Powers the portfolio view (market value, cost basis, unrealized gain, allocation) via
+// the pure investments engine. The account's currentBalanceCents stays authoritative for
+// net worth; holdings are an optional, additive detail (they may not sum to the balance).
+// `quantity` is shares (may be fractional); priceCents/costBasisCents are integer cents.
+model Holding {
+  id             String   @id @default(cuid())
+  accountId      String
+  symbol         String
+  name           String?
+  quantity       Float // shares; may be fractional
+  costBasisCents Int // total invested, integer cents
+  priceCents     Int // current price per share, integer cents
+  updatedAt      DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, symbol]) // one row per symbol per account → upsert target
+  @@index([accountId])
 }
 
 model AutopayConfig {
