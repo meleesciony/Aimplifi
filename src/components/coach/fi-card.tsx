@@ -62,7 +62,7 @@ export function FICard({
     <Card data-testid="fi-card">
       <CardHeader className="pb-2">
         <CardDescription>Financial independence</CardDescription>
-        <CardTitle className="text-2xl tabular-nums" data-testid="fi-number">
+        <CardTitle as="div" className="text-2xl tabular-nums" data-testid="fi-number">
           {formatCents(fiNumberCents)}
         </CardTitle>
         <p className="text-sm text-muted-foreground" data-testid="fi-basis">
@@ -113,6 +113,7 @@ export function FICard({
             max={7000}
             step={100}
             value={sliderBps}
+            aria-valuetext={`${(sliderBps / 100).toFixed(0)}% savings rate`}
             onChange={(e) => setSliderBps(Number(e.target.value))}
             className="w-full accent-emerald-500"
             data-testid="fi-slider"

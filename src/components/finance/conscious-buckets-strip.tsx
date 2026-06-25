@@ -27,6 +27,13 @@ export function ConsciousBucketsStrip({ plan }: { plan: SpendingPlan }) {
 
   const share = (k: ConsciousBucketKey) => buckets.find((b) => b.key === k)!.shareBps;
 
+  // Bar widths come from NON-NEGATIVE bucket magnitudes normalized to sum to
+  // exactly 100% — so an overspent month (guilt-free negative) can't overflow the
+  // track or clip a neighbour, and rounding can't leave a sliver. The labels below
+  // still show each bucket's true (signed) share of income.
+  const widthBasis = buckets.reduce((s, b) => s + Math.max(0, b.cents), 0) || 1;
+  const barPct = (b: { cents: number }) => (Math.max(0, b.cents) / widthBasis) * 100;
+
   return (
     <Card data-testid="conscious-buckets">
       <CardHeader className="pb-2">
@@ -39,7 +46,7 @@ export function ConsciousBucketsStrip({ plan }: { plan: SpendingPlan }) {
             <div
               key={b.key}
               className={META[b.key].bar}
-              style={{ width: `${clampPct(b.shareBps)}%` }}
+              style={{ width: `${barPct(b)}%` }}
               title={`${META[b.key].label}: ${formatCents(cents(b.cents))}`}
             />
           ))}

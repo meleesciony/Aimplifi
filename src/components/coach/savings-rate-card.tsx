@@ -35,7 +35,7 @@ export function SavingsRateCard({
     <Card data-testid="savings-rate-card">
       <CardHeader className="pb-2">
         <CardDescription>Savings rate (after-tax) · {monthLabel}</CardDescription>
-        <CardTitle className="text-2xl tabular-nums sm:text-3xl" data-testid="savings-rate-amount">
+        <CardTitle as="div" className="text-2xl tabular-nums sm:text-3xl" data-testid="savings-rate-amount">
           {currentRateBps === null ? '—' : `${(currentRateBps / 100).toFixed(1)}%`}
         </CardTitle>
         {currentRateBps !== null && avgBps !== null && (

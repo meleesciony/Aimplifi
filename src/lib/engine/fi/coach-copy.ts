@@ -177,7 +177,7 @@ export const COACH_COPY = {
   debtStrategySnowball: () =>
     `Smallest balance first: you clear that first debt soonest. If momentum keeps you going, that counts too.`,
   debtTradeoff: (firstWinMonths: number, interestSavedLabel: string) =>
-    `Quick wins clear your first debt in about ${firstWinMonths} months; least-interest saves roughly ${interestSavedLabel} over the full payoff. Momentum or math — your call.`,
+    `Quick wins clear your first debt in about ${firstWinMonths} months; least-interest saves roughly ${interestSavedLabel} over the full payoff — both assuming you keep payments steady at the current pace. Momentum or math — your call.`,
   debtStarterBuffer: () =>
     `A common first step (Ramsey): set aside about $1,000 as a starter buffer before throwing extra at debt, so a surprise doesn't send you back to the cards.`,
   debtAskAnswer: (monthLabel: string, strategyLabel: string) =>

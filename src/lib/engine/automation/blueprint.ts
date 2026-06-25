@@ -18,8 +18,15 @@ export interface BlueprintInput {
   paycheck: { cadence: PayCadence; amountCents: number } | null;
   /** Goal monthly contributions (pay-yourself-first). Only positive amounts are used. */
   savings: { name: string; monthlyCents: number }[];
-  /** Cards with cash due this cycle (from the Cash-Needed engine). */
-  cards: { cardName: string; dueDate: string; cashRequiredCents: number }[];
+  /**
+   * Cards with cash due this cycle (from the Cash-Needed engine). `isEstimated`
+   * cards (no statement generated yet — a projected next-cycle amount/date) are
+   * dropped: the blueprint is a "set autopay to the statement balance" standing
+   * instruction, which only makes sense once a real statement exists. This keeps
+   * the blueprint aligned with the cash-needed headline, which also excludes
+   * estimated cards when a real statement is present (DECISIONS #98).
+   */
+  cards: { cardName: string; dueDate: string; cashRequiredCents: number; isEstimated?: boolean }[];
 }
 
 export interface BlueprintStep {
@@ -52,7 +59,7 @@ export function buildAutomationBlueprint(input: BlueprintInput): BlueprintStep[]
   }
 
   const cards = input.cards
-    .filter((c) => c.cashRequiredCents > 0)
+    .filter((c) => c.cashRequiredCents > 0 && !c.isEstimated)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   for (const c of cards) {
     steps.push({ order: order++, kind: 'card', amountCents: c.cashRequiredCents, name: c.cardName, onPayday, dueDate: c.dueDate });

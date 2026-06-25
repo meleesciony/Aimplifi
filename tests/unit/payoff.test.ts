@@ -17,8 +17,9 @@ const debt = (over: Partial<DebtInput> = {}): DebtInput => ({
 
 describe('planDebtPayoff — single-debt hand-verified amortization', () => {
   it('clears a $300 @ 12% APR, $100/mo loan in 4 months with $6.14 interest', () => {
-    // EDGE_CASES §Debt-payoff: 300→(+300i)−100=203.00; 205.03−100=105.03... etc.
-    // months 1..4 interest = 300,203,105,6 → total 614; payments 100+100+100+6.14
+    // EDGE_CASES §Debt-payoff A (integer cents): month-end balances
+    //   20300 → 10503 → 608 → 0; per-month interest 300+203+105+6 = 614.
+    // Payments: 10000 + 10000 + 10000 + 614 (final = the residue) = 30614 total.
     const r = planDebtPayoff({ debts: [debt()], strategy: 'avalanche', extraMonthlyCents: 0 });
     expect(r.monthsToDebtFree).toBe(4);
     expect(r.totalInterestCents).toBe(614);
@@ -52,6 +53,46 @@ describe('planDebtPayoff — single-debt hand-verified amortization', () => {
     });
     expect(r.monthsToDebtFree).toBeNull();
     expect(r.perDebt[0].payoffMonth).toBeNull();
+  });
+
+  it('a $0-budget plan (no minimum, no extra) reports no plan, not phantom interest', () => {
+    // EDGE_CASES §Debt-payoff F: a LOAN with no stored minimum and no extra has a
+    // budget of 0 — nothing is ever paid, so we must NOT accrue a month of interest.
+    const r = planDebtPayoff({
+      debts: [debt({ balanceCents: 100_000, aprBps: 1200, minimumPaymentCents: 0 })],
+      strategy: 'avalanche',
+      extraMonthlyCents: 0,
+    });
+    expect(r.monthsToDebtFree).toBeNull();
+    expect(r.totalInterestCents).toBe(0); // no phantom accrual
+    expect(r.totalPaidCents).toBe(0);
+    expect(r.perDebt[0].payoffMonth).toBeNull();
+  });
+});
+
+describe('planDebtPayoff — mixed portfolio: one debt clears while another never amortizes (DECISIONS #98)', () => {
+  // A never amortizes (min 100 < ~200/mo interest) and gets no rollover (budget is
+  // exactly Σ minimums); B is 0% so its 100/mo min pays it straight down. The OLD
+  // portfolio-total guard broke in month 1 (endTotal ≥ startTotal because A grows
+  // more than B shrinks) and wrongly reported BOTH debts as never paid off. The
+  // per-debt guard keeps the plan alive while B is clearing.
+  const debts: DebtInput[] = [
+    { id: 'A', name: 'Big card', balanceCents: 1_000_000, aprBps: 2400, minimumPaymentCents: 10_000 },
+    { id: 'B', name: 'Small 0% card', balanceCents: 30_000, aprBps: 0, minimumPaymentCents: 10_000 },
+  ];
+
+  it('clears B in month 3 (firstPayoffMonth) even though A never amortizes', () => {
+    const r = planDebtPayoff({ debts, strategy: 'snowball', extraMonthlyCents: 0 });
+    // B: 30000 → 20000 → 10000 → 0 (no interest, 10000/mo, no rollover) ⇒ month 3.
+    expect(r.firstPayoffMonth).toBe(3);
+    const b = r.perDebt.find((d) => d.id === 'B')!;
+    expect(b.payoffMonth).toBe(3);
+    expect(b.interestCents).toBe(0);
+    // A's budget (10000) stays below its ~20000/mo interest, so it never clears.
+    const a = r.perDebt.find((d) => d.id === 'A')!;
+    expect(a.payoffMonth).toBeNull();
+    // The overall plan is "never" (A remains), but B's win is no longer hidden.
+    expect(r.monthsToDebtFree).toBeNull();
   });
 });
 

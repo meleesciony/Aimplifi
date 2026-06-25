@@ -60,6 +60,15 @@ export interface DebtPayoffResult {
 /** 100 years — matches fi.ts MAX_MONTHS; a payoff beyond this is reported as "never". */
 const MAX_MONTHS = 1200;
 
+/**
+ * Overflow safety valve ($1B in cents). A debt that never amortizes can compound
+ * for many months while OTHER debts are still clearing (so the per-debt progress
+ * guard below keeps the loop running). Cap any single balance well below
+ * Number.MAX_SAFE_INTEGER so the `balance * aprBps` multiply in monthlyInterest
+ * stays exact — no real debt reaches $1B; past it the payoff is reported "never".
+ */
+const MAX_BALANCE_CENTS = 1e11;
+
 function monthlyInterest(balanceCents: number, aprBps: number): number {
   if (balanceCents <= 0 || aprBps <= 0) return 0;
   return roundHalfAwayFromZero((balanceCents * aprBps) / 10000 / 12);
@@ -99,9 +108,26 @@ export function planDebtPayoff(input: DebtPlanInput): DebtPayoffResult {
 
   const owedRemains = () => debts.some((d) => d.balanceCents > 0);
 
+  // No budget at all (no minimums, no extra) → nothing is ever paid. Report a clean
+  // "no plan" result rather than accruing a phantom month of interest on a $0 plan
+  // (DECISIONS #98). Only fires when there is still something owed.
+  if (budget <= 0 && owedRemains()) {
+    return {
+      strategy: input.strategy,
+      monthsToDebtFree: null,
+      firstPayoffMonth: null,
+      totalInterestCents: 0,
+      totalPaidCents: 0,
+      perDebt: debts.map((d) => ({ id: d.id, name: d.name, payoffMonth: null, interestCents: 0 })),
+    };
+  }
+
   while (owedRemains() && month < MAX_MONTHS) {
     month++;
-    const startTotal = debts.reduce((s, d) => s + d.balanceCents, 0);
+    // Per-debt start-of-month balances. Progress is judged PER DEBT, not on the
+    // portfolio total, so a single never-amortizing debt can't mask another debt
+    // that is steadily clearing (DECISIONS #98).
+    const monthStart = debts.map((d) => d.balanceCents);
 
     // 1) accrue interest on every owed debt
     for (let i = 0; i < n; i++) {
@@ -134,13 +160,20 @@ export function planDebtPayoff(input: DebtPlanInput): DebtPayoffResult {
       if (debts[i].balanceCents === 0 && payoffMonth[i] === null) payoffMonth[i] = month;
     }
 
-    // Negative-amortization guard: with a constant monthly budget, if this month
-    // made no net progress on the total balance, no future month can either
-    // (interest is monotonic in balance, payments are capped) — it will never be
-    // paid off. Break here; this also prevents the balance from compounding past
-    // Number.MAX_SAFE_INTEGER over the month cap.
-    const endTotal = debts.reduce((s, d) => s + d.balanceCents, 0);
-    if (endTotal > 0 && endTotal >= startTotal) break;
+    // Negative-amortization guard, judged PER DEBT (not on the portfolio total).
+    // If NO debt that owed money at the start of the month made any progress this
+    // month — none cleared, none shrank — then every owed debt is flat or growing
+    // and the trajectory can never change, so it will never be paid off: stop.
+    // Judging per debt is what lets a debt that IS clearing keep the plan alive
+    // while another never amortizes (the latter is simply reported payoffMonth=null);
+    // the old portfolio-total test wrongly declared ALL debts unpayable in that
+    // mixed case (DECISIONS #98).
+    const madeProgress = debts.some((d, i) => monthStart[i] > 0 && d.balanceCents < monthStart[i]);
+    if (!madeProgress) break;
+
+    // Overflow safety valve: a still-growing debt in an otherwise-progressing plan
+    // could compound for many months — cap it well below Number.MAX_SAFE_INTEGER.
+    if (debts.some((d) => d.balanceCents > MAX_BALANCE_CENTS)) break;
   }
 
   const allClear = !owedRemains();

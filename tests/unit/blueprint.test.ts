@@ -43,6 +43,19 @@ describe('buildAutomationBlueprint', () => {
     expect(steps.map((s) => s.name)).toEqual(['Emergency Fund', 'Visa']);
   });
 
+  it('drops estimated (no-statement) cards — they have no real amount to autopay (DECISIONS #98)', () => {
+    const steps = buildAutomationBlueprint({
+      ...base,
+      cards: [
+        { cardName: 'Visa', dueDate: '2026-07-03', cashRequiredCents: 80_000, isEstimated: false },
+        { cardName: 'Store Card', dueDate: '2026-07-20', cashRequiredCents: 4_350, isEstimated: true },
+      ],
+    });
+    // The estimated Store Card (a projected next-cycle amount/date) is excluded;
+    // only the real-statement Visa survives as a firm "set it once" instruction.
+    expect(steps.filter((s) => s.kind === 'card').map((s) => s.name)).toEqual(['Visa']);
+  });
+
   it('marks onPayday false when no paycheck cadence is detected', () => {
     const steps = buildAutomationBlueprint({ ...base, paycheck: null });
     expect(steps.every((s) => !s.onPayday)).toBe(true);

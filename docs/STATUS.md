@@ -587,6 +587,56 @@ test now asserts no swallowed error, and a regression test locks WAL on. Proven
 fail-before/pass-after; verify GREEN (901 unit / 71 files), e2e 51 passed, 10/10
 consecutive full-suite reruns clean.
 
+## Coach Principles (Wave 1 + P0.4 + P0.5 + Wave 3) — M7 hostile-critic PASS (DECISIONS #92–98)
+
+Embedded 7/9 finance-book principles into the Coach + app: Wave-1 captions
+(Housel/Sethi/Ramsey framings), the P0.4 Conscious-Spending bucket lens, the
+P0.5 Automation blueprint, and the Wave-3 Debt Freedom planner + Ask `debt_payoff`
+intent — engine-first, each milestone verify-green and committed (#92–97).
+
+**M7 hostile-critic review** (8 read-only dimension reviewers, opus, + adversarial
+verification): **6 P1s confirmed and FIXED, each regression-locked** (full detail
+in DECISIONS #98):
+- **DEBT (P1):** the negative-amortization guard tested the *portfolio total*, so a
+  single never-amortizing debt reported ALL debts — even ones steadily clearing —
+  as never-paid-off (reachable with the seed's own estimated card minimums). Now a
+  **per-debt** progress guard + a $1B overflow valve + a $0-budget short-circuit;
+  pinned by new mixed-portfolio + zero-budget known-answer tests (EDGE_CASES §D/F/G).
+- **AUTOMATION (P1):** the blueprint presented *estimated* next-cycle card
+  obligations (the demo Store Card) as firm "set autopay" instructions → the engine
+  now drops `isEstimated` cards, matching the cash-needed headline.
+- **GUARDRAILS (P1):** `debtTradeoff` was a projection flagged `isProjection:false`
+  (bypassing the assumption scan) → inline assumption added + flag corrected.
+- **ASK (P1×2):** "pay off my credit card debt" was poached into `debt_payoff` (now
+  stays cash_needed); "owe"/"out of debt"/"pay down" debt questions were missed (now
+  routed) — both directions regression-tested.
+- **MIGRATION (P1):** README's `prisma migrate deploy` builds a column-short DB —
+  the single init migration is broadly stale (the migrations dir is vestigial;
+  schema.prisma + `db push` are the real source of truth) → README + deploy step
+  aligned to `prisma db push`.
+
+P2s fixed: two `Math.round`/`*0.01` float-on-cents smells → `roundHalfAwayFromZero`;
+conscious-strip bar widths normalized to sum 100% (overspent no longer overflows);
+value CardTitles `as="div"` (#88); strategy toggle `aria-pressed`; sliders
+`aria-valuetext`; debt-row truncation; trends mover-icon label. Deferred-with-rationale
+P2s: Plaid LOAN minimum unmodeled (connector dormant); the conscious fixed-bucket
+caveat already conveyed by the "bills and spending" copy; marginal small-text contrast
+(axe-PASSING).
+
+Gate (real output 2026-06-25): core `bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+typecheck/lint clean, **1008 unit / 77 files**, build clean. A11y-focused e2e
+**16/16 pass** (coach/goals/budgets/trends/ask axe WCAG-AA — all four new surfaces).
+
+NOTE (env, not a code defect): a full `VERIFY_E2E=1` run's lone failure is
+`phase2-triage` "a full review session completes in <15 interactions" — it times out
+on a `disabled`-while-`pending` accept button under SQLite write contention (1/4 pass
+in isolation). This is the OneDrive/SQLite `SQLITE_BUSY` flake class already recorded
+in item #16 below; it occurs on a page this work never touched (the entire Coach
+Principles delta since the pre-work commit is a nullable `Account.minimumPaymentCents`
+column + its nullable seed field — zero triage/transaction/provider code), so it is
+not a regression. The documented bigger fix (move the test DB to %TEMP%) remains the
+deferred infra item in #16.
+
 Accepted P2s (independent hostile Checker, 0 P0/P1):
 14. The WAL regression test catches an unwired globalSetup on a fresh/CI checkout
     (dev.db created in rollback mode) but NOT on a dev machine whose dev.db is already

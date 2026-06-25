@@ -34,6 +34,8 @@ function MoverRow({ m, isDial = false }: { m: CategoryMover; isDial?: boolean })
         ? 'text-sky-600 dark:text-sky-400'
         : 'text-rose-600 dark:text-rose-400';
   const Icon = m.direction === 'down' ? ArrowDownRight : m.direction === 'new' ? Sparkles : ArrowUpRight;
+  // Direction must not be conveyed by colour alone (WCAG 1.4.1) — label the icon.
+  const directionLabel = m.direction === 'down' ? 'decrease' : m.direction === 'new' ? 'new' : 'increase';
   return (
     <li className="flex items-center justify-between gap-3 py-2">
       <div className="min-w-0">
@@ -53,7 +55,7 @@ function MoverRow({ m, isDial = false }: { m: CategoryMover; isDial?: boolean })
         )}
       </div>
       <div className={`flex shrink-0 items-center gap-1 text-sm font-medium tabular-nums ${tone}`}>
-        <Icon className="size-4" aria-hidden />
+        <Icon className="size-4" role="img" aria-label={directionLabel} />
         <span>
           {m.direction === 'new' ? 'New' : money(m.deltaCents, true)}
           {m.pctChange !== null && m.direction !== 'new' ? (

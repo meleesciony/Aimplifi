@@ -86,7 +86,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'debtNotClearing', text: COACH_COPY.debtNotClearing(), isProjection: false },
   { label: 'debtStrategyAvalanche', text: COACH_COPY.debtStrategyAvalanche(), isProjection: false },
   { label: 'debtStrategySnowball', text: COACH_COPY.debtStrategySnowball(), isProjection: false },
-  { label: 'debtTradeoff', text: COACH_COPY.debtTradeoff(7, '$1,240'), isProjection: false },
+  { label: 'debtTradeoff', text: COACH_COPY.debtTradeoff(7, '$1,240'), isProjection: true },
   { label: 'debtStarterBuffer', text: COACH_COPY.debtStarterBuffer(), isProjection: false },
   { label: 'debtAskAnswer', text: COACH_COPY.debtAskAnswer('Mar 2028', 'least-interest'), isProjection: true },
   ...(() => {

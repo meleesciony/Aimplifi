@@ -11,6 +11,7 @@
  * `minimumPaymentCents` (added in #96) and fall back to 0 (extra-only payoff).
  */
 import { getProvider } from '@/lib/providers/demo';
+import { roundHalfAwayFromZero } from '@/lib/money';
 import type { DebtInput } from '@/lib/engine/debt/payoff';
 
 /** $35 floor — mirrors estimateMinimumPayment in the Cash-Needed engine. */
@@ -18,7 +19,9 @@ const CARD_MIN_FLOOR_CENTS = 3500;
 
 function minimumFor(type: string, balanceCents: number, stored: number | null | undefined): number {
   if (stored != null && stored > 0) return stored;
-  if (type === 'CREDIT') return Math.max(CARD_MIN_FLOOR_CENTS, Math.round(balanceCents * 0.01));
+  // 1% of balance, floored at $35 — integer-cents, via the project's single money
+  // rounding rule (not a `* 0.01` float on cents); mirrors estimateMinimumPayment.
+  if (type === 'CREDIT') return Math.max(CARD_MIN_FLOOR_CENTS, roundHalfAwayFromZero(balanceCents / 100));
   return 0; // a loan without a stored minimum relies on the extra payment
 }
 

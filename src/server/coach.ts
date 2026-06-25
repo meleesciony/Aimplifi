@@ -110,7 +110,8 @@ export async function getCoachData(userId: string): Promise<CoachData> {
   );
   const opportunities = findOpportunities(series, user.expectedReturnBps);
   const creep = detectLifestyleCreep(txns, today);
-  const avgMonthlyExpenses = cents(Math.round(expenses6 / Math.max(1, last6.length)));
+  // documented rounding rule, not Math.round (consistency with monthlySavings above)
+  const avgMonthlyExpenses = cents(roundHalfAwayFromZero(expenses6 / Math.max(1, last6.length)));
   const runway = monthsOfRunway(liquid, avgMonthlyExpenses);
 
   // life-energy view: 5 largest non-transfer purchases in the last 90 days
@@ -158,6 +159,10 @@ export async function getCoachData(userId: string): Promise<CoachData> {
       cardName: c.cardName,
       dueDate: c.effectiveDueDate,
       cashRequiredCents: c.cashRequiredCents,
+      // Estimated next-cycle obligations (no statement yet) are dropped by the
+      // blueprint engine — a "set autopay to the statement balance" instruction
+      // needs a real statement, and this matches the cash-needed headline (#98).
+      isEstimated: c.isEstimated,
     })),
   });
 

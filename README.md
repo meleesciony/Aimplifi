@@ -13,7 +13,7 @@ as the headline metric.
 
 ```bash
 npm install              # postinstall runs `prisma generate`
-npx prisma migrate deploy # creates dev.db (SQLite) from prisma/migrations
+npx prisma db push       # creates dev.db (SQLite) from prisma/schema.prisma (source of truth)
 npx prisma db seed       # deterministic demo dataset (asOf 2026-06-10)
 npm run dev              # http://localhost:3000 → “Explore the demo”
 ```
@@ -86,7 +86,7 @@ without touching the engines — that is also how you’d add any other data API
 1. Push the repo to GitHub; import into Vercel (framework: Next.js).
 2. Database: switch `datasource` to Postgres (schema is portable; money is
    `Int` cents, dates are `YYYY-MM-DD` strings) — e.g. Vercel Postgres/Neon —
-   set `DATABASE_URL`, run `prisma migrate deploy && prisma db seed`.
+   set `DATABASE_URL`, run `prisma db push && prisma db seed`.
 3. Env: `AUTH_SECRET` (`npx auth secret`), optionally the Plaid/Google/cron
    vars above. A blank Plaid config still builds and runs (demo mode).
 4. Cron: add `{ "crons": [{ "path": "/api/cron/sync", "schedule": "0 11 * * *" }] }`

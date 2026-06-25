@@ -278,12 +278,19 @@ export function parseAssistantQuery(question: string, today: ISODate): Assistant
 
   // Debt payoff / debt-freedom (loans + overall debt) — BEFORE cash_needed so
   // "pay off my loan" / "when am I debt-free" isn't read as credit-card cash-needed.
-  // Requires debt/loan vocabulary; "pay off my cards" still falls through to cash_needed.
+  // Requires debt/loan vocabulary. An explicit "credit card" phrasing stays
+  // cash_needed: "pay off my credit card debt" is a this-cycle question answered
+  // from /cards, not a long-horizon payoff plan (DECISIONS #98).
+  const namesCreditCard = /\bcredit cards?\b/.test(q);
   if (
     /\b(avalanche|snowball)\b/.test(q) ||
     /\bdebt[\s-]?free\b/.test(q) ||
-    /\b(pay off|payoff|paying off|get out of)\b(?:\s+\w+){0,3}?\s+(debt|debts|loans?)\b/.test(q) ||
-    (/\bloan\b/.test(q) && /\b(pay|payoff|pay off|when|how long|clear)\b/.test(q))
+    /\bout of debt\b/.test(q) ||
+    (!namesCreditCard &&
+      /\b(pay off|payoff|paying off|pay down|paydown|get out of)\b(?:\s+\w+){0,3}?\s+(debt|debts|loans?)\b/.test(
+        q,
+      )) ||
+    (/\bloan\b/.test(q) && /\b(pay|payoff|pay off|pay down|owe|when|how long|clear)\b/.test(q))
   ) {
     return { kind: 'debt_payoff' };
   }

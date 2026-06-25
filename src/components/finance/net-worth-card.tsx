@@ -55,7 +55,7 @@ export function NetWorthCard({
     <Card data-testid="net-worth-card">
       <CardHeader className="pb-2">
         <CardDescription>Net worth (assets − liabilities)</CardDescription>
-        <CardTitle className="text-2xl tabular-nums sm:text-3xl" data-testid="net-worth-amount">
+        <CardTitle as="div" className="text-2xl tabular-nums sm:text-3xl" data-testid="net-worth-amount">
           {formatCents(cents(current))}
         </CardTitle>
         {deltaCents !== null && (

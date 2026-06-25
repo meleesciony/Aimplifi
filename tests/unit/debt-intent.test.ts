@@ -5,7 +5,8 @@
  * same engine the /goals planner uses.
  */
 import { describe, expect, it } from 'vitest';
-import { parseAssistantQuery } from '@/lib/engine/assistant/intent';
+import { parseAssistantQuery, validateIntent } from '@/lib/engine/assistant/intent';
+import { intentFromKind } from '@/lib/engine/assistant/llm';
 import { answerDebtPayoff } from '@/lib/engine/assistant/answer';
 import { planDebtPayoff } from '@/lib/engine/debt/payoff';
 import { isoDate } from '@/lib/dates';
@@ -20,6 +21,10 @@ describe('debt_payoff routing', () => {
       'help me pay off all my loans',
       'snowball vs avalanche',
       'how long to pay off my loan?',
+      // DECISIONS #98 — phrasings the original router missed entirely:
+      'how much do I owe on my loan?',
+      "how long until I'm out of debt?",
+      'pay down my debt',
     ]) {
       expect(parseAssistantQuery(q, today).kind, q).toBe('debt_payoff');
     }
@@ -28,6 +33,15 @@ describe('debt_payoff routing', () => {
   it('does NOT poach credit-card payment questions (those stay cash_needed)', () => {
     expect(parseAssistantQuery('how much do I need to pay off my cards?', today).kind).toBe('cash_needed');
     expect(parseAssistantQuery('what is due on my credit card?', today).kind).toBe('cash_needed');
+    // DECISIONS #98 — an explicit "credit card debt" is a this-cycle /cards question,
+    // not a long-horizon payoff plan, even though it contains the word "debt".
+    expect(parseAssistantQuery('how much to pay off my credit card debt?', today).kind).toBe('cash_needed');
+    expect(parseAssistantQuery('how much do I owe on my credit card?', today).kind).toBe('cash_needed');
+  });
+
+  it('debt_payoff is a valid intent through the validator and the LLM kind path', () => {
+    expect(validateIntent({ kind: 'debt_payoff' })).toEqual({ kind: 'debt_payoff' });
+    expect(intentFromKind('debt_payoff', 'when am I debt free', today)).toEqual({ kind: 'debt_payoff' });
   });
 });
 

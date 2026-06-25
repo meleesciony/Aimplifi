@@ -287,9 +287,9 @@ $300 @ 12%, $100/mo + $100 extra (budget $200/mo): M1 30300−20000=10300; M2 10
 
 ### D. Negative amortization → never (null), no overflow
 $1000 @ 36% APR (3%/mo = $30 interest) with a $10/mo minimum and no extra: the balance grows every
-month. The constant-budget guard detects no net progress in month 1 (endTotal ≥ startTotal) and
-returns `monthsToDebtFree = null` — and crucially breaks BEFORE the balance compounds past
-`Number.MAX_SAFE_INTEGER` over the 1200-month cap (regression: the unguarded loop threw in
+month. The per-debt progress guard detects that no owed debt shrank this month and returns
+`monthsToDebtFree = null` — and a $1B per-balance overflow valve breaks BEFORE any balance compounds
+past `Number.MAX_SAFE_INTEGER` over the 1200-month cap (regression: the unguarded loop threw in
 `roundHalfAwayFromZero`).
 
 ### E. Snowball vs avalanche (Conflict A), two debts + $100/mo extra
@@ -298,4 +298,18 @@ A = $500 @ 24% APR, $50/mo min; B = $200 @ 6% APR, $50/mo min. Budget = $200/mo.
   `firstPayoffMonth` is sooner than avalanche's.
 - **Avalanche** focuses A (highest APR): `totalInterestCents` ≤ snowball's (never more).
 
-Covered by `tests/unit/payoff.test.ts` (6 cases).
+### F. Zero-budget plan → no plan, no phantom interest (DECISIONS #98)
+A LOAN with no stored minimum and no extra ⇒ total budget = 0. Nothing is ever paid, so the engine
+short-circuits to `monthsToDebtFree = null`, `totalInterestCents = 0`, `totalPaidCents = 0` rather than
+accruing one phantom month of interest on a $0 plan.
+
+### G. Mixed portfolio — one debt clears while another never amortizes (DECISIONS #98)
+A = $10,000 @ 24% APR, $100/mo min; B = $300 @ 0%, $100/mo min. Budget = $200/mo (snowball, focus B).
+A's $100 min is far below its ~$200/mo interest and it gets no rollover (budget = Σ minimums), so A
+grows every month; B is 0% and its $100/mo pays it straight down: 30000 → 20000 → 10000 → 0, clearing
+in month 3. The **per-debt** guard (not the old portfolio-total test, which broke in month 1 because A
+grows more than B shrinks and wrongly reported BOTH as never paid off) keeps the plan alive while B is
+clearing: `firstPayoffMonth = 3`, B's `payoffMonth = 3`, A's `payoffMonth = null`, overall
+`monthsToDebtFree = null` (A remains).
+
+Covered by `tests/unit/payoff.test.ts` (8 cases).

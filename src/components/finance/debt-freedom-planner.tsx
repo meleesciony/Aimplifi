@@ -63,6 +63,7 @@ export function DebtFreedomPlanner({ debts, today }: { debts: DebtInput[]; today
               type="button"
               size="sm"
               variant={strategy === 'avalanche' ? 'default' : 'ghost'}
+              aria-pressed={strategy === 'avalanche'}
               onClick={() => setStrategy('avalanche')}
               data-testid="strategy-avalanche"
             >
@@ -72,6 +73,7 @@ export function DebtFreedomPlanner({ debts, today }: { debts: DebtInput[]; today
               type="button"
               size="sm"
               variant={strategy === 'snowball' ? 'default' : 'ghost'}
+              aria-pressed={strategy === 'snowball'}
               onClick={() => setStrategy('snowball')}
               data-testid="strategy-snowball"
             >
@@ -98,6 +100,7 @@ export function DebtFreedomPlanner({ debts, today }: { debts: DebtInput[]; today
             max={EXTRA_MAX_CENTS}
             step={EXTRA_STEP_CENTS}
             value={extraCents}
+            aria-valuetext={`${formatCents(cents(extraCents))} per month`}
             onChange={(e) => setExtraCents(Number(e.target.value))}
             className="w-full accent-emerald-500"
             data-testid="debt-extra-slider"
@@ -110,8 +113,8 @@ export function DebtFreedomPlanner({ debts, today }: { debts: DebtInput[]; today
             const when = monthLabel(d.payoffMonth);
             return (
               <li key={d.id} className="flex items-baseline justify-between gap-2">
-                <span className="font-medium">{d.name}</span>
-                <span className="tabular-nums text-muted-foreground">
+                <span className="min-w-0 truncate font-medium">{d.name}</span>
+                <span className="shrink-0 text-right tabular-nums text-muted-foreground">
                   {when ? `cleared by ${when}` : 'not on this plan'} · {formatCents(cents(d.interestCents))} interest
                 </span>
               </li>
