@@ -19,6 +19,9 @@ import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { addMonthsClamped, formatMonth, isoDate } from '@/lib/dates';
+import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
 import type { AssistantIntent, SpendTarget, Timeframe } from './intent';
 
 export interface AssistantFact {
@@ -354,6 +357,38 @@ export function answerCashNeeded(result: CashNeededResult, paymentAccountName: s
   };
 }
 
+// ─── debt payoff (when am I debt-free) ──────────────────────────────────────
+
+export function answerDebtPayoff(plan: DebtPayoffResult, today: string, debtCount: number): AssistantAnswer {
+  const source: AssistantSource = { label: 'See debt plan', href: '/goals' };
+  if (debtCount === 0) {
+    return { kind: 'debt_payoff', headline: 'You have no tracked debts right now — nothing to pay down.', facts: [], source };
+  }
+  if (plan.monthsToDebtFree === null) {
+    return {
+      kind: 'debt_payoff',
+      headline: COACH_COPY.debtNotClearing(),
+      facts: [
+        { label: 'Debts', value: String(debtCount) },
+        { label: 'Interest so far', value: fmt(plan.totalInterestCents) },
+      ],
+      source,
+    };
+  }
+  const monthLabel = formatMonth(addMonthsClamped(isoDate(today), plan.monthsToDebtFree).slice(0, 7));
+  return {
+    kind: 'debt_payoff',
+    headline: COACH_COPY.debtAskAnswer(monthLabel, 'least-interest (avalanche)'),
+    detail: 'Snowball (smallest balance first) is one tap away on the planner if momentum matters more.',
+    facts: [
+      { label: 'Debts', value: String(debtCount) },
+      { label: 'Months', value: String(plan.monthsToDebtFree) },
+      { label: 'Total interest', value: fmt(plan.totalInterestCents) },
+    ],
+    source,
+  };
+}
+
 // ─── subscriptions ──────────────────────────────────────────────────────────
 
 export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer {
@@ -448,6 +483,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'What subscriptions am I paying for?',
   'Will I run out of money in the next 90 days?',
   'What was my biggest purchase this month?',
+  'When will I be debt-free?',
 ];
 
 export function answerUnknown(): AssistantAnswer {

@@ -37,6 +37,7 @@ export function buildIntentPrompt(question: string): string {
     '- income: money earned over a period',
     '- safe_to_spend: how much is safe to spend this month',
     '- cash_needed: how much is owed on credit cards and by when',
+    '- debt_payoff: when the user will be debt-free / how to pay off loans and debts (snowball vs avalanche)',
     '- subscriptions: recurring subscriptions and their cost',
     '- forecast: projected cash balance / running out of money',
     '- savings_rate: percent of income saved',
@@ -68,6 +69,7 @@ export function intentFromKind(kindRaw: string | null, question: string, today: 
     case 'net_worth':
     case 'safe_to_spend':
     case 'cash_needed':
+    case 'debt_payoff':
     case 'subscriptions':
     case 'forecast':
     case 'savings_rate':

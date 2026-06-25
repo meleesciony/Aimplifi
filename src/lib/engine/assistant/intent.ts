@@ -37,6 +37,7 @@ export type AssistantIntent =
   | { kind: 'income'; timeframe: Timeframe }
   | { kind: 'safe_to_spend' }
   | { kind: 'cash_needed' }
+  | { kind: 'debt_payoff' }
   | { kind: 'subscriptions' }
   | { kind: 'forecast' }
   | { kind: 'savings_rate' }
@@ -54,6 +55,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'income',
   'safe_to_spend',
   'cash_needed',
+  'debt_payoff',
   'subscriptions',
   'forecast',
   'savings_rate',
@@ -274,6 +276,18 @@ export function parseAssistantQuery(question: string, today: ISODate): Assistant
     return { kind: 'forecast' };
   }
 
+  // Debt payoff / debt-freedom (loans + overall debt) — BEFORE cash_needed so
+  // "pay off my loan" / "when am I debt-free" isn't read as credit-card cash-needed.
+  // Requires debt/loan vocabulary; "pay off my cards" still falls through to cash_needed.
+  if (
+    /\b(avalanche|snowball)\b/.test(q) ||
+    /\bdebt[\s-]?free\b/.test(q) ||
+    /\b(pay off|payoff|paying off|get out of)\b(?:\s+\w+){0,3}?\s+(debt|debts|loans?)\b/.test(q) ||
+    (/\bloan\b/.test(q) && /\b(pay|payoff|pay off|when|how long|clear)\b/.test(q))
+  ) {
+    return { kind: 'debt_payoff' };
+  }
+
   // Cash needed to pay cards (require card/payment/due context to avoid grabbing
   // "how much can I spend").
   if (
@@ -380,6 +394,7 @@ export function validateIntent(x: unknown): AssistantIntent | null {
     case 'net_worth':
     case 'safe_to_spend':
     case 'cash_needed':
+    case 'debt_payoff':
     case 'subscriptions':
     case 'forecast':
     case 'savings_rate':

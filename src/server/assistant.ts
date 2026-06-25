@@ -16,6 +16,8 @@ import { getSpendingPlan } from '@/server/spending-plan';
 import { getRecurring } from '@/server/recurring';
 import { getCashFlowForecast } from '@/server/forecast';
 import { getCoachData } from '@/server/coach';
+import { loadDebtAccounts } from '@/server/debt';
+import { planDebtPayoff } from '@/lib/engine/debt/payoff';
 import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
@@ -25,6 +27,7 @@ import { classifyIntentViaLLM } from '@/server/assistant-llm';
 import {
   answerAccountBalance,
   answerCashNeeded,
+  answerDebtPayoff,
   answerForecast,
   answerIncome,
   answerLargest,
@@ -145,6 +148,13 @@ async function buildAnswer(
     case 'cash_needed': {
       const { result } = await getCashNeeded(userId);
       return answerCashNeeded(result, resolvePaymentAccount(snap).name);
+    }
+    case 'debt_payoff': {
+      // Same read-path + engine as the /goals planner (avalanche default, no extra)
+      // so the answer can never drift from the dedicated view.
+      const debts = await loadDebtAccounts(userId);
+      const plan = planDebtPayoff({ debts, strategy: 'avalanche', extraMonthlyCents: 0 });
+      return answerDebtPayoff(plan, today, debts.length);
     }
     case 'subscriptions':
       return answerSubscriptions((await getRecurring(userId)).summary);

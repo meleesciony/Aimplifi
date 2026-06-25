@@ -297,7 +297,8 @@ describe('answerUnknown', () => {
   it('offers capabilities + suggestions', () => {
     const a = answerUnknown();
     expect(a.kind).toBe('unknown');
-    expect(a.suggestions).toHaveLength(6);
+    expect(a.suggestions).toHaveLength(7);
+    expect(a.suggestions).toContain('When will I be debt-free?');
     expect(a.source).toBeUndefined();
   });
 });
