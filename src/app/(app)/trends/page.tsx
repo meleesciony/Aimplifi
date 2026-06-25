@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { TrendsView } from '@/components/finance/trends-view';
 import { getSpendingTrends } from '@/server/trends';
+import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { prisma } from '@/lib/db';
 
 export const metadata = { title: "Trends" };
@@ -13,6 +14,9 @@ export default async function TrendsPage() {
   const userId = session.user.id;
   if ((await prisma.account.count({ where: { userId } })) === 0) return <EmptyDashboard />;
 
-  const trends = await getSpendingTrends(userId);
-  return <TrendsView trends={trends} />;
+  const [trends, user] = await Promise.all([
+    getSpendingTrends(userId),
+    prisma.user.findUnique({ where: { id: userId }, select: { moneyDials: true } }),
+  ]);
+  return <TrendsView trends={trends} dials={parseStoredDials(user?.moneyDials)} />;
 }

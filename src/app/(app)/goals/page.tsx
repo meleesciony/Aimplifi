@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { prisma } from '@/lib/db';
 import { goalFIImpact } from '@/lib/engine/goals';
+import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { cents, formatCents } from '@/lib/money';
 import { getCoachData } from '@/server/coach';
 import { DeleteGoalButton } from '@/components/finance/delete-goal-button';
@@ -30,6 +31,9 @@ export default async function GoalsPage() {
         Every goal shows its effect on your FI date, assuming your savings rate
         and expected return stay as they are. Goals and FI aren&apos;t enemies —
         they&apos;re both you, paying yourself first.
+      </p>
+      <p className="text-xs text-muted-foreground" data-testid="cushion-is-a-goal">
+        {COACH_COPY.cushionIsAGoal()}
       </p>
 
       {goals.length === 0 && (
@@ -148,6 +152,10 @@ export default async function GoalsPage() {
           </form>
         </CardContent>
       </Card>
+
+      <p className="px-1 text-xs text-muted-foreground" data-testid="assumptions-change">
+        {COACH_COPY.assumptionsChange()}
+      </p>
     </div>
   );
 }

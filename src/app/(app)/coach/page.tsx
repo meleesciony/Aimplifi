@@ -74,6 +74,11 @@ export default async function CoachPage() {
                     {o.isEstimate ? `~${formatCents(o.monthlyCents)}/mo est.` : `${formatCents(o.monthlyCents)}/mo`}
                   </Badge>
                 </div>
+                {i === 0 && (
+                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400" data-testid="biggest-lever">
+                    {COACH_COPY.biggestLever()}
+                  </p>
+                )}
                 {/* the actionable line first; the compounding math in a quiet second line */}
                 <p className="text-xs text-muted-foreground">
                   {COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}

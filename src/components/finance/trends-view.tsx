@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { ArrowDownRight, ArrowUpRight, Gauge, Receipt, Sparkles, Store } from 'lucide-react';
 import { formatISODate, formatMonth, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
+import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { CategoryMover, SpendingTrends } from '@/lib/engine/trends/trends';
 
 const money = (n: number, signed = false) =>
@@ -25,7 +26,7 @@ function baselineLabel(months: string[]): string {
   return `${oldest}–${newest}`;
 }
 
-function MoverRow({ m }: { m: CategoryMover }) {
+function MoverRow({ m, isDial = false }: { m: CategoryMover; isDial?: boolean }) {
   const tone =
     m.direction === 'down'
       ? 'text-emerald-600 dark:text-emerald-400'
@@ -36,12 +37,20 @@ function MoverRow({ m }: { m: CategoryMover }) {
   return (
     <li className="flex items-center justify-between gap-3 py-2">
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium">{m.name}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-medium">{m.name}</span>
+          {isDial && <Gauge className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />}
+        </div>
         <div className="truncate text-xs text-muted-foreground">
           {m.direction === 'new'
             ? `new this period · ${money(m.currentCents)}`
             : `${money(m.currentCents)} vs ${money(m.baselineCents)} usual`}
         </div>
+        {isDial && (
+          <div className="text-xs text-emerald-600 dark:text-emerald-400" data-testid="dial-tag">
+            {COACH_COPY.dialTag(m.name)}
+          </div>
+        )}
       </div>
       <div className={`flex shrink-0 items-center gap-1 text-sm font-medium tabular-nums ${tone}`}>
         <Icon className="size-4" aria-hidden />
@@ -56,9 +65,11 @@ function MoverRow({ m }: { m: CategoryMover }) {
   );
 }
 
-export function TrendsView({ trends }: { trends: SpendingTrends }) {
+export function TrendsView({ trends, dials = [] }: { trends: SpendingTrends; dials?: string[] }) {
   const { pace, movers, largest, newMerchants, comparedYm, baselineMonths } = trends;
   const paceUp = pace ? pace.deltaVsPriorCents > 0 : false;
+  // money dials are user-configured category labels; tag a mover when its category is one
+  const dialSet = new Set(dials.map((d) => d.toLowerCase()));
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -116,7 +127,7 @@ export function TrendsView({ trends }: { trends: SpendingTrends }) {
         ) : (
           <ul className="divide-y">
             {movers.map((m) => (
-              <MoverRow key={m.categoryId} m={m} />
+              <MoverRow key={m.categoryId} m={m} isDial={dialSet.has(m.name.toLowerCase())} />
             ))}
           </ul>
         )}

@@ -5,6 +5,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { MoneyDialsForm } from '@/components/settings/money-dials-form';
 import { DeleteMyDataForm } from '@/components/settings/delete-my-data-form';
 import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/dials';
+import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { deletionSummary } from '@/lib/engine/account/deletion';
 import { prisma } from '@/lib/db';
 
@@ -67,6 +68,9 @@ export default async function SettingsPage() {
         }}
         accounts={eligibleAccounts}
       />
+      <p className="px-1 text-xs text-muted-foreground" data-testid="assumptions-change">
+        {COACH_COPY.assumptionsChange()}
+      </p>
 
       <Card data-testid="export-card">
         <CardHeader className="pb-2">
