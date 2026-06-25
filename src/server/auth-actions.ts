@@ -9,7 +9,7 @@
 import { AuthError } from 'next-auth';
 import { signIn } from '@/auth';
 import { hashPassword } from '@/lib/auth/password';
-import { isSignupAllowed } from '@/lib/auth/allowlist';
+import { effectiveAllowlist, isSignupAllowed } from '@/lib/auth/allowlist';
 import { normalizeEmail, validateSignup } from '@/lib/auth/validate';
 import { rateLimitDurable } from '@/server/authz';
 import { clientIp } from '@/lib/request-ip';
@@ -27,23 +27,10 @@ const SIGNIN_FAIL_LIMIT = 8; // failed attempts per account / window
 const SIGNIN_IP_LIMIT = 20; // attempts per device / window
 const SIGNIN_WINDOW_MS = 60_000;
 
-/**
- * Household owners — ALWAYS allowed to create an account on the deployed app
- * (DECISIONS #60), so a missing/mis-set SIGNUP_ALLOWLIST can never lock the
- * owners out of their own app. On Vercel this is unioned into the allowlist, so
- * with no env var the deploy is invite-only to exactly these two; with one, it's
- * these two PLUS whatever it lists. Off Vercel (tests/local) it's dormant, so the
- * suite's open-signup behavior is unchanged.
- */
-const OWNER_ALLOWLIST = 'michael.lee.p@gmail.com, lizysuh55@gmail.com';
-
-/** The effective signup allowlist: on Vercel, the env list ∪ the owners (owners
- *  always allowed); elsewhere, the env list verbatim (unset → open, for tests). */
-function effectiveAllowlist(): string {
-  const env = process.env.SIGNUP_ALLOWLIST?.trim() ?? '';
-  if (!process.env.VERCEL) return env; // local/test: unchanged (dormant by default)
-  return [env, OWNER_ALLOWLIST].filter(Boolean).join(', ');
-}
+// OWNER_ALLOWLIST + effectiveAllowlist() moved to '@/lib/auth/allowlist' (DECISIONS
+// #100) so the Google OAuth signIn callback (src/auth.ts via google-provision.ts)
+// enforces the SAME invite-only gate without importing this server-action module
+// (which would cycle through @/auth).
 
 export interface AuthFormState {
   error?: string;

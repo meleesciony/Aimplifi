@@ -9,6 +9,7 @@
  */
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import { applyGoogleSignIn } from '@/lib/auth/google-provision';
 import { verifyPassword } from '@/lib/auth/password';
 import { normalizeEmail } from '@/lib/auth/validate';
 import { prisma } from '@/lib/db';
@@ -36,26 +37,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    // Google: ensure the User row exists, keyed by the same deterministic id the
-    // jwt callback derives. No adapter, no Account-model collision.
+    // Google: enforce the invite-only allowlist AND provision the User row via
+    // google-provision.ts (DECISIONS #43, #100). The OAuth path is now gated
+    // exactly like email/password signup — un-allowlisted emails create no row —
+    // while existing accounts keep signing in. Keyed by the same deterministic
+    // `google:<email>` id the jwt callback derives (no adapter, no Account-model
+    // collision).
     signIn: async ({ account, profile }) => {
       if (account?.provider === 'google' && profile?.email) {
-        const email = normalizeEmail(String(profile.email));
-        const id = `google:${email}`;
-        try {
-          // If the email already belongs to another sign-in method (e.g. a
-          // password account), refuse rather than crash on the unique-email
-          // constraint. Proper account-linking is a documented follow-up (#43).
-          const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
-          if (existing && existing.id !== id) return false;
-          await prisma.user.upsert({
-            where: { id },
-            create: { id, email, name: (profile.name as string | undefined) ?? null },
-            update: {},
-          });
-        } catch {
-          return false; // never surface a raw 500 from the OAuth callback
-        }
+        return applyGoogleSignIn(
+          normalizeEmail(String(profile.email)),
+          (profile.name as string | undefined) ?? null,
+        );
       }
       return true;
     },

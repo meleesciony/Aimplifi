@@ -40,3 +40,25 @@ export function isSignupAllowed(email: string, rawAllowlist: string | undefined 
   const domain = e.slice(at); // includes the leading '@'
   return list.includes(domain);
 }
+
+/**
+ * Household owners — ALWAYS allowed to create an account on the deployed app
+ * (DECISIONS #60), so a missing/mis-set SIGNUP_ALLOWLIST can never lock the
+ * owners out of their own app.
+ */
+export const OWNER_ALLOWLIST = 'michael.lee.p@gmail.com, lizysuh55@gmail.com';
+
+/**
+ * The effective signup allowlist string (DECISIONS #57, #60, #100). On Vercel it's
+ * the env list ∪ the owners (owners always allowed, so a mis-set env var can't lock
+ * them out); elsewhere (tests/local) it's the env list verbatim — unset → empty →
+ * open (dormant). This now gates ACCOUNT CREATION for BOTH email/password signup
+ * (src/server/auth-actions.ts) and Google OAuth (src/lib/auth/google-provision.ts),
+ * so neither path can bypass invite-only. Lives here (a Prisma-free, env-only
+ * module) so the OAuth callback can reuse it without cycling through @/auth.
+ */
+export function effectiveAllowlist(): string {
+  const env = process.env.SIGNUP_ALLOWLIST?.trim() ?? '';
+  if (!process.env.VERCEL) return env; // local/test: unchanged (dormant by default)
+  return [env, OWNER_ALLOWLIST].filter(Boolean).join(', ');
+}
