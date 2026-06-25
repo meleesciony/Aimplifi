@@ -24,8 +24,12 @@ export const config = {
   matcher: [
     // /sw.js (must serve as JS) and /offline (public fallback shell) are excluded
     // so the service worker registers and the offline page renders without a session.
-    // These two are anchored ($) + the dot escaped so /offline-* and /swXjs can't
-    // skip auth via a prefix collision.
-    '/((?!api/auth|api/cron|api/plaid/webhook|sign-in|offline$|sw\\.js$|_next/static|_next/image|favicon.ico|manifest|icon).*)',
+    // /privacy is the public privacy policy — Plaid production access requires a
+    // publicly reachable URL, so an unauthenticated reviewer must reach it without
+    // a redirect to /sign-in. `privacy/?$` tolerates a trailing slash (/privacy and
+    // /privacy/) while the `$` still blocks prefix collisions: /privacy-secret,
+    // /privacyx and /privacy/anything all stay behind auth. /swXjs likewise can't
+    // skip auth (the dot is escaped).
+    '/((?!api/auth|api/cron|api/plaid/webhook|sign-in|privacy/?$|offline$|sw\\.js$|_next/static|_next/image|favicon.ico|manifest|icon).*)',
   ],
 };

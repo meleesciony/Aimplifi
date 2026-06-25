@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { DEMO_USER_ID, auth, signIn } from '@/auth';
 import { EmailPasswordForm } from '@/components/auth/email-password-form';
@@ -56,6 +57,13 @@ export default async function SignInPage() {
           <p className="text-xs text-muted-foreground">
             The demo uses a realistic seeded dataset — fictional accounts, no sign-up. Create an account
             to track your own money; connect your banks, cards, and brokerages to get started.
+          </p>
+          <p className="text-[11px] leading-relaxed text-muted-foreground" data-testid="consent-notice">
+            By creating an account or continuing, you agree to our{' '}
+            <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+              Privacy Policy
+            </Link>
+            .
           </p>
         </CardContent>
       </Card>
