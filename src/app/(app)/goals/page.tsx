@@ -8,7 +8,9 @@ import { goalFIImpact } from '@/lib/engine/goals';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { cents, formatCents } from '@/lib/money';
 import { getCoachData } from '@/server/coach';
+import { loadDebtAccounts } from '@/server/debt';
 import { DeleteGoalButton } from '@/components/finance/delete-goal-button';
+import { DebtFreedomPlanner } from '@/components/finance/debt-freedom-planner';
 import { createGoal } from '@/server/goal-actions';
 
 export const metadata = { title: "Goals" };
@@ -19,9 +21,10 @@ export default async function GoalsPage() {
   const userId = session.user.id;
   // No accounts yet → onboarding; getCoachData runs the cash engine which throws on empty (DECISIONS #44).
   if ((await prisma.account.count({ where: { userId } })) === 0) return <EmptyDashboard />;
-  const [goals, coach] = await Promise.all([
+  const [goals, coach, debts] = await Promise.all([
     prisma.goal.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
     getCoachData(userId),
+    loadDebtAccounts(userId),
   ]);
 
   return (
@@ -111,6 +114,8 @@ export default async function GoalsPage() {
           );
         })}
       </div>
+
+      {debts.length > 0 && <DebtFreedomPlanner debts={debts} today={coach.today} />}
 
       <Card>
         <CardHeader className="pb-2">

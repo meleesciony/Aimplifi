@@ -166,6 +166,22 @@ export const COACH_COPY = {
     `On ${day}: move ${formatCents(amount)} to ${goal}.`,
   automationCardStep: (cardName: string, amount: Cents, byDate: string) =>
     `${cardName}: set autopay to the statement balance and keep ${formatCents(amount)} in checking before ${byDate}, so it always clears in full.`,
+
+  // ── Wave 3: Debt Freedom planner (C9 · Ramsey; Conflict A) ─────────────────
+  debtFreeHero: (monthLabel: string) =>
+    `You'd be debt-free around ${monthLabel}, assuming you keep these payments going at the current pace.`,
+  debtNotClearing: () =>
+    `At these payments alone the balances don't fully clear — adding even a small extra each month is what changes that.`,
+  debtStrategyAvalanche: () =>
+    `Highest rate first: costs the least interest. The recommended default — honest math, no artificial wins needed.`,
+  debtStrategySnowball: () =>
+    `Smallest balance first: you clear that first debt soonest. If momentum keeps you going, that counts too.`,
+  debtTradeoff: (firstWinMonths: number, interestSavedLabel: string) =>
+    `Quick wins clear your first debt in about ${firstWinMonths} months; least-interest saves roughly ${interestSavedLabel} over the full payoff. Momentum or math — your call.`,
+  debtStarterBuffer: () =>
+    `A common first step (Ramsey): set aside about $1,000 as a starter buffer before throwing extra at debt, so a surprise doesn't send you back to the cards.`,
+  debtAskAnswer: (monthLabel: string, strategyLabel: string) =>
+    `On the ${strategyLabel} plan, you'd be debt-free around ${monthLabel}, assuming you keep the payments steady.`,
 } as const;
 
 // ── Monthly Money Review (generated from real data) ──────────────────────────
