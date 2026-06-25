@@ -19,6 +19,7 @@ import {
   type ManualStatementFormValues,
 } from '@/components/finance/manual-card-statement-form';
 import { cents, formatCents } from '@/lib/money';
+import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { MANUAL_ASSET_TYPES, MANUAL_LIABILITY_TYPES } from '@/lib/engine/networth/manual';
 import {
@@ -84,6 +85,9 @@ function NetWorthCard({ data }: { data: AccountsView }) {
           <span>Assets {formatCents(data.assets.subtotalCents)}</span>
           <span>Liabilities {formatCents(data.liabilities.subtotalCents)}</span>
         </div>
+        <p className="text-xs text-muted-foreground" data-testid="assets-vs-liabilities">
+          {COACH_COPY.assetsVsLiabilities()}
+        </p>
         {chartData.length >= 2 && (
           <div className="h-36 w-full sm:h-44" data-testid="accounts-net-worth-trend">
             <ResponsiveContainer width="100%" height="100%">

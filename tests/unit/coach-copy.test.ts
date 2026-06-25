@@ -89,6 +89,10 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'debtTradeoff', text: COACH_COPY.debtTradeoff(7, '$1,240'), isProjection: true },
   { label: 'debtStarterBuffer', text: COACH_COPY.debtStarterBuffer(), isProjection: false },
   { label: 'debtAskAnswer', text: COACH_COPY.debtAskAnswer('Mar 2028', 'least-interest'), isProjection: true },
+  // Wave 4 — book-coverage completion (Kiyosaki C11, Aliche/Sethi C16)
+  { label: 'assetsVsLiabilities', text: COACH_COPY.assetsVsLiabilities(), isProjection: false },
+  { label: 'moneyRules:withDials', text: COACH_COPY.moneyRules(['Travel', 'Dining Out']), isProjection: false },
+  { label: 'moneyRules:empty', text: COACH_COPY.moneyRules([]), isProjection: false },
   ...(() => {
     const review = generateMoneyReview({
       flows,

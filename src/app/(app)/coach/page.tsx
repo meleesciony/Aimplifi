@@ -171,6 +171,20 @@ export default async function CoachPage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Your money rules — a short rulebook beats a perfect plan you won't keep
+          (Aliche · Get Good with Money; Sethi · your money rules) */}
+      <Card data-testid="money-rules-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Your money rules</CardDescription>
+          <CardTitle className="text-base">A few rules you keep</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground" data-testid="money-rules">
+            {COACH_COPY.moneyRules(data.moneyDials)}
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

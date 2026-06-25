@@ -182,6 +182,14 @@ export const COACH_COPY = {
     `A common first step (Ramsey): set aside about $1,000 as a starter buffer before throwing extra at debt, so a surprise doesn't send you back to the cards.`,
   debtAskAnswer: (monthLabel: string, strategyLabel: string) =>
     `On the ${strategyLabel} plan, you'd be debt-free around ${monthLabel}, assuming you keep the payments steady.`,
+
+  // ── Wave 4: book-coverage completion — surface the last two of the nine books ──
+  // C11 · Kiyosaki (Rich Dad Poor Dad) — assets vs liabilities, shown on /accounts.
+  assetsVsLiabilities: () =>
+    `Assets put money in your pocket; liabilities take it out. Your net worth is what's left once the liabilities are subtracted — that's the number this app is built to grow.`,
+  // C16 · Aliche (Get Good with Money) + Sethi (your money rules) — shown on /coach.
+  moneyRules: (dials: string[]) =>
+    `The few rules this app is built around: pay every card in full, pay yourself first before you spend, and ${dials.length ? `spend on ${dials.join(', ')} without guilt` : 'spend on the few things you value without guilt'}. Getting good with money is mostly a short list of rules you actually keep — they beat a perfect plan you won't.`,
 } as const;
 
 // ── Monthly Money Review (generated from real data) ──────────────────────────

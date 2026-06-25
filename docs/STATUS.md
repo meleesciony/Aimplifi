@@ -627,6 +627,16 @@ Gate (real output 2026-06-25): core `bash scripts/verify.sh` → **✅ VERIFY GR
 typecheck/lint clean, **1008 unit / 77 files**, build clean. A11y-focused e2e
 **16/16 pass** (coach/goals/budgets/trends/ask axe WCAG-AA — all four new surfaces).
 
+**Book coverage completed to 9/9 (DECISIONS #99).** On "continue", the two books the
+recommended scope left invisible were surfaced as content lines (the plan §2 line-69
+owner option): C11 Kiyosaki — assets-vs-liabilities caption on /accounts; C16
+Aliche/Sethi — a "Your money rules" strip on /coach (reads the existing moneyDials, no
+new storage). Pure content, guardrail-scanned, no engine/schema change. The remaining
+Wave-4 items (income-lever slider, mortgage early-payoff what-if, memory-dividend
+reflection, PAW lens, the heavier stored My-Money-Rules feature, new Ask intents) stay
+deferred as genuine polish below the plan's "markedly better" stop bar (§7 + #80). Gate:
+core verify GREEN (**1014 unit / 77 files**), axe e2e for /accounts + /coach 2/2.
+
 NOTE (env, not a code defect): a full `VERIFY_E2E=1` run's lone failure is
 `phase2-triage` "a full review session completes in <15 interactions" — it times out
 on a `disabled`-while-`pending` accept button under SQLite write contention (1/4 pass
