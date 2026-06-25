@@ -64,6 +64,7 @@ export interface SeedAccount {
   currentBalanceCents: number;
   creditLimitCents: number | null;
   aprBps: number | null;
+  minimumPaymentCents: number | null;
   dueDayOfMonth: number | null;
   cycleCloseDayOfMonth: number | null;
 }
@@ -239,15 +240,15 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
   };
 
   const accounts: SeedAccount[] = [
-    { id: 'acct-checking', userId: user.id, provider: 'demo', name: 'Everyday Checking', type: 'CHECKING', mask: '4421', currentBalanceCents: 340000, creditLimitCents: null, aprBps: null, dueDayOfMonth: null, cycleCloseDayOfMonth: null },
-    { id: 'acct-savings', userId: user.id, provider: 'demo', name: 'High-Yield Savings', type: 'SAVINGS', mask: '9907', currentBalanceCents: 1850000, creditLimitCents: null, aprBps: null, dueDayOfMonth: null, cycleCloseDayOfMonth: null },
-    { id: 'acct-joint', userId: user.id, provider: 'demo', name: 'Joint Checking', type: 'CHECKING', mask: '3318', currentBalanceCents: 120000, creditLimitCents: null, aprBps: null, dueDayOfMonth: null, cycleCloseDayOfMonth: null },
-    { id: 'acct-sapphire', userId: user.id, provider: 'demo', name: 'Sapphire Card', type: 'CREDIT', mask: '7710', currentBalanceCents: 294811, creditLimitCents: 1800000, aprBps: 2499, dueDayOfMonth: 15, cycleCloseDayOfMonth: 18 },
-    { id: 'acct-platinum', userId: user.id, provider: 'demo', name: 'Platinum Card', type: 'CREDIT', mask: '1005', currentBalanceCents: 226045, creditLimitCents: 2500000, aprBps: 2924, dueDayOfMonth: 15, cycleCloseDayOfMonth: 21 },
-    { id: 'acct-freedom', userId: user.id, provider: 'demo', name: 'Freedom Card', type: 'CREDIT', mask: '5523', currentBalanceCents: 74320, creditLimitCents: 1200000, aprBps: 1999, dueDayOfMonth: 28, cycleCloseDayOfMonth: 1 },
-    { id: 'acct-store', userId: user.id, provider: 'demo', name: 'Store Card', type: 'CREDIT', mask: '0064', currentBalanceCents: 4350, creditLimitCents: 300000, aprBps: 3199, dueDayOfMonth: 15, cycleCloseDayOfMonth: 20 },
-    { id: 'acct-brokerage', userId: user.id, provider: 'demo', name: 'Brokerage', type: 'INVESTMENT', mask: '8842', currentBalanceCents: 14200000, creditLimitCents: null, aprBps: null, dueDayOfMonth: null, cycleCloseDayOfMonth: null },
-    { id: 'acct-autoloan', userId: user.id, provider: 'demo', name: 'Auto Loan', type: 'LOAN', mask: '6619', currentBalanceCents: 1430000, creditLimitCents: null, aprBps: 649, dueDayOfMonth: 5, cycleCloseDayOfMonth: null },
+    { id: 'acct-checking', userId: user.id, provider: 'demo', name: 'Everyday Checking', type: 'CHECKING', mask: '4421', currentBalanceCents: 340000, creditLimitCents: null, aprBps: null, minimumPaymentCents: null, dueDayOfMonth: null, cycleCloseDayOfMonth: null },
+    { id: 'acct-savings', userId: user.id, provider: 'demo', name: 'High-Yield Savings', type: 'SAVINGS', mask: '9907', currentBalanceCents: 1850000, creditLimitCents: null, aprBps: null, minimumPaymentCents: null, dueDayOfMonth: null, cycleCloseDayOfMonth: null },
+    { id: 'acct-joint', userId: user.id, provider: 'demo', name: 'Joint Checking', type: 'CHECKING', mask: '3318', currentBalanceCents: 120000, creditLimitCents: null, aprBps: null, minimumPaymentCents: null, dueDayOfMonth: null, cycleCloseDayOfMonth: null },
+    { id: 'acct-sapphire', userId: user.id, provider: 'demo', name: 'Sapphire Card', type: 'CREDIT', mask: '7710', currentBalanceCents: 294811, creditLimitCents: 1800000, aprBps: 2499, minimumPaymentCents: null, dueDayOfMonth: 15, cycleCloseDayOfMonth: 18 },
+    { id: 'acct-platinum', userId: user.id, provider: 'demo', name: 'Platinum Card', type: 'CREDIT', mask: '1005', currentBalanceCents: 226045, creditLimitCents: 2500000, aprBps: 2924, minimumPaymentCents: null, dueDayOfMonth: 15, cycleCloseDayOfMonth: 21 },
+    { id: 'acct-freedom', userId: user.id, provider: 'demo', name: 'Freedom Card', type: 'CREDIT', mask: '5523', currentBalanceCents: 74320, creditLimitCents: 1200000, aprBps: 1999, minimumPaymentCents: null, dueDayOfMonth: 28, cycleCloseDayOfMonth: 1 },
+    { id: 'acct-store', userId: user.id, provider: 'demo', name: 'Store Card', type: 'CREDIT', mask: '0064', currentBalanceCents: 4350, creditLimitCents: 300000, aprBps: 3199, minimumPaymentCents: null, dueDayOfMonth: 15, cycleCloseDayOfMonth: 20 },
+    { id: 'acct-brokerage', userId: user.id, provider: 'demo', name: 'Brokerage', type: 'INVESTMENT', mask: '8842', currentBalanceCents: 14200000, creditLimitCents: null, aprBps: null, minimumPaymentCents: null, dueDayOfMonth: null, cycleCloseDayOfMonth: null },
+    { id: 'acct-autoloan', userId: user.id, provider: 'demo', name: 'Auto Loan', type: 'LOAN', mask: '6619', currentBalanceCents: 1430000, creditLimitCents: null, aprBps: 649, minimumPaymentCents: 38500, dueDayOfMonth: 5, cycleCloseDayOfMonth: null },
   ];
 
   const autopays: SeedAutopay[] = [

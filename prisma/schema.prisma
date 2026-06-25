@@ -84,6 +84,7 @@ model Account {
   availableBalanceCents Int?
   creditLimitCents      Int?
   aprBps                Int? // credit cards / loans
+  minimumPaymentCents   Int? // non-card LOAN/MORTGAGE: fixed monthly payment (cards use Statement.minimumPaymentCents)
   dueDayOfMonth         Int? // credit cards: issuer due day (e.g. 15, 28)
   cycleCloseDayOfMonth  Int? // credit cards: statement close day
 

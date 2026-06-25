@@ -21,6 +21,8 @@ export interface AccountLike {
   type: string;
   currentBalanceCents: number;
   aprBps: number | null;
+  /** Non-card LOAN/MORTGAGE fixed monthly payment. Optional: Plaid rows / older fixtures may omit it. */
+  minimumPaymentCents?: number | null;
   dueDayOfMonth: number | null;
   cycleCloseDayOfMonth: number | null;
 }
