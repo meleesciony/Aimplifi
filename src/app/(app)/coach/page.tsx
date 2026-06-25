@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { CheckCircle2, Eye, TrendingUp } from 'lucide-react';
 import { auth } from '@/auth';
+import { AutomationBlueprintCard } from '@/components/coach/automation-blueprint-card';
 import { FICard } from '@/components/coach/fi-card';
 import { LifeEnergyCard } from '@/components/coach/life-energy-card';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
@@ -145,6 +146,8 @@ export default async function CoachPage() {
           </CardContent>
         </Card>
       </div>
+
+      <AutomationBlueprintCard steps={data.blueprint} />
 
       <LifeEnergyCard items={data.lifeEnergy} hourlyWageCents={data.hourlyWageCents} />
 

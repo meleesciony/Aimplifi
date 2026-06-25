@@ -10,6 +10,7 @@ import { isoDate, addMonthsClamped } from '@/lib/dates';
 import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
 import { cashNeededFromSnapshot } from '@/server/finance';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
+import { buildAutomationBlueprint, type BlueprintStep, type PayCadence } from '@/lib/engine/automation/blueprint';
 import { coastFI, fiNumberCents, monthsToFI } from '@/lib/engine/fi/fi';
 import {
   detectLifestyleCreep,
@@ -52,6 +53,7 @@ export interface CoachData {
   hourlyWageCents: number;
   moneyDials: string[];
   review: MoneyReview;
+  blueprint: BlueprintStep[];
 }
 
 const COAST_TARGET_YEARS = 25;
@@ -131,6 +133,34 @@ export async function getCoachData(userId: string): Promise<CoachData> {
   // the Money Review's "one next action" prefers the live cash-needed remedy
   // (single shared assembly path — cycle-1 H1)
   const { result: cash } = cashNeededFromSnapshot(snap, today, 'PAY_IN_FULL');
+
+  // Automation blueprint (P0.5): pay-yourself-first savings + card cash buffers,
+  // phrased downstream as standing instructions to set up at the user's bank —
+  // Aimplifi reminds, it never moves money (reminders/select.ts invariant).
+  const goalRows = await prisma.goal.findMany({
+    where: { userId },
+    select: { name: true, monthlyContributionCents: true },
+  });
+  const topIncome = series
+    .filter((s) => s.isIncome)
+    .sort((a, b) => b.typicalAmountCents - a.typicalAmountCents)[0];
+  const payCadence: PayCadence =
+    topIncome &&
+    (topIncome.cadence === 'WEEKLY' || topIncome.cadence === 'BIWEEKLY' || topIncome.cadence === 'MONTHLY')
+      ? topIncome.cadence
+      : null;
+  const blueprint = buildAutomationBlueprint({
+    paycheck: topIncome ? { cadence: payCadence, amountCents: topIncome.typicalAmountCents } : null,
+    savings: goalRows
+      .filter((g) => (g.monthlyContributionCents ?? 0) > 0)
+      .map((g) => ({ name: g.name, monthlyCents: g.monthlyContributionCents as number })),
+    cards: cash.cards.map((c) => ({
+      cardName: c.cardName,
+      dueDate: c.effectiveDueDate,
+      cashRequiredCents: c.cashRequiredCents,
+    })),
+  });
+
   const review = generateMoneyReview({
     flows,
     creep,
@@ -168,5 +198,6 @@ export async function getCoachData(userId: string): Promise<CoachData> {
     hourlyWageCents: wage,
     moneyDials: parseStoredDials(user.moneyDials),
     review,
+    blueprint,
   };
 }

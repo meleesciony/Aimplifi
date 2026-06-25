@@ -158,6 +158,14 @@ export const COACH_COPY = {
 
   consciousOverspent: () =>
     `Spending has outpaced income this month, so guilt-free has gone negative — one month is weather, not climate. The trend is what matters.`,
+
+  // ── Wave 2: P0.5 Automation blueprint (C7 · Sethi, Babylon, Ramsey) ────────
+  automationBlueprintBanner: () =>
+    `Set these up once at your bank — Aimplifi reminds, it never moves your money. Then the system runs itself.`,
+  automationSavingsStep: (day: string, amount: Cents, goal: string) =>
+    `On ${day}: move ${formatCents(amount)} to ${goal}.`,
+  automationCardStep: (cardName: string, amount: Cents, byDate: string) =>
+    `${cardName}: set autopay to the statement balance and keep ${formatCents(amount)} in checking before ${byDate}, so it always clears in full.`,
 } as const;
 
 // ── Monthly Money Review (generated from real data) ──────────────────────────

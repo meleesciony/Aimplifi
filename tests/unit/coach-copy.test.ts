@@ -79,6 +79,9 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'assumptionsChange', text: COACH_COPY.assumptionsChange(), isProjection: false },
   { label: 'consciousSpending', text: COACH_COPY.consciousSpending(58, 14, 28), isProjection: false },
   { label: 'consciousOverspent', text: COACH_COPY.consciousOverspent(), isProjection: false },
+  { label: 'automationBlueprintBanner', text: COACH_COPY.automationBlueprintBanner(), isProjection: false },
+  { label: 'automationSavingsStep', text: COACH_COPY.automationSavingsStep('payday', cents(50000), 'Emergency Fund'), isProjection: false },
+  { label: 'automationCardStep', text: COACH_COPY.automationCardStep('Visa', cents(120000), 'Jul 3'), isProjection: false },
   ...(() => {
     const review = generateMoneyReview({
       flows,
