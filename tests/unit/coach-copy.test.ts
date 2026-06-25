@@ -77,6 +77,8 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'fifteenPercentReference', text: COACH_COPY.fifteenPercentReference(), isProjection: false },
   { label: 'cushionIsAGoal', text: COACH_COPY.cushionIsAGoal(), isProjection: false },
   { label: 'assumptionsChange', text: COACH_COPY.assumptionsChange(), isProjection: false },
+  { label: 'consciousSpending', text: COACH_COPY.consciousSpending(58, 14, 28), isProjection: false },
+  { label: 'consciousOverspent', text: COACH_COPY.consciousOverspent(), isProjection: false },
   ...(() => {
     const review = generateMoneyReview({
       flows,

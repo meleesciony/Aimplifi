@@ -10,6 +10,8 @@ import { cents, formatCents } from '@/lib/money';
 import { getProvider } from '@/lib/providers/demo';
 import { prisma } from '@/lib/db';
 import { clearBudget, setBudget } from '@/server/budget-actions';
+import { getSpendingPlan } from '@/server/spending-plan';
+import { ConsciousBucketsStrip } from '@/components/finance/conscious-buckets-strip';
 
 const CATEGORY_OPTIONS = CATEGORIES.filter((c) => isBudgetable(c.id));
 
@@ -33,7 +35,7 @@ export default async function BudgetsPage() {
   // target can't be set before any account exists).
   if ((await prisma.account.count({ where: { userId } })) === 0) return <EmptyDashboard />;
 
-  const [txns, budgets, user] = await Promise.all([
+  const [txns, budgets, user, plan] = await Promise.all([
     // All non-transfer, non-split, posted activity this month (BOTH signs) so the
     // engine can net refunds against spend — outflow-only would overstate it.
     prisma.transaction.findMany({
@@ -48,6 +50,7 @@ export default async function BudgetsPage() {
     }),
     prisma.budget.findMany({ where: { userId } }),
     prisma.user.findUnique({ where: { id: userId } }),
+    getSpendingPlan(userId),
   ]);
 
   const dials = new Set<string>(parseStoredDials(user?.moneyDials));
@@ -62,6 +65,7 @@ export default async function BudgetsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Spending this month</h1>
+      <ConsciousBucketsStrip plan={plan} />
       <Card>
         <CardHeader className="pb-2">
           <CardDescription>{month} · transfers excluded</CardDescription>

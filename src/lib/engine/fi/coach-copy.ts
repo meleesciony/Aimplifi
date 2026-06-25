@@ -150,6 +150,14 @@ export const COACH_COPY = {
   // Housel — assumptions change; play your own game
   assumptionsChange: () =>
     `These rates are assumptions, and assumptions change — revisit them as your life does. Play your own game; someone else's numbers don't have to be yours.`,
+
+  // ── Wave 2: P0.4 Conscious-spending lens (C6 · Sethi) ──────────────────────
+  // Investing is folded into savings (no per-month contribution flow in the data); stated inline.
+  consciousSpending: (fixedPct: number, savePct: number, funPct: number) =>
+    `This month, about ${fixedPct}% has gone to bills and spending, ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free to spend. A rough target is 50–60% / 15–20% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
+
+  consciousOverspent: () =>
+    `Spending has outpaced income this month, so guilt-free has gone negative — one month is weather, not climate. The trend is what matters.`,
 } as const;
 
 // ── Monthly Money Review (generated from real data) ──────────────────────────
