@@ -109,6 +109,47 @@ export const COACH_COPY = {
 
   disclaimer: () =>
     `Educational, not financial advice. Every projection assumes the rates shown and never recommends specific investments.`,
+
+  // ── Wave 1: principle captions (9 books) ───────────────────────────────────
+  // C1+C2 · Housel — the unspent gap IS net worth ("wealth is what you don't see")
+  invisibleWealth: (savedCents: Cents, monthLabel: string) =>
+    `You didn't spend ${formatCents(savedCents)} in ${monthLabel} — that gap, not the things you could have bought, is what your net worth is made of. Wealth is the money you don't see.`,
+
+  // C2 · Housel, Babylon — room for error, banded against the classic 3–6 month range
+  runwayBanded: (months: number, band: 'below' | 'in' | 'above') =>
+    `Room for error: ${months} months of expenses in cash — you're ${band === 'below' ? 'approaching' : band === 'in' ? 'inside' : 'past'} the classic 3–6 month range. The richest feeling money buys is not needing the next paycheck.`,
+
+  // C13 · Housel, Sethi, Perkins — years-to-FI reframed as time bought back (sibling to yearsToFI)
+  freedomDividend: (years: number) =>
+    `That's about ${years} years until your time becomes fully yours — the highest dividend money pays, assuming the return rate above holds. Every point of savings rate buys some of it back sooner.`,
+
+  // C13 · Housel, Stanley & Danko — the FI number is anchored to your life, never the feed
+  yourEnough: () =>
+    `Your FI number is built from your spending, not anyone else's — that's the point. The goalpost stops moving when "enough" is defined by your life, not the feed.`,
+
+  // C4+C5 · Sethi, Housel — the #1 opportunity is the big win
+  biggestLever: () =>
+    `Your biggest lever — fix this and the small stuff barely matters.`,
+
+  // C5 · Sethi, Housel — a category that matches a money dial is protected, not policed
+  dialTag: (category: string) =>
+    `${category} is one of your money dials — spend there proudly; we only hunt savings elsewhere.`,
+
+  // C10 (behavioral) · Housel — volatility is the price of the returns, not a malfunction
+  volatilityPrice: (returnBps: number) =>
+    `Those ${pct(returnBps)} returns aren't free — the price is volatility along the way, and the average is never the experience. Staying invested through the dips is the assumption behind every projection here. A fee for admission, not a fine.`,
+
+  // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade
+  fifteenPercentReference: () =>
+    `The dashed line marks 15% — a common savings-rate reference point for retirement, not a rule you're failing if you're under it.`,
+
+  // C2 · Housel — saving for its own sake is a goal; the cushion is room for error
+  cushionIsAGoal: () =>
+    `Saving with no specific goal is still a goal — an unallocated cushion is room for error, and room for error is wealth working quietly.`,
+
+  // Housel — assumptions change; play your own game
+  assumptionsChange: () =>
+    `These rates are assumptions, and assumptions change — revisit them as your life does. Play your own game; someone else's numbers don't have to be yours.`,
 } as const;
 
 // ── Monthly Money Review (generated from real data) ──────────────────────────

@@ -68,6 +68,9 @@ export function FICard({
         <p className="text-sm text-muted-foreground" data-testid="fi-basis">
           {COACH_COPY.fiNumber(fiNumberCents, swrBps, annualExpensesCents)}
         </p>
+        <p className="text-xs text-muted-foreground" data-testid="your-enough">
+          {COACH_COPY.yourEnough()}
+        </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm" data-testid="years-to-fi">
@@ -75,6 +78,15 @@ export function FICard({
             ? COACH_COPY.yearsToFI(Math.floor(monthsToFINow / 12), monthsToFINow % 12, expectedReturnBps)
             : COACH_COPY.notOnTrack()}
         </p>
+        {monthsToFINow !== null && (
+          <p className="text-sm text-emerald-600 dark:text-emerald-400" data-testid="freedom-dividend">
+            {COACH_COPY.freedomDividend(Math.floor(monthsToFINow / 12))}
+          </p>
+        )}
+        <details className="text-xs text-muted-foreground" data-testid="volatility-note">
+          <summary className="cursor-pointer select-none">Why these return assumptions?</summary>
+          <p className="mt-1">{COACH_COPY.volatilityPrice(expectedReturnBps)}</p>
+        </details>
 
         <p className="text-sm text-muted-foreground" data-testid="coast-fi">
           {coastIsCoast

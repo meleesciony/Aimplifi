@@ -85,7 +85,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* net worth + trend, full width for the chart */}
-      <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} />
+      <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} runwayMonths={coach.runwayMonths} />
 
       {/* spending analytics: this month's top categories + what changed (Trends) */}
       <div className="grid gap-4 sm:grid-cols-2">

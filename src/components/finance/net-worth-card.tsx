@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { cents, formatCents } from '@/lib/money';
+import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 
 export interface NetWorthPoint {
   date: string;
@@ -22,10 +23,23 @@ export interface NetWorthPoint {
 export function NetWorthCard({
   current,
   trend,
+  runwayMonths,
 }: {
   current: number;
   trend: NetWorthPoint[];
+  /** Months of expenses held in cash (from getCoachData); optional so other call sites need not supply it. */
+  runwayMonths?: number;
 }) {
+  // Housel/Babylon "room for error" — banded against the classic 3–6 month range.
+  // Engine returns Infinity when there are no expenses, so guard for finiteness.
+  const hasRunway = runwayMonths !== undefined && Number.isFinite(runwayMonths);
+  const runwayBand: 'below' | 'in' | 'above' | null = hasRunway
+    ? runwayMonths! < 3
+      ? 'below'
+      : runwayMonths! <= 6
+        ? 'in'
+        : 'above'
+    : null;
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const tick = (date: string) => `${MONTHS[+date.slice(5, 7) - 1]} '${date.slice(2, 4)}`;
   const data = trend.map((p) => ({
@@ -50,6 +64,18 @@ export function NetWorthCard({
             data-testid="net-worth-delta"
           >
             {formatCents(cents(deltaCents), { signDisplay: 'always' })} vs last month-end
+          </p>
+        )}
+        {runwayBand !== null && (
+          <p
+            className={`mt-1 inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] ${
+              runwayBand === 'below'
+                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                : 'bg-muted text-muted-foreground'
+            }`}
+            data-testid="room-for-error"
+          >
+            {COACH_COPY.runwayBanded(runwayMonths!, runwayBand)}
           </p>
         )}
       </CardHeader>

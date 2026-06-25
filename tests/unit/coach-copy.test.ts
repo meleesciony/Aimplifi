@@ -64,6 +64,19 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'nextAction:transfer', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionTransfer(cents(105000), 'Tue, Jun 23')), isProjection: false },
   { label: 'nextAction:automate', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionAutomate()), isProjection: false },
   { label: 'disclaimer', text: COACH_COPY.disclaimer(), isProjection: false },
+  // Wave 1 principle captions
+  { label: 'invisibleWealth', text: COACH_COPY.invisibleWealth(cents(235000), 'May 2026'), isProjection: false },
+  { label: 'runwayBanded:below', text: COACH_COPY.runwayBanded(1.8, 'below'), isProjection: false },
+  { label: 'runwayBanded:in', text: COACH_COPY.runwayBanded(4.2, 'in'), isProjection: false },
+  { label: 'runwayBanded:above', text: COACH_COPY.runwayBanded(9.5, 'above'), isProjection: false },
+  { label: 'freedomDividend', text: COACH_COPY.freedomDividend(17), isProjection: true },
+  { label: 'yourEnough', text: COACH_COPY.yourEnough(), isProjection: false },
+  { label: 'biggestLever', text: COACH_COPY.biggestLever(), isProjection: false },
+  { label: 'dialTag', text: COACH_COPY.dialTag('Dining Out'), isProjection: false },
+  { label: 'volatilityPrice', text: COACH_COPY.volatilityPrice(700), isProjection: true },
+  { label: 'fifteenPercentReference', text: COACH_COPY.fifteenPercentReference(), isProjection: false },
+  { label: 'cushionIsAGoal', text: COACH_COPY.cushionIsAGoal(), isProjection: false },
+  { label: 'assumptionsChange', text: COACH_COPY.assumptionsChange(), isProjection: false },
   ...(() => {
     const review = generateMoneyReview({
       flows,
