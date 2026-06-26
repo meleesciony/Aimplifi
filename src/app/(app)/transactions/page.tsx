@@ -7,6 +7,7 @@ import { TransactionList } from '@/components/finance/transaction-list';
 import { buttonVariants } from '@/components/ui/button';
 import type { FlowType, TxnFilter } from '@/lib/engine/transactions/query';
 import { getTransactions } from '@/server/transactions';
+import { getVisibleGroups } from '@/server/categories';
 
 const VALID_TYPES: FlowType[] = ['all', 'income', 'expense', 'transfer'];
 
@@ -43,7 +44,10 @@ export default async function TransactionsPage({
     to: to || null,
   };
 
-  const { rows, summary, accountOptions, pageInfo } = await getTransactions(session.user.id, filter, page);
+  const [{ rows, summary, accountOptions, pageInfo }, categoryGroups] = await Promise.all([
+    getTransactions(session.user.id, filter, page),
+    getVisibleGroups(session.user.id),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -76,7 +80,7 @@ export default async function TransactionsPage({
         accountOptions={accountOptions}
         current={{ search, account, category, type, from, to }}
       />
-      <TransactionList rows={rows} summary={summary} pageInfo={pageInfo} />
+      <TransactionList rows={rows} summary={summary} pageInfo={pageInfo} categoryGroups={categoryGroups} />
     </div>
   );
 }

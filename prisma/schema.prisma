@@ -39,6 +39,25 @@ model User {
   plaidItems  PlaidItem[]
   simplefin   SimpleFinConnection?
   predictions CategoryPrediction[]
+  hiddenCategories HiddenCategory[]
+}
+
+// Per-user "hide this category from the pickers" preference (DECISIONS #110).
+// A row's PRESENCE means hidden. We never delete the global Category row (system
+// categories are shared + FK'd by historical transactions/rules/budgets), so
+// "delete the ones I don't use" is modeled as a per-user hide: the category
+// vanishes from every assignment picker but anything already filed under it
+// still renders its real name in reports/trends. `categoryId` is the category
+// slug (not a Category FK — system rows are never deleted, so no cascade needed).
+model HiddenCategory {
+  id         String @id @default(cuid())
+  userId     String
+  categoryId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId])
+  @@index([userId])
 }
 
 // A user's SimpleFIN connection (ROADMAP: cheaper Plaid alternative). The access

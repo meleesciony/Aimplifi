@@ -3,16 +3,18 @@ import { auth } from '@/auth';
 import { AccuracyCard } from '@/components/triage/accuracy-card';
 import { TriageInbox } from '@/components/triage/triage-inbox';
 import { getCategorizationAccuracy } from '@/server/accuracy';
-import { ALL_CATEGORIES, getTriageItems } from '@/server/triage';
+import { getTriageItems } from '@/server/triage';
+import { getVisibleCategories } from '@/server/categories';
 
 export const metadata = { title: "Review" };
 
 export default async function TriagePage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
-  const [items, accuracy] = await Promise.all([
+  const [items, accuracy, categories] = await Promise.all([
     getTriageItems(session.user.id),
     getCategorizationAccuracy(session.user.id),
+    getVisibleCategories(session.user.id),
   ]);
 
   return (
@@ -26,7 +28,7 @@ export default async function TriagePage() {
       </div>
       <div className="mx-auto max-w-md space-y-4">
         <AccuracyCard result={accuracy} />
-        <TriageInbox initialItems={items} categories={ALL_CATEGORIES} />
+        <TriageInbox initialItems={items} categories={categories} />
       </div>
     </div>
   );

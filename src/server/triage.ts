@@ -4,7 +4,7 @@
  * All queries are row-ownership scoped by userId.
  */
 import { prisma } from '@/lib/db';
-import { CATEGORIES, categoryName } from '@/lib/engine/categorize/categories';
+import { categoryName } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { categorize, suggestAlternatives } from '@/lib/engine/categorize/pipeline';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
@@ -128,9 +128,3 @@ export async function getReviewCount(userId: string): Promise<number> {
     where: { needsReview: true, account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
   });
 }
-
-export const ALL_CATEGORIES = CATEGORIES.filter((c) => c.id !== 'uncategorized').map((c) => ({
-  id: c.id,
-  name: c.name,
-  group: c.group,
-}));

@@ -28,7 +28,19 @@ function amountClass(t: TxnView): string {
   return t.amountCents > 0 ? 'text-emerald-500' : 'text-foreground';
 }
 
-export function TransactionList({ rows, summary, pageInfo }: { rows: TxnView[]; summary: TxnSummary; pageInfo: PageInfo }) {
+export function TransactionList({
+  rows,
+  summary,
+  pageInfo,
+  categoryGroups = ASSIGNABLE_GROUPS,
+}: {
+  rows: TxnView[];
+  summary: TxnSummary;
+  pageInfo: PageInfo;
+  /** Two-level picker source; defaults to the full set, but the page passes the
+   *  user's VISIBLE groups so hidden categories don't appear here (DECISIONS #110). */
+  categoryGroups?: { group: string; categories: { id: string; name: string }[] }[];
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -174,7 +186,7 @@ export function TransactionList({ rows, summary, pageInfo }: { rows: TxnView[]; 
                                   placeholder="Search categories…"
                                   className="sticky top-0 z-10 mb-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring/50"
                                 />
-                                {ASSIGNABLE_GROUPS.map((grp) => ({
+                                {categoryGroups.map((grp) => ({
                                   group: grp.group,
                                   categories: grp.categories.filter((c) =>
                                     c.name.toLowerCase().includes(query.trim().toLowerCase()),

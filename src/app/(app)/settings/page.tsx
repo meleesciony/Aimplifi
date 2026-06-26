@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { buttonVariants } from '@/components/ui/button';
 import { MoneyDialsForm } from '@/components/settings/money-dials-form';
 import { DeleteMyDataForm } from '@/components/settings/delete-my-data-form';
+import { CategoryManager } from '@/components/settings/category-manager';
+import { getCategoryCatalog } from '@/server/categories';
 import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/dials';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { deletionSummary } from '@/lib/engine/account/deletion';
@@ -16,7 +18,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/sign-in');
 
   const userId = session.user.id;
-  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount] =
+  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -38,6 +40,7 @@ export default async function SettingsPage() {
       prisma.goal.count({ where: { userId } }),
       prisma.budget.count({ where: { userId } }),
       prisma.categorizationRule.count({ where: { userId } }),
+      getCategoryCatalog(userId),
     ]);
   if (!user) redirect('/sign-in');
 
@@ -112,6 +115,16 @@ export default async function SettingsPage() {
           <a href="/accounts" className="underline hover:text-foreground">Accounts</a> page —
           SimpleFIN (a few dollars/year, no business gate) or Plaid. Access tokens are encrypted at
           rest (AES-256-GCM); only account masks (last 4) are ever stored.
+        </CardContent>
+      </Card>
+
+      <Card data-testid="categories-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Tidy up your category list</CardDescription>
+          <CardTitle className="text-base">Categories</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CategoryManager catalog={categoryCatalog} />
         </CardContent>
       </Card>
 
