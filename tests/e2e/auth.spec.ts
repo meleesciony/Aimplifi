@@ -53,6 +53,35 @@ test('email/password sign-up → empty onboarding → sign out → sign back in'
   await expect(page.getByTestId('empty-dashboard')).toBeVisible();
 });
 
+test('first manual account → dashboard explains its sparse cards (no bare $0.00)', async ({ page }) => {
+  const email = `e2e-sparse-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  const password = 'e2e-password-123';
+
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill(password);
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+  await expect(page.getByTestId('empty-dashboard')).toBeVisible();
+
+  // Add one manual asset: an account now exists (the dashboard renders) but there
+  // is still no income / spending / recurring data.
+  await page.goto('/accounts');
+  await page.getByTestId('add-asset-btn').click();
+  await page.getByTestId('manual-name').fill('Primary home');
+  await page.getByTestId('manual-value').fill('100000');
+  await page.getByTestId('manual-submit').click();
+  await expect(page.getByTestId('manual-account-row')).toBeVisible({ timeout: 20000 });
+
+  // The dashboard now renders the real cards — the sparse ones must explain
+  // themselves rather than show a bare $0.00.
+  await page.goto('/dashboard');
+  await expect(page.getByTestId('empty-dashboard')).toHaveCount(0);
+  await expect(page.getByTestId('dashboard-safe-to-spend-empty')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('dashboard-recurring-empty')).toBeVisible();
+});
+
 test('wrong password is rejected with a friendly error', async ({ page }) => {
   await page.goto('/sign-in');
   await page.getByTestId('auth-email').fill('nobody-here@aimplifi.test');
