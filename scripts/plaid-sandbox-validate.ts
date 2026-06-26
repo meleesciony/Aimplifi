@@ -23,9 +23,9 @@ import { prisma } from '../src/lib/db';
 import { PlaidProvider } from '../src/lib/providers/plaid';
 
 const TEST_USER_ID = 'plaid-sandbox-validate-user';
+// Plaid retired the Development environment (2024); only sandbox/production exist.
 const PLAID_HOSTS: Record<string, string> = {
   sandbox: 'https://sandbox.plaid.com',
-  development: 'https://development.plaid.com',
   production: 'https://production.plaid.com',
 };
 
@@ -43,7 +43,18 @@ function requireEnv(): { clientId: string; secret: string; host: string } {
     console.error('   Add them to .env.local (see docs/PLAID_WALKTHROUGH.md §1) and re-run.\n');
     process.exit(2);
   }
-  return { clientId: clientId!, secret: secret!, host: PLAID_HOSTS[process.env.PLAID_ENV ?? 'sandbox'] };
+  const envName = process.env.PLAID_ENV ?? 'sandbox';
+  const host = PLAID_HOSTS[envName];
+  if (!host) {
+    console.error(`\n❌ PLAID_ENV must be 'sandbox' or 'production' (got "${envName}").\n`);
+    process.exit(2);
+  }
+  if (envName !== 'sandbox') {
+    console.error(`\n❌ Refusing to run the validation harness against PLAID_ENV="${envName}".`);
+    console.error('   This script creates and deletes test data; run it only with PLAID_ENV=sandbox.\n');
+    process.exit(2);
+  }
+  return { clientId: clientId!, secret: secret!, host };
 }
 
 async function plaidPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
@@ -70,11 +81,14 @@ async function main() {
   const provider = new PlaidProvider();
   let itemId = '';
   try {
-    // 1. sandbox public token → exchange (stores PlaidItem + syncs accounts)
+    // 1. sandbox public token → exchange (stores PlaidItem + syncs accounts).
+    // Initialize WITH liabilities so the sandbox item carries credit/statement data
+    // and the /liabilities/get assertion below is meaningful (ins_109508 returns
+    // credit accounts). No `options.transactions.days_requested` — that field
+    // belongs to /link/token/create, not /sandbox/public_token/create.
     const pub = await plaidPost<{ public_token: string }>('/sandbox/public_token/create', {
       institution_id: 'ins_109508', // First Platypus Bank (sandbox)
-      initial_products: ['transactions'],
-      options: { transactions: { days_requested: 90 } },
+      initial_products: ['transactions', 'liabilities'],
     });
     console.log('✓ /sandbox/public_token/create');
     await provider.exchangePublicToken(TEST_USER_ID, pub.public_token);
@@ -90,11 +104,11 @@ async function main() {
 
     // 2. transactions/sync — sandbox can need a moment to generate; retry a few times
     let result = { added: 0, modified: 0, removed: 0, nextCursor: null as string | null };
-    for (let attempt = 1; attempt <= 6; attempt++) {
+    for (let attempt = 1; attempt <= 12; attempt++) {
       result = await provider.syncTransactions(TEST_USER_ID);
       if (result.added > 0) break;
-      console.log(`  …sync attempt ${attempt}: ${result.added} added — waiting for sandbox`);
-      await sleep(2000);
+      console.log(`  …sync attempt ${attempt}/12: ${result.added} added — waiting for sandbox`);
+      await sleep(2500);
     }
     console.log(`✓ /transactions/sync: added=${result.added} modified=${result.modified} removed=${result.removed}`);
 
@@ -110,23 +124,35 @@ async function main() {
       console.log(`    - ${t.date}  ${String(t.amountCents).padStart(8)}c  ${t.categoryId ?? '?'}  ${t.rawDescriptor.slice(0, 40)}`);
     }
 
-    // 3. liabilities → statements (best-effort: sandbox item may lack credit accounts)
+    // 3. liabilities → statements. We requested liabilities at item creation, so a
+    // failure here is a REAL problem, not an expected skip — surface it, don't swallow.
+    let statements = 0;
+    let liabilitiesError: string | null = null;
     try {
       await provider.syncLiabilities(TEST_USER_ID);
-      const statements = await prisma.statement.count({ where: { account: { userId: TEST_USER_ID } } });
+      statements = await prisma.statement.count({ where: { account: { userId: TEST_USER_ID } } });
       console.log(`✓ /liabilities/get → statements: ${statements}`);
     } catch (e) {
-      console.log(`• liabilities skipped: ${e instanceof Error ? e.message : e}`);
+      liabilitiesError = e instanceof Error ? e.message : String(e);
+      console.log(`✗ /liabilities/get failed: ${liabilitiesError}`);
     }
 
     // Assertions
     const total = await prisma.transaction.count({ where: { account: { userId: TEST_USER_ID } } });
+    const creditAccounts = accounts.filter((a) => a.type === 'CREDIT').length;
     const problems: string[] = [];
     if (accounts.length === 0) problems.push('no accounts were synced');
     if (total === 0) problems.push('no transactions were ingested');
     if (total > 0) {
       const anyOut = await prisma.transaction.count({ where: { account: { userId: TEST_USER_ID }, amountCents: { lt: 0 } } });
       if (anyOut === 0) problems.push('no outflows (negative amounts) — sign flip suspect');
+    }
+    if (liabilitiesError) {
+      problems.push(`/liabilities/get errored: ${liabilitiesError}`);
+    } else if (creditAccounts > 0 && statements === 0) {
+      // The whole point of the liabilities path is statement balances/due dates.
+      // A credit account with zero statements means that path produced nothing.
+      problems.push(`${creditAccounts} credit account(s) but 0 statements ingested — liabilities mapping suspect`);
     }
 
     console.log('');
@@ -135,17 +161,28 @@ async function main() {
       for (const p of problems) console.log(`   - ${p}`);
       process.exitCode = 1;
     } else {
-      console.log(`✅ VALIDATION PASSED — ${accounts.length} accounts, ${total} transactions ingested with correct signs.`);
+      console.log(
+        `✅ VALIDATION PASSED — ${accounts.length} accounts (${creditAccounts} credit), ` +
+          `${total} transactions with correct signs, ${statements} statement(s) from /liabilities/get.`,
+      );
     }
   } finally {
-    // Cleanup: revoke the item at Plaid, then cascade-delete the temp user.
+    // Cleanup: revoke the item at Plaid, then cascade-delete the temp user. If the
+    // /item/remove call fails, the item is LEFT REGISTERED at Plaid — warn loudly so
+    // it can be removed by hand rather than silently leaking a live item.
     try {
-      if (itemId) await provider.removeItem(TEST_USER_ID, itemId);
+      if (itemId) {
+        await provider.removeItem(TEST_USER_ID, itemId);
+        console.log('▶ removed Plaid item.');
+      }
     } catch (e) {
-      console.log(`(cleanup) item remove: ${e instanceof Error ? e.message : e}`);
+      console.log(
+        `⚠ (cleanup) FAILED to remove Plaid item ${itemId}: ${e instanceof Error ? e.message : e}\n` +
+          '   The item is still registered at Plaid — remove it from the dashboard or re-run cleanup.',
+      );
     }
     await prisma.user.deleteMany({ where: { id: TEST_USER_ID } });
-    console.log('▶ cleaned up temp user + item.');
+    console.log('▶ cleaned up temp user.');
   }
 }
 

@@ -8,6 +8,7 @@ import {
   mapPlaidLiabilityToStatement,
   plaidAmountToCents,
   plaidDollarsToPositiveCents,
+  plaidSignedDollarsToCents,
   prepareIngestedTransaction,
 } from '@/lib/providers/plaid-map';
 
@@ -41,6 +42,31 @@ describe('plaidAmountToCents — sign flip + float-safe cents', () => {
   });
 });
 
+describe('plaidSignedDollarsToCents — sign-preserving balance conversion', () => {
+  it('keeps a positive balance positive', () => {
+    expect(plaidSignedDollarsToCents(250)).toBe(25000);
+  });
+
+  it('keeps a negative balance negative (overpaid card / overdrawn account)', () => {
+    // Plaid reports balances.current = -75.00 for a card the holder overpaid.
+    expect(plaidSignedDollarsToCents(-75)).toBe(-7500);
+  });
+
+  it('collapses -0 from a zero balance to 0', () => {
+    expect(Object.is(plaidSignedDollarsToCents(0), -0)).toBe(false);
+    expect(plaidSignedDollarsToCents(0)).toBe(0);
+  });
+
+  it('rounds half-away-from-zero on both signs', () => {
+    expect(plaidSignedDollarsToCents(12.995)).toBe(1300);
+    expect(plaidSignedDollarsToCents(-12.995)).toBe(-1300);
+  });
+
+  it('rejects non-finite input', () => {
+    expect(() => plaidSignedDollarsToCents(NaN)).toThrow();
+  });
+});
+
 describe('mapPlaidAccountType', () => {
   it('maps depository subtypes', () => {
     expect(mapPlaidAccountType('depository', 'checking')).toBe('CHECKING');
@@ -69,7 +95,7 @@ describe('mapPlaidAccount', () => {
     balances: { current: 250.0, available: null, limit: 5000.0 },
   };
 
-  it('stores balances positive and maps fields', () => {
+  it('keeps current signed (positive here), maps fields, available/limit positive', () => {
     const m = mapPlaidAccount(card);
     expect(m).toMatchObject({
       providerRef: 'plaid-acc-1',
@@ -80,6 +106,20 @@ describe('mapPlaidAccount', () => {
       availableBalanceCents: null,
       creditLimitCents: 500000,
     });
+  });
+
+  it('preserves a NEGATIVE current balance (overpaid card) so net-worth sign lands right', () => {
+    // An overpaid card: Plaid reports current = -120.50 (lender owes the holder).
+    // It must NOT be abs()'d to +120.50, or the type-based liability sign would
+    // wrongly subtract a credit the holder actually has.
+    const overpaid: PlaidAccount = {
+      ...card,
+      balances: { current: -120.5, available: 5120.5, limit: 5000.0 },
+    };
+    const m = mapPlaidAccount(overpaid);
+    expect(m.currentBalanceCents).toBe(-12050);
+    expect(m.availableBalanceCents).toBe(512050); // available stays non-negative
+    expect(m.creditLimitCents).toBe(500000);
   });
 });
 

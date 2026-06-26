@@ -31,12 +31,26 @@ export function plaidAmountToCents(amountDollars: number): Cents {
   return cents(-roundHalfAwayFromZero(amountDollars * 100) || 0);
 }
 
-/** Dollars → positive cents, for balances/statement figures (no sign flip). */
+/** Dollars → positive cents, for figures Plaid guarantees non-negative (limit/available). */
 export function plaidDollarsToPositiveCents(amountDollars: number): Cents {
   if (!Number.isFinite(amountDollars)) {
     throw new Error(`plaidDollarsToPositiveCents: non-finite amount ${amountDollars}`);
   }
   return roundHalfAwayFromZero(Math.abs(amountDollars) * 100);
+}
+
+/**
+ * Dollars → SIGNED cents, preserving Plaid's sign. Plaid reports a NEGATIVE
+ * `balances.current` for an overpaid credit card (the lender owes the holder) or
+ * an overdrawn deposit account. Used for `current` so the type-based net-worth
+ * sign (isLiabilityType ? -bal : +bal) lands correctly instead of being inverted
+ * by an abs(). `|| 0` collapses the -0 a zero amount would otherwise produce.
+ */
+export function plaidSignedDollarsToCents(amountDollars: number): Cents {
+  if (!Number.isFinite(amountDollars)) {
+    throw new Error(`plaidSignedDollarsToCents: non-finite amount ${amountDollars}`);
+  }
+  return cents(roundHalfAwayFromZero(amountDollars * 100) || 0);
 }
 
 /**
@@ -91,9 +105,10 @@ export function mapPlaidAccount(account: PlaidAccount): MappedAccount {
     name: account.name,
     type: mapPlaidAccountType(account.type, account.subtype),
     mask: account.mask,
-    // Balances are stored POSITIVE; the account `type` decides asset vs
-    // liability in net worth (a credit card's current balance is what's owed).
-    currentBalanceCents: plaidDollarsToPositiveCents(account.balances.current ?? 0),
+    // `current` keeps Plaid's sign (usually positive; negative for an overpaid
+    // card or overdrawn account). The account `type` then decides its net-worth
+    // sign; available/limit stay non-negative.
+    currentBalanceCents: plaidSignedDollarsToCents(account.balances.current ?? 0),
     availableBalanceCents:
       account.balances.available == null
         ? null

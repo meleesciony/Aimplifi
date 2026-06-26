@@ -1,21 +1,39 @@
 # Plaid sandbox walkthrough (manual)
 
-**Status: IMPLEMENTED, UNVERIFIED against a live sandbox.** The full path is now
-real code, not a stub: link-token creation, public-token exchange (AES-256-GCM
-token storage in the `PlaidItem` table), `/accounts/get`, `/transactions/sync`
-(cursor loop, categorized through the standard pipeline), `/liabilities/get` →
-`Statement`, the webhook receiver, and `/item/remove`.
+**Status: IMPLEMENTED + HARDENED, UNVERIFIED against a live sandbox.** The full
+path is real code, not a stub: link-token creation, public-token exchange
+(AES-256-GCM token storage in the `PlaidItem` table), `/accounts/get`,
+`/transactions/sync` (cursor loop, categorized through the standard pipeline,
+recurring/scheduled re-detection on the tail), `/liabilities/get` → `Statement`,
+the webhook receiver **with ES256 `Plaid-Verification` JWT verification**, and
+`/item/remove`.
 
 What is **tested** (pure, no network): every Plaid→Pulse mapping in
-`src/lib/providers/plaid-map.ts` — sign flip, account-type mapping,
-liability→statement, per-row categorization — see `tests/unit/plaid-map.test.ts`
-(18 cases). What is **UNVERIFIED**: all network orchestration in `plaid.ts` has
-never run against a live Plaid sandbox (no credentials in the build env). What
-is **PENDING**: (a) recurring re-detection + `ScheduledTransaction` refresh after
-ingest — per-row normalize→rules→categorize→transfer is wired, the cross-account
-recurring/scheduled tail of DECISIONS #22 is not yet called from `syncTransactions`;
-(b) Plaid-Verification (JWT) signature checking on the webhook. Demo mode is
-entirely unaffected. Run §5 to validate before trusting this with real money.
+`src/lib/providers/plaid-map.ts` — sign flip, signed-balance conversion,
+account-type mapping, liability→statement, per-row categorization
+(`tests/unit/plaid-map.test.ts`); the webhook JWT verifier with an injected key
+resolver (`tests/unit/plaid-webhook.test.ts`); and the Plaid error-envelope
+formatter (`tests/unit/plaid-errors.test.ts`). What is **UNVERIFIED**: all
+network orchestration in `plaid.ts` has never run against a live Plaid sandbox
+(no credentials in the build env) — §5 flips that for the paths it exercises.
+
+**Hardening applied (this pass):** signed `balances.current` (overpaid card /
+overdrawn account no longer inverts net worth); Link initializes `transactions`
+with `liabilities` as `required_if_supported_products` (depository-only banks no
+longer filtered out of Link); Plaid error envelopes surfaced on failed calls
+(diagnosable first run); `exchangePublicToken` upserts the item (a link that
+fails mid-flight stays retryable); per-item fault isolation in `syncTransactions`
+(one item needing re-auth doesn't block the rest); `/transactions/sync` upserts
+the `accounts` it echoes (an account added post-link can't become a silent ledger
+gap); unmappable accounts skipped + audited, not fatal; expired webhook keys
+rejected; constant-time webhook body-hash compare; dead `development` host removed.
+
+**Known limitations (real, by design for now):** only credit-card liabilities are
+mapped to `Statement`s — student-loan and mortgage liability objects are not
+ingested. A paid-in-full card with a null `next_payment_due_date` yields no
+statement, so the cash-needed assembler uses its estimate path (same as a card
+whose statement hasn't closed). Demo mode is entirely unaffected by all of the
+above. Run §5 to validate before trusting this with real money.
 
 ## 1. Credentials
 
@@ -47,11 +65,16 @@ entirely unaffected. Run §5 to validate before trusting this with real money.
   rows are deleted, the cursor is persisted on the `PlaidItem`.
 - **Sign convention flip** (tested): Plaid amounts are outflow-POSITIVE; Pulse
   stores outflow-NEGATIVE — `plaidAmountToCents` negates on ingest.
-- Re-runs until `has_more` is false. After ingest, `detectTransfers` re-derives
-  `isTransfer` across the user's full set (descriptor + pair matching).
+- Re-runs until `has_more` is false. After ingest, `refreshTransferFlags`
+  re-derives `isTransfer` across the user's full set (descriptor + pair matching),
+  then `refreshRecurringForUser` re-detects recurring series + scheduled
+  projections (DECISIONS #22 tail) best-effort — a derived-view failure never
+  fails the ingest itself.
+- Each item syncs inside its own try/catch: a single item in an error state (e.g.
+  `ITEM_LOGIN_REQUIRED`) is audited as `plaid.item.sync.failed` with its cursor
+  left unadvanced, and the remaining items still sync.
 - Triggered by the webhook (`/api/plaid/webhook`, TRANSACTIONS) and by the cron
   sweep (`/api/cron/sync`, `Authorization: Bearer $CRON_SECRET`).
-- **PENDING:** recurring re-detection + scheduled refresh (DECISIONS #22 tail).
 
 ## 4. Liabilities → statements
 
@@ -78,7 +101,8 @@ exercises. Paste its real output as the evidence.
 - [ ] Token row encrypted in `PlaidItem` (inspect DB: no plaintext)
 - [ ] Sync inserts transactions with correct signs and dates (asserted by the script)
 - [ ] Liabilities populate statements; cash-needed headline computes
+      (the script now FAILS if a credit account yields zero statements)
 - [ ] Real Link UI flow (browser) for a human-linked item
-- [ ] Webhook triggers an incremental sync + Plaid-Verification JWT check added
-- [ ] Recurring/scheduled refresh wired after ingest (DECISIONS #22 tail)
+- [ ] Webhook triggers an incremental sync (JWT verification already implemented +
+      unit-tested — confirm it fires end-to-end against a real Plaid webhook)
 - [ ] `/item/remove` + cascade delete leaves zero user rows

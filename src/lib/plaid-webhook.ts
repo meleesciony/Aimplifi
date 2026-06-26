@@ -10,7 +10,7 @@
  * Returns {ok:false, reason} on any failure — it never throws, so a malformed or
  * forged webhook becomes a clean 401 rather than a 500.
  */
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { decodeProtectedHeader, importJWK, jwtVerify, type JWK } from 'jose';
 
 export interface VerifyResult {
@@ -21,6 +21,12 @@ export interface VerifyResult {
 /** SHA-256 hex of the raw request body (matches Plaid's request_body_sha256 claim). */
 export function sha256Hex(body: string): string {
   return createHash('sha256').update(body, 'utf8').digest('hex');
+}
+
+/** Constant-time equality for two hex digests (length-guarded). */
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'));
 }
 
 export async function verifyPlaidWebhook(opts: {
@@ -63,7 +69,9 @@ export async function verifyPlaidWebhook(opts: {
     return { ok: false, reason: 'stale' };
   }
   // Body integrity — the JWT pins the SHA-256 of the exact bytes we received.
-  if (payload.request_body_sha256 !== sha256Hex(rawBody)) {
+  // Constant-time compare (defense in depth; the ES256 signature already gates this).
+  const claimed = typeof payload.request_body_sha256 === 'string' ? payload.request_body_sha256 : '';
+  if (!timingSafeEqualHex(claimed, sha256Hex(rawBody))) {
     return { ok: false, reason: 'body-mismatch' };
   }
   return { ok: true };

@@ -39,9 +39,9 @@ import {
 import { DemoProvider } from './demo';
 import type { DataProvider, FinanceSnapshot, SyncResult } from './types';
 
+// Plaid retired the Development environment (2024) — only sandbox/production remain.
 const PLAID_HOSTS: Record<string, string> = {
   sandbox: 'https://sandbox.plaid.com',
-  development: 'https://development.plaid.com',
   production: 'https://production.plaid.com',
 };
 
@@ -51,8 +51,30 @@ function plaidEnv() {
   if (!clientId || !secret) {
     throw new Error('Plaid credentials missing — set PLAID_CLIENT_ID and PLAID_SECRET');
   }
-  const host = PLAID_HOSTS[process.env.PLAID_ENV ?? 'sandbox'];
+  // Fail loud on a stale/typo'd env rather than silently hitting a dead host.
+  const envName = process.env.PLAID_ENV ?? 'sandbox';
+  const host = PLAID_HOSTS[envName];
+  if (!host) {
+    throw new Error(`PLAID_ENV must be 'sandbox' or 'production' (got "${envName}")`);
+  }
   return { clientId, secret, host };
+}
+
+/**
+ * Format Plaid's error envelope for a thrown Error. error_type/error_code/
+ * error_message/request_id are developer-facing and carry NO secret — surfacing
+ * them is what makes a failed call diagnosable. (The REQUEST body, which carries
+ * the access_token, is never logged.) Pure + unit-tested.
+ */
+export function plaidErrorSummary(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return '(no error body)';
+  const e = payload as Record<string, unknown>;
+  const code = [e.error_code, e.error_type, e.error_message]
+    .filter((v): v is string => typeof v === 'string' && v.length > 0)
+    .join(' / ');
+  const reqId =
+    typeof e.request_id === 'string' && e.request_id ? ` (request_id ${e.request_id})` : '';
+  return code ? `${code}${reqId}` : '(no error fields)';
 }
 
 async function plaidPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
@@ -63,8 +85,15 @@ async function plaidPost<T>(path: string, body: Record<string, unknown>): Promis
     body: JSON.stringify({ client_id: clientId, secret, ...body }),
   });
   if (!response.ok) {
-    // never log request bodies — they can carry tokens
-    throw new Error(`Plaid ${path} failed: ${response.status}`);
+    // Surface Plaid's RESPONSE error envelope (safe, no secrets) so the first real
+    // run is diagnosable — never the REQUEST body, which carries the access_token.
+    let detail = '';
+    try {
+      detail = ` ${plaidErrorSummary(await response.json())}`;
+    } catch {
+      detail = '';
+    }
+    throw new Error(`Plaid ${path} failed: ${response.status}${detail}`);
   }
   return response.json() as Promise<T>;
 }
@@ -82,12 +111,15 @@ export async function fetchPlaidWebhookKey(kid: string): Promise<JWK | null> {
   const cached = webhookKeyCache.get(kid);
   if (cached) return cached;
   try {
-    const { key } = await plaidPost<{ key: (JWK & { expired_at?: string | null }) | null }>(
+    const { key } = await plaidPost<{ key: (JWK & { expired_at?: number | null }) | null }>(
       '/webhook_verification_key/get',
       { key_id: kid },
     );
     if (!key) return null;
-    if (!key.expired_at) webhookKeyCache.set(kid, key); // don't cache an already-rotated key
+    // Reject (don't trust OR cache) a key Plaid has already rotated out — matches
+    // Plaid's reference verifier. expired_at is a Unix timestamp (number), nullable.
+    if (key.expired_at != null) return null;
+    webhookKeyCache.set(kid, key);
     return key;
   } catch {
     return null;
@@ -106,7 +138,12 @@ export class PlaidProvider implements DataProvider {
     const result = await plaidPost<{ link_token: string }>('/link/token/create', {
       user: { client_user_id: userId },
       client_name: 'Aimplifi',
-      products: ['transactions', 'liabilities'],
+      products: ['transactions'],
+      // Liabilities only where the institution supports it — putting it in the
+      // required `products` array filters every depository-only bank out of Link
+      // (Plaid initializing-products guidance). syncLiabilities still calls
+      // /liabilities/get post-link.
+      required_if_supported_products: ['liabilities'],
       country_codes: ['US'],
       language: 'en',
       webhook: process.env.PLAID_WEBHOOK_URL || undefined,
@@ -120,8 +157,13 @@ export class PlaidProvider implements DataProvider {
       '/item/public_token/exchange',
       { public_token: publicToken },
     );
-    await prisma.plaidItem.create({
-      data: { userId, itemId: result.item_id, accessToken: encryptToken(result.access_token) },
+    // Upsert by itemId so a link that failed AFTER the token was stored (e.g. the
+    // initial account sync threw) stays retryable — re-linking refreshes the token
+    // instead of hitting the itemId unique constraint and locking the user out.
+    await prisma.plaidItem.upsert({
+      where: { itemId: result.item_id },
+      create: { userId, itemId: result.item_id, accessToken: encryptToken(result.access_token) },
+      update: { accessToken: encryptToken(result.access_token) },
     });
     await prisma.auditLog.create({
       data: { userId, action: 'plaid.item.link', meta: JSON.stringify({ itemId: result.item_id }) },
@@ -130,18 +172,42 @@ export class PlaidProvider implements DataProvider {
     await this.syncAccountsForItem(userId, result.item_id);
   }
 
-  /** /accounts/get → upsert Account rows (balances stored positive, type-mapped). */
+  /** /accounts/get → upsert Account rows (type-mapped; current balance signed). */
   async syncAccountsForItem(userId: string, itemId: string): Promise<void> {
     const token = await this.accessTokenFor(userId, itemId);
     const { accounts } = await plaidPost<{ accounts: PlaidAccount[] }>('/accounts/get', {
       access_token: token,
     });
+    await this.upsertPlaidAccounts(userId, accounts);
+  }
+
+  /**
+   * Upsert Plaid accounts (from /accounts/get OR the /transactions/sync `accounts`
+   * array). Per-account guarded: an account Plaid returns with a type we can't map
+   * (e.g. the documented `other`) is skipped + audited rather than aborting the
+   * whole item link/sync — a single odd account must never block every other one.
+   */
+  private async upsertPlaidAccounts(userId: string, accounts: readonly PlaidAccount[]): Promise<void> {
     for (const a of accounts) {
-      const m = mapPlaidAccount(a);
-      const existing = await prisma.account.findFirst({
-        where: { userId, provider: 'plaid', providerRef: m.providerRef },
-        select: { id: true },
-      });
+      let m: ReturnType<typeof mapPlaidAccount>;
+      try {
+        m = mapPlaidAccount(a);
+      } catch (e) {
+        await prisma.auditLog
+          .create({
+            data: {
+              userId,
+              action: 'plaid.account.skipped',
+              meta: JSON.stringify({
+                accountId: a.account_id,
+                type: a.type,
+                reason: e instanceof Error ? e.message : String(e),
+              }),
+            },
+          })
+          .catch(() => {});
+        continue;
+      }
       const data = {
         name: m.name,
         type: m.type,
@@ -150,6 +216,10 @@ export class PlaidProvider implements DataProvider {
         availableBalanceCents: m.availableBalanceCents,
         creditLimitCents: m.creditLimitCents,
       };
+      const existing = await prisma.account.findFirst({
+        where: { userId, provider: 'plaid', providerRef: m.providerRef },
+        select: { id: true },
+      });
       if (existing) {
         await prisma.account.update({ where: { id: existing.id }, data });
       } else {
@@ -158,6 +228,15 @@ export class PlaidProvider implements DataProvider {
         });
       }
     }
+  }
+
+  /** Map of Plaid account_id (providerRef) → our Account id, for the user. */
+  private async plaidAccountIdMap(userId: string): Promise<Map<string, string>> {
+    const accounts = await prisma.account.findMany({
+      where: { userId, provider: 'plaid' },
+      select: { id: true, providerRef: true },
+    });
+    return new Map(accounts.map((a) => [a.providerRef ?? '', a.id]));
   }
 
   /**
@@ -175,70 +254,90 @@ export class PlaidProvider implements DataProvider {
     let lastCursor: string | null = null;
 
     for (const item of items) {
-      const token = decryptToken(item.accessToken);
-      const accounts = await prisma.account.findMany({
-        where: { userId, provider: 'plaid' },
-        select: { id: true, providerRef: true },
-      });
-      const idByPlaidId = new Map(accounts.map((a) => [a.providerRef ?? '', a.id]));
+      try {
+        const token = decryptToken(item.accessToken);
+        let idByPlaidId = await this.plaidAccountIdMap(userId);
 
-      let cursor = item.cursor ?? undefined;
-      let hasMore = true;
-      while (hasMore) {
-        const page = await plaidPost<{
-          added: PlaidTransaction[];
-          modified: PlaidTransaction[];
-          removed: { transaction_id: string }[];
-          next_cursor: string;
-          has_more: boolean;
-        }>('/transactions/sync', { access_token: token, cursor });
+        let cursor = item.cursor ?? undefined;
+        let hasMore = true;
+        while (hasMore) {
+          const page = await plaidPost<{
+            accounts?: PlaidAccount[];
+            added: PlaidTransaction[];
+            modified: PlaidTransaction[];
+            removed: { transaction_id: string }[];
+            next_cursor: string;
+            has_more: boolean;
+          }>('/transactions/sync', { access_token: token, cursor });
 
-        for (const txn of [...page.added, ...page.modified]) {
-          const accountId = idByPlaidId.get(txn.account_id);
-          if (!accountId) continue; // account not yet synced — skip, next sweep catches it
-          const row = prepareIngestedTransaction(txn, accountId, rules);
-          const merchant = await prisma.merchant.upsert({
-            where: { canonical: row.merchantCanonical },
-            create: { canonical: row.merchantCanonical, defaultCategoryId: row.categoryId },
-            update: {},
-          });
-          const existing = await prisma.transaction.findFirst({
-            where: { providerRef: row.providerRef, account: { userId } },
-            select: { id: true },
-          });
-          const data = {
-            date: row.date,
-            amountCents: row.amountCents,
-            rawDescriptor: row.rawDescriptor,
-            merchantId: merchant.id,
-            categoryId: row.categoryId,
-            confidenceBps: row.confidenceBps,
-            status: row.status,
-            needsReview: row.needsReview,
-            isTransfer: row.isTransfer,
-          };
-          if (existing) {
-            await prisma.transaction.update({ where: { id: existing.id }, data });
-            modified++;
-          } else {
-            await prisma.transaction.create({ data: { accountId, providerRef: row.providerRef, ...data } });
-            added++;
+          // /transactions/sync echoes the item's current accounts. Upsert them so a
+          // transaction for an account added to the item AFTER link is never silently
+          // dropped while the cursor advances past it (a permanent ledger gap).
+          if (page.accounts && page.accounts.length > 0) {
+            await this.upsertPlaidAccounts(userId, page.accounts);
+            idByPlaidId = await this.plaidAccountIdMap(userId);
           }
+
+          for (const txn of [...page.added, ...page.modified]) {
+            const accountId = idByPlaidId.get(txn.account_id);
+            if (!accountId) continue; // unmappable account (skipped at upsert) — don't orphan a row
+            const row = prepareIngestedTransaction(txn, accountId, rules);
+            const merchant = await prisma.merchant.upsert({
+              where: { canonical: row.merchantCanonical },
+              create: { canonical: row.merchantCanonical, defaultCategoryId: row.categoryId },
+              update: {},
+            });
+            const existing = await prisma.transaction.findFirst({
+              where: { providerRef: row.providerRef, account: { userId } },
+              select: { id: true },
+            });
+            const data = {
+              date: row.date,
+              amountCents: row.amountCents,
+              rawDescriptor: row.rawDescriptor,
+              merchantId: merchant.id,
+              categoryId: row.categoryId,
+              confidenceBps: row.confidenceBps,
+              status: row.status,
+              needsReview: row.needsReview,
+              isTransfer: row.isTransfer,
+            };
+            if (existing) {
+              await prisma.transaction.update({ where: { id: existing.id }, data });
+              modified++;
+            } else {
+              await prisma.transaction.create({ data: { accountId, providerRef: row.providerRef, ...data } });
+              added++;
+            }
+          }
+
+          for (const r of page.removed) {
+            const res = await prisma.transaction.deleteMany({
+              where: { providerRef: r.transaction_id, account: { userId } },
+            });
+            removed += res.count;
+          }
+
+          cursor = page.next_cursor;
+          hasMore = page.has_more;
         }
 
-        for (const r of page.removed) {
-          const res = await prisma.transaction.deleteMany({
-            where: { providerRef: r.transaction_id, account: { userId } },
-          });
-          removed += res.count;
-        }
-
-        cursor = page.next_cursor;
-        hasMore = page.has_more;
+        await prisma.plaidItem.update({ where: { id: item.id }, data: { cursor } });
+        lastCursor = cursor ?? null;
+      } catch (e) {
+        // One item in an error state (e.g. ITEM_LOGIN_REQUIRED needing re-auth) must
+        // not block the user's other items. Record + continue; this item's cursor is
+        // left unadvanced so a later sweep retries it once the user re-auths.
+        await prisma.auditLog
+          .create({
+            data: {
+              userId,
+              action: 'plaid.item.sync.failed',
+              meta: JSON.stringify({ itemId: item.itemId, error: e instanceof Error ? e.message : String(e) }),
+            },
+          })
+          .catch(() => {});
       }
-
-      await prisma.plaidItem.update({ where: { id: item.id }, data: { cursor } });
-      lastCursor = cursor ?? null;
     }
 
     await this.refreshTransferFlags(userId);
