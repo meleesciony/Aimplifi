@@ -254,3 +254,23 @@ Added the zero-account EmptyDashboard guard to /budgets (the one page missing it
 RISKY/dedicated ones (iOS safe-area inset — cascades through every bottom-anchored element; CardTitle-as-
 heading — shared primitive used by every card; triage split-flow rework). Recommended as focused tasks,
 not end-of-session work.
+
+## 2026-06-26 (session: "vitaforge") — crash recovery + landed the categorization arc + go-live — DONE ✅
+Resumed after a crash with the working tree CLEAN (HEAD = #117, verify-green) — nothing lost; the last
+work was committed AND pushed. Health re-confirmed: `bash scripts/verify.sh` → GREEN (1133 unit / 92
+files; typecheck/lint/build clean; e2e opt-in, skipped). NOTE: this checkout lives under OneDrive; the
+"canonical" C:\dev\Pulse Finance copy is stale (~#74) and effectively abandoned — all recent work is here.
+
+Landed feat/categorization-improvements onto main by fast-forward (origin/main b9204e1..f4a9b5d): #115
+insurance-vs-medical split, #116 deterministic backfill of the review pile, #117 backfill LLM second pass
++ TOCTOU compare-and-set guard. Linear history, no merge commit.
+
+Go-live via the Vercel MCP (project aimplifi, team reiforge): found prod was STILL on #112 — the main push
+did NOT auto-build because Vercel dedups by commit SHA and f4a9b5d had already built once as an ERRORED
+preview. Those preview errors are BENIGN — the Preview env has no DATABASE_URL, so the build dies at
+`prisma db push` before `next build` (build log: "datasource.url property is required"); every
+target:production build is READY. Owner set XAI_API_KEY in Vercel → Production (enables the #117 live LLM:
+xAI Grok preferred → Anthropic fallback → deterministic no-op without a key). THIS docs commit is the fresh
+SHA that triggers the real production build (now with the key present), taking #115–#117 + the live LLM
+second pass live together; after READY, /triage "Re-run categorizer" works the ~515-row backlog with the
+LLM. Also fixed DEPLOY.md's optional-env table (added XAI_API_KEY, the preferred provider it had omitted).

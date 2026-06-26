@@ -72,7 +72,8 @@ Optional, add only if/when you want the feature:
 
 | Variable | Purpose |
 |---|---|
-| `ANTHROPIC_API_KEY` | LLM-assisted categorization of unknown merchants (otherwise the deterministic categorizer runs) |
+| `XAI_API_KEY` (preferred) | LLM-assisted categorization of unknown merchants — xAI Grok, cheaper; optional `XAI_MODEL` (default `grok-3-mini`) |
+| `ANTHROPIC_API_KEY` | Same feature via Anthropic when no `XAI_API_KEY` is set; optional `ANTHROPIC_MODEL` (default `claude-haiku-4-5-20251001`) |
 | `CRON_SECRET` | protects the `/api/cron/*` sweep routes if you wire Vercel Cron |
 | `RESEND_API_KEY` + `REMINDER_FROM_EMAIL` | actually send payment-reminder emails (otherwise reminders show in-app only) |
 
