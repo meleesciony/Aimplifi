@@ -29,6 +29,10 @@ only opens when signed in as michael.lee.p@gmail.com). It contains:
   in the database becomes permanently undecryptable. The Plaid and xAI keys are
   re-fetchable from their dashboards; this key is not.
 - **`env — Aimplifi dev defaults`** → restore to `.env` (dev defaults only, no prod secrets).
+- **`pulse-finance-icon.svg`** + **`pulse-finance-logo-128.png`** → the app icon (the green
+  pulse mark). The SVG is the lossless master (renders to any size); the 128px PNG is a
+  ready-to-upload raster for forms like the Plaid App Profile. Both also live in the repo at
+  `public/icon.svg` / `public/icon-512.png` (and `public/icon-192.png`).
 
 A password manager (1Password / Bitwarden) is the recommended long-term home for
 `DATA_ENCRYPTION_KEY` and the xAI key; the Drive copy is the convenience/disaster copy.
