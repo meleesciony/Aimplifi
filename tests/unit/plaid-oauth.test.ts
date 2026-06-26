@@ -1,0 +1,70 @@
+/**
+ * OAuth redirect support (ROADMAP — real OAuth banks). Two pure pieces drive the
+ * resume, and both are covered here:
+ *   1. linkTokenParams must register a `redirect_uri` ONLY when configured. An
+ *      unset/empty value must be omitted, because Plaid rejects a redirect_uri
+ *      that isn't an exact match for one registered in the dashboard — so leaving
+ *      it off must keep non-OAuth linking working with zero extra config.
+ *   2. isOAuthRedirect must recognise Plaid's `oauth_state_id` return marker
+ *      without false-matching unrelated params.
+ * The interactive Link iframe is Plaid-hosted and can't be browser-e2e'd (see the
+ * note in plaid-actions.test.ts), so these unit tests are the labeled coverage
+ * for the redirect wiring.
+ */
+import { describe, expect, it } from 'vitest';
+import { linkTokenParams } from '@/lib/providers/plaid';
+import { OAUTH_LINK_TOKEN_KEY, isOAuthRedirect } from '@/lib/plaid-oauth';
+
+describe('linkTokenParams — redirect_uri is opt-in (configured-only)', () => {
+  it('omits redirect_uri when none is provided (non-OAuth linking unaffected)', () => {
+    const body = linkTokenParams('user-1');
+    // present-but-undefined: JSON.stringify drops it, so Plaid never sees an
+    // empty/invalid redirect_uri.
+    expect(body.redirect_uri).toBeUndefined();
+  });
+
+  it('treats an empty-string redirect URI as unset (omitted)', () => {
+    expect(linkTokenParams('user-1', '').redirect_uri).toBeUndefined();
+  });
+
+  it('registers the redirect_uri verbatim when configured', () => {
+    const body = linkTokenParams('user-1', 'https://www.aimplifi.app/plaid-oauth');
+    expect(body.redirect_uri).toBe('https://www.aimplifi.app/plaid-oauth');
+  });
+
+  it('keeps the link-token contract: scoped user, transactions product, liabilities only-if-supported', () => {
+    const body = linkTokenParams('user-42');
+    expect(body.user).toEqual({ client_user_id: 'user-42' });
+    expect(body.client_name).toBe('Aimplifi');
+    expect(body.products).toEqual(['transactions']);
+    expect(body.required_if_supported_products).toEqual(['liabilities']);
+    expect(body.country_codes).toEqual(['US']);
+    expect(body.language).toBe('en');
+  });
+});
+
+describe('isOAuthRedirect — recognises Plaid’s oauth_state_id handoff marker', () => {
+  it('true for a full href returning from an OAuth bank', () => {
+    expect(isOAuthRedirect('https://www.aimplifi.app/plaid-oauth?oauth_state_id=abc-123')).toBe(true);
+  });
+
+  it('true for a bare query string', () => {
+    expect(isOAuthRedirect('?oauth_state_id=abc-123')).toBe(true);
+  });
+
+  it('false for a normal page load with no marker', () => {
+    expect(isOAuthRedirect('https://www.aimplifi.app/plaid-oauth')).toBe(false);
+    expect(isOAuthRedirect('')).toBe(false);
+  });
+
+  it('does not false-match a param that merely contains the substring', () => {
+    expect(isOAuthRedirect('?not_oauth_state_id_really=1')).toBe(false);
+  });
+});
+
+describe('OAUTH_LINK_TOKEN_KEY', () => {
+  it('is a stable, non-empty storage key', () => {
+    expect(typeof OAUTH_LINK_TOKEN_KEY).toBe('string');
+    expect(OAUTH_LINK_TOKEN_KEY.length).toBeGreaterThan(0);
+  });
+});

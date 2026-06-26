@@ -126,6 +126,28 @@ export async function fetchPlaidWebhookKey(kid: string): Promise<JWK | null> {
   }
 }
 
+/**
+ * Build the `/link/token/create` request body (minus client_id/secret, which
+ * plaidPost injects). Pure + unit-tested (tests/unit/plaid-oauth.test.ts). Keeping
+ * `liabilities` in required_if_supported (not `products`) is what keeps depository-
+ * only banks linkable. `redirectUri` is registered ONLY when set: an OAuth bank
+ * (Chase/BofA) redirects the browser to it to hand the user back; when unset the
+ * key is omitted entirely so non-OAuth linking works with zero extra config (Plaid
+ * rejects a redirect_uri that isn't an exact match for a dashboard-registered URI).
+ */
+export function linkTokenParams(userId: string, redirectUri?: string): Record<string, unknown> {
+  return {
+    user: { client_user_id: userId },
+    client_name: 'Aimplifi',
+    products: ['transactions'],
+    required_if_supported_products: ['liabilities'],
+    country_codes: ['US'],
+    language: 'en',
+    webhook: process.env.PLAID_WEBHOOK_URL || undefined,
+    redirect_uri: redirectUri || undefined,
+  };
+}
+
 export class PlaidProvider implements DataProvider {
   today(userId?: string): ISODate {
     // Real Plaid users get the real clock; DEMO_TODAY still pins it for tests
@@ -135,19 +157,12 @@ export class PlaidProvider implements DataProvider {
 
   /** Step 1 of Link: create a link token for the client-side Plaid Link SDK. */
   async createLinkToken(userId: string): Promise<string> {
-    const result = await plaidPost<{ link_token: string }>('/link/token/create', {
-      user: { client_user_id: userId },
-      client_name: 'Aimplifi',
-      products: ['transactions'],
-      // Liabilities only where the institution supports it — putting it in the
-      // required `products` array filters every depository-only bank out of Link
-      // (Plaid initializing-products guidance). syncLiabilities still calls
-      // /liabilities/get post-link.
-      required_if_supported_products: ['liabilities'],
-      country_codes: ['US'],
-      language: 'en',
-      webhook: process.env.PLAID_WEBHOOK_URL || undefined,
-    });
+    // Params (incl. the opt-in OAuth redirect_uri) live in the pure, unit-tested
+    // linkTokenParams; this method just injects the configured redirect URI.
+    const result = await plaidPost<{ link_token: string }>(
+      '/link/token/create',
+      linkTokenParams(userId, process.env.PLAID_REDIRECT_URI || undefined),
+    );
     return result.link_token;
   }
 

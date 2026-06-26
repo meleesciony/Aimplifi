@@ -6,11 +6,17 @@
  * exchange path (linkPlaidAccount), which pulls accounts, transactions, and
  * liabilities. The link token is fetched ON CLICK (never on render), so the
  * page makes no Plaid network call just by loading.
+ *
+ * OAuth banks (Chase/BofA) redirect the browser to the registered redirect URI,
+ * which destroys this component's state — so the freshly-minted token is stashed
+ * (storeLinkToken) for /plaid-oauth to recover and resume Link. It's cleared on
+ * every terminal outcome (success, error, exit).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePlaidLink } from 'react-plaid-link';
 import { createPlaidLinkToken, linkPlaidAccount } from '@/server/plaid-actions';
+import { clearStoredLinkToken, storeLinkToken } from '@/lib/plaid-oauth';
 
 export function ConnectAccountsButton() {
   const router = useRouter();
@@ -28,6 +34,7 @@ export function ConnectAccountsButton() {
       // leave the button stuck on "Connecting…" after a successful bank login.
       void linkPlaidAccount(publicToken)
         .then((r) => {
+          clearStoredLinkToken();
           setToken(null);
           setWantOpen(false);
           setBusy(false);
@@ -35,6 +42,7 @@ export function ConnectAccountsButton() {
           else router.refresh();
         })
         .catch(() => {
+          clearStoredLinkToken();
           setToken(null);
           setWantOpen(false);
           setBusy(false);
@@ -50,6 +58,7 @@ export function ConnectAccountsButton() {
     // Surface a real Link error (institution/login failure) instead of silent
     // re-enable; a clean user cancel passes err=null, so it stays quiet.
     onExit: (err) => {
+      clearStoredLinkToken();
       setWantOpen(false);
       if (err) setError(err.display_message ?? err.error_message ?? 'Bank connection was cancelled.');
     },
@@ -75,6 +84,10 @@ export function ConnectAccountsButton() {
         return;
       }
       setToken(r.linkToken);
+      // Persist for a possible OAuth round-trip: an OAuth bank navigates the
+      // browser away (destroying this component's state), and /plaid-oauth needs
+      // the token to resume Link. Harmless for non-OAuth banks.
+      storeLinkToken(r.linkToken);
       setWantOpen(true);
     } catch {
       setError('Could not start bank linking — please try again.');
