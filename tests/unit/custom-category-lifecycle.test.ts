@@ -1,0 +1,124 @@
+/**
+ * SCRIPTED SIMULATION (stands in for a Playwright e2e — DECISIONS #111) of the
+ * full custom-category lifecycle, driving the REAL server actions + read paths
+ * against throwaway data (never the seeded demo user):
+ *
+ *   create → appears in every picker + resolves its name
+ *   rename → the new name is what reads see
+ *   set a budget target on it (write-path accepts the owned custom)
+ *   delete → its transactions re-file as Uncategorized, its rule + budget are
+ *            removed (REQUIRED FKs that would otherwise block the delete), the
+ *            category row is gone, and it leaves the pickers
+ *
+ * Plus the two validation guards: a custom can't shadow a built-in name, and a
+ * per-user duplicate name is refused.
+ */
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/auth', () => ({ auth: vi.fn(), signOut: vi.fn() }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+
+import { auth } from '@/auth';
+import {
+  createCustomCategory,
+  renameCustomCategory,
+  deleteCustomCategory,
+} from '@/server/custom-category-actions';
+import { setBudget } from '@/server/budget-actions';
+import { getVisibleCategories } from '@/server/categories';
+import { getCategoryMeta, getCustomCategories } from '@/server/category-meta';
+import { categoryName, CATEGORIES } from '@/lib/engine/categorize/categories';
+import { ASSIGNABLE_GROUPS } from '@/lib/engine/categorize/assign';
+import { prisma } from '@/lib/db';
+
+describe('custom category lifecycle (real actions, throwaway data — DECISIONS #111)', () => {
+  const stamp = `${Date.now()}-${process.pid}`;
+  const USER = `cust-life-${stamp}`;
+  const GROUP = ASSIGNABLE_GROUPS[0].group;
+  const UNCATEGORIZED_NAME = CATEGORIES.find((c) => c.id === 'uncategorized')?.name ?? 'Uncategorized';
+  let accountId = '';
+
+  async function wipe() {
+    await prisma.user.deleteMany({ where: { id: USER } }); // cascades account→txn, custom cats, rules, budgets
+  }
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: USER, email: `${USER}@test.local` } });
+    // The delete path re-files transactions to the global `uncategorized` row
+    // (FK target). Prod seeds it; ensure it exists for this throwaway run too.
+    await prisma.category.upsert({
+      where: { id: 'uncategorized' },
+      create: { id: 'uncategorized', name: UNCATEGORIZED_NAME, isSystem: true },
+      update: {},
+    });
+    const acct = await prisma.account.create({
+      data: { userId: USER, provider: 'demo', name: 'Checking', type: 'CHECKING', currentBalanceCents: 0 },
+    });
+    accountId = acct.id;
+    vi.mocked(auth).mockResolvedValue({ user: { id: USER } } as never);
+  });
+
+  afterAll(wipe);
+
+  it('refuses a name that shadows a built-in category', async () => {
+    const res = await createCustomCategory({ name: 'Dining Out', group: GROUP, discretionary: true });
+    expect(res.ok).toBe(false);
+  });
+
+  it('refuses a per-user duplicate name', async () => {
+    const a = await createCustomCategory({ name: `Dup-${stamp}`, group: GROUP, discretionary: true });
+    expect(a.ok).toBe(true);
+    const b = await createCustomCategory({ name: `Dup-${stamp}`, group: GROUP, discretionary: true });
+    expect(b.ok).toBe(false);
+  });
+
+  it('refuses an unknown group', async () => {
+    const res = await createCustomCategory({ name: `Boat-${stamp}`, group: 'Not A Group', discretionary: true });
+    expect(res.ok).toBe(false);
+  });
+
+  it('create → rename → budget → delete (re-files + cleans up FKs)', async () => {
+    // create
+    const created = await createCustomCategory({ name: 'Golf', group: GROUP, discretionary: true });
+    expect(created.ok).toBe(true);
+    const id = created.id!;
+    expect(id).not.toBe('golf'); // a cuid, never a slug
+
+    // appears in the picker + resolves its name through the merged meta
+    expect((await getVisibleCategories(USER)).some((c) => c.id === id)).toBe(true);
+    expect(categoryName(id, await getCategoryMeta(USER))).toBe('Golf');
+
+    // rename → the new name is what reads see
+    const renamed = await renameCustomCategory({ id, name: 'Golf & Country' });
+    expect(renamed.ok).toBe(true);
+    expect((await getCustomCategories(USER)).find((c) => c.id === id)?.name).toBe('Golf & Country');
+
+    // a budget target on the custom (write-path accepts an owned custom)
+    const fd = new FormData();
+    fd.set('categoryId', id);
+    fd.set('amount', '120');
+    await setBudget(fd);
+    expect(await prisma.budget.count({ where: { userId: USER, categoryId: id } })).toBe(1);
+
+    // a rule + a transaction referencing it, to exercise the delete cleanup
+    await prisma.categorizationRule.create({ data: { userId: USER, categoryId: id, priority: 100 } });
+    const txn = await prisma.transaction.create({
+      data: { accountId, date: '2026-06-01', amountCents: -9000, rawDescriptor: 'BEAR CREEK GC', categoryId: id },
+    });
+
+    // delete
+    const deleted = await deleteCustomCategory({ id });
+    expect(deleted.ok).toBe(true);
+
+    // the category row is gone…
+    expect(await prisma.category.findUnique({ where: { id } })).toBeNull();
+    // …its transaction re-filed as uncategorized…
+    expect((await prisma.transaction.findUnique({ where: { id: txn.id } }))?.categoryId).toBe('uncategorized');
+    // …its budget + rule removed…
+    expect(await prisma.budget.count({ where: { userId: USER, categoryId: id } })).toBe(0);
+    expect(await prisma.categorizationRule.count({ where: { userId: USER, categoryId: id } })).toBe(0);
+    // …and it no longer appears in the picker.
+    expect((await getVisibleCategories(USER)).some((c) => c.id === id)).toBe(false);
+  });
+});

@@ -5,7 +5,10 @@ import { buttonVariants } from '@/components/ui/button';
 import { MoneyDialsForm } from '@/components/settings/money-dials-form';
 import { DeleteMyDataForm } from '@/components/settings/delete-my-data-form';
 import { CategoryManager } from '@/components/settings/category-manager';
+import { CustomCategoryManager } from '@/components/settings/custom-category-manager';
 import { getCategoryCatalog } from '@/server/categories';
+import { getCustomCategories } from '@/server/category-meta';
+import { ASSIGNABLE_GROUPS } from '@/lib/engine/categorize/assign';
 import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/dials';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { deletionSummary } from '@/lib/engine/account/deletion';
@@ -18,7 +21,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/sign-in');
 
   const userId = session.user.id;
-  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog] =
+  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -41,8 +44,11 @@ export default async function SettingsPage() {
       prisma.budget.count({ where: { userId } }),
       prisma.categorizationRule.count({ where: { userId } }),
       getCategoryCatalog(userId),
+      getCustomCategories(userId),
     ]);
   if (!user) redirect('/sign-in');
+
+  const customGroups = ASSIGNABLE_GROUPS.map((g) => g.group);
 
   const eligibleAccounts = accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))
@@ -120,11 +126,22 @@ export default async function SettingsPage() {
 
       <Card data-testid="categories-card">
         <CardHeader className="pb-2">
-          <CardDescription>Tidy up your category list</CardDescription>
+          <CardDescription>Make the category list your own</CardDescription>
           <CardTitle className="text-base">Categories</CardTitle>
         </CardHeader>
-        <CardContent>
-          <CategoryManager catalog={categoryCatalog} />
+        <CardContent className="space-y-5">
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Your categories
+            </h3>
+            <CustomCategoryManager categories={customCategories} groups={customGroups} />
+          </div>
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Show or hide built-in categories
+            </h3>
+            <CategoryManager catalog={categoryCatalog} />
+          </div>
         </CardContent>
       </Card>
 
