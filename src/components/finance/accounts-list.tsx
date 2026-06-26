@@ -115,6 +115,27 @@ function NetWorthCard({ data }: { data: AccountsView }) {
   );
 }
 
+/** Zero-account first-run: a $0.00 net-worth headline is meaningless, so welcome
+ *  the user and let the connect/add affordances below carry the action. */
+function AccountsEmptyState() {
+  return (
+    <Card data-testid="accounts-empty">
+      <CardHeader>
+        <CardDescription>No accounts yet</CardDescription>
+        <CardTitle className="text-xl">Add your first account</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">
+          Connect a bank or brokerage below, or add an account manually — even things a bank feed
+          can&apos;t see, like your home or car. Once an account is here you&apos;ll see your net
+          worth, and Aimplifi can tell you exactly how much you need to pay every card in full, and
+          by when.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function AccountsList({ data }: { data: AccountsView }) {
   const router = useRouter();
   const [adding, setAdding] = useState<null | 'asset' | 'liability'>(null);
@@ -123,6 +144,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const isEmpty = data.assets.accounts.length === 0 && data.liabilities.accounts.length === 0;
 
   function refreshAfter(fn: () => Promise<{ ok: boolean; errors?: string[] }>, successMsg?: string) {
     setError(null);
@@ -147,17 +169,19 @@ export function AccountsList({ data }: { data: AccountsView }) {
 
   return (
     <div className="space-y-4">
-      <NetWorthCard data={data} />
+      {isEmpty ? <AccountsEmptyState /> : <NetWorthCard data={data} />}
 
-      <div className="flex justify-end">
-        <Link
-          href="/investments"
-          data-testid="investments-link"
-          className="text-xs text-muted-foreground hover:text-foreground hover:underline"
-        >
-          View investments →
-        </Link>
-      </div>
+      {!isEmpty && (
+        <div className="flex justify-end">
+          <Link
+            href="/investments"
+            data-testid="investments-link"
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+          >
+            View investments →
+          </Link>
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="rounded-md border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-300" data-testid="manual-error">

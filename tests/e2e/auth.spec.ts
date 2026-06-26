@@ -30,8 +30,13 @@ test('email/password sign-up → empty onboarding → sign out → sign back in'
       timeout: 20000,
     });
   }
+  // /accounts shows its own first-run empty state (not a meaningless $0.00 net worth).
+  await page.goto('/accounts');
+  await expect(page.getByTestId('accounts-empty')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('accounts-net-worth')).toHaveCount(0);
+
   // The remaining nav pages render their own empty states — assert no error boundary.
-  for (const path of ['/transactions', '/accounts', '/budgets', '/triage', '/settings']) {
+  for (const path of ['/transactions', '/budgets', '/triage', '/settings']) {
     await page.goto(path);
     await expect(page.getByTestId('app-error'), `${path} should not crash`).toHaveCount(0);
   }
