@@ -21,9 +21,19 @@ const CADENCE_SUFFIX: Record<Cadence, string> = {
   IRREGULAR: '',
 };
 
-function Row({ item, accountNames }: { item: RecurringItem; accountNames: Record<string, string> }) {
+function Row({
+  item,
+  accountNames,
+  categoryNames,
+}: {
+  item: RecurringItem;
+  accountNames: Record<string, string>;
+  categoryNames: Record<string, string>;
+}) {
   const mag = Math.abs(item.lastAmountCents);
-  const catName = CATEGORY_BY_ID.get(item.categoryId)?.name ?? item.categoryId;
+  // Prefer the server-resolved name (covers custom categories, #111); fall back to
+  // the static map, then the raw id, so a missing entry never blanks the row.
+  const catName = categoryNames[item.categoryId] ?? CATEGORY_BY_ID.get(item.categoryId)?.name ?? item.categoryId;
   const increased =
     item.previousAmountCents !== null && Math.abs(item.lastAmountCents) > Math.abs(item.previousAmountCents);
   const decreased =
@@ -77,6 +87,7 @@ function Section({
   hint,
   items,
   accountNames,
+  categoryNames,
   testid,
   muted,
 }: {
@@ -84,6 +95,7 @@ function Section({
   hint?: string;
   items: RecurringItem[];
   accountNames: Record<string, string>;
+  categoryNames: Record<string, string>;
   testid?: string;
   muted?: boolean;
 }) {
@@ -96,7 +108,12 @@ function Section({
       </div>
       <ul className={`mt-2 divide-y ${muted ? 'opacity-70' : ''}`} data-testid={testid}>
         {items.map((i) => (
-          <Row key={`${i.merchantCanonical}:${i.accountId}`} item={i} accountNames={accountNames} />
+          <Row
+            key={`${i.merchantCanonical}:${i.accountId}`}
+            item={i}
+            accountNames={accountNames}
+            categoryNames={categoryNames}
+          />
         ))}
       </ul>
     </section>
@@ -149,6 +166,7 @@ export function RecurringView({ data }: { data: RecurringData }) {
             hint={`${formatCents(cents(s.subscriptions.reduce((a, i) => a + i.monthlyEquivalentCents, 0)))}/mo`}
             items={s.subscriptions}
             accountNames={data.accountNames}
+            categoryNames={data.categoryNames}
             testid="recurring-list"
           />
           <Section
@@ -156,18 +174,21 @@ export function RecurringView({ data }: { data: RecurringData }) {
             hint={`${formatCents(cents(s.bills.reduce((a, i) => a + i.monthlyEquivalentCents, 0)))}/mo`}
             items={s.bills}
             accountNames={data.accountNames}
+            categoryNames={data.categoryNames}
           />
           <Section
             title="Recurring income"
             hint={s.monthlyIncomeCents > 0 ? `${formatCents(cents(s.monthlyIncomeCents))}/mo` : undefined}
             items={s.income}
             accountNames={data.accountNames}
+            categoryNames={data.categoryNames}
           />
           <Section
             title="No longer charging"
             hint="appears to have stopped"
             items={s.inactive}
             accountNames={data.accountNames}
+            categoryNames={data.categoryNames}
             muted
           />
         </>

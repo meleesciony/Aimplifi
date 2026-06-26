@@ -14,6 +14,8 @@ import {
   toScheduledTransactions,
 } from '@/lib/engine/recurring/detect';
 import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurring/summary';
+import { categoryName } from '@/lib/engine/categorize/categories';
+import { getCategoryMeta } from '@/server/category-meta';
 import { getProvider } from '@/lib/providers/demo';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
@@ -21,6 +23,12 @@ import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
 export interface RecurringData {
   summary: RecurringSummary;
   accountNames: Record<string, string>;
+  /**
+   * Display name per category id appearing in the summary — resolved server-side
+   * through the merged meta so a CUSTOM category shows its real name instead of a
+   * raw cuid (DECISIONS #111). System ids resolve to the same static name.
+   */
+  categoryNames: Record<string, string>;
 }
 
 /**
@@ -55,7 +63,15 @@ export async function getRecurring(userId: string): Promise<RecurringData> {
 
   const accountNames: Record<string, string> = {};
   for (const a of snap.accounts) accountNames[a.id] = a.name;
-  return { summary, accountNames };
+
+  // Resolve each category once through the merged meta (custom + system) so a
+  // recurring series filed under a custom category shows its name (DECISIONS #111).
+  const meta = await getCategoryMeta(userId);
+  const categoryNames: Record<string, string> = {};
+  for (const it of summary.items) {
+    if (!(it.categoryId in categoryNames)) categoryNames[it.categoryId] = categoryName(it.categoryId, meta);
+  }
+  return { summary, accountNames, categoryNames };
 }
 
 /** Scheduled-row sources that are DERIVED from detection (and so safe to replace). */

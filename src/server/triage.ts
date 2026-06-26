@@ -9,6 +9,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { categorize, suggestAlternatives } from '@/lib/engine/categorize/pipeline';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { loadUserRules } from '@/server/rules';
+import { getCategoryMeta } from '@/server/category-meta';
 
 export interface TriageItem {
   id: string;
@@ -57,13 +58,14 @@ export function similarTransactionsWhere(
 }
 
 export async function getTriageItems(userId: string): Promise<TriageItem[]> {
-  const [txns, rules] = await Promise.all([
+  const [txns, rules, meta] = await Promise.all([
     prisma.transaction.findMany({
       where: { needsReview: true, account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
       include: { account: { select: { name: true } }, merchant: true },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
     }),
     loadUserRules(userId), // the user's own rules drive suggestions (cycle-1 C2)
+    getCategoryMeta(userId), // a custom-category suggestion (via a user rule) resolves its name (#111)
   ]);
 
   const items: TriageItem[] = [];
@@ -109,9 +111,9 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
       accountName: t.account.name,
       status: t.status,
       suggestedCategoryId: suggested,
-      suggestedCategoryName: categoryName(suggested),
+      suggestedCategoryName: categoryName(suggested, meta),
       alternativeIds: alts,
-      alternativeNames: alts.map((id) => categoryName(id)),
+      alternativeNames: alts.map((id) => categoryName(id, meta)),
       similarCount,
       ruleEligible,
     });

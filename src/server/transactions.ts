@@ -50,7 +50,10 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   const txns = await prisma.transaction.findMany({
     // Spending accounts only — bank + cards; brokerage/loan activity isn't spending (#62).
     where: { account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } }, isSplitParent: false },
-    include: { account: { select: { id: true, name: true } }, merchant: true },
+    // Join the category row so a CUSTOM category resolves to its real name; system
+    // rows are identical (their DB name == the static name), so this is a no-op for
+    // them and a fix for customs without threading a meta map here (DECISIONS #111).
+    include: { account: { select: { id: true, name: true } }, merchant: true, category: { select: { name: true } } },
     orderBy: [{ date: 'desc' }, { id: 'desc' }],
   });
 
@@ -69,7 +72,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     merchantName: t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical,
     rawDescriptor: t.rawDescriptor,
     categoryId: t.categoryId ?? 'uncategorized',
-    categoryName: categoryName(t.categoryId),
+    categoryName: t.category?.name ?? categoryName(t.categoryId),
     amountCents: t.amountCents,
     status: t.status,
     isTransfer: t.isTransfer,

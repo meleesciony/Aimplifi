@@ -28,7 +28,9 @@ export async function GET(request: NextRequest) {
     const txns = await prisma.transaction.findMany({
       // Transactions = spending (bank + cards); brokerage/loan activity excluded (#62).
       where: { account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
-      include: { account: { select: { name: true } }, merchant: true },
+      // Join the category so a custom category exports its real name (#111); system
+      // rows are unchanged (DB name == static name), null categoryId → no category.
+      include: { account: { select: { name: true } }, merchant: true, category: { select: { name: true } } },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
     });
     const csv = transactionsToCsv(
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
         account: t.account.name,
         rawDescriptor: t.rawDescriptor,
         merchant: t.merchant?.canonical ?? null,
-        category: t.categoryId ? categoryName(t.categoryId) : null,
+        category: t.category?.name ?? (t.categoryId ? categoryName(t.categoryId) : null),
         amountCents: t.amountCents,
         status: t.status,
       })),
