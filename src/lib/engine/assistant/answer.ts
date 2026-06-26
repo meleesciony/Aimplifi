@@ -18,7 +18,7 @@ import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
-import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import { addMonthsClamped, formatMonth, isoDate } from '@/lib/dates';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
@@ -232,12 +232,12 @@ const NON_ACTIONABLE_GROUP = 'Transfers & Other';
  * purchase" across the app — the grounding test pins this to the seed's real
  * biggest June buy (Costco) to catch any drift.
  */
-function isPurchaseRow(t: PurchaseRow): boolean {
+function isPurchaseRow(t: PurchaseRow, meta: ReadonlyMap<string, CategoryMeta>): boolean {
   if (t.isSplitParent || t.isTransfer) return false;
   if (t.amountCents >= 0) return false;
   const id = t.categoryId ?? 'uncategorized';
   if (id === 'transfer') return false;
-  const group = CATEGORY_BY_ID.get(id)?.group;
+  const group = meta.get(id)?.group;
   if (group === 'Income' || group === NON_ACTIONABLE_GROUP) return false;
   return true;
 }
@@ -249,16 +249,22 @@ function isPurchaseRow(t: PurchaseRow): boolean {
  * code-point tie-break (amount → date → merchant) — so the two surfaces never
  * disagree, on the demo or on live data.
  */
-export function largestPurchases(rows: readonly PurchaseRow[], tf: Timeframe, limit: number, today: string): LargestTxn[] {
+export function largestPurchases(
+  rows: readonly PurchaseRow[],
+  tf: Timeframe,
+  limit: number,
+  today: string,
+  meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+): LargestTxn[] {
   return rows
     .filter((t) => {
       const ym = t.date.slice(0, 7);
-      return ym >= tf.fromYm && ym <= tf.toYm && t.date <= today && isPurchaseRow(t);
+      return ym >= tf.fromYm && ym <= tf.toYm && t.date <= today && isPurchaseRow(t, meta);
     })
     .map((t) => ({
       date: t.date,
       merchant: t.merchant,
-      categoryName: CATEGORY_BY_ID.get(t.categoryId ?? 'uncategorized')?.name ?? 'Uncategorized',
+      categoryName: meta.get(t.categoryId ?? 'uncategorized')?.name ?? 'Uncategorized',
       amountCents: -t.amountCents,
     }))
     .sort(

@@ -156,8 +156,8 @@ export function parseTimeframe(qRaw: string, today: ISODate): Timeframe {
 
 const GROUPS: readonly string[] = [...new Set(CATEGORIES.map((c) => c.group))].filter((g) => g !== 'Income');
 
-function catTarget(id: string): SpendTarget {
-  return { type: 'category', categoryId: id, label: CATEGORY_BY_ID.get(id)?.name ?? id };
+function catTarget(id: string, label: string = CATEGORY_BY_ID.get(id)?.name ?? id): SpendTarget {
+  return { type: 'category', categoryId: id, label };
 }
 function groupTarget(group: string, label?: string): SpendTarget {
   return { type: 'group', group, label: label ?? group };
@@ -221,10 +221,23 @@ const SYNONYMS: { re: RegExp; target: SpendTarget }[] = [
   { re: /\b(taxes?)\b/, target: catTarget('taxes') },
 ];
 
-/** Map free text to a spending target (leaf category or group), else null. */
-export function resolveSpendTarget(q: string): SpendTarget | null {
+/** Map free text to a spending target (leaf category or group), else null. The
+ *  user's custom categories are matched by name AFTER the system synonyms (so a
+ *  built-in mapping always wins) but BEFORE the verbatim-group fallback. */
+export function resolveSpendTarget(
+  q: string,
+  custom: readonly { id: string; name: string }[] = [],
+): SpendTarget | null {
   for (const { re, target } of SYNONYMS) {
     if (re.test(q)) return target;
+  }
+  // Custom categories (DECISIONS #111), longest name first so "golf club" beats
+  // "golf"; word-boundary + escaped so it can't be a stray substring hit.
+  for (const c of [...custom].sort((a, b) => b.name.length - a.name.length)) {
+    const name = c.name.trim().toLowerCase();
+    if (!name) continue;
+    const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+    if (re.test(q)) return catTarget(c.id, c.name);
   }
   // Fallback: a group name spoken verbatim (e.g. "personal & family").
   for (const g of GROUPS) {
@@ -249,7 +262,11 @@ const DEFAULT_LARGEST_LIMIT = 5;
  * caught before the generic "savings" account match; "how much can I spend" is
  * safe-to-spend, tested before the past-tense "how much did I spend" total).
  */
-export function parseAssistantQuery(question: string, today: ISODate): AssistantIntent {
+export function parseAssistantQuery(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): AssistantIntent {
   const q = normalize(question);
   if (!q) return { kind: 'unknown', question };
 
@@ -338,7 +355,7 @@ export function parseAssistantQuery(question: string, today: ISODate): Assistant
   // Spending family
   const mentionsSpend = /\b(spend|spent|spending)\b/.test(q) || /\bhow much .*\bon\b/.test(q) || /\bmoney go\b/.test(q);
   if (mentionsSpend) {
-    const target = resolveSpendTarget(q);
+    const target = resolveSpendTarget(q, custom);
     const wantsRanking =
       /\b(top|most|biggest|highest|main)\b.*\bcategor/.test(q) ||
       /\bcategor.*\b(top|most|biggest|highest)\b/.test(q) ||
@@ -380,10 +397,15 @@ function isTimeframe(x: unknown): x is Timeframe {
   );
 }
 
-function isSpendTarget(x: unknown): x is SpendTarget {
+function isSpendTarget(x: unknown, validCustomIds: ReadonlySet<string> = new Set()): x is SpendTarget {
   if (!x || typeof x !== 'object') return false;
   const t = x as Record<string, unknown>;
-  if (t.type === 'category') return typeof t.categoryId === 'string' && CATEGORY_BY_ID.has(t.categoryId) && typeof t.label === 'string';
+  if (t.type === 'category')
+    return (
+      typeof t.categoryId === 'string' &&
+      (CATEGORY_BY_ID.has(t.categoryId) || validCustomIds.has(t.categoryId)) &&
+      typeof t.label === 'string'
+    );
   if (t.type === 'group') return typeof t.group === 'string' && GROUPS.includes(t.group as string) && typeof t.label === 'string';
   return false;
 }
@@ -394,9 +416,13 @@ function isSpendTarget(x: unknown): x is SpendTarget {
  * hallucinated intent is rejected (→ caller falls back to `unknown`), so the
  * model can never smuggle in an unknown category id or a broken timeframe.
  */
-export function validateIntent(x: unknown): AssistantIntent | null {
+export function validateIntent(
+  x: unknown,
+  custom: readonly { id: string }[] = [],
+): AssistantIntent | null {
   if (!x || typeof x !== 'object') return null;
   const o = x as Record<string, unknown>;
+  const validCustomIds = new Set(custom.map((c) => c.id));
   switch (o.kind) {
     case 'net_worth':
     case 'safe_to_spend':
@@ -413,7 +439,7 @@ export function validateIntent(x: unknown): AssistantIntent | null {
     case 'income':
       return isTimeframe(o.timeframe) ? { kind: 'income', timeframe: o.timeframe } : null;
     case 'spend_by_category':
-      return isTimeframe(o.timeframe) && isSpendTarget(o.target)
+      return isTimeframe(o.timeframe) && isSpendTarget(o.target, validCustomIds)
         ? { kind: 'spend_by_category', timeframe: o.timeframe, target: o.target }
         : null;
     case 'top_categories':

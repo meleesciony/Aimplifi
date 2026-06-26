@@ -21,6 +21,8 @@ import { planDebtPayoff } from '@/lib/engine/debt/payoff';
 import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { mergeCategoryMeta, type CategoryMeta, type CustomCategoryInput } from '@/lib/engine/categorize/categories';
+import { getCustomCategories } from '@/server/category-meta';
 import { parseAssistantQuery, validateIntent, type AssistantIntent } from '@/lib/engine/assistant/intent';
 import { intentFromKind } from '@/lib/engine/assistant/llm';
 import { classifyIntentViaLLM } from '@/server/assistant-llm';
@@ -60,15 +62,20 @@ const LLM_RATE_WINDOW_MS = 60_000;
  * model's choice before any data is touched. Reports whether the LLM was used so
  * the answer can disclose it was an interpretation.
  */
-async function resolveIntent(question: string, today: string, userId: string): Promise<{ intent: AssistantIntent; viaLlm: boolean }> {
-  const parsed = parseAssistantQuery(question, today as Parameters<typeof parseAssistantQuery>[1]);
+async function resolveIntent(
+  question: string,
+  today: string,
+  userId: string,
+  custom: readonly CustomCategoryInput[],
+): Promise<{ intent: AssistantIntent; viaLlm: boolean }> {
+  const parsed = parseAssistantQuery(question, today as Parameters<typeof parseAssistantQuery>[1], custom);
   if (parsed.kind !== 'unknown') return { intent: parsed, viaLlm: false };
   if (!process.env.XAI_API_KEY && !process.env.ANTHROPIC_API_KEY) return { intent: parsed, viaLlm: false };
   if (!(await rateLimitDurable(`assistant-llm:${userId}`, LLM_RATE_LIMIT, LLM_RATE_WINDOW_MS))) return { intent: parsed, viaLlm: false };
 
   const kind = await classifyIntentViaLLM(question);
   const proposed = intentFromKind(kind, question, today as Parameters<typeof intentFromKind>[2]);
-  const valid = proposed ? validateIntent(proposed) : null;
+  const valid = proposed ? validateIntent(proposed, custom) : null;
   return valid ? { intent: valid, viaLlm: true } : { intent: parsed, viaLlm: false };
 }
 
@@ -77,13 +84,17 @@ export async function askAssistant(rawQuestion: string): Promise<AssistantAnswer
   const question = (rawQuestion ?? '').trim().slice(0, MAX_QUESTION_LEN);
   const provider = getProvider();
   const today = provider.today(userId);
-  const { intent, viaLlm } = await resolveIntent(question, today, userId);
+  // Custom categories (DECISIONS #111): the parser matches their names ("spend on
+  // Golf"), and the merged meta makes the spend answers resolve them correctly.
+  const custom = await getCustomCategories(userId);
+  const meta = mergeCategoryMeta(custom);
+  const { intent, viaLlm } = await resolveIntent(question, today, userId, custom);
 
   // One snapshot read serves every "direct" intent; composed answers reuse the
   // shipped read-paths (which load the same snapshot) so they can't drift.
   const snap = await provider.getFinanceSnapshot(userId);
 
-  const answer = await buildAnswer(intent, snap, userId, today);
+  const answer = await buildAnswer(intent, snap, userId, today, meta);
   return viaLlm ? { ...answer, interpreted: true } : answer;
 }
 
@@ -92,6 +103,7 @@ async function buildAnswer(
   snap: Awaited<ReturnType<ReturnType<typeof getProvider>['getFinanceSnapshot']>>,
   userId: string,
   today: string,
+  meta: ReadonlyMap<string, CategoryMeta>,
 ): Promise<AssistantAnswer> {
   switch (intent.kind) {
     case 'net_worth':
@@ -100,11 +112,11 @@ async function buildAnswer(
       return answerAccountBalance(snap.accounts, intent.query);
     case 'spend_total':
       // Exact /reports parity — pass the snapshot rows straight to the same engine.
-      return answerSpendTotal(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe), intent.timeframe);
+      return answerSpendTotal(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.timeframe);
     case 'spend_by_category':
-      return answerSpendByCategory(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe), intent.target, intent.timeframe);
+      return answerSpendByCategory(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.target, intent.timeframe);
     case 'top_categories':
-      return answerTopCategories(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe), intent.timeframe, intent.limit);
+      return answerTopCategories(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.timeframe, intent.limit);
     case 'largest_purchases': {
       // POSTED-only, mirroring /trends exactly (pending charges aren't "purchases").
       const rows: PurchaseRow[] = snap.transactions
@@ -120,7 +132,7 @@ async function buildAnswer(
             merchant: m.canonical,
           };
         });
-      return answerLargest(largestPurchases(rows, intent.timeframe, intent.limit, today), intent.timeframe);
+      return answerLargest(largestPurchases(rows, intent.timeframe, intent.limit, today, meta), intent.timeframe);
     }
     case 'income': {
       // Full snapshot rows (incl. categoryId + isSplitParent at runtime) → same as
