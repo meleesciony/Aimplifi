@@ -113,6 +113,13 @@ describe('generic keyword categorization for real-world merchants (DECISIONS #63
     ['DOORDASH*WENDYS', 'food-delivery'],
     ['NORDSTROM RACK #12', 'clothing'],
     ['IKEA ATLANTA', 'furnishings'],
+    // Golf: "X GOLF COURSE/CLUB" is recreation (entertainment), consistent with
+    // TOPGOLF already mapping there; golf retailers stay hobbies (DECISIONS #109).
+    ['NORTHWEST GOLF COURSE', 'entertainment'],
+    ['BEAR CREEK GOLF CLUB ATL', 'entertainment'],
+    ['EAGLE WATCH COUNTRY CLUB', 'entertainment'],
+    ['GOLF GALAXY #017 KENNESAW', 'hobbies'],
+    ['PGA TOUR SUPERSTORE 4521', 'hobbies'],
   ];
   for (const [raw, categoryId] of cases) {
     it(`"${raw}" -> ${categoryId}, auto-filed`, () => {
