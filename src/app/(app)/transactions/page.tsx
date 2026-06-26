@@ -78,6 +78,7 @@ export default async function TransactionsPage({
 
       <TransactionFilters
         accountOptions={accountOptions}
+        categoryOptions={categoryGroups.flatMap((g) => g.categories)}
         current={{ search, account, category, type, from, to }}
       />
       <TransactionList rows={rows} summary={summary} pageInfo={pageInfo} categoryGroups={categoryGroups} />

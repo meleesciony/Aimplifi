@@ -3,17 +3,18 @@ import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CATEGORIES, categoryName } from '@/lib/engine/categorize/categories';
+import { CATEGORIES, categoryName, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
 import { isBudgetable, netSpendByCategory, summarizeBudgets } from '@/lib/engine/budgets/status';
 import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { cents, formatCents } from '@/lib/money';
 import { getProvider } from '@/lib/providers/demo';
 import { prisma } from '@/lib/db';
 import { clearBudget, setBudget } from '@/server/budget-actions';
+import { getCustomCategories } from '@/server/category-meta';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { ConsciousBucketsStrip } from '@/components/finance/conscious-buckets-strip';
 
-const CATEGORY_OPTIONS = CATEGORIES.filter((c) => isBudgetable(c.id));
+const SYSTEM_BUDGETABLE = CATEGORIES.filter((c) => isBudgetable(c.id));
 
 /**
  * Budgets (Phase 4 + ROADMAP #7) — conscious-spending style: actuals by category
@@ -35,7 +36,7 @@ export default async function BudgetsPage() {
   // target can't be set before any account exists).
   if ((await prisma.account.count({ where: { userId } })) === 0) return <EmptyDashboard />;
 
-  const [txns, budgets, user, plan] = await Promise.all([
+  const [txns, budgets, user, plan, custom] = await Promise.all([
     // All non-transfer, non-split, posted activity this month (BOTH signs) so the
     // engine can net refunds against spend — outflow-only would overstate it.
     prisma.transaction.findMany({
@@ -51,15 +52,22 @@ export default async function BudgetsPage() {
     prisma.budget.findMany({ where: { userId } }),
     prisma.user.findUnique({ where: { id: userId } }),
     getSpendingPlan(userId),
+    // Custom categories (DECISIONS #111): selectable as targets and resolved to
+    // their real name in the spend list instead of falling back to "Uncategorized".
+    getCustomCategories(userId),
   ]);
 
+  const meta = mergeCategoryMeta(custom);
   const dials = new Set<string>(parseStoredDials(user?.moneyDials));
   const budgetByCategory = new Map(budgets.map((b) => [b.categoryId, b.monthCents]));
   const spendByCategory = netSpendByCategory(txns);
 
+  // Custom categories are spending by definition (never income/transfer/uncategorized).
+  const categoryOptions = [...SYSTEM_BUDGETABLE, ...custom.filter((c) => isBudgetable(c.id))];
+
   const rows = summarizeBudgets(spendByCategory, budgetByCategory, {
-    name: categoryName,
-    isDial: (id) => dials.has(categoryName(id)),
+    name: (id) => categoryName(id, meta),
+    isDial: (id) => dials.has(categoryName(id, meta)),
   });
 
   return (
@@ -162,7 +170,7 @@ export default async function BudgetsPage() {
                 data-testid="budget-category"
                 className="h-9 w-44 rounded-md border border-input bg-background px-2 text-sm text-foreground"
               >
-                {CATEGORY_OPTIONS.map((c) => (
+                {categoryOptions.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>

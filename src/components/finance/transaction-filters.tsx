@@ -8,7 +8,6 @@
  */
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { CATEGORIES } from '@/lib/engine/categorize/categories';
 
 const TYPE_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -17,16 +16,18 @@ const TYPE_OPTIONS = [
   { value: 'transfer', label: 'Transfers' },
 ] as const;
 
-const CATEGORY_OPTIONS = CATEGORIES.filter((c) => c.id !== 'uncategorized');
-
 const selectClass =
   'h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground';
 
 export function TransactionFilters({
   accountOptions,
+  categoryOptions,
   current,
 }: {
   accountOptions: { id: string; name: string }[];
+  /** Category dropdown options — the user's visible assignable set incl. customs
+   *  (DECISIONS #111). Hidden categories are still findable via the search box. */
+  categoryOptions: { id: string; name: string }[];
   current: { search: string; account: string; category: string; type: string; from: string; to: string };
 }) {
   const router = useRouter();
@@ -117,7 +118,7 @@ export function TransactionFilters({
           className={selectClass}
         >
           <option value="">All categories</option>
-          {CATEGORY_OPTIONS.map((c) => (
+          {categoryOptions.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>

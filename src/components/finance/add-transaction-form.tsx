@@ -9,18 +9,19 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { CATEGORIES } from '@/lib/engine/categorize/categories';
 import { createManualTransaction } from '@/server/transaction-actions';
 
-const CATEGORY_OPTIONS = CATEGORIES.filter((c) => c.id !== 'uncategorized');
 const fieldClass =
   'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground';
 
 export function AddTransactionForm({
   accounts,
+  categoryOptions,
   defaultDate,
 }: {
   accounts: { id: string; name: string }[];
+  /** Assignable categories incl. the user's customs (DECISIONS #111). */
+  categoryOptions: { id: string; name: string }[];
   defaultDate: string;
 }) {
   const [direction, setDirection] = useState<'out' | 'in'>('out');
@@ -106,7 +107,7 @@ export function AddTransactionForm({
             <span className="text-sm font-medium">Category</span>
             <select name="categoryId" data-testid="txn-category" className={fieldClass}>
               <option value="">Auto-detect</option>
-              {CATEGORY_OPTIONS.map((c) => (
+              {categoryOptions.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
