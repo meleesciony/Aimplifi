@@ -66,9 +66,17 @@ describe('backfillCategorization (real action, throwaway data — DECISIONS #116
     });
     ids.other = otherTxn.id;
   });
-  afterAll(wipe);
+  afterAll(async () => {
+    vi.unstubAllEnvs();
+    await wipe();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
+    // Hermetic: with the LLM pass added (#117) the action now calls the provider
+    // for unresolved rows. Clear any provider key in the dev env so this test
+    // never makes a network call and stays deterministic (no-key → null no-op).
+    vi.stubEnv('XAI_API_KEY', '');
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
     vi.mocked(auth).mockResolvedValue({ user: { id: USER } } as never);
   });
 

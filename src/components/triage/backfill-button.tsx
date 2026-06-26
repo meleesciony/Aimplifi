@@ -32,8 +32,9 @@ export function BackfillButton() {
               : `No new matches — ${res.stillUnsure} still need a look.`,
           );
         } else {
+          const aiNote = res.llmRefiled > 0 ? ` (${res.llmRefiled} with AI)` : '';
           setMsg(
-            `Auto-filed ${res.refiled} transaction${res.refiled === 1 ? '' : 's'}` +
+            `Auto-filed ${res.refiled} transaction${res.refiled === 1 ? '' : 's'}${aiNote}` +
               (res.stillUnsure > 0 ? ` · ${res.stillUnsure} still need a look.` : '.'),
           );
         }
