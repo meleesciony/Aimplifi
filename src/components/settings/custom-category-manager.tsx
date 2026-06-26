@@ -41,6 +41,7 @@ export function CustomCategoryManager({
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function add() {
@@ -85,6 +86,7 @@ export function CustomCategoryManager({
         return;
       }
       setItems((xs) => xs.filter((x) => x.id !== id));
+      setConfirmId(null);
       router.refresh();
     });
   }
@@ -214,35 +216,66 @@ export function CustomCategoryManager({
                     {c.name}
                     <span className="ml-1.5 text-xs text-muted-foreground">· {c.group}</span>
                   </span>
-                  <div className="flex shrink-0 gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditingId(c.id);
-                        setEditName(c.name);
-                        setError(null);
-                      }}
-                      aria-label={`Rename ${c.name}`}
-                      data-testid={`custom-category-rename-${c.id}`}
-                      className="h-7 gap-1 px-1.5 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      <Pencil className="size-3.5" aria-hidden />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => remove(c.id)}
-                      disabled={pending}
-                      aria-label={`Delete ${c.name}`}
-                      data-testid={`custom-category-delete-${c.id}`}
-                      className="h-7 gap-1 px-1.5 text-xs text-muted-foreground hover:text-red-400"
-                    >
-                      <Trash2 className="size-3.5" aria-hidden />
-                    </Button>
-                  </div>
+                  {confirmId === c.id ? (
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">Re-file as Uncategorized?</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => remove(c.id)}
+                        disabled={pending}
+                        aria-label={`Confirm delete ${c.name}`}
+                        data-testid={`custom-category-confirm-delete-${c.id}`}
+                        className="h-7 gap-1 px-1.5 text-xs text-red-500 hover:text-red-400"
+                      >
+                        <Trash2 className="size-3.5" aria-hidden /> Delete
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setConfirmId(null)}
+                        aria-label="Cancel delete"
+                        className="h-7 px-1.5 text-xs text-muted-foreground"
+                      >
+                        Keep
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex shrink-0 gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingId(c.id);
+                          setEditName(c.name);
+                          setError(null);
+                        }}
+                        aria-label={`Rename ${c.name}`}
+                        data-testid={`custom-category-rename-${c.id}`}
+                        className="h-7 gap-1 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <Pencil className="size-3.5" aria-hidden />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setConfirmId(c.id);
+                          setError(null);
+                        }}
+                        disabled={pending}
+                        aria-label={`Delete ${c.name}`}
+                        data-testid={`custom-category-delete-${c.id}`}
+                        className="h-7 gap-1 px-1.5 text-xs text-muted-foreground hover:text-red-400"
+                      >
+                        <Trash2 className="size-3.5" aria-hidden />
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
             </li>

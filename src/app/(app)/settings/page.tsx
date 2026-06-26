@@ -8,7 +8,7 @@ import { CategoryManager } from '@/components/settings/category-manager';
 import { CustomCategoryManager } from '@/components/settings/custom-category-manager';
 import { getCategoryCatalog } from '@/server/categories';
 import { getCustomCategories } from '@/server/category-meta';
-import { ASSIGNABLE_GROUPS } from '@/lib/engine/categorize/assign';
+import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/dials';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { deletionSummary } from '@/lib/engine/account/deletion';
@@ -48,7 +48,7 @@ export default async function SettingsPage() {
     ]);
   if (!user) redirect('/sign-in');
 
-  const customGroups = ASSIGNABLE_GROUPS.map((g) => g.group);
+  const customGroups = CUSTOM_CATEGORY_GROUPS;
 
   const eligibleAccounts = accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))

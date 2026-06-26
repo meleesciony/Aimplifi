@@ -32,8 +32,8 @@ function Row({
 }) {
   const mag = Math.abs(item.lastAmountCents);
   // Prefer the server-resolved name (covers custom categories, #111); fall back to
-  // the static map, then the raw id, so a missing entry never blanks the row.
-  const catName = categoryNames[item.categoryId] ?? CATEGORY_BY_ID.get(item.categoryId)?.name ?? item.categoryId;
+  // the static map, then a friendly placeholder — never a raw cuid (critic F8).
+  const catName = categoryNames[item.categoryId] ?? CATEGORY_BY_ID.get(item.categoryId)?.name ?? 'Uncategorized';
   const increased =
     item.previousAmountCents !== null && Math.abs(item.lastAmountCents) > Math.abs(item.previousAmountCents);
   const decreased =

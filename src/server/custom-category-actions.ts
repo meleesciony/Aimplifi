@@ -13,8 +13,9 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { CATEGORIES } from '@/lib/engine/categorize/categories';
-import { ASSIGNABLE_GROUPS } from '@/lib/engine/categorize/assign';
+import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { auditLog, requireUserId } from '@/server/authz';
+import { ensureCategories } from '@/server/ensure-categories';
 
 export interface CategoryActionResult {
   ok: boolean;
@@ -25,8 +26,8 @@ export interface CategoryActionResult {
 const MAX_NAME = 40;
 /** Built-in category names (lowercased) — a custom can't shadow one (would render twice). */
 const SYSTEM_NAMES = new Set(CATEGORIES.map((c) => c.name.toLowerCase()));
-/** Valid parent groups a custom may join — the existing system groups. */
-const KNOWN_GROUPS = new Set(ASSIGNABLE_GROUPS.map((g) => g.group));
+/** Valid parent groups a custom may join — SPENDING groups only (critic F4). */
+const KNOWN_GROUPS = new Set(CUSTOM_CATEGORY_GROUPS);
 
 /** Picker/analytics sources that read categories — refresh them after any change. */
 const REVALIDATE = ['/settings', '/transactions', '/transactions/new', '/triage', '/budgets', '/reports', '/trends', '/coach', '/recurring'];
@@ -51,6 +52,22 @@ function isUniqueViolation(e: unknown): boolean {
   return (e as { code?: string })?.code === 'P2002';
 }
 
+/**
+ * Case-insensitive per-user duplicate check (critic F6). The DB @@unique is
+ * case-SENSITIVE and Prisma's `mode: 'insensitive'` is Postgres-only, so we
+ * compare in JS for portability across SQLite (dev/test) and Postgres (prod) —
+ * blocking "Golf" vs "golf" before they can collide in the CSV name resolver.
+ * The DB constraint remains the backstop for an exact-case race (P2002).
+ */
+async function isDuplicateName(userId: string, name: string, exceptId?: string): Promise<boolean> {
+  const existing = await prisma.category.findMany({
+    where: { userId, isSystem: false },
+    select: { id: true, name: true },
+  });
+  const lower = name.toLowerCase();
+  return existing.some((c) => c.id !== exceptId && c.name.toLowerCase() === lower);
+}
+
 export async function createCustomCategory(input: {
   name: string;
   group: string;
@@ -62,6 +79,9 @@ export async function createCustomCategory(input: {
   if (nameErr) return { ok: false, error: nameErr };
   const group = (input.group ?? '').trim();
   if (!group || !KNOWN_GROUPS.has(group)) return { ok: false, error: 'Choose a group for it' };
+  if (await isDuplicateName(userId, name)) {
+    return { ok: false, error: 'You already have a category with that name' };
+  }
 
   try {
     const row = await prisma.category.create({
@@ -89,6 +109,9 @@ export async function renameCustomCategory(input: { id: string; name: string }):
     select: { id: true },
   });
   if (!owned) return { ok: false, error: 'Category not found' };
+  if (await isDuplicateName(userId, name, input.id)) {
+    return { ok: false, error: 'You already have a category with that name' };
+  }
 
   try {
     await prisma.category.update({ where: { id: input.id }, data: { name } });
@@ -109,13 +132,24 @@ export async function deleteCustomCategory(input: { id: string }): Promise<Categ
   });
   if (!owned) return { ok: false, error: 'Category not found' };
 
+  // The re-file target `uncategorized` is a FK target on Transaction.categoryId;
+  // ensure the system rows exist first (a fresh Postgres deploy that never ran an
+  // ingest/seed would otherwise FK-fail — critic F7), mirroring applyCategory.
+  await ensureCategories();
+
   // Atomic: re-file this category's transactions as uncategorized, drop the rows
   // that FK it (rules/budgets are REQUIRED FKs → would block the delete; hidden is
-  // defensive), then delete the category. The id is a cuid unique to this user's
-  // custom row, and every write path is guarded by assertOwnedCategory, so only
-  // this user's transactions can reference it.
+  // defensive), remap the UNCONSTRAINED string refs in the audit/prediction history
+  // off the soon-to-be-deleted id (so a later undo can't restore a dangling
+  // categoryId and FK-crash — critic F3), then delete the category. The id is a
+  // cuid unique to this user's custom row and every write path is guarded by
+  // assertOwnedCategory, so only this user's rows can reference it.
   await prisma.$transaction([
     prisma.transaction.updateMany({ where: { categoryId: input.id }, data: { categoryId: 'uncategorized' } }),
+    prisma.correction.updateMany({ where: { userId, fromCategoryId: input.id }, data: { fromCategoryId: 'uncategorized' } }),
+    prisma.correction.updateMany({ where: { userId, toCategoryId: input.id }, data: { toCategoryId: 'uncategorized' } }),
+    prisma.categoryPrediction.updateMany({ where: { userId, predictedCategoryId: input.id }, data: { predictedCategoryId: 'uncategorized' } }),
+    prisma.categoryPrediction.updateMany({ where: { userId, actualCategoryId: input.id }, data: { actualCategoryId: 'uncategorized' } }),
     prisma.categorizationRule.deleteMany({ where: { userId, categoryId: input.id } }),
     prisma.budget.deleteMany({ where: { userId, categoryId: input.id } }),
     prisma.hiddenCategory.deleteMany({ where: { userId, categoryId: input.id } }),

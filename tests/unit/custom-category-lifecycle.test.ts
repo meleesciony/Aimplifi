@@ -25,16 +25,17 @@ import {
   deleteCustomCategory,
 } from '@/server/custom-category-actions';
 import { setBudget } from '@/server/budget-actions';
+import { splitTransaction } from '@/server/triage-actions';
 import { getVisibleCategories } from '@/server/categories';
 import { getCategoryMeta, getCustomCategories } from '@/server/category-meta';
 import { categoryName, CATEGORIES } from '@/lib/engine/categorize/categories';
-import { ASSIGNABLE_GROUPS } from '@/lib/engine/categorize/assign';
+import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { prisma } from '@/lib/db';
 
 describe('custom category lifecycle (real actions, throwaway data — DECISIONS #111)', () => {
   const stamp = `${Date.now()}-${process.pid}`;
   const USER = `cust-life-${stamp}`;
-  const GROUP = ASSIGNABLE_GROUPS[0].group;
+  const GROUP = CUSTOM_CATEGORY_GROUPS[0]; // a spending group (Income/Transfers excluded by F4)
   const UNCATEGORIZED_NAME = CATEGORIES.find((c) => c.id === 'uncategorized')?.name ?? 'Uncategorized';
   let accountId = '';
 
@@ -76,6 +77,37 @@ describe('custom category lifecycle (real actions, throwaway data — DECISIONS 
   it('refuses an unknown group', async () => {
     const res = await createCustomCategory({ name: `Boat-${stamp}`, group: 'Not A Group', discretionary: true });
     expect(res.ok).toBe(false);
+  });
+
+  it('refuses the Income and Transfers groups (critic F4 — keeps customs genuine spending)', async () => {
+    const income = await createCustomCategory({ name: `Side-${stamp}`, group: 'Income', discretionary: false });
+    expect(income.ok).toBe(false);
+    const transfer = await createCustomCategory({ name: `Move-${stamp}`, group: 'Transfers & Other', discretionary: false });
+    expect(transfer.ok).toBe(false);
+  });
+
+  it('refuses a case-variant duplicate name (critic F6)', async () => {
+    const a = await createCustomCategory({ name: `Case-${stamp}`, group: GROUP, discretionary: true });
+    expect(a.ok).toBe(true);
+    const b = await createCustomCategory({ name: `CASE-${stamp}`, group: GROUP, discretionary: true });
+    expect(b.ok).toBe(false);
+  });
+
+  it('splitTransaction rejects a part with an unowned category (critic F1)', async () => {
+    const txn = await prisma.transaction.create({
+      data: { accountId, date: '2026-06-02', amountCents: -10000, rawDescriptor: 'SPLIT ME', categoryId: null },
+    });
+    await expect(
+      splitTransaction({
+        transactionId: txn.id,
+        parts: [
+          { amountCents: -6000, categoryId: 'dining' }, // a real system id — fine
+          { amountCents: -4000, categoryId: 'not-a-real-category' }, // garbage — must reject
+        ],
+      }),
+    ).rejects.toThrow();
+    // the guard runs BEFORE any write, so the parent was never split
+    expect((await prisma.transaction.findUnique({ where: { id: txn.id } }))?.isSplitParent).toBe(false);
   });
 
   it('create → rename → budget → delete (re-files + cleans up FKs)', async () => {

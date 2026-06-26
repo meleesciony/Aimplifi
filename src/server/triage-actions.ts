@@ -281,6 +281,11 @@ export async function splitTransaction(input: {
   if (sum !== txn.amountCents) {
     throw new Error(`Split parts must sum to the original amount (${txn.amountCents}¢), got ${sum}¢`);
   }
+  // Each part's category must be a known system id or a custom THIS user owns —
+  // the split path is a category write too, so it gets the same cross-tenant guard
+  // as applyCategory/recategorize (a foreign cuid would otherwise persist via the
+  // FK, and a garbage id would 500 on a raw FK error) — critic F1, DECISIONS #111.
+  await Promise.all(input.parts.map((p) => assertOwnedCategory(userId, p.categoryId)));
 
   const childIds = await prisma.$transaction(async (tx) => {
     // Atomically CLAIM the parent FIRST: only a not-yet-split, non-child row flips
