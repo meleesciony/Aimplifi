@@ -37,7 +37,7 @@ const CASES: { raw: string; label: string | null }[] = [
   { raw: 'PADDLE.NET* OBSIDIAN', label: 'software' },
   { raw: 'PLANET FIT 1234 MEMBERSHIP', label: 'fitness' },
   { raw: 'GEICO *AUTO 800-841-3000', label: 'insurance' },
-  { raw: 'DELTA DENTAL OF GA PREMIUM', label: 'insurance' },
+  { raw: 'DELTA DENTAL OF GA PREMIUM', label: 'dental-insurance' }, // a premium is dental INSURANCE, not a dentist visit (DECISIONS #115)
   { raw: 'DOORDASH*WENDYS 855-973-1040', label: 'dining' },
   { raw: 'PATREON* MEMBERSHIP', label: 'entertainment' },
   // utility/biller forms that trip naive parsers

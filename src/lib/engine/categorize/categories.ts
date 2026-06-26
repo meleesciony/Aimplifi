@@ -67,6 +67,8 @@ export const CATEGORIES: SystemCategory[] = [
   { id: 'insurance', name: 'Insurance', group: 'Bills & Utilities', discretionary: false },
   { id: 'auto-insurance', name: 'Auto Insurance', group: 'Bills & Utilities', discretionary: false },
   { id: 'health-insurance', name: 'Health Insurance', group: 'Bills & Utilities', discretionary: false },
+  { id: 'dental-insurance', name: 'Dental Insurance', group: 'Bills & Utilities', discretionary: false },
+  { id: 'vision-insurance', name: 'Vision Insurance', group: 'Bills & Utilities', discretionary: false },
   { id: 'life-insurance', name: 'Life Insurance', group: 'Bills & Utilities', discretionary: false },
 
   // ── Auto & Transport ────────────────────────────────────────────────

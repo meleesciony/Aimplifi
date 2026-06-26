@@ -109,7 +109,19 @@ describe('generic keyword categorization for real-world merchants (DECISIONS #63
     ['VERIZON WIRELESS PMT', 'phone'],
     ['GEORGIA POWER BILL', 'utilities'],
     ['AMC THEATRES 0456', 'entertainment'],
-    ['DELTA DENTAL OF GA', 'dental'],
+    // Insurance CARRIERS (the premium) file under the insurance family, NOT the
+    // medical-service category — a Delta Dental premium is dental insurance, not a
+    // dentist visit (owner decision, DECISIONS #115). health-insurance = "medical".
+    ['DELTA DENTAL OF GA', 'dental-insurance'],
+    ['DELTA DENTAL OF GA PREMIUM', 'dental-insurance'],
+    ['VSP VISION 800-877-7195', 'vision-insurance'],
+    ['EYEMED VISION CARE', 'vision-insurance'],
+    ['BCBS OF GEORGIA PREMIUM', 'health-insurance'],
+    ['AETNA HEALTH PREMIUM', 'health-insurance'],
+    // …but an actual dental SERVICE provider still files under dental: the carrier
+    // rules require a carrier name or an explicit INS/PPO/PREMIUM token, so a
+    // plain dentist's office is untouched.
+    ['GENTLE DENTAL CARE ATLANTA', 'dental'],
     ['JOES PIZZA NYC', 'dining'],
     ['DOORDASH*WENDYS', 'food-delivery'],
     // Income + bank-fee signals that previously fell through to manual review.

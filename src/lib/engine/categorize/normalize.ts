@@ -157,6 +157,16 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   { pattern: /\b(EXPEDIA|BOOKING\.COM|PRICELINE|TRAVELOCITY|KAYAK|ORBITZ|HOTWIRE|TRIPADVISOR|VACATION|CRUISE)\b/i, categoryId: 'travel' },
   // Health
   { pattern: /\b(RITE AID|PHARMACY|DRUG ?STORE)\b/i, categoryId: 'pharmacy' },
+  // Insurance CARRIERS (premiums) — the payer, not the medical service. A Delta
+  // Dental premium is dental INSURANCE, not a dentist visit (owner decision,
+  // DECISIONS #115). These precede the dental/vision/health SERVICE rules below so
+  // a carrier name wins; and the dental/vision carrier rules precede the broad
+  // medical-carrier rule so "AETNA DENTAL" files as dental-insurance (the medical
+  // rule's bare AETNA never reaches it). Insurance-family leaves sit in the
+  // Bills & Utilities group, beside the existing auto-/health-/life-insurance.
+  { pattern: /\b(DELTA DENTAL|CIGNA DENTAL|GUARDIAN DENTAL|METLIFE DENTAL|AETNA DENTAL|HUMANA DENTAL|UNITED ?HEALTHCARE DENTAL|AMERITAS|DENTAL (INS|INSURANCE|PREMIUM|PPO|HMO))\b/i, categoryId: 'dental-insurance' },
+  { pattern: /\b(VSP|VISION SERVICE PLAN|EYEMED|DAVIS VISION|SUPERIOR VISION|VISION (INS|INSURANCE|PREMIUM|PPO))\b/i, categoryId: 'vision-insurance' },
+  { pattern: /\b(BLUE ?CROSS|BLUE ?SHIELD|BCBS|ANTHEM|AETNA|CIGNA|HUMANA|KAISER PERMANENTE|UNITED ?HEALTHCARE|UHC|OSCAR HEALTH|MOLINA HEALTHCARE|WELLCARE|AMERIGROUP|HEALTH ?INSURANCE|MEDICAL ?INSURANCE)\b/i, categoryId: 'health-insurance' },
   { pattern: /\b(DENTAL|DENTIST|ORTHODONT|ENDODONT|PERIODONT)\b/i, categoryId: 'dental' },
   { pattern: /\b(VISION|OPTICAL|OPTOMETR|EYE CARE|LENSCRAFTER|WARBY PARKER|EYEGLASS|PEARLE)\b/i, categoryId: 'vision' },
   { pattern: /\b(GYM|FITNESS|YOGA|PILATES|CROSSFIT|PELOTON|EQUINOX|PLANET FIT|LIFE ?TIME|ORANGETHEORY|ANYTIME FITNESS|CYCLEBAR|SOULCYCLE)\b/i, categoryId: 'fitness' },
