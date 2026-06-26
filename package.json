@@ -16,6 +16,7 @@
     "plaid:validate": "tsx scripts/plaid-sandbox-validate.ts",
     "plaid:prod-check": "tsx scripts/plaid-prod-check.ts",
     "simplefin:validate": "tsx scripts/simplefin-validate.ts",
+    "simplefin:check": "tsx scripts/simplefin-check.ts",
     "seed:demo-holdings": "tsx scripts/seed-demo-holdings.ts",
     "benchmark": "tsx scripts/benchmark.ts",
     "eval:categorize": "tsx scripts/categorize-eval.ts",
