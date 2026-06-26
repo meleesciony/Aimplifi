@@ -14,7 +14,7 @@
  * Phase 2 e2e can count interactions (<15) and map them to the documented
  * human-time budget (<60s). See tests/e2e/phase2-triage.spec.ts.
  */
-import { useRef, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
 import { PartyPopper } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -58,7 +58,7 @@ export function TriageInbox({
   categories,
 }: {
   initialItems: TriageItem[];
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; group?: string }[];
 }) {
   const [items, setItems] = useState(initialItems);
   const [mode, setMode] = useState<'idle' | 'alternatives' | 'split'>('idle');
@@ -74,6 +74,23 @@ export function TriageInbox({
 
   const top = items[0];
   const nameOf = (id: string) => categories.find((c) => c.id === id)?.name ?? id;
+
+  // Full taxonomy grouped by parent, for the "any category" picker (the 3 quick
+  // alternatives can't cover ~80 categories). Preserves CATEGORIES' declaration
+  // order, which is already logically grouped.
+  const categoryGroups = useMemo(() => {
+    const order: string[] = [];
+    const byGroup = new Map<string, { id: string; name: string }[]>();
+    for (const c of categories) {
+      const g = c.group ?? 'Other';
+      if (!byGroup.has(g)) {
+        byGroup.set(g, []);
+        order.push(g);
+      }
+      byGroup.get(g)!.push({ id: c.id, name: c.name });
+    }
+    return order.map((g) => ({ group: g, items: byGroup.get(g)! }));
+  }, [categories]);
 
   function advance() {
     setItems((xs) => xs.slice(1));
@@ -378,18 +395,49 @@ export function TriageInbox({
       </Card>
 
       {mode === 'alternatives' && (
-        <div className="grid grid-cols-3 gap-2" data-testid="triage-alternatives">
-          {top.alternativeIds.map((id, i) => (
-            <Button
-              key={id}
-              variant="outline"
-              size="sm"
+        <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-2" data-testid="triage-alternatives">
+            {top.alternativeIds.map((id, i) => (
+              <Button
+                key={id}
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                onClick={() => accept(top, id, 'tap')}
+              >
+                {top.alternativeNames[i]}
+              </Button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <label htmlFor="triage-all-cats" className="whitespace-nowrap text-xs text-muted-foreground">
+              Or any category:
+            </label>
+            <select
+              id="triage-all-cats"
+              data-testid="triage-all-categories"
               disabled={pending}
-              onClick={() => accept(top, id, 'tap')}
+              defaultValue=""
+              className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+              onChange={(e) => {
+                const id = e.target.value;
+                if (id) accept(top, id, 'select');
+              }}
             >
-              {top.alternativeNames[i]}
-            </Button>
-          ))}
+              <option value="" disabled>
+                Pick from all {categories.length} categories…
+              </option>
+              {categoryGroups.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.items.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 

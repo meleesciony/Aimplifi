@@ -132,4 +132,5 @@ export async function getReviewCount(userId: string): Promise<number> {
 export const ALL_CATEGORIES = CATEGORIES.filter((c) => c.id !== 'uncategorized').map((c) => ({
   id: c.id,
   name: c.name,
+  group: c.group,
 }));
