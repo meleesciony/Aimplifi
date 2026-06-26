@@ -24,6 +24,7 @@ const FIXTURE: [string, string, string][] = [
   ['UBER *EATS PENDING.UBER.CO', 'Uber Eats', 'dining'],
   ['LYFT *RIDE THU 9PM', 'Lyft', 'transport'],
   ['NETFLIX.COM 866-579-7172', 'Netflix', 'entertainment'],
+  ['SPOTIFY USA NEW YORK NY', 'Spotify', 'entertainment'],
   ['APPLE.COM/BILL 866-712-7753', 'Apple', 'software'],
   ['GOOGLE *YOUTUBEPREMIUM g.co', 'YouTube Premium', 'entertainment'],
   ['LA FITNESS MEMBERSHIP DUES', 'LA Fitness', 'fitness'],
@@ -111,6 +112,10 @@ describe('generic keyword categorization for real-world merchants (DECISIONS #63
     ['DELTA DENTAL OF GA', 'dental'],
     ['JOES PIZZA NYC', 'dining'],
     ['DOORDASH*WENDYS', 'food-delivery'],
+    // Income + bank-fee signals that previously fell through to manual review.
+    ['GUSTO PAYROLL 9X8Y7Z DIRECT DEP', 'income'],
+    ['INTEREST EARNED', 'income'],
+    ['OVERDRAFT FEE', 'fees'],
     ['NORDSTROM RACK #12', 'clothing'],
     ['IKEA ATLANTA', 'furnishings'],
     // Golf: "X GOLF COURSE/CLUB" is recreation (entertainment), consistent with

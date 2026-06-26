@@ -66,6 +66,7 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^LYFT \*/i, canonical: 'Lyft', categoryId: 'transport' },
   // Subscriptions
   { pattern: /^NETFLIX/i, canonical: 'Netflix', categoryId: 'entertainment' },
+  { pattern: /^SPOTIFY/i, canonical: 'Spotify', categoryId: 'entertainment' },
   { pattern: /^APPLE\.COM\/BILL/i, canonical: 'Apple', categoryId: 'software' },
   { pattern: /^GOOGLE \*YOUTUBEPREMIUM/i, canonical: 'YouTube Premium', categoryId: 'entertainment' },
   { pattern: /^LA FITNESS/i, canonical: 'LA Fitness', categoryId: 'fitness' },
@@ -184,6 +185,12 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   // Entertainment & software
   { pattern: /\b(HULU|DISNEY ?\+|DISNEY PLUS|HBO|PARAMOUNT ?\+|PEACOCK|APPLE TV|PRIME VIDEO|TWITCH|AMC|CINEMARK|REGAL CIN|CINEMA|THEATER|THEATRE|TICKETMASTER|STUBHUB|FANDANGO|XBOX|PLAYSTATION|NINTENDO|EPIC GAMES|LIVE NATION|TOPGOLF|GOLF|COUNTRY CLUB|BOWLING|ARCADE|MUSEUM|AQUARIUM|SIX FLAGS|UNIVERSAL STUDIO)\b/i, categoryId: 'entertainment' },
   { pattern: /\b(ADOBE|MICROSOFT|GITHUB|GOOGLE CLOUD|DROPBOX|NOTION|SLACK|ZOOM|OPENAI|ANTHROPIC|FIGMA|ATLASSIAN|GODADDY|NAMECHEAP|SQUARESPACE|MAILCHIMP|ICLOUD|GOOGLE WORKSPACE|GRAMMARLY|1PASSWORD|NORDVPN)\b/i, categoryId: 'software' },
+  // Income & bank fees — no KNOWN_MERCHANT or other generic rule covered these, so
+  // strong, unambiguous signals (payroll deposits, interest earned, overdraft/late
+  // fees) were falling through to manual review. Descriptor-only like every rule
+  // here; the income-vs-expense SIGN is handled downstream by monthlyFlows.
+  { pattern: /\b(PAYROLL|DIRECT DEP(OSIT)?|GUSTO|ADP|PAYCHEX|TRINET|RIPPLING|INTEREST EARNED|DIVIDEND|PENSION|SOCIAL SECURITY|SSA TREAS|UNEMPLOYMENT)\b/i, categoryId: 'income' },
+  { pattern: /\b(OVERDRAFT|NSF FEE|INSUFFICIENT FUNDS|RETURNED ITEM FEE|LATE FEE|SERVICE CHARGE|MONTHLY (MAINTENANCE|SERVICE) FEE|MAINTENANCE FEE|ANNUAL FEE|FOREIGN TRANSACTION FEE|ATM FEE|WIRE FEE|FINANCE CHARGE|INTEREST CHARGE)\b/i, categoryId: 'fees' },
   // Financial / giving
   { pattern: /\b(IRS|TAXES?|TURBOTAX|H&R BLOCK|TAX PREP|DEPT OF REVENUE|FRANCHISE TAX)\b/i, categoryId: 'taxes' },
   { pattern: /\b(STAPLES|OFFICE DEPOT|OFFICEMAX|FEDEX|UPS STORE|USPS|WEWORK)\b/i, categoryId: 'business' },
