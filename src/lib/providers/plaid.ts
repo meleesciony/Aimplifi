@@ -364,33 +364,49 @@ export class PlaidProvider implements DataProvider {
     const idByPlaidId = new Map(accounts.map((a) => [a.providerRef ?? '', a.id]));
 
     for (const item of items) {
-      const token = decryptToken(item.accessToken);
-      const { liabilities } = await plaidPost<{ liabilities: { credit?: PlaidCreditLiability[] } }>(
-        '/liabilities/get',
-        { access_token: token },
-      );
-      for (const credit of liabilities.credit ?? []) {
-        const accountId = idByPlaidId.get(credit.account_id);
-        if (!accountId) continue;
-        const stmt = mapPlaidLiabilityToStatement(credit, accountId);
-        if (!stmt) continue; // no generated statement → cash-needed estimate path
-        await prisma.statement.upsert({
-          where: { accountId_cycleEnd: { accountId, cycleEnd: stmt.cycleEnd } },
-          create: {
-            accountId,
-            cycleStart: stmt.cycleEnd, // Plaid does not expose cycle start; cycleEnd anchors the cycle
-            cycleEnd: stmt.cycleEnd,
-            dueDate: stmt.dueDate,
-            statementBalanceCents: stmt.statementBalanceCents,
-            minimumPaymentCents: stmt.minimumPaymentCents,
-            isEstimated: false,
-          },
-          update: {
-            dueDate: stmt.dueDate,
-            statementBalanceCents: stmt.statementBalanceCents,
-            minimumPaymentCents: stmt.minimumPaymentCents,
-          },
-        });
+      try {
+        const token = decryptToken(item.accessToken);
+        const { liabilities } = await plaidPost<{ liabilities: { credit?: PlaidCreditLiability[] } }>(
+          '/liabilities/get',
+          { access_token: token },
+        );
+        for (const credit of liabilities.credit ?? []) {
+          const accountId = idByPlaidId.get(credit.account_id);
+          if (!accountId) continue;
+          const stmt = mapPlaidLiabilityToStatement(credit, accountId);
+          if (!stmt) continue; // no generated statement → cash-needed estimate path
+          await prisma.statement.upsert({
+            where: { accountId_cycleEnd: { accountId, cycleEnd: stmt.cycleEnd } },
+            create: {
+              accountId,
+              cycleStart: stmt.cycleEnd, // Plaid does not expose cycle start; cycleEnd anchors the cycle
+              cycleEnd: stmt.cycleEnd,
+              dueDate: stmt.dueDate,
+              statementBalanceCents: stmt.statementBalanceCents,
+              minimumPaymentCents: stmt.minimumPaymentCents,
+              isEstimated: false,
+            },
+            update: {
+              dueDate: stmt.dueDate,
+              statementBalanceCents: stmt.statementBalanceCents,
+              minimumPaymentCents: stmt.minimumPaymentCents,
+            },
+          });
+        }
+      } catch (e) {
+        // A depository-only item has no Liabilities product (PRODUCTS_NOT_SUPPORTED),
+        // and a freshly-linked item may not have generated liability data yet. Neither
+        // must abort liability sync for the user's OTHER items (nor fail a link). The
+        // estimate path covers any card left without a statement. Audit + continue.
+        await prisma.auditLog
+          .create({
+            data: {
+              userId,
+              action: 'plaid.liabilities.failed',
+              meta: JSON.stringify({ itemId: item.itemId, error: e instanceof Error ? e.message : String(e) }),
+            },
+          })
+          .catch(() => {});
       }
     }
   }

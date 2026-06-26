@@ -31,11 +31,13 @@ function plaidConfigured(): boolean {
 
 /** Step 1: mint a Plaid Link token for the client SDK. */
 export async function createPlaidLinkToken(): Promise<LinkTokenResult> {
-  const userId = await requireUserId();
-  if (!plaidConfigured()) {
-    return { ok: false, error: 'Bank linking isn’t configured yet (Plaid keys not set).' };
-  }
+  // requireUserId inside the try so an expired session resolves to {ok:false}
+  // (the documented contract) instead of rejecting the server action.
   try {
+    const userId = await requireUserId();
+    if (!plaidConfigured()) {
+      return { ok: false, error: 'Bank linking isn’t configured yet (Plaid keys not set).' };
+    }
     const linkToken = await new PlaidProvider().createLinkToken(userId);
     return { ok: true, linkToken };
   } catch (e) {
@@ -48,18 +50,34 @@ export async function createPlaidLinkToken(): Promise<LinkTokenResult> {
  * transactions, and liabilities. Reuses the sandbox-validated provider methods.
  */
 export async function linkPlaidAccount(publicToken: string): Promise<LinkResult> {
-  const userId = await requireUserId();
-  if (!plaidConfigured()) return { ok: false, error: 'Bank linking isn’t configured yet.' };
-  if (!publicToken) return { ok: false, error: 'Missing public token.' };
   try {
+    const userId = await requireUserId();
+    if (!plaidConfigured()) return { ok: false, error: 'Bank linking isn’t configured yet.' };
+    if (!publicToken) return { ok: false, error: 'Missing public token.' };
     const provider = new PlaidProvider();
-    await provider.exchangePublicToken(userId, publicToken); // stores encrypted item + syncs accounts
-    const sync = await provider.syncTransactions(userId);
-    await provider.syncLiabilities(userId);
+    // The EXCHANGE is the only step that gates link success: once it resolves, the
+    // item is persisted (encrypted) and its accounts are synced. The follow-on
+    // transaction + liability pulls are BEST-EFFORT — a depository-only institution
+    // returns no liabilities (PRODUCTS_NOT_SUPPORTED, expected now that liabilities
+    // is required_if_supported, not required), and the sandbox often lags on
+    // transactions. Neither must turn a real, successful link into an error, nor
+    // skip the cache revalidation that surfaces the just-linked accounts.
+    await provider.exchangePublicToken(userId, publicToken);
+    let added = 0;
+    try {
+      added = (await provider.syncTransactions(userId)).added;
+    } catch {
+      // provider already audits per-item sync failures; a later sweep/webhook backfills
+    }
+    try {
+      await provider.syncLiabilities(userId);
+    } catch {
+      // no Liabilities product (depository-only) or not yet generated — non-fatal
+    }
     revalidatePath('/accounts');
     revalidatePath('/transactions');
     revalidatePath('/dashboard');
-    return { ok: true, added: sync.added };
+    return { ok: true, added };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Could not link your accounts.' };
   }

@@ -23,13 +23,23 @@ export function ConnectAccountsButton() {
     (publicToken: string) => {
       setBusy(true);
       setError(null);
-      void linkPlaidAccount(publicToken).then((r) => {
-        setToken(null);
-        setWantOpen(false);
-        setBusy(false);
-        if (!r.ok) setError(r.error ?? 'Linking failed.');
-        else router.refresh();
-      });
+      // A rejected exchange (session expiry, network) must NOT silently drop the
+      // public_token Plaid just handed us — clear busy and surface an error, never
+      // leave the button stuck on "Connecting…" after a successful bank login.
+      void linkPlaidAccount(publicToken)
+        .then((r) => {
+          setToken(null);
+          setWantOpen(false);
+          setBusy(false);
+          if (!r.ok) setError(r.error ?? 'Linking failed.');
+          else router.refresh();
+        })
+        .catch(() => {
+          setToken(null);
+          setWantOpen(false);
+          setBusy(false);
+          setError('Linking failed — please try again.');
+        });
     },
     [router],
   );
@@ -37,7 +47,12 @@ export function ConnectAccountsButton() {
   const { open, ready } = usePlaidLink({
     token,
     onSuccess,
-    onExit: () => setWantOpen(false),
+    // Surface a real Link error (institution/login failure) instead of silent
+    // re-enable; a clean user cancel passes err=null, so it stays quiet.
+    onExit: (err) => {
+      setWantOpen(false);
+      if (err) setError(err.display_message ?? err.error_message ?? 'Bank connection was cancelled.');
+    },
   });
 
   // Open Plaid Link once the SDK is ready with the freshly-minted token.
@@ -51,14 +66,21 @@ export function ConnectAccountsButton() {
   async function start() {
     setError(null);
     setBusy(true);
-    const r = await createPlaidLinkToken();
-    setBusy(false);
-    if (!r.ok || !r.linkToken) {
-      setError(r.error ?? 'Could not start bank linking.');
-      return;
+    // try/finally so a rejected action always clears busy — never strand the
+    // button disabled on "Connecting…" with no error shown.
+    try {
+      const r = await createPlaidLinkToken();
+      if (!r.ok || !r.linkToken) {
+        setError(r.error ?? 'Could not start bank linking.');
+        return;
+      }
+      setToken(r.linkToken);
+      setWantOpen(true);
+    } catch {
+      setError('Could not start bank linking — please try again.');
+    } finally {
+      setBusy(false);
     }
-    setToken(r.linkToken);
-    setWantOpen(true);
   }
 
   return (
