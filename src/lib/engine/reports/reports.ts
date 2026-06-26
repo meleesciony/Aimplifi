@@ -4,7 +4,7 @@
  * excluded); refunds net against their category. Rolls leaf subcategories up to
  * their parent group. Integer cents in/out, no I/O.
  */
-import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 
 export interface ReportTxn {
   date: string; // YYYY-MM-DD
@@ -35,6 +35,9 @@ export interface SpendingBreakdown {
 export function spendingByCategory(
   txns: readonly ReportTxn[],
   range: { fromYm: string; toYm: string },
+  // Custom-category aware (DECISIONS #111): defaults to the static system map, so
+  // a user with no custom categories gets byte-identical output.
+  meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): SpendingBreakdown {
   const totals = new Map<string, number>();
   for (const t of txns) {
@@ -43,7 +46,7 @@ export function spendingByCategory(
     if (ym < range.fromYm || ym > range.toYm) continue;
     const id = t.categoryId ?? 'uncategorized';
     if (id === 'transfer') continue;
-    const cat = CATEGORY_BY_ID.get(id);
+    const cat = meta.get(id);
     if (cat?.group === 'Income') continue; // income isn't spending
     if (t.amountCents < 0) {
       totals.set(id, (totals.get(id) ?? 0) + -t.amountCents);
@@ -55,7 +58,7 @@ export function spendingByCategory(
   const byCategory: CategorySpend[] = [];
   for (const [id, amountCents] of totals) {
     if (amountCents <= 0) continue; // net refund / zero → drop
-    const cat = CATEGORY_BY_ID.get(id);
+    const cat = meta.get(id);
     byCategory.push({ categoryId: id, name: cat?.name ?? 'Uncategorized', group: cat?.group ?? 'Other', amountCents });
   }
   byCategory.sort((a, b) => b.amountCents - a.amountCents);

@@ -8,11 +8,15 @@
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { computeSpendingTrends, type SpendingTrends, type TrendTxn } from '@/lib/engine/trends/trends';
 import { getProvider } from '@/lib/providers/demo';
+import { getCategoryMeta } from '@/server/category-meta';
 
 export async function getSpendingTrends(userId: string): Promise<SpendingTrends> {
   const provider = getProvider();
   const today = provider.today(userId);
-  const snap = await provider.getFinanceSnapshot(userId);
+  const [snap, meta] = await Promise.all([
+    provider.getFinanceSnapshot(userId),
+    getCategoryMeta(userId),
+  ]);
 
   const txns: TrendTxn[] = snap.transactions
     .filter((t) => t.status === 'POSTED')
@@ -33,5 +37,5 @@ export async function getSpendingTrends(userId: string): Promise<SpendingTrends>
       };
     });
 
-  return computeSpendingTrends({ txns, today });
+  return computeSpendingTrends({ txns, today }, meta);
 }

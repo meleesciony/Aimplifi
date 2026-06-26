@@ -9,7 +9,7 @@
 import { type Cents, cents } from '@/lib/money';
 import { type ISODate, addMonthsClamped, isoDate } from '@/lib/dates';
 import { categorize } from '@/lib/engine/categorize/pipeline';
-import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import type { RecurringSeriesResult } from '@/lib/engine/recurring/detect';
 import { opportunityFVCents, savingsRateBps } from './fi';
 
@@ -154,6 +154,9 @@ export function detectLifestyleCreep(
   transactions: readonly TxnLike[],
   today: ISODate,
   windowMonths = 6,
+  // Custom-category aware (DECISIONS #111): a custom discretionary category should
+  // count toward lifestyle creep. Defaults to the static map (no-custom = identical).
+  meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): CreepResult {
   const lastFullMonthStart = addMonthsClamped(isoDate(`${ym(today)}-01`), 0);
   const months: string[] = [];
@@ -183,7 +186,7 @@ export function detectLifestyleCreep(
         date: t.date,
         accountId: t.accountId,
       }).categoryId;
-    if (CATEGORY_BY_ID.get(categoryId)?.discretionary) {
+    if (meta.get(categoryId)?.discretionary) {
       discSpend.set(month, discSpend.get(month)! - t.amountCents);
     }
   }

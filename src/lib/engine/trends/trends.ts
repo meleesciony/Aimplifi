@@ -20,7 +20,7 @@
  */
 import { addMonthsClamped, daysInMonth, isoDate } from '@/lib/dates';
 import { roundHalfAwayFromZero } from '@/lib/money';
-import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 
 // ── Tunable thresholds (deterministic, in code) ─────────────────────────────
@@ -114,38 +114,47 @@ export interface TrendsInput {
 
 const ymOf = (date: string) => date.slice(0, 7);
 const priorYm = (ym: string, n: number) => addMonthsClamped(isoDate(`${ym}-01`), -n).slice(0, 7);
-const groupOf = (id: string | null | undefined) => CATEGORY_BY_ID.get(id ?? 'uncategorized')?.group;
-const catName = (id: string | null | undefined) =>
-  (id ? CATEGORY_BY_ID.get(id)?.name : undefined) ?? 'Uncategorized';
+const groupOf = (id: string | null | undefined, meta: ReadonlyMap<string, CategoryMeta>) =>
+  meta.get(id ?? 'uncategorized')?.group;
+const catName = (id: string | null | undefined, meta: ReadonlyMap<string, CategoryMeta>) =>
+  (id ? meta.get(id)?.name : undefined) ?? 'Uncategorized';
 
 /** One spend row = a real outflow that the reports engine would count. */
-function isSpendRow(t: TrendTxn): boolean {
+function isSpendRow(t: TrendTxn, meta: ReadonlyMap<string, CategoryMeta>): boolean {
   if (t.isSplitParent || t.isTransfer) return false;
   if (t.amountCents >= 0) return false; // refunds/inflows are not "purchases"
   const id = t.categoryId ?? 'uncategorized';
   if (id === 'transfer') return false;
-  if (CATEGORY_BY_ID.get(id)?.group === 'Income') return false;
+  if (meta.get(id)?.group === 'Income') return false;
   return true;
 }
 
 /** A spend row in an actionable category (excludes cash/transfer/cc-payment/uncategorized). */
-function isPurchaseRow(t: TrendTxn): boolean {
-  return isSpendRow(t) && groupOf(t.categoryId) !== NON_ACTIONABLE_GROUP;
+function isPurchaseRow(t: TrendTxn, meta: ReadonlyMap<string, CategoryMeta>): boolean {
+  return isSpendRow(t, meta) && groupOf(t.categoryId, meta) !== NON_ACTIONABLE_GROUP;
 }
 
 /** Per-leaf-category spend for a single month, via the shared reports engine. */
-function categorySpendMap(txns: readonly TrendTxn[], ym: string): Map<string, number> {
-  const { byCategory } = spendingByCategory(txns, { fromYm: ym, toYm: ym });
+function categorySpendMap(
+  txns: readonly TrendTxn[],
+  ym: string,
+  meta: ReadonlyMap<string, CategoryMeta>,
+): Map<string, number> {
+  const { byCategory } = spendingByCategory(txns, { fromYm: ym, toYm: ym }, meta);
   return new Map(byCategory.map((c) => [c.categoryId, c.amountCents]));
 }
 
-function computePace(txns: readonly TrendTxn[], today: string): SpendingPace | null {
+function computePace(
+  txns: readonly TrendTxn[],
+  today: string,
+  meta: ReadonlyMap<string, CategoryMeta>,
+): SpendingPace | null {
   const ym = ymOf(today);
   // Only money already spent counts toward "so far": ignore any future-dated rows.
   const soFar = txns.filter((t) => t.date <= today);
-  const spentSoFarCents = spendingByCategory(soFar, { fromYm: ym, toYm: ym }).totalCents;
+  const spentSoFarCents = spendingByCategory(soFar, { fromYm: ym, toYm: ym }, meta).totalCents;
   const prior = priorYm(ym, 1);
-  const priorMonthCents = spendingByCategory(txns, { fromYm: prior, toYm: prior }).totalCents;
+  const priorMonthCents = spendingByCategory(txns, { fromYm: prior, toYm: prior }, meta).totalCents;
   if (spentSoFarCents === 0 && priorMonthCents === 0) return null; // nothing to say yet
 
   const [y, m] = [Number(ym.slice(0, 4)), Number(ym.slice(5, 7))];
@@ -166,16 +175,17 @@ function computePace(txns: readonly TrendTxn[], today: string): SpendingPace | n
 function computeMovers(
   txns: readonly TrendTxn[],
   today: string,
+  meta: ReadonlyMap<string, CategoryMeta>,
 ): { comparedYm: string | null; baselineMonths: string[]; movers: CategoryMover[] } {
   const current = priorYm(ymOf(today), 1); // last completed month
-  const currentMap = categorySpendMap(txns, current);
+  const currentMap = categorySpendMap(txns, current, meta);
 
   // Baseline = the up-to-3 completed months before `current` that actually have
   // spend (never average in pre-history zero months — it would understate the norm).
   const baselineMaps: { ym: string; map: Map<string, number> }[] = [];
   for (let i = 1; i <= BASELINE_MONTHS; i++) {
     const ym = priorYm(current, i);
-    const map = categorySpendMap(txns, ym);
+    const map = categorySpendMap(txns, ym, meta);
     let total = 0;
     for (const v of map.values()) total += v;
     if (total > 0) baselineMaps.push({ ym, map });
@@ -188,7 +198,7 @@ function computeMovers(
   const ids = new Set<string>([...currentMap.keys(), ...baselineMaps.flatMap((b) => [...b.map.keys()])]);
   const movers: CategoryMover[] = [];
   for (const id of ids) {
-    if (groupOf(id) === NON_ACTIONABLE_GROUP) continue; // cash/transfer/cc-pay/uncategorized aren't insights
+    if (groupOf(id, meta) === NON_ACTIONABLE_GROUP) continue; // cash/transfer/cc-pay/uncategorized aren't insights
     const currentCents = currentMap.get(id) ?? 0;
     const baselineCents =
       baselineMaps.length === 0
@@ -211,7 +221,7 @@ function computeMovers(
     }
     if (!surfaced) continue;
 
-    const cat = CATEGORY_BY_ID.get(id);
+    const cat = meta.get(id);
     movers.push({
       categoryId: id,
       name: cat?.name ?? 'Uncategorized',
@@ -235,14 +245,18 @@ function computeMovers(
   };
 }
 
-function computeLargest(txns: readonly TrendTxn[], today: string): LargestTxn[] {
+function computeLargest(
+  txns: readonly TrendTxn[],
+  today: string,
+  meta: ReadonlyMap<string, CategoryMeta>,
+): LargestTxn[] {
   const ym = ymOf(today);
   return txns
-    .filter((t) => t.date <= today && ymOf(t.date) === ym && isPurchaseRow(t))
+    .filter((t) => t.date <= today && ymOf(t.date) === ym && isPurchaseRow(t, meta))
     .map((t) => ({
       date: t.date,
       merchant: t.merchant?.trim() || 'Unknown merchant',
-      categoryName: catName(t.categoryId),
+      categoryName: catName(t.categoryId, meta),
       amountCents: -t.amountCents,
     }))
     // amount desc, then date, then merchant — fully deterministic on ties.
@@ -255,7 +269,11 @@ function computeLargest(txns: readonly TrendTxn[], today: string): LargestTxn[] 
     .slice(0, MAX_LARGEST);
 }
 
-function computeNewMerchants(txns: readonly TrendTxn[], today: string): NewMerchant[] {
+function computeNewMerchants(
+  txns: readonly TrendTxn[],
+  today: string,
+  meta: ReadonlyMap<string, CategoryMeta>,
+): NewMerchant[] {
   const ym = ymOf(today);
   const earliestPrior = priorYm(ym, NEW_MERCHANT_LOOKBACK_MONTHS); // inclusive lower bound
 
@@ -263,7 +281,7 @@ function computeNewMerchants(txns: readonly TrendTxn[], today: string): NewMerch
   // Aggregate pseudo-merchants are skipped entirely — "new" is meaningless for them.
   const seenBefore = new Set<string>();
   for (const t of txns) {
-    if (!isPurchaseRow(t) || t.aggregateMerchant || !t.merchant) continue;
+    if (!isPurchaseRow(t, meta) || t.aggregateMerchant || !t.merchant) continue;
     const m = ymOf(t.date);
     if (m >= earliestPrior && m < ym) seenBefore.add(t.merchant.trim().toLowerCase());
   }
@@ -273,7 +291,7 @@ function computeNewMerchants(txns: readonly TrendTxn[], today: string): NewMerch
     { merchant: string; categoryName: string; amountCents: number; firstDate: string }
   >();
   for (const t of txns) {
-    if (t.date > today || ymOf(t.date) !== ym || !isPurchaseRow(t) || t.aggregateMerchant || !t.merchant)
+    if (t.date > today || ymOf(t.date) !== ym || !isPurchaseRow(t, meta) || t.aggregateMerchant || !t.merchant)
       continue;
     const key = t.merchant.trim().toLowerCase();
     if (seenBefore.has(key)) continue;
@@ -284,7 +302,7 @@ function computeNewMerchants(txns: readonly TrendTxn[], today: string): NewMerch
     } else {
       thisMonth.set(key, {
         merchant: t.merchant.trim(),
-        categoryName: catName(t.categoryId),
+        categoryName: catName(t.categoryId, meta),
         amountCents: -t.amountCents,
         firstDate: t.date,
       });
@@ -297,15 +315,18 @@ function computeNewMerchants(txns: readonly TrendTxn[], today: string): NewMerch
 }
 
 /** Compute all spending-trend insights from a posted-spend transaction list. */
-export function computeSpendingTrends({ txns, today }: TrendsInput): SpendingTrends {
-  const { comparedYm, baselineMonths, movers } = computeMovers(txns, today);
+export function computeSpendingTrends(
+  { txns, today }: TrendsInput,
+  meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+): SpendingTrends {
+  const { comparedYm, baselineMonths, movers } = computeMovers(txns, today, meta);
   return {
     asOfYm: ymOf(today),
     comparedYm,
     baselineMonths,
-    pace: computePace(txns, today),
+    pace: computePace(txns, today, meta),
     movers,
-    largest: computeLargest(txns, today),
-    newMerchants: computeNewMerchants(txns, today),
+    largest: computeLargest(txns, today, meta),
+    newMerchants: computeNewMerchants(txns, today, meta),
   };
 }

@@ -28,6 +28,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { formatISODate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
+import { getCategoryMeta } from '@/server/category-meta';
 
 export interface CoachData {
   today: string;
@@ -64,6 +65,7 @@ export async function getCoachData(userId: string): Promise<CoachData> {
   const snap = await provider.getFinanceSnapshot(userId);
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('User not found');
+  const meta = await getCategoryMeta(userId); // custom-category aware creep (DECISIONS #111)
 
   const txns = snap.transactions.map((t, i) => ({
     id: (t as { id?: string }).id ?? `txn-${i}`,
@@ -109,7 +111,7 @@ export async function getCoachData(userId: string): Promise<CoachData> {
     today,
   );
   const opportunities = findOpportunities(series, user.expectedReturnBps);
-  const creep = detectLifestyleCreep(txns, today);
+  const creep = detectLifestyleCreep(txns, today, 6, meta);
   // documented rounding rule, not Math.round (consistency with monthlySavings above)
   const avgMonthlyExpenses = cents(roundHalfAwayFromZero(expenses6 / Math.max(1, last6.length)));
   const runway = monthsOfRunway(liquid, avgMonthlyExpenses);
