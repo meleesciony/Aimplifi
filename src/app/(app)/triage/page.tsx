@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { AccuracyCard } from '@/components/triage/accuracy-card';
+import { BackfillButton } from '@/components/triage/backfill-button';
 import { TriageInbox } from '@/components/triage/triage-inbox';
 import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getTriageItems } from '@/server/triage';
@@ -19,12 +20,15 @@ export default async function TriagePage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">Inbox</h1>
-        <p className="text-sm text-muted-foreground">
-          Only genuinely ambiguous transactions land here — everything else is
-          filed automatically.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Inbox</h1>
+          <p className="text-sm text-muted-foreground">
+            Only genuinely ambiguous transactions land here — everything else is
+            filed automatically.
+          </p>
+        </div>
+        <BackfillButton />
       </div>
       <div className="mx-auto max-w-md space-y-4">
         <AccuracyCard result={accuracy} />
