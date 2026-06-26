@@ -65,9 +65,11 @@ export default function PlaidOAuthReturnPage() {
 
   const { open, ready } = usePlaidLink({
     token,
-    // The current URL carries Plaid's oauth_state_id; handing it back resumes the
-    // exact OAuth session the bank just completed.
-    receivedRedirectUri: typeof window === 'undefined' ? undefined : window.location.href,
+    // Hand Plaid the redirect URI only once we actually hold the token to resume.
+    // Passing it with token=null makes the SDK try (and fail) to initialize Link and
+    // log "Error initializing Plaid Link"; with no token we show the session-expired
+    // UI instead. On a real resume the token and the URI become present together.
+    receivedRedirectUri: token && typeof window !== 'undefined' ? window.location.href : undefined,
     onSuccess,
     onExit: (err) => {
       clearStoredLinkToken();
