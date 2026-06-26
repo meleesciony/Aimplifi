@@ -19,6 +19,7 @@ import { auditLog, requireUserId } from '@/server/authz';
 import { assistUnsureRows } from '@/server/categorize-assist';
 import { suggestCategoryViaLLM } from '@/server/llm-categorize';
 import { loadUserRules } from '@/server/rules';
+import { assertOwnedCategory, getCustomCategories } from '@/server/category-meta';
 
 export async function createManualTransaction(formData: FormData): Promise<void> {
   const userId = await requireUserId();
@@ -28,6 +29,10 @@ export async function createManualTransaction(formData: FormData): Promise<void>
   if (!account) throw new Error('Account not found');
 
   const categoryRaw = String(formData.get('categoryId') ?? '').trim();
+  // An EXPLICIT category must be a known system id or a custom this user owns —
+  // a foreign/garbage id would otherwise be trusted into the row (DECISIONS #111).
+  // Auto-detect (empty) skips this; the pipeline only yields system ids.
+  if (categoryRaw) await assertOwnedCategory(userId, categoryRaw);
   const rules = await loadUserRules(userId);
   const prepared = prepareManualTransaction(
     {
@@ -118,7 +123,11 @@ export async function importTransactionsCsv(
     return { ok: false, imported: 0, skipped: 0, errors: ['Paste CSV content first.'] };
   }
 
-  const { rows, errors } = parseTransactionCsv(text);
+  // A CSV "category" column may name one of the user's custom categories ("Golf");
+  // resolve those to their id too, alongside the system names (DECISIONS #111).
+  const custom = await getCustomCategories(userId);
+  const customByName = new Map(custom.map((c) => [c.name.toLowerCase(), c.id]));
+  const { rows, errors } = parseTransactionCsv(text, customByName);
   const rules = await loadUserRules(userId);
   const prepared = rows.map((row) => {
     const p = prepareImportedTransaction(row, accountId, rules);

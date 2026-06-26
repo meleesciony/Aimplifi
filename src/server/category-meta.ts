@@ -7,6 +7,7 @@
  */
 import { prisma } from '@/lib/db';
 import {
+  CATEGORY_BY_ID,
   mergeCategoryMeta,
   type CategoryMeta,
   type CustomCategoryInput,
@@ -32,4 +33,21 @@ export async function getCustomCategories(userId: string): Promise<CustomCategor
 /** Per-user id→meta resolver: static system map overlaid with the user's customs. */
 export async function getCategoryMeta(userId: string): Promise<Map<string, CategoryMeta>> {
   return mergeCategoryMeta(await getCustomCategories(userId));
+}
+
+/**
+ * Write-path guard (DECISIONS #111): a category id may be assigned only when it
+ * is a known SYSTEM category (incl. subcategories + the `uncategorized`
+ * placeholder) OR a CUSTOM category this user owns. Throws otherwise — so a
+ * hand-crafted POST can't file a row under an arbitrary string or, worse,
+ * another user's custom category id (a cross-tenant name leak via the display
+ * join). System ids short-circuit with no DB call, so the hot path is unchanged.
+ */
+export async function assertOwnedCategory(userId: string, categoryId: string): Promise<void> {
+  if (CATEGORY_BY_ID.has(categoryId)) return;
+  const owned = await prisma.category.findFirst({
+    where: { id: categoryId, userId, isSystem: false },
+    select: { id: true },
+  });
+  if (!owned) throw new Error('Choose a valid category');
 }

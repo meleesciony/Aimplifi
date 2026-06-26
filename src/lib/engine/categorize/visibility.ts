@@ -5,7 +5,12 @@
  * (they're global + FK'd by historical data), so hiding is purely a display
  * concern. No React, no DB.
  */
-import { ASSIGNABLE_CATEGORIES, ASSIGNABLE_GROUPS } from './assign';
+import {
+  ASSIGNABLE_CATEGORIES,
+  type AssignableCategory,
+  assignableCategories,
+  assignableGroups,
+} from './assign';
 import { CATEGORY_BY_ID } from './categories';
 
 /**
@@ -58,24 +63,32 @@ export function categoryCatalog(hiddenIds: Iterable<string>): CatalogGroup[] {
   return out;
 }
 
-/** Visible assignable categories (flat), hidden ones removed. Inbox full picker. */
+/**
+ * Visible assignable categories (flat), hidden ones removed, the user's custom
+ * categories included (DECISIONS #111). Inbox full picker. With no customs this
+ * is byte-identical to the system-only result.
+ */
 export function visibleCategories(
   hiddenIds: Iterable<string>,
+  custom: readonly AssignableCategory[] = [],
 ): { id: string; name: string; group: string }[] {
   const hidden = new Set(hiddenIds);
-  return ASSIGNABLE_CATEGORIES.filter((c) => !hidden.has(c.id));
+  return assignableCategories(custom).filter((c) => !hidden.has(c.id));
 }
 
 /**
- * Visible assignable categories grouped by parent, empty groups dropped. The
- * two-level register picker.
+ * Visible assignable categories grouped by parent, empty groups dropped, with
+ * custom categories merged in (DECISIONS #111). The two-level register picker.
  */
 export function visibleGroups(
   hiddenIds: Iterable<string>,
+  custom: readonly AssignableCategory[] = [],
 ): { group: string; categories: { id: string; name: string }[] }[] {
   const hidden = new Set(hiddenIds);
-  return ASSIGNABLE_GROUPS.map((g) => ({
-    group: g.group,
-    categories: g.categories.filter((c) => !hidden.has(c.id)),
-  })).filter((g) => g.categories.length > 0);
+  return assignableGroups(custom)
+    .map((g) => ({
+      group: g.group,
+      categories: g.categories.filter((c) => !hidden.has(c.id)),
+    }))
+    .filter((g) => g.categories.length > 0);
 }

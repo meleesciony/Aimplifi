@@ -96,6 +96,21 @@ describe('parseTransactionCsv', () => {
     expect(rows[1].categoryId).toBe('dining'); // resolved from display name
     expect(rows[2].categoryId).toBeNull(); // unknown → auto
   });
+
+  it('resolves a custom category name when given the user map (DECISIONS #111)', () => {
+    const csv = [
+      'date,description,amount,category',
+      '2026-06-01,Bear Creek GC,-90.00,Golf',
+      '2026-06-02,Other LLC,-30.00,Golf', // case-insensitive match below
+    ].join('\n');
+    const customByName = new Map([['golf', 'cust_golf']]);
+    const withMap = parseTransactionCsv(csv, customByName).rows;
+    expect(withMap[0].categoryId).toBe('cust_golf');
+    expect(withMap[1].categoryId).toBe('cust_golf');
+    // Without the map, the same custom name is unknown → auto-categorize (null).
+    const withoutMap = parseTransactionCsv(csv).rows;
+    expect(withoutMap[0].categoryId).toBeNull();
+  });
 });
 
 describe('prepareImportedTransaction', () => {

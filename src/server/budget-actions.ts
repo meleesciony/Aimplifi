@@ -8,19 +8,22 @@
  */
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
-import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { isBudgetable, parseBudgetTargetCents } from '@/lib/engine/budgets/status';
 import { auditLog, requireUserId } from '@/server/authz';
+import { assertOwnedCategory } from '@/server/category-meta';
 
 export async function setBudget(formData: FormData): Promise<void> {
   const userId = await requireUserId();
   const categoryId = String(formData.get('categoryId') ?? '').trim();
   // Validate against the SAME set the UI offers (real + budgetable), so the
   // accepted set equals the offered set — a hand-crafted POST can't target
-  // income/transfer/uncategorized.
-  if (!CATEGORY_BY_ID.has(categoryId) || !isBudgetable(categoryId)) {
+  // income/transfer/uncategorized. `isBudgetable` rejects those; `assertOwned`
+  // then confirms the id is a known system category OR a custom this user owns,
+  // so it can't target a foreign custom id either (DECISIONS #111).
+  if (!isBudgetable(categoryId)) {
     throw new Error('Choose a valid spending category');
   }
+  await assertOwnedCategory(userId, categoryId);
   const monthCents = parseBudgetTargetCents(String(formData.get('amount') ?? ''));
   if (monthCents === null) throw new Error('Enter a monthly target greater than $0');
 

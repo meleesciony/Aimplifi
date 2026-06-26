@@ -36,6 +36,46 @@ export const ASSIGNABLE_GROUPS: { group: string; categories: { id: string; name:
   return out;
 })();
 
+export interface AssignableCategory {
+  id: string;
+  name: string;
+  group: string;
+}
+
+/**
+ * Assignable categories with the user's CUSTOM categories appended (DECISIONS
+ * #111). System categories keep their canonical order; customs follow, in the
+ * order given. With no customs the shared static array is returned unchanged, so
+ * every existing caller and golden stays byte-identical.
+ */
+export function assignableCategories(
+  custom: readonly AssignableCategory[] = [],
+): AssignableCategory[] {
+  return custom.length === 0 ? ASSIGNABLE_CATEGORIES : [...ASSIGNABLE_CATEGORIES, ...custom];
+}
+
+/**
+ * Two-level grouping including customs: a custom slots into an existing group
+ * when its `group` matches a system group name, otherwise it opens a new group
+ * appended after the system ones. With no customs the shared static grouping is
+ * returned unchanged.
+ */
+export function assignableGroups(
+  custom: readonly AssignableCategory[] = [],
+): { group: string; categories: { id: string; name: string }[] }[] {
+  if (custom.length === 0) return ASSIGNABLE_GROUPS;
+  const out: { group: string; categories: { id: string; name: string }[] }[] = [];
+  for (const c of assignableCategories(custom)) {
+    let g = out.find((o) => o.group === c.group);
+    if (!g) {
+      g = { group: c.group, categories: [] };
+      out.push(g);
+    }
+    g.categories.push({ id: c.id, name: c.name });
+  }
+  return out;
+}
+
 /**
  * A merchant-wide "always" rule is offered only for real merchants — never for
  * aggregate pseudo-merchants (Zelle / checks / ATM) that group unrelated payees,

@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { auditLog, requireUserId } from '@/server/authz';
+import { assertOwnedCategory } from '@/server/category-meta';
 import { ensureCategories } from '@/server/ensure-categories';
 import { getTriageItems, similarTransactionsWhere, type TriageItem } from '@/server/triage';
 
@@ -43,6 +44,7 @@ export async function applyCategory(input: {
 }): Promise<ApplyResult> {
   const userId = await requireUserId();
   await ensureCategories(); // new subcategory ids need a Category row (FK) (#65)
+  await assertOwnedCategory(userId, input.categoryId); // system id or a custom this user owns (#111)
   const txn = await ownedTransaction(userId, input.transactionId);
 
   const correction = await prisma.correction.create({
@@ -124,6 +126,7 @@ export async function applyToAllSimilar(input: {
   categoryId: string;
 }): Promise<ApplyResult> {
   const userId = await requireUserId();
+  await assertOwnedCategory(userId, input.categoryId); // system id or a custom this user owns (#111)
   const txn = await ownedTransaction(userId, input.transactionId);
   if (!txn.merchantId) return applyCategory({ ...input });
 
@@ -183,6 +186,7 @@ export async function recategorize(input: {
   scope: 'one' | 'merchant';
 }): Promise<ApplyResult> {
   const userId = await requireUserId();
+  await assertOwnedCategory(userId, input.categoryId); // system id or a custom this user owns (#111)
   const txn = await ownedTransaction(userId, input.transactionId);
 
   const merchantWide =

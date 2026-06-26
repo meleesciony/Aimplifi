@@ -10,7 +10,7 @@ import {
   visibleCategories,
   visibleGroups,
 } from '@/lib/engine/categorize/visibility';
-import { ASSIGNABLE_CATEGORIES } from '@/lib/engine/categorize/assign';
+import { ASSIGNABLE_CATEGORIES, type AssignableCategory } from '@/lib/engine/categorize/assign';
 
 describe('isHideable', () => {
   it('real system categories are hideable', () => {
@@ -75,5 +75,46 @@ describe('visibleGroups', () => {
     const groups = visibleGroups([]);
     expect(groups.length).toBeGreaterThan(0);
     expect(groups.every((g) => g.categories.length > 0)).toBe(true);
+  });
+});
+
+describe('custom categories in the pickers (DECISIONS #111)', () => {
+  const existingGroup = ASSIGNABLE_CATEGORIES[0].group;
+  const inExisting: AssignableCategory = { id: 'cust_golf', name: 'Golf', group: existingGroup };
+  const inNewGroup: AssignableCategory = { id: 'cust_boat', name: 'Boat', group: 'My Hobbies' };
+
+  it('an empty custom list is byte-identical to the system-only result', () => {
+    expect(visibleCategories([], [])).toEqual(visibleCategories([]));
+    expect(visibleGroups([], [])).toEqual(visibleGroups([]));
+  });
+
+  it('visibleCategories appends customs after the system set', () => {
+    const base = visibleCategories([]);
+    const withCustom = visibleCategories([], [inExisting, inNewGroup]);
+    expect(withCustom.length).toBe(base.length + 2);
+    expect(withCustom.some((c) => c.id === 'cust_golf')).toBe(true);
+    expect(withCustom.some((c) => c.id === 'cust_boat')).toBe(true);
+  });
+
+  it('visibleGroups slots a custom into a matching system group (no duplicate header)', () => {
+    const groups = visibleGroups([], [inExisting]);
+    expect(groups.filter((x) => x.group === existingGroup).length).toBe(1);
+    const g = groups.find((x) => x.group === existingGroup);
+    expect(g?.categories.some((c) => c.id === 'cust_golf')).toBe(true);
+  });
+
+  it('visibleGroups opens a new group, appended last, for an unknown group name', () => {
+    const groups = visibleGroups([], [inNewGroup]);
+    expect(groups[groups.length - 1]).toEqual({
+      group: 'My Hobbies',
+      categories: [{ id: 'cust_boat', name: 'Boat' }],
+    });
+  });
+
+  it('a hidden custom id is filtered out like any other', () => {
+    expect(visibleCategories(['cust_golf'], [inExisting]).some((c) => c.id === 'cust_golf')).toBe(false);
+    const groups = visibleGroups(['cust_golf'], [inExisting]);
+    const g = groups.find((x) => x.group === existingGroup);
+    expect(g?.categories.some((c) => c.id === 'cust_golf')).toBe(false);
   });
 });

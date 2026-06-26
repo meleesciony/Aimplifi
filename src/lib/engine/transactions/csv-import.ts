@@ -90,14 +90,23 @@ export function normalizeImportDate(raw: string): ISODate {
   throw new Error(`unrecognized date "${raw}" (use YYYY-MM-DD or MM/DD/YYYY)`);
 }
 
-function resolveCategory(raw: string): string | null {
+function resolveCategory(raw: string, customByName: ReadonlyMap<string, string>): string | null {
   const s = raw.trim().toLowerCase();
   if (!s) return null;
   if (CATEGORY_BY_ID.has(s)) return s;
-  return CATEGORY_BY_NAME.get(s) ?? null; // unknown name → auto-categorize
+  // System display name, then a custom category name the user owns; unknown → auto.
+  return CATEGORY_BY_NAME.get(s) ?? customByName.get(s) ?? null;
 }
 
-export function parseTransactionCsv(text: string): ParsedCsv {
+/**
+ * @param customByName lowercased custom-category name → id, so a CSV "category"
+ * column naming one of the user's own categories ("Golf") resolves to it
+ * (DECISIONS #111). Empty by default → system-only resolution, unchanged.
+ */
+export function parseTransactionCsv(
+  text: string,
+  customByName: ReadonlyMap<string, string> = new Map(),
+): ParsedCsv {
   const rawLines = text.split(/\r\n|\r|\n/);
   // index of the first non-blank line = header
   const headerIdx = rawLines.findIndex((l) => l.trim() !== '');
@@ -134,7 +143,7 @@ export function parseTransactionCsv(text: string): ParsedCsv {
       const amountRaw = (fields[amountCol] ?? '').replace(/[$,\s]/g, '');
       if (amountRaw === '') throw new Error('amount is empty');
       const amountCents = centsFromDollarString(amountRaw); // signed; throws if malformed
-      const categoryId = catCol === -1 ? null : resolveCategory(fields[catCol] ?? '');
+      const categoryId = catCol === -1 ? null : resolveCategory(fields[catCol] ?? '', customByName);
       rows.push({ line: lineNo, date, description, amountCents, categoryId });
     } catch (e) {
       errors.push({ line: lineNo, message: e instanceof Error ? e.message : 'invalid row' });

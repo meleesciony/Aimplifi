@@ -11,6 +11,7 @@ import {
   visibleGroups,
   type CatalogGroup,
 } from '@/lib/engine/categorize/visibility';
+import { getCustomCategories } from '@/server/category-meta';
 
 export async function getHiddenCategoryIds(userId: string): Promise<Set<string>> {
   const rows = await prisma.hiddenCategory.findMany({
@@ -25,16 +26,28 @@ export async function getCategoryCatalog(userId: string): Promise<CatalogGroup[]
   return categoryCatalog(await getHiddenCategoryIds(userId));
 }
 
-/** Visible assignable categories (flat) — the inbox "any category" picker. */
+/**
+ * Visible assignable categories (flat) — the inbox "any category" picker. Custom
+ * categories (DECISIONS #111) are merged in so a created category is assignable
+ * everywhere; with none the result is the system-only set.
+ */
 export async function getVisibleCategories(
   userId: string,
 ): Promise<{ id: string; name: string; group: string }[]> {
-  return visibleCategories(await getHiddenCategoryIds(userId));
+  const [hidden, custom] = await Promise.all([
+    getHiddenCategoryIds(userId),
+    getCustomCategories(userId),
+  ]);
+  return visibleCategories(hidden, custom);
 }
 
 /** Visible assignable categories grouped by parent — the register picker. */
 export async function getVisibleGroups(
   userId: string,
 ): Promise<{ group: string; categories: { id: string; name: string }[] }[]> {
-  return visibleGroups(await getHiddenCategoryIds(userId));
+  const [hidden, custom] = await Promise.all([
+    getHiddenCategoryIds(userId),
+    getCustomCategories(userId),
+  ]);
+  return visibleGroups(hidden, custom);
 }
