@@ -3,6 +3,7 @@
   "framework": "nextjs",
   "buildCommand": "node scripts/gen-pg-schema.mjs && PRISMA_SCHEMA=prisma/.generated.postgres.prisma npx prisma generate && PRISMA_SCHEMA=prisma/.generated.postgres.prisma npx prisma db push --accept-data-loss && next build",
   "crons": [
-    { "path": "/api/cron/sync", "schedule": "0 11 * * *" }
+    { "path": "/api/cron/sync", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/reminders", "schedule": "0 12 * * *" }
   ]
 }
