@@ -40,6 +40,7 @@ model User {
   simplefin   SimpleFinConnection?
   predictions CategoryPrediction[]
   hiddenCategories HiddenCategory[]
+  customCategories Category[]
 }
 
 // Per-user "hide this category from the pickers" preference (DECISIONS #110).
@@ -223,14 +224,27 @@ model MerchantPattern {
 
 model Category {
   id       String  @id @default(cuid())
-  name     String  @unique
+  name     String
   parentId String?
   icon     String?
   isSystem Boolean @default(false)
+  // Custom (user-created) categories (DECISIONS #111): userId set, isSystem=false,
+  // carrying a parent `group` name + discretionary flag. System rows keep
+  // userId=null (global) and resolve via the static CATEGORY_BY_ID map, so these
+  // DB columns are only read for CUSTOM rows. Name uniqueness is PER-USER so two
+  // users can each own a "Golf" — the resolver is built per-request from a single
+  // user's custom rows, so there is never cross-user name resolution.
+  userId        String?
+  group         String?
+  discretionary Boolean @default(true)
 
+  owner        User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   rules        CategorizationRule[]
   budgets      Budget[]
+
+  @@unique([userId, name])
+  @@index([userId])
 }
 
 model CategorizationRule {

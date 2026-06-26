@@ -134,6 +134,56 @@ export const CATEGORIES: SystemCategory[] = [
 
 export const CATEGORY_BY_ID = new Map(CATEGORIES.map((c) => [c.id, c]));
 
-export function categoryName(id: string | null | undefined): string {
-  return (id && CATEGORY_BY_ID.get(id)?.name) || 'Uncategorized';
+/**
+ * The minimal metadata every category-resolution site needs (name/group for
+ * display + grouping, discretionary for lifestyle-creep). A structural SUBSET of
+ * SystemCategory, so `CATEGORY_BY_ID` (Map<string, SystemCategory>) is itself a
+ * valid `ReadonlyMap<string, CategoryMeta>` — every engine can default its
+ * optional `meta` param to it (DECISIONS #111).
+ */
+export interface CategoryMeta {
+  name: string;
+  group: string;
+  discretionary: boolean;
+}
+
+/** A user-created custom category as stored: id + the three meta fields. */
+export interface CustomCategoryInput {
+  id: string;
+  name: string;
+  group: string;
+  discretionary: boolean;
+}
+
+/**
+ * Per-user resolver (PURE): the static system meta OVERLAID with a user's custom
+ * categories. With an EMPTY custom list the result is value-identical to
+ * CATEGORY_BY_ID, so every engine that defaults to the static map produces
+ * byte-identical output for a user with no custom categories — the golden tests
+ * stay green without being touched. Custom ids are cuids and never collide with
+ * the system slug ids, so the overlay only ADDS entries.
+ */
+export function mergeCategoryMeta(
+  custom: readonly CustomCategoryInput[],
+): Map<string, CategoryMeta> {
+  const m = new Map<string, CategoryMeta>();
+  for (const c of CATEGORIES) {
+    m.set(c.id, { name: c.name, group: c.group, discretionary: c.discretionary });
+  }
+  for (const c of custom) {
+    m.set(c.id, { name: c.name, group: c.group, discretionary: c.discretionary });
+  }
+  return m;
+}
+
+/**
+ * Resolve a category id to its display name. The optional `meta` map makes this
+ * custom-category aware; it defaults to the static system map so every existing
+ * caller (no second arg) is unchanged.
+ */
+export function categoryName(
+  id: string | null | undefined,
+  meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+): string {
+  return (id && meta.get(id)?.name) || 'Uncategorized';
 }

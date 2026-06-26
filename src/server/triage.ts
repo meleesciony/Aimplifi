@@ -111,7 +111,7 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
       suggestedCategoryId: suggested,
       suggestedCategoryName: categoryName(suggested),
       alternativeIds: alts,
-      alternativeNames: alts.map(categoryName),
+      alternativeNames: alts.map((id) => categoryName(id)),
       similarCount,
       ruleEligible,
     });
