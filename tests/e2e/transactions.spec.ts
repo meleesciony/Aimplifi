@@ -172,10 +172,20 @@ test('inline recategorization on the register refiles a transaction (DECISIONS #
   await page.locator('[data-testid="cat-option"][data-cat="groceries"]').click();
   await page.getByTestId('recat-once').click();
 
-  // The register reflects the new category after the action + refresh.
-  const updated = page.getByTestId('txn-row').filter({ hasText: label });
-  await expect(updated).toContainText('Groceries', { timeout: 20000 });
-  await expect(updated).not.toContainText('Dining Out');
+  // The register reflects the new category after the action + RSC refresh.
+  // Assert on the category CHIP specifically, not the whole row: while the
+  // server action is in flight the sibling confirm menu still reads "File as
+  // Groceries?" and the old "Dining Out" chip is still present, so a row-level
+  // toContainText('Groceries') would pass BEFORE persistence and then race the
+  // negative assertion on its default 5s budget. The chip text is just the
+  // category name (`t.categoryName` + an aria-hidden icon), so it flips to
+  // "Groceries" only once router.refresh() has re-rendered the persisted row.
+  const chip = page
+    .getByTestId('txn-row')
+    .filter({ hasText: label })
+    .getByTestId('category-chip');
+  await expect(chip).toContainText('Groceries', { timeout: 20000 });
+  await expect(chip).not.toContainText('Dining Out', { timeout: 20000 });
 });
 
 test('CSV import: valid rows imported, bad rows skipped with line errors', async ({ page }) => {

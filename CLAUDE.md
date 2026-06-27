@@ -9,8 +9,11 @@ phase by phase per `docs/PHASES.md`.
 
 ## Working location
 
-The canonical local checkout is `C:\dev\Pulse Finance` (moved off OneDrive on
-2026-06-23; GitHub remote: `github.com/meleesciony/Aimplifi`). Do **not** develop
+The canonical local checkout is `C:\dev\Aimplifi` (relocated off OneDrive on
+2026-06-27; GitHub remote: `github.com/meleesciony/Aimplifi`). Both the older
+`C:\dev\Pulse Finance` (stale ~#74) and the original
+`C:\Users\micha\OneDrive\Documents\Pulse Finance` copy are now **abandoned** — all
+current work lives in `C:\dev\Aimplifi`; start Claude Code sessions from there. Do **not** develop
 inside a cloud-synced folder (OneDrive / Dropbox / iCloud): background sync holds
 file locks that cause spurious `verify` failures — a cold `tsc` / `eslint` /
 `next build` can fail once and then pass on a clean rerun — and it forces LF→CRLF

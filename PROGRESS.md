@@ -359,3 +359,36 @@ contention the DB move can't reach.
 **HANDOFF (resume after /clear):** full self-contained context in **`docs/SESSION_CONTEXT_2026-06-27.md`** (read it
 first, then this file). State: working tree CLEAN; HEAD `6df4aca` (#120), local main 2 commits ahead of origin
 (`905da57` + `6df4aca`, both unpushed test-infra/docs — no prod impact); origin `551ac97` live. Safe to /clear.
+
+## 2026-06-27 (resumed: "read HANDOFF.md → then PROGRESS.md and continue") — working tree RELOCATED off OneDrive to C:\dev\Aimplifi (completes #16/#17/#120 e2e fix) + transactions:145 test-race hardened — DONE ✅
+Resumed at HEAD f958cc5 (#120 handoff). Re-confirmed baseline before any change, independently measured (not trusted
+from the handoff): `bash scripts/verify.sh` → GREEN (1142 unit/94 files). The handoff's pending items were all
+owner-gated; owner chose the #1 item — relocate the working copy off OneDrive (the COMPLETE half of the #16/#17/#120
+e2e fix the DB-move could not reach).
+
+**The move (non-destructive):** robocopy'd the active checkout → `C:\dev\Aimplifi`, excluding regenerable caches
+(node_modules, .next, .codegraph, test-results/playwright-report) but INCLUDING `.git` (the 3 unpushed commits + the
+correct GitHub origin) and all gitignored secrets (`.env*`, `keys/`, `dev.db`). Fresh `npm ci` (788 pkgs +
+`prisma generate`) on local disk. The OneDrive copy is left INTACT as a reversible fallback.
+
+**Verified AT C:\dev\Aimplifi (real, measured):** core `verify.sh` → GREEN (1142 unit/94 files, typecheck/lint/build
+clean); `VERIFY_E2E=1` full suite **54/54**. The #120-residual OneDrive timeout flake — `phase2-triage:82` throughput,
+which even a 120s bump + `--retries=2` could not clear on OneDrive — now runs in **14-24s** and passed every run.
+Confirms #120's prediction: the residual was whole-tree OneDrive sync I/O contention, not DB location.
+
+**Found + fixed a SEPARATE latent race** while stress-testing (7 full e2e runs): `tests/e2e/transactions.spec.ts:145`
+(inline recat) asserted `expect(ROW).toContainText('Groceries')` — but the in-flight confirm menu reads
+'File as Groceries?', so the positive passed BEFORE persistence and the negative `not.toContainText('Dining Out')`
+then raced `router.refresh()` on its default 5s budget. App verified CORRECT (`commit()` awaits `recategorize()` then
+`close()`+`router.refresh()`). Test-only hardening: assert on the category-**chip** element (prompt is a sibling div)
+with a matching 20s timeout on both — **stricter, not laxer** (does not mask a bug; DECISIONS #121). Post-fix:
+**4/4 consecutive full e2e runs 54/54** (~55s), :145 green each.
+
+**State:** working tree CLEAN at `C:\dev\Aimplifi`; one new local commit (#121: relocation record + the :145 fix + doc
+updates) atop the 3 prior unpushed (`905da57`, `6df4aca`, `f958cc5`) → local main now **4 ahead of origin**, all
+unpushed (no prod-bundle change; bundle with the next push — owner's call). origin `551ac97` still live.
+
+**NEXT (owner):** (1) going forward, START SESSIONS FROM `C:\dev\Aimplifi` (CLAUDE.md updated); the OneDrive copy +
+the stale `C:\dev\Pulse Finance` (~#74) can be deleted once you've confirmed the new copy. (2) Push the 4 local
+commits when ready (redundant prod rebuild only — no functional change), or bundle with the next feature. (3) Roadmap
+backlog stays owner-gated ('only change if markedly better').

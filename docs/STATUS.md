@@ -716,3 +716,24 @@ hashed filename; accurate re-seed wording (RateLimit isn't wiped but its tests a
 reuseExistingServer/port-3100 assumption. Accepted P2s: same-checkout CONCURRENT runs (vitest --watch + verify)
 still share a file (set TEST_DB_DIR); a server squatting on 3100 started from the repo would bypass the relocation
 (verify 3100 free; CI spawns fresh).
+
+## 2026-06-27 (resumed) — working tree relocated off OneDrive → C:\dev\Aimplifi (completes the #16/#17 e2e half) + transactions:145 hardened
+
+The owner approved the #16/#17 COMPLETE fix (relocate the whole working copy off the synced tree). Done
+non-destructively: robocopy'd the active checkout → `C:\dev\Aimplifi` (excluding regenerable node_modules/.next/
+.codegraph + test artifacts; INCLUDING .git with the unpushed commits + all secrets .env*/keys/dev.db), then a fresh
+`npm ci` (788 pkgs + prisma generate) on local disk. The OneDrive copy is retained as a reversible fallback.
+
+**Measured at the new location:** core `verify.sh` GREEN (1142 unit/94 files); `VERIFY_E2E=1` full suite **54/54**.
+The #16 e2e residual (phase2-triage:82 throughput timeout that no in-tree mitigation could clear) now runs in
+14-24s and passed on EVERY run — confirming #120's finding that the residual was whole-tree OneDrive sync I/O
+contention. Items #16/#17 are RESOLVED for the new checkout (the OneDrive copy is abandoned, not repaired).
+
+**transactions:145 (inline recat) latent race — FIXED** (DECISIONS #121, REGRESSION_LEDGER 2026-06-27): the positive
+assert matched the in-flight 'File as Groceries?' confirm prompt on the whole row → passed before persistence, so the
+negative `not.toContainText('Dining Out')` raced `router.refresh()` on a 5s budget. App verified correct; the
+assertion now targets the category-chip with a 20s budget on both sides. **4/4 consecutive full-suite runs green
+post-fix.**
+
+**Process caveat:** future sessions MUST run from `C:\dev\Aimplifi`; if work happens in the OneDrive copy out of
+habit, the two repos diverge. CLAUDE.md's canonical-path note is updated to prevent this.
