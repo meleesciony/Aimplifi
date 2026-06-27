@@ -319,9 +319,9 @@ page — phase2-triage:82 ("a full review session in <15 interactions"), a cumul
 that even --retries=2 can't clear (shorter triage:29 went flaky→pass); recorded at STATUS #16 / DECISIONS #88,#99, NOT
 a regression. Three local commits (docs housekeeping + #118 + #119), UNPUSHED.
 
-NEXT: Plaid PRODUCTION questionnaire **SUBMITTED ✅** (owner, 2026-06-26). Recommended next action: deploy the 3
-verified commits (REC-2 #118 + HSTS #119 + docs) via `git push origin main` — prod moves 050ee1d → 55cf790, which
-activates HSTS + the income-raise fix. Low-risk: additive logic, no schema change, HSTS safe on the TLS-only domain;
-the only e2e failure is the OneDrive/SQLITE_BUSY flake (prod is Postgres, unaffected). Safe to /clear once the deploy
-is decided. Deferred: the durable e2e-flake fix stays the #16 item (e2e DB off the OneDrive tree, or develop on a
+NEXT: Plaid PRODUCTION questionnaire **SUBMITTED ✅** (owner, 2026-06-26). REC-2 (#118) + HSTS (#119) **DEPLOYED ✅** —
+pushed to main (origin now 551ac97), Vercel built production `dpl_856aSb6f…` to **READY** (~65s); prod aliases
+aimplifi.app / www.aimplifi.app now serve the income-raise fix + the HSTS header. (One local-only doc commit records
+this deploy, intentionally UNPUSHED to avoid a redundant identical rebuild — push it with the next real change.)
+Safe to /clear. Deferred: the durable e2e-flake fix stays the #16 item (e2e DB off the OneDrive tree, or develop on a
 plain local disk per CLAUDE.md).
