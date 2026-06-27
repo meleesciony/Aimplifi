@@ -1,5 +1,11 @@
 # Session Context / Handoff — 2026-06-26 (session "aimplifi")
 
+> **UPDATE (2026-06-26, resumed session):** Plaid PRODUCTION questionnaire is **SUBMITTED ✅** (owner) — Thread 2
+> below is now historical. Since then: REC-2 income-raise fix (DECISIONS #118) + production HSTS (#119) + privacy-doc
+> accuracy shipped as **3 local commits** (72a37e8 docs, 8700202 REC-2, 55cf790 security), verified green +
+> hostile-critic clean (0 P0/P1). **Recommended next action: `git push origin main` to deploy** (prod 050ee1d →
+> 55cf790; activates HSTS + the income-raise fix). PROGRESS.md's latest entry is the authoritative state.
+
 Self-contained context to resume after a chat clear. Files persist on disk; clearing
 the conversation does not delete anything. Point a new session at this file.
 

@@ -319,6 +319,9 @@ page — phase2-triage:82 ("a full review session in <15 interactions"), a cumul
 that even --retries=2 can't clear (shorter triage:29 went flaky→pass); recorded at STATUS #16 / DECISIONS #88,#99, NOT
 a regression. Three local commits (docs housekeeping + #118 + #119), UNPUSHED.
 
-NEXT (user): unchanged Plaid items (MFA → Q5 Yes; attach Q11 docx; submit). Optional: push to deploy HSTS. Durable
-e2e-flake fix stays the deferred #16 item (move the test DB off the OneDrive tree, or develop on a plain local disk
-per CLAUDE.md).
+NEXT: Plaid PRODUCTION questionnaire **SUBMITTED ✅** (owner, 2026-06-26). Recommended next action: deploy the 3
+verified commits (REC-2 #118 + HSTS #119 + docs) via `git push origin main` — prod moves 050ee1d → 55cf790, which
+activates HSTS + the income-raise fix. Low-risk: additive logic, no schema change, HSTS safe on the TLS-only domain;
+the only e2e failure is the OneDrive/SQLITE_BUSY flake (prod is Postgres, unaffected). Safe to /clear once the deploy
+is decided. Deferred: the durable e2e-flake fix stays the #16 item (e2e DB off the OneDrive tree, or develop on a
+plain local disk per CLAUDE.md).
