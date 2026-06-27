@@ -325,3 +325,33 @@ aimplifi.app / www.aimplifi.app now serve the income-raise fix + the HSTS header
 this deploy, intentionally UNPUSHED to avoid a redundant identical rebuild — push it with the next real change.)
 Safe to /clear. Deferred: the durable e2e-flake fix stays the #16 item (e2e DB off the OneDrive tree, or develop on a
 plain local disk per CLAUDE.md).
+
+## 2026-06-27 (resumed: "read HANDOFF.md -> then PROGRESS.md and continue") — test/e2e DB off the OneDrive tree (#120) — UNIT flake FIXED; e2e improved (residual env-flake)
+Resumed at the prior clean stopping point (HEAD 905da57, the unpushed deploy-record docs commit; origin 551ac97 live).
+Baseline re-confirmed: `bash scripts/verify.sh` -> GREEN (1140 unit/93 files). The handoff's pending items were all done
+(Plaid submitted; REC-2 #118 + HSTS #119 deployed), leaving ONE un-gated engineering item: the deferred durable fix for
+the OneDrive SQLITE_BUSY flake (STATUS #16/#17).
+
+**Built it:** `tests/setup/test-db.ts` points the unit + e2e SQLite DBs at the OS temp dir, off the synced tree
+(per-checkout sha1(cwd) suffix; TEST_DB_DIR override, mkdir'd). vitest + playwright wired to it; both global-setups
+`db push` -> WAL -> `db seed` the temp file (e2e WAL via a tsx child `scripts/set-sqlite-wal.ts` — the CJS generated
+Prisma client can't import into Playwright's ESM config loader). Locked by `tests/unit/test-db-location.test.ts`. No
+production surface (db-adapter/next.config untouched; `npm run dev` keeps the repo-root dev.db; prod=Postgres #35).
+
+**Hostile critic** wf_d9503a9a (4 dims -> adversarial verify): 0 P0/0 P1, 10 P2; applied 5 (TEST_DB_DIR-honoring
+location test; mkdir; per-checkout hash; accurate re-seed wording re RateLimit; reuseExistingServer/3100 doc).
+
+**OUTCOME (honest, measured — not fabricated):** core `bash scripts/verify.sh` -> GREEN + FAST across many runs
+(1142 unit/94 files, +2 regression tests). The UNIT SQLITE_BUSY flake (SimpleFIN "expected 0 to be 2") is FIXED. The
+e2e is improved (DB off-tree + WAL, confirmed) but STILL flakes ~2/5 full-suite runs under load — and the failures are
+wall-clock timeouts of DIFFERENT correct tests run-to-run (phase2-triage throughput AND transactions register-search),
+proving the residual cause is broader than the DB: the `next start` server, the `.next` build, and the app files all
+still live on OneDrive. A 120s timeout band-aid was tried and REVERTED (still timed out under load; the suite flaked on
+other tests anyway). DECISIONS #120 + STATUS #16/#17/#120 + REGRESSION_LEDGER updated.
+
+**Committed locally** (test-infra + docs only; no prod bundle impact). NOT pushed — like 905da57, pushing main triggers
+an identical-functional prod redeploy, so deferred to the next functional change (owner's call).
+
+**NEXT (owner):** the COMPLETE e2e flake fix is to relocate the working copy off OneDrive onto a plain local disk
+(CLAUDE.md already recommends this; the canonical C:\dev copy is stale). That removes the whole-tree sync I/O
+contention the DB move can't reach.

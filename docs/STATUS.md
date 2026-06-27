@@ -656,6 +656,10 @@ Accepted P2s (independent hostile Checker, 0 P0/P1):
 16. OneDrive (the repo lives under OneDrive\) can hold a transient OS lock on dev.db /
     -wal / -shm that WAL cannot prevent; a future transient SQLITE_BUSY there is NOT a
     WAL regression. Deferred bigger fix: move the test DB out of the synced tree (%TEMP%).
+    **PARTIALLY RESOLVED 2026-06-27 (#120):** the unit + e2e SQLite DBs now live under
+    the OS temp dir, off the synced tree (tests/setup/test-db.ts). This FULLY fixes the
+    UNIT SQLITE_BUSY flake (the SimpleFIN "expected 0 to be 2"; unit suite green + fast,
+    reliably). The e2e flake is reduced but NOT eliminated — see the dated section below.
 
 ## 2026-06-26 (resumed session) — REC-2 income-raise fix + prod HSTS + privacy-doc accuracy (DECISIONS #118–119)
 
@@ -678,3 +682,37 @@ Hostile critic wf_1ba761ed (4 dims → adversarial verify): **0 P0 / 0 P1, 2 P2 
     writes inside a 60s budget), so unlike a single-action flake it cannot be cleared by `--retries=2` (the shorter
     triage:29 did go flaky→pass). The page is untouched by this diff. Durable fix = the #16 item (e2e DB off the
     OneDrive-synced tree) or developing on a plain local disk per CLAUDE.md.
+    **UPDATE 2026-06-27 (#120):** the e2e DB is now off the synced tree (+ WAL), but this did NOT eliminate the
+    e2e flake — measured 3/5 full-suite runs green, and the failures were wall-clock timeouts of DIFFERENT correct
+    tests run-to-run (phase2-triage throughput AND transactions register-search), not just one page. Root cause is
+    broader than the DB: the `next start` server, the `.next` build, and the app files all still live on OneDrive,
+    so its sync I/O contends with the server's synchronous better-sqlite3 round-trips. The COMPLETE e2e fix is the
+    OTHER half of the #16 disjunction — relocate the whole working copy off OneDrive (CLAUDE.md), the owner's
+    environment call. The e2e flakes are correct tests timing out under load, clearable by re-run, not code defects.
+
+## 2026-06-27 (resumed) — Test/e2e DB relocated off the OneDrive tree (durable #16/#17 fix, DECISIONS #120)
+
+Picked up the deferred durable fix for the SQLITE_BUSY flake class (the only un-gated engineering item left in the
+handoff). The unit (vitest) and e2e (playwright) suites resolved DATABASE_URL to the repo-root `file:./dev.db`, under
+OneDrive; the sync client's external OS locks on .db/-wal/-shm starved SQLite writers (masked as the SimpleFIN
+"expected 0 to be 2"; aggravating the e2e phase2-triage throughput timeout). In-process mitigations (WAL,
+busy_timeout, fileParallelism:false) can't wait out an external lock.
+
+**Fix:** `tests/setup/test-db.ts` points the unit + e2e SQLite files at the OS temp dir (TEST_DB_DIR override,
+mkdir'd; per-checkout hash so this OneDrive copy and the stale C:\dev copy don't share one file). vitest +
+playwright configs set DATABASE_URL to it; both global-setups `db push` → WAL → `db seed` the off-tree file (e2e
+WAL is set by a tsx child `scripts/set-sqlite-wal.ts` — the generated Prisma client is CJS and can't import into
+Playwright's ESM config loader). Locked by `tests/unit/test-db-location.test.ts`. NO production surface (db-adapter
+/ next.config untouched; `npm run dev` keeps the repo-root dev.db; prod = Postgres #35); nothing ships in the bundle.
+
+**Outcome (honest):** the UNIT SQLITE_BUSY flake is FIXED — core `bash scripts/verify.sh` GREEN and FAST across
+many runs (1142 unit / 94 files, +2 regression tests). The e2e suite is improved (DB off-tree + WAL) but STILL
+flakes ~2/5 under load — the residual cause is the whole working tree on OneDrive (server/.next/app I/O), not the
+DB. Documented at #16/#17; complete fix = relocate the working copy.
+
+**Hostile critic** wf_d9503a9a (4 dims → adversarial verify): **0 P0 / 0 P1, 10 P2.** Applied 5: location test
+honors TEST_DB_DIR (else the documented /dev/shm CI example would go red); mkdir the TEST_DB_DIR; per-checkout
+hashed filename; accurate re-seed wording (RateLimit isn't wiped but its tests are key-isolated); documented the
+reuseExistingServer/port-3100 assumption. Accepted P2s: same-checkout CONCURRENT runs (vitest --watch + verify)
+still share a file (set TEST_DB_DIR); a server squatting on 3100 started from the repo would bypass the relocation
+(verify 3100 free; CI spawns fresh).

@@ -1,20 +1,34 @@
 import { defineConfig } from 'vitest/config';
+import { UNIT_DB_URL } from './tests/setup/test-db';
+
+// Force the unit/integration suite onto a SQLite file under the OS temp dir, OFF
+// the OneDrive-synced tree (the SQLITE_BUSY flake source — STATUS #16/#17, see
+// tests/setup/test-db.ts). Set on process.env so the main process + globalSetup
+// connect there, and on `test.env` so every (forked) worker inherits it. The
+// .env default (file:./dev.db) is for `npm run dev` only; production is Postgres
+// (DECISIONS #35).
+process.env.DATABASE_URL = UNIT_DB_URL;
 
 export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
+    // Injected into the test runtime (workers) — belt-and-suspenders with the
+    // process.env assignment above.
+    env: { DATABASE_URL: UNIT_DB_URL },
     environment: 'node',
     include: ['tests/unit/**/*.test.ts', 'src/**/*.test.ts'],
-    // Put the shared dev.db into WAL before the workers spawn (see the setup file):
-    // WAL lets concurrent readers and a single writer proceed without blocking,
-    // which is what prevents the SQLITE_BUSY starvation flake on this single-file
-    // suite. WAL is persistent on the file, so each worker connection inherits it.
+    // Create/sync the temp-dir schema, then put it into WAL before workers spawn
+    // (see the setup file). WAL lets concurrent readers and a single writer proceed
+    // without blocking, which (together with the temp-dir relocation) prevents the
+    // SQLITE_BUSY starvation flake. WAL is persistent on the file, so each worker
+    // connection inherits it.
     globalSetup: ['./tests/setup/wal-global-setup.ts'],
     // The suite is integration-heavy on a SINGLE SQLite file. WAL + a 15s
     // busy_timeout handle reader/writer overlap, but two *writer* transactions
     // racing from different worker processes can still trip an unrecoverable
     // SQLITE_BUSY (a deferred txn upgrading read→write that busy_timeout won't
-    // wait out). Running test files one-at-a-time means at most one connection
+    // wait out) — an inherent SQLite multi-process limit, independent of where the
+    // file lives. Running test files one-at-a-time means at most one connection
     // writes at a time, which removes the cross-process writer race entirely. The
     // pure-function tests dominate and stay fast; the integration writes are what
     // benefit. (Production is Postgres, so this constraint is local/test only.)
