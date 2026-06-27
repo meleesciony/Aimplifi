@@ -44,6 +44,29 @@ test('retirement outlook projects the seeded portfolio with stated assumptions',
   await expect(card).toContainText('in today’s dollars');
 });
 
+test('retirement what-if recomputes the projection live without saving (DECISIONS #123)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/investments');
+
+  // Starts at the saved/default plan: retire at 65.
+  await expect(page.getByTestId('retirement-outcome')).toContainText('age 65');
+
+  // Drag the retirement age earlier → the projection recomputes instantly (client-side),
+  // and the card flags that the saved plan is untouched.
+  await page.getByTestId('whatif-retirement-age').fill('50');
+  await expect(page.getByTestId('retirement-outcome')).toContainText('age 50');
+  await expect(page.getByTestId('retirement-whatif-note')).toContainText('saved plan is unchanged');
+
+  // Reset restores the saved plan.
+  await page.getByTestId('retirement-whatif-reset').click();
+  await expect(page.getByTestId('retirement-outcome')).toContainText('age 65');
+
+  // The exploration never persisted: a fresh load is back at the saved plan (golden-safe).
+  await page.reload();
+  await expect(page.getByTestId('retirement-outcome')).toContainText('age 65');
+  await expect(page.getByTestId('whatif-retirement-age')).toHaveValue('65');
+});
+
 test('investments page passes WCAG 2.1 AA (axe)', async ({ page }) => {
   await signIn(page);
   await page.goto('/investments');

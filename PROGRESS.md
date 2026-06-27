@@ -460,3 +460,55 @@ zero bundle impact). Working tree CLEAN after commit.
 NEXT (owner): push `97eb72e` when ready — it deploys the retirement planner to aimplifi.app (the
 first functional deploy since 551ac97). Roadmap backlog stays owner-gated ("only change if markedly
 better").
+
+## 2026-06-27 (resumed: "continue") — Retirement planner: editable inputs + interactive what-if (#123) — DONE ✅ (verify+e2e green, critic 0 P0/P1)
+Repo-state correction first (verified via `git fetch`, not trusted): `origin/main` is **`ee0f690`** —
+the #122 retirement-decumulation planner is ALREADY committed AND pushed (the prior handoff's "1
+unpushed commit" is resolved; local == origin, tree clean). Re-confirmed baseline independently before
+any change: `bash scripts/verify.sh` → GREEN (1162 unit/96 files). Owner chose the #122 follow-up:
+make the planning ages + inflation user-editable and add interactive what-if controls.
+
+**Built (engine-first, all additive):**
+- **Schema:** 4 NULLABLE `User` Int columns — currentAge/retirementAge/endAge/inflationBps — null =
+  "use the documented default" → demo user stays null → projection byte-identical to #122, **golden-safe,
+  seed untouched**. (schema.prisma only; db-push-is-source-of-truth per the documented convention.)
+- **Validation (one engine):** extended `engine/settings/dials.ts` — DIAL_LIMITS age/inflation bounds,
+  `wholeYearsFromString`, exact inflation parse via `bpsFromPercentString`, and a CROSS-FIELD ordering
+  check resolving empties to the read-path default so **whatever persists is always engine-valid**.
+- **Server:** `updateMoneyDials` persists the four + audit + `revalidatePath('/investments')`;
+  `getRetirementOutlook` reads them (coalesced to defaults) and feeds the planner via a NEW shared pure
+  builder `buildRetirementInputs(base, planning)` + `realReturnBps` — financial figures still ONLY from
+  /coach (no drift, no fabricated fact).
+- **UI:** Settings "Retirement plan (optional)" fieldset; the /investments "Retirement outlook" card is
+  now a CLIENT island (`retirement-outlook-card.tsx`) with an interactive what-if (live recompute of the
+  SAME pure `projectRetirement` via the SAME builder → byte-identical at saved values; exploratory, never
+  persists → can't perturb shared demo/golden data; reset + Settings link). Invariant-maintaining lever
+  logic extracted to a PURE fuzz-tested module `engine/investments/retirement-whatif.ts`.
+
+**Hostile Critic — two independent Checkers (engine math + integration/grounding; money math is
+risk-bearing):** 0 P0. Engine Checker: claims 1–4 (persist-is-valid, client-can't-throw, math, bounds)
+all SURVIVED; **1 P1** — the client lever logic had ZERO test coverage (a regression would 500
+/investments or show wrong numbers while every test stayed green) → FIXED by extracting the pure
+`retirement-whatif` module + a FUZZ test that provably catches each named regression (dropped end-bump,
+off-by-one end floor, raised age cap, missing inflation parse). Integration Checker: 0 P0/0 P1, all six
+claims (golden-safety, no-fabrication, e2e parallel-race safety, authz, a11y, copy guardrails) SURVIVED.
+P2s fixed: explorer bounds aligned to the savable validator bounds (DIAL_LIMITS), exact inflation parse,
+"at or below inflation" wording, e2e asserts all four fields restored. Accepted P2s: inflation shows
+"2.50" (Settings) vs "2.5" (what-if number input) — inherent to `<input type=number>`; the
+"Age-now-blank uses 40" ordering message doesn't surface the effective default.
+
+**Gate (real, measured 2026-06-27):** core `bash scripts/verify.sh` → ✅ GREEN — typecheck/lint/build
+clean, **1200 unit / 97 files** (+38). E2E: the two affected specs (settings-dials + investments) **5/5
+across two runs**, incl. the new what-if recompute test + axe AA. Full suite: in the full-suite run
+`phase2-triage:82` PASSED (52 passed; the 2 full-run failures `phase1-cash-needed:10` and
+`phase2-triage:29` BOTH passed on isolated rerun → load flakes); after I re-ran e2e 4–5× back-to-back,
+`phase2-triage:82` then flaked with the EXACT documented symptom (triage-accept button stuck `disabled`
+mid-write → 60s timeout) — the SQLite-write throughput flake in UNTOUCHED /triage code (STATUS #16,
+DECISIONS #88/#99/#120/#121), aggravated by my repeated runs, NOT a regression. Stopped hammering rather
+than chase a clean :82 (re-running only worsens the write saturation).
+
+**State:** working tree has the #123 change UNCOMMITTED at time of writing → see the commit below.
+origin/main `ee0f690` (#122) is live-pending-deploy.
+
+NEXT (owner): push the #123 commit when ready — deploys editable planner + what-if to aimplifi.app
+(alongside #122's first functional bundle since 551ac97). Roadmap LATER: live brokerage-holdings ingest.

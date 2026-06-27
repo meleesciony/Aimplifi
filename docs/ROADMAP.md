@@ -197,8 +197,26 @@ on `/investments` (outcome headline, balance-at-retirement, a phase-colored bala
 sparkline, planned-vs-sustainable framing, every assumption — ages, inflation — stated
 inline). 17 engine known-answer tests (incl. an independent closed-form ordering pin) +
 3 server-glue + 3 e2e (axe AA); two hostile-critic Checkers, 0 P0/P1 after fixes.
-LATER: make the planning ages/inflation editable (a dial/schema add), interactive
-what-if controls, and live brokerage-holdings ingest.
+
+### Retirement planner — editable inputs + interactive what-if (DECISIONS #123) — DONE ✅
+
+The planner's ages + inflation are now PERSONAL, not hardcoded. Four additive nullable
+`User` columns (currentAge/retirementAge/endAge/inflationBps; null = the documented
+default, so demo/golden is byte-identical and the seed is untouched) edited from a
+"Retirement plan" fieldset on /settings through the existing Money Dials validate/persist
+engine (new bounds + cross-field ordering so whatever persists is always engine-valid).
+`getRetirementOutlook` reads them (coalesced to defaults) and feeds them — with the
+still-/coach-grounded financial figures — through one shared pure `buildRetirementInputs`
+builder. The /investments "Retirement outlook" card became a client island with an
+interactive what-if: number inputs for retire/plan-through age + inflation recompute the
+SAME pure `projectRetirement` live (byte-identical to the server at the saved values,
+exploratory/never-persists so it can't perturb golden data), reset-to-saved, Settings link.
+The invariant-maintaining lever logic is a pure, fuzz-tested module
+(`retirement-whatif.ts`). +38 tests; two hostile-critic Checkers, the one P1 (untested
+client logic) fixed via the pure-module extraction. Verify GREEN (1200 unit/97 files);
+settings + investments e2e 5/5 incl. axe AA.
+LATER: live brokerage-holdings ingest (real positions from SimpleFIN/Plaid investment
+accounts into the Holding model + portfolio engine).
 
 ## Production-readiness roadmap (UX/prod audit, 2026-06-24)
 

@@ -9,6 +9,7 @@ import { cents } from '@/lib/money';
 import { fiNumberCents } from '@/lib/engine/fi/fi';
 import {
   DIAL_LIMITS,
+  ageToInput,
   bpsFromPercentString,
   bpsToPercentInput,
   centsFromWageString,
@@ -18,8 +19,10 @@ import {
   normalizeMoneyDials,
   parseStoredDials,
   validateDials,
+  wholeYearsFromString,
   type RawDials,
 } from '@/lib/engine/settings/dials';
+import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 
 const ELIGIBLE = [
   { id: 'acct-checking', type: 'CHECKING' },
@@ -27,13 +30,19 @@ const ELIGIBLE = [
   { id: 'acct-joint', type: 'CHECKING' },
 ] as const;
 
-// The seed's demo-user dials — the validator must accept them unchanged.
+// The seed's demo-user dials — the validator must accept them unchanged. The
+// retirement-planning fields are empty (the demo user is un-customized → null →
+// the documented default), matching the seeded state.
 const SEED_DIALS: RawDials = {
   wage: '38',
   swr: '4',
   expectedReturn: '7',
   moneyDials: 'Travel, Dining Out',
   paymentAccountId: 'acct-checking',
+  currentAge: '',
+  retirementAge: '',
+  endAge: '',
+  inflation: '',
 };
 
 describe('bpsFromPercentString', () => {
@@ -117,6 +126,11 @@ describe('validateDials — happy paths', () => {
       expectedReturnBps: 700,
       moneyDials: ['Travel', 'Dining Out'],
       paymentAccountId: 'acct-checking',
+      // Empty planning fields normalize to null ("unset → use the default").
+      currentAge: null,
+      retirementAge: null,
+      endAge: null,
+      inflationBps: null,
     });
   });
 
@@ -229,14 +243,141 @@ describe('validateDials — rejections', () => {
 
   it('accumulates every field error at once', () => {
     const r = validateDials(
-      { wage: 'x', swr: '0', expectedReturn: '99', moneyDials: 'x'.repeat(50), paymentAccountId: '' },
+      {
+        wage: 'x',
+        swr: '0',
+        expectedReturn: '99',
+        moneyDials: 'x'.repeat(50),
+        paymentAccountId: '',
+        currentAge: '5', // below the 18 minimum
+        retirementAge: 'nope', // malformed
+        endAge: '200', // above the 120 maximum
+        inflation: '50', // above the 10% maximum
+      },
       ELIGIBLE,
     );
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(Object.keys(r.errors).sort()).toEqual(
-      ['expectedReturn', 'moneyDials', 'paymentAccountId', 'swr', 'wage'].sort(),
+      [
+        'currentAge',
+        'endAge',
+        'expectedReturn',
+        'inflation',
+        'moneyDials',
+        'paymentAccountId',
+        'retirementAge',
+        'swr',
+        'wage',
+      ].sort(),
     );
+  });
+});
+
+describe('validateDials — retirement planning (DECISIONS #123)', () => {
+  it('accepts a fully specified plan and normalizes ages + inflation', () => {
+    const r = validateDials(
+      { ...SEED_DIALS, currentAge: '30', retirementAge: '55', endAge: '90', inflation: '3' },
+      ELIGIBLE,
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.currentAge).toBe(30);
+    expect(r.value.retirementAge).toBe(55);
+    expect(r.value.endAge).toBe(90);
+    expect(r.value.inflationBps).toBe(300);
+  });
+
+  it('treats each empty planning field as null (use the default)', () => {
+    const r = validateDials(SEED_DIALS, ELIGIBLE);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.currentAge).toBeNull();
+    expect(r.value.retirementAge).toBeNull();
+    expect(r.value.endAge).toBeNull();
+    expect(r.value.inflationBps).toBeNull();
+  });
+
+  it('accepts inflation 0% (no real-growth haircut) and 10% at the boundary', () => {
+    expect(validateDials({ ...SEED_DIALS, inflation: '0' }, ELIGIBLE).ok).toBe(true);
+    const r = validateDials({ ...SEED_DIALS, inflation: '10' }, ELIGIBLE);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.inflationBps).toBe(1000);
+  });
+
+  const ageBad: [keyof RawDials, string][] = [
+    ['currentAge', '17'], // below min 18
+    ['currentAge', '101'], // above max 100
+    ['retirementAge', '111'], // above max 110
+    ['endAge', '121'], // above max 120
+    ['inflation', '10.01'], // above max 10%
+    ['currentAge', '40.5'], // non-whole
+    ['retirementAge', 'abc'], // malformed
+  ];
+  it.each(ageBad)('rejects %s = %s', (field, value) => {
+    const r = validateDials({ ...SEED_DIALS, [field]: value }, ELIGIBLE);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors[field]).toBeTruthy();
+  });
+
+  it('rejects a retirement age before the current age (ordering)', () => {
+    const r = validateDials(
+      { ...SEED_DIALS, currentAge: '60', retirementAge: '50', endAge: '90' },
+      ELIGIBLE,
+    );
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors.retirementAge).toBeTruthy();
+  });
+
+  it('rejects an end age at/before the retirement age (needs ≥1 retirement year)', () => {
+    const r = validateDials(
+      { ...SEED_DIALS, currentAge: '40', retirementAge: '65', endAge: '65' },
+      ELIGIBLE,
+    );
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors.endAge).toBeTruthy();
+  });
+
+  it('orders a partially-filled plan against the defaults', () => {
+    // currentAge 70 with retirementAge empty → effective retire = default 65 < 70 → rejected.
+    const r = validateDials({ ...SEED_DIALS, currentAge: '70' }, ELIGIBLE);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors.retirementAge).toBeTruthy();
+  });
+
+  it('whatever persists stays engine-valid: every accepted plan resolves to a valid ordering', () => {
+    const r = validateDials({ ...SEED_DIALS, currentAge: '45' }, ELIGIBLE); // 45 ≤ 65 < 95
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const c = r.value.currentAge ?? RETIREMENT_ASSUMPTIONS.currentAge;
+    const ret = r.value.retirementAge ?? RETIREMENT_ASSUMPTIONS.retirementAge;
+    const e = r.value.endAge ?? RETIREMENT_ASSUMPTIONS.endAge;
+    expect(c).toBeLessThanOrEqual(ret);
+    expect(ret).toBeLessThan(e);
+  });
+
+  it('wholeYearsFromString parses 1–3 digits, rejects sign/decimal/empty/4-digit', () => {
+    expect(wholeYearsFromString('65')).toBe(65);
+    expect(wholeYearsFromString(' 40 ')).toBe(40);
+    expect(wholeYearsFromString('0')).toBe(0);
+    expect(wholeYearsFromString('')).toBeNull();
+    expect(wholeYearsFromString('-5')).toBeNull();
+    expect(wholeYearsFromString('4.5')).toBeNull();
+    expect(wholeYearsFromString('abc')).toBeNull();
+    expect(wholeYearsFromString('1000')).toBeNull();
+  });
+
+  it('ageToInput round-trips a nullable age', () => {
+    expect(ageToInput(null)).toBe('');
+    expect(ageToInput(65)).toBe('65');
+    for (const y of [18, 40, 65, 95, 120]) {
+      expect(wholeYearsFromString(ageToInput(y))).toBe(y);
+    }
   });
 });
 

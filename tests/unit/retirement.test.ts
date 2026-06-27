@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   type RetirementInputs,
+  buildRetirementInputs,
   projectRetirement,
+  realReturnBps,
 } from '@/lib/engine/investments/retirement';
 import { cents } from '@/lib/money';
 
@@ -269,5 +271,66 @@ describe('projectRetirement — input validation (fail loud)', () => {
     expect(() => projectRetirement(base({ annualRetirementSpendingCents: cents(-1) }))).toThrow(
       /spending cannot be negative/,
     );
+  });
+});
+
+describe('realReturnBps — today’s-dollars haircut (DECISIONS #123)', () => {
+  it('subtracts inflation from the nominal return', () => {
+    expect(realReturnBps(700, 250)).toBe(450);
+    expect(realReturnBps(700, 0)).toBe(700);
+  });
+  it('floors at zero when inflation meets/exceeds the nominal return', () => {
+    expect(realReturnBps(250, 250)).toBe(0);
+    expect(realReturnBps(200, 250)).toBe(0);
+  });
+});
+
+describe('buildRetirementInputs — one builder, no drift (DECISIONS #123)', () => {
+  const BASE = {
+    currentPortfolioCents: 14_200_000,
+    monthlyContributionCents: 120_000,
+    annualRetirementSpendingCents: 6_000_000,
+    nominalReturnBps: 700,
+    swrBps: 400,
+  };
+  const PLAN = { currentAge: 40, retirementAge: 65, endAge: 95, inflationBps: 250 };
+
+  it('passes the planning ages through and derives the real return', () => {
+    const inputs = buildRetirementInputs(BASE, PLAN);
+    expect(inputs.currentAge).toBe(40);
+    expect(inputs.retirementAge).toBe(65);
+    expect(inputs.endAge).toBe(95);
+    expect(inputs.annualReturnBps).toBe(450); // 700 − 250
+    expect(inputs.swrBps).toBe(400);
+  });
+
+  it('floors negative financial figures at zero', () => {
+    const inputs = buildRetirementInputs(
+      { ...BASE, currentPortfolioCents: -1, monthlyContributionCents: -50_000 },
+      PLAN,
+    );
+    expect(inputs.currentPortfolioCents).toBe(0);
+    expect(inputs.monthlyContributionCents).toBe(0);
+  });
+
+  it('feeds projectRetirement an input that is identical to a hand-assembled one', () => {
+    const viaBuilder = projectRetirement(buildRetirementInputs(BASE, PLAN));
+    const direct = projectRetirement({
+      currentPortfolioCents: cents(14_200_000),
+      currentAge: 40,
+      retirementAge: 65,
+      endAge: 95,
+      monthlyContributionCents: cents(120_000),
+      annualRetirementSpendingCents: cents(6_000_000),
+      annualReturnBps: 450,
+      swrBps: 400,
+    });
+    expect(viaBuilder).toEqual(direct);
+  });
+
+  it('a later retirement age extends the runway (more accumulation, fewer draw years)', () => {
+    const early = projectRetirement(buildRetirementInputs(BASE, { ...PLAN, retirementAge: 55 }));
+    const late = projectRetirement(buildRetirementInputs(BASE, { ...PLAN, retirementAge: 70 }));
+    expect(late.balanceAtRetirementCents).toBeGreaterThan(early.balanceAtRetirementCents);
   });
 });

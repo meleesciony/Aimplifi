@@ -31,6 +31,10 @@ export default async function SettingsPage() {
           expectedReturnBps: true,
           moneyDials: true,
           paymentAccountId: true,
+          currentAge: true,
+          retirementAge: true,
+          endAge: true,
+          inflationBps: true,
         },
       }),
       prisma.account.findMany({
@@ -74,6 +78,10 @@ export default async function SettingsPage() {
           expectedReturnBps: user.expectedReturnBps,
           moneyDials: parseStoredDials(user.moneyDials),
           paymentAccountId: user.paymentAccountId,
+          currentAge: user.currentAge,
+          retirementAge: user.retirementAge,
+          endAge: user.endAge,
+          inflationBps: user.inflationBps,
         }}
         accounts={eligibleAccounts}
       />

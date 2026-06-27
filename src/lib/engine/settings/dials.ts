@@ -33,12 +33,19 @@
  * docs/DECISIONS.md #28.
  */
 import { centsFromDollarString } from '@/lib/money';
+import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 
 export const DIAL_LIMITS = {
   swrBps: { min: 100, max: 1000 }, // 1.00% – 10.00%
   expectedReturnBps: { min: 0, max: 1500 }, // 0.00% – 15.00%
   wageCents: { min: 1, max: 1_000_000 }, // $0.01 – $10,000.00 / hr
   dials: { maxCount: 12, maxLen: 40 },
+  // Retirement-plan ages (DECISIONS #123). Generous windows kept engine-safe by the
+  // cross-field ordering check below (currentAge ≤ retirementAge < endAge ≤ 120).
+  currentAge: { min: 18, max: 100 },
+  retirementAge: { min: 18, max: 110 },
+  endAge: { min: 19, max: 120 },
+  inflationBps: { min: 0, max: 1000 }, // 0.00% – 10.00%
 } as const;
 
 /** Account types from which a card payment may legitimately be drawn. */
@@ -55,6 +62,12 @@ export interface RawDials {
   moneyDials: string;
   /** Account id the user picked to fund card payments. */
   paymentAccountId: string;
+  /** Whole years. Empty string = use the default planning assumption. */
+  currentAge: string;
+  retirementAge: string;
+  endAge: string;
+  /** Percent, e.g. "2.5". Empty string = use the default inflation assumption. */
+  inflation: string;
 }
 
 export interface NormalizedDials {
@@ -63,6 +76,11 @@ export interface NormalizedDials {
   expectedReturnBps: number;
   moneyDials: string[];
   paymentAccountId: string;
+  /** Retirement-planning assumptions; null = "unset, use the default" (DECISIONS #123). */
+  currentAge: number | null;
+  retirementAge: number | null;
+  endAge: number | null;
+  inflationBps: number | null;
 }
 
 export type DialField = keyof RawDials;
@@ -97,6 +115,17 @@ export function bpsFromPercentString(s: string): number | null {
   const [, whole, frac = ''] = m;
   const fracPadded = (frac + '00').slice(0, 2);
   return parseInt(whole, 10) * 100 + parseInt(fracPadded, 10);
+}
+
+/**
+ * Parse a whole-number-of-years string ("40", " 65 ") to an integer. Returns null
+ * on anything malformed — 1–3 digits, no sign, no decimals. Bounds are NOT judged
+ * here; the caller checks DIAL_LIMITS. Used for the retirement planning ages.
+ */
+export function wholeYearsFromString(s: string): number | null {
+  const cleaned = s.trim();
+  if (!/^\d{1,3}$/.test(cleaned)) return null;
+  return parseInt(cleaned, 10);
 }
 
 /**
@@ -202,10 +231,69 @@ export function validateDials(
     paymentAccountId = pickedId;
   }
 
+  // ── retirement-planning ages (each optional; empty = use the documented default) ──
+  const parseAge = (
+    rawVal: string,
+    limits: { min: number; max: number },
+    boundsMsg: string,
+  ): { value: number | null; error?: string } => {
+    if (rawVal.trim() === '') return { value: null };
+    const n = wholeYearsFromString(rawVal);
+    if (n === null) return { value: null, error: 'Enter a whole number of years (e.g. 65).' };
+    if (n < limits.min || n > limits.max) return { value: null, error: boundsMsg };
+    return { value: n };
+  };
+  const ca = parseAge(raw.currentAge, DIAL_LIMITS.currentAge, 'Current age must be between 18 and 100.');
+  const ra = parseAge(raw.retirementAge, DIAL_LIMITS.retirementAge, 'Retirement age must be between 18 and 110.');
+  const ea = parseAge(raw.endAge, DIAL_LIMITS.endAge, 'Plan-through age must be between 19 and 120.');
+  if (ca.error) errors.currentAge = ca.error;
+  if (ra.error) errors.retirementAge = ra.error;
+  if (ea.error) errors.endAge = ea.error;
+
+  // ── inflation (optional; empty = use the default) ──
+  let inflationBps: number | null = null;
+  const inflRaw = raw.inflation.trim();
+  if (inflRaw !== '') {
+    const infl = bpsFromPercentString(inflRaw);
+    if (infl === null) {
+      errors.inflation = 'Enter a percentage like 2.5.';
+    } else if (infl < DIAL_LIMITS.inflationBps.min || infl > DIAL_LIMITS.inflationBps.max) {
+      errors.inflation = 'Inflation must be between 0% and 10%.';
+    } else {
+      inflationBps = infl;
+    }
+  }
+
+  // ── cross-field ordering (only when each age that's set parsed cleanly) ──
+  // Resolve each age to its EFFECTIVE value (entered value, else the default the read
+  // path will use) so a partially-filled plan is checked against what it actually runs
+  // as. Engine invariant: currentAge ≤ retirementAge < endAge ≤ 120 — we require at
+  // least one retirement year (endAge > retirementAge), which also forces currentAge < endAge.
+  if (!errors.currentAge && !errors.retirementAge && !errors.endAge) {
+    const effCurrent = ca.value ?? RETIREMENT_ASSUMPTIONS.currentAge;
+    const effRetire = ra.value ?? RETIREMENT_ASSUMPTIONS.retirementAge;
+    const effEnd = ea.value ?? RETIREMENT_ASSUMPTIONS.endAge;
+    if (effRetire < effCurrent) {
+      errors.retirementAge = 'Retirement age can’t be before your current age.';
+    } else if (effEnd <= effRetire) {
+      errors.endAge = 'Plan-through age must be after your retirement age.';
+    }
+  }
+
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return {
     ok: true,
-    value: { hourlyWageCents, swrBps, expectedReturnBps, moneyDials, paymentAccountId },
+    value: {
+      hourlyWageCents,
+      swrBps,
+      expectedReturnBps,
+      moneyDials,
+      paymentAccountId,
+      currentAge: ca.value,
+      retirementAge: ra.value,
+      endAge: ea.value,
+      inflationBps,
+    },
   };
 }
 
@@ -273,4 +361,9 @@ export function bpsToPercentInput(bps: number): string {
   const whole = Math.floor(bps / 100);
   const frac = bps % 100;
   return frac === 0 ? String(whole) : `${whole}.${String(frac).padStart(2, '0')}`;
+}
+
+/** A nullable planning age → input value: a number, or "" for the "unset, use default" state. */
+export function ageToInput(years: number | null): string {
+  return years == null ? '' : String(years);
 }

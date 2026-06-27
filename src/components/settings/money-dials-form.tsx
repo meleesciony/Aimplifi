@@ -13,6 +13,7 @@ import { CheckCircle2 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  ageToInput,
   bpsToPercentInput,
   centsToDollarInput,
   type DialField,
@@ -41,6 +42,10 @@ export function MoneyDialsForm({
     expectedReturnBps: number;
     moneyDials: string[];
     paymentAccountId: string | null;
+    currentAge: number | null;
+    retirementAge: number | null;
+    endAge: number | null;
+    inflationBps: number | null;
   };
   accounts: { id: string; name: string }[];
 }) {
@@ -191,6 +196,85 @@ export function MoneyDialsForm({
             </span>
             <FieldError id="dials-error-moneyDials" message={err('moneyDials')} />
           </label>
+
+          {/* ── retirement plan (optional; blank = our default assumption) ── */}
+          <fieldset className="space-y-2 rounded-md border border-input p-3">
+            <legend className="px-1 text-sm font-medium">Retirement plan (optional)</legend>
+            <p className="text-xs text-muted-foreground">
+              The ages and inflation the retirement outlook on{' '}
+              <Link href="/investments" className="underline hover:text-foreground">
+                Investments
+              </Link>{' '}
+              projects with. Leave any blank to use our defaults — age 40 today, retiring at
+              65, planning through 95, with 2.5% inflation.
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <label className="block space-y-1">
+                <span className="text-xs font-medium">Age now</span>
+                <input
+                  name="currentAge"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="40"
+                  defaultValue={ageToInput(current.currentAge)}
+                  data-testid="dials-current-age"
+                  aria-invalid={err('currentAge') ? true : undefined}
+                  aria-describedby={describedBy('currentAge', 'dials-hint-retirement')}
+                  className={fieldClass}
+                />
+                <FieldError id="dials-error-currentAge" message={err('currentAge')} />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-medium">Retire at</span>
+                <input
+                  name="retirementAge"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="65"
+                  defaultValue={ageToInput(current.retirementAge)}
+                  data-testid="dials-retirement-age"
+                  aria-invalid={err('retirementAge') ? true : undefined}
+                  aria-describedby={describedBy('retirementAge', 'dials-hint-retirement')}
+                  className={fieldClass}
+                />
+                <FieldError id="dials-error-retirementAge" message={err('retirementAge')} />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-medium">Plan to</span>
+                <input
+                  name="endAge"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="95"
+                  defaultValue={ageToInput(current.endAge)}
+                  data-testid="dials-end-age"
+                  aria-invalid={err('endAge') ? true : undefined}
+                  aria-describedby={describedBy('endAge', 'dials-hint-retirement')}
+                  className={fieldClass}
+                />
+                <FieldError id="dials-error-endAge" message={err('endAge')} />
+              </label>
+            </div>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium">Inflation (%)</span>
+              <input
+                name="inflation"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="2.5"
+                defaultValue={current.inflationBps != null ? bpsToPercentInput(current.inflationBps) : ''}
+                data-testid="dials-inflation"
+                aria-invalid={err('inflation') ? true : undefined}
+                aria-describedby={describedBy('inflation', 'dials-hint-retirement')}
+                className={fieldClass}
+              />
+              <FieldError id="dials-error-inflation" message={err('inflation')} />
+            </label>
+            <span id="dials-hint-retirement" className="text-xs text-muted-foreground">
+              Projections are stated in today&rsquo;s dollars: your expected return less this
+              inflation rate. These are planning assumptions, not predictions.
+            </span>
+          </fieldset>
 
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={pending} data-testid="dials-submit">

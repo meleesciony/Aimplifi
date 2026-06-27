@@ -47,12 +47,26 @@ export async function updateMoneyDials(
     expectedReturn: String(formData.get('expectedReturn') ?? ''),
     moneyDials: String(formData.get('moneyDials') ?? ''),
     paymentAccountId: String(formData.get('paymentAccountId') ?? ''),
+    currentAge: String(formData.get('currentAge') ?? ''),
+    retirementAge: String(formData.get('retirementAge') ?? ''),
+    endAge: String(formData.get('endAge') ?? ''),
+    inflation: String(formData.get('inflation') ?? ''),
   };
 
   const result = validateDials(raw, eligible);
   if (!result.ok) return { ok: false, errors: result.errors };
 
-  const { hourlyWageCents, swrBps, expectedReturnBps, moneyDials, paymentAccountId } = result.value;
+  const {
+    hourlyWageCents,
+    swrBps,
+    expectedReturnBps,
+    moneyDials,
+    paymentAccountId,
+    currentAge,
+    retirementAge,
+    endAge,
+    inflationBps,
+  } = result.value;
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -62,6 +76,11 @@ export async function updateMoneyDials(
       // Empty list stored as null (the "unset" state parseStoredDials reads as []).
       moneyDials: encodeDials(moneyDials),
       paymentAccountId,
+      // Null = "unset, use the default" (DECISIONS #123) — keeps demo/golden unchanged.
+      currentAge,
+      retirementAge,
+      endAge,
+      inflationBps,
     },
   });
 
@@ -71,6 +90,8 @@ export async function updateMoneyDials(
     hasWage: hourlyWageCents !== null,
     dialCount: moneyDials.length,
     paymentAccountId,
+    hasRetirementPlan:
+      currentAge !== null || retirementAge !== null || endAge !== null || inflationBps !== null,
   });
 
   // Re-derive everything that depends on these dials.
@@ -79,6 +100,7 @@ export async function updateMoneyDials(
   revalidatePath('/coach');
   revalidatePath('/cards');
   revalidatePath('/accounts');
+  revalidatePath('/investments'); // the retirement outlook reads the planning dials
 
   return { ok: true };
 }

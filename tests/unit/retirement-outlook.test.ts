@@ -6,7 +6,7 @@
  * engine on the grounded inputs (no drift). getCoachData is mocked so this stays a
  * fast, deterministic unit test of the wiring — the engine + coach are tested elsewhere.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/auth', () => ({ auth: vi.fn(), signOut: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
@@ -15,8 +15,13 @@ vi.mock('@/server/coach', () => ({ getCoachData: vi.fn() }));
 import { auth } from '@/auth';
 import { getCoachData } from '@/server/coach';
 import { getRetirementOutlook } from '@/server/investments';
-import { RETIREMENT_ASSUMPTIONS, projectRetirement } from '@/lib/engine/investments/retirement';
+import {
+  RETIREMENT_ASSUMPTIONS,
+  buildRetirementInputs,
+  projectRetirement,
+} from '@/lib/engine/investments/retirement';
 import { cents } from '@/lib/money';
+import { prisma } from '@/lib/db';
 
 type CoachShape = Awaited<ReturnType<typeof getCoachData>>;
 
@@ -111,5 +116,75 @@ describe('getRetirementOutlook — grounded mapping', () => {
     expect(outlook.hasData).toBe(false);
     expect(outlook.inputs.currentPortfolioCents).toBe(0);
     expect(outlook.inputs.monthlyContributionCents).toBe(0);
+  });
+
+  it('uses the documented defaults when the user has not customized the plan', async () => {
+    // auth is 'ret-user' (no such row) → planning fields resolve to RETIREMENT_ASSUMPTIONS.
+    mockCoach({
+      portfolioCents: cents(10_000_000),
+      annualExpensesCents: cents(4_000_000),
+      monthlySavingsCents: cents(80_000),
+      expectedReturnBps: 700,
+      swrBps: 400,
+    });
+    const outlook = await getRetirementOutlook();
+    expect(outlook.inputs.currentAge).toBe(RETIREMENT_ASSUMPTIONS.currentAge);
+    expect(outlook.inputs.retirementAge).toBe(RETIREMENT_ASSUMPTIONS.retirementAge);
+    expect(outlook.inputs.endAge).toBe(RETIREMENT_ASSUMPTIONS.endAge);
+    expect(outlook.inputs.inflationBps).toBe(RETIREMENT_ASSUMPTIONS.inflationBps);
+  });
+});
+
+describe('getRetirementOutlook — user-edited planning assumptions (DECISIONS #123)', () => {
+  const PLAN_USER = `ret-plan-${Date.now()}-${process.pid}`;
+
+  beforeAll(async () => {
+    await prisma.user.deleteMany({ where: { id: PLAN_USER } });
+    await prisma.user.create({
+      data: {
+        id: PLAN_USER,
+        email: `${PLAN_USER}@test.local`,
+        currentAge: 30,
+        retirementAge: 55,
+        endAge: 90,
+        inflationBps: 300,
+      },
+    });
+  });
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: PLAN_USER } });
+  });
+
+  it('feeds the user’s saved ages + inflation to the engine instead of the defaults', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: PLAN_USER } } as never);
+    mockCoach({
+      portfolioCents: cents(20_000_000),
+      annualExpensesCents: cents(7_200_000),
+      monthlySavingsCents: cents(200_000),
+      expectedReturnBps: 800,
+      swrBps: 400,
+    });
+
+    const outlook = await getRetirementOutlook();
+    expect(outlook.inputs.currentAge).toBe(30);
+    expect(outlook.inputs.retirementAge).toBe(55);
+    expect(outlook.inputs.endAge).toBe(90);
+    expect(outlook.inputs.inflationBps).toBe(300);
+    expect(outlook.inputs.annualReturnBps).toBe(500); // nominal 800 − inflation 300
+
+    // No drift: identical to running the shared builder + engine on those exact inputs.
+    const expected = projectRetirement(
+      buildRetirementInputs(
+        {
+          currentPortfolioCents: 20_000_000,
+          monthlyContributionCents: 200_000,
+          annualRetirementSpendingCents: 7_200_000,
+          nominalReturnBps: 800,
+          swrBps: 400,
+        },
+        { currentAge: 30, retirementAge: 55, endAge: 90, inflationBps: 300 },
+      ),
+    );
+    expect(outlook.projection).toEqual(expected);
   });
 });

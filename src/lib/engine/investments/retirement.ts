@@ -91,6 +91,61 @@ export const RETIREMENT_ASSUMPTIONS = {
   inflationBps: 250, // ~2.5%/yr long-run assumption; used to derive the real return
 } as const;
 
+/**
+ * The grounded financial figures the projection rests on (the user's real data,
+ * surfaced by /coach). Already floored at 0 by the caller — kept as plain numbers
+ * so this builder is pure and reusable on both the server and the client what-if.
+ */
+export interface RetirementBaseInputs {
+  currentPortfolioCents: number;
+  monthlyContributionCents: number;
+  annualRetirementSpendingCents: number;
+  /** The user's NOMINAL expected-return dial, in bps. */
+  nominalReturnBps: number;
+  swrBps: number;
+}
+
+/** The planning ASSUMPTIONS the user can edit (DECISIONS #123) — ages + inflation. */
+export interface RetirementPlanningInputs {
+  currentAge: number;
+  retirementAge: number;
+  endAge: number;
+  inflationBps: number;
+}
+
+/**
+ * The REAL (after-inflation) return fed to the engine so the projection is in
+ * today's dollars (the engine's documented inflation convention). Floored at 0 —
+ * the engine rejects a negative return, and a sub-inflation nominal return is
+ * treated as no real growth. The single definition shared by every caller.
+ */
+export function realReturnBps(nominalReturnBps: number, inflationBps: number): number {
+  return Math.max(0, nominalReturnBps - inflationBps);
+}
+
+/**
+ * Assemble `RetirementInputs` from the grounded financial figures + the planning
+ * assumptions. ONE builder used by both `getRetirementOutlook` (server) and the
+ * client-side what-if, so the explorer at the saved values is byte-identical to the
+ * server projection by construction — it cannot drift. Financial figures are floored
+ * at 0; the real return is derived once via `realReturnBps`.
+ */
+export function buildRetirementInputs(
+  base: RetirementBaseInputs,
+  planning: RetirementPlanningInputs,
+): RetirementInputs {
+  return {
+    currentPortfolioCents: cents(Math.max(0, base.currentPortfolioCents)),
+    currentAge: planning.currentAge,
+    retirementAge: planning.retirementAge,
+    endAge: planning.endAge,
+    monthlyContributionCents: cents(Math.max(0, base.monthlyContributionCents)),
+    annualRetirementSpendingCents: cents(Math.max(0, base.annualRetirementSpendingCents)),
+    annualReturnBps: realReturnBps(base.nominalReturnBps, planning.inflationBps),
+    swrBps: base.swrBps,
+  };
+}
+
 function assertSafe(value: number, label: string): void {
   if (!Number.isSafeInteger(value)) {
     throw new Error(`projectRetirement: ${label} ${value} exceeds safe-integer range`);

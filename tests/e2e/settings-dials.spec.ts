@@ -62,4 +62,48 @@ test('money dials: dormant nudge in demo, pre-populated form, validates, round-t
   await page.getByTestId('dials-money-dials').fill('Travel, Dining Out');
   await page.getByTestId('dials-submit').click();
   await expect(page.getByTestId('dials-saved')).toBeVisible();
+
+  // ── retirement plan (DECISIONS #123) ──
+  // The demo user is un-customized, so all four planning fields are blank (= use the
+  // documented default — the projection on /investments is unchanged).
+  await expect(page.getByTestId('dials-current-age')).toHaveValue('');
+  await expect(page.getByTestId('dials-retirement-age')).toHaveValue('');
+  await expect(page.getByTestId('dials-end-age')).toHaveValue('');
+  await expect(page.getByTestId('dials-inflation')).toHaveValue('');
+
+  // ordering validation: a retirement age before the (default 40) current age → inline
+  // error, nothing saved.
+  await page.getByTestId('dials-retirement-age').fill('30');
+  await page.getByTestId('dials-submit').click();
+  await expect(page.getByTestId('dials-error-retirementAge')).toBeVisible();
+  await expect(page.getByTestId('dials-saved')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId('dials-retirement-age')).toHaveValue(''); // unchanged in the DB
+
+  // round-trip the plan through the DB at the EXPLICIT default values — proves persistence
+  // while keeping the demo projection identical (golden-safe under the parallel suite).
+  await page.getByTestId('dials-current-age').fill('40');
+  await page.getByTestId('dials-retirement-age').fill('65');
+  await page.getByTestId('dials-end-age').fill('95');
+  await page.getByTestId('dials-inflation').fill('2.5');
+  await page.getByTestId('dials-submit').click();
+  await expect(page.getByTestId('dials-saved')).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId('dials-current-age')).toHaveValue('40');
+  await expect(page.getByTestId('dials-retirement-age')).toHaveValue('65');
+  await expect(page.getByTestId('dials-end-age')).toHaveValue('95');
+  await expect(page.getByTestId('dials-inflation')).toHaveValue('2.50'); // 250 bps display
+
+  // ── clear them back to unset (seed state) so reruns + sibling specs stay deterministic ──
+  await page.getByTestId('dials-current-age').fill('');
+  await page.getByTestId('dials-retirement-age').fill('');
+  await page.getByTestId('dials-end-age').fill('');
+  await page.getByTestId('dials-inflation').fill('');
+  await page.getByTestId('dials-submit').click();
+  await expect(page.getByTestId('dials-saved')).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId('dials-current-age')).toHaveValue('');
+  await expect(page.getByTestId('dials-retirement-age')).toHaveValue('');
+  await expect(page.getByTestId('dials-end-age')).toHaveValue('');
+  await expect(page.getByTestId('dials-inflation')).toHaveValue('');
 });

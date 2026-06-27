@@ -28,6 +28,13 @@ model User {
   expectedReturnBps Int     @default(700) // opportunity-cost compounding
   moneyDials        String? // JSON-encoded string[] (SQLite has no Json type)
   paymentAccountId  String? // designated checking account for card payments
+  // Retirement-planning assumptions (DECISIONS #123). Nullable: null = use the
+  // documented RETIREMENT_ASSUMPTIONS default, so an un-customized (e.g. demo)
+  // user projects identically to #122 and golden values never move.
+  currentAge        Int? // age today; null → default 40
+  retirementAge     Int? // planned retirement age; null → default 65
+  endAge            Int? // plan-through age; null → default 95
+  inflationBps      Int? // long-run inflation assumption, bps; null → default 250 (2.50%)
 
   accounts    Account[]
   rules       CategorizationRule[]

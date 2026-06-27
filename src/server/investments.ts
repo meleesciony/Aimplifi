@@ -13,6 +13,7 @@ import { cents } from '@/lib/money';
 import { type Holding, type Portfolio, summarizePortfolio } from '@/lib/engine/investments/portfolio';
 import {
   RETIREMENT_ASSUMPTIONS,
+  buildRetirementInputs,
   projectRetirement,
   type RetirementProjection,
 } from '@/lib/engine/investments/retirement';
@@ -115,44 +116,51 @@ export interface RetirementOutlook {
  */
 export async function getRetirementOutlook(): Promise<RetirementOutlook> {
   const userId = await requireUserId();
-  const coach = await getCoachData(userId);
-  const { currentAge, retirementAge, endAge, inflationBps } = RETIREMENT_ASSUMPTIONS;
+  const [coach, planRow] = await Promise.all([
+    getCoachData(userId),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { currentAge: true, retirementAge: true, endAge: true, inflationBps: true },
+    }),
+  ]);
 
-  const currentPortfolioCents = cents(Math.max(0, coach.fi.portfolioCents));
-  const monthlyContributionCents = cents(Math.max(0, coach.fi.monthlySavingsCents));
-  const annualRetirementSpendingCents = cents(Math.max(0, coach.fi.annualExpensesCents));
-  const nominalReturnBps = coach.fi.expectedReturnBps;
-  // Feed the engine a REAL (after-inflation) return so the projection is in today's dollars
-  // (the engine's documented inflation convention). Floored at 0 — the engine rejects a
-  // negative return, and a sub-inflation nominal return is treated as no real growth.
-  const annualReturnBps = Math.max(0, nominalReturnBps - inflationBps);
-  const swrBps = coach.fi.swrBps;
+  // Planning assumptions the user can edit (DECISIONS #123). null = unset → the
+  // documented default, so an un-customized user projects exactly as in #122. The
+  // pair was validated together on save, so the resolved set is always engine-valid.
+  const planning = {
+    currentAge: planRow?.currentAge ?? RETIREMENT_ASSUMPTIONS.currentAge,
+    retirementAge: planRow?.retirementAge ?? RETIREMENT_ASSUMPTIONS.retirementAge,
+    endAge: planRow?.endAge ?? RETIREMENT_ASSUMPTIONS.endAge,
+    inflationBps: planRow?.inflationBps ?? RETIREMENT_ASSUMPTIONS.inflationBps,
+  };
 
-  const projection = projectRetirement({
-    currentPortfolioCents,
-    currentAge,
-    retirementAge,
-    endAge,
-    monthlyContributionCents,
-    annualRetirementSpendingCents,
-    annualReturnBps,
-    swrBps,
-  });
+  // The grounded financial figures — the SAME ones /coach shows, so the planner can't
+  // drift from /coach. The single buildRetirementInputs builder floors them at 0 and
+  // derives the real (after-inflation) return, so the figures are in today's dollars.
+  const base = {
+    currentPortfolioCents: coach.fi.portfolioCents,
+    monthlyContributionCents: coach.fi.monthlySavingsCents,
+    annualRetirementSpendingCents: coach.fi.annualExpensesCents,
+    nominalReturnBps: coach.fi.expectedReturnBps,
+    swrBps: coach.fi.swrBps,
+  };
+  const engineInputs = buildRetirementInputs(base, planning);
+  const projection = projectRetirement(engineInputs);
 
   return {
-    hasData: currentPortfolioCents > 0 || monthlyContributionCents > 0,
+    hasData: engineInputs.currentPortfolioCents > 0 || engineInputs.monthlyContributionCents > 0,
     projection,
     inputs: {
-      currentAge,
-      retirementAge,
-      endAge,
-      currentPortfolioCents,
-      monthlyContributionCents,
-      annualRetirementSpendingCents,
-      annualReturnBps,
-      nominalReturnBps,
-      inflationBps,
-      swrBps,
+      currentAge: planning.currentAge,
+      retirementAge: planning.retirementAge,
+      endAge: planning.endAge,
+      currentPortfolioCents: engineInputs.currentPortfolioCents,
+      monthlyContributionCents: engineInputs.monthlyContributionCents,
+      annualRetirementSpendingCents: engineInputs.annualRetirementSpendingCents,
+      annualReturnBps: engineInputs.annualReturnBps,
+      nominalReturnBps: base.nominalReturnBps,
+      inflationBps: planning.inflationBps,
+      swrBps: base.swrBps,
     },
   };
 }
