@@ -392,3 +392,9 @@ unpushed (no prod-bundle change; bundle with the next push — owner's call). or
 the stale `C:\dev\Pulse Finance` (~#74) can be deleted once you've confirmed the new copy. (2) Push the 4 local
 commits when ready (redundant prod rebuild only — no functional change), or bundle with the next feature. (3) Roadmap
 backlog stays owner-gated ('only change if markedly better').
+
+**HANDOFF (resume after /clear):** authoritative self-contained context in
+**`docs/SESSION_CONTEXT_2026-06-27-relocation.md`** (read it first, then this file).
+**Resume from `C:\dev\Aimplifi`** — the OneDrive copy + stale `C:\dev\Pulse Finance` are
+abandoned. Working tree CLEAN; origin `551ac97` live; local main ahead by 5 (all
+test-infra/docs, unpushed). Safe to /clear.
