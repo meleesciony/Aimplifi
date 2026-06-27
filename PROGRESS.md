@@ -510,5 +510,13 @@ than chase a clean :82 (re-running only worsens the write saturation).
 **State:** working tree has the #123 change UNCOMMITTED at time of writing → see the commit below.
 origin/main `ee0f690` (#122) is live-pending-deploy.
 
-NEXT (owner): push the #123 commit when ready — deploys editable planner + what-if to aimplifi.app
-(alongside #122's first functional bundle since 551ac97). Roadmap LATER: live brokerage-holdings ingest.
+**DEPLOYED (owner: "push it"):** pushed `main` → `origin/main` now **`12ad163`** (`ee0f690..12ad163`,
+local == origin). This takes #122 (retirement decumulation planner) + #123 (editable inputs + what-if)
+to production together — the first functional deploy since `551ac97`. **Deploy VERIFIED READY** (no Vercel
+MCP/CLI in-session; verified via GitHub's combined commit status for `12ad163` → the `Vercel` check =
+`success` at 2026-06-27 23:42:43Z, deployment `vercel.com/reiforge/aimplifi/DWGuhksb94MZAHeHRBavJ1…`;
+corroborated by aimplifi.app serving 200 + HSTS). #122 + #123 are LIVE in production.
+
+NEXT (owner): nothing pending — both shipped + deployed. Roadmap LATER: live brokerage-holdings ingest.
+(This deploy-record line is a local-only docs commit, intentionally UNPUSHED to avoid a redundant
+identical prod rebuild — push it with the next functional change.)
