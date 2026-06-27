@@ -36,6 +36,13 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // HSTS: production only (dev is plain http, which ignores it — and gating avoids
+  // pinning a local HTTPS proxy). 2-year max-age + includeSubDomains; aimplifi.app,
+  // www, and *.vercel.app all serve valid TLS. No `preload` (that submission is an
+  // irreversible, externally-registered commitment).
+  ...(isDev
+    ? []
+    : [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }]),
 ];
 
 const nextConfig: NextConfig = {

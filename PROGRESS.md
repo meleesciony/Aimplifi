@@ -274,3 +274,51 @@ xAI Grok preferred → Anthropic fallback → deterministic no-op without a key)
 SHA that triggers the real production build (now with the key present), taking #115–#117 + the live LLM
 second pass live together; after READY, /triage "Re-run categorizer" works the ~515-row backlog with the
 LLM. Also fixed DEPLOY.md's optional-env table (added XAI_API_KEY, the preferred provider it had omitted).
+
+## 2026-06-26 (session: "aimplifi") — empty-state verify+critic & Plaid production diligence — HANDOFF
+Full context for resuming after a chat clear: **`docs/SESSION_CONTEXT_2026-06-26.md`** (read it first).
+Two threads this session:
+(1) Verified + hostile-critic'd the two empty-state commits (c594eb1 /accounts, 050ee1d dashboard).
+`VERIFY_E2E=1 verify.sh` → GREEN (92 files/1133 unit, 54/54 e2e, build clean). Critic (4 dims +
+adversarial verify): **0 P0/0 P1, 17 P2**, demo path byte-identical (golden-safe). The 17 P2s and these
+two commits are NOT yet logged in STATUS.md (notable: REC-2 income-raise-as-price-increase, COPY-1, A11Y-2
+no-axe-on-empty-states, E2E-1..4 test hardening, GOLD-1 conditional testids).
+(2) Prepared the **Plaid PRODUCTION security questionnaire** (live account; user runs Plaid+SimpleFIN
+half/half). Finalized all 11 answers (in the handoff doc); regenerated the **Data Retention & Disposal
+Policy to v1.2** (`C:\Users\micha\Downloads\Aimplifi-Data-Retention-Policy.docx`, v1.1 backed up) adding
+DB storage-layer at-rest encryption (backs Q7) + Neon as a subprocessor; created the missing repo source
+`docs/DATA_RETENTION_AND_DISPOSAL.md`. NEXT (user): enable MFA on GitHub/Vercel/Neon → flip Q5 to Yes;
+Q9 link https://aimplifi.app/privacy (verified live); attach the Q11 docx; submit. Deferred (not done):
+HSTS header (prod deploy, not form-required); docs/PRIVACY.md stale rate-limiter line. New docs are
+UNCOMMITTED.
+
+## 2026-06-26 (resumed: "read progress.md and continue") — REC-2 income-raise fix + prod HSTS + privacy-doc accuracy — DONE ✅ (verify green, critic 0 P0/P1)
+Resumed at the prior handoff boundary. The headline pending item (Plaid PRODUCTION security questionnaire) is
+USER-action (submit in Plaid's dashboard + enable MFA on Neon/Vercel/GitHub) — not doable here — so picked up the
+actionable engineering items from SESSION_CONTEXT_2026-06-26 "Pending". Baseline re-confirmed before any change:
+`bash scripts/verify.sh` → GREEN (1133 unit/92 files).
+
+**REC-2 (DECISIONS #118):** a recurring INCOME series whose amount ROSE (a pay raise) was mis-surfaced as a red
+"price increase" cost-warning at THREE sites — summary.ts `priceIncreases` (dashboard card + /recurring hero pill +
+Ask answer), insights.ts `findOpportunities` (coach reviewCreep), and the per-row badge in recurring-view.tsx. Engine
+fix: `!isIncome` on the two engines; extracted a PURE `priceChangeBadge()` for the per-row tone (income rise=emerald,
+expense rise=rose) so the UI logic is unit-locked without a DOM. Seed payroll is FLAT → zero demo/golden movement (a
+latent real-user bug). New tests/unit/recurring-income-raise.test.ts (engine end-to-end + badge tone), proven to fail
+without the fix.
+
+**Prod HSTS + privacy doc (DECISIONS #119):** added production-gated HSTS (`max-age=63072000; includeSubDomains`, no
+preload) to next.config.ts, asserted in the phase4 e2e (runs the prod build); corrected PRIVACY.md's stale
+"in-memory" rate-limiter line to the real durable DB-backed limiter + softened the CSP wording (Plaid origin
+allowlisted). NOT pushed — pushing main = prod deploy + the 2-year HSTS commitment, the owner's call.
+
+Hostile critic wf_1ba761ed (4 dims → adversarial verify): **0 P0/0 P1, 2 P2** — both FIXED (UI third site now
+pure+tested; CSP wording softened). Gate (real): `bash scripts/verify.sh` → ✅ GREEN (1140 unit/93 files, +7;
+typecheck/lint/build clean). E2E: the changed surfaces pass deterministically every run (phase4 security-headers incl.
+HSTS :79; recurring :14/:20). The lone HARD e2e failure is the documented OneDrive/SQLITE_BUSY flake on an untouched
+page — phase2-triage:82 ("a full review session in <15 interactions"), a cumulative ~15-writes-in-60s throughput test
+that even --retries=2 can't clear (shorter triage:29 went flaky→pass); recorded at STATUS #16 / DECISIONS #88,#99, NOT
+a regression. Three local commits (docs housekeeping + #118 + #119), UNPUSHED.
+
+NEXT (user): unchanged Plaid items (MFA → Q5 Yes; attach Q11 docx; submit). Optional: push to deploy HSTS. Durable
+e2e-flake fix stays the deferred #16 item (move the test DB off the OneDrive tree, or develop on a plain local disk
+per CLAUDE.md).

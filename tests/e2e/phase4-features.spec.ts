@@ -87,6 +87,8 @@ test('unauthenticated export is rejected; cron route requires the secret; securi
   const home = await anon.request.get('/sign-in');
   expect(home.headers()['content-security-policy']).toContain("default-src 'self'");
   expect(home.headers()['x-frame-options']).toBe('DENY');
+  // HSTS is emitted by the production build (next start) the e2e runs against.
+  expect(home.headers()['strict-transport-security']).toContain('max-age=63072000');
   await fresh.close();
 });
 

@@ -56,7 +56,10 @@ a separate PII-free compliance sink is the future path.
 
 - All app routes behind session middleware; every server action re-verifies
   the session and scopes queries by `userId` (`src/server/authz.ts`).
-- CSP (no third-party scripts), X-Frame-Options DENY, nosniff, strict referrer.
-- Rate limiting on the export endpoint (in-memory, single-instance); extending
-  it to auth routes is on the roadmap.
+- CSP (no third-party scripts loaded — only the Plaid Link SDK origin is
+  allowlisted), HSTS (production), X-Frame-Options DENY, nosniff, strict referrer.
+- Rate limiting on the export endpoint and on authentication, backed by a durable
+  database-stored counter (the `RateLimit` table) that survives restarts and is
+  consistent across instances — not in-memory. Sign-in pairs a per-IP request cap
+  with a per-account failure throttle, so a correct password is never locked out.
 - Secrets only via environment variables; `.env.example` documents them all.

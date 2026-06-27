@@ -656,3 +656,25 @@ Accepted P2s (independent hostile Checker, 0 P0/P1):
 16. OneDrive (the repo lives under OneDrive\) can hold a transient OS lock on dev.db /
     -wal / -shm that WAL cannot prevent; a future transient SQLITE_BUSY there is NOT a
     WAL regression. Deferred bigger fix: move the test DB out of the synced tree (%TEMP%).
+
+## 2026-06-26 (resumed session) — REC-2 income-raise fix + prod HSTS + privacy-doc accuracy (DECISIONS #118–119)
+
+Picked up the actionable items from the 2026-06-26 handoff (the Plaid questionnaire is user-action). Shipped:
+- **REC-2 (#118):** recurring INCOME raises no longer render as red "price increase" warnings — engine `!isIncome`
+  at summary.ts (`priceIncreases`) + insights.ts (`findOpportunities`), and the per-row badge tone extracted to a
+  pure `priceChangeBadge()` and unit-locked. Seed payroll is flat → golden-safe. New
+  tests/unit/recurring-income-raise.test.ts (proven to fail without the fix).
+- **HSTS + privacy doc (#119):** production-gated `Strict-Transport-Security: max-age=63072000; includeSubDomains`
+  (no preload) in next.config.ts, asserted in the phase4 e2e (prod build); PRIVACY.md rate-limiter line corrected to
+  the durable DB-backed limiter (RateLimit table; export + per-IP/per-account auth throttle, STATUS #48) + CSP
+  wording softened (Plaid origin allowlisted). NOT pushed — deploy + the 2-year HSTS commitment are the owner's call.
+
+Hostile critic wf_1ba761ed (4 dims → adversarial verify): **0 P0 / 0 P1, 2 P2 (both FIXED)**. Gate:
+`bash scripts/verify.sh` → ✅ GREEN (1140 unit / 93 files, +7 over baseline; typecheck/lint/build clean).
+
+17. **E2E throughput flake reaffirmed (NOT a regression).** The changed surfaces pass every run (HSTS phase4:79;
+    recurring:14/:20), but `phase2-triage:82` ("a full review session in <15 interactions") still times out under
+    the OneDrive/SQLITE_BUSY contention of item #16. It is a CUMULATIVE-throughput test (~15 sequential accept→DB
+    writes inside a 60s budget), so unlike a single-action flake it cannot be cleared by `--retries=2` (the shorter
+    triage:29 did go flaky→pass). The page is untouched by this diff. Durable fix = the #16 item (e2e DB off the
+    OneDrive-synced tree) or developing on a plain local disk per CLAUDE.md.
