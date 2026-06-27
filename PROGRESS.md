@@ -355,3 +355,7 @@ an identical-functional prod redeploy, so deferred to the next functional change
 **NEXT (owner):** the COMPLETE e2e flake fix is to relocate the working copy off OneDrive onto a plain local disk
 (CLAUDE.md already recommends this; the canonical C:\dev copy is stale). That removes the whole-tree sync I/O
 contention the DB move can't reach.
+
+**HANDOFF (resume after /clear):** full self-contained context in **`docs/SESSION_CONTEXT_2026-06-27.md`** (read it
+first, then this file). State: working tree CLEAN; HEAD `6df4aca` (#120), local main 2 commits ahead of origin
+(`905da57` + `6df4aca`, both unpushed test-infra/docs — no prod impact); origin `551ac97` live. Safe to /clear.
