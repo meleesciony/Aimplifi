@@ -11,7 +11,7 @@ import { cents, formatCents } from '@/lib/money';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import type { Cadence } from '@/lib/engine/recurring/detect';
 import type { RecurringData } from '@/server/recurring';
-import type { RecurringItem } from '@/lib/engine/recurring/summary';
+import { priceChangeBadge, type RecurringItem } from '@/lib/engine/recurring/summary';
 
 const CADENCE_SUFFIX: Record<Cadence, string> = {
   WEEKLY: '/wk',
@@ -34,10 +34,9 @@ function Row({
   // Prefer the server-resolved name (covers custom categories, #111); fall back to
   // the static map, then a friendly placeholder — never a raw cuid (critic F8).
   const catName = categoryNames[item.categoryId] ?? CATEGORY_BY_ID.get(item.categoryId)?.name ?? 'Uncategorized';
-  const increased =
-    item.previousAmountCents !== null && Math.abs(item.lastAmountCents) > Math.abs(item.previousAmountCents);
-  const decreased =
-    item.previousAmountCents !== null && Math.abs(item.lastAmountCents) < Math.abs(item.previousAmountCents);
+  // Color by whether the change helps the user: a rising bill is bad (rose), but a
+  // rising paycheck is good (emerald). Pure helper so this is unit-locked (REC-2).
+  const change = priceChangeBadge(item);
   return (
     <li
       data-testid="recurring-row"
@@ -47,16 +46,16 @@ function Row({
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="truncate font-medium">{item.merchantCanonical}</span>
-          {(increased || decreased) && item.previousAmountCents !== null && (
+          {change && (
             <span
               data-testid="price-change-badge"
               className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${
-                increased
-                  ? 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                  : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                change.tone === 'favorable'
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  : 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'
               }`}
             >
-              {increased ? '↑' : '↓'} was {formatCents(cents(Math.abs(item.previousAmountCents)))}
+              {change.increased ? '↑' : '↓'} was {formatCents(cents(change.previousMagnitudeCents))}
             </span>
           )}
           {item.possiblyUnused && (

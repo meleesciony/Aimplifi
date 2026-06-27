@@ -47,7 +47,7 @@ export interface RecurringSummary {
   /** Active recurring income, per month. */
   monthlyIncomeCents: number;
   activeSubscriptionCount: number;
-  /** Active series with a detected price increase. */
+  /** Active EXPENSE series with a detected price increase (income raises excluded). */
   priceIncreases: RecurringItem[];
 }
 
@@ -76,8 +76,16 @@ export function summarizeRecurring(
   const income = items.filter((i) => i.active && i.isIncome);
   const bills = items.filter((i) => i.active && !i.isIncome && !i.isSubscription);
   const inactive = items.filter((i) => !i.active);
+  // A "price increase" is a COST signal, so only expenses belong here. A recurring
+  // INCOME series whose amount rose is a pay raise — excluding `isIncome` keeps a
+  // raise out of the red "prices rose" warning (REC-2). The seed has no income
+  // raise, so demo/golden values are unchanged.
   const priceIncreases = items.filter(
-    (i) => i.active && i.previousAmountCents !== null && Math.abs(i.lastAmountCents) > Math.abs(i.previousAmountCents),
+    (i) =>
+      i.active &&
+      !i.isIncome &&
+      i.previousAmountCents !== null &&
+      Math.abs(i.lastAmountCents) > Math.abs(i.previousAmountCents),
   );
 
   const monthlyRecurringSpendCents =
@@ -96,4 +104,27 @@ export function summarizeRecurring(
     activeSubscriptionCount: subscriptions.length,
     priceIncreases,
   };
+}
+
+export type PriceChangeTone = 'favorable' | 'adverse';
+
+/**
+ * Presentation helper (REC-2): how a recurring series' last price change reads from
+ * the USER's perspective. A rising bill is `adverse` (red); a rising paycheck is
+ * `favorable` (green); a falling bill is favorable; a falling paycheck adverse.
+ * Returns `null` when there is no recorded change. Pure, so the per-row badge logic
+ * in recurring-view.tsx is unit-testable without a DOM — the seed has flat payroll,
+ * so no e2e ever renders a rising-income row.
+ */
+export function priceChangeBadge(
+  item: Pick<RecurringSeriesResult, 'isIncome' | 'lastAmountCents' | 'previousAmountCents'>,
+): { increased: boolean; tone: PriceChangeTone; previousMagnitudeCents: number } | null {
+  if (item.previousAmountCents === null) return null;
+  const mag = Math.abs(item.lastAmountCents);
+  const prev = Math.abs(item.previousAmountCents);
+  if (mag === prev) return null;
+  const increased = mag > prev;
+  // Income: a rise helps. Expense: a fall helps.
+  const favorable = item.isIncome ? increased : !increased;
+  return { increased, tone: favorable ? 'favorable' : 'adverse', previousMagnitudeCents: prev };
 }

@@ -116,7 +116,9 @@ export function findOpportunities(
 
   for (const s of series) {
     if (s.possiblyUnused) push('unused-subscription', s.merchantCanonical, s.lastAmountCents, false);
-    if (s.priceChangedAt && s.previousAmountCents !== null) {
+    // A pay raise (rising recurring INCOME) is not a savings opportunity — only an
+    // expense whose price rose is (REC-2).
+    if (!s.isIncome && s.priceChangedAt && s.previousAmountCents !== null) {
       const delta = Math.abs(s.lastAmountCents) - Math.abs(s.previousAmountCents);
       if (delta > 0) push('price-increase', s.merchantCanonical, delta, false);
     }
