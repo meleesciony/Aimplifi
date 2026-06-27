@@ -11,6 +11,12 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { cents } from '@/lib/money';
 import { type Holding, type Portfolio, summarizePortfolio } from '@/lib/engine/investments/portfolio';
+import {
+  RETIREMENT_ASSUMPTIONS,
+  projectRetirement,
+  type RetirementProjection,
+} from '@/lib/engine/investments/retirement';
+import { getCoachData } from '@/server/coach';
 import { auditLog, requireUserId } from '@/server/authz';
 
 export interface InvestmentAccountView {
@@ -77,6 +83,78 @@ export async function getInvestments(): Promise<InvestmentsView> {
   }));
   const overall = summarizePortfolio(accounts.flatMap((a) => a.holdings.map(toEngineHolding)));
   return { accounts: views, overall };
+}
+
+export interface RetirementOutlook {
+  /** Whether there is anything to project (a portfolio balance or ongoing savings). */
+  hasData: boolean;
+  projection: RetirementProjection;
+  /** The exact inputs fed to the engine, so the UI can state every assumption inline. */
+  inputs: {
+    currentAge: number;
+    retirementAge: number;
+    endAge: number;
+    currentPortfolioCents: number;
+    monthlyContributionCents: number;
+    annualRetirementSpendingCents: number;
+    /** The REAL return fed to the engine (nominal − inflation), so figures are today's dollars. */
+    annualReturnBps: number;
+    /** The user's nominal expected-return dial, for honest disclosure in the copy. */
+    nominalReturnBps: number;
+    /** The inflation assumption used to derive the real return. */
+    inflationBps: number;
+    swrBps: number;
+  };
+}
+
+/**
+ * Project the current user's portfolio through retirement (DECISIONS #122). Inputs are
+ * the SAME figures /coach shows — portfolio (investment balances), monthly savings,
+ * annual spending, expected return, SWR — so the planner is grounded, not invented.
+ * Negative monthly savings (spending > income) floors to a $0 contribution.
+ */
+export async function getRetirementOutlook(): Promise<RetirementOutlook> {
+  const userId = await requireUserId();
+  const coach = await getCoachData(userId);
+  const { currentAge, retirementAge, endAge, inflationBps } = RETIREMENT_ASSUMPTIONS;
+
+  const currentPortfolioCents = cents(Math.max(0, coach.fi.portfolioCents));
+  const monthlyContributionCents = cents(Math.max(0, coach.fi.monthlySavingsCents));
+  const annualRetirementSpendingCents = cents(Math.max(0, coach.fi.annualExpensesCents));
+  const nominalReturnBps = coach.fi.expectedReturnBps;
+  // Feed the engine a REAL (after-inflation) return so the projection is in today's dollars
+  // (the engine's documented inflation convention). Floored at 0 — the engine rejects a
+  // negative return, and a sub-inflation nominal return is treated as no real growth.
+  const annualReturnBps = Math.max(0, nominalReturnBps - inflationBps);
+  const swrBps = coach.fi.swrBps;
+
+  const projection = projectRetirement({
+    currentPortfolioCents,
+    currentAge,
+    retirementAge,
+    endAge,
+    monthlyContributionCents,
+    annualRetirementSpendingCents,
+    annualReturnBps,
+    swrBps,
+  });
+
+  return {
+    hasData: currentPortfolioCents > 0 || monthlyContributionCents > 0,
+    projection,
+    inputs: {
+      currentAge,
+      retirementAge,
+      endAge,
+      currentPortfolioCents,
+      monthlyContributionCents,
+      annualRetirementSpendingCents,
+      annualReturnBps,
+      nominalReturnBps,
+      inflationBps,
+      swrBps,
+    },
+  };
 }
 
 /** Add or update (by ticker) a holding on one of the user's INVESTMENT accounts. */

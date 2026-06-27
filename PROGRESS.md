@@ -398,3 +398,65 @@ backlog stays owner-gated ('only change if markedly better').
 **Resume from `C:\dev\Aimplifi`** — the OneDrive copy + stale `C:\dev\Pulse Finance` are
 abandoned. Working tree CLEAN; origin `551ac97` live; local main ahead by 5 (all
 test-infra/docs, unpushed). Safe to /clear.
+
+## 2026-06-27 (resumed: "continue") — Retirement planner: decumulation engine (#122) — DONE ✅ (verify+e2e green, critic 0 P0/P1)
+Owner chose the roadmap "retirement planner" increment (the declared investments gap, a clear
+Simplifi win). Engine-first per rule #5. Baseline re-confirmed before any change (measured):
+`bash scripts/verify.sh` → GREEN (1142 unit/94 files).
+
+**Design boundary (no duplication):** the FI engine (#3) already owns ACCUMULATION-to-FI
+(monthsToFI/coastFI/fiNumberCents). The genuine gap = the DECUMULATION / "will my money last"
+lens. New pure engine `src/lib/engine/investments/retirement.ts` → `projectRetirement`: a
+deterministic month-by-month two-phase sim (accumulate → draw down) that REUSES
+`geometricMonthlyRate` (#3 — one compounding convention, not a second), rounds once/month
+half-away-from-zero, floors at zero, and reports balanceAtRetirement, endBalance, outcome
+(sustained|depleted), depletionAge, a sustainable-withdrawal (SWR) reference, and a yearly
+balance path. Ages are STATED assumptions (40→65→95); inflation handled by documenting "pass a
+REAL return" (no invented knob). 15 known-answer tests (0%-return cases hand-verified exact;
+compounding via property + closed-form cross-check; validation throws).
+
+**Grounding (no-fabrication soul):** `getRetirementOutlook` (server) delegates to `getCoachData`
+so portfolio/savings/spending/return/SWR are byte-identical to /coach — can't drift. Negative
+savings floors to $0 contribution; hasData gates the UI. 3 glue tests (mapping, floor, gate, no
+drift) with mocked coach. UI: a grounded "Retirement outlook" card on /investments (headline
+outcome, balance-at-retirement, phase-colored balance sparkline role=img+aria-label,
+planned-vs-sustainable framing, assumptions stated inline). e2e: 3/3 (incl. axe AA).
+
+**Gate (real, measured):** core `bash scripts/verify.sh` → ✅ GREEN — typecheck/lint/build clean,
+**1160 unit / 96 files** (+18). Full e2e: investments spec 3/3 (new retirement test + axe green);
+full suite 54/55 with the ONE documented `phase2-triage:82` throughput flake (SQLite write
+contention under my sustained back-to-back load — button stuck disabled mid-write; retry-clears
+to `interactions=7 / 28.0s`, well in budget) + a one-off `pwa-offline:17` flake that passed on
+rerun. Neither is in this change's code path (investments→coach is a one-way edge, no cycle);
+all other triage tests pass. NOT a regression (STATUS #16, DECISIONS #88/#99/#120/#121).
+
+**Hostile Critic — two independent Checkers (Maker/Checker; engine is risk-bearing money math):**
+ENGINE: 0 P0, NO math defect (independently reproduced the 30yr 7%/4% grow-then-withdraw value
+371,408,328¢); 1 P1 TEST-GAP (decumulation-with-growth was unpinned — a reversed-ordering bug
+passed the old 0%-only suite, proven $22k off over 30yr) → FIXED with an INDEPENDENT closed-form
+annuity ordering test + a growth-extends-runway property; 3 P2 fixed. INTEGRATION: 0 P0, 2 P1
+grounding → FIXED — (P1-1) "in today's dollars" had fed a NOMINAL return; now feeds a REAL return
+(nominal − a disclosed 2.5% inflation), honestly today's-dollars; (P1-2) currentAge=40 was
+undisclosed → now stated in copy. A confirmation Checker re-verified both P1 fixes sound + found
+one more P2 (sub-inflation copy implied a negative real rate) → FIXED ("no real growth assumed").
+Accepted P2: getRetirementOutlook reuses heavy getCoachData for 5 scalars — grounding-over-perf
+tradeoff on a non-critical page.
+
+**Gate (real, measured 2026-06-27):** core `bash scripts/verify.sh` → ✅ GREEN — typecheck/lint/build
+clean, **1162 unit / 96 files** (+20: engine 17, glue 3). Investments e2e **3/3** (new retirement
+test + axe AA). Full e2e earlier run 54/55 with the ONE documented `phase2-triage:82` SQLite-write
+throughput flake (button stuck disabled mid-write under my sustained back-to-back load; on isolated
+retry passed `interactions=7 / 28.0s`, well in budget) — not in this change's path (investments→coach
+is a one-way edge, no cycle), all other triage tests pass; STATUS #16 / DECISIONS #88/#99/#120/#121.
+
+**State:** committed as `97eb72e` (engine + server + UI + 3 tests + DECISIONS/ROADMAP/PROGRESS).
+REPO-STATE CORRECTION (verified via `git fetch`, not trusted from the handoff): origin/main is
+**`87f4a21`** — i.e. the 5 commits the #120/#121 handoffs called "unpushed" are ALREADY on origin
+(that claim was stale). So local `main` is **1 ahead of origin** — just this `97eb72e`, the FIRST
+functional change since the relocation and the only genuinely unpushed commit. Production at
+aimplifi.app still serves the pre-#122 functional bundle (the 5 prior commits are test-infra/docs,
+zero bundle impact). Working tree CLEAN after commit.
+
+NEXT (owner): push `97eb72e` when ready — it deploys the retirement planner to aimplifi.app (the
+first functional deploy since 551ac97). Roadmap backlog stays owner-gated ("only change if markedly
+better").

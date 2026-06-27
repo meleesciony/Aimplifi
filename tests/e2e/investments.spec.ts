@@ -26,6 +26,24 @@ test('investments is reachable from accounts and shows the seeded portfolio', as
   await expect(page.getByTestId('holding-row').filter({ hasText: 'AAPL' })).toBeVisible();
 });
 
+test('retirement outlook projects the seeded portfolio with stated assumptions', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/investments');
+
+  const card = page.getByTestId('retirement-outlook');
+  await expect(card).toBeVisible();
+  // Grounded headline + a projected balance at the assumed retirement age (65).
+  await expect(page.getByTestId('retirement-headline')).toContainText(/age \d+/);
+  await expect(page.getByTestId('retirement-outcome')).toContainText('Projected balance at age 65');
+  await expect(page.getByTestId('retirement-balance-at-retirement')).toContainText(/\$[\d,]+\.\d{2}/);
+  // Every assumption is stated inline (the coaching guardrail — no hidden facts):
+  // the current-age assumption that drives accumulation, the inflation adjustment that
+  // makes "today's dollars" honest, and the today's-dollars framing itself.
+  await expect(card).toContainText(/you.re 40 today/);
+  await expect(card).toContainText('inflation');
+  await expect(card).toContainText('in today’s dollars');
+});
+
 test('investments page passes WCAG 2.1 AA (axe)', async ({ page }) => {
   await signIn(page);
   await page.goto('/investments');

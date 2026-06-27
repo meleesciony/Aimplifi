@@ -182,6 +182,24 @@ and hostile-critic clean (1 P0 + 3 P1 fixed). REMAINING (owner's UI): an `/inves
 view consuming `getInvestments()` and an optional manual-entry form calling `addHolding`,
 plus an e2e. Later: a retirement planner and live brokerage-holdings ingest.
 
+### Retirement planner — decumulation projection (DECISIONS #122) — DONE ✅
+
+The retirement-planner increment is landed. Pure
+`src/lib/engine/investments/retirement.ts::projectRetirement` adds the DECUMULATION
+("will my money last / when do I run out") lens the FI engine never covered — a
+deterministic month-by-month accumulate-then-draw-down sim that reuses
+`geometricMonthlyRate` (one compounding convention), reports balance-at-retirement,
+sustained-vs-depleted + the depletion age, a sustainable-withdrawal (SWR) reference, and
+a yearly balance path. `getRetirementOutlook` grounds it in the SAME figures /coach shows
+(via `getCoachData`, so it can't drift) and feeds a REAL return (nominal − a disclosed
+~2.5% inflation) so figures are honestly in today's dollars. A "Retirement outlook" card
+on `/investments` (outcome headline, balance-at-retirement, a phase-colored balance
+sparkline, planned-vs-sustainable framing, every assumption — ages, inflation — stated
+inline). 17 engine known-answer tests (incl. an independent closed-form ordering pin) +
+3 server-glue + 3 e2e (axe AA); two hostile-critic Checkers, 0 P0/P1 after fixes.
+LATER: make the planning ages/inflation editable (a dial/schema add), interactive
+what-if controls, and live brokerage-holdings ingest.
+
 ## Production-readiness roadmap (UX/prod audit, 2026-06-24)
 
 An 11-agent UX + production-readiness audit (DECISIONS #80). Blockers and the
