@@ -58,6 +58,29 @@ test('answers typed questions grounded in the seed', async ({ page }) => {
   await expect(page.getByTestId('ask-headline')).toContainText(/savings rate was .*%|full month of income/);
 });
 
+test('plans debt-free BY A DATE (inverse planning) and offers to save it as a goal', async ({ page }) => {
+  // DECISIONS #125 — "Plan in Words" debt slice: a stated date is solved for the
+  // required extra payment, grounded in the same debt read-path as /goals.
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'Can I be debt-free by December 2028?');
+
+  const headline = page.getByTestId('ask-headline');
+  await expect(headline).toContainText(/debt-free/i);
+  await expect(headline).toContainText('December 2028');
+  // Grounded: links to the debt plan, and offers the confirm-before-create save action.
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/goals');
+  await expect(page.getByTestId('ask-save-goal')).toBeVisible();
+  // Deterministic route (the demo has no LLM key) — the interpreted banner must be absent.
+  await expect(page.getByText('I interpreted your question')).toHaveCount(0);
+
+  // The new save affordance must also pass a11y (it adds a button to the answer card).
+  // NOTE: we deliberately do NOT click Save here — persisting a goal would mutate the
+  // shared demo user under parallel e2e; the save path is locked by save-debt-free-goal.test.ts.
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
+});
+
 test('an off-topic question still returns a safe, non-empty answer (no crash)', async ({ page }) => {
   // Env-robust: with no LLM key this is the deterministic capabilities answer;
   // with a key the classifier routes it — either way the pipeline must not crash

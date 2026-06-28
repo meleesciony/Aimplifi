@@ -1,6 +1,6 @@
 # AI Differentiation Plan
 
-*Plan doc — proposal only. No app code has changed. Awaiting the owner's pick. Status: decision-ready.*
+*Plan doc. Status: the §5 recommended first build — the debt-free-by-date slice of **Plan in Words** (#1) — is now **BUILT + shipped (DECISIONS #125)**: a pure `solveDebtFreeByDate` bisection over the tested debt engine, an `Ask Aimplifi` `debt_free_by_date` intent (LLM extracts only the date), and a server-re-solved "save as a debt-aware goal" path. Everything else below stands as a proposal. Next slices (owner-gated): the arbitrary savings-goal-by-date, then retire-at-age; and the other Wave-1 concept, Cash Flow Radar (§1.2).*
 
 ---
 
@@ -250,7 +250,7 @@ These were genuinely considered and are being recommended **against** — so the
 
 ---
 
-## 5. Recommended first build
+## 5. Recommended first build — ✅ BUILT (DECISIONS #125)
 
 **Build the debt-free-by-date slice of *Plan in Words* (#1).** It is the highest leverage + lowest risk concept in the entire set: the single build-now verdict with the cleanest monotonicity, the purest constitution fit ("essentially the purest possible expression of LLM-never-originates-a-fact"), zero new storage, and it lands on the unowned inverse-planning job while reusing engines that already ship.
 

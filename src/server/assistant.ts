@@ -18,6 +18,8 @@ import { getCashFlowForecast } from '@/server/forecast';
 import { getCoachData } from '@/server/coach';
 import { loadDebtAccounts } from '@/server/debt';
 import { planDebtPayoff } from '@/lib/engine/debt/payoff';
+import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
+import type { ISODate } from '@/lib/dates';
 import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
@@ -29,6 +31,7 @@ import { classifyIntentViaLLM } from '@/server/assistant-llm';
 import {
   answerAccountBalance,
   answerCashNeeded,
+  answerDebtFreeByDate,
   answerDebtPayoff,
   answerForecast,
   answerIncome,
@@ -167,6 +170,22 @@ async function buildAnswer(
       const debts = await loadDebtAccounts(userId);
       const plan = planDebtPayoff({ debts, strategy: 'avalanche', extraMonthlyCents: 0 });
       return answerDebtPayoff(plan, today, debts.length);
+    }
+    case 'debt_free_by_date': {
+      // Inverse planner: SAME debt read-path + safe-to-spend the dedicated views use, so
+      // it can't drift from /goals or /spending-plan. The solver originates the figure;
+      // the LLM (if it routed here) supplied only the KIND — the date was re-derived
+      // deterministically (llm.intentFromKind → parseTargetDate).
+      const debts = await loadDebtAccounts(userId);
+      const plan = await getSpendingPlan(userId);
+      const result = solveDebtFreeByDate({
+        debts,
+        strategy: 'avalanche',
+        targetDate: intent.targetDate,
+        today: today as ISODate,
+        safeToSpendCents: plan.leftToSpendCents,
+      });
+      return answerDebtFreeByDate(result, intent.label, intent.targetDate, today);
     }
     case 'subscriptions':
       return answerSubscriptions((await getRecurring(userId)).summary);

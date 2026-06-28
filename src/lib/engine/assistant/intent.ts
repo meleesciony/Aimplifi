@@ -12,7 +12,7 @@
  *
  * Pure: string in, typed object out. No I/O, no `new Date()` — `today` is given.
  */
-import { addMonthsClamped, isoDate, type ISODate } from '@/lib/dates';
+import { addMonthsClamped, daysInMonth, isoDate, type ISODate } from '@/lib/dates';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 
 /** A resolved calendar window over month keys (inclusive), with a display label. */
@@ -38,6 +38,7 @@ export type AssistantIntent =
   | { kind: 'safe_to_spend' }
   | { kind: 'cash_needed' }
   | { kind: 'debt_payoff' }
+  | { kind: 'debt_free_by_date'; targetDate: ISODate; label: string }
   | { kind: 'subscriptions' }
   | { kind: 'forecast' }
   | { kind: 'savings_rate' }
@@ -56,6 +57,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'safe_to_spend',
   'cash_needed',
   'debt_payoff',
+  'debt_free_by_date',
   'subscriptions',
   'forecast',
   'savings_rate',
@@ -150,6 +152,101 @@ export function parseTimeframe(qRaw: string, today: ISODate): Timeframe {
   }
 
   return { fromYm: todayYm, toYm: todayYm, label: 'this month' };
+}
+
+// ─── target-date parsing (for the inverse "debt-free by <date>" planner) ──────
+
+/** A resolved goal date with a human label, parsed from "by December 2027" etc. */
+export interface TargetDate {
+  date: ISODate;
+  label: string; // "December 2027" | "the end of 2027"
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const endOfMonthDate = (year: number, month: number): ISODate =>
+  isoDate(`${year}-${pad2(month)}-${pad2(daysInMonth(year, month))}`);
+const endOfYearDate = (year: number): ISODate => isoDate(`${year}-12-31`);
+const ymTitleOf = (date: ISODate): string => `${MONTH_TITLE[Number(date.slice(5, 7)) - 1]} ${date.slice(0, 4)}`;
+
+/**
+ * Extract a goal DATE from free text ("be debt-free by December 2027", "in 3 years",
+ * "by next June", "by 2028"). A month/year resolves to the LAST day of that month, so
+ * "by December" means by the end of December (user-favorable). Returns null when no
+ * date is stated — the caller then keeps the forward debt_payoff intent. Deterministic,
+ * no `Date` object, anchored on `today`, so it works zero-key in the demo (the LLM, if
+ * it routes here, never supplies the date — this re-derives it; see llm.ts).
+ */
+export function parseTargetDate(qRaw: string, today: ISODate): TargetDate | null {
+  const q = qRaw.toLowerCase();
+  const ty = Number(today.slice(0, 4));
+  const tm = Number(today.slice(5, 7));
+
+  // End of the month that `monthOffset` from today lands in (the user-favorable rule:
+  // "in 18 months" / "by next month" mean by the END of that month, matching "by <Month>").
+  const endOfOffsetMonth = (monthOffset: number): TargetDate => {
+    const d = addMonthsClamped(today, Math.max(0, Math.min(1200, monthOffset)));
+    const date = endOfMonthDate(Number(d.slice(0, 4)), Number(d.slice(5, 7)));
+    return { date, label: ymTitleOf(date) };
+  };
+
+  // "in N years" / "in N months" — an offset from today, resolved to that month's end.
+  const inYears = q.match(/\bin\s+(\d{1,2})\s+years?\b/);
+  if (inYears) return endOfOffsetMonth(Number(inYears[1]) * 12);
+  const inMonths = q.match(/\bin\s+(\d{1,3})\s+months?\b/);
+  if (inMonths) return endOfOffsetMonth(Number(inMonths[1]));
+
+  // "by next month" / "by (the end of) this month".
+  if (/\bnext month\b/.test(q)) return endOfOffsetMonth(1);
+  if (/\b(this month|end of (the )?month|month[\s-]?end)\b/.test(q)) return endOfOffsetMonth(0);
+
+  // "by next year".
+  if (/\bnext year\b/.test(q)) return { date: endOfYearDate(ty + 1), label: `the end of ${ty + 1}` };
+
+  // "by the end of <year>" / "by year end" / "end of the year".
+  const endOfYr = q.match(/\bend of (?:the )?(20\d{2})\b/);
+  if (endOfYr) {
+    const yr = Number(endOfYr[1]);
+    return { date: endOfYearDate(yr), label: `the end of ${yr}` };
+  }
+  if (/\b(end of (the )?year|year[\s-]?end)\b/.test(q)) {
+    return { date: endOfYearDate(ty), label: `the end of ${ty}` };
+  }
+
+  // A BARE year with an UNAMBIGUOUS deadline cue ("debt-free by 2028") — checked BEFORE the month
+  // loop so a month mentioned in passing ("started my loan in March, debt-free by 2028") can't
+  // hijack the deadline. The cue must sit immediately before the year, so "by December 2027" (year
+  // not adjacent to the cue) correctly falls through to the month loop below. "in <year>" is
+  // deliberately EXCLUDED: it is just as often a START date ("started my loan in 2020, debt-free by
+  // December 2027"), and including it let the start year hijack the real deadline (PARSE-1 class,
+  // DECISIONS #125). A bare "in 2028" therefore yields no date and keeps the forward debt answer.
+  const byYear = q.match(/\b(?:by|before|until|til|till)\s+(20\d{2})\b/);
+  if (byYear) {
+    const yr = Number(byYear[1]);
+    return { date: endOfYearDate(yr), label: `the end of ${yr}` };
+  }
+
+  // A month name with an ADJACENT 4-digit year, else its next future occurrence. No global
+  // "any year in the string" fallback — a lone month only pairs with a year written next to it.
+  for (let i = 0; i < 12; i++) {
+    const name = MONTH_NAMES[i];
+    const abbr = MONTH_ABBR[i];
+    if (!new RegExp(`\\b(${name}|${abbr})\\b`).test(q)) continue;
+    if (i === 4) {
+      // "May" is also a modal verb — require a cue or an explicit year (same rule as parseTimeframe).
+      const ok =
+        /\b(by|before|until|til|till|in|during|for|of|come)\s+may\b/.test(q) ||
+        /\bnext may\b/.test(q) ||
+        /\bmay\s+20\d{2}\b/.test(q);
+      if (!ok) continue;
+    }
+    const month = i + 1;
+    const adjacentYear = q.match(new RegExp(`(?:${name}|${abbr})\\.?\\s+(20\\d{2})`));
+    // No adjacent year stated → the next future occurrence of that month.
+    const year = adjacentYear ? Number(adjacentYear[1]) : month > tm ? ty : ty + 1;
+    return { date: endOfMonthDate(year, month), label: `${MONTH_TITLE[i]} ${year}` };
+  }
+
+  return null;
 }
 
 // ─── category / group resolution ────────────────────────────────────────────
@@ -293,6 +390,26 @@ export function parseAssistantQuery(
     return { kind: 'forecast' };
   }
 
+  // Debt-free BY a specific date (INVERSE planning, DECISIONS #125). Requires BOTH
+  // debt-payoff vocabulary AND a parseable target date, and is tested BEFORE the
+  // forward debt_payoff so "be debt-free by December 2027" solves for the required
+  // payment while "when will I be debt-free?" (no date) stays the forward answer.
+  {
+    const namesCard = /\bcredit cards?\b/.test(q);
+    const debtFreeVocab =
+      /\bdebt[\s-]?free\b/.test(q) ||
+      /\bout of debt\b/.test(q) ||
+      (!namesCard &&
+        /\b(pay off|payoff|paying off|pay down|paydown|get out of|clear|done with|finished? with|rid of)\b(?:\s+\w+){0,3}?\s+(debt|debts|loans?)\b/.test(
+          q,
+        )) ||
+      (/\bloan\b/.test(q) && /\b(pay|payoff|pay off|pay down|clear)\b/.test(q));
+    if (debtFreeVocab) {
+      const target = parseTargetDate(q, today);
+      if (target) return { kind: 'debt_free_by_date', targetDate: target.date, label: target.label };
+    }
+  }
+
   // Debt payoff / debt-freedom (loans + overall debt) — BEFORE cash_needed so
   // "pay off my loan" / "when am I debt-free" isn't read as credit-card cash-needed.
   // Requires debt/loan vocabulary. An explicit "credit card" phrasing stays
@@ -434,6 +551,15 @@ export function validateIntent(
       return { kind: o.kind };
     case 'account_balance':
       return typeof o.query === 'string' ? { kind: 'account_balance', query: o.query } : null;
+    case 'debt_free_by_date': {
+      if (typeof o.targetDate !== 'string' || typeof o.label !== 'string') return null;
+      // A real calendar date only (isoDate throws on e.g. 2027-13-40 or junk).
+      try {
+        return { kind: 'debt_free_by_date', targetDate: isoDate(o.targetDate), label: o.label };
+      } catch {
+        return null;
+      }
+    }
     case 'spend_total':
       return isTimeframe(o.timeframe) ? { kind: 'spend_total', timeframe: o.timeframe } : null;
     case 'income':

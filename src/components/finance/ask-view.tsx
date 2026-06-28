@@ -11,7 +11,8 @@ import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { ArrowRight, CornerDownLeft, Sparkles } from 'lucide-react';
 import { askAssistant } from '@/server/assistant';
-import { ASSISTANT_SUGGESTIONS, type AssistantAnswer } from '@/lib/engine/assistant/answer';
+import { saveDebtFreeGoal } from '@/server/goal-actions';
+import { ASSISTANT_SUGGESTIONS, type AssistantAnswer, type AssistantGoalAction } from '@/lib/engine/assistant/answer';
 
 export function AskView({
   suggestions = ASSISTANT_SUGGESTIONS,
@@ -26,7 +27,9 @@ export function AskView({
   const [asked, setAsked] = useState<string | null>(null);
   const [answer, setAnswer] = useState<AssistantAnswer | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<'idle' | 'saved' | 'error'>('idle');
   const [pending, startTransition] = useTransition();
+  const [saving, startSaving] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
   function run(q: string) {
@@ -34,6 +37,7 @@ export function AskView({
     if (!trimmed || pending) return;
     setAsked(trimmed);
     setError(null);
+    setSaveState('idle');
     startTransition(async () => {
       try {
         setAnswer(await askAssistant(trimmed));
@@ -53,6 +57,19 @@ export function AskView({
     setQuestion(s);
     inputRef.current?.focus();
     run(s);
+  }
+
+  function saveGoal(action: AssistantGoalAction) {
+    if (saving) return;
+    setSaveState('idle');
+    startSaving(async () => {
+      try {
+        await saveDebtFreeGoal(action.targetDate);
+        setSaveState('saved');
+      } catch {
+        setSaveState('error');
+      }
+    });
   }
 
   return (
@@ -132,6 +149,33 @@ export function AskView({
               >
                 {answer.source.label} <ArrowRight className="size-3.5" aria-hidden />
               </Link>
+            )}
+
+            {answer.action?.kind === 'save_debt_free_goal' && (
+              // The button stays MOUNTED across states so keyboard focus is preserved on save;
+              // the outer aria-live region (above) announces the change, so no nested role="status".
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+                <button
+                  type="button"
+                  onClick={() => saveGoal(answer.action!)}
+                  disabled={saving || pending || saveState === 'saved'}
+                  data-testid="ask-save-goal"
+                  className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-medium shadow-sm transition hover:border-foreground/30 disabled:opacity-60"
+                >
+                  {saveState === 'saved' ? 'Saved ✓' : saving ? 'Saving…' : 'Save as a goal'}
+                </button>
+                {saveState === 'saved' && (
+                  <Link
+                    href="/goals"
+                    className="text-sm font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+                  >
+                    View goals
+                  </Link>
+                )}
+                {saveState === 'error' && (
+                  <span className="text-xs text-rose-600 dark:text-rose-400">Couldn’t save that — please try again.</span>
+                )}
+              </div>
             )}
 
             {answer.suggestions && answer.suggestions.length > 0 && (

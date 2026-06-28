@@ -737,3 +737,52 @@ post-fix.**
 
 **Process caveat:** future sessions MUST run from `C:\dev\Aimplifi`; if work happens in the OneDrive copy out of
 habit, the two repos diverge. CLAUDE.md's canonical-path note is updated to prevent this.
+
+## Post-Phase-5 refinement: Plan in Words — debt-free-by-date (DECISIONS #125)
+
+The first AI-differentiation build from `docs/AI_DIFFERENTIATION_PLAN.md` §5 (owner-chosen):
+an INVERSE debt planner. State a goal date and the app SOLVES the tested debt engine for
+the minimal extra/mo, with honest feasibility. New pure `engine/solve/debt-free-by-date.ts`
+`solveDebtFreeByDate` bisects the monotone `planDebtPayoff` (the shipped `coastFI` idiom —
+no new debt math); the answer is a share of real `getSpendingPlan` safe-to-spend. New Ask
+intent `debt_free_by_date` (a deterministic `parseTargetDate` owns date extraction zero-key;
+the LLM, if it routes here, supplies only the kind). "Confirm & save as goal" via
+`saveDebtFreeGoal` re-solves server-side (never trusts a client number) and tags
+`Goal.kind='debt_free'` (new nullable column) so /goals renders it with the solver's date,
+not the savings-goal timeline. Engine-first; the LLM never originates a number or a date.
+
+Gate (real output 2026-06-28): `bash scripts/verify.sh` core → **✅ VERIFY GREEN** —
+typecheck/lint clean, **1281 unit / 102 files**, build clean. Full `VERIFY_E2E=1`: **55/57
+passed** (+1 new debt-free-by-date e2e), with the ONE documented `phase2-triage:82`
+throughput flake (triage-accept button stuck `disabled` mid-write → 60s `locator.click`
+timeout) — an untouched page, machine saturated by this session's heavy runs; identical
+symptom to STATUS #16/#17 + DECISIONS #88/#99/#120/#121; confirmed it on isolated rerun, NOT
+a regression. All changed surfaces pass every run: ask.spec **6/6** (incl. the new inverse-
+planner flow + axe AA), phase4-features goals + phase5-a11y goals green (the debt-aware
+goals card did not regress the savings-goal renderer).
+
+Hostile critic (wf_8faca37d, 5 dimension critics + adversarial verification): all dims 7/10,
+**0 P0, 3 confirmed P1 — ALL FIXED + regression-locked**, then a confirmation cycle
+(wf_ab686016) re-verified the fixes:
+- **P1 goal render/drift** — the saved goal rendered via the generic savings card (flat
+  `remaining/extra` ETA contradicting the solver, "moves your FI date back" framing,
+  `targetDate` never shown, on-track→$0→"add a contribution") → debt-aware `Goal.kind` card
+  showing the date + the suggested extra (or "on track … no extra needed"), bypassing
+  `goalFIImpact`; savings goals render unchanged.
+- **P1 parse misroute** — a month mentioned in passing + "by `<year>`" ("…loan in March …
+  debt-free by 2028") parsed to March 2028 → the bare-year deadline is now resolved BEFORE
+  the month loop and the global "any year in the string" fallback dropped (adjacent-year
+  only); "by December 2027" still resolves correctly. Regression-locked.
+- **P1 overspent fake-yes** — safe-to-spend ≤ 0 returns `withinSafeToSpend:null`, and the
+  formatter's `=== false` check skipped the warning → an honest "budget you don't have yet"
+  branch for the overspent cohort (real figure shown, no fake affordable framing).
+
+P2s fixed: `hi` grows past one month's interest (no false "unreachable" at pathological APR),
+de-doubled the over-budget clause, past-date copy ("already behind us"), Save button disabled
+while a question is in flight + kept mounted on save (focus preserved, no nested `role=status`),
+"in N → end of month", "by next/this month" + "done with my debt" routing, and new tests
+(non-divisible share rounding, snowball + tighter monotonicity, high-APR reachable, overspent
+formatter, non-zero server re-solve). Accepted P2s (documented): a bare credit-card question
+stays `cash_needed` even with a date (DECISIONS #98 convention, pinned); the /goals debt-card
+render + Save success/error states are display-layer, covered by inspection (the save
+persistence is integration-tested; can't e2e without mutating the shared demo's goals).

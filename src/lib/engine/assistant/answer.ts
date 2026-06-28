@@ -19,9 +19,10 @@ import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
-import { addMonthsClamped, formatMonth, isoDate } from '@/lib/dates';
+import { addMonthsClamped, compareDates, formatMonth, isoDate } from '@/lib/dates';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
+import type { DebtFreeByDateResult } from '@/lib/engine/solve/debt-free-by-date';
 import type { AssistantIntent, SpendTarget, Timeframe } from './intent';
 
 export interface AssistantFact {
@@ -31,6 +32,14 @@ export interface AssistantFact {
 export interface AssistantSource {
   label: string;
   href: string;
+}
+/** An optional, user-confirmed action an answer can offer (e.g. save a debt-free goal).
+ *  Carries only the target date + label — the server RE-SOLVES every figure from the
+ *  user's own data on save, so no client-supplied number is ever trusted. */
+export interface AssistantGoalAction {
+  kind: 'save_debt_free_goal';
+  targetDate: string; // YYYY-MM-DD
+  label: string;
 }
 export interface AssistantAnswer {
   kind: AssistantIntent['kind'];
@@ -46,6 +55,8 @@ export interface AssistantAnswer {
   /** True when the routing came from the LLM classifier (an inference, not an
    *  exact phrase match) — surfaced in the UI so the guess is never silent. */
   interpreted?: boolean;
+  /** An optional confirm-before-create action the UI may surface (e.g. save a goal). */
+  action?: AssistantGoalAction;
 }
 
 const fmt = (n: number) => formatCents(n as Cents);
@@ -395,6 +406,115 @@ export function answerDebtPayoff(plan: DebtPayoffResult, today: string, debtCoun
   };
 }
 
+// ─── debt-free by a target date (inverse planning, DECISIONS #125) ───────────
+
+const DEBT_PLAN_SOURCE: AssistantSource = { label: 'See debt plan', href: '/goals' };
+
+/** Whole-percent string from a bps share (e.g. 4000 → "40%"). Not clamped: an
+ *  over-100% share is the honest "more than your whole safe-to-spend" signal. */
+function pctFromBps(bps: number): string {
+  return `${Math.round(bps / 100)}%`;
+}
+
+/**
+ * Inverse planner answer: a stated DATE → the minimal extra/mo the SOLVER found, with
+ * honest feasibility. Every figure is precomputed by solveDebtFreeByDate over the same
+ * loadDebtAccounts read-path the forward debt_payoff uses — this formatter only selects
+ * and phrases them (no math), so it cannot originate a number. Copy follows the coaching
+ * guardrails: illustration not advice, assumptions inline, no shame on a stretch target.
+ */
+export function answerDebtFreeByDate(
+  result: DebtFreeByDateResult,
+  label: string,
+  targetDate: string,
+  today: string,
+): AssistantAnswer {
+  if (result.outcome === 'already-debt-free') {
+    return {
+      kind: 'debt_free_by_date',
+      headline: "You have no tracked debts — you're already debt-free.",
+      facts: [],
+      source: DEBT_PLAN_SOURCE,
+    };
+  }
+  if (result.outcome === 'unreachable') {
+    // targetMonths is 0 either because the date is in the past (too LATE) or this month (too soon).
+    const past = compareDates(isoDate(targetDate), isoDate(today)) < 0;
+    return {
+      kind: 'debt_free_by_date',
+      headline: past
+        ? `${label} is already behind us — pick a future date to plan toward.`
+        : `${label} is too soon to be debt-free by — clearing any balance takes at least a month.`,
+      detail: 'Try a later date and I’ll work out the payment it would take.',
+      facts: [{ label: 'Total debt', value: fmt(result.totalBalanceCents) }],
+      source: DEBT_PLAN_SOURCE,
+    };
+  }
+
+  const byMonth = formatMonth(addMonthsClamped(isoDate(today), result.monthsToDebtFree as number).slice(0, 7));
+  const action: AssistantGoalAction = { kind: 'save_debt_free_goal', targetDate, label };
+
+  if (result.outcome === 'on-track') {
+    return {
+      kind: 'debt_free_by_date',
+      headline: `You're on track to be debt-free by ${label} on your current payments — no extra needed.`,
+      detail: `At the least-interest (avalanche) order your minimums clear everything around ${byMonth}. Illustration, not advice — assumes APRs as entered and steady payments.`,
+      facts: [
+        { label: 'Total debt', value: fmt(result.totalBalanceCents) },
+        { label: 'Extra needed', value: `${fmt(0)}/mo` },
+        { label: 'Debt-free by', value: byMonth },
+      ],
+      source: DEBT_PLAN_SOURCE,
+      action,
+    };
+  }
+
+  // reachable — a finite extra hits the date; affordability is reported, never hidden.
+  const required = result.requiredExtraMonthlyCents as number;
+  // share is null IFF safe-to-spend ≤ 0 (the engine guards it), so a null share in the
+  // reachable case means the user is overspent / has no room this month.
+  const sharePct = result.shareOfSafeToSpendBps !== null ? pctFromBps(result.shareOfSafeToSpendBps) : null;
+  const facts: AssistantFact[] = [
+    { label: 'Total debt', value: fmt(result.totalBalanceCents) },
+    { label: 'Extra needed', value: `${fmt(required)}/mo` },
+    { label: 'Debt-free by', value: byMonth },
+    ...(sharePct ? [{ label: 'Share of safe-to-spend', value: sharePct }] : []),
+  ];
+
+  if (sharePct === null) {
+    // Overspent: a real figure, but honestly flagged as budget they don't have yet — NOT a
+    // fake "just add $X/mo" yes for exactly the cohort that most needs the caveat (UX-1).
+    return {
+      kind: 'debt_free_by_date',
+      headline: `To be debt-free by ${label} you'd add about ${fmt(required)}/mo on top of your minimums — but you're over your monthly plan right now, so that's budget you don't have yet.`,
+      detail: 'A later date would ask less each month. Illustration, not advice — assumes the least-interest (avalanche) order and APRs as entered.',
+      facts,
+      source: DEBT_PLAN_SOURCE,
+      action,
+    };
+  }
+
+  if (result.withinSafeToSpend === false) {
+    return {
+      kind: 'debt_free_by_date',
+      headline: `Being debt-free by ${label} would take about ${fmt(required)}/mo extra — about ${sharePct} of your safe-to-spend, beyond a single month's budget.`,
+      detail: 'A later date would ask less of your budget each month. Illustration, not advice — assumes the least-interest (avalanche) order and APRs as entered.',
+      facts,
+      source: DEBT_PLAN_SOURCE,
+      action,
+    };
+  }
+
+  return {
+    kind: 'debt_free_by_date',
+    headline: `To be debt-free by ${label}, add about ${fmt(required)}/mo on top of your minimums — about ${sharePct} of your safe-to-spend.`,
+    detail: `That clears everything around ${byMonth} at the least-interest (avalanche) order. Illustration, not advice — assumes APRs as entered and steady payments.`,
+    facts,
+    source: DEBT_PLAN_SOURCE,
+    action,
+  };
+}
+
 // ─── subscriptions ──────────────────────────────────────────────────────────
 
 export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer {
@@ -490,6 +610,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'Will I run out of money in the next 90 days?',
   'What was my biggest purchase this month?',
   'When will I be debt-free?',
+  'Can I be debt-free by December 2028?',
 ];
 
 export function answerUnknown(): AssistantAnswer {

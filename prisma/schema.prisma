@@ -374,6 +374,10 @@ model Goal {
   savedCents               Int     @default(0)
   targetDate               String? // YYYY-MM-DD
   monthlyContributionCents Int?
+  // null = a savings goal (rendered via goalFIImpact); 'debt_free' = an inverse
+  // debt-free-by-date plan (DECISIONS #125), rendered with the solver's own date
+  // rather than the savings-goal timeline. Nullable + default-null ⇒ demo/golden untouched.
+  kind                     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

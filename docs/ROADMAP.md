@@ -72,6 +72,16 @@
   Dashboard card + page, no 8th nav icon (#71/#74). Pure engine + 93 unit tests
   (parser, formatters, seed grounding, no-key no-network) + 5 e2e; two hostile-
   critic cycles, all P0/P1 fixed and regression-locked.
+- Plan in Words — debt-free-BY-A-DATE inverse planner (`/ask` + `/goals`, DECISIONS
+  #125): state a goal date ("be debt-free by December 2027") and the app SOLVES the
+  tested debt engine for the minimal extra/mo (bisection over `planDebtPayoff`, the
+  `coastFI` idiom — no new math), with an honest outcome (on-track / reachable /
+  over-budget / unreachable) framed as a share of real safe-to-spend. The LLM extracts
+  only the date (deterministic `parseTargetDate`, zero-key); "Confirm & save as goal"
+  re-solves server-side and renders as a debt-aware `Goal.kind` card. Hostile critic +
+  confirmation cycle, 3 P1s fixed and regression-locked. NEXT slices (deferred,
+  owner-gated): the arbitrary savings-goal-by-date, then retire-at-age (accumulation +
+  decumulation); and the other Wave-1 concept, Cash Flow Radar (AI plan §1.2).
 - Postgres deploy path (DECISIONS #35): the app runs on SQLite locally + in all
   tests (zero credentials) and on Postgres in production, chosen by DATABASE_URL
   scheme (`src/lib/db-adapter.ts`). One canonical schema; `scripts/gen-pg-schema.mjs`

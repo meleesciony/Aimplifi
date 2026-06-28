@@ -16,6 +16,7 @@ import type { ISODate } from '@/lib/dates';
 import {
   type AssistantIntent,
   ASSISTANT_INTENT_KINDS,
+  parseTargetDate,
   parseTimeframe,
   resolveSpendTarget,
 } from './intent';
@@ -37,7 +38,8 @@ export function buildIntentPrompt(question: string): string {
     '- income: money earned over a period',
     '- safe_to_spend: how much is safe to spend this month',
     '- cash_needed: how much is owed on credit cards and by when',
-    '- debt_payoff: when the user will be debt-free / how to pay off loans and debts (snowball vs avalanche)',
+    '- debt_payoff: when the user will be debt-free / how to pay off loans and debts at their current payments, with NO specific deadline (snowball vs avalanche)',
+    '- debt_free_by_date: whether the user can be debt-free by a SPECIFIC date they name (e.g. "by December 2027", "in 3 years") and what extra payment it would take',
     '- subscriptions: recurring subscriptions and their cost',
     '- forecast: projected cash balance / running out of money',
     '- savings_rate: percent of income saved',
@@ -87,6 +89,13 @@ export function intentFromKind(kindRaw: string | null, question: string, today: 
     case 'spend_by_category': {
       const target = resolveSpendTarget(question.toLowerCase());
       return target ? { kind, timeframe, target } : { kind: 'spend_total', timeframe };
+    }
+    case 'debt_free_by_date': {
+      // The date is re-derived deterministically from the user's own words — the model
+      // supplied only the KIND. No parseable date → fall back to the forward debt answer
+      // rather than inventing a deadline.
+      const target = parseTargetDate(question, today);
+      return target ? { kind, targetDate: target.date, label: target.label } : { kind: 'debt_payoff' };
     }
     default:
       return null;

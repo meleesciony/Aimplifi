@@ -625,3 +625,54 @@ in Words (debt slice) / Build Cash Flow Radar / Just commit the plan / Adjust th
 interrupted with "save progress, I'm going to clear" before selecting. **No build has started.** On resume:
 re-read `docs/AI_DIFFERENTIATION_PLAN.md` (esp. §5 recommended first build), confirm the owner's pick, then
 go engine-first per the constitution. SAFE to /clear.
+
+## 2026-06-28 (resumed: "continue") — Plan in Words: debt-free-by-date inverse planner (#125) — DONE ✅ (verify green, critic+confirm 0 open P0/P1)
+Owner picked the AI_DIFFERENTIATION_PLAN §5 recommendation (AskUserQuestion → "Plan in Words (debt slice)").
+Baseline re-confirmed before any change (measured): `bash scripts/verify.sh` → GREEN (HEAD 28b153c). Understand
+phase = a 7-agent read-only workflow (wf_57aa9be5) mapping planDebtPayoff, the coastFI bisection idiom, safe-to-spend,
+the assistant intent seam, the goals surface, the utils/EDGE_CASES idiom, and the seed debts (correcting the plan's
+stale "auto loan has no APR" claim — all seed debts DO have APR, so the demo exercises the happy path).
+
+**Built (engine-first, no-fabrication soul):**
+- `src/lib/engine/solve/debt-free-by-date.ts` — pure `solveDebtFreeByDate` BISECTS the monotone `planDebtPayoff`
+  `extraMonthlyCents→monthsToDebtFree` (the shipped `coastFI` idiom; originates NO new debt math), maps the date to
+  the engine's month index via a clamp-correct `wholeMonthsUntil`, returns an honest `outcome`
+  (already-debt-free/on-track/reachable/unreachable) + the required figure as a share of real `getSpendingPlan`
+  safe-to-spend + a `withinSafeToSpend` affordability flag (replacing §5's self-contradictory single `feasible` bool).
+- Ask intent `debt_free_by_date` (intent.ts/llm.ts/answer.ts/server/assistant.ts): a deterministic `parseTargetDate`
+  owns date extraction zero-key (parsed BEFORE the forward `debt_payoff`, only with a date); the LLM, if it routes
+  here, supplies ONLY the kind and the date is re-derived deterministically.
+- "Confirm & save as goal": `saveDebtFreeGoal` RE-SOLVES server-side (never trusts a client number), populates the
+  previously-unused `Goal.targetDate`, and tags a new nullable `Goal.kind='debt_free'` (db push, golden-safe) so
+  /goals renders a debt-aware card (the solver's date + suggested extra), not the savings-goal timeline.
+- Tests: tests/unit/debt-free-by-date.test.ts (engine known-answers incl. with-interest $1,020.00 / $515.05,
+  minimality oracle, monotonicity), assistant-debt-free-by-date.test.ts (parser/routing/validator/llm/formatter/seed
+  grounding), save-debt-free-goal.test.ts (server re-solve security, non-zero + far-date + rejections), + ask.spec e2e.
+
+**Hostile critic (wf_8faca37d, 5 dims + adversarial verify): 0 P0, 3 confirmed P1 — ALL FIXED + regression-locked:**
+(1) saved goal rendered via the generic savings card (flat-division ETA contradicting the solver, "moves FI date
+back" framing, targetDate dropped) → debt-aware `Goal.kind` card. (2) "…loan in March … by 2028" mis-parsed to March
+2028 → bare-year deadline resolved BEFORE the month loop + dropped the global year fallback. (3) overspent users
+(safe-to-spend ≤ 0) got an unflagged fake "add $X/mo" yes → honest "budget you don't have yet" branch. Many P2s also
+fixed (hi grows past one month's interest; de-doubled over-budget clause; past-date copy; Save disabled-while-pending
++ focus-preserving; "in N→end of month", "next/this month", "done with my debt" routing; rounding/snowball/high-APR
+tests). **Confirmation critic (wf_ab686016)** re-verified all three P1 fixes resolved + found ONE new P1 I'd
+introduced — `in <year>` in the bare-year cue let a START year ("started in 2020 … by Dec 2027") hijack the deadline
+→ FIXED (dropped `in` from the cue; bare "in 2028" now keeps the forward answer rather than mis-dating) + regression-
+locked (year-in-passing test). No other new defects.
+
+**Gate (real, measured 2026-06-28):** core `bash scripts/verify.sh` → ✅ GREEN — typecheck/lint/build clean,
+**1282 unit / 102 files** (+53). Full `VERIFY_E2E=1` (pre-final-parser-fix run): **55/57**, ask.spec **6/6** (incl. the
+new inverse-planner flow + axe AA), phase4-features goals + phase5-a11y goals green (debt-aware card did NOT regress
+the savings renderer); the ONLY failure was the documented `phase2-triage:82` throughput flake (triage-accept button
+stuck `disabled` mid-write → 60s `locator.click` timeout) on an UNTOUCHED page under a machine saturated by this
+session's heavy runs — identical symptom to STATUS #16/#17 + DECISIONS #88/#99/#120/#121, confirmed on isolated
+rerun, NOT a regression. The final fix is parser-only (unit-covered) with no e2e-observable demo change.
+
+**State:** committed as the #125 commit. origin/main `12ad163` LIVE; local main ahead by the prior unpushed
+deploy-record docs (`c93e794`) + #124 (`3c0045b`) + the #125 docs commit (`28b153c`) + this #125 feature commit, all
+UNPUSHED (push deploys the inverse planner; owner's call — the live SimpleFIN holdings path from #124 stays UNVERIFIED
+until a real token). Accepted P2s (documented in STATUS): bare credit-card question stays cash_needed even with a date
+(DECISIONS #98); the /goals debt-card render + Save success/error states are display-layer (save persistence is
+integration-tested; can't e2e without mutating the shared demo). SAFE to /clear. NEXT (owner): push when ready; next
+slices — savings-goal-by-date, then retire-at-age; and Cash Flow Radar (AI plan §1.2).

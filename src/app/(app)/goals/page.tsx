@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { prisma } from '@/lib/db';
 import { goalFIImpact } from '@/lib/engine/goals';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import { formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { getCoachData } from '@/server/coach';
 import { loadDebtAccounts } from '@/server/debt';
@@ -29,7 +30,7 @@ export default async function GoalsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Savings goals</h1>
+      <h1 className="text-xl font-semibold">Goals</h1>
       <p className="text-sm text-muted-foreground">
         Every goal shows its effect on your FI date, assuming your savings rate
         and expected return stay as they are. Goals and FI aren&apos;t enemies —
@@ -74,6 +75,34 @@ export default async function GoalsPage() {
 
       <div className="grid gap-3 sm:grid-cols-2" data-testid="goals-list">
         {goals.map((goal) => {
+          // Debt-free-by-date goals (DECISIONS #125) are NOT savings goals — render them with
+          // the solver's own date + suggested extra, never goalFIImpact's savings timeline or
+          // the "moves your FI date back" framing (which is backwards for paying down debt).
+          if (goal.kind === 'debt_free') {
+            const extra = goal.monthlyContributionCents ?? 0;
+            return (
+              <Card key={goal.id} data-testid={`goal-${goal.id}`}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">{goal.name}</CardTitle>
+                    <DeleteGoalButton goalId={goal.id} goalName={goal.name} />
+                  </div>
+                  <CardDescription>
+                    {formatCents(cents(goal.targetCents))} of debt
+                    {goal.targetDate ? ` · target ${formatMonth(goal.targetDate.slice(0, 7))}` : ''}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm" data-testid="goal-debt-free">
+                  <p className="text-muted-foreground">
+                    {extra > 0
+                      ? `Suggested: about ${formatCents(cents(extra))}/mo on top of your minimums (least-interest order). `
+                      : 'On track at your current payments — no extra needed. '}
+                    Re-check in Ask Aimplifi as your balances change.
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          }
           const impact = goalFIImpact({
             portfolioCents: coach.fi.portfolioCents,
             monthlySavingsCents: coach.fi.monthlySavingsCents,
