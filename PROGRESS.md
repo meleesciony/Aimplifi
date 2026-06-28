@@ -586,3 +586,42 @@ the owner's call — pushing deploys the holdings-ingest path; the live SimpleFI
 until a real token confirms it). Handoff: `docs/SESSION_CONTEXT_2026-06-27-holdings-ingest.md` (DONE). **SAFE to
 /clear.** NEXT (owner): push when ready; LATER — a "Synced from your brokerage" provenance tag + live Plaid
 holdings ingest.
+
+## 2026-06-28 (resumed: "continue ... think of ways to differentiate ... infuse more ai ideas") — AI Differentiation Plan (PLAN ONLY, no code) — DELIVERED ✅ / decision PENDING
+User asked to brainstorm AI-native differentiation, not build. Ran a 4-phase background workflow
+(`wf_a1bf031d-990`, 55 agents / ~2.4M tokens): GROUND (engines + the shipped "LLM-never-originates-a-fact"
+pattern + data/providers + 2026 competitive scan) → IDEATE (7 lenses) → REFINE (deduped to 21 concepts,
+scored 5 axes + adversarial-verified each, ranked) → SYNTHESIZE. Output written verbatim to
+**`docs/AI_DIFFERENTIATION_PLAN.md`** (49KB, 270 lines, house plan-doc voice; the workflow result file was
+parsed + the `plan` markdown extracted to the doc, temp `.wf_result.json` deleted).
+
+**Thesis (north star):** the moat is *trustworthy* AI, not *more* AI. Every competitor's NL assistant can
+hallucinate a dollar figure; Aimplifi already has the rare architecture that structurally can't
+(`parseLlmCategory` closed-set; `classifyIntentViaLLM → intentFromKind → validateIntent`, engines produce
+every number). Turn that internal rule into a felt/marketable surface, then layer proactive/predictive
+intelligence on existing engines. Do NOT chase the SEC-advisor (Origin) or MCP-agent (Era) battleground —
+both invert the moat.
+
+**Two `build-now` (only ones that survived adversarial review):** #1 **Plan in Words** (NL goal → pure
+bisection solver over `planDebtPayoff`/`monthsToFI`, generalizes shipped `coastFI`; LLM extracts only the
+target date/type, never a number; honest feasibility) and #2 **Cash Flow Radar** (predict the dip, name the
+colliding card, propose the timed cover-transfer — math prototyped at `cash-needed/engine.ts:266-281`; AI
+does zero math). `build-later`: Glass-Box Assistant, Why-This-Category (surface the existing
+`'deterministic'|'llm'` provenance), AI Trust Center (`accuracy/score.ts` Brier, made public), Document
+Extractor, Smart Nudge. **Recommended first build:** the **debt-free-by-date slice of Plan in Words** —
+new pure `src/lib/engine/solve/debt-free-by-date.ts` (`solveDebtFreeByDate`, bounded integer-cent
+bisection), EDGE_CASES-pinned tests, land on Ask Aimplifi + Goals (no 8th nav icon). Full sketch in §5.
+**NOT worth building** (with reasons, §4): Fairness Ledger (couples don't share logins), Scenario Studio's
+decision-comparison half + tax "which-wins" (advice line), Money Dial Finder (scoring proxy inverts its
+thesis on our data).
+
+**State:** working tree has TWO untracked/edited files only — `docs/AI_DIFFERENTIATION_PLAN.md` (new) and
+this PROGRESS.md edit. NO app/engine/test code touched, so NO `verify.sh` was run (correctly — nothing to
+verify; this is a doc). Committing both locally as a `docs:` commit (unpushed, owner-gated, the house
+pattern). origin/main `12ad163` still live.
+
+**PENDING DECISION (resume here):** I asked the owner to pick the next step (AskUserQuestion) — Build Plan
+in Words (debt slice) / Build Cash Flow Radar / Just commit the plan / Adjust the plan first — and the user
+interrupted with "save progress, I'm going to clear" before selecting. **No build has started.** On resume:
+re-read `docs/AI_DIFFERENTIATION_PLAN.md` (esp. §5 recommended first build), confirm the owner's pick, then
+go engine-first per the constitution. SAFE to /clear.
