@@ -70,6 +70,10 @@ async function reconcileSimplefinHoldings(
       quantity: hld.quantity,
       costBasisCents: hld.costBasisCents,
       priceCents: hld.priceCents,
+      // The authoritative TOTAL market value (DECISIONS #129) — stored so the engine
+      // reports the feed's real position value instead of reconstructing it from a
+      // rounded per-share price (which loses low-price / high-quantity lots).
+      marketValueCents: hld.marketValueCents,
       source: 'simplefin',
     };
     try {

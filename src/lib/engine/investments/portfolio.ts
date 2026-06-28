@@ -24,6 +24,14 @@ export interface Holding {
   costBasisCents: Cents;
   /** Current price per share, integer cents. */
   priceCents: Cents;
+  /**
+   * Authoritative TOTAL market value, integer cents — when the SOURCE reports the
+   * position's total directly (a brokerage feed; DECISIONS #129). Used verbatim. When
+   * omitted (a manual holding), market value is derived as round(quantity × priceCents).
+   * Deriving from a rounded per-share price loses low-price / high-quantity lots, so a
+   * source that knows the real total must pass it here rather than only a per-share price.
+   */
+  marketValueCents?: Cents;
 }
 
 export interface PositionValuation {
@@ -48,14 +56,31 @@ export interface Portfolio {
   totalGainPct: number | null;
 }
 
-/** Market value of a position = round(quantity × price per share); gain vs cost basis. */
+/**
+ * Market value of a position. When the source supplied an authoritative total
+ * (`marketValueCents`, e.g. a brokerage feed), use it verbatim — deriving from a
+ * rounded per-share price would lose low-price / high-quantity lots (DECISIONS #129).
+ * Otherwise (a manual holding) derive round(quantity × price per share). Gain is
+ * always market value − cost basis.
+ */
 export function valuePosition(h: Holding): PositionValuation {
-  const raw = h.quantity * h.priceCents;
-  if (!Number.isFinite(raw) || Math.abs(raw) > Number.MAX_SAFE_INTEGER) {
-    // Match the money.ts discipline: fail loud BEFORE rounding, with a located message.
-    throw new Error(`valuePosition: ${h.symbol} market value (${h.quantity} × ${h.priceCents}¢) exceeds safe range`);
+  let marketValueCents: Cents;
+  if (h.marketValueCents != null) {
+    // Authoritative total from the source. Validate here too — fail loud with a located
+    // message, mirroring the derive path — so the pure module is self-defending for any
+    // caller, not only the SimpleFIN path that already bounds it at the provider boundary.
+    if (!Number.isSafeInteger(h.marketValueCents) || h.marketValueCents < 0) {
+      throw new Error(`valuePosition: ${h.symbol} authoritative market value (${h.marketValueCents}¢) is not a non-negative safe integer`);
+    }
+    marketValueCents = h.marketValueCents;
+  } else {
+    const raw = h.quantity * h.priceCents;
+    if (!Number.isFinite(raw) || Math.abs(raw) > Number.MAX_SAFE_INTEGER) {
+      // Match the money.ts discipline: fail loud BEFORE rounding, with a located message.
+      throw new Error(`valuePosition: ${h.symbol} market value (${h.quantity} × ${h.priceCents}¢) exceeds safe range`);
+    }
+    marketValueCents = roundHalfAwayFromZero(raw);
   }
-  const marketValueCents = roundHalfAwayFromZero(raw);
   const unrealizedGainCents = subCents(marketValueCents, h.costBasisCents);
   return {
     symbol: h.symbol,
@@ -87,6 +112,22 @@ export function summarizePortfolio(holdings: readonly Holding[]): Portfolio {
     totalUnrealizedGainCents,
     totalGainPct: totalCostBasisCents > 0 ? totalUnrealizedGainCents / totalCostBasisCents : null,
   };
+}
+
+/**
+ * True when a position's authoritative total can NOT be reconstructed from its rounded
+ * per-share price — i.e. round(quantity × priceCents) ≠ marketValueCents (a sub-cent /
+ * fractional lot, e.g. 10,000 sh whose $50.00 total implies $0.005/share but displays as
+ * $0.01). The UI uses this to mark the per-share figure as approximate (≈) so a row's
+ * "{qty} @ {price}" never appears to contradict the authoritative total beside it
+ * (DECISIONS #129, critic NWBR-1). For a derived (manual) position the two always agree by
+ * construction, so this is false. Pure + total: an out-of-range product can't reconcile, so
+ * it returns true rather than throwing.
+ */
+export function isPerShareApproximate(p: Pick<PositionValuation, 'quantity' | 'priceCents' | 'marketValueCents'>): boolean {
+  const raw = p.quantity * p.priceCents;
+  if (!Number.isFinite(raw) || Math.abs(raw) > Number.MAX_SAFE_INTEGER) return true;
+  return roundHalfAwayFromZero(raw) !== p.marketValueCents;
 }
 
 /** Geometric link of sub-period returns: Π(1 + r) − 1. */

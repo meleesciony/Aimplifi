@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { PieChart, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cents, formatCents } from '@/lib/money';
+import { isPerShareApproximate } from '@/lib/engine/investments/portfolio';
 import { RetirementOutlookCard } from '@/components/finance/retirement-outlook-card';
 import type { InvestmentsView as InvestmentsData, RetirementOutlook } from '@/server/investments';
 
@@ -108,7 +109,10 @@ export function InvestmentsView({ data, outlook }: { data: InvestmentsData; outl
                               {p.name ? <span className="truncate text-xs text-muted-foreground">{p.name}</span> : null}
                             </div>
                             <div className="text-xs tabular-nums text-muted-foreground">
-                              {p.quantity} @ {money(p.priceCents)}
+                              {/* "≈" when the per-share price can't reconstruct the authoritative
+                                  total (a sub-cent / fractional lot), so the row never looks
+                                  self-contradictory next to its exact total (DECISIONS #129). */}
+                              {p.quantity} @ {isPerShareApproximate(p) ? '≈' : ''}{money(p.priceCents)}
                             </div>
                           </div>
                           <div className="shrink-0 text-right">

@@ -73,6 +73,31 @@ describe('addHolding / removeHolding — ownership- and type-scoped manual entry
     expect(rows[0].quantity).toBe(3);
   });
 
+  it('manual entry stores NO authoritative total — the engine derives from price (DECISIONS #129)', async () => {
+    await addHolding({ accountId: ACCT, symbol: 'MAN', quantity: 4, costBasisCents: 100000, priceCents: 50000 });
+    const row = await prisma.holding.findFirstOrThrow({ where: { accountId: ACCT, symbol: 'MAN' } });
+    expect(row.marketValueCents).toBeNull(); // price-derived, not an authoritative total
+    const view = await getInvestments();
+    expect(view.overall.positions.find((p) => p.symbol === 'MAN')!.marketValueCents).toBe(200000); // round(4 × 50000)
+  });
+
+  it('editing a previously-fed holding by hand CLEARS the stale feed total for THIS edit (DECISIONS #129)', async () => {
+    // Scope: this asserts the IMMEDIATE post-edit state — the stale authoritative total is
+    // dropped so the hand-entered per-share price is shown. It does NOT claim cross-sync
+    // durability: the row keeps source='simplefin', so a later sync may re-ingest it (the
+    // existing #124 reconcile behavior, unchanged by this fix; critic P2-1).
+    // A previously-synced simplefin row carrying an authoritative total of $50.00.
+    await prisma.holding.create({
+      data: { accountId: ACCT, symbol: 'FED', quantity: 10, costBasisCents: 50000, priceCents: 1, marketValueCents: 5000, source: 'simplefin' },
+    });
+    // The user manually re-enters it at a real $60.00/share.
+    expect((await addHolding({ accountId: ACCT, symbol: 'FED', quantity: 10, costBasisCents: 50000, priceCents: 6000 })).ok).toBe(true);
+    const row = await prisma.holding.findFirstOrThrow({ where: { accountId: ACCT, symbol: 'FED' } });
+    expect(row.marketValueCents).toBeNull(); // the stale $50.00 total is cleared
+    const view = await getInvestments();
+    expect(view.overall.positions.find((p) => p.symbol === 'FED')!.marketValueCents).toBe(60000); // round(10 × 6000) = $600.00, not the stale 5000
+  });
+
   it('rejects bad input without writing', async () => {
     expect((await addHolding({ accountId: ACCT, symbol: '', quantity: 1, costBasisCents: 0, priceCents: 100 })).ok).toBe(false);
     expect((await addHolding({ accountId: ACCT, symbol: 'ZZZ', quantity: 0, costBasisCents: 0, priceCents: 100 })).ok).toBe(false);

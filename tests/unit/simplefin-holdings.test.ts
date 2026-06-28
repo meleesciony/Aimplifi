@@ -13,6 +13,24 @@ import { type Holding, summarizePortfolio } from '@/lib/engine/investments/portf
 
 const h = (over: Partial<SimplefinHolding> & { id: string }): SimplefinHolding => over;
 
+/** Map a mapper output row into the engine's Holding shape, carrying the authoritative
+ *  total the engine now consumes — the real provider→server→engine wiring (DECISIONS #129). */
+const toEngine = (m: {
+  symbol: string;
+  name: string | null;
+  quantity: number;
+  costBasisCents: number;
+  priceCents: number;
+  marketValueCents: number;
+}): Holding => ({
+  symbol: m.symbol,
+  name: m.name ?? undefined,
+  quantity: m.quantity,
+  costBasisCents: cents(m.costBasisCents),
+  priceCents: cents(m.priceCents),
+  marketValueCents: cents(m.marketValueCents),
+});
+
 describe('mapSimplefinHoldings — single-position mapping', () => {
   it('maps a clean position: shares, total cost basis, per-share price from market_value ÷ shares', () => {
     const { holdings, skipped } = mapSimplefinHoldings([
@@ -24,8 +42,9 @@ describe('mapSimplefinHoldings — single-position mapping', () => {
       symbol: 'AAPL',
       name: 'Apple Inc',
       quantity: 10,
-      costBasisCents: 150000, // $1,500.00 total invested
-      priceCents: 20000, //      round($2,000.00 ÷ 10) = $20.00/share
+      costBasisCents: 150000, //    $1,500.00 total invested
+      priceCents: 20000, //         round($2,000.00 ÷ 10) = $20.00/share
+      marketValueCents: 200000, //  $2,000.00 authoritative total (kept verbatim)
     });
   });
 
@@ -37,18 +56,19 @@ describe('mapSimplefinHoldings — single-position mapping', () => {
     expect(holdings[0].name).toBeNull();
   });
 
-  it('treats market_value as authoritative; cost_basis is best-effort (missing → 0, gainPct null)', () => {
+  it('keeps market_value as the authoritative total; cost_basis best-effort (missing → 0, gainPct null)', () => {
     const { holdings } = mapSimplefinHoldings([h({ id: 'h1', symbol: 'VOO', shares: '3', market_value: '100.00' })]);
-    // round(10000 ÷ 3) = round(3333.33) = 3333 → engine marketValue round(3 × 3333) = 9999,
-    // a documented sub-cent-per-share reconstruction drift (never touches net worth).
-    expect(holdings[0]).toEqual({ symbol: 'VOO', name: null, quantity: 3, costBasisCents: 0, priceCents: 3333 });
+    // priceCents = round(10000 ÷ 3) = 3333 (display only); the $100.00 total is kept as
+    // marketValueCents, so the engine reports exactly 10000 — NOT the round(3 × 3333) =
+    // 9999 reconstruction the #124 per-share-only model produced (DECISIONS #129).
+    expect(holdings[0]).toEqual({ symbol: 'VOO', name: null, quantity: 3, costBasisCents: 0, priceCents: 3333, marketValueCents: 10000 });
   });
 
   it('tolerates thousands separators and >2 decimals (integer-cent math, no float drift)', () => {
     const { holdings } = mapSimplefinHoldings([
       h({ id: 'h1', symbol: 'SPY', shares: '1,000', cost_basis: '10,000.00', market_value: '25,000.00' }),
     ]);
-    expect(holdings[0]).toEqual({ symbol: 'SPY', name: null, quantity: 1000, costBasisCents: 1000000, priceCents: 2500 });
+    expect(holdings[0]).toEqual({ symbol: 'SPY', name: null, quantity: 1000, costBasisCents: 1000000, priceCents: 2500, marketValueCents: 2500000 });
   });
 
   it('keeps a ticker with an allowed "." (e.g. BRK.B)', () => {
@@ -130,6 +150,7 @@ describe('mapSimplefinHoldings — aggregation + ordering', () => {
       quantity: 15, //               10 + 5
       costBasisCents: 160000, //     100000 + 60000
       priceCents: 15000, //          round((150000 + 75000) ÷ 15) = $150.00/share
+      marketValueCents: 225000, //   150000 + 75000 — authoritative totals summed
     });
   });
 
@@ -149,14 +170,7 @@ describe('mapSimplefinHoldings — end-to-end through the portfolio engine', () 
       h({ id: '1', symbol: 'AAPL', description: 'Apple', shares: '10', cost_basis: '1500.00', market_value: '2000.00' }),
       h({ id: '2', symbol: 'VTI', description: 'Total Market', shares: '20', cost_basis: '4000.00', market_value: '5000.00' }),
     ]);
-    const engineHoldings: Holding[] = holdings.map((m) => ({
-      symbol: m.symbol,
-      name: m.name ?? undefined,
-      quantity: m.quantity,
-      costBasisCents: cents(m.costBasisCents),
-      priceCents: cents(m.priceCents),
-    }));
-    const p = summarizePortfolio(engineHoldings);
+    const p = summarizePortfolio(holdings.map(toEngine));
     // AAPL: MV 200000, basis 150000, gain +50000 | VTI: MV 500000, basis 400000, gain +100000
     expect(p.totalMarketValueCents).toBe(700000);
     expect(p.totalCostBasisCents).toBe(550000);
@@ -184,7 +198,9 @@ describe('mapSimplefinHoldings — edge cases (#124 critic P2)', () => {
       h({ id: '1', symbol: 'PENNY', shares: '1000000', market_value: '0.01' }),
     ]);
     expect(skipped).toBe(0);
-    expect(holdings[0]).toEqual({ symbol: 'PENNY', name: null, quantity: 1000000, costBasisCents: 0, priceCents: 0 });
+    // priceCents rounds to 0, but the $0.01 total is preserved as marketValueCents so the
+    // position does NOT vanish to $0 in the engine (DECISIONS #129; end-to-end below).
+    expect(holdings[0]).toEqual({ symbol: 'PENNY', name: null, quantity: 1000000, costBasisCents: 0, priceCents: 0, marketValueCents: 1 });
   });
 
   it('truncates an over-long description to the name cap', () => {
@@ -212,5 +228,80 @@ describe('mapSimplefinHoldings — edge cases (#124 critic P2)', () => {
     expect(holdings).toHaveLength(1);
     expect(holdings[0].name).toBe('Apple Inc'); // first non-null, regardless of later rows
     expect(holdings[0].quantity).toBe(3);
+  });
+});
+
+// The #129 fix: the engine reports SimpleFIN's authoritative TOTAL, not a value
+// reconstructed from a rounded per-share price. These end-to-end cases would FAIL under
+// the #124 per-share-only model (penny lot → $0, sub-cent lot → 9999), proving the fix.
+describe('mapSimplefinHoldings — authoritative total survives to the engine (DECISIONS #129)', () => {
+  it('a penny lot (rounds to $0/share) keeps its real value instead of vanishing to $0', () => {
+    const { holdings } = mapSimplefinHoldings([h({ id: '1', symbol: 'PENNY', shares: '1000000', market_value: '0.01' })]);
+    expect(holdings[0].marketValueCents).toBe(1);
+    const p = summarizePortfolio(holdings.map(toEngine));
+    // Per-share model: round(1000000 × round(1/1000000)) = round(1000000 × 0) = 0 (WRONG).
+    // Authoritative model: 1¢ exactly. The position no longer disappears.
+    expect(p.totalMarketValueCents).toBe(1);
+    expect(p.positions[0].marketValueCents).toBe(1);
+  });
+
+  it('a sub-dollar high-quantity lot reports the real total, not ~2× from price rounding', () => {
+    // 10,000 shares, $50.00 total → $0.005/share. round(0.5)=1¢/share → per-share model
+    // would report round(10000 × 1) = 10000 = $100.00 (2× the truth). Authoritative = $50.
+    const { holdings } = mapSimplefinHoldings([h({ id: '1', symbol: 'SUB', shares: '10000', market_value: '50.00' })]);
+    expect(holdings[0]).toMatchObject({ priceCents: 1, marketValueCents: 5000 });
+    const p = summarizePortfolio(holdings.map(toEngine));
+    expect(p.totalMarketValueCents).toBe(5000); // $50.00, not $100.00
+  });
+
+  it('the VOO sub-cent case reports exactly $100.00 (the #124 9999 drift is gone)', () => {
+    const { holdings } = mapSimplefinHoldings([h({ id: '1', symbol: 'VOO', shares: '3', cost_basis: '90.00', market_value: '100.00' })]);
+    const p = summarizePortfolio(holdings.map(toEngine));
+    expect(p.totalMarketValueCents).toBe(10000); // exact; per-share model gave 9999
+    expect(p.positions[0].unrealizedGainCents).toBe(1000); // $100.00 − $90.00, gain off the real total
+  });
+
+  it('mixed feed: each position carries its own authoritative total into the portfolio', () => {
+    const { holdings } = mapSimplefinHoldings([
+      h({ id: '1', symbol: 'PENNY', shares: '1000000', market_value: '0.01' }), // → 1¢
+      h({ id: '2', symbol: 'AAPL', description: 'Apple', shares: '10', cost_basis: '1500.00', market_value: '2000.00' }), // → $2,000
+    ]);
+    const p = summarizePortfolio(holdings.map(toEngine));
+    expect(p.totalMarketValueCents).toBe(200001); // $2,000.00 + 1¢, both exact
+    expect(p.positions.find((x) => x.symbol === 'PENNY')!.marketValueCents).toBe(1);
+    expect(p.positions.find((x) => x.symbol === 'AAPL')!.marketValueCents).toBe(200000);
+  });
+});
+
+// The DB Int column ceils a persisted cents value at $21,474,836.47 on Postgres. A total
+// above it would overflow the column and be SILENTLY swallowed by the reconcile's per-row
+// catch (vanishing from /investments in production; SQLite CI can't see it). So an oversize
+// position must be SKIPPED + COUNTED at the mapper, not stored (critic P1-1, DECISIONS #129).
+describe('mapSimplefinHoldings — totals bounded to the DB Int ceiling (critic P1-1)', () => {
+  it('skips + counts a position whose TOTAL exceeds the 32-bit Int ceiling even though its per-share price fits', () => {
+    // 1,000 sh @ $22,000,000 total → $22,000/share (fits), but the $2.2B total does NOT.
+    // Under #124 only the per-share price was persisted, so this synced; now the total is
+    // stored, so it is skipped explicitly instead of overflowing + being swallowed.
+    const r = mapSimplefinHoldings([h({ id: '1', symbol: 'BIGCO', shares: '1000', market_value: '22000000.00' })]);
+    expect(r.holdings).toHaveLength(0);
+    expect(r.skipped).toBe(1);
+  });
+
+  it('keeps a position exactly AT the ceiling and skips one cent OVER (precise boundary)', () => {
+    const atCeiling = mapSimplefinHoldings([h({ id: '1', symbol: 'MAXX', shares: '1', market_value: '21474836.47' })]);
+    expect(atCeiling.holdings).toHaveLength(1);
+    expect(atCeiling.holdings[0].marketValueCents).toBe(2_147_483_647); // exactly the Int32 max
+    const overCeiling = mapSimplefinHoldings([h({ id: '1', symbol: 'OVER', shares: '1', market_value: '21474836.48' })]);
+    expect(overCeiling.holdings).toHaveLength(0);
+    expect(overCeiling.skipped).toBe(1);
+  });
+
+  it('drops only the over-ceiling position and keeps the rest of the feed', () => {
+    const r = mapSimplefinHoldings([
+      h({ id: '1', symbol: 'BIGCO', shares: '1000', market_value: '22000000.00' }), // over → skip
+      h({ id: '2', symbol: 'AAPL', shares: '10', cost_basis: '1500.00', market_value: '2000.00' }), // kept
+    ]);
+    expect(r.skipped).toBe(1);
+    expect(r.holdings.map((x) => x.symbol)).toEqual(['AAPL']);
   });
 });

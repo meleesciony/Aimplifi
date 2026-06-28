@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type DatedFlow,
   type Holding,
+  isPerShareApproximate,
   linkReturns,
   summarizePortfolio,
   timeWeightedReturn,
@@ -54,6 +55,84 @@ describe('valuePosition — market value, unrealized gain, gain %', () => {
     expect(() =>
       valuePosition(h({ symbol: 'BIG', quantity: 1e15, priceCents: cents(100), costBasisCents: cents(0) })),
     ).toThrow(/exceeds safe range/);
+  });
+});
+
+describe('valuePosition — authoritative total when the source supplies one (DECISIONS #129)', () => {
+  it('uses marketValueCents verbatim, NOT round(quantity × priceCents)', () => {
+    // 1,000,000 shares whose rounded per-share price is $0 (a penny lot), but the feed's
+    // authoritative total is 1¢. Per-share derivation would report $0 — the bug #5 fixes.
+    const p = valuePosition(h({ symbol: 'PENNY', quantity: 1000000, priceCents: cents(0), costBasisCents: cents(0), marketValueCents: cents(1) }));
+    expect(p.marketValueCents).toBe(1); // authoritative, not round(1000000 × 0) = 0
+    expect(p.priceCents).toBe(0); //       the per-share figure is still surfaced for display
+  });
+
+  it('gain and gain% are computed off the authoritative total', () => {
+    const p = valuePosition(h({ symbol: 'X', quantity: 3, priceCents: cents(3333), costBasisCents: cents(9000), marketValueCents: cents(10000) }));
+    expect(p.marketValueCents).toBe(10000); // $100.00 total, not round(3 × 3333) = 9999
+    expect(p.unrealizedGainCents).toBe(1000); // 10000 − 9000
+    expect(p.gainPct).toBeCloseTo(1000 / 9000, 10);
+  });
+
+  it('an explicit zero total is honored (distinguishes 0 from "absent", not a falsy bug)', () => {
+    const p = valuePosition(h({ symbol: 'ZERO', quantity: 5, priceCents: cents(2000), costBasisCents: cents(1000), marketValueCents: cents(0) }));
+    expect(p.marketValueCents).toBe(0); // feed says the position is worth $0 → honored
+    expect(p.unrealizedGainCents).toBe(-1000);
+  });
+
+  it('an authoritative total bypasses the derive-path overflow guard (never reached)', () => {
+    // quantity × priceCents would overflow, but we never multiply — the total is supplied.
+    const p = valuePosition(h({ symbol: 'OK', quantity: 1e15, priceCents: cents(100), costBasisCents: cents(0), marketValueCents: cents(500000) }));
+    expect(p.marketValueCents).toBe(500000);
+  });
+
+  it('fails loud (located) on a negative authoritative total — self-validating for any caller (critic ENG-1)', () => {
+    // cents() allows negatives (a loss is a negative Cents), so a bad caller could pass one;
+    // the engine guards it with a symbol-located throw rather than a silent negative weight.
+    expect(() =>
+      valuePosition(h({ symbol: 'NEG', quantity: 1, priceCents: cents(0), costBasisCents: cents(0), marketValueCents: cents(-5) })),
+    ).toThrow(/NEG authoritative market value/);
+  });
+
+  it('fails loud on a non-integer authoritative total (bypassing the branded constructor)', () => {
+    expect(() =>
+      valuePosition(h({ symbol: 'FRC', quantity: 1, priceCents: cents(0), costBasisCents: cents(0), marketValueCents: 1.5 as ReturnType<typeof cents> })),
+    ).toThrow(/not a non-negative safe integer/);
+  });
+});
+
+describe('isPerShareApproximate — marks a per-share price that can’t rebuild the authoritative total (DECISIONS #129)', () => {
+  it('false for a derived (manual) position — round(qty × price) IS the total by construction', () => {
+    const p = valuePosition(h({ symbol: 'CLEAN', quantity: 10, priceCents: cents(15000), costBasisCents: cents(0) }));
+    expect(isPerShareApproximate(p)).toBe(false);
+  });
+
+  it('false for an authoritative total that reconciles exactly (whole-cent lot)', () => {
+    const p = valuePosition(h({ symbol: 'AAPL', quantity: 10, priceCents: cents(20000), costBasisCents: cents(0), marketValueCents: cents(200000) }));
+    expect(isPerShareApproximate(p)).toBe(false); // round(10 × 20000) = 200000 = total
+  });
+
+  it('true for a sub-dollar lot whose rounded per-share does NOT rebuild the total', () => {
+    // 10,000 sh, $50.00 total → $0.005/share shown as $0.01; round(10000 × 1) = 10000 ≠ 5000.
+    const p = valuePosition(h({ symbol: 'SUB', quantity: 10000, priceCents: cents(1), costBasisCents: cents(0), marketValueCents: cents(5000) }));
+    expect(isPerShareApproximate(p)).toBe(true);
+  });
+
+  it('true for the penny lot (price rounds to $0 but the position is worth 1¢)', () => {
+    const p = valuePosition(h({ symbol: 'PENNY', quantity: 1000000, priceCents: cents(0), costBasisCents: cents(0), marketValueCents: cents(1) }));
+    expect(isPerShareApproximate(p)).toBe(true);
+  });
+});
+
+describe('summarizePortfolio — authoritative + derived positions mix correctly (DECISIONS #129)', () => {
+  it('totals and weights use each position’s authoritative total when present', () => {
+    const port = summarizePortfolio([
+      h({ symbol: 'PENNY', quantity: 1000000, priceCents: cents(0), costBasisCents: cents(0), marketValueCents: cents(1) }), // MV 1 (auth)
+      h({ symbol: 'BND', quantity: 5, priceCents: cents(20000), costBasisCents: cents(90000) }), //                            MV 100000 (derived)
+    ]);
+    expect(port.totalMarketValueCents).toBe(100001); // 1 + 100000 — the penny lot is not lost
+    expect(port.positions.find((p) => p.symbol === 'PENNY')!.weight).toBeCloseTo(1 / 100001, 12);
+    expect(port.positions.find((p) => p.symbol === 'BND')!.weight).toBeCloseTo(100000 / 100001, 12);
   });
 });
 

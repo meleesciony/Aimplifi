@@ -3,13 +3,13 @@
  * No I/O. The single boundary where a brokerage feed's decimal-string positions
  * become the integer-cents shape the portfolio engine + Holding model consume.
  *
- * Model fit: a Pulse Holding stores a PER-SHARE priceCents (the engine computes
- * marketValue = round(quantity × priceCents)). SimpleFIN reports a TOTAL
- * market_value + a share count, so we derive priceCents = round(market_value ÷
- * shares). For whole-cent-divisible positions this round-trips exactly; for odd
- * fractional positions it can differ from the SimpleFIN total by a sub-cent ×
- * shares (negligible, and never affects net worth — the account balance stays
- * authoritative; holdings are a within-account breakdown).
+ * Model fit: SimpleFIN reports a position's TOTAL market_value + a share count. We
+ * keep that total as the AUTHORITATIVE marketValueCents (the engine uses it verbatim),
+ * AND derive a per-share priceCents = round(market_value ÷ shares) for display. Storing
+ * only the per-share price would lose low-price / high-quantity lots — a penny-stock lot
+ * reconstructs to $0, a sub-dollar lot to ~2× its real value (DECISIONS #129, backlog
+ * #5, fixing the #124 round-trip drift). Net worth is unaffected regardless — the
+ * account balance stays authoritative; holdings are a within-account breakdown.
  *
  * Resilience: a single un-mappable position (no usable symbol/shares/value, or a
  * value out of safe-integer range) is SKIPPED and COUNTED, never thrown — so one
@@ -28,6 +28,20 @@ import { type SimplefinHolding, simplefinAmountToCents } from './simplefin-map';
 /** Mirrors the addHolding ticker rule: A–Z, 0–9, "." or "-", 1–20 chars. */
 const SYMBOL_RE = /^[A-Z0-9.\-]{1,20}$/;
 const NAME_MAX = 120;
+/**
+ * The storage ceiling for a persisted cents column. Prisma `Int` is a signed 32-bit
+ * INTEGER on the production Postgres datasource (DECISIONS #35), max 2,147,483,647 cents
+ * = $21,474,836.47 PER position. A value above this is rejected by Postgres at write time;
+ * because reconcileSimplefinHoldings swallows a per-row write error, an over-ceiling total
+ * would silently VANISH from /investments in production (invisible on 64-bit SQLite in CI).
+ * So we bound every persisted cents value (priceCents, costBasisCents, AND the new
+ * marketValueCents) to this ceiling at the mapper boundary — an oversize position is then
+ * SKIPPED + COUNTED, identically on both DBs, instead of being silently dropped by the
+ * reconcile catch (DECISIONS #129, critic P1-1). A single >$21.4M position is out of the
+ * current model's scope (same ceiling the cost-basis column has always had); widening these
+ * totals to BigInt is the documented follow-up if such positions come into scope.
+ */
+const MAX_DB_CENTS = 2_147_483_647;
 
 export interface MappedSfHolding {
   symbol: string;
@@ -38,6 +52,8 @@ export interface MappedSfHolding {
   costBasisCents: number;
   /** Current price per share, safe-integer cents ≥ 0 (derived from market_value ÷ shares). */
   priceCents: number;
+  /** Authoritative TOTAL market value, safe-integer cents ≥ 0 (the feed's market_value). */
+  marketValueCents: number;
 }
 
 export interface HoldingsMapResult {
@@ -119,12 +135,21 @@ export function mapSimplefinHoldings(raw: readonly SimplefinHolding[] = []): Hol
       skipped += a.rawCount;
       continue;
     }
-    // Final bounds — identical to addHolding, so a synced row is always engine-valid.
+    // Final bounds — every persisted cents value is a non-negative integer within the DB
+    // column ceiling (MAX_DB_CENTS), so a synced row is always engine-valid AND storable:
+    // it can never be a value addHolding/the engine would reject, NOR one the production
+    // Postgres Int column would overflow on (which the reconcile would silently swallow).
+    // marketValueCents is the authoritative total the engine now consumes verbatim.
     const ok =
       Number.isSafeInteger(a.costBasisCents) &&
       a.costBasisCents >= 0 &&
+      a.costBasisCents <= MAX_DB_CENTS &&
       Number.isSafeInteger(priceCents) &&
       priceCents >= 0 &&
+      priceCents <= MAX_DB_CENTS &&
+      Number.isSafeInteger(a.marketValueCents) &&
+      a.marketValueCents >= 0 &&
+      a.marketValueCents <= MAX_DB_CENTS &&
       Number.isFinite(a.quantity) &&
       a.quantity > 0 &&
       Math.abs(a.quantity * priceCents) <= Number.MAX_SAFE_INTEGER;
@@ -132,7 +157,7 @@ export function mapSimplefinHoldings(raw: readonly SimplefinHolding[] = []): Hol
       skipped += a.rawCount;
       continue;
     }
-    holdings.push({ symbol, name: a.name, quantity: a.quantity, costBasisCents: a.costBasisCents, priceCents });
+    holdings.push({ symbol, name: a.name, quantity: a.quantity, costBasisCents: a.costBasisCents, priceCents, marketValueCents: a.marketValueCents });
   }
 
   holdings.sort((x, y) => (x.symbol < y.symbol ? -1 : x.symbol > y.symbol ? 1 : 0));

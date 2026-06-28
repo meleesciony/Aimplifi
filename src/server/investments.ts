@@ -49,6 +49,7 @@ type DbHolding = {
   quantity: number;
   costBasisCents: number;
   priceCents: number;
+  marketValueCents: number | null;
 };
 
 const toEngineHolding = (h: DbHolding): Holding => ({
@@ -57,6 +58,10 @@ const toEngineHolding = (h: DbHolding): Holding => ({
   quantity: h.quantity,
   costBasisCents: cents(h.costBasisCents),
   priceCents: cents(h.priceCents),
+  // Authoritative total when the feed supplied one (DECISIONS #129); null (manual
+  // holdings) → the engine derives round(quantity × priceCents), so demo/golden values
+  // are unchanged. cents() validates the stored integer at this read boundary.
+  marketValueCents: h.marketValueCents == null ? undefined : cents(h.marketValueCents),
 });
 
 /** Build each INVESTMENT account's portfolio + an overall roll-up for the current user. */
@@ -71,7 +76,7 @@ export async function getInvestments(): Promise<InvestmentsView> {
       currentBalanceCents: true,
       holdings: {
         orderBy: { symbol: 'asc' },
-        select: { symbol: true, name: true, quantity: true, costBasisCents: true, priceCents: true },
+        select: { symbol: true, name: true, quantity: true, costBasisCents: true, priceCents: true, marketValueCents: true },
       },
     },
   });
@@ -195,10 +200,16 @@ export async function addHolding(input: HoldingInput): Promise<{ ok: boolean; er
   });
   if (!acct) return { ok: false, error: 'Investment account not found.' };
 
+  // A manual entry is priced per-share by the user, so it carries NO authoritative
+  // total — marketValueCents is null and the engine derives round(quantity × price).
+  // Clearing it on update too drops any stale feed total for THIS edit, so the
+  // hand-entered price is shown immediately (DECISIONS #129). NOTE: a symbol previously
+  // ingested from the feed keeps source='simplefin', so a later sync may re-ingest it —
+  // that is the existing #124 reconcile behavior, unchanged here.
   await prisma.holding.upsert({
     where: { accountId_symbol: { accountId: acct.id, symbol } },
-    create: { accountId: acct.id, symbol, name, quantity: input.quantity, costBasisCents: input.costBasisCents, priceCents: input.priceCents },
-    update: { name, quantity: input.quantity, costBasisCents: input.costBasisCents, priceCents: input.priceCents },
+    create: { accountId: acct.id, symbol, name, quantity: input.quantity, costBasisCents: input.costBasisCents, priceCents: input.priceCents, marketValueCents: null },
+    update: { name, quantity: input.quantity, costBasisCents: input.costBasisCents, priceCents: input.priceCents, marketValueCents: null },
   });
   await auditLog(userId, 'holding.upsert', {
     accountId: acct.id,

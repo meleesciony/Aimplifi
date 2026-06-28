@@ -140,6 +140,14 @@ model Holding {
   quantity       Float // shares; may be fractional
   costBasisCents Int // total invested, integer cents
   priceCents     Int // current price per share, integer cents
+  // Authoritative TOTAL market value, integer cents (DECISIONS #129, live-ingest
+  // backlog #5). A brokerage feed reports a position's TOTAL market_value; deriving
+  // it from a rounded per-share priceCents loses low-price / high-quantity lots (a
+  // penny-stock lot can reconstruct to $0, or a sub-dollar lot to 2× its real value).
+  // When set (source='simplefin'), the engine uses this total directly. NULL for
+  // manual holdings → the engine derives round(quantity × priceCents), so the seed
+  // and every demo/golden value stay byte-identical.
+  marketValueCents Int?
   // Provenance (DECISIONS #124). 'manual' = user-entered; 'simplefin' = ingested
   // from a connected brokerage feed. Default 'manual' so existing/demo-seeded rows
   // keep their meaning and golden values never move. INVARIANT: a SimpleFIN sync

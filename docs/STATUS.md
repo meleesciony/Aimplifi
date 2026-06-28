@@ -885,10 +885,17 @@ every P0/P1). Result: **1 P0 (downgraded P1 on verify) + 10 P1 + 9 P2 confirmed.
    the dedicated section directly below. A pending that never posts lingered forever, and a
    pending→posted `id` change double-counted. Fixed with a two-pass `reconcilePendingTransactions`
    (in-window absence reconcile + an age-out backstop).
-2. **(P1, audit #5) SimpleFIN holdings per-share round-trip** loses SimpleFIN's authoritative TOTAL
-   `market_value` — a low-price / high-quantity lot can render as $0 or materially wrong. Fix: persist
-   `marketValueCents` on `Holding` (schema add) and use the total directly. Does NOT affect net worth
-   (account balance is authoritative) — only the /investments breakdown.
+2. **(P1, audit #5) SimpleFIN holdings per-share round-trip** — ✅ **DONE (DECISIONS #129, 2026-06-28)**.
+   Persisted the feed's authoritative TOTAL as a new nullable `Holding.marketValueCents`; `valuePosition`
+   uses it verbatim when present, else derives round(qty×price). A penny lot no longer renders $0; the VOO
+   −1¢ drift is gone. Net worth untouched (only the /investments breakdown). Hostile critic: 1 P1 FIXED —
+   the new Int column is Postgres 32-bit ($21.4M/position ceiling); an over-ceiling total would overflow +
+   be silently swallowed by the reconcile catch → mapper now bounds every persisted cents value to
+   MAX_DB_CENTS (skip+count, not silent vanish). 3 P2 FIXED (engine self-validation; "≈" approximate
+   per-share display; softened addHolding comment). **Residual / accepted (documented):** a single position
+   over $21,474,836.47 is skipped+counted (out of model scope; widening these total columns to BigInt is the
+   follow-up if such positions come into scope — the cost-basis column has always had the same Int ceiling).
+   A hand-edited fed symbol keeps `source='simplefin'` so a later sync may re-ingest it (pre-existing #124).
 3. **(P1, audit #6) Plaid investment/loan balances freeze at link time** — only refreshed on link, not
    on sync, so net worth goes stale. Fix: call `syncAccountsForItem` (or `/accounts/balance/get`) each
    sync.
@@ -934,6 +941,5 @@ Accepted residuals (P2, documented in code + DECISIONS #128):
 - The delete can orphan a Correction / CategoryPrediction analytics-log row (linked by id-string, no FK) —
   harmless and consistent with the Plaid `removed[]` path.
 
-REMAINING live-ingest backlog (unchanged): **#5** SimpleFIN holdings per-share round-trip (needs a
-`Holding.marketValueCents` column), **#6** Plaid investment/loan balance refresh each sync, plus the
-currency + 9 P2 items from the #127 audit.
+REMAINING live-ingest backlog: ~~**#5** SimpleFIN holdings per-share round-trip~~ ✅ DONE (DECISIONS #129);
+**#6** Plaid investment/loan balance refresh each sync, plus the currency + 9 P2 items from the #127 audit.

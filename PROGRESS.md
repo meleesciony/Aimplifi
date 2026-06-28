@@ -798,3 +798,61 @@ impact); this #128 commit makes local 2 ahead of origin. SAFE to /clear after co
 (deploys the pending reconcile); next live-ingest increments — #5 SimpleFIN holdings per-share round-trip (needs
 Holding.marketValueCents), then #6 Plaid balance refresh. Plan-in-Words retire-at-age + Cash Flow Radar remain the
 feature track.
+
+## 2026-06-28 (resumed: "continue") — Live-ingest backlog #5: SimpleFIN holdings AUTHORITATIVE marketValueCents (#129) — DONE ✅ (verify+e2e green, critic 1 P1 + 3 P2 FIXED, confirm SHIP)
+"continue" → the #127 audit's tracked backlog, next highest-money-impact = #5 (holdings per-share round-trip),
+the documented NEXT after #128. Baseline re-confirmed before any change (measured): `bash scripts/verify.sh`
+→ ✅ GREEN (HEAD f8769dd, 1343 unit/106 files, tree clean). Read only the files I edited (token-lean):
+portfolio engine, simplefin-holdings mapper, simplefin.ts reconcile, server/investments, coach.ts
+(confirmed portfolioCents source), seed/build holdings, the 4 affected test files.
+
+**The bug (#124 residual):** SimpleFIN reports a position's TOTAL market_value; #124 stored ONLY a per-share
+priceCents=round(market_value÷shares) and the engine recomputed marketValue=round(quantity×priceCents). For
+sub-cent-per-share lots the per-share rounds to 0/1¢, so the reconstruction LOSES or DOUBLES the real total —
+a 1,000,000-sh penny lot (1¢ total) reconstructs to $0 and VANISHES from /investments; a 10,000-sh/$50 lot
+shows $100; the documented VOO $100→9999 −1¢ drift.
+
+**Built (engine-first, all additive):**
+- `prisma/schema.prisma` — new nullable `Holding.marketValueCents Int?` (db-pushed; db-push-is-source-of-truth
+  per #35). Null for manual/seed → engine derives → demo $142k byte-identical, seed untouched, golden-safe.
+- `portfolio.ts` — engine `Holding` gains optional `marketValueCents`; `valuePosition` uses it VERBATIM when
+  present (explicit 0 honored via `!= null`; derive-path fail-loud preserved), else derives round(qty×price).
+- `simplefin-holdings.ts` — `MappedSfHolding` emits the authoritative total (already aggregated, was discarded);
+  `simplefin.ts` reconcile persists it; `server/investments.ts` selects+maps it (cents() at the read boundary)
+  and `addHolding` writes `marketValueCents:null` on create AND update (manual is price-derived).
+- Tests (+12 first pass): engine authoritative path; mapper PENNY/SUB/VOO end-to-end (fail-without-fix);
+  sync low-price lot through getInvestments; existing toEqual assertions updated; EDGE_CASES H-A..H-E.
+- **Blast radius independently traced:** coach.ts:96-97 sums INVESTMENT currentBalanceCents (NOT
+  summarizePortfolio), and getInvestments is summarizePortfolio's ONLY prod consumer → net worth / coach /
+  FI / retirement / goals / every dashboard golden CANNOT move; this touches only the /investments breakdown.
+
+**Hostile critic wf_844918ca (3 Checkers — engine math, integration/data-loss, net-worth blast radius — +
+adversarial verify): 0 P0, 1 P1 confirmed (isReal verified) + 3 P2, ALL FIXED + regression-locked:**
+- **P1-1:** the new `marketValueCents` Int column is Postgres 32-bit (max 2,147,483,647¢ = $21,474,836.47/
+  position), but the mapper bounded only by Number.isSafeInteger (~$90T). A single position with a TOTAL above
+  the ceiling overflows the column → the error is swallowed by reconcile's per-row try/catch → the position
+  SILENTLY VANISHES from /investments in PRODUCTION (invisible on 64-bit SQLite CI). NEW exposure vs #124
+  (which never persisted the total). FIX: `MAX_DB_CENTS=2_147_483_647` bound on priceCents/costBasisCents/
+  marketValueCents in the mapper ok-check → an over-ceiling position is SKIPPED + COUNTED, not silently
+  swallowed (boundary-pinned: $21,474,836.47 kept, +1¢ skipped). Also closes the pre-existing costBasisCents
+  exposure at the same boundary.
+- **P2 (ENG-1):** the engine authoritative branch trusted the total verbatim → added a located fail-loud throw
+  on a negative/non-integer total (self-validating pure module). **P2 (NWBR-1):** a sub-cent lot's "{qty} @
+  {price}" row no longer reconciled with the now-authoritative total ("10,000 @ $0.01" beside "$50.00") →
+  pure `isPerShareApproximate` + the /investments row renders "≈" when it can't rebuild the total (demo lots
+  are whole-cent → unflagged → display/golden unchanged). **P2 (P2-1):** softened the addHolding "price always
+  wins" comment to the immediate edit (a fed symbol keeps source='simplefin' so a later sync may re-ingest —
+  pre-existing #124 behavior). **Confirmation Checker (independent agent): SHIP** — all four fixes resolve
+  their findings, no new defect, core invariants (net-worth containment, golden-safety, #124 reconcile) hold.
+
+**Gate (real, measured 2026-06-28):** `bash scripts/verify.sh` → ✅ GREEN — typecheck/lint/build clean,
+**1364 unit / 106 files** (+21: 12 first pass + 9 critic-fix). /investments e2e **4/4** (seeded $142k portfolio
++ retirement + what-if + axe AA; the "≈" is invisible on whole-cent demo lots). DECISIONS #129 +
+REGRESSION_LEDGER (2 rows) + STATUS (backlog #5 DONE + residuals) + EDGE_CASES H-A..H-G written.
+
+**State:** committing as the #129 commit. origin/main `fbb45d9` (#127) LIVE; local main ahead by `b23c9fa`
+(#127 docs), `f8769dd` (#128 pending reconcile), + this #129 commit, all UNPUSHED (push deploys the holdings
+fix + #128; owner's call — the live SimpleFIN holdings path stays UNVERIFIED until a real token, consistent
+with the existing live-path labeling; the mocked-server integration is the labeled end-to-end). SAFE to /clear.
+NEXT (owner): push when ready; next live-ingest increment — #6 Plaid investment/loan balance refresh each sync,
+then the currency + 9 P2 items. Plan-in-Words retire-at-age + Cash Flow Radar remain the feature track.

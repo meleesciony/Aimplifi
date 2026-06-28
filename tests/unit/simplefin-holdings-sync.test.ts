@@ -125,6 +125,7 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
       quantity: 100,
       costBasisCents: 1500000,
       priceCents: 20000, // round($20,000 ÷ 100)
+      marketValueCents: 2000000, // $20,000 authoritative total persisted (DECISIONS #129)
       source: 'simplefin',
     });
     expect(holdings[1]).toMatchObject({
@@ -132,6 +133,7 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
       quantity: 200,
       costBasisCents: 4000000,
       priceCents: 25000, // round($50,000 ÷ 200)
+      marketValueCents: 5000000, // $50,000 authoritative total persisted
       source: 'simplefin',
     });
   });
@@ -144,6 +146,30 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
     expect(view.overall.totalMarketValueCents).toBe(7000000); // $70,000 (holdings breakdown only)
     expect(view.overall.totalCostBasisCents).toBe(5500000);
     expect(view.overall.totalUnrealizedGainCents).toBe(1500000);
+  });
+
+  it('a low-price / high-quantity lot keeps its real value end-to-end (does NOT vanish to $0; DECISIONS #129)', async () => {
+    // A 1,000,000-share lot worth $0.01 total → $0/share rounded. The #124 per-share-only
+    // model reconstructed round(1000000 × 0) = $0, silently dropping the position from the
+    // /investments breakdown. With the authoritative total stored, it reports 1¢.
+    accountsPayload = {
+      accounts: [
+        brokerage([
+          { id: 'p1', symbol: 'AAPL', description: 'Apple Inc', shares: '100', cost_basis: '15000.00', market_value: '20000.00' },
+          { id: 'pny', symbol: 'PENNY', description: 'Penny Lot', shares: '1000000', market_value: '0.01' },
+        ]),
+      ],
+    };
+    await connectSimplefin(SETUP_TOKEN);
+
+    const penny = await prisma.holding.findFirstOrThrow({ where: { account: { userId: USER }, symbol: 'PENNY' } });
+    expect(penny.priceCents).toBe(0); // rounds to $0/share …
+    expect(penny.marketValueCents).toBe(1); // … but the 1¢ authoritative total is persisted
+
+    const view = await getInvestments();
+    // $20,000.00 (AAPL) + $0.01 (PENNY) — the penny lot is present, not lost.
+    expect(view.overall.totalMarketValueCents).toBe(2000001);
+    expect(view.overall.positions.find((p) => p.symbol === 'PENNY')!.marketValueCents).toBe(1);
   });
 
   it('does NOT ingest a brokerage trade as a spending transaction (#62)', async () => {
