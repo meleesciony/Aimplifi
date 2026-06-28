@@ -140,6 +140,13 @@ model Holding {
   quantity       Float // shares; may be fractional
   costBasisCents Int // total invested, integer cents
   priceCents     Int // current price per share, integer cents
+  // Provenance (DECISIONS #124). 'manual' = user-entered; 'simplefin' = ingested
+  // from a connected brokerage feed. Default 'manual' so existing/demo-seeded rows
+  // keep their meaning and golden values never move. INVARIANT: a SimpleFIN sync
+  // touches ONLY its own source='simplefin' rows — it never modifies (even on a
+  // same-ticker collision) or deletes a source='manual' position, so a hand-entered
+  // holding (and its cost basis) is never overwritten or wiped by the feed.
+  source         String   @default("manual")
   updatedAt      DateTime @default(now())
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)

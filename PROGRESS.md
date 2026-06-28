@@ -520,3 +520,69 @@ corroborated by aimplifi.app serving 200 + HSTS). #122 + #123 are LIVE in produc
 NEXT (owner): nothing pending — both shipped + deployed. Roadmap LATER: live brokerage-holdings ingest.
 (This deploy-record line is a local-only docs commit, intentionally UNPUSHED to avoid a redundant
 identical prod rebuild — push it with the next functional change.)
+
+## 2026-06-27 (resumed: "continue") — Live brokerage-holdings ingest from SimpleFIN (#124) — DONE ✅ (verify+e2e green, critic P0 fixed + locked)
+Picked the roadmap's explicitly-named LATER item: ingest real positions from SimpleFIN INVESTMENT
+accounts → the Holding model → the tested portfolio engine. Baseline re-confirmed before any change
+(measured): `bash scripts/verify.sh` → ✅ GREEN (exit 0; 1200 unit/97 files at #123, tree was clean).
+Understand phase = a 4-agent workflow (wf_6bff45ac-a8b) mapping the SimpleFIN ingest, investments
+model/engine, provider seam, and test idioms (full report archived in the workflow output).
+
+**Design (engine-first, locked):**
+- SimpleFIN's `/accounts` returns an optional `holdings[]` on investment accounts (the repo's type just
+  didn't model it). Each holding is decimal STRINGS: symbol?, shares, cost_basis?, market_value, description?.
+- The Pulse `Holding` stores a PER-SHARE `priceCents` (engine: marketValue = round(quantity×priceCents)).
+  SimpleFIN gives a TOTAL market_value + shares ⇒ derive priceCents = round(market_value ÷ shares).
+  Sub-cent round-trip drift on odd fractional lots is documented + negligible, and NEVER touches net worth.
+- **Net worth is unaffected**: it uses the authoritative `account.currentBalanceCents` (refreshed every
+  sync); holdings are a *within-account breakdown*. So this increment is purely additive to the /investments
+  view and cannot perturb the dashboard net-worth golden.
+- **Reconciliation w/o data loss**: added `Holding.source @default("manual")`. Sync upserts incoming as
+  source='simplefin' and deletes stale source='simplefin' rows (sold positions) — NEVER touching manual
+  holdings on the same account. Default 'manual' ⇒ demo/golden byte-identical, seed untouched.
+- Live SimpleFIN holdings path stays **UNVERIFIED** (no token), consistent with the existing SimpleFIN/Plaid
+  live-path labeling; unit + mocked-server integration cover all the logic that could corrupt the ledger.
+
+**Built (engine-first, all additive):**
+- `prisma/schema.prisma` — `Holding.source String @default("manual")` ('manual'|'simplefin'). Default
+  'manual' ⇒ existing + demo-seeded rows unchanged, golden byte-identical, seed untouched.
+- `src/lib/providers/simplefin-map.ts` — `SimplefinHolding` wire type + `holdings?` on `SimplefinAccount`.
+- `src/lib/providers/simplefin-holdings.ts` (NEW) — pure `mapSimplefinHoldings(raw)→{holdings,skipped}`:
+  aggregates same-symbol lots, derives per-share `priceCents = round(Σmarket_value ÷ Σshares)` (engine
+  recomputes marketValue=round(qty×price)), validates to the EXACT addHolding bounds, skips+counts
+  un-mappable rows, never throws.
+- `src/lib/providers/simplefin.ts` — `reconcileSimplefinHoldings` (upsert source='simplefin' + delete sold
+  source='simplefin' rows, touching ONLY its own rows) wired into the INVESTMENT branch; `SyncResult.holdings`.
+- `src/lib/providers/types.ts` + `src/server/simplefin-actions.ts` — surface `holdings:{upserted,removed,
+  skipped}`; revalidate `/investments`. getInvestments unchanged (reads holdings regardless of source).
+- Tests: `tests/unit/simplefin-holdings.test.ts` (19: known-answer + end-to-end through summarizePortfolio +
+  P2 edge cases) and `tests/unit/simplefin-holdings-sync.test.ts` (10: mocked-server integration — ingest+cents,
+  net-worth-vs-holdings separation, trades-not-spending #62, idempotent, sold-position reconcile,
+  manual-preserved-on-collision, absent-vs-explicit-empty, skip accounting).
+
+**Net worth is unaffected** (uses the authoritative account.currentBalanceCents; holdings are a within-account
+breakdown), so this is purely additive to /investments and can't move any golden. **Live network UNVERIFIED**
+(no token) — the mocked-server integration is the labeled end-to-end simulation, consistent with the existing
+SimpleFIN/Plaid live-path labeling.
+
+**Hostile critic — two Checkers (engine math + integration/data-loss) → adversarial verify (wf_58c29acd):**
+engine 0 math-defect (round-trip drift ≤ ~0.5¢/share, documented, never net worth). CONFIRMED P0 (one Checker)/
+P1 (other), same root cause: the reconcile upsert UPDATE silently overwrote a `source='manual'` holding on a
+same-ticker collision (destroying the user's cost basis + flipping it feed-owned), contradicting the stated
+invariant → FIXED: reconcile pre-fetches the account's manual symbols and SKIPS them so the upsert AND the
+delete both exclude manual ("sync touches only its own rows" is now literally true); regression-locked. P2
+transient-empty data-loss → FIXED: only reconcile on an explicit holdings ARRAY (absent field no longer wipes
+synced rows; explicit `[]` still reconciles to empty). Remaining P2s closed with tests (price-rounds-to-zero,
+NAME_MAX truncation, unicode/empty-symbol rejection, deterministic aggregation-name) or recorded non-issues
+(round-half-up ≡ round-half-away for non-negative holdings values).
+
+**Gate (real, measured 2026-06-27):** core `bash scripts/verify.sh` → ✅ GREEN — typecheck/lint/build clean,
+**1229 unit / 99 files** (+29 across 2 new files, post-fix). Full e2e **56/56** (~48s, off OneDrive — no flake);
+investments e2e **4/4** post-fix (golden $142k + AAPL + retirement + axe AA — demo never connects SimpleFIN).
+
+**State:** committed as the #124 commit atop `c93e794`. Working tree CLEAN after commit. origin/main `12ad163`
+is LIVE; local main is ahead by the deploy-record docs commit (`c93e794`) + this #124 commit, UNPUSHED (push is
+the owner's call — pushing deploys the holdings-ingest path; the live SimpleFIN holdings field stays UNVERIFIED
+until a real token confirms it). Handoff: `docs/SESSION_CONTEXT_2026-06-27-holdings-ingest.md` (DONE). **SAFE to
+/clear.** NEXT (owner): push when ready; LATER — a "Synced from your brokerage" provenance tag + live Plaid
+holdings ingest.

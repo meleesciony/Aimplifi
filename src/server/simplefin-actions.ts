@@ -18,11 +18,13 @@ export interface SimplefinResult {
   ok: boolean;
   error?: string;
   added?: number;
+  /** Brokerage-holdings reconciliation from this sync, when any ran (DECISIONS #124). */
+  holdings?: { upserted: number; removed: number; skipped: number };
   message?: string;
 }
 
 function revalidateAll() {
-  for (const p of ['/accounts', '/dashboard', '/transactions', '/coach', '/calendar', '/cards']) {
+  for (const p of ['/accounts', '/dashboard', '/transactions', '/coach', '/calendar', '/cards', '/investments']) {
     revalidatePath(p);
   }
 }
@@ -53,7 +55,7 @@ export async function connectSimplefin(setupToken: string): Promise<SimplefinRes
   try {
     const r = await syncFromSimplefin(userId, businessToday(userId));
     revalidateAll();
-    return { ok: true, added: r.added };
+    return { ok: true, added: r.added, holdings: r.holdings };
   } catch {
     // The link is saved; the first sync can be retried from the accounts page. Use a
     // FIXED message — a provider/network error can embed the credential-bearing URL,
@@ -68,7 +70,7 @@ export async function syncSimplefinNow(): Promise<SimplefinResult> {
   try {
     const r = await syncFromSimplefin(userId, businessToday(userId));
     revalidateAll();
-    return { ok: true, added: r.added };
+    return { ok: true, added: r.added, holdings: r.holdings };
   } catch {
     // Fixed message — provider/network errors can embed the credential-bearing URL.
     return { ok: false, error: 'Sync failed — please try again in a minute.' };

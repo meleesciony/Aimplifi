@@ -98,6 +98,24 @@ export interface SimplefinTransaction {
   pending?: boolean;
 }
 
+/**
+ * A SimpleFIN investment holding (position) — present on brokerage/investment
+ * accounts. All money-ish quantities are decimal STRINGS (like `amount`/`balance`).
+ * `symbol` and several others are optional per the spec. UNVERIFIED against a live
+ * server — see the file header. Mapped by simplefin-holdings.ts.
+ */
+export interface SimplefinHolding {
+  id: string;
+  created?: number; // unix seconds
+  currency?: string; // fiat code OR a security identifier (we treat values as USD cents)
+  cost_basis?: string; // total cost basis, signed decimal string
+  description?: string; // human-readable security name
+  market_value?: string; // total current market value, signed decimal string (authoritative)
+  purchase_price?: string; // per-share purchase price (unused: not a CURRENT price)
+  shares?: string; // share count, decimal string (may be fractional)
+  symbol?: string; // ticker (optional in the spec)
+}
+
 export interface SimplefinAccount {
   id: string;
   name: string;
@@ -105,6 +123,7 @@ export interface SimplefinAccount {
   balance: string; // signed decimal string
   org?: { name?: string; domain?: string };
   transactions?: SimplefinTransaction[];
+  holdings?: SimplefinHolding[]; // present on investment accounts
 }
 
 export interface MappedSfAccount {

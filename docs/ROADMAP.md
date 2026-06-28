@@ -215,8 +215,29 @@ The invariant-maintaining lever logic is a pure, fuzz-tested module
 (`retirement-whatif.ts`). +38 tests; two hostile-critic Checkers, the one P1 (untested
 client logic) fixed via the pure-module extraction. Verify GREEN (1200 unit/97 files);
 settings + investments e2e 5/5 incl. axe AA.
-LATER: live brokerage-holdings ingest (real positions from SimpleFIN/Plaid investment
-accounts into the Holding model + portfolio engine).
+
+### Live brokerage-holdings ingest from SimpleFIN (DECISIONS #124) — DONE ✅
+
+Real positions from a connected SimpleFIN INVESTMENT account now flow into the `Holding`
+model + the #77 portfolio engine, surfacing automatically on `/investments`. Engine-first:
+a pure `mapSimplefinHoldings` (in `src/lib/providers/simplefin-holdings.ts`) turns SimpleFIN's
+optional `holdings[]` (decimal strings) into engine-valid Holding rows — aggregating
+same-symbol lots, deriving the model's per-share `priceCents` from `market_value ÷ shares`,
+validated to the exact `addHolding` bounds, skipping+counting any un-mappable position (never
+throws). Wired into `syncFromSimplefin`'s INVESTMENT branch via `reconcileSimplefinHoldings`,
+which upserts feed positions as `source='simplefin'` and deletes sold ones — touching ONLY its
+own synced rows (additive `Holding.source` column, default `'manual'`), so a hand-entered
+holding is never overwritten or wiped. **Net worth is unaffected** (the account's
+`currentBalanceCents` stays authoritative; holdings are a within-account breakdown), so demo/
+golden is byte-identical. 29 tests (19 pure mapper incl. end-to-end through the engine + 10
+mocked-server integration); two hostile-critic Checkers — a confirmed P0 (same-ticker upsert
+silently overwrote a manual holding) FIXED + regression-locked, plus a transient-empty
+data-loss P2 fixed (reconcile only on an explicit holdings array). Verify GREEN (1229 unit/99
+files); full e2e 56/56 + investments 4/4 incl. axe AA. LIVE NETWORK UNVERIFIED (no token) —
+consistent with the existing SimpleFIN/Plaid live-path labeling; the mocked-server integration
+is the labeled end-to-end simulation.
+LATER: a "Synced from your brokerage" provenance tag on /investments (the `source` column is
+in place); live Plaid `/investments/holdings` ingest (parity with the SimpleFIN path).
 
 ## Production-readiness roadmap (UX/prod audit, 2026-06-24)
 

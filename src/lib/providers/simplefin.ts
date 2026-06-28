@@ -27,7 +27,75 @@ import {
   mapSimplefinAccount,
   prepareSimplefinTransaction,
 } from './simplefin-map';
+import { type MappedSfHolding, mapSimplefinHoldings } from './simplefin-holdings';
 import type { SyncResult } from './types';
+
+/**
+ * Reconcile one INVESTMENT account's holdings against the brokerage feed
+ * (DECISIONS #124). INVARIANT: a SimpleFIN sync touches ONLY its own
+ * source='simplefin' rows — it NEVER modifies or deletes a source='manual' holding
+ * the user entered by hand, even when the feed reports the same ticker (Hostile
+ * Critic #124 P0: a symbol collision must not silently overwrite a user's
+ * cost-basis). So we (1) skip any incoming position whose symbol is already a manual
+ * holding on this account (counted, not written), (2) upsert the rest as
+ * source='simplefin', and (3) delete stale source='simplefin' rows the feed no
+ * longer reports (sold positions). Net worth is unaffected — the account's
+ * currentBalanceCents (refreshed in Pass 1) stays authoritative; holdings are a
+ * within-account breakdown. Resilient: a single position's DB error is counted, not
+ * thrown, so it can't abort the whole sync.
+ */
+async function reconcileSimplefinHoldings(
+  accountId: string,
+  holdings: readonly MappedSfHolding[],
+): Promise<{ upserted: number; removed: number; skipped: number }> {
+  // Manual positions are user-owned and off-limits to the feed (upsert AND delete).
+  const manualSymbols = new Set(
+    (
+      await prisma.holding.findMany({
+        where: { accountId, source: 'manual' },
+        select: { symbol: true },
+      })
+    ).map((h) => h.symbol),
+  );
+
+  let upserted = 0;
+  let skipped = 0;
+  for (const hld of holdings) {
+    if (manualSymbols.has(hld.symbol)) {
+      skipped++; // a manually-tracked ticker the feed also reports — leave the user's row intact
+      continue;
+    }
+    const fields = {
+      name: hld.name,
+      quantity: hld.quantity,
+      costBasisCents: hld.costBasisCents,
+      priceCents: hld.priceCents,
+      source: 'simplefin',
+    };
+    try {
+      await prisma.holding.upsert({
+        where: { accountId_symbol: { accountId, symbol: hld.symbol } },
+        create: { accountId, symbol: hld.symbol, ...fields },
+        update: fields,
+      });
+      upserted++;
+    } catch {
+      skipped++; // one position's write hiccup shouldn't lose the rest of the sync
+    }
+  }
+
+  // Delete sold positions — ONLY our own synced rows (manual rows are never in scope).
+  // An explicit empty feed means every previously-synced position is gone; notIn:[]
+  // is avoided explicitly so the empty case is unambiguous.
+  const syncedSymbols = holdings.filter((h) => !manualSymbols.has(h.symbol)).map((h) => h.symbol);
+  const { count: removed } =
+    syncedSymbols.length === 0
+      ? await prisma.holding.deleteMany({ where: { accountId, source: 'simplefin' } })
+      : await prisma.holding.deleteMany({
+          where: { accountId, source: 'simplefin', symbol: { notIn: syncedSymbols } },
+        });
+  return { upserted, removed, skipped };
+}
 
 export interface SimplefinAccountsResponse {
   errors?: string[];
@@ -183,6 +251,9 @@ export async function syncFromSimplefin(
 
   let added = 0;
   let modified = 0;
+  let holdingsUpserted = 0;
+  let holdingsRemoved = 0;
+  let holdingsSkipped = 0;
   const prepared: IngestedSfTransaction[] = [];
   const accountIdByRef = new Map<string, string>();
   const newSpendingRefs: string[] = []; // first-seen spending accounts to backfill
@@ -228,8 +299,24 @@ export async function syncFromSimplefin(
     }
 
     // Keep the account + balance (for net worth) but DON'T ingest a brokerage's
-    // trades/dividends or a loan's interest as spending transactions (#62).
-    if (mapped.type === 'INVESTMENT' || mapped.type === 'LOAN') continue;
+    // trades/dividends or a loan's interest as spending transactions (#62). For an
+    // INVESTMENT account, ingest its HOLDINGS (positions) instead — a within-account
+    // breakdown for /investments; net worth stays on the account balance above (#124).
+    if (mapped.type === 'INVESTMENT') {
+      // Only reconcile when the feed ACTUALLY reports holdings (an array, possibly
+      // empty = "sold everything"). A MISSING holdings field (transient/partial
+      // response, or a provider that omits it) must NOT be read as "no positions" —
+      // that would wipe the synced breakdown; leave existing rows untouched (#124 P2).
+      if (acct.holdings !== undefined) {
+        const { holdings, skipped } = mapSimplefinHoldings(acct.holdings);
+        const rec = await reconcileSimplefinHoldings(accountId, holdings);
+        holdingsUpserted += rec.upserted;
+        holdingsRemoved += rec.removed;
+        holdingsSkipped += skipped + rec.skipped;
+      }
+      continue;
+    }
+    if (mapped.type === 'LOAN') continue;
 
     // A spending account first seen on an INCREMENTAL sync has only the 5-day
     // window here — defer it to the backfill pass for its full history instead of
@@ -309,5 +396,11 @@ export async function syncFromSimplefin(
     // derived projection — never fail the sync over it
   }
   await prisma.simpleFinConnection.update({ where: { userId }, data: { lastSyncedAt: today } });
-  return { added, modified, removed: 0, nextCursor: null };
+  return {
+    added,
+    modified,
+    removed: 0,
+    nextCursor: null,
+    holdings: { upserted: holdingsUpserted, removed: holdingsRemoved, skipped: holdingsSkipped },
+  };
 }

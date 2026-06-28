@@ -37,6 +37,13 @@ export interface SyncResult {
   modified: number;
   removed: number;
   nextCursor: string | null;
+  /**
+   * Investment-holdings reconciliation, set only by the SimpleFIN brokerage-holdings
+   * ingest (DECISIONS #124). Optional — the demo/Plaid paths don't ingest holdings.
+   * upserted = positions written/updated; removed = stale synced positions deleted
+   * (sold); skipped = feed positions we couldn't record (un-mappable / out of bounds).
+   */
+  holdings?: { upserted: number; removed: number; skipped: number };
 }
 
 export interface DataProvider {
