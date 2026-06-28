@@ -676,3 +676,49 @@ until a real token). Accepted P2s (documented in STATUS): bare credit-card quest
 (DECISIONS #98); the /goals debt-card render + Save success/error states are display-layer (save persistence is
 integration-tested; can't e2e without mutating the shared demo). SAFE to /clear. NEXT (owner): push when ready; next
 slices — savings-goal-by-date, then retire-at-age; and Cash Flow Radar (AI plan §1.2).
+
+## 2026-06-28 (resumed: "continue") — Plan in Words: savings-goal-by-date inverse planner (#126) — DONE ✅ (verify green, critic+confirm 0 open P0/P1)
+"continue" → the next sequenced Plan-in-Words slice after #125 (the owner-set sequence: debt → savings goal → retire-at-age).
+Baseline re-confirmed before any change (measured): `bash scripts/verify.sh` core → ✅ GREEN (HEAD 8b67997, tree clean).
+Understand phase = a 5-agent read-only workflow (wf_f94d7f50) mapping #125's solver/save/intent patterns, the existing
+goals engine+card, the safe-to-spend read-path, and the EDGE_CASES idiom (caught + corrected two agent claims by reading
+the source myself: centsFromDollarString does NOT handle commas; the goal FUNDING ETA is flat — the compounding is only
+the separate FI-delay calc).
+
+**Built (engine-first, the no-fabrication soul):**
+- `src/lib/engine/solve/savings-goal-by-date.ts` — pure `solveSavingsGoalByDate`. Funding is LINEAR (no growth — a cash
+  envelope), so the minimal monthly is CLOSED-FORM `ceil(remaining/targetMonths)` (proven minimal), not a bisection like
+  the debt twin. Same honest `outcome`/share-bps/`withinSafeToSpend` shape as #125; reuses #125's `wholeMonthsUntil`.
+- `src/lib/engine/goals.ts` — extracted `goalFundingMonths` (the flat `ceil(remaining/monthly)`), now shared by the solver
+  AND the /goals `goalFIImpact` card → a saved goal's timeline is byte-identical to the solver by construction (the #125
+  card-vs-solver P1 designed OUT; no new `Goal.kind` — a normal savings goal carrying `targetDate`).
+- Ask intent `savings_goal_by_date` (intent.ts/llm.ts/answer.ts/server/assistant.ts): new deterministic `parseTargetAmount`
+  extracts the user-STATED amount from their own text (the LLM supplies only the kind; amount+date re-derived in code);
+  a date with no amount → `answerSavingsGoalNeedsAmount` ("how much?"). `saveSavingsGoal` re-solves the monthly server-side.
+- Tests (+46): savings-goal-by-date.test.ts (known-answers SG-A..G + minimality oracle + the card-consistency lock via the
+  real goalFIImpact path), assistant-savings-goal-by-date.test.ts (parseTargetAmount adversarial + routing + formatters +
+  the critic/confirm regression locks), save-savings-goal.test.ts (server re-solve security), + ask.spec e2e + EDGE_CASES
+  §Savings-goal-by-date.
+
+**Hostile critic (wf_3de855be, 5 dims + adversarial verify): 0 refuted; 1 P0 + 1 P1 confirmed — both FIXED + regression-locked:**
+(P0) parseTargetAmount truncated ungrouped 4+ digit `$` amounts to 3 digits — "$20000"→$200, a 100×-wrong figure persisted
+on Save → require ≥1 comma-group (`+` not `*`) so ungrouped numbers fall through to `\d+` (REGRESSION_LEDGER). (P1)
+"have $X **saved** by <date>" (the feature's own canonical phrasing) missed → added "saved". 3 P2 mis-routes also fixed
+(past/status poach, per-period-rate-as-total, non-money quantity). **Confirmation critic (wf_99a99d0d)** verified all 5 fixes
++ caught my P2 guards OVER-blocking the canonical demo-mode ask ("how much per month to save $20,000 by 2027" → unknown) →
+made the rate-guard precise (adjacent-to-amount only) + scoped the past guard to the amount-free path; locked + an 18-case
+routing probe (real output) all green. Accepted P2s (STATUS): two-amount sentences pick the leftmost (mis-role of a
+user-typed number, not fabrication); a contrived income+save+date question can be poached.
+
+**Gate (real, measured 2026-06-28):** core `bash scripts/verify.sh` → ✅ GREEN — typecheck/lint/build clean, **1328 unit /
+105 files** (+46). ask.spec e2e **7/7** (new savings-by-date flow + axe AA + debt sibling no-regression). One UNRELATED e2e
+(`phase4-features:32` goals create/delete) failed in this long session's degraded env, but **fails IDENTICALLY at baseline
+HEAD with a clean rebuild** (proven via stash+rebuild; the delete persists to the DB correctly; `router.refresh()` isn't
+dropping the card here even at 20s) — the documented OneDrive/long-session flake class (STATUS #16/#17), on a page #126 does
+not touch, NOT a regression. My (ineffective) timeout tweak was reverted to keep the diff surgical.
+
+**State:** committing as the #126 commit. origin/main `12ad163` LIVE; local main ahead by the prior unpushed deploy-record
+(`c93e794`) + #124 (`3c0045b`) + #125 docs (`28b153c`) + #125 feature (`8b67997`) + this #126 commit, all UNPUSHED (push
+deploys the savings planner; owner's call — the live SimpleFIN holdings path from #124 stays UNVERIFIED until a real token).
+SAFE to /clear. NEXT (owner): push when ready; next slices — retire-at-age (accumulation+decumulation, the last Plan-in-Words
+type), then Cash Flow Radar (AI plan §1.2).

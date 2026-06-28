@@ -23,6 +23,7 @@ import { addMonthsClamped, compareDates, formatMonth, isoDate } from '@/lib/date
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
 import type { DebtFreeByDateResult } from '@/lib/engine/solve/debt-free-by-date';
+import type { SavingsGoalByDateResult } from '@/lib/engine/solve/savings-goal-by-date';
 import type { AssistantIntent, SpendTarget, Timeframe } from './intent';
 
 export interface AssistantFact {
@@ -37,9 +38,13 @@ export interface AssistantSource {
  *  Carries only the target date + label — the server RE-SOLVES every figure from the
  *  user's own data on save, so no client-supplied number is ever trusted. */
 export interface AssistantGoalAction {
-  kind: 'save_debt_free_goal';
+  kind: 'save_debt_free_goal' | 'save_savings_goal';
   targetDate: string; // YYYY-MM-DD
   label: string;
+  /** For save_savings_goal only: the user-stated target amount in cents. The server
+   *  RE-SOLVES the monthly contribution from this + the user's own safe-to-spend on save,
+   *  so no client-computed figure is ever trusted (only the user's own stated target). */
+  goalAmountCents?: number;
 }
 export interface AssistantAnswer {
   kind: AssistantIntent['kind'];
@@ -515,6 +520,113 @@ export function answerDebtFreeByDate(
   };
 }
 
+// ─── savings goal by a target date (inverse planning, DECISIONS #126) ─────────
+
+const GOALS_SOURCE: AssistantSource = { label: 'See goals', href: '/goals' };
+
+/**
+ * The user named a savings DATE but no amount — ASK for it (the "ask, don't invent"
+ * mechanic), never guess a target figure. This is the differentiator made literal.
+ */
+export function answerSavingsGoalNeedsAmount(label: string): AssistantAnswer {
+  return {
+    kind: 'savings_goal_by_date',
+    headline: `How much do you want to have saved by ${label}?`,
+    detail:
+      'Tell me the amount and I’ll work out the monthly savings it would take — for example, “save $15,000 by next December.”',
+    facts: [],
+    source: GOALS_SOURCE,
+  };
+}
+
+/**
+ * Inverse savings planner answer: a stated AMOUNT + DATE → the minimal monthly the SOLVER
+ * found, with honest feasibility. Every figure is precomputed by solveSavingsGoalByDate over
+ * the SAME getSpendingPlan safe-to-spend the /spending-plan view uses — this formatter only
+ * selects and phrases them (no math). Copy follows the coaching guardrails: illustration not
+ * advice, the no-growth assumption stated inline, no shame on a stretch target.
+ */
+export function answerSavingsGoalByDate(
+  result: SavingsGoalByDateResult,
+  label: string,
+  targetDate: string,
+  today: string,
+): AssistantAnswer {
+  if (result.outcome === 'already-funded') {
+    return {
+      kind: 'savings_goal_by_date',
+      headline: `You've already set aside ${fmt(result.goalAmountCents)} or more — that goal is funded.`,
+      facts: [{ label: 'Goal amount', value: fmt(result.goalAmountCents) }],
+      source: GOALS_SOURCE,
+    };
+  }
+  if (result.outcome === 'unreachable') {
+    // targetMonths is 0 because the date is this month or earlier (too soon to save anything up).
+    const past = compareDates(isoDate(targetDate), isoDate(today)) < 0;
+    return {
+      kind: 'savings_goal_by_date',
+      headline: past
+        ? `${label} is already behind us — pick a future date to save toward.`
+        : `${label} is too soon to save that up — building savings takes at least a month.`,
+      detail: 'Try a later date and I’ll work out the monthly savings it would take.',
+      facts: [{ label: 'Goal amount', value: fmt(result.goalAmountCents) }],
+      source: GOALS_SOURCE,
+    };
+  }
+
+  // reachable — a finite monthly funds the goal by the date; affordability is reported, never hidden.
+  const required = result.requiredMonthlyCents as number;
+  const byMonth = formatMonth(addMonthsClamped(isoDate(today), result.monthsToGoal as number).slice(0, 7));
+  const action: AssistantGoalAction = {
+    kind: 'save_savings_goal',
+    targetDate,
+    label,
+    goalAmountCents: result.goalAmountCents,
+  };
+  // share is null IFF safe-to-spend ≤ 0 (the engine guards it), so a null share here means
+  // the user is overspent / has no room this month.
+  const sharePct = result.shareOfSafeToSpendBps !== null ? pctFromBps(result.shareOfSafeToSpendBps) : null;
+  const facts: AssistantFact[] = [
+    { label: 'Goal amount', value: fmt(result.goalAmountCents) },
+    { label: 'Monthly savings', value: `${fmt(required)}/mo` },
+    { label: 'Funded by', value: byMonth },
+    ...(sharePct ? [{ label: 'Share of safe-to-spend', value: sharePct }] : []),
+  ];
+
+  if (sharePct === null) {
+    // Overspent: a real figure, but honestly flagged as budget they don't have yet — NOT a
+    // fake "just set aside $X/mo" yes for exactly the cohort that most needs the caveat.
+    return {
+      kind: 'savings_goal_by_date',
+      headline: `To save ${fmt(result.goalAmountCents)} by ${label}, you'd set aside about ${fmt(required)}/mo — but you're over your monthly plan right now, so that's budget you don't have yet.`,
+      detail: 'A later date would ask less each month. Illustration, not advice — assumes steady saving, no investment growth.',
+      facts,
+      source: GOALS_SOURCE,
+      action,
+    };
+  }
+
+  if (result.withinSafeToSpend === false) {
+    return {
+      kind: 'savings_goal_by_date',
+      headline: `Saving ${fmt(result.goalAmountCents)} by ${label} would take about ${fmt(required)}/mo — about ${sharePct} of your safe-to-spend, beyond a single month's budget.`,
+      detail: 'A later date would ask less of your budget each month. Illustration, not advice — assumes steady saving, no investment growth.',
+      facts,
+      source: GOALS_SOURCE,
+      action,
+    };
+  }
+
+  return {
+    kind: 'savings_goal_by_date',
+    headline: `To save ${fmt(result.goalAmountCents)} by ${label}, set aside about ${fmt(required)}/mo — about ${sharePct} of your safe-to-spend.`,
+    detail: `That reaches your goal around ${byMonth}. Illustration, not advice — assumes steady saving, no investment growth.`,
+    facts,
+    source: GOALS_SOURCE,
+    action,
+  };
+}
+
 // ─── subscriptions ──────────────────────────────────────────────────────────
 
 export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer {
@@ -611,6 +723,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'What was my biggest purchase this month?',
   'When will I be debt-free?',
   'Can I be debt-free by December 2028?',
+  'Can I save $20,000 by December 2028?',
 ];
 
 export function answerUnknown(): AssistantAnswer {

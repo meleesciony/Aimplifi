@@ -13,6 +13,7 @@
  * Pure: string in, typed object out. No I/O, no `new Date()` — `today` is given.
  */
 import { addMonthsClamped, daysInMonth, isoDate, type ISODate } from '@/lib/dates';
+import { centsFromDollarString } from '@/lib/money';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 
 /** A resolved calendar window over month keys (inclusive), with a display label. */
@@ -39,6 +40,7 @@ export type AssistantIntent =
   | { kind: 'cash_needed' }
   | { kind: 'debt_payoff' }
   | { kind: 'debt_free_by_date'; targetDate: ISODate; label: string }
+  | { kind: 'savings_goal_by_date'; targetDate: ISODate; targetCents: number | null; label: string }
   | { kind: 'subscriptions' }
   | { kind: 'forecast' }
   | { kind: 'savings_rate' }
@@ -58,6 +60,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'cash_needed',
   'debt_payoff',
   'debt_free_by_date',
+  'savings_goal_by_date',
   'subscriptions',
   'forecast',
   'savings_rate',
@@ -249,6 +252,77 @@ export function parseTargetDate(qRaw: string, today: ISODate): TargetDate | null
   return null;
 }
 
+// ─── target-amount parsing (for the inverse "save $X by <date>" planner, #126) ─
+
+/**
+ * Extract a stated dollar AMOUNT from free text ("save $15,000 by December", "$20k",
+ * "2 million", "set aside 50,000"). DETERMINISTIC and conservative: the amount is the user's
+ * OWN number, never the LLM's (the cardinal rule — the model supplies only the kind, the
+ * amount is string-matched out of the user's text). Returns integer cents, or null when no
+ * amount is clearly stated — the caller then ASKS for it rather than inventing one. A bare
+ * unmarked number is NOT treated as an amount (so a year like "2028" can't become "$2,028"):
+ * it must carry a "$", a magnitude suffix (k/m/grand/thousand/million/bn/billion), the word
+ * "dollars"/"bucks", or thousands grouping. Integer-cents throughout (no float on money):
+ * the base ≤2-decimal value parses via centsFromDollarString, then scales by an integer
+ * multiplier; anything it can't parse exactly falls through to null (ask, don't guess).
+ */
+export function parseTargetAmount(qRaw: string): number | null {
+  const q = qRaw.toLowerCase();
+
+  // Strip grouping commas (centsFromDollarString accepts only \d+(.\d{1,2})?), parse, bound.
+  const toCents = (numeric: string): number | null => {
+    try {
+      return centsFromDollarString(numeric.replace(/,/g, ''));
+    } catch {
+      return null;
+    }
+  };
+  const finite = (n: number | null): number | null =>
+    n !== null && Number.isFinite(n) && n > 0 && n <= 1e15 ? n : null;
+
+  // The integer part: either a thousands-GROUPED number ("15,000" — needs ≥1 comma group)
+  // OR a plain run of digits ("20000"). The grouped alternative REQUIRES a comma (`+`, not `*`):
+  // with `*` an ungrouped "20000" matched `\d{1,3}`="200" + zero groups and the optional tail
+  // let the whole match succeed WITHOUT backtracking to `\d+`, truncating "$20000" to $200 — a
+  // 100x-wrong, never-stated figure (critic P0, #126). The `+` forces ungrouped numbers to `\d+`.
+  const INT = String.raw`\d{1,3}(?:,\d{3})+|\d+`;
+
+  // 1) Magnitude form FIRST, so "$15k" isn't read as "$15" by the plain-dollar rule below.
+  const MULT: Record<string, number> = {
+    k: 1_000,
+    grand: 1_000,
+    thousand: 1_000,
+    m: 1_000_000,
+    million: 1_000_000,
+    bn: 1_000_000_000,
+    billion: 1_000_000_000,
+  };
+  const mag = q.match(new RegExp(`\\$?\\s?(${INT})(?:\\.(\\d{1,2}))?\\s*(k|m|bn|grand|thousand|million|billion)\\b`));
+  if (mag) {
+    const base = toCents(`${mag[1]}${mag[2] ? `.${mag[2]}` : ''}`);
+    if (base !== null) return finite(base * MULT[mag[3]]);
+  }
+
+  // 2) Explicit "$" amount (optional grouping + ≤2 decimals).
+  const dollar = q.match(new RegExp(`\\$\\s?(${INT})(?:\\.(\\d{1,2}))?`));
+  if (dollar) return finite(toCents(`${dollar[1]}${dollar[2] ? `.${dollar[2]}` : ''}`));
+
+  // 3) "<n> dollars/bucks".
+  const worded = q.match(new RegExp(`(${INT})(?:\\.(\\d{1,2}))?\\s*(?:dollars|bucks)\\b`));
+  if (worded) return finite(toCents(`${worded[1]}${worded[2] ? `.${worded[2]}` : ''}`));
+
+  // 4) A thousands-grouped bare number (the comma marks it unambiguously as an amount), UNLESS
+  // it is immediately followed by a non-money unit ("10,000 steps", "5,000 miles") — those are
+  // quantities, not dollars (critic P2, #126). Only this rule lacks a currency marker, so it
+  // alone needs the guard.
+  const grouped = q.match(
+    /\b(\d{1,3}(?:,\d{3})+)(?:\.(\d{1,2}))?\b(?!\s*(?:steps?|miles?|mi|km|kilometers?|meters?|points?|pts?|reps?|cal(?:ories)?|words?|ft|feet|members?|users?|followers?|views?|subscribers?|hours?|hrs?|minutes?|mins?|days?|items?|units?)\b)/,
+  );
+  if (grouped) return finite(toCents(`${grouped[1]}${grouped[2] ? `.${grouped[2]}` : ''}`));
+
+  return null;
+}
+
 // ─── category / group resolution ────────────────────────────────────────────
 
 const GROUPS: readonly string[] = [...new Set(CATEGORIES.map((c) => c.group))].filter((g) => g !== 'Income');
@@ -410,6 +484,51 @@ export function parseAssistantQuery(
     }
   }
 
+  // Savings goal BY a specific date (INVERSE planning, mirror of debt_free_by_date, #126).
+  // Requires a parseable target date AND a clearly-stated savings goal: an explicit goal
+  // phrase ("savings goal", "save up", "emergency fund"…) OR a save/accumulate verb paired
+  // with a concrete amount. Tested HERE — before the forward intents and before
+  // account_balance's bare "savings" match — so "save $15k by December 2027" solves for the
+  // monthly while "what's my savings rate?" (handled above) and "how much is in savings?"
+  // stay themselves. The amount is parsed deterministically (parseTargetAmount); a stated
+  // date with no amount still routes here so the answer can ASK for the amount, not invent it.
+  {
+    const strongGoalPhrase =
+      /\bsavings? goals?\b/.test(q) ||
+      /\bsaved? up\b/.test(q) ||
+      /\b(set|put) aside\b/.test(q) ||
+      /\b(sock|squirrel) away\b/.test(q) ||
+      /\b(down[\s-]?payment|emergency fund|nest egg|rainy[\s-]?day fund)\b/.test(q);
+    const amount = parseTargetAmount(q);
+    // "saved" (past participle) included — "have $X saved by <date>" is the feature's own
+    // canonical phrasing, and the \b after "save" doesn't cover it (critic P1, #126).
+    const saveVerb = /\b(save|saved|saving|accumulate|put away)\b/.test(q);
+    const reachVerb = /\b(reach|hit|get to)\b/.test(q);
+    const wantsGoal = strongGoalPhrase || ((saveVerb || reachVerb) && amount !== null);
+    // The stated amount is a per-period RATE only when a period cue sits ADJACENT to a dollar
+    // figure ("$500 a month", "$500/mo", "$500 monthly") — solving a lump target from a rate
+    // contradicts the user's own number, so skip those (often a safe_to_spend affordability ask).
+    // Crucially this does NOT fire when "per month"/"monthly" is the QUANTITY BEING SOLVED FOR
+    // ("how much per month to save $20,000 by 2027") — the digit must be adjacent, whitespace only
+    // (confirm-critic #126: the broad whole-question guard blocked the feature's own canonical form).
+    const amountIsRate =
+      /\$?\s?\d[\d,]*(?:\.\d{1,2})?\s*(?:\/\s*(?:mo|month|wk|week|yr|year|day)|(?:a|per|each)\s+(?:month|week|year|day|fortnight)|monthly|weekly|biweekly|fortnightly|yearly|annually)\b/.test(
+        q,
+      );
+    // A PAST/STATUS review with NO figure ("did I reach my savings goal in March", "…as of
+    // December") isn't a forward plan — suppress ONLY the amount-free clarify path. Once a real
+    // amount is present it's a concrete goal, so route it even with an inverted "have I"
+    // ("have I got enough saved to reach $20,000 by 2028") (confirm-critic #126).
+    const pastReviewNoFigure =
+      amount === null && (/\b(did|have|has)\s+i\b/.test(q) || /\bas of\b/.test(q) || /\bso far\b/.test(q));
+    if (!amountIsRate && !pastReviewNoFigure && wantsGoal) {
+      const target = parseTargetDate(q, today);
+      if (target) {
+        return { kind: 'savings_goal_by_date', targetDate: target.date, targetCents: amount, label: target.label };
+      }
+    }
+  }
+
   // Debt payoff / debt-freedom (loans + overall debt) — BEFORE cash_needed so
   // "pay off my loan" / "when am I debt-free" isn't read as credit-card cash-needed.
   // Requires debt/loan vocabulary. An explicit "credit card" phrasing stays
@@ -556,6 +675,20 @@ export function validateIntent(
       // A real calendar date only (isoDate throws on e.g. 2027-13-40 or junk).
       try {
         return { kind: 'debt_free_by_date', targetDate: isoDate(o.targetDate), label: o.label };
+      } catch {
+        return null;
+      }
+    }
+    case 'savings_goal_by_date': {
+      if (typeof o.targetDate !== 'string' || typeof o.label !== 'string') return null;
+      // A bad/absent amount degrades to null (→ the answer ASKS for it), never to a
+      // smuggled figure; only an invalid DATE rejects the whole intent (isoDate throws).
+      const amt =
+        typeof o.targetCents === 'number' && Number.isFinite(o.targetCents) && o.targetCents > 0
+          ? o.targetCents
+          : null;
+      try {
+        return { kind: 'savings_goal_by_date', targetDate: isoDate(o.targetDate), targetCents: amt, label: o.label };
       } catch {
         return null;
       }

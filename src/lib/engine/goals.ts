@@ -20,6 +20,19 @@ export interface GoalFIImpact {
 
 const MAX_MONTHS = 1200;
 
+/**
+ * Months to fully fund a goal at a flat monthly contribution — the SINGLE definition of a
+ * goal's funding timeline, with NO investment growth (a near-term savings envelope is cash,
+ * not a portfolio). Shared by goalFIImpact (the /goals card) and solveSavingsGoalByDate (the
+ * inverse planner, DECISIONS #126) so the two surfaces can never disagree on a saved goal's
+ * timeline. remaining ≤ 0 → 0 (already funded); no contribution → null (never).
+ */
+export function goalFundingMonths(remainingCents: number, monthlyContributionCents: number): number | null {
+  const remaining = Math.max(0, remainingCents);
+  if (remaining === 0) return 0;
+  return monthlyContributionCents > 0 ? Math.ceil(remaining / monthlyContributionCents) : null;
+}
+
 function simulate(
   portfolio: number,
   fiTarget: number,
@@ -52,13 +65,7 @@ export function goalFIImpact(params: {
     goalMonthlyContributionCents,
   } = params;
 
-  const remaining = floorAtZero(goalRemainingCents);
-  const monthsToGoal =
-    remaining === 0
-      ? 0
-      : goalMonthlyContributionCents > 0
-        ? Math.ceil(remaining / goalMonthlyContributionCents)
-        : null;
+  const monthsToGoal = goalFundingMonths(goalRemainingCents, goalMonthlyContributionCents);
 
   const i = geometricMonthlyRate(annualReturnBps);
   const baseline = simulate(portfolioCents, fiTargetCents, i, () => monthlySavingsCents);

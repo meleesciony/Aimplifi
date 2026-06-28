@@ -81,6 +81,29 @@ test('plans debt-free BY A DATE (inverse planning) and offers to save it as a go
   expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
 });
 
+test('plans a savings goal BY A DATE (inverse planning) and offers to save it as a goal', async ({ page }) => {
+  // DECISIONS #126 — "Plan in Words" savings slice: a stated amount + date is solved for the
+  // required monthly contribution, grounded in the same safe-to-spend read-path as /spending-plan.
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'Can I save $20,000 by December 2028?');
+
+  const headline = page.getByTestId('ask-headline');
+  await expect(headline).toContainText('$20,000.00');
+  await expect(headline).toContainText('December 2028');
+  await expect(headline).toContainText('/mo'); // a real monthly figure, whatever the budget state
+  // Grounded: links to goals, and offers the confirm-before-create save action.
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/goals');
+  await expect(page.getByTestId('ask-save-goal')).toBeVisible();
+  // Deterministic route (the demo has no LLM key) — the interpreted banner must be absent.
+  await expect(page.getByText('I interpreted your question')).toHaveCount(0);
+
+  // The save affordance must pass a11y. We do NOT click Save — persisting a goal would mutate
+  // the shared demo user under parallel e2e; the save path is locked by save-savings-goal.test.ts.
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
+});
+
 test('an off-topic question still returns a safe, non-empty answer (no crash)', async ({ page }) => {
   // Env-robust: with no LLM key this is the deterministic capabilities answer;
   // with a key the classifier routes it — either way the pipeline must not crash

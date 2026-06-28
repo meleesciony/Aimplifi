@@ -19,6 +19,7 @@ import { getCoachData } from '@/server/coach';
 import { loadDebtAccounts } from '@/server/debt';
 import { planDebtPayoff } from '@/lib/engine/debt/payoff';
 import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
+import { solveSavingsGoalByDate } from '@/lib/engine/solve/savings-goal-by-date';
 import type { ISODate } from '@/lib/dates';
 import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
@@ -38,6 +39,8 @@ import {
   answerLargest,
   answerNetWorth,
   answerSafeToSpend,
+  answerSavingsGoalByDate,
+  answerSavingsGoalNeedsAmount,
   answerSavingsRate,
   answerSpendByCategory,
   answerSpendTotal,
@@ -186,6 +189,22 @@ async function buildAnswer(
         safeToSpendCents: plan.leftToSpendCents,
       });
       return answerDebtFreeByDate(result, intent.label, intent.targetDate, today);
+    }
+    case 'savings_goal_by_date': {
+      // Inverse savings planner (DECISIONS #126): the user STATED the amount + date; we
+      // re-derive the required monthly from the SAME getSpendingPlan safe-to-spend the
+      // /spending-plan view uses (so it can't drift), with no investment growth (matching the
+      // /goals funding timeline). A stated date with no amount → ASK, never invent a figure.
+      if (intent.targetCents === null) return answerSavingsGoalNeedsAmount(intent.label);
+      const plan = await getSpendingPlan(userId);
+      const result = solveSavingsGoalByDate({
+        goalAmountCents: intent.targetCents,
+        currentSavingsCents: 0, // a fresh envelope, like createGoal (savedCents starts at 0)
+        targetDate: intent.targetDate,
+        today: today as ISODate,
+        safeToSpendCents: plan.leftToSpendCents,
+      });
+      return answerSavingsGoalByDate(result, intent.label, intent.targetDate, today);
     }
     case 'subscriptions':
       return answerSubscriptions((await getRecurring(userId)).summary);

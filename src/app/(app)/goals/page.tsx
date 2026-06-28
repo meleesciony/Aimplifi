@@ -123,6 +123,9 @@ export default async function GoalsPage() {
                   {goal.monthlyContributionCents
                     ? ` · ${formatCents(cents(goal.monthlyContributionCents))}/mo`
                     : ''}
+                  {/* Savings-goal-by-date goals (DECISIONS #126) carry the target date the user
+                      planned toward; existing dateless savings goals are unaffected. */}
+                  {goal.targetDate ? ` · by ${formatMonth(goal.targetDate.slice(0, 7))}` : ''}
                 </CardDescription>
               </CardHeader>
               <CardContent className="text-sm">

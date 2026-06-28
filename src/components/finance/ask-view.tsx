@@ -11,7 +11,7 @@ import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { ArrowRight, CornerDownLeft, Sparkles } from 'lucide-react';
 import { askAssistant } from '@/server/assistant';
-import { saveDebtFreeGoal } from '@/server/goal-actions';
+import { saveDebtFreeGoal, saveSavingsGoal } from '@/server/goal-actions';
 import { ASSISTANT_SUGGESTIONS, type AssistantAnswer, type AssistantGoalAction } from '@/lib/engine/assistant/answer';
 
 export function AskView({
@@ -64,7 +64,11 @@ export function AskView({
     setSaveState('idle');
     startSaving(async () => {
       try {
-        await saveDebtFreeGoal(action.targetDate);
+        if (action.kind === 'save_savings_goal') {
+          await saveSavingsGoal(action.targetDate, action.goalAmountCents ?? 0);
+        } else {
+          await saveDebtFreeGoal(action.targetDate);
+        }
         setSaveState('saved');
       } catch {
         setSaveState('error');
@@ -151,7 +155,7 @@ export function AskView({
               </Link>
             )}
 
-            {answer.action?.kind === 'save_debt_free_goal' && (
+            {answer.action && (
               // The button stays MOUNTED across states so keyboard focus is preserved on save;
               // the outer aria-live region (above) announces the change, so no nested role="status".
               <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">

@@ -786,3 +786,60 @@ formatter, non-zero server re-solve). Accepted P2s (documented): a bare credit-c
 stays `cash_needed` even with a date (DECISIONS #98 convention, pinned); the /goals debt-card
 render + Save success/error states are display-layer, covered by inspection (the save
 persistence is integration-tested; can't e2e without mutating the shared demo's goals).
+
+## Post-Phase-5 refinement: Plan in Words — savings-goal-by-date (DECISIONS #126)
+
+The second AI-differentiation slice (after #125's debt-free-by-date): state an amount + a
+date ("save $20,000 by December 2028") and the app SOLVES for the minimal monthly
+contribution, with honest feasibility (share of safe-to-spend, within-budget flag). New pure
+`engine/solve/savings-goal-by-date.ts` `solveSavingsGoalByDate` — funding is LINEAR (no
+investment growth; closed-form `ceil(remaining/targetMonths)`, NOT a bisection, because
+savings doesn't amortize). The funding-months formula is extracted to one shared
+`goals.ts::goalFundingMonths` used by BOTH the solver and the /goals `goalFIImpact` card, so a
+saved goal renders a byte-identical timeline (the #125 card-vs-solver P1 designed out — no new
+`Goal.kind` needed). The user-stated AMOUNT is extracted deterministically by a new
+`parseTargetAmount` (the LLM supplies only the kind; the amount/date are re-derived in code);
+a date with no amount → an "ask for the amount" answer. `saveSavingsGoal` re-solves the monthly
+server-side (the client passes only the stated amount + date; the contribution is never trusted).
+
+Gate (real, measured 2026-06-28): core `bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+typecheck/lint/build clean, **1328 unit / 105 files** (+46). ask.spec e2e **7/7** (new
+savings-by-date flow + axe WCAG-AA + debt sibling no-regression).
+
+Hostile critic (wf_3de855be, 5 dims → adversarial verify): **0 refuted; 1 P0 + 1 P1 confirmed,
+both FIXED + regression-locked**, then a confirmation critic (wf_99a99d0d) re-verified the fixes:
+- **P0 (parseTargetAmount truncation):** an ungrouped 4+ digit `$` amount truncated to its first
+  3 digits — "$20000"→$200 (regex alternation matched the first branch without backtracking), a
+  100×-wrong figure persisted on Save → fixed by requiring ≥1 comma-group (`+` not `*`).
+  REGRESSION_LEDGER 2026-06-28.
+- **P1 (canonical phrasing missed):** "have $X **saved** by <date>" routed to unknown because
+  `saveVerb` didn't match the past participle → added "saved".
+- **3 P2 mis-routes FIXED:** past/status review poached into the "ask" path; a per-period RATE
+  ("$500 a month") misread as the lump total; a comma-grouped NON-money quantity ("10,000 steps")
+  read as $10,000.
+- **Confirmation round caught my P2 guards OVER-blocking** (the broad rate/past guards blocked
+  the feature's own canonical demo-mode ask "how much per month to save $20,000 by 2027", and
+  amount-bearing forward goals) → fixed by making the rate-guard PRECISE (a rate only when a
+  period cue is adjacent to a dollar figure) and applying the past guard ONLY to the amount-free
+  path; locked + an 18-case routing probe (real output) green.
+
+Accepted P2s (documented, by design):
+1. **Two-amount sentences pick the leftmost amount** — "I have $20,000 saved, goal of $50,000 by
+   2028" plans for the stated $20,000, not the $50,000 goal (`parseTargetAmount` returns the
+   leftmost match). It is a *mis-role of a number the user actually typed* (surfaced in the
+   answer), NOT a fabrication, and needs an uncommon two-amount phrasing; full disambiguation is
+   deferred. The save path re-solves the (mis-roled-but-user-stated) amount, so no app-originated
+   figure is ever persisted.
+2. **A contrived income question embedding "saving $X by <year>"** can be poached by the savings
+   block (it sits before the income intent). Low likelihood; `savings_rate` (the common collision)
+   is correctly NOT poached.
+3. The /goals savings-card target-date line + the Ask "Save as a goal" success/error states are
+   display-layer, covered by inspection (save persistence is integration-tested; can't e2e
+   without mutating the shared demo's goals).
+
+NOTE (env, not a code defect): an e2e `phase4-features.spec.ts:32` ("goals: creating a goal")
+failed repeatedly in this session's degraded environment — but it fails IDENTICALLY at baseline
+HEAD with a clean rebuild (proven by stash + rebuild), the delete persists to the DB correctly
+(verified), and `router.refresh()` simply isn't dropping the card here even at a 20s budget. It
+passed in #124 (56/56) and #125. This is the documented OneDrive/long-session e2e-flake class
+(STATUS #16/#17), on a page this feature does not touch; NOT a regression from #126.
