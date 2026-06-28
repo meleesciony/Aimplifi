@@ -722,3 +722,32 @@ not touch, NOT a regression. My (ineffective) timeout tweak was reverted to keep
 deploys the savings planner; owner's call — the live SimpleFIN holdings path from #124 stays UNVERIFIED until a real token).
 SAFE to /clear. NEXT (owner): push when ready; next slices — retire-at-age (accumulation+decumulation, the last Plan-in-Words
 type), then Cash Flow Radar (AI plan §1.2).
+
+## 2026-06-28 — Live-provider ingest CONTRACT AUDIT + first money fixes (#127) — DONE ✅ (verify green, PUSHED)
+Owner corrected a stale claim: the app runs in PRODUCTION with REAL creds (Plaid PLAID_ENV=production; SimpleFIN Bridge has
+all their accounts, access URL encrypted in the DB per #56) — the "UNVERIFIED (no token in env)" notes describe the CI suite,
+NOT the deployment. So the mock-written mappers process REAL money data. Ran an adversarial contract audit (wf_6eade83c, 5
+reviewers vs the official Plaid/SimpleFIN schemas → verify): **1 P0(→P1) + 10 P1 + 9 P2 confirmed.**
+
+FIXED + pushed (commit fbb45d9, DECISIONS #127, REGRESSION_LEDGER 2026-06-28; core verify GREEN 1332 unit/105 files):
+- **SimpleFIN sign+type (#1/#2/#8/#9):** `Math.abs(balance)` on every account inverted overdrafts (asset shown +) and
+  booked positive-principal loans / no-keyword cards as CHECKING assets → store SIGNED for assets, `|owed|` for liabilities
+  (SimpleFIN has no liability sign convention), broadened `inferAccountType` (no-keyword cards + heloc/servicer LOAN branch).
+- **Plaid APR (#7):** `aprs[]` never mapped → every live card aprBps=0 → ZERO interest in debt/cash-needed → new
+  `pickPlaidAprBps` wired into `/liabilities/get` to set `Account.aprBps`.
+
+**TRACKED BACKLOG (confirmed real, NOT fixed — full detail + suggested fixes in STATUS "Live provider ingest" + DECISIONS #127):**
+the agreed next increments, highest-money-impact first, EACH its own verified commit:
+  1. **(#4, P1) SimpleFIN pending reconcile** — a pending row that never posts lingers; a pending→posted id change double-counts.
+     Fix: a pending-reconcile pass in `syncFromSimplefin` (simplefin.ts ~349-378) mirroring `reconcileSimplefinHoldings` /
+     Plaid `removed[]` — deleteMany PENDING rows in the fetched window (date >= startDate) whose providerRef wasn't returned.
+     Test idiom: `tests/unit/simplefin-holdings-sync.test.ts` (mocked server).
+  2. **(#5, P1) SimpleFIN holdings per-share round-trip** loses the authoritative total → low-price lots render $0. Needs a
+     `Holding.marketValueCents Int?` schema column (db push). Does NOT touch net worth.
+  3. **(#6, P1) Plaid investment/loan balances freeze at link time** → call syncAccountsForItem / `/accounts/balance/get` each sync.
+  4. (#3/#10, P1) currency never read (~N/A US user); + 9 P2s (epoch-UTC date boundary, symbol regex, Plaid last_statement abs,
+     null minimum→$0, mortgage/student dropped, etc.).
+
+**State:** origin/main = local main = `fbb45d9` (in sync, deployed). Working tree CLEAN except this PROGRESS edit. **SAFE to /clear
+NOW** — token-efficient checkpoint. NEXT: on "continue", do backlog #4 (SimpleFIN pending reconcile) in a lean context, engine-first
++ regression test + green verify + commit; then #5, then #6. (Plan-in-Words retire-at-age + Cash Flow Radar remain the feature track.)
