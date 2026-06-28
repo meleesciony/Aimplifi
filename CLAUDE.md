@@ -1,9 +1,10 @@
 # Read LOOP_ENGINEERING.md first.
 
-# CLAUDE.md — Pulse Finance project memory
+# CLAUDE.md — Aimplifi project memory
 
-You are building **Pulse Finance**, a production-grade personal finance web app that is
-meaningfully better than Mint and Simplifi. The full product spec is in `SPEC.md`.
+You are building **Aimplifi** (formerly "Pulse Finance" — the product was renamed; the brand
+appears as "Ask Aimplifi" / the nav "Aim·plifi"), a production-grade personal finance web app
+that is meaningfully better than Mint and Simplifi. The full product spec is in `SPEC.md`.
 Phase 0 (architecture) is complete: see `docs/PHASE_0_ARCHITECTURE.md`. Work proceeds
 phase by phase per `docs/PHASES.md`.
 
