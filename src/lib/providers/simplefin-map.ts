@@ -8,8 +8,12 @@
  *
  * Sign convention (SimpleFIN): `amount` is a signed decimal STRING where NEGATIVE
  * means money LEFT the account — the SAME convention Pulse stores, so unlike Plaid
- * we do NOT flip the sign. Balances are signed too; we store the POSITIVE magnitude
- * and let the account `type` decide asset-vs-liability (a card's balance is owed).
+ * we do NOT flip the transaction sign. BALANCES are signed too, but SimpleFIN does NO sign
+ * normalization (a card may report owed as negative, a loan as positive principal). We store
+ * the SIGNED balance for an ASSET (so an overdrawn deposit account stays negative) and the
+ * |amount owed| for a LIABILITY, so the type-based net-worth flip (`isLiabilityType ? −bal :
+ * +bal`) nets correctly. The earlier Math.abs()-everything store inverted an overdrawn deposit
+ * account into a positive asset (audit #126-followup).
  *
  * UNVERIFIED: the SimpleFIN protocol here is implemented from documentation as of
  * the Jan-2026 knowledge cutoff. Confirm the exact field names/shapes against the
@@ -40,11 +44,6 @@ export function simplefinAmountToCents(amount: string): Cents {
   return cents((sign === '-' ? -value : value) || 0); // collapse -0
 }
 
-/** Signed balance string → POSITIVE magnitude cents (account `type` decides net-worth sign). */
-export function simplefinBalanceToPositiveCents(balance: string): Cents {
-  return cents(Math.abs(simplefinAmountToCents(balance)));
-}
-
 /** Unix seconds → calendar date via PURE civil-date math (no Date object, no timezone drift). */
 export function simplefinPostedToDate(posted: number): ISODate {
   if (!Number.isFinite(posted)) throw new Error(`simplefinPostedToDate: non-finite ${posted}`);
@@ -59,13 +58,28 @@ export function simplefinPostedToDate(posted: number): ISODate {
  */
 export function inferAccountType(name: string): PulseAccountType {
   const n = name.toLowerCase();
+  // Explicit NON-CARD liabilities FIRST (audit #126-followup): a HELOC / line of credit /
+  // student-loan servicer is a liability, but "line of credit" contains "credit" and a
+  // servicer name has no "loan" keyword — so without this they'd be mis-typed CREDIT or, worse,
+  // default to a CHECKING asset (inverting net-worth sign when the balance is reported positive).
+  if (/\b(heloc|home ?equity|line of credit|mohela|nelnet|navient|sallie ?mae|great lakes|aidvantage)\b/.test(n)) {
+    return 'LOAN';
+  }
   if (/\b(credit|card|visa|mastercard|amex|discover)\b/.test(n)) return 'CREDIT';
   // Common credit-card PRODUCT lines, matched as substrings so a zero-balance card
   // (no sign signal) whose name omits "card" still classifies — e.g. "QuicksilverOne",
-  // "VentureOne", "Sapphire Reserve" (real-bank sync, DECISIONS #61).
-  if (/(quicksilver|venture|savor|spark|sapphire|skymiles|bonvoy|freedom)/.test(n)) return 'CREDIT';
+  // "VentureOne", "Sapphire Reserve" (real-bank sync, DECISIONS #61), plus the no-keyword
+  // cash-back/travel products a real sync surfaces (audit #126-followup). The "cash" variants
+  // are tightly bounded so a deposit "Cash Management"/"Cash Reserve" account is NOT caught.
+  if (
+    /(quicksilver|venture|savor|spark|sapphire|skymiles|bonvoy|freedom|active cash|double cash|custom(ized)? cash|cash ?\+|cash plus|autograph|\bbilt\b|altitude)/.test(
+      n,
+    )
+  ) {
+    return 'CREDIT';
+  }
   if (/\b(savings|save|money ?market|cd|certificate)\b/.test(n)) return 'SAVINGS';
-  if (/\b(mortgage|loan|student)\b/.test(n)) return 'LOAN';
+  if (/\b(mortgage|loan|student|auto ?loan|personal loan|car loan)\b/.test(n)) return 'LOAN';
   // Investments incl. 529 plans + retirement plans (came through as CHECKING before).
   // \binvest\b deliberately does NOT match "Investor Checking" (no boundary), so a
   // Schwab/Fidelity investor *checking* account stays CHECKING.
@@ -146,11 +160,20 @@ export function mapSimplefinAccount(acct: SimplefinAccount): MappedSfAccount {
   if (type === 'CHECKING' && signedBalance < 0 && !/\b(check|chequing|debit|deposit|saving|money)/i.test(acct.name)) {
     type = 'CREDIT';
   }
+  const isLiability = type === 'CREDIT' || type === 'LOAN';
   return {
     providerRef: acct.id,
     name: (display || acct.name || 'Account').slice(0, 80),
     type,
-    currentBalanceCents: cents(Math.abs(signedBalance)),
+    // Engine-convention balance (audit #126-followup). SimpleFIN does NO sign normalization, so:
+    //  - ASSET: store the SIGNED balance, so an OVERDRAWN deposit account stays negative and
+    //    reduces net worth (the old Math.abs() inverted it into a positive asset).
+    //  - LIABILITY: store the |amount owed|. SimpleFIN gives no liability sign convention — a card
+    //    may report owed as negative, a loan as positive principal — so the magnitude is the robust
+    //    owed value regardless of institution. `isLiabilityType ? −bal : +bal` then nets correctly.
+    // KNOWN EDGE: a genuine credit balance (an OVERPAID card) is indistinguishable from
+    // owed-reported-with-the-other-sign, so it's treated as a small owed amount (rare; documented).
+    currentBalanceCents: cents(isLiability ? Math.abs(signedBalance) : signedBalance),
   };
 }
 

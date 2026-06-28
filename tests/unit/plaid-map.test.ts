@@ -6,6 +6,7 @@ import {
   mapPlaidAccount,
   mapPlaidAccountType,
   mapPlaidLiabilityToStatement,
+  pickPlaidAprBps,
   plaidAmountToCents,
   plaidDollarsToPositiveCents,
   plaidSignedDollarsToCents,
@@ -240,5 +241,40 @@ describe('prepareIngestedTransaction — categorized, persist-ready row', () => 
       },
     ]);
     expect(row.categoryId).toBe('household');
+  });
+});
+
+describe('pickPlaidAprBps — APR percent → basis points (audit #126-followup)', () => {
+  it('selects the purchase APR and converts to bps with no float drift', () => {
+    expect(
+      pickPlaidAprBps({
+        aprs: [
+          { apr_type: 'balance_transfer_apr', apr_percentage: 0, balance_subject_to_apr: null, interest_charge_amount: null },
+          { apr_type: 'purchase_apr', apr_percentage: 24.99, balance_subject_to_apr: 1000, interest_charge_amount: 12.5 },
+          { apr_type: 'cash_apr', apr_percentage: 29.99, balance_subject_to_apr: null, interest_charge_amount: null },
+        ],
+      }),
+    ).toBe(2499); // 24.99% → 2499 bps (purchase APR chosen over the higher cash APR)
+  });
+
+  it('falls back to the highest non-special APR when no purchase APR is present', () => {
+    expect(
+      pickPlaidAprBps({
+        aprs: [
+          { apr_type: 'cash_apr', apr_percentage: 27.24, balance_subject_to_apr: null, interest_charge_amount: null },
+          { apr_type: 'special', apr_percentage: 0, balance_subject_to_apr: null, interest_charge_amount: null },
+          { apr_type: 'balance_transfer_apr', apr_percentage: 19.99, balance_subject_to_apr: null, interest_charge_amount: null },
+        ],
+      }),
+    ).toBe(2724); // highest non-special (cash 27.24%), not the 0% promo
+  });
+
+  it('returns null when no usable APR is reported (so the rate is not zeroed)', () => {
+    expect(pickPlaidAprBps({ aprs: [] })).toBeNull();
+    expect(pickPlaidAprBps({})).toBeNull();
+    expect(pickPlaidAprBps({ aprs: null })).toBeNull();
+    expect(
+      pickPlaidAprBps({ aprs: [{ apr_type: 'special', apr_percentage: 0, balance_subject_to_apr: null, interest_charge_amount: null }] }),
+    ).toBeNull(); // a lone 0% promo is not a usable carrying rate
   });
 });

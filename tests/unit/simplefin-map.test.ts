@@ -7,12 +7,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import { isoDate } from '@/lib/dates';
+import { netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import {
   inferAccountType,
   mapSimplefinAccount,
   prepareSimplefinTransaction,
   simplefinAmountToCents,
-  simplefinBalanceToPositiveCents,
   simplefinPostedToDate,
 } from '@/lib/providers/simplefin-map';
 
@@ -33,10 +33,6 @@ describe('SimpleFIN amount/balance/date conversion', () => {
   it('throws only on genuine garbage', () => {
     expect(() => simplefinAmountToCents('abc')).toThrow();
     expect(() => simplefinAmountToCents('')).toThrow();
-  });
-  it('stores balances as a POSITIVE magnitude (type decides the sign)', () => {
-    expect(simplefinBalanceToPositiveCents('-500.00')).toBe(50000); // a card you owe $500 on
-    expect(simplefinBalanceToPositiveCents('1234.56')).toBe(123456);
   });
   it('converts a unix timestamp to a UTC calendar date (floored to the day)', () => {
     expect(simplefinPostedToDate(1577836800)).toBe('2020-01-01');
@@ -75,6 +71,25 @@ describe('inferAccountType (SimpleFIN has no type field)', () => {
     expect(inferAccountType('Fidelity Cash Management')).toBe('CHECKING');
     expect(inferAccountType('Wells Fargo Everyday Checking')).toBe('CHECKING');
   });
+
+  it('classifies no-keyword cash-back/travel cards + non-card liabilities (audit #126-followup)', () => {
+    // No-keyword credit products a real SimpleFIN sync surfaces (would have defaulted to CHECKING):
+    expect(inferAccountType('Wells Fargo Active Cash')).toBe('CREDIT');
+    expect(inferAccountType('Citi Double Cash')).toBe('CREDIT');
+    expect(inferAccountType('Citi Custom Cash')).toBe('CREDIT');
+    expect(inferAccountType('Wells Fargo Autograph')).toBe('CREDIT');
+    expect(inferAccountType('Bilt Rewards')).toBe('CREDIT');
+    expect(inferAccountType('US Bank Altitude Go')).toBe('CREDIT');
+    // Non-card liabilities (keyword-less or servicer-named) must be LOAN, never a CHECKING asset:
+    expect(inferAccountType('Home Equity Line of Credit')).toBe('LOAN'); // not CREDIT ("credit" substring)
+    expect(inferAccountType('My HELOC')).toBe('LOAN');
+    expect(inferAccountType('MOHELA')).toBe('LOAN');
+    expect(inferAccountType('Nelnet Student Loans')).toBe('LOAN');
+    expect(inferAccountType('Navient')).toBe('LOAN');
+    // ...but a deposit "Cash" account is NOT swept into CREDIT by the tight cash-product patterns:
+    expect(inferAccountType('Premier Cash Rewards Checking')).toBe('CHECKING');
+    expect(inferAccountType('PNC Cash Reserve')).toBe('CHECKING'); // not a brokerage name, no card product
+  });
 });
 
 describe('mapSimplefinAccount', () => {
@@ -94,6 +109,35 @@ describe('mapSimplefinAccount', () => {
     expect(mapSimplefinAccount({ id: 'a', name: 'Signature Rewards', balance: '-1200.00' }).type).toBe('CREDIT');
     // an explicit checking with a negative balance (overdraft) is NOT reclassified
     expect(mapSimplefinAccount({ id: 'b', name: 'Everyday Checking', balance: '-50.00' }).type).toBe('CHECKING');
+  });
+
+  // audit #126-followup: an ASSET keeps its signed balance (an overdraft must NOT abs() to a
+  // positive asset) and a LIABILITY stores |owed| (robust to SimpleFIN's un-normalized sign —
+  // a card owed-negative and a loan positive-principal both land as a liability). Each case
+  // hand-verifies the net-worth contribution via netWorthCents (isLiabilityType ? −bal : +bal).
+  it('stores a sign-correct balance so net worth nets right (overdraft / owed card / positive-principal loan)', () => {
+    const nw = (type: string, c: number) => netWorthCents([{ type, currentBalanceCents: c }]);
+
+    // Owed card: SimpleFIN reports −642.10; store +64210 (|owed|), netWorth −$642.10. UNCHANGED.
+    const owed = mapSimplefinAccount({ id: 'c', name: 'Sapphire Card', balance: '-642.10', org: { name: 'Chase' } });
+    expect(owed.currentBalanceCents).toBe(64210);
+    expect(nw(owed.type, owed.currentBalanceCents)).toBe(-64210);
+
+    // Overdrawn checking: SimpleFIN reports −42.17; store −4217 (NOT +4217), netWorth −$42.17.
+    const overdrawn = mapSimplefinAccount({ id: 'd', name: 'Everyday Checking', balance: '-42.17' });
+    expect(overdrawn.type).toBe('CHECKING');
+    expect(overdrawn.currentBalanceCents).toBe(-4217); // was +4217 under the old abs() bug
+    expect(nw(overdrawn.type, overdrawn.currentBalanceCents)).toBe(-4217);
+
+    // Positive-principal loan under a servicer name: typed LOAN (not a CHECKING asset), |owed|
+    // = +1,800,000, netWorth −$18,000 (the old default-CHECKING path booked it as a +asset).
+    const loan = mapSimplefinAccount({ id: 'f', name: 'Nelnet Student Loans', balance: '18000.00' });
+    expect(loan.type).toBe('LOAN');
+    expect(loan.currentBalanceCents).toBe(1800000);
+    expect(nw(loan.type, loan.currentBalanceCents)).toBe(-1800000);
+
+    // A healthy checking keeps its positive balance.
+    expect(mapSimplefinAccount({ id: 'g', name: 'Everyday Checking', balance: '1500.00' }).currentBalanceCents).toBe(150000);
   });
 });
 

@@ -843,3 +843,66 @@ HEAD with a clean rebuild (proven by stash + rebuild), the delete persists to th
 (verified), and `router.refresh()` simply isn't dropping the card here even at a 20s budget. It
 passed in #124 (56/56) and #125. This is the documented OneDrive/long-session e2e-flake class
 (STATUS #16/#17), on a page this feature does not touch; NOT a regression from #126.
+
+## Live provider ingest — contract audit + first fixes (DECISIONS #127)
+
+**Framing correction (important).** The owner runs the app in PRODUCTION with REAL aggregator
+credentials: Plaid is on `PLAID_ENV=production` (Vercel env) and SimpleFIN Bridge has all their
+accounts linked (the encrypted access URL lives in the `SimpleFinConnection` DB row, by design —
+DECISIONS #56 — so there is no SimpleFIN env var). The repeated "Plaid/SimpleFIN live path is
+UNVERIFIED (no token in env)" notes elsewhere in this doc and in the mapper headers describe the
+CI/TEST SUITE (which has no creds and runs against mocks), NOT the owner's deployment. Those paths
+DO run on real money data every sync. The mappers' ledger math is unit/mock-tested; what CI never
+exercised is the live socket + the providers' real field shapes — which the owner's accounts now do.
+
+Because real data flows through code written against mocks, ran an adversarial CONTRACT AUDIT
+(wf_6eade83c, 5 reviewers vs the official Plaid/SimpleFIN response schemas → adversarial verify of
+every P0/P1). Result: **1 P0 (downgraded P1 on verify) + 10 P1 + 9 P2 confirmed.**
+
+**FIXED now (DECISIONS #127, two clusters, hand-verified + regression-locked):**
+- **SimpleFIN balance SIGN + TYPE (audit #1/#2/#8/#9):** `mapSimplefinAccount` did `Math.abs(balance)`
+  on every account, so an OVERDRAWN deposit account was stored as a positive ASSET (net-worth sign
+  inverted), and a keyword-less liability (HELOC, a loan under a servicer name, a no-keyword card like
+  "Active Cash") defaulted to CHECKING and only the negative-balance rescue saved it — so a
+  positive-principal loan booked as an asset. Fix: store the SIGNED balance for assets (overdraft
+  stays negative) and `|amount owed|` for liabilities (SimpleFIN gives NO liability sign convention —
+  a card may report owed-negative, a loan positive-principal — so the magnitude is the robust owed
+  value); broadened `inferAccountType` with no-keyword card products + a non-card-liability branch
+  (heloc/home-equity/line-of-credit/servicers) checked BEFORE the generic "credit" rule. Net-worth
+  contribution hand-verified per case in `tests/unit/simplefin-map.test.ts`. KNOWN EDGE (documented in
+  code): a genuine OVERPAID card credit balance is indistinguishable from owed-reported-positive, so
+  it's treated as a small owed amount (rare).
+- **Plaid APR (audit #7):** `aprs[]` was never mapped, so EVERY live Plaid card carried `aprBps`
+  null/0 → the debt-payoff + cash-needed engines computed ZERO interest on real cards (corrupting the
+  just-shipped debt-free-by-date + cash-needed figures). Fix: new pure `pickPlaidAprBps` (purchase APR
+  → bps, fallback highest non-special, integer-rounded ×100 so no float drift) wired into the
+  `/liabilities/get` loop to set `Account.aprBps` (even when no statement has generated yet). Locked by
+  `tests/unit/plaid-map.test.ts`. (SimpleFIN has no APR field in its protocol, so SimpleFIN cards keep
+  a user-entered/blank rate — expected.)
+
+**TRACKED backlog (confirmed real, NOT yet fixed — prioritized for follow-up increments):**
+1. **(P1, audit #4) SimpleFIN pending never reconciled** — a pending row that never posts lingers
+   forever, and a pending→posted `id` change double-counts the transaction. Fix: a pending-reconcile
+   pass mirroring `reconcileSimplefinHoldings` / Plaid `removed[]` (delete prior PENDING rows in the
+   fetched window whose providerRef isn't returned).
+2. **(P1, audit #5) SimpleFIN holdings per-share round-trip** loses SimpleFIN's authoritative TOTAL
+   `market_value` — a low-price / high-quantity lot can render as $0 or materially wrong. Fix: persist
+   `marketValueCents` on `Holding` (schema add) and use the total directly. Does NOT affect net worth
+   (account balance is authoritative) — only the /investments breakdown.
+3. **(P1, audit #6) Plaid investment/loan balances freeze at link time** — only refreshed on link, not
+   on sync, so net worth goes stale. Fix: call `syncAccountsForItem` (or `/accounts/balance/get`) each
+   sync.
+4. **(P1, audit #3/#10) Currency never read** (both providers) — a non-USD or zero-decimal (JPY/KRW)
+   balance is summed into net worth at a fake 1:1 / 100×-off rate. Almost certainly N/A for a US-only
+   user, but unguarded. Fix: read `currency`/`iso_currency_code`; exclude-or-FX non-USD at the
+   net-worth boundary (a withheld figure beats a silently wrong one).
+5. **P2s (9):** epoch→date UTC-day-boundary (evening txn can land a day off); SimpleFIN symbol regex
+   drops options/crypto/slash share-class tickers; all-unmappable-holdings → `[]` is treated as
+   "sold everything" and deletes synced rows; Plaid null `balances.current`→0; Plaid
+   `last_statement_balance` run through abs() (a statement CREDIT flips to owed); Plaid null
+   `minimum_payment_amount`→$0 (worse than the estimate path); Plaid `liabilities.mortgage[]` /
+   `student[]` dropped (only `credit[]` read). Each carries a suggested fix in the audit output.
+
+Recommendation: tackle the backlog in small, individually-verified increments (each its own DECISIONS
+entry + regression test), highest-money-impact first (pending reconcile, then holdings total, then the
+Plaid balance refresh), rather than one large risky change.

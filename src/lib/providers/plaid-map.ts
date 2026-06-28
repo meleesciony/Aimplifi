@@ -118,12 +118,42 @@ export function mapPlaidAccount(account: PlaidAccount): MappedAccount {
   };
 }
 
+export interface PlaidApr {
+  apr_percentage: number; // e.g. 24.99 (percent, not bps)
+  apr_type: string; // 'purchase_apr' | 'cash_apr' | 'balance_transfer_apr' | 'special' | ...
+  balance_subject_to_apr: number | null;
+  interest_charge_amount: number | null;
+}
+
 export interface PlaidCreditLiability {
   account_id: string;
   last_statement_balance: number | null;
   last_statement_issue_date: string | null; // YYYY-MM-DD
   minimum_payment_amount: number | null;
   next_payment_due_date: string | null; // YYYY-MM-DD
+  aprs?: PlaidApr[] | null;
+}
+
+/**
+ * Pick the representative APR (basis points) for a Plaid credit liability: the PURCHASE apr —
+ * the rate that accrues on a carried purchase balance, which the debt-payoff + cash-needed
+ * engines model — falling back to the highest non-`special` (promo) apr, else the highest of
+ * any. Returns null when no usable apr is reported, so the account keeps its existing/blank
+ * rate rather than being zeroed. apr_percentage (24.99) → bps (2499) via integer-rounded ×100,
+ * so no float drift reaches the rate. WITHOUT this, every live Plaid card carries aprBps null/0
+ * and its interest is computed as ZERO (audit #126-followup).
+ */
+export function pickPlaidAprBps(credit: { aprs?: PlaidApr[] | null }): number | null {
+  const aprs = (credit.aprs ?? []).filter(
+    (a): a is PlaidApr => !!a && Number.isFinite(a.apr_percentage) && a.apr_percentage > 0,
+  );
+  if (aprs.length === 0) return null;
+  const byDescApr = (x: PlaidApr, y: PlaidApr) => y.apr_percentage - x.apr_percentage;
+  const chosen =
+    aprs.find((a) => a.apr_type === 'purchase_apr') ??
+    [...aprs].filter((a) => a.apr_type !== 'special').sort(byDescApr)[0] ??
+    [...aprs].sort(byDescApr)[0];
+  return Math.round(chosen.apr_percentage * 100);
 }
 
 export interface MappedStatement {

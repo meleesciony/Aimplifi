@@ -34,6 +34,7 @@ import {
   type PlaidTransaction,
   mapPlaidAccount,
   mapPlaidLiabilityToStatement,
+  pickPlaidAprBps,
   prepareIngestedTransaction,
 } from './plaid-map';
 import { DemoProvider } from './demo';
@@ -388,6 +389,13 @@ export class PlaidProvider implements DataProvider {
         for (const credit of liabilities.credit ?? []) {
           const accountId = idByPlaidId.get(credit.account_id);
           if (!accountId) continue;
+          // Persist the card's APR (audit #126-followup): without this aprBps stays null/0 and the
+          // debt-payoff + cash-needed engines compute ZERO interest on a real Plaid card. Set it even
+          // when no statement has generated yet — the rate doesn't depend on a cycle. Null → leave as-is.
+          const aprBps = pickPlaidAprBps(credit);
+          if (aprBps !== null) {
+            await prisma.account.update({ where: { id: accountId }, data: { aprBps } });
+          }
           const stmt = mapPlaidLiabilityToStatement(credit, accountId);
           if (!stmt) continue; // no generated statement → cash-needed estimate path
           await prisma.statement.upsert({
