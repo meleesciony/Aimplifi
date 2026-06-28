@@ -881,10 +881,10 @@ every P0/P1). Result: **1 P0 (downgraded P1 on verify) + 10 P1 + 9 P2 confirmed.
   a user-entered/blank rate — expected.)
 
 **TRACKED backlog (confirmed real, NOT yet fixed — prioritized for follow-up increments):**
-1. **(P1, audit #4) SimpleFIN pending never reconciled** — a pending row that never posts lingers
-   forever, and a pending→posted `id` change double-counts the transaction. Fix: a pending-reconcile
-   pass mirroring `reconcileSimplefinHoldings` / Plaid `removed[]` (delete prior PENDING rows in the
-   fetched window whose providerRef isn't returned).
+1. **(P1, audit #4) SimpleFIN pending never reconciled** — ✅ **DONE (DECISIONS #128, 2026-06-28)** — see
+   the dedicated section directly below. A pending that never posts lingered forever, and a
+   pending→posted `id` change double-counted. Fixed with a two-pass `reconcilePendingTransactions`
+   (in-window absence reconcile + an age-out backstop).
 2. **(P1, audit #5) SimpleFIN holdings per-share round-trip** loses SimpleFIN's authoritative TOTAL
    `market_value` — a low-price / high-quantity lot can render as $0 or materially wrong. Fix: persist
    `marketValueCents` on `Holding` (schema add) and use the total directly. Does NOT affect net worth
@@ -906,3 +906,34 @@ every P0/P1). Result: **1 P0 (downgraded P1 on verify) + 10 P1 + 9 P2 confirmed.
 Recommendation: tackle the backlog in small, individually-verified increments (each its own DECISIONS
 entry + regression test), highest-money-impact first (pending reconcile, then holdings total, then the
 Plaid balance refresh), rather than one large risky change.
+
+## SimpleFIN pending reconcile — backlog #4 DONE ✅ (DECISIONS #128)
+
+Closed the highest-money-impact live-ingest backlog item. `reconcilePendingTransactions` runs after the
+Pass-2 transaction upsert in `syncFromSimplefin`, in two passes: (1) IN-WINDOW — per account synced this
+run, delete feed-owned PENDING rows (date >= startDate) the snapshot no longer reports; (2) AGE-OUT —
+delete feed-owned PENDING on the user's SimpleFIN accounts older than `PENDING_MAX_AGE_DAYS = 32`,
+excluding anything the current snapshot still reports as pending. Kills both #127-audit failure modes: a
+pending that never posts (lingered, overstated the cash-needed sum) and a pending re-posting under a new
+id (double-count). Safety rails on the deleteMany: `status:'PENDING'` (POSTED never touched),
+`providerRef:{not:null}` (manual/seed rows never touched), `isSplitParent:false` (no orphaned split),
+passes date-disjoint. Golden-safe (demo never connects SimpleFIN; `SyncResult.removed` has no UI consumer).
+
+Gate (real 2026-06-28): `bash scripts/verify.sh` → ✅ VERIFY GREEN, **1343 unit / 106 files** (+11
+known-answer, proven fail-before/pass-after), typecheck/lint/build clean. Hostile critic wf_35ef0562 (3
+dims + adversarial verify): 0 refuted, **2 P1 confirmed + FIXED** (age-out for aged-pending drift past the
+fetch window; `!acct.transactions` null guard replacing a `=== undefined` regression that let
+`transactions: null` abort the whole sync), each regression-locked.
+
+Accepted residuals (P2, documented in code + DECISIONS #128):
+- A multi-day hold that drifts past the 5-day overlap then re-posts under a NEW id can briefly double-count
+  until it ages out (≤ 32 days, self-healing). Eliminating it needs a wider per-sync fetch window, which
+  would expand the existing re-sync re-categorization churn + bandwidth for a rare, self-correcting case.
+- An account entirely ABSENT from a sync response isn't in-window-reconciled (its aged pendings are still
+  swept by the age-out pass).
+- The delete can orphan a Correction / CategoryPrediction analytics-log row (linked by id-string, no FK) —
+  harmless and consistent with the Plaid `removed[]` path.
+
+REMAINING live-ingest backlog (unchanged): **#5** SimpleFIN holdings per-share round-trip (needs a
+`Holding.marketValueCents` column), **#6** Plaid investment/loan balance refresh each sync, plus the
+currency + 9 P2 items from the #127 audit.

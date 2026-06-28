@@ -97,6 +97,97 @@ async function reconcileSimplefinHoldings(
   return { upserted, removed, skipped };
 }
 
+// A SimpleFIN "pending" authorization older than this has certainly resolved (posted or
+// been dropped) — even the longest real holds (hotels, car rentals, fuel) clear well
+// within a month. Past it we age out any feed-owned pending the CURRENT snapshot no longer
+// corroborates, which is what catches multi-day holds that drift past the narrow
+// incremental fetch window (DECISIONS #128, critic P1-1).
+const PENDING_MAX_AGE_DAYS = 32;
+
+/**
+ * Pending-transaction reconcile (DECISIONS #128, live-ingest backlog #4). SimpleFIN
+ * may DROP a pending transaction that never posts, or RE-POST it under a NEW id when
+ * it clears (the spec permits the transaction id to change at post time). Without this
+ * pass a stale pending row lingers (overstating spend — the cash-needed engine sums
+ * pending), and a re-post under a new id is DOUBLE-COUNTED (old pending + new posted).
+ * SimpleFIN sends no `removed[]` (it's a stateless per-window snapshot), so — like the
+ * holdings reconcile and Plaid's removed-ids — we reconcile by ABSENCE, in two passes:
+ *
+ *   (1) IN-WINDOW: within the window we actually fetched (date >= startDate, so rows
+ *       outside this query are never touched), for each account we synced this run delete
+ *       PENDING rows whose providerRef the feed did NOT return. Handles the common case of
+ *       a fast-posting/dropped pending inside the incremental overlap.
+ *   (2) AGE-OUT: a feed-owned pending older than PENDING_MAX_AGE_DAYS has certainly
+ *       resolved, so delete it regardless of which accounts appeared this sync — EXCLUDING
+ *       anything the current snapshot still reports (so a corroborated long hold is safe).
+ *       This is what reconciles a multi-day hold that drifted past the 5-day fetch window
+ *       (absent from both the feed and pass 1) — without that, it would linger and, if it
+ *       re-posted under a new id, double-count (critic P1-1).
+ *
+ * Safety: POSTED rows are institution-authoritative and never touched; split parents are
+ * excluded so a user's split is never orphaned; `providerRef: { not: null }` scopes to
+ * feed-owned rows so manual/seed rows are never touched. No transaction has a DB-level FK
+ * pointing at it (Correction / CategoryPrediction reference it by id string only), so the
+ * delete can't FK-violate (orphaned analytics-log rows are harmless and match the Plaid
+ * removed-path; STATUS).
+ *
+ * KNOWN BOUNDED RESIDUAL (accepted, DECISIONS #128): a hold that drifts past the 5-day
+ * overlap and then re-posts under a NEW id can briefly double-count until the stale pending
+ * ages out (≤ PENDING_MAX_AGE_DAYS, self-healing). Eliminating it entirely would mean
+ * widening the fetch window on every sync, which expands re-categorization churn and
+ * bandwidth for a rare, self-correcting case.
+ */
+async function reconcilePendingTransactions(
+  returnedRefsByAccount: ReadonlyMap<string, ReadonlySet<string>>,
+  startDate: ISODate,
+  userId: string,
+  today: ISODate,
+): Promise<number> {
+  let removed = 0;
+  // (1) In-window reconcile, per account we synced this run.
+  for (const [accountId, refs] of returnedRefsByAccount) {
+    const keep = [...refs];
+    const { count } = await prisma.transaction.deleteMany({
+      where: {
+        accountId,
+        status: 'PENDING',
+        isSplitParent: false,
+        date: { gte: startDate },
+        // Only feed-owned rows: `not: null` excludes manual/seed rows (POSTED anyway,
+        // but explicit). With refs returned, exclude the ones still present (notIn); an
+        // empty set means the account returned nothing this sync, so every feed-owned
+        // in-window pending row is now stale. (notIn:[] would match everything, so the
+        // empty case drops the notIn and keeps only the not-null + window guards.)
+        providerRef: keep.length > 0 ? { notIn: keep, not: null } : { not: null },
+      },
+    });
+    removed += count;
+  }
+  // (2) Age-out across ALL of this user's SimpleFIN accounts (not just the ones synced this
+  // run) — so an account transiently absent from the response still has its >32d-old
+  // pendings (assumed resolved) swept; this self-heals if such a row is later re-reported.
+  // `removed` cannot double-count even when a STALE incremental connection makes
+  // startDate < ageOutFloor and the two passes' date ranges overlap: pass 1 physically
+  // deletes and is awaited before pass 2 queries, and every deleteMany is account-scoped, so
+  // each physical deletion is counted exactly once (the guarantee is sequential awaited
+  // deletes, not date-disjointness). Excludes anything the current snapshot still reports as
+  // pending (`corroborated`) so a real long hold is never deleted — the union is global, but
+  // SimpleFIN transaction ids are globally unique so a cross-account ref collision can't
+  // shield the wrong row.
+  const ageOutFloor = addDays(today, -PENDING_MAX_AGE_DAYS);
+  const corroborated = [...new Set([...returnedRefsByAccount.values()].flatMap((s) => [...s]))];
+  const { count: agedOut } = await prisma.transaction.deleteMany({
+    where: {
+      account: { userId, provider: 'simplefin' },
+      status: 'PENDING',
+      isSplitParent: false,
+      date: { lt: ageOutFloor },
+      providerRef: corroborated.length > 0 ? { notIn: corroborated, not: null } : { not: null },
+    },
+  });
+  return removed + agedOut;
+}
+
 export interface SimplefinAccountsResponse {
   errors?: string[];
   accounts?: SimplefinAccount[];
@@ -257,9 +348,20 @@ export async function syncFromSimplefin(
   const prepared: IngestedSfTransaction[] = [];
   const accountIdByRef = new Map<string, string>();
   const newSpendingRefs: string[] = []; // first-seen spending accounts to backfill
+  // Accounts whose transactions we actually fetched this run (existing spending
+  // accounts + backfilled first-seen ones) — the scope of the pending reconcile.
+  const syncedTxnAccountIds = new Set<string>();
 
   const prepareAccountTxns = (acct: SimplefinAccount, accountId: string) => {
-    for (const txn of acct.transactions ?? []) {
+    // A MISSING transactions field (transient/partial response) must NOT be read as
+    // "no transactions" — that would skip ingest AND wipe in-window pending rows.
+    // Mirrors the #124 holdings guard; only an explicit array reconciles. `!arr` is
+    // true for BOTH undefined and null (an untrusted feed can send `transactions: null`)
+    // yet FALSE for an empty array, so an explicit [] still reconciles (critic P1-2:
+    // the prior `=== undefined` let a null throw "not iterable" and abort the whole sync).
+    if (!acct.transactions) return;
+    syncedTxnAccountIds.add(accountId); // explicit [] still reconciles (an emptied window is real)
+    for (const txn of acct.transactions) {
       try {
         prepared.push(prepareSimplefinTransaction(txn, accountId, today, rules));
       } catch {
@@ -377,6 +479,17 @@ export async function syncFromSimplefin(
     else added++;
   }
 
+  // Pending reconcile (DECISIONS #128): drop stale PENDING rows the feed no longer
+  // reports within the fetched window — so a dropped or re-posted pending txn neither
+  // lingers (overstating spend) nor double-counts. Build the returned-ref set per
+  // account we synced (seed an empty set for every synced account so one that returned
+  // nothing still has all its in-window pending rows reconciled away), then delete.
+  // Runs BEFORE transfer pairing so a row about to be deleted is never paired.
+  const returnedRefsByAccount = new Map<string, Set<string>>();
+  for (const accountId of syncedTxnAccountIds) returnedRefsByAccount.set(accountId, new Set());
+  for (const row of assisted) returnedRefsByAccount.get(row.accountId)?.add(row.providerRef);
+  const pendingRemoved = await reconcilePendingTransactions(returnedRefsByAccount, startDate, userId, today);
+
   // Cross-account transfer PAIRING (parity with Plaid; Hostile Critic CQ-5): the
   // pure detector flags opposite-amount pairs across the user's own accounts.
   // Only ADD flags (never unflag a descriptor-based transfer).
@@ -399,7 +512,7 @@ export async function syncFromSimplefin(
   return {
     added,
     modified,
-    removed: 0,
+    removed: pendingRemoved,
     nextCursor: null,
     holdings: { upserted: holdingsUpserted, removed: holdingsRemoved, skipped: holdingsSkipped },
   };

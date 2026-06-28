@@ -751,3 +751,50 @@ the agreed next increments, highest-money-impact first, EACH its own verified co
 **State:** origin/main = local main = `fbb45d9` (in sync, deployed). Working tree CLEAN except this PROGRESS edit. **SAFE to /clear
 NOW** — token-efficient checkpoint. NEXT: on "continue", do backlog #4 (SimpleFIN pending reconcile) in a lean context, engine-first
 + regression test + green verify + commit; then #5, then #6. (Plan-in-Words retire-at-age + Cash Flow Radar remain the feature track.)
+
+## 2026-06-28 (resumed: "continue") — Live-ingest backlog #4: SimpleFIN PENDING reconcile (#128) — DONE ✅ (verify green, critic+confirm SHIP, 0 open P0/P1)
+"continue" → the #127 audit's tracked backlog, highest-money-impact first = #4 (SimpleFIN pending reconcile).
+Baseline re-confirmed before any change (measured): `bash scripts/verify.sh` → ✅ GREEN (HEAD b23c9fa, tree clean).
+Read only the files I edited (token-lean): simplefin.ts sync + reconcileSimplefinHoldings pattern, simplefin-map.ts
+(status/IngestedSfTransaction), schema (Transaction.date String/status/isSplitParent; Correction & CategoryPrediction
+reference txn by id-string only → NO DB FK, delete can't FK-violate), business-today + simplefin-actions (today/removed
+surfacing).
+
+**Built (mirrors the house reconcile pattern, all in src/lib/providers/simplefin.ts):**
+- `reconcilePendingTransactions(returnedRefsByAccount, startDate, userId, today)` run after the Pass-2 upsert (before
+  transfer pairing so a to-be-deleted row is never paired), in TWO passes:
+  (1) IN-WINDOW — per account synced this run, deleteMany feed-owned PENDING (date>=startDate) whose providerRef the
+  feed didn't return; (2) AGE-OUT — deleteMany feed-owned PENDING on the user's SimpleFIN accounts older than
+  `PENDING_MAX_AGE_DAYS=32`, excluding the snapshot's still-reported (`corroborated`) refs.
+- Safety rails on the deleteMany (real money rows): status:'PENDING' (POSTED never touched), providerRef:{not:null}
+  (manual/seed feed-unowned rows never touched), isSplitParent:false (no orphaned split). SyncResult.removed now
+  carries the count (no UI consumer; demo never connects SimpleFIN → golden byte-identical, seed untouched).
+- prepareAccountTxns guard `if (!acct.transactions) return;` — an OMITTED transactions field (transient response)
+  doesn't wipe pending (mirrors #124 holdings), and an untrusted `transactions: null` no longer throws.
+- Tests: tests/unit/simplefin-pending-reconcile.test.ts (11, mocked-server idiom) — proven fail-before/pass-after
+  (stashed source → 5 fail incl. the age-out test; the null test is a lock against the `=== undefined` regression).
+
+**Hostile critic wf_35ef0562 (3 dims + adversarial verify): 0 refuted, 2 P1 confirmed + FIXED + regression-locked:**
+(P1-1) an aged multi-day hold drifting past the narrow 5-day incremental window was unreconcilable (linger +
+double-count on a new-id re-post) — the reconcile window was welded to the fetch window → added the AGE-OUT pass
+(with a corroboration guard so a still-reported long hold is never falsely deleted). (P1-2) the omitted-field guard
+used `=== undefined`, a regression from the prior `?? []`, so a feed `transactions: null` hit `for...of null` →
+TypeError → whole sync aborted → `!acct.transactions` (falsy catches null+undefined, [] still reconciles).
+**Confirmation checker (independent agent): SHIP** — both P1s genuinely resolved, no provable over-delete/double-count,
+all safety invariants hold (POSTED/manual-null/out-of-window/split-parent/cross-user/cross-provider/net-worth/golden).
+3 doc-only P2s it raised all addressed in one accurate comment (the "passes are date-disjoint" claim is false for a
+STALE connection where startDate<ageOutFloor — corrected to the real guarantee: sequential awaited account-scoped
+deletes count each physical deletion once; age-out spans all accounts incl. transiently-absent; global corroborated
+union is safe because SimpleFIN ids are globally unique).
+
+**Gate (real, measured 2026-06-28):** `bash scripts/verify.sh` → ✅ GREEN — typecheck/lint/build clean, **1343 unit /
+106 files** (+11). e2e not run (no e2e-observable surface — SimpleFIN sync is server-only and the demo never connects;
+the mocked-server integration is the labeled end-to-end per the SimpleFIN live-path convention). DECISIONS #128 +
+REGRESSION_LEDGER (3 rows) + STATUS (backlog #4 DONE + residuals) written.
+
+**State (verified via git fetch):** origin/main = `fbb45d9` (#127 SimpleFIN sign/type + Plaid APR money fix — LIVE /
+deployed). Local main was 1 ahead = `b23c9fa` (the #127 PROGRESS docs checkpoint; docs-only, unpushed, zero bundle
+impact); this #128 commit makes local 2 ahead of origin. SAFE to /clear after commit. NEXT (owner): push when ready
+(deploys the pending reconcile); next live-ingest increments — #5 SimpleFIN holdings per-share round-trip (needs
+Holding.marketValueCents), then #6 Plaid balance refresh. Plan-in-Words retire-at-age + Cash Flow Radar remain the
+feature track.
