@@ -122,6 +122,23 @@ describe('mapPlaidAccount', () => {
     expect(m.availableBalanceCents).toBe(512050); // available stays non-negative
     expect(m.creditLimitCents).toBe(500000);
   });
+
+  it('maps a NULL current to null (unknown), NOT 0 — so the caller can preserve last-known-good (DECISIONS #130)', () => {
+    // Plaid documents balances.current as nullable. Mapping null→0 would let a sync
+    // silently overwrite a real balance with $0 and crater net worth; null signals
+    // "unknown this fetch" so upsertPlaidAccounts omits the field on update.
+    const noBalance: PlaidAccount = {
+      account_id: 'inv-1',
+      name: 'Brokerage',
+      mask: null,
+      type: 'investment',
+      subtype: 'brokerage',
+      balances: { current: null, available: null, limit: null },
+    };
+    const m = mapPlaidAccount(noBalance);
+    expect(m.currentBalanceCents).toBeNull();
+    expect(m.type).toBe('INVESTMENT');
+  });
 });
 
 describe('mapPlaidLiabilityToStatement', () => {

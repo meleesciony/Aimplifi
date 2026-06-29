@@ -94,7 +94,9 @@ export interface MappedAccount {
   name: string;
   type: PulseAccountType;
   mask: string | null;
-  currentBalanceCents: number;
+  // null = Plaid reported a null `current` this fetch (balance UNKNOWN, not $0). The caller
+  // PRESERVES the last-known-good stored balance instead of zeroing net worth (DECISIONS #130).
+  currentBalanceCents: number | null;
   availableBalanceCents: number | null;
   creditLimitCents: number | null;
 }
@@ -105,10 +107,14 @@ export function mapPlaidAccount(account: PlaidAccount): MappedAccount {
     name: account.name,
     type: mapPlaidAccountType(account.type, account.subtype),
     mask: account.mask,
-    // `current` keeps Plaid's sign (usually positive; negative for an overpaid
-    // card or overdrawn account). The account `type` then decides its net-worth
-    // sign; available/limit stay non-negative.
-    currentBalanceCents: plaidSignedDollarsToCents(account.balances.current ?? 0),
+    // `current` keeps Plaid's sign (usually positive; negative for an overpaid card or
+    // overdrawn account). The account `type` then decides its net-worth sign. A NULL
+    // `current` maps to null — "unknown this fetch", NOT 0: an account's balance always
+    // exists, so the caller preserves the last-known-good value rather than cratering net
+    // worth with a silent $0 (DECISIONS #130, the audit-#6 follow-up). available/limit stay
+    // non-negative and may legitimately be null.
+    currentBalanceCents:
+      account.balances.current == null ? null : plaidSignedDollarsToCents(account.balances.current),
     availableBalanceCents:
       account.balances.available == null
         ? null

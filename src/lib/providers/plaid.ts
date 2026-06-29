@@ -224,11 +224,14 @@ export class PlaidProvider implements DataProvider {
           .catch(() => {});
         continue;
       }
-      const data = {
+      // currentBalanceCents is OMITTED from the shared base on purpose: a null `current`
+      // (balance unknown this fetch) must PRESERVE the stored value on update, never overwrite
+      // a real balance with $0 — a silent net-worth crater now that investment/loan balances
+      // refresh every sync (DECISIONS #130). It is added back conditionally below.
+      const base = {
         name: m.name,
         type: m.type,
         mask: m.mask,
-        currentBalanceCents: m.currentBalanceCents,
         availableBalanceCents: m.availableBalanceCents,
         creditLimitCents: m.creditLimitCents,
       };
@@ -237,10 +240,24 @@ export class PlaidProvider implements DataProvider {
         select: { id: true },
       });
       if (existing) {
-        await prisma.account.update({ where: { id: existing.id }, data });
+        // null current → omit the field → Prisma leaves the last-known-good balance intact.
+        await prisma.account.update({
+          where: { id: existing.id },
+          data:
+            m.currentBalanceCents == null
+              ? base
+              : { ...base, currentBalanceCents: m.currentBalanceCents },
+        });
       } else {
+        // A brand-new account has no prior value to preserve; a null current stores 0.
         await prisma.account.create({
-          data: { userId, provider: 'plaid', providerRef: m.providerRef, ...data },
+          data: {
+            userId,
+            provider: 'plaid',
+            providerRef: m.providerRef,
+            ...base,
+            currentBalanceCents: m.currentBalanceCents ?? 0,
+          },
         });
       }
     }
@@ -272,6 +289,31 @@ export class PlaidProvider implements DataProvider {
     for (const item of items) {
       try {
         const token = decryptToken(item.accessToken);
+
+        // Refresh ALL of this item's account balances each sync (audit #6, DECISIONS #130).
+        // `/accounts/get` returns EVERY account on the item — including INVESTMENT and LOAN —
+        // with its latest balance. `/transactions/sync` only echoes accounts with transaction
+        // activity (depository/credit), so without this an investment or loan balance would
+        // FREEZE at link time and net worth would silently go stale. Best-effort + audited: a
+        // balance-refresh failure (e.g. ITEM_LOGIN_REQUIRED) must never block transaction
+        // ingest — the higher-value path — and the per-item catch below still retries the item.
+        try {
+          await this.syncAccountsForItem(userId, item.itemId);
+        } catch (e) {
+          await prisma.auditLog
+            .create({
+              data: {
+                userId,
+                action: 'plaid.accounts.refresh.failed',
+                meta: JSON.stringify({
+                  itemId: item.itemId,
+                  error: e instanceof Error ? e.message : String(e),
+                }),
+              },
+            })
+            .catch(() => {});
+        }
+
         let idByPlaidId = await this.plaidAccountIdMap(userId);
 
         let cursor = item.cursor ?? undefined;

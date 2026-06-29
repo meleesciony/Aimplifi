@@ -942,4 +942,44 @@ Accepted residuals (P2, documented in code + DECISIONS #128):
   harmless and consistent with the Plaid `removed[]` path.
 
 REMAINING live-ingest backlog: ~~**#5** SimpleFIN holdings per-share round-trip~~ ✅ DONE (DECISIONS #129);
-**#6** Plaid investment/loan balance refresh each sync, plus the currency + 9 P2 items from the #127 audit.
+~~**#6** Plaid investment/loan balance refresh each sync~~ ✅ DONE (DECISIONS #130); plus the currency
+(#3/#10) + 9 P2 items from the #127 audit.
+
+## Plaid per-sync balance refresh — backlog #6 DONE ✅ (DECISIONS #130)
+
+Closed the last named live-ingest P1 from the #127 audit. `PlaidProvider.syncTransactions` refreshed an
+account's balance only when `/transactions/sync` echoed it in its `accounts` array — i.e. depository/credit
+accounts with transaction activity. INVESTMENT and LOAN accounts carry no Transactions product, so they were
+re-fetched ONLY at link (`exchangePublicToken` → `syncAccountsForItem`) and their `currentBalanceCents` —
+hence the owner's net worth — froze afterward. Fix: call the already-tested `syncAccountsForItem`
+(`/accounts/get`, which returns EVERY account on the item) once per item at the start of each sync, before
+the cursor loop; the loop's `page.accounts` echo still wins (fresher-or-equal) for active accounts.
+Best-effort + audited (`plaid.accounts.refresh.failed`) so a refresh failure never blocks transaction ingest.
+Reuses `/accounts/get` (cached, no per-call fee) over the billable real-time `/accounts/balance/get`, as the
+audit recommended. Golden-safe (the demo never uses PlaidProvider). This also adds the FIRST mocked-server
+integration test of the Plaid network orchestration; the live socket stays UNVERIFIED, consistent with the
+existing labeling.
+
+Gate (real 2026-06-28): `bash scripts/verify.sh` → ✅ VERIFY GREEN, **1369 unit / 107 files** (+5 across one
+new file, proven fail-before/pass-after), typecheck/lint/build clean. No e2e surface (server-only sync; the
+demo never connects Plaid → the mocked-server integration is the labeled end-to-end, per #124/#128/#129).
+
+Hostile critic wf_25be9884 (3 lenses + adversarial verify): **0 P0, 1 P1 confirmed + FIXED + regression-locked.**
+The P1: now that investment/loan balances refresh every sync, a `/accounts/get` reporting a null
+`balances.current` (documented-nullable) ran through the mapper's `?? 0` and would OVERWRITE a real balance
+with $0 — silently cratering net worth until a later non-null sync self-heals. Fix = map a null `current` →
+null (UNKNOWN, not 0) and OMIT `currentBalanceCents` from the UPDATE data when null so Prisma preserves the
+last-known-good value (CREATE falls back to 0 — no prior to preserve); fixing it in the shared
+`upsertPlaidAccounts` ALSO closes the same pre-existing hole on the depository/credit echo path. Independent
+confirmation checker: SHIP, 0 P0/P1 (and confirmed the fix is robust to either `/accounts/get` or the
+`/transactions/sync` echo writing null — last-writer preserves).
+
+Accepted residuals (P2, documented in DECISIONS #130):
+- Per-sync audit-log noise: a `plaid.account.skipped` row each sync for a permanently-unmappable account, and
+  double rows (`refresh.failed` + `item.sync.failed`) on a full item outage — cosmetic, zero ledger/net-worth
+  impact.
+- The access token is decrypted twice + the item re-fetched per item per sync (the sync loop has the token,
+  but `syncAccountsForItem` re-derives it) — negligible at hourly cadence; kept surgical rather than widen the
+  method signature.
+- `availableBalanceCents`/`creditLimitCents` still write through a null value (both nullable by design and
+  non-net-worth; null is a legitimate state for them, unlike `current` where a balance always exists).

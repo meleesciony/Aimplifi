@@ -867,3 +867,50 @@ identical prod rebuild — push it with the next functional change), matching th
 **SAFE to /clear.** NEXT (owner): confirm the Vercel deploy READY if desired; next live-ingest increment —
 #6 Plaid investment/loan balance refresh each sync, then the currency + 9 P2 items. Plan-in-Words retire-at-age
 + Cash Flow Radar remain the feature track.
+
+## 2026-06-28 (resumed: "continue") — Live-ingest backlog #6: Plaid per-sync balance REFRESH (#130) — DONE ✅ (verify green, critic 1 P1 FIXED + confirm SHIP)
+"continue" → the #127 audit's tracked backlog, the last named live-ingest P1 = #6 (Plaid investment/loan balances
+freeze at link time). Baseline re-confirmed before any change (measured): `bash scripts/verify.sh` → ✅ GREEN
+(HEAD d9de3ef, 1364 unit/106 files, tree clean — d9de3ef is the local-only #129 deploy-record docs commit, 1 ahead
+of origin `8a4efe9` which is LIVE). Read only the files I edited (token-lean): plaid.ts (syncTransactions /
+syncAccountsForItem / upsertPlaidAccounts), plaid-map.ts (mapPlaidAccount / sign conventions), the plaid test idiom
+(no existing mocked-server integration for the provider's network methods — only the pure mapper was tested), the
+SimpleFIN mocked-server idiom (mirrored it), crypto.ts (key format), schema (Account balance nullability).
+
+**The bug (#127 audit item 3):** `syncTransactions` refreshed a balance only when `/transactions/sync` echoed the
+account in its `accounts` array — depository/credit accounts with transaction activity. INVESTMENT and LOAN accounts
+carry no Transactions product, so they were re-fetched ONLY at link (`exchangePublicToken` → `syncAccountsForItem`)
+and their `currentBalanceCents` — hence net worth — froze afterward.
+
+**Built (surgical, reuses tested code):**
+- `plaid.ts` — at the start of each item's sync (after decrypt, before the cursor loop) call the already-existing
+  `this.syncAccountsForItem(userId, item.itemId)` (`/accounts/get` → `upsertPlaidAccounts`, ALL accounts on the item).
+  Best-effort + audited (`plaid.accounts.refresh.failed`): a refresh failure (ITEM_LOGIN_REQUIRED) never blocks
+  transaction ingest; the per-item catch still retries. The loop's `page.accounts` echo (fresher-or-equal) still wins
+  for active accounts. Reuses `/accounts/get` (cached, free) over billable `/accounts/balance/get` — the audit's pick.
+- Tests: `tests/unit/plaid-balance-refresh.test.ts` (NEW — the FIRST mocked-server integration test of the Plaid
+  network orchestration; real PlaidProvider vs a stubbed Plaid server). Proven fail-before (3 failed, fix stashed) /
+  pass-after (3 passed). Golden-safe (demo never uses PlaidProvider); live socket stays UNVERIFIED (existing labeling).
+
+**Hostile critic wf_25be9884 (3 lenses + adversarial verify): 0 P0, 1 P1 CONFIRMED (adversarially verified) + FIXED + locked:**
+making investment/loan balances refresh every sync newly subjects them to the mapper's `current ?? 0` — a documented-
+nullable Plaid field — so a `/accounts/get` reporting null `current` would OVERWRITE a real balance with $0, silently
+cratering net worth until a later non-null sync self-heals. FIX: map null `current` → null (UNKNOWN, not 0) and OMIT
+`currentBalanceCents` from the UPDATE data when null so Prisma preserves the last-known-good value (CREATE falls back
+to `?? 0` — no prior to preserve). Fixing it in the shared `upsertPlaidAccounts` ALSO closes the same pre-existing
+hole on the depository/credit echo path. Added 2 locks (mapper null→null; null-on-resync preserves) — proven fail-
+before (reverting the mapper line alone reproduces the full old zeroing end-to-end: both null tests `+0`) / pass-after.
+**Independent confirmation checker: SHIP, 0 P0/P1** — fix type-safe, regression lock non-vacuous, robust to either
+`/accounts/get` or the sync echo writing null. Accepted P2s (DECISIONS #130/STATUS): per-sync audit noise; double
+token-decrypt per item (negligible, kept surgical); available/limit write-through on null (nullable by design, non-net-worth).
+
+**Gate (real, measured 2026-06-28):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — typecheck/lint/build clean,
+**1369 unit / 107 files** (+5: 3 backlog-#6 + 1 null-preserve integration + 1 mapper null). DECISIONS #130 +
+REGRESSION_LEDGER (2 rows) + STATUS (backlog #6 DONE + residuals) written.
+
+**State:** committing as the #130 commit. origin/main `8a4efe9` (#129) is LIVE; local main was 1 ahead = `d9de3ef`
+(the #129 deploy-record docs commit, unpushed, zero bundle impact); this #130 commit makes local 2 ahead of origin.
+SAFE to /clear after commit. NEXT (owner): push when ready (deploys the Plaid balance refresh + the null-preservation
+fix — both money-correctness on the owner's real connected accounts); next live-ingest increments — the currency
+guard (#3/#10, ~N/A for a US user) + the 9 P2 items from the #127 audit. Plan-in-Words retire-at-age + Cash Flow
+Radar remain the feature track.
