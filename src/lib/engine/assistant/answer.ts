@@ -24,6 +24,7 @@ import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
 import type { DebtFreeByDateResult } from '@/lib/engine/solve/debt-free-by-date';
 import type { SavingsGoalByDateResult } from '@/lib/engine/solve/savings-goal-by-date';
+import type { RetireAtAgeResult } from '@/lib/engine/solve/retire-at-age';
 import type { AssistantIntent, SpendTarget, Timeframe } from './intent';
 
 export interface AssistantFact {
@@ -37,15 +38,14 @@ export interface AssistantSource {
 /** An optional, user-confirmed action an answer can offer (e.g. save a debt-free goal).
  *  Carries only the target date + label — the server RE-SOLVES every figure from the
  *  user's own data on save, so no client-supplied number is ever trusted. */
-export interface AssistantGoalAction {
-  kind: 'save_debt_free_goal' | 'save_savings_goal';
-  targetDate: string; // YYYY-MM-DD
-  label: string;
-  /** For save_savings_goal only: the user-stated target amount in cents. The server
-   *  RE-SOLVES the monthly contribution from this + the user's own safe-to-spend on save,
-   *  so no client-computed figure is ever trusted (only the user's own stated target). */
-  goalAmountCents?: number;
-}
+export type AssistantGoalAction =
+  | { kind: 'save_debt_free_goal'; targetDate: string; label: string }
+  /** goalAmountCents = the user-stated target; the server RE-SOLVES the monthly from it +
+   *  the user's own safe-to-spend on save, so no client-computed figure is ever trusted. */
+  | { kind: 'save_savings_goal'; targetDate: string; label: string; goalAmountCents: number }
+  /** targetAge = the user-stated retirement age; the server re-validates it (bounds +
+   *  cross-field ordering) before persisting — no derived figure is trusted. */
+  | { kind: 'save_retirement_age'; targetAge: number; label: string };
 export interface AssistantAnswer {
   kind: AssistantIntent['kind'];
   /** The direct answer, in plain language with the figure embedded. */
@@ -627,6 +627,101 @@ export function answerSavingsGoalByDate(
   };
 }
 
+// ─── retire at a target age (inverse planning, DECISIONS #131) ────────────────
+
+const RETIREMENT_SOURCE: AssistantSource = { label: 'Open retirement outlook', href: '/investments' };
+
+/**
+ * Inverse retirement planner answer: a stated AGE → the minimal extra/mo the SOLVER found to
+ * make the portfolio last to the plan-through age, with honest feasibility. Every figure is
+ * precomputed by solveRetireAtAge over the SAME getCoachData + planning dials the /investments
+ * outlook uses — this formatter only selects and phrases them (no math), so it cannot originate
+ * a number. Copy follows the coaching guardrails: illustration not advice, the today's-dollars
+ * (after-inflation) assumption stated inline, no shame on a stretch target.
+ */
+export function answerRetireAtAge(result: RetireAtAgeResult, label: string): AssistantAnswer {
+  const age = result.retirementAge;
+
+  if (result.outcome === 'unreachable') {
+    let headline: string;
+    let detail: string;
+    if (result.unreachableReason === 'age-in-past') {
+      headline = `Age ${age} is at or before your age today — pick a later age to plan toward.`;
+      detail = 'Set your current age in Settings if that looks off.';
+    } else if (result.unreachableReason === 'age-after-end') {
+      headline = `Age ${age} is at or past the age your plan runs through — choose a retirement age before then.`;
+      detail = 'You can adjust your plan-through age in Settings.';
+    } else {
+      headline = `Retiring at ${age} right now, your savings can't cover about ${fmt(result.plannedAnnualWithdrawalCents)}/yr of spending.`;
+      detail =
+        "Retiring this moment leaves no time to add to your savings — a later age would give them room to grow. Illustration, not advice, in today's dollars.";
+    }
+    return { kind: 'retire_at_age', headline, detail, facts: [], source: RETIREMENT_SOURCE };
+  }
+
+  const action: AssistantGoalAction = { kind: 'save_retirement_age', targetAge: age, label };
+
+  if (result.outcome === 'already-on-track') {
+    return {
+      kind: 'retire_at_age',
+      headline: `You're on track to retire at ${age} — your current savings are projected to last.`,
+      detail: `Your savings sustain about ${fmt(result.sustainableAnnualWithdrawalCents)}/yr against the ${fmt(result.plannedAnnualWithdrawalCents)}/yr you'd spend. Illustration, not advice — in today's dollars, returns and inflation as set.`,
+      facts: [
+        { label: 'Retirement age', value: String(age) },
+        { label: 'Extra needed', value: `${fmt(0)}/mo` },
+        { label: 'Projected nest egg', value: fmt(result.balanceAtRetirementCents) },
+      ],
+      source: RETIREMENT_SOURCE,
+      action,
+    };
+  }
+
+  // reachable — a finite extra makes it last; affordability is reported, never hidden.
+  const required = result.requiredAdditionalMonthlyCents as number;
+  // share is null IFF safe-to-spend ≤ 0 (the engine guards it), so a null share in the
+  // reachable case means the user is overspent / has no room this month.
+  const sharePct = result.shareOfSafeToSpendBps !== null ? pctFromBps(result.shareOfSafeToSpendBps) : null;
+  const facts: AssistantFact[] = [
+    { label: 'Retirement age', value: String(age) },
+    { label: 'Extra needed', value: `${fmt(required)}/mo` },
+    { label: 'Projected nest egg', value: fmt(result.balanceAtRetirementCents) },
+    ...(sharePct ? [{ label: 'Share of safe-to-spend', value: sharePct }] : []),
+  ];
+
+  if (sharePct === null) {
+    // Overspent: a real figure, but honestly flagged as budget they don't have yet — NOT a
+    // fake "just add $X/mo" yes for exactly the cohort that most needs the caveat.
+    return {
+      kind: 'retire_at_age',
+      headline: `To retire at ${age}, you'd add about ${fmt(required)}/mo to your investing — but you're over your monthly plan right now, so that's budget you don't have yet.`,
+      detail: "A later age would ask less each month. Illustration, not advice — in today's dollars, after-inflation growth.",
+      facts,
+      source: RETIREMENT_SOURCE,
+      action,
+    };
+  }
+
+  if (result.withinSafeToSpend === false) {
+    return {
+      kind: 'retire_at_age',
+      headline: `Retiring at ${age} would take about ${fmt(required)}/mo more into investments — about ${sharePct} of your safe-to-spend, beyond a single month's budget.`,
+      detail: "A later age would ask less of your budget each month. Illustration, not advice — in today's dollars, after-inflation growth.",
+      facts,
+      source: RETIREMENT_SOURCE,
+      action,
+    };
+  }
+
+  return {
+    kind: 'retire_at_age',
+    headline: `To retire at ${age}, add about ${fmt(required)}/mo to your investing — about ${sharePct} of your safe-to-spend.`,
+    detail: "That's projected to make your savings last through your plan-through age. Illustration, not advice — in today's dollars, after-inflation growth.",
+    facts,
+    source: RETIREMENT_SOURCE,
+    action,
+  };
+}
+
 // ─── subscriptions ──────────────────────────────────────────────────────────
 
 export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer {
@@ -724,6 +819,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'When will I be debt-free?',
   'Can I be debt-free by December 2028?',
   'Can I save $20,000 by December 2028?',
+  'Can I retire at 60?',
 ];
 
 export function answerUnknown(): AssistantAnswer {

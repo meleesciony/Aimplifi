@@ -104,6 +104,31 @@ test('plans a savings goal BY A DATE (inverse planning) and offers to save it as
   expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
 });
 
+test('plans retire-at-age (inverse planning) and offers to save the age as a plan', async ({ page }) => {
+  // DECISIONS #131 — "Plan in Words" retirement slice: a stated age is solved for the required
+  // monthly contribution to make the portfolio last, grounded in the same /coach figures the
+  // /investments retirement outlook uses. With a 20-year runway (default age 40 → 60) the outcome
+  // is always reachable or already-on-track (never unreachable), so the save affordance appears.
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'Can I retire at 60?');
+
+  const headline = page.getByTestId('ask-headline');
+  await expect(headline).toContainText('60');
+  // Grounded: a retirement plan persists to the planning dial, surfaced on /investments (not /goals).
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/investments');
+  const save = page.getByTestId('ask-save-goal');
+  await expect(save).toBeVisible();
+  await expect(save).toContainText('Save as my plan'); // retirement-specific copy, not "Save as a goal"
+  // Deterministic route (the demo has no LLM key) — the interpreted banner must be absent.
+  await expect(page.getByText('I interpreted your question')).toHaveCount(0);
+
+  // The save affordance must pass a11y. We do NOT click Save — persisting would mutate the
+  // shared demo user under parallel e2e; the save path is locked by save-retirement-age.test.ts.
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
+});
+
 test('an off-topic question still returns a safe, non-empty answer (no crash)', async ({ page }) => {
   // Env-robust: with no LLM key this is the deterministic capabilities answer;
   // with a key the classifier routes it — either way the pipeline must not crash

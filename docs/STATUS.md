@@ -983,3 +983,33 @@ Accepted residuals (P2, documented in DECISIONS #130):
   method signature.
 - `availableBalanceCents`/`creditLimitCents` still write through a null value (both nullable by design and
   non-net-worth; null is a legitimate state for them, unlike `current` where a balance always exists).
+
+## 2026-06-29 — Plan-in-Words slice 3: retire-at-age inverse planner (DECISIONS #131)
+
+The final Plan-in-Words slice (after debt #125 + savings #126), completing the owner-sequenced trilogy. "Can I
+retire at 60?" → `solveRetireAtAge` bisects the boolean `projectRetirement(...).outcome==='sustained'` (the #122
+decumulation engine, via the same `buildRetirementInputs` the /investments outlook uses — no new compounding math)
+for the minimal monthly contribution that makes the portfolio last, framed as an honest share of real safe-to-spend.
+Grounded: every figure from `getCoachData.fi` + the User planning dials (?? the documented defaults) + `getSpendingPlan`;
+the LLM supplies only the intent kind, the age is deterministic (`parseTargetAge`). "Save as my plan" persists the age
+to the existing `User.retirementAge` dial (not a flat Goal, which would contradict the compounding engine). Read-only
+Ask path + demo planning columns null → byte-identical to #122/#123 (golden-safe). Hostile critic wf_c5d22775 (4 dims +
+adversarial verify): **0 P0 / 0 P1**; 1 P1 candidate downgraded to P2 + 2 more P2 all FIXED + regression-locked
+(inflection coverage "retiring"/"retired"; the age==endAge answer-vs-save inconsistency; "saving"→"savings"). Gate:
+`bash scripts/verify.sh` → ✅ VERIFY GREEN (1409 unit/110 files, +40; typecheck/lint/build clean); ask.spec e2e 8/8 incl.
+the new retire-at-age flow + axe AA.
+
+Accepted P2 (documented, by design):
+- **The solver fails LOUD on a structurally-invalid PLANNING age** (currentAge ≥ endAge, non-integer, out of [0,120]) —
+  those reach `projectRetirement` and throw, rather than returning a clean `unreachable`. The solver only guards the
+  USER-facing `targetAge` (age-in-past / age-after-end / cannot-sustain); the planning ages are always app-validated
+  (User columns through the dials validator, or the documented defaults), so this throw is unreachable from the app and
+  fail-loud on a programming error is correct (matches the #122 / STATUS #13 API-consumer precedent).
+- **E2E throughput flake reaffirmed (NOT a regression).** The phase's own e2e (ask.spec, all 8 incl. retire-at-age,
+  `:107` ✓ 6.6s) passes reliably, but a full-suite run during this heavy session failed `phase2-triage:82` (the
+  ~15-sequential-accept-in-60s throughput test) with the documented symptom — the triage accept/`rule-always` button
+  stuck `disabled` mid-write → `locator.click` timeout, under SQLite single-writer contention. It reproduced in
+  isolation too because the machine was still write-saturated from this session's many back-to-back verify/critic/e2e
+  runs (the #122/#123 finding: re-running only worsens it). The page is UNTOUCHED by #131 (retire-at-age → /coach is a
+  one-way edge; zero triage/transaction/provider code in the diff). Same class as STATUS #16/#17, DECISIONS
+  #88/#99/#120/#121/#122/#123 — clears on a settled machine, not a code defect.

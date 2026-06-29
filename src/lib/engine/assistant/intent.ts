@@ -41,6 +41,7 @@ export type AssistantIntent =
   | { kind: 'debt_payoff' }
   | { kind: 'debt_free_by_date'; targetDate: ISODate; label: string }
   | { kind: 'savings_goal_by_date'; targetDate: ISODate; targetCents: number | null; label: string }
+  | { kind: 'retire_at_age'; targetAge: number; label: string }
   | { kind: 'subscriptions' }
   | { kind: 'forecast' }
   | { kind: 'savings_rate' }
@@ -61,6 +62,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'debt_payoff',
   'debt_free_by_date',
   'savings_goal_by_date',
+  'retire_at_age',
   'subscriptions',
   'forecast',
   'savings_rate',
@@ -323,6 +325,30 @@ export function parseTargetAmount(qRaw: string): number | null {
   return null;
 }
 
+// ─── target-age parsing (for the inverse "retire at <age>" planner, #131) ──────
+
+/**
+ * Extract a stated retirement AGE from free text ("can I retire at 60?", "retire by age 67",
+ * "when I'm 62"). DETERMINISTIC and conservative: the age is the user's OWN number — the LLM
+ * supplies only the kind, the age is string-matched out of the user's text (the cardinal
+ * no-fabrication rule). Bounded to [18, 110] (DIAL_LIMITS.retirementAge); returns null when no
+ * plausible age is stated, so the caller keeps the forward answer rather than inventing one.
+ * The caller gates this on retirement vocabulary, so a bare "by age 65" can't route here alone.
+ */
+export function parseTargetAge(qRaw: string): number | null {
+  const q = qRaw.toLowerCase();
+  // `retir(e|es|ed|ing|ement)` so the natural inflections ("retiring at 65", "retired at 60")
+  // are covered, not just the bare "retire" — kept in lockstep with the routing gate below.
+  const m =
+    /\bretir(?:e|es|ed|ing|ement)(?:\s+\w+){0,3}?\s+(?:at|by)\s+(?:age\s+)?(\d{2,3})\b/.exec(q) ??
+    /\b(?:at|by)\s+age\s+(\d{2,3})\b/.exec(q) ??
+    /\bwhen\s+i(?:'m|\s+am)\s+(\d{2,3})\b/.exec(q);
+  if (!m) return null;
+  const age = Number(m[1]);
+  if (!Number.isInteger(age) || age < 18 || age > 110) return null;
+  return age;
+}
+
 // ─── category / group resolution ────────────────────────────────────────────
 
 const GROUPS: readonly string[] = [...new Set(CATEGORIES.map((c) => c.group))].filter((g) => g !== 'Income');
@@ -529,6 +555,18 @@ export function parseAssistantQuery(
     }
   }
 
+  // Retire at a specific AGE (INVERSE planning, the third Plan-in-Words slice, #131). Requires
+  // retirement vocabulary AND a parseable target age. Placed AFTER the date-based inverse
+  // planners (a retire-at-age question carries no targetDate/amount, so those decline it) and
+  // BEFORE the forward intents (cash_needed, safe_to_spend, spend, account_balance) so the
+  // retirement words can't be poached. The age is the user's own number (parseTargetAge); a
+  // retirement question with no age falls through (→ unknown, then the optional LLM fallback).
+  // The inflection set matches parseTargetAge's first regex (retire/retires/retired/retiring/retirement).
+  if (/\bretir(?:e|es|ed|ing|ement)\b/.test(q)) {
+    const age = parseTargetAge(q);
+    if (age !== null) return { kind: 'retire_at_age', targetAge: age, label: `age ${age}` };
+  }
+
   // Debt payoff / debt-freedom (loans + overall debt) — BEFORE cash_needed so
   // "pay off my loan" / "when am I debt-free" isn't read as credit-card cash-needed.
   // Requires debt/loan vocabulary. An explicit "credit card" phrasing stays
@@ -692,6 +730,12 @@ export function validateIntent(
       } catch {
         return null;
       }
+    }
+    case 'retire_at_age': {
+      if (typeof o.targetAge !== 'number' || !Number.isInteger(o.targetAge) || o.targetAge < 18 || o.targetAge > 110) {
+        return null;
+      }
+      return typeof o.label === 'string' ? { kind: 'retire_at_age', targetAge: o.targetAge, label: o.label } : null;
     }
     case 'spend_total':
       return isTimeframe(o.timeframe) ? { kind: 'spend_total', timeframe: o.timeframe } : null;

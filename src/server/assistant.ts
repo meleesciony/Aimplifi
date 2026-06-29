@@ -10,6 +10,7 @@
  * routing + answers).
  */
 import { requireUserId, rateLimitDurable } from '@/server/authz';
+import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
 import { resolvePaymentAccount, getCashNeeded } from '@/server/finance';
 import { getSpendingPlan } from '@/server/spending-plan';
@@ -20,6 +21,8 @@ import { loadDebtAccounts } from '@/server/debt';
 import { planDebtPayoff } from '@/lib/engine/debt/payoff';
 import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
 import { solveSavingsGoalByDate } from '@/lib/engine/solve/savings-goal-by-date';
+import { solveRetireAtAge } from '@/lib/engine/solve/retire-at-age';
+import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 import type { ISODate } from '@/lib/dates';
 import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
@@ -38,6 +41,7 @@ import {
   answerIncome,
   answerLargest,
   answerNetWorth,
+  answerRetireAtAge,
   answerSafeToSpend,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
@@ -205,6 +209,35 @@ async function buildAnswer(
         safeToSpendCents: plan.leftToSpendCents,
       });
       return answerSavingsGoalByDate(result, intent.label, intent.targetDate, today);
+    }
+    case 'retire_at_age': {
+      // Inverse retirement planner (DECISIONS #131): the user STATED the age; we re-derive the
+      // minimal monthly contribution that makes the portfolio last from the SAME grounded inputs
+      // the /investments retirement outlook uses — getCoachData.fi (portfolio/savings/spend/return/
+      // SWR, byte-identical to /coach) + the User planning dials (ages/inflation, ?? the documented
+      // defaults) + getSpendingPlan safe-to-spend. The LLM (if it routed here) supplied only the
+      // KIND — the age was re-derived deterministically (llm.intentFromKind → parseTargetAge).
+      const [coach, planRow, plan] = await Promise.all([
+        getCoachData(userId),
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { currentAge: true, endAge: true, inflationBps: true },
+        }),
+        getSpendingPlan(userId),
+      ]);
+      const result = solveRetireAtAge({
+        targetRetirementAge: intent.targetAge,
+        currentPortfolioCents: coach.fi.portfolioCents,
+        monthlyContributionCents: coach.fi.monthlySavingsCents,
+        annualRetirementSpendingCents: coach.fi.annualExpensesCents,
+        nominalReturnBps: coach.fi.expectedReturnBps,
+        swrBps: coach.fi.swrBps,
+        currentAge: planRow?.currentAge ?? RETIREMENT_ASSUMPTIONS.currentAge,
+        endAge: planRow?.endAge ?? RETIREMENT_ASSUMPTIONS.endAge,
+        inflationBps: planRow?.inflationBps ?? RETIREMENT_ASSUMPTIONS.inflationBps,
+        safeToSpendCents: plan.leftToSpendCents,
+      });
+      return answerRetireAtAge(result, intent.label);
     }
     case 'subscriptions':
       return answerSubscriptions((await getRecurring(userId)).summary);

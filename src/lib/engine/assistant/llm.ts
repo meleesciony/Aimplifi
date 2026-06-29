@@ -16,6 +16,7 @@ import type { ISODate } from '@/lib/dates';
 import {
   type AssistantIntent,
   ASSISTANT_INTENT_KINDS,
+  parseTargetAge,
   parseTargetAmount,
   parseTargetDate,
   parseTimeframe,
@@ -42,6 +43,7 @@ export function buildIntentPrompt(question: string): string {
     '- debt_payoff: when the user will be debt-free / how to pay off loans and debts at their current payments, with NO specific deadline (snowball vs avalanche)',
     '- debt_free_by_date: whether the user can be debt-free by a SPECIFIC date they name (e.g. "by December 2027", "in 3 years") and what extra payment it would take',
     '- savings_goal_by_date: whether the user can reach a SPECIFIC savings target by a date they name (e.g. "save $15,000 by December 2027", "set aside money for a down payment by 2028") and what monthly amount it would take',
+    '- retire_at_age: whether the user can retire at a SPECIFIC age they name (e.g. "can I retire at 60?", "retire by age 67") and what monthly contribution it would take to make their money last',
     '- subscriptions: recurring subscriptions and their cost',
     '- forecast: projected cash balance / running out of money',
     '- savings_rate: percent of income saved',
@@ -106,6 +108,12 @@ export function intentFromKind(kindRaw: string | null, question: string, today: 
       // stays null (the answer then asks for it).
       const target = parseTargetDate(question, today);
       return target ? { kind, targetDate: target.date, targetCents: parseTargetAmount(question), label: target.label } : null;
+    }
+    case 'retire_at_age': {
+      // The age is re-derived deterministically from the user's own words — the model supplied
+      // only the KIND, never the number. No stated age → keep `unknown` rather than guessing.
+      const age = parseTargetAge(question);
+      return age !== null ? { kind, targetAge: age, label: `age ${age}` } : null;
     }
     default:
       return null;

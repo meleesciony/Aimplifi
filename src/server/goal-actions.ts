@@ -13,6 +13,7 @@ import { loadDebtAccounts } from '@/server/debt';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
 import { solveSavingsGoalByDate } from '@/lib/engine/solve/savings-goal-by-date';
+import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 
 export async function createGoal(formData: FormData): Promise<void> {
   const userId = await requireUserId();
@@ -133,6 +134,48 @@ export async function saveSavingsGoal(targetDateRaw: string, goalAmountCentsRaw:
   });
   await auditLog(userId, 'goal.create', { kind: 'savings_goal_by_date', targetDate });
   revalidatePath('/goals');
+}
+
+/**
+ * Save a "retire at <age>" plan from the Ask Aimplifi answer (DECISIONS #131).
+ *
+ * Unlike the debt/savings goals, a retirement target is NOT a flat savings Goal — the
+ * decumulation engine compounds returns net of inflation, so a flat ceil(remaining/months)
+ * Goal would contradict it (the EDGE_CASES "card consistency" precedent). Instead this persists
+ * the chosen age to the existing User.retirementAge dial — the SAME field the /investments
+ * outlook + what-if already read on every render, so the plan can't drift and nothing is
+ * duplicated. The required monthly contribution is informational, re-solved live on /investments;
+ * we store only the user's stated age.
+ *
+ * Security / no-fabrication: the client sends ONLY the age (no derived figure). The server
+ * re-validates it against DIAL_LIMITS.retirementAge [18,110] AND the cross-field ordering
+ * (current age ≤ retirement age < plan-through age) the dials validator enforces, reading the
+ * user's other ages (coalesced to the documented defaults). Throws on an invalid/out-of-order age.
+ */
+export async function saveRetirementAge(targetAgeRaw: number): Promise<void> {
+  const userId = await requireUserId();
+  const targetAge = Math.round(Number(targetAgeRaw));
+  if (!Number.isInteger(targetAge) || targetAge < 18 || targetAge > 110) {
+    throw new Error('Invalid retirement age');
+  }
+
+  // Enforce the SAME cross-field ordering as the dials validator, on EFFECTIVE values
+  // (the user's set age, else the documented default) so whatever persists stays engine-valid.
+  const row = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { currentAge: true, endAge: true },
+  });
+  const effCurrent = row?.currentAge ?? RETIREMENT_ASSUMPTIONS.currentAge;
+  const effEnd = row?.endAge ?? RETIREMENT_ASSUMPTIONS.endAge;
+  if (targetAge < effCurrent) throw new Error('Retirement age can’t be before your current age.');
+  if (effEnd <= targetAge) throw new Error('Plan-through age must be after your retirement age.');
+
+  await prisma.user.update({ where: { id: userId }, data: { retirementAge: targetAge } });
+  await auditLog(userId, 'settings.dials.update', { retirementAge: targetAge });
+  // The retirement outlook (and the planning dials on Settings/Coach) read this value.
+  revalidatePath('/investments');
+  revalidatePath('/settings');
+  revalidatePath('/coach');
 }
 
 export async function deleteGoal(goalId: string): Promise<void> {

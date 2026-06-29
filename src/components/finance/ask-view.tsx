@@ -11,7 +11,7 @@ import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { ArrowRight, CornerDownLeft, Sparkles } from 'lucide-react';
 import { askAssistant } from '@/server/assistant';
-import { saveDebtFreeGoal, saveSavingsGoal } from '@/server/goal-actions';
+import { saveDebtFreeGoal, saveRetirementAge, saveSavingsGoal } from '@/server/goal-actions';
 import { ASSISTANT_SUGGESTIONS, type AssistantAnswer, type AssistantGoalAction } from '@/lib/engine/assistant/answer';
 
 export function AskView({
@@ -64,10 +64,16 @@ export function AskView({
     setSaveState('idle');
     startSaving(async () => {
       try {
-        if (action.kind === 'save_savings_goal') {
-          await saveSavingsGoal(action.targetDate, action.goalAmountCents ?? 0);
-        } else {
-          await saveDebtFreeGoal(action.targetDate);
+        switch (action.kind) {
+          case 'save_savings_goal':
+            await saveSavingsGoal(action.targetDate, action.goalAmountCents);
+            break;
+          case 'save_debt_free_goal':
+            await saveDebtFreeGoal(action.targetDate);
+            break;
+          case 'save_retirement_age':
+            await saveRetirementAge(action.targetAge);
+            break;
         }
         setSaveState('saved');
       } catch {
@@ -75,6 +81,12 @@ export function AskView({
       }
     });
   }
+
+  /** Retirement plans persist to the planning dial (surfaced on /investments), not a /goals row. */
+  const isRetire = answer?.action?.kind === 'save_retirement_age';
+  const saveLabel = isRetire ? 'Save as my plan' : 'Save as a goal';
+  const savedHref = isRetire ? '/investments' : '/goals';
+  const savedLinkLabel = isRetire ? 'View outlook' : 'View goals';
 
   return (
     <div className="space-y-4">
@@ -166,14 +178,14 @@ export function AskView({
                   data-testid="ask-save-goal"
                   className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-medium shadow-sm transition hover:border-foreground/30 disabled:opacity-60"
                 >
-                  {saveState === 'saved' ? 'Saved ✓' : saving ? 'Saving…' : 'Save as a goal'}
+                  {saveState === 'saved' ? 'Saved ✓' : saving ? 'Saving…' : saveLabel}
                 </button>
                 {saveState === 'saved' && (
                   <Link
-                    href="/goals"
+                    href={savedHref}
                     className="text-sm font-medium text-emerald-600 hover:underline dark:text-emerald-400"
                   >
-                    View goals
+                    {savedLinkLabel}
                   </Link>
                 )}
                 {saveState === 'error' && (

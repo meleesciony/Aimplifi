@@ -914,3 +914,48 @@ SAFE to /clear after commit. NEXT (owner): push when ready (deploys the Plaid ba
 fix — both money-correctness on the owner's real connected accounts); next live-ingest increments — the currency
 guard (#3/#10, ~N/A for a US user) + the 9 P2 items from the #127 audit. Plan-in-Words retire-at-age + Cash Flow
 Radar remain the feature track.
+
+## 2026-06-28→29 (resumed: "continue") — Plan-in-Words slice 3: retire-at-age inverse planner (#131) — DONE ✅ (verify green, critic 0 P0/P1)
+Owner (AskUserQuestion) chose the retire-at-age planner over the lower-value live-ingest P2 remainder, and "push #130
+now". DID FIRST: pushed `174da9a` (#130 Plaid balance refresh + null-preservation) → origin/main = `174da9a`, LIVE.
+Re-confirmed baseline before any change (measured): `bash scripts/verify.sh` → GREEN (1369 unit/107 files). Understand
+phase = a 5-agent read-only workflow (wf_a5d13d4a) mapping the #122 projectRetirement engine, the #125/#126 solver
+idiom, the Ask intent seam, the grounding/inputs, and the save/surfaces/test idioms → a synthesized engine-first plan.
+
+**Built (engine-first, no-fabrication soul):**
+- `src/lib/engine/solve/retire-at-age.ts` — pure `solveRetireAtAge`. The portfolio COMPOUNDS (unlike the flat savings
+  twin), so no closed form: BISECT the BOOLEAN `projectRetirement(...).outcome==='sustained'` (the #122 decumulation
+  engine via the SAME `buildRetirementInputs` the /investments outlook uses — originates NO compounding math, only the
+  contribution). Bisecting the boolean (not a cent value) is exact under the engine's weakly-monotone cent rounding
+  because the depleted→sustained flip is one-directional (proven by induction). Honest outcome
+  (already-on-track / reachable / unreachable{age-in-past, age-after-end, cannot-sustain}) + share-bps on the ADDITIONAL
+  money + withinSafeToSpend. `accumMonths===0` short-circuit + HI_CAP-bounded hi-doubling avoid an assertSafe overflow.
+- Ask intent `retire_at_age` (intent.ts deterministic `parseTargetAge` + recognition block + validator; llm.ts prompt +
+  intentFromKind re-derives the age — the model supplies only the kind; answer.ts `answerRetireAtAge`; server/assistant.ts
+  grounds every figure in getCoachData.fi + the User planning dials + getSpendingPlan).
+- Save path option (a): `saveRetirementAge` persists the chosen age to the EXISTING `User.retirementAge` dial
+  (re-validates bounds + cross-field ordering, ownership, audit) — NOT a flat Goal (would contradict the compounding
+  engine). `AssistantGoalAction` → discriminated union; ask-view save dispatch a type-safe switch with retirement-specific
+  copy ("Save as my plan" → /investments). Golden-safe: read-only Ask; demo planning cols null → defaults → byte-identical.
+- Tests (+40): retire-at-age.test.ts (14 — RA-0PCT exact $2,000.01/mo + minimality oracle under real compounding),
+  assistant-retire-at-age.test.ts (parse/route/validate/llm/formatter + inflection locks), save-retirement-age.test.ts
+  (server re-validate security), ask.spec e2e (8/8), EDGE_CASES §Retire-at-age.
+
+**Hostile critic (wf_c5d22775, 4 dims → adversarial verify of every P0/P1): 0 P0 / 0 P1 confirmed.** The lone P1
+candidate (gate + parseTargetAge anchored on literal "retire" missed the inflections "retiring"/"retired") was
+adversarially DOWNGRADED to P2 (canonical phrasings all work) — FIXED anyway + regression-locked (broadened to
+`retir(e/es/ed/ing/ement)`). Two more P2s FIXED: (grounding) strict `targetAge > endAge` let age==endAge give a vacuous
+savable "on-track" the save validator rejects → `>=`; (ux) "your current saving" → "savings". ACCEPTED P2 (STATUS):
+the solver fails LOUD on a structurally-invalid PLANNING age (current≥end) — correct, the server only supplies validated
+ages or defaults (#122 / STATUS #13 precedent).
+
+**Gate (real, measured 2026-06-29):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — typecheck/lint/build clean, **1409
+unit / 110 files** (+40). Full e2e: ask.spec **8/8** incl. the new retire-at-age flow (`:107` ✓ 6.6s) + axe AA. The only
+full-suite e2e failure was the documented `phase2-triage:82` throughput flake on an UNTOUCHED page under my own
+back-to-back-run write saturation (STATUS #16/#17, DECISIONS #88/#99/#120/#121) — confirmed by isolated rerun, NOT a
+regression (retire-at-age is a one-way edge into /coach, no triage code touched).
+
+**State:** committing as the #131 commit. origin/main `174da9a` (#130) is LIVE; this #131 commit makes local 1 ahead of
+origin (the FIRST functional change since #130). SAFE to /clear after commit. NEXT (owner): push when ready (deploys the
+retire-at-age planner — the final Plan-in-Words slice); remaining feature track = Cash Flow Radar (AI plan §1.2); the
+live-ingest P2 remainder (currency ~N/A + 9 P2s) stays owner-gated.

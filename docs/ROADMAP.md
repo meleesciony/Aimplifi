@@ -79,9 +79,13 @@
   over-budget / unreachable) framed as a share of real safe-to-spend. The LLM extracts
   only the date (deterministic `parseTargetDate`, zero-key); "Confirm & save as goal"
   re-solves server-side and renders as a debt-aware `Goal.kind` card. Hostile critic +
-  confirmation cycle, 3 P1s fixed and regression-locked. NEXT slices (deferred,
-  owner-gated): the arbitrary savings-goal-by-date, then retire-at-age (accumulation +
-  decumulation); and the other Wave-1 concept, Cash Flow Radar (AI plan §1.2).
+  confirmation cycle, 3 P1s fixed and regression-locked. **Savings-goal-by-date (#126)
+  and retire-at-age (#131) now SHIPPED — the Plan-in-Words trilogy is COMPLETE** (debt
+  #125 → savings #126 → retire-at-age #131, each engine-first + hostile-critic'd to 0
+  P0/P1). Retire-at-age bisects the boolean `projectRetirement` "sustained" predicate
+  (#122 decumulation engine, no new math) and persists the chosen age to the existing
+  `User.retirementAge` dial rather than a flat Goal (which would contradict the
+  compounding engine). Remaining Wave-1 concept: Cash Flow Radar (AI plan §1.2, owner-gated).
 - Postgres deploy path (DECISIONS #35): the app runs on SQLite locally + in all
   tests (zero credentials) and on Postgres in production, chosen by DATABASE_URL
   scheme (`src/lib/db-adapter.ts`). One canonical schema; `scripts/gen-pg-schema.mjs`
