@@ -850,9 +850,20 @@ adversarial verify): 0 P0, 1 P1 confirmed (isReal verified) + 3 P2, ALL FIXED + 
 + retirement + what-if + axe AA; the "≈" is invisible on whole-cent demo lots). DECISIONS #129 +
 REGRESSION_LEDGER (2 rows) + STATUS (backlog #5 DONE + residuals) + EDGE_CASES H-A..H-G written.
 
-**State:** committing as the #129 commit. origin/main `fbb45d9` (#127) LIVE; local main ahead by `b23c9fa`
-(#127 docs), `f8769dd` (#128 pending reconcile), + this #129 commit, all UNPUSHED (push deploys the holdings
-fix + #128; owner's call — the live SimpleFIN holdings path stays UNVERIFIED until a real token, consistent
-with the existing live-path labeling; the mocked-server integration is the labeled end-to-end). SAFE to /clear.
-NEXT (owner): push when ready; next live-ingest increment — #6 Plaid investment/loan balance refresh each sync,
-then the currency + 9 P2 items. Plan-in-Words retire-at-age + Cash Flow Radar remain the feature track.
+**State:** committed as `8a4efe9` (#129).
+
+**DEPLOYED (owner: "push"):** pushed `main` → `origin/main` now **`8a4efe9`** (`fbb45d9..8a4efe9`, local ==
+origin, tree clean). This takes #128 (SimpleFIN PENDING reconcile) + #129 (holdings authoritative market value)
+to production together — the first FUNCTIONAL deploy since `fbb45d9` (#127). The Vercel production build is
+auto-triggered by the push (the established GitHub-integration behavior recorded for every prior deploy).
+**Deploy READY is UNVERIFIED from this sandbox** — `gh` is unauthenticated here and the repo's Vercel
+commit-status / check-runs / deployments are not publicly readable via the unauthenticated GitHub API
+(combined status empty; check-runs + deployments → 404). NOT fabricating a READY verdict; the owner can confirm
+in the Vercel dashboard or via an authed `gh`. The live SimpleFIN holdings path itself stays UNVERIFIED until a
+real-token sync (consistent with the existing live-path labeling; the mocked-server integration is the labeled
+end-to-end). This deploy-record edit is a LOCAL-ONLY docs commit (intentionally unpushed to avoid a redundant
+identical prod rebuild — push it with the next functional change), matching the #122/#125 house pattern.
+
+**SAFE to /clear.** NEXT (owner): confirm the Vercel deploy READY if desired; next live-ingest increment —
+#6 Plaid investment/loan balance refresh each sync, then the currency + 9 P2 items. Plan-in-Words retire-at-age
++ Cash Flow Radar remain the feature track.
