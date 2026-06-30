@@ -1013,3 +1013,44 @@ Accepted P2 (documented, by design):
   runs (the #122/#123 finding: re-running only worsens it). The page is UNTOUCHED by #131 (retire-at-age → /coach is a
   one-way edge; zero triage/transaction/provider code in the diff). Same class as STATUS #16/#17, DECISIONS
   #88/#99/#120/#121/#122/#123 — clears on a settled machine, not a code defect.
+
+## 2026-06-29 — Plaid credit-liability statement-field correctness (DECISIONS #132, live-ingest backlog)
+
+Resumed on "continue" with the Plan-in-Words trilogy (debt #125 / savings #126 / retire-at-age #131)
+complete + deployed; owner chose the LIVE-MONEY CORRECTNESS backlog over the next feature (Cash Flow
+Radar). Picked up the highest-money-impact remaining items from the #127 live-ingest audit — both in the
+Plaid credit-liability → statement mapper, both corrupting the cash-needed headline on the owner's REAL
+connected Plaid cards:
+- **abs() flip:** `mapPlaidLiabilityToStatement` mapped `last_statement_balance` through
+  `plaidDollarsToPositiveCents` (abs), so a statement CREDIT / overpayment (negative balance) flipped to
+  an amount OWED → a card the holder overpaid would DEMAND cash it doesn't owe. Fix: sign-preserving
+  `plaidSignedDollarsToCents`; the engine's `floorAtZero` then yields a correct $0 obligation.
+- **null/zero minimum → $0:** a null (or literal 0) `minimum_payment_amount` collapsed to a $0 minimum,
+  understating the MINIMUM-path cash needed below the engine's own no-statement estimate. Fix: when no
+  usable (>0) minimum is reported on a positive balance, mirror the engine's exact estimate by reusing a
+  now-exported `estimateMinimumPayment` (max $35 / 1% of balance) — one definition, no drift.
+
+Golden-safe by construction (common positive-balance + provided-positive-min path byte-identical; demo
+never connects Plaid). Gate (real, measured): `bash scripts/verify.sh` → ✅ VERIFY GREEN, typecheck/lint/
+build clean, **1417 unit / 110 files** (+8, proven fail-before/pass-after). No e2e surface (server-only
+mapper; the labeled unit + mapper→cash-needed ENGINE end-to-end is the coverage, per #124/#128/#129/#130).
+
+Hostile critic wf_edd3d8f3 (4 dimension critics → adversarial verification of every P0/P1): **0 P0 / 0 P1.**
+Two P2s FIXED + regression-locked: (a) a PROVIDED 0 (or sub-cent) minimum on a positive balance reproduced
+the same understatement → a "usable" minimum is now >0 (a reported ≤0 falls through to the estimate); (b)
+the $0 guarantee for CONTRADICTORY feed data (a credit balance reported with a positive minimum) was
+unpinned → pinned with a mapper known-answer + a mapper→computeCashNeeded e2e under both scenarios.
+
+ACCEPTED/DEFERRED P2 (documented): an estimated minimum is presented with `isEstimated:false` and no
+per-card "minimum estimated" disclosure. Honoring the cardinal "assumptions inline" rule here would need a
+PERSISTED `Statement.minimumIsEstimated` column threaded through the sacred cash-needed engine + types
+(the assemble layer reads stored Statement rows and cannot re-derive whether a minimum was synthesized) —
+disproportionate to the rare trigger (Plaid omitting the minimum on a card that HAS a generated statement).
+The estimate is conservative and equals the engine's own no-statement formula; in the MINIMUM scenario it
+only ever errs toward funding more (paying ≥ an estimated minimum is always safe).
+
+REMAINING #127 live-ingest backlog (confirmed-real, NOT yet fixed): the currency guard (audit #3/#10,
+likely N/A for a US-only user but unguarded) + the rest of the audit's P2 cluster — Plaid
+`liabilities.mortgage[]`/`student[]` dropped (only `credit[]` read), all-unmappable-holdings `[]` treated
+as "sold everything" (deletes synced rows), epoch→date UTC-day-boundary, SimpleFIN symbol regex dropping
+options/crypto/slash tickers. Tackle in small individually-verified increments, highest-money-impact first.

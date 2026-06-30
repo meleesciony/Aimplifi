@@ -968,3 +968,24 @@ unpushed to avoid a redundant identical prod rebuild — push it with the next f
 
 **SAFE to /clear.** NEXT (owner): confirm the Vercel deploy READY if desired; remaining feature track = Cash Flow Radar
 (AI plan §1.2); the live-ingest P2 remainder (currency ~N/A + 9 P2s) stays owner-gated.
+
+## 2026-06-29 (resumed: "continue") — Plaid credit-liability statement-field correctness (#132) — DONE ✅ (verify green, critic 0 P0/P1)
+Plan-in-Words trilogy (debt #125 / savings #126 / retire-at-age #131) complete + deployed → on "continue"
+the owner chose the LIVE-MONEY CORRECTNESS backlog (#127 audit remainder) over the next feature (Cash Flow
+Radar §1.2). Re-confirmed baseline independently before any change (measured): `bash scripts/verify.sh` →
+GREEN (HEAD c399eff/#131). Picked the two highest-money-impact remaining audit items — both in the Plaid
+credit-liability → statement mapper, both corrupting the cash-needed headline on REAL connected cards:
+- **abs() flip:** `last_statement_balance` ran through `plaidDollarsToPositiveCents` (abs) → a statement
+  CREDIT (negative balance) became an amount OWED. Fix: sign-preserving `plaidSignedDollarsToCents`; the
+  engine's floorAtZero then yields $0 for a credit.
+- **null/zero min → $0:** a null/0 `minimum_payment_amount` understated the MINIMUM-path cash needed. Fix:
+  when no usable (>0) minimum is reported on a positive balance, reuse the engine's now-exported
+  `estimateMinimumPayment` (max $35 / 1%) — one definition, no drift.
+Hostile critic wf_edd3d8f3 (4 dims → adversarial verify): **0 P0/0 P1**; 2 P2 FIXED (provided-0 unified
+with null; contradictory credit+min pinned), 1 P2 deferred (per-field "minimum estimated" disclosure needs
+a persisted Statement column through the engine — disproportionate; documented STATUS/DECISIONS #132).
+Gate (real, measured 2026-06-29): `bash scripts/verify.sh` → ✅ VERIFY GREEN, typecheck/lint/build clean,
+**1417 unit / 110 files** (+8, proven fail-before/pass-after). No e2e surface (server-only; demo never
+connects Plaid — labeled unit + mapper→cash-needed engine e2e is the coverage, per #124/#128/#129/#130).
+NEXT: remaining #127 backlog in small increments — Plaid mortgage/student liabilities dropped, all-
+unmappable-holdings deletes synced rows, currency guard, epoch UTC-boundary, SimpleFIN symbol regex.

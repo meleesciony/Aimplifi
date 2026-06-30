@@ -16,6 +16,7 @@
  */
 import { type ISODate, isoDate } from '@/lib/dates';
 import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
+import { estimateMinimumPayment } from '@/lib/engine/cash-needed/engine';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type CategorizedTxn, type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
 
@@ -176,6 +177,19 @@ export interface MappedStatement {
  * hasn't reported a generated statement yet (missing balance/dates) — the
  * cash-needed assembler then falls back to its estimate path, exactly as for a
  * card whose statement hasn't closed.
+ *
+ * Two correctness rails (DECISIONS #132, audit #127 P2s):
+ *  - `last_statement_balance` keeps Plaid's SIGN (`plaidSignedDollarsToCents`).
+ *    A negative value is a statement CREDIT (the holder overpaid / has a credit);
+ *    abs()-ing it would invent an amount owed. Signed, the cash-needed engine
+ *    floors `remainingDue`/`minimumDue` to $0 — a credit correctly owes nothing.
+ *  - A null OR zero `minimum_payment_amount` is NOT forced to $0 (which understates
+ *    the minimum-path cash needed below the engine's own no-statement estimate).
+ *    When no usable (>0) minimum is reported on a positive balance, mirror the
+ *    engine's exact estimate (`estimateMinimumPayment` = max $35 / 1% of balance);
+ *    a credit/zero balance owes no minimum. The statement's balance + dates are
+ *    still real, so it stays on the precise (non-estimated) path — only the minimum
+ *    is a conservative estimate when the issuer didn't report a usable one.
  */
 export function mapPlaidLiabilityToStatement(
   credit: PlaidCreditLiability,
@@ -189,12 +203,27 @@ export function mapPlaidLiabilityToStatement(
   ) {
     return null;
   }
+  const statementBalanceCents = plaidSignedDollarsToCents(last_statement_balance);
+  // A "usable" minimum is a POSITIVE reported amount. A reported 0 — or a sub-cent
+  // value that rounds to 0¢ — on a positive balance is treated the SAME as a missing
+  // one (both understate the minimum-path cash needed) and falls through to the
+  // engine's estimate. A credit/zero balance owes no minimum.
+  const reportedMinCents =
+    credit.minimum_payment_amount != null
+      ? plaidDollarsToPositiveCents(credit.minimum_payment_amount)
+      : null;
+  const minimumPaymentCents =
+    reportedMinCents != null && reportedMinCents > 0
+      ? reportedMinCents
+      : statementBalanceCents > 0
+        ? estimateMinimumPayment(statementBalanceCents)
+        : cents(0);
   return {
     accountId,
     cycleEnd: isoDate(last_statement_issue_date),
     dueDate: isoDate(next_payment_due_date),
-    statementBalanceCents: plaidDollarsToPositiveCents(last_statement_balance),
-    minimumPaymentCents: plaidDollarsToPositiveCents(credit.minimum_payment_amount ?? 0),
+    statementBalanceCents,
+    minimumPaymentCents,
     isEstimated: false,
   };
 }

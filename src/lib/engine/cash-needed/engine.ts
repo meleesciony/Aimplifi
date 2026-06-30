@@ -58,8 +58,12 @@ import type {
   Scenario,
 } from './types';
 
-/** Estimated minimum payment when a statement hasn't generated: max($35, 1% of balance). */
-function estimateMinimumPayment(balance: Cents): Cents {
+/**
+ * Estimated minimum payment when a statement hasn't generated: max($35, 1% of balance).
+ * Exported so the Plaid mapper can mirror this EXACT estimate when a real statement
+ * arrives without a `minimum_payment_amount` (DECISIONS #132) — one definition, no drift.
+ */
+export function estimateMinimumPayment(balance: Cents): Cents {
   return maxCents(cents(3500), roundHalfAwayFromZero(balance / 100));
 }
 

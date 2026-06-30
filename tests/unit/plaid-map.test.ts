@@ -12,6 +12,10 @@ import {
   plaidSignedDollarsToCents,
   prepareIngestedTransaction,
 } from '@/lib/providers/plaid-map';
+import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
+import type { CardSnapshot, CashNeededInput } from '@/lib/engine/cash-needed/types';
+import { cents } from '@/lib/money';
+import { holidayTable, isoDate } from '@/lib/dates';
 
 describe('plaidAmountToCents — sign flip + float-safe cents', () => {
   it('flips Plaid outflow-positive to Pulse outflow-negative', () => {
@@ -169,6 +173,147 @@ describe('mapPlaidLiabilityToStatement', () => {
       next_payment_due_date: null,
     };
     expect(mapPlaidLiabilityToStatement(credit, 'acct-1')).toBeNull();
+  });
+
+  // DECISIONS #132 — audit #127 P2: a statement CREDIT must NOT be abs()'d into an owed balance.
+  it('preserves a NEGATIVE last_statement_balance (statement credit) instead of flipping it to owed', () => {
+    const credit: PlaidCreditLiability = {
+      account_id: 'plaid-acc-1',
+      last_statement_balance: -50.0, // the holder overpaid → a $50 statement CREDIT
+      last_statement_issue_date: '2026-05-28',
+      minimum_payment_amount: null, // a credit balance owes no minimum
+      next_payment_due_date: '2026-06-22',
+    };
+    const m = mapPlaidLiabilityToStatement(credit, 'acct-1')!;
+    expect(m.statementBalanceCents).toBe(-5000); // signed, NOT +5000
+    expect(m.minimumPaymentCents).toBe(0); // no minimum owed on a credit
+  });
+
+  // DECISIONS #132 — audit #127 P2: a null minimum must mirror the engine's estimate, not collapse to $0.
+  it('estimates a missing minimum (1% of balance) when it exceeds the $35 floor', () => {
+    const credit: PlaidCreditLiability = {
+      account_id: 'plaid-acc-1',
+      last_statement_balance: 8000.0, // 1% = $80 > the $35 floor
+      last_statement_issue_date: '2026-05-28',
+      minimum_payment_amount: null,
+      next_payment_due_date: '2026-06-22',
+    };
+    const m = mapPlaidLiabilityToStatement(credit, 'acct-1')!;
+    expect(m.statementBalanceCents).toBe(800000);
+    expect(m.minimumPaymentCents).toBe(8000); // max($35, 1% of $8,000) = $80, NOT $0
+  });
+
+  it('estimates a missing minimum at the $35 floor for a small balance', () => {
+    const credit: PlaidCreditLiability = {
+      account_id: 'plaid-acc-1',
+      last_statement_balance: 500.0, // 1% = $5 < the $35 floor
+      last_statement_issue_date: '2026-05-28',
+      minimum_payment_amount: null,
+      next_payment_due_date: '2026-06-22',
+    };
+    expect(mapPlaidLiabilityToStatement(credit, 'acct-1')!.minimumPaymentCents).toBe(3500);
+  });
+
+  it('passes a provided minimum through unchanged (no estimate)', () => {
+    const credit: PlaidCreditLiability = {
+      account_id: 'plaid-acc-1',
+      last_statement_balance: 8000.0,
+      last_statement_issue_date: '2026-05-28',
+      minimum_payment_amount: 250, // provided → used verbatim, not the $80 estimate
+      next_payment_due_date: '2026-06-22',
+    };
+    expect(mapPlaidLiabilityToStatement(credit, 'acct-1')!.minimumPaymentCents).toBe(25000);
+  });
+
+  // DECISIONS #132 — critic P2: a reported ZERO minimum on a positive balance is the same
+  // understatement as a null one, so it must also fall through to the estimate.
+  it('treats a reported ZERO minimum on a positive balance like a missing one (estimates)', () => {
+    const credit: PlaidCreditLiability = {
+      account_id: 'plaid-acc-1',
+      last_statement_balance: 8000.0,
+      last_statement_issue_date: '2026-05-28',
+      minimum_payment_amount: 0, // reported 0 on a positive balance → not usable → estimate
+      next_payment_due_date: '2026-06-22',
+    };
+    expect(mapPlaidLiabilityToStatement(credit, 'acct-1')!.minimumPaymentCents).toBe(8000);
+  });
+});
+
+// End-to-end: the mapped statement must produce the right CASH-NEEDED money (the real-impact
+// proof, not just a mapper field). DECISIONS #132 / audit #127 P2.
+describe('mapPlaidLiabilityToStatement → cash-needed engine (real money impact)', () => {
+  const HOLIDAYS = holidayTable(2025, 2027);
+  function cardFromMapped(over: Partial<PlaidCreditLiability>): CardSnapshot {
+    const credit: PlaidCreditLiability = {
+      account_id: 'p-card',
+      last_statement_balance: 0,
+      last_statement_issue_date: '2026-05-28',
+      minimum_payment_amount: null,
+      next_payment_due_date: '2026-06-22',
+      ...over,
+    };
+    const m = mapPlaidLiabilityToStatement(credit, 'card-1')!;
+    return {
+      id: 'card-1',
+      name: 'Plaid Card',
+      aprBps: 2400,
+      autopay: null,
+      statement: {
+        statementBalanceCents: cents(m.statementBalanceCents),
+        minimumPaymentCents: cents(m.minimumPaymentCents),
+        dueDate: m.dueDate,
+        cycleEnd: m.cycleEnd,
+      },
+      currentBalanceCents: cents(m.statementBalanceCents),
+      paymentsAppliedCents: cents(0),
+    };
+  }
+  function input(card: CardSnapshot, scenario: 'PAY_IN_FULL' | 'MINIMUM'): CashNeededInput {
+    return {
+      today: isoDate('2026-06-10'),
+      paymentAccount: { name: 'Checking', balanceCents: cents(500000), pending: [] },
+      cards: [card],
+      scheduled: [],
+      scenario,
+      holidayTable: HOLIDAYS,
+    };
+  }
+
+  it('a statement CREDIT (negative balance) demands $0, not the abs() amount', () => {
+    // Without the signed-balance fix this card abs()'d to +$50 owed and would have
+    // demanded $50 of cash the holder does not owe.
+    const r = computeCashNeeded(input(cardFromMapped({ last_statement_balance: -50.0 }), 'PAY_IN_FULL'));
+    expect(r.headline.requiredCents).toBe(0);
+    expect(r.cards.find((c) => c.cardId === 'card-1')!.cashRequiredCents).toBe(0);
+  });
+
+  it('a null minimum demands the estimated minimum (not $0) under the MINIMUM scenario', () => {
+    // Without the estimate fix the minimum collapsed to $0 and the MINIMUM scenario
+    // understated the cash needed to $0 on a real $8,000 statement.
+    const r = computeCashNeeded(input(cardFromMapped({ last_statement_balance: 8000.0 }), 'MINIMUM'));
+    expect(r.headline.requiredCents).toBe(8000); // max($35, 1% of $8,000) = $80
+  });
+
+  // DECISIONS #132 — critic P2: pin the $0 guarantee for CONTRADICTORY feed data
+  // (a statement credit reported alongside a positive minimum). The mapper records the
+  // provided minimum, but the engine's minCents/floorAtZero cap still demands $0.
+  it('a CREDIT balance with a provided positive minimum still demands $0 (both scenarios)', () => {
+    const credit: PlaidCreditLiability = {
+      account_id: 'p-card',
+      last_statement_balance: -50.0, // statement credit
+      last_statement_issue_date: '2026-05-28',
+      minimum_payment_amount: 25, // contradictory: a $25 minimum on a credit balance
+      next_payment_due_date: '2026-06-22',
+    };
+    const mapped = mapPlaidLiabilityToStatement(credit, 'card-1')!;
+    expect(mapped.minimumPaymentCents).toBe(2500); // provided value recorded verbatim
+    expect(mapped.statementBalanceCents).toBe(-5000);
+    const card = cardFromMapped({ last_statement_balance: -50.0, minimum_payment_amount: 25 });
+    for (const scenario of ['PAY_IN_FULL', 'MINIMUM'] as const) {
+      const r = computeCashNeeded(input(card, scenario));
+      expect(r.headline.requiredCents).toBe(0);
+      expect(r.headline.cardsDueCount).toBe(0);
+    }
   });
 });
 
