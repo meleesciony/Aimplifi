@@ -409,16 +409,28 @@ export async function syncFromSimplefin(
     // INVESTMENT account, ingest its HOLDINGS (positions) instead — a within-account
     // breakdown for /investments; net worth stays on the account balance above (#124).
     if (mapped.type === 'INVESTMENT') {
-      // Only reconcile when the feed ACTUALLY reports holdings (an array, possibly
-      // empty = "sold everything"). A MISSING holdings field (transient/partial
-      // response, or a provider that omits it) must NOT be read as "no positions" —
-      // that would wipe the synced breakdown; leave existing rows untouched (#124 P2).
-      if (acct.holdings !== undefined) {
+      // Only reconcile when the feed ACTUALLY reports a holdings ARRAY (possibly
+      // empty = "sold everything"). A MISSING, null, or otherwise non-array holdings
+      // value from the untrusted feed must NOT be read as "no positions" — that would
+      // wipe the synced breakdown (or, for a non-array, throw and abort the whole sync,
+      // the `transactions: null` failure class from #128). `Array.isArray` routes all of
+      // undefined/null/non-array to "leave existing rows untouched" (#124/#127 P2).
+      if (Array.isArray(acct.holdings)) {
         const { holdings, skipped } = mapSimplefinHoldings(acct.holdings);
-        const rec = await reconcileSimplefinHoldings(accountId, holdings);
-        holdingsUpserted += rec.upserted;
-        holdingsRemoved += rec.removed;
-        holdingsSkipped += skipped + rec.skipped;
+        // A NON-EMPTY feed that mapped to ZERO positions is an anomaly (a format glitch,
+        // or every position an unsupported type), NOT a sell-all — reconciling it would
+        // WIPE the entire synced breakdown. Only reconcile when we have positions to write
+        // OR the feed was EXPLICITLY empty (a genuine sell-all); otherwise leave existing
+        // rows intact (counted as skipped). Self-heals on the next sync that maps any
+        // position — same conservative stance as the OMITTED-field guard above (#127 P2).
+        if (holdings.length > 0 || acct.holdings.length === 0) {
+          const rec = await reconcileSimplefinHoldings(accountId, holdings);
+          holdingsUpserted += rec.upserted;
+          holdingsRemoved += rec.removed;
+          holdingsSkipped += skipped + rec.skipped;
+        } else {
+          holdingsSkipped += skipped; // nothing written, and crucially nothing DELETED
+        }
       }
       continue;
     }

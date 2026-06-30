@@ -281,6 +281,43 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
     expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(0);
   });
 
+  // DECISIONS #133 — audit #127 P2: a NON-EMPTY feed that maps to ZERO positions is an
+  // anomaly (format glitch / all-unsupported types), NOT a sell-all. It must NOT wipe the
+  // synced breakdown — distinct from the explicit-empty (above) and omitted-field cases.
+  it('does NOT wipe synced holdings when a NON-EMPTY feed maps to zero positions (all un-mappable)', async () => {
+    await connectSimplefin(SETUP_TOKEN); // AAPL + VTI (source=simplefin)
+    // Positions ARE reported, but every one is un-mappable (no symbol) → mapped to [].
+    accountsPayload = {
+      accounts: [
+        brokerage([
+          { id: 'x1', shares: '100', market_value: '20000.00' }, // no symbol
+          { id: 'x2', shares: '200', market_value: '50000.00' }, // no symbol
+        ]),
+      ],
+    };
+    const r = await syncSimplefinNow();
+    expect(r.ok).toBe(true);
+    // Without the guard this would be removed:2 and the breakdown would be wiped to 0.
+    expect(r.holdings).toEqual({ upserted: 0, removed: 0, skipped: 2 });
+    expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(2); // intact
+  });
+
+  // DECISIONS #133 — critic P2: an untrusted feed can send a NON-ARRAY holdings (null).
+  // Array.isArray routes it to "leave rows intact"; the prior `!== undefined` guard would
+  // have thrown "null is not iterable" and ABORTED the whole sync (the #128 transactions:null class).
+  it('leaves synced holdings intact (and does NOT abort) when the feed sends a non-array holdings (null)', async () => {
+    await connectSimplefin(SETUP_TOKEN); // AAPL + VTI (source=simplefin)
+    accountsPayload = {
+      accounts: [
+        { id: 'brk-1', name: 'Brokerage', balance: '142000.00', org: { name: 'Vanguard' }, holdings: null as unknown as RawHolding[] },
+      ],
+    };
+    const r = await syncSimplefinNow();
+    expect(r.ok).toBe(true); // sync completes, not aborted
+    expect(r.holdings).toEqual({ upserted: 0, removed: 0, skipped: 0 });
+    expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(2); // NOT wiped
+  });
+
   it('counts un-mappable feed positions as skipped without failing the sync', async () => {
     accountsPayload = {
       accounts: [

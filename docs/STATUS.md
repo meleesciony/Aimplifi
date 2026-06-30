@@ -1054,3 +1054,36 @@ likely N/A for a US-only user but unguarded) + the rest of the audit's P2 cluste
 `liabilities.mortgage[]`/`student[]` dropped (only `credit[]` read), all-unmappable-holdings `[]` treated
 as "sold everything" (deletes synced rows), epoch→date UTC-day-boundary, SimpleFIN symbol regex dropping
 options/crypto/slash tickers. Tackle in small individually-verified increments, highest-money-impact first.
+
+## 2026-06-29 — SimpleFIN all-unmappable-holdings data-loss guard (DECISIONS #133, live-ingest backlog)
+
+Second live-money backlog increment this session (after #132). Closed the #127 audit P2 where a SimpleFIN
+sync could WIPE the owner's synced /investments breakdown. `syncFromSimplefin`'s INVESTMENT branch
+reconciled holdings whenever `acct.holdings !== undefined`; since `mapSimplefinHoldings` skips un-mappable
+positions, a NON-EMPTY feed whose positions ALL fail to map returned `holdings:[]`, and the reconcile's
+empty-set branch (`deleteMany({accountId, source:'simplefin'})`) deleted every synced row — mistaking a
+format glitch / all-unsupported-types feed for a sell-all.
+
+Fix: reconcile only when `holdings.length > 0 || acct.holdings.length === 0` (positions to write, OR an
+EXPLICITLY empty feed = a genuine sell-all); a non-empty feed mapping to zero leaves existing rows intact
+(counted as skipped) and self-heals on the next sync that maps any position — the same conservative stance
+as the OMITTED-field guard (#124 P2). NET WORTH UNAFFECTED (account.currentBalanceCents stays authoritative;
+holdings are a within-account breakdown). GOLDEN-SAFE (demo never connects SimpleFIN).
+
+Hostile critic wf_8a9d99dc (2 dims → adversarial verify; one dim hit a mid-response API error, the other
+returned the finding): **0 P0 / 0 P1**; **1 P2 FIXED + regression-locked** — the outer guard tested
+`!== undefined`, so an untrusted feed sending `holdings: null` (not omitted) reached `mapSimplefinHoldings(null)`
+→ "null is not iterable" → ABORTED the whole sync (the `transactions: null` failure class fixed in #128),
+and a `holdings: ""` would even wipe via `.length`. Changed the guard to `Array.isArray(acct.holdings)` so
+undefined/null/any-non-array all route to "leave rows intact".
+
+Gate (real, measured): `bash scripts/verify.sh` → ✅ VERIFY GREEN, typecheck/lint/build clean, **1419 unit /
+110 files** (+2, proven fail-before/pass-after). No e2e surface (server-only sync; the mocked-server
+integration is the labeled end-to-end, per #124/#128/#129/#130).
+
+REMAINING #127 live-ingest backlog (confirmed-real, NOT yet fixed): Plaid `liabilities.mortgage[]`/`student[]`
+dropped (only `credit[]` read — these loans get no statement/due-date in cash-needed/calendar; net worth is
+correct via the account balance) — the biggest remaining item, needs a small design call on how loan due
+dates surface; currency guard (audit #3/#10, likely N/A for a US-only user); epoch→date UTC-day-boundary;
+SimpleFIN symbol regex dropping options/crypto/slash tickers (coupled to the addHolding ticker rule, so a
+wider change). Tackle in small individually-verified increments.

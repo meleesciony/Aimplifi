@@ -989,3 +989,19 @@ Gate (real, measured 2026-06-29): `bash scripts/verify.sh` → ✅ VERIFY GREEN,
 connects Plaid — labeled unit + mapper→cash-needed engine e2e is the coverage, per #124/#128/#129/#130).
 NEXT: remaining #127 backlog in small increments — Plaid mortgage/student liabilities dropped, all-
 unmappable-holdings deletes synced rows, currency guard, epoch UTC-boundary, SimpleFIN symbol regex.
+
+## 2026-06-29 (resumed: "continue") — SimpleFIN all-unmappable-holdings data-loss guard (#133) — DONE ✅ (verify green, critic 0 P0/P1)
+Second live-money backlog increment this session (after #132). Closed the #127 audit P2: a SimpleFIN sync
+could WIPE the owner's synced /investments breakdown when a NON-EMPTY feed mapped to zero positions (all
+un-mappable) — reconcileSimplefinHoldings treats an empty mapped set as "sold everything" and deleted every
+source='simplefin' row. Fix (simplefin.ts INVESTMENT branch): reconcile only when `holdings.length > 0 ||
+acct.holdings.length === 0`; a non-empty feed that maps to zero leaves rows intact (skipped), self-heals next
+sync. Net-worth-safe (account balance authoritative) + golden-safe (demo never connects SimpleFIN).
+Hostile critic wf_8a9d99dc (2 dims → adversarial verify): **0 P0/0 P1**; 1 P2 FIXED — the guard tested
+`!== undefined`, so an untrusted `holdings: null` would abort the whole sync ("null is not iterable", the
+#128 transactions:null class) → changed to `Array.isArray(acct.holdings)` (covers undefined/null/non-array).
+Gate (real, measured 2026-06-29): `bash scripts/verify.sh` → ✅ VERIFY GREEN, typecheck/lint/build clean,
+**1419 unit / 110 files** (+2, proven fail-before/pass-after). No e2e surface (server-only; mocked-server
+integration is the labeled end-to-end).
+NEXT (#127 backlog, owner-gated direction): Plaid mortgage[]/student[] liabilities dropped (biggest remaining;
+needs a small design call on loan due dates), currency guard, epoch UTC-boundary, SimpleFIN symbol regex.
