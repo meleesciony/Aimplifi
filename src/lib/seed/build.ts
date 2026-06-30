@@ -512,7 +512,10 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
     { id: 'sched-payroll', accountId: 'acct-checking', description: 'Payroll — Acme Analytics', amountCents: 245000, nextDate: compareDates(anchor, asOf) >= 0 ? anchor : nextPayroll, cadence: 'BIWEEKLY', source: 'seed' },
     { id: 'sched-rent', accountId: 'acct-checking', description: 'Rent — Peachtree Properties', amountCents: -180000, nextDate: nextRent, cadence: 'MONTHLY', source: 'seed' },
     { id: 'sched-savings', accountId: 'acct-checking', description: 'Auto-transfer to savings', amountCents: -50000, nextDate: firstFuture(monthCursor(1)), cadence: 'MONTHLY', source: 'seed' },
-    { id: 'sched-autoloan', accountId: 'acct-checking', description: 'Auto loan — CarMax', amountCents: -38500, nextDate: firstFuture(monthCursor(5)), cadence: 'MONTHLY', source: 'seed' },
+    // The Auto Loan payment is no longer a hand-authored checking outflow: the loan account
+    // (acct-autoloan: minimumPaymentCents 38500, dueDayOfMonth 5) now drives a first-class
+    // loan-due obligation on the calendar + reminders (#134), exactly as a real Plaid loan
+    // would — a duplicate scheduled row here would double-display it.
   ];
 
   // ── month-end balance snapshots (net-worth trend) ──

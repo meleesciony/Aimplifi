@@ -37,11 +37,13 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      const { today, result } = await getCashNeeded(user.id, 'PAY_IN_FULL');
+      const { today, result, loanObligations } = await getCashNeeded(user.id, 'PAY_IN_FULL');
       // `result.cards` is the complete obligation set (real + estimated); `upcoming`
       // is a subset, so pass only `cards` to avoid double-counting estimated cards.
+      // loanObligations adds the next LOAN/MORTGAGE payments within the window (#134).
       const reminders = selectPaymentReminders({
         obligations: result.cards,
+        loanObligations,
         today,
         withinDays: REMINDER_WINDOW_DAYS,
       });

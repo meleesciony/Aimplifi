@@ -9,11 +9,31 @@ import { describe, expect, it } from 'vitest';
 import { cents } from '@/lib/money';
 import { isoDate } from '@/lib/dates';
 import type { CardObligation } from '@/lib/engine/cash-needed/types';
+import type { LoanObligation } from '@/lib/engine/loans/obligations';
 import {
   buildReminderEmail,
   reminderKey,
   selectPaymentReminders,
 } from '@/lib/engine/reminders/select';
+
+function loanOb(p: {
+  accountId: string;
+  accountName: string;
+  effectiveDueDate: string;
+  paymentCents: number;
+  accountType?: 'LOAN' | 'MORTGAGE';
+  dueDate?: string;
+}): LoanObligation {
+  return {
+    accountId: p.accountId,
+    accountName: p.accountName,
+    accountType: p.accountType ?? 'LOAN',
+    dueDate: isoDate(p.dueDate ?? p.effectiveDueDate),
+    effectiveDueDate: isoDate(p.effectiveDueDate),
+    paymentCents: cents(p.paymentCents),
+    isEstimated: false,
+  };
+}
 
 function ob(p: {
   cardId: string;
@@ -56,7 +76,7 @@ const obligations: CardObligation[] = [
 describe('selectPaymentReminders', () => {
   it('selects every due card across the cycle, oldest first, with correct urgency + flags', () => {
     const r = selectPaymentReminders({ obligations, today });
-    expect(r.map((x) => x.cardId)).toEqual(['sapphire', 'platinum', 'store', 'freedom']); // $0 PaidOff excluded
+    expect(r.map((x) => x.accountId)).toEqual(['sapphire', 'platinum', 'store', 'freedom']); // $0 PaidOff excluded
     expect(r.map((x) => x.daysUntil)).toEqual([0, 2, 10, 16]);
     expect(r.map((x) => x.urgency)).toEqual(['today', 'soon', 'upcoming', 'upcoming']);
     expect(r[1].autopayCovered).toBe(true); // Platinum: userAction 0 + autopay > 0
@@ -66,13 +86,13 @@ describe('selectPaymentReminders', () => {
 
   it('honors the withinDays window (imminent only)', () => {
     const r = selectPaymentReminders({ obligations, today, withinDays: 3 });
-    expect(r.map((x) => x.cardId)).toEqual(['sapphire', 'platinum']); // 0 and 2 days only
+    expect(r.map((x) => x.accountId)).toEqual(['sapphire', 'platinum']); // 0 and 2 days only
   });
 
   it('excludes dismissed reminders by key', () => {
-    const dismissed = new Set([reminderKey({ cardId: 'sapphire', dueDate: '2026-06-10' })]);
+    const dismissed = new Set([reminderKey({ accountId: 'sapphire', dueDate: '2026-06-10' })]);
     const r = selectPaymentReminders({ obligations, today, dismissedKeys: dismissed });
-    expect(r.find((x) => x.cardId === 'sapphire')).toBeUndefined();
+    expect(r.find((x) => x.accountId === 'sapphire')).toBeUndefined();
     expect(r).toHaveLength(3);
   });
 
@@ -86,18 +106,66 @@ describe('selectPaymentReminders', () => {
     // the estimated Store card appears in both, but must surface ONCE.
     const store = obligations[2];
     const r = selectPaymentReminders({ obligations: [...obligations, store], today });
-    expect(r.map((x) => x.cardId)).toEqual(['sapphire', 'platinum', 'store', 'freedom']);
-    expect(r.filter((x) => x.cardId === 'store')).toHaveLength(1);
+    expect(r.map((x) => x.accountId)).toEqual(['sapphire', 'platinum', 'store', 'freedom']);
+    expect(r.filter((x) => x.accountId === 'store')).toHaveLength(1);
   });
 
   it('marks the soon boundary at exactly 3 days and upcoming at 4', () => {
     const c3 = ob({ cardId: 'c3', cardName: 'C3', effectiveDueDate: '2026-06-13', cashRequiredCents: 2000, userActionCents: 2000 });
     const c4 = ob({ cardId: 'c4', cardName: 'C4', effectiveDueDate: '2026-06-14', cashRequiredCents: 3000, userActionCents: 3000 });
     const r = selectPaymentReminders({ obligations: [c3, c4], today });
-    expect(r.map((x) => [x.cardId, x.daysUntil, x.urgency])).toEqual([
+    expect(r.map((x) => [x.accountId, x.daysUntil, x.urgency])).toEqual([
       ['c3', 3, 'soon'],
       ['c4', 4, 'upcoming'],
     ]);
+  });
+});
+
+describe('selectPaymentReminders — loans (#134)', () => {
+  it('surfaces a loan payment as a loan-typed reminder, whole amount user-owed (no autopay)', () => {
+    const loans = [loanOb({ accountId: 'auto', accountName: 'Auto Loan', effectiveDueDate: '2026-06-18', paymentCents: 38500 })];
+    const r = selectPaymentReminders({ obligations: [], loanObligations: loans, today });
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({
+      accountId: 'auto',
+      accountName: 'Auto Loan',
+      obligationType: 'loan',
+      cashRequiredCents: 38500,
+      userActionCents: 38500,
+      autopayCents: 0,
+      autopayCovered: false,
+      daysUntil: 8,
+      urgency: 'upcoming',
+      isEstimated: false,
+    });
+  });
+
+  it('merges cards and loans into one list sorted by due date, then name', () => {
+    const loans = [loanOb({ accountId: 'auto', accountName: 'Auto Loan', effectiveDueDate: '2026-06-12', paymentCents: 38500 })];
+    const r = selectPaymentReminders({ obligations, loanObligations: loans, today });
+    // 06-12 has both Auto Loan (loan) and Platinum (card) → name tiebreak puts Auto Loan first.
+    expect(r.map((x) => [x.accountId, x.obligationType])).toEqual([
+      ['sapphire', 'card'],
+      ['auto', 'loan'],
+      ['platinum', 'card'],
+      ['store', 'card'],
+      ['freedom', 'card'],
+    ]);
+  });
+
+  it('honors the withinDays window for loans too', () => {
+    const loans = [loanOb({ accountId: 'auto', accountName: 'Auto Loan', effectiveDueDate: '2026-06-30', paymentCents: 38500 })];
+    const r = selectPaymentReminders({ obligations: [], loanObligations: loans, today, withinDays: 5 });
+    expect(r).toHaveLength(0); // 20 days out — outside the imminent window
+  });
+
+  it('renders a loan line and a generalized (card-or-loan) email subject', () => {
+    const loans = [loanOb({ accountId: 'auto', accountName: 'Auto Loan', effectiveDueDate: '2026-06-14', paymentCents: 38500 })];
+    const r = selectPaymentReminders({ obligations: [obligations[0]], loanObligations: loans, today });
+    const email = buildReminderEmail(r, today);
+    expect(email!.subject).toBe('Aimplifi: 2 payments coming up');
+    expect(email!.text).toContain('Auto Loan: $385.00 due');
+    expect(email!.text).toContain("you'll pay $385.00 yourself");
   });
 });
 
@@ -106,7 +174,7 @@ describe('buildReminderEmail', () => {
     const reminders = selectPaymentReminders({ obligations, today });
     const email = buildReminderEmail(reminders, today);
     expect(email).not.toBeNull();
-    expect(email!.subject).toBe('Aimplifi: 4 card payments coming up');
+    expect(email!.subject).toBe('Aimplifi: 4 payments coming up');
     expect(email!.text).toContain('Sapphire: $1,000.00 due');
     expect(email!.text).toContain('(today)');
     expect(email!.text).toContain('autopay will handle it'); // Platinum line
@@ -120,7 +188,7 @@ describe('buildReminderEmail', () => {
       selectPaymentReminders({ obligations: [obligations[0]], today }),
       today,
     );
-    expect(email!.subject).toBe('Aimplifi: 1 card payment coming up');
+    expect(email!.subject).toBe('Aimplifi: 1 payment coming up');
   });
 
   it('discloses BOTH portions for a partial-autopay (top-up) card', () => {

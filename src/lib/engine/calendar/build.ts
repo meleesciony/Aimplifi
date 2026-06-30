@@ -14,12 +14,13 @@ import {
 } from '@/lib/dates';
 import type { CardObligation } from '@/lib/engine/cash-needed/types';
 import type { ScheduledLike } from '@/lib/engine/cash-needed/assemble';
+import type { LoanObligation } from '@/lib/engine/loans/obligations';
 
 export interface CalendarEvent {
   date: ISODate;
-  kind: 'inflow' | 'outflow' | 'card-due';
+  kind: 'inflow' | 'outflow' | 'card-due' | 'loan-due';
   label: string;
-  amountCents: Cents; // signed; card-due negative (cash leaving)
+  amountCents: Cents; // signed; card-due / loan-due negative (cash leaving)
   isEstimated?: boolean;
 }
 
@@ -34,7 +35,7 @@ export interface CashFlowCalendar {
   days: CalendarDay[];
   totalInCents: Cents;
   totalOutCents: Cents;
-  /** Days needing a reminder: a card-due event within the month. */
+  /** Days needing a reminder: a card-due OR loan-due event within the month. */
   reminderDates: ISODate[];
 }
 
@@ -77,6 +78,7 @@ export function buildCashFlowCalendar(params: {
   month: string; // YYYY-MM
   scheduled: readonly ScheduledLike[];
   cardObligations: readonly CardObligation[]; // current + upcoming, from the engine
+  loanObligations?: readonly LoanObligation[]; // next LOAN/MORTGAGE payments (#134)
 }): CashFlowCalendar {
   const { month } = params;
   const year = +month.slice(0, 4);
@@ -94,6 +96,17 @@ export function buildCashFlowCalendar(params: {
         label: `${ob.cardName} due${ob.isEstimated ? ' (est.)' : ''}`,
         amountCents: cents(-ob.cashRequiredCents),
         isEstimated: ob.isEstimated,
+      });
+    }
+  }
+  for (const ob of params.loanObligations ?? []) {
+    if (ob.paymentCents <= 0) continue;
+    if (compareDates(ob.effectiveDueDate, first) >= 0 && compareDates(ob.effectiveDueDate, last) <= 0) {
+      events.push({
+        date: ob.effectiveDueDate,
+        kind: 'loan-due',
+        label: `${ob.accountName} due`,
+        amountCents: cents(-ob.paymentCents),
       });
     }
   }
@@ -123,6 +136,8 @@ export function buildCashFlowCalendar(params: {
     days,
     totalInCents: cents(totalIn),
     totalOutCents: cents(totalOut),
-    reminderDates: days.filter((d) => d.events.some((e) => e.kind === 'card-due')).map((d) => d.date),
+    reminderDates: days
+      .filter((d) => d.events.some((e) => e.kind === 'card-due' || e.kind === 'loan-due'))
+      .map((d) => d.date),
   };
 }

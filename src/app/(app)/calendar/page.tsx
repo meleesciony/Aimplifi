@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ArrowDownLeft, ArrowUpRight, CreditCard } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, CreditCard, Landmark } from 'lucide-react';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Badge } from '@/components/ui/badge';
@@ -22,18 +22,20 @@ export default async function CalendarPage({
   if (!session?.user?.id) redirect('/sign-in');
   // No accounts yet → onboarding; getCashNeeded throws on empty (DECISIONS #44).
   if ((await prisma.account.count({ where: { userId: session.user.id } })) === 0) return <EmptyDashboard />;
-  const { today, snap, result } = await getCashNeeded(session.user.id);
+  const { today, snap, result, loanObligations } = await getCashNeeded(session.user.id);
   const params = await searchParams;
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? '')
     ? params.month!
     : today.slice(0, 7);
 
   // result.cards already contains every obligation (estimates included);
-  // upcoming is a SUBSET of it — spreading both double-counted (cycle-3 H1)
+  // upcoming is a SUBSET of it — spreading both double-counted (cycle-3 H1).
+  // loanObligations adds the next LOAN/MORTGAGE payments as their own due events (#134).
   const calendar = buildCashFlowCalendar({
     month,
     scheduled: snap.scheduled,
     cardObligations: result.cards,
+    loanObligations,
   });
 
   const prev = addMonthsClamped(isoDate(`${month}-01`), -1).slice(0, 7);
@@ -61,12 +63,12 @@ export default async function CalendarPage({
         <CardHeader className="pb-2">
           <CardDescription>
             {(() => {
-              const cardCount = calendar.days.reduce(
-                (n, d) => n + d.events.filter((e) => e.kind === 'card-due').length,
+              const dueCount = calendar.days.reduce(
+                (n, d) => n + d.events.filter((e) => e.kind === 'card-due' || e.kind === 'loan-due').length,
                 0,
               );
               const dates = calendar.reminderDates.length;
-              return `In ${formatCents(calendar.totalInCents)} · out ${formatCents(calendar.totalOutCents)} · ${cardCount} card${cardCount === 1 ? '' : 's'} due across ${dates} date${dates === 1 ? '' : 's'}`;
+              return `In ${formatCents(calendar.totalInCents)} · out ${formatCents(calendar.totalOutCents)} · ${dueCount} payment${dueCount === 1 ? '' : 's'} due across ${dates} date${dates === 1 ? '' : 's'}`;
             })()}
           </CardDescription>
           <CardTitle className="text-base">Inflows, outflows, and card due dates</CardTitle>
@@ -97,13 +99,15 @@ export default async function CalendarPage({
                         <span className="flex items-center gap-1.5">
                           {e.kind === 'card-due' ? (
                             <CreditCard className="size-3.5 text-muted-foreground" aria-hidden />
+                          ) : e.kind === 'loan-due' ? (
+                            <Landmark className="size-3.5 text-muted-foreground" aria-hidden />
                           ) : e.amountCents >= 0 ? (
                             <ArrowDownLeft className="size-3.5 text-emerald-500" aria-hidden />
                           ) : (
                             <ArrowUpRight className="size-3.5 text-muted-foreground" aria-hidden />
                           )}
                           {e.label}
-                          {e.kind === 'card-due' && (
+                          {(e.kind === 'card-due' || e.kind === 'loan-due') && (
                             <Badge variant="destructive" className="text-[10px]">
                               due
                             </Badge>
@@ -132,8 +136,8 @@ export default async function CalendarPage({
             </ul>
           )}
           <p className="mt-3 text-xs text-muted-foreground">
-            Card amounts shown on their effective due dates (weekend/holiday dates roll back to the
-            prior business day). Each due day is badged here, the dashboard shows your upcoming payment
+            Card and loan amounts shown on their effective due dates (weekend/holiday dates roll back to
+            the prior business day). Each due day is badged here, the dashboard shows your upcoming payment
             reminders, and email reminders activate once an email provider is configured.
           </p>
         </CardContent>

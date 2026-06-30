@@ -550,3 +550,49 @@ is $50.00 (not 10,000 × $0.01 = $100). The pure `isPerShareApproximate` flags e
 /investments row renders "≈$0.01" so the per-share figure reads as approximate beside the exact total. For
 a derived (manual) position the two agree by construction → not flagged. Demo seed lots are all
 whole-cent-divisible → never flagged → display unchanged.
+
+## Loan/mortgage payment obligations + Plaid mortgage/student ingest (DECISIONS #134)
+
+The loan-obligation engine (`engine/loans/obligations.ts::selectLoanObligations`) and the Plaid
+mortgage/student mappers. All money is integer cents; the business-day rule is the SAME the
+cash-needed engine applies to cards (`priorBusinessDayIfNonBusiness`, clamped never-before-today).
+
+### LO-A. Weekend + observed-holiday roll-back (the demo Auto Loan)
+`{ type:'LOAN', minimumPaymentCents:38500, dueDayOfMonth:5 }`, today 2026-06-10. Next due-day-5
+on/after today = **2026-07-05** (a Sunday). Walk back: Sun → Sat → Fri **2026-07-03**, which is the
+OBSERVED Independence Day (Jul 4 = Saturday) → Thursday **2026-07-02**. Obligation: dueDate 2026-07-05,
+effectiveDueDate 2026-07-02, paymentCents 38500. Verified end-to-end on the seed (phase4.test.ts).
+
+### LO-B. MORTGAGE included; plain business-day due date unchanged
+`{ type:'MORTGAGE', dueDayOfMonth:15, minimumPaymentCents:210000 }`, today 2026-06-10 → dueDate
+2026-06-15 (a Monday, a business day) → effectiveDueDate 2026-06-15 (unchanged). MORTGAGE surfaces on
+the calendar/reminders exactly like LOAN (both are liabilities); it is excluded from the debt snowball.
+
+### LO-C. Exclusions — nothing fabricated
+A CREDIT or CHECKING account, a loan with `minimumPaymentCents` null or 0, or a loan with
+`dueDayOfMonth` null all produce NO obligation (no payment/date to surface; the engine never invents one).
+
+### LO-D. Clamp to today
+today = Sunday 2026-07-05, dueDay 5 → dueDate 2026-07-05; its prior business day (2026-07-02) is BEFORE
+today, so effectiveDueDate clamps UP to today (2026-07-05) — the cash-needed "never before today" rule.
+
+### LO-E. Plaid mortgage → loan fields
+`{ next_monthly_payment:1850.00, next_payment_due_date:'2026-07-15', interest_rate:{percentage:6.49} }`
+→ `{ aprBps:649, minimumPaymentCents:185000, dueDayOfMonth:15 }`. Nested `interest_rate.percentage`
+(percent→bps via integer ×100); `next_monthly_payment` (dollars→cents); due day = the date's day component.
+
+### LO-F. Plaid student → loan fields (FLAT rate field; deferment)
+`{ minimum_payment_amount:250.00, next_payment_due_date:'2026-07-21', interest_rate_percentage:4.53 }`
+→ `{ aprBps:453, minimumPaymentCents:25000, dueDayOfMonth:21 }`. Student uses the FLAT
+`interest_rate_percentage` (not the nested mortgage object) and `minimum_payment_amount`. In deferment
+(`minimum_payment_amount`/`next_payment_due_date` null) the known rate still maps; payment + day stay null.
+
+### LO-G. Preserve-on-null (never zero a known value)
+Any mortgage/student field Plaid reports null/non-finite/non-positive maps to null, and the Account UPDATE
+OMITS null fields — a deferment loan or a transient missing field PRESERVES the last-known APR/payment/
+due-day (the #130 discipline). A null student `account_id` (Plaid allows it) is skipped, never throws.
+
+### Surface boundary (no headline drift)
+Loan obligations feed ONLY the calendar (`loan-due` event) + reminders; the cash-needed engine
+(`type==='CREDIT'` filter, `requiredCents`, `cardsDueCount`, projection) is untouched. The seed has no
+shortfall, so removing the `sched-autoloan` stand-in leaves every cash-needed headline golden byte-identical.

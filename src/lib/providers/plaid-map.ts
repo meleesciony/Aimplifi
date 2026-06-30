@@ -20,7 +20,7 @@ import { estimateMinimumPayment } from '@/lib/engine/cash-needed/engine';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type CategorizedTxn, type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
 
-export type PulseAccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT' | 'INVESTMENT' | 'LOAN';
+export type PulseAccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT' | 'INVESTMENT' | 'LOAN' | 'MORTGAGE';
 
 /** Dollars (Plaid, outflow-positive) → signed cents (Pulse, outflow-negative). */
 export function plaidAmountToCents(amountDollars: number): Cents {
@@ -68,7 +68,11 @@ export function mapPlaidAccountType(type: string, subtype: string | null): Pulse
     case 'credit':
       return 'CREDIT';
     case 'loan':
-      return 'LOAN';
+      // A mortgage is a distinct Pulse type (excluded from the debt snowball by the
+      // Ramsey BS6 convention, like a manual MORTGAGE); every other loan subtype
+      // (student, auto, personal, …) is a generic LOAN. Both are liabilities, so the
+      // net-worth sign lands the same either way.
+      return subtype === 'mortgage' ? 'MORTGAGE' : 'LOAN';
     case 'investment':
     case 'brokerage':
       return 'INVESTMENT';
@@ -225,6 +229,97 @@ export function mapPlaidLiabilityToStatement(
     statementBalanceCents,
     minimumPaymentCents,
     isEstimated: false,
+  };
+}
+
+/**
+ * Plaid `/liabilities/get` `mortgage[]` (the fields Pulse models). The current
+ * outstanding balance is NOT here — it comes from the linked account's
+ * balances.current (already handled by mapPlaidAccount); origination_principal_amount
+ * is the ORIGINAL principal, not the current balance, so it is deliberately ignored.
+ */
+export interface PlaidMortgageLiability {
+  account_id: string;
+  next_monthly_payment: number | null;
+  next_payment_due_date: string | null; // YYYY-MM-DD
+  interest_rate?: { percentage: number | null; type: string | null } | null;
+}
+
+/** Plaid `/liabilities/get` `student[]`. NOTE: account_id is NULLABLE for student loans. */
+export interface PlaidStudentLiability {
+  account_id: string | null;
+  minimum_payment_amount: number | null;
+  next_payment_due_date: string | null; // YYYY-MM-DD
+  interest_rate_percentage: number | null;
+}
+
+/** Loan-account fields a mortgage/student liability can populate. null = not reported (PRESERVE existing). */
+export interface MappedLoanFields {
+  aprBps: number | null;
+  minimumPaymentCents: number | null;
+  dueDayOfMonth: number | null;
+}
+
+// Postgres 32-bit Int ceiling — minimumPaymentCents/aprBps/dueDayOfMonth are all Int
+// columns; a value past this overflows in production (DECISIONS #129). Bounding here keeps
+// these mappers truly non-throwing (no cents() safe-integer assert) and out of the column's range.
+const MAX_DB_INT = 2_147_483_647;
+
+// Interest rate percent (e.g. 6.49) → integer bps (649). Rounds FIRST, then range-checks
+// `0 < bps <= MAX_DB_INT` — so a sub-bps positive rounds to 0 → null (preserve, never write a
+// fabricated 0 over a real rate), and an absurd value → null (never overflow). Mirrors the
+// statement path's post-rounding `> 0` guard and pickPlaidAprBps's integer-rounded ×100.
+function loanRateToBps(pct: number | null | undefined): number | null {
+  if (pct == null || !Number.isFinite(pct)) return null;
+  const bps = Math.round(pct * 100);
+  return bps > 0 && bps <= MAX_DB_INT ? bps : null;
+}
+
+// Dollars → positive integer cents, or null when not usable. Rounds FIRST, then range-checks
+// `0 < cents <= MAX_DB_INT`. Non-throwing (unlike plaidDollarsToPositiveCents → cents()):
+// liability sync is best-effort, so a sub-cent amount (rounds to 0), an over-ceiling amount, or
+// any non-finite value all return null = preserve-existing — never a fabricated 0, never a throw
+// that would abort the item's whole liability sweep (incl. its credit cards).
+function loanPaymentToCents(amount: number | null | undefined): number | null {
+  if (amount == null || !Number.isFinite(amount)) return null;
+  // Bound the magnitude BEFORE rounding: roundHalfAwayFromZero wraps cents(), which throws
+  // on a non-safe-integer — so an over-ceiling amount must short-circuit to null here, not reach it.
+  if (Math.abs(amount) * 100 > MAX_DB_INT) return null;
+  const c = roundHalfAwayFromZero(Math.abs(amount) * 100);
+  return c > 0 ? c : null; // a sub-cent amount rounds to 0 → null (preserve, never write a 0)
+}
+
+// Day-of-month (1..31) from a YYYY-MM-DD due date, or null when absent/malformed. Uses a
+// regex rather than isoDate() so a bad string yields null (skip) instead of throwing.
+function dueDayFromDate(date: string | null | undefined): number | null {
+  if (date == null) return null;
+  const m = /^\d{4}-\d{2}-(\d{2})$/.exec(date);
+  if (!m) return null;
+  const day = Number(m[1]);
+  return day >= 1 && day <= 31 ? day : null;
+}
+
+/**
+ * Plaid mortgage → the Pulse loan Account's modeled fields. Each field is null when
+ * Plaid didn't report a usable value, so the caller PRESERVES the existing stored value
+ * (never overwrites a real rate/payment/due-day with a blank — the #130 preserve-on-null
+ * discipline). The fixed payment + due day then feed the loan-obligation engine (calendar
+ * + reminders), and the rate feeds the debt-payoff planner.
+ */
+export function mapPlaidMortgageToLoanFields(m: PlaidMortgageLiability): MappedLoanFields {
+  return {
+    aprBps: loanRateToBps(m.interest_rate?.percentage),
+    minimumPaymentCents: loanPaymentToCents(m.next_monthly_payment),
+    dueDayOfMonth: dueDayFromDate(m.next_payment_due_date),
+  };
+}
+
+/** Plaid student loan → the Pulse loan Account's modeled fields (same preserve-on-null rule). */
+export function mapPlaidStudentToLoanFields(s: PlaidStudentLiability): MappedLoanFields {
+  return {
+    aprBps: loanRateToBps(s.interest_rate_percentage),
+    minimumPaymentCents: loanPaymentToCents(s.minimum_payment_amount),
+    dueDayOfMonth: dueDayFromDate(s.next_payment_due_date),
   };
 }
 

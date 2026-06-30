@@ -23,8 +23,8 @@ export function PaymentRemindersCard({ reminders, today }: { reminders: PaymentR
         <CardTitle className="text-base">Payment reminders</CardTitle>
         <CardDescription>
           {reminders.length === 0
-            ? 'You’re all caught up — no card payments coming up.'
-            : 'Upcoming card payments this cycle. Aimplifi never moves money for you — this is just a heads-up.'}
+            ? 'You’re all caught up — no payments coming up.'
+            : 'Upcoming card & loan payments this cycle. Aimplifi never moves money for you — this is just a heads-up.'}
         </CardDescription>
       </CardHeader>
       {reminders.length > 0 && (
@@ -33,11 +33,12 @@ export function PaymentRemindersCard({ reminders, today }: { reminders: PaymentR
             {reminders.map((r) => {
               const u = URGENCY[r.urgency];
               return (
-                <li key={`${r.cardId}:${r.dueDate}`} className="flex items-center justify-between gap-3 px-4 py-2" data-testid="reminder-row">
+                <li key={`${r.accountId}:${r.dueDate}`} className="flex items-center justify-between gap-3 px-4 py-2" data-testid="reminder-row">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${u.cls}`}>{u.label}</span>
-                      <span className="truncate font-medium" data-testid="reminder-card-name">{r.cardName}</span>
+                      <span className="truncate font-medium" data-testid="reminder-card-name">{r.accountName}</span>
+                      {r.obligationType === 'loan' && <span className="shrink-0 text-[10px] text-muted-foreground">loan</span>}
                       {r.isEstimated && <span className="shrink-0 text-[10px] text-muted-foreground">est.</span>}
                     </div>
                     <div className="text-xs text-muted-foreground">

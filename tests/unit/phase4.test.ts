@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { buildSeedData } from '@/lib/seed/build';
 import { buildCashFlowCalendar, expandScheduled } from '@/lib/engine/calendar/build';
+import { selectLoanObligations } from '@/lib/engine/loans/obligations';
 import { goalFIImpact } from '@/lib/engine/goals';
 import { assembleCashNeededInput } from '@/lib/engine/cash-needed/assemble';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
@@ -76,6 +77,53 @@ describe('cash-flow calendar (June 2026 from seed)', () => {
       isoDate('2026-06-30'),
     );
     expect(events.map((e) => e.date)).toEqual(['2026-06-12', '2026-06-26']);
+  });
+});
+
+describe('loan payments surface on the calendar + reminders, not the cash headline (#134)', () => {
+  // The seed Auto Loan (acct-autoloan: minimumPaymentCents 38500, dueDayOfMonth 5) is no
+  // longer a hand-authored checking outflow — it drives a first-class loan-due obligation,
+  // exactly as a real Plaid mortgage/student loan would. This locks the wiring against a
+  // silent-drop regression (loan ingested but never surfaced).
+  const today = isoDate('2026-06-10');
+  const loanObligations = selectLoanObligations({
+    accounts: seed.accounts,
+    today,
+    holidays: holidayTable(2025, 2027),
+  });
+
+  it('derives exactly one loan obligation from the seed Auto Loan (weekend+holiday adjusted)', () => {
+    expect(loanObligations).toEqual([
+      {
+        accountId: 'acct-autoloan',
+        accountName: 'Auto Loan',
+        accountType: 'LOAN',
+        dueDate: '2026-07-05', // a Sunday
+        effectiveDueDate: '2026-07-02', // Sun→Sat→Fri(observed Jul-4 holiday)→Thu
+        paymentCents: 38500,
+        isEstimated: false,
+      },
+    ]);
+  });
+
+  it('the stand-in scheduled outflow is gone (no double-display)', () => {
+    expect(seed.scheduled.some((s) => s.id === 'sched-autoloan')).toBe(false);
+  });
+
+  it('shows the loan as a badged loan-due event on its effective date, counted as outflow + reminder', () => {
+    const july = buildCashFlowCalendar({
+      month: '2026-07',
+      scheduled: seed.scheduled,
+      cardObligations: [],
+      loanObligations,
+    });
+    const d = july.days.find((x) => x.date === '2026-07-02')!;
+    expect(d.events.some((e) => e.kind === 'loan-due' && e.label === 'Auto Loan due' && e.amountCents === -38500)).toBe(true);
+    expect(july.reminderDates).toContain('2026-07-02');
+    // The loan adds exactly its payment to the month's outflow total (vs the same month
+    // without it) — July also carries the recurring rent/savings scheduled outflows.
+    const julyNoLoan = buildCashFlowCalendar({ month: '2026-07', scheduled: seed.scheduled, cardObligations: [] });
+    expect(july.totalOutCents - julyNoLoan.totalOutCents).toBe(38500);
   });
 });
 

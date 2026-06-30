@@ -1087,3 +1087,43 @@ correct via the account balance) — the biggest remaining item, needs a small d
 dates surface; currency guard (audit #3/#10, likely N/A for a US-only user); epoch→date UTC-day-boundary;
 SimpleFIN symbol regex dropping options/crypto/slash tickers (coupled to the addHolding ticker rule, so a
 wider change). Tackle in small individually-verified increments.
+
+---
+
+## #134 — Plaid mortgage/student loans → calendar + reminders (2026-06-30)
+
+Biggest remaining #127 live-ingest item, SHIPPED (owner picked the surface = "Calendar + reminders", NOT the
+cash-needed dollar headline). `syncLiabilities` now ingests `liabilities.mortgage[]`/`student[]` → populates
+each loan Account's aprBps + minimumPaymentCents + dueDayOfMonth (preserve-on-null #130; mortgage subtype →
+MORTGAGE, excluded from the snowball; student/other → LOAN). A new pure `selectLoanObligations` engine
+surfaces the next loan payment on the calendar (`loan-due` event) + reminders ONLY — the cash-needed engine is
+untouched. Seed `sched-autoloan` stand-in removed (loan now first-class). Gate: VERIFY GREEN, 1444→ unit /
+113 files; e2e calendar/reminders/a11y 15/15 clean.
+
+Hostile critic wf_d388bf4b (3 lenses → adversarial verify): **0 confirmed P0/P1.** 2 mapper money-bugs FIXED
++ regression-locked: (F1) `> 0` checked on the PRE-rounded value, so a sub-cent payment / sub-bps rate wrote a
+fabricated 0 (zeroing a stored value) → now round-FIRST then `> 0`; (F2) a huge finite payment threw via
+cents()'s safe-integer assert (aborting the item's whole liability sweep) despite the "non-throwing" comment →
+now magnitude-bounded to the Postgres Int ceiling BEFORE rounding, returns null.
+
+### KNOWN LIMITATIONS / NEXT (owner-gated de-dup design)
+A loan payment is representable two ways — a recurring-detected/scheduled cash outflow (existing) AND the new
+loan-due obligation — and #134 does not de-duplicate between them. Two consequences, both documented, neither a
+confirmed P0/P1:
+1. **Demo /forecast inconsistency:** `getCashFlowForecast` reads `snap.scheduled`; removing `sched-autoloan`
+   dropped the demo's only scheduled loan row, so the demo forecast over-projects checking by $385/mo and is
+   inconsistent with its own calendar/reminders (which DO show the loan). Real users are unaffected here (their
+   loan ACH is still recurring-detected into `snap.scheduled`). Negligible ($385 on $340k) but a visible demo
+   gap.
+2. **Real-user calendar double-display (narrow):** a connected MORTGAGE/STUDENT loan whose monthly payment is
+   ALSO recurring-detected as a NON-transfer checking outflow would show twice on the calendar (recurring
+   outflow + loan-due) and double-count in totalOut. Does NOT affect an AUTO loan (not a Plaid liability → no
+   loan-due) nor a payment categorized as a transfer (recurring detection skips it, detect.ts:85).
+3. **Reported-$0 payment preserve (F1a, accepted):** a forbearance/IDR loan reporting `minimum_payment_amount:0`
+   is treated like "not reported" (preserve prior), conservatively matching #132 — a later increment could read
+   `loan_status` to clear a genuinely-$0 obligation.
+
+NEXT (owner-gated): decide the CANONICAL loan source and de-duplicate — e.g. exclude loan-categorized
+recurring/scheduled rows from the calendar+forecast when a loanObligation exists for that loan, OR feed
+loanObligations into the forecast and suppress the recurring row. Requires threading a loan-account link or
+categoryId through the scheduled pipeline; a focused follow-up, not bolted onto this increment.

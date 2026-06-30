@@ -1024,3 +1024,71 @@ RESUME POINT for a fresh session (read LOOP_ENGINEERING.md + CLAUDE.md first, th
       appear in the cash-needed headline, only the calendar, or stay as-is BEFORE building.
   (2) currency guard (audit #3/#10, likely N/A for a US-only user); (3) epoch→date UTC-day-boundary;
   (4) SimpleFIN symbol regex (coupled to the addHolding ticker rule — wider change). All lower-value.
+
+## 2026-06-30 (resumed: "continue") — Plaid mortgage/student loans → calendar + reminders (#134) — IN PROGRESS
+Owner (AskUserQuestion) chose: (a) PUSH #132+#133 now [DONE — pushed `6a63729..bcf26c2`, origin==local, Vercel
+auto-build triggered; READY unverifiable from sandbox]; (b) build the BIGGEST #127 item = Plaid mortgage[]/student[]
+ingest, surfacing the loan payment+due-date on the **calendar + reminders** (NOT the cash-needed dollar headline).
+Baseline re-confirmed before any change (measured): `bash scripts/verify.sh` → ✅ GREEN (1419 unit/110 files, HEAD
+`bcf26c2`, tree clean). Understand phase = a 5-agent read-only workflow (wf_eaf4415a) mapping Plaid ingest /
+cash-needed / calendar+reminders / schema+net-worth / official Plaid mortgage+student schema + test idioms.
+
+**Ground truth (cited):** net worth is ALREADY correct for loans (Plaid `loan`→type LOAN, isLiabilityType covers
+LOAN+MORTGAGE, balances refresh every sync #130) — NO change there. Gap: a linked loan carries ONLY a balance — APR
+never set (debt-payoff sees 0), monthly payment + due date invisible. Plaid `mortgage[]` gives next_payment_due_date
+/ next_monthly_payment / interest_rate.percentage (nested) / account_id (non-null); `student[]` gives
+next_payment_due_date / minimum_payment_amount / interest_rate_percentage (flat) / account_id (NULLABLE). Neither
+carries current principal (use account balance). cash-needed filters `type==='CREDIT'` (assemble.ts:107) — loans
+never become obligations. calendar consumes result.cards + snap.scheduled; reminders consume payInFull.cards. Seed
+Auto Loan is double-modeled: acct-autoloan (LOAN, apr 649, min 38500, dueDay 5) + sched-autoloan (-38500 MONTHLY on
+checking) — the scheduled row is what puts it in cash-needed/calendar today.
+
+**Plan (engine-first; acceptance criteria as testable assertions):**
+1. [ ] `dates.ts` — move `nextDayOfMonth` here (single tested date utility, rule #3); assemble.ts imports it. Test: known-answer (same-month, roll-to-next, clamp Feb).
+2. [ ] `engine/loans/obligations.ts` — pure `selectLoanObligations({accounts,today,holidays})→LoanObligation[]`
+   (LOAN|MORTGAGE with minimumPaymentCents>0 && dueDayOfMonth!=null; dueDate=nextDayOfMonth, effectiveDueDate=
+   priorBusinessDayIfNonBusiness clamped≥today, paymentCents=min). Excludes CREDIT/CHECKING/no-payment/no-dueDay.
+   Tests: weekend rollback, clamp-to-today, exclusion, sort, MORTGAGE included.
+3. [ ] `plaid-map.ts` — `PlaidMortgageLiability`/`PlaidStudentLiability` types + pure `mapPlaidMortgageToLoanFields`
+   / `mapPlaidStudentToLoanFields` → {aprBps,minimumPaymentCents,dueDayOfMonth} (each null on missing/non-finite,
+   never throws); `mapPlaidAccountType('loan','mortgage')→'MORTGAGE'`, ('loan','student'|other)→'LOAN'; add MORTGAGE
+   to PulseAccountType. Tests: known-answer + nulls + subtype mapping.
+4. [ ] `plaid.ts` syncLiabilities — widen response to {credit?,mortgage?,student?}; sibling loops UPDATE the joined
+   loan Account with only the non-null fields (preserve-on-null, #130); skip rows w/o joinable account_id (student
+   account_id nullable). Mocked-server integration test (mirror plaid-balance-refresh idiom): populate + preserve.
+5. [ ] `calendar/build.ts` — CalendarEvent.kind +'loan-due'; emit loan-due (label "{name} due", -paymentCents);
+   reminderDates include loan-due. Calendar page renders loan-due (Landmark icon + 'due' badge) + generalized
+   summary copy. Tests: loan-due event + reminderDates.
+6. [ ] `reminders/select.ts` — generalize to `obligationType:'card'|'loan'`; accept loanObligations; copy "card
+   payment"→"payment" (subject/email/dashboard card). finance.ts cashNeededFromSnapshot returns `loanObligations`
+   (one definition); getDashboardData + cron + calendar consume it. Tests: loan→reminder, copy.
+7. [ ] Seed — remove `sched-autoloan` (loan now first-class loan-due; no double-display). Re-golden calendar/
+   projection/reminders demo tests (headline byte-identical — demo has no shortfall). EDGE_CASES + DECISIONS #134 +
+   REGRESSION_LEDGER.
+8. [ ] `bash scripts/verify.sh` + VERIFY_E2E (calendar/dashboard) GREEN; hostile critic (money + data-loss) 0 P0/P1.
+
+**Accepted boundary (owner's choice):** loans surface as calendar/reminder SIGNALS; the cash-needed projection/
+shortfall stays card-focused (the "headline too" option was declined). Net-worth + golden-safe (demo never connects
+Plaid; the one demo change is removing the sched-autoloan stand-in, headline unchanged).
+
+### #134 — DONE ✅ (verify+e2e green, critic 0 confirmed P0/P1)
+All 8 plan steps complete. **Gate (real, measured 2026-06-30):** `bash scripts/verify.sh` → ✅ VERIFY GREEN —
+typecheck/lint/build clean, **1446 unit / 113 files** (+27 over the 1419 baseline). e2e calendar/reminders/a11y
+**15/15** clean (axe AA; dashboard reminder surfaces the demo Auto Loan; calendar card-due unaffected). Demo loan
+verified surfacing end-to-end (loan-due 2026-07-02, scheduled rows 3 after sched-autoloan removal).
+
+**Hostile critic wf_d388bf4b** (3 lenses → adversarial verify): 0 confirmed P0/P1. 2 mapper money-bugs FIXED +
+regression-locked — (F1) `> 0` on the PRE-rounded value wrote a fabricated 0 for a sub-cent payment / sub-bps rate
+→ round-FIRST then `> 0`; (F2) a huge finite payment threw via cents() safe-int assert → magnitude-bound to the
+Postgres Int ceiling before rounding. **Residuals documented (STATUS #134, owner-gated NEXT):** recurring-detection
+vs loan-due have NO de-dup → demo /forecast drops the loan (real users unaffected); a recurring-detected
+mortgage/student could double-display (narrow — not the auto loan, not transfer-categorized payments). Reported-$0
+payment preserved (per #132). DECISIONS #134 + REGRESSION_LEDGER (3 rows) + EDGE_CASES §Loan-obligations + STATUS #134.
+
+**Docs commits + #134 feature commit pending.** origin/main `bcf26c2` is LIVE (incl. #132/#133, pushed this
+session). Push deploys #134 — owner's call (the live Plaid mortgage/student path stays UNVERIFIED until a real-token
+sync; the mocked-server integration is the labeled end-to-end, per the live-path convention). SAFE to /clear after commit.
+
+**NEXT (owner):** push #134 when ready; the de-dup design (canonical loan source across calendar/forecast/reminders)
+is the documented follow-up. Remaining #127 tail (lower value): currency guard (~N/A US), epoch→date UTC-boundary,
+SimpleFIN symbol regex.

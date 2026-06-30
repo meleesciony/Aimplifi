@@ -29,11 +29,16 @@ import { detectTransfers } from '@/lib/engine/categorize/transfers';
 import { loadUserRules } from '@/server/rules';
 import { refreshRecurringForUser } from '@/server/recurring';
 import {
+  type MappedLoanFields,
   type PlaidAccount,
   type PlaidCreditLiability,
+  type PlaidMortgageLiability,
+  type PlaidStudentLiability,
   type PlaidTransaction,
   mapPlaidAccount,
   mapPlaidLiabilityToStatement,
+  mapPlaidMortgageToLoanFields,
+  mapPlaidStudentToLoanFields,
   pickPlaidAprBps,
   prepareIngestedTransaction,
 } from './plaid-map';
@@ -412,7 +417,13 @@ export class PlaidProvider implements DataProvider {
     return { added, modified, removed, nextCursor: lastCursor };
   }
 
-  /** /liabilities/get → upsert a Statement per credit card with a generated cycle. */
+  /**
+   * /liabilities/get → upsert a Statement per credit card with a generated cycle, AND
+   * populate each mortgage/student LOAN account's rate + fixed monthly payment + due day
+   * (#134). Without the loan branch a linked mortgage/student loan carries only a balance:
+   * its APR stays 0 (the debt-payoff planner mis-computes) and its payment/due-date never
+   * surface on the calendar or reminders.
+   */
   async syncLiabilities(userId: string): Promise<void> {
     const items = await prisma.plaidItem.findMany({ where: { userId } });
     const accounts = await prisma.account.findMany({
@@ -421,13 +432,37 @@ export class PlaidProvider implements DataProvider {
     });
     const idByPlaidId = new Map(accounts.map((a) => [a.providerRef ?? '', a.id]));
 
+    // Write only the loan fields Plaid actually reported (each non-null), so a missing
+    // rate/payment/due-day PRESERVES the last-known-good value instead of zeroing it — the
+    // #130 preserve-on-null discipline applied to mortgage/student liabilities.
+    const applyLoanFields = async (plaidAccountId: string | null, f: MappedLoanFields) => {
+      const accountId = plaidAccountId ? idByPlaidId.get(plaidAccountId) : undefined;
+      if (!accountId) return; // student account_id is nullable; an unjoinable row is skipped
+      const data: { aprBps?: number; minimumPaymentCents?: number; dueDayOfMonth?: number } = {};
+      if (f.aprBps !== null) data.aprBps = f.aprBps;
+      if (f.minimumPaymentCents !== null) data.minimumPaymentCents = f.minimumPaymentCents;
+      if (f.dueDayOfMonth !== null) data.dueDayOfMonth = f.dueDayOfMonth;
+      if (Object.keys(data).length > 0) {
+        await prisma.account.update({ where: { id: accountId }, data });
+      }
+    };
+
     for (const item of items) {
       try {
         const token = decryptToken(item.accessToken);
-        const { liabilities } = await plaidPost<{ liabilities: { credit?: PlaidCreditLiability[] } }>(
-          '/liabilities/get',
-          { access_token: token },
-        );
+        const { liabilities } = await plaidPost<{
+          liabilities: {
+            credit?: PlaidCreditLiability[];
+            mortgage?: PlaidMortgageLiability[];
+            student?: PlaidStudentLiability[];
+          };
+        }>('/liabilities/get', { access_token: token });
+        for (const mortgage of liabilities.mortgage ?? []) {
+          await applyLoanFields(mortgage.account_id, mapPlaidMortgageToLoanFields(mortgage));
+        }
+        for (const student of liabilities.student ?? []) {
+          await applyLoanFields(student.account_id, mapPlaidStudentToLoanFields(student));
+        }
         for (const credit of liabilities.credit ?? []) {
           const accountId = idByPlaidId.get(credit.account_id);
           if (!accountId) continue;

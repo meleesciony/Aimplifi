@@ -182,6 +182,24 @@ export function startOfMonth(date: ISODate): ISODate {
   return fromParts(y, m, 1);
 }
 
+/**
+ * Next calendar date with the given day-of-month, on/after `from` (clamped to
+ * the month's length, so day 31 in a 30-day month lands on the 30th). The single
+ * tested home for this rule — shared by the cash-needed assembler (card cycle/due
+ * derivation) and the loan-obligation engine (rule #3: one date utility module).
+ */
+export function nextDayOfMonth(day: number, from: ISODate): ISODate {
+  const y = +from.slice(0, 4);
+  const m = +from.slice(5, 7);
+  const clamped = Math.min(day, daysInMonth(y, m));
+  const candidate = isoDate(`${from.slice(0, 7)}-${String(clamped).padStart(2, '0')}`);
+  if (compareDates(candidate, from) >= 0) return candidate;
+  const nm = addMonthsClamped(isoDate(`${from.slice(0, 7)}-01`), 1);
+  const ny = +nm.slice(0, 4);
+  const nmo = +nm.slice(5, 7);
+  return isoDate(`${nm.slice(0, 7)}-${String(Math.min(day, daysInMonth(ny, nmo))).padStart(2, '0')}`);
+}
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 

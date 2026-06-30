@@ -11,7 +11,7 @@
  */
 
 import { type Cents, cents } from '@/lib/money';
-import { type ISODate, addDays, addMonthsClamped, compareDates, daysInMonth, isoDate } from '@/lib/dates';
+import { type ISODate, addDays, addMonthsClamped, compareDates, isoDate, nextDayOfMonth } from '@/lib/dates';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
 import type { CardSnapshot, CashNeededInput, PendingTx, Scenario, ScheduledItem } from './types';
 
@@ -75,19 +75,6 @@ export interface AssembleParams {
   holidayTable: ISODate[];
   /** Projection window for expanding scheduled cadences. */
   horizonDays?: number;
-}
-
-/** Next calendar date with the given day-of-month, on/after `from` (clamped to month length). */
-function nextDayOfMonth(day: number, from: ISODate): ISODate {
-  const y = +from.slice(0, 4);
-  const m = +from.slice(5, 7);
-  const clamped = Math.min(day, daysInMonth(y, m));
-  const candidate = isoDate(`${from.slice(0, 7)}-${String(clamped).padStart(2, '0')}`);
-  if (compareDates(candidate, from) >= 0) return candidate;
-  const nm = addMonthsClamped(isoDate(`${from.slice(0, 7)}-01`), 1);
-  const ny = +nm.slice(0, 4);
-  const nmo = +nm.slice(5, 7);
-  return isoDate(`${nm.slice(0, 7)}-${String(Math.min(day, daysInMonth(ny, nmo))).padStart(2, '0')}`);
 }
 
 export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {

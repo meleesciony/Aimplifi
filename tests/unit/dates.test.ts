@@ -13,6 +13,7 @@ import {
   isLeapYear,
   isWeekend,
   isoDate,
+  nextDayOfMonth,
   previousBusinessDay,
   priorBusinessDayIfNonBusiness,
   toEpochDays,
@@ -180,5 +181,21 @@ describe('formatISODate (UI boundary)', () => {
   it('formats short and long', () => {
     expect(formatISODate(d('2026-06-15'))).toBe('Mon, Jun 15');
     expect(formatISODate(d('2026-06-15'), 'long')).toBe('Mon, Jun 15, 2026');
+  });
+});
+
+describe('nextDayOfMonth (shared by the cash-needed assembler + loan-obligation engine)', () => {
+  it('returns the same-month occurrence when the day is on/after `from`', () => {
+    expect(nextDayOfMonth(15, d('2026-06-10'))).toBe('2026-06-15');
+    expect(nextDayOfMonth(10, d('2026-06-10'))).toBe('2026-06-10'); // boundary: today counts
+  });
+  it('rolls to next month when the day has already passed this month', () => {
+    expect(nextDayOfMonth(5, d('2026-06-10'))).toBe('2026-07-05');
+  });
+  it('clamps the day to the month length (no overflow into the next month)', () => {
+    expect(nextDayOfMonth(31, d('2026-02-10'))).toBe('2026-02-28'); // Feb 2026 has 28 days
+    expect(nextDayOfMonth(31, d('2026-04-10'))).toBe('2026-04-30'); // April has 30
+    // already past the clamped day this month → next month, re-clamped
+    expect(nextDayOfMonth(31, d('2026-02-28'))).toBe('2026-02-28');
   });
 });

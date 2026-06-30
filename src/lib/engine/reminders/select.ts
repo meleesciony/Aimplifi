@@ -1,43 +1,49 @@
 /**
- * Payment reminders (ROADMAP #6). Pure selection + email rendering over the
- * Cash-Needed Engine's per-card obligations — turns "what's due" into a reminder
- * list (in-app) and a plain-text email (the dormant notification mechanism). No
- * I/O. The cron route and dashboard both consume these so the reminder a user
- * SEES and the reminder we'd EMAIL can never disagree.
+ * Payment reminders (ROADMAP #6, extended #134). Pure selection + email rendering
+ * over the Cash-Needed Engine's per-card obligations AND the loan-obligation engine's
+ * LOAN/MORTGAGE payments — turns "what's due" into a reminder list (in-app) and a
+ * plain-text email (the dormant notification mechanism). No I/O. The cron route and
+ * dashboard both consume these so the reminder a user SEES and the reminder we'd EMAIL
+ * can never disagree.
  *
- * Money is integer cents; dates are YYYY-MM-DD via dates.ts. Copy follows the
- * coaching guardrail: a non-shaming heads-up that explicitly states Pulse never
- * moves money for you.
+ * Money is integer cents; dates are YYYY-MM-DD via dates.ts. Copy follows the coaching
+ * guardrail: a non-shaming heads-up that explicitly states Aimplifi never moves money.
  */
-import { type Cents, formatCents } from '@/lib/money';
+import { type Cents, cents, formatCents } from '@/lib/money';
 import { type ISODate, compareDates, daysBetween, formatISODate } from '@/lib/dates';
 import type { CardObligation } from '@/lib/engine/cash-needed/types';
+import type { LoanObligation } from '@/lib/engine/loans/obligations';
 
 export type ReminderUrgency = 'today' | 'soon' | 'upcoming';
+export type ObligationType = 'card' | 'loan';
 
 export interface PaymentReminder {
-  cardId: string;
-  cardName: string;
+  /** The card or loan account this payment is for. */
+  accountId: string;
+  accountName: string;
+  obligationType: ObligationType;
   /** Business-day-adjusted due date (funds must be present by this date). */
   dueDate: ISODate;
   daysUntil: number;
   urgency: ReminderUrgency;
   cashRequiredCents: Cents;
   userActionCents: Cents;
-  /** Portion autopay will move automatically (0 = no autopay). */
+  /** Portion autopay will move automatically (0 = no autopay; always 0 for a loan). */
   autopayCents: Cents;
   /** True when autopay covers the user's whole part — they only need funds present. */
   autopayCovered: boolean;
   isEstimated: boolean;
 }
 
-/** Stable dedup/dismiss key for a reminder (card + the date funds are needed). */
-export function reminderKey(r: { cardId: string; dueDate: string }): string {
-  return `${r.cardId}:${r.dueDate}`;
+/** Stable dedup/dismiss key for a reminder (account + the date funds are needed). */
+export function reminderKey(r: { accountId: string; dueDate: string }): string {
+  return `${r.accountId}:${r.dueDate}`;
 }
 
 export interface SelectRemindersParams {
   obligations: readonly CardObligation[];
+  /** LOAN/MORTGAGE payments (#134) — surfaced alongside cards, never in the cash headline. */
+  loanObligations?: readonly LoanObligation[];
   today: ISODate;
   /** Only include payments due within this many days. Omit = the whole cycle. */
   withinDays?: number;
@@ -45,31 +51,71 @@ export interface SelectRemindersParams {
   dismissedKeys?: ReadonlySet<string>;
 }
 
+interface NormalizedObligation {
+  accountId: string;
+  accountName: string;
+  obligationType: ObligationType;
+  effectiveDueDate: ISODate;
+  cashRequiredCents: Cents;
+  userActionCents: Cents;
+  autopayCents: Cents;
+  isEstimated: boolean;
+}
+
 /**
- * Reminders for every card whose payment requires cash, due on/after today and
- * within the window, oldest first. Cards with nothing due (cashRequired 0) and
- * dismissed reminders are excluded.
+ * Reminders for every card/loan whose payment requires cash, due on/after today and
+ * within the window, oldest first. Obligations with nothing due (cashRequired 0) and
+ * dismissed reminders are excluded. A loan carries no autopay, so its whole amount is
+ * the user's to fund.
  */
 export function selectPaymentReminders(params: SelectRemindersParams): PaymentReminder[] {
-  const { obligations, today, withinDays, dismissedKeys } = params;
+  const { obligations, loanObligations, today, withinDays, dismissedKeys } = params;
+
+  const normalized: NormalizedObligation[] = [
+    ...obligations.map(
+      (o): NormalizedObligation => ({
+        accountId: o.cardId,
+        accountName: o.cardName,
+        obligationType: 'card',
+        effectiveDueDate: o.effectiveDueDate,
+        cashRequiredCents: o.cashRequiredCents,
+        userActionCents: o.userActionCents,
+        autopayCents: o.autopayCents,
+        isEstimated: o.isEstimated,
+      }),
+    ),
+    ...(loanObligations ?? []).map(
+      (o): NormalizedObligation => ({
+        accountId: o.accountId,
+        accountName: o.accountName,
+        obligationType: 'loan',
+        effectiveDueDate: o.effectiveDueDate,
+        cashRequiredCents: o.paymentCents,
+        userActionCents: o.paymentCents, // no loan-autopay model → the whole payment is the user's
+        autopayCents: cents(0),
+        isEstimated: o.isEstimated,
+      }),
+    ),
+  ];
+
   const out: PaymentReminder[] = [];
-  // Dedup by reminderKey so an overlapping input list (e.g. a caller spreading
-  // both the engine's `cards` and its `upcoming`, which is a subset) can never
-  // surface the same payment twice.
+  // Dedup by reminderKey so an overlapping input list (e.g. a caller spreading both the
+  // engine's `cards` and its `upcoming`, which is a subset) can never surface twice.
   const seen = new Set<string>();
-  for (const o of obligations) {
+  for (const o of normalized) {
     if (o.cashRequiredCents <= 0) continue;
     const daysUntil = daysBetween(today, o.effectiveDueDate);
     if (daysUntil < 0) continue; // the engine clamps a passed date to today; defensive
     if (withinDays !== undefined && daysUntil > withinDays) continue;
-    const key = reminderKey({ cardId: o.cardId, dueDate: o.effectiveDueDate });
+    const key = reminderKey({ accountId: o.accountId, dueDate: o.effectiveDueDate });
     if (dismissedKeys?.has(key)) continue;
     if (seen.has(key)) continue;
     seen.add(key);
     const urgency: ReminderUrgency = daysUntil === 0 ? 'today' : daysUntil <= 3 ? 'soon' : 'upcoming';
     out.push({
-      cardId: o.cardId,
-      cardName: o.cardName,
+      accountId: o.accountId,
+      accountName: o.accountName,
+      obligationType: o.obligationType,
       dueDate: o.effectiveDueDate,
       daysUntil,
       urgency,
@@ -81,7 +127,7 @@ export function selectPaymentReminders(params: SelectRemindersParams): PaymentRe
     });
   }
   return out.sort(
-    (a, b) => compareDates(a.dueDate, b.dueDate) || a.cardName.localeCompare(b.cardName),
+    (a, b) => compareDates(a.dueDate, b.dueDate) || a.accountName.localeCompare(b.accountName),
   );
 }
 
@@ -97,7 +143,7 @@ export function buildReminderEmail(
 ): ReminderEmail | null {
   if (reminders.length === 0) return null;
   const n = reminders.length;
-  const subject = `Aimplifi: ${n} card payment${n === 1 ? '' : 's'} coming up`;
+  const subject = `Aimplifi: ${n} payment${n === 1 ? '' : 's'} coming up`;
 
   const lines = reminders.map((r) => {
     const when = r.daysUntil === 0 ? 'today' : r.daysUntil === 1 ? 'tomorrow' : `in ${r.daysUntil} days`;
@@ -110,11 +156,11 @@ export function buildReminderEmail(
     } else {
       how = `you'll pay ${formatCents(r.userActionCents)} yourself`;
     }
-    return `• ${r.cardName}: ${formatCents(r.cashRequiredCents)} due ${formatISODate(r.dueDate, 'long')} (${when})${r.isEstimated ? ' [estimated]' : ''} — ${how}`;
+    return `• ${r.accountName}: ${formatCents(r.cashRequiredCents)} due ${formatISODate(r.dueDate, 'long')} (${when})${r.isEstimated ? ' [estimated]' : ''} — ${how}`;
   });
 
   const text = [
-    `Here's what's coming up on your cards as of ${formatISODate(today, 'long')}:`,
+    `Here's what's coming up as of ${formatISODate(today, 'long')}:`,
     '',
     ...lines,
     '',

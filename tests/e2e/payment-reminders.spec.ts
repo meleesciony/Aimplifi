@@ -23,6 +23,10 @@ test('dashboard surfaces upcoming card payments', async ({ page }) => {
   const names = await page.getByTestId('reminder-card-name').allInnerTexts();
   expect(names.length).toBeGreaterThanOrEqual(1);
   expect(new Set(names).size).toBe(names.length);
+
+  // The seed Auto Loan now surfaces here too (#134): loan payments share the reminders
+  // surface with cards, while the cash-needed dollar headline stays card-only.
+  await expect(card).toContainText('Auto Loan');
 });
 
 test('reminder cron route requires the secret', async ({ browser }) => {

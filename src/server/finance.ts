@@ -6,6 +6,7 @@
 import { holidayTable, type ISODate } from '@/lib/dates';
 import { assembleCashNeededInput, netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
+import { selectLoanObligations } from '@/lib/engine/loans/obligations';
 import { netWorthSeries } from '@/lib/engine/networth/series';
 import { type PaymentReminder, selectPaymentReminders } from '@/lib/engine/reminders/select';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
@@ -56,6 +57,7 @@ export function cashNeededFromSnapshot(
   scenario: 'PAY_IN_FULL' | 'MINIMUM' = 'PAY_IN_FULL',
 ) {
   const year = Number(today.slice(0, 4));
+  const holidays = holidayTable(year - 1, year + 1);
   const input = assembleCashNeededInput({
     today,
     scenario,
@@ -66,9 +68,13 @@ export function cashNeededFromSnapshot(
     cardPayments: snap.cardPayments,
     transactions: snap.transactions,
     scheduled: snap.scheduled,
-    holidayTable: holidayTable(year - 1, year + 1),
+    holidayTable: holidays,
   });
-  return { input, result: computeCashNeeded(input) };
+  // The next LOAN/MORTGAGE payments — a SEPARATE surface (calendar + reminders), never
+  // folded into the card-framed cash-needed headline (#134). One definition here so the
+  // dashboard, calendar, and cron sweep all agree.
+  const loanObligations = selectLoanObligations({ accounts: snap.accounts, today, holidays });
+  return { input, result: computeCashNeeded(input), loanObligations };
 }
 
 export async function getCashNeeded(userId: string, scenario: 'PAY_IN_FULL' | 'MINIMUM' = 'PAY_IN_FULL') {
@@ -84,14 +90,14 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   const snap = await provider.getFinanceSnapshot(userId);
   const paymentAccount = resolvePaymentAccount(snap);
 
-  const { input, result: payInFull } = cashNeededFromSnapshot(snap, today, 'PAY_IN_FULL');
+  const { input, result: payInFull, loanObligations } = cashNeededFromSnapshot(snap, today, 'PAY_IN_FULL');
   const minimum = computeCashNeeded({ ...input, scenario: 'MINIMUM' });
 
-  // Upcoming payment reminders — the same obligations the headline counts, as a
-  // dated list (the in-app half of ROADMAP #6; the cron route emails the same).
-  // `cards` is the COMPLETE obligation set (real + estimated); `upcoming` is a
-  // subset of it, so spreading both would double-count estimated cards.
-  const reminders = selectPaymentReminders({ obligations: payInFull.cards, today });
+  // Upcoming payment reminders — the card obligations the headline counts PLUS the next
+  // loan/mortgage payments (#134), as a dated list (the in-app half of ROADMAP #6; the
+  // cron route emails the same). `cards` is the COMPLETE obligation set (real + estimated);
+  // `upcoming` is a subset of it, so spreading both would double-count estimated cards.
+  const reminders = selectPaymentReminders({ obligations: payInFull.cards, loanObligations, today });
 
   // Net-worth trend from month-end snapshots (assets − liabilities per date),
   // via the one shared series builder (DECISIONS #40) — same classifier as the
