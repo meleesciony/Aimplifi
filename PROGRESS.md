@@ -1005,3 +1005,22 @@ Gate (real, measured 2026-06-29): `bash scripts/verify.sh` → ✅ VERIFY GREEN,
 integration is the labeled end-to-end).
 NEXT (#127 backlog, owner-gated direction): Plaid mortgage[]/student[] liabilities dropped (biggest remaining;
 needs a small design call on loan due dates), currency guard, epoch UTC-boundary, SimpleFIN symbol regex.
+
+## 2026-06-29 (end-of-session HANDOFF — safe to /clear)
+RESUME POINT for a fresh session (read LOOP_ENGINEERING.md + CLAUDE.md first, then this file).
+- **What shipped this session (on "continue", owner chose the LIVE-MONEY CORRECTNESS backlog):** two
+  #127-audit fixes, each verify-green + hostile-critic'd (0 P0/P1) + committed — #132 Plaid credit-liability
+  statement fields (credit-sign + missing/zero minimum) `5638c16`, and #133 SimpleFIN all-unmappable/non-array
+  holdings data-loss guard `772fdd4`.
+- **Repo state:** working tree CLEAN. Local `main` is **3 commits ahead of origin/main** (`c399eff` #131
+  deploy-record doc + `5638c16` #132 + `772fdd4` #133), ALL UNPUSHED. origin/main = `6a63729` (#131) is live
+  in prod. Pushing deploys #132+#133 to aimplifi.app — OWNER'S CALL (no functional change is live yet for them).
+- **Last gate (real, measured):** `bash scripts/verify.sh` → ✅ VERIFY GREEN, 1419 unit/110 files, tsc/eslint/
+  build clean. (Re-confirm baseline independently before any new change, per discipline.)
+- **NEXT (remaining #127 backlog — owner-gated direction):**
+  (1) Plaid `mortgage[]`/`student[]` dropped (only `credit[]` read) — BIGGEST remaining, but it has an OPEN
+      PRODUCT DECISION: cash-needed only processes `CREDIT` accounts, so loans get no due-date there today
+      (net worth is already correct via the account balance). Decide whether mortgage/student payments should
+      appear in the cash-needed headline, only the calendar, or stay as-is BEFORE building.
+  (2) currency guard (audit #3/#10, likely N/A for a US-only user); (3) epoch→date UTC-day-boundary;
+  (4) SimpleFIN symbol regex (coupled to the addHolding ticker rule — wider change). All lower-value.
