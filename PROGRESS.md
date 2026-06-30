@@ -955,7 +955,16 @@ full-suite e2e failure was the documented `phase2-triage:82` throughput flake on
 back-to-back-run write saturation (STATUS #16/#17, DECISIONS #88/#99/#120/#121) — confirmed by isolated rerun, NOT a
 regression (retire-at-age is a one-way edge into /coach, no triage code touched).
 
-**State:** committing as the #131 commit. origin/main `174da9a` (#130) is LIVE; this #131 commit makes local 1 ahead of
-origin (the FIRST functional change since #130). SAFE to /clear after commit. NEXT (owner): push when ready (deploys the
-retire-at-age planner — the final Plan-in-Words slice); remaining feature track = Cash Flow Radar (AI plan §1.2); the
-live-ingest P2 remainder (currency ~N/A + 9 P2s) stays owner-gated.
+**State:** committed as `6a63729` (#131).
+
+**DEPLOYED (owner: "push"):** pushed `main` → `origin/main` now **`6a63729`** (`174da9a..6a63729`, local == origin, tree
+clean). This takes the retire-at-age planner (the final Plan-in-Words slice) to production — the first functional deploy
+since `174da9a` (#130). The Vercel production build is auto-triggered by the push (the established GitHub-integration
+behavior). **Deploy READY is UNVERIFIED from this sandbox** — `gh` is unauthenticated here and the repo's Vercel
+commit-status / check-runs are not publicly readable via the unauthenticated GitHub API; NOT fabricating a READY verdict
+(the owner can confirm in the Vercel dashboard). This deploy-record edit is a LOCAL-ONLY docs commit (intentionally
+unpushed to avoid a redundant identical prod rebuild — push it with the next functional change), matching the
+#122/#125/#129 house pattern.
+
+**SAFE to /clear.** NEXT (owner): confirm the Vercel deploy READY if desired; remaining feature track = Cash Flow Radar
+(AI plan §1.2); the live-ingest P2 remainder (currency ~N/A + 9 P2s) stays owner-gated.
