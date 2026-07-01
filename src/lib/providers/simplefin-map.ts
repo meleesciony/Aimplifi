@@ -23,6 +23,7 @@ import { type ISODate, fromEpochDays } from '@/lib/dates';
 import { type Cents, cents } from '@/lib/money';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
+import { canonicalizeCurrency } from './currency';
 
 export type PulseAccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT' | 'INVESTMENT' | 'LOAN';
 
@@ -145,6 +146,9 @@ export interface MappedSfAccount {
   name: string;
   type: PulseAccountType;
   currentBalanceCents: number;
+  /** Canonical currency code (e.g. 'USD'), or null when the feed omits it. Non-USD accounts
+   *  are withheld from net worth at the read boundary (DECISIONS #135). */
+  currency: string | null;
 }
 
 export function mapSimplefinAccount(acct: SimplefinAccount): MappedSfAccount {
@@ -174,6 +178,10 @@ export function mapSimplefinAccount(acct: SimplefinAccount): MappedSfAccount {
     // KNOWN EDGE: a genuine credit balance (an OVERPAID card) is indistinguishable from
     // owed-reported-with-the-other-sign, so it's treated as a small owed amount (rare; documented).
     currentBalanceCents: cents(isLiability ? Math.abs(signedBalance) : signedBalance),
+    // SimpleFIN account-level currency: a 3-letter ISO code or a non-ISO URL (crypto). The app
+    // does no FX, so a non-USD account is withheld from net worth at the read boundary
+    // (DECISIONS #135). Canonicalized here; null when the feed omits it (assumed USD).
+    currency: canonicalizeCurrency(acct.currency),
   };
 }
 

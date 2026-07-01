@@ -237,6 +237,9 @@ export class PlaidProvider implements DataProvider {
         name: m.name,
         type: m.type,
         mask: m.mask,
+        // Always written (null = assumed USD); unlike currentBalanceCents there is no
+        // preserve-on-null need — a currency is not a balance (DECISIONS #135).
+        currency: m.currency,
         availableBalanceCents: m.availableBalanceCents,
         creditLimitCents: m.creditLimitCents,
       };

@@ -101,7 +101,20 @@ describe('mapSimplefinAccount', () => {
       name: 'Chase Sapphire Card',
       type: 'CREDIT',
       currentBalanceCents: 64210, // positive magnitude; CREDIT type makes it a liability
+      currency: null, // no currency on this fixture → assumed USD (DECISIONS #135)
     });
+  });
+
+  it('canonicalizes the account currency (DECISIONS #135): ISO upper-cased, non-ISO kept, omitted → null', () => {
+    expect(mapSimplefinAccount({ id: 'u', name: 'Everyday Checking', balance: '100.00', currency: 'USD' }).currency).toBe('USD');
+    // a lower-case ISO is upper-cased so the read-boundary 'USD' compare is exact
+    expect(mapSimplefinAccount({ id: 'e', name: 'Euro Savings', balance: '100.00', currency: 'eur' }).currency).toBe('EUR');
+    // SimpleFIN uses a URL for non-ISO currencies (crypto); kept as-is so it can never equal 'USD' → withheld
+    expect(
+      mapSimplefinAccount({ id: 'c', name: 'BTC Wallet', balance: '1.00', currency: 'https://x.test/btc' }).currency,
+    ).toBe('https://x.test/btc');
+    // omitted currency → null → assumed USD (golden-safe)
+    expect(mapSimplefinAccount({ id: 'n', name: 'Everyday Checking', balance: '100.00' }).currency).toBeNull();
   });
   it('treats an ambiguously-named account with a NEGATIVE balance as a liability (net-worth-sign safety)', () => {
     // name matches no type keyword → would default CHECKING (asset); the negative

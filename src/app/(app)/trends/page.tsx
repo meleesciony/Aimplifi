@@ -12,7 +12,7 @@ export default async function TrendsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
   const userId = session.user.id;
-  if ((await prisma.account.count({ where: { userId } })) === 0) return <EmptyDashboard />;
+  if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
   const [trends, user] = await Promise.all([
     getSpendingTrends(userId),

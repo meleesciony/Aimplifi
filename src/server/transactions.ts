@@ -9,6 +9,7 @@ import { isRuleEligibleMerchant } from '@/lib/engine/categorize/assign';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type NetWorthSeriesPoint, netWorthSeries } from '@/lib/engine/networth/series';
+import { isSupportedCurrency } from '@/lib/providers/currency';
 import { businessToday } from '@/lib/business-today';
 import {
   type AccountView,
@@ -49,7 +50,12 @@ const PAGE_SIZE = 100;
 export async function getTransactions(userId: string, filter: TxnFilter = {}, page = 1): Promise<TransactionsResult> {
   const txns = await prisma.transaction.findMany({
     // Spending accounts only — bank + cards; brokerage/loan activity isn't spending (#62).
-    where: { account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } }, isSplitParent: false },
+    // Currency guard (DECISIONS #135): exclude non-USD accounts so the register + its account
+    // dropdown match /accounts and net worth, which withhold them (no FX).
+    where: {
+      account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
+      isSplitParent: false,
+    },
     // Join the category row so a CUSTOM category resolves to its real name; system
     // rows are identical (their DB name == the static name), so this is a no-op for
     // them and a fix for customs without threading a meta map here (DECISIONS #111).
@@ -146,7 +152,11 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     prisma.simpleFinConnection.findUnique({ where: { userId }, select: { lastSyncedAt: true } }),
   ]);
 
-  const views: AccountView[] = accounts.map((a) => ({
+  // Currency guard (DECISIONS #135): withhold non-USD accounts from the /accounts page so its
+  // subtotals and net-worth trend match the dashboard headline, which excludes them (no FX).
+  // Null-currency (demo / manual / legacy) is assumed USD → golden-safe no-op.
+  const supported = accounts.filter((a) => isSupportedCurrency(a.currency));
+  const views: AccountView[] = supported.map((a) => ({
     id: a.id,
     name: a.name,
     type: a.type,
@@ -161,7 +171,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   const autopayByAccount = new Map(autopays.map((a) => [a.accountId, a]));
 
   const cardBilling: Record<string, ManualCardBilling> = {};
-  for (const a of accounts) {
+  for (const a of supported) {
     if (a.provider !== 'manual' || a.type !== 'CREDIT') continue;
     const ap = autopayByAccount.get(a.id);
     const s = newestStatement.get(a.id);

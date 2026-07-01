@@ -52,15 +52,22 @@ export function similarTransactionsWhere(
   const scope = txn.aggregate
     ? { rawDescriptor: txn.rawDescriptor }
     : { merchantId: txn.merchantId };
+  // Currency guard (DECISIONS #135): the "apply to N similar" scope touches supported accounts only.
+  const account = { userId, OR: [{ currency: null }, { currency: 'USD' }] };
   return onlyNeedsReview
-    ? { ...scope, needsReview: true, isSplitParent: false, account: { userId } }
-    : { ...scope, isSplitParent: false, account: { userId } };
+    ? { ...scope, needsReview: true, isSplitParent: false, account }
+    : { ...scope, isSplitParent: false, account };
 }
 
 export async function getTriageItems(userId: string): Promise<TriageItem[]> {
   const [txns, rules, meta] = await Promise.all([
     prisma.transaction.findMany({
-      where: { needsReview: true, account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
+      // Currency guard (DECISIONS #135): a withheld non-USD account's rows must not appear in the
+      // categorization inbox either (consistency with /accounts + the register).
+      where: {
+        needsReview: true,
+        account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
+      },
       include: { account: { select: { name: true } }, merchant: true },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
     }),
@@ -127,6 +134,10 @@ function bestGuess(amountCents: number): string {
 
 export async function getReviewCount(userId: string): Promise<number> {
   return prisma.transaction.count({
-    where: { needsReview: true, account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
+    // Currency guard (DECISIONS #135): the inbox badge counts supported-account rows only.
+    where: {
+      needsReview: true,
+      account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
+    },
   });
 }

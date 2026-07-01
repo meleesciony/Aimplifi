@@ -84,7 +84,10 @@ export async function refreshRecurringForUser(
   const txns = await prisma.transaction.findMany({
     // Spending accounts only — don't detect "recurring" from brokerage/loan activity (#62).
     where: {
-      account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } },
+      // Currency guard (DECISIONS #135): don't detect recurring series from a withheld non-USD
+      // account — a foreign subscription would otherwise persist a scheduled row on the USD
+      // payment account at a fabricated 1:1, leaking into forecast/cash-needed.
+      account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
       status: 'POSTED',
       isSplitParent: false,
     },

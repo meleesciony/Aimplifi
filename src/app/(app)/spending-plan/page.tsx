@@ -13,7 +13,7 @@ export default async function SpendingPlanPage() {
   if (!session?.user?.id) redirect('/sign-in');
   const userId = session.user.id;
 
-  if ((await prisma.account.count({ where: { userId } })) === 0) return <EmptyDashboard />;
+  if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
   const p = await getSpendingPlan(userId);
   const positive = !p.overspent;

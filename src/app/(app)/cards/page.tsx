@@ -12,7 +12,7 @@ export default async function CardsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
   // No accounts yet → first-run onboarding (the cash-needed engine needs accounts).
-  if ((await prisma.account.count({ where: { userId: session.user.id } })) === 0) return <EmptyDashboard />;
+  if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
   const data = await getDashboardData(session.user.id);
 
   if (data.payInFull.cards.length === 0) {

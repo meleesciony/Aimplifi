@@ -113,6 +113,19 @@ describe('mapPlaidAccount', () => {
     });
   });
 
+  it('resolves the account currency (DECISIONS #135): ISO preferred, unofficial/crypto kept, neither → null', () => {
+    expect(mapPlaidAccount(card).currency).toBeNull(); // fixture reports no code → assumed USD
+    expect(mapPlaidAccount({ ...card, balances: { ...card.balances, iso_currency_code: 'USD' } }).currency).toBe('USD');
+    expect(mapPlaidAccount({ ...card, balances: { ...card.balances, iso_currency_code: 'EUR' } }).currency).toBe('EUR');
+    // iso null + unofficial (crypto) present → the unofficial code is used → withheld at the read boundary
+    expect(
+      mapPlaidAccount({
+        ...card,
+        balances: { ...card.balances, iso_currency_code: null, unofficial_currency_code: 'BTC' },
+      }).currency,
+    ).toBe('BTC');
+  });
+
   it('preserves a NEGATIVE current balance (overpaid card) so net-worth sign lands right', () => {
     // An overpaid card: Plaid reports current = -120.50 (lender owes the holder).
     // It must NOT be abs()'d to +120.50, or the type-based liability sign would

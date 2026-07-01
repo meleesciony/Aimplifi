@@ -28,7 +28,7 @@ export default async function DashboardPage() {
 
   // Brand-new users have no accounts yet — the cash-needed engine needs some, so
   // show first-run onboarding instead of computing over nothing (DECISIONS #43).
-  const accountCount = await prisma.account.count({ where: { userId: session.user.id } });
+  const accountCount = await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } });
   if (accountCount === 0) return <EmptyDashboard />;
 
   const [data, coach, plan, reports, recurring, trends] = await Promise.all([

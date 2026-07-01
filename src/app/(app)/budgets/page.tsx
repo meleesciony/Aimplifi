@@ -34,14 +34,16 @@ export default async function BudgetsPage() {
 
   // No accounts yet → first-run onboarding, matching every other section (and so a
   // target can't be set before any account exists).
-  if ((await prisma.account.count({ where: { userId } })) === 0) return <EmptyDashboard />;
+  if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
   const [txns, budgets, user, plan, custom] = await Promise.all([
     // All non-transfer, non-split, posted activity this month (BOTH signs) so the
     // engine can net refunds against spend — outflow-only would overstate it.
     prisma.transaction.findMany({
+      // Currency guard (DECISIONS #135): exclude non-USD accounts so per-category budget spend
+      // matches /reports + /trends (which read the filtered snapshot) — no 1:1 foreign sum.
       where: {
-        account: { userId },
+        account: { userId, OR: [{ currency: null }, { currency: 'USD' }] },
         date: { startsWith: month },
         isTransfer: false,
         isSplitParent: false,

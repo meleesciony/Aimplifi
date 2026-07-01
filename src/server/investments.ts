@@ -11,6 +11,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { cents } from '@/lib/money';
 import { type Holding, type Portfolio, summarizePortfolio } from '@/lib/engine/investments/portfolio';
+import { isSupportedCurrency } from '@/lib/providers/currency';
 import {
   RETIREMENT_ASSUMPTIONS,
   buildRetirementInputs,
@@ -67,12 +68,13 @@ const toEngineHolding = (h: DbHolding): Holding => ({
 /** Build each INVESTMENT account's portfolio + an overall roll-up for the current user. */
 export async function getInvestments(): Promise<InvestmentsView> {
   const userId = await requireUserId();
-  const accounts = await prisma.account.findMany({
+  const accountsRaw = await prisma.account.findMany({
     where: { userId, type: 'INVESTMENT' },
     orderBy: { name: 'asc' },
     select: {
       id: true,
       name: true,
+      currency: true,
       currentBalanceCents: true,
       holdings: {
         orderBy: { symbol: 'asc' },
@@ -80,6 +82,11 @@ export async function getInvestments(): Promise<InvestmentsView> {
       },
     },
   });
+  // Currency guard (DECISIONS #135): a non-USD brokerage's holdings must NOT roll into the
+  // USD-labeled "Portfolio value" at a fabricated 1:1 — exclude it exactly as net worth and
+  // /accounts do, so /investments agrees with the headline + /coach. Demo rows are
+  // null-currency = USD → golden-safe no-op.
+  const accounts = accountsRaw.filter((a) => isSupportedCurrency(a.currency));
 
   const views: InvestmentAccountView[] = accounts.map((a) => ({
     accountId: a.id,

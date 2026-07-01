@@ -10,6 +10,7 @@ import { prisma } from '@/lib/db';
 import type { ISODate } from '@/lib/dates';
 import { businessToday } from '@/lib/business-today';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { isSupportedCurrency } from './currency';
 import type { DataProvider, FinanceSnapshot, SyncResult } from './types';
 
 export class DemoProvider implements DataProvider {
@@ -50,15 +51,23 @@ export class DemoProvider implements DataProvider {
         prisma.scheduledTransaction.findMany({ where: ownedByUser }),
         prisma.balanceSnapshot.findMany({ where: ownedByUser, orderBy: { date: 'asc' } }),
       ]);
+    // Currency guard (DECISIONS #135): the app does no FX, so a non-USD account — and ALL its
+    // child rows — must be withheld from EVERY engine that reads the snapshot (net worth,
+    // cash-needed, forecast, coach, the assistant, spending/reports/trends), else a foreign
+    // balance OR transaction is summed at a fabricated 1:1. Filtering only `accounts` left the
+    // account's transactions/scheduled in the snapshot (critic P1), so drop those by account too.
+    // Demo / manual rows are null-currency = assumed USD, so this is a no-op for the golden dataset.
+    const supportedAccounts = accounts.filter((a) => isSupportedCurrency(a.currency));
+    const supportedIds = new Set(supportedAccounts.map((a) => a.id));
     return {
       paymentAccountId: user?.paymentAccountId ?? null,
-      accounts,
+      accounts: supportedAccounts,
       autopays,
       statements,
       cardPayments,
-      transactions,
-      scheduled,
-      balanceSnapshots,
+      transactions: transactions.filter((t) => supportedIds.has(t.accountId)),
+      scheduled: scheduled.filter((s) => supportedIds.has(s.accountId)),
+      balanceSnapshots: balanceSnapshots.filter((b) => supportedIds.has(b.accountId)),
     };
   }
 }

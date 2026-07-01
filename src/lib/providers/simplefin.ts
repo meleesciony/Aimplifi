@@ -392,6 +392,7 @@ export async function syncFromSimplefin(
               name: mapped.name,
               type: mapped.type,
               currentBalanceCents: mapped.currentBalanceCents,
+              currency: mapped.currency,
             },
           })
         ).id;
@@ -400,7 +401,7 @@ export async function syncFromSimplefin(
       // refresh the institution-authoritative balance/name on every sync
       await prisma.account.update({
         where: { id: accountId },
-        data: { name: mapped.name, type: mapped.type, currentBalanceCents: mapped.currentBalanceCents },
+        data: { name: mapped.name, type: mapped.type, currentBalanceCents: mapped.currentBalanceCents, currency: mapped.currency },
       });
     }
 

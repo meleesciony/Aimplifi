@@ -21,7 +21,7 @@ export default async function CalendarPage({
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
   // No accounts yet → onboarding; getCashNeeded throws on empty (DECISIONS #44).
-  if ((await prisma.account.count({ where: { userId: session.user.id } })) === 0) return <EmptyDashboard />;
+  if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
   const { today, snap, result, loanObligations } = await getCashNeeded(session.user.id);
   const params = await searchParams;
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? '')

@@ -108,6 +108,7 @@ model Account {
   type                  String // CHECKING | SAVINGS | CREDIT | INVESTMENT | LOAN
   mask                  String? // last 4 only — never full numbers
   currentBalanceCents   Int // stored positive; type determines net-worth sign
+  currency              String? // ISO-4217 (e.g. 'USD'); null = legacy/assumed USD. Non-USD accounts are withheld from net worth — no FX (DECISIONS #135, #127 audit #3/#10).
   availableBalanceCents Int?
   creditLimitCents      Int?
   aprBps                Int? // credit cards / loans

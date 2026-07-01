@@ -19,6 +19,7 @@ import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
 import { estimateMinimumPayment } from '@/lib/engine/cash-needed/engine';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type CategorizedTxn, type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
+import { resolvePlaidCurrency } from './currency';
 
 export type PulseAccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT' | 'INVESTMENT' | 'LOAN' | 'MORTGAGE';
 
@@ -91,6 +92,8 @@ export interface PlaidAccount {
     current: number | null;
     available: number | null;
     limit: number | null;
+    iso_currency_code?: string | null; // ISO-4217 (e.g. 'USD'); nullable per Plaid docs
+    unofficial_currency_code?: string | null; // crypto / unofficial currencies
   };
 }
 
@@ -104,6 +107,9 @@ export interface MappedAccount {
   currentBalanceCents: number | null;
   availableBalanceCents: number | null;
   creditLimitCents: number | null;
+  /** Canonical currency code (e.g. 'USD'), or null when Plaid reports neither code. Non-USD
+   *  accounts are withheld from net worth at the read boundary (DECISIONS #135). */
+  currency: string | null;
 }
 
 export function mapPlaidAccount(account: PlaidAccount): MappedAccount {
@@ -126,6 +132,12 @@ export function mapPlaidAccount(account: PlaidAccount): MappedAccount {
         : plaidDollarsToPositiveCents(account.balances.available),
     creditLimitCents:
       account.balances.limit == null ? null : plaidDollarsToPositiveCents(account.balances.limit),
+    // Account currency (ISO preferred over the unofficial/crypto code). The app does no FX; a
+    // non-USD account is withheld from net worth at the read boundary (DECISIONS #135).
+    currency: resolvePlaidCurrency(
+      account.balances.iso_currency_code,
+      account.balances.unofficial_currency_code,
+    ),
   };
 }
 

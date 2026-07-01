@@ -1127,3 +1127,46 @@ NEXT (owner-gated): decide the CANONICAL loan source and de-duplicate — e.g. e
 recurring/scheduled rows from the calendar+forecast when a loanObligation exists for that loan, OR feed
 loanObligations into the forecast and suppress the recurring row. Requires threading a loan-account link or
 categoryId through the scheduled pipeline; a focused follow-up, not bolted onto this increment.
+
+## 2026-06-30 — Currency guard: withhold non-USD accounts (DECISIONS #135, live-ingest audit #3/#10)
+
+Closed the #127 live-ingest "currency never read" item. The app does no FX, so a non-USD feed
+balance was summed into net worth at a fabricated 1:1. Persisted a nullable `Account.currency`
+(null = legacy/demo/manual = assumed USD → golden-safe) set by both mappers; withhold non-USD
+accounts AND all their child rows at every account-scoped read (snapshot accounts/transactions/
+scheduled/snapshots; getAccountsView; getInvestments; register; triage; /budgets; the recurring
+refresh; and all ~15 first-run empty-state gates). Pure `src/lib/providers/currency.ts`
+(`canonicalizeCurrency`/`resolvePlaidCurrency`/`isSupportedCurrency`); the DB reads mirror it as
+`OR:[{currency:null},{currency:'USD'}]`.
+
+**Two hostile-critic cycles.** Cycle 1 (wf_74fc0808, 4 dims → adversarial verify): **4 P1 bypasses
++ 1 P2, all FIXED + regression-locked** — getInvestments roll-up (P1-A); the count-gates-vs-snapshot
+invariant break → all-non-USD user throws + export 500 (P1-B); the transaction leak into
+reports/trends/coach/register (P1-C ×2); and `resolvePlaidCurrency('','BTC')` failing open (P2).
+Confirmation (wf_bda5c45a, 3 lenses): 2 lenses fixes-hold, the completeness lens found **2 more
+direct transaction reads of the same class — `/budgets` spend + `refreshRecurringForUser` — both
+FIXED + locked** (a foreign subscription would otherwise persist a scheduled row on the USD payment
+account at 1:1). Gate (real 2026-06-30): `bash scripts/verify.sh` → ✅ VERIFY GREEN, **1465 unit /
+115 files** (+21), typecheck/lint/build clean.
+
+### Accepted / deferred P2 residuals (documented, by design or follow-up)
+18. **No excluded-account disclosure.** A withheld non-USD account vanishes from /accounts + the net
+    worth headline with no "N accounts excluded — no FX yet" note; for a LIABILITY the withhold
+    flatters net worth ("a withheld figure beats a silently wrong one" — but the direction is
+    optimistic). **Highest-value follow-up:** a disclosure banner on the dashboard + /accounts.
+19. **Cosmetic non-figure surfaces still touch foreign rows:** the transactions-CSV export lists a
+    foreign account's rows (faithful raw dump, no summed figure); the account pickers (settings
+    payment-account selector, /transactions/new, /transactions/import) may list a non-USD account
+    (a foreign payment-account choice falls back to a USD account); the categorization backfill +
+    the settings transaction-COUNT still process foreign rows. None is a wrong money figure.
+20. **SimpleFIN HOLDING-level currency unread.** The guard is account-level; a non-USD position
+    inside a SUPPORTED (USD) brokerage rolls into the /investments breakdown at 1:1. Net worth uses
+    the authoritative account balance, so bounded to the breakdown; a deeper follow-up.
+21. **Numeric ISO codes withheld, not mapped** (e.g. '840'=USD) — fail-safe; neither Plaid nor
+    SimpleFIN emits numeric codes.
+22. **All-non-USD user is a fail-SAFE edge** (unreachable for the invite-only US base; every real
+    user has ≥1 USD account). The gates now render EmptyDashboard for it; the remaining pages that
+    don't throw render zero-data safely.
+
+REMAINING #127 live-ingest backlog: SimpleFIN symbol regex (options/crypto/slash tickers, coupled to
+the addHolding ticker rule) + epoch→date UTC-day-boundary — both P2, lower money-impact.

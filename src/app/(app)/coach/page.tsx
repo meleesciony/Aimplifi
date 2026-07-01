@@ -26,7 +26,7 @@ export default async function CoachPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
   // No accounts yet → first-run onboarding (the FI/cash engine needs accounts).
-  if ((await prisma.account.count({ where: { userId: session.user.id } })) === 0) return <EmptyDashboard />;
+  if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
   const data = await getCoachData(session.user.id);
 
   return (

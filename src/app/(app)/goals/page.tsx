@@ -21,7 +21,7 @@ export default async function GoalsPage() {
   if (!session?.user?.id) redirect('/sign-in');
   const userId = session.user.id;
   // No accounts yet → onboarding; getCoachData runs the cash engine which throws on empty (DECISIONS #44).
-  if ((await prisma.account.count({ where: { userId } })) === 0) return <EmptyDashboard />;
+  if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
   const [goals, coach, debts] = await Promise.all([
     prisma.goal.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
     getCoachData(userId),

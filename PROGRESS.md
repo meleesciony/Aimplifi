@@ -1092,3 +1092,46 @@ sync; the mocked-server integration is the labeled end-to-end, per the live-path
 **NEXT (owner):** push #134 when ready; the de-dup design (canonical loan source across calendar/forecast/reminders)
 is the documented follow-up. Remaining #127 tail (lower value): currency guard (~N/A US), epoch→date UTC-boundary,
 SimpleFIN symbol regex.
+
+## 2026-06-30 (session: "aimplifi", resumed "continue") — Currency guard (#135, live-ingest audit #3/#10) — DONE ✅ (verify green, 2 critic cycles, all confirmed P1s fixed + locked)
+Baseline re-confirmed before any change: `bash scripts/verify.sh` → GREEN (HEAD 859ab29 = #134, 1444 unit/113 files).
+Owner's standing preference (#132) = finish the live-money correctness backlog before new features; picked the
+highest-severity remaining item I could take end-to-end autonomously (the loan de-dup is owner-gated; currency was P1).
+
+**Built (engine/read-path first):** nullable `Account.currency` (null=assumed USD → golden-safe), pure
+`src/lib/providers/currency.ts` (canonicalize/resolvePlaid/isSupported), both mappers persist it + both sync writers
+store it. Withhold non-USD accounts + ALL their child rows at every account-scoped read: the snapshot
+(accounts+transactions+scheduled+snapshots), getAccountsView, getInvestments, register, triage, /budgets,
+refreshRecurringForUser, and all ~15 first-run empty-state gates (DB reads mirror `isSupportedCurrency` as
+`OR:[{currency:null},{currency:'USD'}]`).
+
+**Critic cycle 1 (wf_74fc0808, 4 dims → adversarial verify):** my "two source filters cover everything" premise was
+WRONG — **4 P1 bypasses + 1 P2, all FIXED + regression-locked:** getInvestments roll-up (P1-A); count-gates vs
+snapshot invariant → all-non-USD user throws + export 500 (P1-B); transaction leak into reports/trends/coach/register
+(P1-C ×2); resolvePlaidCurrency('','BTC') fail-open (P2).
+**Confirmation cycle (wf_bda5c45a, 3 lenses):** 2 fixes-hold; completeness lens found **2 MORE direct transaction
+reads of the same class — /budgets spend + refreshRecurringForUser — FIXED + locked** (a foreign subscription would
+persist a scheduled row on the USD payment account at 1:1). I also independently grepped every `prisma.account.find*`
++ `prisma.transaction.find*/count`: all figure-paths now guarded; `listAccounts` has zero consumers (dead); the
+remaining reads are single-row ownership checks, sync internals, or cosmetic (export CSV dump / pickers / counts).
+
+**Gate (real, measured 2026-06-30):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — typecheck/lint/build clean,
+**1465 unit / 115 files** (+21). No e2e surface (server/read-path; the `currency-guard.test.ts` integration suite is
+the labeled end-to-end). Tests: currency.test.ts (9) + currency-guard.test.ts (8: net worth, snapshot transactions,
+review-count, accounts view, getInvestments, direct-read predicate, supported gate-count).
+
+**State:** committed as the #135 feature+docs commit (see below); working tree clean after commit. **NOT pushed** —
+pushing main = prod deploy (owner's call). Deploy is byte-identical for the demo (all null-currency) but activates the
+guard for the owner's real Plaid+SimpleFIN accounts.
+
+**NEXT (owner-gated, choose one for the next session):**
+1. **Currency-exclusion disclosure UI** (STATUS #135 residual 18) — the highest-value follow-up: a "N accounts
+   excluded — no FX yet" banner on the dashboard + /accounts, so a withheld foreign LIABILITY can't silently flatter
+   net worth. (Small UI increment.)
+2. **#134 loan de-dup** — decide the canonical loan source and de-duplicate calendar/forecast/reminders (owner design
+   call; STATUS #134).
+3. **Remaining #127 tail** (lower money-impact P2s): SimpleFIN symbol regex (options/crypto/slash tickers) + epoch→date
+   UTC-day-boundary + SimpleFIN holding-LEVEL currency (STATUS #135 residual 20).
+
+**SAFE to /clear after this commit** — this PROGRESS entry + DECISIONS #135 + STATUS #135 + REGRESSION_LEDGER (5 rows)
+are the complete resume anchor. Push #134 (+ this #135) together when ready, or bundle with the next change.

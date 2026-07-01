@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     try {
       // A brand-new (zero-account) user has nothing to remind about; resolving a
       // payment account would throw, so skip cleanly rather than record a failure.
-      const accountCount = await prisma.account.count({ where: { userId: user.id } });
+      const accountCount = await prisma.account.count({ where: { userId: user.id, OR: [{ currency: null }, { currency: 'USD' }] } });
       if (accountCount === 0) {
         results.push({ userId: user.id, reminders: 0, sent: false, reason: 'no-accounts' });
         continue;
