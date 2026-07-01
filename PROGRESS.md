@@ -1135,3 +1135,26 @@ guard for the owner's real Plaid+SimpleFIN accounts.
 
 **SAFE to /clear after this commit** — this PROGRESS entry + DECISIONS #135 + STATUS #135 + REGRESSION_LEDGER (5 rows)
 are the complete resume anchor. Push #134 (+ this #135) together when ready, or bundle with the next change.
+
+## 2026-07-01 — OWNER FEATURE REQUEST logged (custom subcategories in triage) — NEW #1 NEXT ITEM
+Owner (verbatim intent): "the inbox categorization is clunky and doesn't allow for write-in
+categories. for instance our family plays a lot of golf, there should be a button to add
+subcategories to main categories, like in mint or simplifi."
+→ **This jumps to #1 NEXT**, ahead of the #135 owner-gated list (currency-disclosure UI /
+#134 loan de-dup / #127 tail — all still open, unchanged).
+Scope notes for the next session (understand-first, engine-first per rule #5):
+- Two asks in one: (a) user-defined **write-in subcategories** attached to existing main
+  categories (e.g. "Golf" under an entertainment/leisure parent), with an add button surfaced
+  in the categorization flow; (b) the triage/inbox categorization UX itself is "clunky" —
+  audit the picker flow while in there (don't rebuild the whole inbox unasked).
+- Understand phase must map: the Category model + taxonomy (fixed seed set? parent/child
+  support?), the triage picker + inline recat UI, rules engine (assign.ts / corrections /
+  Always-rules lineage), the LLM second pass (categorize/llm.ts validates against known
+  categories — a dynamic set changes that contract), and every category consumer
+  (budgets / reports / trends / coach / Ask answers / spendingByCategory).
+- Constraints: golden/demo byte-identical (additive user-scoped rows, seed untouched);
+  custom categories must be ownership-scoped; deletion/rename semantics need a decision
+  (what happens to transactions filed under a deleted custom subcategory).
+Repo state at logging: HEAD `00555d5` (#135), tree clean, local main **2 ahead of origin**
+(`859ab29` #134 + `00555d5` #135, unpushed — pushing deploys both; owner's call).
+Resume: fresh session reads LOOP_ENGINEERING.md + CLAUDE.md → this entry → build.
