@@ -1222,3 +1222,17 @@ Still environmental-not-code (3-point A/B incl. #131 stands). Runtime versions f
 node v24.16.0, playwright 1.60.0, next 15.5.19 — a system Node/OS update since 2026-06-29 (when this
 test last measured green) is the prime suspect. Owner follow-ups: reboot + rerun; if persistent, try
 pinning the Node version the 6/29 run used, or instrument the action route latency server-side.
+
+## 2026-07-01 — #136 increment 3: register write-in (Checker 1 P1 fixed) — sweep COMPLETE
+"+ New category" inside the register's category-menu → hands off to the existing once/always confirm
+(#121); shared group-label search (#137) replaces the menu's name-only filter; drop-up menu on low rows.
+Checker P1 FIXED + locked: `chosen` is now ROW-BOUND (rowId) — a create resolving after a row switch can
+no longer put the one-tap confirm (incl. merchant-wide + durable-rule) on the wrong row. Race lock GREEN
+×4 on the final tree. Accepted P2s: one-shot dropUp measurement (no scroll/resize re-measure; stale side
+after scrolling with the menu open); write-in form inside the pre-existing role=listbox (SR
+discoverability — fold into the shared-CategoryPicker follow-up); drop-up top-clipping on very short
+viewports; the happy-path spec's full pass on the FINAL tree is UNVERIFIED (witnessed green through the
+confirm pane ×3; the tail stalls on the machine's documented action-apply stall) — rerun after reboot.
+Root-cause note for #16/#17: the ≥60s stalls are the ACTION-RESPONSE REVALIDATION APPLY (server actions
+carrying 9-route revalidations hold the client transition — and every disabled={pending} button — until
+the payload lands); storage proven healthy (p50=1ms probe). Environmental TODAY per the 3-point A/B.

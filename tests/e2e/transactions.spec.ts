@@ -188,6 +188,93 @@ test('inline recategorization on the register refiles a transaction (DECISIONS #
   await expect(chip).not.toContainText('Dining Out', { timeout: 20000 });
 });
 
+test('register write-in: create a category inside the picker and refile with it (#136)', async ({ page }) => {
+  await signIn(page);
+
+  // Own manual row — golden-safe (DECISIONS #24), same idiom as the recat spec.
+  await page.goto('/transactions/new');
+  const label = 'E2E Register Write-in';
+  await page.getByTestId('txn-descriptor').fill(label);
+  await page.getByTestId('txn-amount').fill('11.11');
+  await page.getByTestId('txn-category').selectOption('dining');
+  await page.getByTestId('txn-submit').click();
+  await page.waitForURL('**/transactions');
+
+  await page.getByTestId('txn-search').fill(label);
+  await page.getByTestId('txn-search').press('Enter');
+  const row = page.getByTestId('txn-row').filter({ hasText: label });
+  await expect(row).toBeVisible({ timeout: 20000 });
+
+  await row.getByTestId('category-chip').click();
+  await page.getByTestId('category-menu').waitFor();
+
+  // Group-label-aware search applies here too (#137): "bills" matches only the
+  // visible "Bills & Utilities" header, no category NAME — must not dead-end.
+  await page.getByTestId('cat-search').fill('bills');
+  await expect(page.locator('[data-testid="cat-option"]').first()).toBeVisible();
+
+  // The designed write-in path: search the category you WANT, miss, create it
+  // right there — the no-match hint sits directly above the add button (which
+  // is otherwise below ~84 options in the scroll container).
+  const catName = `Padel ${Date.now().toString().slice(-6)}`; // unique per run (retry-safe)
+  await page.getByTestId('cat-search').fill(catName);
+  await expect(page.getByTestId('register-cat-no-match')).toBeVisible();
+
+  // Create inside the picker → hands off to the EXISTING two-step confirm
+  // (the register never files in one tap — DECISIONS #121).
+  await page.getByTestId('register-add-category').click();
+  await page.getByTestId('register-new-category-name').fill(catName);
+  await page.getByTestId('register-new-category-submit').click();
+  // Server action + inline re-render — give it the same budget as the chip.
+  await expect(page.getByTestId('recat-confirm')).toContainText(catName, { timeout: 20000 });
+  await page.getByTestId('recat-once').click();
+
+  // Chip-level assertion (#121 idiom): flips only once the persisted row
+  // re-renders through router.refresh().
+  const chip = row.getByTestId('category-chip');
+  await expect(chip).toContainText(catName, { timeout: 20000 });
+});
+
+test('register write-in: a create resolving after a row switch never puts the confirm on the wrong row (#136 checker P1)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/transactions');
+  const rows = page.getByTestId('txn-row');
+  await expect(rows.nth(1)).toBeVisible();
+
+  // Delay the CREATE action's POST so it resolves AFTER the row switch below.
+  let delayed = false;
+  await page.route('**/transactions*', async (route) => {
+    if (!delayed && route.request().method() === 'POST') {
+      delayed = true;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    await route.continue();
+  });
+
+  // Row A: open its menu → write-in → submit (create now in flight). Nothing is
+  // ever FILED here, and the category row is additive — golden-safe.
+  await rows.nth(0).getByTestId('category-chip').click();
+  await page.getByTestId('category-menu').waitFor();
+  const catName = `Race ${Date.now().toString().slice(-6)}`;
+  await page.getByTestId('cat-search').fill(catName); // no-match → button adjacent
+  await page.getByTestId('register-add-category').click();
+  await page.getByTestId('register-new-category-name').fill(catName);
+  await page.getByTestId('register-new-category-submit').click();
+
+  // Mid-flight: switch to row B's menu (the chip is deliberately not
+  // pending-gated).
+  await rows.nth(1).getByTestId('category-chip').click();
+  await page.getByTestId('category-menu').waitFor();
+
+  // When the delayed create resolves, `chosen` is bound to ROW A — row B's open
+  // menu must STAY on the category list; the one-tap confirm pane appearing
+  // here filed the wrong row before the fix.
+  await page.waitForTimeout(2200); // bounded: covers the 1.5s injected delay
+  await expect(page.getByTestId('recat-confirm')).toHaveCount(0);
+  await expect(page.getByTestId('cat-search')).toBeVisible();
+  await page.unroute('**/transactions*');
+});
+
 test('CSV import: valid rows imported, bad rows skipped with line errors', async ({ page }) => {
   await signIn(page);
   await page.goto('/transactions/import');

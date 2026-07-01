@@ -1245,3 +1245,27 @@ the request/server layer under rapid sequential actions; localhost→127.0.0.1 p
 specs stabilized, full-review stall persists; still environmental per the 3-point A/B). Versions
 recorded for the owner: node v24.16.0 / playwright 1.60.0 / next 15.5.19.
 Gate (real 2026-07-01): verify.sh → ✅ GREEN 1476 unit/116 files; e2e gestures+write-in+accuracy 3/3.
+
+### Increment 3 — DONE ✅ (verify green 1476/116, Checker 1 P1 fixed + race-locked ×4) — SWEEP COMPLETE
+Register write-in: "+ New category" inside the category-menu → hands the new id to the EXISTING
+once/always confirm (#121, never one-tap); shared group-label filterCategoryOptions replaces the menu's
+name-only filter (same P1 class as triage); drop-up menu on low rows (checker downgraded the nav-
+interception theory — z-50 out-paints z-40; residual = reach/overlay polish). **Checker (wf_0b0ff005):
+1 CONFIRMED P1 FIXED + e2e-locked — `chosen` unbound to its row + un-gated chips meant a create
+resolving after a row switch put the one-tap confirm (worst case merchant-wide + durable rule) on the
+WRONG row → `chosen` now carries rowId; pane renders + commit() fires only for the matching row.
+Route-delayed race spec GREEN ×4 on the final tree.** P2s: stale draft cleared on chip-open; redundant
+createAndChoose refresh removed (the action's revalidation is the payload carrier — and anything held
+in the transition keeps the confirm buttons disabled); spec budgets 20s. Accepted P2s in STATUS.
+**Honest e2e label:** the happy-path register spec measured GREEN once (3.0s) pre-rowId-refactor; on
+the FINAL tree it is witnessed green THROUGH the confirm pane (×3 runs) but the once-click tail
+repeatedly hits the machine's ≥60s action-apply stall → full-pass UNVERIFIED until the box recovers.
+**Stall root-cause refined (STATUS):** it's the ACTION-RESPONSE REVALIDATION APPLY holding the client
+transition (hence every disabled={pending} button); storage healthy (p50=1ms probe); environmental
+today (3-point A/B incl. #131). OWNER: reboot, then `npx playwright test` to re-witness.
+
+**Session state at close:** local main = dd08f2e +3 session commits (d7907c8 #136-inc1, f5a04b5
+#137-inc2, <inc3 commit> #138) — see the commit log; origin/main = 6a63729+ (#134/#135 still unpushed
+from before + these). PUSH = owner's call (deploys #134+#135+#136/#137/#138 together).
+NEXT (owner-gated): reboot + full VERIFY_E2E=1 re-witness; the #135 currency-disclosure UI, #134 loan
+de-dup, #127 tail, and the shared-CategoryPicker/SR-listbox follow-up remain on the backlog.

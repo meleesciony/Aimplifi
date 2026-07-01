@@ -19,7 +19,12 @@ import { Check, Pencil, Receipt } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
-import { ASSIGNABLE_GROUPS } from '@/lib/engine/categorize/assign';
+import {
+  ASSIGNABLE_GROUPS,
+  CUSTOM_CATEGORY_GROUPS,
+  filterCategoryOptions,
+} from '@/lib/engine/categorize/assign';
+import { createCustomCategory } from '@/server/custom-category-actions';
 import { recategorize } from '@/server/triage-actions';
 import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
 
@@ -44,6 +49,13 @@ export function TransactionList({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(null);
+  // Open the menu UPWARD when the row sits in the lower part of the viewport:
+  // dropped-down from a low row it extends past the viewport under the fixed
+  // bottom nav — the z-50 menu still out-paints the z-40 nav (checker-verified
+  // stacking), but its bottom items render off-screen/overlaid and need a page
+  // scroll to reach. Measured one-shot at open; a scroll while open can leave
+  // the side stale (accepted P2, STATUS 2026-07-01).
+  const [dropUp, setDropUp] = useState(false);
 
   /** A page URL that preserves the current filters (page 1 drops the param). */
   function pageHref(p: number): string {
@@ -53,20 +65,78 @@ export function TransactionList({
     const qs = q.toString();
     return qs ? `/transactions?${qs}` : '/transactions';
   }
-  const [chosen, setChosen] = useState<{ id: string; name: string } | null>(null);
+  // `rowId` BINDS the pending choice to the row whose menu produced it: the
+  // write-in create resolves ASYNC, and the chip is deliberately not
+  // pending-gated, so the user can open another row's menu mid-create — an
+  // unbound chosen would put the one-tap confirm pane on the WRONG row
+  // (checker P1; the triage twin binds its item at call time).
+  const [chosen, setChosen] = useState<{ rowId: string; id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [pending, startTransition] = useTransition();
+  // Write-in "+ New category" inside the picker (#136 increment 3). One
+  // controller like the rest of the menu state — never per row.
+  const [newCatOpen, setNewCatOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatGroup, setNewCatGroup] = useState<string>(CUSTOM_CATEGORY_GROUPS[0] ?? '');
+  const [newCatDiscretionary, setNewCatDiscretionary] = useState(true);
+  const [newCatError, setNewCatError] = useState<string | null>(null);
 
   function close() {
     setOpenId(null);
     setChosen(null);
     setError(null);
     setQuery('');
+    setNewCatOpen(false);
+    setNewCatError(null);
+  }
+
+  /** Open the mini-form with the group prefilled from the row's CURRENT category
+   *  (spending groups only — customs never join Income/Transfers). */
+  function openNewCat(t: TxnView) {
+    const g = categoryGroups.find((grp) => grp.categories.some((c) => c.id === t.categoryId))?.group;
+    setNewCatGroup(g && CUSTOM_CATEGORY_GROUPS.includes(g) ? g : (CUSTOM_CATEGORY_GROUPS[0] ?? ''));
+    setNewCatDiscretionary(true);
+    setNewCatError(null);
+    setNewCatOpen(true);
+  }
+
+  /** Create the category, then hand it to the EXISTING two-step confirm
+   *  ("File as X? · once / always") — the register never files in one tap
+   *  (DECISIONS #121), so the write-in must not either. */
+  function createAndChoose(t: TxnView) {
+    const trimmed = newCatName.trim().replace(/\s+/g, ' '); // server-normalization parity
+    if (!trimmed || pending) return;
+    setNewCatError(null);
+    startTransition(async () => {
+      let res;
+      try {
+        res = await createCustomCategory({
+          name: trimmed,
+          group: newCatGroup,
+          discretionary: newCatDiscretionary,
+        });
+      } catch {
+        // Rejected action (network flake / expired session) degrades to the
+        // inline error — never the route error boundary (#136 critic P1 class).
+        setNewCatError('Could not create that category — nothing was saved. Try again.');
+        return;
+      }
+      if (!res.ok || !res.id) {
+        setNewCatError(res.error ?? 'Could not create that category.');
+        return;
+      }
+      setChosen({ rowId: t.id, id: res.id, name: trimmed });
+      setNewCatOpen(false);
+      setNewCatName('');
+      // No manual router.refresh(): createCustomCategory's server-side
+      // revalidation already carries the refreshed /transactions payload in
+      // the action response (measured — it's what re-populates the picker).
+    });
   }
 
   function commit(t: TxnView, scope: 'one' | 'merchant') {
-    if (!chosen) return;
+    if (!chosen || chosen.rowId !== t.id) return; // never file another row's choice
     setError(null);
     startTransition(async () => {
       try {
@@ -78,6 +148,14 @@ export function TransactionList({
       }
     });
   }
+
+  // Shared group-label-aware search (#137): "bills" must find the visible
+  // "Bills & Utilities" group — the previous name-only inline filter had the
+  // same duplicate-manufacturing false-negative the triage picker was fixed for.
+  const visibleCatGroups = filterCategoryOptions(
+    categoryGroups.map((g) => ({ group: g.group, items: g.categories })),
+    query,
+  );
 
   // Group consecutive rows by date (input is already date-desc sorted).
   const groups: { date: string; items: TxnView[] }[] = [];
@@ -161,8 +239,20 @@ export function TransactionList({
                           aria-haspopup="listbox"
                           aria-expanded={open}
                           className="inline-flex items-center gap-1 rounded underline decoration-dotted decoration-muted-foreground/50 underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                          onClick={() =>
-                            open ? close() : (setOpenId(t.id), setChosen(null), setError(null), setQuery(''))
+                          onClick={(e) =>
+                            open
+                              ? close()
+                              : (setDropUp(
+                                  e.currentTarget.getBoundingClientRect().top >
+                                    window.innerHeight * 0.55,
+                                ),
+                                setOpenId(t.id),
+                                setChosen(null),
+                                setError(null),
+                                setQuery(''),
+                                setNewCatOpen(false),
+                                setNewCatName(''), // a fresh menu never inherits another row's draft
+                                setNewCatError(null))
                           }
                         >
                           {t.categoryName}
@@ -174,9 +264,11 @@ export function TransactionList({
                           <div
                             role="listbox"
                             data-testid="category-menu"
-                            className="absolute left-0 z-50 mt-1 max-h-72 w-56 overflow-auto rounded-lg border bg-card p-1 text-foreground shadow-lg ring-1 ring-foreground/10"
+                            className={`absolute left-0 z-50 max-h-72 w-56 overflow-auto rounded-lg border bg-card p-1 text-foreground shadow-lg ring-1 ring-foreground/10 ${
+                              dropUp ? 'bottom-full mb-1' : 'mt-1'
+                            }`}
                           >
-                            {!chosen ? (
+                            {!chosen || chosen.rowId !== t.id ? (
                               <>
                                 <input
                                   data-testid="cat-search"
@@ -186,38 +278,125 @@ export function TransactionList({
                                   placeholder="Search categories…"
                                   className="sticky top-0 z-10 mb-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring/50"
                                 />
-                                {categoryGroups.map((grp) => ({
-                                  group: grp.group,
-                                  categories: grp.categories.filter((c) =>
-                                    c.name.toLowerCase().includes(query.trim().toLowerCase()),
-                                  ),
-                                }))
-                                  .filter((grp) => grp.categories.length > 0)
-                                  .map((grp) => (
-                                    <div key={grp.group}>
-                                      <div className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                        {grp.group}
-                                      </div>
-                                      {grp.categories.map((c) => (
-                                        <button
-                                          key={c.id}
-                                          type="button"
-                                          role="option"
-                                          aria-selected={c.id === t.categoryId}
-                                          data-testid="cat-option"
-                                          data-cat={c.id}
-                                          disabled={pending}
-                                          className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
-                                          onClick={() => (c.id === t.categoryId ? close() : setChosen(c))}
-                                        >
-                                          {c.name}
-                                          {c.id === t.categoryId && (
-                                            <Check className="size-3.5 text-emerald-500" aria-hidden />
-                                          )}
-                                        </button>
-                                      ))}
+                                {visibleCatGroups.map((grp) => (
+                                  <div key={grp.group}>
+                                    <div className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                      {grp.group}
                                     </div>
-                                  ))}
+                                    {grp.items.map((c) => (
+                                      <button
+                                        key={c.id}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={c.id === t.categoryId}
+                                        data-testid="cat-option"
+                                        data-cat={c.id}
+                                        disabled={pending}
+                                        className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                                        onClick={() =>
+                                          c.id === t.categoryId
+                                            ? close()
+                                            : setChosen({ rowId: t.id, id: c.id, name: c.name })
+                                        }
+                                      >
+                                        {c.name}
+                                        {c.id === t.categoryId && (
+                                          <Check className="size-3.5 text-emerald-500" aria-hidden />
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ))}
+                                {visibleCatGroups.length === 0 && (
+                                  <p
+                                    // pointer-events-none: purely informational — measured
+                                    // intercepting the add button's click point (e2e hit-test).
+                                    className="pointer-events-none px-2 py-1.5 text-xs text-muted-foreground"
+                                    data-testid="register-cat-no-match"
+                                  >
+                                    No matching category — create it below.
+                                  </p>
+                                )}
+                                {!newCatOpen ? (
+                                  <button
+                                    type="button"
+                                    data-testid="register-add-category"
+                                    disabled={pending}
+                                    className="mt-1 w-full rounded border border-dashed px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                                    onClick={() => openNewCat(t)}
+                                  >
+                                    + New category
+                                  </button>
+                                ) : (
+                                  <div className="mt-1 space-y-1.5 border-t p-1 pt-2" data-testid="register-new-category">
+                                    {newCatError && (
+                                      <p role="alert" className="text-xs text-red-400" data-testid="register-new-category-error">
+                                        {newCatError}
+                                      </p>
+                                    )}
+                                    <input
+                                      value={newCatName}
+                                      onChange={(e) => setNewCatName(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                                          e.preventDefault();
+                                          createAndChoose(t);
+                                        } else if (e.key === 'Escape') {
+                                          setNewCatOpen(false);
+                                          setNewCatError(null);
+                                        }
+                                      }}
+                                      placeholder="e.g. Golf"
+                                      aria-label="New category name"
+                                      data-testid="register-new-category-name"
+                                      className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                                      autoFocus
+                                    />
+                                    <select
+                                      value={newCatGroup}
+                                      onChange={(e) => setNewCatGroup(e.target.value)}
+                                      aria-label="Group for the new category"
+                                      data-testid="register-new-category-group"
+                                      className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                                    >
+                                      {CUSTOM_CATEGORY_GROUPS.map((g) => (
+                                        <option key={g} value={g}>
+                                          {g}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                      <input
+                                        type="checkbox"
+                                        checked={newCatDiscretionary}
+                                        onChange={(e) => setNewCatDiscretionary(e.target.checked)}
+                                        data-testid="register-new-category-discretionary"
+                                      />
+                                      Discretionary
+                                    </label>
+                                    <div className="flex gap-1.5">
+                                      <button
+                                        type="button"
+                                        data-testid="register-new-category-submit"
+                                        disabled={pending || !newCatName.trim()}
+                                        className="rounded bg-primary px-2 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
+                                        onClick={() => createAndChoose(t)}
+                                      >
+                                        Create
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent"
+                                        onClick={() => {
+                                          setNewCatOpen(false);
+                                          setNewCatError(null);
+                                        }}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </>
                             ) : (
                               <div className="space-y-2 p-1" data-testid="recat-confirm">
