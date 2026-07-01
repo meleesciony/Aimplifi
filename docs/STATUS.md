@@ -1170,3 +1170,32 @@ account at 1:1). Gate (real 2026-06-30): `bash scripts/verify.sh` → ✅ VERIFY
 
 REMAINING #127 live-ingest backlog: SimpleFIN symbol regex (options/crypto/slash tickers, coupled to
 the addHolding ticker rule) + epoch→date UTC-day-boundary — both P2, lower money-impact.
+
+## 2026-07-01 — Triage write-in custom categories (DECISIONS #136, owner request #1)
+Shipped increment 1 of the owner's sweep: "+ New category" in the triage picker (create + file in one
+step) and the LIVE manual-entry custom-id bug fix. Hostile critic wf_e4584600: 2 confirmed P1 FIXED +
+e2e-locked (error-boundary escape on a rejected create; stale open form crossing cards via batch/undo);
+4 P2 fixed (overlay prune, IME Enter guard, name normalization parity, Escape). **0 open P0/P1.**
+
+Accepted P2 residuals:
+1. PRE-EXISTING: applyCategory creates its Correction row before the FK-guarded transaction update,
+   non-atomically — a deleteCustomCategory race can orphan a Correction string ref (delete already
+   remaps corrections; window is milliseconds; same class as the deferred alreadyUndone TOCTOU).
+2. Partial-success recovery: if the create succeeds but the filing fails, retrying via the form shows
+   "You already have a category with that name" — the category IS in every picker (discoverable path);
+   custom copy plumbing for a rare double-failure judged disproportionate.
+3. Focus is not restored to a specific control when the mini-form closes (axe AA passes).
+4. The Settings manager has the same IME Enter-composition gap (pre-existing, same class as the
+   triage one fixed here).
+
+**ENVIRONMENTAL ESCALATION of #16/#17 (evidence-backed):** the phase2-triage full-review throughput
+test now fails on THIS MACHINE even isolated on a fresh temp DB, at THREE code points: the #136 tree,
+the pre-change HEAD (dd08f2e), and #131 (6a63729 — the commit where it measured green isolated on
+2026-06-29). Symptom unchanged (accept/batch/undo stuck disabled ≥60s mid-write); stall position
+varies run-to-run (15 remaining, 7 remaining). Conclusion: machine-level SQLite write-throughput
+degradation TODAY — not a code regression at any point (3-point A/B), not OneDrive (the #121
+relocation stands). Blast radius: ONLY the rapid-sequential-write loop — the other 58 e2e passed the
+same day, and the three triage specs run in 0.8–4.1s when the box isn't saturated. Follow-up
+(owner-gated): retest after a reboot; consider Windows Defender exclusions for the repo and
+%TEMP%\aimplifi-test-*; if it persists, serialize that one spec's writes or give the throughput test
+a dedicated DB.

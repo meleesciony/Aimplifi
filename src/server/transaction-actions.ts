@@ -44,6 +44,10 @@ export async function createManualTransaction(formData: FormData): Promise<void>
       categoryId: categoryRaw || null,
     },
     rules,
+    // The engine re-checks ids for defense in depth but only knows the system
+    // set; a custom id is a per-user cuid. Pass exactly the one id that
+    // assertOwnedCategory just verified above (regression #136).
+    categoryRaw ? new Set([categoryRaw]) : undefined,
   );
 
   // When the user didn't dictate a category, let the optional LLM assist an

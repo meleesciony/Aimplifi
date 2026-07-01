@@ -14,14 +14,16 @@
  * Phase 2 e2e can count interactions (<15) and map them to the documented
  * human-time budget (<60s). See tests/e2e/phase2-triage.spec.ts.
  */
-import { useMemo, useRef, useState, useTransition } from 'react';
-import { PartyPopper } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { PartyPopper, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatISODate, isoDate } from '@/lib/dates';
+import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { cents, centsFromDollarString, formatCents } from '@/lib/money';
 import type { TriageItem } from '@/server/triage';
+import { createCustomCategory } from '@/server/custom-category-actions';
 import {
   applyCategory,
   applyToAllSimilar,
@@ -72,8 +74,37 @@ export function TriageInbox({
   const dragStart = useRef<number | null>(null);
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Categories created THIS session via the write-in form (#136). The server
+  // revalidates /triage, but this client island keeps its state — the overlay
+  // makes a fresh category assignable on the very next card without a reload.
+  const [extraCategories, setExtraCategories] = useState<
+    { id: string; name: string; group: string }[]
+  >([]);
+  const [newCatOpen, setNewCatOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatGroup, setNewCatGroup] = useState<string>(CUSTOM_CATEGORY_GROUPS[0] ?? '');
+  const [newCatDiscretionary, setNewCatDiscretionary] = useState(true);
+  const [newCatError, setNewCatError] = useState<string | null>(null);
+
   const top = items[0];
-  const nameOf = (id: string) => categories.find((c) => c.id === id)?.name ?? id;
+  // The overlay is a BRIDGE until the create action's revalidation refreshes the
+  // `categories` prop (RSC payload). Once the server list carries an overlay id,
+  // PRUNE it — from then on the server is authoritative, so a category deleted
+  // in another tab can never be resurrected by a stale overlay entry (critic P2).
+  useEffect(() => {
+    setExtraCategories((xs) => {
+      if (xs.length === 0) return xs;
+      const pruned = xs.filter((c) => !categories.some((k) => k.id === c.id));
+      return pruned.length === xs.length ? xs : pruned;
+    });
+  }, [categories]);
+  const allCats = useMemo(() => {
+    if (extraCategories.length === 0) return categories;
+    const known = new Set(categories.map((c) => c.id));
+    const extras = extraCategories.filter((c) => !known.has(c.id));
+    return extras.length === 0 ? categories : [...categories, ...extras];
+  }, [categories, extraCategories]);
+  const nameOf = (id: string) => allCats.find((c) => c.id === id)?.name ?? id;
 
   // Full taxonomy grouped by parent, for the "any category" picker (the 3 quick
   // alternatives can't cover ~80 categories). Preserves CATEGORIES' declaration
@@ -81,7 +112,7 @@ export function TriageInbox({
   const categoryGroups = useMemo(() => {
     const order: string[] = [];
     const byGroup = new Map<string, { id: string; name: string }[]>();
-    for (const c of categories) {
+    for (const c of allCats) {
       const g = c.group ?? 'Other';
       if (!byGroup.has(g)) {
         byGroup.set(g, []);
@@ -90,7 +121,7 @@ export function TriageInbox({
       byGroup.get(g)!.push({ id: c.id, name: c.name });
     }
     return order.map((g) => ({ group: g, items: byGroup.get(g)! }));
-  }, [categories]);
+  }, [allCats]);
 
   function advance() {
     setItems((xs) => xs.slice(1));
@@ -98,6 +129,8 @@ export function TriageInbox({
     setDragX(0);
     setSplitFirstHalf('');
     setSplitSecondCat('');
+    setNewCatOpen(false);
+    setNewCatError(null);
   }
 
   /** Optimistic update with rollback: a failed action restores the queue and
@@ -115,8 +148,11 @@ export function TriageInbox({
     });
   }
 
-  function accept(item: TriageItem, categoryId: string, via: string) {
-    logInteraction(via, `accept ${item.merchantCanonical} → ${nameOf(categoryId)}`);
+  function accept(item: TriageItem, categoryId: string, via: string, displayName?: string) {
+    // A just-created category isn't in this render's `allCats` yet (state flushes
+    // on the NEXT render) — the write-in flow passes the name it already knows.
+    const catName = displayName ?? nameOf(categoryId);
+    logInteraction(via, `accept ${item.merchantCanonical} → ${catName}`);
     const rollback = items;
     advance();
     runAction(rollback, async () => {
@@ -130,10 +166,61 @@ export function TriageInbox({
         setRulePrompt({
           correctionId: result.correctionIds[0],
           merchant: item.merchantCanonical,
-          categoryName: nameOf(categoryId),
+          categoryName: catName,
         });
       }
     });
+  }
+
+  /** Write-in flow (#136): create the custom category, THEN file the current
+   *  transaction under it — sequenced, because the id is only assignable once
+   *  its row exists. Validation errors surface inline; nothing is filed. */
+  function createAndFile(item: TriageItem) {
+    // Same normalization the server persists (collapse internal whitespace), so
+    // the overlay/pickers/rule-prompt can never disagree with the created row.
+    const trimmed = newCatName.trim().replace(/\s+/g, ' ');
+    if (!trimmed || pending) return;
+    setNewCatError(null);
+    logInteraction('tap', `new-category ${trimmed}`);
+    startTransition(async () => {
+      let res;
+      try {
+        res = await createCustomCategory({
+          name: trimmed,
+          group: newCatGroup,
+          discretionary: newCatDiscretionary,
+        });
+      } catch {
+        // A rejected action (network flake, expired session) must degrade to the
+        // component's inline-error contract — never the route error boundary,
+        // which would wipe the queue position and undo stack (critic P1).
+        setNewCatError('Could not create that category — nothing was saved. Try again.');
+        return;
+      }
+      if (!res.ok || !res.id) {
+        setNewCatError(res.error ?? 'Could not create that category.');
+        return;
+      }
+      const id = res.id;
+      setExtraCategories((xs) => [...xs, { id, name: trimmed, group: newCatGroup }]);
+      setNewCatName('');
+      accept(item, id, 'new-category', trimmed);
+    });
+  }
+
+  /** Open the mini-form with the group prefilled from the current suggestion
+   *  (customs may only join SPENDING groups — never Income/Transfers). */
+  function openNewCategory(item: TriageItem) {
+    logInteraction('tap', 'new-category-form');
+    const suggestedGroup = allCats.find((c) => c.id === item.suggestedCategoryId)?.group;
+    setNewCatGroup(
+      suggestedGroup && CUSTOM_CATEGORY_GROUPS.includes(suggestedGroup)
+        ? suggestedGroup
+        : (CUSTOM_CATEGORY_GROUPS[0] ?? ''),
+    );
+    setNewCatDiscretionary(true);
+    setNewCatError(null);
+    setNewCatOpen(true);
   }
 
   function batchApply(item: TriageItem) {
@@ -149,6 +236,11 @@ export function TriageInbox({
       ),
     );
     setMode('idle');
+    // The top card changes without advance() — close the write-in form so a
+    // half-typed name + the PREVIOUS card's group prefill can never be filed
+    // against the next card (critic P1).
+    setNewCatOpen(false);
+    setNewCatError(null);
     runAction(rollback, async () => {
       const result = await applyToAllSimilar({
         transactionId: item.id,
@@ -209,6 +301,10 @@ export function TriageInbox({
         setItems(fresh);
         setMode('idle');
         setDragX(0);
+        // Undo replaces the top card without advance() — same stale-form
+        // close as batchApply (critic P1).
+        setNewCatOpen(false);
+        setNewCatError(null);
       } catch (e) {
         // the undo opportunity must not silently vanish — restore it
         setUndoStack((s) => [...s, last]);
@@ -325,9 +421,9 @@ export function TriageInbox({
   // ── live split preview (top is defined past the empty-state return above) ──
   const splitTotal = Math.abs(top.amountCents);
   const defaultSecondCatId =
-    categories.find((c) => c.id === 'shopping')?.id ??
-    categories.find((c) => c.id !== top.suggestedCategoryId)?.id ??
-    categories[0]?.id ??
+    allCats.find((c) => c.id === 'shopping')?.id ??
+    allCats.find((c) => c.id !== top.suggestedCategoryId)?.id ??
+    allCats[0]?.id ??
     '';
   const secondCatId = splitSecondCat || defaultSecondCatId;
   let splitFirstCents: number | null = null;
@@ -425,7 +521,7 @@ export function TriageInbox({
               }}
             >
               <option value="" disabled>
-                Pick from all {categories.length} categories…
+                Pick from all {allCats.length} categories…
               </option>
               {categoryGroups.map((g) => (
                 <optgroup key={g.group} label={g.group}>
@@ -438,6 +534,100 @@ export function TriageInbox({
               ))}
             </select>
           </div>
+          {!newCatOpen ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={pending}
+              onClick={() => openNewCategory(top)}
+              data-testid="triage-add-category"
+              className="gap-1 text-muted-foreground hover:text-foreground"
+            >
+              <Plus className="size-3.5" aria-hidden /> New category
+            </Button>
+          ) : (
+            <div className="space-y-2 rounded-lg border p-3" data-testid="triage-new-category">
+              <p className="text-sm font-medium">
+                New category — this transaction is filed under it right away
+              </p>
+              {newCatError && (
+                <p role="alert" className="text-xs text-red-400" data-testid="new-category-error">
+                  {newCatError}
+                </p>
+              )}
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                  Name
+                  <input
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    onKeyDown={(e) => {
+                      // isComposing: Enter that commits an IME (CJK) composition
+                      // must not submit the form (critic P2).
+                      if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                        e.preventDefault();
+                        createAndFile(top);
+                      } else if (e.key === 'Escape') {
+                        setNewCatOpen(false);
+                        setNewCatError(null);
+                      }
+                    }}
+                    placeholder="e.g. Golf"
+                    aria-label="New category name"
+                    data-testid="new-category-name"
+                    className="h-9 w-40 rounded-md border bg-background px-2 text-sm"
+                    autoFocus
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                  Group
+                  <select
+                    value={newCatGroup}
+                    onChange={(e) => setNewCatGroup(e.target.value)}
+                    aria-label="Group for the new category"
+                    data-testid="new-category-group"
+                    className="h-9 w-44 rounded-md border bg-background px-2 text-sm"
+                  >
+                    {CUSTOM_CATEGORY_GROUPS.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1.5 pb-2.5 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={newCatDiscretionary}
+                    onChange={(e) => setNewCatDiscretionary(e.target.checked)}
+                    data-testid="new-category-discretionary"
+                  />
+                  Discretionary
+                </label>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  disabled={pending || !newCatName.trim()}
+                  data-testid="new-category-submit"
+                  onClick={() => createAndFile(top)}
+                >
+                  Create &amp; file
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setNewCatOpen(false);
+                    setNewCatError(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -471,7 +661,7 @@ export function TriageInbox({
               onChange={(e) => setSplitSecondCat(e.target.value)}
               data-testid="split-second-cat"
             >
-              {categories.map((c) => (
+              {allCats.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>

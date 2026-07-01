@@ -120,3 +120,33 @@ describe('prepareManualTransaction — validation', () => {
     );
   });
 });
+
+describe('prepareManualTransaction — custom categories via extraValidCategoryIds (#136)', () => {
+  const CUSTOM_ID = 'cmr0custom0000cuidgolf0001'; // a per-user cuid, unknown to CATEGORY_BY_ID
+  const base = {
+    descriptor: 'GREENS FEE',
+    amount: '54.00',
+    direction: 'out' as const,
+    date: '2026-06-15',
+    accountId: 'acct-A',
+    categoryId: CUSTOM_ID,
+  };
+
+  it('accepts a custom id present in the caller-verified extra set', () => {
+    const t = prepareManualTransaction(base, [], new Set([CUSTOM_ID]));
+    expect(t.categoryId).toBe(CUSTOM_ID);
+    expect(t.amountCents).toBe(-5400);
+    expect(t.needsReview).toBe(false); // explicit category is authoritative
+    expect(t.isTransfer).toBe(false); // a cuid can never be the 'transfer' slug
+  });
+
+  it('still rejects a custom id when no extra set is supplied (default unchanged)', () => {
+    expect(() => prepareManualTransaction(base)).toThrow(/unknown category/i);
+  });
+
+  it('rejects an id absent from the extra set (defense in depth)', () => {
+    expect(() =>
+      prepareManualTransaction(base, [], new Set(['cmr0someoneelses0000cuid02'])),
+    ).toThrow(/unknown category/i);
+  });
+});

@@ -1158,3 +1158,72 @@ Scope notes for the next session (understand-first, engine-first per rule #5):
 Repo state at logging: HEAD `00555d5` (#135), tree clean, local main **2 ahead of origin**
 (`859ab29` #134 + `00555d5` #135, unpushed — pushing deploys both; owner's call).
 Resume: fresh session reads LOOP_ENGINEERING.md + CLAUDE.md → this entry → build.
+
+## 2026-07-01 (resumed: "continue") — Custom subcategories in triage (#136, owner's #1) — IN PROGRESS
+Baseline re-confirmed before any change (measured): `bash scripts/verify.sh` → ✅ VERIFY GREEN (exit 0,
+HEAD dd08f2e, tree clean, local main 3 ahead of origin incl. the request-log commit). Understand phase =
+5-agent read-only workflow (wf_198a10d5) + synthesizer; full brief archived in the workflow output.
+
+**HEADLINE FINDING: custom categories are ~80% SHIPPED** (DECISIONS #111/#112 — createCustomCategory/
+rename/delete, ownership-scoped, atomic delete-remap, Settings-only UI at custom-category-manager.tsx).
+The gap = the add affordance INSIDE the categorization flow + one LIVE BUG + "clunky" picker UX.
+Owner (AskUserQuestion) chose the FULL SWEEP, sequenced — each increment verify-green + critic'd +
+committed before the next, stop-anywhere safe:
+  (1) write-in "+ New category" in triage alternatives (creates + files the current txn immediately)
+      + fix the LIVE manual-add bug (manual.ts:60 re-validates against system-only CATEGORY_BY_ID and
+      throws `Unknown category` for any custom id the form legitimately offers — verified by direct read)
+  (2) replace triage's unsearchable ~84-option native <select> with a searchable picker
+  (3) same add affordance in the register inline-recat.
+
+**Design decisions (recorded here + DECISIONS #136 at commit; per "when blocked → decide"):**
+- D1 parent model: GROUP STRING (parentId stays dead — DECISIONS #65); "Golf" = custom row, group e.g.
+  'Entertainment'. D5 ordering: KEEP append-within-group (grouped pickers already slot customs into their
+  optgroup; create-then-file auto-selects, so discoverability is moot). D4 discretionary: explicit
+  checkbox defaulting true (mirrors shipped Settings manager — no opaque inheritance). D7 LLM/auto-file:
+  stays SYSTEM-ONLY (llm.ts:33/41 untouched; Always-rules already give auto-filing of customs). D6: no
+  parent-rollup budgets (customs behave exactly like system leaves). D8 manual.ts fix: thread an
+  `extraValidCategoryIds` set (server passes ONLY the assertOwnedCategory-validated id — defense in depth
+  preserved, default empty set → byte-identical). CSV path confirmed NOT buggy (resolveCategory handles
+  customs; prepareImportedTransaction never re-checks).
+- Guardrails held: customs never under Income/Transfers (R1 — CUSTOM_CATEGORY_GROUPS enforced server-side
+  already); create-then-file SEQUENCED await (R4); no second delete path (R6).
+
+**Increment 1 acceptance criteria (testable):** A1 prepareManualTransaction accepts a custom id present in
+the extra set / rejects absent / default unchanged (unit). A2 create→createManualTransaction(custom id)
+persists — FAILS TODAY with `Unknown category` → regression lock, proven fail-before (integration,
+throwaway user). A3 create→applyCategory sequence files (integration — locks the UI contract). A4 e2e:
+alternatives → "+ New category" → name+prefilled group → creates, files, advances; new category present in
+subsequent pickers; `triage-alternatives` grid still EXACTLY 3 buttons (pin at phase2-triage.spec.ts:54
+— button lives OUTSIDE the grid). A5 duplicate/shadow errors surface inline, nothing filed. A6 axe AA with
+the mini-form open. A7 zero-custom user byte-identical (no seed/schema change; assignableCategories
+identity already locked).
+Files: src/lib/engine/transactions/manual.ts + src/server/transaction-actions.ts (bug fix),
+src/components/triage/triage-inbox.tsx (UI), tests/unit/transactions-manual.test.ts +
+tests/unit/manual-custom-category.test.ts (new) + tests/e2e/phase2-triage.spec.ts.
+
+### Increment 1 — DONE ✅ (verify green, critic 2 P1s fixed + e2e-locked, 0 open P0/P1)
+Test-first: the regression test drove the REAL createManualTransaction and FAILED with the exact
+diagnosed error (`Unknown category "cmr2it..."` at manual.ts:61) → fix (`extraValidCategoryIds`,
+default-empty = byte-identical; the action passes the one assertOwnedCategory-verified id) → pass.
+UI shipped as designed (create→file sequenced; overlay bridges the RSC refresh, deduped AND pruned
+once the server list knows the id — an e2e run caught the duplicate-option bug the dedup fixes).
+**Hostile critic (wf_e4584600, 4 lenses → adversarial verifier): 2 CONFIRMED P1, both FIXED +
+e2e-locked** — (a) rejected create action escaped to the route error boundary (try/catch → inline
+error; locked by a route-abort e2e); (b) open mini-form survived batchApply/undoLast top-card changes
+with a stale group prefill (both paths close it; locked by an undo-path e2e). P2s fixed: overlay
+prune, IME isComposing, name-normalization parity, Escape. Accepted residuals in STATUS 2026-07-01.
+**Gate (real, measured 2026-07-01):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1470 unit / 116
+files** (+5), tsc/eslint/build clean. E2E: gestures + write-in + accuracy **3/3** (write-in incl. axe
+AA with the form open + both P1 locks; 0.8–4.1s each).
+
+**ENVIRONMENTAL FINDING (evidence, not vibes):** the full-suite gate ran 58/59 — the one failure is
+the documented phase2-triage full-review throughput stall (#16/#17), which TODAY reproduces even
+isolated + fresh temp DB at THREE code points (my tree / pre-change HEAD / #131 where it last measured
+green) — a 3-point A/B proving machine-level SQLite write-throughput degradation, NOT a code
+regression and NOT caused by #136. Full evidence + follow-ups in STATUS 2026-07-01. Stopped hammering
+per the #123 protocol once the A/B was conclusive.
+
+**NEXT (owner-approved sweep, in order):** increment 2 = replace triage's unsearchable ~84-option
+native <select> with a searchable picker (register's listbox is the in-repo precedent; mind the
+triage-all-categories testid + axe pins); increment 3 = the same add affordance in the register
+inline-recat (transaction-list.tsx category-menu). Then: push (deploys #134+#135+#136 — owner's call).

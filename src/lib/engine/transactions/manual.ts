@@ -35,9 +35,18 @@ export interface PreparedTxn {
   status: 'POSTED';
 }
 
+const NO_EXTRA_IDS: ReadonlySet<string> = new Set();
+
 export function prepareManualTransaction(
   input: ManualTxnInput,
   rules: readonly RuleLike[] = [],
+  /**
+   * Category ids valid BEYOND the system set — the caller-verified custom
+   * categories this user owns (per-user cuids the static CATEGORY_BY_ID can't
+   * know). The server action passes only ids it has already run through
+   * assertOwnedCategory, so defense in depth is preserved (regression #136).
+   */
+  extraValidCategoryIds: ReadonlySet<string> = NO_EXTRA_IDS,
 ): PreparedTxn {
   const descriptor = input.descriptor.trim();
   if (!descriptor) throw new Error('Description is required');
@@ -54,10 +63,11 @@ export function prepareManualTransaction(
   if (magnitude <= 0) throw new Error('Amount must be greater than zero');
   const amountCents = input.direction === 'in' ? magnitude : -magnitude;
 
-  // An explicit category is authoritative (no review needed). Reject unknown
-  // slugs (defense in depth — the form only offers valid ones).
+  // An explicit category is authoritative (no review needed). Reject ids that
+  // are neither system categories nor caller-verified customs (defense in
+  // depth — the form only offers valid ones).
   const explicit = input.categoryId?.trim();
-  if (explicit && !CATEGORY_BY_ID.has(explicit)) {
+  if (explicit && !CATEGORY_BY_ID.has(explicit) && !extraValidCategoryIds.has(explicit)) {
     throw new Error(`Unknown category "${explicit}"`);
   }
   if (explicit) {

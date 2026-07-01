@@ -10,6 +10,7 @@
  * <15 interactions and <60 seconds — 15 × 4.0 = 60, so interactions < 15
  * implies the time budget holds. Both are asserted with the emitted log.
  */
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
@@ -77,6 +78,95 @@ test('gestures: swipe right accepts, swipe left reveals 3 alternatives, long-pre
       String(before - i + 1),
     );
   }
+});
+
+test('write-in category: create + file in one step, joins pickers, errors stay inline (#136)', async ({ page }) => {
+  await signInToTriage(page);
+  const catName = `Golf ${Date.now().toString().slice(-6)}`; // unique per run (retry-safe)
+  const inbox = page.getByTestId('triage-inbox');
+  const before = Number(await inbox.getAttribute('data-remaining'));
+  expect(before).toBeGreaterThan(1);
+
+  // ── Lock (critic P1): a half-typed write-in form must NOT survive when the
+  // top card changes without advance() (batchApply/undoLast paths). Accept a
+  // card, open the form on the next one and type into it, then UNDO — reopening
+  // alternatives on the restored card must show the button, not a stale form
+  // carrying the previous card's group prefill.
+  await page.getByTestId('triage-accept').click();
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
+  if (await page.getByTestId('rule-once').isVisible().catch(() => false)) {
+    await page.getByTestId('rule-once').click();
+  }
+  await page.getByTestId('triage-more').click();
+  await expect(page.getByTestId('triage-alternatives')).toBeVisible();
+  await expect(page.getByTestId('triage-alternatives').locator('button')).toHaveCount(3);
+  await page.getByTestId('triage-add-category').click();
+  await page.getByTestId('new-category-name').fill('Stale draft');
+  await page.getByTestId('triage-undo').click();
+  await expect(inbox).toHaveAttribute('data-remaining', String(before));
+  await page.getByTestId('triage-more').click();
+  await expect(page.getByTestId('triage-new-category')).toHaveCount(0); // form closed
+  await expect(page.getByTestId('triage-add-category')).toBeVisible();
+  const afterBatch = before; // queue fully restored by the undo
+
+  // Open the write-in mini-form; the group select is prefilled (spending groups
+  // only) and the whole page stays WCAG A/AA clean with the form open.
+  await page.getByTestId('triage-add-category').click();
+  await expect(page.getByTestId('triage-new-category')).toBeVisible();
+  await expect(page.getByTestId('new-category-group')).not.toHaveValue('');
+  const axe = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(axe.violations).toEqual([]);
+
+  // Create & file — the card advances by exactly one, and (rule-eligible
+  // merchant) the durable-rule prompt names the CUSTOM category.
+  await page.getByTestId('new-category-name').fill(catName);
+  await page.getByTestId('new-category-submit').click();
+  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
+  if (await page.getByTestId('rule-once').isVisible().catch(() => false)) {
+    await expect(page.getByTestId('rule-prompt')).toContainText(catName);
+    await page.getByTestId('rule-once').click();
+  }
+
+  // The fresh category is assignable on the NEXT card without a reload…
+  await page.getByTestId('triage-more').click();
+  await expect(
+    page.getByTestId('triage-all-categories').locator('option', { hasText: catName }),
+  ).toHaveCount(1);
+
+  // ── Lock (critic P1): a REJECTED create action (network failure) degrades to
+  // the inline error — never the route error boundary. Abort the next action POST.
+  let abortedOnce = false;
+  await page.route('**/triage*', async (route) => {
+    if (!abortedOnce && route.request().method() === 'POST') {
+      abortedOnce = true;
+      await route.abort('connectionfailed');
+    } else {
+      await route.continue();
+    }
+  });
+  await page.getByTestId('triage-add-category').click();
+  await page.getByTestId('new-category-name').fill(`${catName} B`);
+  await page.getByTestId('new-category-submit').click();
+  await expect(page.getByTestId('new-category-error')).toBeVisible();
+  await expect(inbox).toBeVisible(); // the island survived — no error boundary
+  await page.unroute('**/triage*');
+
+  // …and a duplicate name errors INLINE, filing nothing (queue count unchanged).
+  await page.getByTestId('new-category-name').fill(catName);
+  await page.getByTestId('new-category-submit').click();
+  await expect(page.getByTestId('new-category-error')).toBeVisible();
+  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
+
+  // Persistence: a full server re-render (fresh getVisibleCategories) must offer
+  // the category — proves the DB row, not the client-side overlay.
+  await page.reload();
+  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
+  await page.getByTestId('triage-more').click();
+  await expect(
+    page.getByTestId('triage-all-categories').locator('option', { hasText: catName }),
+  ).toHaveCount(1);
 });
 
 test('a full review session completes in <15 interactions (→ <60s human time)', async ({ page }) => {
