@@ -1199,3 +1199,26 @@ same day, and the three triage specs run in 0.8–4.1s when the box isn't satura
 (owner-gated): retest after a reboot; consider Windows Defender exclusions for the repo and
 %TEMP%\aimplifi-test-*; if it persists, serialize that one spec's writes or give the throughput test
 a dedicated DB.
+
+## 2026-07-01 — #136 increment 2: searchable triage picker (Checker 2 P1 fixed) + stall diagnosis CORRECTED
+Replaced the unsearchable ~84-option native <select> in triage alternatives with a search input +
+scrollable option list over the pure `filterCategoryOptions` (assign.ts, 11 unit tests). Focused
+Checker (wf_634e20c6): **2 confirmed P1, both FIXED + locked** — (1) search matched category NAMES
+only while GROUP labels are visible in the list ("bills" → false "no match" → nudged the user to
+create a DUPLICATE category; fix: a group-label match keeps the whole group); (2) keyboard access
+regressed vs the native select (~86 tab stops to reach search, dead Enter; fix: the panel takes focus
+on open (tabIndex -1 container — child buttons can be disabled mid-action, a container focus can't
+silently no-op), Enter files the single visible match, Escape clears/closes). P2 fixed: stale search
+query no longer survives batchApply/undoLast card changes (same class as the P1 form fix). e2e locks
+added for all of it (focus-on-open, group-label search, Enter-files, empty-query-after-undo).
+
+**STALL DIAGNOSIS CORRECTED (supersedes this morning's "SQLite write-throughput" wording):** a direct
+Prisma write probe against the SAME e2e DB file ran 60×(create+update+delete) at **min 0 / p50 1 /
+p95 1 / max 22 ms** while browser-driven server actions stalled ≥60s — the storage layer is HEALTHY;
+the stall lives in the request/server layer (`next start` action POST handling) under RAPID
+SEQUENTIAL actions. Switching the test loopback localhost→127.0.0.1 stabilized the lighter specs this
+session but did NOT cure the full-review rapid-write stall (still reproduces, stall position varies).
+Still environmental-not-code (3-point A/B incl. #131 stands). Runtime versions for future comparison:
+node v24.16.0, playwright 1.60.0, next 15.5.19 — a system Node/OS update since 2026-06-29 (when this
+test last measured green) is the prime suspect. Owner follow-ups: reboot + rerun; if persistent, try
+pinning the Node version the 6/29 run used, or instrument the action route latency server-side.

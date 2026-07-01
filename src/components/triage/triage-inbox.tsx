@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatISODate, isoDate } from '@/lib/dates';
-import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
+import { CUSTOM_CATEGORY_GROUPS, filterCategoryOptions } from '@/lib/engine/categorize/assign';
 import { cents, centsFromDollarString, formatCents } from '@/lib/money';
 import type { TriageItem } from '@/server/triage';
 import { createCustomCategory } from '@/server/custom-category-actions';
@@ -85,6 +85,19 @@ export function TriageInbox({
   const [newCatGroup, setNewCatGroup] = useState<string>(CUSTOM_CATEGORY_GROUPS[0] ?? '');
   const [newCatDiscretionary, setNewCatDiscretionary] = useState(true);
   const [newCatError, setNewCatError] = useState<string | null>(null);
+  // Search query for the "any category" picker (#136 increment 2 — the ~84-option
+  // native <select> was unsearchable, the owner's "clunky" complaint).
+  const [catQuery, setCatQuery] = useState('');
+  const altPanelRef = useRef<HTMLDivElement | null>(null);
+  // Keyboard path (critic P1): the panel opens ABOVE the "⋯ Pick" trigger in DOM
+  // order, so without focus management the search box is ~86 Shift+Tabs away.
+  // Focus the PANEL itself (tabIndex -1) when it opens: focusing a child button
+  // would silently no-op while it's disabled mid-action (pending race), and a
+  // container can't pop the mobile keyboard on swipe-left. Tab then reaches the
+  // alternatives and search in a few stops.
+  useEffect(() => {
+    if (mode === 'alternatives') altPanelRef.current?.focus();
+  }, [mode]);
 
   const top = items[0];
   // The overlay is a BRIDGE until the create action's revalidation refreshes the
@@ -131,6 +144,7 @@ export function TriageInbox({
     setSplitSecondCat('');
     setNewCatOpen(false);
     setNewCatError(null);
+    setCatQuery('');
   }
 
   /** Optimistic update with rollback: a failed action restores the queue and
@@ -238,9 +252,11 @@ export function TriageInbox({
     setMode('idle');
     // The top card changes without advance() — close the write-in form so a
     // half-typed name + the PREVIOUS card's group prefill can never be filed
-    // against the next card (critic P1).
+    // against the next card (critic P1), and drop the search filter so the
+    // next card's picker doesn't open pre-filtered (same class).
     setNewCatOpen(false);
     setNewCatError(null);
+    setCatQuery('');
     runAction(rollback, async () => {
       const result = await applyToAllSimilar({
         transactionId: item.id,
@@ -302,9 +318,10 @@ export function TriageInbox({
         setMode('idle');
         setDragX(0);
         // Undo replaces the top card without advance() — same stale-form
-        // close as batchApply (critic P1).
+        // close + search-filter reset as batchApply (critic P1).
         setNewCatOpen(false);
         setNewCatError(null);
+        setCatQuery('');
       } catch (e) {
         // the undo opportunity must not silently vanish — restore it
         setUndoStack((s) => [...s, last]);
@@ -419,6 +436,13 @@ export function TriageInbox({
   }
 
   // ── live split preview (top is defined past the empty-state return above) ──
+  const visibleCatGroups = filterCategoryOptions(categoryGroups, catQuery);
+  // Exactly one visible option → Enter in the search box files it (the
+  // keyboard replacement for the old select's type-ahead — critic P1).
+  const onlyVisibleCat =
+    visibleCatGroups.length === 1 && visibleCatGroups[0].items.length === 1
+      ? visibleCatGroups[0].items[0]
+      : null;
   const splitTotal = Math.abs(top.amountCents);
   const defaultSecondCatId =
     allCats.find((c) => c.id === 'shopping')?.id ??
@@ -491,7 +515,14 @@ export function TriageInbox({
       </Card>
 
       {mode === 'alternatives' && (
-        <div className="space-y-2">
+        <div
+          className="space-y-2 outline-none"
+          ref={altPanelRef}
+          tabIndex={-1}
+          role="region"
+          aria-label="Pick a category"
+          data-testid="triage-alternatives-panel"
+        >
           <div className="grid grid-cols-3 gap-2" data-testid="triage-alternatives">
             {top.alternativeIds.map((id, i) => (
               <Button
@@ -505,34 +536,61 @@ export function TriageInbox({
               </Button>
             ))}
           </div>
-          <div className="flex items-center gap-2">
-            <label htmlFor="triage-all-cats" className="whitespace-nowrap text-xs text-muted-foreground">
-              Or any category:
+          <div className="space-y-1">
+            <label htmlFor="triage-cat-search" className="text-xs text-muted-foreground">
+              Or search all {allCats.length} categories:
             </label>
-            <select
-              id="triage-all-cats"
-              data-testid="triage-all-categories"
-              disabled={pending}
-              defaultValue=""
-              className="w-full rounded-md border bg-background px-2 py-1 text-sm"
-              onChange={(e) => {
-                const id = e.target.value;
-                if (id) accept(top, id, 'select');
+            <input
+              id="triage-cat-search"
+              type="search"
+              value={catQuery}
+              onChange={(e) => setCatQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  // Enter files the single visible match — the keyboard
+                  // replacement for the old select's type-ahead (critic P1).
+                  if (onlyVisibleCat && !pending) accept(top, onlyVisibleCat.id, 'select');
+                } else if (e.key === 'Escape') {
+                  if (catQuery) setCatQuery('');
+                  else setMode('idle');
+                }
               }}
+              placeholder="Search categories…"
+              data-testid="triage-cat-search"
+              disabled={pending}
+              className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+            />
+            <div
+              data-testid="triage-all-categories"
+              className="max-h-56 overflow-auto rounded-md border p-1"
             >
-              <option value="" disabled>
-                Pick from all {allCats.length} categories…
-              </option>
-              {categoryGroups.map((g) => (
-                <optgroup key={g.group} label={g.group}>
+              {visibleCatGroups.map((g) => (
+                <div key={g.group}>
+                  <div className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {g.group}
+                  </div>
                   {g.items.map((c) => (
-                    <option key={c.id} value={c.id}>
+                    <button
+                      key={c.id}
+                      type="button"
+                      data-testid="triage-cat-option"
+                      data-cat={c.id}
+                      disabled={pending}
+                      className="flex w-full items-center rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                      onClick={() => accept(top, c.id, 'select')}
+                    >
                       {c.name}
-                    </option>
+                    </button>
                   ))}
-                </optgroup>
+                </div>
               ))}
-            </select>
+              {visibleCatGroups.length === 0 && (
+                <p className="px-2 py-1.5 text-xs text-muted-foreground" data-testid="triage-cat-no-match">
+                  No matching category — create it below.
+                </p>
+              )}
+            </div>
           </div>
           {!newCatOpen ? (
             <Button

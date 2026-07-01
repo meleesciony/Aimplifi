@@ -1227,3 +1227,21 @@ per the #123 protocol once the A/B was conclusive.
 native <select> with a searchable picker (register's listbox is the in-repo precedent; mind the
 triage-all-categories testid + axe pins); increment 3 = the same add affordance in the register
 inline-recat (transaction-list.tsx category-menu). Then: push (deploys #134+#135+#136 — owner's call).
+
+### Increment 2 — DONE ✅ (verify green 1476/116, Checker 2 P1 fixed + locked, e2e 3/3)
+Searchable picker shipped: pure `filterCategoryOptions` (assign.ts, 11 known-answer tests incl.
+blank-query identity + group-label matching) + search input/option list replacing the native select
+(plain buttons — deliberately NOT ARIA listbox/option, keeps the axe scan clean; DECISIONS #137).
+Focused Checker (wf_634e20c6) found 2 REAL P1 regressions the picker would have shipped: (1)
+name-only search missed visible GROUP labels ("bills" → false no-match → duplicate-manufacturing);
+(2) keyboard access regressed hard vs the select (~86 tab stops, dead Enter). Fixed: group-label
+match keeps the whole group; the PANEL takes focus on open (container tabIndex -1 — a first-run e2e
+failure proved focusing a child button silently no-ops while it's disabled mid-action); Enter files
+the single visible match; Escape clears/closes; stale query reset on batch/undo (P2, same class as
+the form fix). All e2e-locked in the write-in spec.
+**Stall diagnosis CORRECTED (STATUS 2026-07-01):** direct Prisma write probe on the e2e DB =
+min 0/p50 1/p95 1/max 22 ms while browser actions stalled ≥60s → storage HEALTHY, the stall is in
+the request/server layer under rapid sequential actions; localhost→127.0.0.1 pinned (hygiene; light
+specs stabilized, full-review stall persists; still environmental per the 3-point A/B). Versions
+recorded for the owner: node v24.16.0 / playwright 1.60.0 / next 15.5.19.
+Gate (real 2026-07-01): verify.sh → ✅ GREEN 1476 unit/116 files; e2e gestures+write-in+accuracy 3/3.

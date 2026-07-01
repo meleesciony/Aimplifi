@@ -90,6 +90,30 @@ export const CUSTOM_CATEGORY_GROUPS: string[] = ASSIGNABLE_GROUPS.map((g) => g.g
 );
 
 /**
+ * Case-insensitive substring filter over grouped category options — the pure
+ * core of the searchable pickers (#136 increment 2). Empty/blank query returns
+ * the SAME array reference (zero-cost identity for the no-search render).
+ * A query matching a GROUP label keeps the whole group: the labels are visible
+ * in the picker, so "bills" must find the "Bills & Utilities" group — a
+ * name-only match would falsely say "no match" and nudge the user into
+ * creating a duplicate category (critic P1). Groups with no match are dropped.
+ */
+export function filterCategoryOptions(
+  groups: readonly { group: string; items: { id: string; name: string }[] }[],
+  query: string,
+): { group: string; items: { id: string; name: string }[] }[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return groups as { group: string; items: { id: string; name: string }[] }[];
+  return groups
+    .map((g) =>
+      g.group.toLowerCase().includes(q)
+        ? g
+        : { group: g.group, items: g.items.filter((c) => c.name.toLowerCase().includes(q)) },
+    )
+    .filter((g) => g.items.length > 0);
+}
+
+/**
  * A merchant-wide "always" rule is offered only for real merchants — never for
  * aggregate pseudo-merchants (Zelle / checks / ATM) that group unrelated payees,
  * where "always file ALL of these the same way" would be wrong (DECISIONS #23).

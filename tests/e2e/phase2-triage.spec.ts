@@ -100,6 +100,9 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
   await page.getByTestId('triage-more').click();
   await expect(page.getByTestId('triage-alternatives')).toBeVisible();
   await expect(page.getByTestId('triage-alternatives').locator('button')).toHaveCount(3);
+  // Keyboard path (critic P1): opening the panel lands focus ON it (container,
+  // tabIndex -1), so alternatives + search are a few Tabs away, not ~86.
+  await expect(page.getByTestId('triage-alternatives-panel')).toBeFocused();
   await page.getByTestId('triage-add-category').click();
   await page.getByTestId('new-category-name').fill('Stale draft');
   await page.getByTestId('triage-undo').click();
@@ -129,11 +132,21 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
     await page.getByTestId('rule-once').click();
   }
 
-  // The fresh category is assignable on the NEXT card without a reload…
+  // The fresh category is assignable on the NEXT card without a reload — and
+  // the picker SEARCH (increment 2) narrows ~84 options to exactly it.
   await page.getByTestId('triage-more').click();
-  await expect(
-    page.getByTestId('triage-all-categories').locator('option', { hasText: catName }),
-  ).toHaveCount(1);
+  await page.getByTestId('triage-cat-search').fill(catName);
+  await expect(page.getByTestId('triage-cat-option')).toHaveCount(1);
+  await expect(page.getByTestId('triage-cat-option')).toHaveText(catName);
+  await page.getByTestId('triage-cat-search').fill('zzz no such category');
+  await expect(page.getByTestId('triage-cat-no-match')).toBeVisible();
+  await expect(page.getByTestId('triage-add-category')).toBeVisible(); // create-hint synergy
+  // A GROUP-label query must find the group's categories (critic P1: "bills"
+  // matches the visible "Bills & Utilities" header, no category name).
+  await page.getByTestId('triage-cat-search').fill('bills');
+  await expect(page.getByTestId('triage-cat-option').first()).toBeVisible();
+  await expect(page.getByTestId('triage-cat-no-match')).toHaveCount(0);
+  await page.getByTestId('triage-cat-search').fill('');
 
   // ── Lock (critic P1): a REJECTED create action (network failure) degrades to
   // the inline error — never the route error boundary. Abort the next action POST.
@@ -160,13 +173,26 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
   await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
 
   // Persistence: a full server re-render (fresh getVisibleCategories) must offer
-  // the category — proves the DB row, not the client-side overlay.
+  // the category — proves the DB row, not the client-side overlay. Then the
+  // search picker FILES with it end-to-end (click → accept), and undo restores.
   await page.reload();
   await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
   await page.getByTestId('triage-more').click();
-  await expect(
-    page.getByTestId('triage-all-categories').locator('option', { hasText: catName }),
-  ).toHaveCount(1);
+  await page.getByTestId('triage-cat-search').fill(catName);
+  await expect(page.getByTestId('triage-cat-option')).toHaveCount(1);
+  // Enter in the search box files the SINGLE visible match — the keyboard
+  // replacement for the old select's type-ahead (critic P1).
+  await page.getByTestId('triage-cat-search').press('Enter');
+  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 2));
+  if (await page.getByTestId('rule-once').isVisible().catch(() => false)) {
+    await expect(page.getByTestId('rule-prompt')).toContainText(catName);
+    await page.getByTestId('rule-once').click();
+  }
+  await page.getByTestId('triage-undo').click();
+  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
+  // The search filter must NOT survive the undo's card change (critic P2).
+  await page.getByTestId('triage-more').click();
+  await expect(page.getByTestId('triage-cat-search')).toHaveValue('');
 });
 
 test('a full review session completes in <15 interactions (→ <60s human time)', async ({ page }) => {

@@ -20,7 +20,14 @@ export default defineConfig({
   fullyParallel: true,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:3100',
+    // 127.0.0.1, NOT localhost: Node 17+ resolves localhost to ::1 first, so the
+    // loopback family the tests use is otherwise ambiguous. Pinned 2026-07-01 while
+    // investigating ≥60s server-action stalls (STATUS #16/#17): a direct Prisma
+    // write probe on the same DB ran at p50=1ms, so the stall is in the
+    // request/server layer, not storage. IPv4 did NOT cure the rapid-write
+    // full-review stall, but the lighter specs stabilized over it this session;
+    // kept as deterministic hygiene.
+    baseURL: 'http://127.0.0.1:3100',
     trace: 'retain-on-failure',
   },
   projects: [
@@ -34,7 +41,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npx next start -p 3100',
-    url: 'http://localhost:3100/sign-in',
+    url: 'http://127.0.0.1:3100/sign-in',
     // The off-tree e2e DB is applied via webServer.env below, so it only takes
     // effect when Playwright SPAWNS the server. reuseExistingServer is true locally
     // for fast iteration: ensure port 3100 is free before a clean run — a server
