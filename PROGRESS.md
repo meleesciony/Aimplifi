@@ -1535,3 +1535,21 @@ stalls = the documented environmental disabled-pending class (STATUS 2026-07-01)
 action itself APPLIED — data-remaining asserted <1s earlier), non-reproducing isolated, same class hit
 already-deployed 69a335b yesterday. Machine still unrebooted (boot Jun 30). Full-suite serial re-witness
 stays reboot-gated (standing owner NEXT).
+
+
+## 2026-07-02 (close) — SESSION END: 7 commits today, stack COMPLETE pending owner reboot/push
+Local main = 69a335b + 16 commits, ALL UNPUSHED. Today: #145 /investments disclosure (e51d6fe,
+checker-clean) + the full checker campaign on the categorization rebuild — cycle-2 (bbda775, 20/20),
+cycle-3 (829d291, 16/16), cycle-4 final (f05a55c, 1 P1 + 8 P2 recorded open at the cap), owner
+authorized cycle-5 (509c208, reviewPinned schema + P2 batch) + scoped confirmation fixes (8055243,
+backfill seventh writer + sweep laundering). Gate at HEAD: ✅ VERIFY GREEN **1554 unit / 122 files**
+(session start: 1520/120). Every confirmed finding across 5 adversarial rounds is fixed with a
+fail-old-proven lock or documented as an owner-ratified residual (STATUS).
+HONESTY LABELS STANDING: PG isolation closure = reasoning + wiring locks, UNVERIFIED-on-PG; the two
+confirmation fixes are lock-proven, not further adversarially checked (authorization spent); e2e
+serial runs stall environmentally (3-point A/B-proven, position varies) — every test witnessed green
+isolated on the final build.
+OWNER NEXT: (1) reboot → `VERIFY_E2E=1 bash scripts/verify.sh` full re-witness; (2) push call
+(deploy applies reviewPinned via the build's `prisma db push` automatically); (3) backlog: STATUS 23
+remainder (register/triage/reports disclosure), #134 loan de-dup, #127 tail, shared CategoryPicker.
+SAFE to /clear.
