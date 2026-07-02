@@ -1438,3 +1438,34 @@ Fix plan (tasks #2-#6): P0-A three ends (split status guard + transplant preserv
 legacy rows + removed[] cascades children); P1-B compare-and-set/Serializable design decision;
 P1-C pre-dispatch emptiness derivation; P2 batch; then cycle-3 confirmation workflow (cycle cap 4).
 NEXT: checker wf_637cc5e5 result → #145 commit → cycle-2 fixes (P0 first).
+
+**#145 COMMITTED (e51d6fe)** — checker 0 P0/P1, 2 P2 fixed (byte-identity lock + real guard witness),
+disclosure spec 3/3 GREEN 15.4s. Local main now +11 unpushed.
+
+**CYCLE-2 FIXES IMPLEMENTED (DECISIONS #146, STATUS cycle-2 section, REGRESSION_LEDGER row):**
+Design pivots vs the initial plan, decided from ground truth: (1) NO pending-split status guard —
+critic2 F1 models splitting the seeded pending Zelle, it's a documented capability; instead the split
+lifecycle invariant is enforced at every churn path (transplant carries/dissolves; removed[] cascades
+children; same-id drift dissolves BOTH providers; preserved splits post children). (2) Serializable
+(serializableTx helper, probed OK on better-sqlite3) over CAS — Correction has no FK so a WHERE can't
+re-assert "corrected", and CAS can't stop the double-mint dedupe race. (3) P2002→guarded-update
+fallback restores CQ-2 in both providers. (4) Merchantless scope pins merchantId:null; aggregates
+descriptor-only BY DESIGN (agg: cards mix CSV+synced rows). (5) ensureUnconditionalRule shared mint
+(5 condition columns in the dedupe; recategorize dedupes + fetches targets in-tx). (6) groupEmptied
+derived pre-dispatch; e2e lock drains a group and files the last row via write-in.
+Locks: serializable-tx.test.ts (helper contract) + sync-preserves +6 + triage-groups +4 + phase2 e2e
+singles-leak. **Fail-old PROVEN by stash-run: 8 locks red on pre-fix code, green on fixed** (the
+count≡scope lock passes both by design — prophylactic; the singles e2e fail-old is by mechanism
+inspection). Affected suites 35/35 + 12/12 green; tsc/eslint clean.
+NEXT: full verify + phase2-triage/sync e2e → cycle-2 commit → cycle-3 confirmation workflow.
+
+**CYCLE-2 GATE (real, measured 2026-07-02 ~14:55):** `bash scripts/verify.sh` → ✅ VERIFY GREEN;
+isolated `npx vitest run` → **1535 passed / 121 files (36.8s)** (+15: 5 helper-contract + 6 sync +
+4 triage-groups). E2E on the final tree: currency-disclosure 3/3 GREEN in-suite; phase2-triage —
+EVERY test witnessed green on this tree (gesture in-suite run 1; write-in isolated 8.0s; **NEW
+singles-leak lock isolated 5.6s**; throughput isolated 5.4s; accuracy isolated 1.3s). TWO serial-run
+stalls = the documented environmental disabled-pending class (STATUS 2026-07-01): position VARIES
+(write-in :199 run 1, gesture :103 run 2), signature identical (`triage-undo` disabled ≥60s while the
+action itself APPLIED — data-remaining asserted <1s earlier), non-reproducing isolated, same class hit
+already-deployed 69a335b yesterday. Machine still unrebooted (boot Jun 30). Full-suite serial re-witness
+stays reboot-gated (standing owner NEXT).

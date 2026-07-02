@@ -51,13 +51,21 @@ export function similarTransactionsWhere(
   // they're excluded from every aggregation) — and excluding them keeps the
   // register's "re-file all N" count equal to the rows actually mutated (#44).
   //
-  // MERCHANTLESS rows scope by EXACT descriptor, like aggregates (Phase-3
-  // checker P0): `{ merchantId: null }` is a real Prisma filter (IS NULL) that
-  // would match EVERY merchantless row the user owns — one tap on a manual/CSV
-  // group card must never mass-file unrelated merchants.
-  const scope =
-    txn.aggregate || txn.merchantId === null
-      ? { rawDescriptor: txn.rawDescriptor }
+  // MERCHANTLESS rows scope by EXACT descriptor AND merchantId: null (Phase-3
+  // checker P0 + cycle-2 P2): a bare `{ merchantId: null }` would match EVERY
+  // merchantless row the user owns, and a bare `{ rawDescriptor }` also matched
+  // MERCHANT-ATTACHED rows carrying the identical bank text — which groupKey
+  // puts on a SEPARATE m: card (manual/CSV rows never get a merchantId; synced
+  // rows always do), so one tap on the raw: card also filed the m: card's rows.
+  // The scope must partition rows exactly the way groupKey partitions cards.
+  // AGGREGATES stay descriptor-only: aggregate is a function of the descriptor,
+  // so one agg: card can mix merchantless (CSV) and merchant-attached (synced)
+  // rows of the same text — pinning merchantId there would file fewer rows than
+  // the card counts.
+  const scope = txn.aggregate
+    ? { rawDescriptor: txn.rawDescriptor }
+    : txn.merchantId === null
+      ? { rawDescriptor: txn.rawDescriptor, merchantId: null }
       : { merchantId: txn.merchantId };
   // Currency guard (DECISIONS #135): the "apply to N similar" scope touches supported accounts only.
   const account = { userId, OR: [{ currency: null }, { currency: 'USD' }] };

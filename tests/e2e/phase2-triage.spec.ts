@@ -236,6 +236,58 @@ test('write-in category: create + file the whole group, joins pickers, errors st
   }
 });
 
+test('singles mode never leaks onto the next card: write-in on the LAST row resets to idle (cycle-2 P1)', async ({ page }) => {
+  await signInToTriage(page);
+  const inbox = page.getByTestId('triage-inbox');
+  const splitBtn = page.getByTestId('triage-split-btn');
+  await expect(splitBtn).toBeVisible();
+
+  // Composition-independent: file 1-row tops away until a MULTI-row group
+  // surfaces (its action button reads "One by one"; 1-row tops read "Split").
+  for (let i = 0; i < 8; i++) {
+    if ((await splitBtn.textContent())?.includes('One by one')) break;
+    const remaining = Number(await inbox.getAttribute('data-remaining'));
+    expect(remaining, 'queue exhausted before a multi-row group surfaced (fixture drift)').toBeGreaterThan(1);
+    const hasSuggestion = (await page.getByTestId('triage-suggestion').count()) > 0;
+    await page.getByTestId('triage-accept').click(); // suggestion files; otherwise opens the picker
+    if (!hasSuggestion) {
+      await page.getByTestId('triage-alternatives').locator('button').first().click();
+    }
+    await expect(inbox).toHaveAttribute('data-remaining', String(remaining - 1));
+  }
+  await expect(splitBtn).toContainText('One by one');
+
+  const before = Number(await inbox.getAttribute('data-remaining'));
+  await splitBtn.click();
+  await expect(page.getByTestId('triage-singles')).toBeVisible();
+
+  // Drain the group to its LAST row via per-row quick-picks…
+  let rows = await page.getByTestId('triage-single-row').count();
+  expect(rows).toBeGreaterThan(1);
+  while (rows > 1) {
+    await page.getByTestId('single-pick').first().click();
+    await page.getByTestId('triage-alternatives').locator('button').first().click();
+    await expect(page.getByTestId('triage-single-row')).toHaveCount(rows - 1);
+    rows -= 1;
+  }
+
+  // …then file the last row through the WRITE-IN. createAndFile dispatches
+  // setExtraCategories/setNewCatName BEFORE onPick→fileRow→removeRowLocally —
+  // exactly the ordering under which the pre-fix reset (a side effect inside
+  // the setGroups updater, skipped when React defers the updater) silently
+  // no-oped and singles mode leaked onto the NEXT merchant's card (cycle-2 P1).
+  await page.getByTestId('single-pick').click();
+  await page.getByTestId('triage-add-category').click();
+  await page.getByTestId('new-category-name').fill(`Leak ${Date.now().toString().slice(-6)}`);
+  await page.getByTestId('new-category-submit').click();
+
+  // Group emptied → queue advanced AND mode reset: the next card renders
+  // COLLAPSED (no pre-expanded, untapped singles list).
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
+  await expect(page.getByTestId('triage-singles')).toHaveCount(0);
+  await expect(page.getByTestId('triage-card')).toBeVisible();
+});
+
 test('review cost scales with DECISIONS: week slice <15/<60s, full backlog ≤ 2×groups+2', async ({ page }) => {
   // 12+ sequential server actions; this machine's documented action-apply stall
   // (STATUS #16/#17) can hold a `pending` button past the default 60s. Wall-clock

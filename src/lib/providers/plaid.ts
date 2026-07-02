@@ -24,7 +24,7 @@ import type { JWK } from 'jose';
 import type { ISODate } from '@/lib/dates';
 import { businessToday } from '@/lib/business-today';
 import { decryptToken, encryptToken } from '@/lib/crypto';
-import { prisma } from '@/lib/db';
+import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
 import { detectTransfers } from '@/lib/engine/categorize/transfers';
 import { loadUserRules } from '@/server/rules';
 import { refreshRecurringForUser } from '@/server/recurring';
@@ -326,6 +326,7 @@ export class PlaidProvider implements DataProvider {
 
         let cursor = item.cursor ?? undefined;
         let hasMore = true;
+        const removedRefs: string[] = []; // buffered across pages — applied after the loop
         while (hasMore) {
           const page = await plaidPost<{
             accounts?: PlaidAccount[];
@@ -376,77 +377,205 @@ export class PlaidProvider implements DataProvider {
               needsReview: row.needsReview,
               isTransfer: row.isTransfer,
             };
-            if (existing) {
-              // Atomic check-then-act (checker P1): presence check + write land in ONE
-              // write transaction, serialized against a concurrent fileMerchantGroup.
-              await prisma.$transaction(async (tx) => {
+            // Check-then-act at SERIALIZABLE isolation (cycle-2 P1): under production
+            // Postgres READ COMMITTED a fileMerchantGroup/applyCategory committing
+            // between the in-tx read and the write was still clobbered; Serializable
+            // turns that into a detected conflict → P2034 → serializableTx re-runs
+            // against fresh state (DECISIONS #146). SQLite: single-writer, unchanged.
+            const guardedVerdictRefresh = (id: string) =>
+              serializableTx(async (tx) => {
                 const fresh = await tx.transaction.findUniqueOrThrow({
-                  where: { id: existing.id },
-                  select: { isSplitParent: true, needsReview: true },
+                  where: { id },
+                  select: { isSplitParent: true, needsReview: true, amountCents: true },
                 });
+                if (fresh.isSplitParent && fresh.amountCents !== row.amountCents) {
+                  // The bank changed a SPLIT row's amount under the same id (pending
+                  // tip/adjustment posting): the children no longer sum to the charge,
+                  // so the split is stale — DISSOLVE it back to one row on the fresh
+                  // pipeline verdict; needsReview routes it to triage, which is the
+                  // "please re-decide" notification. Same invariant as the id-churn
+                  // transplant below (cycle-2 P0 family, DECISIONS #146).
+                  await tx.transaction.deleteMany({ where: { splitParentId: id } });
+                  await tx.transaction.update({
+                    where: { id },
+                    data: { ...data, isSplitParent: false },
+                  });
+                  return;
+                }
                 const corrected =
-                  (await tx.correction.count({ where: { transactionId: existing.id } })) > 0;
+                  (await tx.correction.count({ where: { transactionId: id } })) > 0;
                 const preserve = fresh.isSplitParent || (corrected && !fresh.needsReview);
                 await tx.transaction.update({
-                  where: { id: existing.id },
+                  where: { id },
                   data: preserve ? base : data,
                 });
+                if (fresh.isSplitParent) {
+                  // A preserved split POSTS with its parent: children stuck PENDING
+                  // forever would distort every pending projection (cycle-2 P0 family).
+                  await tx.transaction.updateMany({
+                    where: { splitParentId: id },
+                    data: { status: row.status },
+                  });
+                }
               });
+            if (existing) {
+              await guardedVerdictRefresh(existing.id);
               modified++;
             } else {
               // Pending→posted id churn (checker P1): Plaid links a posted txn to its
               // pending predecessor via pending_transaction_id. Transplant the user's
               // settled verdict onto the new id — the old row is deleted (page.removed
               // will also name it), so without this the correction would be orphaned
-              // and the decision silently reverted.
+              // and the decision silently reverted. EVERY predecessor read happens
+              // INSIDE the serializable tx (cycle-2 P1: an outside read let a
+              // correction landing in the window compute `settled` from a stale flag).
               const pendingRef =
                 (txn as { pending_transaction_id?: string | null }).pending_transaction_id ?? null;
-              const predecessor = pendingRef
-                ? await prisma.transaction.findFirst({
-                    where: { providerRef: pendingRef, account: { userId } },
-                    select: { id: true, categoryId: true, confidenceBps: true, needsReview: true, isTransfer: true },
+              const transplanted = pendingRef
+                ? await serializableTx(async (tx) => {
+                    const predecessor = await tx.transaction.findFirst({
+                      where: { providerRef: pendingRef, account: { userId } },
+                      select: {
+                        id: true,
+                        amountCents: true,
+                        categoryId: true,
+                        confidenceBps: true,
+                        needsReview: true,
+                        isTransfer: true,
+                        isSplitParent: true,
+                      },
+                    });
+                    if (!predecessor) return false;
+                    if (predecessor.isSplitParent) {
+                      // Cycle-2 P0: a split PENDING parent posting under a new id was
+                      // deleted with isSplitParent dropped — children dangled (no FK)
+                      // AND a new full-amount row double-counted the charge. Splitting
+                      // a pending row is a SUPPORTED flow (critic2 F1 models the seeded
+                      // pending Zelle split), so the churn must carry the split across.
+                      const children = await tx.transaction.findMany({
+                        where: { splitParentId: predecessor.id },
+                        select: { id: true, amountCents: true },
+                      });
+                      const childSum = children.reduce((s, c) => s + c.amountCents, 0);
+                      if (children.length > 0 && childSum === row.amountCents) {
+                        // Amounts agree — the split survives verbatim: new container row,
+                        // children re-pointed (and posted with it), corrections follow.
+                        const container = await tx.transaction.create({
+                          data: {
+                            accountId,
+                            providerRef: row.providerRef,
+                            ...base,
+                            categoryId: null,
+                            confidenceBps: null,
+                            needsReview: false,
+                            isTransfer: predecessor.isTransfer,
+                            isSplitParent: true,
+                          },
+                        });
+                        await tx.transaction.updateMany({
+                          where: { splitParentId: predecessor.id },
+                          data: { splitParentId: container.id, status: row.status },
+                        });
+                        await tx.correction.updateMany({
+                          where: { transactionId: predecessor.id, userId },
+                          data: { transactionId: container.id },
+                        });
+                        await tx.transaction.delete({ where: { id: predecessor.id } });
+                        return true;
+                      }
+                      // The bank changed the amount while pending (tip/adjustment): the
+                      // split's parts no longer sum to the charge, and inventing an
+                      // adjustment part would fabricate a row the user never made. The
+                      // honest move is to DISSOLVE the stale split back into one row that
+                      // takes the fresh pipeline verdict — needsReview routes it to triage,
+                      // which IS the "please re-decide" notification. Corrections still
+                      // follow the charge (audit = state).
+                      await tx.transaction.deleteMany({ where: { splitParentId: predecessor.id } });
+                      const replacement = await tx.transaction.create({
+                        data: { accountId, providerRef: row.providerRef, ...data },
+                      });
+                      await tx.correction.updateMany({
+                        where: { transactionId: predecessor.id, userId },
+                        data: { transactionId: replacement.id },
+                      });
+                      await tx.transaction.delete({ where: { id: predecessor.id } });
+                      return true;
+                    }
+                    const corrected =
+                      (await tx.correction.count({ where: { transactionId: predecessor.id } })) > 0;
+                    const settled = corrected && !predecessor.needsReview;
+                    const created = await tx.transaction.create({
+                      data: {
+                        accountId,
+                        providerRef: row.providerRef,
+                        ...base,
+                        categoryId: settled ? predecessor.categoryId : row.categoryId,
+                        confidenceBps: settled ? predecessor.confidenceBps : row.confidenceBps,
+                        needsReview: settled ? false : row.needsReview,
+                        isTransfer: settled ? predecessor.isTransfer : row.isTransfer,
+                      },
+                    });
+                    // Corrections follow the transaction across the id churn (audit = state).
+                    await tx.correction.updateMany({
+                      where: { transactionId: predecessor.id, userId },
+                      data: { transactionId: created.id },
+                    });
+                    await tx.transaction.delete({ where: { id: predecessor.id } });
+                    return true;
                   })
-                : null;
-              if (predecessor) {
-                await prisma.$transaction(async (tx) => {
-                  const corrected =
-                    (await tx.correction.count({ where: { transactionId: predecessor.id } })) > 0;
-                  const settled = corrected && !predecessor.needsReview;
-                  const created = await tx.transaction.create({
-                    data: {
-                      accountId,
-                      providerRef: row.providerRef,
-                      ...base,
-                      categoryId: settled ? predecessor.categoryId : row.categoryId,
-                      confidenceBps: settled ? predecessor.confidenceBps : row.confidenceBps,
-                      needsReview: settled ? false : row.needsReview,
-                      isTransfer: settled ? predecessor.isTransfer : row.isTransfer,
-                    },
-                  });
-                  // Corrections follow the transaction across the id churn (audit = state).
-                  await tx.correction.updateMany({
-                    where: { transactionId: predecessor.id, userId },
-                    data: { transactionId: created.id },
-                  });
-                  await tx.transaction.delete({ where: { id: predecessor.id } });
-                });
+                : false;
+              if (transplanted) {
                 modified++;
               } else {
-                await prisma.transaction.create({ data: { accountId, providerRef: row.providerRef, ...data } });
-                added++;
+                try {
+                  await prisma.transaction.create({ data: { accountId, providerRef: row.providerRef, ...data } });
+                  added++;
+                } catch (e) {
+                  // Two overlapping syncs can both miss the findFirst and race the create
+                  // (cycle-2 P2, the CQ-2 class): the loser lands here on the
+                  // @@unique(accountId, providerRef) — take the guarded UPDATE path
+                  // instead of aborting the whole sync loop.
+                  if (!isUniqueViolation(e)) throw e;
+                  const raced = await prisma.transaction.findFirst({
+                    where: { providerRef: row.providerRef, account: { userId } },
+                    select: { id: true },
+                  });
+                  if (raced) {
+                    await guardedVerdictRefresh(raced.id);
+                    modified++;
+                  }
+                }
               }
             }
           }
 
-          for (const r of page.removed) {
-            const res = await prisma.transaction.deleteMany({
-              where: { providerRef: r.transaction_id, account: { userId } },
-            });
-            removed += res.count;
-          }
+          // Buffer removed ids until every page is applied (cycle-2 P2): Plaid does
+          // not guarantee the removed[pending-id] and its added[posted twin] share a
+          // sync page — applying removes per page deleted the predecessor BEFORE the
+          // transplant could find it, silently reverting the user's decision.
+          removedRefs.push(...page.removed.map((r) => r.transaction_id));
 
           cursor = page.next_cursor;
           hasMore = page.has_more;
+        }
+
+        // Apply the buffered removes. A removed ref consumed by the transplant above
+        // deletes nothing here (the predecessor row is already gone). Cascade: a
+        // removed SPLIT PARENT takes its children with it — they are portions of a
+        // charge that no longer exists, and leaving them counted phantom spending
+        // (cycle-2 P0 family; pre-existing for canceled charges).
+        for (let i = 0; i < removedRefs.length; i += 400) {
+          const chunk = removedRefs.slice(i, i + 400);
+          const doomed = await prisma.transaction.findMany({
+            where: { providerRef: { in: chunk }, account: { userId } },
+            select: { id: true, isSplitParent: true },
+          });
+          const parentIds = doomed.filter((d) => d.isSplitParent).map((d) => d.id);
+          const [, res] = await prisma.$transaction([
+            prisma.transaction.deleteMany({ where: { splitParentId: { in: parentIds } } }),
+            prisma.transaction.deleteMany({ where: { id: { in: doomed.map((d) => d.id) } } }),
+          ]);
+          removed += res.count;
         }
 
         await prisma.plaidItem.update({ where: { id: item.id }, data: { cursor } });

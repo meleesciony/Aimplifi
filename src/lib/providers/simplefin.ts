@@ -14,7 +14,7 @@
  */
 import { type ISODate, addDays, isoDate, toEpochDays } from '@/lib/dates';
 import { decryptToken } from '@/lib/crypto';
-import { prisma } from '@/lib/db';
+import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
 import { detectTransfers } from '@/lib/engine/categorize/transfers';
 import { assistUnsureRows } from '@/server/categorize-assist';
 import { ensureCategories } from '@/server/ensure-categories';
@@ -491,29 +491,69 @@ export async function syncFromSimplefin(
       needsReview: row.needsReview,
       isTransfer: row.isTransfer,
     };
+    // Check-then-act at SERIALIZABLE isolation (cycle-2 P1): under production
+    // Postgres READ COMMITTED a fileMerchantGroup/applyCategory committing between
+    // the in-tx read and the write was still clobbered; Serializable turns that
+    // into a detected conflict → P2034 → serializableTx re-runs against fresh
+    // state (DECISIONS #146). SQLite: single-writer, unchanged.
+    const guardedVerdictRefresh = (id: string) =>
+      serializableTx(async (tx) => {
+        const fresh = await tx.transaction.findUniqueOrThrow({
+          where: { id },
+          select: { isSplitParent: true, needsReview: true, amountCents: true },
+        });
+        if (fresh.isSplitParent && fresh.amountCents !== row.amountCents) {
+          // The bank changed a SPLIT row's amount under the same id (pending
+          // tip/adjustment posting): the children no longer sum to the charge, so
+          // the split is stale — DISSOLVE it back to one row on the fresh pipeline
+          // verdict; needsReview routes it to triage, which is the "please
+          // re-decide" notification (cycle-2 P0 family, DECISIONS #146).
+          await tx.transaction.deleteMany({ where: { splitParentId: id } });
+          await tx.transaction.update({ where: { id }, data: { ...data2, isSplitParent: false } });
+          return;
+        }
+        const corrected =
+          (await tx.correction.count({ where: { transactionId: id } })) > 0;
+        const preserve = fresh.isSplitParent || (corrected && !fresh.needsReview);
+        await tx.transaction.update({ where: { id }, data: preserve ? base2 : data2 });
+        if (fresh.isSplitParent) {
+          // A preserved split POSTS with its parent: children stuck PENDING forever
+          // would distort every pending projection (cycle-2 P0 family).
+          await tx.transaction.updateMany({
+            where: { splitParentId: id },
+            data: { status: row.status },
+          });
+        }
+      });
     const exists = await prisma.transaction.findFirst({
       where: { accountId: row.accountId, providerRef: row.providerRef },
       select: { id: true },
     });
     if (exists) {
-      // Atomic check-then-act (checker P1): presence check + write in ONE write
-      // transaction, serialized against a concurrent fileMerchantGroup.
-      await prisma.$transaction(async (tx) => {
-        const fresh = await tx.transaction.findUniqueOrThrow({
-          where: { id: exists.id },
-          select: { isSplitParent: true, needsReview: true },
-        });
-        const corrected =
-          (await tx.correction.count({ where: { transactionId: exists.id } })) > 0;
-        const preserve = fresh.isSplitParent || (corrected && !fresh.needsReview);
-        await tx.transaction.update({ where: { id: exists.id }, data: preserve ? base2 : data2 });
-      });
+      await guardedVerdictRefresh(exists.id);
       modified++;
     } else {
-      await prisma.transaction.create({
-        data: { accountId: row.accountId, providerRef: row.providerRef, ...data2 },
-      });
-      added++;
+      try {
+        await prisma.transaction.create({
+          data: { accountId: row.accountId, providerRef: row.providerRef, ...data2 },
+        });
+        added++;
+      } catch (e) {
+        // Cycle-2 P2 (the documented CQ-2 race, reopened when cycle 1 split the
+        // race-safe upsert into findFirst+create to add the verdict guard): two
+        // overlapping syncs both miss the findFirst; the loser lands here on
+        // @@unique(accountId, providerRef) — take the guarded UPDATE path instead
+        // of aborting the whole pass-2 loop mid-run.
+        if (!isUniqueViolation(e)) throw e;
+        const raced = await prisma.transaction.findFirst({
+          where: { accountId: row.accountId, providerRef: row.providerRef },
+          select: { id: true },
+        });
+        if (raced) {
+          await guardedVerdictRefresh(raced.id);
+          modified++;
+        }
+      }
     }
   }
 

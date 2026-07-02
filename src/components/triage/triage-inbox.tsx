@@ -229,13 +229,22 @@ export function TriageInbox({
   }
 
   function removeRowLocally(rowId: string) {
-    let groupEmptied = false;
+    // Filing the LAST row of a group must not leak singles mode onto the NEXT
+    // merchant's card (checker P1). Derive "emptied" BEFORE dispatch from the
+    // same committed state the rollback snapshots use — a flag mutated INSIDE
+    // the setGroups updater is only observable when React evaluates the updater
+    // eagerly, which it skips whenever the fiber already has pending updates:
+    // deterministically so on the write-in path, where createAndFile dispatches
+    // setExtraCategories/setNewCatName before onPick→fileRow lands here, so the
+    // singles reset silently no-oped (cycle-2 P1). Discrete events each flush
+    // their own render, so `groups` is current at handler time.
+    const target = groups.find((g) => g.rows.some((r) => r.id === rowId));
+    const groupEmptied = target !== undefined && target.rows.length === 1;
     setGroups((gs) =>
       gs
         .map((g) => {
           if (!g.rows.some((r) => r.id === rowId)) return g;
           const rows = g.rows.filter((r) => r.id !== rowId);
-          if (rows.length === 0) groupEmptied = true;
           const removed = g.rows.find((r) => r.id === rowId)!;
           return {
             ...g,
@@ -247,8 +256,6 @@ export function TriageInbox({
         })
         .filter((g) => g.rows.length > 0),
     );
-    // Filing the LAST row of a group must not leak singles mode onto the NEXT
-    // merchant's card (checker P1: its rows rendered pre-expanded, untapped).
     if (groupEmptied) setMode('idle');
     setActiveRowId(null);
     setSinglesTool(null);

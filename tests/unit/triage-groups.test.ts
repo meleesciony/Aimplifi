@@ -14,8 +14,9 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 import { auth } from '@/auth';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { groupReviewRows } from '@/lib/engine/categorize/group';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { getReviewCount, getTriageGroups } from '@/server/triage';
-import { fileMerchantGroup } from '@/server/triage-actions';
+import { fileMerchantGroup, recategorize } from '@/server/triage-actions';
 import { loadUserRules } from '@/server/rules';
 import { prisma } from '@/lib/db';
 
@@ -212,6 +213,84 @@ describe('merchant-group triage (Phase 3b)', () => {
     const other = await prisma.transaction.findUniqueOrThrow({ where: { id: `grp-m2-${process.pid}` } });
     expect(other.needsReview).toBe(true);
     expect(other.categoryId).toBe('uncategorized');
+  });
+
+  it('test_regression__raw_card_files_m_card_rows (cycle-2 P2): a merchantless card never files same-descriptor rows on a m: card', async () => {
+    const acct = await prisma.account.findFirstOrThrow({ where: { userId: USER, providerRef: 'grp-chk' } });
+    // Identical bank text; one row merchantless (CSV/manual ingest), one merchant-
+    // attached (synced). groupKey puts them on SEPARATE cards (raw: vs m:) — the
+    // pre-fix scope { rawDescriptor } filed BOTH from the raw: card's one tap.
+    await prisma.transaction.createMany({
+      data: [
+        { id: `grp-d1-${process.pid}`, accountId: acct.id, date: '2026-06-09', amountCents: -1000, rawDescriptor: 'CORNER STORE 55', merchantId: null, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+        { id: `grp-d2-${process.pid}`, accountId: acct.id, date: '2026-06-08', amountCents: -2000, rawDescriptor: 'CORNER STORE 55', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+      ],
+    });
+    // The partition the scope must honor: d1 on its own raw: card, d2 inside the
+    // merchant's m: card (count ≡ what one tap files — DECISIONS #23).
+    const groups = await getTriageGroups(USER);
+    const rawCard = groups.find((g) => g.key === 'raw:CORNER STORE 55');
+    expect(rawCard).toBeDefined();
+    expect(rawCard!.count).toBe(1);
+    const seawolf = groups.find((g) => g.merchantId === MERCH_SEAWOLF)!;
+    expect(seawolf.rows.map((r) => r.id)).toContain(`grp-d2-${process.pid}`);
+
+    const res = await fileMerchantGroup({ anchorTransactionId: `grp-d1-${process.pid}`, categoryId: 'groceries' });
+    expect(res.affected).toBe(1); // pre-fix: 2 — the m: card's row was co-filed
+    const d2 = await prisma.transaction.findUniqueOrThrow({ where: { id: `grp-d2-${process.pid}` } });
+    expect(d2.needsReview).toBe(true); // still queued on ITS card
+    expect(d2.categoryId).toBe('uncategorized');
+  });
+
+  it('test_regression__scope_is_descriptor_not_canonical (cycle-2 gate gap): same-canonical merchantless rows stay separate', async () => {
+    // Precondition asserted so a normalizer change fails LOUDLY, not vacuously:
+    // both descriptors converge to one canonical, yet they are separate cards and
+    // separate scopes (store-number variants of an unknown local merchant).
+    const a = 'BLUE HERON POTTERY #12';
+    const b = 'BLUE HERON POTTERY #99';
+    expect(normalizeMerchant(a).canonical).toBe(normalizeMerchant(b).canonical);
+    expect(normalizeMerchant(a).aggregate).toBe(false);
+    const acct = await prisma.account.findFirstOrThrow({ where: { userId: USER, providerRef: 'grp-chk' } });
+    await prisma.transaction.createMany({
+      data: [
+        { id: `grp-c1-${process.pid}`, accountId: acct.id, date: '2026-06-09', amountCents: -1000, rawDescriptor: a, merchantId: null, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+        { id: `grp-c2-${process.pid}`, accountId: acct.id, date: '2026-06-08', amountCents: -2000, rawDescriptor: b, merchantId: null, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+      ],
+    });
+    // A canonical-scoped where (or canonical-keyed card) would merge these; the
+    // existing P0 lock could not tell — its fixtures differed in BOTH canonical
+    // and descriptor (cycle-2 gate gap).
+    const res = await fileMerchantGroup({ anchorTransactionId: `grp-c1-${process.pid}`, categoryId: 'shopping' });
+    expect(res.affected).toBe(1);
+    const c2 = await prisma.transaction.findUniqueOrThrow({ where: { id: `grp-c2-${process.pid}` } });
+    expect(c2.needsReview).toBe(true);
+  });
+
+  it('test_regression__conditional_rule_satisfies_dedupe (cycle-2 P2): a banded rule must not suppress the unconditional mint', async () => {
+    // An amount-banded rule for the same merchant→category exists (no app path
+    // writes conditions today, but the schema + pipeline enforce them — latent).
+    const conditional = await prisma.categorizationRule.create({
+      data: { userId: USER, merchantId: MERCH_SEAWOLF, categoryId: 'coffee', priority: 100, minAmountCents: -2000 },
+    });
+    const res = await fileMerchantGroup({ anchorTransactionId: `grp-s1-${process.pid}`, categoryId: 'coffee' });
+    // Pre-fix the dedupe matched (merchant, category) only: the banded rule was
+    // "reused", no unconditional rule was minted, and the card's "every future X
+    // files automatically" promise silently broke for out-of-band amounts.
+    expect(res.ruleId).not.toBeNull();
+    expect(res.ruleId).not.toBe(conditional.id);
+    const minted = await prisma.categorizationRule.findUniqueOrThrow({ where: { id: res.ruleId! } });
+    expect(minted).toMatchObject({ minAmountCents: null, maxAmountCents: null, weekendOnly: null, weekdayOnly: null, accountId: null });
+    expect(await prisma.categorizationRule.count({ where: { userId: USER, merchantId: MERCH_SEAWOLF, categoryId: 'coffee' } })).toBe(2);
+  });
+
+  it('test_regression__recategorize_stacks_duplicate_rules (cycle-2 gate gap): merchant-wide recategorize dedupes through the shared mint', async () => {
+    const first = await recategorize({ transactionId: `grp-s1-${process.pid}`, categoryId: 'coffee', scope: 'merchant' });
+    expect(first.ruleId).not.toBeNull();
+    // Pre-fix this ALWAYS minted another priority-100 rule — equal-priority
+    // duplicates with an unspecified tie-break in the pipeline's stable sort.
+    const second = await recategorize({ transactionId: `grp-s2-${process.pid}`, categoryId: 'coffee', scope: 'merchant' });
+    expect(second.ruleId).toBe(first.ruleId);
+    expect(await prisma.categorizationRule.count({ where: { userId: USER, merchantId: MERCH_SEAWOLF } })).toBe(1);
   });
 
   it('double-file is idempotent and rules are deduped (checker P1)', async () => {

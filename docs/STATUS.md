@@ -1361,3 +1361,38 @@ incl. isolated ×2 + in-suite) mid-day, then stuck-pending ≥120s across serial
 — alongside the a11y keyboard test failing at 69a335b (yesterday's witnessed-green commit, 3-point A/B).
 No surfaced error (a Prisma tx timeout would error fast + re-enable) → request-layer stall, #16/#17.
 OWNER: reboot, then `VERIFY_E2E=1 bash scripts/verify.sh` re-witnesses both.
+
+## 2026-07-02 — Checker CYCLE 2 on the rebuild (wf pre-/clear, 23 agents): 20 raw → 20 CONFIRMED, 0 refuted → ALL FIXED (DECISIONS #146)
+Distinct defects after dedupe across the three lenses (fixes-hold / new-paths / gates):
+- **P0 transplant × split (3 findings)**: split PENDING parent posting under a new id → parent deleted
+  (isSplitParent dropped), children dangling, NEW full-amount row → spending double-counted. FIXED:
+  transplant carries the split (container re-created, children re-pointed + posted, corrections follow)
+  or DISSOLVES it to review on amount drift; removed[] cascades children of canceled split charges;
+  same-id drift dissolves in BOTH providers; preserved splits post their children. 6 regression locks,
+  5 proven fail-old by stash-run.
+- **P1 isolation class (5 findings)**: every check-then-act guard assumed SQLite serialization; prod
+  Postgres = READ COMMITTED. FIXED: serializableTx (SERIALIZABLE + bounded P2034 retry) at all five
+  sites; the transplant's predecessor read moved INSIDE its tx; recategorize's target fetch moved
+  in-tx. **HONESTY NOTE: the PG interleavings are unreproducible on the single-writer SQLite test
+  env — closure rests on documented Postgres semantics (write-write first-updater-wins detects
+  conflicts even against READ COMMITTED writers; SSI predicate locking covers the dedupe insert race
+  between two serializable txs) + the helper-contract locks (serializable-tx.test.ts). Status:
+  UNVERIFIED-on-PG until a Postgres integration env exists. The failure mode of a WRONG argument here
+  is bounded: P2034 storms (visible, fail-loud) or the original clobber (no worse than pre-fix).**
+- **P1 singles leak (3 findings)**: groupEmptied side-effected inside the setGroups updater — reset
+  no-oped whenever React deferred the updater (deterministic on the write-in path). FIXED: derived
+  before dispatch from committed state; e2e lock drains a group one-by-one and files the last row via
+  the write-in (fail-old by mechanism inspection only — the eager-bailout skip is not deterministically
+  reproducible under Playwright timing; the checker's React-19.1 trace stands as the pre-fix witness).
+- **P2 batch**: merchantless scope pins merchantId:null (raw: card ≡ its action; aggregates stay
+  descriptor-only BY DESIGN — one agg: card mixes CSV + synced rows of the same text); SimpleFIN (and
+  Plaid, same shape) create/create race → P2002-catch → guarded-update fallback (CQ-2 restored without
+  losing the verdict guard); removed[] buffered per item until all pages applied; rule dedupe requires
+  the five condition columns null via the shared ensureUnconditionalRule (recategorize now dedupes too);
+  gate gaps closed (same-canonical separation lock — prophylactic, passes old code by design; conditional
+  -rule mint lock).
+Residuals accepted (rationale): duplicate rules from two concurrent group-files remain possible only if
+BOTH sessions race the SSI window AND retries interleave identically (bounded, self-healing on next
+dedupe pass); Correction rows on a bank-canceled charge keep their dead transactionId (append-only audit
+tolerates dead refs; the transplant re-points the live cases); SimpleFIN children of a DISSOLVED split
+lose child-level corrections' target rows (charge no longer exists at that shape — audit rows retained).

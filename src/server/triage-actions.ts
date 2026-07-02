@@ -7,7 +7,8 @@
  *  - is undoable (undo writes the INVERSE correction; created rules are removed).
  */
 import { revalidatePath } from 'next/cache';
-import { prisma } from '@/lib/db';
+import type { Prisma } from '@/generated/prisma/client';
+import { prisma, serializableTx } from '@/lib/db';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { auditLog, requireUserId } from '@/server/authz';
 import { assertOwnedCategory } from '@/server/category-meta';
@@ -28,6 +29,46 @@ async function ownedTransaction(userId: string, transactionId: string) {
   });
   if (!txn) throw new Error('Transaction not found');
   return txn;
+}
+
+/**
+ * Reuse-or-mint the UNCONDITIONAL priority-100 merchant→category rule inside the
+ * caller's transaction. The dedupe matches only rules with ALL FIVE condition
+ * columns empty (cycle-2 P2: "reusing" an amount-banded/account-scoped variant
+ * would break the group card's "every future X files automatically" promise for
+ * out-of-band rows — conditions are ANDed by ruleMatches). Shared by
+ * fileMerchantGroup and recategorize so the two rule-minting surfaces can never
+ * drift (cycle-2 gate gap: recategorize minted unconditionally, so repeat
+ * recategorizes stacked duplicate equal-priority rules with an unspecified
+ * tie-break in the pipeline's stable sort).
+ */
+async function ensureUnconditionalRule(
+  tx: Prisma.TransactionClient,
+  args: { userId: string; merchantId: string; categoryId: string; createdFrom: string | null },
+): Promise<{ ruleId: string; minted: boolean }> {
+  const existing = await tx.categorizationRule.findFirst({
+    where: {
+      userId: args.userId,
+      merchantId: args.merchantId,
+      categoryId: args.categoryId,
+      minAmountCents: null,
+      maxAmountCents: null,
+      weekendOnly: null,
+      weekdayOnly: null,
+      accountId: null,
+    },
+  });
+  if (existing) return { ruleId: existing.id, minted: false };
+  const rule = await tx.categorizationRule.create({
+    data: {
+      userId: args.userId,
+      merchantId: args.merchantId,
+      categoryId: args.categoryId,
+      priority: 100,
+      createdFrom: args.createdFrom,
+    },
+  });
+  return { ruleId: rule.id, minted: true };
 }
 
 export interface ApplyResult {
@@ -195,14 +236,17 @@ export async function fileMerchantGroup(input: {
   const aggregate = normalizeMerchant(txn.rawDescriptor).aggregate;
   const ruleEligible = !aggregate && !!txn.merchantId;
 
-  // EVERYTHING inside one write transaction (Phase-3 checker P1): the target
-  // fetch, the needsReview re-assert, and the rule dedupe — so a double-tap or
-  // a second session filing the same group can never record stale-fromCategoryId
-  // corrections (whose undo would revert the OTHER session's decision) or mint
-  // duplicate equal-priority rules (nondeterministic tie-break). Mirrors the
-  // compare-and-set standard in src/server/backfill.ts. SQLite serializes write
-  // transactions, so the in-transaction fetch is consistent with the writes.
-  const { correctionIds, ruleId, affected } = await prisma.$transaction(async (tx) => {
+  // EVERYTHING inside one SERIALIZABLE transaction (Phase-3 checker P1 +
+  // cycle-2 P1): the target fetch, the needsReview re-assert, and the rule
+  // dedupe. SQLite serializes write transactions natively; production Postgres
+  // runs READ COMMITTED by default, where a concurrent applyCategory/double-file
+  // committing between the in-tx fetch and the writes still recorded
+  // stale-fromCategoryId corrections (whose undo reverts the OTHER session) and
+  // minted duplicate equal-priority rules. At Serializable that interleave is a
+  // DETECTED conflict → P2034 → serializableTx re-runs against fresh state, so
+  // the raced case converges to the clean zero-target return with NOTHING
+  // committed (DECISIONS #146).
+  const { correctionIds, ruleId, affected } = await serializableTx(async (tx) => {
     const targets = await tx.transaction.findMany({
       // SAME scope + SAME spending-account/currency filter the group card was
       // built from (groupKey ↔ similarTransactionsWhere, DECISIONS #23; checker:
@@ -233,25 +277,18 @@ export async function fileMerchantGroup(input: {
     }
     let createdRuleId: string | null = null;
     if (ruleEligible) {
-      // Dedupe: an identical live rule (same merchant → same category) is reused,
-      // never duplicated (checker: duplicate equal-priority rules survive undo).
-      const existingRule = await tx.categorizationRule.findFirst({
-        where: { userId, merchantId: txn.merchantId!, categoryId: input.categoryId },
+      // Dedupe: an identical live UNCONDITIONAL rule is reused, never duplicated
+      // (checker: duplicate equal-priority rules survive undo; cycle-2: a
+      // conditional variant must NOT satisfy the dedupe).
+      const { ruleId: rid, minted } = await ensureUnconditionalRule(tx, {
+        userId,
+        merchantId: txn.merchantId!,
+        categoryId: input.categoryId,
+        createdFrom: ids[0],
       });
-      if (existingRule) {
-        createdRuleId = existingRule.id;
-      } else {
-        const rule = await tx.categorizationRule.create({
-          data: {
-            userId,
-            merchantId: txn.merchantId!,
-            categoryId: input.categoryId,
-            priority: 100,
-            createdFrom: ids[0],
-          },
-        });
-        createdRuleId = rule.id;
-        await tx.correction.update({ where: { id: ids[0] }, data: { becameRuleId: rule.id } });
+      createdRuleId = rid;
+      if (minted) {
+        await tx.correction.update({ where: { id: ids[0] }, data: { becameRuleId: rid } });
       }
     }
     const updated = await tx.transaction.updateMany({
@@ -312,15 +349,19 @@ export async function recategorize(input: {
     return applyCategory({ transactionId: input.transactionId, categoryId: input.categoryId });
   }
 
-  const targets = await prisma.transaction.findMany({
-    where: similarTransactionsWhere(
-      userId,
-      { merchantId: txn.merchantId, rawDescriptor: txn.rawDescriptor, aggregate: false },
-      { onlyNeedsReview: false },
-    ),
-  });
-
-  const { correctionIds, ruleId } = await prisma.$transaction(async (tx) => {
+  // Target fetch INSIDE the serializable tx (cycle-2 P1: an outside read let a
+  // raced correction record a stale fromCategoryId under Postgres READ COMMITTED),
+  // and the rule mint deduped through the same helper as fileMerchantGroup
+  // (cycle-2 gate gap: this path minted unconditionally — every repeat
+  // recategorize stacked another equal-priority rule). DECISIONS #146.
+  const { correctionIds, ruleId, affected } = await serializableTx(async (tx) => {
+    const targets = await tx.transaction.findMany({
+      where: similarTransactionsWhere(
+        userId,
+        { merchantId: txn.merchantId, rawDescriptor: txn.rawDescriptor, aggregate: false },
+        { onlyNeedsReview: false },
+      ),
+    });
     const ids: string[] = [];
     let firstCorrectionId: string | null = null;
     for (const t of targets) {
@@ -330,17 +371,14 @@ export async function recategorize(input: {
       ids.push(c.id);
       if (!firstCorrectionId) firstCorrectionId = c.id;
     }
-    const rule = await tx.categorizationRule.create({
-      data: {
-        userId,
-        merchantId: txn.merchantId!,
-        categoryId: input.categoryId,
-        priority: 100,
-        createdFrom: firstCorrectionId,
-      },
+    const { ruleId: rid, minted } = await ensureUnconditionalRule(tx, {
+      userId,
+      merchantId: txn.merchantId!,
+      categoryId: input.categoryId,
+      createdFrom: firstCorrectionId,
     });
-    if (firstCorrectionId) {
-      await tx.correction.update({ where: { id: firstCorrectionId }, data: { becameRuleId: rule.id } });
+    if (minted && firstCorrectionId) {
+      await tx.correction.update({ where: { id: firstCorrectionId }, data: { becameRuleId: rid } });
     }
     await tx.transaction.updateMany({
       where: { id: { in: targets.map((t) => t.id) } },
@@ -350,20 +388,20 @@ export async function recategorize(input: {
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
       data: { actualCategoryId: input.categoryId },
     });
-    return { correctionIds: ids, ruleId: rule.id };
+    return { correctionIds: ids, ruleId: rid, affected: targets.length };
   });
 
   await auditLog(userId, 'rule.create', {
     ruleId,
     merchantId: txn.merchantId,
     categoryId: input.categoryId,
-    affected: targets.length,
+    affected,
     via: 'register',
   });
 
   revalidatePath('/triage');
   revalidatePath('/transactions');
-  return { correctionIds, ruleId, affected: targets.length };
+  return { correctionIds, ruleId, affected };
 }
 
 /**
