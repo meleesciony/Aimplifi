@@ -1264,3 +1264,14 @@ path witnessed green through prefill assert + confirm pane ×3 — its once-clic
 environmental action-apply stall (re-A/B'd at HEAD this session: fails at spec line 230 pre-change) —
 full pass UNVERIFIED until the owner reboot (#16/#17 protocol; one triage stall occurrence also hit
 line 106 mid-session then passed 7.9s on retry, consistent with "position varies").
+
+## 2026-07-01 — #140 iOS focus-zoom fix (owner report)
+Owner on #139 in prod: the dropdown "zooms in" — iOS Safari force-zoom on <16px focused controls; ALL
+raw inputs here are text-sm (14px) and the register menu autofocuses its search. Fixed at the root:
+globals.css (pointer:coarse) floors input/select/textarea at 1rem ([class] specificity trick, no
+!important; checkbox/radio excluded; desktop unchanged). Register menu w-56→w-72 + max-w viewport clamp.
+e2e locks assert computed ≥16px on both surfaces in the touch-emulated project (proved the media query
+matches under Playwright's Pixel-5 emulation). Gate: verify GREEN 1476/116; triage write-in 7.7s GREEN
+(incl. zoom locks); register race 4.6s GREEN; register happy-path tail = the documented environmental
+stall (unchanged label). Residual: real-device (physical iPhone) confirmation is the owner's — emulation
+proves the CSS applies, not Safari's zoom behavior itself.

@@ -267,7 +267,7 @@ export function TransactionList({
                           <div
                             role="listbox"
                             data-testid="category-menu"
-                            className={`absolute left-0 z-50 max-h-72 w-56 overflow-auto rounded-lg border bg-card p-1 text-foreground shadow-lg ring-1 ring-foreground/10 ${
+                            className={`absolute left-0 z-50 max-h-72 w-72 max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border bg-card p-1 text-foreground shadow-lg ring-1 ring-foreground/10 ${
                               dropUp ? 'bottom-full mb-1' : 'mt-1'
                             }`}
                           >

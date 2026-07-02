@@ -29,6 +29,22 @@ html {
   }
 }
 
+/* iOS Safari force-zooms the whole page when a focused form control's font-size
+   is under 16px — and every raw input/select in the app is Tailwind text-sm
+   (14px), so the category pickers "zoomed in" the moment their search box took
+   focus (owner report, DECISIONS #140). On touch-primary devices, floor form-
+   control text at 16px. The [class] selector lifts specificity to 0-1-1 so this
+   outranks the text-sm/text-xs utilities (0-1-0) without !important; checkboxes/
+   radios are excluded (font-size is inert there). Desktop (fine pointer) keeps
+   the compact 14px — this rule is inert everywhere the bug can't occur. */
+@media (pointer: coarse) {
+  input[class]:not([type='checkbox']):not([type='radio']),
+  select[class],
+  textarea[class] {
+    font-size: 1rem;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

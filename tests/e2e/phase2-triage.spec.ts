@@ -223,6 +223,16 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
   await page.getByTestId('triage-cat-search').fill('Croquet Fees');
   await page.getByTestId('triage-cat-search').press('Enter');
   await expect(page.getByTestId('new-category-name')).toHaveValue('Pickleball Edited');
+
+  // iOS focus-zoom guard (#140): on touch devices form controls must be ≥16px —
+  // Safari force-zooms the viewport for anything smaller (owner report). Assert
+  // both the search box and the write-in's autofocused name input.
+  for (const id of ['triage-cat-search', 'new-category-name']) {
+    const fs = await page
+      .getByTestId(id)
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(fs, `${id} touch font-size floor (iOS zoom guard)`).toBeGreaterThanOrEqual(16);
+  }
 });
 
 test('a full review session completes in <15 interactions (→ <60s human time)', async ({ page }) => {

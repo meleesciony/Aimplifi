@@ -217,6 +217,13 @@ test('register write-in: create a category inside the picker and refile with it 
   // right there — the no-match hint sits directly above the add button (which
   // is otherwise below ~84 options in the scroll container).
   const catName = `Padel ${Date.now().toString().slice(-6)}`; // unique per run (retry-safe)
+  // iOS focus-zoom guard (#140): on touch devices every form control must be
+  // ≥16px — Safari force-zooms the viewport for anything smaller (owner report).
+  // This project emulates a touch-primary device, so (pointer: coarse) applies.
+  const searchFs = await page
+    .getByTestId('cat-search')
+    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(searchFs, 'touch font-size floor (iOS zoom guard)').toBeGreaterThanOrEqual(16);
   await page.getByTestId('cat-search').fill(catName);
   await expect(page.getByTestId('register-cat-no-match')).toBeVisible();
 

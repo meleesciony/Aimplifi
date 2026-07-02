@@ -1297,3 +1297,11 @@ pre-fix bundle proving the checker's P1 for real).
 NEXT: (1) resume #135 disclosure increment from stash (task #2 has the full state: integration tests +
 guarded e2e-add-account script + currency-disclosure.spec remain); (2) owner-gated: reboot + full
 VERIFY_E2E=1 re-witness; (3) backlog unchanged (#134 loan de-dup, #127 tail, shared CategoryPicker).
+
+## 2026-07-01 (late) — #140 iOS focus-zoom + dropdown formatting (owner report) — DONE ✅
+Owner hit the iOS <16px focus-zoom on the #139 dropdown. Root-cause fix: global (pointer:coarse) 1rem
+floor on form controls in globals.css (no shared Input component exists — bug was app-wide); register
+menu w-56→w-72 + viewport clamp; e2e computed-font-size locks on both surfaces (GREEN — emulation
+matches coarse). Gate: verify GREEN 1476/116; triage write-in 7.7s; race 4.6s; happy-path tail =
+documented stall. OWNER TO CONFIRM on the physical phone after deploy. NEXT unchanged: resume #135
+disclosure from stash (task #2), owner-gated reboot re-witness, then backlog.
