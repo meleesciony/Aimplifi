@@ -1490,6 +1490,19 @@ heaviest single-row flow — so it trips first). Machine still unrebooted (boot 
 Final-tree witness after rebuild: **singles-leak lock GREEN 4.4s isolated on the cycle-3 build.**
 NEXT: cycle-3 commit → cycle-4 (FINAL) confirmation → owner report.
 
+## 2026-07-02 (late) — CYCLE 4 (wf_4cb0ba46, FINAL): 9 confirmed (1 P1 + 8 P2) → HARD STOP at the 4-cycle cap
+Cycle-3 committed (829d291, verify green 1546/122, 9 locks fail-old-proven). Cycle-4 confirmed:
+**P1 — the forced-review dissolve is clobbered by the NEXT sync** (no durable marker; a dissolved row
+is representationally an UNDONE row, so the cycle-1 "undone takes fresh verdict" rule re-applies the
+merchant rule one cron interval later — empirically probed twice). Proposed fix needs a SCHEMA CHANGE
+(Transaction.reviewPinned) → owner sign-off. Plus 8 P2s: 2 reconcile-dissolve behavior edges (false
+staleness on parse failure; same-id transient absence — age-out-only alternative validated), 5
+lock/doc hardenings (3 proven by revert-stays-green in scratch copies), 1 dangling becameRuleId.
+STATUS "CYCLE 4 OPEN FINDINGS" section has the full list with proposed fixes. Per the build-loop
+rule: STOPPED, findings written, owner asked for direction. Stack state: local main = 69a335b + 13
+commits, ALL UNPUSHED; production unaffected by every finding in cycles 2-4 (the defect family needs
+the unpushed group-filing/split-lifecycle code). Machine still unrebooted (boot Jun 30).
+
 **CYCLE-2 GATE (real, measured 2026-07-02 ~14:55):** `bash scripts/verify.sh` → ✅ VERIFY GREEN;
 isolated `npx vitest run` → **1535 passed / 121 files (36.8s)** (+15: 5 helper-contract + 6 sync +
 4 triage-groups). E2E on the final tree: currency-disclosure 3/3 GREEN in-suite; phase2-triage —

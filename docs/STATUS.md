@@ -1437,3 +1437,49 @@ sessions. Same class as yesterday's a11y 3-point A/B (day-long machine degradati
 Jun 30): the action response/revalidation apply stalls, UI never re-renders. The write-in+refile
 combination does TWO server actions back-to-back — the heaviest single-row flow — which is why it
 trips before its siblings. Cure = reboot; re-witness gated on the standing owner NEXT.
+
+## 2026-07-02 — Checker CYCLE 4 (wf_4cb0ba46, FINAL under the 4-cycle cap): 9 confirmed (1 P1 + 8 P2), 1 refuted → HARD STOP, OPEN FINDINGS
+Per the build-loop rule (4 critic cycles per phase, then STOP and ask the human), these are recorded
+OPEN, not fixed. The cycle-4 checker's verification was unusually rigorous: the P1 was empirically
+probed twice (finder + independent verifier), and three P2s were proven by revert-stays-green runs in
+scratch copies.
+
+**OPEN P1 — forced-review dissolve is clobbered by the NEXT sync.** The dissolve writes
+needsReview:true + confidenceBps:null but leaves NO durable marker; the preserve predicate
+(corrected && !needsReview) is structurally false for a dissolved row, so the 5-day-overlap re-send
+(daily cron) re-applies the rule verdict: needsReview:false/9900 — the triage card vanishes within
+one cron interval and the full drifted amount silently auto-files. EMPIRICALLY PROVEN (probe:
+sync N = review/true; sync N+1 = auto-filed/false). Plaid's dissolve sites share the hole on
+modified[] re-sends. Root cause: a dissolved row is representationally identical to an UNDONE row,
+and the cycle-1 rule ("an undone row takes the fresh verdict") correctly wins. Proposed fix (needs
+owner sign-off — SCHEMA CHANGE): a `reviewPinned Boolean @default(false)` on Transaction — set by
+every dissolve, respected by the preserve predicate (preserve = isSplitParent || reviewPinned ||
+(corrected && !needsReview)), cleared by every user filing action; plus multi-sync locks (assert
+review SURVIVES a second identical re-send) at all three dissolve sites. Mitigation until then:
+the defect needs {pending split + amount drift + merchant rule} AND is in the UNPUSHED stack only —
+production is unaffected today.
+
+**OPEN P2s (8):**
+26. Reconcile dissolve fires on FALSE staleness — a per-row parse failure (garbled amount) drops the
+    ref from the corroboration set, dissolving a still-reported split. Cheap fix: record txn.id into
+    the returned-ref set in the parse-catch arm (skip-ingest must never imply dissolve).
+27. Same-id transient absence (one flaky snapshot) dissolves a still-real pending split immediately in
+    pass 1. Design alternative the checker validated: split parents dissolve only in the pass-2
+    age-out (≤32d bounded double count — the SAME residual bound #128 already accepts) — the
+    immortality P0 stays closed. Owner taste call: immediate-dissolve (current) vs age-out-only.
+28. Plaid same-id split-drift dissolve (plaid.ts:404) has NO lock — proven: reverting it runs
+    1546/1546 green in a scratch worktree. Fix: clone the transplant-drift test with a modified[]
+    same-id payload.
+29. Wiring lock pins call-presence only; triage-actions.ts has no source pin (partial re-strip of
+    applyCategory's tx stays green). Harden: extend the pin with a 3-site interactive allowlist.
+30. Wiring source pin is comment-satisfiable and misses non-async interactive callbacks — both
+    evasions demonstrated on scratch copies. Harden: count non-comment lines; drop the async literal.
+31. Supersede leaves Correction.becameRuleId dangling at the deleted rule; makeRuleFromCorrection's
+    early return can report a dead ruleId without minting (UI can't reach it today). Fix: existence
+    check in the early return (also covers future dangling sources).
+32. P2025 skip-on-null + rule.create/rule.reuse audit gating have no locks (revert-stays-green
+    proven, 1547/1547). Cheap locks via the '@/lib/db' mock seam + an audit-action assertion.
+33. reconcilePendingTransactions' function-header Safety doc still states the PRE-#147 invariant
+    ("split parents are excluded") — actively argues for restoring the P0. One-line doc fix.
+Refuted (1): the becameRuleId-liveness variant that claimed UI reachability (duplicate of 31's
+unreachable half).
