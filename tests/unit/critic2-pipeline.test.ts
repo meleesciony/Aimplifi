@@ -26,7 +26,8 @@ describe('critic: 10 messiest seed descriptors through the LIVE pipeline', () =>
     ['COSTCO GAS #1234 ATLANTA', 'Costco Gas', 'fuel'],
     ['COSTCO WHSE #1234 ATLANTA', 'Costco', 'groceries'],
     ['UBER *TRIP HELP.UBER.COM', 'Uber', 'transport'],
-    ['UBER *EATS PENDING.UBER.CO', 'Uber Eats', 'dining'],
+    // Phase 3a: food-delivery — the KNOWN entry now agrees with the generic table
+    ['UBER *EATS PENDING.UBER.CO', 'Uber Eats', 'food-delivery'],
     ['GOOGLE *YOUTUBEPREMIUM g.co', 'YouTube Premium', 'entertainment'],
   ];
   it.each(cases)('"%s" → %s / %s, auto-applied silently', (raw, merchant, category) => {
@@ -65,8 +66,12 @@ describe('critic: invented adversarial descriptors', () => {
 
   it('"T-MOBILE PREPAY REFILL" is NOT a transfer — word-bounded EPAY pattern (critic F4, fixed)', () => {
     const out = categorize(txn({ rawDescriptor: 'T-MOBILE PREPAY REFILL 800-937-8997' }));
-    expect(out.categoryId).not.toBe('transfer');
-    expect(out.needsReview).toBe(true); // unknown merchant → review, visible to the user
+    expect(out.categoryId).not.toBe('transfer'); // the F4 essence — unchanged
+    // Phase 3a: T-Mobile is now a KNOWN merchant, so instead of unknown→review this
+    // files correctly (a strictly stronger outcome than the review routing it locked).
+    expect(out.merchantCanonical).toBe('T-Mobile');
+    expect(out.categoryId).toBe('phone');
+    expect(out.needsReview).toBe(false);
   });
 
   it('"GIFT CARD PAYMENT - STARBUCKS.COM" is NOT a transfer (critic F4, fixed)', () => {

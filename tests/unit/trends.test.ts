@@ -236,7 +236,9 @@ describe('computeSpendingTrends on the seed (real-volume, default normalization)
   });
 
   it('ranks category movers by absolute delta, excluding non-actionable groups', () => {
-    expect(r.movers.map((m) => m.categoryId)).toEqual(['shopping', 'travel', 'groceries', 'fuel']);
+    // food-delivery joined the movers when Uber Eats moved dining → food-delivery
+    // (Phase 3a: the KNOWN entry now agrees with the generic keyword table).
+    expect(r.movers.map((m) => m.categoryId)).toEqual(['shopping', 'travel', 'groceries', 'fuel', 'food-delivery']);
     for (const m of r.movers) expect(m.group).not.toBe('Transfers & Other');
     for (let i = 1; i < r.movers.length; i++) {
       expect(Math.abs(r.movers[i - 1].deltaCents)).toBeGreaterThanOrEqual(Math.abs(r.movers[i].deltaCents));

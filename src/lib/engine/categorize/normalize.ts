@@ -60,32 +60,41 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   // Costco: gas vs warehouse are DIFFERENT merchants (and categories)
   { pattern: /^COSTCO GAS #/i, canonical: 'Costco Gas', categoryId: 'fuel' },
   { pattern: /^COSTCO WHSE #/i, canonical: 'Costco', categoryId: 'groceries' },
-  // Rideshare / delivery
-  { pattern: /^UBER \*\s*EATS/i, canonical: 'Uber Eats', categoryId: 'dining' },
-  { pattern: /^UBER \*\s*TRIP/i, canonical: 'Uber', categoryId: 'transport' },
+  // Rideshare / delivery. Uber Eats: 'food-delivery', matching the generic
+  // keyword rule — the two tables previously disagreed (dining vs food-delivery)
+  // for the same canonical depending on which variant string arrived (Phase 3a).
+  { pattern: /^UBER\s+\*?\s*EATS/i, canonical: 'Uber Eats', categoryId: 'food-delivery' },
+  { pattern: /^UBER\s+\*?\s*TRIP/i, canonical: 'Uber', categoryId: 'transport' },
   { pattern: /^LYFT \*/i, canonical: 'Lyft', categoryId: 'transport' },
+  { pattern: /^(DD \*)?DOORDASH/i, canonical: 'DoorDash', categoryId: 'food-delivery' },
+  { pattern: /^GRUBHUB\b/i, canonical: 'Grubhub', categoryId: 'food-delivery' },
   // Subscriptions
   { pattern: /^NETFLIX/i, canonical: 'Netflix', categoryId: 'entertainment' },
   { pattern: /^SPOTIFY/i, canonical: 'Spotify', categoryId: 'entertainment' },
   { pattern: /^APPLE\.COM\/BILL/i, canonical: 'Apple', categoryId: 'software' },
   { pattern: /^GOOGLE \*YOUTUBEPREMIUM/i, canonical: 'YouTube Premium', categoryId: 'entertainment' },
   { pattern: /^LA FITNESS/i, canonical: 'LA Fitness', categoryId: 'fitness' },
+  { pattern: /^(PF \*)?PLANET FIT/i, canonical: 'Planet Fitness', categoryId: 'fitness' },
   { pattern: /^HELLOFRESH/i, canonical: 'HelloFresh', categoryId: 'groceries' },
   { pattern: /^GEICO/i, canonical: 'Geico', categoryId: 'insurance' },
   { pattern: /^COMCAST|XFINITY/i, canonical: 'Xfinity', categoryId: 'utilities' },
-  // Groceries / big box
-  { pattern: /^KROGER #/i, canonical: 'Kroger', categoryId: 'groceries' },
+  // Groceries / big box (patterns widened Phase 3a: real feeds vary the suffix —
+  // 'KROGER QFC 5847', 'TARGET 00028031', 'TARGET.COM *', 'THE HOME DEPOT',
+  // 'HOMEDEPOT.COM', 'SHELL SERVICE STATION' all previously missed their entry)
+  { pattern: /^KROGER\b/i, canonical: 'Kroger', categoryId: 'groceries' },
   { pattern: /^PUBLIX/i, canonical: 'Publix', categoryId: 'groceries' },
+  { pattern: /^SAFEWAY\b/i, canonical: 'Safeway', categoryId: 'groceries' },
   { pattern: /^TRADER JOE/i, canonical: "Trader Joe's", categoryId: 'groceries' },
   { pattern: /^WM SUPERCENTER/i, canonical: 'Walmart', categoryId: 'shopping' },
-  { pattern: /^TARGET T-/i, canonical: 'Target', categoryId: 'shopping' },
+  { pattern: /^TARGET(\.COM)?\b/i, canonical: 'Target', categoryId: 'shopping' },
   // Dining chains
   { pattern: /^CHICK-FIL-A/i, canonical: 'Chick-fil-A', categoryId: 'dining' },
   { pattern: /^MCDONALD'?S/i, canonical: "McDonald's", categoryId: 'dining' },
+  { pattern: /^CHIPOTLE\b/i, canonical: 'Chipotle', categoryId: 'fast-food' },
   { pattern: /^STARBUCKS/i, canonical: 'Starbucks', categoryId: 'dining' },
   { pattern: /^WAFFLE HOUSE/i, canonical: 'Waffle House', categoryId: 'dining' },
   // Fuel
-  { pattern: /^SHELL OIL/i, canonical: 'Shell', categoryId: 'fuel' },
+  { pattern: /^SHELL (OIL|SERVICE)/i, canonical: 'Shell', categoryId: 'fuel' },
   { pattern: /^QT \d/i, canonical: 'QuikTrip', categoryId: 'fuel' },
   { pattern: /^CHEVRON/i, canonical: 'Chevron', categoryId: 'fuel' },
   // Travel
@@ -96,8 +105,11 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^CVS\/PHARM/i, canonical: 'CVS Pharmacy', categoryId: 'health' },
   { pattern: /^WALGREENS/i, canonical: 'Walgreens', categoryId: 'health' },
   // Home improvement
-  { pattern: /^HOME DEPOT/i, canonical: 'Home Depot', categoryId: 'household' },
+  { pattern: /^(THE\s+)?HOME\s*DEPOT(\.COM)?\b/i, canonical: 'Home Depot', categoryId: 'household' },
   { pattern: /^LOWES/i, canonical: "Lowe's", categoryId: 'household' },
+  // Phone / memberships (Phase 3a: top-tier national brands previously unmatched)
+  { pattern: /^T-?MOBILE\b/i, canonical: 'T-Mobile', categoryId: 'phone' },
+  { pattern: /^PATREON\b/i, canonical: 'Patreon', categoryId: 'entertainment' },
   { pattern: /^SPIRIT HALLOWEEN/i, canonical: 'Spirit Halloween', categoryId: 'shopping' },
   // Banking / income / obligations
   { pattern: /^ACH DEPOSIT .*PAYROLL/i, canonical: 'Acme Analytics (Payroll)', categoryId: 'income' },
@@ -111,13 +123,19 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   // from spend. Requires BOTH a utility token AND a biller-payment token, so card
   // payments ("CHASE EPAY", "AMEX EPAYMENT") are untouched. (Surfaced by the
   // adversarial categorization eval; resolves STATUS #11.)
-  { pattern: /\b(ENERGY|ELECTRIC|POWER|WATER|UTILIT)\b.*\b(EPAY(MENT)?|BILLMATRIX|BILL ?PAY)\b/i, canonical: 'Utility Bill', categoryId: 'utilities' },
+  // 'LIGHT' added Phase 3a: 'CITY OF SEATTLE LIGHT EPAY' (a municipal electric
+  // bill) matched the transfer pattern below and was silently erased from spend —
+  // the same class as the DUKE ENERGY EPAY misfire (STATUS #11). Both tokens are
+  // still required, so 'BUD LIGHT EPAY' remains contrived and card payments stay
+  // untouched.
+  { pattern: /\b(ENERGY|ELECTRIC|POWER|WATER|LIGHT|UTILIT)\b.*\b(EPAY(MENT)?|BILLMATRIX|BILL ?PAY)\b/i, canonical: 'Utility Bill', categoryId: 'utilities' },
   // Transfers — the SAME anchored pattern transfer detection uses (one source
   // of truth; substring matching here once erased real spending — critic F4)
   { pattern: /^ONLINE TRANSFER/i, canonical: 'Account Transfer', categoryId: 'transfer' },
   { pattern: TRANSFER_DESCRIPTOR, canonical: 'Card Payment', categoryId: 'transfer' },
   // Genuinely ambiguous — must go to review; aggregate ⇒ never offer rules
   { pattern: /^ZELLE PAYMENT/i, canonical: 'Zelle Payment', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
+  { pattern: /^VENMO\b/i, canonical: 'Venmo', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
   { pattern: /^CHECK #/i, canonical: 'Check', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
 ];
 
@@ -224,16 +242,33 @@ export function isAggregateCanonical(canonical: string): boolean {
 const DEFAULT_KNOWN_CONFIDENCE = 9600;
 const UNKNOWN_CONFIDENCE = 5000;
 
+/** Trailing-location state codes (feed suffixes like "SEATTLE WA"). */
+const US_STATE_RE =
+  /\s+(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|WA|WV|WI|WY|DC)$/i;
+
 /** Generic cleanup for descriptors we have no pattern for. */
 export function cleanDescriptor(raw: string): string {
   let s = raw.trim();
-  s = s.replace(/^(SQ \*|TST\*\s*|PAYPAL \*|PP\*|POS \d+ )/i, '');
+  s = s.replace(/^(SQ \*|TST\*\s*|PAYPAL \*|PP\*|PY \*|DD \*|POS \d+ )/i, '');
   s = s.replace(/\b\d{3}-\d{3}-\d{4}\b/g, ''); // phone numbers
   s = s.replace(/\b8\d{2}-[A-Z]+\b/gi, ''); // 800-COMCAST style
   s = s.replace(/[#*]\s*\d+/g, ''); // store numbers
   s = s.replace(/\b(POS|TERM|REF)\s*\d+\b/gi, '');
   s = s.replace(/\b\d{4,}\b/g, ''); // long digit runs
+  s = s.replace(/\*/g, ' '); // processor asterisks are never part of a name (3a)
   s = s.replace(/\s{2,}/g, ' ').replace(/[*#-]+$/g, '').trim();
+  // Trailing "CITY ST" location suffix (Phase 3a): the same store appears as
+  // "X", "X SEATTLE WA", "X WA" across feeds — one identity, not three. Greedy
+  // state strip first (never eats a name token: 'OLD NAVY CA' → 'Old Navy');
+  // then ONE city token, only when a state was just stripped AND ≥2 name tokens
+  // remain — so 'SEAWOLF BAKERS SEATTLE WA' → 'Seawolf Bakers' while a 2-token
+  // name + bare state ('OLD NAVY CA') keeps its full name.
+  const afterState = s.replace(US_STATE_RE, '');
+  if (afterState !== s && afterState.trim().length > 0) {
+    s = afterState.trim();
+    const tokens = s.split(/\s+/);
+    if (tokens.length >= 3) s = tokens.slice(0, -1).join(' ');
+  }
   // Title-case
   return s
     .toLowerCase()
@@ -243,19 +278,53 @@ export function cleanDescriptor(raw: string): string {
     .join(' ');
 }
 
-export function normalizeMerchant(rawDescriptor: string): MerchantMatch {
+function toMatch(m: KnownMerchant): MerchantMatch {
+  return {
+    canonical: m.canonical,
+    categoryId: m.categoryId,
+    confidenceBps: m.confidenceBps ?? DEFAULT_KNOWN_CONFIDENCE,
+    known: true,
+    aggregate: m.aggregate ?? AGGREGATE_CANONICALS.has(m.canonical),
+  };
+}
+
+function matchKnown(s: string): MerchantMatch | null {
   for (const m of KNOWN_MERCHANTS) {
-    if (m.pattern.test(rawDescriptor)) {
-      return {
-        canonical: m.canonical,
-        categoryId: m.categoryId,
-        confidenceBps: m.confidenceBps ?? DEFAULT_KNOWN_CONFIDENCE,
-        known: true,
-        aggregate: m.aggregate ?? AGGREGATE_CANONICALS.has(m.canonical),
-      };
-    }
+    if (m.pattern.test(s)) return toMatch(m);
   }
+  return null;
+}
+
+/**
+ * Second-chance table match on the CLEANED string — accepted ONLY when the
+ * pattern consumes the ENTIRE cleaned name. 'SQ *STARBUCKS #4471' cleans to
+ * 'Starbucks' (full match → Starbucks), while 'SQ *NETFLIX AND CHILL BAR'
+ * cleans to 'Netflix And Chill Bar' (prefix-only match → REJECTED, stays a
+ * local merchant). Keeps the fix-doc convergence without reopening the
+ * anchored-pattern leak the cycle-2 critic locked (critic2-pipeline.test.ts).
+ */
+function matchKnownFull(cleaned: string): MerchantMatch | null {
+  for (const m of KNOWN_MERCHANTS) {
+    const hit = cleaned.match(m.pattern);
+    if (hit && hit.index === 0 && hit[0].length === cleaned.length) return toMatch(m);
+  }
+  return null;
+}
+
+export function normalizeMerchant(rawDescriptor: string): MerchantMatch {
+  const onRaw = matchKnown(rawDescriptor);
+  if (onRaw) return onRaw;
   const cleaned = cleanDescriptor(rawDescriptor);
+  // Second chance on the CLEANED string (Phase 3a): a processor prefix or store
+  // suffix hid a known brand from the ^-anchored table — 'SQ *STARBUCKS #4471'
+  // cleans to 'Starbucks' and hits /^STARBUCKS/. Raw is tried FIRST so specific
+  // prefixed entries (SQ *BLUE BOTTLE) keep winning; the cleaned match must
+  // consume the WHOLE cleaned name (see matchKnownFull) so prefixed locals
+  // containing a brand word never leak into the brand.
+  if (cleaned) {
+    const onCleaned = matchKnownFull(cleaned);
+    if (onCleaned) return onCleaned;
+  }
   // Generic keyword fallback: a real-world merchant name we can categorize even
   // without a specific pattern (#63). Auto-files (with an "AI" badge), not silent.
   for (const g of GENERIC_CATEGORY_RULES) {

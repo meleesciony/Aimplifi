@@ -22,7 +22,7 @@ const CASES: { raw: string; label: string | null }[] = [
   { raw: 'NETFLIX.COM 866-579-7172', label: 'entertainment' },
   { raw: 'SHELL OIL 12345678 DECATUR GA', label: 'fuel' },
   { raw: 'AMZN Mktp US*A1B2C3', label: 'shopping' },
-  { raw: 'UBER EATS 8005928996 CA', label: 'dining' },
+  { raw: 'UBER EATS 8005928996 CA', label: 'food-delivery' }, // leaf added #63; label updated Phase 3a
   { raw: 'CHICK-FIL-A #01776 ATLANTA', label: 'dining' },
   { raw: 'KROGER #401 MARIETTA GA', label: 'groceries' },
   { raw: 'SPOTIFY USA NEW YORK NY', label: 'entertainment' },
@@ -38,7 +38,7 @@ const CASES: { raw: string; label: string | null }[] = [
   { raw: 'PLANET FIT 1234 MEMBERSHIP', label: 'fitness' },
   { raw: 'GEICO *AUTO 800-841-3000', label: 'insurance' },
   { raw: 'DELTA DENTAL OF GA PREMIUM', label: 'dental-insurance' }, // a premium is dental INSURANCE, not a dentist visit (DECISIONS #115)
-  { raw: 'DOORDASH*WENDYS 855-973-1040', label: 'dining' },
+  { raw: 'DOORDASH*WENDYS 855-973-1040', label: 'food-delivery' }, // leaf added #63; label updated Phase 3a
   { raw: 'PATREON* MEMBERSHIP', label: 'entertainment' },
   // utility/biller forms that trip naive parsers
   { raw: 'DUKE ENERGY EPAY 800-777-9898', label: 'utilities' }, // STATUS #11: known to misfire → transfer

@@ -21,7 +21,8 @@ const FIXTURE: [string, string, string][] = [
   ['COSTCO GAS #1234 ATLANTA', 'Costco Gas', 'fuel'],
   ['COSTCO WHSE #1234 ATLANTA', 'Costco', 'groceries'],
   ['UBER *TRIP HELP.UBER.COM', 'Uber', 'transport'],
-  ['UBER *EATS PENDING.UBER.CO', 'Uber Eats', 'dining'],
+  // Phase 3a: food-delivery — the KNOWN entry now agrees with the generic table
+  ['UBER *EATS PENDING.UBER.CO', 'Uber Eats', 'food-delivery'],
   ['LYFT *RIDE THU 9PM', 'Lyft', 'transport'],
   ['NETFLIX.COM 866-579-7172', 'Netflix', 'entertainment'],
   ['SPOTIFY USA NEW YORK NY', 'Spotify', 'entertainment'],
