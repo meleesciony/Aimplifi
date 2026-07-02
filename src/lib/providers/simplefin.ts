@@ -172,8 +172,13 @@ async function reconcilePendingTransactions(
     // flaky snapshot (or a garbled row — #26) must never destroy a user's split. A
     // genuinely re-posted/canceled split still heals in the pass-2 age-out below —
     // the ≤32d double-count is the SAME bounded residual #128 accepts for plain rows.
+    // PINNED rows get the same in-window protection (cycle-5 confirmation P2): a
+    // dissolve converts a sweep-protected split parent into a plain PENDING row —
+    // deleting it on one flaky absence and re-creating it from the feed verdict
+    // next sync would LAUNDER the pin (auto-filed, no user decision). Age-out
+    // remains the backstop for both shapes.
     const { count } = await prisma.transaction.deleteMany({
-      where: { ...staleWhere, isSplitParent: false },
+      where: { ...staleWhere, isSplitParent: false, reviewPinned: false },
     });
     removed += count;
   }

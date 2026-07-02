@@ -1497,3 +1497,20 @@ with an exact-4 interactive allowlist); **#31** dead becameRuleId falls through 
 (lineage re-pointed); **#32** deleted-in-window + audit-provenance locks added; **#33** Safety
 docstring rewritten to the real contract. Items 26-33 and the cycle-4 P1 are CLOSED.
 Fail-old (stash-run): exactly the 8 new/rewritten behavioral locks red on pre-fix code.
+
+### 2026-07-02 — Cycle-5 SCOPED confirmation (wf_eed966ba): 4 confirmed (1 P1 + 3 P2, 0 refuted) → FIXED same session
+The confirmation caught the pin's remaining blind spots:
+- **P1 backfill (the SEVENTH writer, found by both lenses)**: the /triage backfill button re-ran the
+  user's own rules over a dissolve-pinned row — silently auto-filed it AND left the contradictory
+  pinned-but-filed shape (never in triage → no surface could clear the pin; a later churn popped it
+  BACK into review). FIXED: `reviewPinned: false` in backfill's select AND its compare-and-set
+  re-assert (a row pinned inside the read→write window is skipped). Lock: backfill_respects_pin.
+- **P2 sweep laundering**: a dissolve converts a sweep-protected split parent into a plain PENDING
+  row; one flaky snapshot deleted it and the re-report re-created it on the rule verdict — pin
+  laundered. FIXED: the in-window sweep excludes pinned rows (age-out stays the backstop). Lock:
+  sweep_launders_pin.
+- **P2 comment-stripping**: trailing comments / block-comment interiors could still satisfy the
+  wiring pin. FIXED: block comments removed globally + trailing ` //` stripped (string URLs kept).
+Both behavioral locks fail-old-proven by stash-run (exactly the 2 new locks red pre-fix).
+HONESTY: these confirmation fixes are lock-proven but have NOT had a further adversarial round —
+the owner authorization covered one fix round + one scoped confirmation, both now spent.

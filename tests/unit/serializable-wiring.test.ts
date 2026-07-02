@@ -110,13 +110,15 @@ describe('serializableTx wiring (cycle-3 gate lock)', () => {
     // 'serializableTx(' no longer satisfies the pin) and ban prisma.$transaction
     // of ANY shape in the providers (the old /async/ literal let a non-async
     // interactive callback slip past).
+    // Cycle-5 confirmation P2: remove BLOCK comments globally (interior lines
+    // don't all start with '*') and TRAILING line comments (` // ...`) — the
+    // leading-whitespace requirement keeps string URLs ('https://…') intact.
     const stripComments = (src: string) =>
       src
+        .replace(/\/\*[\s\S]*?\*\//g, '')
         .split('\n')
-        .filter((l) => {
-          const t = l.trim();
-          return !t.startsWith('//') && !t.startsWith('*') && !t.startsWith('/*');
-        })
+        .map((l) => l.replace(/(^|\s)\/\/.*$/, '$1'))
+        .filter((l) => l.trim().length > 0)
         .join('\n');
     const SITES: ReadonlyArray<readonly [string, number]> = [
       // plaid: guardedVerdictRefresh + transplant + removed[]-cascade

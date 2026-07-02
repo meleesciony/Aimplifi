@@ -1519,6 +1519,11 @@ SCOPED confirmation workflow (owner-authorized) → final owner report.
 **CYCLE-5 GATE:** ✅ VERIFY GREEN **1552 unit / 122 files**; lint clean; e2e: serial run hit the
 environmental stall (throughput, disabled-pending, position varies again) → ALL FIVE phase2 tests
 witnessed GREEN ISOLATED back-to-back on the cycle-5 build (13.6/17.2/14.7/14.1/11.5s, no stall).
+**SCOPED CONFIRMATION (wf_eed966ba): 4 confirmed (1 P1 + 3 P2, 0 refuted) → FIXED:** backfill = the
+SEVENTH pin-blind writer (select + CAS re-assert now exclude pinned rows); in-window sweep laundered
+the pin via delete+recreate (pinned rows now sweep-protected like splits, age-out backstop); wiring
+pin comment-stripping hardened. 2 behavioral locks fail-old-proven. gen-pg-schema carries
+reviewPinned ✓; deploys run `prisma db push` so the column applies automatically ✓.
 
 **CYCLE-2 GATE (real, measured 2026-07-02 ~14:55):** `bash scripts/verify.sh` → ✅ VERIFY GREEN;
 isolated `npx vitest run` → **1535 passed / 121 files (36.8s)** (+15: 5 helper-contract + 6 sync +

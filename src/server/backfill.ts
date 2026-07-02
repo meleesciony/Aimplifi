@@ -67,6 +67,12 @@ export async function runBackfillForUser(
       where: {
         account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } },
         isSplitParent: false,
+        // A dissolve-PINNED row is the user's to decide, never the system's
+        // (cycle-5 confirmation P1): backfill re-runs the very rules the pin
+        // exists to block — without this exclusion, one tap of the /triage
+        // backfill button silently auto-filed a dissolved split and left a
+        // contradictory pinned-but-filed row no surface could ever clear.
+        reviewPinned: false,
         OR: [{ needsReview: true }, { categoryId: null }, { categoryId: 'uncategorized' }],
       },
       select: {
@@ -160,6 +166,9 @@ export async function runBackfillForUser(
           id: { in: g.ids },
           account: { userId },
           isSplitParent: false,
+          // Re-asserted like the read (cycle-5 confirmation P1): a row a sync
+          // dissolve PINNED inside the read→write window is skipped, not filed.
+          reviewPinned: false,
           OR: [{ needsReview: true }, { categoryId: null }, { categoryId: 'uncategorized' }],
         },
         data: { categoryId: g.categoryId, confidenceBps: g.confidenceBps, needsReview: false },

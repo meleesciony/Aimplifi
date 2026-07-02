@@ -31,6 +31,7 @@ import { connectSimplefin } from '@/server/simplefin-actions';
 import { syncFromSimplefin } from '@/lib/providers/simplefin';
 import { PlaidProvider } from '@/lib/providers/plaid';
 import { applyCategory } from '@/server/triage-actions';
+import { runBackfillForUser } from '@/server/backfill';
 import { encryptToken } from '@/lib/crypto';
 import { isoDate } from '@/lib/dates';
 import { prisma, serializableTx } from '@/lib/db';
@@ -343,6 +344,88 @@ describe('SimpleFIN resync preserves user corrections (real actions, mocked serv
       { id: 't1', posted: epoch(2026, 6, 8), amount: '-8.50', description: RAW },
     ])] };
     await expect(syncFromSimplefin(USER, TODAY)).resolves.toBeDefined(); // no abort
+  });
+
+  it('test_regression__backfill_respects_pin (cycle-5 confirmation P1): the backfill button never decides a dissolve-pinned row', async () => {
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-8.50', description: RAW, pending: true },
+    ])] };
+    await connectSimplefin(SETUP_TOKEN);
+    const parent = await row();
+    await prisma.categorizationRule.create({
+      data: { userId: USER, merchantId: parent.merchantId!, categoryId: 'coffee', priority: 100 },
+    });
+    await prisma.transaction.update({
+      where: { id: parent.id },
+      data: { isSplitParent: true, categoryId: null, needsReview: false, confidenceBps: null },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        { id: `sf-bf-a-${process.pid}`, accountId: parent.accountId, date: parent.date, amountCents: -300, rawDescriptor: parent.rawDescriptor, merchantId: parent.merchantId, categoryId: 'coffee', confidenceBps: 9900, status: 'PENDING', needsReview: false, splitParentId: parent.id },
+        { id: `sf-bf-b-${process.pid}`, accountId: parent.accountId, date: parent.date, amountCents: -550, rawDescriptor: parent.rawDescriptor, merchantId: parent.merchantId, categoryId: 'groceries', confidenceBps: 9900, status: 'PENDING', needsReview: false, splitParentId: parent.id },
+      ],
+    });
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: epoch(2026, 6, 8), amount: '-12.00', description: RAW },
+    ])] };
+    await syncFromSimplefin(USER, TODAY); // drift → dissolve → PINNED review
+    expect((await row()).reviewPinned).toBe(true);
+
+    // The /triage backfill button is a BULK system action carrying no
+    // per-transaction intent — pre-fix it re-ran the user's own rule over the
+    // pinned row, auto-filed it silently, and left the contradictory
+    // pinned-but-filed shape no surface could ever clear (cycle-5 conf. P1).
+    await runBackfillForUser(USER, async () => null);
+    const after = await row();
+    expect(after.needsReview).toBe(true); // still the USER's decision
+    expect(after.reviewPinned).toBe(true);
+    expect(after.confidenceBps).toBeNull();
+  });
+
+  it('test_regression__sweep_launders_pin (cycle-5 confirmation P2): a pinned PENDING row survives a one-flake absence', async () => {
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-8.50', description: RAW, pending: true },
+    ])] };
+    await connectSimplefin(SETUP_TOKEN);
+    const parent = await row();
+    await prisma.categorizationRule.create({
+      data: { userId: USER, merchantId: parent.merchantId!, categoryId: 'coffee', priority: 100 },
+    });
+    await prisma.transaction.update({
+      where: { id: parent.id },
+      data: { isSplitParent: true, categoryId: null, needsReview: false, confidenceBps: null },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        { id: `sf-lp-a-${process.pid}`, accountId: parent.accountId, date: parent.date, amountCents: -300, rawDescriptor: parent.rawDescriptor, merchantId: parent.merchantId, categoryId: 'coffee', confidenceBps: 9900, status: 'PENDING', needsReview: false, splitParentId: parent.id },
+        { id: `sf-lp-b-${process.pid}`, accountId: parent.accountId, date: parent.date, amountCents: -550, rawDescriptor: parent.rawDescriptor, merchantId: parent.merchantId, categoryId: 'groceries', confidenceBps: 9900, status: 'PENDING', needsReview: false, splitParentId: parent.id },
+      ],
+    });
+    // Amount drifts while STILL PENDING (tip/auth adjustment) → dissolve → the
+    // row is now a plain pinned PENDING row, no longer sweep-protected as a split.
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-12.00', description: RAW, pending: true },
+    ])] };
+    await syncFromSimplefin(USER, TODAY);
+    const pinned = await row();
+    expect(pinned.reviewPinned).toBe(true);
+    expect(pinned.status).toBe('PENDING');
+
+    // One flaky snapshot omits the id: pre-fix the in-window sweep DELETED the
+    // pinned row; the next sync re-created it from the rule's confident verdict —
+    // pin laundered, auto-filed, no user decision.
+    accountsPayload = { accounts: [checking([])] };
+    await syncFromSimplefin(USER, TODAY);
+    expect(await prisma.transaction.count({ where: { account: { userId: USER } } })).toBe(1);
+
+    // The feed re-reports it: the preserve predicate (pinned) keeps the review.
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-12.00', description: RAW, pending: true },
+    ])] };
+    await syncFromSimplefin(USER, TODAY);
+    const kept = await row();
+    expect(kept.needsReview).toBe(true);
+    expect(kept.reviewPinned).toBe(true);
   });
 
   it('test_regression__aged_out_split_dissolves (cycle-3 P0): a >32d-old pending split is swept WITH its children', async () => {
