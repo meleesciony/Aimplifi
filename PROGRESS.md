@@ -1553,3 +1553,53 @@ OWNER NEXT: (1) reboot → `VERIFY_E2E=1 bash scripts/verify.sh` full re-witness
 (deploy applies reviewPinned via the build's `prisma db push` automatically); (3) backlog: STATUS 23
 remainder (register/triage/reports disclosure), #134 loan de-dup, #127 tail, shared CategoryPicker.
 SAFE to /clear.
+
+## HANDOFF (2026-07-02, session end — next session runs on OPUS, /clear'd)
+Nothing in the repo state is model-specific. Resume protocol: read this section + the owner NEXT
+below; do NOT re-explore what the ledgers already record (LOOP_ENGINEERING §token-discipline 4/6).
+
+**EXACT STATE:** local main = HEAD **f12128e** = 69a335b + **17 commits, ALL UNPUSHED**
+(push = prod deploy = OWNER's call). Working tree clean. Today's 7:
+  e51d6fe  #145 /investments currency disclosure (checker-clean, DECISIONS #145)
+  bbda775  checker cycle-2 fixes  — 20/20 confirmed (P0 split lifecycle, Serializable class) #146
+  829d291  checker cycle-3 fixes  — 16/16 confirmed (SF churn P0, sixth writer, supersede)   #147
+  f05a55c  cycle-4 hard stop docs — 1 P1 + 8 P2 recorded open at the 4-cycle cap
+  509c208  cycle-5 (owner-authorized) — reviewPinned SCHEMA + P2 batch 26-33                 #148
+  8055243  cycle-5 scoped confirmation fixes — backfill 7th writer + sweep laundering
+  f12128e  session-close checkpoint
+Prior 10 (unpushed, pre-session): the phase-3 rebuild + checker cycle-1 stack (see 4bdc6e8 entry).
+
+**GATE AT HEAD (real, 2026-07-02):** `bash scripts/verify.sh` → ✅ VERIFY GREEN, **1554 unit / 122
+files**; every phase2-triage e2e witnessed GREEN ISOLATED on the final build; e2e SERIAL runs stall
+environmentally (disabled-pending ≥60s, position varies, 3-POINT A/B-PROVEN incl. pre-stack code —
+machine unrebooted since Jun 30; cure = reboot). transactions.spec:191 failure = same A/B-proven
+environmental class, NOT code.
+
+**SCHEMA CHANGE IN THE STACK:** Transaction.reviewPinned (additive, default false). Local/test DBs
+pick it up via the test setup's db push; prod applies it automatically — vercel.json's buildCommand
+runs `prisma db push` against Neon. gen-pg-schema carries it (verified).
+
+**CHECKER CAMPAIGN: SPENT.** 5 adversarial rounds total (cycle-1 pre-session; cycles 2-5 + scoped
+confirmation today). The 4-cycle cap was reached at cycle 4 (hard stop honored, owner asked); the
+owner authorized exactly ONE fix round + ONE scoped confirmation — both delivered. Do NOT launch
+further checker rounds on THIS stack without a fresh owner ask; NEW engine work gets its own
+maker/checker per house rule.
+
+**HONESTY LABELS STANDING (do not silently upgrade):** (1) PG isolation closure (serializableTx at
+7 writer sites) = documented-Postgres-semantics reasoning + helper/wiring locks; UNVERIFIED-on-PG —
+no Postgres integration env exists. (2) The two scoped-confirmation fixes (8055243) are
+fail-old-lock-proven but had NO further adversarial round. (3) Full-suite serial e2e = reboot-gated
+re-witness (`VERIFY_E2E=1 bash scripts/verify.sh`).
+
+**OWNER-GATED NEXT (in order):** (1) reboot → `VERIFY_E2E=1 bash scripts/verify.sh` full re-witness
+(STATUS 2026-07-01 + the 3-point A/B notes have the diagnosis); (2) owner push call — one push ships
+the entire categorization rebuild + all checker fixes + #145; verify the Vercel deploy (house
+pattern: check dpl_ READY via the Vercel MCP, team reiforge / project aimplifi, aliases
+aimplifi.app + www). (3) THEN the backlog, unchanged: STATUS residual 23 remainder (disclosure on
+register → /triage → /recurring → /reports → /coach), 3a rule re-point backfill follow-up, #134 loan
+de-dup, #127 tail (SimpleFIN symbol regex + epoch→date), shared CategoryPicker/SR-listbox.
+
+**LEDGER MAP:** decisions → docs/DECISIONS.md rows 145-148; per-cycle findings/fixes/residuals →
+docs/STATUS.md (cycle 2/3/4/5 + confirmation sections; accepted residuals enumerated per cycle);
+regression proofs → REGRESSION_LEDGER.md last 5 rows; measured before/after for the rebuild →
+docs/baseline/phase2 + phase5. Task list: all 7 tasks completed/closed.
