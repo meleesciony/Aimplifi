@@ -1265,7 +1265,19 @@ transition (hence every disabled={pending} button); storage healthy (p50=1ms pro
 today (3-point A/B incl. #131). OWNER: reboot, then `npx playwright test` to re-witness.
 
 **Session state at close:** local main = dd08f2e +3 session commits (d7907c8 #136-inc1, f5a04b5
-#137-inc2, <inc3 commit> #138) — see the commit log; origin/main = 6a63729+ (#134/#135 still unpushed
-from before + these). PUSH = owner's call (deploys #134+#135+#136/#137/#138 together).
-NEXT (owner-gated): reboot + full VERIFY_E2E=1 re-witness; the #135 currency-disclosure UI, #134 loan
-de-dup, #127 tail, and the shared-CategoryPicker/SR-listbox follow-up remain on the backlog.
+#137-inc2, 28cad97 #138-inc3).
+
+**RE-WITNESS + DEPLOYED ✅ (owner: "go with what you're recommending"):** pre-push full gate
+`VERIFY_E2E=1 verify.sh` → **60/61 e2e passed** — every spec covering this session's code GREEN on the
+final tree (incl. the previously-stalled register happy path); the ONE failure remains the A/B-proven
+environmental full-review throughput test (fails identically on already-deployed code; isolated rerun
+still red → cure = reboot, gates nothing). Pushed `bcf26c2..28cad97` → Vercel production
+`dpl_FyeLL6utdJM6fwVFn8mm4GhL5q9Q` reached **READY** in ~84s (verified via the Vercel MCP, team
+reiforge/project aimplifi), aliases aimplifi.app + www.aimplifi.app live (apex 308→www with the HSTS
+header; /sign-in → 200). This deploy takes **#134 (Plaid loans → calendar/reminders) + #135 (currency
+guard) + #136/#137/#138 (the category sweep)** to production together.
+NEXT (owner-gated): reboot when convenient + one full VERIFY_E2E=1 to re-witness the throughput test
+(STATUS 2026-07-01 has the diagnosis + version pins); backlog unchanged — #135 currency-disclosure UI,
+#134 loan de-dup, #127 tail, shared-CategoryPicker/SR-listbox follow-up. (This deploy-record entry is a
+LOCAL-ONLY docs commit, intentionally unpushed per the house pattern — bundle with the next change.)
+SAFE to /clear.
