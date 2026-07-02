@@ -1405,3 +1405,36 @@ proves day-long degradation — reboot-gated re-witness). Deferred P2s recorded 
 Local main = 69a335b +9 commits, ALL UNPUSHED (push = prod deploy = owner's call).
 NEXT: owner reboot → VERIFY_E2E=1 re-witness → owner push call; then backlog (#135 residual 23 disclosure
 /investments, 3a rule re-point backfill follow-up, #134 loan de-dup, #127 tail). SAFE to /clear.
+
+## 2026-07-02 (resumed: "continue") — #145 /investments disclosure + CYCLE-2 CHECKER LANDED
+Owner picked "start next backlog item" (reboot/push stay owner-gated; machine still un-rebooted —
+last boot Jun 30). **#145 built (STATUS residual 23):** CurrencyExclusionBanner + withheld-aware
+empty state on /investments (page.tsx Promise.all + InvestmentsView prop; zero-withheld byte-identical),
+currency-disclosure.spec extended BOTH paths (negative anchored investments-summary per the #141
+anchor rule; positive + second axe scan). Gate: `bash scripts/verify.sh` → ✅ VERIFY GREEN; isolated
+`npx vitest run` re-capture → **1520 passed / 120 files (38.7s)** (no new unit tests — the increment's
+locks are e2e); targeted e2e **6/6 GREEN 16.9s** (disclosure 2/2 + investments 4/4, no stall). Checker wf_637cc5e5: **0 P0/P1, 2 P2 confirmed → FIXED** (zero-withheld empty-state
+branch unlocked → --usd-only fixture + byte-identity e2e; /investments name assertions couldn't
+witness the guard → INVESTMENT-typed EUR brokerage added to the fixture, counts 2→3), 2 refuted.
+Re-run: currency-disclosure **3/3 GREEN 15.4s**. Committed with docs.
+
+**MID-SESSION: cycle-2 confirmation checker (wf pre-/clear, 23 agents) completed — 20 raw,
+20 CONFIRMED, 0 refuted** against the unpushed cycle-1 stack (5bd0106). Deduped defects:
+**P0-A** transplant × split-parent (plaid.ts:404-431 select omits isSplitParent; splitTransaction has
+NO status guard; split PENDING posts under new id → parent deleted, children dangle (no FK), new
+full-amount row → DOUBLE-COUNTED spend; removed[] path has the pre-existing sibling for canceled
+charges). **P1-B** guards assume SQLite write serialization, prod = PrismaPg READ COMMITTED
+(db-adapter.ts:40-42): sync-guard read-then-unconditional-update (plaid 382-394 / simplefin 501-510)
+reopens the clobber; fileMerchantGroup raced corrections commit + duplicate priority-100 rules; also
+affected==0 path commits corrections+rule then skips auditLog. **P1-C** groupEmptied mutated inside
+setGroups updater, read synchronously (triage-inbox.tsx:232-252) — deferred updater on the write-in
+path (createAndFile dispatches state first) skips setMode('idle') → singles leak resurfaces.
+**P1/P2-F** transplant computes settled from predecessor fields read OUTSIDE its tx. **P2s:** D
+merchantless scope lacks merchantId:null (triage.ts:58-61 — m: card rows co-filed); E simplefin
+findFirst+create reintroduces CQ-2 upsert race (plaid create:435 same shape); G removed[] applied
+per-page defeats transplant when removed lands a page early; H rule dedupe ignores the 5 condition
+columns; I gate gaps (count≡scope equivalence unlocked; recategorize mints undeduped rules).
+Fix plan (tasks #2-#6): P0-A three ends (split status guard + transplant preserves split-parent for
+legacy rows + removed[] cascades children); P1-B compare-and-set/Serializable design decision;
+P1-C pre-dispatch emptiness derivation; P2 batch; then cycle-3 confirmation workflow (cycle cap 4).
+NEXT: checker wf_637cc5e5 result → #145 commit → cycle-2 fixes (P0 first).

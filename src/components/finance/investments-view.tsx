@@ -11,7 +11,9 @@ import { PieChart, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cents, formatCents } from '@/lib/money';
 import { isPerShareApproximate } from '@/lib/engine/investments/portfolio';
+import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { RetirementOutlookCard } from '@/components/finance/retirement-outlook-card';
+import type { WithheldAccountSummary } from '@/lib/providers/currency';
 import type { InvestmentsView as InvestmentsData, RetirementOutlook } from '@/server/investments';
 
 const GAIN_UP = 'text-emerald-600 dark:text-emerald-400';
@@ -24,7 +26,15 @@ const pctLabel = (pct: number | null): string =>
 const money = (n: number, signed = false) =>
   formatCents(cents(Math.round(n)), signed ? { signDisplay: 'always' } : undefined);
 
-export function InvestmentsView({ data, outlook }: { data: InvestmentsData; outlook: RetirementOutlook }) {
+export function InvestmentsView({
+  data,
+  outlook,
+  withheld,
+}: {
+  data: InvestmentsData;
+  outlook: RetirementOutlook;
+  withheld: WithheldAccountSummary;
+}) {
   const { overall, accounts } = data;
   const hasHoldings = overall.positions.length > 0;
 
@@ -37,13 +47,21 @@ export function InvestmentsView({ data, outlook }: { data: InvestmentsData; outl
         </Link>
       </div>
 
+      {/* Non-USD accounts are withheld from every figure on this page (the #135 guard filters
+          them out of getInvestments) — the vanish must not be silent here either (STATUS #23). */}
+      <CurrencyExclusionBanner summary={withheld} />
+
       {outlook.hasData ? <RetirementOutlookCard outlook={outlook} /> : null}
 
       {!hasHoldings ? (
         <Card data-testid="investments-empty">
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No investment holdings yet. Add holdings to an investment account to see market value, gain,
-            and allocation here.
+            {withheld.count > 0
+              ? // "No investment holdings yet" would be false for a user whose only holdings sit in a
+                // withheld non-USD account (the /accounts empty-state contradiction, same fix shape).
+                // Zero-withheld users get the original copy byte-identical.
+                'No U.S.-dollar investment holdings yet. Add holdings to a U.S.-dollar investment account to see market value, gain, and allocation here.'
+              : 'No investment holdings yet. Add holdings to an investment account to see market value, gain, and allocation here.'}
           </CardContent>
         </Card>
       ) : (

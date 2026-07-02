@@ -1,7 +1,7 @@
 /**
  * Currency-guard disclosure banner (#135 residual): a withheld non-USD account must
- * not vanish SILENTLY from the dashboard figures or /accounts — the banner says what
- * was left out and why, and renders NOTHING for an all-USD user.
+ * not vanish SILENTLY from the dashboard figures, /accounts, or /investments — the
+ * banner says what was left out and why, and renders NOTHING for an all-USD user.
  *
  * Positive path uses a throwaway signup user + the guarded
  * scripts/e2e-add-foreign-account.ts helper: the seeded demo user is all-USD by
@@ -28,9 +28,15 @@ test('all-USD demo user sees no disclosure banner anywhere (zero-render lock)', 
   await page.goto('/accounts');
   await expect(page.getByTestId('accounts-net-worth')).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('currency-exclusion-banner')).toHaveCount(0);
+
+  // /investments (STATUS #23 extension): anchor on the holdings summary — page content
+  // below the boundary; the seeded demo user always has holdings (investments.spec.ts:73).
+  await page.goto('/investments');
+  await expect(page.getByTestId('investments-summary')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('currency-exclusion-banner')).toHaveCount(0);
 });
 
-test('withheld foreign accounts surface the disclosure on the dashboard and /accounts', async ({ page }) => {
+test('withheld foreign accounts surface the disclosure on the dashboard, /accounts, and /investments', async ({ page }) => {
   const email = `e2e-fx-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
   const password = 'e2e-password-123';
 
@@ -57,8 +63,8 @@ test('withheld foreign accounts surface the disclosure on the dashboard and /acc
   const banner = page.getByTestId('currency-exclusion-banner');
   await expect(banner).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('empty-dashboard')).toHaveCount(0);
-  await expect(banner).toContainText('2 accounts not included — not in U.S. dollars');
-  await expect(banner).toContainText('EUR, GBP');
+  await expect(banner).toContainText('3 accounts not included — not in U.S. dollars');
+  await expect(banner).toContainText('EUR, GBP'); // EUR deduped across savings + brokerage
   await expect(banner).toContainText('Nothing is deleted');
 
   // /accounts: same disclosure; the withheld accounts themselves stay OFF the page
@@ -69,6 +75,7 @@ test('withheld foreign accounts surface the disclosure on the dashboard and /acc
   await expect(page.getByText('E2E US Checking')).toBeVisible();
   await expect(page.getByText('E2E Euro Savings')).toHaveCount(0);
   await expect(page.getByText('E2E UK Card')).toHaveCount(0);
+  await expect(page.getByText('E2E Euro Brokerage')).toHaveCount(0);
 
   // The demo user never renders the banner, so the phase-5 axe pass can't cover it —
   // scan here with the banner present (WCAG A/AA, the #136 write-in-form precedent).
@@ -76,4 +83,60 @@ test('withheld foreign accounts surface the disclosure on the dashboard and /acc
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   expect(axe.violations).toEqual([]);
+
+  // /investments (STATUS #23 extension): the USD checking account passes the page gate,
+  // has no holdings → the withheld-aware empty state renders under the same banner.
+  // The Euro BROKERAGE assertion is the real guard witness here: it is INVESTMENT-typed,
+  // so ONLY the currency filter (getInvestments' isSupportedCurrency, unit-locked in
+  // currency-guard.test.ts P1-A) keeps it off this page — the SAVINGS/CREDIT rows could
+  // never appear via getInvestments regardless of the guard (#145 checker P2).
+  await page.goto('/investments');
+  const investmentsEmpty = page.getByTestId('investments-empty');
+  await expect(investmentsEmpty).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('currency-exclusion-banner')).toBeVisible();
+  await expect(page.getByTestId('currency-exclusion-banner')).toContainText(
+    '3 accounts not included — not in U.S. dollars',
+  );
+  await expect(investmentsEmpty).toContainText('No U.S.-dollar investment holdings yet');
+  await expect(page.getByText('E2E Euro Brokerage')).toHaveCount(0);
+  await expect(page.getByText('E2E Euro Savings')).toHaveCount(0);
+  await expect(page.getByText('E2E UK Card')).toHaveCount(0);
+
+  // Axe again on THIS surface: the withheld-aware empty-state copy variant renders only
+  // here (the /accounts scan above never sees it — that user has a listed USD account).
+  const axeInvestments = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(axeInvestments.violations).toEqual([]);
+});
+
+test('zero-withheld user keeps the ORIGINAL investments empty-state copy (byte-identity lock)', async ({ page }) => {
+  // #145 checker P2: the zero-withheld else-branch was the one copy path no test
+  // rendered — the demo user always has holdings and the fx fixture always has
+  // withheld accounts. A USD-only throwaway (passes the supported-account page
+  // gate, zero holdings, zero withheld) mounts exactly that branch.
+  const email = `e2e-usd-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  const password = 'e2e-password-123';
+
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill(password);
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+
+  execSync(`npx tsx scripts/e2e-add-foreign-account.ts ${email} --usd-only`, {
+    env: { ...process.env, DATABASE_URL: E2E_DB_URL },
+    stdio: 'inherit',
+  });
+
+  await page.goto('/investments');
+  const investmentsEmpty = page.getByTestId('investments-empty');
+  await expect(investmentsEmpty).toBeVisible({ timeout: 20000 });
+  // The original copy, verbatim — a withheld-flavored regression here means the
+  // zero-withheld branch changed (the increment promised it byte-identical).
+  await expect(investmentsEmpty).toContainText(
+    'No investment holdings yet. Add holdings to an investment account to see market value, gain, and allocation here.',
+  );
+  await expect(page.getByTestId('currency-exclusion-banner')).toHaveCount(0);
 });

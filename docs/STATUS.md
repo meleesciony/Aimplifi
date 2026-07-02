@@ -1307,6 +1307,9 @@ axe AA with the banner present — the demo user never renders it, so the phase-
     Follow-up: reuse getWithheldAccountSummary there (checker recommends /investments first). Note:
     every sign-in lands on /dashboard, whose banner reads app-wide ("every total, trend, and
     projection shown"), so the vanish is no longer fully silent anywhere.
+    [UPDATE 2026-07-02: /investments covered — DECISIONS #145 (banner + withheld-aware empty
+    state + e2e both paths). Remaining silent surfaces: register, /triage, /recurring, /reports,
+    /coach; residual 25 (projection-assumption copy) unchanged.]
 24. The supported-currency predicate stays hand-duplicated across ~4 page gates + the DB complement
     in getWithheldAccountSummary; only the summary side is invariance-tested. Refactor candidate
     (single exported Prisma where-fragment), not a live defect.
