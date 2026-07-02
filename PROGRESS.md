@@ -1365,3 +1365,21 @@ stall (retried; run completed). Evidence: docs/baseline/phase2/shots/*.png.
 NEXT: Phase 3 rebuild (owner-gated): merchant-unit queue + trust-on-repeat + retro-in-one-action +
 chunking + learned defaults. The #135-#141 backlog (disclosure /investments, #134 loan de-dup,
 #127 tail) queues behind the categorization fix.
+
+## 2026-07-02 (cont.) — Phase 3 rebuild IN PROGRESS: 3d ✅ + 3a ✅ committed, 3b next
+Owner confirmed Phase 3. Increment plan: 3d clobber-guard → 3a normalization → 3b group
+engine/server → 3c UI → Checker → e2e adaptation → Phase 4 tests → Phase 5 before/after.
+**3d DONE (cd3e01a):** resync never clobbers a corrected verdict; both providers; regression
+fail-old/pass-new via real sync paths + real applyCategory; REGRESSION_LEDGER entry; 1495/117.
+**3a DONE (ec5a152, DECISIONS #142):** clean-second-chance (full-consume rule preserves the
+critic2 anchored-pattern lock), city/state strip w/ safety rails, asterisk scrub, robustified
+patterns (Kroger/Target/Home Depot/Shell/Uber×2/T-Mobile), Uber-Eats drift → food-delivery
+(seed churn hand-verified: movers +food-delivery, cents pins unchanged), LIGHT utility token
+(municipal bill no longer erased as transfer), +8 national entries incl. Venmo-as-aggregate.
+MEASURED: adversarial eval 60% → 23.3% review on messy data, precision 100%; 1507/118 green.
+**NEXT: 3b** = pure groupReviewRows engine + getTriageGroups (kills the N+1 similarCount) +
+fileMerchantGroup action (batch + corrections + prediction truth + rule when eligible, one
+$transaction; group framing IS the Always consent — record as DECISIONS #143) + merchant-count
+badge. Then 3c UI (group cards, "X merchants left", honest quick-picks replacing
+bestGuess='Shopping'), Checker workflow, phase2-triage e2e adaptation.
+Baseline artifacts for Phase 5 comparison: docs/baseline/phase2/ (same corpus, same driver).
