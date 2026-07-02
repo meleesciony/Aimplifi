@@ -8,6 +8,7 @@
  * Pure: integer cents in/out, ISO-date strings, no I/O, no `new Date()`.
  */
 import { addDays, addMonthsClamped, compareDates, isoDate, type ISODate } from '@/lib/dates';
+import type { LoanObligation } from '@/lib/engine/loans/obligations';
 
 export type ScheduledCadence = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | null;
 
@@ -16,6 +17,32 @@ export interface ScheduledFlow {
   amountCents: number; // signed: + inflow, − outflow
   nextDate: string; // YYYY-MM-DD
   cadence: ScheduledCadence;
+}
+
+/**
+ * Map loan-due obligations (#134) into forecast scheduled flows: each loan's fixed monthly
+ * payment as a signed outflow recurring on its raw due day-of-month. A LOAN/MORTGAGE payment
+ * really debits checking every month, but it is NOT in snap.scheduled (it surfaces only as a
+ * loan-due obligation on the calendar/reminders), so the balance projection would otherwise
+ * over-project checking. Anchors on `dueDate` (the TRUE day-of-month), NOT `effectiveDueDate`:
+ * the MONTHLY expander steps by calendar month, so a business-day-shifted anchor would drag
+ * that shift into every future month; the business-day adjustment is a calendar/reminder display
+ * nicety, immaterial to the balance trajectory. This does NOT de-duplicate against a
+ * recurring-detected loan ACH — no structural key links a checking scheduled row to a loan
+ * Account (heuristic money-matching is rejected, STATUS #134), so the narrow non-transfer-ACH
+ * double-count residual is unchanged.
+ */
+export function loanObligationsToScheduledFlows(
+  obligations: readonly LoanObligation[],
+): ScheduledFlow[] {
+  return obligations
+    .filter((o) => o.paymentCents > 0)
+    .map((o) => ({
+      description: o.accountName,
+      amountCents: -o.paymentCents, // signed outflow
+      nextDate: o.dueDate, // RAW day-of-month (see docstring), never effectiveDueDate
+      cadence: 'MONTHLY' as const,
+    }));
 }
 
 export interface ForecastEvent {

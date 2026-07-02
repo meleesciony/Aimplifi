@@ -1128,6 +1128,25 @@ recurring/scheduled rows from the calendar+forecast when a loanObligation exists
 loanObligations into the forecast and suppress the recurring row. Requires threading a loan-account link or
 categoryId through the scheduled pipeline; a focused follow-up, not bolted onto this increment.
 
+**RESOLVED 2026-07-02 (DECISIONS #151, owner "do all recommended"):** the understand workflow proved there
+is NO structural key linking a checking scheduled row to a loan Account, so a cross-source de-dup would need
+heuristic money-matching (house-rejected). Chose **Option D** — feed loan obligations into the /forecast
+balance projection from their one safe source (the loan Account) via `loanObligationsToScheduledFlows`; this
+fixes the demo $385/mo under-count (consequence 1) with no heuristic and no golden movement. Checker
+wf_1a6616ee 0 P0/P1. **Accepted residuals (documented, not fixed — no safe automatic fix exists):**
+- **Consequence 2 (calendar + now forecast) unchanged:** a loan whose ACH is ALSO recurring-detected as a
+  non-transfer checking row double-counts (folding loan-due into the forecast extends this to the forecast
+  for that SAME already-broken population — no new victims). A future non-heuristic link (a
+  loan-account/categoryId on the scheduled pipeline) would enable de-dup; pinned by a regression test that
+  documents the limitation.
+- **Day-31 clamp (checker P2-B):** a loan due on day 31 anchored in a short month expands a day early (e.g.
+  06-30 → 07-30, 08-30 not 07-31/08-31) — a pre-existing `expandScheduled` MONTHLY property, now reachable
+  via the loan fold; not demo-reachable (demo loan is day 5), ≤1-day shift, no golden moves.
+- **Companion carve-out (detect.ts:83-85 `'auto-loan'`) DECLINED as out of scope:** `refreshRecurringForUser`
+  runs only on real provider sync, never for the seeded demo, so the "latent post-refresh double-count" is
+  not demo-reachable; removing the carve-out would churn ~8 recurring goldens for zero demo benefit. Optional
+  owner-gated follow-up.
+
 ## 2026-06-30 — Currency guard: withhold non-USD accounts (DECISIONS #135, live-ingest audit #3/#10)
 
 Closed the #127 live-ingest "currency never read" item. The app does no FX, so a non-USD feed

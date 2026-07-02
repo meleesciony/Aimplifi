@@ -29,4 +29,9 @@ test('forecast view projects the balance with chart, milestones, and lowest poin
   // Anchored on the seed's Everyday Checking starting balance.
   await expect(page.getByTestId('forecast-hero')).toContainText('$3,400.00');
   await expect(page.getByTestId('forecast-hero')).toContainText('Everyday Checking');
+
+  // #134: the auto-loan payment ($385/mo, due day 5) now appears in the projection — it was
+  // invisible before (represented only as a loan-due obligation on the calendar/reminders, not a
+  // checking scheduled row). Locks the balance projection agreeing with those surfaces.
+  await expect(page.getByTestId('forecast-upcoming')).toContainText('Auto Loan');
 });

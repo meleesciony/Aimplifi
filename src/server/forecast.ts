@@ -8,10 +8,13 @@
 import {
   computeForecast,
   expandScheduled,
+  loanObligationsToScheduledFlows,
   type Forecast,
   type ScheduledCadence,
   type ScheduledFlow,
 } from '@/lib/engine/forecast/forecast';
+import { selectLoanObligations } from '@/lib/engine/loans/obligations';
+import { holidayTable } from '@/lib/dates';
 import { getProvider } from '@/lib/providers/demo';
 
 export interface CashFlowForecastData {
@@ -44,7 +47,20 @@ export async function getCashFlowForecast(
       cadence: (s.cadence as ScheduledCadence) ?? null,
     }));
 
-  const events = expandScheduled(flows, today, horizonDays);
+  // #134: a LOAN/MORTGAGE payment debits checking every month but is NOT in snap.scheduled
+  // (it surfaces only as a loan-due obligation on the calendar/reminders — obligations.ts).
+  // Fold those obligations into the balance projection so /forecast agrees with the calendar
+  // instead of over-projecting checking (the demo's $385/mo auto-loan was invisible here).
+  // All loan flows attach to the payment-account projection: loan autopays pull from checking,
+  // consistent with the forecast's single-payment-account model (a rare pay-from-savings loan
+  // is an accepted approximation). Same holiday+obligation derivation as finance.ts.
+  const year = Number(today.slice(0, 4));
+  const holidays = holidayTable(year - 1, year + 1);
+  const loanFlows = loanObligationsToScheduledFlows(
+    selectLoanObligations({ accounts: snap.accounts, today, holidays }),
+  );
+
+  const events = expandScheduled([...flows, ...loanFlows], today, horizonDays);
   const forecast = computeForecast({
     today,
     startingBalanceCents: payment?.currentBalanceCents ?? 0,

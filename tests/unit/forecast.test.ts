@@ -4,7 +4,14 @@
  * negative date, inflow/outflow totals).
  */
 import { describe, expect, it } from 'vitest';
-import { computeForecast, expandScheduled } from '@/lib/engine/forecast/forecast';
+import {
+  computeForecast,
+  expandScheduled,
+  loanObligationsToScheduledFlows,
+} from '@/lib/engine/forecast/forecast';
+import type { LoanObligation } from '@/lib/engine/loans/obligations';
+import { isoDate } from '@/lib/dates';
+import { cents } from '@/lib/money';
 
 describe('expandScheduled', () => {
   it('expands a biweekly flow into occurrences strictly after today within the horizon', () => {
@@ -96,5 +103,76 @@ describe('computeForecast', () => {
       events: [],
     });
     expect(f.milestones.map((m) => m.dayOffset)).toEqual([30]); // 60/90 beyond 45d
+  });
+});
+
+describe('loanObligationsToScheduledFlows (#134 — loan payments in the balance projection)', () => {
+  const loanObligation = (over: Partial<LoanObligation> = {}): LoanObligation => ({
+    accountId: 'acct-autoloan',
+    accountName: 'Auto Loan',
+    accountType: 'LOAN',
+    dueDate: isoDate('2026-07-05'),
+    effectiveDueDate: isoDate('2026-07-03'), // business-day-shifted — the mapper must IGNORE this
+    paymentCents: cents(38500),
+    isEstimated: false,
+    ...over,
+  });
+
+  it('maps a loan obligation to a MONTHLY outflow anchored on the RAW dueDate, never effectiveDueDate', () => {
+    const flows = loanObligationsToScheduledFlows([loanObligation()]);
+    expect(flows).toEqual([
+      { description: 'Auto Loan', amountCents: -38500, nextDate: '2026-07-05', cadence: 'MONTHLY' },
+    ]);
+    // guard the docstring invariant: a business-day-shifted anchor would drag the shift into
+    // every future month, so the mapper must use dueDate, not effectiveDueDate.
+    expect(flows[0].nextDate).not.toBe('2026-07-03');
+  });
+
+  it('drops a non-positive payment; empty in → empty out', () => {
+    expect(loanObligationsToScheduledFlows([])).toEqual([]);
+    expect(loanObligationsToScheduledFlows([loanObligation({ paymentCents: cents(0) })])).toEqual([]);
+  });
+
+  it('folds into the projection: 3 monthly occurrences over the demo 90-day horizon (−$385/−$770/−$1,155)', () => {
+    // The loan's ISOLATED contribution to a bare $3,400 start (today 2026-06-10, auto-loan
+    // $385.00 due day 5). Hand-verified in docs/EDGE_CASES.md §LO-H. NOTE: this is NOT the
+    // on-screen /forecast milestone (that also carries payroll/rent/savings) — see §LO-H.
+    const events = expandScheduled(loanObligationsToScheduledFlows([loanObligation()]), '2026-06-10', 90);
+    expect(events.map((e) => e.date)).toEqual(['2026-07-05', '2026-08-05', '2026-09-05']);
+    const f = computeForecast({
+      today: '2026-06-10',
+      startingBalanceCents: 340000,
+      horizonDays: 90,
+      events,
+    });
+    expect(f.milestones[0].balanceCents).toBe(301500); // 30d (07-10): −$385
+    expect(f.milestones[1].balanceCents).toBe(263000); // 60d (08-09): −$770
+    expect(f.milestones[2].balanceCents).toBe(224500); // 90d (09-08): −$1,155
+    expect(f.totalOutflowCents).toBe(115500); // 3 × $385
+  });
+
+  it('does NOT de-duplicate a loan already present as a scheduled row (documents the accepted STATUS #134 residual)', () => {
+    // A loan ACH that is ALSO recurring-detected as a checking scheduled row coexists with the
+    // loan-due flow and double-counts — no structural key links a checking row to a loan Account,
+    // and heuristic money-matching is rejected. This PINS the accepted limitation; update it only
+    // if a future non-heuristic link is introduced.
+    const scheduledRow = {
+      description: 'Auto Loan ACH',
+      amountCents: -38500,
+      nextDate: '2026-07-05',
+      cadence: 'MONTHLY' as const,
+    };
+    const events = expandScheduled(
+      [scheduledRow, ...loanObligationsToScheduledFlows([loanObligation()])],
+      '2026-06-10',
+      40, // one occurrence of each within the horizon
+    );
+    const f = computeForecast({
+      today: '2026-06-10',
+      startingBalanceCents: 340000,
+      horizonDays: 40,
+      events,
+    });
+    expect(f.totalOutflowCents).toBe(77000); // 2 × $385 — the documented double-count
   });
 });

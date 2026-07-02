@@ -1652,3 +1652,19 @@ verify GREEN **1558 / 122**; currency-disclosure e2e **3/3** (21.1s). Committed 
 
 **Remaining backlog this session:** #134 loan de-dup, #127 tail (SimpleFIN symbol regex + epoch→date), shared
 CategoryPicker. Each engine-first → verify → checker → commit → push.
+
+### #134/#151 loan de-dup → forecast — DONE ✅ (verify+e2e green, Checker 0 P0/P1)
+The owner-gated de-dup DESIGN decision, delegated by "do all recommended." Understand workflow (wf_aae820f1,
+3 readers → synth) proved the crux: NO structural key links a checking scheduled row to a loan Account, so a
+cross-source de-dup needs heuristic money-matching (house-rejected). Chose **Option D** — feed loan
+obligations into the /forecast balance projection from their one safe source (the loan Account): pure
+`loanObligationsToScheduledFlows` (MONTHLY outflow on RAW dueDate) + `getCashFlowForecast` concat. Fixes the
+demo $385/mo forecast under-count (the auto-loan was invisible — a loan-due obligation, not a checking
+scheduled row) with zero heuristic and zero golden movement (no test pinned demo forecast milestones).
+Declined the companion carve-out removal (not demo-reachable; ~8-golden churn) — optional follow-up.
+Hostile Checker (wf_1a6616ee, 3 lenses → adversarial verify; money-math = maker/checker): **0 P0/P1**,
+probe-confirmed loan folds in ×3 @ −$385. P2s FIXED pre-commit: EDGE_CASES §LO-H relabeled (isolated
+contribution, not on-screen milestone — honesty) + a quantitative server-path test (forecast-server.test.ts).
+Accepted residuals (STATUS #134): non-transfer-ACH double-count (no safe fix, same population), day-31 clamp
+(pre-existing, not demo-reachable). Gate (real 2026-07-02): verify GREEN **1563 / 123**, forecast e2e 2/2
+(demo /forecast now shows "Auto Loan"). Committed + pushed (deploy) below.
