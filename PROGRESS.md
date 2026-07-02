@@ -1383,3 +1383,14 @@ $transaction; group framing IS the Always consent — record as DECISIONS #143) 
 badge. Then 3c UI (group cards, "X merchants left", honest quick-picks replacing
 bestGuess='Shopping'), Checker workflow, phase2-triage e2e adaptation.
 Baseline artifacts for Phase 5 comparison: docs/baseline/phase2/ (same corpus, same driver).
+
+## 2026-07-02 (cont.) — PULSE_CATEGORIZATION_FIX Phases 3-5 COMPLETE ✅ (pending Checker)
+Phase 3 shipped in 4 verify-green commits: 3d clobber-guard (cd3e01a), 3a identity (ec5a152, #142),
+3b group engine (6362f90, #143), 3c UI + rescoped e2e (001eb5b, #144). Phase 4: corpus locks
+(messy-corpus-queue.test.ts — 83.8% day-one auto, 16 decisions, <5% after one pass, aggregates-only
+residue, real numbers printed). Phase 5 MEASURED (same corpus/driver/labels as the Phase-2 baseline):
+queue 144→16 (9×), interactions 397→45 (8.8×), modeled 26.5min→3.0min, week-slice 61→14 interactions
+(56s — MEETS SPEC <15/<60s), 0 stalls, evidence in docs/baseline/phase5/. Report: PHASE5_AFTER.md.
+Environmental (3-point A/B'd): phase5-a11y keyboard-only /cards fails today at 69a335b too — machine,
+not code; retest post-reboot. NEXT: Maker/Checker workflow over the Phase-3 diff (house rule for the
+core engine), then owner review + push call (deploys #142-#144 + the fix).
