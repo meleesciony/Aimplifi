@@ -1275,3 +1275,50 @@ matches under Playwright's Pixel-5 emulation). Gate: verify GREEN 1476/116; tria
 (incl. zoom locks); register race 4.6s GREEN; register happy-path tail = the documented environmental
 stall (unchanged label). Residual: real-device (physical iPhone) confirmation is the owner's — emulation
 proves the CSS applies, not Safari's zoom behavior itself.
+
+## 2026-07-02 — #141 currency-disclosure banner (#135 residual 18) — Checker 1 P1 + 10 P2 confirmed, P1 + 7 P2 fixed
+Resumed from stash `wip-135-disclosure` (banner + pure summarizer + getAccountsView.withheld +
+getWithheldAccountSummary + dashboard//accounts wiring). Completed the pending pieces: integration
+tests on the existing currency-guard fixture, the guarded scripts/e2e-add-foreign-account.ts (refuses
+unless DATABASE_URL === E2E_DB_URL exactly AND the email is an @aimplifi.test throwaway; idempotent
+via delete-own-rows-first), and tests/e2e/currency-disclosure.spec.ts (negative: all-USD demo user, no
+banner; positive: ad-hoc signup user + helper → banner on dashboard + /accounts, withheld names absent,
+axe AA with the banner present — the demo user never renders it, so the phase-5 pass can't cover it).
+
+**Hostile Checker (wf_de889cf4, 4 lenses → adversarial verifier): 17 raw → 11 CONFIRMED (1 P1, 10 P2),
+6 refuted.** Fixed:
+- **P1 (tests): vacuous dashboard zero-render lock** — the negative spec anchored on `demo-banner`,
+  which the LAYOUT flushes before the route-group Suspense resolves, so `toHaveCount(0)` passed
+  against the loading skeleton. Re-anchored on `net-worth-card` (page content below the boundary).
+- P2 copy sweep, all grammar now built by the PURE `withheldBannerCopy()` and branch-locked in unit
+  tests: singular+opaque folds to "another currency" (was ungrammatical "an account in other
+  currencies"); title now "not in U.S. dollars" (was "foreign currency" — mislabels crypto/BTC, a
+  first-class withheld case); display tokens = letters 3–5 only, uppercased + deduped ('840', 'US',
+  'doge' no longer pasted into copy; case-variant dedupe can't fake "and others").
+- P2: all-foreign /accounts contradiction (banner "Nothing is deleted" above "No accounts yet / Add
+  your first account") — AccountsEmptyState gets a withheld-aware copy variant; zero-account users
+  byte-identical.
+- P2: spec `.first()` removed (strict mode now locks single-render); helper made idempotent.
+
+**Accepted residuals (documented, not fixed):**
+23. Disclosure covers dashboard + /accounts only (the residual-18 scope as recorded). The register,
+    /investments, /triage, /recurring, /reports, /coach still withhold silently — register is the
+    page a user hunts a missing account on, /investments is one click from the disclosed /accounts.
+    Follow-up: reuse getWithheldAccountSummary there (checker recommends /investments first). Note:
+    every sign-in lands on /dashboard, whose banner reads app-wide ("every total, trend, and
+    projection shown"), so the vanish is no longer fully silent anywhere.
+24. The supported-currency predicate stays hand-duplicated across ~4 page gates + the DB complement
+    in getWithheldAccountSummary; only the summary side is invariance-tested. Refactor candidate
+    (single exported Prisma where-fragment), not a live defect.
+25. Coach/reports projections don't state the currency-exclusion assumption inline (guardrail
+    tension flagged by the checker; same scope decision as 23).
+Refuted (verifier): CSV-export marker claim (accepted residual 19 covers it), backfill-count
+disagreement, all-foreign dashboard P1 (gates to EmptyDashboard = accepted 22), banner salience,
+reassurance-copy coupling, execSync cwd fragility.
+
+**Gate (real, 2026-07-02):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1492 unit / 116 files**
+(+16 this session: 6 stash + 2 integration + 8 checker locks), tsc/eslint/build clean.
+E2E on the final tree: currency-disclosure 2/2 GREEN (2.7s/4.0–4.8s incl. axe) ×3 runs;
+auth.spec 3/3 GREEN (one non-reproducing single failure in the first post-build parallel run —
+isolated rerun 2.6s + full-file rerun 3/3 green; classed environmental per the #16/#17 protocol and
+the CLAUDE.md cold-start-flake rule).

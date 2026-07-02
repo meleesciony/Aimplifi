@@ -116,8 +116,30 @@ function NetWorthCard({ data }: { data: AccountsView }) {
 }
 
 /** Zero-account first-run: a $0.00 net-worth headline is meaningless, so welcome
- *  the user and let the connect/add affordances below carry the action. */
-function AccountsEmptyState() {
+ *  the user and let the connect/add affordances below carry the action.
+ *
+ *  All-foreign edge (#135 checker): when every account is withheld by the currency guard,
+ *  the disclosure banner above this card says those accounts exist and are saved — so
+ *  "No accounts yet / Add your first account" would contradict it on the same screen.
+ *  That user gets copy that agrees with the banner instead. */
+function AccountsEmptyState({ withheldCount }: { withheldCount: number }) {
+  if (withheldCount > 0) {
+    return (
+      <Card data-testid="accounts-empty">
+        <CardHeader>
+          <CardDescription>No U.S.-dollar accounts yet</CardDescription>
+          <CardTitle className="text-xl">Add a U.S.-dollar account</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Your connected accounts are saved, but none is in U.S. dollars, so there are no
+            totals to show yet. Connect a U.S.-dollar bank or brokerage below, or add one
+            manually, and your net worth will appear here.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
   return (
     <Card data-testid="accounts-empty">
       <CardHeader>
@@ -169,7 +191,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
 
   return (
     <div className="space-y-4">
-      {isEmpty ? <AccountsEmptyState /> : <NetWorthCard data={data} />}
+      {isEmpty ? <AccountsEmptyState withheldCount={data.withheld.count} /> : <NetWorthCard data={data} />}
 
       {!isEmpty && (
         <div className="flex justify-end">

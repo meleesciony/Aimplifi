@@ -9,7 +9,11 @@ import { isRuleEligibleMerchant } from '@/lib/engine/categorize/assign';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type NetWorthSeriesPoint, netWorthSeries } from '@/lib/engine/networth/series';
-import { isSupportedCurrency } from '@/lib/providers/currency';
+import {
+  type WithheldAccountSummary,
+  isSupportedCurrency,
+  summarizeWithheldAccounts,
+} from '@/lib/providers/currency';
 import { businessToday } from '@/lib/business-today';
 import {
   type AccountView,
@@ -129,6 +133,8 @@ export interface AccountsView extends AccountsSummary {
   cardBilling: Record<string, ManualCardBilling>;
   /** SimpleFIN bank-sync connection status (ROADMAP: cheaper Plaid alternative). */
   simplefin: { connected: boolean; lastSyncedAt: string | null };
+  /** What the currency guard withheld — drives the disclosure banner (#135 residual). */
+  withheld: WithheldAccountSummary;
 }
 
 /** Every account, grouped into assets vs liabilities with net worth + trend. */
@@ -201,5 +207,22 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     trend,
     cardBilling,
     simplefin: { connected: sfConn !== null, lastSyncedAt: sfConn?.lastSyncedAt ?? null },
+    // The unfiltered rows are already in hand, so the disclosure costs no extra query.
+    withheld: summarizeWithheldAccounts(accounts),
   };
+}
+
+/**
+ * What the currency guard is withholding for this user — the dashboard's disclosure input
+ * (#135 residual: a non-USD account must not vanish silently from the headline figures).
+ * The where-clause is the exact DB complement of the guard's
+ * `OR: [{ currency: null }, { currency: 'USD' }]` predicate, and the pure summarizer
+ * re-applies `isSupportedCurrency`, so the disclosure can never disagree with the withhold.
+ */
+export async function getWithheldAccountSummary(userId: string): Promise<WithheldAccountSummary> {
+  const rows = await prisma.account.findMany({
+    where: { userId, NOT: { OR: [{ currency: null }, { currency: 'USD' }] } },
+    select: { currency: true },
+  });
+  return summarizeWithheldAccounts(rows);
 }

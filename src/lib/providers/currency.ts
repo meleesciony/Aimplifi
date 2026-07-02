@@ -49,3 +49,81 @@ export function resolvePlaidCurrency(
 export function isSupportedCurrency(code: string | null | undefined): boolean {
   return code == null || code === 'USD';
 }
+
+/**
+ * What the withhold hides — the disclosure's input (#135 residual: a withheld account must
+ * not vanish SILENTLY from /accounts and the dashboard headline).
+ */
+export interface WithheldAccountSummary {
+  /** How many of the user's accounts are withheld (non-USD). */
+  count: number;
+  /** Distinct withheld currency tokens, sorted for a stable display order. */
+  currencies: string[];
+}
+
+/**
+ * Summarize the accounts the currency guard withholds. Pure; accepts any rows that carry
+ * `currency` (an unfiltered account list, or rows already pre-filtered to non-USD — the
+ * predicate is idempotent). The exact complement of `isSupportedCurrency`, so the disclosure
+ * can never disagree with the withhold itself.
+ */
+export function summarizeWithheldAccounts(
+  accounts: ReadonlyArray<{ currency: string | null }>,
+): WithheldAccountSummary {
+  const withheld = accounts.filter((a) => !isSupportedCurrency(a.currency));
+  // Every withheld row has a non-null currency (null is supported), hence the cast-free map.
+  const currencies = [...new Set(withheld.map((a) => a.currency))].filter(
+    (c): c is string => c !== null,
+  ).sort();
+  return { count: withheld.length, currencies };
+}
+
+/**
+ * Human-readable label for the withheld currency list. Letter-code tokens (ISO or
+ * unofficial/crypto: EUR, GBP, BTC) are shown uppercased and deduped; everything else — a
+ * SimpleFIN non-ISO currency URL, a numeric ISO-4217 code like '840', a 2-letter fragment
+ * like 'US' that reads as a country — is folded into "other currencies" rather than pasted
+ * into user-facing copy (checker: '840'/'US'/'doge' are feed tokens, not display names).
+ */
+export function formatWithheldCurrencies(currencies: readonly string[]): string {
+  const codes = currencies.filter((c) => /^[A-Za-z]{3,5}$/.test(c));
+  // Dedupe AFTER uppercasing ('doge' and 'DOGE' are one currency) — but detect opaque
+  // tokens from the pre-dedupe count, so case-variants alone never claim "and others".
+  const printable = [...new Set(codes.map((c) => c.toUpperCase()))].sort();
+  const hasOpaque = codes.length < currencies.length;
+  if (printable.length === 0) return 'other currencies';
+  const joined = printable.join(', ');
+  return hasOpaque ? `${joined} and others` : joined;
+}
+
+/** The disclosure banner's full copy — see withheldBannerCopy. */
+export interface WithheldBannerCopy {
+  title: string;
+  description: string;
+}
+
+/**
+ * The banner's complete copy, built PURELY from the summary so every grammar branch is
+ * unit-testable (checker: five singular/plural branches previously shipped unlocked).
+ * Returns null when nothing is withheld — the component renders nothing.
+ *
+ * Copy follows the coaching guardrails: educational (why the figures exclude them), states
+ * the assumption inline (no FX — a 1:1 rate would be wrong), no shame, no promised ship
+ * date. The title says "not in U.S. dollars", NOT "foreign currency": crypto (BTC via
+ * Plaid's unofficial_currency_code) is a first-class withheld case and isn't foreign.
+ */
+export function withheldBannerCopy(summary: WithheldAccountSummary): WithheldBannerCopy | null {
+  if (summary.count === 0) return null;
+  const one = summary.count === 1;
+  const label = formatWithheldCurrencies(summary.currencies);
+  // One account can't be "in other currencies" (plural) — fold to the singular form.
+  const inWhat = one && label === 'other currencies' ? 'another currency' : label;
+  return {
+    title: `${summary.count} ${one ? 'account' : 'accounts'} not included — not in U.S. dollars`,
+    description:
+      `Aimplifi can't convert other currencies to U.S. dollars yet, so ` +
+      `${one ? 'an account' : 'accounts'} in ${inWhat} ${one ? 'is' : 'are'} left out of every ` +
+      `total, trend, and projection shown — counting ${one ? 'it' : 'them'} at a one-to-one ` +
+      `rate would be inaccurate. Nothing is deleted: the account data and history stay saved.`,
+  };
+}

@@ -1305,3 +1305,36 @@ menu w-56→w-72 + viewport clamp; e2e computed-font-size locks on both surfaces
 matches coarse). Gate: verify GREEN 1476/116; triage write-in 7.7s; race 4.6s; happy-path tail =
 documented stall. OWNER TO CONFIRM on the physical phone after deploy. NEXT unchanged: resume #135
 disclosure from stash (task #2), owner-gated reboot re-witness, then backlog.
+
+## 2026-07-02 (resumed: "continue") — #141 currency-disclosure banner (#135 residual) — DONE ✅
+Resumed exactly per the 2026-07-01 NEXT: popped stash `wip-135-disclosure` clean (banner component was
+in the stash's untracked parent; task #2 did not survive the session — the stash + this ledger did).
+Stash contents verified green as restored (tsc clean, 16/16 currency unit tests) before new work.
+Built the three pending pieces: (1) integration its on the existing currency-guard fixture —
+`getAccountsView(USER).withheld == {count:3, currencies:['EUR','GBP']}` + `getWithheldAccountSummary`
+for USER / USER_INV / unknown-user; (2) guarded `scripts/e2e-add-foreign-account.ts` (exact-match
+DATABASE_URL === E2E_DB_URL + @aimplifi.test-only email + delete-own-rows-first idempotency); (3)
+`tests/e2e/currency-disclosure.spec.ts` — negative zero-render lock on the all-USD demo user,
+positive ad-hoc-signup path (banner on dashboard + /accounts, withheld names absent, axe AA with the
+banner present). Demo user deliberately never mutated: it is SHARED across fully-parallel specs.
+
+**Hostile Checker (wf_de889cf4, 4 lenses → adversarial verify): 17 raw → 11 confirmed (1 P1 + 10 P2),
+6 refuted. P1 FIXED:** the negative spec's "page rendered" anchor (`demo-banner`) is LAYOUT content
+that flushes before the route-group Suspense boundary, so the absence assertion passed against the
+loading skeleton — re-anchored on `net-worth-card` (page content). 7 P2 fixed: pure
+`withheldBannerCopy()` copy authority (title "not in U.S. dollars" — crypto isn't "foreign"; singular
++opaque → "another currency"; display tokens letters-3–5 uppercased/deduped, '840'/'US'/'doge' fold);
+all-foreign /accounts empty-state contradiction; spec `.first()` strict-mode bypass; helper
+idempotency. 3 accepted → STATUS residuals 23–25 (other surfaces still silent — /investments first
+when extended; predicate duplication refactor; projection-assumption inline copy).
+
+**Gate (real, measured 2026-07-02):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1492 unit / 116
+files** (+16), tsc/eslint/build clean. E2E final tree: currency-disclosure **2/2 GREEN ×3** (2.7s /
+4.0–4.8s, incl. axe); auth.spec (touched empty-state) **3/3 GREEN** — one single-test failure in the
+first post-build run did NOT reproduce (isolated 2.6s + full-file 3/3), classed environmental per the
+#16/#17 protocol. No stall hit any of this session's runs.
+
+**NEXT:** (1) commit + owner's call on push (deploys #139/#140 docs + #141 together); (2) owner-gated:
+reboot + full `VERIFY_E2E=1` re-witness of the throughput spec (STATUS 2026-07-01 diagnosis stands);
+(3) backlog: STATUS residual 23 (extend disclosure — /investments first), #134 loan de-dup, #127 tail
+(SimpleFIN symbol regex + epoch→date), shared CategoryPicker/SR-listbox follow-up.

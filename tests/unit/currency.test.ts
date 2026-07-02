@@ -7,8 +7,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   canonicalizeCurrency,
+  formatWithheldCurrencies,
   isSupportedCurrency,
   resolvePlaidCurrency,
+  summarizeWithheldAccounts,
+  withheldBannerCopy,
 } from '@/lib/providers/currency';
 
 describe('canonicalizeCurrency', () => {
@@ -66,5 +69,89 @@ describe('isSupportedCurrency — USD-only, null assumed USD (golden-safe)', () 
     for (const c of ['EUR', 'JPY', 'GBP', 'BTC', 'https://x.test/btc', 'US']) {
       expect(isSupportedCurrency(c)).toBe(false);
     }
+  });
+});
+
+describe('summarizeWithheldAccounts — the disclosure input (#135 residual: no silent vanish)', () => {
+  it('returns the zero summary for no accounts and for all-supported accounts', () => {
+    expect(summarizeWithheldAccounts([])).toEqual({ count: 0, currencies: [] });
+    expect(
+      summarizeWithheldAccounts([{ currency: null }, { currency: 'USD' }, { currency: null }]),
+    ).toEqual({ count: 0, currencies: [] });
+  });
+  it('counts every withheld account but dedupes + sorts the currency list', () => {
+    expect(
+      summarizeWithheldAccounts([
+        { currency: 'GBP' },
+        { currency: 'EUR' },
+        { currency: 'USD' }, // supported — not counted
+        { currency: 'EUR' }, // second EUR account — counted, listed once
+        { currency: null }, // assumed USD — not counted
+      ]),
+    ).toEqual({ count: 3, currencies: ['EUR', 'GBP'] });
+  });
+  it('is the exact complement of isSupportedCurrency (non-ISO tokens are withheld too)', () => {
+    expect(
+      summarizeWithheldAccounts([{ currency: 'https://x.test/btc' }, { currency: 'US' }]),
+    ).toEqual({ count: 2, currencies: ['US', 'https://x.test/btc'] });
+  });
+  it('is idempotent over pre-filtered rows (the server passes only non-USD rows)', () => {
+    const rows = [{ currency: 'EUR' }, { currency: 'GBP' }];
+    expect(summarizeWithheldAccounts(rows)).toEqual({ count: 2, currencies: ['EUR', 'GBP'] });
+  });
+});
+
+describe('formatWithheldCurrencies — user-facing label, opaque tokens never pasted into copy', () => {
+  it('joins letter-code tokens (ISO or unofficial/crypto)', () => {
+    expect(formatWithheldCurrencies(['EUR'])).toBe('EUR');
+    expect(formatWithheldCurrencies(['EUR', 'GBP'])).toBe('EUR, GBP');
+    expect(formatWithheldCurrencies(['BTC', 'DOGE'])).toBe('BTC, DOGE');
+  });
+  it('folds an opaque token (SimpleFIN currency URL) into "others"', () => {
+    expect(formatWithheldCurrencies(['https://x.test/btc'])).toBe('other currencies');
+    expect(formatWithheldCurrencies(['EUR', 'https://x.test/btc'])).toBe('EUR and others');
+  });
+  it('folds feed tokens that are not display names: numeric ISO, 2-letter fragments (checker)', () => {
+    expect(formatWithheldCurrencies(['840'])).toBe('other currencies'); // numeric ISO-4217
+    expect(formatWithheldCurrencies(['US'])).toBe('other currencies'); // reads as a country
+    expect(formatWithheldCurrencies(['840', 'EUR'])).toBe('EUR and others');
+  });
+  it('uppercases lowercase feed codes and dedupes case-variants WITHOUT claiming "others"', () => {
+    expect(formatWithheldCurrencies(['doge'])).toBe('DOGE');
+    expect(formatWithheldCurrencies(['doge', 'DOGE'])).toBe('DOGE'); // one currency, no "and others"
+    expect(formatWithheldCurrencies(['doge', 'EUR'])).toBe('DOGE, EUR'); // re-sorted after uppercasing
+  });
+});
+
+describe('withheldBannerCopy — every grammar branch locked (checker: singular path shipped untested)', () => {
+  it('returns null for the zero summary (the banner renders nothing)', () => {
+    expect(withheldBannerCopy({ count: 0, currencies: [] })).toBeNull();
+  });
+  it('singular, printable code: "an account in EUR is left out … counting it"', () => {
+    const copy = withheldBannerCopy({ count: 1, currencies: ['EUR'] });
+    expect(copy?.title).toBe('1 account not included — not in U.S. dollars');
+    expect(copy?.description).toContain('an account in EUR is left out');
+    expect(copy?.description).toContain('counting it at a one-to-one rate');
+  });
+  it('singular, opaque token: folds to SINGULAR "another currency" (never "an account in other currencies")', () => {
+    const copy = withheldBannerCopy({ count: 1, currencies: ['https://x.test/btc'] });
+    expect(copy?.description).toContain('an account in another currency is left out');
+    expect(copy?.description).not.toContain('an account in other currencies');
+  });
+  it('plural, printable codes: "2 accounts … accounts in EUR, GBP are left out … counting them"', () => {
+    const copy = withheldBannerCopy({ count: 2, currencies: ['EUR', 'GBP'] });
+    expect(copy?.title).toBe('2 accounts not included — not in U.S. dollars');
+    expect(copy?.description).toContain('accounts in EUR, GBP are left out');
+    expect(copy?.description).toContain('counting them at a one-to-one rate');
+  });
+  it('plural, opaque-only: keeps the plural "other currencies … are"', () => {
+    const copy = withheldBannerCopy({ count: 2, currencies: ['https://x.test/a', 'https://x.test/b'] });
+    expect(copy?.description).toContain('accounts in other currencies are left out');
+  });
+  it('crypto is not "foreign": the title says "not in U.S. dollars" over a BTC listing', () => {
+    const copy = withheldBannerCopy({ count: 1, currencies: ['BTC'] });
+    expect(copy?.title).toBe('1 account not included — not in U.S. dollars');
+    expect(copy?.title).not.toContain('foreign');
+    expect(copy?.description).toContain('an account in BTC is left out');
   });
 });

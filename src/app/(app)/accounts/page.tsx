@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { AccountsList } from '@/components/finance/accounts-list';
+import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { getAccountsView } from '@/server/transactions';
 
 export const metadata = { title: "Accounts" };
@@ -17,6 +18,8 @@ export default async function AccountsPage() {
         Everything you own and owe, in one place. Tap any account to see its
         transactions.
       </p>
+      {/* currency-guard disclosure (#135 residual) — nothing rendered for all-USD users */}
+      <CurrencyExclusionBanner summary={data.withheld} />
       <AccountsList data={data} />
     </div>
   );

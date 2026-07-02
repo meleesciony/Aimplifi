@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { CashNeededCard } from '@/components/finance/cash-needed-card';
+import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { NetWorthCard } from '@/components/finance/net-worth-card';
 import { PaymentRemindersCard } from '@/components/finance/payment-reminders-card';
 import { RecurringSummaryCard } from '@/components/finance/recurring-summary-card';
@@ -15,6 +16,7 @@ import { PAYMENT_ACCOUNT_TYPES, needsOnboarding } from '@/lib/engine/settings/di
 import { prisma } from '@/lib/db';
 import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
+import { getWithheldAccountSummary } from '@/server/transactions';
 import { getRecurring } from '@/server/recurring';
 import { getReports } from '@/server/reports';
 import { getSpendingPlan } from '@/server/spending-plan';
@@ -31,13 +33,14 @@ export default async function DashboardPage() {
   const accountCount = await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } });
   if (accountCount === 0) return <EmptyDashboard />;
 
-  const [data, coach, plan, reports, recurring, trends] = await Promise.all([
+  const [data, coach, plan, reports, recurring, trends, withheld] = await Promise.all([
     getDashboardData(session.user.id),
     getCoachData(session.user.id),
     getSpendingPlan(session.user.id),
     getReports(session.user.id),
     getRecurring(session.user.id),
     getSpendingTrends(session.user.id),
+    getWithheldAccountSummary(session.user.id),
   ]);
 
   // Single source of truth: the dashboard snapshot already carries the stored
@@ -69,6 +72,10 @@ export default async function DashboardPage() {
         today={data.today}
         transferSource={transferSource}
       />
+
+      {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
+          vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
+      <CurrencyExclusionBanner summary={withheld} />
 
       {/* one-time setup nudge — only until a payment account is confirmed
           (dormant for the seeded demo user, who always has one) */}

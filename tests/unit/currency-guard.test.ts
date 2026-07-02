@@ -16,7 +16,7 @@ vi.mock('@/auth', () => ({ auth: vi.fn(), signOut: vi.fn() }));
 
 import { auth } from '@/auth';
 import { DemoProvider } from '@/lib/providers/demo';
-import { getAccountsView } from '@/server/transactions';
+import { getAccountsView, getWithheldAccountSummary } from '@/server/transactions';
 import { getReviewCount } from '@/server/triage';
 import { getInvestments } from '@/server/investments';
 import { netWorthCents } from '@/lib/engine/cash-needed/assemble';
@@ -125,6 +125,19 @@ describe('currency guard — non-USD accounts & their rows withheld everywhere (
     const d = rows.map((r) => r.rawDescriptor);
     expect(d).toContain('US SPEND');
     expect(d).not.toContain('EURO SPEND');
+  });
+
+  it('exposes what it withheld on the /accounts view (the disclosure input — #135 residual)', async () => {
+    const view = await getAccountsView(USER);
+    // Euro Savings + Euro Checking (EUR) + UK Card (GBP): 3 accounts, currencies deduped + sorted.
+    expect(view.withheld).toEqual({ count: 3, currencies: ['EUR', 'GBP'] });
+  });
+
+  it('getWithheldAccountSummary matches the guard DB complement (the dashboard disclosure input)', async () => {
+    expect(await getWithheldAccountSummary(USER)).toEqual({ count: 3, currencies: ['EUR', 'GBP'] });
+    expect(await getWithheldAccountSummary(USER_INV)).toEqual({ count: 1, currencies: ['EUR'] });
+    // No rows (unknown user / all-USD user) → the zero summary → the banner renders nothing.
+    expect(await getWithheldAccountSummary('cur-no-such-user')).toEqual({ count: 0, currencies: [] });
   });
 
   it('counts ONLY supported accounts for the first-run gate (P1-B — gate agrees with the snapshot)', async () => {
