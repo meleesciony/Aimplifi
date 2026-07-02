@@ -1338,3 +1338,12 @@ first post-build run did NOT reproduce (isolated 2.6s + full-file 3/3), classed 
 reboot + full `VERIFY_E2E=1` re-witness of the throughput spec (STATUS 2026-07-01 diagnosis stands);
 (3) backlog: STATUS residual 23 (extend disclosure — /investments first), #134 loan de-dup, #127 tail
 (SimpleFIN symbol regex + epoch→date), shared CategoryPicker/SR-listbox follow-up.
+
+**DEPLOYED ✅ (owner: "Push + verify deploy"):** pushed `69a335b..7393633` → Vercel production
+`dpl_2RZXpkApYzK8EGUFime229bzuc41` (team reiforge / project aimplifi, built from 7393633) reached
+**READY in ~68s** (verified via the Vercel MCP; aliasError null). Aliases live: aimplifi.app
+(308→www, HSTS pattern) + www.aimplifi.app (/sign-in → 200, probed 2026-07-02). #141 currency
+disclosure is in production. NEXT unchanged: owner-gated reboot + full VERIFY_E2E=1 re-witness;
+backlog — STATUS residual 23 (extend disclosure, /investments first), #134 loan de-dup, #127 tail,
+shared CategoryPicker. (This deploy-record entry is a LOCAL-ONLY docs commit per the house pattern —
+bundle with the next change.) SAFE to /clear.
