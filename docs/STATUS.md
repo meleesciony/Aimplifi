@@ -1322,3 +1322,17 @@ E2E on the final tree: currency-disclosure 2/2 GREEN (2.7s/4.0–4.8s incl. axe)
 auth.spec 3/3 GREEN (one non-reproducing single failure in the first post-build parallel run —
 isolated rerun 2.6s + full-file rerun 3/3 green; classed environmental per the #16/#17 protocol and
 the CLAUDE.md cold-start-flake rule).
+
+## 2026-07-02 — Phase 3 (3d+3a+3b+3c) shipped; environmental notes
+Rebuild increments all verify-green + committed: resync clobber guard (regression-locked), merchant
+identity (eval 60%→23.3% review on messy data, precision 100%), group engine/server (trust-on-repeat
+locked end-to-end), group-first UI + adapted e2e. Two environmental findings today (evidence-backed):
+(1) phase5-a11y "keyboard-only /cards" fails TODAY at THREE code points incl. 69a335b (witnessed green
+60/61 on 2026-07-01) — identical $2,135 toggle assertion, focus+Enter racing hydration on the degraded
+box; 3-point A/B ⇒ NOT a regression from today's code; retest after the owner-gated reboot.
+(2) The new throughput e2e passed isolated ×2 (14s) + in-suite once; one serial run hit the documented
+#16/#17 pending-stall (button disabled >120s, position varies). Same cure.
+Accepted 3c residuals: the "Always/Just once" prompt is now reachable only via one-by-one mode on
+multi-row rule-eligible groups (group cards carry consent in copy — #143/#144); positive e2e coverage
+of that prompt needs a multi-row real-merchant fixture (demo has none) — Phase-4 item with the messy
+corpus; rule-prompt makeRuleFromCorrection machinery unchanged and unit-covered.

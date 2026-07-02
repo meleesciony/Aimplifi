@@ -4,7 +4,7 @@ import { AccuracyCard } from '@/components/triage/accuracy-card';
 import { BackfillButton } from '@/components/triage/backfill-button';
 import { TriageInbox } from '@/components/triage/triage-inbox';
 import { getCategorizationAccuracy } from '@/server/accuracy';
-import { getTriageItems } from '@/server/triage';
+import { getTriageGroups } from '@/server/triage';
 import { getVisibleCategories } from '@/server/categories';
 
 export const metadata = { title: "Review" };
@@ -12,8 +12,8 @@ export const metadata = { title: "Review" };
 export default async function TriagePage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
-  const [items, accuracy, categories] = await Promise.all([
-    getTriageItems(session.user.id),
+  const [groups, accuracy, categories] = await Promise.all([
+    getTriageGroups(session.user.id), // merchant-group queue (Phase 3c, DECISIONS #143)
     getCategorizationAccuracy(session.user.id),
     getVisibleCategories(session.user.id),
   ]);
@@ -32,7 +32,7 @@ export default async function TriagePage() {
       </div>
       <div className="mx-auto max-w-md space-y-4">
         <AccuracyCard result={accuracy} />
-        <TriageInbox initialItems={items} categories={categories} />
+        <TriageInbox initialGroups={groups} categories={categories} />
       </div>
     </div>
   );

@@ -1,18 +1,30 @@
 'use client';
 
 /**
- * Triage inbox — built for thumbs (380px first).
- *  - swipe RIGHT (or ✓) = accept the AI suggestion
- *  - swipe LEFT (or ⋯) = pick from 3 smart alternatives
- *  - long-press (or ⑂) = split the transaction
- *  - "apply to all N similar" batches a merchant in one tap (exact-descriptor
- *    scope for aggregate pseudo-merchants like Zelle/checks — DECISIONS #23)
+ * Triage inbox — MERCHANT-GROUP first (PULSE_CATEGORIZATION_FIX Phase 3c),
+ * built for thumbs (380px first).
+ *
+ * One card = one MERCHANT (all its queued transactions, every descriptor
+ * variant): one decision files them all, and — for rule-eligible merchants —
+ * creates the durable rule so the merchant never re-surfaces (DECISIONS #143).
+ * The Phase-2 baseline measured the old per-transaction flow at 397
+ * interactions for a 144-row / 24-merchant queue; this collapses the queue to
+ * its real size: decisions.
+ *
+ *  - "File all N as X" (or swipe RIGHT) = accept the honest suggestion, when
+ *    one exists (no more amount-based 'Shopping' guesses)
+ *  - "⋯ Pick" (or swipe LEFT) = quick-picks + searchable all-category picker
+ *    (+ write-in custom categories, #136/#139) — the pick files the whole group
+ *  - "☰ One by one" (or long-press) = drill into the group's rows for the rare
+ *    mixed-merchant case: per-row pick / split, with the classic "Always / Just
+ *    this once" rule prompt (#36) for singles
  *  - universal undo (inverse corrections; created rules removed)
- *  - every correction offers a one-tap durable rule ("Always / Just this once")
+ *  - aggregates (Zelle/checks/ATM/Venmo) group by EXACT descriptor and never
+ *    create rules (#23)
  *
  * Instrumentation: every user interaction appends to window.__triageLog so the
- * Phase 2 e2e can count interactions (<15) and map them to the documented
- * human-time budget (<60s). See tests/e2e/phase2-triage.spec.ts.
+ * Phase 2 e2e can count interactions and map them to the documented human-time
+ * budget. See tests/e2e/phase2-triage.spec.ts.
  */
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { PartyPopper, Plus } from 'lucide-react';
@@ -22,11 +34,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { CUSTOM_CATEGORY_GROUPS, filterCategoryOptions } from '@/lib/engine/categorize/assign';
 import { cents, centsFromDollarString, formatCents } from '@/lib/money';
-import type { TriageItem } from '@/server/triage';
+import type { TriageGroupView } from '@/server/triage';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import {
   applyCategory,
-  applyToAllSimilar,
+  fileMerchantGroup,
   makeRuleFromCorrection,
   splitTransaction,
   undoCorrections,
@@ -55,18 +67,27 @@ interface RulePrompt {
   categoryName: string;
 }
 
+type GroupRow = TriageGroupView['rows'][number];
+
+/** How many groups one "pass" frames (the fix-doc's 15-20 visible cap). */
+const PASS_SIZE = 15;
+
 export function TriageInbox({
-  initialItems,
+  initialGroups,
   categories,
 }: {
-  initialItems: TriageItem[];
+  initialGroups: TriageGroupView[];
   categories: { id: string; name: string; group?: string }[];
 }) {
-  const [items, setItems] = useState(initialItems);
-  const [mode, setMode] = useState<'idle' | 'alternatives' | 'split'>('idle');
+  const [groups, setGroups] = useState(initialGroups);
+  const [mode, setMode] = useState<'idle' | 'picker' | 'split' | 'singles'>('idle');
+  /** In singles mode: the row the open picker/split targets (null = none open). */
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  const [singlesTool, setSinglesTool] = useState<'pick' | 'split' | null>(null);
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [rulePrompt, setRulePrompt] = useState<RulePrompt | null>(null);
   const [splitFirstHalf, setSplitFirstHalf] = useState<string>('');
+  const [splitFirstCat, setSplitFirstCat] = useState<string>('');
   const [splitSecondCat, setSplitSecondCat] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -85,25 +106,18 @@ export function TriageInbox({
   const [newCatGroup, setNewCatGroup] = useState<string>(CUSTOM_CATEGORY_GROUPS[0] ?? '');
   const [newCatDiscretionary, setNewCatDiscretionary] = useState(true);
   const [newCatError, setNewCatError] = useState<string | null>(null);
-  // Search query for the "any category" picker (#136 increment 2 — the ~84-option
-  // native <select> was unsearchable, the owner's "clunky" complaint).
+  // Search query for the "any category" picker (#137).
   const [catQuery, setCatQuery] = useState('');
-  const altPanelRef = useRef<HTMLDivElement | null>(null);
-  // Keyboard path (critic P1): the panel opens ABOVE the "⋯ Pick" trigger in DOM
-  // order, so without focus management the search box is ~86 Shift+Tabs away.
-  // Focus the PANEL itself (tabIndex -1) when it opens: focusing a child button
-  // would silently no-op while it's disabled mid-action (pending race), and a
-  // container can't pop the mobile keyboard on swipe-left. Tab then reaches the
-  // alternatives and search in a few stops.
+  const pickerPanelRef = useRef<HTMLDivElement | null>(null);
+  // Keyboard path (critic P1): focus the PANEL itself (tabIndex -1) when it
+  // opens — focusing a child button would silently no-op while disabled.
   useEffect(() => {
-    if (mode === 'alternatives') altPanelRef.current?.focus();
+    if (mode === 'picker') pickerPanelRef.current?.focus();
   }, [mode]);
 
-  const top = items[0];
-  // The overlay is a BRIDGE until the create action's revalidation refreshes the
-  // `categories` prop (RSC payload). Once the server list carries an overlay id,
-  // PRUNE it — from then on the server is authoritative, so a category deleted
-  // in another tab can never be resurrected by a stale overlay entry (critic P2).
+  const top = groups[0];
+
+  // Overlay bridge → prune once the server list knows the id (critic P2).
   useEffect(() => {
     setExtraCategories((xs) => {
       if (xs.length === 0) return xs;
@@ -119,9 +133,6 @@ export function TriageInbox({
   }, [categories, extraCategories]);
   const nameOf = (id: string) => allCats.find((c) => c.id === id)?.name ?? id;
 
-  // Full taxonomy grouped by parent, for the "any category" picker (the 3 quick
-  // alternatives can't cover ~80 categories). Preserves CATEGORIES' declaration
-  // order, which is already logically grouped.
   const categoryGroups = useMemo(() => {
     const order: string[] = [];
     const byGroup = new Map<string, { id: string; name: string }[]>();
@@ -136,62 +147,114 @@ export function TriageInbox({
     return order.map((g) => ({ group: g, items: byGroup.get(g)! }));
   }, [allCats]);
 
-  function advance() {
-    setItems((xs) => xs.slice(1));
+  function resetTransient() {
     setMode('idle');
+    setActiveRowId(null);
+    setSinglesTool(null);
     setDragX(0);
     setSplitFirstHalf('');
+    setSplitFirstCat('');
     setSplitSecondCat('');
     setNewCatOpen(false);
     setNewCatError(null);
     setCatQuery('');
   }
 
-  /** Optimistic update with rollback: a failed action restores the queue and
-   *  surfaces the error — a correction is never silently lost (critic F6). */
-  function runAction(rollback: TriageItem[], fn: () => Promise<void>) {
+  function advanceGroup() {
+    setGroups((gs) => gs.slice(1));
+    resetTransient();
+  }
+
+  /** Optimistic update with rollback (critic F6): a failed action restores the
+   *  queue and surfaces the error — a correction is never silently lost. */
+  function runAction(rollback: TriageGroupView[], fn: () => Promise<void>) {
     setError(null);
     startTransition(async () => {
       try {
         await fn();
       } catch (e) {
-        setItems(rollback);
+        setGroups(rollback);
         setMode('idle');
+        setActiveRowId(null);
+        setSinglesTool(null);
         setError(e instanceof Error ? e.message : 'Something went wrong — nothing was saved.');
       }
     });
   }
 
-  function accept(item: TriageItem, categoryId: string, via: string, displayName?: string) {
-    // A just-created category isn't in this render's `allCats` yet (state flushes
-    // on the NEXT render) — the write-in flow passes the name it already knows.
+  /** File the WHOLE group: one decision, all rows, durable rule when eligible
+   *  (the card copy is the consent — DECISIONS #143). */
+  function fileGroup(group: TriageGroupView, categoryId: string, via: string, displayName?: string) {
     const catName = displayName ?? nameOf(categoryId);
-    logInteraction(via, `accept ${item.merchantCanonical} → ${catName}`);
-    const rollback = items;
-    advance();
+    logInteraction(via, `file-group ${group.merchantCanonical} ×${group.count} → ${catName}`);
+    const rollback = groups;
+    advanceGroup();
     runAction(rollback, async () => {
-      const result = await applyCategory({ transactionId: item.id, categoryId });
+      const result = await fileMerchantGroup({
+        anchorTransactionId: group.anchorTransactionId,
+        categoryId,
+      });
+      if (result.correctionIds.length === 0) return; // raced another session
       setUndoStack((s) => [
         ...s,
-        { kind: 'corrections', correctionIds: result.correctionIds, label: item.merchantCanonical },
+        {
+          kind: 'corrections',
+          correctionIds: result.correctionIds,
+          label: `${result.affected} × ${group.merchantCanonical}`,
+        },
       ]);
-      // never offer merchant-wide rules for aggregate merchants (Zelle/checks)
-      if (item.ruleEligible) {
+    });
+  }
+
+  /** File ONE row (singles drill-down). Keeps the classic one-tap rule prompt. */
+  function fileRow(group: TriageGroupView, row: GroupRow, categoryId: string, via: string, displayName?: string) {
+    const catName = displayName ?? nameOf(categoryId);
+    logInteraction(via, `file-row ${group.merchantCanonical} ${row.id} → ${catName}`);
+    const rollback = groups;
+    removeRowLocally(row.id);
+    runAction(rollback, async () => {
+      const result = await applyCategory({ transactionId: row.id, categoryId });
+      setUndoStack((s) => [
+        ...s,
+        { kind: 'corrections', correctionIds: result.correctionIds, label: group.merchantCanonical },
+      ]);
+      if (group.ruleEligible) {
         setRulePrompt({
           correctionId: result.correctionIds[0],
-          merchant: item.merchantCanonical,
+          merchant: group.merchantCanonical,
           categoryName: catName,
         });
       }
     });
   }
 
-  /** Write-in flow (#136): create the custom category, THEN file the current
-   *  transaction under it — sequenced, because the id is only assignable once
-   *  its row exists. Validation errors surface inline; nothing is filed. */
-  function createAndFile(item: TriageItem) {
-    // Same normalization the server persists (collapse internal whitespace), so
-    // the overlay/pickers/rule-prompt can never disagree with the created row.
+  function removeRowLocally(rowId: string) {
+    setGroups((gs) =>
+      gs
+        .map((g) => {
+          if (!g.rows.some((r) => r.id === rowId)) return g;
+          const rows = g.rows.filter((r) => r.id !== rowId);
+          const removed = g.rows.find((r) => r.id === rowId)!;
+          return {
+            ...g,
+            rows,
+            count: rows.length,
+            totalCents: g.totalCents - removed.amountCents,
+            anchorTransactionId: rows[0]?.id ?? g.anchorTransactionId,
+          };
+        })
+        .filter((g) => g.rows.length > 0),
+    );
+    setActiveRowId(null);
+    setSinglesTool(null);
+    setNewCatOpen(false);
+    setNewCatError(null);
+    setCatQuery('');
+  }
+
+  /** Write-in flow (#136/#139): create the custom category, THEN file — the
+   *  target is whatever the open picker targets (group or single row). */
+  function createAndFile(onPick: (categoryId: string, displayName: string) => void) {
     const trimmed = newCatName.trim().replace(/\s+/g, ' ');
     if (!trimmed || pending) return;
     setNewCatError(null);
@@ -205,9 +268,7 @@ export function TriageInbox({
           discretionary: newCatDiscretionary,
         });
       } catch {
-        // A rejected action (network flake, expired session) must degrade to the
-        // component's inline-error contract — never the route error boundary,
-        // which would wipe the queue position and undo stack (critic P1).
+        // Degrade to the inline-error contract — never the route error boundary (critic P1).
         setNewCatError('Could not create that category — nothing was saved. Try again.');
         return;
       }
@@ -218,18 +279,16 @@ export function TriageInbox({
       const id = res.id;
       setExtraCategories((xs) => [...xs, { id, name: trimmed, group: newCatGroup }]);
       setNewCatName('');
-      accept(item, id, 'new-category', trimmed);
+      onPick(id, trimmed);
     });
   }
 
-  /** Open the mini-form with the group prefilled from the current suggestion
-   *  (customs may only join SPENDING groups — never Income/Transfers) and the
-   *  NAME prefilled from the live search query (owner request: what you typed
-   *  into the search box IS the name — never retype it). Overwrites any stale
-   *  draft, so the form always reflects the current intent; still editable. */
-  function openNewCategory(item: TriageItem) {
+  /** Open the write-in prefilled from the live query (#139) + suggestion group. */
+  function openNewCategory(suggestedCategoryId: string | null) {
     logInteraction('tap', 'new-category-form');
-    const suggestedGroup = allCats.find((c) => c.id === item.suggestedCategoryId)?.group;
+    const suggestedGroup = suggestedCategoryId
+      ? allCats.find((c) => c.id === suggestedCategoryId)?.group
+      : undefined;
     setNewCatGroup(
       suggestedGroup && CUSTOM_CATEGORY_GROUPS.includes(suggestedGroup)
         ? suggestedGroup
@@ -241,67 +300,23 @@ export function TriageInbox({
     setNewCatOpen(true);
   }
 
-  function batchApply(item: TriageItem) {
-    logInteraction('tap', `apply-to-all ${item.similarCount} ${item.merchantCanonical}`);
-    const rollback = items;
-    // optimistic removal mirrors the SERVER's batch scope exactly: exact
-    // descriptor for aggregates, merchant otherwise (cycle-3 H2)
-    setItems((xs) =>
-      xs.filter((x) =>
-        item.ruleEligible
-          ? x.merchantId !== item.merchantId
-          : x.rawDescriptor !== item.rawDescriptor,
-      ),
-    );
-    setMode('idle');
-    // The top card changes without advance() — close the write-in form so a
-    // half-typed name + the PREVIOUS card's group prefill can never be filed
-    // against the next card (critic P1), and drop the search filter so the
-    // next card's picker doesn't open pre-filtered (same class).
-    setNewCatOpen(false);
-    setNewCatError(null);
-    setCatQuery('');
+  function doSplit(group: TriageGroupView, row: GroupRow, firstCents: number, catA: string, catB: string) {
+    logInteraction('tap', `split ${group.merchantCanonical}`);
+    const rollback = groups;
+    removeRowLocally(row.id);
+    setMode(group.count > 1 ? 'singles' : 'idle');
     runAction(rollback, async () => {
-      const result = await applyToAllSimilar({
-        transactionId: item.id,
-        categoryId: item.suggestedCategoryId,
-      });
-      if (result.correctionIds.length === 0) return; // nothing matched (raced another session)
-      setUndoStack((s) => [
-        ...s,
-        {
-          kind: 'corrections',
-          correctionIds: result.correctionIds,
-          label: `${result.affected} × ${item.merchantCanonical}`,
-        },
-      ]);
-      // durable rules are ALWAYS consensual — same one-tap prompt as singles
-      if (item.ruleEligible) {
-        setRulePrompt({
-          correctionId: result.correctionIds[0],
-          merchant: item.merchantCanonical,
-          categoryName: nameOf(item.suggestedCategoryId),
-        });
-      }
-    });
-  }
-
-  function doSplit(item: TriageItem, firstCents: number, catA: string, catB: string) {
-    logInteraction('tap', `split ${item.merchantCanonical}`);
-    const rollback = items;
-    advance();
-    runAction(rollback, async () => {
-      const sign = item.amountCents < 0 ? -1 : 1;
+      const sign = row.amountCents < 0 ? -1 : 1;
       const a = sign * Math.abs(firstCents);
-      const b = item.amountCents - a;
+      const b = row.amountCents - a;
       await splitTransaction({
-        transactionId: item.id,
+        transactionId: row.id,
         parts: [
           { amountCents: a, categoryId: catA },
           { amountCents: b, categoryId: catB },
         ],
       });
-      setUndoStack((s) => [...s, { kind: 'split', transactionId: item.id, label: `split ${item.merchantCanonical}` }]);
+      setUndoStack((s) => [...s, { kind: 'split', transactionId: row.id, label: `split ${group.merchantCanonical}` }]);
     });
   }
 
@@ -318,28 +333,22 @@ export function TriageInbox({
           last.kind === 'corrections'
             ? await undoCorrections(last.correctionIds)
             : await undoSplit(last.transactionId);
-        setItems(fresh);
-        setMode('idle');
-        setDragX(0);
-        // Undo replaces the top card without advance() — same stale-form
-        // close + search-filter reset as batchApply (critic P1).
-        setNewCatOpen(false);
-        setNewCatError(null);
-        setCatQuery('');
+        setGroups(fresh);
+        resetTransient();
       } catch (e) {
-        // the undo opportunity must not silently vanish — restore it
-        setUndoStack((s) => [...s, last]);
+        setUndoStack((s) => [...s, last]); // the undo opportunity must not vanish
         setError(e instanceof Error ? e.message : 'Undo failed — nothing was changed.');
       }
     });
   }
 
-  // ── swipe + long-press gesture handling ──
+  // ── swipe + long-press gestures (group card) ──
   function onPointerDown(e: React.PointerEvent) {
     dragStart.current = e.clientX;
     longPress.current = setTimeout(() => {
-      logInteraction('longpress', 'split-mode');
-      setMode('split');
+      if (!top) return;
+      logInteraction('longpress', top.count > 1 ? 'singles-mode' : 'split-mode');
+      setMode(top.count > 1 ? 'singles' : 'split');
       dragStart.current = null;
     }, 500);
   }
@@ -361,23 +370,22 @@ export function TriageInbox({
     dragStart.current = null;
     if (!top) return;
     if (dragX > 70) {
-      if (pending) {
-        setDragX(0); // visible snap-back while the previous action lands — never a silent drop
+      if (pending || !top.suggestedCategoryId) {
+        setDragX(0); // snap back: mid-action, or nothing honest to accept
         return;
       }
       logInteraction('swipe', 'right');
-      accept(top, top.suggestedCategoryId, 'swipe');
+      fileGroup(top, top.suggestedCategoryId, 'swipe');
     } else if (dragX < -70) {
-      logInteraction('swipe', 'left → alternatives');
-      setMode('alternatives');
+      logInteraction('swipe', 'left → picker');
+      setMode('picker');
       setDragX(0);
     } else {
       setDragX(0);
     }
   }
 
-  // Rendered in BOTH the queue view and the empty state — accepting the LAST
-  // item must still offer the one-tap durable rule (cycle-1 H5).
+  // Rendered in BOTH the queue view and the empty state (cycle-1 H5).
   function renderRulePrompt() {
     if (!rulePrompt) return null;
     return (
@@ -418,6 +426,311 @@ export function TriageInbox({
     );
   }
 
+  /** The shared searchable picker + write-in (#137/#139), targeting `onPick`. */
+  function renderPicker(
+    quickPickIds: string[],
+    quickPickNames: string[],
+    suggestedCategoryId: string | null,
+    onPick: (categoryId: string, displayName?: string) => void,
+    footer: string | null,
+  ) {
+    const visibleCatGroups = filterCategoryOptions(categoryGroups, catQuery);
+    const onlyVisibleCat =
+      visibleCatGroups.length === 1 && visibleCatGroups[0].items.length === 1
+        ? visibleCatGroups[0].items[0]
+        : null;
+    return (
+      <div
+        className="space-y-2 outline-none"
+        ref={pickerPanelRef}
+        tabIndex={-1}
+        role="region"
+        aria-label="Pick a category"
+        data-testid="triage-alternatives-panel"
+      >
+        <div className="grid grid-cols-3 gap-2" data-testid="triage-alternatives">
+          {quickPickIds.map((id, i) => (
+            <Button key={id} variant="outline" size="sm" disabled={pending} onClick={() => onPick(id)}>
+              {quickPickNames[i]}
+            </Button>
+          ))}
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="triage-cat-search" className="text-xs text-muted-foreground">
+            Or search all {allCats.length} categories:
+          </label>
+          <input
+            id="triage-cat-search"
+            type="search"
+            value={catQuery}
+            onChange={(e) => setCatQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                if (e.repeat) return; // held-key auto-repeat never drives actions (checker P1)
+                if (onlyVisibleCat && !pending) onPick(onlyVisibleCat.id);
+                else if (visibleCatGroups.length === 0 && catQuery.trim() && !pending && !newCatOpen)
+                  openNewCategory(suggestedCategoryId);
+              } else if (e.key === 'Escape') {
+                if (catQuery) setCatQuery('');
+                else {
+                  setMode((m) => (m === 'picker' ? 'idle' : m));
+                  setSinglesTool(null);
+                }
+              }
+            }}
+            placeholder="Search categories…"
+            data-testid="triage-cat-search"
+            disabled={pending}
+            className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+          />
+          <div data-testid="triage-all-categories" className="max-h-56 overflow-auto rounded-md border p-1">
+            {filterCategoryOptions(categoryGroups, catQuery).map((g) => (
+              <div key={g.group}>
+                <div className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {g.group}
+                </div>
+                {g.items.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    data-testid="triage-cat-option"
+                    data-cat={c.id}
+                    disabled={pending}
+                    className="flex w-full items-center rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                    onClick={() => onPick(c.id)}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            ))}
+            {filterCategoryOptions(categoryGroups, catQuery).length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground" data-testid="triage-cat-no-match">
+                No matching category — create it below.
+              </p>
+            )}
+          </div>
+        </div>
+        {!newCatOpen ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={pending}
+            onClick={() => openNewCategory(suggestedCategoryId)}
+            data-testid="triage-add-category"
+            className="gap-1 text-muted-foreground hover:text-foreground"
+          >
+            <Plus className="size-3.5" aria-hidden /> New category
+          </Button>
+        ) : (
+          <div className="space-y-2 rounded-lg border p-3" data-testid="triage-new-category">
+            <p className="text-sm font-medium">New category — filed right away</p>
+            {newCatError && (
+              <p role="alert" className="text-xs text-red-400" data-testid="new-category-error">
+                {newCatError}
+              </p>
+            )}
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                Name
+                <input
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  onKeyDown={(e) => {
+                    // isComposing: IME commit must not submit (critic P2). e.repeat:
+                    // a held Enter must not create+file (checker P1).
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat) {
+                      e.preventDefault();
+                      createAndFile(onPick);
+                    } else if (e.key === 'Escape') {
+                      setNewCatOpen(false);
+                      setNewCatError(null);
+                    }
+                  }}
+                  placeholder="e.g. Golf"
+                  aria-label="New category name"
+                  data-testid="new-category-name"
+                  className="h-9 w-40 rounded-md border bg-background px-2 text-sm"
+                  autoFocus
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                Group
+                <select
+                  value={newCatGroup}
+                  onChange={(e) => setNewCatGroup(e.target.value)}
+                  aria-label="Group for the new category"
+                  data-testid="new-category-group"
+                  className="h-9 w-44 rounded-md border bg-background px-2 text-sm"
+                >
+                  {CUSTOM_CATEGORY_GROUPS.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5 pb-2.5 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={newCatDiscretionary}
+                  onChange={(e) => setNewCatDiscretionary(e.target.checked)}
+                  data-testid="new-category-discretionary"
+                />
+                Discretionary
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                disabled={pending || !newCatName.trim()}
+                data-testid="new-category-submit"
+                onClick={() => createAndFile(onPick)}
+              >
+                Create &amp; file
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setNewCatOpen(false);
+                  setNewCatError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+        {footer && <p className="text-xs text-muted-foreground">{footer}</p>}
+      </div>
+    );
+  }
+
+  /** Split editor for one row (both categories selectable — group suggestions
+   *  are often absent, so part A can't silently assume one). */
+  function renderSplit(group: TriageGroupView, row: GroupRow) {
+    const splitTotal = Math.abs(row.amountCents);
+    const defaultFirst = group.suggestedCategoryId ?? allCats.find((c) => c.id === 'shopping')?.id ?? allCats[0]?.id ?? '';
+    const firstCatId = splitFirstCat || defaultFirst;
+    const defaultSecondCatId =
+      allCats.find((c) => c.id === 'shopping' && c.id !== firstCatId)?.id ??
+      allCats.find((c) => c.id !== firstCatId)?.id ??
+      allCats[0]?.id ??
+      '';
+    const secondCatId = splitSecondCat || defaultSecondCatId;
+    let splitFirstCents: number | null = null;
+    try {
+      splitFirstCents = splitFirstHalf.trim() === '' ? null : centsFromDollarString(splitFirstHalf.trim());
+    } catch {
+      splitFirstCents = null;
+    }
+    const splitValid = splitFirstCents !== null && splitFirstCents > 0 && splitFirstCents < splitTotal;
+    const splitSecondCents = splitValid ? splitTotal - (splitFirstCents as number) : null;
+    return (
+      <div className="space-y-2 rounded-lg border p-3" data-testid="triage-split">
+        <p className="text-sm font-medium">Split {formatCents(cents(row.amountCents))} into two categories</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="split-amount" className="text-xs text-muted-foreground">
+            First part $
+          </label>
+          <input
+            id="split-amount"
+            type="text"
+            inputMode="decimal"
+            placeholder="0.00"
+            className="w-24 rounded-md border bg-background px-2 py-1 text-sm"
+            value={splitFirstHalf}
+            onChange={(e) => setSplitFirstHalf(e.target.value)}
+            data-testid="split-amount"
+          />
+          <label htmlFor="split-first-cat" className="sr-only">
+            First part category
+          </label>
+          <select
+            id="split-first-cat"
+            className="rounded-md border bg-background px-2 py-1 text-sm"
+            value={firstCatId}
+            onChange={(e) => setSplitFirstCat(e.target.value)}
+            data-testid="split-first-cat"
+          >
+            {allCats.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-muted-foreground">· rest →</span>
+          <label htmlFor="split-second-cat" className="sr-only">
+            Second part category
+          </label>
+          <select
+            id="split-second-cat"
+            className="rounded-md border bg-background px-2 py-1 text-sm"
+            value={secondCatId}
+            onChange={(e) => setSplitSecondCat(e.target.value)}
+            data-testid="split-second-cat"
+          >
+            {allCats.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs" data-testid="split-preview">
+          {splitValid ? (
+            <span className="text-muted-foreground tabular-nums">
+              <b className="text-foreground">{nameOf(firstCatId)}</b> {formatCents(cents(splitFirstCents as number))}
+              {'   +   '}
+              <b className="text-foreground">{nameOf(secondCatId)}</b> {formatCents(cents(splitSecondCents as number))}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">
+              Enter a first part between {formatCents(cents(1))} and {formatCents(cents(splitTotal - 1))} — the rest
+              goes to the second category.
+            </span>
+          )}
+        </p>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            disabled={pending || !splitValid}
+            data-testid="split-confirm"
+            onClick={() => {
+              let v: number;
+              try {
+                v = centsFromDollarString(splitFirstHalf.trim());
+              } catch {
+                setError('Enter the first part as dollars and cents, e.g. 5.00.');
+                return;
+              }
+              if (v > 0 && v < Math.abs(row.amountCents)) {
+                doSplit(group, row, v, firstCatId, secondCatId);
+              } else {
+                setError('The first part must be more than $0 and less than the full amount.');
+              }
+            }}
+          >
+            Split
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setSinglesTool(null);
+              setMode((m) => (m === 'split' ? 'idle' : m));
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!top) {
     return (
       <div className="rounded-xl border border-dashed p-8 text-center" data-testid="triage-empty">
@@ -425,9 +738,8 @@ export function TriageInbox({
           <PartyPopper className="size-5 text-emerald-500" aria-hidden /> Inbox zero
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Nothing needs review. High-confidence transactions are filed
-          automatically — the Inbox tab will show a badge when something needs
-          you.
+          Nothing needs review. High-confidence transactions are filed automatically — the Inbox tab
+          will show a badge when something needs you.
         </p>
         <div className="mt-3">{renderRulePrompt()}</div>
         {undoStack.length > 0 && (
@@ -439,33 +751,17 @@ export function TriageInbox({
     );
   }
 
-  // ── live split preview (top is defined past the empty-state return above) ──
-  const visibleCatGroups = filterCategoryOptions(categoryGroups, catQuery);
-  // Exactly one visible option → Enter in the search box files it (the
-  // keyboard replacement for the old select's type-ahead — critic P1).
-  const onlyVisibleCat =
-    visibleCatGroups.length === 1 && visibleCatGroups[0].items.length === 1
-      ? visibleCatGroups[0].items[0]
-      : null;
-  const splitTotal = Math.abs(top.amountCents);
-  const defaultSecondCatId =
-    allCats.find((c) => c.id === 'shopping')?.id ??
-    allCats.find((c) => c.id !== top.suggestedCategoryId)?.id ??
-    allCats[0]?.id ??
-    '';
-  const secondCatId = splitSecondCat || defaultSecondCatId;
-  let splitFirstCents: number | null = null;
-  try {
-    splitFirstCents =
-      splitFirstHalf.trim() === '' ? null : centsFromDollarString(splitFirstHalf.trim());
-  } catch {
-    splitFirstCents = null;
-  }
-  const splitValid = splitFirstCents !== null && splitFirstCents > 0 && splitFirstCents < splitTotal;
-  const splitSecondCents = splitValid ? splitTotal - (splitFirstCents as number) : null;
+  const one = top.count === 1;
+  const anchorRow = top.rows[0];
+  const activeRow = activeRowId ? top.rows.find((r) => r.id === activeRowId) : null;
+  const groupFooter = top.ruleEligible
+    ? `Files ${one ? 'it' : `all ${top.count}`} and every future ${top.merchantCanonical} automatically. Undo reverses everything.`
+    : one
+      ? 'Files this payment. Undo reverses it.'
+      : `Files all ${top.count} identical payments. Undo reverses everything.`;
 
   return (
-    <div className="space-y-3" data-testid="triage-inbox" data-remaining={items.length}>
+    <div className="space-y-3" data-testid="triage-inbox" data-remaining={groups.length}>
       {error && (
         <div
           role="alert"
@@ -476,7 +772,10 @@ export function TriageInbox({
         </div>
       )}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span data-testid="triage-count">{items.length} to review</span>
+        <span data-testid="triage-count">
+          {groups.length === 1 ? '1 merchant left' : `${groups.length} merchants left`}
+          {groups.length > PASS_SIZE && ` · first ${PASS_SIZE} this pass`}
+        </span>
         {undoStack.length > 0 && (
           <Button variant="ghost" size="sm" onClick={undoLast} disabled={pending} data-testid="triage-undo">
             ↩ Undo
@@ -499,302 +798,110 @@ export function TriageInbox({
           <div className="flex items-baseline justify-between gap-2">
             <span className="font-medium">{top.merchantCanonical}</span>
             <span className="text-lg font-semibold tabular-nums">
-              {formatCents(cents(top.amountCents), { signDisplay: 'always' })}
+              {formatCents(cents(top.totalCents), { signDisplay: 'always' })}
             </span>
           </div>
-          <p className="break-all font-mono text-xs text-muted-foreground">{top.rawDescriptor}</p>
-          <p className="text-xs text-muted-foreground">
-            {formatISODate(isoDate(top.date))} · {top.accountName}
-            {top.status === 'PENDING' && (
+          <p className="text-xs text-muted-foreground" data-testid="triage-group-meta">
+            {one
+              ? `1 transaction · ${formatISODate(isoDate(top.newestDate))} · ${anchorRow.accountName}`
+              : `${top.count} transactions · ${formatISODate(isoDate(top.oldestDate))} – ${formatISODate(isoDate(top.newestDate))}`}
+            {one && anchorRow.status === 'PENDING' && (
               <Badge variant="outline" className="ml-1">
                 pending
               </Badge>
             )}
           </p>
+          {top.variants.slice(0, 2).map((v) => (
+            <p key={v} className="break-all font-mono text-xs text-muted-foreground">
+              {v}
+            </p>
+          ))}
+          {top.variants.length > 2 && (
+            <p className="text-xs text-muted-foreground">+ {top.variants.length - 2} more descriptor variants</p>
+          )}
           <div className="flex items-center gap-2 pt-1">
             <span className="text-sm text-muted-foreground">Suggestion:</span>
-            <Badge data-testid="triage-suggestion">{top.suggestedCategoryName}</Badge>
+            {top.suggestedCategoryName ? (
+              <Badge data-testid="triage-suggestion">{top.suggestedCategoryName}</Badge>
+            ) : (
+              <span className="text-sm text-muted-foreground" data-testid="triage-no-suggestion">
+                none yet — pick once for {one ? 'this' : `all ${top.count}`}
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {mode === 'alternatives' && (
-        <div
-          className="space-y-2 outline-none"
-          ref={altPanelRef}
-          tabIndex={-1}
-          role="region"
-          aria-label="Pick a category"
-          data-testid="triage-alternatives-panel"
-        >
-          <div className="grid grid-cols-3 gap-2" data-testid="triage-alternatives">
-            {top.alternativeIds.map((id, i) => (
-              <Button
-                key={id}
-                variant="outline"
-                size="sm"
-                disabled={pending}
-                onClick={() => accept(top, id, 'tap')}
-              >
-                {top.alternativeNames[i]}
-              </Button>
-            ))}
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="triage-cat-search" className="text-xs text-muted-foreground">
-              Or search all {allCats.length} categories:
-            </label>
-            <input
-              id="triage-cat-search"
-              type="search"
-              value={catQuery}
-              onChange={(e) => setCatQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  // Auto-repeat (held key) must never drive actions from here:
-                  // the first keydown can mount the write-in form and move
-                  // focus into it, chaining repeats into its handlers (checker P1).
-                  if (e.repeat) return;
-                  // Enter files the single visible match — the keyboard
-                  // replacement for the old select's type-ahead (critic P1).
-                  if (onlyVisibleCat && !pending) accept(top, onlyVisibleCat.id, 'select');
-                  // Zero matches: Enter opens the write-in prefilled with the
-                  // query — the keyboard completion of the no-match hint
-                  // ("create it below"). Escape still backs out. !newCatOpen:
-                  // the search box stays interactive while the form is open, so
-                  // a re-fire would silently clobber the user's edited draft
-                  // (name, group, discretionary — checker P1).
-                  else if (
-                    visibleCatGroups.length === 0 &&
-                    catQuery.trim() &&
-                    !pending &&
-                    !newCatOpen
-                  )
-                    openNewCategory(top);
-                } else if (e.key === 'Escape') {
-                  if (catQuery) setCatQuery('');
-                  else setMode('idle');
-                }
-              }}
-              placeholder="Search categories…"
-              data-testid="triage-cat-search"
-              disabled={pending}
-              className="w-full rounded-md border bg-background px-2 py-1 text-sm"
-            />
-            <div
-              data-testid="triage-all-categories"
-              className="max-h-56 overflow-auto rounded-md border p-1"
-            >
-              {visibleCatGroups.map((g) => (
-                <div key={g.group}>
-                  <div className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {g.group}
-                  </div>
-                  {g.items.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      data-testid="triage-cat-option"
-                      data-cat={c.id}
-                      disabled={pending}
-                      className="flex w-full items-center rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
-                      onClick={() => accept(top, c.id, 'select')}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              ))}
-              {visibleCatGroups.length === 0 && (
-                <p className="px-2 py-1.5 text-xs text-muted-foreground" data-testid="triage-cat-no-match">
-                  No matching category — create it below.
-                </p>
-              )}
-            </div>
-          </div>
-          {!newCatOpen ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() => openNewCategory(top)}
-              data-testid="triage-add-category"
-              className="gap-1 text-muted-foreground hover:text-foreground"
-            >
-              <Plus className="size-3.5" aria-hidden /> New category
-            </Button>
-          ) : (
-            <div className="space-y-2 rounded-lg border p-3" data-testid="triage-new-category">
-              <p className="text-sm font-medium">
-                New category — this transaction is filed under it right away
-              </p>
-              {newCatError && (
-                <p role="alert" className="text-xs text-red-400" data-testid="new-category-error">
-                  {newCatError}
-                </p>
-              )}
-              <div className="flex flex-wrap items-end gap-2">
-                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-                  Name
-                  <input
-                    value={newCatName}
-                    onChange={(e) => setNewCatName(e.target.value)}
-                    onKeyDown={(e) => {
-                      // isComposing: Enter that commits an IME (CJK) composition
-                      // must not submit the form (critic P2). e.repeat: a HELD
-                      // Enter in the search box opens this form and autoFocus
-                      // moves focus here mid-press — key auto-repeat would then
-                      // create+file with never-reviewed defaults (checker P1);
-                      // only a fresh, deliberate press may submit.
-                      if (e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat) {
-                        e.preventDefault();
-                        createAndFile(top);
-                      } else if (e.key === 'Escape') {
-                        setNewCatOpen(false);
-                        setNewCatError(null);
-                      }
-                    }}
-                    placeholder="e.g. Golf"
-                    aria-label="New category name"
-                    data-testid="new-category-name"
-                    className="h-9 w-40 rounded-md border bg-background px-2 text-sm"
-                    autoFocus
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-                  Group
-                  <select
-                    value={newCatGroup}
-                    onChange={(e) => setNewCatGroup(e.target.value)}
-                    aria-label="Group for the new category"
-                    data-testid="new-category-group"
-                    className="h-9 w-44 rounded-md border bg-background px-2 text-sm"
-                  >
-                    {CUSTOM_CATEGORY_GROUPS.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex items-center gap-1.5 pb-2.5 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={newCatDiscretionary}
-                    onChange={(e) => setNewCatDiscretionary(e.target.checked)}
-                    data-testid="new-category-discretionary"
-                  />
-                  Discretionary
-                </label>
+      {mode === 'picker' &&
+        renderPicker(
+          top.alternativeIds,
+          top.alternativeNames,
+          top.suggestedCategoryId,
+          (id, name) => fileGroup(top, id, name ? 'new-category' : 'select', name),
+          null, // the consent line below the action row is always visible — no duplicate
+        )}
+
+      {mode === 'split' && renderSplit(top, anchorRow)}
+
+      {mode === 'singles' && (
+        <div className="space-y-2 rounded-lg border p-2" data-testid="triage-singles">
+          <p className="px-1 text-xs text-muted-foreground">
+            One by one — pick or split individual {top.merchantCanonical} transactions:
+          </p>
+          {top.rows.map((r) => (
+            <div key={r.id} className="rounded-md border px-2 py-1.5" data-testid="triage-single-row">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-xs text-muted-foreground">
+                  {formatISODate(isoDate(r.date))} · {r.accountName}
+                </span>
+                <span className="tabular-nums">{formatCents(cents(r.amountCents), { signDisplay: 'always' })}</span>
               </div>
-              <div className="flex gap-2">
+              <p className="break-all font-mono text-[10px] text-muted-foreground">{r.rawDescriptor}</p>
+              <div className="mt-1 flex gap-2">
                 <Button
                   size="sm"
-                  disabled={pending || !newCatName.trim()}
-                  data-testid="new-category-submit"
-                  onClick={() => createAndFile(top)}
-                >
-                  Create &amp; file
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
+                  variant="outline"
+                  disabled={pending}
+                  data-testid="single-pick"
                   onClick={() => {
-                    setNewCatOpen(false);
-                    setNewCatError(null);
+                    setActiveRowId(activeRowId === r.id && singlesTool === 'pick' ? null : r.id);
+                    setSinglesTool(activeRowId === r.id && singlesTool === 'pick' ? null : 'pick');
+                    setCatQuery('');
                   }}
                 >
-                  Cancel
+                  Pick
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  data-testid="single-split"
+                  onClick={() => {
+                    setActiveRowId(activeRowId === r.id && singlesTool === 'split' ? null : r.id);
+                    setSinglesTool(activeRowId === r.id && singlesTool === 'split' ? null : 'split');
+                    setSplitFirstHalf('');
+                  }}
+                >
+                  Split
                 </Button>
               </div>
+              {activeRow?.id === r.id && singlesTool === 'pick' && (
+                <div className="mt-2">
+                  {renderPicker(
+                    top.alternativeIds,
+                    top.alternativeNames,
+                    top.suggestedCategoryId,
+                    (id, name) => fileRow(top, r, id, name ? 'new-category' : 'select', name),
+                    null,
+                  )}
+                </div>
+              )}
+              {activeRow?.id === r.id && singlesTool === 'split' && <div className="mt-2">{renderSplit(top, r)}</div>}
             </div>
-          )}
-        </div>
-      )}
-
-      {mode === 'split' && (
-        <div className="space-y-2 rounded-lg border p-3" data-testid="triage-split">
-          <p className="text-sm font-medium">Split {formatCents(cents(top.amountCents))} into two categories</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <label htmlFor="split-amount" className="text-xs text-muted-foreground">
-              First part $
-            </label>
-            <input
-              id="split-amount"
-              type="text"
-              inputMode="decimal"
-              placeholder="0.00"
-              className="w-24 rounded-md border bg-background px-2 py-1 text-sm"
-              value={splitFirstHalf}
-              onChange={(e) => setSplitFirstHalf(e.target.value)}
-              data-testid="split-amount"
-            />
-            <span className="text-xs text-muted-foreground">
-              → {top.suggestedCategoryName} · rest →
-            </span>
-            <label htmlFor="split-second-cat" className="sr-only">
-              Second part category
-            </label>
-            <select
-              id="split-second-cat"
-              className="rounded-md border bg-background px-2 py-1 text-sm"
-              value={secondCatId}
-              onChange={(e) => setSplitSecondCat(e.target.value)}
-              data-testid="split-second-cat"
-            >
-              {allCats.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="text-xs" data-testid="split-preview">
-            {splitValid ? (
-              <span className="text-muted-foreground tabular-nums">
-                <b className="text-foreground">{nameOf(top.suggestedCategoryId)}</b>{' '}
-                {formatCents(cents(splitFirstCents as number))}
-                {'   +   '}
-                <b className="text-foreground">{nameOf(secondCatId)}</b>{' '}
-                {formatCents(cents(splitSecondCents as number))}
-              </span>
-            ) : (
-              <span className="text-muted-foreground">
-                Enter a first part between {formatCents(cents(1))} and{' '}
-                {formatCents(cents(splitTotal - 1))} — the rest goes to the second category.
-              </span>
-            )}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              disabled={pending || !splitValid}
-              data-testid="split-confirm"
-              onClick={() => {
-                // splitValid already gates this button, but re-derive defensively so a
-                // stale render can never persist an out-of-range or unparseable amount.
-                let v: number;
-                try {
-                  v = centsFromDollarString(splitFirstHalf.trim());
-                } catch {
-                  setError('Enter the first part as dollars and cents, e.g. 5.00.');
-                  return;
-                }
-                if (v > 0 && v < Math.abs(top.amountCents)) {
-                  doSplit(top, v, top.suggestedCategoryId, secondCatId);
-                } else {
-                  setError('The first part must be more than $0 and less than the full amount.');
-                }
-              }}
-            >
-              Split
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setMode('idle')}>
-              Cancel
-            </Button>
-          </div>
+          ))}
+          <Button size="sm" variant="ghost" onClick={() => setMode('idle')}>
+            Back to the group
+          </Button>
         </div>
       )}
 
@@ -802,51 +909,58 @@ export function TriageInbox({
         <Button
           variant="outline"
           onClick={() => {
-            logInteraction('tap', 'alternatives');
-            setMode(mode === 'alternatives' ? 'idle' : 'alternatives');
+            logInteraction('tap', 'picker');
+            setMode(mode === 'picker' ? 'idle' : 'picker');
           }}
           data-testid="triage-more"
         >
           ⋯ Pick
         </Button>
         <Button
-          onClick={() => accept(top, top.suggestedCategoryId, 'tap')}
+          onClick={() => {
+            if (top.suggestedCategoryId) fileGroup(top, top.suggestedCategoryId, 'tap');
+            else {
+              logInteraction('tap', 'picker (no suggestion)');
+              setMode('picker');
+            }
+          }}
           disabled={pending}
           data-testid="triage-accept"
         >
-          ✓ Accept
+          <span className="truncate">
+            {top.suggestedCategoryId
+              ? one
+                ? `✓ File as ${top.suggestedCategoryName}`
+                : `✓ File all ${top.count}`
+              : one
+                ? 'Pick category'
+                : `Pick for all ${top.count}`}
+          </span>
         </Button>
         <Button
           variant="outline"
           onClick={() => {
-            logInteraction('tap', 'split-mode');
-            setMode(mode === 'split' ? 'idle' : 'split');
+            if (one) {
+              logInteraction('tap', 'split-mode');
+              setMode(mode === 'split' ? 'idle' : 'split');
+            } else {
+              logInteraction('tap', 'singles-mode');
+              setMode(mode === 'singles' ? 'idle' : 'singles');
+            }
           }}
           data-testid="triage-split-btn"
         >
-          ⑂ Split
+          {one ? '⑂ Split' : '☰ One by one'}
         </Button>
       </div>
 
-      {top.similarCount > 1 && (
-        <Button
-          variant="secondary"
-          className="w-full"
-          disabled={pending}
-          onClick={() => batchApply(top)}
-          data-testid="triage-batch"
-        >
-          <span className="truncate">
-            Apply “{top.suggestedCategoryName}” to all {top.similarCount}{' '}
-            {top.ruleEligible ? `${top.merchantCanonical} items` : 'identical payments'}
-          </span>
-        </Button>
-      )}
+      <p className="text-center text-xs text-muted-foreground" data-testid="triage-consent-line">
+        {groupFooter}
+      </p>
 
       <p className="text-center text-xs text-muted-foreground">
-        Swipe right to accept · swipe left for options · long-press to split
+        Swipe right to file · swipe left to pick · long-press to {one ? 'split' : 'review one by one'}
       </p>
     </div>
   );
 }
-

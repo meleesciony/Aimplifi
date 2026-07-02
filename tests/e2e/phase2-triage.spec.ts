@@ -1,19 +1,39 @@
 /**
- * Phase 2 golden flow at 380×800 — the mobile triage inbox.
+ * Phase 2 golden flow at 380×800 — the mobile triage inbox, MERCHANT-GROUP
+ * edition (PULSE_CATEGORIZATION_FIX Phase 3c, DECISIONS #143).
  *
  * HUMAN-TIME BUDGET (documented mapping for the "<60 seconds" target, since CI
  * wall-clock ≠ human time): each logged interaction is one thumb action with a
  * decision glance:
  *   swipe  = 1.2s motion + 2.5s glance = 3.7s
  *   tap    = 1.5s motion + 2.5s glance = 4.0s
- * A session of N interactions costs ≤ N × 4.0s. The acceptance targets are
- * <15 interactions and <60 seconds — 15 × 4.0 = 60, so interactions < 15
- * implies the time budget holds. Both are asserted with the emitted log.
+ *
+ * TARGET SCOPE (honesty note): SPEC.md:28 budgets "a simulated week-of-spending
+ * review" at <15 interactions / <60s. The OLD per-transaction flow passed that
+ * bar for the FULL 60-day backlog — but only by mass-accepting the amount-based
+ * bestGuess ('Shopping') on checks and Zelle rows: fast, silently WRONG data.
+ * The group flow prices every decision honestly (1 tap when a real suggestion
+ * exists, 2 when the user must pick), so this spec asserts BOTH:
+ *   (a) the WEEK slice (cards whose newest activity is within 7 days of the
+ *       seed asOf) stays under the SPEC budget, and
+ *   (b) the whole 60-day backlog clears in ≤ 2×groups+2 interactions — the
+ *       structural claim: cost scales with DECISIONS, never with rows.
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
+
+const SEED_AS_OF = new Date(Date.UTC(2026, 5, 10)); // DEMO_TODAY 2026-06-10
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Parse the NEWEST 'Mon D' date out of the group card's meta line. */
+function newestDateFromMeta(meta: string): Date | null {
+  const m = [...meta.matchAll(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})/g)];
+  if (m.length === 0) return null;
+  const last = m[m.length - 1];
+  return new Date(Date.UTC(2026, MONTHS.indexOf(last[1]), Number(last[2])));
+}
 
 async function signInToTriage(page: Page) {
   await page.goto('/sign-in');
@@ -27,25 +47,31 @@ async function interactionLog(page: Page) {
   return page.evaluate(() => window.__triageLog ?? []);
 }
 
-test('gestures: swipe right accepts, swipe left reveals 3 alternatives, long-press opens split — all undoable', async ({ page }) => {
+test('group cards: honest suggestions, gesture flow, group filing, split — all undoable', async ({ page }) => {
   await signInToTriage(page);
   const card = page.getByTestId('triage-card');
+  const inbox = page.getByTestId('triage-inbox');
   await expect(card).toBeVisible();
-  const before = Number(await page.getByTestId('triage-inbox').getAttribute('data-remaining'));
+  const before = Number(await inbox.getAttribute('data-remaining'));
   expect(before).toBeGreaterThan(0);
+  // The counter frames MERCHANTS (decisions), never a raw transaction count.
+  await expect(page.getByTestId('triage-count')).toContainText('merchant');
 
-  // swipe RIGHT (mouse-driven pointer events) → accepts the suggestion.
-  // Top item is a Zelle payment — an AGGREGATE merchant, so the durable-rule
-  // prompt must NOT be offered (one "Always" would mis-file all future Zelle).
+  // Top group = the seed's biggest: 6 Zelle payments to J. Park (leverage sort).
+  // It is AGGREGATE and UNKNOWN → the suggestion is honestly ABSENT…
+  await expect(page.getByTestId('triage-no-suggestion')).toBeVisible();
+  await expect(page.getByTestId('triage-suggestion')).toHaveCount(0);
+
+  // …so swipe RIGHT has nothing honest to accept: the card snaps back and the
+  // queue is UNCHANGED (the old flow silently filed an amount-based guess here).
   const box = (await card.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 140, box.y + box.height / 2, { steps: 8 });
   await page.mouse.up();
-  await expect(page.getByTestId('triage-inbox')).toHaveAttribute('data-remaining', String(before - 1));
-  await expect(page.getByTestId('rule-prompt')).toHaveCount(0);
+  await expect(inbox).toHaveAttribute('data-remaining', String(before));
 
-  // swipe LEFT on the next card (Store Card — a real merchant) → 3 alternatives
+  // Swipe LEFT → the picker: exactly 3 quick-picks + searchable all-category list.
   const box2 = (await card.boundingBox())!;
   await page.mouse.move(box2.x + box2.width / 2, box2.y + box2.height / 2);
   await page.mouse.down();
@@ -53,13 +79,16 @@ test('gestures: swipe right accepts, swipe left reveals 3 alternatives, long-pre
   await page.mouse.up();
   await expect(page.getByTestId('triage-alternatives')).toBeVisible();
   await expect(page.getByTestId('triage-alternatives').locator('button')).toHaveCount(3);
-  await page.getByTestId('triage-alternatives').locator('button').first().click();
 
-  // the one-tap durable rule IS offered for a real merchant, with an explanation
-  await expect(page.getByTestId('rule-prompt')).toBeVisible();
-  await expect(page.getByTestId('rule-prompt')).toContainText('skip review');
-  await expect(page.getByTestId('rule-always')).toBeVisible();
-  await page.getByTestId('rule-once').click();
+  // Search → tap the exact match ('Rent' also surfaces 'Rental Car') — ALL 6
+  // rows file in ONE decision; the queue drops by one GROUP, and no rule
+  // prompt appears (aggregate — #23).
+  await page.getByTestId('triage-cat-search').fill('Rent');
+  await page.getByTestId('triage-cat-option').filter({ hasText: 'Rent & Mortgage' }).click();
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
+  await expect(page.getByTestId('rule-prompt')).toHaveCount(0);
+
+  // Next top is a 1-row group → long-press opens SPLIT (both parts pickable).
   const box3 = (await card.boundingBox())!;
   await page.mouse.move(box3.x + box3.width / 2, box3.y + box3.height / 2);
   await page.mouse.down();
@@ -68,19 +97,16 @@ test('gestures: swipe right accepts, swipe left reveals 3 alternatives, long-pre
   await expect(page.getByTestId('triage-split')).toBeVisible();
   await page.getByTestId('split-amount').fill('5');
   await page.getByTestId('split-confirm').click();
-  await expect(page.getByTestId('triage-inbox')).toHaveAttribute('data-remaining', String(before - 3));
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 2));
 
-  // universal undo: three undos restore all three actions (no reload needed)
-  for (let i = 3; i >= 1; i--) {
-    await page.getByTestId('triage-undo').click();
-    await expect(page.getByTestId('triage-inbox')).toHaveAttribute(
-      'data-remaining',
-      String(before - i + 1),
-    );
-  }
+  // Universal undo: both actions restore, group-sized (no reload needed).
+  await page.getByTestId('triage-undo').click();
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
+  await page.getByTestId('triage-undo').click();
+  await expect(inbox).toHaveAttribute('data-remaining', String(before));
 });
 
-test('write-in category: create + file in one step, joins pickers, errors stay inline (#136)', async ({ page }) => {
+test('write-in category: create + file the whole group, joins pickers, errors stay inline (#136)', async ({ page }) => {
   await signInToTriage(page);
   const catName = `Golf ${Date.now().toString().slice(-6)}`; // unique per run (retry-safe)
   const inbox = page.getByTestId('triage-inbox');
@@ -88,21 +114,16 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
   expect(before).toBeGreaterThan(1);
 
   // ── Lock (critic P1): a half-typed write-in form must NOT survive when the
-  // top card changes without advance() (batchApply/undoLast paths). Accept a
-  // card, open the form on the next one and type into it, then UNDO — reopening
-  // alternatives on the restored card must show the button, not a stale form
-  // carrying the previous card's group prefill.
-  await page.getByTestId('triage-accept').click();
-  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
-  if (await page.getByTestId('rule-once').isVisible().catch(() => false)) {
-    await page.getByTestId('rule-once').click();
-  }
-  await page.getByTestId('triage-more').click();
-  await expect(page.getByTestId('triage-alternatives')).toBeVisible();
-  await expect(page.getByTestId('triage-alternatives').locator('button')).toHaveCount(3);
-  // Keyboard path (critic P1): opening the panel lands focus ON it (container,
-  // tabIndex -1), so alternatives + search are a few Tabs away, not ~86.
+  // top card changes without advance(). File the top group via a quick-pick,
+  // open the form on the next card and type into it, then UNDO — reopening the
+  // picker on the restored card must show the button, not a stale form.
+  await page.getByTestId('triage-accept').click(); // no suggestion → opens the picker
+  await expect(page.getByTestId('triage-alternatives-panel')).toBeVisible();
+  // Keyboard path (critic P1): opening the panel lands focus ON it.
   await expect(page.getByTestId('triage-alternatives-panel')).toBeFocused();
+  await page.getByTestId('triage-alternatives').locator('button').first().click();
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
+  await page.getByTestId('triage-more').click();
   await page.getByTestId('triage-add-category').click();
   await page.getByTestId('new-category-name').fill('Stale draft');
   await page.getByTestId('triage-undo').click();
@@ -110,7 +131,6 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
   await page.getByTestId('triage-more').click();
   await expect(page.getByTestId('triage-new-category')).toHaveCount(0); // form closed
   await expect(page.getByTestId('triage-add-category')).toBeVisible();
-  const afterBatch = before; // queue fully restored by the undo
 
   // Open the write-in mini-form; the group select is prefilled (spending groups
   // only) and the whole page stays WCAG A/AA clean with the form open.
@@ -122,18 +142,13 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
     .analyze();
   expect(axe.violations).toEqual([]);
 
-  // Create & file — the card advances by exactly one, and (rule-eligible
-  // merchant) the durable-rule prompt names the CUSTOM category.
+  // Create & file — the WHOLE top group files under the new category in one step.
   await page.getByTestId('new-category-name').fill(catName);
   await page.getByTestId('new-category-submit').click();
-  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
-  if (await page.getByTestId('rule-once').isVisible().catch(() => false)) {
-    await expect(page.getByTestId('rule-prompt')).toContainText(catName);
-    await page.getByTestId('rule-once').click();
-  }
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
 
   // The fresh category is assignable on the NEXT card without a reload — and
-  // the picker SEARCH (increment 2) narrows ~84 options to exactly it.
+  // the picker SEARCH narrows ~84 options to exactly it (#137).
   await page.getByTestId('triage-more').click();
   await page.getByTestId('triage-cat-search').fill(catName);
   await expect(page.getByTestId('triage-cat-option')).toHaveCount(1);
@@ -141,15 +156,14 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
   await page.getByTestId('triage-cat-search').fill('zzz no such category');
   await expect(page.getByTestId('triage-cat-no-match')).toBeVisible();
   await expect(page.getByTestId('triage-add-category')).toBeVisible(); // create-hint synergy
-  // A GROUP-label query must find the group's categories (critic P1: "bills"
-  // matches the visible "Bills & Utilities" header, no category name).
+  // A GROUP-label query must find the group's categories (critic P1).
   await page.getByTestId('triage-cat-search').fill('bills');
   await expect(page.getByTestId('triage-cat-option').first()).toBeVisible();
   await expect(page.getByTestId('triage-cat-no-match')).toHaveCount(0);
   await page.getByTestId('triage-cat-search').fill('');
 
-  // ── Lock (critic P1): a REJECTED create action (network failure) degrades to
-  // the inline error — never the route error boundary. Abort the next action POST.
+  // ── Lock (critic P1): a REJECTED create action degrades to the inline error —
+  // never the route error boundary. Abort the next action POST.
   let abortedOnce = false;
   await page.route('**/triage*', async (route) => {
     if (!abortedOnce && route.request().method() === 'POST') {
@@ -170,43 +184,32 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
   await page.getByTestId('new-category-name').fill(catName);
   await page.getByTestId('new-category-submit').click();
   await expect(page.getByTestId('new-category-error')).toBeVisible();
-  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
 
-  // Persistence: a full server re-render (fresh getVisibleCategories) must offer
-  // the category — proves the DB row, not the client-side overlay. Then the
-  // search picker FILES with it end-to-end (click → accept), and undo restores.
+  // Persistence: a full server re-render must offer the category — proves the
+  // DB row, not the client overlay. Then Enter-files-single-match end-to-end,
+  // and undo restores the whole GROUP.
   await page.reload();
-  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
   await page.getByTestId('triage-more').click();
   await page.getByTestId('triage-cat-search').fill(catName);
   await expect(page.getByTestId('triage-cat-option')).toHaveCount(1);
-  // Enter in the search box files the SINGLE visible match — the keyboard
-  // replacement for the old select's type-ahead (critic P1).
   await page.getByTestId('triage-cat-search').press('Enter');
-  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 2));
-  if (await page.getByTestId('rule-once').isVisible().catch(() => false)) {
-    await expect(page.getByTestId('rule-prompt')).toContainText(catName);
-    await page.getByTestId('rule-once').click();
-  }
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 2));
   await page.getByTestId('triage-undo').click();
-  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
   // The search filter must NOT survive the undo's card change (critic P2).
   await page.getByTestId('triage-more').click();
   await expect(page.getByTestId('triage-cat-search')).toHaveValue('');
 
-  // GUARD (checker): a MULTI-match query + Enter must do nothing — only the
-  // single-match (file) and zero-match (create) branches may act.
+  // GUARD (checker): a MULTI-match query + Enter must do nothing.
   await page.getByTestId('triage-cat-search').fill('bills');
   await page.getByTestId('triage-cat-search').press('Enter');
   await expect(page.getByTestId('triage-new-category')).toHaveCount(0);
-  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
 
-  // Prefill (owner request): the search query IS the new-category name — never
-  // retype it. With ZERO matches, Enter opens the write-in prefilled (the
-  // keyboard completion of the "create it below" hint), name still editable.
-  // Driven with keyboard.down so the SECOND down is a genuine auto-repeat:
-  // a HELD Enter opens the form and focus moves into its name input mid-press —
-  // the repeat must NOT chain into create+file (checker P1, e.repeat guard).
+  // Prefill (#139): zero matches + Enter opens the write-in prefilled with the
+  // query; a HELD Enter's auto-repeat must NOT chain into create+file.
   await page.getByTestId('triage-cat-search').fill('Pickleball Dues');
   await expect(page.getByTestId('triage-cat-no-match')).toBeVisible();
   await page.keyboard.down('Enter');
@@ -214,19 +217,17 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
   await expect(page.getByTestId('new-category-name')).toHaveValue('Pickleball Dues');
   await page.keyboard.down('Enter'); // repeat keydown lands on the name input
   await page.keyboard.up('Enter');
-  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1)); // nothing filed
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1)); // nothing filed
   await expect(page.getByTestId('triage-new-category')).toBeVisible(); // form intact
 
-  // GUARD (checker P1): with the form OPEN, Enter on a fresh zero-match search
-  // query must NOT re-open/prefill — the user's edited draft survives.
+  // GUARD (checker P1): with the form OPEN, Enter on a fresh zero-match query
+  // must NOT re-open/prefill — the user's edited draft survives.
   await page.getByTestId('new-category-name').fill('Pickleball Edited');
   await page.getByTestId('triage-cat-search').fill('Croquet Fees');
   await page.getByTestId('triage-cat-search').press('Enter');
   await expect(page.getByTestId('new-category-name')).toHaveValue('Pickleball Edited');
 
-  // iOS focus-zoom guard (#140): on touch devices form controls must be ≥16px —
-  // Safari force-zooms the viewport for anything smaller (owner report). Assert
-  // both the search box and the write-in's autofocused name input.
+  // iOS focus-zoom guard (#140): touch form controls ≥16px.
   for (const id of ['triage-cat-search', 'new-category-name']) {
     const fs = await page
       .getByTestId(id)
@@ -235,38 +236,68 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
   }
 });
 
-test('a full review session completes in <15 interactions (→ <60s human time)', async ({ page }) => {
+test('review cost scales with DECISIONS: week slice <15/<60s, full backlog ≤ 2×groups+2', async ({ page }) => {
+  // 12+ sequential server actions; this machine's documented action-apply stall
+  // (STATUS #16/#17) can hold a `pending` button past the default 60s. Wall-clock
+  // is NOT the metric here — the human-time budget is computed from the log.
+  test.setTimeout(300_000);
   await signInToTriage(page);
   await page.evaluate(() => {
     window.__triageLog = [{ type: 'tap', detail: 'nav → Review', at: 1 }];
   });
+  const inbox = page.getByTestId('triage-inbox');
+  const initialGroups = Number(await inbox.getAttribute('data-remaining'));
+  expect(initialGroups).toBeGreaterThan(0);
 
-  // Clear the whole queue thumb-style: batch when offered, otherwise accept.
-  for (let guard = 0; guard < 20; guard++) {
+  // Clear the whole queue thumb-style, pricing every decision honestly:
+  // suggestion → 1 tap; none → open picker + first quick-pick (2 taps).
+  // Track which interactions belong to the SPEC's week slice (newest card
+  // activity within 7 days of the seed asOf).
+  let weekInteractions = 0;
+  const weekCut = new Date(SEED_AS_OF.getTime() - 7 * 86_400_000);
+  for (let guard = 0; guard < initialGroups + 5; guard++) {
     if (await page.getByTestId('triage-empty').isVisible().catch(() => false)) break;
-    // dismiss rule prompt only when it covers the batch button — otherwise ignore
-    if (await page.getByTestId('triage-batch').isVisible().catch(() => false)) {
-      await page.getByTestId('triage-batch').click();
-    } else {
-      await page.getByTestId('triage-accept').click();
-      // take the one-tap durable rule once, to prove the flow (counts as a tap)
-      if (guard === 0 && (await page.getByTestId('rule-always').isVisible().catch(() => false))) {
-        await page.getByTestId('rule-always').click();
-      }
+    const meta = (await page.getByTestId('triage-group-meta').textContent()) ?? '';
+    const newest = newestDateFromMeta(meta);
+    const inWeek = newest !== null && newest >= weekCut;
+    const logBefore = (await interactionLog(page)).length;
+
+    const hasSuggestion = await page.getByTestId('triage-suggestion').isVisible().catch(() => false);
+    const remainingBefore = Number(await inbox.getAttribute('data-remaining'));
+    // The queue advances optimistically; wait out the previous action's pending
+    // window before the next decision (machine-stall tolerance, not human time).
+    await expect(page.getByTestId('triage-accept')).toBeEnabled({ timeout: 120_000 });
+    await page.getByTestId('triage-accept').click();
+    if (!hasSuggestion) {
+      await expect(page.getByTestId('triage-alternatives-panel')).toBeVisible();
+      await page.getByTestId('triage-alternatives').locator('button').first().click();
     }
-    await page.waitForTimeout(150);
+    // The last decision unmounts the inbox into the empty state — accept either.
+    await expect(async () => {
+      if (await page.getByTestId('triage-empty').isVisible().catch(() => false)) return;
+      const now = Number(await inbox.getAttribute('data-remaining'));
+      expect(now).toBe(remainingBefore - 1);
+    }).toPass({ timeout: 20000 });
+    if (inWeek) weekInteractions += (await interactionLog(page)).length - logBefore;
   }
 
   await expect(page.getByTestId('triage-empty')).toBeVisible();
 
   const log = await interactionLog(page);
-  console.log('=== TRIAGE INTERACTION LOG (evidence for <15 / <60s) ===');
+  console.log('=== TRIAGE INTERACTION LOG (merchant-group flow) ===');
   for (const entry of log) console.log(`  ${entry.at}. [${entry.type}] ${entry.detail}`);
   const seconds = log.reduce((s, e) => s + (e.type === 'swipe' ? 3.7 : 4.0), 0);
-  console.log(`  interactions=${log.length}  human-time≈${seconds.toFixed(1)}s (budget: tap 4.0s, swipe 3.7s)`);
+  const weekSeconds = weekInteractions * 4.0;
+  console.log(
+    `  groups=${initialGroups} total-interactions=${log.length} (~${seconds.toFixed(1)}s human) | week-slice=${weekInteractions} (~${weekSeconds.toFixed(1)}s)`,
+  );
 
-  expect(log.length).toBeLessThan(15);
-  expect(seconds).toBeLessThan(60);
+  // (a) SPEC.md:28 — the week's review fits the budget.
+  expect(weekInteractions).toBeLessThan(15);
+  expect(weekSeconds).toBeLessThan(60);
+  // (b) Structural: the FULL 60-day backlog costs ≤ 2 interactions per decision
+  //     (+ nav + slack) — cost scales with merchants, never with transaction rows.
+  expect(log.length).toBeLessThanOrEqual(initialGroups * 2 + 2);
 
   // the dashboard badge is gone — feed fully reviewed
   await page.goto('/dashboard');
@@ -281,4 +312,3 @@ test('categorization accuracy card shows a measured value (DECISIONS #37)', asyn
   // seeded known-merchant labels guarantee a measured percentage (n > 0)
   await expect(page.getByTestId('accuracy-value')).toContainText('%');
 });
-

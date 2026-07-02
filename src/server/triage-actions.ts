@@ -12,7 +12,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { auditLog, requireUserId } from '@/server/authz';
 import { assertOwnedCategory } from '@/server/category-meta';
 import { ensureCategories } from '@/server/ensure-categories';
-import { getTriageItems, similarTransactionsWhere, type TriageItem } from '@/server/triage';
+import { type TriageGroupView, getTriageGroups, similarTransactionsWhere } from '@/server/triage';
 
 /** Aggregate pseudo-merchants (Zelle/checks/ATM) never get merchant-wide rules. */
 function assertRuleEligible(rawDescriptor: string): void {
@@ -409,7 +409,7 @@ export async function splitTransaction(input: {
 }
 
 /** Undo a split: remove children, put the parent back in review. Returns the fresh queue. */
-export async function undoSplit(transactionId: string): Promise<TriageItem[]> {
+export async function undoSplit(transactionId: string): Promise<TriageGroupView[]> {
   const userId = await requireUserId();
   const txn = await ownedTransaction(userId, transactionId);
   if (!txn.isSplitParent) throw new Error('Transaction is not a split parent');
@@ -421,7 +421,7 @@ export async function undoSplit(transactionId: string): Promise<TriageItem[]> {
     }),
   ]);
   revalidatePath('/triage');
-  return getTriageItems(userId);
+  return getTriageGroups(userId); // group queue (Phase 3c)
 }
 
 /**
@@ -429,7 +429,7 @@ export async function undoSplit(transactionId: string): Promise<TriageItem[]> {
  * each transaction to review, and remove any rule the correction created.
  * Returns the fresh queue so the client can restore without a reload.
  */
-export async function undoCorrections(correctionIds: string[]): Promise<TriageItem[]> {
+export async function undoCorrections(correctionIds: string[]): Promise<TriageGroupView[]> {
   const userId = await requireUserId();
   for (const id of correctionIds) {
     const correction = await prisma.correction.findFirst({ where: { id, userId } });
@@ -494,5 +494,5 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageIt
     }
   }
   revalidatePath('/triage');
-  return getTriageItems(userId);
+  return getTriageGroups(userId); // group queue (Phase 3c)
 }
