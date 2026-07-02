@@ -50,9 +50,15 @@ export function similarTransactionsWhere(
   // Never re-file split-PARENT containers (categoryId is intentionally null and
   // they're excluded from every aggregation) — and excluding them keeps the
   // register's "re-file all N" count equal to the rows actually mutated (#44).
-  const scope = txn.aggregate
-    ? { rawDescriptor: txn.rawDescriptor }
-    : { merchantId: txn.merchantId };
+  //
+  // MERCHANTLESS rows scope by EXACT descriptor, like aggregates (Phase-3
+  // checker P0): `{ merchantId: null }` is a real Prisma filter (IS NULL) that
+  // would match EVERY merchantless row the user owns — one tap on a manual/CSV
+  // group card must never mass-file unrelated merchants.
+  const scope =
+    txn.aggregate || txn.merchantId === null
+      ? { rawDescriptor: txn.rawDescriptor }
+      : { merchantId: txn.merchantId };
   // Currency guard (DECISIONS #135): the "apply to N similar" scope touches supported accounts only.
   const account = { userId, OR: [{ currency: null }, { currency: 'USD' }] };
   return onlyNeedsReview
@@ -224,7 +230,9 @@ export async function getReviewCount(userId: string): Promise<number> {
       groupKey({
         merchantId: r.merchantId,
         rawDescriptor: r.rawDescriptor,
-        merchantCanonical: r.merchant?.canonical ?? r.rawDescriptor,
+        // SAME canonical fallback getTriageGroups uses (checker: a rawDescriptor
+        // fallback here made the badge disagree with the queue for merchantless rows).
+        merchantCanonical: r.merchant?.canonical ?? normalizeMerchant(r.rawDescriptor).canonical,
         aggregate: normalizeMerchant(r.rawDescriptor).aggregate,
       }),
     ),

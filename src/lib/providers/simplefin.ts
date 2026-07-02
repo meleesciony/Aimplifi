@@ -473,36 +473,48 @@ export async function syncFromSimplefin(
       update: {},
     });
     // Split: what the BANK knows (always refreshed) vs the category VERDICT (preserved
-    // on corrected rows — a user decision outranks the pipeline; the 5-day overlap
-    // re-sends recently corrected rows every sync. Phase 3d, DIAGNOSIS item 4).
-    const nonVerdict2 = {
+    // on user-settled rows — a user decision outranks the pipeline; the 5-day overlap
+    // re-sends recently corrected rows every sync. Phase 3d + checker cycle 1:
+    // isTransfer is part of the VERDICT, a split parent is never resurrected, and an
+    // UNDONE row (corrections exist, back in review) takes the fresh verdict again.
+    const base2 = {
       date: row.date,
       amountCents: row.amountCents,
       rawDescriptor: row.rawDescriptor,
       merchantId: merchant.id,
       status: row.status,
-      isTransfer: row.isTransfer,
     };
     const data2 = {
-      ...nonVerdict2,
+      ...base2,
       categoryId: row.categoryId,
       confidenceBps: row.confidenceBps,
       needsReview: row.needsReview,
+      isTransfer: row.isTransfer,
     };
     const exists = await prisma.transaction.findFirst({
       where: { accountId: row.accountId, providerRef: row.providerRef },
       select: { id: true },
     });
-    const corrected = exists
-      ? (await prisma.correction.count({ where: { transactionId: exists.id } })) > 0
-      : false;
-    await prisma.transaction.upsert({
-      where: { accountId_providerRef: { accountId: row.accountId, providerRef: row.providerRef } },
-      create: { accountId: row.accountId, providerRef: row.providerRef, ...data2 },
-      update: corrected ? nonVerdict2 : data2,
-    });
-    if (exists) modified++;
-    else added++;
+    if (exists) {
+      // Atomic check-then-act (checker P1): presence check + write in ONE write
+      // transaction, serialized against a concurrent fileMerchantGroup.
+      await prisma.$transaction(async (tx) => {
+        const fresh = await tx.transaction.findUniqueOrThrow({
+          where: { id: exists.id },
+          select: { isSplitParent: true, needsReview: true },
+        });
+        const corrected =
+          (await tx.correction.count({ where: { transactionId: exists.id } })) > 0;
+        const preserve = fresh.isSplitParent || (corrected && !fresh.needsReview);
+        await tx.transaction.update({ where: { id: exists.id }, data: preserve ? base2 : data2 });
+      });
+      modified++;
+    } else {
+      await prisma.transaction.create({
+        data: { accountId: row.accountId, providerRef: row.providerRef, ...data2 },
+      });
+      added++;
+    }
   }
 
   // Pending reconcile (DECISIONS #128): drop stale PENDING rows the feed no longer

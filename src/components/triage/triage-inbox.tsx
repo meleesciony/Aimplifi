@@ -229,11 +229,13 @@ export function TriageInbox({
   }
 
   function removeRowLocally(rowId: string) {
+    let groupEmptied = false;
     setGroups((gs) =>
       gs
         .map((g) => {
           if (!g.rows.some((r) => r.id === rowId)) return g;
           const rows = g.rows.filter((r) => r.id !== rowId);
+          if (rows.length === 0) groupEmptied = true;
           const removed = g.rows.find((r) => r.id === rowId)!;
           return {
             ...g,
@@ -245,6 +247,9 @@ export function TriageInbox({
         })
         .filter((g) => g.rows.length > 0),
     );
+    // Filing the LAST row of a group must not leak singles mode onto the NEXT
+    // merchant's card (checker P1: its rows rendered pre-expanded, untapped).
+    if (groupEmptied) setMode('idle');
     setActiveRowId(null);
     setSinglesTool(null);
     setNewCatOpen(false);
@@ -407,7 +412,13 @@ export function TriageInbox({
                 const id = rulePrompt.correctionId;
                 setRulePrompt(null);
                 startTransition(async () => {
-                  await makeRuleFromCorrection(id);
+                  try {
+                    await makeRuleFromCorrection(id);
+                  } catch (e) {
+                    // A failed "Always" degrades to the inline error — never the route
+                    // error boundary, which would wipe the queue position (checker P2).
+                    setError(e instanceof Error ? e.message : 'Could not create the rule.');
+                  }
                 });
               }}
             >
@@ -743,7 +754,14 @@ export function TriageInbox({
         </p>
         <div className="mt-3">{renderRulePrompt()}</div>
         {undoStack.length > 0 && (
-          <Button variant="outline" size="sm" className="mt-4" onClick={undoLast} data-testid="triage-undo">
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={undoLast}
+            disabled={pending} // a double-tap must not undo TWO decisions (checker P1)
+            data-testid="triage-undo"
+          >
             Undo last ({undoStack[undoStack.length - 1].label})
           </Button>
         )}

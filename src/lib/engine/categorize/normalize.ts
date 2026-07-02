@@ -112,8 +112,12 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^PATREON\b/i, canonical: 'Patreon', categoryId: 'entertainment' },
   { pattern: /^SPIRIT HALLOWEEN/i, canonical: 'Spirit Halloween', categoryId: 'shopping' },
   // Banking / income / obligations
-  { pattern: /^ACH DEPOSIT .*PAYROLL/i, canonical: 'Acme Analytics (Payroll)', categoryId: 'income' },
-  { pattern: /^ACH WITHDRAWAL .*RENT/i, canonical: 'Peachtree Properties (Rent)', categoryId: 'rent' },
+  // Bound to the demo payees by NAME (checker: the old `.*RENT` / `.*PAYROLL`
+  // substrings were convergence sinks on real feeds — 'ACH WITHDRAWAL … RENTERS
+  // INS' would silently file as the demo's landlord at 9600). Real payroll/rent
+  // still auto-file via the generic PAYROLL/DIRECT-DEP keyword rules.
+  { pattern: /^ACH DEPOSIT ACME ANALYTICS/i, canonical: 'Acme Analytics (Payroll)', categoryId: 'income' },
+  { pattern: /^ACH WITHDRAWAL PEACHTREE/i, canonical: 'Peachtree Properties (Rent)', categoryId: 'rent' },
   { pattern: /^ACH WITHDRAWAL CARMAX/i, canonical: 'CarMax Auto Finance', categoryId: 'auto-loan' },
   { pattern: /^STORE CARD PURCHASE/i, canonical: 'Store Card Purchase', categoryId: 'shopping', confidenceBps: 6000 },
   { pattern: /^ATM WITHDRAWAL/i, canonical: 'ATM Withdrawal', categoryId: 'cash' },

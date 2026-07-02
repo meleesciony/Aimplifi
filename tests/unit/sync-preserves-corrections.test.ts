@@ -117,6 +117,47 @@ describe('SimpleFIN resync preserves user corrections (real actions, mocked serv
     expect(after.confidenceBps).toBe(9900);
   });
 
+  it('an UNDONE row (corrections exist, back in review) takes the fresh verdict again (checker cycle 1)', async () => {
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-8.50', description: RAW, pending: true },
+    ])] };
+    await connectSimplefin(SETUP_TOKEN);
+    const r0 = await row();
+    await applyCategory({ transactionId: r0.id, categoryId: 'coffee' });
+    // Simulate the undo path's restore: correction rows REMAIN, row back in review.
+    await prisma.transaction.update({
+      where: { id: r0.id },
+      data: { categoryId: 'uncategorized', needsReview: true, confidenceBps: null },
+    });
+    // Resync re-sends the row with a now-recognizable descriptor: the fresh
+    // confident verdict must land — a correction's mere EXISTENCE must not
+    // freeze an un-decided row's verdict forever.
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: epoch(2026, 6, 8), amount: '-8.50', description: 'NETFLIX.COM 866-579-7172 CA' },
+    ])] };
+    await syncFromSimplefin(USER, TODAY);
+    const after = await row();
+    expect(after.needsReview).toBe(false);
+    expect(after.categoryId).not.toBe('uncategorized');
+  });
+
+  it('a SPLIT PARENT is never resurrected by the resync (checker cycle 1)', async () => {
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: epoch(2026, 6, 8), amount: '-8.50', description: RAW },
+    ])] };
+    await connectSimplefin(SETUP_TOKEN);
+    const r0 = await row();
+    await prisma.transaction.update({
+      where: { id: r0.id },
+      data: { isSplitParent: true, categoryId: null, needsReview: false, confidenceBps: null },
+    });
+    await syncFromSimplefin(USER, TODAY); // 5-day overlap re-sends it
+    const after = await row();
+    expect(after.isSplitParent).toBe(true);
+    expect(after.categoryId).toBeNull(); // container stays a container
+    expect(after.needsReview).toBe(false); // no zombie triage card
+  });
+
   it('an UNTOUCHED row still takes the fresh pipeline verdict on resync (guard is correction-scoped)', async () => {
     accountsPayload = { accounts: [checking([
       { id: 't1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-8.50', description: RAW, pending: true },
@@ -203,6 +244,38 @@ describe('Plaid resync preserves user corrections (real provider, mocked server)
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+  });
+
+  it('pending→posted ID CHURN transplants the corrected verdict onto the new id (checker P1)', async () => {
+    // Sync 1: pending txn arrives under ptx-1; the user corrects it.
+    syncPages = [{ accounts: [acct], added: [plaidTxn()], modified: [], removed: [], next_cursor: 'cur-1', has_more: false }];
+    await new PlaidProvider().syncTransactions(USER);
+    const before = await row();
+    await applyCategory({ transactionId: before.id, categoryId: 'coffee' });
+
+    // Sync 2: Plaid retires ptx-1 and posts the SAME charge as ptx-2, linked
+    // via pending_transaction_id — the exact churn that used to orphan the
+    // correction and revert the decision.
+    syncPages = [{
+      accounts: [acct],
+      added: [plaidTxn({ transaction_id: 'ptx-2', pending: false, pending_transaction_id: 'ptx-1' })],
+      modified: [],
+      removed: [{ transaction_id: 'ptx-1' }],
+      next_cursor: 'cur-2',
+      has_more: false,
+    }];
+    await new PlaidProvider().syncTransactions(USER);
+
+    const rows = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    expect(rows).toHaveLength(1); // no duplicate — the old id is gone
+    expect(rows[0].providerRef).toBe('ptx-2');
+    expect(rows[0].status).toBe('POSTED');
+    expect(rows[0].categoryId).toBe('coffee'); // the decision survived the id churn
+    expect(rows[0].needsReview).toBe(false);
+    // Corrections followed the transaction (audit = state).
+    const corrections = await prisma.correction.findMany({ where: { userId: USER } });
+    expect(corrections.length).toBeGreaterThan(0);
+    for (const c of corrections) expect(c.transactionId).toBe(rows[0].id);
   });
 
   it('a corrected txn re-sent in `modified` keeps its category (and still posts)', async () => {

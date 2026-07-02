@@ -12,6 +12,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { auditLog, requireUserId } from '@/server/authz';
 import { assertOwnedCategory } from '@/server/category-meta';
 import { ensureCategories } from '@/server/ensure-categories';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { type TriageGroupView, getTriageGroups, similarTransactionsWhere } from '@/server/triage';
 
 /** Aggregate pseudo-merchants (Zelle/checks/ATM) never get merchant-wide rules. */
@@ -193,18 +194,36 @@ export async function fileMerchantGroup(input: {
 
   const aggregate = normalizeMerchant(txn.rawDescriptor).aggregate;
   const ruleEligible = !aggregate && !!txn.merchantId;
-  const targets = await prisma.transaction.findMany({
-    // SAME scope the group card was built from (groupKey ↔ similarTransactionsWhere,
-    // DECISIONS #23) — review-queue rows only.
-    where: similarTransactionsWhere(userId, {
-      merchantId: txn.merchantId,
-      rawDescriptor: txn.rawDescriptor,
-      aggregate,
-    }),
-  });
-  if (targets.length === 0) return { correctionIds: [], ruleId: null, affected: 0 };
 
-  const { correctionIds, ruleId } = await prisma.$transaction(async (tx) => {
+  // EVERYTHING inside one write transaction (Phase-3 checker P1): the target
+  // fetch, the needsReview re-assert, and the rule dedupe — so a double-tap or
+  // a second session filing the same group can never record stale-fromCategoryId
+  // corrections (whose undo would revert the OTHER session's decision) or mint
+  // duplicate equal-priority rules (nondeterministic tie-break). Mirrors the
+  // compare-and-set standard in src/server/backfill.ts. SQLite serializes write
+  // transactions, so the in-transaction fetch is consistent with the writes.
+  const { correctionIds, ruleId, affected } = await prisma.$transaction(async (tx) => {
+    const targets = await tx.transaction.findMany({
+      // SAME scope + SAME spending-account/currency filter the group card was
+      // built from (groupKey ↔ similarTransactionsWhere, DECISIONS #23; checker:
+      // the action must never file more account types than the card counted).
+      where: {
+        ...similarTransactionsWhere(userId, {
+          merchantId: txn.merchantId,
+          rawDescriptor: txn.rawDescriptor,
+          aggregate,
+        }),
+        account: {
+          userId,
+          type: { in: [...SPENDING_ACCOUNT_TYPES] },
+          OR: [{ currency: null }, { currency: 'USD' }],
+        },
+      },
+    });
+    if (targets.length === 0) {
+      return { correctionIds: [] as string[], ruleId: null as string | null, affected: 0 };
+    }
+
     const ids: string[] = [];
     for (const t of targets) {
       const c = await tx.correction.create({
@@ -214,32 +233,43 @@ export async function fileMerchantGroup(input: {
     }
     let createdRuleId: string | null = null;
     if (ruleEligible) {
-      const rule = await tx.categorizationRule.create({
-        data: {
-          userId,
-          merchantId: txn.merchantId!,
-          categoryId: input.categoryId,
-          priority: 100,
-          createdFrom: ids[0],
-        },
+      // Dedupe: an identical live rule (same merchant → same category) is reused,
+      // never duplicated (checker: duplicate equal-priority rules survive undo).
+      const existingRule = await tx.categorizationRule.findFirst({
+        where: { userId, merchantId: txn.merchantId!, categoryId: input.categoryId },
       });
-      createdRuleId = rule.id;
-      await tx.correction.update({ where: { id: ids[0] }, data: { becameRuleId: rule.id } });
+      if (existingRule) {
+        createdRuleId = existingRule.id;
+      } else {
+        const rule = await tx.categorizationRule.create({
+          data: {
+            userId,
+            merchantId: txn.merchantId!,
+            categoryId: input.categoryId,
+            priority: 100,
+            createdFrom: ids[0],
+          },
+        });
+        createdRuleId = rule.id;
+        await tx.correction.update({ where: { id: ids[0] }, data: { becameRuleId: rule.id } });
+      }
     }
-    await tx.transaction.updateMany({
-      where: { id: { in: targets.map((t) => t.id) } },
+    const updated = await tx.transaction.updateMany({
+      // Compare-and-set: only rows STILL in review are filed, re-asserted in the write.
+      where: { id: { in: targets.map((t) => t.id) }, needsReview: true },
       data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
     });
     await tx.categoryPrediction.updateMany({
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
       data: { actualCategoryId: input.categoryId },
     });
-    return { correctionIds: ids, ruleId: createdRuleId };
+    return { correctionIds: ids, ruleId: createdRuleId, affected: updated.count };
   });
+  if (affected === 0) return { correctionIds: [], ruleId: null, affected: 0 };
   await auditLog(userId, 'group.file', {
     merchantId: txn.merchantId,
     categoryId: input.categoryId,
-    affected: targets.length,
+    affected,
     ruleId,
   });
   if (ruleId) {
@@ -248,7 +278,7 @@ export async function fileMerchantGroup(input: {
 
   revalidatePath('/triage');
   revalidatePath('/transactions');
-  return { correctionIds, ruleId, affected: targets.length };
+  return { correctionIds, ruleId, affected };
 }
 
 /**

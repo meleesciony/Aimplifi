@@ -192,7 +192,46 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(groups.map((g) => g.merchantCanonical)).toEqual(['Busy', 'Local One']); // 2 rows beat 1
     expect(groups[0].suggestedCategoryId).toBeNull(); // MIXED verdicts → null, no fake unanimity
     expect(groups[0].rows.map((r) => r.id)).toEqual(['b1', 'b2']); // newest-first preserved
-    expect(groups[1].key).toBe('c:Local One'); // merchantless fallback key
+    // Merchantless fallback keys by EXACT DESCRIPTOR — the same scope the file
+    // action uses, so card count ≡ action scope (checker P0).
+    expect(groups[1].key).toBe('raw:LOCAL ONE');
     expect(groups[1].ruleEligible).toBe(false); // no merchantId → no rule offer
+  });
+
+  it('P0 lock: a MERCHANTLESS anchor files ONLY its exact-descriptor rows — never every null-merchant row', async () => {
+    const acct = await prisma.account.findFirstOrThrow({ where: { userId: USER, providerRef: 'grp-chk' } });
+    await prisma.transaction.createMany({
+      data: [
+        { id: `grp-m1-${process.pid}`, accountId: acct.id, date: '2026-06-09', amountCents: -1000, rawDescriptor: 'LOCAL COFFEE HOUSE', merchantId: null, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+        { id: `grp-m2-${process.pid}`, accountId: acct.id, date: '2026-06-08', amountCents: -2000, rawDescriptor: 'LOCAL HARDWARE STORE', merchantId: null, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+      ],
+    });
+    const res = await fileMerchantGroup({ anchorTransactionId: `grp-m1-${process.pid}`, categoryId: 'coffee' });
+    expect(res.affected).toBe(1); // ONLY the anchor's descriptor — pre-fix this was every merchantless row
+    expect(res.ruleId).toBeNull(); // no merchant → nothing durable to hang a rule on
+    const other = await prisma.transaction.findUniqueOrThrow({ where: { id: `grp-m2-${process.pid}` } });
+    expect(other.needsReview).toBe(true);
+    expect(other.categoryId).toBe('uncategorized');
+  });
+
+  it('double-file is idempotent and rules are deduped (checker P1)', async () => {
+    const groups = await getTriageGroups(USER);
+    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Bakers')!;
+    const first = await fileMerchantGroup({ anchorTransactionId: seawolf.anchorTransactionId, categoryId: 'coffee' });
+    expect(first.affected).toBe(3);
+    // Second fire on the same (now-cleared) group: compare-and-set finds nothing.
+    const second = await fileMerchantGroup({ anchorTransactionId: seawolf.anchorTransactionId, categoryId: 'coffee' });
+    expect(second.affected).toBe(0);
+    expect(second.correctionIds).toHaveLength(0);
+    expect(await prisma.categorizationRule.count({ where: { userId: USER, merchantId: MERCH_SEAWOLF } })).toBe(1);
+    // A new row of the same merchant filed to the SAME category reuses the rule row.
+    const acct = await prisma.account.findFirstOrThrow({ where: { userId: USER, providerRef: 'grp-chk' } });
+    await prisma.transaction.create({
+      data: { id: `grp-s4-${process.pid}`, accountId: acct.id, date: '2026-06-10', amountCents: -700, rawDescriptor: 'SQ *SEAWOLF BAKERS', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+    });
+    const third = await fileMerchantGroup({ anchorTransactionId: `grp-s4-${process.pid}`, categoryId: 'coffee' });
+    expect(third.affected).toBe(1);
+    expect(third.ruleId).toBe(first.ruleId); // deduped, not duplicated
+    expect(await prisma.categorizationRule.count({ where: { userId: USER, merchantId: MERCH_SEAWOLF } })).toBe(1);
   });
 });

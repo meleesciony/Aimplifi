@@ -358,33 +358,83 @@ export class PlaidProvider implements DataProvider {
               select: { id: true },
             });
             // Split: what the BANK knows (always refreshed) vs the category VERDICT
-            // (preserved on corrected rows — a user decision outranks the pipeline;
-            // Phase 3d, CATEGORIZATION_DIAGNOSIS item 4).
-            const nonVerdict = {
+            // (preserved on user-settled rows — a user decision outranks the pipeline;
+            // Phase 3d + checker cycle 1: isTransfer is part of the VERDICT, a split
+            // parent is never resurrected, and an UNDONE row — corrections exist but
+            // it is back in review — takes the fresh verdict again).
+            const base = {
               date: row.date,
               amountCents: row.amountCents,
               rawDescriptor: row.rawDescriptor,
               merchantId: merchant.id,
               status: row.status,
-              isTransfer: row.isTransfer,
             };
             const data = {
-              ...nonVerdict,
+              ...base,
               categoryId: row.categoryId,
               confidenceBps: row.confidenceBps,
               needsReview: row.needsReview,
+              isTransfer: row.isTransfer,
             };
             if (existing) {
-              const corrected =
-                (await prisma.correction.count({ where: { transactionId: existing.id } })) > 0;
-              await prisma.transaction.update({
-                where: { id: existing.id },
-                data: corrected ? nonVerdict : data,
+              // Atomic check-then-act (checker P1): presence check + write land in ONE
+              // write transaction, serialized against a concurrent fileMerchantGroup.
+              await prisma.$transaction(async (tx) => {
+                const fresh = await tx.transaction.findUniqueOrThrow({
+                  where: { id: existing.id },
+                  select: { isSplitParent: true, needsReview: true },
+                });
+                const corrected =
+                  (await tx.correction.count({ where: { transactionId: existing.id } })) > 0;
+                const preserve = fresh.isSplitParent || (corrected && !fresh.needsReview);
+                await tx.transaction.update({
+                  where: { id: existing.id },
+                  data: preserve ? base : data,
+                });
               });
               modified++;
             } else {
-              await prisma.transaction.create({ data: { accountId, providerRef: row.providerRef, ...data } });
-              added++;
+              // Pending→posted id churn (checker P1): Plaid links a posted txn to its
+              // pending predecessor via pending_transaction_id. Transplant the user's
+              // settled verdict onto the new id — the old row is deleted (page.removed
+              // will also name it), so without this the correction would be orphaned
+              // and the decision silently reverted.
+              const pendingRef =
+                (txn as { pending_transaction_id?: string | null }).pending_transaction_id ?? null;
+              const predecessor = pendingRef
+                ? await prisma.transaction.findFirst({
+                    where: { providerRef: pendingRef, account: { userId } },
+                    select: { id: true, categoryId: true, confidenceBps: true, needsReview: true, isTransfer: true },
+                  })
+                : null;
+              if (predecessor) {
+                await prisma.$transaction(async (tx) => {
+                  const corrected =
+                    (await tx.correction.count({ where: { transactionId: predecessor.id } })) > 0;
+                  const settled = corrected && !predecessor.needsReview;
+                  const created = await tx.transaction.create({
+                    data: {
+                      accountId,
+                      providerRef: row.providerRef,
+                      ...base,
+                      categoryId: settled ? predecessor.categoryId : row.categoryId,
+                      confidenceBps: settled ? predecessor.confidenceBps : row.confidenceBps,
+                      needsReview: settled ? false : row.needsReview,
+                      isTransfer: settled ? predecessor.isTransfer : row.isTransfer,
+                    },
+                  });
+                  // Corrections follow the transaction across the id churn (audit = state).
+                  await tx.correction.updateMany({
+                    where: { transactionId: predecessor.id, userId },
+                    data: { transactionId: created.id },
+                  });
+                  await tx.transaction.delete({ where: { id: predecessor.id } });
+                });
+                modified++;
+              } else {
+                await prisma.transaction.create({ data: { accountId, providerRef: row.providerRef, ...data } });
+                added++;
+              }
             }
           }
 

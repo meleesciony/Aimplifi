@@ -64,7 +64,11 @@ export interface TriageGroup {
 export function groupKey(row: Pick<ReviewRow, 'merchantId' | 'rawDescriptor' | 'merchantCanonical' | 'aggregate'>): string {
   if (row.aggregate) return `agg:${row.rawDescriptor}`;
   if (row.merchantId) return `m:${row.merchantId}`;
-  return `c:${row.merchantCanonical}`;
+  // Merchantless rows key by EXACT descriptor — the same scope the file action
+  // uses (similarTransactionsWhere), so the card's count can never exceed what
+  // one tap actually files (Phase-3 checker P0: a canonical-keyed card over a
+  // descriptor-scoped action either under-files or, worse pre-fix, mass-files).
+  return `raw:${row.rawDescriptor}`;
 }
 
 /**

@@ -292,7 +292,10 @@ test('review cost scales with DECISIONS: week slice <15/<60s, full backlog ≤ 2
     `  groups=${initialGroups} total-interactions=${log.length} (~${seconds.toFixed(1)}s human) | week-slice=${weekInteractions} (~${weekSeconds.toFixed(1)}s)`,
   );
 
-  // (a) SPEC.md:28 — the week's review fits the budget.
+  // (a) SPEC.md:28 — the week's review fits the budget. The >0 canary keeps the
+  //     lock non-vacuous: the seed HAS in-week review rows, so a meta-format
+  //     change that breaks date parsing must fail here, not silently pass.
+  expect(weekInteractions).toBeGreaterThan(0);
   expect(weekInteractions).toBeLessThan(15);
   expect(weekSeconds).toBeLessThan(60);
   // (b) Structural: the FULL 60-day backlog costs ≤ 2 interactions per decision

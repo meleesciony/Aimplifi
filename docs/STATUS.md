@@ -1336,3 +1336,25 @@ Accepted 3c residuals: the "Always/Just once" prompt is now reachable only via o
 multi-row rule-eligible groups (group cards carry consent in copy — #143/#144); positive e2e coverage
 of that prompt needs a multi-row real-merchant fixture (demo has none) — Phase-4 item with the messy
 corpus; rule-prompt makeRuleFromCorrection machinery unchanged and unit-covered.
+
+## 2026-07-02 — Phase-3 Checker cycle 1 (wf_908cf9a8: 35 confirmed — 3×P0 one root cause, 12 P1, 20 P2)
+FIXED this cycle (all locked, verify green): the merchantless mass-misfile P0 (scope + groupKey unified);
+sync-guard check-then-act race → atomic tx w/ fresh in-tx reads; guard predicate v2 (split parents never
+resurrected; undone rows take fresh verdicts; isTransfer preserved as verdict); Plaid pending→posted
+transplant via pending_transaction_id (corrections follow the row); fileMerchantGroup fetch-in-tx +
+needsReview re-assert + rule dedupe + spending-type/currency parity with the card; demo ACH patterns
+name-bound (`.*RENT` convergence sink); badge/queue merchantless-key unification; singles-mode leak;
+empty-state undo double-tap; "Always"-tap error escape; week-slice non-vacuity canary.
+ACCEPTED/DEFERRED (P2s + structural, with rationale): SimpleFIN pending-id churn has NO linkage field —
+correction transplant impossible without heuristics; residual documented (correct a pending row that
+re-posts under a new id within days → reverts; rare, and the new one-tap group flow re-teaches cheaply).
+3a canonical-migration gap (pre-3a rules on re-canonicalized brands stop matching; one live invite-only
+user; one-tap re-teach; backfill re-point queued as follow-up). Prediction stamping no-op for live rows
+(pre-existing #37 scope). Venmo/aggregate per-descriptor degeneracy on noisy feeds. City-strip multi-word
+-city partials. LIGHT-token false-positive surface (requires biller token too). Singles-list a11y polish.
+Server-level undo-of-group-reformation lock. Group-count-vs-late-sync drift note in consent copy.
+ENVIRONMENTAL (worsening through the day, reboot-gated): the throughput e2e went green×3 (14-25s,
+incl. isolated ×2 + in-suite) mid-day, then stuck-pending ≥120s across serial AND isolated runs late-day
+— alongside the a11y keyboard test failing at 69a335b (yesterday's witnessed-green commit, 3-point A/B).
+No surfaced error (a Prisma tx timeout would error fast + re-enable) → request-layer stall, #16/#17.
+OWNER: reboot, then `VERIFY_E2E=1 bash scripts/verify.sh` re-witnesses both.
