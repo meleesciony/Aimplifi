@@ -34,6 +34,22 @@ test('all-USD demo user sees no disclosure banner anywhere (zero-render lock)', 
   await page.goto('/investments');
   await expect(page.getByTestId('investments-summary')).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('currency-exclusion-banner')).toHaveCount(0);
+
+  // The categorization / analytics surfaces (STATUS #23 extension): the banner must be
+  // absent for the all-USD demo user on each, anchored on page content that renders
+  // BELOW the route-group Suspense boundary (the #141 P1 anchor rule — never a layout
+  // element that flushes while <main> still shows the loading skeleton).
+  for (const { path, anchor } of [
+    { path: '/transactions', anchor: 'txn-list' },
+    { path: '/triage', anchor: 'triage-inbox' },
+    { path: '/recurring', anchor: 'recurring-hero' },
+    { path: '/reports', anchor: 'income-expense-chart' },
+    { path: '/coach', anchor: 'fi-number' },
+  ]) {
+    await page.goto(path);
+    await expect(page.getByTestId(anchor)).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId('currency-exclusion-banner')).toHaveCount(0);
+  }
 });
 
 test('withheld foreign accounts surface the disclosure on the dashboard, /accounts, and /investments', async ({ page }) => {
@@ -108,6 +124,24 @@ test('withheld foreign accounts surface the disclosure on the dashboard, /accoun
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   expect(axeInvestments.violations).toEqual([]);
+
+  // The categorization / analytics surfaces (STATUS #23 extension): the same disclosure
+  // must surface on each, AND the role="status" Alert must be WCAG A/AA-clean WITH THE
+  // BANNER PRESENT. phase5-a11y's /triage + /coach axe pins run on the all-USD demo user,
+  // where the banner self-nulls (absent from the DOM), so they never exercise it — scan
+  // each surface here instead (the #136 write-in-form axe precedent). Bare locator (NO
+  // .first()) also locks single-render per surface. The fx user has a USD checking
+  // account, so each page passes its supported-account gate.
+  for (const path of ['/transactions', '/triage', '/recurring', '/reports', '/coach']) {
+    await page.goto(path);
+    const b = page.getByTestId('currency-exclusion-banner');
+    await expect(b).toBeVisible({ timeout: 20000 });
+    await expect(b).toContainText('EUR, GBP');
+    const axe = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(axe.violations).toEqual([]);
+  }
 });
 
 test('zero-withheld user keeps the ORIGINAL investments empty-state copy (byte-identity lock)', async ({ page }) => {

@@ -1603,3 +1603,31 @@ de-dup, #127 tail (SimpleFIN symbol regex + epoch→date), shared CategoryPicker
 docs/STATUS.md (cycle 2/3/4/5 + confirmation sections; accepted residuals enumerated per cycle);
 regression proofs → REGRESSION_LEDGER.md last 5 rows; measured before/after for the rebuild →
 docs/baseline/phase2 + phase5. Task list: all 7 tasks completed/closed.
+
+## 2026-07-02 (resumed: "continue", session "aimplifi") — #149 currency disclosure → final 5 surfaces (residual 23 CLOSED) — DONE ✅ (verify+e2e green, Checker 0 P0/P1)
+Resumed at the model-switch HANDOFF boundary (HEAD `d6d87f3`, 18 unpushed, tree clean). Independently
+re-confirmed the baseline before any change (NOT trusted from the handoff): `bash scripts/verify.sh` →
+✅ VERIFY GREEN + `npx vitest run` → **1554 / 122**. Reboot + push of the unpushed stack stay OWNER-GATED and
+the categorization Checker campaign is SPENT, so I took the top agent-actionable backlog item: STATUS residual
+23 — extend the shipped currency-exclusion banner (#141/#145) to the remaining silent surfaces.
+
+Understand-first (wf_98499351, 5 readers → synth): mapped the banner mechanism + all 5 targets. Built additively:
+banner now on register (`/transactions`), `/triage`, `/recurring`, `/reports`, `/coach` — mounted INLINE on the 3
+server pages (after each `EmptyDashboard` gate), `withheld` THREADED into RecurringView/ReportsView for the 2
+view-backed pages. The banner self-nulls at count 0 → demo/golden byte-identical. e2e extends BOTH paths across
+all 5 + per-surface axe A/AA. Focused Checker (wf_a7eaf280, 3 lenses → adversarial verify): **0 P0/P1**, 2 P2
+FIXED pre-commit (axe folded into the 5-surface positive loop; the initial wrapper redundancy → prop-threading,
+byte-identical), 8 refuted.
+
+Gate (real, measured 2026-07-02): `bash scripts/verify.sh` → ✅ VERIFY GREEN **1554 / 122**, tsc/eslint/build
+clean; targeted `currency-disclosure` e2e **3/3** (19.2s, no stall). Committed as the #149 feature+docs commit
+(see below). residual 23 CLOSED (every money surface discloses; residual 25 inline-copy remains, but the banner
+now surfaces that assumption atop /coach + /reports). DECISIONS #149 + STATUS section + this entry.
+
+**State:** local main = `d6d87f3` + this #149 commit (19 unpushed), tree clean after commit; production still
+serves the pre-stack functional bundle. **NEXT (owner-gated, unchanged from the handoff):** (1) reboot → full
+`VERIFY_E2E=1 bash scripts/verify.sh` re-witness (the environmental disabled-pending stall is untouched by this
+read-only change); (2) push — ships the categorization rebuild + all checker fixes + #145 + #149 together and
+applies `reviewPinned` via the build's `prisma db push`; verify the Vercel deploy (dpl_ READY, team reiforge /
+project aimplifi, aliases aimplifi.app + www). (3) backlog: residual 25 inline-copy, #134 loan de-dup, #127 tail
+(SimpleFIN symbol regex + epoch→date), shared CategoryPicker/SR-listbox. SAFE to /clear.

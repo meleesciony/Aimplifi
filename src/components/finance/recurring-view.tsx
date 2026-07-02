@@ -6,10 +6,12 @@
  * guardrails: a question, never a scold).
  */
 import { Repeat, TrendingUp } from 'lucide-react';
+import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import type { Cadence } from '@/lib/engine/recurring/detect';
+import type { WithheldAccountSummary } from '@/lib/providers/currency';
 import type { RecurringData } from '@/server/recurring';
 import { priceChangeBadge, type RecurringItem } from '@/lib/engine/recurring/summary';
 
@@ -119,7 +121,13 @@ function Section({
   );
 }
 
-export function RecurringView({ data }: { data: RecurringData }) {
+export function RecurringView({
+  data,
+  withheld,
+}: {
+  data: RecurringData;
+  withheld: WithheldAccountSummary;
+}) {
   const s = data.summary;
   const hasAny = s.items.length > 0;
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -127,6 +135,9 @@ export function RecurringView({ data }: { data: RecurringData }) {
   return (
     <div className="mx-auto max-w-xl space-y-4">
       <h1 className="sr-only">Recurring &amp; subscriptions</h1>
+      {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
+          vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
+      <CurrencyExclusionBanner summary={withheld} />
       {/* Hero: total monthly recurring */}
       <section
         data-testid="recurring-hero"

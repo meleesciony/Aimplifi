@@ -7,7 +7,9 @@
  */
 import Link from 'next/link';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
+import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { cents, formatCents } from '@/lib/money';
+import type { WithheldAccountSummary } from '@/lib/providers/currency';
 import type { ReportsData } from '@/server/reports';
 
 const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -16,7 +18,13 @@ const monthLabel = (ym: string) => `${MONTHS[Number(ym.slice(5, 7))] ?? ym}`;
 // Palette cycled across categories/groups (kept consistent within a render).
 const PALETTE = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa', '#fb923c', '#22d3ee', '#f472b6', '#4ade80', '#94a3b8'];
 
-export function ReportsView({ data }: { data: ReportsData }) {
+export function ReportsView({
+  data,
+  withheld,
+}: {
+  data: ReportsData;
+  withheld: WithheldAccountSummary;
+}) {
   const chartData = data.months.map((m) => ({
     name: monthLabel(m.month),
     income: m.incomeCents / 100,
@@ -28,6 +36,9 @@ export function ReportsView({ data }: { data: ReportsData }) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
+          vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
+      <CurrencyExclusionBanner summary={withheld} />
       <div className="flex items-baseline justify-between">
         <h1 className="text-lg font-semibold">Reports</h1>
         <Link href="/trends" className="text-xs text-muted-foreground hover:text-foreground hover:underline">

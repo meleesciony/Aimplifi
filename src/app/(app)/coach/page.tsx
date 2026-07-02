@@ -3,6 +3,7 @@ import { CheckCircle2, Eye, TrendingUp } from 'lucide-react';
 import { auth } from '@/auth';
 import { AutomationBlueprintCard } from '@/components/coach/automation-blueprint-card';
 import { FICard } from '@/components/coach/fi-card';
+import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { LifeEnergyCard } from '@/components/coach/life-energy-card';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import { formatMonth } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
 import { prisma } from '@/lib/db';
 import { getCoachData } from '@/server/coach';
+import { getWithheldAccountSummary } from '@/server/transactions';
 
 export const metadata = { title: "Coach" };
 
@@ -27,11 +29,18 @@ export default async function CoachPage() {
   if (!session?.user?.id) redirect('/sign-in');
   // No accounts yet → first-run onboarding (the FI/cash engine needs accounts).
   if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
-  const data = await getCoachData(session.user.id);
+  const [data, withheld] = await Promise.all([
+    getCoachData(session.user.id),
+    getWithheldAccountSummary(session.user.id),
+  ]);
 
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">FI Coach</h1>
+
+      {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
+          vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
+      <CurrencyExclusionBanner summary={withheld} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <SavingsRateCard flows={data.flows} currentRateBps={data.currentRateBps} />

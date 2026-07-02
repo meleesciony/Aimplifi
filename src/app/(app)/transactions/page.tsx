@@ -2,11 +2,12 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Plus, Upload } from 'lucide-react';
 import { auth } from '@/auth';
+import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { TransactionFilters } from '@/components/finance/transaction-filters';
 import { TransactionList } from '@/components/finance/transaction-list';
 import { buttonVariants } from '@/components/ui/button';
 import type { FlowType, TxnFilter } from '@/lib/engine/transactions/query';
-import { getTransactions } from '@/server/transactions';
+import { getTransactions, getWithheldAccountSummary } from '@/server/transactions';
 import { getVisibleGroups } from '@/server/categories';
 
 const VALID_TYPES: FlowType[] = ['all', 'income', 'expense', 'transfer'];
@@ -44,9 +45,10 @@ export default async function TransactionsPage({
     to: to || null,
   };
 
-  const [{ rows, summary, accountOptions, pageInfo }, categoryGroups] = await Promise.all([
+  const [{ rows, summary, accountOptions, pageInfo }, categoryGroups, withheld] = await Promise.all([
     getTransactions(session.user.id, filter, page),
     getVisibleGroups(session.user.id),
+    getWithheldAccountSummary(session.user.id),
   ]);
 
   return (
@@ -75,6 +77,10 @@ export default async function TransactionsPage({
         and more. Cash and other purchases not pulled automatically can be added
         by hand.
       </p>
+
+      {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
+          vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
+      <CurrencyExclusionBanner summary={withheld} />
 
       <TransactionFilters
         accountOptions={accountOptions}

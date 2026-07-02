@@ -1310,6 +1310,11 @@ axe AA with the banner present — the demo user never renders it, so the phase-
     [UPDATE 2026-07-02: /investments covered — DECISIONS #145 (banner + withheld-aware empty
     state + e2e both paths). Remaining silent surfaces: register, /triage, /recurring, /reports,
     /coach; residual 25 (projection-assumption copy) unchanged.]
+    [UPDATE 2026-07-02 (later) — **CLOSED**: register/triage/recurring/reports/coach all covered
+    (DECISIONS #149; inline mount on the 3 server pages after each EmptyDashboard gate, `withheld`
+    threaded into RecurringView/ReportsView for byte-identity). EVERY money surface now discloses
+    withheld non-USD accounts; only residual 25 (inline per-projection assumption copy) remains,
+    though the banner now surfaces that assumption at the top of /coach + /reports.]
 24. The supported-currency predicate stays hand-duplicated across ~4 page gates + the DB complement
     in getWithheldAccountSummary; only the summary side is invariance-tested. Refactor candidate
     (single exported Prisma where-fragment), not a live defect.
@@ -1514,3 +1519,40 @@ The confirmation caught the pin's remaining blind spots:
 Both behavioral locks fail-old-proven by stash-run (exactly the 2 new locks red pre-fix).
 HONESTY: these confirmation fixes are lock-proven but have NOT had a further adversarial round —
 the owner authorization covered one fix round + one scoped confirmation, both now spent.
+
+## 2026-07-02 — Currency disclosure extended to the final 5 surfaces (#149) — residual 23 CLOSED
+Picked up the top backlog item (STATUS residual 23) while reboot + push of the unpushed stack stay
+owner-gated. Extended the shipped currency-exclusion banner (#141/#145) from dashboard//accounts//investments
+to register (`/transactions`), `/triage`, `/recurring`, `/reports`, `/coach`. Purely additive UI wiring:
+each server page fetches `getWithheldAccountSummary(userId)` and mounts `<CurrencyExclusionBanner>`, which
+SELF-NULLS at count 0 → all-USD users (incl. the seeded demo user) render zero banner DOM → demo/golden
+byte-identical. Mount style per the #141/#145 convention: inline in the 3 inline-JSX server pages (after each
+page's zero-account `EmptyDashboard` gate — auth.spec's onboarding contract untouched), `withheld` threaded
+into `RecurringView`/`ReportsView` for the 2 view-backed pages (no redundant wrapper).
+
+**Focused Checker (wf_a7eaf280, 3 lenses → adversarial verify): 0 P0/P1**, 2 P2 CONFIRMED + FIXED before
+commit — (P2-a) axe covered only /recurring in the positive path → folded a per-surface axe A/AA scan into a
+unified 5-surface loop (phase5-a11y's triage/coach pins run on the all-USD demo user, where the banner
+self-nulls, so they never exercise it); (P2-b) the first /recurring + /reports page wrappers duplicated the
+view's own `max-w` root (an inert extra `<div>`, so NOT strictly byte-identical) → re-threaded `withheld` into
+both views, wrapper removed. 8 candidates refuted (self-null; gates preserved; `role="status"` overrides
+Alert's default; single-mount; RSC boundary valid; anchors non-vacuous; copy matches; pure-all-foreign→EmptyDashboard
+is a PRE-EXISTING documented residual). The verifier also independently re-ran `tsc`/`eslint` clean on the diff.
+
+**Gate (real, measured 2026-07-02):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1554 unit / 122 files**
+(no new unit tests — the mechanism is already unit-locked; this increment's locks are e2e, the #145 precedent),
+tsc/eslint/build clean. Targeted e2e `currency-disclosure.spec` **3/3 GREEN** (19.2s, no stall): negative
+zero-render on all 5 new surfaces for the demo user (anchored on below-Suspense page content per the #141 rule),
+positive banner-present + `'EUR, GBP'` + per-surface axe A/AA on all 5 for the withheld fx user, + the unchanged
+byte-identity lock. Full-suite serial e2e re-witness stays reboot-gated (standing owner NEXT; the environmental
+disabled-pending stall is untouched by this read-only change).
+
+**Accepted residual (pre-existing, not introduced):** a user with ONLY non-USD accounts (zero USD) still hits
+`EmptyDashboard` on the 4 gated pages (dashboard/recurring/reports/coach) before the banner — the same gate
+asymmetry #141/#145 documented (accepted-22 pattern); such a user still sees the disclosure on /accounts,
+/transactions, /triage (ungated). Residual 25 (inline per-projection assumption copy on /coach + /reports) also
+remains, though the banner now surfaces that assumption at the top of both pages.
+
+**State:** working tree has the #149 change (7 files: 5 pages + 2 views + the spec) — committed below. Local main
+was HEAD `d6d87f3` (18 unpushed); this adds one more functional commit. Production unaffected until the owner
+pushes (the whole categorization stack + #149 ship together on the next push — owner's call).
