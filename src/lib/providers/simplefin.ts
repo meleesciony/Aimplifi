@@ -472,25 +472,34 @@ export async function syncFromSimplefin(
       create: { canonical: row.merchantCanonical, defaultCategoryId: row.categoryId },
       update: {},
     });
-    const data2 = {
+    // Split: what the BANK knows (always refreshed) vs the category VERDICT (preserved
+    // on corrected rows — a user decision outranks the pipeline; the 5-day overlap
+    // re-sends recently corrected rows every sync. Phase 3d, DIAGNOSIS item 4).
+    const nonVerdict2 = {
       date: row.date,
       amountCents: row.amountCents,
       rawDescriptor: row.rawDescriptor,
       merchantId: merchant.id,
+      status: row.status,
+      isTransfer: row.isTransfer,
+    };
+    const data2 = {
+      ...nonVerdict2,
       categoryId: row.categoryId,
       confidenceBps: row.confidenceBps,
-      status: row.status,
       needsReview: row.needsReview,
-      isTransfer: row.isTransfer,
     };
     const exists = await prisma.transaction.findFirst({
       where: { accountId: row.accountId, providerRef: row.providerRef },
       select: { id: true },
     });
+    const corrected = exists
+      ? (await prisma.correction.count({ where: { transactionId: exists.id } })) > 0
+      : false;
     await prisma.transaction.upsert({
       where: { accountId_providerRef: { accountId: row.accountId, providerRef: row.providerRef } },
       create: { accountId: row.accountId, providerRef: row.providerRef, ...data2 },
-      update: data2,
+      update: corrected ? nonVerdict2 : data2,
     });
     if (exists) modified++;
     else added++;

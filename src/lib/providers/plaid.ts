@@ -357,19 +357,30 @@ export class PlaidProvider implements DataProvider {
               where: { providerRef: row.providerRef, account: { userId } },
               select: { id: true },
             });
-            const data = {
+            // Split: what the BANK knows (always refreshed) vs the category VERDICT
+            // (preserved on corrected rows — a user decision outranks the pipeline;
+            // Phase 3d, CATEGORIZATION_DIAGNOSIS item 4).
+            const nonVerdict = {
               date: row.date,
               amountCents: row.amountCents,
               rawDescriptor: row.rawDescriptor,
               merchantId: merchant.id,
-              categoryId: row.categoryId,
-              confidenceBps: row.confidenceBps,
               status: row.status,
-              needsReview: row.needsReview,
               isTransfer: row.isTransfer,
             };
+            const data = {
+              ...nonVerdict,
+              categoryId: row.categoryId,
+              confidenceBps: row.confidenceBps,
+              needsReview: row.needsReview,
+            };
             if (existing) {
-              await prisma.transaction.update({ where: { id: existing.id }, data });
+              const corrected =
+                (await prisma.correction.count({ where: { transactionId: existing.id } })) > 0;
+              await prisma.transaction.update({
+                where: { id: existing.id },
+                data: corrected ? nonVerdict : data,
+              });
               modified++;
             } else {
               await prisma.transaction.create({ data: { accountId, providerRef: row.providerRef, ...data } });
