@@ -169,6 +169,89 @@ export async function applyToAllSimilar(input: {
 }
 
 /**
+ * File a MERCHANT GROUP in one action (Phase 3b, DECISIONS #143): every
+ * review-queued transaction of the anchor's merchant gets the category, one
+ * Correction per row (undo restores each), prediction ground truth, AND — for
+ * rule-eligible merchants — a durable priority-100 rule, so the merchant never
+ * re-surfaces (trust on repeat = certainty at ingest).
+ *
+ * Consent framing: unlike the per-transaction surfaces (#36's two-step confirm),
+ * the GROUP CARD is explicitly merchant-scoped — "File all N Starbucks · future
+ * ones file automatically" IS the consent; a second prompt would re-ask the
+ * question the card already asked. Aggregates (Zelle/checks/ATM/Venmo) file
+ * their exact-descriptor rows and never create a rule (#23). The group scope is
+ * re-derived server-side from the anchor row — the client's list is never trusted.
+ */
+export async function fileMerchantGroup(input: {
+  anchorTransactionId: string;
+  categoryId: string;
+}): Promise<ApplyResult> {
+  const userId = await requireUserId();
+  await ensureCategories(); // new subcategory ids need a Category row (FK) (#65)
+  await assertOwnedCategory(userId, input.categoryId); // system id or a custom this user owns (#111)
+  const txn = await ownedTransaction(userId, input.anchorTransactionId);
+
+  const aggregate = normalizeMerchant(txn.rawDescriptor).aggregate;
+  const ruleEligible = !aggregate && !!txn.merchantId;
+  const targets = await prisma.transaction.findMany({
+    // SAME scope the group card was built from (groupKey ↔ similarTransactionsWhere,
+    // DECISIONS #23) — review-queue rows only.
+    where: similarTransactionsWhere(userId, {
+      merchantId: txn.merchantId,
+      rawDescriptor: txn.rawDescriptor,
+      aggregate,
+    }),
+  });
+  if (targets.length === 0) return { correctionIds: [], ruleId: null, affected: 0 };
+
+  const { correctionIds, ruleId } = await prisma.$transaction(async (tx) => {
+    const ids: string[] = [];
+    for (const t of targets) {
+      const c = await tx.correction.create({
+        data: { userId, transactionId: t.id, fromCategoryId: t.categoryId, toCategoryId: input.categoryId },
+      });
+      ids.push(c.id);
+    }
+    let createdRuleId: string | null = null;
+    if (ruleEligible) {
+      const rule = await tx.categorizationRule.create({
+        data: {
+          userId,
+          merchantId: txn.merchantId!,
+          categoryId: input.categoryId,
+          priority: 100,
+          createdFrom: ids[0],
+        },
+      });
+      createdRuleId = rule.id;
+      await tx.correction.update({ where: { id: ids[0] }, data: { becameRuleId: rule.id } });
+    }
+    await tx.transaction.updateMany({
+      where: { id: { in: targets.map((t) => t.id) } },
+      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
+    });
+    await tx.categoryPrediction.updateMany({
+      where: { transactionId: { in: targets.map((t) => t.id) }, userId },
+      data: { actualCategoryId: input.categoryId },
+    });
+    return { correctionIds: ids, ruleId: createdRuleId };
+  });
+  await auditLog(userId, 'group.file', {
+    merchantId: txn.merchantId,
+    categoryId: input.categoryId,
+    affected: targets.length,
+    ruleId,
+  });
+  if (ruleId) {
+    await auditLog(userId, 'rule.create', { ruleId, merchantId: txn.merchantId, categoryId: input.categoryId });
+  }
+
+  revalidatePath('/triage');
+  revalidatePath('/transactions');
+  return { correctionIds, ruleId, affected: targets.length };
+}
+
+/**
  * Register inline recategorization (DECISIONS #36). Unlike triage, this acts on
  * ANY transaction — including confidently auto-filed ones the pipeline never
  * routed to review. Two scopes:

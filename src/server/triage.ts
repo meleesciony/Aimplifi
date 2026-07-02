@@ -5,6 +5,7 @@
  */
 import { prisma } from '@/lib/db';
 import { categoryName } from '@/lib/engine/categorize/categories';
+import { type ReviewRow, type TriageGroup, groupKey, groupReviewRows } from '@/lib/engine/categorize/group';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { categorize, suggestAlternatives } from '@/lib/engine/categorize/pipeline';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
@@ -132,12 +133,101 @@ function bestGuess(amountCents: number): string {
   return amountCents > 0 ? 'income' : 'shopping';
 }
 
+/** A triage group enriched with display names + quick-pick alternatives. */
+export interface TriageGroupView extends TriageGroup {
+  suggestedCategoryName: string | null;
+  /** 3 quick-pick alternatives (pipeline pool + staples), never the suggestion. */
+  alternativeIds: string[];
+  alternativeNames: string[];
+}
+
+/**
+ * The merchant-group review queue (Phase 3b): ONE findMany, grouped by the
+ * pure engine — no per-row count queries (the per-transaction queue ran an
+ * N+1 similarCount per card). Suggestions are HONEST: the pipeline's verdict
+ * when it has one, null when it doesn't — never the amount-based bestGuess
+ * (which suggested 'Shopping' on 144/144 baseline cards).
+ */
+export async function getTriageGroups(userId: string): Promise<TriageGroupView[]> {
+  const [txns, rules, meta] = await Promise.all([
+    prisma.transaction.findMany({
+      // Currency guard (DECISIONS #135): withheld non-USD rows never enter the inbox.
+      where: {
+        needsReview: true,
+        account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
+      },
+      include: { account: { select: { name: true } }, merchant: true },
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    }),
+    loadUserRules(userId),
+    getCategoryMeta(userId),
+  ]);
+
+  const reviewRows: ReviewRow[] = txns.map((t) => {
+    const out = categorize(
+      { rawDescriptor: t.rawDescriptor, amountCents: t.amountCents, date: t.date, accountId: t.accountId },
+      rules,
+    );
+    return {
+      id: t.id,
+      merchantId: t.merchantId,
+      merchantCanonical: t.merchant?.canonical ?? out.merchantCanonical,
+      rawDescriptor: t.rawDescriptor,
+      amountCents: t.amountCents,
+      date: t.date,
+      accountName: t.account.name,
+      status: t.status,
+      aggregate: normalizeMerchant(t.rawDescriptor).aggregate,
+      suggestedCategoryId: out.categoryId === 'uncategorized' ? null : out.categoryId,
+    };
+  });
+
+  const anchors = new Map(txns.map((t) => [t.id, t]));
+  return groupReviewRows(reviewRows).map((g) => {
+    const anchor = anchors.get(g.anchorTransactionId);
+    const pool = anchor
+      ? suggestAlternatives({
+          rawDescriptor: anchor.rawDescriptor,
+          amountCents: anchor.amountCents,
+          date: anchor.date,
+          accountId: anchor.accountId,
+        })
+      : [];
+    const alts = [...new Set([...pool, 'dining', 'groceries', 'household', 'cash'])]
+      .filter((c) => c !== g.suggestedCategoryId)
+      .slice(0, 3);
+    return {
+      ...g,
+      suggestedCategoryName: g.suggestedCategoryId ? categoryName(g.suggestedCategoryId, meta) : null,
+      alternativeIds: alts,
+      alternativeNames: alts.map((id) => categoryName(id, meta)),
+    };
+  });
+}
+
+/**
+ * The inbox badge counts MERCHANT GROUPS, not transaction rows (Phase 3b):
+ * "7" means seven decisions, matching the group queue's "7 merchants left".
+ * Same grouping keys as the queue (one source of truth: groupKey).
+ */
 export async function getReviewCount(userId: string): Promise<number> {
-  return prisma.transaction.count({
+  const rows = await prisma.transaction.findMany({
     // Currency guard (DECISIONS #135): the inbox badge counts supported-account rows only.
     where: {
       needsReview: true,
       account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
     },
+    select: { merchantId: true, rawDescriptor: true, merchant: { select: { canonical: true } } },
   });
+  const keys = new Set(
+    rows.map((r) =>
+      groupKey({
+        merchantId: r.merchantId,
+        rawDescriptor: r.rawDescriptor,
+        merchantCanonical: r.merchant?.canonical ?? r.rawDescriptor,
+        aggregate: normalizeMerchant(r.rawDescriptor).aggregate,
+      }),
+    ),
+  );
+  return keys.size;
 }
