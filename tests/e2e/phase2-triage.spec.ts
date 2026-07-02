@@ -193,6 +193,36 @@ test('write-in category: create + file in one step, joins pickers, errors stay i
   // The search filter must NOT survive the undo's card change (critic P2).
   await page.getByTestId('triage-more').click();
   await expect(page.getByTestId('triage-cat-search')).toHaveValue('');
+
+  // GUARD (checker): a MULTI-match query + Enter must do nothing — only the
+  // single-match (file) and zero-match (create) branches may act.
+  await page.getByTestId('triage-cat-search').fill('bills');
+  await page.getByTestId('triage-cat-search').press('Enter');
+  await expect(page.getByTestId('triage-new-category')).toHaveCount(0);
+  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1));
+
+  // Prefill (owner request): the search query IS the new-category name — never
+  // retype it. With ZERO matches, Enter opens the write-in prefilled (the
+  // keyboard completion of the "create it below" hint), name still editable.
+  // Driven with keyboard.down so the SECOND down is a genuine auto-repeat:
+  // a HELD Enter opens the form and focus moves into its name input mid-press —
+  // the repeat must NOT chain into create+file (checker P1, e.repeat guard).
+  await page.getByTestId('triage-cat-search').fill('Pickleball Dues');
+  await expect(page.getByTestId('triage-cat-no-match')).toBeVisible();
+  await page.keyboard.down('Enter');
+  await expect(page.getByTestId('triage-new-category')).toBeVisible();
+  await expect(page.getByTestId('new-category-name')).toHaveValue('Pickleball Dues');
+  await page.keyboard.down('Enter'); // repeat keydown lands on the name input
+  await page.keyboard.up('Enter');
+  await expect(inbox).toHaveAttribute('data-remaining', String(afterBatch - 1)); // nothing filed
+  await expect(page.getByTestId('triage-new-category')).toBeVisible(); // form intact
+
+  // GUARD (checker P1): with the form OPEN, Enter on a fresh zero-match search
+  // query must NOT re-open/prefill — the user's edited draft survives.
+  await page.getByTestId('new-category-name').fill('Pickleball Edited');
+  await page.getByTestId('triage-cat-search').fill('Croquet Fees');
+  await page.getByTestId('triage-cat-search').press('Enter');
+  await expect(page.getByTestId('new-category-name')).toHaveValue('Pickleball Edited');
 });
 
 test('a full review session completes in <15 interactions (→ <60s human time)', async ({ page }) => {

@@ -92,10 +92,13 @@ export function TransactionList({
   }
 
   /** Open the mini-form with the group prefilled from the row's CURRENT category
-   *  (spending groups only — customs never join Income/Transfers). */
+   *  (spending groups only — customs never join Income/Transfers) and the NAME
+   *  prefilled from the menu's live search query (owner request: what you typed
+   *  to search IS the name — never retype it). Overwrites any stale draft. */
   function openNewCat(t: TxnView) {
     const g = categoryGroups.find((grp) => grp.categories.some((c) => c.id === t.categoryId))?.group;
     setNewCatGroup(g && CUSTOM_CATEGORY_GROUPS.includes(g) ? g : (CUSTOM_CATEGORY_GROUPS[0] ?? ''));
+    setNewCatName(query.trim());
     setNewCatDiscretionary(true);
     setNewCatError(null);
     setNewCatOpen(true);

@@ -1236,3 +1236,31 @@ confirm pane ×3; the tail stalls on the machine's documented action-apply stall
 Root-cause note for #16/#17: the ≥60s stalls are the ACTION-RESPONSE REVALIDATION APPLY (server actions
 carrying 9-route revalidations hold the client transition — and every disabled={pending} button — until
 the payload lands); storage proven healthy (p50=1ms probe). Environmental TODAY per the 3-point A/B.
+
+## 2026-07-01 — #139 write-in prefill from the search query (owner request; Checker 2 P1 fixed)
+Owner (testing #136-#138 in prod): "consolidate the new category into that search box so user doesn't
+have to retype a field." Shipped: both write-in mini-forms prefill their name from the picker's live
+search query at open (still editable; submit normalizes as before); triage Enter on a zero-match query
+opens the prefilled form. Register search gains no Enter semantics (has none today — shared-
+CategoryPicker follow-up). Checker wf_e902ad02 (3 lenses → adversarial verify): 2 P1 FIXED + locked —
+(1) missing !newCatOpen let a second zero-match Enter silently clobber the edited draft (name/group/
+discretionary) since the search box stays interactive beside the open form; (2) HELD-Enter auto-repeat
+chained through the name input's autoFocus into an instant create+file with never-reviewed defaults →
+e.repeat guards both Enter handlers. The pre-guard bundle DEMONSTRATED (2) in a stale-build e2e run
+(rule prompt offering the typo category) — see process lock below. Test-adequacy P2 fixed (guards now
+pinned: multi-match no-op, repeat no-op, draft survival).
+
+Accepted residuals: two DISCRETE rapid Enters still create+file (indistinguishable from intent; filing
+undoable, category deletable, rule prompt consensual); register keyboard parity deferred (pre-existing).
+
+**PROCESS LOCK (cost ~40 min today):** playwright webServer = `next start -p 3100` with
+reuseExistingServer — it serves whatever .next holds. NEVER run e2e concurrently with scripts/verify.sh
+(its `next build` races/lags the spec edits): the first "P1 reproduction" run was the PREVIOUS bundle.
+Sequence is always: verify green FIRST, then e2e.
+
+Gate (real 2026-07-01): verify.sh → ✅ GREEN 1476 unit/116 files, tsc/eslint/build clean. E2E on the
+final tree: triage write-in spec (all 5 new locks) GREEN 7.9s; register race lock GREEN; register happy
+path witnessed green through prefill assert + confirm pane ×3 — its once-click tail is the documented
+environmental action-apply stall (re-A/B'd at HEAD this session: fails at spec line 230 pre-change) —
+full pass UNVERIFIED until the owner reboot (#16/#17 protocol; one triage stall occurrence also hit
+line 106 mid-session then passed 7.9s on retry, consistent with "position varies").

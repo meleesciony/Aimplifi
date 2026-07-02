@@ -223,7 +223,9 @@ test('register write-in: create a category inside the picker and refile with it 
   // Create inside the picker → hands off to the EXISTING two-step confirm
   // (the register never files in one tap — DECISIONS #121).
   await page.getByTestId('register-add-category').click();
-  await page.getByTestId('register-new-category-name').fill(catName);
+  // Prefill (owner request): the search query IS the new-category name — the
+  // form opens with it already filled, nothing is retyped.
+  await expect(page.getByTestId('register-new-category-name')).toHaveValue(catName);
   await page.getByTestId('register-new-category-submit').click();
   // Server action + inline re-render — give it the same budget as the chip.
   await expect(page.getByTestId('recat-confirm')).toContainText(catName, { timeout: 20000 });

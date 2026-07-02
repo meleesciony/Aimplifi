@@ -1281,3 +1281,19 @@ NEXT (owner-gated): reboot when convenient + one full VERIFY_E2E=1 to re-witness
 #134 loan de-dup, #127 tail, shared-CategoryPicker/SR-listbox follow-up. (This deploy-record entry is a
 LOCAL-ONLY docs commit, intentionally unpushed per the house pattern — bundle with the next change.)
 SAFE to /clear.
+
+## 2026-07-01 (evening, session cont.) — #139 write-in prefill (owner live-prod request) — DONE ✅
+Owner verified #136-#138 live (deploy dpl_FyeLL6 confirmed READY, built from 28cad97, aliases live;
+"don't see it" = stale PWA bundle, resolved by reopen) then asked: consolidate the new-category name
+into the picker search box. Built as its own increment (the in-flight #135 disclosure work was stashed
+first — stash 'wip-135-disclosure', task #2 holds the resume state). Prefill name from live query in
+BOTH write-ins + triage zero-match-Enter opens the prefilled form. Checker wf_e902ad02: 2 P1 fixed +
+locked (!newCatOpen clobber guard; e.repeat held-key chain guard), test-adequacy locks added, 1 finding
+refuted, double-DISCRETE-Enter accepted residual (STATUS). Gate: verify GREEN 1476/116; triage write-in
+spec GREEN 7.9s final tree; register race GREEN; register happy-path tail = documented environmental
+stall (re-A/B'd at HEAD today). PROCESS LOCK recorded: never run e2e concurrently with verify's build
+(stale .next serves the previous tree — burned 40 min on a phantom "failure" that was actually the
+pre-fix bundle proving the checker's P1 for real).
+NEXT: (1) resume #135 disclosure increment from stash (task #2 has the full state: integration tests +
+guarded e2e-add-account script + currency-disclosure.spec remain); (2) owner-gated: reboot + full
+VERIFY_E2E=1 re-witness; (3) backlog unchanged (#134 loan de-dup, #127 tail, shared CategoryPicker).

@@ -223,7 +223,10 @@ export function TriageInbox({
   }
 
   /** Open the mini-form with the group prefilled from the current suggestion
-   *  (customs may only join SPENDING groups — never Income/Transfers). */
+   *  (customs may only join SPENDING groups — never Income/Transfers) and the
+   *  NAME prefilled from the live search query (owner request: what you typed
+   *  into the search box IS the name — never retype it). Overwrites any stale
+   *  draft, so the form always reflects the current intent; still editable. */
   function openNewCategory(item: TriageItem) {
     logInteraction('tap', 'new-category-form');
     const suggestedGroup = allCats.find((c) => c.id === item.suggestedCategoryId)?.group;
@@ -232,6 +235,7 @@ export function TriageInbox({
         ? suggestedGroup
         : (CUSTOM_CATEGORY_GROUPS[0] ?? ''),
     );
+    setNewCatName(catQuery.trim());
     setNewCatDiscretionary(true);
     setNewCatError(null);
     setNewCatOpen(true);
@@ -548,9 +552,26 @@ export function TriageInbox({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                   e.preventDefault();
+                  // Auto-repeat (held key) must never drive actions from here:
+                  // the first keydown can mount the write-in form and move
+                  // focus into it, chaining repeats into its handlers (checker P1).
+                  if (e.repeat) return;
                   // Enter files the single visible match — the keyboard
                   // replacement for the old select's type-ahead (critic P1).
                   if (onlyVisibleCat && !pending) accept(top, onlyVisibleCat.id, 'select');
+                  // Zero matches: Enter opens the write-in prefilled with the
+                  // query — the keyboard completion of the no-match hint
+                  // ("create it below"). Escape still backs out. !newCatOpen:
+                  // the search box stays interactive while the form is open, so
+                  // a re-fire would silently clobber the user's edited draft
+                  // (name, group, discretionary — checker P1).
+                  else if (
+                    visibleCatGroups.length === 0 &&
+                    catQuery.trim() &&
+                    !pending &&
+                    !newCatOpen
+                  )
+                    openNewCategory(top);
                 } else if (e.key === 'Escape') {
                   if (catQuery) setCatQuery('');
                   else setMode('idle');
@@ -622,8 +643,12 @@ export function TriageInbox({
                     onChange={(e) => setNewCatName(e.target.value)}
                     onKeyDown={(e) => {
                       // isComposing: Enter that commits an IME (CJK) composition
-                      // must not submit the form (critic P2).
-                      if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                      // must not submit the form (critic P2). e.repeat: a HELD
+                      // Enter in the search box opens this form and autoFocus
+                      // moves focus here mid-press — key auto-repeat would then
+                      // create+file with never-reviewed defaults (checker P1);
+                      // only a fresh, deliberate press may submit.
+                      if (e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat) {
                         e.preventDefault();
                         createAndFile(top);
                       } else if (e.key === 'Escape') {
