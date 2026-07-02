@@ -49,6 +49,9 @@ test('all-USD demo user sees no disclosure banner anywhere (zero-render lock)', 
     await page.goto(path);
     await expect(page.getByTestId(anchor)).toBeVisible({ timeout: 20000 });
     await expect(page.getByTestId('currency-exclusion-banner')).toHaveCount(0);
+    // #135 residual 25: the inline projection/total note is also gated on withheld > 0.
+    if (path === '/coach') await expect(page.getByTestId('fi-currency-note')).toHaveCount(0);
+    if (path === '/reports') await expect(page.getByTestId('reports-currency-note')).toHaveCount(0);
   }
 });
 
@@ -137,6 +140,12 @@ test('withheld foreign accounts surface the disclosure on the dashboard, /accoun
     const b = page.getByTestId('currency-exclusion-banner');
     await expect(b).toBeVisible({ timeout: 20000 });
     await expect(b).toContainText('EUR, GBP');
+    // #135 residual 25: the currency-exclusion assumption is also stated inline AT the
+    // flagship FI projection (/coach) and the spending total (/reports).
+    if (path === '/coach')
+      await expect(page.getByTestId('fi-currency-note')).toContainText('not in U.S. dollars');
+    if (path === '/reports')
+      await expect(page.getByTestId('reports-currency-note')).toContainText('not in U.S. dollars');
     const axe = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();

@@ -4,6 +4,7 @@ import { auth } from '@/auth';
 import { AutomationBlueprintCard } from '@/components/coach/automation-blueprint-card';
 import { FICard } from '@/components/coach/fi-card';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { withheldInlineNote } from '@/lib/providers/currency';
 import { LifeEnergyCard } from '@/components/coach/life-energy-card';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +61,7 @@ export default async function CoachPage() {
           latestMonthLabel={
             data.flows.length ? formatMonth(data.flows[data.flows.length - 1].month) : undefined
           }
+          currencyNote={withheldInlineNote(withheld)}
         />
       </div>
 

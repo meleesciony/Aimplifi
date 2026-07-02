@@ -127,3 +127,22 @@ export function withheldBannerCopy(summary: WithheldAccountSummary): WithheldBan
       `rate would be inaccurate. Nothing is deleted: the account data and history stay saved.`,
   };
 }
+
+/**
+ * Compact inline note stating the currency-exclusion assumption AT a projection or total
+ * that was computed on USD-only data (the coaching guardrail: every projection states its
+ * assumptions inline — #135 residual 25). Returns null when nothing is withheld, so all-USD
+ * surfaces stay byte-identical. Complements the page-level CurrencyExclusionBanner
+ * (#141/#149): the banner announces the exclusion once at the top of the page; this restates
+ * it where the figure is shown, matching the app's per-projection assumption style ("assuming
+ * X% returns", "estimated from your last 6 months"). Factual basis note — no shame, no
+ * promised ship date.
+ */
+export function withheldInlineNote(summary: WithheldAccountSummary): string | null {
+  if (summary.count === 0) return null;
+  const one = summary.count === 1;
+  return (
+    `Excludes ${summary.count} account${one ? '' : 's'} not in U.S. dollars — ` +
+    `Aimplifi doesn't convert other currencies yet.`
+  );
+}

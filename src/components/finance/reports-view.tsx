@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { cents, formatCents } from '@/lib/money';
-import type { WithheldAccountSummary } from '@/lib/providers/currency';
+import { withheldInlineNote, type WithheldAccountSummary } from '@/lib/providers/currency';
 import type { ReportsData } from '@/server/reports';
 
 const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -33,6 +33,10 @@ export function ReportsView({
   const top = data.breakdown.byCategory.slice(0, 12);
   const max = Math.max(1, ...top.map((c) => c.amountCents));
   const hasFlows = data.months.some((m) => m.incomeCents !== 0 || m.expensesCents !== 0);
+  // #135 residual 25: state the currency-exclusion assumption at the totals (null when
+  // all-USD → renders nothing → byte-identical). The banner announces it once at the top;
+  // this restates it where the spending total is shown.
+  const currencyNote = withheldInlineNote(withheld);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -90,6 +94,11 @@ export function ReportsView({
             {monthLabel(data.ym)} · {formatCents(cents(data.breakdown.totalCents))} total
           </span>
         </div>
+        {currencyNote ? (
+          <p className="mb-2 text-xs text-muted-foreground" data-testid="reports-currency-note">
+            {currencyNote}
+          </p>
+        ) : null}
         {top.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">No spending this month yet.</p>
         ) : (

@@ -12,6 +12,7 @@ import {
   resolvePlaidCurrency,
   summarizeWithheldAccounts,
   withheldBannerCopy,
+  withheldInlineNote,
 } from '@/lib/providers/currency';
 
 describe('canonicalizeCurrency', () => {
@@ -153,5 +154,26 @@ describe('withheldBannerCopy — every grammar branch locked (checker: singular 
     expect(copy?.title).toBe('1 account not included — not in U.S. dollars');
     expect(copy?.title).not.toContain('foreign');
     expect(copy?.description).toContain('an account in BTC is left out');
+  });
+});
+
+describe('withheldInlineNote — inline projection/total assumption (#135 residual 25)', () => {
+  it('returns null for the zero summary (all-USD surfaces render nothing → byte-identical)', () => {
+    expect(withheldInlineNote({ count: 0, currencies: [] })).toBeNull();
+  });
+  it('singular: "Excludes 1 account not in U.S. dollars"', () => {
+    expect(withheldInlineNote({ count: 1, currencies: ['EUR'] })).toContain(
+      'Excludes 1 account not in U.S. dollars',
+    );
+  });
+  it('plural: "Excludes N accounts not in U.S. dollars"', () => {
+    expect(withheldInlineNote({ count: 3, currencies: ['EUR', 'GBP'] })).toContain(
+      'Excludes 3 accounts not in U.S. dollars',
+    );
+  });
+  it('states the assumption, no shame language (coaching guardrail)', () => {
+    const note = withheldInlineNote({ count: 2, currencies: ['EUR', 'GBP'] })!;
+    expect(note).toMatch(/doesn't convert other currencies/i);
+    expect(note).not.toMatch(/wasted|guilty|stop|should have/i);
   });
 });

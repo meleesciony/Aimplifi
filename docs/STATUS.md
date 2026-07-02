@@ -1320,6 +1320,11 @@ axe AA with the banner present — the demo user never renders it, so the phase-
     (single exported Prisma where-fragment), not a live defect.
 25. Coach/reports projections don't state the currency-exclusion assumption inline (guardrail
     tension flagged by the checker; same scope decision as 23).
+    [UPDATE 2026-07-02 — **CLOSED** (DECISIONS #150): pure `withheldInlineNote()` states the
+    assumption inline at the /coach FI card + the /reports spending total (gated on withheld > 0,
+    byte-identical otherwise), matching the app's per-projection "assuming X%" style. Accurate —
+    the currency guard filters transactions/accounts/investments to USD-only in the shared
+    snapshot. Unit + e2e locked; focused checker 0 P0/P1/P2.]
 Refuted (verifier): CSV-export marker claim (accepted residual 19 covers it), backfill-count
 disagreement, all-foreign dashboard P1 (gates to EmptyDashboard = accepted 22), banner salience,
 reassurance-copy coupling, execSync cwd fragility.

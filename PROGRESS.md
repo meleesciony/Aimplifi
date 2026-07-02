@@ -1631,3 +1631,24 @@ read-only change); (2) push — ships the categorization rebuild + all checker f
 applies `reviewPinned` via the build's `prisma db push`; verify the Vercel deploy (dpl_ READY, team reiforge /
 project aimplifi, aliases aimplifi.app + www). (3) backlog: residual 25 inline-copy, #134 loan de-dup, #127 tail
 (SimpleFIN symbol regex + epoch→date), shared CategoryPicker/SR-listbox. SAFE to /clear.
+
+## 2026-07-02 (cont., owner: "DO ALL RECOMMENDED INCLUDING PUSHING") — #149 stack DEPLOYED + #150 residual 25 CLOSED
+Owner authorized doing all recommended backlog items AND pushing. (Reboot is a physical owner action I can't do;
+the environmental e2e stall re-witness stays reboot-gated.)
+
+**PUSHED + DEPLOYED ✅:** `git push origin main` → `7393633..e4f5f50` (origin now == local, 0 unpushed). This
+shipped the ENTIRE prior unpushed stack to production together — the categorization rebuild + all 5 checker
+cycles + #145 + #149 — applying `Transaction.reviewPinned` via the build's `prisma db push`. Deploy VERIFIED
+READY: the Vercel commit-status check for e4f5f50 = **success** (deployment `8P12WGYNAmysYB8uo82UiXsNuSJS`, team
+reiforge / project aimplifi; queried via GitHub's commit-status API using the stored git credential — no Vercel
+MCP this session), corroborated by aimplifi.app 308→www + www.aimplifi.app/sign-in 200 + HSTS.
+
+**#150 residual 25 CLOSED (verify+e2e green, focused checker 0 P0/P1/P2):** inline currency-exclusion assumption
+note (`withheldInlineNote`) at the /coach FI card + /reports spending total, gated on withheld > 0 (byte-identical
+otherwise), matching the app's per-projection assumption style. Accurate — the currency guard filters
+transactions/accounts/investments to USD-only in the shared snapshot (getCoachData + getReports both read it).
+Unit tests (currency.test.ts, +4) + e2e locks (present for the fx user, absent for the demo user). Gate (real):
+verify GREEN **1558 / 122**; currency-disclosure e2e **3/3** (21.1s). Committed + pushed (deploy) below.
+
+**Remaining backlog this session:** #134 loan de-dup, #127 tail (SimpleFIN symbol regex + epoch→date), shared
+CategoryPicker. Each engine-first → verify → checker → commit → push.

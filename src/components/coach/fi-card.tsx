@@ -31,12 +31,16 @@ export function FICard({
   coastTargetYears,
   latestMonthRateBps,
   latestMonthLabel,
+  currencyNote,
 }: {
   fiNumberCents: Cents;
   annualExpensesCents: Cents;
   /** Latest FULL month's savings rate (can differ from the 6-mo average the slider uses). */
   latestMonthRateBps?: number | null;
   latestMonthLabel?: string;
+  /** Inline currency-exclusion basis note (#135 residual 25) when the user has withheld
+   *  non-USD accounts; null/undefined = all-USD → renders nothing (byte-identical). */
+  currencyNote?: string | null;
   portfolioCents: Cents;
   monthlyIncomeCents: Cents;
   monthlySavingsCents: Cents;
@@ -68,6 +72,11 @@ export function FICard({
         <p className="text-sm text-muted-foreground" data-testid="fi-basis">
           {COACH_COPY.fiNumber(fiNumberCents, swrBps, annualExpensesCents)}
         </p>
+        {currencyNote ? (
+          <p className="text-xs text-muted-foreground" data-testid="fi-currency-note">
+            {currencyNote}
+          </p>
+        ) : null}
         <p className="text-xs text-muted-foreground" data-testid="your-enough">
           {COACH_COPY.yourEnough()}
         </p>
