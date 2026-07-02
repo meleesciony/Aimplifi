@@ -19,6 +19,12 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 vi.mock('@/auth', () => ({ auth: vi.fn(), signOut: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+// Passthrough spy (cycle-5): lets the deleted-in-window lock inject a mid-pass
+// deletion in front of ONE guarded transaction without touching real behavior.
+vi.mock('@/lib/db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db')>();
+  return { ...actual, serializableTx: vi.fn(actual.serializableTx) };
+});
 
 import { auth } from '@/auth';
 import { connectSimplefin } from '@/server/simplefin-actions';
@@ -27,7 +33,7 @@ import { PlaidProvider } from '@/lib/providers/plaid';
 import { applyCategory } from '@/server/triage-actions';
 import { encryptToken } from '@/lib/crypto';
 import { isoDate } from '@/lib/dates';
-import { prisma } from '@/lib/db';
+import { prisma, serializableTx } from '@/lib/db';
 
 const KEY = Buffer.alloc(32, 7).toString('base64');
 const TODAY = isoDate('2026-06-10');
@@ -259,9 +265,28 @@ describe('SimpleFIN resync preserves user corrections (real actions, mocked serv
     expect(all[0].needsReview).toBe(true); // FORCED review — a destroyed decision re-decides
     expect(all[0].confidenceBps).toBeNull(); // the rule's certainty does not extend here
     expect(all[0].categoryId).toBe('coffee'); // the rule still supplies the SUGGESTION
+    expect(all[0].reviewPinned).toBe(true); // durable (cycle-4 P1, DECISIONS #148)
+
+    // CYCLE-4 P1: the forced review must SURVIVE the next 5-day-overlap re-send —
+    // pre-#148 the dissolved row was "undone-shaped", so sync N+1 re-applied the
+    // rule verdict and the triage card vanished before the user ever saw it
+    // (empirically probed by the cycle-4 checker).
+    await syncFromSimplefin(USER, TODAY);
+    const again = await row();
+    expect(again.needsReview).toBe(true); // the pin holds
+    expect(again.confidenceBps).toBeNull();
+
+    // …until the USER decides: filing clears the pin, and the decision then
+    // survives further re-sends through the normal corrected-row guard.
+    await applyCategory({ transactionId: again.id, categoryId: 'groceries' });
+    await syncFromSimplefin(USER, TODAY);
+    const settled = await row();
+    expect(settled.categoryId).toBe('groceries');
+    expect(settled.needsReview).toBe(false);
+    expect(settled.reviewPinned).toBe(false);
   });
 
-  it('test_regression__sf_new_id_churn_dissolves_stale_split (cycle-3 P0): a pending split re-posted under a NEW id counts ONCE', async () => {
+  it('test_regression__sf_new_id_churn_bounded (cycle-4 #27, owner call): a NEW-id re-post keeps the split for the BOUNDED window; age-out heals it', async () => {
     accountsPayload = { accounts: [checking([
       { id: 't1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-8.50', description: RAW, pending: true },
     ])] };
@@ -277,22 +302,47 @@ describe('SimpleFIN resync preserves user corrections (real actions, mocked serv
         { id: `sf-churn-b-${process.pid}`, accountId: parent.accountId, date: parent.date, amountCents: -550, rawDescriptor: parent.rawDescriptor, merchantId: parent.merchantId, categoryId: 'groceries', confidenceBps: 9900, status: 'PENDING', needsReview: false, splitParentId: parent.id },
       ],
     });
-    // The bank drops t1 and re-posts the SAME charge under t2 — SimpleFIN has no
-    // pending→posted id link, so the split cannot follow. Pre-fix the stale split
-    // was IMMORTAL (reconcile skipped split parents; children shielded by
-    // providerRef not-null): children (−8.50) + the new t2 row (−8.50) BOTH
-    // counted — the charge double-counted in every projection, permanently.
+    // The bank drops t1 and re-posts under t2. OWNER CALL (cycle-4 #27): one absent
+    // snapshot must never destroy a user split — pass 1 leaves it, accepting the
+    // SAME ≤32d bounded double count #128 accepts for plain rows (pre-#147 this was
+    // IMMORTAL; cycle-3 made it immediate-dissolve; cycle-5 lands on the bound).
     accountsPayload = { accounts: [checking([
       { id: 't2', posted: epoch(2026, 6, 8), amount: '-8.50', description: RAW },
     ])] };
     await syncFromSimplefin(USER, TODAY);
-
     const all = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
-    expect(all).toHaveLength(1); // stale split (parent + children) swept
-    expect(all[0].providerRef).toBe('t2');
-    expect(all[0].status).toBe('POSTED');
-    const countable = all.filter((t) => !t.isSplitParent);
-    expect(countable.reduce((s, t) => s + t.amountCents, 0)).toBe(-850); // ONCE
+    expect(all).toHaveLength(4); // split (parent+2 children) survives + the new t2 row
+
+    // Age the parent past the 32d floor → the next sync's pass-2 age-out dissolves
+    // the stale split WITH its children: the charge counts ONCE again.
+    await prisma.transaction.update({ where: { id: parent.id }, data: { date: '2026-04-20' } });
+    await syncFromSimplefin(USER, TODAY);
+    const healed = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    expect(healed).toHaveLength(1);
+    expect(healed[0].providerRef).toBe('t2');
+    expect(healed[0].status).toBe('POSTED');
+  });
+
+  it('test_regression__deleted_in_window_skips (cycle-3 P2 lock): a row deleted mid-pass never aborts the sync', async () => {
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-8.50', description: RAW, pending: true },
+    ])] };
+    await connectSimplefin(SETUP_TOKEN);
+    const r0 = await row();
+    // Re-send the same id, but delete the row IMMEDIATELY BEFORE the guarded update
+    // runs — the reconcile/removed[]-style mid-window interleaving. The pre-#147
+    // findUniqueOrThrow turned this into a P2025 that aborted the WHOLE pass-2 loop
+    // (remaining rows, reconcile, and transfer pairing all skipped that sync).
+    const injected: typeof serializableTx = async (fn, opts) => {
+      await prisma.transaction.delete({ where: { id: r0.id } });
+      const actual = await vi.importActual<typeof import('@/lib/db')>('@/lib/db');
+      return actual.serializableTx(fn, opts);
+    };
+    vi.mocked(serializableTx).mockImplementationOnce(injected);
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: epoch(2026, 6, 8), amount: '-8.50', description: RAW },
+    ])] };
+    await expect(syncFromSimplefin(USER, TODAY)).resolves.toBeDefined(); // no abort
   });
 
   it('test_regression__aged_out_split_dissolves (cycle-3 P0): a >32d-old pending split is swept WITH its children', async () => {
@@ -580,6 +630,23 @@ describe('Plaid resync preserves user corrections (real provider, mocked server)
     expect(all[0].needsReview).toBe(true); // FORCED review — a destroyed decision re-decides
     expect(all[0].confidenceBps).toBeNull();
     expect(all[0].categoryId).toBe('coffee'); // the rule still supplies the SUGGESTION
+    expect(all[0].reviewPinned).toBe(true); // durable (cycle-4 P1, DECISIONS #148)
+
+    // CYCLE-4 P1: a modified[] re-send of the new id must not clobber the pin.
+    syncPages = [{
+      accounts: [acct],
+      added: [],
+      modified: [plaidTxn({ transaction_id: 'ptx-2', amount: 10.0, pending: false })],
+      removed: [],
+      next_cursor: 'cur-3',
+      has_more: false,
+    }];
+    await new PlaidProvider().syncTransactions(USER);
+    const again = await prisma.transaction.findFirstOrThrow({
+      where: { account: { userId: USER }, providerRef: 'ptx-2' },
+    });
+    expect(again.needsReview).toBe(true); // the pin holds across the re-send
+    expect(again.confidenceBps).toBeNull();
   });
 
   it('test_regression__removed_cascades_split_children (cycle-2 P0 family): a canceled split charge takes its children with it', async () => {
@@ -622,5 +689,85 @@ describe('Plaid resync preserves user corrections (real provider, mocked server)
     const corrections = await prisma.correction.findMany({ where: { userId: USER } });
     expect(corrections.length).toBeGreaterThan(0);
     for (const c of corrections) expect(c.transactionId).toBe(rows[0].id); // no dangling audit
+  });
+
+  it('test_regression__plaid_same_id_drift_pinned (cycle-4 #28 + P1): a modified[] amount change on a split dissolves to PINNED review; user filing releases it', async () => {
+    syncPages = [{ accounts: [acct], added: [plaidTxn()], modified: [], removed: [], next_cursor: 'cur-1', has_more: false }];
+    await new PlaidProvider().syncTransactions(USER);
+    const parent = await row();
+    await prisma.categorizationRule.create({
+      data: { userId: USER, merchantId: parent.merchantId!, categoryId: 'coffee', priority: 100 },
+    });
+    await splitCurrentRow([
+      { id: `pl-sid-a-${process.pid}`, amountCents: -300, categoryId: 'coffee' },
+      { id: `pl-sid-b-${process.pid}`, amountCents: -550, categoryId: 'groceries' },
+    ]);
+    // The tip posts under the SAME id (no churn): modified[] carries the new amount.
+    // Cycle-4 #28: this dissolve site had NO lock — reverting it left the whole
+    // suite green while the rule silently re-absorbed the drifted charge.
+    const drifted = () => [{
+      accounts: [acct],
+      added: [],
+      modified: [plaidTxn({ amount: 10.0, pending: false })],
+      removed: [],
+      next_cursor: 'cur-2',
+      has_more: false,
+    }];
+    syncPages = drifted();
+    await new PlaidProvider().syncTransactions(USER);
+    const dissolved = await row();
+    expect(dissolved.isSplitParent).toBe(false);
+    expect(dissolved.amountCents).toBe(-1000);
+    expect(dissolved.needsReview).toBe(true);
+    expect(dissolved.confidenceBps).toBeNull();
+    expect(dissolved.reviewPinned).toBe(true);
+    expect(await prisma.transaction.count({ where: { splitParentId: dissolved.id } })).toBe(0);
+
+    // The pin survives an identical re-send…
+    syncPages = drifted();
+    await new PlaidProvider().syncTransactions(USER);
+    expect((await row()).needsReview).toBe(true);
+
+    // …and releases on the USER's decision, which then survives the next re-send.
+    await applyCategory({ transactionId: dissolved.id, categoryId: 'groceries' });
+    syncPages = drifted();
+    await new PlaidProvider().syncTransactions(USER);
+    const settled = await row();
+    expect(settled.categoryId).toBe('groceries');
+    expect(settled.needsReview).toBe(false);
+    expect(settled.reviewPinned).toBe(false);
+  });
+
+  it('test_regression__churn_carries_pin (cycle-4 P1): id churn on a PINNED row keeps the forced review on the new id', async () => {
+    syncPages = [{ accounts: [acct], added: [plaidTxn()], modified: [], removed: [], next_cursor: 'cur-1', has_more: false }];
+    await new PlaidProvider().syncTransactions(USER);
+    const parent = await row();
+    await prisma.categorizationRule.create({
+      data: { userId: USER, merchantId: parent.merchantId!, categoryId: 'coffee', priority: 100 },
+    });
+    await splitCurrentRow([
+      { id: `pl-cp-a-${process.pid}`, amountCents: -300, categoryId: 'coffee' },
+      { id: `pl-cp-b-${process.pid}`, amountCents: -550, categoryId: 'groceries' },
+    ]);
+    // Drift under the same id → dissolve → PINNED review.
+    syncPages = [{ accounts: [acct], added: [], modified: [plaidTxn({ amount: 10.0, pending: false })], removed: [], next_cursor: 'cur-2', has_more: false }];
+    await new PlaidProvider().syncTransactions(USER);
+    expect((await row()).reviewPinned).toBe(true);
+    // The id then churns: without carrying the pin, the transplant's settled
+    // predicate hands the new id the RULE verdict — a pin-laundering path.
+    syncPages = [{
+      accounts: [acct],
+      added: [plaidTxn({ transaction_id: 'ptx-2', amount: 10.0, pending: false, pending_transaction_id: 'ptx-1' })],
+      modified: [],
+      removed: [{ transaction_id: 'ptx-1' }],
+      next_cursor: 'cur-3',
+      has_more: false,
+    }];
+    await new PlaidProvider().syncTransactions(USER);
+    const rows = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].providerRef).toBe('ptx-2');
+    expect(rows[0].needsReview).toBe(true); // still the user's decision to make
+    expect(rows[0].reviewPinned).toBe(true);
   });
 });

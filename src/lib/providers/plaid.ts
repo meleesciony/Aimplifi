@@ -386,7 +386,7 @@ export class PlaidProvider implements DataProvider {
               serializableTx(async (tx) => {
                 const fresh = await tx.transaction.findUnique({
                   where: { id },
-                  select: { isSplitParent: true, needsReview: true, amountCents: true },
+                  select: { isSplitParent: true, needsReview: true, amountCents: true, reviewPinned: true },
                 });
                 // Deleted in the window (reconcile / removed[] / a dissolve) —
                 // nothing to refresh; skip rather than throw (cycle-3 P2).
@@ -398,16 +398,21 @@ export class PlaidProvider implements DataProvider {
                   // into review (cycle-3 P1): a destroyed user decision always
                   // re-decides; even the user's own merchant rule does not extend to
                   // a charge whose split the bank just broke (DECISIONS #147).
+                  // reviewPinned makes the forced review DURABLE across re-sends
+                  // (cycle-4 P1, DECISIONS #148).
                   await tx.transaction.deleteMany({ where: { splitParentId: id } });
                   await tx.transaction.update({
                     where: { id },
-                    data: { ...data, isSplitParent: false, needsReview: true, confidenceBps: null },
+                    data: { ...data, isSplitParent: false, needsReview: true, confidenceBps: null, reviewPinned: true },
                   });
                   return;
                 }
                 const corrected =
                   (await tx.correction.count({ where: { transactionId: id } })) > 0;
-                const preserve = fresh.isSplitParent || (corrected && !fresh.needsReview);
+                // reviewPinned holds a dissolve-forced review until a USER action
+                // clears it (bank facts still refresh via base) — DECISIONS #148.
+                const preserve =
+                  fresh.isSplitParent || fresh.reviewPinned || (corrected && !fresh.needsReview);
                 await tx.transaction.update({
                   where: { id },
                   data: preserve ? base : data,
@@ -446,6 +451,7 @@ export class PlaidProvider implements DataProvider {
                         needsReview: true,
                         isTransfer: true,
                         isSplitParent: true,
+                        reviewPinned: true,
                       },
                     });
                     if (!predecessor) return false;
@@ -502,11 +508,34 @@ export class PlaidProvider implements DataProvider {
                           ...data,
                           needsReview: true,
                           confidenceBps: null,
+                          // Durable across re-sends (cycle-4 P1, DECISIONS #148).
+                          reviewPinned: true,
                         },
                       });
                       await tx.correction.updateMany({
                         where: { transactionId: predecessor.id, userId },
                         data: { transactionId: replacement.id },
+                      });
+                      await tx.transaction.delete({ where: { id: predecessor.id } });
+                      return true;
+                    }
+                    if (predecessor.reviewPinned) {
+                      // A PINNED row (dissolve-forced review, DECISIONS #148) that
+                      // churns ids keeps its pin — otherwise the id churn would be a
+                      // pin-laundering path and the rule verdict would land after all.
+                      const pinned = await tx.transaction.create({
+                        data: {
+                          accountId,
+                          providerRef: row.providerRef,
+                          ...data,
+                          needsReview: true,
+                          confidenceBps: null,
+                          reviewPinned: true,
+                        },
+                      });
+                      await tx.correction.updateMany({
+                        where: { transactionId: predecessor.id, userId },
+                        data: { transactionId: pinned.id },
                       });
                       await tx.transaction.delete({ where: { id: predecessor.id } });
                       return true;

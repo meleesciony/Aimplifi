@@ -215,6 +215,12 @@ model Transaction {
   isTransfer    Boolean @default(false) // own-account transfers excluded from income/expense
   isSplitParent Boolean @default(false) // container row after a split — excluded from ALL sums
   splitParentId String?
+  // Cycle-4 P1 (DECISIONS #148): set when a sync DISSOLVES a user's split — the forced
+  // review must survive re-sends. A dissolved row is otherwise representationally an
+  // UNDONE row, and the guard's "undone takes the fresh verdict" rule (cycle 1) let the
+  // user's own merchant rule silently auto-file it one cron interval later. The preserve
+  // predicate respects this flag; every USER filing action clears it.
+  reviewPinned  Boolean @default(false)
 
   account  Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   merchant Merchant? @relation(fields: [merchantId], references: [id])

@@ -37,6 +37,7 @@ describe('serializableTx wiring (cycle-3 gate lock)', () => {
   let MERCH = '';
 
   async function wipe() {
+    await prisma.auditLog.deleteMany({ where: { userId: USER } });
     await prisma.correction.deleteMany({ where: { userId: USER } });
     await prisma.categorizationRule.deleteMany({ where: { userId: USER } });
     await prisma.categoryPrediction.deleteMany({ where: { userId: USER } });
@@ -61,6 +62,7 @@ describe('serializableTx wiring (cycle-3 gate lock)', () => {
   beforeEach(async () => {
     vi.mocked(auth).mockResolvedValue({ user: { id: USER } } as never);
     vi.mocked(serializableTx).mockClear();
+    await prisma.auditLog.deleteMany({ where: { userId: USER } });
     await prisma.correction.deleteMany({ where: { userId: USER } });
     await prisma.categorizationRule.deleteMany({ where: { userId: USER } });
     await prisma.account.deleteMany({ where: { userId: USER } });
@@ -75,9 +77,15 @@ describe('serializableTx wiring (cycle-3 gate lock)', () => {
     });
   });
 
-  it('applyCategory routes through serializableTx (the sixth writer — cycle-3 P1)', async () => {
+  it('applyCategory routes through serializableTx (the sixth writer — cycle-3 P1) and audits provenance honestly (cycle-4 #32)', async () => {
     await applyCategory({ transactionId: `wire-1-${process.pid}`, categoryId: 'coffee', always: true });
     expect(vi.mocked(serializableTx)).toHaveBeenCalled();
+    // Audit gating: the second "Always" REUSES the rule — it must log
+    // 'rule.reuse', never a second 'rule.create' (a creation event naming a
+    // pre-existing rule misattributes provenance in an append-only audit).
+    await applyCategory({ transactionId: `wire-2-${process.pid}`, categoryId: 'coffee', always: true });
+    expect(await prisma.auditLog.count({ where: { userId: USER, action: 'rule.create' } })).toBe(1);
+    expect(await prisma.auditLog.count({ where: { userId: USER, action: 'rule.reuse' } })).toBe(1);
   });
 
   it('fileMerchantGroup routes through serializableTx', async () => {
@@ -97,14 +105,50 @@ describe('serializableTx wiring (cycle-3 gate lock)', () => {
     expect(vi.mocked(serializableTx)).toHaveBeenCalled();
   });
 
-  it('provider guard sites are wired (source pin: ≥3 serializable sites each, zero interactive prisma.$transaction)', () => {
-    for (const f of ['src/lib/providers/plaid.ts', 'src/lib/providers/simplefin.ts']) {
-      const src = readFileSync(f, 'utf8');
-      const sites = (src.match(/serializableTx\(/g) ?? []).length;
-      expect(sites, `${f}: serializableTx call sites`).toBeGreaterThanOrEqual(3);
-      expect(src, `${f}: interactive check-then-act must use serializableTx`).not.toMatch(
-        /prisma\.\$transaction\(\s*async/,
+  it('provider + action guard sites are wired (source pin, comment-proof — cycle-4 #29/#30)', () => {
+    // Cycle-4 hardening: count only NON-COMMENT lines (a comment containing
+    // 'serializableTx(' no longer satisfies the pin) and ban prisma.$transaction
+    // of ANY shape in the providers (the old /async/ literal let a non-async
+    // interactive callback slip past).
+    const stripComments = (src: string) =>
+      src
+        .split('\n')
+        .filter((l) => {
+          const t = l.trim();
+          return !t.startsWith('//') && !t.startsWith('*') && !t.startsWith('/*');
+        })
+        .join('\n');
+    const SITES: ReadonlyArray<readonly [string, number]> = [
+      // plaid: guardedVerdictRefresh + transplant + removed[]-cascade
+      ['src/lib/providers/plaid.ts', 3],
+      // simplefin: guardedVerdictRefresh + age-out dissolve (pass 1 became a
+      // single-statement sweep in the cycle-5 age-out-only change — no read).
+      ['src/lib/providers/simplefin.ts', 2],
+    ];
+    for (const [f, min] of SITES) {
+      const src = stripComments(readFileSync(f, 'utf8'));
+      expect(
+        (src.match(/serializableTx\(/g) ?? []).length,
+        `${f}: serializableTx call sites`,
+      ).toBeGreaterThanOrEqual(min);
+      expect(src, `${f}: no direct prisma.$transaction of ANY shape`).not.toMatch(
+        /prisma\.\$transaction\(/,
       );
     }
+    // triage-actions (cycle-4 #29): the four rule/verdict writers (applyCategory,
+    // fileMerchantGroup, recategorize, makeRuleFromCorrection) each run through
+    // serializableTx, and the remaining direct prisma.$transaction uses are the
+    // EXACT four allowlisted sites: applyToAllSimilar (no UI caller),
+    // splitTransaction (CAS-claimed), undoSplit (array form), undoCorrections
+    // (unique-guarded). Adding a fifth means a new writer skipped the helper.
+    const actions = stripComments(readFileSync('src/server/triage-actions.ts', 'utf8'));
+    expect(
+      (actions.match(/serializableTx\(/g) ?? []).length,
+      'triage-actions: serializableTx call sites',
+    ).toBeGreaterThanOrEqual(4);
+    expect(
+      (actions.match(/prisma\.\$transaction\(/g) ?? []).length,
+      'triage-actions: direct prisma.$transaction must stay the 4 allowlisted sites',
+    ).toBe(4);
   });
 });

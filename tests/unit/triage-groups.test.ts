@@ -330,6 +330,27 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(await prisma.categorizationRule.count({ where: { userId: USER, merchantId: MERCH_SEAWOLF } })).toBe(1);
   });
 
+  it('test_regression__dead_becameRuleId (cycle-4 #31): a superseded rule pointer falls through to a fresh mint', async () => {
+    const r1 = await applyCategory({ transactionId: `grp-s1-${process.pid}`, categoryId: 'coffee', always: true });
+    expect(r1.ruleId).not.toBeNull();
+    // Changed mind merchant-wide: the supersede retires the coffee rule (#147) —
+    // but c1.becameRuleId still points at the dead id (no FK, nothing cascades).
+    await recategorize({ transactionId: `grp-s2-${process.pid}`, categoryId: 'dining', scope: 'merchant' });
+    expect(await prisma.categorizationRule.count({ where: { id: r1.ruleId! } })).toBe(0);
+    // One-tap "Always" on the OLD correction: pre-fix the early return reported the
+    // DEAD rule id while minting nothing ("success", no rule). Now a dangling
+    // pointer falls through to a fresh mint — which itself supersedes the dining
+    // rule (latest action wins, the #147 semantic).
+    const made = await makeRuleFromCorrection(r1.correctionIds[0]);
+    expect(made.ruleId).not.toBeNull();
+    expect(made.ruleId).not.toBe(r1.ruleId);
+    const rules = await prisma.categorizationRule.findMany({ where: { userId: USER, merchantId: MERCH_SEAWOLF } });
+    expect(rules).toHaveLength(1);
+    expect(rules[0].categoryId).toBe('coffee');
+    const c1 = await prisma.correction.findUniqueOrThrow({ where: { id: r1.correctionIds[0] } });
+    expect(c1.becameRuleId).toBe(made.ruleId); // lineage re-pointed to the LIVE rule
+  });
+
   it('double-file is idempotent and rules are deduped (checker P1)', async () => {
     const groups = await getTriageGroups(USER);
     const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Bakers')!;

@@ -253,14 +253,12 @@ describe('SimpleFIN pending reconcile (real actions, mocked server)', () => {
     expect(rows[0].status).toBe('PENDING'); // untouched (not ingested, not reconciled)
   });
 
-  it('a CORROBORATED pending split is kept; a STALE one dissolves WITH its children — never orphaned, never immortal (spec CHANGED by cycle-3 P0, DECISIONS #147)', async () => {
-    // The pre-#147 contract here was "NEVER delete a split-parent pending row".
-    // That exclusion (parents skipped + children shielded by providerRef not-null)
-    // made a stale pending split IMMORTAL: when the bank re-posted the charge
-    // under a NEW id (SimpleFIN has no id link), the children AND the fresh
-    // posted row both counted — a PERMANENT double count. The intent — "a user
-    // split is never orphaned" — still holds: children leave WITH their parent,
-    // never dangling.
+  it('a CORROBORATED pending split is kept; a stale one survives IN-WINDOW and dissolves at AGE-OUT with its children (cycle-4 #27, DECISIONS #148)', async () => {
+    // Contract history: pre-#147 split parents were NEVER swept (immortal → the
+    // cycle-3 P0 permanent double count); cycle-3 swept them on ANY absence (one
+    // flaky snapshot destroyed a real user split — cycle-4 #27); the owner-ratified
+    // landing point: in-window absence NEVER touches a split, the ≤32d age-out
+    // dissolves it WITH children (never orphaned, never immortal, bounded cost).
     accountsPayload = { accounts: [checking([pending('sp-1', [2026, 6, 8])])] };
     await connectSimplefin(SETUP_TOKEN);
     const parent0 = await prisma.transaction.findFirstOrThrow({
@@ -282,17 +280,46 @@ describe('SimpleFIN pending reconcile (real actions, mocked server)', () => {
     await syncFromSimplefin(USER, TODAY);
     expect(await prisma.transaction.count({ where: { account: { userId: USER } } })).toBe(3);
 
-    // The feed drops it (re-posted under a new id, or canceled): dissolve.
+    // The feed drops it IN-WINDOW (flaky snapshot / new-id re-post): the split
+    // SURVIVES pass 1 — one absence must never destroy a user decision.
     accountsPayload = { accounts: [checking([])] };
-    const r = await syncFromSimplefin(USER, TODAY);
-    expect(r.removed).toBe(1); // the feed-owned parent; children are collateral
+    const inWindow = await syncFromSimplefin(USER, TODAY);
+    expect(inWindow.removed).toBe(0);
+    expect(await prisma.transaction.count({ where: { account: { userId: USER } } })).toBe(3);
+
+    // Aged past the 32-day floor and still unreported: pass 2 dissolves it WITH
+    // its children — never orphaned, never immortal.
+    await prisma.transaction.update({ where: { id: parent0.id }, data: { date: '2026-04-20' } });
+    const aged = await syncFromSimplefin(USER, TODAY);
+    expect(aged.removed).toBe(1); // the feed-owned parent; children are collateral
     expect(await prisma.transaction.count({ where: { account: { userId: USER } } })).toBe(0);
-    // The original intent, restated on the new contract: NO dangling children.
+    // The original pre-#147 intent, restated on the final contract: NO dangling children.
     expect(
       await prisma.transaction.count({
         where: { account: { userId: USER }, splitParentId: { not: null } },
       }),
     ).toBe(0);
+  });
+
+  it('a GARBLED row still corroborates its pending — a parse failure never reads as absence (cycle-4 #26)', async () => {
+    accountsPayload = { accounts: [checking([pending('g1', [2026, 6, 8])])] };
+    await connectSimplefin(SETUP_TOKEN);
+    expect(await count()).toBe(1);
+
+    // The same id re-sent with a garbled amount: ingest SKIPS the row (malformed-row
+    // guard), but the feed still REPORTED the id — pre-#148 the reconcile read the
+    // skip as absence and swept a still-real pending row (destroying a user split,
+    // had one existed). Corroboration now comes from the RAW feed ids.
+    accountsPayload = { accounts: [checking([
+      { id: 'g1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-8.5O', description: 'g1 PENDING', pending: true },
+    ])] };
+    const r = await syncFromSimplefin(USER, TODAY);
+
+    expect(r.removed).toBe(0); // reported-but-unparseable ≠ stale
+    const rows = await txns();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].providerRef).toBe('g1');
+    expect(rows[0].status).toBe('PENDING');
   });
 
   it('NEVER deletes a manual (null-providerRef) row, even on an emptied account', async () => {

@@ -128,18 +128,24 @@ const PENDING_MAX_AGE_DAYS = 32;
  *       (absent from both the feed and pass 1) — without that, it would linger and, if it
  *       re-posted under a new id, double-count (critic P1-1).
  *
- * Safety: POSTED rows are institution-authoritative and never touched; split parents are
- * excluded so a user's split is never orphaned; `providerRef: { not: null }` scopes to
- * feed-owned rows so manual/seed rows are never touched. No transaction has a DB-level FK
- * pointing at it (Correction / CategoryPrediction reference it by id string only), so the
- * delete can't FK-violate (orphaned analytics-log rows are harmless and match the Plaid
- * removed-path; STATUS).
+ * Safety: POSTED rows are institution-authoritative and never touched; a pending SPLIT
+ * PARENT is protected from the in-window pass (one flaky snapshot must never destroy a
+ * user decision — DECISIONS #148, cycle-4 #27) but DISSOLVES WITH its children in the
+ * age-out pass (never orphaned, never immortal — the pre-#147 blanket exclusion made a
+ * stale split double-count FOREVER after a new-id re-post; the bounded cost of the grace
+ * window is the same ≤32d residual #128 already accepts); `providerRef: { not: null }`
+ * scopes to feed-owned rows so manual/seed rows are never touched. No transaction has a
+ * DB-level FK pointing at it (Correction / CategoryPrediction reference it by id string
+ * only), so the delete can't FK-violate (orphaned analytics-log rows are harmless and
+ * match the Plaid removed-path; STATUS).
  *
- * KNOWN BOUNDED RESIDUAL (accepted, DECISIONS #128): a hold that drifts past the 5-day
- * overlap and then re-posts under a NEW id can briefly double-count until the stale pending
- * ages out (≤ PENDING_MAX_AGE_DAYS, self-healing). Eliminating it entirely would mean
- * widening the fetch window on every sync, which expands re-categorization churn and
- * bandwidth for a rare, self-correcting case.
+ * KNOWN BOUNDED RESIDUAL (accepted, DECISIONS #128 + #148): a hold that drifts past the
+ * 5-day overlap and then re-posts under a NEW id can briefly double-count until the stale
+ * pending ages out (≤ PENDING_MAX_AGE_DAYS, self-healing) — and a SPLIT pending whose
+ * charge re-posts under a new id keeps its stale split (double count) for the same bounded
+ * window before the age-out dissolves it. Eliminating either entirely would mean widening
+ * the fetch window on every sync (churn/bandwidth) or destroying user splits on transient
+ * feed noise — both rejected.
  */
 async function reconcilePendingTransactions(
   returnedRefsByAccount: ReadonlyMap<string, ReadonlySet<string>>,
@@ -162,33 +168,14 @@ async function reconcilePendingTransactions(
       date: { gte: startDate },
       providerRef: keep.length > 0 ? { notIn: keep, not: null } : { not: null },
     } as const;
-    removed += await serializableTx(async (tx) => {
-      // A stale pending SPLIT PARENT dissolves WITH its children (cycle-3 P0):
-      // SimpleFIN has no pending→posted id link, so when the bank re-posts the
-      // charge under a NEW id, pass 2 already ingested the fresh row — keeping
-      // the split would count the charge TWICE, permanently (the old exclusion
-      // made the stale split immortal: parents skipped here, children shielded
-      // by providerRef not-null). If the charge was instead canceled, the split
-      // is phantom spending. Either way deletion IS the dissolve; the split
-      // decision cannot follow a link that does not exist. Read-in-tx: the
-      // parent list and the deletes commit atomically (no check-then-act gap).
-      const staleParents = await tx.transaction.findMany({
-        where: { ...staleWhere, isSplitParent: true },
-        select: { id: true },
-      });
-      if (staleParents.length > 0) {
-        await tx.transaction.deleteMany({
-          where: { splitParentId: { in: staleParents.map((p) => p.id) } },
-        });
-        await tx.transaction.deleteMany({
-          where: { id: { in: staleParents.map((p) => p.id) } },
-        });
-      }
-      const { count } = await tx.transaction.deleteMany({
-        where: { ...staleWhere, isSplitParent: false },
-      });
-      return count + staleParents.length;
+    // Split parents are NOT swept in-window (cycle-4 #27, owner call): one transiently
+    // flaky snapshot (or a garbled row — #26) must never destroy a user's split. A
+    // genuinely re-posted/canceled split still heals in the pass-2 age-out below —
+    // the ≤32d double-count is the SAME bounded residual #128 accepts for plain rows.
+    const { count } = await prisma.transaction.deleteMany({
+      where: { ...staleWhere, isSplitParent: false },
     });
+    removed += count;
   }
   // (2) Age-out across ALL of this user's SimpleFIN accounts (not just the ones synced this
   // run) — so an account transiently absent from the response still has its >32d-old
@@ -394,6 +381,10 @@ export async function syncFromSimplefin(
   // Accounts whose transactions we actually fetched this run (existing spending
   // accounts + backfilled first-seen ones) — the scope of the pending reconcile.
   const syncedTxnAccountIds = new Set<string>();
+  // EVERY id the feed returned per account — populated from the RAW rows before
+  // parsing (cycle-4 #26), so a garbled-but-reported row still corroborates its
+  // pending DB row and the reconcile never reads a parse failure as absence.
+  const feedRefsByAccount = new Map<string, Set<string>>();
 
   const prepareAccountTxns = (acct: SimplefinAccount, accountId: string) => {
     // A MISSING transactions field (transient/partial response) must NOT be read as
@@ -405,6 +396,19 @@ export async function syncFromSimplefin(
     if (!acct.transactions) return;
     syncedTxnAccountIds.add(accountId); // explicit [] still reconciles (an emptied window is real)
     for (const txn of acct.transactions) {
+      // Corroborate the id from the RAW feed row, BEFORE parsing (cycle-4 #26): a
+      // garbled row (unparseable amount) is skipped from ingest, but the feed still
+      // REPORTED the id — treating it as absent let one transient parse failure feed
+      // the reconcile a false staleness signal and sweep a still-real pending row.
+      // Skip-ingest must never imply dissolve.
+      if (typeof txn.id === 'string' && txn.id.length > 0) {
+        let refs = feedRefsByAccount.get(accountId);
+        if (!refs) {
+          refs = new Set();
+          feedRefsByAccount.set(accountId, refs);
+        }
+        refs.add(txn.id);
+      }
       try {
         prepared.push(prepareSimplefinTransaction(txn, accountId, today, rules));
       } catch {
@@ -539,7 +543,7 @@ export async function syncFromSimplefin(
       serializableTx(async (tx) => {
         const fresh = await tx.transaction.findUnique({
           where: { id },
-          select: { isSplitParent: true, needsReview: true, amountCents: true },
+          select: { isSplitParent: true, needsReview: true, amountCents: true, reviewPinned: true },
         });
         // Deleted in the window (an overlapping sync's reconcile / a dissolve) —
         // nothing to refresh. Throwing here aborted the WHOLE pass-2 loop
@@ -553,16 +557,22 @@ export async function syncFromSimplefin(
           // pipeline's confidence — even the user's own merchant rule — does not
           // extend to a charge whose split the bank just broke; inheriting it
           // auto-filed the full amount SILENTLY, no triage card (DECISIONS #147).
+          // reviewPinned makes the forced review DURABLE (cycle-4 P1): without it
+          // the very next 5-day-overlap re-send saw an "undone-shaped" row and
+          // re-applied the rule verdict one cron interval later (DECISIONS #148).
           await tx.transaction.deleteMany({ where: { splitParentId: id } });
           await tx.transaction.update({
             where: { id },
-            data: { ...data2, isSplitParent: false, needsReview: true, confidenceBps: null },
+            data: { ...data2, isSplitParent: false, needsReview: true, confidenceBps: null, reviewPinned: true },
           });
           return;
         }
         const corrected =
           (await tx.correction.count({ where: { transactionId: id } })) > 0;
-        const preserve = fresh.isSplitParent || (corrected && !fresh.needsReview);
+        // reviewPinned: a dissolve forced this row into review — the pin holds the
+        // verdict (bank facts still refresh via base2) until a USER action clears it.
+        const preserve =
+          fresh.isSplitParent || fresh.reviewPinned || (corrected && !fresh.needsReview);
         await tx.transaction.update({ where: { id }, data: preserve ? base2 : data2 });
         if (fresh.isSplitParent) {
           // A preserved split POSTS with its parent: children stuck PENDING forever
@@ -613,6 +623,14 @@ export async function syncFromSimplefin(
   // Runs BEFORE transfer pairing so a row about to be deleted is never paired.
   const returnedRefsByAccount = new Map<string, Set<string>>();
   for (const accountId of syncedTxnAccountIds) returnedRefsByAccount.set(accountId, new Set());
+  // Corroboration = ids the feed RETURNED (raw, pre-parse — cycle-4 #26), a strict
+  // superset of the ingested rows: a malformed row skips ingest but never signals
+  // absence. `assisted` refs are folded in as belt-and-braces (identical by
+  // construction for every row that parsed).
+  for (const [accountId, refs] of feedRefsByAccount) {
+    const target = returnedRefsByAccount.get(accountId);
+    if (target) for (const ref of refs) target.add(ref);
+  }
   for (const row of assisted) returnedRefsByAccount.get(row.accountId)?.add(row.providerRef);
   const pendingRemoved = await reconcilePendingTransactions(returnedRefsByAccount, startDate, userId, today);
 

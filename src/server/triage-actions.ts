@@ -148,7 +148,7 @@ export async function applyCategory(input: {
     }
     await tx.transaction.update({
       where: { id: fresh.id },
-      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
+      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900, reviewPinned: false },
     });
     // Ground truth for the accuracy metric (DECISIONS #37): the user just confirmed
     // the real category for this transaction's prediction.
@@ -180,7 +180,17 @@ export async function makeRuleFromCorrection(correctionId: string): Promise<{ ru
     const correction = await tx.correction.findFirst({ where: { id: correctionId, userId } });
     if (!correction) throw new Error('Correction not found');
     if (correction.becameRuleId) {
-      return { ruleId: correction.becameRuleId, minted: false, merchantId: null, categoryId: null };
+      // Verify the rule still EXISTS (cycle-4 P2 #31): a supersede (retire-on-
+      // changed-mind, DECISIONS #147) deletes other-category rules without nulling
+      // becameRuleId pointers — returning the dead id here would report success
+      // while minting nothing. A dangling pointer falls through to a fresh mint.
+      const live = await tx.categorizationRule.findFirst({
+        where: { id: correction.becameRuleId, userId },
+        select: { id: true },
+      });
+      if (live) {
+        return { ruleId: live.id, minted: false, merchantId: null, categoryId: null };
+      }
     }
     const txn = await tx.transaction.findFirst({
       where: { id: correction.transactionId, account: { userId } },
@@ -239,7 +249,7 @@ export async function applyToAllSimilar(input: {
     }
     await tx.transaction.updateMany({
       where: { id: { in: targets.map((t) => t.id) } },
-      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
+      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900, reviewPinned: false },
     });
     await tx.categoryPrediction.updateMany({
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
@@ -344,7 +354,7 @@ export async function fileMerchantGroup(input: {
     const updated = await tx.transaction.updateMany({
       // Compare-and-set: only rows STILL in review are filed, re-asserted in the write.
       where: { id: { in: targets.map((t) => t.id) }, needsReview: true },
-      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
+      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900, reviewPinned: false },
     });
     await tx.categoryPrediction.updateMany({
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
@@ -433,7 +443,7 @@ export async function recategorize(input: {
     }
     await tx.transaction.updateMany({
       where: { id: { in: targets.map((t) => t.id) } },
-      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
+      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900, reviewPinned: false },
     });
     await tx.categoryPrediction.updateMany({
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
@@ -499,7 +509,7 @@ export async function splitTransaction(input: {
     // (closes the STATUS #10 race; the pre-read above is just a fast UX fail).
     const claimed = await tx.transaction.updateMany({
       where: { id: txn.id, isSplitParent: false, splitParentId: null },
-      data: { needsReview: false, categoryId: null, confidenceBps: null, isSplitParent: true },
+      data: { needsReview: false, categoryId: null, confidenceBps: null, isSplitParent: true, reviewPinned: false },
     });
     if (claimed.count === 0) throw new Error('Transaction is already split');
 

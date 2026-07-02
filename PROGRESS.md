@@ -1503,6 +1503,23 @@ rule: STOPPED, findings written, owner asked for direction. Stack state: local m
 commits, ALL UNPUSHED; production unaffected by every finding in cycles 2-4 (the defect family needs
 the unpushed group-filing/split-lifecycle code). Machine still unrebooted (boot Jun 30).
 
+## 2026-07-02 (late) — CYCLE 5: owner AUTHORIZED the fix round + ratified age-out-only (#27)
+Implemented (DECISIONS #148): Transaction.reviewPinned schema column (probe-free design — a dissolved
+row was representationally an UNDONE row; no in-band encoding survives) set at all 3 dissolve sites,
+respected by both preserve predicates, CARRIED ACROSS ID CHURN by the transplant (pin-laundering
+path closed), cleared by every user filing action (5 write sites). Reconcile: in-window pass never
+touches split parents (owner call #27 — bounded ≤32d staleness beats one-flake destruction);
+corroboration now from RAW feed ids (#26 — parse-skip ≠ absence). makeRuleFromCorrection live-rule
+check (#31). Wiring pin hardened (#29/#30: non-comment lines, any-shape ban, triage-actions
+allowlist). New locks: multi-sync pin ×3 sites + churn-carry + same-id-drift (#28) + garbled-row
+(#26) + deleted-in-window & audit-provenance (#32) + dead-becameRuleId (#31); reconcile 3-state
+contract lock rewritten. Affected suites 55/55 green; **fail-old stash-run: exactly the 8
+new/rewritten behavioral locks red on pre-fix code.** NEXT: full verify + e2e → cycle-5 commit →
+SCOPED confirmation workflow (owner-authorized) → final owner report.
+**CYCLE-5 GATE:** ✅ VERIFY GREEN **1552 unit / 122 files**; lint clean; e2e: serial run hit the
+environmental stall (throughput, disabled-pending, position varies again) → ALL FIVE phase2 tests
+witnessed GREEN ISOLATED back-to-back on the cycle-5 build (13.6/17.2/14.7/14.1/11.5s, no stall).
+
 **CYCLE-2 GATE (real, measured 2026-07-02 ~14:55):** `bash scripts/verify.sh` → ✅ VERIFY GREEN;
 isolated `npx vitest run` → **1535 passed / 121 files (36.8s)** (+15: 5 helper-contract + 6 sync +
 4 triage-groups). E2E on the final tree: currency-disclosure 3/3 GREEN in-suite; phase2-triage —

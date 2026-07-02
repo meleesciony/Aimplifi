@@ -1483,3 +1483,17 @@ production is unaffected today.
     ("split parents are excluded") — actively argues for restoring the P0. One-line doc fix.
 Refuted (1): the becameRuleId-liveness variant that claimed UI reachability (duplicate of 31's
 unreachable half).
+
+## 2026-07-02 — CYCLE 5 (owner-authorized fix round): the open P1 + P2s 26-33 CLOSED (DECISIONS #148)
+Owner authorized one more maker/checker round + ratified age-out-only split sweeping (#27).
+FIXED: **the P1** via Transaction.reviewPinned (set on every dissolve, respected by the preserve
+predicates, carried across id churn, cleared by every user filing action) — multi-sync locks now
+assert the review SURVIVES identical re-sends and releases only on the user's decision, both
+providers + the churn path; **#26** raw-id corroboration (a garbled row never reads as absence);
+**#27** in-window reconcile never touches split parents (age-out dissolves, bounded ≤32d — same
+residual class as #128); **#28** Plaid same-id dissolve locked (multi-sync); **#29/#30** wiring pin
+hardened (non-comment lines only; any-shape $transaction ban in providers; triage-actions pinned
+with an exact-4 interactive allowlist); **#31** dead becameRuleId falls through to a fresh mint
+(lineage re-pointed); **#32** deleted-in-window + audit-provenance locks added; **#33** Safety
+docstring rewritten to the real contract. Items 26-33 and the cycle-4 P1 are CLOSED.
+Fail-old (stash-run): exactly the 8 new/rewritten behavioral locks red on pre-fix code.
