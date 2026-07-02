@@ -1394,3 +1394,14 @@ queue 144→16 (9×), interactions 397→45 (8.8×), modeled 26.5min→3.0min, w
 Environmental (3-point A/B'd): phase5-a11y keyboard-only /cards fails today at 69a335b too — machine,
 not code; retest post-reboot. NEXT: Maker/Checker workflow over the Phase-3 diff (house rule for the
 core engine), then owner review + push call (deploys #142-#144 + the fix).
+
+## 2026-07-02 (late) — Checker cycle 1 on the rebuild — DONE ✅ (5bd0106)
+wf_908cf9a8 (39 agents): 35 confirmed. FIXED + locked: merchantless mass-misfile P0 (scope+groupKey),
+sync-guard atomicity + predicate v2 (split parents, undone rows, isTransfer), Plaid pending→posted
+transplant, fileMerchantGroup compare-and-set + rule dedupe + card parity, 3 UI hardening fixes, demo
+ACH name-binding, badge-key unification, week-slice canary. Gate: verify GREEN 1520/120; phase2 e2e
+gestures+write-in green; throughput e2e = late-day machine stall (green ×3 mid-day; a11y 3-point A/B
+proves day-long degradation — reboot-gated re-witness). Deferred P2s recorded in STATUS w/ rationale.
+Local main = 69a335b +9 commits, ALL UNPUSHED (push = prod deploy = owner's call).
+NEXT: owner reboot → VERIFY_E2E=1 re-witness → owner push call; then backlog (#135 residual 23 disclosure
+/investments, 3a rule re-point backfill follow-up, #134 loan de-dup, #127 tail). SAFE to /clear.
