@@ -1347,3 +1347,21 @@ disclosure is in production. NEXT unchanged: owner-gated reboot + full VERIFY_E2
 backlog — STATUS residual 23 (extend disclosure, /investments first), #134 loan de-dup, #127 tail,
 shared CategoryPicker. (This deploy-record entry is a LOCAL-ONLY docs commit per the house pattern —
 bundle with the next change.) SAFE to /clear.
+
+## 2026-07-02 (cont.) — PULSE_CATEGORIZATION_FIX Phases 1-2 — DONE ✅ (owner-gated per phase)
+Owner loaded PULSE_CATEGORIZATION_FIX.md: diagnose → baseline → rebuild → test → prove.
+**Phase 1 (read-only)**: 5-reader workflow wf_37625155 + executed normalizer traces + seeded-DB
+probe. Diagnosis delivered in-chat + docs/CATEGORIZATION_DIAGNOSIS.md. Verdict: 420-item queue =
+expected output (per-txn queue unit × no learning from default flow × static 52-regex identity ×
+resync clobber × honest 33-60% messy review rate). Owner confirmed → Phase 2.
+**Phase 2 (measured baseline)**: scripts/messy-corpus.ts (437 txns/60d/50 merchants, deterministic)
++ guarded messy-categorization-seed.ts (real pipeline, dedicated aimplifi-baseline DB) +
+baseline-triage-walkthrough.ts (Playwright 380px, tap+time accounting, screenshots). RESULT
+(baseline-run.json + PHASE2_BASELINE.md): queue 144/437 = 33.0% (24 merchants → 6× inflation);
+397 interactions to clear (Accept/batch usable on 0/144 — bestGuess suggests 'Shopping' on every
+unknown card); modeled 26.5 min full / 4.1 min + 61 interactions for one week (targets: <60s/<15);
+23.8% silent auto-misfiles; 63 pipeline merchants from 50 real (fragmentation). 1 environmental
+stall (retried; run completed). Evidence: docs/baseline/phase2/shots/*.png.
+NEXT: Phase 3 rebuild (owner-gated): merchant-unit queue + trust-on-repeat + retro-in-one-action +
+chunking + learned defaults. The #135-#141 backlog (disclosure /investments, #134 loan de-dup,
+#127 tail) queues behind the categorization fix.
