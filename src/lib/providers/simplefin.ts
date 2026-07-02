@@ -151,21 +151,44 @@ async function reconcilePendingTransactions(
   // (1) In-window reconcile, per account we synced this run.
   for (const [accountId, refs] of returnedRefsByAccount) {
     const keep = [...refs];
-    const { count } = await prisma.transaction.deleteMany({
-      where: {
-        accountId,
-        status: 'PENDING',
-        isSplitParent: false,
-        date: { gte: startDate },
-        // Only feed-owned rows: `not: null` excludes manual/seed rows (POSTED anyway,
-        // but explicit). With refs returned, exclude the ones still present (notIn); an
-        // empty set means the account returned nothing this sync, so every feed-owned
-        // in-window pending row is now stale. (notIn:[] would match everything, so the
-        // empty case drops the notIn and keeps only the not-null + window guards.)
-        providerRef: keep.length > 0 ? { notIn: keep, not: null } : { not: null },
-      },
+    // Only feed-owned rows: `not: null` excludes manual/seed rows (POSTED anyway,
+    // but explicit). With refs returned, exclude the ones still present (notIn); an
+    // empty set means the account returned nothing this sync, so every feed-owned
+    // in-window pending row is now stale. (notIn:[] would match everything, so the
+    // empty case drops the notIn and keeps only the not-null + window guards.)
+    const staleWhere = {
+      accountId,
+      status: 'PENDING',
+      date: { gte: startDate },
+      providerRef: keep.length > 0 ? { notIn: keep, not: null } : { not: null },
+    } as const;
+    removed += await serializableTx(async (tx) => {
+      // A stale pending SPLIT PARENT dissolves WITH its children (cycle-3 P0):
+      // SimpleFIN has no pending→posted id link, so when the bank re-posts the
+      // charge under a NEW id, pass 2 already ingested the fresh row — keeping
+      // the split would count the charge TWICE, permanently (the old exclusion
+      // made the stale split immortal: parents skipped here, children shielded
+      // by providerRef not-null). If the charge was instead canceled, the split
+      // is phantom spending. Either way deletion IS the dissolve; the split
+      // decision cannot follow a link that does not exist. Read-in-tx: the
+      // parent list and the deletes commit atomically (no check-then-act gap).
+      const staleParents = await tx.transaction.findMany({
+        where: { ...staleWhere, isSplitParent: true },
+        select: { id: true },
+      });
+      if (staleParents.length > 0) {
+        await tx.transaction.deleteMany({
+          where: { splitParentId: { in: staleParents.map((p) => p.id) } },
+        });
+        await tx.transaction.deleteMany({
+          where: { id: { in: staleParents.map((p) => p.id) } },
+        });
+      }
+      const { count } = await tx.transaction.deleteMany({
+        where: { ...staleWhere, isSplitParent: false },
+      });
+      return count + staleParents.length;
     });
-    removed += count;
   }
   // (2) Age-out across ALL of this user's SimpleFIN accounts (not just the ones synced this
   // run) — so an account transiently absent from the response still has its >32d-old
@@ -180,14 +203,30 @@ async function reconcilePendingTransactions(
   // shield the wrong row.
   const ageOutFloor = addDays(today, -PENDING_MAX_AGE_DAYS);
   const corroborated = [...new Set([...returnedRefsByAccount.values()].flatMap((s) => [...s]))];
-  const { count: agedOut } = await prisma.transaction.deleteMany({
-    where: {
-      account: { userId, provider: 'simplefin' },
-      status: 'PENDING',
-      isSplitParent: false,
-      date: { lt: ageOutFloor },
-      providerRef: corroborated.length > 0 ? { notIn: corroborated, not: null } : { not: null },
-    },
+  const agedWhere = {
+    account: { userId, provider: 'simplefin' },
+    status: 'PENDING',
+    date: { lt: ageOutFloor },
+    providerRef: corroborated.length > 0 ? { notIn: corroborated, not: null } : { not: null },
+  } as const;
+  const agedOut = await serializableTx(async (tx) => {
+    // Same split-parent dissolve as pass 1 (cycle-3 P0): an aged-out pending
+    // split parent is a resolved-or-canceled charge — its children must not
+    // keep counting phantom spending forever.
+    const agedParents = await tx.transaction.findMany({
+      where: { ...agedWhere, isSplitParent: true },
+      select: { id: true },
+    });
+    if (agedParents.length > 0) {
+      await tx.transaction.deleteMany({
+        where: { splitParentId: { in: agedParents.map((p) => p.id) } },
+      });
+      await tx.transaction.deleteMany({ where: { id: { in: agedParents.map((p) => p.id) } } });
+    }
+    const { count } = await tx.transaction.deleteMany({
+      where: { ...agedWhere, isSplitParent: false },
+    });
+    return count + agedParents.length;
   });
   return removed + agedOut;
 }
@@ -498,18 +537,27 @@ export async function syncFromSimplefin(
     // state (DECISIONS #146). SQLite: single-writer, unchanged.
     const guardedVerdictRefresh = (id: string) =>
       serializableTx(async (tx) => {
-        const fresh = await tx.transaction.findUniqueOrThrow({
+        const fresh = await tx.transaction.findUnique({
           where: { id },
           select: { isSplitParent: true, needsReview: true, amountCents: true },
         });
+        // Deleted in the window (an overlapping sync's reconcile / a dissolve) —
+        // nothing to refresh. Throwing here aborted the WHOLE pass-2 loop
+        // mid-run (cycle-3 P2): skip; the next sync re-evaluates.
+        if (!fresh) return;
         if (fresh.isSplitParent && fresh.amountCents !== row.amountCents) {
           // The bank changed a SPLIT row's amount under the same id (pending
           // tip/adjustment posting): the children no longer sum to the charge, so
-          // the split is stale — DISSOLVE it back to one row on the fresh pipeline
-          // verdict; needsReview routes it to triage, which is the "please
-          // re-decide" notification (cycle-2 P0 family, DECISIONS #146).
+          // the split is stale — DISSOLVE it back to one row and FORCE it into
+          // review (cycle-3 P1): a destroyed user decision always re-decides. The
+          // pipeline's confidence — even the user's own merchant rule — does not
+          // extend to a charge whose split the bank just broke; inheriting it
+          // auto-filed the full amount SILENTLY, no triage card (DECISIONS #147).
           await tx.transaction.deleteMany({ where: { splitParentId: id } });
-          await tx.transaction.update({ where: { id }, data: { ...data2, isSplitParent: false } });
+          await tx.transaction.update({
+            where: { id },
+            data: { ...data2, isSplitParent: false, needsReview: true, confidenceBps: null },
+          });
           return;
         }
         const corrected =

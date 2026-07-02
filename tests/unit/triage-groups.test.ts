@@ -16,7 +16,7 @@ import { categorize } from '@/lib/engine/categorize/pipeline';
 import { groupReviewRows } from '@/lib/engine/categorize/group';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { getReviewCount, getTriageGroups } from '@/server/triage';
-import { fileMerchantGroup, recategorize } from '@/server/triage-actions';
+import { applyCategory, fileMerchantGroup, makeRuleFromCorrection, recategorize } from '@/server/triage-actions';
 import { loadUserRules } from '@/server/rules';
 import { prisma } from '@/lib/db';
 
@@ -290,6 +290,43 @@ describe('merchant-group triage (Phase 3b)', () => {
     // duplicates with an unspecified tie-break in the pipeline's stable sort.
     const second = await recategorize({ transactionId: `grp-s2-${process.pid}`, categoryId: 'coffee', scope: 'merchant' });
     expect(second.ruleId).toBe(first.ruleId);
+    expect(await prisma.categorizationRule.count({ where: { userId: USER, merchantId: MERCH_SEAWOLF } })).toBe(1);
+  });
+
+  it('test_regression__stale_rule_wins_recategorize (cycle-3 P1): re-filing a merchant to a DIFFERENT category retires the old rule — the NEW decision wins future ingests', async () => {
+    const groups = await getTriageGroups(USER);
+    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Bakers')!;
+    const first = await fileMerchantGroup({ anchorTransactionId: seawolf.anchorTransactionId, categoryId: 'coffee' });
+    expect(first.ruleId).not.toBeNull();
+    // The changed mind — the reason recategorize exists. Pre-fix BOTH unconditional
+    // rules survived at priority 100 and the OLDEST won the stable-sort tie-break:
+    // every future charge of this merchant kept auto-filing as coffee at 9900,
+    // silently overriding the user's newest decision, forever.
+    const second = await recategorize({ transactionId: `grp-s1-${process.pid}`, categoryId: 'dining', scope: 'merchant' });
+    expect(second.ruleId).not.toBeNull();
+    const rules = await prisma.categorizationRule.findMany({ where: { userId: USER, merchantId: MERCH_SEAWOLF } });
+    expect(rules).toHaveLength(1); // the coffee rule was RETIRED, not out-tie-broken
+    expect(rules[0].categoryId).toBe('dining');
+    const verdict = categorize(
+      { rawDescriptor: 'SQ *SEAWOLF BAKERS', amountCents: -800, date: '2026-06-15', accountId: 'any' },
+      await loadUserRules(USER),
+    );
+    expect(verdict.categoryId).toBe('dining'); // the NEW decision drives ingest
+    expect(verdict.needsReview).toBe(false);
+  });
+
+  it('test_regression__always_stacks_duplicates (cycle-3 P2): singles "Always" + one-tap rule prompt dedupe through the shared mint', async () => {
+    const r1 = await applyCategory({ transactionId: `grp-s1-${process.pid}`, categoryId: 'coffee', always: true });
+    expect(r1.ruleId).not.toBeNull();
+    // Pre-fix a second "Always" on ANOTHER row of the same merchant raw-created an
+    // exact duplicate priority-100 rule (undo removed only one).
+    const r2 = await applyCategory({ transactionId: `grp-s2-${process.pid}`, categoryId: 'coffee', always: true });
+    expect(r2.ruleId).toBe(r1.ruleId);
+    expect(await prisma.categorizationRule.count({ where: { userId: USER, merchantId: MERCH_SEAWOLF } })).toBe(1);
+    // The fourth mint surface: the post-file one-tap "Always" prompt.
+    const r3 = await applyCategory({ transactionId: `grp-s3-${process.pid}`, categoryId: 'coffee' });
+    const made = await makeRuleFromCorrection(r3.correctionIds[0]);
+    expect(made.ruleId).toBe(r1.ruleId); // reused, not re-minted
     expect(await prisma.categorizationRule.count({ where: { userId: USER, merchantId: MERCH_SEAWOLF } })).toBe(1);
   });
 

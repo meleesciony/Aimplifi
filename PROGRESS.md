@@ -1459,6 +1459,37 @@ count≡scope lock passes both by design — prophylactic; the singles e2e fail-
 inspection). Affected suites 35/35 + 12/12 green; tsc/eslint clean.
 NEXT: full verify + phase2-triage/sync e2e → cycle-2 commit → cycle-3 confirmation workflow.
 
+## 2026-07-02 (cont.) — CYCLE 3 (wf_55f3cc23): 16/16 CONFIRMED on the cycle-2 fixes → ALL FIXED
+Cycle-3 landed AFTER the cycle-2 commit (bbda775): P0 SimpleFIN new-id churn (stale pending split
+IMMORTAL → permanent double count), P1 silent dissolve (pipeline verdict inherited → user rule
+auto-filed, probed), P1 applyCategory unguarded (the sixth writer), P1 stale-rule-wins (supersede
+missing), P1 gate (sed-strip stayed green — no wiring lock), P2s (cascade read outside tx, P2025
+aborts pass-2, audit provenance, ledger miscounts). ALL fixed same session (DECISIONS #147, STATUS
+cycle-3 section, ledger row + in-place count corrections). 9 new locks, ALL fail-old proven by
+stash-run (9 red pre-fix). NOTE: a cycle-3 verifier agent ran a sed-strip experiment IN the working
+tree mid-flight (restored itself; caught via a modified-since-read edit rejection — tree verified
+clean against bbda775 before continuing). NEXT: full gate → cycle-3 commit → cycle-4 confirmation
+(FINAL under the 4-cycle cap) → owner report.
+
+**CYCLE-3 GATE:** first verify ❌ — ONE red: the OLD reconcile lock "NEVER deletes a split-parent
+pending row" = the exact invariant cycle-3 deliberately retired (it MADE the P0 — stale splits were
+immortal). Rewritten to the new contract with a STRONGER fixture (corroborated split kept ×3 rows;
+stale split dissolves to 0 rows with an explicit no-orphans assert) — deliberate spec change ratified
+by the checker, intent ("never orphaned") still asserted on the correct mechanism. Re-verify →
+✅ VERIFY GREEN **1546 unit / 122 files** (+11: 4 sync + 2 triage + 5 wiring; +1 register-write-in
+discriminator in custom-category-lifecycle). E2E: 12/16 green in-suite incl. BOTH register write-in
+siblings + gesture + triage write-in; singles-leak stalled in its SETUP loop (environmental signature,
+green 5.6s isolated on the cycle-2 build); **transactions:191 failed REPRODUCIBLY (isolated ×2) →
+treated as CODE until proven otherwise: (1) new unit lock drives the exact server path
+(createCustomCategory → recategorize scope:'one' → custom id, real actions) → GREEN; (2) sibling :145
+(same chip→picker→recat-once component + action) → GREEN 7.0s same run; (3) 3-point A/B with a fresh
+`next build` per point: HEAD ✗ / bbda775 (cycle-2) ✗ / e51d6fe (PRE-cycle-2 code) ✗ → the failure
+predates the entire unpushed stack = ENVIRONMENTAL** (STATUS note; same day-long degradation as
+yesterday's a11y 3-point A/B; the write-in+refile combo fires two server actions back-to-back — the
+heaviest single-row flow — so it trips first). Machine still unrebooted (boot Jun 30).
+Final-tree witness after rebuild: **singles-leak lock GREEN 4.4s isolated on the cycle-3 build.**
+NEXT: cycle-3 commit → cycle-4 (FINAL) confirmation → owner report.
+
 **CYCLE-2 GATE (real, measured 2026-07-02 ~14:55):** `bash scripts/verify.sh` → ✅ VERIFY GREEN;
 isolated `npx vitest run` → **1535 passed / 121 files (36.8s)** (+15: 5 helper-contract + 6 sync +
 4 triage-groups). E2E on the final tree: currency-disclosure 3/3 GREEN in-suite; phase2-triage —

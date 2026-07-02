@@ -253,22 +253,46 @@ describe('SimpleFIN pending reconcile (real actions, mocked server)', () => {
     expect(rows[0].status).toBe('PENDING'); // untouched (not ingested, not reconciled)
   });
 
-  it('NEVER deletes a split-parent pending row (a user split is never orphaned)', async () => {
+  it('a CORROBORATED pending split is kept; a STALE one dissolves WITH its children — never orphaned, never immortal (spec CHANGED by cycle-3 P0, DECISIONS #147)', async () => {
+    // The pre-#147 contract here was "NEVER delete a split-parent pending row".
+    // That exclusion (parents skipped + children shielded by providerRef not-null)
+    // made a stale pending split IMMORTAL: when the bank re-posted the charge
+    // under a NEW id (SimpleFIN has no id link), the children AND the fresh
+    // posted row both counted — a PERMANENT double count. The intent — "a user
+    // split is never orphaned" — still holds: children leave WITH their parent,
+    // never dangling.
     accountsPayload = { accounts: [checking([pending('sp-1', [2026, 6, 8])])] };
     await connectSimplefin(SETUP_TOKEN);
-    // The user split this still-pending charge.
-    await prisma.transaction.updateMany({
+    const parent0 = await prisma.transaction.findFirstOrThrow({
       where: { account: { userId: USER }, providerRef: 'sp-1' },
-      data: { isSplitParent: true },
+    });
+    await prisma.transaction.update({
+      where: { id: parent0.id },
+      data: { isSplitParent: true, categoryId: null, needsReview: false, confidenceBps: null },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        { id: `rec-sp-a-${process.pid}`, accountId: parent0.accountId, date: parent0.date, amountCents: -300, rawDescriptor: parent0.rawDescriptor, status: 'PENDING', needsReview: false, splitParentId: parent0.id },
+        { id: `rec-sp-b-${process.pid}`, accountId: parent0.accountId, date: parent0.date, amountCents: parent0.amountCents + 300, rawDescriptor: parent0.rawDescriptor, status: 'PENDING', needsReview: false, splitParentId: parent0.id },
+      ],
     });
 
-    accountsPayload = { accounts: [checking([])] }; // feed drops it
-    const r = await syncFromSimplefin(USER, TODAY);
+    // While the feed still REPORTS the pending id, the split is corroborated: kept.
+    accountsPayload = { accounts: [checking([pending('sp-1', [2026, 6, 8])])] };
+    await syncFromSimplefin(USER, TODAY);
+    expect(await prisma.transaction.count({ where: { account: { userId: USER } } })).toBe(3);
 
-    expect(r.removed).toBe(0);
-    const parent = await prisma.transaction.findFirst({ where: { account: { userId: USER }, providerRef: 'sp-1' } });
-    expect(parent).not.toBeNull();
-    expect(parent!.isSplitParent).toBe(true);
+    // The feed drops it (re-posted under a new id, or canceled): dissolve.
+    accountsPayload = { accounts: [checking([])] };
+    const r = await syncFromSimplefin(USER, TODAY);
+    expect(r.removed).toBe(1); // the feed-owned parent; children are collateral
+    expect(await prisma.transaction.count({ where: { account: { userId: USER } } })).toBe(0);
+    // The original intent, restated on the new contract: NO dangling children.
+    expect(
+      await prisma.transaction.count({
+        where: { account: { userId: USER }, splitParentId: { not: null } },
+      }),
+    ).toBe(0);
   });
 
   it('NEVER deletes a manual (null-providerRef) row, even on an emptied account', async () => {

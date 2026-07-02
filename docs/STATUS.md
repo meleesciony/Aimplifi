@@ -1396,3 +1396,44 @@ BOTH sessions race the SSI window AND retries interleave identically (bounded, s
 dedupe pass); Correction rows on a bank-canceled charge keep their dead transactionId (append-only audit
 tolerates dead refs; the transplant re-points the live cases); SimpleFIN children of a DISSOLVED split
 lose child-level corrections' target rows (charge no longer exists at that shape — audit rows retained).
+
+## 2026-07-02 — Checker CYCLE 3 (wf_55f3cc23, 20 agents over the cycle-2 fix commit): 16 raw → 16 CONFIRMED, 1 refuted → ALL FIXED (DECISIONS #147)
+The confirmation pass did its job twice over: it found the cycle-2 invariant claimed more than it
+covered, and empirically proved a gate gap by stripping the fix and watching the suite stay green.
+Deduped defects and their fixes:
+- **P0 SimpleFIN new-id churn** (2 findings): stale pending split parents were IMMORTAL (reconcile
+  excluded them in BOTH passes; children shielded by providerRef not-null) → the re-posted charge
+  double-counted PERMANENTLY. FIXED: reconcile dissolves stale/aged pending split parents WITH
+  children, read-in-tx, both passes. Locks: sf_new_id_churn + aged_out_split (fail-old proven).
+- **P1 silent dissolve** (3): dissolve inherited the pipeline verdict → a user rule auto-filed the
+  drifted charge, no triage card (checker probed it mechanically). FIXED: needsReview:true +
+  confidenceBps:null forced at all 3 sites; the rule still supplies the SUGGESTION. Locks ×2 providers.
+- **P1 sixth writer** (2): applyCategory (singles fileRow + recategorize 'one') was four bare
+  statements. FIXED: one serializableTx, fresh in-tx reads, shared mint. makeRuleFromCorrection too.
+- **P1 stale-rule-wins** (1): unconditional rule to a DIFFERENT category was never retired; the
+  stable-sort tie-break let the OLD rule drive every future ingest (probed). FIXED: supersede in
+  ensureUnconditionalRule; all four mint surfaces share it. Lock: stale_rule_wins_recategorize.
+- **P1 gate** (1): NO lock pinned the serializableTx wiring (sed-strip stayed green). FIXED:
+  serializable-wiring.test.ts — spy over the four triage actions + provider source pin.
+- **P2s**: cascade read in-tx; P2025 → skip-deleted-row (was: whole SimpleFIN pass-2 abort);
+  rule.create vs rule.reuse audit honesty; ledger counts corrected in place.
+Residuals accepted (rationale): applyToAllSimilar keeps its old shape — no UI caller imports it
+(verified by the checker); a retired rule is not resurrected by undo (re-mint is one tap); SimpleFIN
+new-id churn LOSES the split decision by design (no id link — heuristic matching rejected, would
+misfile real money; the fresh row lands in review when the pipeline is unsure, or files under the
+user's own rule).
+Fail-old proof (stash-run): exactly the 9 new locks red on pre-fix code, green on fixed.
+
+### 2026-07-02 (late) — transactions:191 register-write-in e2e: 3-point A/B → ENVIRONMENTAL
+During the cycle-3 gate, `register write-in: create a category inside the picker and refile (#136)`
+failed reproducibly (isolated ×2): recat-once clicked, chip never flips within 20s, NO server error.
+Discriminators run: (1) NEW unit lock drives the EXACT server path (createCustomCategory →
+recategorize scope:'one' → custom id on a manual merchantless row) through the REAL actions → GREEN
+(custom-category-lifecycle.test.ts); (2) sibling e2e :145 (same chip→picker→recat-once component,
+same action, system category) → GREEN 7.0s same run; (3) **3-point A/B, fresh `next build` each:
+HEAD=FAIL, bbda775 (cycle-2)=FAIL, e51d6fe (PRE-cycle-2, old recategorize/applyCategory)=FAIL.**
+The failure predates every categorization change in the unpushed stack; the spec was green in prior
+sessions. Same class as yesterday's a11y 3-point A/B (day-long machine degradation, unrebooted since
+Jun 30): the action response/revalidation apply stalls, UI never re-renders. The write-in+refile
+combination does TWO server actions back-to-back — the heaviest single-row flow — which is why it
+trips before its siblings. Cure = reboot; re-witness gated on the standing owner NEXT.

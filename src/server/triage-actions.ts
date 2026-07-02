@@ -33,29 +33,50 @@ async function ownedTransaction(userId: string, transactionId: string) {
 
 /**
  * Reuse-or-mint the UNCONDITIONAL priority-100 merchant→category rule inside the
- * caller's transaction. The dedupe matches only rules with ALL FIVE condition
- * columns empty (cycle-2 P2: "reusing" an amount-banded/account-scoped variant
- * would break the group card's "every future X files automatically" promise for
- * out-of-band rows — conditions are ANDed by ruleMatches). Shared by
- * fileMerchantGroup and recategorize so the two rule-minting surfaces can never
- * drift (cycle-2 gate gap: recategorize minted unconditionally, so repeat
- * recategorizes stacked duplicate equal-priority rules with an unspecified
- * tie-break in the pipeline's stable sort).
+ * caller's transaction — the ONE mint used by ALL FOUR rule-creating surfaces
+ * (fileMerchantGroup, recategorize, applyCategory's "Always", and
+ * makeRuleFromCorrection), so they can never drift (cycle-3: two of the four
+ * still minted raw creates and kept stacking duplicates).
+ *
+ * Semantics — "this merchant now files to C":
+ * 1. SUPERSEDE (cycle-3 P1): an unconditional rule for the SAME merchant to a
+ *    DIFFERENT category contradicts the user's newest decision, and the
+ *    equal-priority tie-break (insertion order via the pipeline's stable sort)
+ *    made the STALE rule win every future ingest. Retire it here. Undo of the
+ *    new correction removes the new rule but cannot resurrect a retired one —
+ *    accepted (STATUS cycle-3): re-minting is one tap; a silent wrong-category
+ *    auto-file is not.
+ * 2. DEDUPE on ALL FIVE condition columns empty (cycle-2 P2): "reusing" an
+ *    amount-banded/account-scoped variant would break the card's "every future X
+ *    files automatically" promise for out-of-band rows — conditions are ANDed by
+ *    ruleMatches. Conditional rules are also never superseded: they encode a
+ *    narrower intent this mint does not speak for.
  */
 async function ensureUnconditionalRule(
   tx: Prisma.TransactionClient,
   args: { userId: string; merchantId: string; categoryId: string; createdFrom: string | null },
 ): Promise<{ ruleId: string; minted: boolean }> {
+  const unconditional = {
+    minAmountCents: null,
+    maxAmountCents: null,
+    weekendOnly: null,
+    weekdayOnly: null,
+    accountId: null,
+  };
+  await tx.categorizationRule.deleteMany({
+    where: {
+      userId: args.userId,
+      merchantId: args.merchantId,
+      categoryId: { not: args.categoryId },
+      ...unconditional,
+    },
+  });
   const existing = await tx.categorizationRule.findFirst({
     where: {
       userId: args.userId,
       merchantId: args.merchantId,
       categoryId: args.categoryId,
-      minAmountCents: null,
-      maxAmountCents: null,
-      weekendOnly: null,
-      weekdayOnly: null,
-      accountId: null,
+      ...unconditional,
     },
   });
   if (existing) return { ruleId: existing.id, minted: false };
@@ -87,74 +108,101 @@ export async function applyCategory(input: {
   const userId = await requireUserId();
   await ensureCategories(); // new subcategory ids need a Category row (FK) (#65)
   await assertOwnedCategory(userId, input.categoryId); // system id or a custom this user owns (#111)
-  const txn = await ownedTransaction(userId, input.transactionId);
+  await ownedTransaction(userId, input.transactionId); // fast ownership fail (pre-tx UX check)
 
-  const correction = await prisma.correction.create({
-    data: {
-      userId,
-      transactionId: txn.id,
-      fromCategoryId: txn.categoryId,
-      toCategoryId: input.categoryId,
-    },
-  });
-
-  let ruleId: string | null = null;
-  if (input.always && txn.merchantId) {
-    assertRuleEligible(txn.rawDescriptor);
-    const rule = await prisma.categorizationRule.create({
+  // ONE serializable transaction with FRESH in-tx reads (cycle-3 P1): this is the
+  // highest-traffic single-row writer, and it was a fully unguarded check-then-act —
+  // four separate statements recording fromCategoryId from an OUTSIDE read, so a
+  // sync/group-file committing in the window minted a correction whose undo
+  // reverted the OTHER writer; a crash mid-sequence persisted a correction for a
+  // category never applied (audit ≠ state). Same discipline as the other guard
+  // sites (DECISIONS #146/#147).
+  const { correction, ruleId, minted, merchantId } = await serializableTx(async (tx) => {
+    const fresh = await tx.transaction.findFirst({
+      where: { id: input.transactionId, account: { userId } },
+    });
+    if (!fresh) throw new Error('Transaction not found');
+    const created = await tx.correction.create({
       data: {
         userId,
-        merchantId: txn.merchantId,
-        categoryId: input.categoryId,
-        priority: 100,
-        createdFrom: correction.id,
+        transactionId: fresh.id,
+        fromCategoryId: fresh.categoryId,
+        toCategoryId: input.categoryId,
       },
     });
-    ruleId = rule.id;
-    await prisma.correction.update({
-      where: { id: correction.id },
-      data: { becameRuleId: rule.id },
+    let createdRuleId: string | null = null;
+    let ruleMinted = false;
+    if (input.always && fresh.merchantId) {
+      assertRuleEligible(fresh.rawDescriptor);
+      const r = await ensureUnconditionalRule(tx, {
+        userId,
+        merchantId: fresh.merchantId,
+        categoryId: input.categoryId,
+        createdFrom: created.id,
+      });
+      createdRuleId = r.ruleId;
+      ruleMinted = r.minted;
+      if (r.minted) {
+        await tx.correction.update({ where: { id: created.id }, data: { becameRuleId: r.ruleId } });
+      }
+    }
+    await tx.transaction.update({
+      where: { id: fresh.id },
+      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
     });
-    await auditLog(userId, 'rule.create', { ruleId, merchantId: txn.merchantId, categoryId: input.categoryId });
-  }
+    // Ground truth for the accuracy metric (DECISIONS #37): the user just confirmed
+    // the real category for this transaction's prediction.
+    await tx.categoryPrediction.updateMany({
+      where: { transactionId: fresh.id, userId },
+      data: { actualCategoryId: input.categoryId },
+    });
+    return { correction: created, ruleId: createdRuleId, minted: ruleMinted, merchantId: fresh.merchantId };
+  });
 
-  await prisma.transaction.update({
-    where: { id: txn.id },
-    data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
-  });
-  // Ground truth for the accuracy metric (DECISIONS #37): the user just confirmed
-  // the real category for this transaction's prediction.
-  await prisma.categoryPrediction.updateMany({
-    where: { transactionId: txn.id, userId },
-    data: { actualCategoryId: input.categoryId },
-  });
+  if (ruleId) {
+    // Provenance-honest audit (cycle-3 P2): 'rule.create' only for a rule that was
+    // actually minted here; a reused rule logs 'rule.reuse'.
+    await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', { ruleId, merchantId, categoryId: input.categoryId });
+  }
 
   revalidatePath('/triage');
   revalidatePath('/transactions');
   return { correctionIds: [correction.id], ruleId, affected: 1 };
 }
 
-/** Create a durable rule from an already-recorded correction (one-tap "Always"). */
+/** Create a durable rule from an already-recorded correction (one-tap "Always").
+ *  Routed through the SHARED mint inside a serializable tx (cycle-3 P2: this
+ *  surface still raw-created — two "Always" answers on different rows of one
+ *  merchant stacked exact duplicate priority-100 rules). */
 export async function makeRuleFromCorrection(correctionId: string): Promise<{ ruleId: string | null }> {
   const userId = await requireUserId();
-  const correction = await prisma.correction.findFirst({ where: { id: correctionId, userId } });
-  if (!correction) throw new Error('Correction not found');
-  if (correction.becameRuleId) return { ruleId: correction.becameRuleId };
-  const txn = await ownedTransaction(userId, correction.transactionId);
-  if (!txn.merchantId) return { ruleId: null };
-  assertRuleEligible(txn.rawDescriptor);
-  const rule = await prisma.categorizationRule.create({
-    data: {
+  const { ruleId, minted, merchantId, categoryId } = await serializableTx(async (tx) => {
+    const correction = await tx.correction.findFirst({ where: { id: correctionId, userId } });
+    if (!correction) throw new Error('Correction not found');
+    if (correction.becameRuleId) {
+      return { ruleId: correction.becameRuleId, minted: false, merchantId: null, categoryId: null };
+    }
+    const txn = await tx.transaction.findFirst({
+      where: { id: correction.transactionId, account: { userId } },
+    });
+    if (!txn) throw new Error('Transaction not found');
+    if (!txn.merchantId) return { ruleId: null, minted: false, merchantId: null, categoryId: null };
+    assertRuleEligible(txn.rawDescriptor);
+    const r = await ensureUnconditionalRule(tx, {
       userId,
       merchantId: txn.merchantId,
       categoryId: correction.toCategoryId,
-      priority: 100,
       createdFrom: correction.id,
-    },
+    });
+    if (r.minted) {
+      await tx.correction.update({ where: { id: correction.id }, data: { becameRuleId: r.ruleId } });
+    }
+    return { ruleId: r.ruleId, minted: r.minted, merchantId: txn.merchantId, categoryId: correction.toCategoryId };
   });
-  await prisma.correction.update({ where: { id: correction.id }, data: { becameRuleId: rule.id } });
-  await auditLog(userId, 'rule.create', { ruleId: rule.id, merchantId: txn.merchantId, categoryId: correction.toCategoryId });
-  return { ruleId: rule.id };
+  if (ruleId && merchantId) {
+    await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', { ruleId, merchantId, categoryId });
+  }
+  return { ruleId };
 }
 
 /**
@@ -246,7 +294,7 @@ export async function fileMerchantGroup(input: {
   // DETECTED conflict → P2034 → serializableTx re-runs against fresh state, so
   // the raced case converges to the clean zero-target return with NOTHING
   // committed (DECISIONS #146).
-  const { correctionIds, ruleId, affected } = await serializableTx(async (tx) => {
+  const { correctionIds, ruleId, minted, affected } = await serializableTx(async (tx) => {
     const targets = await tx.transaction.findMany({
       // SAME scope + SAME spending-account/currency filter the group card was
       // built from (groupKey ↔ similarTransactionsWhere, DECISIONS #23; checker:
@@ -265,7 +313,7 @@ export async function fileMerchantGroup(input: {
       },
     });
     if (targets.length === 0) {
-      return { correctionIds: [] as string[], ruleId: null as string | null, affected: 0 };
+      return { correctionIds: [] as string[], ruleId: null as string | null, minted: false, affected: 0 };
     }
 
     const ids: string[] = [];
@@ -276,6 +324,7 @@ export async function fileMerchantGroup(input: {
       ids.push(c.id);
     }
     let createdRuleId: string | null = null;
+    let mintedRule = false;
     if (ruleEligible) {
       // Dedupe: an identical live UNCONDITIONAL rule is reused, never duplicated
       // (checker: duplicate equal-priority rules survive undo; cycle-2: a
@@ -287,6 +336,7 @@ export async function fileMerchantGroup(input: {
         createdFrom: ids[0],
       });
       createdRuleId = rid;
+      mintedRule = minted;
       if (minted) {
         await tx.correction.update({ where: { id: ids[0] }, data: { becameRuleId: rid } });
       }
@@ -300,7 +350,7 @@ export async function fileMerchantGroup(input: {
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
       data: { actualCategoryId: input.categoryId },
     });
-    return { correctionIds: ids, ruleId: createdRuleId, affected: updated.count };
+    return { correctionIds: ids, ruleId: createdRuleId, minted: mintedRule, affected: updated.count };
   });
   if (affected === 0) return { correctionIds: [], ruleId: null, affected: 0 };
   await auditLog(userId, 'group.file', {
@@ -310,7 +360,8 @@ export async function fileMerchantGroup(input: {
     ruleId,
   });
   if (ruleId) {
-    await auditLog(userId, 'rule.create', { ruleId, merchantId: txn.merchantId, categoryId: input.categoryId });
+    // Provenance-honest audit (cycle-3 P2): a reused rule never logs 'rule.create'.
+    await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', { ruleId, merchantId: txn.merchantId, categoryId: input.categoryId });
   }
 
   revalidatePath('/triage');
@@ -354,7 +405,7 @@ export async function recategorize(input: {
   // and the rule mint deduped through the same helper as fileMerchantGroup
   // (cycle-2 gate gap: this path minted unconditionally — every repeat
   // recategorize stacked another equal-priority rule). DECISIONS #146.
-  const { correctionIds, ruleId, affected } = await serializableTx(async (tx) => {
+  const { correctionIds, ruleId, minted, affected } = await serializableTx(async (tx) => {
     const targets = await tx.transaction.findMany({
       where: similarTransactionsWhere(
         userId,
@@ -371,13 +422,13 @@ export async function recategorize(input: {
       ids.push(c.id);
       if (!firstCorrectionId) firstCorrectionId = c.id;
     }
-    const { ruleId: rid, minted } = await ensureUnconditionalRule(tx, {
+    const { ruleId: rid, minted: ruleMinted } = await ensureUnconditionalRule(tx, {
       userId,
       merchantId: txn.merchantId!,
       categoryId: input.categoryId,
       createdFrom: firstCorrectionId,
     });
-    if (minted && firstCorrectionId) {
+    if (ruleMinted && firstCorrectionId) {
       await tx.correction.update({ where: { id: firstCorrectionId }, data: { becameRuleId: rid } });
     }
     await tx.transaction.updateMany({
@@ -388,10 +439,12 @@ export async function recategorize(input: {
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
       data: { actualCategoryId: input.categoryId },
     });
-    return { correctionIds: ids, ruleId: rid, affected: targets.length };
+    return { correctionIds: ids, ruleId: rid, minted: ruleMinted, affected: targets.length };
   });
 
-  await auditLog(userId, 'rule.create', {
+  // Provenance-honest audit (cycle-3 P2): pre-fix this always logged 'rule.create'
+  // even when the dedupe reused an existing rule.
+  await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', {
     ruleId,
     merchantId: txn.merchantId,
     categoryId: input.categoryId,

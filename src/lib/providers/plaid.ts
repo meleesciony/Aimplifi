@@ -384,21 +384,24 @@ export class PlaidProvider implements DataProvider {
             // against fresh state (DECISIONS #146). SQLite: single-writer, unchanged.
             const guardedVerdictRefresh = (id: string) =>
               serializableTx(async (tx) => {
-                const fresh = await tx.transaction.findUniqueOrThrow({
+                const fresh = await tx.transaction.findUnique({
                   where: { id },
                   select: { isSplitParent: true, needsReview: true, amountCents: true },
                 });
+                // Deleted in the window (reconcile / removed[] / a dissolve) —
+                // nothing to refresh; skip rather than throw (cycle-3 P2).
+                if (!fresh) return;
                 if (fresh.isSplitParent && fresh.amountCents !== row.amountCents) {
                   // The bank changed a SPLIT row's amount under the same id (pending
                   // tip/adjustment posting): the children no longer sum to the charge,
-                  // so the split is stale — DISSOLVE it back to one row on the fresh
-                  // pipeline verdict; needsReview routes it to triage, which is the
-                  // "please re-decide" notification. Same invariant as the id-churn
-                  // transplant below (cycle-2 P0 family, DECISIONS #146).
+                  // so the split is stale — DISSOLVE it back to one row and FORCE it
+                  // into review (cycle-3 P1): a destroyed user decision always
+                  // re-decides; even the user's own merchant rule does not extend to
+                  // a charge whose split the bank just broke (DECISIONS #147).
                   await tx.transaction.deleteMany({ where: { splitParentId: id } });
                   await tx.transaction.update({
                     where: { id },
-                    data: { ...data, isSplitParent: false },
+                    data: { ...data, isSplitParent: false, needsReview: true, confidenceBps: null },
                   });
                   return;
                 }
@@ -486,13 +489,20 @@ export class PlaidProvider implements DataProvider {
                       // The bank changed the amount while pending (tip/adjustment): the
                       // split's parts no longer sum to the charge, and inventing an
                       // adjustment part would fabricate a row the user never made. The
-                      // honest move is to DISSOLVE the stale split back into one row that
-                      // takes the fresh pipeline verdict — needsReview routes it to triage,
-                      // which IS the "please re-decide" notification. Corrections still
-                      // follow the charge (audit = state).
+                      // honest move is to DISSOLVE the stale split back into one row
+                      // FORCED into review (cycle-3 P1: a destroyed user decision always
+                      // re-decides — inheriting the pipeline verdict silently auto-filed
+                      // ruled/known merchants, no triage card). Corrections still follow
+                      // the charge (audit = state).
                       await tx.transaction.deleteMany({ where: { splitParentId: predecessor.id } });
                       const replacement = await tx.transaction.create({
-                        data: { accountId, providerRef: row.providerRef, ...data },
+                        data: {
+                          accountId,
+                          providerRef: row.providerRef,
+                          ...data,
+                          needsReview: true,
+                          confidenceBps: null,
+                        },
                       });
                       await tx.correction.updateMany({
                         where: { transactionId: predecessor.id, userId },
@@ -563,19 +573,26 @@ export class PlaidProvider implements DataProvider {
         // deletes nothing here (the predecessor row is already gone). Cascade: a
         // removed SPLIT PARENT takes its children with it — they are portions of a
         // charge that no longer exists, and leaving them counted phantom spending
-        // (cycle-2 P0 family; pre-existing for canceled charges).
+        // (cycle-2 P0 family; pre-existing for canceled charges). The read runs
+        // INSIDE the serializable tx (cycle-3 P2: an outside isSplitParent read
+        // raced by a concurrent split re-orphaned the fresh children — the very
+        // defect this cascade exists to prevent).
         for (let i = 0; i < removedRefs.length; i += 400) {
           const chunk = removedRefs.slice(i, i + 400);
-          const doomed = await prisma.transaction.findMany({
-            where: { providerRef: { in: chunk }, account: { userId } },
-            select: { id: true, isSplitParent: true },
+          removed += await serializableTx(async (tx) => {
+            const doomed = await tx.transaction.findMany({
+              where: { providerRef: { in: chunk }, account: { userId } },
+              select: { id: true, isSplitParent: true },
+            });
+            const parentIds = doomed.filter((d) => d.isSplitParent).map((d) => d.id);
+            if (parentIds.length > 0) {
+              await tx.transaction.deleteMany({ where: { splitParentId: { in: parentIds } } });
+            }
+            const res = await tx.transaction.deleteMany({
+              where: { id: { in: doomed.map((d) => d.id) } },
+            });
+            return res.count;
           });
-          const parentIds = doomed.filter((d) => d.isSplitParent).map((d) => d.id);
-          const [, res] = await prisma.$transaction([
-            prisma.transaction.deleteMany({ where: { splitParentId: { in: parentIds } } }),
-            prisma.transaction.deleteMany({ where: { id: { in: doomed.map((d) => d.id) } } }),
-          ]);
-          removed += res.count;
         }
 
         await prisma.plaidItem.update({ where: { id: item.id }, data: { cursor } });

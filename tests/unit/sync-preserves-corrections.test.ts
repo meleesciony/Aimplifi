@@ -226,6 +226,99 @@ describe('SimpleFIN resync preserves user corrections (real actions, mocked serv
     expect(all[0].needsReview).toBe(true); // triage IS the "please re-decide" notification
   });
 
+  it('test_regression__dissolve_forces_review_despite_rule (cycle-3 P1): a user rule must NOT silently absorb a dissolved split', async () => {
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-8.50', description: RAW, pending: true },
+    ])] };
+    await connectSimplefin(SETUP_TOKEN);
+    const parent = await row();
+    // The user has ALREADY ruled this merchant (the flagship group-file mints one).
+    // Pre-fix the dissolve inherited the pipeline verdict, so the rule auto-filed
+    // the full drifted amount at needsReview:false — the user's multi-category
+    // split evaporated with NO triage card.
+    await prisma.categorizationRule.create({
+      data: { userId: USER, merchantId: parent.merchantId!, categoryId: 'coffee', priority: 100 },
+    });
+    await prisma.transaction.update({
+      where: { id: parent.id },
+      data: { isSplitParent: true, categoryId: null, needsReview: false, confidenceBps: null },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        { id: `sf-rule-a-${process.pid}`, accountId: parent.accountId, date: parent.date, amountCents: -300, rawDescriptor: parent.rawDescriptor, merchantId: parent.merchantId, categoryId: 'coffee', confidenceBps: 9900, status: 'PENDING', needsReview: false, splitParentId: parent.id },
+        { id: `sf-rule-b-${process.pid}`, accountId: parent.accountId, date: parent.date, amountCents: -550, rawDescriptor: parent.rawDescriptor, merchantId: parent.merchantId, categoryId: 'groceries', confidenceBps: 9900, status: 'PENDING', needsReview: false, splitParentId: parent.id },
+      ],
+    });
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: epoch(2026, 6, 8), amount: '-12.00', description: RAW },
+    ])] };
+    await syncFromSimplefin(USER, TODAY);
+
+    const all = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    expect(all).toHaveLength(1);
+    expect(all[0].needsReview).toBe(true); // FORCED review — a destroyed decision re-decides
+    expect(all[0].confidenceBps).toBeNull(); // the rule's certainty does not extend here
+    expect(all[0].categoryId).toBe('coffee'); // the rule still supplies the SUGGESTION
+  });
+
+  it('test_regression__sf_new_id_churn_dissolves_stale_split (cycle-3 P0): a pending split re-posted under a NEW id counts ONCE', async () => {
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-8.50', description: RAW, pending: true },
+    ])] };
+    await connectSimplefin(SETUP_TOKEN);
+    const parent = await row();
+    await prisma.transaction.update({
+      where: { id: parent.id },
+      data: { isSplitParent: true, categoryId: null, needsReview: false, confidenceBps: null },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        { id: `sf-churn-a-${process.pid}`, accountId: parent.accountId, date: parent.date, amountCents: -300, rawDescriptor: parent.rawDescriptor, merchantId: parent.merchantId, categoryId: 'coffee', confidenceBps: 9900, status: 'PENDING', needsReview: false, splitParentId: parent.id },
+        { id: `sf-churn-b-${process.pid}`, accountId: parent.accountId, date: parent.date, amountCents: -550, rawDescriptor: parent.rawDescriptor, merchantId: parent.merchantId, categoryId: 'groceries', confidenceBps: 9900, status: 'PENDING', needsReview: false, splitParentId: parent.id },
+      ],
+    });
+    // The bank drops t1 and re-posts the SAME charge under t2 — SimpleFIN has no
+    // pending→posted id link, so the split cannot follow. Pre-fix the stale split
+    // was IMMORTAL (reconcile skipped split parents; children shielded by
+    // providerRef not-null): children (−8.50) + the new t2 row (−8.50) BOTH
+    // counted — the charge double-counted in every projection, permanently.
+    accountsPayload = { accounts: [checking([
+      { id: 't2', posted: epoch(2026, 6, 8), amount: '-8.50', description: RAW },
+    ])] };
+    await syncFromSimplefin(USER, TODAY);
+
+    const all = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    expect(all).toHaveLength(1); // stale split (parent + children) swept
+    expect(all[0].providerRef).toBe('t2');
+    expect(all[0].status).toBe('POSTED');
+    const countable = all.filter((t) => !t.isSplitParent);
+    expect(countable.reduce((s, t) => s + t.amountCents, 0)).toBe(-850); // ONCE
+  });
+
+  it('test_regression__aged_out_split_dissolves (cycle-3 P0): a >32d-old pending split is swept WITH its children', async () => {
+    accountsPayload = { accounts: [checking([
+      { id: 't1', posted: 0, transacted_at: epoch(2026, 4, 20), amount: '-8.50', description: RAW, pending: true },
+    ])] };
+    await connectSimplefin(SETUP_TOKEN);
+    const parent = await row();
+    await prisma.transaction.update({
+      where: { id: parent.id },
+      data: { isSplitParent: true, categoryId: null, needsReview: false, confidenceBps: null },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        { id: `sf-age-a-${process.pid}`, accountId: parent.accountId, date: parent.date, amountCents: -300, rawDescriptor: parent.rawDescriptor, merchantId: parent.merchantId, categoryId: 'coffee', confidenceBps: 9900, status: 'PENDING', needsReview: false, splitParentId: parent.id },
+        { id: `sf-age-b-${process.pid}`, accountId: parent.accountId, date: parent.date, amountCents: -550, rawDescriptor: parent.rawDescriptor, merchantId: parent.merchantId, categoryId: 'groceries', confidenceBps: 9900, status: 'PENDING', needsReview: false, splitParentId: parent.id },
+      ],
+    });
+    // Next sync: the feed no longer mentions the ancient pending (age > 32d floor).
+    // Pre-fix the age-out pass also skipped split parents → phantom spending forever.
+    accountsPayload = { accounts: [checking([])] };
+    await syncFromSimplefin(USER, TODAY);
+
+    expect(await prisma.transaction.count({ where: { account: { userId: USER } } })).toBe(0);
+  });
+
   it('an UNTOUCHED row still takes the fresh pipeline verdict on resync (guard is correction-scoped)', async () => {
     accountsPayload = { accounts: [checking([
       { id: 't1', posted: 0, transacted_at: epoch(2026, 6, 8), amount: '-8.50', description: RAW, pending: true },
@@ -456,6 +549,37 @@ describe('Plaid resync preserves user corrections (real provider, mocked server)
     expect(all[0].isSplitParent).toBe(false);
     expect(all[0].amountCents).toBe(-1000);
     expect(all[0].needsReview).toBe(true); // triage IS the "please re-decide" notification
+  });
+
+  it('test_regression__transplant_dissolve_forces_review_despite_rule (cycle-3 P1): the churn dissolve must not auto-file under a user rule', async () => {
+    syncPages = [{ accounts: [acct], added: [plaidTxn()], modified: [], removed: [], next_cursor: 'cur-1', has_more: false }];
+    await new PlaidProvider().syncTransactions(USER);
+    const parent = await row();
+    // Rule exists (the flagship group-file mints one) — pre-fix the dissolve's
+    // replacement row inherited the pipeline verdict, so it auto-filed at 9900
+    // with needsReview:false and the user's split evaporated silently.
+    await prisma.categorizationRule.create({
+      data: { userId: USER, merchantId: parent.merchantId!, categoryId: 'coffee', priority: 100 },
+    });
+    await splitCurrentRow([
+      { id: `pl-rule-a-${process.pid}`, amountCents: -300, categoryId: 'coffee' },
+      { id: `pl-rule-b-${process.pid}`, amountCents: -550, categoryId: 'groceries' },
+    ]);
+    syncPages = [{
+      accounts: [acct],
+      added: [plaidTxn({ transaction_id: 'ptx-2', amount: 10.0, pending: false, pending_transaction_id: 'ptx-1' })],
+      modified: [],
+      removed: [{ transaction_id: 'ptx-1' }],
+      next_cursor: 'cur-2',
+      has_more: false,
+    }];
+    await new PlaidProvider().syncTransactions(USER);
+
+    const all = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    expect(all).toHaveLength(1);
+    expect(all[0].needsReview).toBe(true); // FORCED review — a destroyed decision re-decides
+    expect(all[0].confidenceBps).toBeNull();
+    expect(all[0].categoryId).toBe('coffee'); // the rule still supplies the SUGGESTION
   });
 
   it('test_regression__removed_cascades_split_children (cycle-2 P0 family): a canceled split charge takes its children with it', async () => {

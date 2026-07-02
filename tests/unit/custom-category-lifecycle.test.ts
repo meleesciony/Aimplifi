@@ -25,7 +25,7 @@ import {
   deleteCustomCategory,
 } from '@/server/custom-category-actions';
 import { setBudget } from '@/server/budget-actions';
-import { splitTransaction } from '@/server/triage-actions';
+import { recategorize, splitTransaction } from '@/server/triage-actions';
 import { getVisibleCategories } from '@/server/categories';
 import { getCategoryMeta, getCustomCategories } from '@/server/category-meta';
 import { categoryName, CATEGORIES } from '@/lib/engine/categorize/categories';
@@ -91,6 +91,23 @@ describe('custom category lifecycle (real actions, throwaway data — DECISIONS 
     expect(a.ok).toBe(true);
     const b = await createCustomCategory({ name: `CASE-${stamp}`, group: GROUP, discretionary: true });
     expect(b.ok).toBe(false);
+  });
+
+  it('register write-in refile: recategorize scope:one files a manual row under a just-created CUSTOM category (the #136 register path, cycle-3 gate)', async () => {
+    // The exact server path behind the register write-in e2e (transactions.spec
+    // :191): merchantless manual row → createCustomCategory → recategorize
+    // scope 'one' (delegates to applyCategory) with the custom id.
+    const txn = await prisma.transaction.create({
+      data: { accountId, date: '2026-06-03', amountCents: -1111, rawDescriptor: 'E2E REGISTER WRITE-IN UNIT', categoryId: 'dining', needsReview: false, confidenceBps: 9900 },
+    });
+    const created = await createCustomCategory({ name: 'Padel Unit', group: GROUP, discretionary: true });
+    expect(created.ok).toBe(true);
+    const res = await recategorize({ transactionId: txn.id, categoryId: created.id!, scope: 'one' });
+    expect(res.affected).toBe(1);
+    expect(res.correctionIds).toHaveLength(1);
+    const after = await prisma.transaction.findUniqueOrThrow({ where: { id: txn.id } });
+    expect(after.categoryId).toBe(created.id);
+    expect(after.needsReview).toBe(false);
   });
 
   it('splitTransaction rejects a part with an unowned category (critic F1)', async () => {
