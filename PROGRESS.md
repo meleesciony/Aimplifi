@@ -1749,4 +1749,50 @@ e2e; malformed-field-type non-throwing test; and SEWAGE_AND_WASTE_MANAGEMENT →
 own normalizer + the "Water & Sewer" leaf). No schema change. Gate (real 2026-07-03): `bash scripts/verify.sh` → ✅
 VERIFY GREEN — typecheck/lint/build clean, **1656 unit / 125 files** (+27 vs the #154 baseline). Golden byte-identical
 (demo/CSV/SimpleFIN never set the hint); the live Plaid path stays dormant/UNVERIFIED (STATUS #12/#155). DECISIONS
-#155 + STATUS 2026-07-03 + PLAID_WALKTHROUGH updated. Committed below; NOT pushed (push = prod deploy — owner's call).
+#155 + STATUS 2026-07-03 + PLAID_WALKTHROUGH updated. Committed `5a110c5`.
+
+**DEPLOYED ✅ (owner: "push"):** `git push origin main` → `81c1dcb..5a110c5`. origin was at `81c1dcb` (#153), so this
+push also shipped the two previously-unpushed #154 commits (household-utility split `f2b991a` + category-vocab tier
+`5b2cd99`) to production ALONGSIDE #155. Deploy VERIFIED READY — the Vercel commit-status check for `5a110c5` =
+**success** (queried via GitHub's commit-status API with the stored git credential; no Vercel MCP this session),
+corroborated by www.aimplifi.app/sign-in → HTTP 200 + HSTS (`max-age=63072000; includeSubDomains`). #154 + #155 are
+LIVE. (This deploy-record line is a local-only doc commit, intentionally UNPUSHED to avoid a redundant identical
+rebuild — push it with the next functional change.)
+
+## HANDOFF (resume after /clear) — 2026-07-03, session "aimplifi"
+**Resume from `C:\dev\Aimplifi`** (the OneDrive copy + stale `C:\dev\Pulse Finance` are abandoned — CLAUDE.md).
+**Clean stopping point. Safe to /clear.** #155 (Plaid PFC passthrough) is DONE, verify-green, adversarially
+checker'd (0 P0/P1), and LIVE in production.
+
+**Exact repo state:** working tree CLEAN. `origin/main` = **`5a110c5`** (#155 + the two prior #154 commits — all
+LIVE, deploy verified success + 200 + HSTS). Local `main` = **`7ce82f7`**, i.e. 1 commit ahead of origin — ONLY the
+local-only deploy-record doc commit, intentionally unpushed (push it with the next functional change to avoid a
+redundant identical rebuild). Nothing half-done; no schema change pending.
+
+**Health baseline (re-confirm before any change, don't trust this line):** `bash scripts/verify.sh` → ✅ VERIFY
+GREEN, **1656 unit / 125 files**, typecheck/lint/build clean. E2E is opt-in (`VERIFY_E2E=1`).
+
+**Ledger map for #155:** DECISIONS #155; STATUS "2026-07-03 … Plaid PFC passthrough"; PLAID_WALKTHROUGH.md "tested"
+list + §5 spot-check note; the DONE entry just above. Design in one line: Plaid's per-txn `personal_finance_category`
+→ pure `mapPlaidPersonalFinanceCategory` (plaid-map.ts) → generic `TxnInput.providerCategoryHint` consulted ONLY in
+the needsReview fallback of `categorize()` (pipeline.ts, `isUsableProviderHint`) — rescue-only, sign-guarded (#44),
+never a `transfer` (F4), never overrides rule/transfer/confident-merchant/aggregate; golden-safe (#22).
+
+**BACKLOG (go straight in — all "only change if markedly better", owner-gated on scope):**
+- STATUS residual 20 — SimpleFIN holding-level currency (declared gap).
+- #134 companion carve-out removal (optional; ~8-golden churn, not demo-reachable — was declined as out-of-scope).
+- Shared `<CategoryPicker>` full extraction — the #153 DEFERRED half (register e2e verification is reboot-gated; see
+  standing items). `filterCategoryOptions` is already the shared engine.
+- General "match & surpass" backlog per docs/ROADMAP.md (owner-selected).
+
+**STANDING OWNER-ONLY ITEMS (I can't do these; not blocking new work):**
+1. REBOOT the box (unrebooted since ~Jun 30) → then a full `VERIFY_E2E=1 bash scripts/verify.sh` re-witness. The
+   environmental "disabled-pending"/action-apply e2e stall (3-point A/B-proven, code-independent — STATUS #16) is the
+   only thing gating a clean full-suite e2e; unit + core verify are green and fast.
+2. #155 live-sandbox spot-check: on your next real Plaid sandbox run (PLAID_WALKTHROUGH §5), confirm live
+   transactions carry `personal_finance_category` in the `{primary, detailed, confidence_level}` shape the mapper
+   expects. Rows without it just fall through to the normal review path — no downside, so this is verify-not-fix.
+
+**Push discipline:** commit to `main` after every green verify; a PUSH = a prod deploy (Vercel, team reiforge /
+project aimplifi, aliases aimplifi.app + www) — the owner's explicit call. Verify a deploy via GitHub's commit-status
+API for the SHA (Vercel check = success) + a live 200/HSTS curl (no Vercel MCP this session).
