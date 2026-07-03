@@ -1714,3 +1714,15 @@ risks the auth boundary and deserves its own careful increment; flagged for the 
 Gate (real, measured 2026-07-03): `bash scripts/verify.sh` → ✅ VERIFY GREEN — typecheck/lint clean,
 **1666 unit / 125 files** (no unit delta — UI chrome is e2e-locked per the #145/#156 precedent), build
 clean. E2E `not-found.spec.ts` **2/2 GREEN** (authed 404+recovery 2.7s; unauth→sign-in boundary 336ms).
+
+**DEPLOYED ✅ (owner: "push it")** — `git push origin main` → `2046fd5..ed72acf` (origin was at #156;
+now 0 ahead/0 behind on the functional commit). Deploy VERIFIED: Vercel commit-status for `ed72acf` =
+**success** ("Deployment has completed", deployment `EPSeh5KcqMHvaTc16EWodXxbYsoB`, team reiforge /
+project aimplifi; via GitHub's commit-status API with the stored git credential — gh was unauthenticated,
+no Vercel MCP this session). Stronger-than-usual live corroboration: `www.aimplifi.app/sign-in` → HTTP
+200 + HSTS (`max-age=63072000; includeSubDomains`), AND the #157 change itself confirmed serving live —
+`www.aimplifi.app/iconzzz` (an unmatched path that skips the auth matcher via its unanchored icon-prefix)
+→ **HTTP 404** with the branded page in the response body (`data-testid="not-found"`, the "Page not found"
+h1, the "Aim<span>" wordmark, the "Go to dashboard" recovery). #157 is LIVE. This deploy-record doc line
+is committed local-only (intentionally UNPUSHED to avoid a redundant identical rebuild — rides out with
+the next functional change, per the #154/#155 precedent).

@@ -1938,3 +1938,13 @@ a clean full-suite e2e; untouched by #157). (3) BACKLOG (all "only if markedly b
 
 **STANDING OWNER-ONLY:** reboot for the full VERIFY_E2E re-witness (STATUS #16); #155 Plaid + #156
 SimpleFIN live-sandbox spot-checks. SAFE to /clear.
+
+## 2026-07-03 (cont., owner: "push it") — #157 DEPLOYED ✅
+Pushed `2046fd5..ed72acf`; origin/main == local on the functional commit. Vercel commit-status for
+`ed72acf` = success (deployment EPSeh5KcqMHvaTc16EWodXxbYsoB, "Deployment has completed"; via GitHub's
+commit-status API + the stored git credential, gh unauthenticated). Live-verified beyond the usual
+200/HSTS: `/sign-in` → 200 + HSTS, and `/iconzzz` (unmatched, skips auth via the unanchored icon-prefix)
+→ HTTP 404 rendering the branded not-found page LIVE (not-found testid, "Page not found" h1, wordmark,
+"Go to dashboard"). #157 is LIVE. This deploy-record doc commit is local-only (UNPUSHED to avoid a
+redundant rebuild; ships with the next functional change). Local main is now 1 ahead of origin (this doc
+commit only). SAFE to /clear.
