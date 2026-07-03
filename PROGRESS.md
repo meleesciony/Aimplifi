@@ -1679,3 +1679,36 @@ Checker (single reviewer): 0 P0/P1/P2 — regex exact, no downstream "/" breakag
 math confirmed. Gate (real 2026-07-02): verify GREEN **1570 / 124** (+7). Committed + pushed (deploy) below.
 
 **Remaining backlog this session:** shared CategoryPicker/SR-listbox (last item).
+
+### Category picker SR-listbox parity (#153) — DONE ✅ (verify green, axe-verified)
+The safe half of the "shared CategoryPicker" follow-up: brought the triage picker to the register's
+already-proven `role="listbox"`/`role="option"`/`aria-selected` semantics (a screen-reader gap #137 deferred).
+Surgical — ARIA attributes only, no behavior change; axe-clean (the triage search input is OUTSIDE the listbox,
+cleaner than the register's). DEFERRED the full `<CategoryPicker>` component extraction with rationale: the two
+pickers have divergent filing behaviors (triage create-then-file vs register once/always confirm #121), so it's
+a large parameterized refactor of two just-stabilized 5-cycle-checkered files for low user value, AND the
+register e2e that would verify it is blocked by the environmental action-apply stall (reboot-gated).
+`filterCategoryOptions` is already the shared engine. Gate: verify GREEN 1570/124; axe test phase2-triage:109
+(picker open with the new role=listbox) GREEN; :50 gesture/undo GREEN 4/5 (the 1 fail = documented triage-undo
+disabled-pending stall at line 105, OUTSIDE the diff — proven a flake by 3 consecutive with-change passes +
+a pre-change pass, stash-rebuild A/B). Committed + pushed (deploy) below.
+
+## 2026-07-02 (session close) — "DO ALL RECOMMENDED INCLUDING PUSHING" COMPLETE ✅
+All four backlog items shipped, each engine-first → verify → checker → commit → **pushed + deploy-verified**:
+| commit | item | deploy |
+|---|---|---|
+| e4f5f50 | #149 currency disclosure → 5 more surfaces (residual 23 CLOSED) + the whole prior 18-commit stack | Vercel ✓ 8P12WGY… |
+| 7f0155b | #150 inline currency-exclusion note on /coach + /reports (residual 25 CLOSED) | Vercel ✓ DiUQZ5nn… |
+| 563ad6a | #151 loan payments folded into /forecast (#134 de-dup, Option D) | Vercel ✓ Ex7dj2My… |
+| 789455d | #152 shared ticker validator (BRK/B, BTC/USD) + SimpleFIN epoch UTC-day convention (#127 tail) | Vercel ✓ 6hq5odVQ… |
+| (this)  | #153 category-picker SR-listbox parity | pushed below |
+Also took the entire previously-unpushed 18-commit stack (categorization rebuild + 5 checker cycles + #145) to
+production on the first push. `reviewPinned` applied via the build's `prisma db push`. origin/main advanced
+551ac97→(this). Every functional change is verify-green + adversarially-checked (0 P0/P1) + deploy-verified via
+GitHub's commit-status API (no Vercel MCP this session; corroborated by aimplifi.app 200 + HSTS).
+
+**STANDING OWNER ITEMS (I cannot do these):** (1) REBOOT the box (unrebooted since Jun 30) → then a full
+`VERIFY_E2E=1 bash scripts/verify.sh` re-witness — the environmental disabled-pending/action-apply stall
+(3-point-A/B-proven, code-independent) is the only thing gating a clean full-suite e2e. (2) After reboot, the
+full shared-CategoryPicker extraction becomes verifiable (register e2e) if desired (#153 deferred half).
+Backlog now: STATUS residual 20 (SimpleFIN holding-level currency), #134 companion carve-out (optional). SAFE to /clear.

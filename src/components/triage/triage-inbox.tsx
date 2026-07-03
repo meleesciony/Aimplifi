@@ -502,7 +502,15 @@ export function TriageInbox({
             disabled={pending}
             className="w-full rounded-md border bg-background px-2 py-1 text-sm"
           />
-          <div data-testid="triage-all-categories" className="max-h-56 overflow-auto rounded-md border p-1">
+          {/* role=listbox/option + aria-selected — SR parity with the register's category menu
+              (transaction-list.tsx; the shared-CategoryPicker follow-up). The search input sits
+              OUTSIDE this container, so the listbox holds only options + group labels. */}
+          <div
+            data-testid="triage-all-categories"
+            role="listbox"
+            aria-label="All categories"
+            className="max-h-56 overflow-auto rounded-md border p-1"
+          >
             {filterCategoryOptions(categoryGroups, catQuery).map((g) => (
               <div key={g.group}>
                 <div className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -512,6 +520,8 @@ export function TriageInbox({
                   <button
                     key={c.id}
                     type="button"
+                    role="option"
+                    aria-selected={c.id === suggestedCategoryId}
                     data-testid="triage-cat-option"
                     data-cat={c.id}
                     disabled={pending}
