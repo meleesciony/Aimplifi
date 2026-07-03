@@ -3,15 +3,19 @@ import {
   type PlaidAccount,
   type PlaidCreditLiability,
   type PlaidTransaction,
+  PFC_DETAILED_TO_CATEGORY,
+  PFC_PRIMARY_TO_CATEGORY,
   mapPlaidAccount,
   mapPlaidAccountType,
   mapPlaidLiabilityToStatement,
+  mapPlaidPersonalFinanceCategory,
   pickPlaidAprBps,
   plaidAmountToCents,
   plaidDollarsToPositiveCents,
   plaidSignedDollarsToCents,
   prepareIngestedTransaction,
 } from '@/lib/providers/plaid-map';
+import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
 import type { CardSnapshot, CashNeededInput } from '@/lib/engine/cash-needed/types';
 import { cents } from '@/lib/money';
@@ -451,5 +455,235 @@ describe('pickPlaidAprBps — APR percent → basis points (audit #126-followup)
     expect(
       pickPlaidAprBps({ aprs: [{ apr_type: 'special', apr_percentage: 0, balance_subject_to_apr: null, interest_charge_amount: null }] }),
     ).toBeNull(); // a lone 0% promo is not a usable carrying rate
+  });
+});
+
+describe('mapPlaidPersonalFinanceCategory — Plaid PFC → Pulse hint (DECISIONS #155)', () => {
+  it('maps a DETAILED leaf to the specific category, confidence → bps', () => {
+    expect(
+      mapPlaidPersonalFinanceCategory({
+        primary: 'FOOD_AND_DRINK',
+        detailed: 'FOOD_AND_DRINK_GROCERIES',
+        confidence_level: 'VERY_HIGH',
+      }),
+    ).toEqual({ categoryId: 'groceries', confidenceBps: 8800 });
+    expect(
+      mapPlaidPersonalFinanceCategory({
+        primary: 'TRANSPORTATION',
+        detailed: 'TRANSPORTATION_GAS',
+        confidence_level: 'HIGH',
+      }),
+    ).toEqual({ categoryId: 'fuel', confidenceBps: 8000 });
+  });
+
+  it('falls back to the PRIMARY when the detailed leaf is missing/unmapped', () => {
+    expect(
+      mapPlaidPersonalFinanceCategory({ primary: 'FOOD_AND_DRINK', detailed: null, confidence_level: 'MEDIUM' }),
+    ).toEqual({ categoryId: 'dining', confidenceBps: 7200 });
+    // A future/unknown detailed leaf still falls back to its primary bucket.
+    expect(
+      mapPlaidPersonalFinanceCategory({
+        primary: 'MEDICAL',
+        detailed: 'MEDICAL_SOME_NEW_LEAF',
+        confidence_level: 'HIGH',
+      }),
+    ).toEqual({ categoryId: 'health', confidenceBps: 8000 });
+  });
+
+  it('returns null for a LOW / UNKNOWN / absent / unrecognized confidence (Plaid unsure)', () => {
+    for (const confidence_level of ['LOW', 'UNKNOWN', 'GARBAGE', '', null, undefined]) {
+      expect(
+        mapPlaidPersonalFinanceCategory({
+          primary: 'FOOD_AND_DRINK',
+          detailed: 'FOOD_AND_DRINK_GROCERIES',
+          confidence_level,
+        }),
+      ).toBeNull();
+    }
+  });
+
+  it('NEVER infers a transfer — every transfer taxonomy value maps to null (critic F4)', () => {
+    expect(
+      mapPlaidPersonalFinanceCategory({
+        primary: 'TRANSFER_OUT',
+        detailed: 'TRANSFER_OUT_ACCOUNT_TRANSFER',
+        confidence_level: 'VERY_HIGH',
+      }),
+    ).toBeNull();
+    expect(
+      mapPlaidPersonalFinanceCategory({ primary: 'TRANSFER_IN', detailed: null, confidence_level: 'VERY_HIGH' }),
+    ).toBeNull();
+    expect(
+      mapPlaidPersonalFinanceCategory({
+        primary: 'TRANSFER_OUT',
+        detailed: 'TRANSFER_OUT_WITHDRAWAL',
+        confidence_level: 'VERY_HIGH',
+      }),
+    ).toBeNull();
+  });
+
+  it('an over-broad primary (GENERAL_SERVICES) is null, but its specific children map', () => {
+    expect(
+      mapPlaidPersonalFinanceCategory({ primary: 'GENERAL_SERVICES', detailed: null, confidence_level: 'VERY_HIGH' }),
+    ).toBeNull();
+    expect(
+      mapPlaidPersonalFinanceCategory({
+        primary: 'GENERAL_SERVICES',
+        detailed: 'GENERAL_SERVICES_INSURANCE',
+        confidence_level: 'HIGH',
+      }),
+    ).toEqual({ categoryId: 'insurance', confidenceBps: 8000 });
+  });
+
+  it('maps the loan/mortgage/card-payment leaves to their Pulse categories', () => {
+    expect(
+      mapPlaidPersonalFinanceCategory({ primary: 'LOAN_PAYMENTS', detailed: 'LOAN_PAYMENTS_MORTGAGE_PAYMENT', confidence_level: 'HIGH' }),
+    ).toEqual({ categoryId: 'rent', confidenceBps: 8000 });
+    expect(
+      mapPlaidPersonalFinanceCategory({ primary: 'LOAN_PAYMENTS', detailed: 'LOAN_PAYMENTS_CREDIT_CARD_PAYMENT', confidence_level: 'HIGH' }),
+    ).toEqual({ categoryId: 'credit-card-payment', confidenceBps: 8000 });
+  });
+
+  it('tolerates lowercase / padded feed values and a null field', () => {
+    expect(
+      mapPlaidPersonalFinanceCategory({
+        primary: ' food_and_drink ',
+        detailed: ' food_and_drink_coffee ',
+        confidence_level: ' very_high ',
+      }),
+    ).toEqual({ categoryId: 'coffee', confidenceBps: 8800 });
+    expect(mapPlaidPersonalFinanceCategory(null)).toBeNull();
+    expect(mapPlaidPersonalFinanceCategory(undefined)).toBeNull();
+  });
+
+  // Invariant 5, permanently locked: EVERY target in both maps must be a real Pulse
+  // category and NEVER `transfer` (spend-erasure) or `uncategorized` (that is review).
+  // A future typo would otherwise silently disable that leaf's rescue with a green suite.
+  it('every PFC map target is a real, non-transfer, non-uncategorized Pulse category', () => {
+    const targets = [
+      ...Object.values(PFC_DETAILED_TO_CATEGORY),
+      ...Object.values(PFC_PRIMARY_TO_CATEGORY),
+    ];
+    expect(targets.length).toBeGreaterThan(80); // the maps are populated, not accidentally emptied
+    for (const id of targets) {
+      expect(CATEGORY_BY_ID.has(id), `PFC target "${id}" must exist in CATEGORIES`).toBe(true);
+      expect(id).not.toBe('transfer'); // a hint must never infer a transfer (critic F4)
+      expect(id).not.toBe('uncategorized');
+    }
+  });
+
+  // Invariant 6: the non-throwing contract rests on the typeof guards — a malformed
+  // FIELD TYPE (Plaid feed drift) must degrade to null, never throw and abort a sync.
+  it('never throws on a malformed field type — degrades to null', () => {
+    const malformed = [
+      { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_GROCERIES', confidence_level: 5 },
+      { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_GROCERIES', confidence_level: { x: 1 } },
+      { primary: 123, detailed: {}, confidence_level: 'VERY_HIGH' },
+      {},
+    ] as unknown as PlaidTransaction['personal_finance_category'][];
+    for (const pfc of malformed) {
+      expect(() => mapPlaidPersonalFinanceCategory(pfc)).not.toThrow();
+      expect(mapPlaidPersonalFinanceCategory(pfc)).toBeNull();
+    }
+  });
+});
+
+describe('prepareIngestedTransaction + PFC passthrough (end-to-end, DECISIONS #155)', () => {
+  const base = { transaction_id: 'pfc-1', account_id: 'p1', pending: false };
+
+  it('rescues an UNKNOWN merchant from review with a confident PFC', () => {
+    const noPfc: PlaidTransaction = { ...base, date: '2026-06-08', amount: 42.0, name: 'ACME WIDGETS LLC' };
+    const before = prepareIngestedTransaction(noPfc, 'acct-checking');
+    expect(before.categoryId).toBe('uncategorized');
+    expect(before.needsReview).toBe(true);
+
+    const withPfc: PlaidTransaction = {
+      ...noPfc,
+      personal_finance_category: {
+        primary: 'GENERAL_MERCHANDISE',
+        detailed: 'GENERAL_MERCHANDISE_ONLINE_MARKETPLACES',
+        confidence_level: 'VERY_HIGH',
+      },
+    };
+    const after = prepareIngestedTransaction(withPfc, 'acct-checking');
+    expect(after.categoryId).toBe('shopping');
+    expect(after.confidenceBps).toBe(8800);
+    expect(after.needsReview).toBe(false);
+    expect(after.isTransfer).toBe(false);
+  });
+
+  it('does NOT override a KNOWN merchant even with a confident, disagreeing PFC', () => {
+    const txn: PlaidTransaction = {
+      ...base,
+      date: '2026-06-08',
+      amount: 5.75,
+      name: 'STARBUCKS STORE 123 ATLANTA',
+      personal_finance_category: {
+        primary: 'GENERAL_MERCHANDISE',
+        detailed: 'GENERAL_MERCHANDISE_SUPERSTORES',
+        confidence_level: 'VERY_HIGH',
+      },
+    };
+    expect(prepareIngestedTransaction(txn, 'acct-checking').categoryId).toBe('dining');
+  });
+
+  it('a LOW-confidence PFC does not rescue (stays in review)', () => {
+    const txn: PlaidTransaction = {
+      ...base,
+      date: '2026-06-08',
+      amount: 42.0,
+      name: 'ACME WIDGETS LLC',
+      personal_finance_category: { primary: 'GENERAL_MERCHANDISE', detailed: 'GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE', confidence_level: 'LOW' },
+    };
+    const row = prepareIngestedTransaction(txn, 'acct-checking');
+    expect(row.categoryId).toBe('uncategorized');
+    expect(row.needsReview).toBe(true);
+  });
+
+  it('sign guard: a spend PFC on a refund (inflow) is ignored', () => {
+    const refund: PlaidTransaction = {
+      ...base,
+      date: '2026-06-08',
+      amount: -42.0, // Plaid inflow negative → a positive (credit) in Pulse
+      name: 'ACME WIDGETS LLC',
+      personal_finance_category: { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_RESTAURANT', confidence_level: 'VERY_HIGH' },
+    };
+    const row = prepareIngestedTransaction(refund, 'acct-checking');
+    expect(row.amountCents).toBe(4200); // inflow
+    expect(row.categoryId).toBe('uncategorized'); // not booked as dining spend
+    expect(row.needsReview).toBe(true);
+  });
+
+  it('sign guard (positive path): an INCOME PFC on an inflow files to an Income category', () => {
+    // The full mapper→pipeline income path (the counterpart to the refund-rejection above):
+    // an unknown payroll descriptor + a confident INCOME_WAGES PFC on a Plaid inflow.
+    const payroll: PlaidTransaction = {
+      ...base,
+      date: '2026-06-05',
+      amount: -3000.0, // Plaid inflow negative → +$3,000 in Pulse
+      // A descriptor our normalizer does NOT recognize (no PAYROLL/DIRECT-DEP keyword),
+      // so it would go to review — the PFC income hint is what rescues it.
+      name: 'ACME WIDGETS LLC',
+      personal_finance_category: { primary: 'INCOME', detailed: 'INCOME_WAGES', confidence_level: 'VERY_HIGH' },
+    };
+    const row = prepareIngestedTransaction(payroll, 'acct-checking');
+    expect(row.amountCents).toBe(300000);
+    expect(row.categoryId).toBe('paycheck');
+    expect(CATEGORY_BY_ID.get(row.categoryId)?.group).toBe('Income');
+    expect(row.needsReview).toBe(false);
+    expect(row.isTransfer).toBe(false);
+  });
+
+  it('a transfer descriptor stays a transfer regardless of the PFC', () => {
+    const txn: PlaidTransaction = {
+      ...base,
+      date: '2026-06-06',
+      amount: 500.0,
+      name: 'ONLINE TRANSFER TO SAVINGS',
+      personal_finance_category: { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_RESTAURANT', confidence_level: 'VERY_HIGH' },
+    };
+    const row = prepareIngestedTransaction(txn, 'acct-checking');
+    expect(row.isTransfer).toBe(true);
+    expect(row.categoryId).toBe('transfer');
   });
 });

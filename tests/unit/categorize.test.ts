@@ -219,3 +219,165 @@ describe('transfer detection (Phase 2 acceptance #7)', () => {
     expect(cardPayments.length).toBeGreaterThan(0);
   });
 });
+
+describe('provider category hint — Plaid PFC passthrough (DECISIONS #155)', () => {
+  // A confident, sign-appropriate hint mapped to our taxonomy. The pipeline treats it
+  // as opaque; the Plaid→Pulse mapping itself is tested in plaid-map.test.ts.
+  const diningHint = { categoryId: 'dining', confidenceBps: 8800 };
+
+  it('rescues an UNKNOWN merchant from review using the hint (auto-filed, AI badge)', () => {
+    const bare = categorize(txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: -4200 }));
+    // Without a hint this is an unknown merchant → review.
+    expect(bare.needsReview).toBe(true);
+    expect(bare.categoryId).toBe('uncategorized');
+
+    const rescued = categorize(
+      txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: -4200, providerCategoryHint: diningHint }),
+    );
+    expect(rescued.categoryId).toBe('dining');
+    expect(rescued.confidenceBps).toBe(8800);
+    expect(rescued.needsReview).toBe(false);
+    expect(rescued.aiBadge).toBe(true); // below AUTO_SILENT → visible, correctable guess
+    expect(rescued.source).toBe('provider-category');
+  });
+
+  it('does NOT override a CONFIDENT merchant match', () => {
+    // Starbucks is a known merchant (dining, ≥ AUTO_FLAGGED). A disagreeing hint is ignored.
+    const shoppingHint = { categoryId: 'shopping', confidenceBps: 8800 };
+    const r = categorize(
+      txn({ rawDescriptor: 'STARBUCKS STORE 123', amountCents: -575, providerCategoryHint: shoppingHint }),
+    );
+    expect(r.categoryId).toBe('dining');
+    expect(r.source).toBe('merchant-default');
+  });
+
+  it('does NOT override a user rule', () => {
+    const rule: RuleLike[] = [
+      {
+        id: 'r-widget',
+        merchantCanonical: 'Acme Widgets Llc',
+        minAmountCents: null,
+        maxAmountCents: null,
+        weekendOnly: null,
+        weekdayOnly: null,
+        accountId: null,
+        categoryId: 'household',
+        priority: 100,
+      },
+    ];
+    const r = categorize(
+      txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: -4200, providerCategoryHint: diningHint }),
+      rule,
+    );
+    expect(r.categoryId).toBe('household');
+    expect(r.source).toBe('user-rule');
+  });
+
+  it('does NOT override a transfer', () => {
+    const r = categorize(
+      txn({ rawDescriptor: 'ONLINE TRANSFER TO SAVINGS', amountCents: -50000, providerCategoryHint: diningHint }),
+    );
+    expect(r.categoryId).toBe('transfer');
+    expect(r.source).toBe('transfer');
+  });
+
+  it('does NOT rescue a deliberate AGGREGATE (Zelle / Venmo / Check) — they stay in review', () => {
+    for (const rawDescriptor of ['ZELLE PAYMENT TO JOHN', 'VENMO PAYMENT 123', 'CHECK # 4021']) {
+      const r = categorize(txn({ rawDescriptor, amountCents: -4200, providerCategoryHint: diningHint }));
+      expect(r.categoryId).toBe('uncategorized');
+      expect(r.needsReview).toBe(true);
+      expect(r.source).not.toBe('provider-category');
+    }
+  });
+
+  it('a $0 amount is never rescued (sign guard has no matching branch)', () => {
+    const incomeHint = { categoryId: 'paycheck', confidenceBps: 8000 };
+    for (const providerCategoryHint of [diningHint, incomeHint]) {
+      const r = categorize(txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: 0, providerCategoryHint }));
+      expect(r.categoryId).toBe('uncategorized');
+      expect(r.needsReview).toBe(true);
+      expect(r.source).not.toBe('provider-category');
+    }
+  });
+
+  it('a hint does NOT rescue an amount-banded-ambiguous row (user intent outranks the hint)', () => {
+    // The user's amount-banded rule matches this merchant/context but the amount falls
+    // outside the band → the user declared this ambiguous → review. A confident hint
+    // must NOT override that (the amount-band branch returns before the hint tier).
+    const bandedRule: RuleLike[] = [
+      {
+        id: 'r-banded',
+        merchantCanonical: 'Acme Widgets Llc',
+        minAmountCents: 100,
+        maxAmountCents: 200,
+        weekendOnly: null,
+        weekdayOnly: null,
+        accountId: null,
+        categoryId: 'household',
+        priority: 100,
+      },
+    ];
+    const r = categorize(
+      txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: -4200, providerCategoryHint: diningHint }),
+      bandedRule,
+    );
+    expect(r.categoryId).toBe('uncategorized');
+    expect(r.needsReview).toBe(true);
+    expect(r.source).not.toBe('provider-category');
+  });
+
+  it('sign guard (#44): a spend hint on an INFLOW is ignored (not booked as spend)', () => {
+    const r = categorize(
+      txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: 4200, providerCategoryHint: diningHint }),
+    );
+    expect(r.categoryId).toBe('uncategorized');
+    expect(r.needsReview).toBe(true);
+  });
+
+  it('sign guard (#44): an INCOME hint on an inflow IS applied; on an outflow is ignored', () => {
+    const incomeHint = { categoryId: 'paycheck', confidenceBps: 8000 };
+    const inflow = categorize(
+      txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: 4200, providerCategoryHint: incomeHint }),
+    );
+    expect(inflow.categoryId).toBe('paycheck');
+    expect(inflow.source).toBe('provider-category');
+
+    const outflow = categorize(
+      txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: -4200, providerCategoryHint: incomeHint }),
+    );
+    expect(outflow.categoryId).toBe('uncategorized'); // an outflow is never booked as income
+    expect(outflow.needsReview).toBe(true);
+  });
+
+  it('ignores a hint below the auto-file threshold, or with a transfer / bogus / uncategorized id', () => {
+    const below = categorize(
+      txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: -4200, providerCategoryHint: { categoryId: 'dining', confidenceBps: AUTO_FLAGGED_BPS - 1 } }),
+    );
+    expect(below.needsReview).toBe(true);
+    for (const bad of ['transfer', 'uncategorized', 'not-a-real-category']) {
+      const r = categorize(
+        txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: -4200, providerCategoryHint: { categoryId: bad, confidenceBps: 8800 } }),
+      );
+      expect(r.categoryId).toBe('uncategorized');
+      expect(r.needsReview).toBe(true);
+    }
+  });
+
+  it('no hint → behaviour is byte-identical to today (unknown → review)', () => {
+    const withUndef = categorize(txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: -4200, providerCategoryHint: null }));
+    const without = categorize(txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: -4200 }));
+    expect(withUndef).toEqual(without);
+    expect(without.source).toBe('fallback');
+  });
+
+  it('AUTO_SILENT boundary: a hint ≥ AUTO_SILENT would auto-file without the AI badge', () => {
+    // Documents the pipeline contract; the Plaid mapper caps confidence < AUTO_SILENT
+    // so in practice a PFC hint always carries the badge.
+    const r = categorize(
+      txn({ rawDescriptor: 'ACME WIDGETS LLC', amountCents: -4200, providerCategoryHint: { categoryId: 'dining', confidenceBps: AUTO_SILENT_BPS } }),
+    );
+    expect(r.source).toBe('provider-category');
+    expect(r.aiBadge).toBe(false);
+    expect(r.needsReview).toBe(false);
+  });
+});

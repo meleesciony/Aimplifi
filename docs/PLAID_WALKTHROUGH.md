@@ -10,12 +10,19 @@ the webhook receiver **with ES256 `Plaid-Verification` JWT verification**, and
 
 What is **tested** (pure, no network): every Plaid→Pulse mapping in
 `src/lib/providers/plaid-map.ts` — sign flip, signed-balance conversion,
-account-type mapping, liability→statement, per-row categorization
-(`tests/unit/plaid-map.test.ts`); the webhook JWT verifier with an injected key
+account-type mapping, liability→statement, per-row categorization, and the
+`personal_finance_category` passthrough (DECISIONS #155 — Plaid's own per-txn
+category is mapped to our taxonomy and used ONLY to rescue an otherwise-review row;
+never overrides a rule/transfer/confident-merchant/aggregate, is sign-guarded, and
+never infers a `transfer`) (`tests/unit/plaid-map.test.ts`,
+`tests/unit/categorize.test.ts`); the webhook JWT verifier with an injected key
 resolver (`tests/unit/plaid-webhook.test.ts`); and the Plaid error-envelope
 formatter (`tests/unit/plaid-errors.test.ts`). What is **UNVERIFIED**: all
 network orchestration in `plaid.ts` has never run against a live Plaid sandbox
-(no credentials in the build env) — §5 flips that for the paths it exercises.
+(no credentials in the build env) — §5 flips that for the paths it exercises. When
+you run §5, spot-check that live transactions carry `personal_finance_category`
+with the `{primary, detailed, confidence_level}` shape the mapper expects (older
+items may omit it — the row then simply falls through to our own review path).
 
 **Hardening applied (this pass):** signed `balances.current` (overpaid card /
 overdrawn account no longer inverts net worth); Link initializes `transactions`

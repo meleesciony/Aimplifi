@@ -1586,3 +1586,35 @@ remains, though the banner now surfaces that assumption at the top of both pages
 **State:** working tree has the #149 change (7 files: 5 pages + 2 views + the spec) — committed below. Local main
 was HEAD `d6d87f3` (18 unpushed); this adds one more functional commit. Production unaffected until the owner
 pushes (the whole categorization stack + #149 ship together on the next push — owner's call).
+
+## 2026-07-03 (session "aimplifi") — Plaid PFC passthrough (#155) — DONE ✅ (verify green, hostile Checker 0 P0/P1)
+
+Wired Plaid's per-transaction `personal_finance_category` (ingested but previously ignored) into the shared
+categorizer as a DETERMINISTIC rescue signal — see DECISIONS #155 for the full design. Highlights / honest limits:
+
+- **Rescue-only, never override.** The hint fills in ONLY a row our own normalization would send to review; a user
+  rule, a transfer, a confident merchant match, an amount-banded ambiguity, and a deliberate aggregate
+  (Zelle/Venmo/Check) all win over it. Confidence is capped in `[7000, 9000)` so a PFC-filed row auto-files with the
+  visible AI badge — a correctable guess, never silent.
+- **Transfer-safe (critic F4).** The mapper NEVER emits `transfer`: every Plaid TRANSFER_IN/OUT taxonomy value → no
+  hint, and the pipeline re-guards non-transfer. Spend can't be silently erased by a Plaid guess.
+- **Sign-guarded (#44).** Inflow → an Income-group category only; outflow → never income; `$0` → never rescued.
+- **Golden-safe (#22).** demo / CSV / SimpleFIN / seed never set the hint → `categorize()` byte-identical, zero
+  golden movement. **The live Plaid network path remains dormant + UNVERIFIED** (no sandbox creds here, consistent
+  with STATUS #12) — the PFC LOGIC is fully unit-tested (categorize.test.ts + plaid-map.test.ts, +27 tests incl. a
+  map-integrity guard over all ~102 targets), but whether real Plaid rows carry the field / confidence we expect
+  needs the owner's live sandbox run (docs/PLAID_WALKTHROUGH.md §5).
+
+Hostile Checker (wf_677df90e-922; 6 dimension reviewers — golden-safety / transfer-safety / sign-guard /
+rescue-ordering / taxonomy / robustness — + 2 adversarial verifiers per finding; 8 agents / 745k tokens / 130 tool
+calls): **0 P0/P1**. The lone P1 candidate ("the 102-entry map is under-tested") was refuted to P2 by BOTH
+verifiers (every target independently re-confirmed to exist and be non-transfer; the taxonomy/sign invariants are
+enforced at runtime). 6 P2 hardening fixes applied pre-commit: the map-integrity guard test; `$0`-amount,
+amount-band-ordering, and Venmo/Check aggregate tests; an income-inflow success e2e; a malformed-field-type
+non-throwing test; and a SEWAGE_AND_WASTE_MANAGEMENT → `water` remap (matches our own normalizer's SEWER/SEWAGE →
+water and the "Water & Sewer" leaf name). Accepted P2 (documented): GENERAL_SERVICES_POSTAGE_AND_SHIPPING → `business`
+is KEPT — it matches our own normalize.ts (FEDEX/UPS STORE/USPS → business), not a defect.
+
+Gate (real, measured 2026-07-03): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — typecheck/lint clean,
+**1656 unit / 125 files** (+27), build clean. E2E: not applicable (the Plaid path is dormant — no e2e surface;
+demo/seed are byte-identical, so the existing suite is unperturbed). No schema change.

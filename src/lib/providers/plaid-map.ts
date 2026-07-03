@@ -343,6 +343,198 @@ export interface PlaidTransaction {
   name: string; // raw descriptor
   merchant_name?: string | null;
   pending: boolean;
+  /**
+   * Plaid's own ML categorization. OPTIONAL: older items / some pending rows omit it,
+   * and Plaid may report a LOW/UNKNOWN confidence — all of which
+   * `mapPlaidPersonalFinanceCategory` folds to "no hint". `primary` is the top-level
+   * bucket (e.g. `FOOD_AND_DRINK`); `detailed` is the specific leaf and INCLUDES the
+   * primary as a prefix (e.g. `FOOD_AND_DRINK_GROCERIES`).
+   */
+  personal_finance_category?: {
+    primary?: string | null;
+    detailed?: string | null;
+    confidence_level?: string | null; // VERY_HIGH | HIGH | MEDIUM | LOW | UNKNOWN
+  } | null;
+}
+
+// Plaid `personal_finance_category.confidence_level` → a Pulse hint confidence (bps).
+// Only VERY_HIGH/HIGH/MEDIUM produce a hint, and all three land in the
+// [AUTO_FLAGGED_BPS (7000), AUTO_SILENT_BPS (9000)) band — so a PFC-filed row
+// auto-files with the visible "AI" badge, never silently and never below the review
+// threshold. LOW / UNKNOWN / absent → no hint: Plaid is not sure enough to beat our
+// own review path, so the row falls through unchanged.
+const PFC_CONFIDENCE_BPS: Readonly<Record<string, number>> = {
+  VERY_HIGH: 8800,
+  HIGH: 8000,
+  MEDIUM: 7200,
+};
+
+// Plaid PFC `detailed` (the specific leaf) → Pulse category id. First choice; the
+// primary map below is the fallback. Entries are OMITTED (→ no hint) wherever there
+// is no safe single Pulse target — most importantly EVERY transfer leaf, because
+// mislabeling real spend as a transfer silently erases it from spend (critic F4);
+// the tested transfer-detection path owns that decision, not Plaid's guess.
+// Exported ONLY so a test can iterate every target and lock the invariant that each
+// is a real, non-transfer Pulse category (plaid-map.test.ts) — not part of the API.
+export const PFC_DETAILED_TO_CATEGORY: Readonly<Record<string, string>> = {
+  // INCOME
+  INCOME_DIVIDENDS: 'investment-income',
+  INCOME_INTEREST_EARNED: 'interest-income',
+  INCOME_RETIREMENT_PENSION: 'income',
+  INCOME_TAX_REFUND: 'tax-refund',
+  INCOME_UNEMPLOYMENT: 'govt-benefits',
+  INCOME_WAGES: 'paycheck',
+  INCOME_OTHER_INCOME: 'income',
+  // LOAN_PAYMENTS (a mortgage payment files to the "Rent & Mortgage" leaf)
+  LOAN_PAYMENTS_CAR_PAYMENT: 'auto-loan',
+  LOAN_PAYMENTS_CREDIT_CARD_PAYMENT: 'credit-card-payment',
+  LOAN_PAYMENTS_PERSONAL_LOAN_PAYMENT: 'loan-payment',
+  LOAN_PAYMENTS_MORTGAGE_PAYMENT: 'rent',
+  LOAN_PAYMENTS_STUDENT_LOAN_PAYMENT: 'loan-payment',
+  LOAN_PAYMENTS_OTHER_PAYMENT: 'loan-payment',
+  // BANK_FEES
+  BANK_FEES_ATM_FEES: 'fees',
+  BANK_FEES_FOREIGN_TRANSACTION_FEES: 'fees',
+  BANK_FEES_INSUFFICIENT_FUNDS: 'fees',
+  BANK_FEES_INTEREST_CHARGE: 'fees-interest',
+  BANK_FEES_OVERDRAFT_FEES: 'fees',
+  BANK_FEES_OTHER_BANK_FEES: 'fees',
+  // ENTERTAINMENT
+  ENTERTAINMENT_CASINOS_AND_GAMBLING: 'entertainment',
+  ENTERTAINMENT_MUSIC_AND_AUDIO: 'music',
+  ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS: 'events',
+  ENTERTAINMENT_TV_AND_MOVIES: 'entertainment',
+  ENTERTAINMENT_VIDEO_GAMES: 'games',
+  ENTERTAINMENT_OTHER_ENTERTAINMENT: 'entertainment',
+  // FOOD_AND_DRINK
+  FOOD_AND_DRINK_BEER_WINE_AND_LIQUOR: 'alcohol',
+  FOOD_AND_DRINK_COFFEE: 'coffee',
+  FOOD_AND_DRINK_FAST_FOOD: 'fast-food',
+  FOOD_AND_DRINK_GROCERIES: 'groceries',
+  FOOD_AND_DRINK_RESTAURANT: 'dining',
+  FOOD_AND_DRINK_VENDING_MACHINES: 'dining',
+  FOOD_AND_DRINK_OTHER_FOOD_AND_DRINK: 'dining',
+  // GENERAL_MERCHANDISE
+  GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS: 'books',
+  GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES: 'clothing',
+  GENERAL_MERCHANDISE_CONVENIENCE_STORES: 'shopping',
+  GENERAL_MERCHANDISE_DEPARTMENT_STORES: 'shopping',
+  GENERAL_MERCHANDISE_DISCOUNT_STORES: 'shopping',
+  GENERAL_MERCHANDISE_ELECTRONICS: 'electronics',
+  GENERAL_MERCHANDISE_GIFTS_AND_NOVELTIES: 'gifts',
+  GENERAL_MERCHANDISE_OFFICE_SUPPLIES: 'office-supplies',
+  GENERAL_MERCHANDISE_ONLINE_MARKETPLACES: 'shopping',
+  GENERAL_MERCHANDISE_PET_SUPPLIES: 'pets',
+  GENERAL_MERCHANDISE_SPORTING_GOODS: 'hobbies',
+  GENERAL_MERCHANDISE_SUPERSTORES: 'shopping',
+  GENERAL_MERCHANDISE_TOBACCO_AND_VAPE: 'shopping',
+  GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE: 'shopping',
+  // HOME_IMPROVEMENT
+  HOME_IMPROVEMENT_FURNITURE: 'furnishings',
+  HOME_IMPROVEMENT_HARDWARE: 'home-improvement',
+  HOME_IMPROVEMENT_REPAIR_AND_MAINTENANCE: 'home-services',
+  HOME_IMPROVEMENT_SECURITY: 'home-services',
+  HOME_IMPROVEMENT_OTHER_HOME_IMPROVEMENT: 'home-improvement',
+  // MEDICAL
+  MEDICAL_DENTAL_CARE: 'dental',
+  MEDICAL_EYE_CARE: 'vision',
+  MEDICAL_NURSING_CARE: 'health',
+  MEDICAL_PHARMACIES_AND_SUPPLEMENTS: 'pharmacy',
+  MEDICAL_PRIMARY_CARE: 'health',
+  MEDICAL_VETERINARY_SERVICES: 'pets',
+  MEDICAL_OTHER_MEDICAL: 'health',
+  // PERSONAL_CARE
+  PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS: 'fitness',
+  PERSONAL_CARE_HAIR_AND_BEAUTY: 'personal-care',
+  PERSONAL_CARE_LAUNDRY_AND_DRY_CLEANING: 'personal-care',
+  PERSONAL_CARE_OTHER_PERSONAL_CARE: 'personal-care',
+  // GENERAL_SERVICES — only the specific children (the primary is too broad → no hint)
+  GENERAL_SERVICES_ACCOUNTING_AND_FINANCIAL_PLANNING: 'financial',
+  GENERAL_SERVICES_AUTOMOTIVE: 'auto-maintenance',
+  GENERAL_SERVICES_CHILDCARE: 'childcare',
+  GENERAL_SERVICES_CONSULTING_AND_LEGAL: 'legal',
+  GENERAL_SERVICES_EDUCATION: 'education',
+  GENERAL_SERVICES_INSURANCE: 'insurance',
+  GENERAL_SERVICES_POSTAGE_AND_SHIPPING: 'business',
+  GENERAL_SERVICES_STORAGE: 'storage',
+  // GOVERNMENT_AND_NON_PROFIT — only the unambiguous children (primary → no hint)
+  GOVERNMENT_AND_NON_PROFIT_DONATIONS: 'charity',
+  GOVERNMENT_AND_NON_PROFIT_TAX_PAYMENT: 'taxes',
+  // TRANSPORTATION
+  TRANSPORTATION_BIKES_AND_SCOOTERS: 'transport',
+  TRANSPORTATION_GAS: 'fuel',
+  TRANSPORTATION_PARKING: 'parking',
+  TRANSPORTATION_PUBLIC_TRANSIT: 'public-transit',
+  TRANSPORTATION_TAXIS_AND_RIDE_SHARES: 'transport',
+  TRANSPORTATION_TOLLS: 'parking',
+  TRANSPORTATION_OTHER_TRANSPORTATION: 'transport',
+  // TRAVEL
+  TRAVEL_FLIGHTS: 'air-travel',
+  TRAVEL_LODGING: 'hotel',
+  TRAVEL_RENTAL_CARS: 'rental-car',
+  TRAVEL_OTHER_TRAVEL: 'travel',
+  // RENT_AND_UTILITIES (gas+electric is combined at Plaid → our catch-all `utilities`)
+  RENT_AND_UTILITIES_GAS_AND_ELECTRICITY: 'utilities',
+  RENT_AND_UTILITIES_INTERNET_AND_CABLE: 'internet',
+  RENT_AND_UTILITIES_RENT: 'rent',
+  // Plaid combines sewage + garbage into one leaf; we file it to `water` ("Water &
+  // Sewer") to stay consistent with our own normalizer (SEWER/SEWAGE → water) and the
+  // leaf's leading term. A pure garbage bill lands one leaf off (Trash & Recycling) —
+  // both are non-discretionary Bills & Utilities with identical downstream math, and
+  // the row auto-files with a correctable AI badge (a documented combined-bucket call).
+  RENT_AND_UTILITIES_SEWAGE_AND_WASTE_MANAGEMENT: 'water',
+  RENT_AND_UTILITIES_TELEPHONE: 'phone',
+  RENT_AND_UTILITIES_WATER: 'water',
+  RENT_AND_UTILITIES_OTHER_UTILITIES: 'utilities',
+};
+
+// Plaid PFC `primary` → Pulse category id, the fallback when `detailed` is missing or
+// is a leaf we don't map. DELIBERATELY OMITTED (→ no hint, so the row keeps our own
+// review path): TRANSFER_IN / TRANSFER_OUT (a transfer must never be inferred from
+// Plaid — critic F4), GENERAL_SERVICES (spans finance/legal/auto/childcare — no safe
+// single target), and GOVERNMENT_AND_NON_PROFIT (donations vs taxes vs a DMV fee).
+// Exported for the same invariant-locking test as PFC_DETAILED_TO_CATEGORY.
+export const PFC_PRIMARY_TO_CATEGORY: Readonly<Record<string, string>> = {
+  INCOME: 'income',
+  LOAN_PAYMENTS: 'loan-payment',
+  BANK_FEES: 'fees',
+  ENTERTAINMENT: 'entertainment',
+  FOOD_AND_DRINK: 'dining',
+  GENERAL_MERCHANDISE: 'shopping',
+  HOME_IMPROVEMENT: 'home-improvement',
+  MEDICAL: 'health',
+  PERSONAL_CARE: 'personal-care',
+  TRANSPORTATION: 'transport',
+  TRAVEL: 'travel',
+  RENT_AND_UTILITIES: 'utilities',
+};
+
+/**
+ * Plaid `personal_finance_category` → a Pulse category hint (already in OUR taxonomy),
+ * or null. `detailed` first (most specific), then `primary`. Returns null when Plaid
+ * is not confident enough (LOW / UNKNOWN / absent confidence), when the taxonomy value
+ * is one we deliberately don't map (any transfer, an over-broad service bucket), or
+ * when the field is absent — in every such case the row simply keeps our own review
+ * path, unchanged.
+ *
+ * Pure + unit-tested. The returned category is ALWAYS a real Pulse spend/income
+ * category and NEVER `transfer` (see the maps) — the pipeline additionally re-checks
+ * sign-appropriateness and non-transfer before it ever files a hint (isUsableProviderHint).
+ */
+export function mapPlaidPersonalFinanceCategory(
+  pfc: PlaidTransaction['personal_finance_category'],
+): { categoryId: string; confidenceBps: number } | null {
+  if (!pfc) return null;
+  const confidenceBps =
+    typeof pfc.confidence_level === 'string'
+      ? PFC_CONFIDENCE_BPS[pfc.confidence_level.trim().toUpperCase()]
+      : undefined;
+  if (confidenceBps == null) return null; // LOW / UNKNOWN / unrecognized → Plaid isn't sure enough
+  const detailed = typeof pfc.detailed === 'string' ? pfc.detailed.trim().toUpperCase() : '';
+  const primary = typeof pfc.primary === 'string' ? pfc.primary.trim().toUpperCase() : '';
+  const categoryId = PFC_DETAILED_TO_CATEGORY[detailed] ?? PFC_PRIMARY_TO_CATEGORY[primary];
+  if (!categoryId) return null; // an unmapped (e.g. transfer / over-broad) taxonomy value → no hint
+  return { categoryId, confidenceBps };
 }
 
 export interface IngestedTransaction {
@@ -376,7 +568,17 @@ export function prepareIngestedTransaction(
   const date = isoDate(txn.date);
   const merchant = normalizeMerchant(rawDescriptor);
   const result: CategorizedTxn = categorize(
-    { rawDescriptor, amountCents, date, accountId },
+    {
+      rawDescriptor,
+      amountCents,
+      date,
+      accountId,
+      // Plaid's own ML categorization (personal_finance_category), mapped to our
+      // taxonomy: consulted ONLY to rescue a row our normalization would send to
+      // review — never overriding a rule / transfer / confident merchant match
+      // (DECISIONS #155). null when Plaid isn't confident or the field is absent.
+      providerCategoryHint: mapPlaidPersonalFinanceCategory(txn.personal_finance_category),
+    },
     rules,
   );
   return {

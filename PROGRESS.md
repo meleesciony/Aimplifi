@@ -1712,3 +1712,41 @@ GitHub's commit-status API (no Vercel MCP this session; corroborated by aimplifi
 (3-point-A/B-proven, code-independent) is the only thing gating a clean full-suite e2e. (2) After reboot, the
 full shared-CategoryPicker extraction becomes verifiable (register e2e) if desired (#153 deferred half).
 Backlog now: STATUS residual 20 (SimpleFIN holding-level currency), #134 companion carve-out (optional). SAFE to /clear.
+
+## 2026-07-02 (resumed: "continue and do the Plaid personal_finance_category passthrough we discussed") — #155 Plaid PFC passthrough — IN PROGRESS
+Owner asked to build the previously-discussed Plaid `personal_finance_category` passthrough (not yet in any ledger
+— reconstructed the design from the codebase's established patterns). Baseline re-confirmed independently before any
+change: `bash scripts/verify.sh` → GREEN (1570 unit / 124 files at HEAD 5b2cd99 #154, tree clean).
+
+**Design (engine-first, single-path, golden-safe):** Plaid returns per-txn ML categorization
+(`personal_finance_category` = primary/detailed/confidence_level) that we ingested but IGNORED. Wire it as a
+DETERMINISTIC (no model call — LOOP #5) rescue signal that only fills in rows our own normalization would send to
+review:
+- `plaid-map.ts` — new pure `mapPlaidPersonalFinanceCategory(pfc)` → `{categoryId,confidenceBps}|null`: detailed→specific
+  leaf, primary fallback; confidence-gated (VERY_HIGH 8800 / HIGH 8000 / MEDIUM 7200; LOW/UNKNOWN/absent → null), all in
+  [AUTO_FLAGGED 7000, AUTO_SILENT 9000) so a PFC-filed row auto-files with the visible AI badge, never silent, never
+  below review. **Never maps to `transfer`** (TRANSFER_IN/OUT → null): mislabeling spend as transfer silently erases it
+  (critic F4) — our tested transfer-detection path owns that. Over-broad buckets (GENERAL_SERVICES, GOVT_AND_NON_PROFIT
+  primary) → null; only their specific detailed children map.
+- `pipeline.ts` — generic `TxnInput.providerCategoryHint` (already mapped to OUR taxonomy) consulted ONLY in the
+  needsReview fallback branch, gated: `!merchant.aggregate` (never rescue Zelle/checks) + sign guard (#44, inflow→Income
+  group only, outflow→never income) + hint is a known non-transfer/non-uncategorized system category + confident. New
+  `CategorySource` member `'provider-category'`. User rule / transfer / confident merchant match all still win (they never
+  reach the branch). Absent for demo/CSV/SimpleFIN → categorization byte-identical (DECISIONS #22), zero golden movement;
+  Plaid path is dormant/UNVERIFIED so no seed/e2e data exercises it — unit-tested only.
+
+**Steps:** [x] pipeline.ts hint tier + tests  [x] plaid-map.ts PFC mapper + thread + tests  [x] verify.sh GREEN
+[x] hostile Checker (wf_677df90e-922, 0 P0/P1)  [x] applied 6 P2 hardening fixes + re-verify  [x] DECISIONS #155 +
+STATUS + PLAID_WALKTHROUGH + commit.
+
+### DONE ✅ (verify green, hostile Checker 0 P0/P1)
+Built exactly the design above. Maker green on first verify; then the hostile Checker (6 dimension reviewers + 2
+adversarial verifiers/finding, 8 agents / 745k tokens) returned **0 P0/P1** — the lone P1 candidate (map
+under-tested) was refuted to P2 by both verifiers (all ~102 targets re-confirmed real + non-transfer; invariants
+enforced at runtime). Applied 6 P2 hardening fixes pre-commit: map-integrity guard test (every target exists, none
+`transfer`/`uncategorized`); `$0`-amount + amount-band-ordering + Venmo/Check aggregate tests; income-inflow success
+e2e; malformed-field-type non-throwing test; and SEWAGE_AND_WASTE_MANAGEMENT → `water` remap (consistency with our
+own normalizer + the "Water & Sewer" leaf). No schema change. Gate (real 2026-07-03): `bash scripts/verify.sh` → ✅
+VERIFY GREEN — typecheck/lint/build clean, **1656 unit / 125 files** (+27 vs the #154 baseline). Golden byte-identical
+(demo/CSV/SimpleFIN never set the hint); the live Plaid path stays dormant/UNVERIFIED (STATUS #12/#155). DECISIONS
+#155 + STATUS 2026-07-03 + PLAID_WALKTHROUGH updated. Committed below; NOT pushed (push = prod deploy — owner's call).

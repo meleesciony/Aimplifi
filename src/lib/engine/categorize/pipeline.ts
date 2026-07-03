@@ -12,6 +12,7 @@
  */
 
 import { dayOfWeek, isoDate } from '@/lib/dates';
+import { CATEGORY_BY_ID } from './categories';
 import { normalizeMerchant } from './normalize';
 
 export const AUTO_SILENT_BPS = 9000;
@@ -38,9 +39,51 @@ export interface TxnInput {
   date: string; // YYYY-MM-DD
   accountId: string;
   isTransfer?: boolean;
+  /**
+   * An optional, ALREADY-MAPPED-TO-OUR-TAXONOMY category hint from the ingest
+   * provider — today, Plaid's `personal_finance_category` mapped in plaid-map.ts.
+   * It is consulted ONLY to rescue a row our own normalization would otherwise send
+   * to review: it never overrides a user rule, a transfer, or a confident merchant
+   * match, and never a deliberate aggregate (Zelle/checks). Absent for demo / CSV /
+   * SimpleFIN, so their categorization stays byte-identical (DECISIONS #22 — one
+   * categorize path for every ingest source; this keeps it golden-safe).
+   */
+  providerCategoryHint?: { categoryId: string; confidenceBps: number } | null;
 }
 
-export type CategorySource = 'transfer' | 'user-rule' | 'merchant-default' | 'fallback';
+export type CategorySource =
+  | 'transfer'
+  | 'user-rule'
+  | 'merchant-default'
+  | 'fallback'
+  | 'provider-category';
+
+/**
+ * Is `hint` usable to auto-file a transaction of `amountCents`? A provider hint
+ * only ever RESCUES a row headed for review, so it must clear the same bars the
+ * ingest/backfill auto-file path clears:
+ *  - CONFIDENT enough to auto-file (≥ AUTO_FLAGGED) — a low-confidence hint leaves
+ *    the row in review, exactly as our own low-confidence merchant match would;
+ *  - a REAL, concrete system category — never `transfer` (mislabeling spend as a
+ *    transfer silently erases it — critic F4; our tested transfer detection owns
+ *    that call) and never `uncategorized` (that IS review), and never a bogus id;
+ *  - SIGN-APPROPRIATE (#44): an inflow (positive) may only take an Income-group
+ *    category; an outflow (negative) may never be booked as income. A $0 amount is
+ *    never rescued.
+ */
+function isUsableProviderHint(
+  hint: { categoryId: string; confidenceBps: number },
+  amountCents: number,
+): boolean {
+  if (hint.confidenceBps < AUTO_FLAGGED_BPS) return false;
+  if (hint.categoryId === 'transfer' || hint.categoryId === 'uncategorized') return false;
+  const cat = CATEGORY_BY_ID.get(hint.categoryId);
+  if (!cat) return false; // unknown / garbage id — never file to a category that doesn't exist
+  const isIncome = cat.group === 'Income';
+  if (amountCents > 0) return isIncome;
+  if (amountCents < 0) return !isIncome;
+  return false;
+}
 
 export interface CategorizedTxn {
   merchantCanonical: string;
@@ -129,6 +172,31 @@ export function categorize(txn: TxnInput, rules: readonly RuleLike[] = []): Cate
 
   // Merchant default / generic fallback.
   const needsReview = merchant.confidenceBps < AUTO_FLAGGED_BPS;
+
+  // Provider-category rescue (DECISIONS #155): our own normalization is about to send
+  // this row to review (an unknown / low-confidence merchant). If the ingest provider
+  // (Plaid's personal_finance_category) supplied a confident category for it — already
+  // mapped to our taxonomy — auto-file THAT instead of dumping the row in the triage
+  // pile. Guardrails: only when the merchant is genuinely uncertain (a confident merchant
+  // match never reaches here, so this can only IMPROVE an otherwise-unreviewed row —
+  // never override one); NEVER for a deliberate aggregate (Zelle/checks — one canonical
+  // hides many payees); and only for a sign-appropriate, real, non-transfer category
+  // (isUsableProviderHint). The hint's confidence is capped below AUTO_SILENT upstream,
+  // so it carries the visible "AI" badge — a correctable guess, never a silent one.
+  const hint = txn.providerCategoryHint;
+  if (needsReview && !merchant.aggregate && hint && isUsableProviderHint(hint, txn.amountCents)) {
+    return {
+      merchantCanonical: merchant.canonical,
+      merchantKnown: merchant.known,
+      categoryId: hint.categoryId,
+      confidenceBps: hint.confidenceBps,
+      needsReview: false,
+      aiBadge: hint.confidenceBps < AUTO_SILENT_BPS,
+      source: 'provider-category',
+      matchedRuleId: null,
+    };
+  }
+
   return {
     merchantCanonical: merchant.canonical,
     merchantKnown: merchant.known,
