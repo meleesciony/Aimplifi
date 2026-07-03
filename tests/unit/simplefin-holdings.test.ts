@@ -79,6 +79,15 @@ describe('mapSimplefinHoldings — single-position mapping', () => {
     expect(holdings[0].symbol).toBe('BRK.B');
     expect(holdings[0].priceCents).toBe(40000);
   });
+
+  it('keeps slash share-class + crypto-pair tickers now that the shared rule allows "/" (#127 tail)', () => {
+    const { holdings, skipped } = mapSimplefinHoldings([
+      h({ id: 'h1', symbol: 'BRK/B', shares: '4', market_value: '1600.00' }),
+      h({ id: 'h2', symbol: 'btc/usd', shares: '2', market_value: '120000.00' }),
+    ]);
+    expect(skipped).toBe(0); // both were DROPPED before the "/" widening
+    expect(holdings.map((x) => x.symbol).sort()).toEqual(['BRK/B', 'BTC/USD']);
+  });
 });
 
 describe('mapSimplefinHoldings — un-mappable rows are skipped + counted, never thrown', () => {

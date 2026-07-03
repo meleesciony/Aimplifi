@@ -39,6 +39,15 @@ describe('SimpleFIN amount/balance/date conversion', () => {
     expect(simplefinPostedToDate(1781049600)).toBe('2026-06-10');
     expect(simplefinPostedToDate(1781049600 + 43200)).toBe('2026-06-10'); // noon → same day
   });
+
+  it('pins the UTC day-boundary convention (#127 tail — no tz data, so ±1 day for mid-day feeds is by design)', () => {
+    const midnightUtc = 1781049600; // 2026-06-10 00:00:00 UTC
+    expect(simplefinPostedToDate(midnightUtc)).toBe('2026-06-10'); // exact boundary → that day
+    expect(simplefinPostedToDate(midnightUtc + 86399)).toBe('2026-06-10'); // 23:59:59 UTC → same day
+    expect(simplefinPostedToDate(midnightUtc + 86400)).toBe('2026-06-11'); // next midnight → next day
+    // A US-evening post (e.g. 20:00 EDT = 00:00 UTC next day) intentionally lands on the UTC day.
+    expect(simplefinPostedToDate(midnightUtc + 86400)).not.toBe('2026-06-10');
+  });
 });
 
 describe('inferAccountType (SimpleFIN has no type field)', () => {

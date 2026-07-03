@@ -23,10 +23,9 @@
  * the Jan-2026 cutoff (docs/SIMPLEFIN_WALKTHROUGH.md).
  */
 import { roundHalfAwayFromZero } from '@/lib/money';
+import { parseTicker } from '@/lib/engine/investments/ticker';
 import { type SimplefinHolding, simplefinAmountToCents } from './simplefin-map';
 
-/** Mirrors the addHolding ticker rule: A–Z, 0–9, "." or "-", 1–20 chars. */
-const SYMBOL_RE = /^[A-Z0-9.\-]{1,20}$/;
 const NAME_MAX = 120;
 /**
  * The storage ceiling for a persisted cents column. Prisma `Int` is a signed 32-bit
@@ -98,12 +97,12 @@ export function mapSimplefinHoldings(raw: readonly SimplefinHolding[] = []): Hol
   let skipped = 0;
 
   for (const h of raw) {
-    const symbol = (h.symbol ?? '').trim().toUpperCase();
+    const symbol = parseTicker(h.symbol); // shared with addHolding; accepts BRK/B, BTC/USD (#127 tail)
     const shares = parseShareCount(h.shares);
     const marketValueCents = parseNonNegCents(h.market_value);
     // A position must have a valid ticker, a positive share count, and a value we can
     // record. Without any of these we cannot place it in the model — skip + count.
-    if (!SYMBOL_RE.test(symbol) || shares == null || marketValueCents == null) {
+    if (symbol == null || shares == null || marketValueCents == null) {
       skipped++;
       continue;
     }

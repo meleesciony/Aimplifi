@@ -45,7 +45,16 @@ export function simplefinAmountToCents(amount: string): Cents {
   return cents((sign === '-' ? -value : value) || 0); // collapse -0
 }
 
-/** Unix seconds → calendar date via PURE civil-date math (no Date object, no timezone drift). */
+/**
+ * Unix seconds → the UTC calendar date, via PURE civil-date math (no Date object). The epoch is
+ * a UTC instant, so this returns the date it falls on IN UTC. SimpleFIN carries no per-account
+ * timezone (#127-tail), so a feed that stamps `posted` mid-day in a non-UTC zone can land ±1
+ * calendar day from the holder's LOCAL date (a US-evening post is already the next UTC day). This
+ * is a deliberate, neutral convention: no timezone data exists to resolve it, and any fixed
+ * offset would only move the error to a different region. The app treats every business date as a
+ * calendar date with no tz, so this is internally consistent (net-worth/spending never depend on
+ * the exact posting day, only its month). Pinned in tests/unit/simplefin.test.ts.
+ */
 export function simplefinPostedToDate(posted: number): ISODate {
   if (!Number.isFinite(posted)) throw new Error(`simplefinPostedToDate: non-finite ${posted}`);
   return fromEpochDays(Math.floor(posted / 86400));

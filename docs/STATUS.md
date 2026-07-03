@@ -1189,6 +1189,12 @@ account at 1:1). Gate (real 2026-06-30): `bash scripts/verify.sh` → ✅ VERIFY
 
 REMAINING #127 live-ingest backlog: SimpleFIN symbol regex (options/crypto/slash tickers, coupled to
 the addHolding ticker rule) + epoch→date UTC-day-boundary — both P2, lower money-impact.
+**RESOLVED 2026-07-02 (DECISIONS #152):** (a) symbol regex — extracted ONE shared `parseTicker`/`TICKER_RE`
+(kills the mapper/addHolding drift the audit flagged) and widened to accept "/" so BRK/B, BTC/USD are kept
+(space-bearing OCC option symbols stay a documented skip); (b) epoch→date — inherently tz-ambiguous with no
+feed timezone, so the UTC-calendar-day convention is now documented + boundary-tested (no logic change; no
+money figure depends on the exact day). Checker 0 P0/P1/P2; verify GREEN 1570/124. Remaining #127 item:
+residual 20 (SimpleFIN HOLDING-level currency unread — the guard is account-level).
 
 ## 2026-07-01 — Triage write-in custom categories (DECISIONS #136, owner request #1)
 Shipped increment 1 of the owner's sweep: "+ New category" in the triage picker (create + file in one

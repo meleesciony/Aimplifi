@@ -11,6 +11,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { cents } from '@/lib/money';
 import { type Holding, type Portfolio, summarizePortfolio } from '@/lib/engine/investments/portfolio';
+import { parseTicker } from '@/lib/engine/investments/ticker';
 import { isSupportedCurrency } from '@/lib/providers/currency';
 import {
   RETIREMENT_ASSUMPTIONS,
@@ -180,10 +181,10 @@ export async function getRetirementOutlook(): Promise<RetirementOutlook> {
 /** Add or update (by ticker) a holding on one of the user's INVESTMENT accounts. */
 export async function addHolding(input: HoldingInput): Promise<{ ok: boolean; error?: string }> {
   const userId = await requireUserId();
-  const symbol = input.symbol.trim().toUpperCase();
+  const symbol = parseTicker(input.symbol);
   const name = input.name?.trim() || null;
-  if (!/^[A-Z0-9.\-]{1,20}$/.test(symbol)) {
-    return { ok: false, error: 'Enter a valid ticker symbol (letters, digits, “.” or “-”, up to 20 chars).' };
+  if (symbol == null) {
+    return { ok: false, error: 'Enter a valid ticker symbol (letters, digits, “.”, “-”, or “/”, up to 20 chars).' };
   }
   if (!Number.isSafeInteger(input.costBasisCents) || input.costBasisCents < 0) {
     return { ok: false, error: 'Cost basis must be a whole, non-negative number of cents.' };

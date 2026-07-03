@@ -1667,4 +1667,15 @@ probe-confirmed loan folds in ×3 @ −$385. P2s FIXED pre-commit: EDGE_CASES §
 contribution, not on-screen milestone — honesty) + a quantitative server-path test (forecast-server.test.ts).
 Accepted residuals (STATUS #134): non-transfer-ACH double-count (no safe fix, same population), day-31 clamp
 (pre-existing, not demo-reachable). Gate (real 2026-07-02): verify GREEN **1563 / 123**, forecast e2e 2/2
-(demo /forecast now shows "Auto Loan"). Committed + pushed (deploy) below.
+(demo /forecast now shows "Auto Loan"). Committed `563ad6a` + pushed → Vercel success (Ex7dj2My…). LIVE.
+
+### #127 tail (#152) — SimpleFIN symbol regex + epoch→date — DONE ✅ (verify green, Checker 0 P0/P1/P2)
+Two P2 live-ingest edges. (a) Extracted ONE shared `parseTicker`/`TICKER_RE` (src/lib/engine/investments/ticker.ts)
+used by BOTH the SimpleFIN holdings mapper and manual addHolding (the audit flagged the two duplicated regexes
+as drift-prone), and widened to accept "/" → BRK/B, BTC/USD no longer dropped (space-bearing OCC options stay a
+documented skip). (b) The epoch→UTC-day convention is inherently tz-ambiguous (no feed timezone) → documented
+precisely + boundary-locked, no logic change (no money figure depends on the exact day). Focused adversarial
+Checker (single reviewer): 0 P0/P1/P2 — regex exact, no downstream "/" breakage, coupling single-source, epoch
+math confirmed. Gate (real 2026-07-02): verify GREEN **1570 / 124** (+7). Committed + pushed (deploy) below.
+
+**Remaining backlog this session:** shared CategoryPicker/SR-listbox (last item).
