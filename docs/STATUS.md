@@ -1195,6 +1195,10 @@ the addHolding ticker rule) + epoch→date UTC-day-boundary — both P2, lower m
 feed timezone, so the UTC-calendar-day convention is now documented + boundary-tested (no logic change; no
 money figure depends on the exact day). Checker 0 P0/P1/P2; verify GREEN 1570/124. Remaining #127 item:
 residual 20 (SimpleFIN HOLDING-level currency unread — the guard is account-level).
+**residual 20 CLOSED 2026-07-03 (DECISIONS #156):** `mapSimplefinHoldings` now reads each position's
+`currency` and withholds non-USD lots before aggregation (account-consistent predicate — same
+`isSupportedCurrency` rule as the account guard — with a distinct `withheldNonUsd` counter), so a non-USD
+holding inside a USD account no longer sums into `/investments` at a fabricated 1:1. See the dated section below.
 
 ## 2026-07-01 — Triage write-in custom categories (DECISIONS #136, owner request #1)
 Shipped increment 1 of the owner's sweep: "+ New category" in the triage picker (create + file in one
@@ -1618,3 +1622,43 @@ is KEPT — it matches our own normalize.ts (FEDEX/UPS STORE/USPS → business),
 Gate (real, measured 2026-07-03): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — typecheck/lint clean,
 **1656 unit / 125 files** (+27), build clean. E2E: not applicable (the Plaid path is dormant — no e2e surface;
 demo/seed are byte-identical, so the existing suite is unperturbed). No schema change.
+
+## 2026-07-03 — SimpleFIN holding-level currency guard (DECISIONS #156, residual 20 CLOSED)
+
+The account-level currency guard (#135/#141/#149/#150) withholds non-USD ACCOUNTS from the USD read
+paths, but `mapSimplefinHoldings` received each position's `currency` and never read it — so a non-USD
+lot inside a USD-labeled brokerage summed into `/investments` at a fabricated 1:1 (the guard only fires
+on the whole account). Fix (engine-first, no schema change): the mapper now WITHHOLDS confidently-non-USD
+positions before aggregation and counts them in a new `withheldNonUsd` field kept DISTINCT from `skipped`
+(a foreign lot is working-as-intended, not an un-mappable glitch). Threaded through `syncFromSimplefin` →
+`SyncResult.holdings` (types.ts) → `SimplefinResult.holdings` (simplefin-actions.ts).
+
+- **Predicate = account-consistent** (not a divergent second rule): `!isSupportedCurrency(canonicalizeCurrency(h.currency))`
+  — null/omitted → USD (golden-safe: demo/CSV/manual carry no currency), `'usd'/'USD'` → USD, any non-USD
+  ISO code / crypto-or-non-ISO URL / opaque token → withheld. Deliberately REJECTED the "understand"
+  workflow's NARROW recommendation (withhold only a clean 3-letter ISO ≠ USD, keep URLs/opaque as USD):
+  SimpleFIN expresses crypto/non-ISO currencies as a URL, so narrow would LEAK exactly those at a wrong
+  1:1 — the silent corruption the guard exists to prevent — contradicting the app-wide "a withheld figure
+  beats a silently wrong one" philosophy. A false-withhold is visible + recoverable (data preserved); a
+  1:1 leak is invisible. The Checker independently confirmed the aggressive call SOUND (under the SimpleFIN
+  protocol USD is always `'USD'` or omitted, so aggressive CANNOT false-withhold a real USD lot).
+- **Gate refinement** (simplefin.ts ~475): `|| (withheldNonUsd > 0 && skipped === 0)` so a CLEANLY-interpreted
+  all-foreign feed reconciles (prunes stale USD rows) while a MIXED foreign+glitch feed still preserves rows
+  (#133 intact — the `skipped === 0` qualifier is a Checker P2, fail-old-proven).
+- **Golden-safe / net-worth-neutral:** SimpleFIN is the only currency-bearing ingress; net worth uses account
+  balances (holdings are a within-account breakdown). The live SimpleFIN path is dormant/UNVERIFIED → unit-tested
+  only.
+
+Hostile Checker (wf_1ac2c779; 4 dimension reviewers — money-semantics / golden-safety / sync-orchestration /
+test-coverage — → refute-by-default verification of each P0/P1): **0 P0/P1**; scorecard money 9 / golden 9 /
+sync 8 / tests 8. **2 P2 FIXED pre-commit + fail-old-proven:** (1) the gate opener was too coarse — `|| withheldNonUsd > 0`
+alone reconciled a mixed foreign+glitch feed and pruned its held rows, silently widening the #133 guarantee →
+added the `&& skipped === 0` qualifier; (2) a mixed-case regression test (proven red against the coarse gate).
+Accepted/deferred P2s (documented): numeric ISO `'840'` would be false-withheld (SimpleFIN never emits numeric
+currency codes; byte-consistent with the account guard); per-account `withheldNonUsd` accumulation is trivially
+correct by inspection (a two-brokerage test is a deferred nicety). The predicate can be flipped to narrow in one
+line if a live sandbox run ever shows `holding.currency` carrying a security identifier.
+
+Gate (real, measured 2026-07-03): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — typecheck/lint clean,
+**1666 unit / 125 files** (+10: 7 mapper cases + 3 sync cases), build clean. No schema change; demo/golden
+byte-identical (the demo seed's 5 holdings carry no currency and never pass through the mapper).

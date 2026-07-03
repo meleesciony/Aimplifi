@@ -18,8 +18,9 @@ export interface SimplefinResult {
   ok: boolean;
   error?: string;
   added?: number;
-  /** Brokerage-holdings reconciliation from this sync, when any ran (DECISIONS #124). */
-  holdings?: { upserted: number; removed: number; skipped: number };
+  /** Brokerage-holdings reconciliation from this sync, when any ran (DECISIONS #124).
+   *  withheldNonUsd = positions withheld as non-USD (no FX — DECISIONS #156). */
+  holdings?: { upserted: number; removed: number; skipped: number; withheldNonUsd: number };
   message?: string;
 }
 

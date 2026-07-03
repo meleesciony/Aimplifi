@@ -1796,3 +1796,69 @@ never a `transfer` (F4), never overrides rule/transfer/confident-merchant/aggreg
 **Push discipline:** commit to `main` after every green verify; a PUSH = a prod deploy (Vercel, team reiforge /
 project aimplifi, aliases aimplifi.app + www) — the owner's explicit call. Verify a deploy via GitHub's commit-status
 API for the SHA (Vercel check = success) + a live 200/HSTS curl (no Vercel MCP this session).
+## 2026-07-03 (resumed: "continue" after /clear, session "aimplifi") — #156 SimpleFIN holding-level currency guard (residual 20 CLOSED) — DONE ✅ (verify green, hostile Checker 0 P0/P1)
+
+Resumed at the clean #155 handoff boundary. Independently re-confirmed the baseline (NOT trusted from the handoff):
+`bash scripts/verify.sh` → ✅ VERIFY GREEN, **1656 unit / 125 files**, tsc/eslint/build clean. Local `7958a0c` (the
+#155 deploy-record doc commit) = 1 ahead of origin `5a110c5`, tree clean. Reboot + push stay OWNER-GATED, so I took
+the top agent-actionable backlog item from the handoff: STATUS residual 20 — SimpleFIN HOLDING-level currency.
+
+Understand-first (wf_095ba78c, 4 readers → synth): mapped the account-level guard, the SimpleFIN holding mapper +
+`Holding` schema, the investment aggregation, and the currency tests. Root cause: `mapSimplefinHoldings`
+(simplefin-holdings.ts) received each position's `currency` but never read it, so a non-USD lot inside a USD
+brokerage summed into `/investments` at a fabricated 1:1 (the #135 guard is account-level only).
+
+Built (engine-first, NO schema change): the mapper withholds confidently-non-USD positions before aggregation,
+counting them in a new `withheldNonUsd` field kept DISTINCT from `skipped`; threaded through `syncFromSimplefin` →
+`SyncResult.holdings` (types.ts) → `SimplefinResult.holdings` (simplefin-actions.ts). PREDICATE = account-consistent
+`!isSupportedCurrency(canonicalizeCurrency(h.currency))` — DELIBERATELY diverged from the understand workflow's
+NARROW recommendation (applied Maker/Checker to the rec itself): narrow keeps crypto/non-ISO URL currencies as USD
+→ leaks them at 1:1, the silent corruption the guard exists to stop; aggressive is account-consistent + philosophy-
+aligned ("a withheld figure beats a silently wrong one"). Gate refinement `|| (withheldNonUsd > 0 && skipped === 0)`
+so a clean all-foreign feed prunes stale USD rows while a mixed foreign+glitch feed preserves rows (#133 intact).
+Golden byte-identical (SimpleFIN is the only currency-bearing ingress; the demo seed's 5 holdings carry no currency
+and never touch the mapper); net-worth-neutral (holdings are a within-account breakdown). Live SimpleFIN path
+dormant/UNVERIFIED → unit-tested only.
+
+Hostile Checker (wf_1ac2c779, 4 dimension reviewers → refute-by-default verification of each P0/P1): **0 P0/P1**,
+money 9 / golden 9 / sync 8 / tests 8; independently CONFIRMED the aggressive predicate SOUND (under the SimpleFIN
+protocol USD is always 'USD' or omitted → aggressive cannot false-withhold a real USD lot). 2 P2 FIXED pre-commit +
+fail-old-proven: (1) gate opener too coarse (`|| withheldNonUsd > 0` alone pruned a mixed feed's held rows, silently
+widening #133) → `&& skipped === 0` qualifier; (2) mixed-case regression test (proven red on the coarse gate, green
+after). Accepted P2s (documented): numeric '840' false-withhold (SimpleFIN never emits numeric codes); per-account
+accumulation trivially correct.
+
+Gate (real, measured 2026-07-03): `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1666 unit / 125 files** (+10:
+7 mapper + 3 sync), tsc/eslint/build clean. Ledger map: DECISIONS #156; STATUS "2026-07-03 … holding-level currency
+guard" + residual 20 marked CLOSED; REGRESSION_LEDGER last row (gate qualifier, fail-old-proven).
+
+## HANDOFF (resume after /clear) — 2026-07-03, session "aimplifi", post-#156
+**Resume from `C:\dev\Aimplifi`** (OneDrive + stale `C:\dev\Pulse Finance` copies abandoned — CLAUDE.md).
+**Clean stopping point. Safe to /clear.** #156 (SimpleFIN holding-level currency guard, residual 20 CLOSED) is
+DONE, verify-green (1666/125), adversarially checker'd (0 P0/P1). NOT pushed (push is owner-gated).
+
+**Exact repo state:** working tree CLEAN after the #156 commit. `origin/main` = `5a110c5` (#155, LIVE). Local `main`
+= 2 commits ahead of origin: the #155 deploy-record doc commit (`7958a0c`, intentionally unpushed) + the #156
+commit. No schema change pending.
+
+**Health baseline (re-confirm, don't trust this line):** `bash scripts/verify.sh` → ✅ VERIFY GREEN, 1666 unit /
+125 files. E2E opt-in (`VERIFY_E2E=1`); #156 added no e2e surface (SimpleFIN live path dormant).
+
+**Ledger map for #156:** DECISIONS #156; STATUS "2026-07-03 … SimpleFIN holding-level currency guard" + residual 20
+CLOSED line; REGRESSION_LEDGER last row; the DONE entry just above. One-line design: `mapSimplefinHoldings` reads
+`h.currency` and withholds non-USD lots before aggregation (account-consistent `!isSupportedCurrency(canonicalizeCurrency)`
+predicate, distinct `withheldNonUsd` counter), gate `|| (withheldNonUsd>0 && skipped===0)`; golden-safe (#135/#22).
+
+**NEXT (owner-gated):** (1) push — ships #156 + the #155 deploy-record doc commit together; verify the Vercel deploy
+(commit-status = success via GitHub API, team reiforge / project aimplifi, aliases aimplifi.app + www + a 200/HSTS
+curl). (2) reboot → full `VERIFY_E2E=1` re-witness (the environmental disabled-pending e2e stall, STATUS #16, is the
+only thing gating a clean full-suite e2e; untouched by #156). (3) BACKLOG (go straight in, all "only if markedly
+better"): shared `<CategoryPicker>` full extraction (register e2e reboot-gated — #153 deferred half; `filterCategoryOptions`
+already shared), #134 companion carve-out removal (optional, ~8-golden churn, not demo-reachable), general match-&-surpass
+per docs/ROADMAP.md (owner-selected). residual 20 is now CLOSED.
+
+**STANDING OWNER-ONLY ITEMS (I can't do; not blocking new work):** reboot the box (unrebooted since ~Jun 30) for the
+full e2e re-witness; #155 live-sandbox Plaid PFC spot-check (PLAID_WALKTHROUGH §5); #156 live-sandbox SimpleFIN
+spot-check — on a real SimpleFIN run, confirm whether `holding.currency` carries an ISO code / URL (as assumed) vs a
+security identifier; if the latter ever appears, flip `isNonUsdHolding` to the narrow ISO-only predicate (one line, the
+mapper test comments the flip). No downside today: the path is dormant.

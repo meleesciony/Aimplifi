@@ -41,9 +41,10 @@ export interface SyncResult {
    * Investment-holdings reconciliation, set only by the SimpleFIN brokerage-holdings
    * ingest (DECISIONS #124). Optional — the demo/Plaid paths don't ingest holdings.
    * upserted = positions written/updated; removed = stale synced positions deleted
-   * (sold); skipped = feed positions we couldn't record (un-mappable / out of bounds).
+   * (sold); skipped = feed positions we couldn't record (un-mappable / out of bounds);
+   * withheldNonUsd = positions withheld because their currency isn't USD (no FX — #156).
    */
-  holdings?: { upserted: number; removed: number; skipped: number };
+  holdings?: { upserted: number; removed: number; skipped: number; withheldNonUsd: number };
 }
 
 export interface DataProvider {

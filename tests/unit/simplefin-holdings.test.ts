@@ -314,3 +314,85 @@ describe('mapSimplefinHoldings — totals bounded to the DB Int ceiling (critic 
     expect(r.holdings.map((x) => x.symbol)).toEqual(['AAPL']);
   });
 });
+
+// residual 20 (DECISIONS #156): the app does NO FX — a position reported in a non-USD
+// currency must NOT sum into the USD /investments total at a fake 1:1. Such a lot is
+// WITHHELD and counted as withheldNonUsd (kept DISTINCT from skipped: a foreign lot is
+// working-as-intended, not an un-mappable glitch). Uses the SAME isSupportedCurrency rule
+// as the account-level guard (DECISIONS #135) — null/omitted → USD (golden-safe).
+describe('mapSimplefinHoldings — non-USD positions are withheld (DECISIONS #156, residual 20)', () => {
+  it('withholds a EUR lot (not summed at 1:1), counted as withheldNonUsd, NOT skipped', () => {
+    const { holdings, skipped, withheldNonUsd } = mapSimplefinHoldings([
+      h({ id: 'e', symbol: 'EUEQ', shares: '10', market_value: '1000.00', currency: 'EUR' }),
+    ]);
+    expect(holdings).toHaveLength(0);
+    expect(withheldNonUsd).toBe(1);
+    expect(skipped).toBe(0); // a foreign lot is working-as-intended, never an error
+  });
+
+  it('an OMITTED currency is assumed USD and kept (golden-safe: demo/CSV/manual carry none)', () => {
+    const { holdings, withheldNonUsd } = mapSimplefinHoldings([
+      h({ id: 'a', symbol: 'AAPL', shares: '10', market_value: '2000.00' }),
+    ]);
+    expect(holdings).toHaveLength(1);
+    expect(holdings[0].marketValueCents).toBe(200000);
+    expect(withheldNonUsd).toBe(0);
+  });
+
+  it("keeps an explicit 'USD'/'usd' currency (canonicalizes to USD)", () => {
+    const { holdings, withheldNonUsd } = mapSimplefinHoldings([
+      h({ id: 'u1', symbol: 'VTI', shares: '2', market_value: '400.00', currency: 'USD' }),
+      h({ id: 'u2', symbol: 'SPY', shares: '1', market_value: '500.00', currency: 'usd' }),
+    ]);
+    expect(holdings.map((x) => x.symbol)).toEqual(['SPY', 'VTI']);
+    expect(withheldNonUsd).toBe(0);
+  });
+
+  it('mixed feed: withholds the EUR lot, keeps the USD lot untouched', () => {
+    const { holdings, skipped, withheldNonUsd } = mapSimplefinHoldings([
+      h({ id: 'us', symbol: 'VTI', shares: '20', cost_basis: '4000.00', market_value: '5000.00' }),
+      h({ id: 'eu', symbol: 'EUEQ', shares: '10', market_value: '1000.00', currency: 'EUR' }),
+    ]);
+    expect(holdings).toHaveLength(1);
+    expect(holdings[0]).toEqual({ symbol: 'VTI', name: null, quantity: 20, costBasisCents: 400000, priceCents: 25000, marketValueCents: 500000 });
+    expect(withheldNonUsd).toBe(1);
+    expect(skipped).toBe(0);
+  });
+
+  it('withholds PER ROW before aggregation: a EUR lot of a symbol that also has a USD lot drops only the EUR lot', () => {
+    const { holdings, withheldNonUsd } = mapSimplefinHoldings([
+      h({ id: 'usd', symbol: 'AAPL', shares: '10', market_value: '2000.00', currency: 'USD' }),
+      h({ id: 'eur', symbol: 'AAPL', shares: '5', market_value: '1000.00', currency: 'EUR' }),
+    ]);
+    expect(holdings).toHaveLength(1);
+    // Only the USD lot survives — the EUR lot never joins the aggregate (no 1:1 blending).
+    expect(holdings[0]).toMatchObject({ symbol: 'AAPL', quantity: 10, marketValueCents: 200000, priceCents: 20000 });
+    expect(withheldNonUsd).toBe(1);
+  });
+
+  it('currency check WINS over un-mappability: a non-USD row with no symbol is withheld, not skipped', () => {
+    const { holdings, skipped, withheldNonUsd } = mapSimplefinHoldings([
+      h({ id: 'x', shares: '5', market_value: '500.00', currency: 'GBP' }), // no symbol AND non-USD
+    ]);
+    expect(holdings).toHaveLength(0);
+    expect(withheldNonUsd).toBe(1);
+    expect(skipped).toBe(0);
+  });
+
+  // Predicate boundary — this codebase uses the ACCOUNT-consistent rule (isSupportedCurrency):
+  // anything that isn't null/USD is withheld, INCLUDING a crypto/non-ISO URL, a numeric code,
+  // or any opaque token. This is deliberate: SimpleFIN expresses non-ISO/crypto currencies as a
+  // URL, so a narrower "ISO-only" predicate would LEAK exactly those at a wrong 1:1 — the silent
+  // corruption the guard exists to prevent. (To narrow to ISO-only, the owner flips isNonUsdHolding
+  // in one line; these pins would then move to "kept".)
+  it('withholds crypto/non-ISO URL, 3-letter crypto, and opaque tokens (account-consistent rule)', () => {
+    const { holdings, withheldNonUsd, skipped } = mapSimplefinHoldings([
+      h({ id: 'url', symbol: 'BITO', shares: '1', market_value: '50.00', currency: 'https://mysimplefin.org/currency/btc' }),
+      h({ id: 'btc', symbol: 'BTCX', shares: '1', market_value: '60000.00', currency: 'BTC' }),
+      h({ id: 'num', symbol: 'NUMC', shares: '1', market_value: '10.00', currency: '978' }), // EUR numeric code
+    ]);
+    expect(holdings).toHaveLength(0);
+    expect(withheldNonUsd).toBe(3);
+    expect(skipped).toBe(0);
+  });
+});

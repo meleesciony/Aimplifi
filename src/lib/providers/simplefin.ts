@@ -380,6 +380,7 @@ export async function syncFromSimplefin(
   let holdingsUpserted = 0;
   let holdingsRemoved = 0;
   let holdingsSkipped = 0;
+  let holdingsWithheldNonUsd = 0;
   const prepared: IngestedSfTransaction[] = [];
   const accountIdByRef = new Map<string, string>();
   const newSpendingRefs: string[] = []; // first-seen spending accounts to backfill
@@ -465,14 +466,19 @@ export async function syncFromSimplefin(
       // the `transactions: null` failure class from #128). `Array.isArray` routes all of
       // undefined/null/non-array to "leave existing rows untouched" (#124/#127 P2).
       if (Array.isArray(acct.holdings)) {
-        const { holdings, skipped } = mapSimplefinHoldings(acct.holdings);
+        const { holdings, skipped, withheldNonUsd } = mapSimplefinHoldings(acct.holdings);
+        holdingsWithheldNonUsd += withheldNonUsd; // counted once, independent of whether reconcile runs
         // A NON-EMPTY feed that mapped to ZERO positions is an anomaly (a format glitch,
         // or every position an unsupported type), NOT a sell-all — reconciling it would
-        // WIPE the entire synced breakdown. Only reconcile when we have positions to write
-        // OR the feed was EXPLICITLY empty (a genuine sell-all); otherwise leave existing
-        // rows intact (counted as skipped). Self-heals on the next sync that maps any
-        // position — same conservative stance as the OMITTED-field guard above (#127 P2).
-        if (holdings.length > 0 || acct.holdings.length === 0) {
+        // WIPE the entire synced breakdown. Only reconcile when we have positions to write,
+        // OR the feed was CLEANLY interpreted as all-foreign (every row WITHHELD as non-USD
+        // and NONE un-mappable: withheldNonUsd > 0 && skipped === 0 — an all-foreign account
+        // should prune its stale USD-valued rows, DECISIONS #156), OR the feed was EXPLICITLY
+        // empty (a genuine sell-all); otherwise leave existing rows intact (counted as skipped).
+        // The `skipped === 0` qualifier preserves the #133 guarantee for a MIXED feed (some
+        // foreign + some un-mappable glitch): a garbled feed must NOT prune held rows just
+        // because one row happened to read non-USD. Self-heals on the next clean sync.
+        if (holdings.length > 0 || (withheldNonUsd > 0 && skipped === 0) || acct.holdings.length === 0) {
           const rec = await reconcileSimplefinHoldings(accountId, holdings);
           holdingsUpserted += rec.upserted;
           holdingsRemoved += rec.removed;
@@ -663,6 +669,6 @@ export async function syncFromSimplefin(
     modified,
     removed: pendingRemoved,
     nextCursor: null,
-    holdings: { upserted: holdingsUpserted, removed: holdingsRemoved, skipped: holdingsSkipped },
+    holdings: { upserted: holdingsUpserted, removed: holdingsRemoved, skipped: holdingsSkipped, withheldNonUsd: holdingsWithheldNonUsd },
   };
 }

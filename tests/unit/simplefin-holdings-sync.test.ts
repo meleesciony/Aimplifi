@@ -29,6 +29,7 @@ interface RawHolding {
   shares?: string;
   cost_basis?: string;
   market_value?: string;
+  currency?: string;
 }
 interface RawAccount {
   id: string;
@@ -106,7 +107,7 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
     expect(r.ok).toBe(true);
     expect(r.error).toBeUndefined();
     expect(r.added).toBe(0); // no spending transactions on a brokerage
-    expect(r.holdings).toEqual({ upserted: 2, removed: 0, skipped: 0 });
+    expect(r.holdings).toEqual({ upserted: 2, removed: 0, skipped: 0, withheldNonUsd: 0 });
 
     const acct = await prisma.account.findFirst({
       where: { userId: USER, provider: 'simplefin', providerRef: 'brk-1' },
@@ -190,7 +191,7 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
     await connectSimplefin(SETUP_TOKEN);
     const r = await syncSimplefinNow();
     expect(r.ok).toBe(true);
-    expect(r.holdings).toEqual({ upserted: 2, removed: 0, skipped: 0 });
+    expect(r.holdings).toEqual({ upserted: 2, removed: 0, skipped: 0, withheldNonUsd: 0 });
     expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(2);
   });
 
@@ -205,7 +206,7 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
       ],
     };
     const r = await syncSimplefinNow();
-    expect(r.holdings).toEqual({ upserted: 1, removed: 1, skipped: 0 });
+    expect(r.holdings).toEqual({ upserted: 1, removed: 1, skipped: 0, withheldNonUsd: 0 });
     const holdings = await prisma.holding.findMany({ where: { account: { userId: USER } } });
     expect(holdings).toHaveLength(1);
     expect(holdings[0].symbol).toBe('AAPL');
@@ -253,7 +254,7 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
       ],
     };
     const r = await syncSimplefinNow();
-    expect(r.holdings).toEqual({ upserted: 1, removed: 0, skipped: 1 }); // VTI upserted; AAPL (manual) skipped
+    expect(r.holdings).toEqual({ upserted: 1, removed: 0, skipped: 1, withheldNonUsd: 0 }); // VTI upserted; AAPL (manual) skipped
 
     const aapl = await prisma.holding.findFirstOrThrow({ where: { account: { userId: USER }, symbol: 'AAPL' } });
     expect(aapl.source).toBe('manual'); // untouched
@@ -269,7 +270,7 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
     accountsPayload = { accounts: [{ id: 'brk-1', name: 'Brokerage', balance: '142000.00', org: { name: 'Vanguard' } }] };
     const r = await syncSimplefinNow();
     expect(r.ok).toBe(true);
-    expect(r.holdings).toEqual({ upserted: 0, removed: 0, skipped: 0 }); // no reconcile ran
+    expect(r.holdings).toEqual({ upserted: 0, removed: 0, skipped: 0, withheldNonUsd: 0 }); // no reconcile ran
     expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(2); // NOT wiped
   });
 
@@ -277,7 +278,7 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
     await connectSimplefin(SETUP_TOKEN); // AAPL + VTI
     accountsPayload = { accounts: [brokerage([])] }; // explicit empty array
     const r = await syncSimplefinNow();
-    expect(r.holdings).toEqual({ upserted: 0, removed: 2, skipped: 0 });
+    expect(r.holdings).toEqual({ upserted: 0, removed: 2, skipped: 0, withheldNonUsd: 0 });
     expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(0);
   });
 
@@ -298,7 +299,7 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
     const r = await syncSimplefinNow();
     expect(r.ok).toBe(true);
     // Without the guard this would be removed:2 and the breakdown would be wiped to 0.
-    expect(r.holdings).toEqual({ upserted: 0, removed: 0, skipped: 2 });
+    expect(r.holdings).toEqual({ upserted: 0, removed: 0, skipped: 2, withheldNonUsd: 0 });
     expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(2); // intact
   });
 
@@ -314,7 +315,7 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
     };
     const r = await syncSimplefinNow();
     expect(r.ok).toBe(true); // sync completes, not aborted
-    expect(r.holdings).toEqual({ upserted: 0, removed: 0, skipped: 0 });
+    expect(r.holdings).toEqual({ upserted: 0, removed: 0, skipped: 0, withheldNonUsd: 0 });
     expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(2); // NOT wiped
   });
 
@@ -329,7 +330,78 @@ describe('SimpleFIN holdings ingest (real actions, mocked server)', () => {
     };
     const r = await connectSimplefin(SETUP_TOKEN);
     expect(r.ok).toBe(true);
-    expect(r.holdings).toEqual({ upserted: 1, removed: 0, skipped: 1 });
+    expect(r.holdings).toEqual({ upserted: 1, removed: 0, skipped: 1, withheldNonUsd: 0 });
     expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(1);
+  });
+
+  // residual 20 (DECISIONS #156): a non-USD position inside a USD account is WITHHELD from the
+  // USD /investments roll-up — never persisted, never summed at a fake 1:1 — and counted as
+  // withheldNonUsd (distinct from skipped). Net worth is unaffected (holdings are a within-account
+  // breakdown; the account balance stays authoritative).
+  it('withholds a non-USD holding: not persisted, excluded from /investments, net worth unchanged', async () => {
+    accountsPayload = {
+      accounts: [
+        brokerage([
+          { id: 'p1', symbol: 'AAPL', description: 'Apple Inc', shares: '100', cost_basis: '15000.00', market_value: '20000.00' },
+          { id: 'eu', symbol: 'EUEQ', description: 'Euro Equity', shares: '10', cost_basis: '9000.00', market_value: '10000.00', currency: 'EUR' },
+        ]),
+      ],
+    };
+    const r = await connectSimplefin(SETUP_TOKEN);
+    expect(r.ok).toBe(true);
+    expect(r.holdings).toEqual({ upserted: 1, removed: 0, skipped: 0, withheldNonUsd: 1 });
+
+    // The EUR position never reaches the DB.
+    expect(await prisma.holding.findFirst({ where: { account: { userId: USER }, symbol: 'EUEQ' } })).toBeNull();
+    const persisted = await prisma.holding.findMany({ where: { account: { userId: USER } } });
+    expect(persisted.map((x) => x.symbol)).toEqual(['AAPL']);
+
+    const view = await getInvestments();
+    // Only AAPL ($20,000) — the EUR lot is NOT summed at 1:1 (which would have added $10,000).
+    expect(view.overall.totalMarketValueCents).toBe(2000000);
+    expect(view.accounts[0].accountBalanceCents).toBe(14200000); // net-worth driver, unchanged
+  });
+
+  // DECISIONS #156 gate refinement: an account whose feed becomes ENTIRELY non-USD maps to zero
+  // USD positions from a NON-EMPTY feed. Without the `withheldNonUsd > 0` clause the anomaly guard
+  // would treat that as a format glitch and LEAVE the stale USD-valued rows; instead we DID
+  // interpret the feed (as all-withheld), so it reconciles and prunes them.
+  it('prunes stale USD holdings when the feed turns entirely non-USD (gate refinement)', async () => {
+    await connectSimplefin(SETUP_TOKEN); // AAPL + VTI (USD, source=simplefin)
+    expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(2);
+    accountsPayload = {
+      accounts: [
+        brokerage([
+          { id: 'p1', symbol: 'AAPL', shares: '100', market_value: '20000.00', currency: 'EUR' },
+          { id: 'p2', symbol: 'VTI', shares: '200', market_value: '50000.00', currency: 'EUR' },
+        ]),
+      ],
+    };
+    const r = await syncSimplefinNow();
+    expect(r.ok).toBe(true);
+    expect(r.holdings).toEqual({ upserted: 0, removed: 2, skipped: 0, withheldNonUsd: 2 });
+    expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(0);
+  });
+
+  // DECISIONS #156 gate qualifier (Checker P2): a MIXED feed — some foreign (withheld) AND some
+  // un-mappable (skipped), mapping to zero USD positions — must NOT reconcile. A garbled feed
+  // where one row happens to read non-USD must not prune still-held rows (preserves the #133
+  // guarantee; the gate opens for withhold ONLY when skipped === 0, i.e. a clean all-foreign feed).
+  it('does NOT prune held holdings on a mixed non-empty feed (one foreign + one un-mappable → 0 USD)', async () => {
+    await connectSimplefin(SETUP_TOKEN); // AAPL + VTI (USD, source=simplefin)
+    expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(2);
+    accountsPayload = {
+      accounts: [
+        brokerage([
+          { id: 'eu', symbol: 'EUEQ', shares: '10', market_value: '1000.00', currency: 'EUR' }, // withheld
+          { id: 'glitch', shares: '5', market_value: '500.00' }, // no symbol → un-mappable (skipped)
+        ]),
+      ],
+    };
+    const r = await syncSimplefinNow();
+    expect(r.ok).toBe(true);
+    // Gate stays CLOSED (withheld>0 but skipped>0) → nothing reconciled, nothing deleted.
+    expect(r.holdings).toEqual({ upserted: 0, removed: 0, skipped: 1, withheldNonUsd: 1 });
+    expect(await prisma.holding.count({ where: { account: { userId: USER } } })).toBe(2); // preserved
   });
 });

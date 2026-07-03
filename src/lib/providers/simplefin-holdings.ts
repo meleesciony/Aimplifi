@@ -19,11 +19,21 @@
  * Bounds are kept identical to server/investments.ts::addHolding, so a synced row
  * can never be one addHolding would reject (and thus never one the engine throws on).
  *
+ * Currency (DECISIONS #156, residual 20): a position whose reported `currency` is not
+ * USD (or absent) is WITHHELD and counted SEPARATELY as `withheldNonUsd` — never folded
+ * into `skipped` (a foreign lot is working-as-intended, not an un-mappable glitch). The
+ * app does no FX, so summing a non-USD value at a fake 1:1 would silently corrupt the
+ * USD /investments total ("a withheld figure beats a silently wrong one"). This uses the
+ * SAME isSupportedCurrency rule as the account-level guard (DECISIONS #135) — one currency
+ * definition, no divergence — so a non-USD ISO code, a crypto/non-ISO URL, or any opaque
+ * token is withheld, while null/omitted (demo/CSV/manual = no currency) stays USD.
+ *
  * UNVERIFIED against a live SimpleFIN server — implemented from the protocol as of
  * the Jan-2026 cutoff (docs/SIMPLEFIN_WALKTHROUGH.md).
  */
 import { roundHalfAwayFromZero } from '@/lib/money';
 import { parseTicker } from '@/lib/engine/investments/ticker';
+import { canonicalizeCurrency, isSupportedCurrency } from './currency';
 import { type SimplefinHolding, simplefinAmountToCents } from './simplefin-map';
 
 const NAME_MAX = 120;
@@ -60,6 +70,23 @@ export interface HoldingsMapResult {
   holdings: MappedSfHolding[];
   /** Count of INPUT holdings not represented in the output (un-mappable or out of bounds). */
   skipped: number;
+  /** Count of INPUT holdings WITHHELD because their currency isn't USD (no FX — DECISIONS
+   *  #156). Kept distinct from `skipped`: a withheld foreign lot is working-as-intended, not
+   *  a glitch, so folding it into the un-mappable count would misrepresent sync health. */
+  withheldNonUsd: number;
+}
+
+/**
+ * True when a position's reported currency is confidently NOT U.S. dollars, using the SAME
+ * support rule as the account-level guard (DECISIONS #135): null/omitted → assumed USD
+ * (golden-safe — demo/CSV/manual carry no currency); 'usd'/'USD' → USD; any non-USD ISO
+ * code, crypto/non-ISO URL, or opaque token → withheld. We do no FX, so a withheld figure
+ * beats a value summed at a wrong 1:1. (If a feed ever misuses this field for a security
+ * identifier, that lot is withheld — visible + recoverable — rather than silently corrupting
+ * the USD total; the owner can narrow this to ISO-only in one line if live data warrants.)
+ */
+function isNonUsdHolding(raw: string | null | undefined): boolean {
+  return !isSupportedCurrency(canonicalizeCurrency(raw));
 }
 
 /** Decimal share-count string → positive finite number, or null if unusable. */
@@ -95,8 +122,17 @@ interface Agg {
 export function mapSimplefinHoldings(raw: readonly SimplefinHolding[] = []): HoldingsMapResult {
   const agg = new Map<string, Agg>();
   let skipped = 0;
+  let withheldNonUsd = 0;
 
   for (const h of raw) {
+    // Currency FIRST: a non-USD lot is withheld (no FX) and counted as withheldNonUsd, NOT
+    // skipped — even when it's also un-mappable, a foreign position is working-as-intended,
+    // not a glitch. Per-row (before symbol aggregation) so a EUR lot is dropped while a
+    // same-symbol USD lot still aggregates normally (DECISIONS #156, residual 20).
+    if (isNonUsdHolding(h.currency)) {
+      withheldNonUsd++;
+      continue;
+    }
     const symbol = parseTicker(h.symbol); // shared with addHolding; accepts BRK/B, BTC/USD (#127 tail)
     const shares = parseShareCount(h.shares);
     const marketValueCents = parseNonNegCents(h.market_value);
@@ -160,5 +196,5 @@ export function mapSimplefinHoldings(raw: readonly SimplefinHolding[] = []): Hol
   }
 
   holdings.sort((x, y) => (x.symbol < y.symbol ? -1 : x.symbol > y.symbol ? 1 : 0));
-  return { holdings, skipped };
+  return { holdings, skipped, withheldNonUsd };
 }

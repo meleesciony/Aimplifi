@@ -131,7 +131,7 @@ export interface SimplefinTransaction {
 export interface SimplefinHolding {
   id: string;
   created?: number; // unix seconds
-  currency?: string; // fiat code OR a security identifier (we treat values as USD cents)
+  currency?: string; // ISO-4217 code or a non-ISO/crypto token; non-USD positions are withheld from USD totals — no FX (DECISIONS #156)
   cost_basis?: string; // total cost basis, signed decimal string
   description?: string; // human-readable security name
   market_value?: string; // total current market value, signed decimal string (authoritative)
