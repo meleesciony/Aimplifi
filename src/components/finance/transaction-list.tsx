@@ -12,7 +12,7 @@
  * owning hooks would balloon hydration and delay the search box becoming
  * interactive. One controller + lightweight row buttons keeps hydration cheap.
  */
-import { useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Check, Pencil, Receipt } from 'lucide-react';
@@ -81,15 +81,34 @@ export function TransactionList({
   const [newCatGroup, setNewCatGroup] = useState<string>(CUSTOM_CATEGORY_GROUPS[0] ?? '');
   const [newCatDiscretionary, setNewCatDiscretionary] = useState(true);
   const [newCatError, setNewCatError] = useState<string | null>(null);
+  // Wraps the OPEN row's chip + menu so a mousedown outside it dismisses the picker.
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  function close() {
+  const close = useCallback(() => {
     setOpenId(null);
     setChosen(null);
     setError(null);
     setQuery('');
     setNewCatOpen(false);
     setNewCatError(null);
-  }
+  }, []);
+
+  // Native-popover dismissal for the open picker: a mousedown anywhere outside the
+  // open row's chip+menu closes it (Escape is handled on the menu container so the
+  // "+ New category" sub-form's Escape can still close just itself). Scoped to when a
+  // menu is open — no global listener otherwise.
+  useEffect(() => {
+    if (openId == null) return;
+    function onDocMouseDown(e: MouseEvent) {
+      // Don't abandon the picker on a stray outside click while a create/refile is
+      // in flight (the in-menu buttons are disabled for the same reason). Escape is
+      // deliberately NOT gated so it stays an escape hatch even if an action stalls.
+      if (pending) return;
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) close();
+    }
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [openId, close, pending]);
 
   /** Open the mini-form with the group prefilled from the row's CURRENT category
    *  (spending groups only — customs never join Income/Transfers) and the NAME
@@ -235,7 +254,10 @@ export function TransactionList({
                           </Badge>
                         )}
                       </div>
-                      <div className="relative text-xs text-muted-foreground">
+                      <div
+                        ref={open ? menuRef : undefined}
+                        className="relative text-xs text-muted-foreground"
+                      >
                         <button
                           type="button"
                           data-testid="category-chip"
@@ -267,6 +289,16 @@ export function TransactionList({
                           <div
                             role="listbox"
                             data-testid="category-menu"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') {
+                                // return focus to the trigger the keyboard user came from
+                                const trigger = menuRef.current?.querySelector<HTMLButtonElement>(
+                                  '[data-testid="category-chip"]',
+                                );
+                                close();
+                                trigger?.focus();
+                              }
+                            }}
                             className={`absolute left-0 z-50 max-h-72 w-72 max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border bg-card p-1 text-foreground shadow-lg ring-1 ring-foreground/10 ${
                               dropUp ? 'bottom-full mb-1' : 'mt-1'
                             }`}
@@ -331,7 +363,20 @@ export function TransactionList({
                                     + New category
                                   </button>
                                 ) : (
-                                  <div className="mt-1 space-y-1.5 border-t p-1 pt-2" data-testid="register-new-category">
+                                  <div
+                                    className="mt-1 space-y-1.5 border-t p-1 pt-2"
+                                    data-testid="register-new-category"
+                                    onKeyDown={(e) => {
+                                      // Escape from ANY sub-form control steps back one level (to the
+                                      // category list) — stop it reaching the menu container's Escape→close
+                                      // so a partly-typed category isn't lost.
+                                      if (e.key === 'Escape') {
+                                        e.stopPropagation();
+                                        setNewCatOpen(false);
+                                        setNewCatError(null);
+                                      }
+                                    }}
+                                  >
                                     {newCatError && (
                                       <p role="alert" className="text-xs text-red-400" data-testid="register-new-category-error">
                                         {newCatError}
@@ -341,12 +386,11 @@ export function TransactionList({
                                       value={newCatName}
                                       onChange={(e) => setNewCatName(e.target.value)}
                                       onKeyDown={(e) => {
+                                        // Enter creates; Escape is handled by the sub-form container
+                                        // (so every sub-form control steps back one level, not just this input).
                                         if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                                           e.preventDefault();
                                           createAndChoose(t);
-                                        } else if (e.key === 'Escape') {
-                                          setNewCatOpen(false);
-                                          setNewCatError(null);
                                         }
                                       }}
                                       placeholder="e.g. Golf"

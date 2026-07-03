@@ -1948,3 +1948,66 @@ commit-status API + the stored git credential, gh unauthenticated). Live-verifie
 "Go to dashboard"). #157 is LIVE. This deploy-record doc commit is local-only (UNPUSHED to avoid a
 redundant rebuild; ships with the next functional change). Local main is now 1 ahead of origin (this doc
 commit only). SAFE to /clear.
+
+## 2026-07-03 (cont., "continue") — #158 Register picker Escape / outside-click dismissal — DONE (verify green, hostile Checker 0 P0/P1)
+
+Took the next clean ROADMAP prod-readiness item after #157: "Escape/outside-click dismissal for the
+inline recategorize popover." Re-confirmed baseline green first (1666/125). Built in transaction-list.tsx
+(client-only): document mousedown outside-click (scoped to open, menuRef on the open row wrapper,
+!pending-gated), container-level Escape -> close + focus-return to the chip, close()->useCallback, and
+hardened the sub-form's two-level Escape onto the sub-form CONTAINER. 4 e2e locks in transactions.spec.ts.
+
+Verification path (evidence, not assumed): the initial dismissal tests passed except outside-click, which
+failed because the first row's menu opens UPWARD and its options overlay txn-summary (Playwright
+pointer-intercept) -> switched the outside target to txn-search (top of page, always clear) -> green.
+Then checked the existing register menu flows for regression: recat (#36) FAILED then PASSED on retry
+(non-deterministic => environmental #16/#17, not a code regression); write-in (#136) fails only at its
+final post-server-action persistence assertion (line 244) — the full menu interaction completed, so
+#158's client-only dismissal provably didn't break it; row-switch (#138) PASSES.
+
+Hostile Checker wf_1e6176e9-763 (4 lenses -> refute-by-default): 0 P0/P1. 2 P2 FIXED (two-level Escape
+moved to the sub-form container + fail-old group-select test; outside-click pending gate); 3 P2
+accepted-documented. Independently confirmed menuRef containment, no leak, robust target, genuine
+fail-old locks, and the environmental-not-regression conclusion.
+
+Gate (real 2026-07-03): verify GREEN 1666/125, tsc/eslint/build clean; the 4 #158 e2e tests PASS.
+Ledger: DECISIONS #158; STATUS "2026-07-03 ... Register recategorize-picker Escape / outside-click
+dismissal"; this entry. Committed below. NOT pushed (push owner-gated).
+
+## HANDOFF (resume after /clear) — 2026-07-03, session "aimplifi", post-#158
+Resume from C:\dev\Aimplifi. Clean stopping point, safe to /clear. #158 (register picker Escape/outside-
+click dismissal) is DONE, verify-green (1666/125), e2e 4/4 (#158), hostile-Checker'd (0 P0/P1).
+Committed, NOT pushed.
+
+Exact repo state: working tree CLEAN after the #158 commit. origin/main = ed72acf (#157, LIVE). Local
+main = 2 commits ahead of origin: the #157 deploy-record doc commit (6cb9418, intentionally unpushed) +
+the #158 commit. No schema change pending.
+
+Health baseline (re-confirm, don't trust this line): bash scripts/verify.sh -> VERIFY GREEN, 1666 unit /
+125 files. E2E opt-in; #158's locks are the 4 #158 tests in transactions.spec.ts (pure open/close, NOT
+stall-prone).
+
+Ledger map for #158: DECISIONS #158; STATUS "2026-07-03 ... Register recategorize-picker Escape /
+outside-click dismissal"; this handoff. One-line design: transaction-list.tsx gains a !pending-gated
+document mousedown outside-click + a container-level Escape (focus-returns to the chip); sub-form Escape
+is two-level on the sub-form container. Client-only, golden-safe.
+
+KNOWN (pre-existing, reboot-gated): the action-heavy register e2e (recat #36, write-in #136) stall on this
+unrebooted machine (#16/#17) — proven environmental this session (recat fail->pass on retry; write-in
+fails only at its post-action assertion). Re-witness after the owner reboot.
+
+NEXT (owner-gated): (1) push — ships #158 + the #157 deploy-record doc commit; verify the Vercel deploy
+(commit-status = success via the GitHub API, team reiforge / project aimplifi, aliases aimplifi.app + www
++ a 200/HSTS curl). (2) reboot -> full VERIFY_E2E=1 re-witness (STATUS #16 stall). (3) BACKLOG (all "only
+if markedly better"):
+  - Investments discoverability — HIGH value (flagship Aimplifi-vs-Simplifi gap), owner-scoped: nav entry
+    = an 8th phone icon (#71) -> mobile-nav redesign; surgical alt = link INVESTMENT account rows on
+    /accounts to /investments (no new icon).
+  - Per-route loading.tsx skeletons (medium; only the generic root loader exists).
+  - Empty states for no-data charts/cards (needs a fresh-signup user like the currency work).
+  - middleware.ts unanchored icon/manifest/favicon.ico matcher prefixes (OBSERVED under #157 — careful
+    auth-boundary increment, no data exposure today).
+  - #134 companion carve-out removal (optional, ~8-golden churn, not demo-reachable).
+
+STANDING OWNER-ONLY: reboot for the full VERIFY_E2E re-witness (STATUS #16); #155 Plaid + #156 SimpleFIN
+live-sandbox spot-checks. SAFE to /clear.

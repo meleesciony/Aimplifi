@@ -328,3 +328,86 @@ test('accounts, register, add, and import pages pass WCAG AA (380×800)', async 
   await expect(page.getByTestId('import-csv-form')).toBeVisible();
   await expectNoViolations(page, 'transactions/import');
 });
+
+test('register picker dismisses on Escape and returns focus to the chip (#158)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/transactions');
+  const row = page.getByTestId('txn-row').first();
+  await expect(row).toBeVisible({ timeout: 20000 });
+
+  const chip = row.getByTestId('category-chip');
+  await chip.click();
+  await expect(page.getByTestId('category-menu')).toBeVisible();
+
+  // Escape closes the whole picker and returns focus to the trigger (keyboard a11y).
+  // Fails-old: before #158 the menu had no Escape handler and stayed open.
+  await page.getByTestId('cat-search').press('Escape');
+  await expect(page.getByTestId('category-menu')).toHaveCount(0);
+  await expect(chip).toBeFocused();
+});
+
+test('register picker dismisses on an outside click (#158)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/transactions');
+  const row = page.getByTestId('txn-row').first();
+  await expect(row).toBeVisible({ timeout: 20000 });
+
+  await row.getByTestId('category-chip').click();
+  await expect(page.getByTestId('category-menu')).toBeVisible();
+
+  // A mousedown outside the open chip+menu closes it (native-popover behavior).
+  // The search box at the top of the page is never under the popover (which opens
+  // up or down from a row below it), so it is a reliable "outside" target.
+  // Fails-old: before #158 there was no outside-click listener.
+  await page.getByTestId('txn-search').click();
+  await expect(page.getByTestId('category-menu')).toHaveCount(0);
+});
+
+test('register write-in sub-form Escape closes only the sub-form, leaving the picker open (#158)', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto('/transactions');
+  const row = page.getByTestId('txn-row').first();
+  await expect(row).toBeVisible({ timeout: 20000 });
+
+  await row.getByTestId('category-chip').click();
+  await expect(page.getByTestId('category-menu')).toBeVisible();
+
+  // Open the "+ New category" sub-form (search a miss so the add button is adjacent).
+  await page.getByTestId('cat-search').fill(`Nope ${Date.now().toString().slice(-6)}`);
+  await page.getByTestId('register-add-category').click();
+  await expect(page.getByTestId('register-new-category-name')).toBeVisible();
+
+  // Escape steps BACK to the category list (two-level), NOT all the way out — this
+  // guards the stopPropagation that keeps the new container-level Escape from
+  // swallowing the sub-form's own Escape.
+  await page.getByTestId('register-new-category-name').press('Escape');
+  await expect(page.getByTestId('register-new-category')).toHaveCount(0);
+  await expect(page.getByTestId('category-menu')).toBeVisible();
+  await expect(page.getByTestId('cat-search')).toBeVisible();
+});
+
+test('register write-in sub-form Escape from the group select also steps back one level (#158)', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto('/transactions');
+  const row = page.getByTestId('txn-row').first();
+  await expect(row).toBeVisible({ timeout: 20000 });
+
+  await row.getByTestId('category-chip').click();
+  await expect(page.getByTestId('category-menu')).toBeVisible();
+  await page.getByTestId('cat-search').fill(`Nope ${Date.now().toString().slice(-6)}`);
+  await page.getByTestId('register-add-category').click();
+  await expect(page.getByTestId('register-new-category-name')).toBeVisible();
+
+  // Escape from a NON-name sub-form control (the group select) must ALSO step back
+  // one level, not close the whole picker — two-level Escape lives on the sub-form
+  // container, not just the name input. Fails-old: with Escape only on the name
+  // input, this Escape bubbled to the menu container and closed everything.
+  await page.getByTestId('register-new-category-group').press('Escape');
+  await expect(page.getByTestId('register-new-category')).toHaveCount(0);
+  await expect(page.getByTestId('category-menu')).toBeVisible();
+  await expect(page.getByTestId('cat-search')).toBeVisible();
+});

@@ -1726,3 +1726,39 @@ no Vercel MCP this session). Stronger-than-usual live corroboration: `www.aimpli
 h1, the "Aim<span>" wordmark, the "Go to dashboard" recovery). #157 is LIVE. This deploy-record doc line
 is committed local-only (intentionally UNPUSHED to avoid a redundant identical rebuild — rides out with
 the next functional change, per the #154/#155 precedent).
+
+## 2026-07-03 — Register recategorize-picker Escape / outside-click dismissal (#158, ROADMAP prod-readiness)
+
+The inline category picker on /transactions (transaction-list.tsx, single-controller openId model) only
+closed by re-tapping the chip — no Escape, no outside-click. A real keyboard-operability + usability gap
+on the app's most-used flow. Added (client-only, no server/engine touch):
+- A useEffect scoped to an open menu that adds a document mousedown outside-click listener closing the
+  picker (ref on the open row's chip+menu wrapper), gated on !pending so a stray click can't abandon an
+  in-flight create/refile.
+- A container-level Escape (onKeyDown) that closes and RETURNS focus to the chip (WCAG 2.4.3).
+- close() promoted to useCallback (stable effect dep).
+- Two-level Escape preserved + hardened: the "+ New category" sub-form's Escape closes ONLY the
+  sub-form, now handled on the sub-form CONTAINER so Escape from ANY sub-form control (not just the name
+  input) steps back one level.
+Escape is deliberately NOT gated on pending (only the outside-click is) so it stays a keyboard escape
+hatch even if a server action stalls (#16/#17) — a false-lock trap is worse than a rare orphan category.
+Golden byte-identical.
+
+Hostile Checker (wf_1e6176e9-763, 4 lenses -> double refute-by-default): 0 P0/P1 (lone a11y P1 candidate
+double-refuted). Independently confirmed menuRef containment (recat confirm pane + sub-form clicks count
+as inside -> recat/write-in/row-switch flows intact), no listener leak, stable close(), robust
+outside-click target, genuine fail-old locks, non-vacuous focus-return assertion, and that the write-in
+test failure is the environmental #16/#17 stall not a #158 regression. 2 P2 FIXED pre-commit: (a)
+two-level Escape worked only from the name input -> moved to the sub-form container + a fail-old
+group-select test; (b) outside-click could orphan a category mid-create -> pending gate. Accepted P2s
+(documented, low value): a listener-leak double-cycle test and an Escape-from-option-button test
+(cleanup correct by construction; Escape scope is container-level, covered by the search-input test).
+
+Gate (real, measured 2026-07-03): bash scripts/verify.sh -> VERIFY GREEN — typecheck/lint clean,
+1666 unit / 125 files (no unit delta — client UI, e2e-locked per the #145/#156/#157 precedent), build
+clean. E2E: the 4 new #158 tests in transactions.spec.ts PASS (Escape+focus-return 3.3s; outside-click
+3.4s; sub-form name-input Escape 3.6s; sub-form group-select Escape 3.7s). Pre-existing action-heavy
+register tests (recat #36, write-in #136) hit the documented environmental #16/#17 action-apply stall on
+this unrebooted machine (recat FAILED-then-PASSED on retry -> non-deterministic; write-in fails only at
+its post-server-action persistence assertion, AFTER the full menu interaction completed) — NOT a #158
+regression; reboot-gated re-witness.
