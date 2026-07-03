@@ -154,3 +154,66 @@ describe('generic keyword categorization for real-world merchants (DECISIONS #63
     expect(m.known).toBe(false);
   });
 });
+
+describe('category-vocabulary tier — "the category word is literally in the name"', () => {
+  // The deterministic long-tail catch: abbreviations, space-stripped tokens, and
+  // bare category words that the fixed merchant/keyword allowlists cannot enumerate.
+  // Every row here previously fell to uncategorized → manual review.
+  const cases: [string, string][] = [
+    // user-reported forms
+    ['GLF', 'entertainment'], // abbreviation → GOLF
+    ['GLF COURSE 4471', 'entertainment'],
+    ['ELECTRICITY', 'electricity'],
+    ['ELEC PMT', 'electricity'], // abbreviations: ELEC→ELECTRIC, PMT→PAYMENT
+    ['LIFEINSURANCE', 'life-insurance'], // space-stripped: \bINSURANCE\b could never fire here
+    ['WATERBILL', 'water'], // de-concatenation → WATER BILL
+    ['DRIVING RANGE LLC', 'entertainment'],
+    // concatenation splitting across the insurance family
+    ['AUTOINSURANCE', 'auto-insurance'],
+    ['CAR INSURANCE PMT', 'auto-insurance'],
+    ['HEALTHINS', 'health-insurance'],
+    ['DENTAL INSURANCE', 'dental-insurance'],
+    // utility companies with no category word (brand/acronym)
+    ['SCE', 'electricity'],
+    ['CONED', 'electricity'],
+    ['PG&E', 'electricity'],
+    ['COMED WEB PMT', 'electricity'],
+    ['PSEG', 'electricity'],
+    // life insurers by brand
+    ['NORTHWESTERN MUTUAL', 'life-insurance'],
+    ['PRIMERICA LIFE', 'life-insurance'],
+    ['NEW YORK LIFE', 'life-insurance'],
+    // grocery / pharmacy / retail long tail added to the allowlists
+    ['WALMART.COM', 'shopping'],
+    ['WAL-MART #1234', 'shopping'],
+    ['WINN-DIXIE #52', 'groceries'],
+    ['DUANE READE 214', 'pharmacy'],
+    ['RITE-AID 03421', 'pharmacy'],
+  ];
+  for (const [raw, categoryId] of cases) {
+    it(`"${raw}" -> ${categoryId}, auto-filed (≥7000)`, () => {
+      const m = normalizeMerchant(raw);
+      expect(m.categoryId).toBe(categoryId);
+      expect(m.confidenceBps).toBeGreaterThanOrEqual(7000);
+      expect(m.aggregate).toBe(false);
+    });
+  }
+
+  // Safety rails — the tier must NOT reach past its lane.
+  it('aggregates (Zelle/checks/Venmo) are matched first and never touched by the vocab tier', () => {
+    for (const raw of ['ZELLE PAYMENT TO MARCUS CHEN', 'CHECK #2041', 'VENMO PAYMENT 1029384756']) {
+      const m = normalizeMerchant(raw);
+      expect(m.aggregate).toBe(true);
+      expect(m.categoryId).toBe('uncategorized');
+      expect(m.confidenceBps).toBeLessThan(7000);
+    }
+  });
+
+  it('genuinely ambiguous bare tokens stay in review (no over-eager guess)', () => {
+    // bare RANGE (kitchen/gun/driving?), a mobile deposit, and an opaque brand must
+    // NOT be force-filed — only disambiguated phrases (DRIVING RANGE) map.
+    for (const raw of ['RANGE', 'MOBILEDEPOSIT', 'ACME WIDGETS LLC 7781']) {
+      expect(normalizeMerchant(raw).categoryId).toBe('uncategorized');
+    }
+  });
+});

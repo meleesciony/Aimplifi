@@ -86,6 +86,10 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^SAFEWAY\b/i, canonical: 'Safeway', categoryId: 'groceries' },
   { pattern: /^TRADER JOE/i, canonical: "Trader Joe's", categoryId: 'groceries' },
   { pattern: /^WM SUPERCENTER/i, canonical: 'Walmart', categoryId: 'shopping' },
+  // Walmart also arrives as the bare brand ('WALMART', 'WAL-MART #1234',
+  // 'WALMART.COM') — the #-suffixed WM SUPERCENTER form is only one of several
+  // (real feeds vary): without this the biggest US retailer fell to unknown.
+  { pattern: /^WAL[- ]?MART|^WALMART(\.COM)?\b/i, canonical: 'Walmart', categoryId: 'shopping' },
   { pattern: /^TARGET(\.COM)?\b/i, canonical: 'Target', categoryId: 'shopping' },
   // Dining chains
   { pattern: /^CHICK-FIL-A/i, canonical: 'Chick-fil-A', categoryId: 'dining' },
@@ -178,7 +182,7 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   { pattern: /\b(DUNKIN|PEET'?S|DUTCH BROS|CARIBOU COFFEE|COFFEE|CAFE|CAFÉ|ESPRESSO|ROASTER)\b/i, categoryId: 'coffee' },
   { pattern: /\b(BURGER KING|WENDY|TACO BELL|CHIPOTLE|POPEYE|ARBY|SONIC DRIVE|FIVE GUYS|SHAKE SHACK|RAISING CANE|WHATABURGER|JACK IN THE BOX|DEL TACO|HARDEE|JIMMY JOHN|PANERA|JERSEY MIKE|FIREHOUSE SUB|KFC)\b/i, categoryId: 'fast-food' },
   { pattern: /\b(LIQUOR|WINE|SPIRITS|BREWING|BREWERY|TAPROOM|PUB|TAVERN|TOTAL WINE|ABC STORE|DISTILLER)\b/i, categoryId: 'alcohol' },
-  { pattern: /\b(GROCER|GROCERY|SUPERMARKET|WHOLE FOODS|SAFEWAY|ALDI|WEGMAN|SPROUTS|H-?E-?B|FOOD LION|GIANT FOOD|STOP & SHOP|HARRIS TEETER|WINCO|FRESH MARKET|MEIJER|VONS|RALPHS|ALBERTSON|FOOD 4 LESS)\b/i, categoryId: 'groceries' },
+  { pattern: /\b(GROCER|GROCERY|SUPERMARKET|WHOLE FOODS|SAFEWAY|ALDI|WEGMAN|SPROUTS|H-?E-?B|FOOD LION|GIANT FOOD|STOP & SHOP|HARRIS TEETER|WINCO|FRESH MARKET|MEIJER|VONS|RALPHS|ALBERTSON|FOOD 4 LESS|WINN[- ]?DIXIE|PIGGLY WIGGLY|HY-?VEE|RALEY|SHOPRITE|PRICE CHOPPER|STATER BROS|SAVE MART|BI-?LO|GIANT EAGLE|MARKET BASKET)\b/i, categoryId: 'groceries' },
   { pattern: /\b(RESTAURANT|GRILL|KITCHEN|BISTRO|DINER|EATERY|TAQUERIA|PIZZA|PIZZERIA|SUSHI|RAMEN|STEAKHOUSE|CANTINA|TRATTORIA|OYSTER|SEAFOOD|NOODLE|BAKERY|CREAMERY|ICE CREAM|JUICE|SMOOTHIE|BAR ?& ?GRILL|BBQ)\b/i, categoryId: 'dining' },
   // Auto & transport
   { pattern: /\b(EXXON|MOBIL|TEXACO|MARATHON|SUNOCO|CITGO|VALERO|CONOCO|PHILLIPS 66|ARCO|SPEEDWAY|WAWA|RACETRAC|CIRCLE K|FUEL|PETRO|GASOLINE)\b/i, categoryId: 'fuel' },
@@ -192,7 +196,7 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   { pattern: /\b(HERTZ|ENTERPRISE RENT|AVIS|BUDGET RENT|NATIONAL CAR|ALAMO|THRIFTY|DOLLAR RENT|SIXT|TURO|RENTAL CAR)\b/i, categoryId: 'rental-car' },
   { pattern: /\b(EXPEDIA|BOOKING\.COM|PRICELINE|TRAVELOCITY|KAYAK|ORBITZ|HOTWIRE|TRIPADVISOR|VACATION|CRUISE)\b/i, categoryId: 'travel' },
   // Health
-  { pattern: /\b(RITE AID|PHARMACY|DRUG ?STORE)\b/i, categoryId: 'pharmacy' },
+  { pattern: /\b(RITE[- ]?AID|DUANE READE|PHARMACY|DRUG ?STORE)\b/i, categoryId: 'pharmacy' },
   // Insurance CARRIERS (premiums) — the payer, not the medical service. A Delta
   // Dental premium is dental INSURANCE, not a dentist visit (owner decision,
   // DECISIONS #115). These precede the dental/vision/health SERVICE rules below so
@@ -240,8 +244,22 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   { pattern: /\b(WASTE MANAGEMENT|WASTE MGMT|REPUBLIC SERVICES|SANITATION|GARBAGE|TRASH|REFUSE (COLLECTION|SERVICE|DISPOSAL)|RECYCLING|ADVANCED DISPOSAL|CASELLA WASTE|GFL ENVIRONMENTAL)\b/i, categoryId: 'trash' },
   { pattern: /\b(WATER (DEPT|UTILIT|BILL|SERVICE|WORKS|AUTHORITY|CO|COMPANY|DISTRICT)|MUNICIPAL WATER|SEWER|SEWAGE|AMERICAN WATER|AQUA (AMERICA|UTILIT))\b/i, categoryId: 'water' },
   { pattern: /\b(NATURAL GAS|GAS (CO|COMPANY|SVC|SERVICE|UTILITY)|NICOR|PIEDMONT (NATURAL )?GAS|ATLANTA GAS|SOCAL ?GAS|WASHINGTON GAS|COLUMBIA GAS|CENTERPOINT ENERGY|SPIRE (ENERGY|GAS)|NW NATURAL)\b/i, categoryId: 'natural-gas' },
+  // Major US electric (and combined gas+electric) utility companies by brand name
+  // or common acronym — these carry NO ELECTRIC/POWER/ENERGY word, so the token
+  // rule below can't reach them, yet an electric bill is a high-value recurring row
+  // everyone has. Acronyms are \b-bounded (outer \b(...)\b): 'SCE' matches alone but
+  // not inside 'SCENE'. Combined gas+electric utilities (PG&E) file as electricity —
+  // the primary "the power company" bucket; a bare gas biller already matched above.
+  { pattern: /\b(PG&E|PGANDE|PACIFIC GAS (AND|&) ELECTRIC|SOUTHERN CALIFORNIA EDISON|SCE|CON ?EDISON|CONED|CONSOLIDATED EDISON|PSE&G|PSEG|PUBLIC SERVICE ELECTRIC|COMED|COMMONWEALTH EDISON|AMEREN|LADWP|DWP|SALT RIVER PROJECT|SRP|ENTERGY|FLORIDA POWER|FPL|PECO|BALTIMORE GAS|BGE|PEPCO|EVERSOURCE|WE ENERGIES|ARIZONA PUBLIC SERVICE|DTE)\b/i, categoryId: 'electricity' },
   { pattern: /\b(ELECTRIC(ITY)?|POWER|ENERGY|CITY LIGHT|DUKE ENERGY|GEORGIA POWER)\b/i, categoryId: 'electricity' },
   { pattern: /\b(UTILITY|UTILITIES|MUNICIPAL|DOMINION|NATIONAL GRID)\b/i, categoryId: 'utilities' },
+  // Life-insurance carriers by brand + the explicit "life insurance" phrase
+  // (incl. the space-stripped 'LIFEINSURANCE' feeds send). Placed BEFORE the generic
+  // insurance rule so a life carrier files to the life leaf, not generic insurance.
+  { pattern: /\b(NORTHWESTERN MUTUAL|NEW YORK LIFE|NY LIFE|PRIMERICA|MASS ?MUTUAL|LINCOLN FINANCIAL|TRANSAMERICA|JOHN HANCOCK|GUARDIAN LIFE|MUTUAL OF OMAHA|GERBER LIFE|COLONIAL PENN|GLOBE LIFE|BANNER LIFE|HAVEN LIFE|LADDER LIFE|TERM LIFE|WHOLE LIFE|LIFE ?INSURANCE)\b/i, categoryId: 'life-insurance' },
+  // "AUTO/CAR INSURANCE" (spaced or space-stripped) → the auto-insurance leaf, not
+  // generic insurance — closes the DECISIONS #115 open item. Before the generic rule.
+  { pattern: /\b(AUTO|CAR|VEHICLE) ?INSURANCE\b/i, categoryId: 'auto-insurance' },
   { pattern: /\b(PROGRESSIVE|STATE FARM|ALLSTATE|LIBERTY MUTUAL|NATIONWIDE|USAA|FARMERS INS|TRAVELERS INS|METLIFE|PRUDENTIAL|AFLAC|INSURANCE)\b/i, categoryId: 'insurance' },
   // Entertainment & software
   { pattern: /\b(HULU|DISNEY ?\+|DISNEY PLUS|HBO|PARAMOUNT ?\+|PEACOCK|APPLE TV|PRIME VIDEO|TWITCH|AMC|CINEMARK|REGAL CIN|CINEMA|THEATER|THEATRE|TICKETMASTER|STUBHUB|FANDANGO|XBOX|PLAYSTATION|NINTENDO|EPIC GAMES|LIVE NATION|TOPGOLF|GOLF|COUNTRY CLUB|BOWLING|ARCADE|MUSEUM|AQUARIUM|SIX FLAGS|UNIVERSAL STUDIO)\b/i, categoryId: 'entertainment' },
@@ -258,6 +276,158 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   { pattern: /\b(RED CROSS|GOFUNDME|UNICEF|SALVATION ARMY|GOODWILL|CHARITY|DONATION|UNITED WAY|ST JUDE|HABITAT FOR|NONPROFIT)\b/i, categoryId: 'charity' },
   { pattern: /\b(1-?800-?FLOWERS|TELEFLORA|HALLMARK|EDIBLE ARRANG)\b/i, categoryId: 'gifts' },
 ];
+
+/**
+ * ── Category-vocabulary tier (the "the category word is literally in the name"
+ * fallback). Runs LAST — only after KNOWN_MERCHANTS and GENERIC_CATEGORY_RULES have
+ * both missed — so it never changes a merchant or keyword we already resolve, and
+ * aggregates (Zelle/Venmo/checks) have already returned above and can't reach it.
+ *
+ * It catches the long tail the fixed allowlist can't enumerate by matching the
+ * descriptor's OWN tokens against the category taxonomy's vocabulary — the
+ * systematic version of the scattered keyword rules above, and the answer to
+ * "many transactions literally have the category in the name" (golf, electricity,
+ * life insurance). Three moves, in order:
+ *   1. EXPAND common bank abbreviations on an EXACT token (GLF→GOLF, ELEC→ELECTRIC,
+ *      INS→INSURANCE, PHARM→PHARMACY, PMT→PAYMENT).
+ *   2. DE-CONCATENATE a space-stripped token against a small word set — real feeds
+ *      routinely drop the spaces, and \b-anchored keyword rules can't see inside a
+ *      smashed token (the reason 'LIFEINSURANCE' missed \bINSURANCE\b). Both halves
+ *      must be dictionary words, so it recombines category words with their
+ *      qualifiers/glue and never invents a split: LIFEINSURANCE→LIFE INSURANCE,
+ *      WATERBILL→WATER BILL, AUTOINSURANCE→AUTO INSURANCE, PARKINGMETER→PARKING METER.
+ *   3. MATCH the resulting token stream (single tokens + adjacent 2-grams) against
+ *      CATEGORY_VOCAB, ordered specific→generic (natural-gas before a bare gas
+ *      phrase; the insurance sub-lines before generic insurance).
+ *
+ * Confidence is GENERIC-tier (auto-file with the subtle "AI" badge, never silent),
+ * and ONLY unambiguous category words are listed — bare ambiguous tokens (GAS =
+ * gasoline-vs-utility, WATER = park-vs-utility, MOBILE = phone-vs-"mobile deposit")
+ * are deliberately mapped only inside a disambiguating phrase — so a mis-map is both
+ * rare and one tap for the user to correct.
+ */
+export const VOCAB_CONFIDENCE_BPS = 7500;
+
+/** Whole-token abbreviation/synonym expansions (applied only to an EXACT token). */
+const TOKEN_EXPANSIONS: Readonly<Record<string, string>> = {
+  GLF: 'GOLF',
+  ELEC: 'ELECTRIC', ELECT: 'ELECTRIC', ELECTRICITY: 'ELECTRIC', ELE: 'ELECTRIC', ELC: 'ELECTRIC',
+  INS: 'INSURANCE', INSUR: 'INSURANCE', INSCE: 'INSURANCE',
+  PHARM: 'PHARMACY', PHARMA: 'PHARMACY', RX: 'PHARMACY',
+  PMT: 'PAYMENT', PYMT: 'PAYMENT', PYMNT: 'PAYMENT', PMNT: 'PAYMENT', PMTS: 'PAYMENT',
+  UTIL: 'UTILITY', UTILS: 'UTILITY', UTILITIES: 'UTILITY',
+  VET: 'VETERINARY',
+};
+
+/**
+ * Words the de-concatenator may split a smashed token into. BOTH halves must be in
+ * this set (or expand into it), so it only recombines category words with their
+ * qualifiers/glue — never invents a split. Kept short and unambiguous on purpose.
+ */
+const SEGMENT_WORDS: ReadonlySet<string> = new Set([
+  'LIFE', 'AUTO', 'CAR', 'HEALTH', 'HOME', 'HOMEOWNERS', 'RENTERS', 'PET', 'DENTAL', 'VISION',
+  'TERM', 'WHOLE', 'WATER', 'SEWER', 'SEWAGE', 'GAS', 'ELECTRIC', 'POWER', 'ENERGY', 'TRASH',
+  'GARBAGE', 'SANITATION', 'INSURANCE', 'BILL', 'PAYMENT', 'GOLF', 'PARKING', 'METER',
+  'PHARMACY', 'MEDICAL', 'MORTGAGE', 'NATURAL', 'COUNTRY', 'CLUB', 'DRIVING', 'RANGE',
+]);
+
+/** Ordered specific→generic; `phrase` is 1–2 (post-expansion) tokens. First hit wins. */
+const CATEGORY_VOCAB: readonly { phrase: readonly string[]; categoryId: string }[] = [
+  // Utilities — the disambiguated phrases beat the bare/electric token below.
+  { phrase: ['NATURAL', 'GAS'], categoryId: 'natural-gas' },
+  { phrase: ['GAS', 'BILL'], categoryId: 'natural-gas' },
+  { phrase: ['GAS', 'UTILITY'], categoryId: 'natural-gas' },
+  { phrase: ['GAS', 'COMPANY'], categoryId: 'natural-gas' },
+  { phrase: ['WATER', 'BILL'], categoryId: 'water' },
+  { phrase: ['WATER', 'UTILITY'], categoryId: 'water' },
+  { phrase: ['WATER', 'SEWER'], categoryId: 'water' },
+  { phrase: ['WATER', 'DEPARTMENT'], categoryId: 'water' },
+  { phrase: ['SEWER'], categoryId: 'water' },
+  { phrase: ['SEWAGE'], categoryId: 'water' },
+  { phrase: ['TRASH'], categoryId: 'trash' },
+  { phrase: ['GARBAGE'], categoryId: 'trash' },
+  { phrase: ['SANITATION'], categoryId: 'trash' },
+  { phrase: ['ELECTRIC'], categoryId: 'electricity' },
+  // Insurance — sub-lines before generic insurance.
+  { phrase: ['LIFE', 'INSURANCE'], categoryId: 'life-insurance' },
+  { phrase: ['TERM', 'INSURANCE'], categoryId: 'life-insurance' },
+  { phrase: ['AUTO', 'INSURANCE'], categoryId: 'auto-insurance' },
+  { phrase: ['CAR', 'INSURANCE'], categoryId: 'auto-insurance' },
+  { phrase: ['HEALTH', 'INSURANCE'], categoryId: 'health-insurance' },
+  { phrase: ['MEDICAL', 'INSURANCE'], categoryId: 'health-insurance' },
+  { phrase: ['DENTAL', 'INSURANCE'], categoryId: 'dental-insurance' },
+  { phrase: ['VISION', 'INSURANCE'], categoryId: 'vision-insurance' },
+  { phrase: ['INSURANCE'], categoryId: 'insurance' },
+  // Recreation / services / health.
+  { phrase: ['DRIVING', 'RANGE'], categoryId: 'entertainment' },
+  { phrase: ['COUNTRY', 'CLUB'], categoryId: 'entertainment' },
+  { phrase: ['GOLF'], categoryId: 'entertainment' },
+  { phrase: ['PHARMACY'], categoryId: 'pharmacy' },
+  { phrase: ['PARKING'], categoryId: 'parking' },
+  { phrase: ['VETERINARY'], categoryId: 'pets' },
+  { phrase: ['DENTAL'], categoryId: 'dental' },
+  { phrase: ['DENTIST'], categoryId: 'dental' },
+];
+
+/** Split a smashed alpha token into two dictionary words, or null. */
+function segmentToken(tok: string): string[] | null {
+  for (let i = 3; i <= tok.length - 3; i++) {
+    const a = tok.slice(0, i);
+    const b = tok.slice(i);
+    if (!SEGMENT_WORDS.has(a)) continue;
+    if (SEGMENT_WORDS.has(b)) return [a, b];
+    const bExp = TOKEN_EXPANSIONS[b];
+    if (bExp && SEGMENT_WORDS.has(bExp)) return [a, bExp];
+  }
+  return null;
+}
+
+/** Tokenize + expand abbreviations + de-concatenate → the token stream to match. */
+function expandTokens(raw: string): string[] {
+  const rawTokens = raw.toUpperCase().split(/[^A-Z0-9&]+/).filter(Boolean);
+  const out: string[] = [];
+  for (const tok of rawTokens) {
+    const exp = TOKEN_EXPANSIONS[tok];
+    if (exp) {
+      out.push(exp);
+      continue;
+    }
+    if (/^[A-Z]+$/.test(tok) && tok.length >= 8) {
+      const seg = segmentToken(tok);
+      if (seg) {
+        out.push(...seg);
+        continue;
+      }
+    }
+    out.push(tok);
+  }
+  return out;
+}
+
+/**
+ * Final deterministic tier: match a descriptor's own (expanded, de-concatenated)
+ * tokens against the category vocabulary. Returns null when no category word is
+ * present — the row then falls through to review, unchanged.
+ */
+export function matchCategoryVocabulary(
+  rawDescriptor: string,
+): { categoryId: string; confidenceBps: number } | null {
+  const tokens = expandTokens(rawDescriptor);
+  if (tokens.length === 0) return null;
+  const present = new Set(tokens);
+  for (const { phrase, categoryId } of CATEGORY_VOCAB) {
+    if (phrase.length === 1) {
+      if (present.has(phrase[0])) return { categoryId, confidenceBps: VOCAB_CONFIDENCE_BPS };
+    } else {
+      for (let i = 0; i + 1 < tokens.length; i++) {
+        if (tokens[i] === phrase[0] && tokens[i + 1] === phrase[1]) {
+          return { categoryId, confidenceBps: VOCAB_CONFIDENCE_BPS };
+        }
+      }
+    }
+  }
+  return null;
+}
 
 /** Aggregate canonical names that exist outside the ambiguous block too. */
 const AGGREGATE_CANONICALS = new Set(['ATM Withdrawal', 'Account Transfer', 'Card Payment', 'Unknown Merchant']);
@@ -370,6 +540,21 @@ export function normalizeMerchant(rawDescriptor: string): MerchantMatch {
         aggregate: false,
       };
     }
+  }
+  // Final deterministic tier: the category word is literally in the descriptor
+  // (golf, electricity, LIFEINSURANCE, WATERBILL, ELEC PMT) — resolve it from the
+  // taxonomy vocabulary instead of leaving an obvious row for manual review. Runs
+  // on the RAW descriptor (its own tokenizer handles abbreviations + smashed
+  // tokens) so nothing the KNOWN/GENERIC layers already answered is affected.
+  const vocab = matchCategoryVocabulary(rawDescriptor);
+  if (vocab) {
+    return {
+      canonical: cleaned || 'Unknown Merchant',
+      categoryId: vocab.categoryId,
+      confidenceBps: vocab.confidenceBps,
+      known: true,
+      aggregate: false,
+    };
   }
   return {
     canonical: cleaned || 'Unknown Merchant',

@@ -41,17 +41,30 @@ const CASES: { raw: string; label: string | null }[] = [
   { raw: 'DOORDASH*WENDYS 855-973-1040', label: 'food-delivery' }, // leaf added #63; label updated Phase 3a
   { raw: 'PATREON* MEMBERSHIP', label: 'entertainment' },
   // utility/biller forms that trip naive parsers
-  { raw: 'DUKE ENERGY EPAY 800-777-9898', label: 'utilities' }, // STATUS #11: known to misfire → transfer
-  { raw: 'GEORGIA POWER BILLMATRIX', label: 'utilities' },
+  { raw: 'DUKE ENERGY EPAY 800-777-9898', label: 'electricity' }, // electric utility → the #154 electricity leaf
+  { raw: 'GEORGIA POWER BILLMATRIX', label: 'electricity' }, // an electric power company → electricity, not generic utilities
   { raw: 'COMCAST / XFINITY 800266278', label: 'utilities' },
   // money movement / fees / income (signed amounts matter less for label here)
   { raw: 'INTEREST EARNED', label: 'income' },
   { raw: 'OVERDRAFT FEE', label: 'fees' },
   { raw: 'ATM WITHDRAWAL 24 PEACHTREE', label: 'cash' },
+  // "the category word is literally in the name" — the vocabulary tier (abbreviations,
+  // space-stripped tokens, bare category words) should auto-file these deterministically
+  { raw: 'GLF', label: 'entertainment' }, // abbreviation → golf
+  { raw: 'ELECTRICITY', label: 'electricity' },
+  { raw: 'ELEC PMT WEB', label: 'electricity' }, // ELEC→ELECTRIC, PMT→PAYMENT
+  { raw: 'LIFEINSURANCE', label: 'life-insurance' }, // space-stripped; \bINSURANCE\b can't fire
+  { raw: 'WATERBILL AUTOPAY', label: 'water' }, // de-concatenation → WATER BILL
+  { raw: 'AUTOINSURANCE PREMIUM', label: 'auto-insurance' },
+  { raw: 'SCE 800-655-4555', label: 'electricity' }, // utility acronym, no category word
+  { raw: 'PG&E WEB ONLINE', label: 'electricity' },
+  { raw: 'NORTHWESTERN MUTUAL', label: 'life-insurance' }, // life insurer brand
+  { raw: 'WALMART.COM 8009256278', label: 'shopping' },
   // genuinely ambiguous — the correct behavior is "review", not a guess
   { raw: 'VENMO PAYMENT 1234567890', label: null },
   { raw: 'ZELLE TO ALEX 8675309', label: null },
   { raw: 'SQ *', label: null },
+  { raw: 'RANGE', label: null }, // bare "range" is ambiguous (kitchen/gun/driving) → review is correct
 ];
 
 function main() {
