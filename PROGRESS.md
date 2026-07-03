@@ -2011,3 +2011,12 @@ if markedly better"):
 
 STANDING OWNER-ONLY: reboot for the full VERIFY_E2E re-witness (STATUS #16); #155 Plaid + #156 SimpleFIN
 live-sandbox spot-checks. SAFE to /clear.
+
+## 2026-07-03 (cont., owner: "push") — #158 DEPLOYED
+Pushed ed72acf..be5707a (shipped #158 + the #157 deploy-record doc commit; origin 0/0). Vercel
+commit-status for be5707a = success (deployment E3roppmuNgvymGe1seY6kfMF9UnY). Live: /sign-in -> 200 +
+HSTS; /iconzzz -> 404 branded (confirms #157 live + deploy healthy). #158's client dismissal is
+auth+browser-gated (not curl-verifiable) — proven by the 4 #158 e2e pre-deploy. #158 LIVE. Deploy-record
+doc commit is local-only (unpushed, avoids a redundant rebuild). Local main is now 1 ahead of origin
+(this doc commit only). RECOMMENDED: /clear before the next increment (fresh, independent work; the
+post-#158 handoff above is current + comprehensive). SAFE to /clear.

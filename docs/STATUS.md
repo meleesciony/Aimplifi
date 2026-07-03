@@ -1762,3 +1762,12 @@ register tests (recat #36, write-in #136) hit the documented environmental #16/#
 this unrebooted machine (recat FAILED-then-PASSED on retry -> non-deterministic; write-in fails only at
 its post-server-action persistence assertion, AFTER the full menu interaction completed) — NOT a #158
 regression; reboot-gated re-witness.
+
+**DEPLOYED (owner: "push")** — git push origin main -> ed72acf..be5707a (shipped #158 + the #157
+deploy-record doc commit; origin now 0/0). Deploy VERIFIED: Vercel commit-status for be5707a = success
+("Deployment has completed", deployment E3roppmuNgvymGe1seY6kfMF9UnY, team reiforge / project aimplifi;
+via GitHub's commit-status API + the stored git credential). Live health: www.aimplifi.app/sign-in ->
+HTTP 200 + HSTS; /iconzzz -> HTTP 404 branded ("Page not found") — confirms #157 still live + the deploy
+serves latest. #158's client-side dismissal is behind auth + browser interaction so not curl-verifiable —
+proven by the 4 passing #158 e2e tests pre-deploy. #158 is LIVE. This deploy-record doc line is committed
+local-only (UNPUSHED to avoid a redundant identical rebuild; rides with the next functional change).
