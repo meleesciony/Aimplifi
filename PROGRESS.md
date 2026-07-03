@@ -1862,3 +1862,18 @@ full e2e re-witness; #155 live-sandbox Plaid PFC spot-check (PLAID_WALKTHROUGH �
 spot-check — on a real SimpleFIN run, confirm whether `holding.currency` carries an ISO code / URL (as assumed) vs a
 security identifier; if the latter ever appears, flip `isNonUsdHolding` to the narrow ISO-only predicate (one line, the
 mapper test comments the flip). No downside today: the path is dormant.
+
+## 2026-07-03 (cont., owner: "push, commit, update") — #156 DEPLOYED ✅
+Owner authorized the push. `git push origin main` → `5a110c5..7764871` (origin was at `5a110c5` #155, so this push
+shipped the previously-unpushed #155 deploy-record doc commit `7958a0c` ALONGSIDE #156 — origin/main advanced
+5a110c5→7764871, now 0 ahead/0 behind). Deploy VERIFIED READY: the Vercel commit-status check for `7764871` =
+**success** ("Deployment has completed", deployment `D9gjiaVn2GRHn43As6VL6AwHK8WL`, team reiforge / project aimplifi;
+queried via GitHub's commit-status API with the stored git credential — no Vercel MCP this session), corroborated by
+`www.aimplifi.app/sign-in` → HTTP 200 + HSTS (`max-age=63072000; includeSubDomains`). #156 (SimpleFIN holding-level
+currency guard, residual 20 CLOSED) is LIVE. This deploy-record doc update is committed + pushed below (accepting one
+harmless redundant identical rebuild to keep origin == local, per the owner's explicit "push").
+
+**Backlog remaining (owner-gated, "only if markedly better"):** shared `<CategoryPicker>` full extraction (register
+e2e reboot-gated — #153 deferred half), #134 companion carve-out removal (optional, ~8-golden churn, not
+demo-reachable), general match-&-surpass per docs/ROADMAP.md. STANDING OWNER-ONLY: reboot for the full
+`VERIFY_E2E=1` re-witness (STATUS #16 stall); #155 Plaid + #156 SimpleFIN live-sandbox spot-checks. SAFE to /clear.

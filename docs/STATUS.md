@@ -1662,3 +1662,10 @@ line if a live sandbox run ever shows `holding.currency` carrying a security ide
 Gate (real, measured 2026-07-03): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — typecheck/lint clean,
 **1666 unit / 125 files** (+10: 7 mapper cases + 3 sync cases), build clean. No schema change; demo/golden
 byte-identical (the demo seed's 5 holdings carry no currency and never pass through the mapper).
+
+**DEPLOYED ✅ (owner: "push")** — `git push origin main` → `5a110c5..7764871` (origin was at #155, so this also
+shipped the previously-unpushed #155 deploy-record doc commit `7958a0c`). Deploy VERIFIED READY: Vercel
+commit-status for `7764871` = **success** ("Deployment has completed", deployment `D9gjiaVn2GRHn43As6VL6AwHK8WL`,
+team reiforge / project aimplifi; queried via GitHub's commit-status API with the stored git credential — no
+Vercel MCP this session), corroborated by `www.aimplifi.app/sign-in` → HTTP 200 + HSTS
+(`max-age=63072000; includeSubDomains`). #156 is LIVE.
