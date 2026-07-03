@@ -188,6 +188,13 @@ export function answerSpendByCategory(breakdown: SpendingBreakdown, target: Spen
   const facts: AssistantFact[] = [];
   if (target.type === 'category') {
     amount = breakdown.byCategory.find((c) => c.categoryId === target.categoryId)?.amountCents ?? 0;
+  } else if (target.type === 'categories') {
+    // Umbrella: sum the named leaves and surface the top 3 as the supporting facts.
+    // byCategory is already amount-desc, so the filtered slice stays ranked.
+    const ids = new Set(target.categoryIds);
+    const matches = breakdown.byCategory.filter((c) => ids.has(c.categoryId));
+    amount = matches.reduce((sum, c) => sum + c.amountCents, 0);
+    for (const c of matches.slice(0, 3)) facts.push({ label: c.name, value: fmt(c.amountCents) });
   } else {
     const g = breakdown.byGroup.find((x) => x.group === target.group);
     amount = g?.amountCents ?? 0;

@@ -14,15 +14,35 @@ function isFlaggedTransfer(rawDescriptor: string): boolean {
 }
 
 describe('utility e-payments count as spend (eval finding, STATUS #11 fixed)', () => {
-  it('DUKE ENERGY EPAY → utilities, auto-filed, NOT a transfer', () => {
+  it('DUKE ENERGY EPAY → electricity, auto-filed, NOT a transfer', () => {
+    // #154: still spend + not a transfer (STATUS #11 invariant); the category is
+    // now the specific `electricity` leaf rather than the `utilities` catch-all.
     const out = categorize({ rawDescriptor: 'DUKE ENERGY EPAY 800-777-9898', amountCents: -12500, date: '2026-06-10', accountId: 'a' });
-    expect(out.categoryId).toBe('utilities');
+    expect(out.categoryId).toBe('electricity');
     expect(out.needsReview).toBe(false);
     expect(isFlaggedTransfer('DUKE ENERGY EPAY 800-777-9898')).toBe(false);
   });
 
-  it('GEORGIA POWER BILLMATRIX → utilities', () => {
-    expect(categorize({ rawDescriptor: 'GEORGIA POWER BILLMATRIX', amountCents: -9000, date: '2026-06-10', accountId: 'a' }).categoryId).toBe('utilities');
+  it('GEORGIA POWER BILLMATRIX → electricity', () => {
+    expect(categorize({ rawDescriptor: 'GEORGIA POWER BILLMATRIX', amountCents: -9000, date: '2026-06-10', accountId: 'a' }).categoryId).toBe('electricity');
+  });
+
+  it('splits gas / water / trash e-payments to their own leaves, all still spend (#154)', () => {
+    const cases: [string, string][] = [
+      ['PIEDMONT NATURAL GAS EPAY', 'natural-gas'],
+      ['CENTERPOINT ENERGY BILLPAY', 'natural-gas'], // gas biller named "ENERGY" — gas wins over electricity
+      ['ATLANTA GAS LIGHT EPAY', 'natural-gas'], // "LIGHT" in name but a gas utility — gas wins
+      ['CITY OF ATLANTA WATER EPAY', 'water'],
+      ['DEKALB COUNTY SEWER BILLPAY', 'water'],
+      ['REPUBLIC SERVICES EPAY', 'trash'],
+      ['WASTE MANAGEMENT BILLMATRIX', 'trash'],
+    ];
+    for (const [raw, categoryId] of cases) {
+      const out = categorize({ rawDescriptor: raw, amountCents: -8000, date: '2026-06-10', accountId: 'a' });
+      expect(out.categoryId, raw).toBe(categoryId);
+      expect(out.needsReview, raw).toBe(false);
+      expect(isFlaggedTransfer(raw)).toBe(false);
+    }
   });
 
   it('does NOT regress card payments — CHASE/AMEX EPAY stay transfers', () => {

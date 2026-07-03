@@ -60,7 +60,14 @@ export const CATEGORIES: SystemCategory[] = [
   { id: 'storage', name: 'Storage', group: 'Home', discretionary: false },
 
   // ── Bills & Utilities ───────────────────────────────────────────────
+  // `utilities` is the CATCH-ALL for combined/municipal bills; the four leaves
+  // below split out the household utilities everyone recognises (added #154).
+  // Purely additive — no existing id/name changed, so every golden holds.
   { id: 'utilities', name: 'Internet & Utilities', group: 'Bills & Utilities', discretionary: false },
+  { id: 'electricity', name: 'Electricity', group: 'Bills & Utilities', discretionary: false },
+  { id: 'natural-gas', name: 'Natural Gas', group: 'Bills & Utilities', discretionary: false },
+  { id: 'water', name: 'Water & Sewer', group: 'Bills & Utilities', discretionary: false },
+  { id: 'trash', name: 'Trash & Recycling', group: 'Bills & Utilities', discretionary: false },
   { id: 'phone', name: 'Mobile Phone', group: 'Bills & Utilities', discretionary: false },
   { id: 'internet', name: 'Internet & Cable', group: 'Bills & Utilities', discretionary: false },
   { id: 'subscriptions', name: 'Subscriptions', group: 'Bills & Utilities', discretionary: true },

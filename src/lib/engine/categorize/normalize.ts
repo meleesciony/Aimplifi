@@ -132,7 +132,21 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   // the same class as the DUKE ENERGY EPAY misfire (STATUS #11). Both tokens are
   // still required, so 'BUD LIGHT EPAY' remains contrived and card payments stay
   // untouched.
-  { pattern: /\b(ENERGY|ELECTRIC|POWER|WATER|LIGHT|UTILIT)\b.*\b(EPAY(MENT)?|BILLMATRIX|BILL ?PAY)\b/i, canonical: 'Utility Bill', categoryId: 'utilities' },
+  // Split by service token (#154) so each bill files to its specific leaf; EVERY
+  // branch still requires a biller-payment token, so the transfer-avoidance
+  // guarantee is unchanged and 'CHASE EPAY'/'AMEX EPAYMENT' stay transfers.
+  // Ordered trash → water → gas → electricity → generic: gas precedes electricity
+  // so a gas biller that says "ENERGY"/"LIGHT" ('CENTERPOINT ENERGY EPAY',
+  // 'ATLANTA GAS LIGHT EPAY') files as gas, not electricity. The trailing UTILIT(Y|IES)
+  // branch is the catch-all for combined/unlabelled municipal bills. Every biller
+  // token is either multi-word or a company name qualified with its service word
+  // (CENTERPOINT ENERGY, SPIRE ENERGY/GAS) so a bare 'CENTERPOINT'/'SPIRE' in an
+  // unrelated payee can't ride the EPAY token into a utility leaf (#154 critic).
+  { pattern: /\b(WASTE|SANITATION|GARBAGE|TRASH|REFUSE|RECYCL|REPUBLIC SERVICES)\b.*\b(EPAY(MENT)?|BILLMATRIX|BILL ?PAY)\b/i, canonical: 'Trash Bill', categoryId: 'trash' },
+  { pattern: /\b(WATER|SEWER|SEWAGE|AQUEDUCT)\b.*\b(EPAY(MENT)?|BILLMATRIX|BILL ?PAY)\b/i, canonical: 'Water Bill', categoryId: 'water' },
+  { pattern: /\b(NATURAL GAS|GAS (CO|COMPANY|SVC|SERVICE|UTILITY)|NICOR|PIEDMONT (NATURAL )?GAS|CENTERPOINT ENERGY|SPIRE (ENERGY|GAS)|ATLANTA GAS|SOCAL ?GAS|WASHINGTON GAS|COLUMBIA GAS)\b.*\b(EPAY(MENT)?|BILLMATRIX|BILL ?PAY)\b/i, canonical: 'Gas Bill', categoryId: 'natural-gas' },
+  { pattern: /\b(ENERGY|ELECTRIC|POWER|LIGHT)\b.*\b(EPAY(MENT)?|BILLMATRIX|BILL ?PAY)\b/i, canonical: 'Electric Bill', categoryId: 'electricity' },
+  { pattern: /\bUTILIT(Y|IES)?\b.*\b(EPAY(MENT)?|BILLMATRIX|BILL ?PAY)\b/i, canonical: 'Utility Bill', categoryId: 'utilities' },
   // Transfers — the SAME anchored pattern transfer detection uses (one source
   // of truth; substring matching here once erased real spending — critic F4)
   { pattern: /^ONLINE TRANSFER/i, canonical: 'Account Transfer', categoryId: 'transfer' },
@@ -212,7 +226,22 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   // Bills & utilities
   { pattern: /\b(VERIZON|SPRINT|CRICKET WIRELESS|MINT MOBILE|BOOST MOBILE|US CELLULAR|STRAIGHT TALK|METRO ?PCS|VISIBLE WIRELESS)\b/i, categoryId: 'phone' },
   { pattern: /\b(SPECTRUM|COX COMM|CENTURYLINK|FRONTIER COMM|OPTIMUM|WINDSTREAM|FIOS|GOOGLE FIBER|HUGHESNET|STARLINK)\b/i, categoryId: 'internet' },
-  { pattern: /\b(POWER|ELECTRIC|ENERGY|WATER (DEPT|UTILIT|BILL)|GAS COMPANY|UTILITY|MUNICIPAL|SEWER|WASTE MANAGEMENT|REPUBLIC SERVICES|DUKE ENERGY|GEORGIA POWER|DOMINION|NATIONAL GRID)\b/i, categoryId: 'utilities' },
+  // Utilities split by service (#154), specific → generic. trash/water/gas run
+  // before electricity so a gas biller that says "ENERGY" ('CENTERPOINT ENERGY')
+  // isn't swallowed by electricity's bare POWER/ELECTRIC/ENERGY tokens. Bare
+  // LIGHT is deliberately NOT an electricity token here (would catch 'BUD LIGHT');
+  // 'CITY LIGHT' is. Company names are qualified with their service word
+  // (CASELLA WASTE, CENTERPOINT ENERGY, SPIRE ENERGY/GAS) and 'REFUSE'/'WATER' are
+  // required to appear as an actual utility phrase, so unrelated payees ('CASELLA
+  // WINES', 'CITY WATER PARK', 'REFUSE TO LOSE LLC') no longer misfile (#154 critic).
+  // The trailing UTILITY/MUNICIPAL branch keeps the old catch-all coverage; note a
+  // combined utility spelled '<NAME> ENERGY' (DOMINION ENERGY) matches electricity
+  // FIRST — only a bare 'DOMINION' / 'NATIONAL GRID' reaches this branch.
+  { pattern: /\b(WASTE MANAGEMENT|WASTE MGMT|REPUBLIC SERVICES|SANITATION|GARBAGE|TRASH|REFUSE (COLLECTION|SERVICE|DISPOSAL)|RECYCLING|ADVANCED DISPOSAL|CASELLA WASTE|GFL ENVIRONMENTAL)\b/i, categoryId: 'trash' },
+  { pattern: /\b(WATER (DEPT|UTILIT|BILL|SERVICE|WORKS|AUTHORITY|CO|COMPANY|DISTRICT)|MUNICIPAL WATER|SEWER|SEWAGE|AMERICAN WATER|AQUA (AMERICA|UTILIT))\b/i, categoryId: 'water' },
+  { pattern: /\b(NATURAL GAS|GAS (CO|COMPANY|SVC|SERVICE|UTILITY)|NICOR|PIEDMONT (NATURAL )?GAS|ATLANTA GAS|SOCAL ?GAS|WASHINGTON GAS|COLUMBIA GAS|CENTERPOINT ENERGY|SPIRE (ENERGY|GAS)|NW NATURAL)\b/i, categoryId: 'natural-gas' },
+  { pattern: /\b(ELECTRIC(ITY)?|POWER|ENERGY|CITY LIGHT|DUKE ENERGY|GEORGIA POWER)\b/i, categoryId: 'electricity' },
+  { pattern: /\b(UTILITY|UTILITIES|MUNICIPAL|DOMINION|NATIONAL GRID)\b/i, categoryId: 'utilities' },
   { pattern: /\b(PROGRESSIVE|STATE FARM|ALLSTATE|LIBERTY MUTUAL|NATIONWIDE|USAA|FARMERS INS|TRAVELERS INS|METLIFE|PRUDENTIAL|AFLAC|INSURANCE)\b/i, categoryId: 'insurance' },
   // Entertainment & software
   { pattern: /\b(HULU|DISNEY ?\+|DISNEY PLUS|HBO|PARAMOUNT ?\+|PEACOCK|APPLE TV|PRIME VIDEO|TWITCH|AMC|CINEMARK|REGAL CIN|CINEMA|THEATER|THEATRE|TICKETMASTER|STUBHUB|FANDANGO|XBOX|PLAYSTATION|NINTENDO|EPIC GAMES|LIVE NATION|TOPGOLF|GOLF|COUNTRY CLUB|BOWLING|ARCADE|MUSEUM|AQUARIUM|SIX FLAGS|UNIVERSAL STUDIO)\b/i, categoryId: 'entertainment' },

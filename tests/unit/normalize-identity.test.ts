@@ -78,10 +78,12 @@ describe('variant convergence — one real merchant, one identity (Phase 3a)', (
     expect(b.canonical).toBe('Venmo');
   });
 
-  it('a municipal LIGHT bill is a utility, not a transfer (DUKE-ENERGY class, STATUS #11)', () => {
+  it('a municipal LIGHT bill is electricity, not a transfer (DUKE-ENERGY class, STATUS #11 / #154)', () => {
+    // "City Light" is a municipal ELECTRIC utility; the split (#154) files it as
+    // electricity while preserving the STATUS #11 fix (spend, not a transfer).
     expect(normalizeMerchant('CITY OF SEATTLE LIGHT EPAY')).toMatchObject({
-      canonical: 'Utility Bill',
-      categoryId: 'utilities',
+      canonical: 'Electric Bill',
+      categoryId: 'electricity',
     });
   });
 });

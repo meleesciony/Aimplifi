@@ -122,6 +122,23 @@ describe('resolveSpendTarget', () => {
   it('broad words map to groups', () => {
     expect(resolveSpendTarget('travel')).toEqual({ type: 'group', group: 'Travel', label: 'travel' });
   });
+  // #154 critic P1: "gas bill"/"natural gas" is the UTILITY, not gasoline — the
+  // synonym must beat the bare `gas`→fuel rule instead of being shadowed dead.
+  it('gas bill / natural gas resolve to the natural-gas utility, not fuel', () => {
+    expect(resolveSpendTarget('natural gas')).toEqual({ type: 'category', categoryId: 'natural-gas', label: 'Natural Gas' });
+    expect(resolveSpendTarget('my gas bill')).toEqual({ type: 'category', categoryId: 'natural-gas', label: 'Natural Gas' });
+    expect(resolveSpendTarget('gas')).toEqual({ type: 'category', categoryId: 'fuel', label: 'Fuel' }); // bare "gas" still fuel
+    expect(resolveSpendTarget('electricity')).toEqual({ type: 'category', categoryId: 'electricity', label: 'Electricity' });
+  });
+  // #154 critic P2: "utilities" is an umbrella that must SUM the split-out leaves,
+  // else the total silently under-reports. phone/internet/insurance stay excluded.
+  it('the "utilities" umbrella sums the whole utility family', () => {
+    expect(resolveSpendTarget('how much on utilities')).toEqual({
+      type: 'categories',
+      categoryIds: ['utilities', 'electricity', 'natural-gas', 'water', 'trash'],
+      label: 'utilities',
+    });
+  });
   it('returns null for non-spend text', () => {
     expect(resolveSpendTarget('what is my net worth')).toBeNull();
   });

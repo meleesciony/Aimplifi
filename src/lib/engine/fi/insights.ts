@@ -127,7 +127,11 @@ export function findOpportunities(
       push('insurance-reshop', s.merchantCanonical, Math.round(Math.abs(s.lastAmountCents) * 0.15), true);
     }
     if (s.categoryId === 'utilities' && s.isSubscription) {
-      // negotiable bills: ~$20/mo is a common retention-offer outcome — estimate
+      // negotiable bills: ~$20/mo is a common retention-offer outcome — estimate.
+      // Intentionally keyed on the `utilities` catch-all ONLY (internet/cable/combined
+      // bills). The #154 split's electricity/natural-gas/water/trash leaves are
+      // deliberately excluded: regulated utility monopolies aren't negotiable, so a
+      // "call to negotiate" nudge there would be false hope (DECISIONS #154).
       push('negotiable-bill', s.merchantCanonical, 2000, true);
     }
   }

@@ -108,7 +108,7 @@ describe('generic keyword categorization for real-world merchants (DECISIONS #63
     ['HILTON GARDEN INN ATLANTA', 'hotel'],
     ['HERTZ RENT A CAR', 'rental-car'],
     ['VERIZON WIRELESS PMT', 'phone'],
-    ['GEORGIA POWER BILL', 'utilities'],
+    ['GEORGIA POWER BILL', 'electricity'],
     ['AMC THEATRES 0456', 'entertainment'],
     // Insurance CARRIERS (the premium) file under the insurance family, NOT the
     // medical-service category — a Delta Dental premium is dental insurance, not a

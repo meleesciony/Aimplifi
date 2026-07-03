@@ -26,6 +26,11 @@ export interface Timeframe {
 /** What a spending question is about: a single leaf category or a whole group. */
 export type SpendTarget =
   | { type: 'category'; categoryId: string; label: string }
+  // A fixed SET of leaf categories summed under one umbrella word (e.g. "utilities"
+  // = electricity + gas + water + trash + the combined-utilities catch-all). Added
+  // #154: the utility split moved those leaves out of `utilities`, so a single-id
+  // target would silently under-report the umbrella total.
+  | { type: 'categories'; categoryIds: string[]; label: string }
   | { type: 'group'; group: string; label: string };
 
 export type AssistantIntent =
@@ -356,6 +361,10 @@ const GROUPS: readonly string[] = [...new Set(CATEGORIES.map((c) => c.group))].f
 function catTarget(id: string, label: string = CATEGORY_BY_ID.get(id)?.name ?? id): SpendTarget {
   return { type: 'category', categoryId: id, label };
 }
+/** Umbrella target: sum a fixed SET of leaf categories (e.g. the utilities family). */
+function catsTarget(ids: string[], label: string): SpendTarget {
+  return { type: 'categories', categoryIds: ids, label };
+}
 function groupTarget(group: string, label?: string): SpendTarget {
   return { type: 'group', group, label: label ?? group };
 }
@@ -375,6 +384,10 @@ const SYNONYMS: { re: RegExp; target: SpendTarget }[] = [
   { re: /\b(dining|restaurants?|eating out|eat out)\b/, target: catTarget('dining') },
   { re: /\bfood\b/, target: groupTarget('Food & Dining', 'food & dining') },
   // Auto & Transport
+  // "gas bill" / "natural gas" is the UTILITY, not gasoline — it must precede the
+  // bare `gas`→fuel rule below (first-match-wins), or it is shadowed dead (#154
+  // critic P1). A bare "gas" still falls through to fuel.
+  { re: /\b(natural gas|gas bill|gas company|gas utility)\b/, target: catTarget('natural-gas') },
   { re: /\b(gas|fuel|gasoline|petrol)\b/, target: catTarget('fuel') },
   { re: /\b(uber|lyft|rideshare|ride[\s-]?share|taxi|cab)\b/, target: catTarget('transport') },
   { re: /\b(parking|tolls?)\b/, target: catTarget('parking') },
@@ -387,8 +400,18 @@ const SYNONYMS: { re: RegExp; target: SpendTarget }[] = [
   // Home
   { re: /\b(rent|mortgage)\b/, target: catTarget('rent') },
   { re: /\b(housing|household)\b/, target: groupTarget('Home', 'home') },
-  // Bills & Utilities
-  { re: /\b(utilit(y|ies)|electric(ity)?|power bill|water bill)\b/, target: catTarget('utilities') },
+  // Bills & Utilities — specific household utilities (#154) before the generic
+  // "utilities" umbrella so "how much on electricity" hits the electricity leaf.
+  // (The natural-gas synonym lives up in Auto & Transport, ahead of the bare
+  // `gas`→fuel rule that would otherwise shadow it — critic P1.)
+  { re: /\b(electric(ity)?|power bill|light bill)\b/, target: catTarget('electricity') },
+  { re: /\b(water bill|water utility|sewer)\b/, target: catTarget('water') },
+  { re: /\b(trash|garbage|recycling|waste)\b/, target: catTarget('trash') },
+  // "utilities" is an UMBRELLA word: the split (#154) moved electric/gas/water/trash
+  // to their own leaves, so summing only the `utilities` catch-all would silently
+  // under-report (critic P2). Sum the whole family — but NOT phone/internet/insurance
+  // (those live in this group yet aren't what people mean by "utilities").
+  { re: /\butilit(y|ies)\b/, target: catsTarget(['utilities', 'electricity', 'natural-gas', 'water', 'trash'], 'utilities') },
   { re: /\b(phone|cell|mobile)\b/, target: catTarget('phone') },
   { re: /\b(internet|wi[\s-]?fi|cable|broadband)\b/, target: catTarget('internet') },
   { re: /\binsurance\b/, target: catTarget('insurance') },
@@ -678,6 +701,15 @@ function isSpendTarget(x: unknown, validCustomIds: ReadonlySet<string> = new Set
     return (
       typeof t.categoryId === 'string' &&
       (CATEGORY_BY_ID.has(t.categoryId) || validCustomIds.has(t.categoryId)) &&
+      typeof t.label === 'string'
+    );
+  if (t.type === 'categories')
+    return (
+      Array.isArray(t.categoryIds) &&
+      t.categoryIds.length > 0 &&
+      t.categoryIds.every(
+        (id) => typeof id === 'string' && (CATEGORY_BY_ID.has(id) || validCustomIds.has(id)),
+      ) &&
       typeof t.label === 'string'
     );
   if (t.type === 'group') return typeof t.group === 'string' && GROUPS.includes(t.group as string) && typeof t.label === 'string';

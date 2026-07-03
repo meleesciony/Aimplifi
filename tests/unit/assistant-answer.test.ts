@@ -127,6 +127,29 @@ describe('answerSpend*', () => {
     const a = answerSpendByCategory(BREAKDOWN, { type: 'group', group: 'Food & Dining', label: 'food & dining' }, THIS_MONTH);
     expect(a.headline).toBe('You spent $500.00 on food & dining this month.');
   });
+  // #154 critic P2: the "utilities" umbrella (a `categories` target) sums the split
+  // leaves and lists the top 3 contributors, not just the residual `utilities` leaf.
+  it('by category-set (utilities umbrella) sums the family and ranks facts', () => {
+    const UTIL_BREAKDOWN = {
+      totalCents: 40000,
+      byCategory: [
+        { categoryId: 'electricity', name: 'Electricity', group: 'Bills & Utilities', amountCents: 12000 },
+        { categoryId: 'water', name: 'Water & Sewer', group: 'Bills & Utilities', amountCents: 6000 },
+        { categoryId: 'trash', name: 'Trash & Recycling', group: 'Bills & Utilities', amountCents: 4000 },
+        { categoryId: 'natural-gas', name: 'Natural Gas', group: 'Bills & Utilities', amountCents: 3000 },
+        { categoryId: 'utilities', name: 'Internet & Utilities', group: 'Bills & Utilities', amountCents: 2000 },
+        { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 13000 },
+      ],
+      byGroup: [],
+    };
+    const a = answerSpendByCategory(
+      UTIL_BREAKDOWN,
+      { type: 'categories', categoryIds: ['utilities', 'electricity', 'natural-gas', 'water', 'trash'], label: 'utilities' },
+      THIS_MONTH,
+    );
+    expect(a.headline).toBe('You spent $270.00 on utilities this month.'); // 120+60+40+30+20, NOT just the $20 residual
+    expect(a.facts.map((f) => f.label)).toEqual(['Electricity', 'Water & Sewer', 'Trash & Recycling']); // top 3, dining excluded
+  });
   it('zero category', () => {
     const a = answerSpendByCategory(BREAKDOWN, { type: 'category', categoryId: 'coffee', label: 'Coffee Shops' }, THIS_MONTH);
     expect(a.headline).toBe('No Coffee Shops spending this month.');

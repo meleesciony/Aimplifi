@@ -70,7 +70,11 @@ function nextDate(last: ISODate, cadence: Cadence): ISODate {
 
 /** Categories whose recurring charges count as subscriptions. */
 const SUBSCRIPTION_CATEGORIES = new Set([
-  'entertainment', 'software', 'fitness', 'utilities', 'insurance', 'groceries',
+  'entertainment', 'software', 'fitness', 'utilities',
+  // Household utility leaves (#154) — a monthly electric/gas/water/trash bill is a
+  // recurring obligation just like the `utilities` catch-all it was split from.
+  'electricity', 'natural-gas', 'water', 'trash',
+  'insurance', 'groceries',
 ]);
 
 export function detectRecurring(
