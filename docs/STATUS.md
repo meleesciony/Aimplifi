@@ -1669,3 +1669,48 @@ commit-status for `7764871` = **success** ("Deployment has completed", deploymen
 team reiforge / project aimplifi; queried via GitHub's commit-status API with the stored git credential — no
 Vercel MCP this session), corroborated by `www.aimplifi.app/sign-in` → HTTP 200 + HSTS
 (`max-age=63072000; includeSubDomains`). #156 is LIVE.
+
+## 2026-07-03 — Root 404 / not-found chrome (#157, ROADMAP prod-readiness)
+
+The error chrome had global-error.tsx (root-layout crash) + (app)/error.tsx (in-shell render throw)
+but no not-found.tsx, so an unmatched URL rendered Next's unstyled default 404. Added a branded root
+`src/app/not-found.tsx` — a lean server component rendered INSIDE the root layout (Tailwind + the dark
+theme + buttonVariants, like (app)/error.tsx): an Aimplifi wordmark, one `<h1>` "Page not found", muted
+copy, one recovery Link to /dashboard. `metadata:{title:'Page not found'}` flows through the root
+`title.template` → "Page not found · Aimplifi" (confirmed applied by the e2e). Zero notFound() callers
+→ an unmatched URL is the only 404 path (resolves OUTSIDE the (app) group), so one root not-found.tsx
+is exactly right; no (app)/not-found.tsx (YAGNI). NO schema change; purely additive → demo/golden
+byte-identical (a static page touches no financial data).
+
+Scope note: chose this over the higher-visibility "Investments in nav" item — the latter needs an 8th
+phone nav icon (SECONDARY renders as 7 icons on the phone top bar, app-nav.tsx), exactly the #71 "bar
+full at 7" constraint prior sessions honored, so it belongs to the owner-scoped mobile-nav redesign.
+The 404 is additive, golden-neutral, and fully verifiable WITHOUT the reboot-gated action-apply e2e
+stall (a 404 is a pure GET — no server action).
+
+Hostile Checker (wf_f412b291-329, 4 lenses → double refute-by-default verification): **0 P0/P1**. All
+lenses clean (service worker passes 404s through, no cache-masking; emerald-500 ~7.8:1 +
+muted-foreground ~7.6:1 on the dark bg both clear AA; the title is locked by a real e2e assertion so a
+metadata regression fails CI not silently; the e2e is a genuine non-vacuous fail-old lock —
+`data-testid="not-found"` + the exact h1 + title distinguish it from Next's default 404). 3 P2:
+- FIXED: the not-found.tsx + spec docstrings overclaimed "authenticated-only" — middleware's UNANCHORED
+  icon/manifest/favicon.ico exclusions let those prefixes skip auth and render the 404 with no session.
+  Corrected both docstrings AND added the intended-boundary lock (unauthenticated unmatched → /sign-in)
+  as a robust second e2e test. (Also caught a self-inflicted build break pre-commit: the first docstring
+  edit put a comment-terminator inside the block comment — verify went red, fixed by rephrasing. The
+  gate did its job.)
+- ACCEPTED (documented): (a) an unauthenticated typo'd URL → /sign-in rather than a friendly public 404
+  — pre-existing middleware behavior, defensible for a fully auth-gated app; (b) single "Go to dashboard"
+  recovery with no "Sign in" link — a second CTA would confuse the common (authed) reacher (unlike
+  (app)/error.tsx, whose case is auth-adjacent), and the expired-session path already redirects
+  gracefully — a deliberate single-CTA choice.
+
+OBSERVED (pre-existing, NOT fixed — out of scope, no data exposure): middleware.ts's unanchored
+icon/manifest/favicon.ico exclusions let /iconzzz, /manifestfoo, /favicon.icoX skip the auth matcher.
+They all 404 anyway (no route/asset), so nothing protected is served — the only effect is they render
+the branded 404 without a redirect. Tightening the auth-boundary matcher (anchoring those prefixes)
+risks the auth boundary and deserves its own careful increment; flagged for the owner, not changed here.
+
+Gate (real, measured 2026-07-03): `bash scripts/verify.sh` → ✅ VERIFY GREEN — typecheck/lint clean,
+**1666 unit / 125 files** (no unit delta — UI chrome is e2e-locked per the #145/#156 precedent), build
+clean. E2E `not-found.spec.ts` **2/2 GREEN** (authed 404+recovery 2.7s; unauth→sign-in boundary 336ms).

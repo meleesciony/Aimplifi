@@ -1877,3 +1877,64 @@ harmless redundant identical rebuild to keep origin == local, per the owner's ex
 e2e reboot-gated — #153 deferred half), #134 companion carve-out removal (optional, ~8-golden churn, not
 demo-reachable), general match-&-surpass per docs/ROADMAP.md. STANDING OWNER-ONLY: reboot for the full
 `VERIFY_E2E=1` re-witness (STATUS #16 stall); #155 Plaid + #156 SimpleFIN live-sandbox spot-checks. SAFE to /clear.
+
+## 2026-07-03 (cont., session "aimplifi", "continue") — #157 Root 404 / not-found chrome — DONE ✅ (verify green, hostile Checker 0 P0/P1)
+
+Resumed at the clean post-#156 boundary. Re-confirmed baseline (NOT trusted from the handoff): `bash
+scripts/verify.sh` → ✅ VERIFY GREEN, 1666 unit / 125 files, tsc/eslint/build clean; tree clean, local
+== origin == 2046fd5. The live-money/currency backlog is exhausted (residual 20 was the last
+agent-actionable item), so I took the top clean agent-actionable ROADMAP prod-readiness item.
+
+Understand-first (explorer survey of 6 UX candidates): per-page titles + destructive-delete confirms
+are ALREADY done; investments-in-nav needs an 8th phone icon (#71 owner-scoped); the clean, open,
+fully-verifiable-without-reboot pick is the missing root 404 (global-error + (app)/error existed;
+not-found did not).
+
+Built: branded `src/app/not-found.tsx` (server component, Tailwind + buttonVariants, wordmark + h1 +
+/dashboard recovery, metadata title via the root template) + `tests/e2e/not-found.spec.ts` (2 tests).
+Design one-liner: one root not-found.tsx (no notFound() callers → unmatched URL is the only 404 path,
+resolves outside the (app) group); no schema change; golden byte-identical.
+
+Hostile Checker wf_f412b291-329 (4 lenses → refute-by-default): 0 P0/P1. 3 P2 — FIXED the docstring
+"authenticated-only" overclaim (middleware's unanchored icon/manifest/favicon.ico exclusions) + added
+the unauth→/sign-in boundary e2e; ACCEPTED (documented) the unauth-typo→sign-in and single-CTA choices;
+OBSERVED (flagged, not fixed — no data exposure) the unanchored middleware matcher prefixes. A
+self-inflicted comment-terminator build break was caught by verify (red) and fixed pre-commit.
+
+Gate (real 2026-07-03): verify GREEN 1666/125, tsc/eslint/build clean; e2e not-found 2/2 GREEN
+(authed 404+recovery 2.7s; unauth→sign-in 336ms). Ledger: DECISIONS #157; STATUS "2026-07-03 … Root
+404 / not-found chrome"; this entry. Committed below. NOT pushed (push is owner-gated).
+
+## HANDOFF (resume after /clear) — 2026-07-03, session "aimplifi", post-#157
+**Resume from `C:\dev\Aimplifi`.** Clean stopping point, safe to /clear. #157 (root 404 / not-found
+chrome) is DONE, verify-green (1666/125), e2e 2/2, hostile-Checker'd (0 P0/P1). Committed, NOT pushed.
+
+**Exact repo state:** working tree CLEAN after the #157 commit. `origin/main` = `2046fd5` (#156, LIVE).
+Local `main` = 1 commit ahead of origin (the #157 commit). No schema change pending.
+
+**Health baseline (re-confirm, don't trust this line):** `bash scripts/verify.sh` → ✅ VERIFY GREEN,
+1666 unit / 125 files. E2E opt-in; #157's e2e is `not-found.spec.ts` (2/2, pure-navigation, NOT
+stall-prone).
+
+**Ledger map for #157:** DECISIONS #157; STATUS "2026-07-03 … Root 404 / not-found chrome"; this
+handoff. One-line design: branded root `src/app/not-found.tsx` (server component; unmatched URL → 404),
+title via the root template, golden-safe, e2e-locked.
+
+**NEXT (owner-gated):** (1) push — ships #157; verify the Vercel deploy (commit-status = success via the
+GitHub API, team reiforge / project aimplifi, aliases aimplifi.app + www + a 200/HSTS curl). (2) reboot
+→ full `VERIFY_E2E=1` re-witness (the environmental disabled-pending e2e stall, STATUS #16, still gates
+a clean full-suite e2e; untouched by #157). (3) BACKLOG (all "only if markedly better"):
+  - **Investments discoverability** — HIGH product value (the flagship Aimplifi-vs-Simplifi gap) but
+    owner-scoped: surfacing /investments in nav needs an 8th phone icon (#71 "bar full at 7") → part of
+    the mobile-nav redesign. Surgical alt (no new icon): link INVESTMENT-type account rows on /accounts
+    straight to /investments. Owner taste call.
+  - Recategorize popover Escape/outside-click dismissal (small, demo-reachable, NOT stall-prone — the
+    picker is client-only, no server action).
+  - Per-route loading.tsx skeletons (medium; only the generic root loader exists).
+  - Empty states for no-data charts/cards (needs a fresh-signup user like the currency work).
+  - middleware.ts unanchored icon/manifest/favicon.ico matcher prefixes (OBSERVED under #157 — a careful
+    auth-boundary increment, no data exposure today).
+  - #134 companion carve-out removal (optional, ~8-golden churn, not demo-reachable).
+
+**STANDING OWNER-ONLY:** reboot for the full VERIFY_E2E re-witness (STATUS #16); #155 Plaid + #156
+SimpleFIN live-sandbox spot-checks. SAFE to /clear.
