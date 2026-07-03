@@ -2020,3 +2020,31 @@ auth+browser-gated (not curl-verifiable) — proven by the 4 #158 e2e pre-deploy
 doc commit is local-only (unpushed, avoids a redundant rebuild). Local main is now 1 ahead of origin
 (this doc commit only). RECOMMENDED: /clear before the next increment (fresh, independent work; the
 post-#158 handoff above is current + comprehensive). SAFE to /clear.
+
+## 2026-07-03 — NEXT INCREMENT DECIDED (owner, pre-/clear): Investments discoverability via SURGICAL ROW-LINK
+Owner chose the surgical, no-new-icon option (over a full nav entry / a different item). This is the TOP
+directive for the fresh session — go straight in.
+
+BUILD (DECISIONS #159): make INVESTMENT-type account rows on /accounts link to /investments, so a user
+taps their brokerage account and lands on the portfolio view (holdings, TWR/XIRR, retirement planner —
+today only reachable via a tiny "View investments ->" text link at accounts-list.tsx ~198). Respects #71
+(NO 8th phone nav icon; the mobile-nav redesign stays owner-scoped).
+
+Build notes / guardrails:
+- UNDERSTAND-FIRST on src/components/finance/accounts-list.tsx before editing: how account rows render,
+  which rows are INVESTMENT-type, and whether rows already carry interactive controls.
+- A11Y — avoid nested interactive elements: /accounts rows may already carry actions (manual account
+  delete/edit two-step). Do NOT wrap an action-bearing row in an <a>/<Link>. Make the account NAME/label
+  (or a dedicated row region) the link, or a row-level navigate that does not swallow existing buttons.
+  Keyboard + axe must stay clean.
+- The existing "View investments ->" text link can stay or be folded in; the point is the INVESTMENT rows
+  themselves become navigable.
+- Demo-reachable (seed has a brokerage account w/ 5 holdings) and verifiable WITHOUT the reboot-gated stall
+  (pure navigation, no server action). E2e: click an INVESTMENT account row -> lands on /investments.
+- Client/nav-only, golden byte-identical (no engine/schema change).
+Flow: verify baseline -> understand -> build -> verify -> hostile Checker (0 P0/P1) -> commit -> (owner-gated) push.
+
+STARTING REPO STATE for the fresh session: origin/main = be5707a (#157+#158 LIVE). Local main = 1 ahead
+(0e20117, the #158 deploy-record doc commit + this decision note) — the deploy-record + this note are
+docs-only and ride out with the #159 functional push. Re-confirm `bash scripts/verify.sh` green (expect
+1666/125) before building.
