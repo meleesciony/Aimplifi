@@ -14,15 +14,40 @@
 import { dayOfWeek, isoDate } from '@/lib/dates';
 import { CATEGORY_BY_ID } from './categories';
 import { normalizeMerchant } from './normalize';
+import { computeDescriptorSignature } from './signature';
 
 export const AUTO_SILENT_BPS = 9000;
 export const AUTO_FLAGGED_BPS = 7000;
 export const RULE_CONFIDENCE_BPS = 9900;
+/**
+ * A LEARNED rule (categorize/learn.ts) auto-files in the FLAGGED band, not the
+ * silent band an explicit "Always" earns: it is inferred from repetition, not a
+ * deliberate click, so it carries the visible "AI" badge and stays correctable.
+ * This is the durable backstop for any over-broad learned signature — a wrong
+ * learned filing is a visible guess, never a silent mis-file (DECISIONS #161,
+ * hostile-critic cycle 3).
+ */
+export const LEARNED_RULE_CONFIDENCE_BPS = 8500;
 
 export interface RuleLike {
   id: string;
   /** Canonical merchant the rule targets (null = any merchant). */
   merchantCanonical: string | null;
+  /**
+   * Optional descriptor-signature key (DECISIONS #161, categorize/signature.ts).
+   * When set, the rule matches ONLY transactions whose raw descriptor reduces to
+   * this signature — the key learned rules use for date-fragmented descriptors
+   * and aggregate payees, which `merchantCanonical` cannot express. Absent/null
+   * on every stored rule, so existing behavior is byte-identical.
+   */
+  descriptorSignature?: string | null;
+  /**
+   * True for a synthetic LEARNED rule (categorize/learn.ts), false/absent for an
+   * explicit user rule. Learned rules pass a match-time sign check (a future
+   * same-signature row can flip sign — e.g. an income-learned "PAYPAL UPWORK"
+   * meeting a later refund/fee); explicit rules are deliberate and always apply.
+   */
+  isLearned?: boolean;
   minAmountCents: number | null;
   maxAmountCents: number | null;
   weekendOnly: boolean | null;
@@ -85,6 +110,24 @@ function isUsableProviderHint(
   return false;
 }
 
+/**
+ * May a LEARNED rule for `categoryId` file a transaction of `amountCents`? The
+ * #44 sign check applied at MATCH time: transfer is sign-neutral; an inflow may
+ * only take an Income category; an outflow may never be booked as income. An
+ * unknown/custom category group can't be judged, so it is allowed (the
+ * derive-time consistency + distinguishing-token guards already gated it). A $0
+ * amount is neutral.
+ */
+function learnedSignOk(categoryId: string, amountCents: number): boolean {
+  if (categoryId === 'transfer') return true;
+  const cat = CATEGORY_BY_ID.get(categoryId);
+  if (!cat) return true;
+  const isIncome = cat.group === 'Income';
+  if (amountCents > 0) return isIncome;
+  if (amountCents < 0) return !isIncome;
+  return true;
+}
+
 export interface CategorizedTxn {
   merchantCanonical: string;
   merchantKnown: boolean;
@@ -99,6 +142,11 @@ export interface CategorizedTxn {
 
 export function ruleMatches(rule: RuleLike, txn: TxnInput, merchantCanonical: string): boolean {
   if (rule.merchantCanonical !== null && rule.merchantCanonical !== merchantCanonical) return false;
+  // Signature-keyed (learned) rules match on the descriptor fingerprint, not the
+  // canonical. The `!= null` guard means the signature is only ever computed for
+  // a signature-mode rule — the ordinary stored-rule path pays nothing.
+  if (rule.descriptorSignature != null && rule.descriptorSignature !== computeDescriptorSignature(txn.rawDescriptor))
+    return false;
   const magnitude = Math.abs(txn.amountCents);
   if (rule.minAmountCents !== null && magnitude < rule.minAmountCents) return false;
   if (rule.maxAmountCents !== null && magnitude > rule.maxAmountCents) return false;
@@ -127,19 +175,24 @@ export function categorize(txn: TxnInput, rules: readonly RuleLike[] = []): Cate
     };
   }
 
-  // User rules first — highest priority match wins.
+  // User rules first — highest priority match wins. A LEARNED rule is skipped
+  // when its category disagrees with THIS transaction's sign (#44 at match
+  // time): the derive-time guard only saw the corrected rows, so a later
+  // opposite-sign row sharing the signature (an income-learned merchant issuing
+  // a refund/fee) must fall through to review rather than auto-file wrong.
   const matching = rules
     .filter((r) => ruleMatches(r, txn, merchant.canonical))
     .sort((a, b) => b.priority - a.priority);
-  if (matching.length > 0) {
-    const rule = matching[0];
+  const rule = matching.find((r) => !r.isLearned || learnedSignOk(r.categoryId, txn.amountCents));
+  if (rule) {
+    const learned = rule.isLearned === true;
     return {
       merchantCanonical: merchant.canonical,
       merchantKnown: merchant.known,
       categoryId: rule.categoryId,
-      confidenceBps: RULE_CONFIDENCE_BPS,
+      confidenceBps: learned ? LEARNED_RULE_CONFIDENCE_BPS : RULE_CONFIDENCE_BPS,
       needsReview: false,
-      aiBadge: false,
+      aiBadge: learned, // a learned rule is a visible, correctable guess
       source: 'user-rule',
       matchedRuleId: rule.id,
     };

@@ -35,6 +35,8 @@ const CASES: { raw: string; label: string | null }[] = [
   { raw: 'ADOBE *CREATIVE CLOUD 408-536', label: 'software' },
   { raw: 'GITHUB.COM HTTPSGITHUB CA', label: 'software' },
   { raw: 'PADDLE.NET* OBSIDIAN', label: 'software' },
+  { raw: 'GOOGLE *ONE g.co/helppay', label: 'software' }, // #161 owner-reported miss
+  { raw: 'ROUND1 AM #0142 ATLANTA', label: 'entertainment' }, // #161 owner-reported miss (arcade)
   { raw: 'PLANET FIT 1234 MEMBERSHIP', label: 'fitness' },
   { raw: 'GEICO *AUTO 800-841-3000', label: 'insurance' },
   { raw: 'DELTA DENTAL OF GA PREMIUM', label: 'dental-insurance' }, // a premium is dental INSURANCE, not a dentist visit (DECISIONS #115)

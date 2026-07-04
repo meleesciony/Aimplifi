@@ -59,6 +59,8 @@ const FIXTURE: [string, string, string][] = [
   ['ONLINE TRANSFER TO HIGH-YIELD SAVINGS X9907', 'Account Transfer', 'transfer'],
   ['CHASE EPAY SAPPHIRE', 'Card Payment', 'transfer'],
   ['PAYMENT THANK YOU', 'Card Payment', 'transfer'],
+  ['GOOGLE *ONE g.co/helppay', 'Google One', 'software'], // #161 owner-reported miss
+  ['ROUND1 AM', 'Round1', 'entertainment'], // #161 owner-reported miss (arcade)
 ];
 
 describe('merchant normalization fixture (≥40 rows, table-driven)', () => {
@@ -72,6 +74,20 @@ describe('merchant normalization fixture (≥40 rows, table-driven)', () => {
     expect(m.categoryId).toBe(categoryId);
     expect(m.known).toBe(true);
     expect(m.confidenceBps).toBeGreaterThanOrEqual(9000);
+  });
+
+  it('Google One + Round1 map across their descriptor variants (#161)', () => {
+    for (const raw of ['GOOGLE ONE', 'GOOGLE *ONE', 'GOOGLE ONE 1234567']) {
+      expect(normalizeMerchant(raw).categoryId).toBe('software');
+    }
+    for (const raw of ['ROUND1', 'ROUND1 AM', 'round1am', 'ROUND 1']) {
+      const m = normalizeMerchant(raw);
+      expect(m.categoryId).toBe('entertainment');
+      expect(m.canonical).toBe('Round1');
+    }
+    // and they do NOT over-match lookalikes
+    expect(normalizeMerchant('ROUNDTABLE PIZZA').categoryId).not.toBe('entertainment');
+    expect(normalizeMerchant('GROUND CONTROL COFFEE').canonical).toBe('Ground Control Coffee');
   });
 
   it('Costco Gas and Costco warehouse are DISTINCT merchants', () => {

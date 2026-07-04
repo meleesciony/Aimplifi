@@ -73,6 +73,11 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^SPOTIFY/i, canonical: 'Spotify', categoryId: 'entertainment' },
   { pattern: /^APPLE\.COM\/BILL/i, canonical: 'Apple', categoryId: 'software' },
   { pattern: /^GOOGLE \*YOUTUBEPREMIUM/i, canonical: 'YouTube Premium', categoryId: 'entertainment' },
+  { pattern: /^GOOGLE\s*\*?\s*ONE\b/i, canonical: 'Google One', categoryId: 'software' },
+  // Round1 (arcade / bowling / entertainment venue): "ROUND1", "ROUND1 AM",
+  // "round1am", "ROUND 1" — the trailing (?:\s?AM)? lets the smashed "ROUND1AM"
+  // form match without a word boundary swallowing it. #161 owner-reported miss.
+  { pattern: /^ROUND\s?1(?:\s?AM)?\b/i, canonical: 'Round1', categoryId: 'entertainment' },
   { pattern: /^LA FITNESS/i, canonical: 'LA Fitness', categoryId: 'fitness' },
   { pattern: /^(PF \*)?PLANET FIT/i, canonical: 'Planet Fitness', categoryId: 'fitness' },
   { pattern: /^HELLOFRESH/i, canonical: 'HelloFresh', categoryId: 'groceries' },

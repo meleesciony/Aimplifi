@@ -5,6 +5,7 @@
  * created by "Always" were write-only.
  */
 import { prisma } from '@/lib/db';
+import { deriveLearnedRules, type LearnedCorrectionInput } from '@/lib/engine/categorize/learn';
 import { isAggregateCanonical } from '@/lib/engine/categorize/normalize';
 import type { RuleLike } from '@/lib/engine/categorize/pipeline';
 
@@ -52,7 +53,8 @@ export function toRuleLike(
   };
 }
 
-export async function loadUserRules(userId: string): Promise<RuleLike[]> {
+/** The user's EXPLICIT stored rules ("Always" / register merchant-scope). */
+export async function loadExplicitUserRules(userId: string): Promise<RuleLike[]> {
   const rules = await prisma.categorizationRule.findMany({ where: { userId } });
   const merchantIds = [...new Set(rules.map((r) => r.merchantId).filter((x): x is string => !!x))];
   const merchants = merchantIds.length
@@ -60,4 +62,55 @@ export async function loadUserRules(userId: string): Promise<RuleLike[]> {
     : [];
   const canonicalById = new Map(merchants.map((m) => [m.id, m.canonical]));
   return rules.map((r) => toRuleLike(r, canonicalById)).filter((r): r is RuleLike => r !== null);
+}
+
+/**
+ * Synthetic LEARNED rules derived from the user's correction history
+ * (DECISIONS #161). The pure learner (engine/categorize/learn.ts) owns every
+ * threshold + guard; this loader just joins each Correction to its transaction
+ * (for the raw descriptor + amount the learner keys on) and hands over flat
+ * rows. Corrections come back createdAt-ascending, so the array index is the
+ * monotonic `seq` the learner uses for latest-correction-wins. A user with no
+ * corrections (the demo seed) derives nothing — goldens stay byte-identical.
+ */
+export async function loadLearnedRules(userId: string): Promise<RuleLike[]> {
+  const corrections = await prisma.correction.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+    select: { transactionId: true, toCategoryId: true, undoesId: true },
+  });
+  if (corrections.length === 0) return [];
+  const txnIds = [...new Set(corrections.map((c) => c.transactionId))];
+  const txns = await prisma.transaction.findMany({
+    where: { id: { in: txnIds }, account: { userId } },
+    select: { id: true, rawDescriptor: true, amountCents: true },
+  });
+  const txnById = new Map(txns.map((t) => [t.id, t]));
+  const inputs: LearnedCorrectionInput[] = [];
+  corrections.forEach((c, i) => {
+    const t = txnById.get(c.transactionId);
+    if (!t) return; // transaction deleted or not owned — skip
+    inputs.push({
+      transactionId: c.transactionId,
+      toCategoryId: c.toCategoryId,
+      isUndo: c.undoesId != null,
+      seq: i,
+      rawDescriptor: t.rawDescriptor,
+      amountCents: t.amountCents,
+    });
+  });
+  return deriveLearnedRules(inputs);
+}
+
+/**
+ * Every categorize read-path (ingest ×4, backfill, triage suggestions) loads
+ * rules through here, so appending learned rules teaches all of them at once.
+ * Explicit rules come first and outrank learned ones (priority 100 > 50).
+ */
+export async function loadUserRules(userId: string): Promise<RuleLike[]> {
+  const [explicit, learned] = await Promise.all([
+    loadExplicitUserRules(userId),
+    loadLearnedRules(userId),
+  ]);
+  return [...explicit, ...learned];
 }

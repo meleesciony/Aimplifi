@@ -2281,3 +2281,76 @@ a one-tap recat in the register.
 **STANDING OWNER-ONLY:** reboot for the full VERIFY_E2E re-witness (#16); #155 Plaid + #156 SimpleFIN live-sandbox
 spot-checks; paste ~10 real still-wrong descriptors (raw text + intended category) so the learn.ts signatures +
 tests are pinned to real data. **SAFE to /clear.**
+
+## 2026-07-04 (resumed: "continue") — Categorization LEARNS from repeated corrections (#161) — DONE ✅ (verify green, hostile critic 0 P0/P1 after 4 cycles)
+Resumed at the cbdc000 handoff. Re-confirmed baseline independently (not trusted from the note): `bash
+scripts/verify.sh` -> GREEN, 1674 unit / 126 files. Built the owner-directed increment: passive learning
+from repeated corrections.
+
+**What shipped (engine-first, all guards pure-unit-tested):**
+- `src/lib/engine/categorize/signature.ts` (NEW) — `computeDescriptorSignature`: IDENTITY-PRESERVING key
+  (strip ONLY dates + money amounts; KEEP account/phone/check numbers) so two occurrences of the same payee
+  share one signature while two different payees never do. `hasDistinguishingToken` = secondary guard for a
+  genuinely payee-less residue (NOISE_TOKENS = channel roots + glue + generic mechanism/frequency/entry labels).
+- `src/lib/engine/categorize/learn.ts` (NEW) — pure `deriveLearnedRules(corrections)`: latest-correction-wins
+  per txn (folds undos), group by signature, emit a rule only when a signature is corrected to the SAME
+  category >= LEARN_THRESHOLD (2) times, zero conflicts, #44 sign guard, hasDistinguishingToken. Emits
+  `RuleLike{ descriptorSignature, isLearned:true, priority 50 }`.
+- `src/lib/engine/categorize/pipeline.ts` — `RuleLike` gained `descriptorSignature?` + `isLearned?`;
+  `ruleMatches` signature check; `LEARNED_RULE_CONFIDENCE_BPS = 8500` (learned rules auto-file in the FLAGGED
+  band with the AI badge = a visible correctable guess, NOT the silent 9900 an explicit "Always" earns);
+  `learnedSignOk` match-time sign guard.
+- `src/server/rules.ts` — `loadUserRules` = `loadExplicitUserRules` ++ `loadLearnedRules` (joins Correction ->
+  Transaction, userId-scoped, ordered, -> deriveLearnedRules). Early-returns [] at 0 corrections.
+- `normalize.ts` + `categorize-eval.ts` — Google One -> software, Round1 (arcade) -> entertainment.
+- Tests: `learn.test.ts` (known-answer canaries + the cycles 1-4 hostile-critic regression block),
+  `learn-loader.test.ts` (real recategorize -> loadUserRules -> categorize chain), `normalize.test.ts` variants.
+
+**Compute-on-the-fly (no schema change, no DB writes):** the demo seed has 0 corrections -> 0 learned rules ->
+every golden byte-identical. Undo re-derives. This is why there is no migration and no golden movement.
+
+**Canary tests (from the handoff) — all GREEN:** "CREDIT CARD PAID" x2 -> transfer learned + applied to the
+3rd; "CHECK #1234" + "CHECK #5678" -> NOT blanket-learned; single "ZELLE -> rent" -> NOT applied to other
+Zelles; Google One -> software; Round1 -> entertainment. Owner's "check paid" correctly REFUSES (payee-less +
+ambiguous — the documented safe default; "credit card paid" learns because CREDIT is its distinguishing token).
+
+**Gate (real 2026-07-04):** `bash scripts/verify.sh` -> ✅ VERIFY GREEN, **1704 unit / 128 files** (+30 over
+baseline), tsc/eslint/next build clean; adversarial `eval:categorize` 100% precision / 0 confidently-wrong
+(43 descriptors; Google One + Round1 now auto-file). E2E opt-in (VERIFY_E2E=1) — this increment is engine +
+server-loader + unit/loader tests, no new UI, so it sidesteps the #16 write-stall e2e flake entirely.
+
+**Hostile Checker — FOUR cycles (Workflow maker/checker, refute-by-default verify), 0 P0/P1 at sign-off:**
+c1 6 P0/P1 (enumeration over-generalization) -> identity-preserving signature + distinguishing-token +
+match-time sign guard; c2 2 -> REMOVED canonical mode entirely; c3 1 P1 (generic mechanism labels) ->
+NOISE_TOKENS + AI-badge backstop; c4 (final) ripple dimension CLEAN + 1 P1 (bare payment-frequency / card-entry
+labels "AUTOMATIC PAYMENT"/SCHEDULED/PIN PURCHASE — payee-less AND number-less) reproduced end-to-end -> FIXED
+by extending NOISE_TOKENS with 11 brand-safe tokens. Accepted residual: the payee-less-AND-number-less class is
+closed enumeratively for every common US-bank autopay label, and any rare unlisted bare label is bounded to P2
+by the AI-badge backstop (visible correctable guess, never a silent misfile). Full detail: DECISIONS #161,
+STATUS #161, REGRESSION_LEDGER 2026-07-04.
+
+**Repo state:** `origin/main` = `47380e1` (#160 LIVE). Local `main` was 2 docs-only commits ahead (c22a817 +
+cbdc000); THIS #161 functional commit makes it 3 ahead. **NOT pushed — push is owner-gated.**
+
+### HANDOFF (resume after /clear) — 2026-07-04, session "aimplifi", #161 DONE, awaiting owner
+**Resume from `C:\dev\Aimplifi`.** Working tree CLEAN after the #161 commit. `origin/main` = `47380e1`; local
+`main` = 3 commits ahead (2 docs + #161), all UNPUSHED — ride out with the next owner-gated push.
+
+**Health baseline (re-confirm, don't trust):** `bash scripts/verify.sh` -> GREEN, 1704 unit / 128 files.
+
+**STANDING OWNER-ONLY (unchanged, still open):**
+- Push #161 (+ the 2 riding docs commits) when the owner authorizes — the code is verify-green and critic-clean.
+- Paste ~10 real still-wrong prod descriptors (raw text + intended category) to pin learn.ts signatures against
+  REAL data — the current canaries use synthesized descriptors; the identity-signature design is robust, but
+  real descriptors would (a) confirm "credit card paid" / "check paid" match the owner's actual bank strings and
+  (b) surface any bank-specific bare-label the NOISE_TOKENS list should also cover.
+- Reboot for the full VERIFY_E2E re-witness (#16); #155 Plaid + #156 SimpleFIN live-sandbox spot-checks.
+
+**NEXT INCREMENT candidates (owner-gated pick):**
+- **QUEUE UX / drain the 159 pile (design-brief part C, the natural follow-on):** merchant-grouped triage inbox
+  + "apply to all N like this". `recategorize scope:'merchant'` already does the WRITE; the grouping/bulk UI is
+  the gap. #161 stops the pile REFILLING (learned rules auto-file the repeats); this DRAINS what's already there.
+- Or LLM second-pass tuning / transfer-pairing for "credit card paid" (if both sides are linked accounts, transfer
+  PAIRING may be the more correct fix than a learned category rule for that specific case — flagged in the brief).
+
+**SAFE to /clear.**

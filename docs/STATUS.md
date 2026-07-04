@@ -1850,3 +1850,50 @@ muted+hover:underline+arrow pattern (axe-passing, transactions:313); no bespoke 
 app-wide — #81 skip-link + focusable <main>); `?account` unencoded matches the shipped /transactions
 sibling (cuid URL-safe); no axe-on-scoped-view (the demo can't render one — inert). Ledger: DECISIONS #160;
 PROGRESS 2026-07-03 #160 + handoff. Committed, NOT pushed (push owner-gated).
+
+## #161 — Categorization learns from repeated corrections (passive learning) — DONE ✅
+
+Owner ask: "the categorization should learn from users' inputs; the user shouldn't have to recreate
+the wheel each time." Before this, a `Correction` was per-transaction and consulted by NOTHING at
+categorize time — it only helped future rows if the user manually promoted it to an explicit "Always"
+rule (easy to miss, blocked for aggregates), so "credit card paid" / "check paid" -> transfer, re-filed
+every sync, never stuck. Now pure `deriveLearnedRules()` (src/lib/engine/categorize/learn.ts) turns the
+undoable Correction HISTORY into synthetic `RuleLike[]` appended (in src/server/rules.ts `loadUserRules`)
+to the same `rules[]` array `categorize()` already applies at every ingest + backfill path. Learned rules
+key on an IDENTITY-PRESERVING descriptor signature (src/lib/engine/categorize/signature.ts): dates + money
+amounts stripped, account/phone/check numbers KEPT — so two occurrences of the same payee share one key
+while two different payees never do. Earned by repetition: same category >= 2 times across distinct
+transactions, zero conflicts, #44 sign guard at derive AND match time, a distinguishing-token guard for
+payee-less residues. Computed on the fly — no schema change, no DB writes — so the demo (0 corrections)
+derives 0 learned rules and every golden is byte-identical; undo re-derives. A learned rule auto-files at
+8500 (FLAGGED band) with the visible AI badge, a correctable guess rather than the silent 9900 an explicit
+"Always" earns. Also shipped: Google One -> software, Round1 -> entertainment (owner-reported normalize misses).
+
+Gate (real 2026-07-04): `bash scripts/verify.sh` -> ✅ VERIFY GREEN, **1704 unit / 128 files** (+30 over the
+1674/126 baseline: learn.test.ts known-answer canaries + hostile-critic regressions; learn-loader.test.ts
+drives the real recategorize -> loadUserRules -> categorize chain on a throwaway user), tsc/eslint/next build
+clean; adversarial `eval:categorize` 100% auto-file precision / 0 confidently-wrong (Google One + Round1 now
+auto-file). Engine-first: the whole learner is a pure unit-tested function on flat primitive inputs.
+
+Hostile Checker — FOUR cycles (Workflow maker/checker, dimension critics -> refute-by-default verify of every
+P0/P1), **0 P0/P1 at sign-off**. c1: 6 P0/P1 over-generalization (enumeration defeated by numeric payees;
+unguarded canonical; no match-time sign guard) -> adopted the identity-preserving signature + distinguishing-token
++ match-time sign guard. c2: 2 (fragile SEND/MONEY/BANKING; HMSHOST bucket canonical) -> REMOVED canonical mode
+entirely (distinct payees structurally un-mergeable). c3: 1 P1 (payee-less generic mechanism labels DIRECT DEBIT /
+POINT OF SALE / SERVICE CHARGE / LOAN PAYMENT) -> extended NOISE_TOKENS + AI-badge backstop so any missed label
+is visible, not silent. c4 (final): the confidence/AI-badge ripple dimension came back CLEAN (0 findings), and
+1 P1 was reproduced end-to-end — bare payment-frequency / card-entry labels ("AUTOMATIC PAYMENT <date>",
+SCHEDULED/REGULAR/PERIODIC/GENERAL PAYMENT, PIN PURCHASE) are a payee-less-AND-number-less residue with no number
+to keep billers apart -> FIXED by extending NOISE_TOKENS with 11 payment-frequency adjectives + card-entry modes,
+each verified brand-safe (GENERAL MOTORS->MOTORS, AUTOMATIC DATA PROCESSING->DATA, SIGNATURE PROPERTIES->PROPERTIES).
+
+Accepted residual (documented): the payee-less-AND-number-less class is closed enumeratively for every common
+US-bank autopay label; any RARE unlisted bare label is bounded to P2 by the AI-badge backstop (auto-files as a
+visible correctable guess at 8500, strictly no worse than the app's existing provider-hint / low-confidence
+merchant guesses). Two accepted P2s: (a) a named payee whose descriptor carries a VARYING confirmation number
+never repeats a signature, so it stays in review — a money-safe false negative; explicit "Always" remains the
+merchant-wide tool. (b) learnedSignOk is inert for a custom/unknown-group category (returns true), gated instead
+by the derive-time consistency + distinguishing-token guards. Owner's headline cases: "CREDIT CARD PAID" learns
+(date-fragmented; CREDIT is its distinguishing token; a card payment IS a transfer); "CHECK PAID" correctly
+REFUSES (payee-less + ambiguous — the safe default). Ledger: DECISIONS #161; REGRESSION_LEDGER 2026-07-04;
+PROGRESS 2026-07-04 #161 + handoff. Committed, NOT pushed (push owner-gated).
