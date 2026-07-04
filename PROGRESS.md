@@ -2354,3 +2354,61 @@ cbdc000); THIS #161 functional commit makes it 3 ahead. **NOT pushed — push is
   PAIRING may be the more correct fix than a learned category rule for that specific case — flagged in the brief).
 
 **SAFE to /clear.**
+
+## 2026-07-04 (resumed: "continue") — "Accept all confident" one-tap triage drain (#162) — DONE ✅ (verify green, hostile critic 0 P0/P1)
+Resumed at the #161 handoff. Re-confirmed baseline independently (not trusted): `bash scripts/verify.sh` ->
+GREEN, 1704 unit / 128 files. Owner picked the "drain the pile" queue-UX increment via AskUserQuestion.
+
+**KEY FINDING (surfaced to the owner before building):** a subsystem-mapping workflow (5 parallel readers)
+showed the handoff's premise was STALE — the merchant-grouped bulk-apply UI ALREADY EXISTS (`/triage`
+groups by merchant; `fileMerchantGroup` files a whole group + mints the rule, DECISIONS #143 Phase 3c). So
+I did NOT rebuild it. I re-scoped with the owner (second AskUserQuestion) to the genuine remaining gap and
+they chose "One-tap Accept all confident": a header action that files every group the categorizer is
+confident about, leaving the ambiguous rest.
+
+**What shipped (surgical, engine-first — full detail: DECISIONS #162, STATUS #162):**
+- group.ts (+3 pure fns): isConfidentGroup / selectConfidentGroups / summarizeConfident. "Confident" =
+  suggestedCategoryId !== null (the exact swipe-right bar). ONE predicate → client + server can't drift.
+- triage-actions.ts acceptAllConfident(): re-derives confident set server-side, loops the tested
+  fileMerchantGroup per group (per-group commit, mint/reuse, aggregate-safe), ONE undo batch, graceful
+  partial (catch-per-group) + fail-loud total, no-op early-return.
+- triage-inbox.tsx: banner (mode==='idle' && >=2 confident), optimistic reconcile, focus handoff, aria-live
+  count, one undo entry.
+- tests/unit/accept-all-confident.test.ts (NEW, 12): 4 pure + 7 integration (files-confident/leaves-
+  ambiguous, mint-vs-reuse, undo round-trip removing ONLY minted rules, ownership, no-op, partial-failure,
+  total-failure) + 1 demo-0-confident golden lock. tests/e2e/phase2-triage.spec.ts +1 read-only inertness.
+
+**Golden-safe:** demo has 0 confident groups (all 12 review groups ambiguous) → banner inert → byte-identical.
+
+**Gate (real 2026-07-04):** verify.sh → ✅ GREEN, **1716 unit / 129 files** (+12), tsc/eslint/build clean.
+Read-only e2e green (banner absent on demo 3.0s; existing gesture/filing/undo flow unregressed 4.6s).
+
+**Hostile Checker (Workflow, 5 dims → refute-by-default verify):** correctness 8 / security 8 / golden 9 /
+ux-a11y 7 / coverage 6, **0 confirmed P0/P1** (lone P1 self-downgraded to P2 by its verifier). Fixed the
+high-value P2/P3s pre-sign-off (partial+total tests, golden lock, no-op early-return, clean fail-loud msg,
+idle-gated banner, focus handoff, copy + undo label). Accepted P2/P3s documented in DECISIONS #162 / STATUS.
+
+**Repo state:** `origin/main` = `47380e1` (#160 LIVE). Local `main` was 3 commits ahead (2 docs + #161);
+THIS #162 functional commit makes it 4 ahead. **NOT pushed — push is owner-gated.**
+
+### HANDOFF (resume after /clear) — 2026-07-04, session "aimplifi", #162 DONE, awaiting owner
+**Resume from `C:\dev\Aimplifi`.** Working tree CLEAN after the #162 commit. `origin/main` = `47380e1`;
+local `main` = 4 commits ahead (2 docs + #161 + #162), all UNPUSHED — ride out with the next owner-gated push.
+
+**Health baseline (re-confirm, don't trust):** `bash scripts/verify.sh` -> GREEN, 1716 unit / 129 files.
+
+**STANDING OWNER-ONLY (unchanged + new):**
+- Push #161 + #162 (+ the 2 riding docs commits) when the owner authorizes — both verify-green + critic-clean.
+- Paste ~10 real still-wrong prod descriptors to pin #161's learn.ts signatures against REAL bank strings.
+- Reboot for the full VERIFY_E2E re-witness (#16); #155 Plaid + #156 SimpleFIN live-sandbox spot-checks.
+- #162 active-path e2e is inert on the demo (0 confident); if the owner wants the ACTIVE drain flow witnessed
+  in a browser, it needs a throwaway user seeded with >=2 confident review groups (out of the demo's scope —
+  the server path is fully unit+integration locked, #160/#123 precedent).
+
+**NEXT INCREMENT candidates (owner-gated pick):**
+- The design-brief part C tail is now largely closed (#161 stops the pile refilling; #162 drains the
+  confident bulk in one tap). Remaining pile-drain polish: a scannable multi-select list for the AMBIGUOUS
+  remainder (assign several no-suggestion groups at once) — the heavier "Review all" screen from the earlier
+  fork, only if the owner still feels friction after #161+#162 in real use.
+- Or LLM second-pass tuning / transfer-pairing for "credit card paid" (the other earlier fork).
+- Or pull real prod descriptors (owner action) → tune normalize/#161 against them.

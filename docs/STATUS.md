@@ -1897,3 +1897,49 @@ by the derive-time consistency + distinguishing-token guards. Owner's headline c
 (date-fragmented; CREDIT is its distinguishing token; a card payment IS a transfer); "CHECK PAID" correctly
 REFUSES (payee-less + ambiguous — the safe default). Ledger: DECISIONS #161; REGRESSION_LEDGER 2026-07-04;
 PROGRESS 2026-07-04 #161 + handoff. Committed, NOT pushed (push owner-gated).
+
+## #162 — "Accept all confident": one-tap triage-pile drain — DONE ✅
+
+Owner "drain the pile" queue-UX pick. SUBSYSTEM-MAP FINDING (surfaced to the owner before building):
+the handoff's premise was STALE — `/triage` already groups the review pile by merchant and files a
+whole group in one action (`fileMerchantGroup`, #143). So this adds the missing accelerant on TOP of
+the existing carousel, it does NOT rebuild it.
+
+**What shipped (engine-first, surgical — reuses the tested #143/#146/#147 filing path):**
+- `src/lib/engine/categorize/group.ts` (+3 pure fns) — `isConfidentGroup` (suggestedCategoryId !== null =
+  the exact swipe-right bar; groupReviewRows only sets it when EVERY row agrees, never a guess),
+  `selectConfidentGroups`, `summarizeConfident`. ONE predicate → client button + server action can't drift.
+- `src/server/triage-actions.ts` `acceptAllConfident()` — re-derives the confident set server-side from
+  getTriageGroups(userId) (client list never trusted), loops the EXISTING `fileMerchantGroup` per group
+  (per-group serializable-tx commit, rule mint/reuse, aggregates no rule #23), collects all correctionIds
+  into ONE undo batch (existing `undoCorrections` reverts the lot + removes ONLY minted rules). Per-group
+  commits (a drain is incremental + independently undoable); catch-per-group = graceful partial; total
+  wipeout throws a stable user-safe message (fail-loud, no raw-error leak); no-op early-return (0 confident
+  → no audit/revalidate).
+- `src/components/triage/triage-inbox.tsx` — bulk-accept banner shown only when `mode==='idle'` AND ≥2
+  confident (never mid-pick → never discards an in-progress recategorization; 1 is just a swipe), optimistic
+  drop-then-reconcile with the authoritative returned queue, focus handoff to the aria-live count (SC 2.4.3),
+  one undo entry ("N transactions in M merchants").
+
+**Golden-safe by construction:** the demo's 12 review groups are ALL ambiguous (Zelle payees / checks /
+Store Card → 0 confident) → banner provably inert → every golden byte-identical; it acts only on a click.
+
+**Gate (real 2026-07-04):** `bash scripts/verify.sh` → ✅ VERIFY GREEN, **1716 unit / 129 files** (+12:
+pure selection; drain files-confident/leaves-ambiguous; mint-vs-reuse; undo round-trip removing ONLY minted
+rules; ownership isolation; no-op; partial-failure-skips-and-requeues; total-failure-fail-loud; non-vacuous
+demo-0-confident golden lock), tsc/eslint/next build clean. Read-only e2e green: banner absent on the
+all-ambiguous demo (3.0s) + the existing gesture/filing/undo flow unregressed (4.6s).
+
+**Hostile Checker (Workflow, 5 dimension critics → refute-by-default adversarial verify of every P0/P1):**
+scorecards correctness 8 / security 8 / golden 9 / ux-a11y 7 / coverage 6, **0 confirmed P0/P1** (the lone
+P1 candidate — the untested partial-failure branch — was self-DOWNGRADED to P2 by its verifier: "shipped
+code is correct, a pure coverage gap"). Fixed the high-value P2/P3s before sign-off: partial + total-failure
+tests + demo-0-confident golden lock; no-op early-return; clean fail-loud message; banner gated to idle;
+focus handoff; "the ambiguous rest stay for you to review" copy + unit-bearing undo label. Accepted/
+documented P2/P3s: partial failure is signalled by the failed groups visibly reappearing in the queue (rare
+error path; no new toast channel); fileMerchantGroup's post-commit auditLog-throw un-undoable edge is a
+pre-existing property of that path; no per-action rate limit (consistent app-wide, ROADMAP #8); the active
+client handler is e2e-inert on the all-ambiguous demo so it is server-boundary + pure-unit locked (the
+#160/#123 no-RTL precedent); #161 learned rules re-confidencing a still-queued group is the learner working.
+Ledger: DECISIONS #162; REGRESSION_LEDGER 2026-07-04; PROGRESS 2026-07-04 #162 + handoff. Committed, NOT
+pushed (push owner-gated).

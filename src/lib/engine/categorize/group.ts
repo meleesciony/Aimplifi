@@ -123,3 +123,39 @@ export function groupReviewRows(rows: ReviewRow[]): TriageGroup[] {
   });
   return groups;
 }
+
+/**
+ * "Accept all confident" support (DECISIONS #162): a group is CONFIDENT when the
+ * pipeline gave it a unanimous, honest suggestion. `groupReviewRows` only sets
+ * `suggestedCategoryId` when EVERY row in the group agrees (else null) and never
+ * from an amount-based guess — so a non-null suggestion is exactly the bar a user
+ * clears by swiping right on the card. `null` means "you decide once" and is left
+ * for manual review. This one predicate is shared by the client's bulk button and
+ * the server action's re-derivation, so the two can never drift on what "confident"
+ * means (the same single-source discipline as similarTransactionsWhere ↔ groupKey).
+ */
+export function isConfidentGroup(g: Pick<TriageGroup, 'suggestedCategoryId'>): boolean {
+  return g.suggestedCategoryId !== null;
+}
+
+/** The confident subset, order preserved (biggest-group-first from the sort above). */
+export function selectConfidentGroups<T extends Pick<TriageGroup, 'suggestedCategoryId'>>(
+  groups: readonly T[],
+): T[] {
+  return groups.filter(isConfidentGroup);
+}
+
+/** Merchants (groups) and total transactions "Accept all confident" would file. */
+export function summarizeConfident(
+  groups: readonly Pick<TriageGroup, 'suggestedCategoryId' | 'count'>[],
+): { merchants: number; transactions: number } {
+  let merchants = 0;
+  let transactions = 0;
+  for (const g of groups) {
+    if (g.suggestedCategoryId !== null) {
+      merchants += 1;
+      transactions += g.count;
+    }
+  }
+  return { merchants, transactions };
+}

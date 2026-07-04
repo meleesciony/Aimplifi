@@ -367,3 +367,23 @@ test('categorization accuracy card shows a measured value (DECISIONS #37)', asyn
   // seeded known-merchant labels guarantee a measured percentage (n > 0)
   await expect(page.getByTestId('accuracy-value')).toContainText('%');
 });
+
+// "Accept all confident" is INERT on the golden demo (DECISIONS #162): every one
+// of the seed's review groups is genuinely ambiguous (Zelle payees, checks, an
+// estimated Store Card) → 0 confident groups → the bulk-accept banner must NOT
+// render, so the golden dataset is byte-identical and nothing can be mass-filed
+// without a per-group suggestion. Read-only: this asserts absence + normal render
+// (no writes → immune to the #16 action-apply stall). The ACTIVE drain/mint/undo
+// path is locked by the deterministic engine+action tests in
+// tests/unit/accept-all-confident.test.ts (adding confident rows to the seed
+// would move the very golden it must hold — the #160/#123 precedent).
+test('accept-all banner is absent on the all-ambiguous golden demo (DECISIONS #162)', async ({ page }) => {
+  await signInToTriage(page);
+  // The inbox still renders its ambiguous carousel normally under the new code…
+  await expect(page.getByTestId('triage-inbox')).toBeVisible();
+  await expect(page.getByTestId('triage-card')).toBeVisible();
+  await expect(page.getByTestId('triage-no-suggestion')).toBeVisible(); // top group = ambiguous
+  // …and the bulk-accept banner + button do NOT appear (0 confident groups).
+  await expect(page.getByTestId('triage-accept-all-banner')).toHaveCount(0);
+  await expect(page.getByTestId('triage-accept-all')).toHaveCount(0);
+});

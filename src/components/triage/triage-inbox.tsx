@@ -33,10 +33,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { CUSTOM_CATEGORY_GROUPS, filterCategoryOptions } from '@/lib/engine/categorize/assign';
+import { isConfidentGroup, summarizeConfident } from '@/lib/engine/categorize/group';
 import { cents, centsFromDollarString, formatCents } from '@/lib/money';
 import type { TriageGroupView } from '@/server/triage';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import {
+  acceptAllConfident,
   applyCategory,
   fileMerchantGroup,
   makeRuleFromCorrection,
@@ -109,6 +111,9 @@ export function TriageInbox({
   // Search query for the "any category" picker (#137).
   const [catQuery, setCatQuery] = useState('');
   const pickerPanelRef = useRef<HTMLDivElement | null>(null);
+  // Focus lands here after a bulk "Accept all" so it never falls to <body> when the
+  // banner button unmounts itself (a11y SC 2.4.3 focus order).
+  const countRef = useRef<HTMLSpanElement | null>(null);
   // Keyboard path (critic P1): focus the PANEL itself (tabIndex -1) when it
   // opens — focusing a child button would silently no-op while disabled.
   useEffect(() => {
@@ -203,6 +208,38 @@ export function TriageInbox({
           label: `${result.affected} × ${group.merchantCanonical}`,
         },
       ]);
+    });
+  }
+
+  /** Drain the pile: file EVERY confident group (one that has an honest,
+   *  unanimous suggestion) to its own suggestion in one undoable action; the
+   *  ambiguous groups stay for manual review (DECISIONS #162). Optimistically
+   *  keeps only the ambiguous groups, then reconciles with the authoritative
+   *  queue the action returns (partial failures reappear there). */
+  function acceptAllConfidentGroups() {
+    if (pending) return;
+    const { merchants, transactions } = summarizeConfident(groups);
+    if (merchants < 2) return; // one confident group is just one swipe — no bulk action
+    logInteraction('tap', `accept-all ${merchants} merchants ×${transactions}`);
+    const rollback = groups;
+    setGroups(groups.filter((g) => !isConfidentGroup(g))); // optimistic: keep the ambiguous
+    resetTransient();
+    runAction(rollback, async () => {
+      const result = await acceptAllConfident();
+      setGroups(result.groups); // authoritative remaining queue (any failed group reappears)
+      // Hand focus to the (aria-live) count so it never falls to <body> when the
+      // banner unmounts; the count also announces the new pile size.
+      countRef.current?.focus();
+      if (result.correctionIds.length > 0) {
+        setUndoStack((s) => [
+          ...s,
+          {
+            kind: 'corrections',
+            correctionIds: result.correctionIds,
+            label: `${result.affected} ${result.affected === 1 ? 'transaction' : 'transactions'} in ${result.merchantsFiled} ${result.merchantsFiled === 1 ? 'merchant' : 'merchants'}`,
+          },
+        ]);
+      }
     });
   }
 
@@ -788,6 +825,7 @@ export function TriageInbox({
 
   const one = top.count === 1;
   const anchorRow = top.rows[0];
+  const confidentSummary = summarizeConfident(groups);
   const activeRow = activeRowId ? top.rows.find((r) => r.id === activeRowId) : null;
   const groupFooter = top.ruleEligible
     ? `Files ${one ? 'it' : `all ${top.count}`} and every future ${top.merchantCanonical} automatically. Undo reverses everything.`
@@ -807,7 +845,7 @@ export function TriageInbox({
         </div>
       )}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span data-testid="triage-count">
+        <span data-testid="triage-count" aria-live="polite" tabIndex={-1} ref={countRef} className="outline-none">
           {groups.length === 1 ? '1 merchant left' : `${groups.length} merchants left`}
           {groups.length > PASS_SIZE && ` · first ${PASS_SIZE} this pass`}
         </span>
@@ -817,6 +855,34 @@ export function TriageInbox({
           </Button>
         )}
       </div>
+
+      {/* Drain accelerant (DECISIONS #162): file every group I'm confident about
+          in one undoable tap; you review only the ambiguous rest. Shown only when
+          it beats swiping (≥2 confident groups) AND you're not mid-pick on a card —
+          so it never silently discards an in-progress recategorization. */}
+      {mode === 'idle' && confidentSummary.merchants >= 2 && (
+        <div
+          className="flex items-center justify-between gap-3 rounded-lg border bg-accent/40 px-3 py-2"
+          data-testid="triage-accept-all-banner"
+        >
+          <div>
+            <p className="text-sm">
+              <b>{confidentSummary.merchants} merchants</b> have a confident suggestion
+              <span className="text-muted-foreground"> · {confidentSummary.transactions} transactions</span>
+            </p>
+            <p className="text-xs text-muted-foreground">The ambiguous rest stay for you to review.</p>
+          </div>
+          <Button
+            size="sm"
+            onClick={acceptAllConfidentGroups}
+            disabled={pending}
+            data-testid="triage-accept-all"
+            aria-label={`Accept the suggested category for all ${confidentSummary.merchants} confident merchants (${confidentSummary.transactions} transactions). You review the rest.`}
+          >
+            Accept all {confidentSummary.merchants}
+          </Button>
+        </div>
+      )}
 
       {renderRulePrompt()}
 

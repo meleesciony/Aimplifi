@@ -9,6 +9,7 @@
 import { revalidatePath } from 'next/cache';
 import type { Prisma } from '@/generated/prisma/client';
 import { prisma, serializableTx } from '@/lib/db';
+import { selectConfidentGroups } from '@/lib/engine/categorize/group';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { auditLog, requireUserId } from '@/server/authz';
 import { assertOwnedCategory } from '@/server/category-meta';
@@ -377,6 +378,82 @@ export async function fileMerchantGroup(input: {
   revalidatePath('/triage');
   revalidatePath('/transactions');
   return { correctionIds, ruleId, affected };
+}
+
+export interface AcceptAllResult {
+  correctionIds: string[];
+  merchantsFiled: number;
+  affected: number;
+  /** Fresh remaining queue (only ambiguous groups) so the client reconciles without a reload. */
+  groups: TriageGroupView[];
+}
+
+/**
+ * "Accept all confident" (DECISIONS #162) — drain the review pile in one action.
+ * Files EVERY merchant group the pipeline gave a unanimous, honest suggestion for
+ * (selectConfidentGroups: suggestedCategoryId !== null), each to ITS OWN
+ * suggestion, and leaves the ambiguous (no-suggestion) groups for manual review.
+ * Semantically identical to swiping right on each confident card — batched into
+ * one undoable action (the returned correctionIds feed a single undoCorrections).
+ *
+ * Discipline:
+ *  - Re-derived server-side from getTriageGroups — the client's list is NEVER
+ *    trusted (same as fileMerchantGroup's anchor re-derivation). The confident
+ *    predicate is the shared engine selector, so button and action can't drift.
+ *  - Each group is filed through the tested fileMerchantGroup path (its own
+ *    serializable tx, rule-eligibility + aggregate handling, compare-and-set).
+ *    PER-GROUP commits, not one giant tx: a drain is incremental — each group is
+ *    independently filed AND independently undoable, and one failing group never
+ *    rolls back the rest.
+ *  - Fail-loud on TOTAL failure (nothing drained AND a hard error → throw so the
+ *    client rolls back and surfaces it); graceful on PARTIAL (a stray group stays
+ *    queued and simply reappears in the returned fresh queue).
+ */
+export async function acceptAllConfident(): Promise<AcceptAllResult> {
+  const userId = await requireUserId();
+  const groups = await getTriageGroups(userId);
+  const confident = selectConfidentGroups(groups);
+  // Genuine no-op: nothing confident to file → no audit row, no revalidate, no
+  // second query. The client hides the banner below 2 confident groups, but the
+  // action stays safe if called anyway (golden-safety: zero work = zero writes).
+  if (confident.length === 0) {
+    return { correctionIds: [], merchantsFiled: 0, affected: 0, groups };
+  }
+
+  const correctionIds: string[] = [];
+  let merchantsFiled = 0;
+  let affected = 0;
+  let lastError: unknown = null;
+  for (const g of confident) {
+    try {
+      const result = await fileMerchantGroup({
+        anchorTransactionId: g.anchorTransactionId,
+        // Non-null by selectConfidentGroups; file each group to its own suggestion.
+        categoryId: g.suggestedCategoryId as string,
+      });
+      if (result.affected > 0) {
+        correctionIds.push(...result.correctionIds);
+        merchantsFiled += 1;
+        affected += result.affected;
+      }
+    } catch (e) {
+      // One group failing (e.g. a suggestion the user can't own — a rule pointing
+      // at a foreign custom category) must not abort the drain: it stays queued and
+      // reappears in the fresh queue below. A TOTAL wipeout is surfaced loudly next.
+      lastError = e;
+    }
+  }
+  if (merchantsFiled === 0 && lastError) {
+    // Every confident group failed → systemic (auth/db/category). Fail loudly with a
+    // STABLE, user-safe message — never the raw underlying error (no detail leak) —
+    // so the client rolls back and shows it, not a silent no-op (LOOP #6).
+    throw new Error('Could not file those right now — nothing was saved. Try again.');
+  }
+
+  await auditLog(userId, 'group.accept-all', { merchantsFiled, affected });
+  revalidatePath('/triage');
+  revalidatePath('/transactions');
+  return { correctionIds, merchantsFiled, affected, groups: await getTriageGroups(userId) };
 }
 
 /**
