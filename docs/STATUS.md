@@ -1818,3 +1818,35 @@ documented #157 unauth boundary. #159's investment row-link is behind auth + bro
 not curl-verifiable — proven by the passing #159 e2e pre-deploy. #159 is LIVE. This deploy-record
 doc line is committed local-only (UNPUSHED to avoid a redundant identical rebuild; rides with the
 next functional change).
+
+## /investments account scoping — ?account narrows to one account (DECISIONS #160)
+
+The #159 follow-up (P3-b the owner named in the #159 NEXT list). INVESTMENT /accounts rows now link
+to `/investments?account=<id>` (LinkedRow carries the id), and /investments narrows its per-account
+holdings list to that account for a real MULTI-brokerage user (the owner's Plaid+SimpleFIN production
+case) with a "Show all accounts →" reset; the single-brokerage demo is the golden-safe test vehicle.
+Built VIEW-LAYER (pure `resolveInvestmentScope` in src/lib/engine/investments/scope.ts) — `getInvestments()`
+/ net worth / retirement UNCHANGED; the portfolio-wide summary card (the pinned $142k golden) reads
+`data.overall` exclusively. Golden-safety keystone = the ≤1-account INERTNESS rule: the demo renders
+byte-identical with or without `?account`, so no pinned golden (portfolio value, allocation, net worth,
+retirement) can move; scoping activates only with >1 investment account. Unknown / matched-but-empty /
+array `?account` → full-view fallback (never empty or broken).
+
+Gate (real 2026-07-03): core `bash scripts/verify.sh` → ✅ VERIFY GREEN, **1674 unit / 126 files** (+8:
+scope resolver known-answers), tsc/eslint/build clean; investments e2e 6/6 (incl. #159 ?account
+inert-demo + #160 unknown-id fallback + axe WCAG-AA); transactions:29 (non-investment row → /transactions)
++ :313 (/accounts axe) PASS. All pure-nav/render/unit → sidesteps the #16 stall entirely.
+
+Hostile Checker (wf_13d4c3fc-c44, 4 dimensions → refute-by-default verify of every P0/P1): **0 P0/P1** —
+correctness 10/10 (summary card structurally reads data.overall only; inertness holds; no golden moves),
+security 9/10 (ownership unbreakable — the view filters already-ownership-scoped data, a foreign id just
+matches nothing → full view; searchParams type-safe; no XSS). All 3 P1 candidates (test-adequacy: the
+active multi-account scope path isn't e2e-tested) REFUTED to P2 — adding a 2nd seed brokerage would move
+the very goldens #160 must hold, so the narrowing LOGIC is unit-locked (the 8 known-answers ARE the
+"filtering-applied vs param-ignored" distinction) + a thin view consumer + e2e wiring, matching the #123
+retirement-what-if precedent (repo has no RTL/jsdom; environment:'node'). 1 P2 FIXED: chip copy "Showing
+<name> holdings" (scope clarity). Accepted P2s (documented, app-consistent): the reset link uses the shared
+muted+hover:underline+arrow pattern (axe-passing, transactions:313); no bespoke focus-restore (consistent
+app-wide — #81 skip-link + focusable <main>); `?account` unencoded matches the shipped /transactions
+sibling (cuid URL-safe); no axe-on-scoped-view (the demo can't render one — inert). Ledger: DECISIONS #160;
+PROGRESS 2026-07-03 #160 + handoff. Committed, NOT pushed (push owner-gated).

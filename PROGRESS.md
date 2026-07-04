@@ -2083,3 +2083,68 @@ auth+browser-gated (not curl-verifiable) — proven by the passing #159 e2e pre-
 doc commit is LOCAL-ONLY (UNPUSHED, avoids a redundant identical rebuild); it rides out with the next
 functional push. Local main is now 1 ahead of origin (this doc commit only). RECOMMENDED: /clear before
 the next increment (the #159 handoff above is current + comprehensive). SAFE to /clear.
+
+## 2026-07-03 (cont., "continue" after /clear) — #160 /investments account scoping (?account) — DONE ✅ (verify green, hostile Checker 0 P0/P1)
+Resumed at the clean post-#159 boundary. Re-confirmed baseline independently (NOT trusted from the handoff):
+`bash scripts/verify.sh` → GREEN 1666/125; origin/main f17b0d0 (#159 LIVE), local 1 doc-only commit ahead
+(4be4c4a), tree clean.
+
+Understand-first (wf_a53fdb00 survey → decide): every clean non-owner-scoped backlog candidate was borderline
+or disqualified — middleware anchoring (HIGH-value security but NOT demo-reachable + owner-flagged LIVE
+/iconzzz change at high regression risk = owner-gated), loading skeletons (structurally unverifiable — Next
+loading.tsx only paints during slow fetches; no throttling harness), empty states (fresh-signup-only). Chose
+the owner-named P3-b (?account scoping) with the reframe the surveyors under-weighted: the value is for the
+OWNER's real MULTI-account production usage (Plaid+SimpleFIN), the single-brokerage demo being the golden-safe
+test vehicle.
+
+Built (view-layer; engine-first pure core): `src/lib/engine/investments/scope.ts` `resolveInvestmentScope`
+(returns the full unchanged list — "inert" — when no id / ≤1 investment account / unknown id / matched-but-empty
+account; else narrows to `[found]` + a "Show all accounts →" chip) + 8 known-answer unit tests. page.tsx reads
+Next-15 async searchParams (string[]/absent → undefined → full view). investments-view.tsx consumes the scope +
+chip; the summary card is UNCHANGED (data.overall = the $142k golden). accounts-list.tsx LinkedRow INVESTMENT
+href carries `?account=<id>`. e2e updated (#159 → ?account inert-demo assertion) + new unknown-id fallback test.
+`getInvestments()`/net worth/retirement untouched. The ≤1-account INERTNESS rule makes the single-brokerage demo
+byte-identical with or without ?account → provably golden-safe; scoping activates only for >1 investment account.
+
+Gate (real 2026-07-03): core verify GREEN **1674/126** (+8), tsc/eslint/build clean; investments e2e 6/6 (incl.
+#159 inert-demo + #160 unknown-id fallback + axe AA); transactions:29 (non-investment row → /transactions) + :313
+(/accounts axe) PASS. All pure-nav/render/unit → sidesteps the #16 stall. Hostile Checker (wf_13d4c3fc-c44, 4
+dims → refute-by-default): 0 P0/P1 (correctness 10/10, security 9/10); all 3 P1 candidates (active multi-account
+path not e2e-testable without moving goldens) REFUTED to P2 → narrowing logic unit-locked (8 known-answers) +
+thin view consumer + e2e wiring, per the #123 precedent (no RTL/jsdom; environment:'node'). 1 P2 FIXED (chip copy
+"Showing <name> holdings"). Ledger: DECISIONS #160; STATUS "… #160 /investments account scoping"; this entry.
+Committed below. NOT pushed (push owner-gated).
+
+## HANDOFF (resume after /clear) — 2026-07-03, session "aimplifi", post-#160
+Resume from C:\dev\Aimplifi. Clean stopping point, safe to /clear. #160 (/investments ?account scoping) DONE,
+verify-green (1674/126), e2e 6/6 investments + regression guards (transactions:29/:313), hostile-Checker'd
+(0 P0/P1). Committed, NOT pushed.
+
+Exact repo state: working tree CLEAN after the #160 commit. origin/main = f17b0d0 (#159, LIVE). Local main = 2
+commits ahead of origin: the #159 deploy-record doc commit (4be4c4a, intentionally unpushed) + the #160 commit.
+No schema change pending.
+
+Health baseline (re-confirm, don't trust this line): `bash scripts/verify.sh` → GREEN, 1674 unit / 126 files.
+E2E opt-in; #160's locks are investments-scope.test.ts (8 unit) + investments.spec.ts (6 e2e, pure-nav, NOT
+stall-prone).
+
+Ledger map for #160: DECISIONS #160; STATUS "2026-07-03 … /investments account scoping — ?account narrows to one
+account"; this handoff. One-line design: LinkedRow INVESTMENT href carries `?account=<id>`; /investments narrows
+its per-account list via the pure `resolveInvestmentScope` (inert with ≤1 account → demo byte-identical,
+golden-safe); the portfolio-wide summary card is unchanged.
+
+NEXT (owner-gated): (1) push — ships #160 + the #159 deploy-record doc commit; verify the Vercel deploy
+(commit-status = success via the GitHub API, team reiforge / project aimplifi, aliases aimplifi.app + www + a
+200/HSTS curl). (2) reboot → full `VERIFY_E2E=1` re-witness (the environmental #16 stall still gates a clean
+full-suite e2e; untouched by #160). (3) BACKLOG (all "only if markedly better"):
+  - Investments in NAV — the flagship discoverability item, but needs an 8th phone icon (#71 owner-scoped
+    mobile-nav redesign).
+  - middleware.ts unanchored icon/manifest/favicon.ico matcher anchoring — real latent auth-boundary hygiene but
+    changes LIVE /iconzzz 404 behavior (owner sign-off) + not demo-reachable.
+  - shared <CategoryPicker> full extraction (#153 deferred half; register e2e reboot-gated).
+  - #134 companion carve-out removal (optional, ~8-golden churn, not demo-reachable).
+  - a component/RTL test locking the ACTIVE multi-account scope view-wiring (P2 defense-in-depth — needs RTL+jsdom,
+    which the repo lacks; the resolver logic is already exhaustively unit-locked, per the #123 precedent).
+
+STANDING OWNER-ONLY: reboot for the full VERIFY_E2E re-witness (#16); #155 Plaid + #156 SimpleFIN live-sandbox
+spot-checks. SAFE to /clear.

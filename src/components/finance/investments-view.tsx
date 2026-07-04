@@ -11,6 +11,7 @@ import { PieChart, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cents, formatCents } from '@/lib/money';
 import { isPerShareApproximate } from '@/lib/engine/investments/portfolio';
+import { resolveInvestmentScope } from '@/lib/engine/investments/scope';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { RetirementOutlookCard } from '@/components/finance/retirement-outlook-card';
 import type { WithheldAccountSummary } from '@/lib/providers/currency';
@@ -30,13 +31,19 @@ export function InvestmentsView({
   data,
   outlook,
   withheld,
+  scopedAccountId,
 }: {
   data: InvestmentsData;
   outlook: RetirementOutlook;
   withheld: WithheldAccountSummary;
+  /** Optional ?account=<id> deep-link (DECISIONS #160): narrow the per-account holdings
+   *  list to one account. Inert with ≤1 account, so the demo renders byte-identically. */
+  scopedAccountId?: string;
 }) {
   const { overall, accounts } = data;
   const hasHoldings = overall.positions.length > 0;
+  // Which per-account cards to show (the portfolio-wide summary card below stays whole-portfolio).
+  const scope = resolveInvestmentScope(accounts, scopedAccountId);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -104,7 +111,23 @@ export function InvestmentsView({
             </CardContent>
           </Card>
 
-          {accounts
+          {/* When a ?account deep-link narrows the list to one account (#160), say so and
+              offer a one-tap way back to the whole portfolio. Never shown with ≤1 account. */}
+          {scope.showAllAccounts ? (
+            <div
+              className="flex items-center justify-between gap-2 text-xs text-muted-foreground"
+              data-testid="investments-scope"
+            >
+              <span>
+                Showing <span className="font-medium text-foreground">{scope.scopedName}</span> holdings
+              </span>
+              <Link href="/investments" className="hover:text-foreground hover:underline">
+                Show all accounts →
+              </Link>
+            </div>
+          ) : null}
+
+          {scope.accounts
             .filter((a) => a.portfolio.positions.length > 0)
             .map((a) => (
               <Card key={a.accountId} data-testid="investments-account">

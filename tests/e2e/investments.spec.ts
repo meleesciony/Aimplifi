@@ -39,9 +39,23 @@ test('an investment account row links straight to the portfolio view (DECISIONS 
   await expect(brokerageRow).toContainText('View holdings');
 
   await brokerageRow.click();
-  // Lands on the portfolio view (would time out here if it had gone to /transactions).
-  await page.waitForURL('**/investments');
+  // #160: the row now carries the account id (would time out here if it had gone to
+  // /transactions). Lands on the portfolio view scoped to that account.
+  await page.waitForURL(/\/investments\?account=/);
   await expect(page.getByTestId('investments-total-value')).toContainText('$142,000.00');
+  // The seed has a single investment account, so scoping is inert: the page renders the
+  // full portfolio with no "Show all accounts" chip — byte-identical to an unscoped load.
+  await expect(page.getByTestId('investments-scope')).toHaveCount(0);
+});
+
+test('an unknown ?account id falls back to the full portfolio (DECISIONS #160)', async ({ page }) => {
+  await signIn(page);
+  // A stale / hand-typed deep-link must never yield an empty or broken page: it degrades
+  // to the whole-portfolio view, unchanged (the golden-safe fallback).
+  await page.goto('/investments?account=does-not-exist');
+  await expect(page.getByTestId('investments-total-value')).toContainText('$142,000.00');
+  await expect(page.getByTestId('holding-row').filter({ hasText: 'AAPL' })).toBeVisible();
+  await expect(page.getByTestId('investments-scope')).toHaveCount(0);
 });
 
 test('retirement outlook projects the seeded portfolio with stated assumptions', async ({ page }) => {

@@ -392,7 +392,9 @@ function LinkedRow({
   // holdings and carries inline edit/delete controls, so it renders as a ManualRow
   // and is intentionally not linked here — that also avoids nesting buttons in a link.)
   const isInvestment = account.type === 'INVESTMENT';
-  const href = isInvestment ? '/investments' : `/transactions?account=${account.id}`;
+  // #160: carry the account id so /investments narrows to THIS account's holdings for a
+  // multi-brokerage user (inert with one account — the demo lands on the full portfolio).
+  const href = isInvestment ? `/investments?account=${account.id}` : `/transactions?account=${account.id}`;
   return (
     <li>
       <Link
