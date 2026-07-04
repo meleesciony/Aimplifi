@@ -2148,3 +2148,22 @@ full-suite e2e; untouched by #160). (3) BACKLOG (all "only if markedly better"):
 
 STANDING OWNER-ONLY: reboot for the full VERIFY_E2E re-witness (#16); #155 Plaid + #156 SimpleFIN live-sandbox
 spot-checks. SAFE to /clear.
+
+## 2026-07-03 (cont., owner: "push") — #160 DEPLOYED ✅
+`git push origin main` → `f17b0d0..47380e1` (origin now 0/0). This shipped #160 (`47380e1`) + the previously
+unpushed #159 deploy-record doc commit (`4be4c4a`) together. Deploy VERIFIED READY: the Vercel commit-status
+check for `47380e1` = **success** ("Deployment has completed", deployment `8B28NKR8gMwi2nCXh9xPYYxbYpjf`, team
+reiforge / project aimplifi; queried via GitHub's commit-status API with the stored git credential — no Vercel
+MCP this session), corroborated by `www.aimplifi.app/sign-in` → HTTP 200 + HSTS (`max-age=63072000;
+includeSubDomains`). #160 (/investments ?account scoping) is LIVE. The row-link + scoping is auth+browser-gated
+(not curl-verifiable) — proven by the 6/6 investments e2e pre-deploy (per the #158/#159 precedent). This
+deploy-record doc commit is LOCAL-ONLY (UNPUSHED to avoid a redundant identical rebuild; rides with the next
+functional change). Local main is now 1 ahead of origin (this doc commit only). SAFE to /clear.
+
+**Backlog remaining (owner-gated, "only if markedly better"):** Investments in NAV (needs an 8th phone icon —
+#71 owner-scoped mobile-nav redesign); middleware.ts icon/manifest/favicon.ico matcher anchoring (latent
+auth-boundary hygiene but changes LIVE /iconzzz behavior + not demo-reachable); shared <CategoryPicker> full
+extraction (#153 deferred, register e2e reboot-gated); #134 companion carve-out removal (optional, ~8-golden
+churn); an RTL/component test for the active multi-account scope view-wiring (P2 defense-in-depth — repo lacks
+RTL/jsdom). STANDING OWNER-ONLY: reboot for the full VERIFY_E2E re-witness (#16); #155 Plaid + #156 SimpleFIN
+live-sandbox spot-checks.
