@@ -2167,3 +2167,117 @@ extraction (#153 deferred, register e2e reboot-gated); #134 companion carve-out 
 churn); an RTL/component test for the active multi-account scope view-wiring (P2 defense-in-depth — repo lacks
 RTL/jsdom). STANDING OWNER-ONLY: reboot for the full VERIFY_E2E re-witness (#16); #155 Plaid + #156 SimpleFIN
 live-sandbox spot-checks.
+
+## 2026-07-03 (session "aimplifi") — CATEGORIZATION: learn-from-user-corrections — DIAGNOSIS + DESIGN (NO BUILD; owner asked me to notate + /clear for token efficiency)
+
+**This is the NEXT increment to build (owner-reported, high priority). No code was written this turn — it is a
+grounded design brief for a fresh session to execute engine-first.**
+
+### Owner report (real, from using PRODUCTION — I cannot see this data from the dev checkout)
+- **159 items in the triage Inbox.** Too many; the pile keeps refilling.
+- Specific misses named: **"Google One"**, **"Round1"** ("round1am"), "amongst others".
+- **THE CORE COMPLAINT:** the owner repeatedly recategorizes **"check paid"** and **"credit card paid"** to
+  **transfer**, "many times", and *the system never learns* — every sync they redo it. Owner's words:
+  "The categorization should have some ability to learn from users inputs. User shouldn't have to recreate the
+  wheel each time."
+
+### What I verified in the code THIS turn (files read: pipeline.ts, normalize.ts, assign.ts, backfill.ts,
+### triage-actions.ts, simplefin.ts; plus a real tsx trace of the vocab tier)
+1. **"glf → golf" ALREADY works** (#154, deployed to prod earlier today 2026-07-03): TOKEN_EXPANSIONS `GLF→GOLF`
+   + CATEGORY_VOCAB `['GOLF']→entertainment` — trace-confirmed `GLF`/`PEBBLE BEACH GLF`/`SQ *OAK HOLLOW GLF` all
+   auto-file to entertainment. So the earlier "glf" example is a **staleness / not-yet-re-run** issue, NOT missing
+   logic. THIS report ("check paid" etc.) is a different, deeper problem: **learning**.
+2. **categorize(txn, rules[])** (pipeline.ts:113) applies explicit user `CategorizationRule` rows FIRST
+   (pipeline.ts:131), matching on `merchantCanonical` (+ amount band / account / weekday). It already consumes a
+   rules array — so learned rules can be injected with ZERO change to the engine.
+3. **A plain "just once" correction does NOT generalize.** triage-actions.ts `recategorize({scope:'one'|'merchant'})`:
+   scope 'one' writes a `Correction` row (…:429) that is **read by NOTHING at categorization time**; only
+   scope 'merchant' creates a `CategorizationRule` (…:83/442, linked via `correction.becameRuleId`). So unless the
+   user picks "apply to all / Always", the correction is invisible to the next transaction of the same merchant.
+4. **Aggregates are BLOCKED from durable rules.** assign.ts `isRuleEligibleMerchant = !aggregate`; Check#, Card
+   Payment, Zelle, Venmo are `aggregate:true` (normalize.ts). Rationale in-code: "all checks aren't the same"
+   (one Zelle = rent, another = a friend). So for those descriptors the user **cannot teach the system at all** —
+   every occurrence returns to review. This is very likely a big chunk of the 159.
+5. **Re-sync no longer blindly clobbers** (I re-checked — the diagnosis doc's factor 4 is partly fixed):
+   simplefin.ts `guardedVerdictRefresh` computes `preserve = isSplitParent || reviewPinned || (corrected &&
+   !needsReview)` and writes bank-facts-only (`base2`) when preserving (…:581-587). So a corrected+settled row
+   survives a re-sync. **But a NEW transaction with the same descriptor is a new id with no correction → it
+   re-reviews.** (VERIFY next session: does plaid.ts ~360-373 have the SAME preserve guard? owner runs BOTH feeds.)
+
+### Root cause (one sentence)
+A `Correction` is per-transaction and never consulted by the categorizer; it only helps future transactions if the
+user manually promotes it to an explicit "Always" rule — a step that's easy to miss and is **blocked outright for
+aggregates** — so repeated corrections (esp. "check paid" / "credit card paid" → transfer) never stick.
+
+### DESIGN — engine-first, for the next session (the owner's ask = passive learning)
+**A) LEARNED RULES FROM REPEATED CORRECTIONS (the centerpiece).** New PURE engine, e.g.
+`src/lib/engine/categorize/learn.ts`: given a user's `Correction` history, derive synthetic `RuleLike[]`
+("learned rules") for any *learning-key* corrected to the SAME category ≥ N times (start N=2) with ZERO conflicting
+corrections. Append these to the explicit rules already passed into `categorize()` at INGEST and in the
+backfill/re-run read-paths — **no change to categorize() itself** (it already applies rules[]). Priority: BELOW an
+explicit user "Always" (user rules ≥100), ABOVE merchant-default.
+  - **LEARNING KEY (the crux):** normal merchant → `merchantCanonical` (matches the existing rule mechanism).
+    Aggregate / varying-descriptor → a NORMALIZED DESCRIPTOR SIGNATURE (uppercase; strip digits, #store, dates,
+    amounts, trailing "CITY ST") so "CREDIT CARD PAID 07/01" and "…08/01" share a key, while "CHECK #1234" vs
+    "CHECK #5678" (varying numbers → different signature) do NOT over-generalize. So a stable "CREDIT CARD PAID"
+    becomes learnable; a genuinely-ambiguous varying check does not.
+  - **AGGREGATE TENSION (the P0 the hostile Checker must probe):** one "Zelle → rent" correction must NEVER file
+    ALL Zelles as rent. Guards: require ≥N consistent + 0 conflicting corrections; key aggregates on the FULL
+    signature INCLUDING the payee token when present; never learn a blanket rule on a bare aggregate canonical
+    from a single example. Keep the MANUAL one-tap "Always" still blocked for aggregates (one tap ≠ demonstrated
+    consistency) — learning is earned by repetition, not a single click.
+  - **Materialize vs compute-on-the-fly:** leaning toward MATERIALIZE a learned `CategorizationRule` on promotion
+    (transparent + user-visible/editable/undoable; reuse the `becameRuleId` lineage) and, for the LEARNED case
+    only, allow it on an aggregate signature (the user's demonstrated consistency overrides the global "aggregate
+    ambiguous" prior). Decide in build.
+  - **Sign guard (#44):** never learn an inflow (positive) into a spend category.
+  - **Golden-safety:** the demo seed has ZERO corrections → zero learned rules → seed/goldens byte-identical.
+
+**B) SPECIFIC MERCHANT MISSES (quick, additive, golden-safe — demo doesn't use them):**
+  - **Google One** → `software` (KNOWN_MERCHANTS `/^GOOGLE \*?ONE\b/i` or GENERIC `\bGOOGLE ONE\b`). NB current
+    GENERIC has GOOGLE CLOUD / GOOGLE WORKSPACE but not GOOGLE ONE.
+  - **Round1** (round1am / "ROUND1") → `entertainment` (arcade/bowling: `\bROUND\s?1\b`).
+  - Add both to the `eval:categorize` corpus (scripts/categorize-eval.ts).
+
+**C) QUEUE UX (the 159 pile):** merchant-grouped inbox + "apply to all N like this" (the diagnosis's Phase-3
+"merchant-unit queue"; `recategorize scope:'merchant'` already does the WRITE — the grouping/bulk UI is the gap).
+(A) stops the pile refilling; (C) drains what's there fast. Follow-on to (A).
+
+### VERIFY-FIRST for the next session (don't trust this note — re-confirm)
+- Does the register/triage UI actually OFFER the "apply to all / Always" (merchant) scope for a rule-eligible
+  descriptor like "credit card paid", and hide it for aggregates? (transaction-list.tsx + triage recategorize gating.)
+- Does plaid.ts re-sync have the same corrected-row preserve guard as simplefin.ts? (owner runs BOTH.)
+- Is "credit card paid" actually a cross-account TRANSFER the pairing SHOULD auto-detect (are both sides linked)?
+  If so, fixing transfer PAIRING may beat a category rule for that specific case.
+- Get the EXACT raw descriptors from the owner (still can't see prod) to pin signatures + write real tests.
+
+### DISCIPLINE (per LOOP + CLAUDE.md)
+Engine-first pure `learn.ts` with known-answer unit tests; golden byte-identical (no demo corrections); hostile
+Checker with the aggregate over-generalization as the headline P0 to refute; verify green; owner-gated push.
+**Canary tests:** "CREDIT CARD PAID" ×2 corrections → transfer learned + applied to the 3rd; "CHECK #1234" +
+"CHECK #5678" → NOT blanket-learned; a single "ZELLE → rent" → NOT applied to other Zelles; Google One → software;
+Round1 → entertainment.
+
+## HANDOFF (resume after /clear) — 2026-07-03, session "aimplifi", CATEGORIZATION LEARNING is the next increment
+**Resume from `C:\dev\Aimplifi`.** Working tree CLEAN (this is a docs-only commit). `origin/main` = `47380e1`
+(#160 LIVE). Local `main` = 2 commits ahead of origin: the #160 deploy-record doc (`c22a817`) + THIS categorization
+design-brief doc commit — both docs-only, unpushed, ride out with the next functional push.
+
+**Health baseline (re-confirm, don't trust):** `bash scripts/verify.sh` → GREEN, 1674 unit / 126 files.
+
+**THE NEXT INCREMENT (owner-directed, high priority): make categorization LEARN from repeated user corrections.**
+Full diagnosis + design is the section immediately above (the "learn-from-user-corrections" entry). One-line: a
+`Correction` is per-transaction and never consulted by categorize(); build a pure `learn.ts` that turns ≥N
+consistent corrections (keyed on merchantCanonical, or a normalized descriptor signature for aggregates/varying
+descriptors) into synthetic learned rules appended to the rules[] categorize() already applies — carefully guarded
+so one "Zelle → rent" never files all Zelles as rent. Plus quick merchant adds (Google One → software, Round1 →
+entertainment) and, as a follow-on, a merchant-grouped inbox to drain the 159-item pile.
+
+**Owner's immediate lever (already told them):** Triage "Inbox" page → top-right "Re-run categorizer" (sparkles) —
+re-runs the deterministic tier + an LLM second pass over the review pile (catches today's #154 GLF→GOLF and opaque
+names via the LLM if the xAI key is live). It only re-files rows STILL in review; a confidently-mis-filed row needs
+a one-tap recat in the register.
+
+**STANDING OWNER-ONLY:** reboot for the full VERIFY_E2E re-witness (#16); #155 Plaid + #156 SimpleFIN live-sandbox
+spot-checks; paste ~10 real still-wrong descriptors (raw text + intended category) so the learn.ts signatures +
+tests are pinned to real data. **SAFE to /clear.**
