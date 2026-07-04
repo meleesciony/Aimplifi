@@ -385,10 +385,18 @@ function LinkedRow({
   isLiability: boolean;
   isPaymentAccount: boolean;
 }) {
+  // #159: a linked brokerage (INVESTMENT) has holdings / performance / a retirement
+  // projection on /investments — a far more useful destination than its transaction
+  // ledger — so its row navigates there. Every other linked account still opens its
+  // transactions. (A manual INVESTMENT account is just a typed balance with no
+  // holdings and carries inline edit/delete controls, so it renders as a ManualRow
+  // and is intentionally not linked here — that also avoids nesting buttons in a link.)
+  const isInvestment = account.type === 'INVESTMENT';
+  const href = isInvestment ? '/investments' : `/transactions?account=${account.id}`;
   return (
     <li>
       <Link
-        href={`/transactions?account=${account.id}`}
+        href={href}
         data-testid="account-row"
         className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-accent"
       >
@@ -402,6 +410,7 @@ function LinkedRow({
           <div className="text-xs text-muted-foreground">
             {typeLabel(account.type)}
             {account.mask ? ` ····${account.mask}` : ''}
+            {isInvestment && <span data-testid="account-row-investment-cue"> · View holdings →</span>}
           </div>
         </div>
         <div className={`shrink-0 tabular-nums ${isLiability ? 'text-red-400' : 'text-foreground'}`}>

@@ -2048,3 +2048,29 @@ STARTING REPO STATE for the fresh session: origin/main = be5707a (#157+#158 LIVE
 (0e20117, the #158 deploy-record doc commit + this decision note) — the deploy-record + this note are
 docs-only and ride out with the #159 functional push. Re-confirm `bash scripts/verify.sh` green (expect
 1666/125) before building.
+
+## 2026-07-03 — #159 BUILT + committed (INVESTMENT rows -> /investments), owner-gated push pending
+DONE. Surgical row-link shipped in `src/components/finance/accounts-list.tsx` (`LinkedRow`): when
+`account.type === 'INVESTMENT'`, href = `/investments` (else the unchanged `/transactions?account=<id>`),
+plus an inline "· View holdings ->" cue (inherits `text-muted-foreground`, axe-clean). `ManualRow`
+untouched — a manual INVESTMENT is a typed balance with no holdings + inline edit/delete controls, so it
+is intentionally not linked (avoids nesting buttons in an <a>; /investments is portfolio-wide anyway).
+New e2e in `tests/e2e/investments.spec.ts` locks it (Brokerage row -> /investments + $142k + cue).
+
+VERIFIED (real, 2026-07-03): baseline core verify GREEN 1666/125; post-change core `bash scripts/verify.sh`
+GREEN (typecheck/lint clean, 1666/125, build clean); new #159 e2e PASSES; transactions.spec.ts:29
+(non-investment row -> /transactions) + :313 (/accounts axe WCAG-AA WITH the cue live) both PASS.
+Hostile Checker wf_af042228-cf6 (a11y / correctness / ux): 0 P0/P1, 3 non-blocking P3 (recorded in
+DECISIONS #159 + STATUS). Full VERIFY_E2E's 4 failures are the pre-existing environmental #16/#17
+server-action-stall flakes on /budgets, /calendar, /triage, transactions write-in/filter — NON-DETERMINISTIC
+across 3 reruns (transactions:76<->:191; phase4 1<->2), all disjoint from #159's blast radius, NOT a regression.
+
+COMMITTED (local): feat(accounts): #159. Local main is now ahead of origin/main (be5707a) by the two prior
+docs-only commits + this #159 feat commit. PUSH IS OWNER-GATED — do NOT `git push` until the owner says
+"push"/"deploy". After push, add the usual deploy-record doc line (Vercel commit-status success + a live
+health check on www.aimplifi.app/accounts) as the closing step, per the #157/#158 precedent.
+
+NEXT (owner to choose): the #71 mobile-nav redesign (would unlock a first-class Investments nav entry), a
+dedicated /accounts+/investments axe scan (locks the Checker's P3-a), or `?account` scoping on /investments
+so a multi-brokerage user's row anchors to that account's card (P3-b). All are refinements above the
+"markedly better" stop bar; none blocking. SAFE to /clear before the next increment.

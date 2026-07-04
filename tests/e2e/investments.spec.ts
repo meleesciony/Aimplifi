@@ -26,6 +26,24 @@ test('investments is reachable from accounts and shows the seeded portfolio', as
   await expect(page.getByTestId('holding-row').filter({ hasText: 'AAPL' })).toBeVisible();
 });
 
+test('an investment account row links straight to the portfolio view (DECISIONS #159)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/accounts');
+
+  // #159: the seeded "Brokerage" (INVESTMENT) account row is itself navigable to
+  // /investments — a user taps their brokerage and lands on holdings/performance,
+  // not its transaction ledger. The row carries an inline "View holdings" cue so the
+  // destination is discoverable (and screen-reader announced) rather than surprising.
+  const brokerageRow = page.getByTestId('account-row').filter({ hasText: 'Brokerage' });
+  await expect(brokerageRow).toBeVisible();
+  await expect(brokerageRow).toContainText('View holdings');
+
+  await brokerageRow.click();
+  // Lands on the portfolio view (would time out here if it had gone to /transactions).
+  await page.waitForURL('**/investments');
+  await expect(page.getByTestId('investments-total-value')).toContainText('$142,000.00');
+});
+
 test('retirement outlook projects the seeded portfolio with stated assumptions', async ({ page }) => {
   await signIn(page);
   await page.goto('/investments');

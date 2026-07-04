@@ -1771,3 +1771,38 @@ HTTP 200 + HSTS; /iconzzz -> HTTP 404 branded ("Page not found") — confirms #1
 serves latest. #158's client-side dismissal is behind auth + browser interaction so not curl-verifiable —
 proven by the 4 passing #158 e2e tests pre-deploy. #158 is LIVE. This deploy-record doc line is committed
 local-only (UNPUSHED to avoid a redundant identical rebuild; rides with the next functional change).
+
+## Investments discoverability — INVESTMENT rows link to /investments (DECISIONS #159)
+
+The portfolio view (holdings, TWR/XIRR, retirement outlook) was reachable only via a tiny
+top-of-page "View investments ->" text link on /accounts; a linked brokerage's own row
+dead-ended at its transaction ledger. Now an INVESTMENT-type `LinkedRow` navigates to
+`/investments` and shows an inline "· View holdings ->" cue (inherits the AA
+`text-muted-foreground` token — no new color, axe-clean). Surgical + a11y-safe: `LinkedRow`
+is a lone `<Link>`, so a type-conditional href introduces no nested-interactive element; the
+action-bearing `ManualRow` (a manual INVESTMENT is a typed balance with no holdings) is left
+untouched, and `/investments` is portfolio-wide (no account param) so the link is plain.
+Client/nav-only — golden + demo byte-identical, no engine/schema change.
+
+Gate (real, measured 2026-07-03): core `bash scripts/verify.sh` -> **VERIFY GREEN** —
+typecheck/lint clean, **1666 unit / 125 files** (no unit delta — client UI, e2e-locked per
+#145/#156/#157/#158), build clean. E2E: the new #159 test in investments.spec.ts PASSES (click
+the seeded "Brokerage" account-row -> /investments + $142,000.00 portfolio + "View holdings"
+cue, 3.5s); the non-investment row -> /transactions path stays green (transactions.spec.ts:29);
+/accounts stays WCAG-AA (transactions.spec.ts:313 axe scan passed WITH the cue span live).
+
+Hostile Checker (wf_af042228-cf6, 3 lenses + refute-by-default verify): **0 P0/P1**. 3 P3, none
+blocking (see DECISIONS #159): (a) a dedicated per-page /accounts+/investments axe scan would lock
+the guardrail the Checker flagged — though transactions.spec.ts:313 already covers /accounts and
+passed; (b) with multiple INVESTMENT accounts the per-row cue lands at the aggregate top, not that
+account's card (right for the single-brokerage seed); (c) the brokerage's transaction ledger is now
+one hop further (via the /transactions Account filter) — a no-op for the demo (the seed brokerage
+has zero transactions).
+
+FULL VERIFY_E2E on this unrebooted machine still surfaces the pre-existing environmental #16/#17
+server-action-stall flakes on write-heavy pages this change never touches (/budgets set-target,
+/calendar next-month, /triage accept, transactions write-in/filter). The failing SUBSET is
+non-deterministic across reruns (parallel: transactions:76; serial: transactions:191; phase4 went
+1->2 fails in isolation) — the signature of the documented stall, NOT a #159 regression. The #159
+blast radius is exactly `LinkedRow` on /accounts + one /investments test; it is disjoint from every
+failing spec. Reboot-gated re-witness, consistent with the #158 sign-off.
