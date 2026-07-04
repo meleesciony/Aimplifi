@@ -2074,3 +2074,12 @@ NEXT (owner to choose): the #71 mobile-nav redesign (would unlock a first-class 
 dedicated /accounts+/investments axe scan (locks the Checker's P3-a), or `?account` scoping on /investments
 so a multi-brokerage user's row anchors to that account's card (P3-b). All are refinements above the
 "markedly better" stop bar; none blocking. SAFE to /clear before the next increment.
+
+**DEPLOYED (owner: "push", 2026-07-03).** `git push origin main` -> be5707a..f17b0d0, origin 0/0.
+Vercel prod deploy dpl_A9YGDCGmhPwkkLzexsq8i1F4VfmY (f17b0d0) READY in ~64s, all prod aliases attached
+(www.aimplifi.app), aliasError null. Live health: www.aimplifi.app -> HTTP 200 + HSTS + full security
+headers; sign-in renders; unauth bogus path -> /sign-in (#157 boundary). #159 LIVE. The row-link is
+auth+browser-gated (not curl-verifiable) — proven by the passing #159 e2e pre-deploy. This deploy-record
+doc commit is LOCAL-ONLY (UNPUSHED, avoids a redundant identical rebuild); it rides out with the next
+functional push. Local main is now 1 ahead of origin (this doc commit only). RECOMMENDED: /clear before
+the next increment (the #159 handoff above is current + comprehensive). SAFE to /clear.

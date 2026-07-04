@@ -1806,3 +1806,15 @@ non-deterministic across reruns (parallel: transactions:76; serial: transactions
 1->2 fails in isolation) — the signature of the documented stall, NOT a #159 regression. The #159
 blast radius is exactly `LinkedRow` on /accounts + one /investments test; it is disjoint from every
 failing spec. Reboot-gated re-witness, consistent with the #158 sign-off.
+
+**DEPLOYED (owner: "push")** — `git push origin main` -> be5707a..f17b0d0 (shipped #159 +
+the #158-deploy-record + #159-decision doc commits; origin now 0/0). Deploy VERIFIED: Vercel
+production deployment dpl_A9YGDCGmhPwkkLzexsq8i1F4VfmY (commit f17b0d0) reached READY in ~64s and
+holds every production alias (www.aimplifi.app, aimplifi.app, aimplifi-git-main-reiforge.vercel.app),
+aliasError null. Live health: www.aimplifi.app -> HTTP 200 via Vercel (iad1) with full security
+headers intact (HSTS max-age=63072000, CSP, X-Frame-Options DENY, nosniff); the sign-in page renders
+(demo-sign-in present); an unauth bogus path rewrites to /sign-in (x-matched-path=/sign-in) — the
+documented #157 unauth boundary. #159's investment row-link is behind auth + browser interaction so
+not curl-verifiable — proven by the passing #159 e2e pre-deploy. #159 is LIVE. This deploy-record
+doc line is committed local-only (UNPUSHED to avoid a redundant identical rebuild; rides with the
+next functional change).
