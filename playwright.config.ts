@@ -13,6 +13,16 @@ import { E2E_DB_URL } from './tests/setup/test-db';
  */
 process.env.DATABASE_URL = E2E_DB_URL;
 
+// E2E is hermetic: no live LLM calls. The dev machine's .env.local carries real
+// provider keys (STATUS 2026-07-04), so a spawned `next start` would otherwise make
+// live xAI/Anthropic calls from every ingest-path action during a run — slow,
+// non-deterministic, and (pre-timeout-fix) a hung fetch could stall a server action
+// past the click timeout. Blanked HERE (module scope) so both webServer.env and the
+// global-setup children (which spread process.env) inherit the neutralized values;
+// empty string is falsy for every `if (key)` provider check.
+process.env.XAI_API_KEY = '';
+process.env.ANTHROPIC_API_KEY = '';
+
 export default defineConfig({
   testDir: './tests/e2e',
   globalSetup: './tests/e2e/global-setup.ts',

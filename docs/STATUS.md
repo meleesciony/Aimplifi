@@ -1961,3 +1961,41 @@ live LLM calls — worth removing from the e2e server env regardless. Suggested 
 (a) blank XAI_API_KEY/ANTHROPIC_API_KEY in playwright webServer.env; (b) add a busy_timeout / bounded
 retry probe around the triage write path with instrumentation to catch the stall in the act; (c) consider
 per-spec DB reseed. Not fixed in #163 — pre-existing infrastructure, out of scope.
+
+## 2026-07-05 — #164 phase2-triage stall ROOT-CAUSED AND FIXED (the STATUS 2026-07-04 open finding)
+The "server action that neither errors nor returns" stall was NOT the SQLite writer and NOT the live
+LLM key. Boundary probes (client POST send/headers/body-fin events + server action entry/exit logs +
+piped server stdout) showed every triage write committing in ~5ms and even net-FINISHING — while
+`useTransition.pending` stayed true forever. Mechanism: under rapid sequential dispatch Next aborts a
+superseded action's response stream (`net::ERR_ABORTED` on the action POST) and leaves the router's
+flight-data application unresolved; React ENTANGLES transition lanes, so the wedged lane froze
+`pending` for every later action too — all triage buttons disabled until reload. The old evidence
+(roams specs/trees, correlates with load) had pattern-matched to the known SQLite flake; the probes
+split the layers honestly.
+
+**Shipped (DECISIONS #164):**
+- triage-inbox busy state = explicit `useState`, NOT `useTransition` (immune to the wedged lane);
+  every awaited action bounded by `withDeadline` (15s, `action-deadline.ts`); deadline recovery
+  re-syncs via the new read-only `refreshTriageQueue` action (never rollback — the write usually
+  COMMITTED; only the confirmation was lost).
+- Hermetic e2e: XAI/ANTHROPIC keys blanked at playwright.config module scope (the dev `.env.local`
+  carries real keys; e2e must never make live LLM calls).
+- `llm-categorize.ts` fetches now carry the same 7s AbortController bound as assistant-llm.ts (an
+  unbounded hung provider fetch stalls the calling server action — the same UX signature in
+  production; locked fail-old-proven).
+- The stall had MASKED two deterministic e2e ordering bugs behind its failure point ("did not run"
+  for weeks): the write-in test net-files the demo's ONLY multi-row group (its mid-test reload
+  discards the undo stack) starving the singles-mode test, and the read-only #162 banner lock ran
+  AFTER the review-cost test drained the whole queue. Fixed by ordering, documented as the
+  SERIAL-RESIDUE CONTRACT comment in the spec.
+
+**Witness (real, 2026-07-05):** pre-fix 4/4 full-file runs failed (60s stall); post-fix phase2-triage
+6/6 × 3 consecutive runs (~31s each); `bash scripts/verify.sh` → ✅ VERIFY GREEN; FULL e2e suite
+**75/75 passed (55.0s)** — first fully green full-suite run since the flake was first documented
+(STATUS #16/#17).
+
+**Accepted / follow-ups:** other useTransition surfaces (transaction-list, backfill-button, settings
+managers, etc.) are single-action per interaction — the wedge needs OVERLAPPING sequential dispatches —
+so they keep useTransition (exposure noted, not changed). A Next patch upgrade (15.5.19 → latest) may
+fix the underlying abort race upstream — worth taking with the next dependency pass. The e2e reseed-
+per-spec idea (STATUS 2026-07-04 suggestion c) is superseded by the residue contract for now.

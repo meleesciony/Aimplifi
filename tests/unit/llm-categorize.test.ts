@@ -20,6 +20,7 @@ describe('suggestCategoryViaLLM — provider selection + graceful fallback', () 
     if (origXai === undefined) delete process.env.XAI_API_KEY;
     else process.env.XAI_API_KEY = origXai;
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it('returns null and never fetches when NO provider key is set', async () => {
@@ -58,6 +59,27 @@ describe('suggestCategoryViaLLM — provider selection + graceful fallback', () 
     process.env.XAI_API_KEY = 'xai-test-key';
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status: 500 }));
     expect(await suggestCategoryViaLLM({ rawDescriptor: 'X', amountCents: -1 })).toBeNull();
+  });
+
+  it('test_regression__llm_fetch_hang_bounded: a provider fetch that never settles aborts to null at the timeout (never stalls the calling server action)', async () => {
+    // The phase2-triage stall signature (STATUS 2026-07-04): with a live key in the
+    // server env, a hung provider fetch had NO signal, so the awaiting server action
+    // neither errored nor returned. Old code: this promise never settles and the
+    // test times out. New code: the AbortController fires at TIMEOUT_MS → null.
+    vi.useFakeTimers();
+    process.env.XAI_API_KEY = 'xai-test-key';
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          // Settle ONLY on abort — a genuinely hung request otherwise.
+          init?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('The operation was aborted.', 'AbortError')),
+          );
+        }),
+    );
+    const pending = suggestCategoryViaLLM({ rawDescriptor: 'HUNG PROVIDER', amountCents: -100 });
+    await vi.advanceTimersByTimeAsync(7_000); // the documented 7s budget
+    await expect(pending).resolves.toBeNull();
   });
 
   it('still supports Anthropic (content[].text) when only ANTHROPIC_API_KEY is set', async () => {

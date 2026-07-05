@@ -380,6 +380,15 @@ export async function fileMerchantGroup(input: {
   return { correctionIds, ruleId, affected };
 }
 
+/** Read-only authoritative queue re-fetch — the client's recovery path when an
+ *  action's response stream was severed (the pending-stall race, see
+ *  src/components/triage/action-deadline.ts). The write usually committed, so
+ *  the client re-syncs from the server instead of rolling back. */
+export async function refreshTriageQueue(): Promise<TriageGroupView[]> {
+  const userId = await requireUserId();
+  return getTriageGroups(userId);
+}
+
 export interface AcceptAllResult {
   correctionIds: string[];
   merchantsFiled: number;

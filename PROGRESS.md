@@ -1,5 +1,55 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-05 (resumed: "continue") — #164 phase2-triage stall ROOT-CAUSED + FIXED — DONE ✅ (verify green, FULL e2e 75/75)
+Resumed at the #163 handoff; the one non-owner-gated open item was the phase2-triage
+e2e stall (STATUS 2026-07-04). Re-confirmed baseline: verify.sh GREEN. Took the two
+STATUS-suggested fixes first — (a) hermetic e2e (XAI/ANTHROPIC keys blanked at
+playwright.config module scope) and (b) a 7s AbortController bound on the
+llm-categorize fetches (parity with assistant-llm.ts; fail-old-proven regression
+test) — then DISPROVED both as the stall's cause: it reproduced 4/4 with keys
+blanked. Boundary probes (client POST send/hdr/body-fin + server action entry/exit
++ piped webServer stdout) convicted the real mechanism in one run: the action
+commits in ~5ms and the response even FINISHES, but Next aborts SUPERSEDED action
+streams under rapid dispatch (net::ERR_ABORTED), the router flight-data application
+never resolves, and React's transition-lane ENTANGLEMENT wedges
+useTransition.pending forever — every triage button disabled until reload.
+Fix (DECISIONS #164): triage-inbox busy = explicit useState (immune to the wedged
+lane); all four dispatch sites bounded by withDeadline (15s, new
+action-deadline.ts, 5 unit locks incl. test_regression__triage_pending_stall_bounded);
+deadline recovery re-syncs via new read-only refreshTriageQueue (never rollback —
+the write committed; only the confirmation was lost). Fixing the stall UNMASKED two
+deterministic ordering bugs hidden behind it for weeks as "did not run": write-in
+net-files the demo's ONLY multi-row group (starving the singles test) and the
+read-only #162 banner lock ran after review-cost drained the queue → reordered with
+a SERIAL-RESIDUE CONTRACT comment. Witness: pre-fix 4/4 full-file runs failed;
+post-fix 6/6 × 3 consecutive (~31s). Gate (real 2026-07-05): verify.sh ✅ GREEN,
+1778 unit / 131 files (+6), tsc/eslint/build clean, FULL e2e suite 75/75 (55.0s) —
+first fully green full-suite run since STATUS #16/#17. Ledger: DECISIONS #164,
+REGRESSION_LEDGER 2026-07-05, STATUS #164, lessons/diagnose-hangs-at-boundaries.md.
+Committing as #164; NOT pushed (push owner-gated).
+
+### HANDOFF (resume after /clear) — 2026-07-05, session "aimplifi", #164 DONE, awaiting owner
+**Resume from `C:\dev\Aimplifi`.** `origin/main` = `47380e1`; local main = 5 commits ahead after the
+#164 commit (2 docs + #161 + #162 + #163 + #164 — count from git log), all UNPUSHED (owner-gated).
+CLAUDE.md + LOOP_ENGINEERING.md still carry the owner's pre-session edits, LEFT UNCOMMITTED
+(the #163 precedent: they are the owner's to commit).
+
+**Health baseline (re-confirm, don't trust):** `bash scripts/verify.sh` -> GREEN, 1778 unit / 131
+files; `npx playwright test` -> 75/75.
+
+**STANDING OWNER-ONLY (unchanged + new):**
+- Push the stack when authorized — all verify-green + critic/checker-clean.
+- Paste ~10 real still-wrong prod descriptors to pin #161 learn.ts signatures against REAL bank strings.
+- Reboot for the full VERIFY_E2E re-witness (#16); #155 Plaid + #156 SimpleFIN live-sandbox spot-checks.
+- Consider a Next patch bump (15.5.19 → latest) with the next dependency pass — may fix the underlying
+  action-stream abort race upstream (STATUS #164 follow-ups).
+
+**NEXT INCREMENT candidates (owner-gated pick):** unchanged from the #162/#163 handoffs — ambiguous-
+remainder multi-select triage polish; LLM second-pass tuning / transfer-pairing for "credit card paid";
+or real-prod-descriptor tuning (needs the owner paste above).
+
+**SAFE to /clear.**
+
 ## 2026-07-04 — #163 categorization-quality pass (owner: "make the categorizer better than Simplifi/Mint") — DONE ✅ (commit 9ba0d38)
 Diagnosed the gap via explorer + measured evals: (a) leaf-precision — merchant
 defaults predate the #63/#65 taxonomy (Starbucks→dining not coffee, CVS→health

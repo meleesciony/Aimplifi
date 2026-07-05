@@ -106,6 +106,81 @@ test('group cards: honest suggestions, gesture flow, group filing, split — all
   await expect(inbox).toHaveAttribute('data-remaining', String(before));
 });
 
+
+// Read-only #162 lock — runs BEFORE the destructive tests below: it asserts against
+// the PRISTINE all-ambiguous demo queue, which the singles/write-in/review-cost
+// tests permanently consume (serial-residue contract, see the note further down).
+test('accept-all banner is absent on the all-ambiguous golden demo (DECISIONS #162)', async ({ page }) => {
+  await signInToTriage(page);
+  // The inbox still renders its ambiguous carousel normally under the new code…
+  await expect(page.getByTestId('triage-inbox')).toBeVisible();
+  await expect(page.getByTestId('triage-card')).toBeVisible();
+  await expect(page.getByTestId('triage-no-suggestion')).toBeVisible(); // top group = ambiguous
+  // …and the bulk-accept banner + button do NOT appear (0 confident groups).
+  await expect(page.getByTestId('triage-accept-all-banner')).toHaveCount(0);
+  await expect(page.getByTestId('triage-accept-all')).toHaveCount(0);
+});
+
+// ── SERIAL-RESIDUE CONTRACT (2026-07-05): this file is mode:'serial' on ONE shared
+// seeded DB. The demo queue has exactly ONE multi-row group (the 6-row Zelle
+// aggregate) and the write-in test below NET-FILES the top group (its mid-test
+// reload discards the client undo stack, so it cannot restore it). The singles-mode
+// test NEEDS that multi-row group, so it runs FIRST: it drains the Zelle group's
+// rows but leaves every other group intact, which the later tests don't depend on.
+// (Previously this ordering bug was invisible: the singles test always died at the
+// 60s pending-wedge stall before reaching the multi-row hunt — see DECISIONS #164.)
+test('singles mode never leaks onto the next card: write-in on the LAST row resets to idle (cycle-2 P1)', async ({ page }) => {
+  await signInToTriage(page);
+  const inbox = page.getByTestId('triage-inbox');
+  const splitBtn = page.getByTestId('triage-split-btn');
+  await expect(splitBtn).toBeVisible();
+
+  // Composition-independent: file 1-row tops away until a MULTI-row group
+  // surfaces (its action button reads "One by one"; 1-row tops read "Split").
+  for (let i = 0; i < 8; i++) {
+    if ((await splitBtn.textContent())?.includes('One by one')) break;
+    const remaining = Number(await inbox.getAttribute('data-remaining'));
+    expect(remaining, 'queue exhausted before a multi-row group surfaced (fixture drift)').toBeGreaterThan(1);
+    const hasSuggestion = (await page.getByTestId('triage-suggestion').count()) > 0;
+    await page.getByTestId('triage-accept').click(); // suggestion files; otherwise opens the picker
+    if (!hasSuggestion) {
+      await page.getByTestId('triage-alternatives').locator('button').first().click();
+    }
+    await expect(inbox).toHaveAttribute('data-remaining', String(remaining - 1));
+  }
+  await expect(splitBtn).toContainText('One by one');
+
+  const before = Number(await inbox.getAttribute('data-remaining'));
+  await splitBtn.click();
+  await expect(page.getByTestId('triage-singles')).toBeVisible();
+
+  // Drain the group to its LAST row via per-row quick-picks…
+  let rows = await page.getByTestId('triage-single-row').count();
+  expect(rows).toBeGreaterThan(1);
+  while (rows > 1) {
+    await page.getByTestId('single-pick').first().click();
+    await page.getByTestId('triage-alternatives').locator('button').first().click();
+    await expect(page.getByTestId('triage-single-row')).toHaveCount(rows - 1);
+    rows -= 1;
+  }
+
+  // …then file the last row through the WRITE-IN. createAndFile dispatches
+  // setExtraCategories/setNewCatName BEFORE onPick→fileRow→removeRowLocally —
+  // exactly the ordering under which the pre-fix reset (a side effect inside
+  // the setGroups updater, skipped when React defers the updater) silently
+  // no-oped and singles mode leaked onto the NEXT merchant's card (cycle-2 P1).
+  await page.getByTestId('single-pick').click();
+  await page.getByTestId('triage-add-category').click();
+  await page.getByTestId('new-category-name').fill(`Leak ${Date.now().toString().slice(-6)}`);
+  await page.getByTestId('new-category-submit').click();
+
+  // Group emptied → queue advanced AND mode reset: the next card renders
+  // COLLAPSED (no pre-expanded, untapped singles list).
+  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
+  await expect(page.getByTestId('triage-singles')).toHaveCount(0);
+  await expect(page.getByTestId('triage-card')).toBeVisible();
+});
+
 test('write-in category: create + file the whole group, joins pickers, errors stay inline (#136)', async ({ page }) => {
   await signInToTriage(page);
   const catName = `Golf ${Date.now().toString().slice(-6)}`; // unique per run (retry-safe)
@@ -236,58 +311,6 @@ test('write-in category: create + file the whole group, joins pickers, errors st
   }
 });
 
-test('singles mode never leaks onto the next card: write-in on the LAST row resets to idle (cycle-2 P1)', async ({ page }) => {
-  await signInToTriage(page);
-  const inbox = page.getByTestId('triage-inbox');
-  const splitBtn = page.getByTestId('triage-split-btn');
-  await expect(splitBtn).toBeVisible();
-
-  // Composition-independent: file 1-row tops away until a MULTI-row group
-  // surfaces (its action button reads "One by one"; 1-row tops read "Split").
-  for (let i = 0; i < 8; i++) {
-    if ((await splitBtn.textContent())?.includes('One by one')) break;
-    const remaining = Number(await inbox.getAttribute('data-remaining'));
-    expect(remaining, 'queue exhausted before a multi-row group surfaced (fixture drift)').toBeGreaterThan(1);
-    const hasSuggestion = (await page.getByTestId('triage-suggestion').count()) > 0;
-    await page.getByTestId('triage-accept').click(); // suggestion files; otherwise opens the picker
-    if (!hasSuggestion) {
-      await page.getByTestId('triage-alternatives').locator('button').first().click();
-    }
-    await expect(inbox).toHaveAttribute('data-remaining', String(remaining - 1));
-  }
-  await expect(splitBtn).toContainText('One by one');
-
-  const before = Number(await inbox.getAttribute('data-remaining'));
-  await splitBtn.click();
-  await expect(page.getByTestId('triage-singles')).toBeVisible();
-
-  // Drain the group to its LAST row via per-row quick-picks…
-  let rows = await page.getByTestId('triage-single-row').count();
-  expect(rows).toBeGreaterThan(1);
-  while (rows > 1) {
-    await page.getByTestId('single-pick').first().click();
-    await page.getByTestId('triage-alternatives').locator('button').first().click();
-    await expect(page.getByTestId('triage-single-row')).toHaveCount(rows - 1);
-    rows -= 1;
-  }
-
-  // …then file the last row through the WRITE-IN. createAndFile dispatches
-  // setExtraCategories/setNewCatName BEFORE onPick→fileRow→removeRowLocally —
-  // exactly the ordering under which the pre-fix reset (a side effect inside
-  // the setGroups updater, skipped when React defers the updater) silently
-  // no-oped and singles mode leaked onto the NEXT merchant's card (cycle-2 P1).
-  await page.getByTestId('single-pick').click();
-  await page.getByTestId('triage-add-category').click();
-  await page.getByTestId('new-category-name').fill(`Leak ${Date.now().toString().slice(-6)}`);
-  await page.getByTestId('new-category-submit').click();
-
-  // Group emptied → queue advanced AND mode reset: the next card renders
-  // COLLAPSED (no pre-expanded, untapped singles list).
-  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
-  await expect(page.getByTestId('triage-singles')).toHaveCount(0);
-  await expect(page.getByTestId('triage-card')).toBeVisible();
-});
-
 test('review cost scales with DECISIONS: week slice <15/<60s, full backlog ≤ 2×groups+2', async ({ page }) => {
   // 12+ sequential server actions; this machine's documented action-apply stall
   // (STATUS #16/#17) can hold a `pending` button past the default 60s. Wall-clock
@@ -377,13 +400,3 @@ test('categorization accuracy card shows a measured value (DECISIONS #37)', asyn
 // path is locked by the deterministic engine+action tests in
 // tests/unit/accept-all-confident.test.ts (adding confident rows to the seed
 // would move the very golden it must hold — the #160/#123 precedent).
-test('accept-all banner is absent on the all-ambiguous golden demo (DECISIONS #162)', async ({ page }) => {
-  await signInToTriage(page);
-  // The inbox still renders its ambiguous carousel normally under the new code…
-  await expect(page.getByTestId('triage-inbox')).toBeVisible();
-  await expect(page.getByTestId('triage-card')).toBeVisible();
-  await expect(page.getByTestId('triage-no-suggestion')).toBeVisible(); // top group = ambiguous
-  // …and the bulk-accept banner + button do NOT appear (0 confident groups).
-  await expect(page.getByTestId('triage-accept-all-banner')).toHaveCount(0);
-  await expect(page.getByTestId('triage-accept-all')).toHaveCount(0);
-});

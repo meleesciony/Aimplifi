@@ -26,7 +26,7 @@
  * Phase 2 e2e can count interactions and map them to the documented human-time
  * budget. See tests/e2e/phase2-triage.spec.ts.
  */
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PartyPopper, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,10 +42,12 @@ import {
   applyCategory,
   fileMerchantGroup,
   makeRuleFromCorrection,
+  refreshTriageQueue,
   splitTransaction,
   undoCorrections,
   undoSplit,
 } from '@/server/triage-actions';
+import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 
 declare global {
   interface Window {
@@ -92,7 +94,16 @@ export function TriageInbox({
   const [splitFirstCat, setSplitFirstCat] = useState<string>('');
   const [splitSecondCat, setSplitSecondCat] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  // EXPLICIT busy flag, NOT useTransition (the pending-wedge fix, probed
+  // 2026-07-05): under rapid sequential actions Next can abort a superseded
+  // action's response stream (net::ERR_ABORTED) and leave the router's
+  // flight-data application unresolved; React ENTANGLES transition lanes, so
+  // useTransition's `pending` then never clears — even for later actions that
+  // completed — and every triage button stays disabled until a full reload.
+  // This island owns its queue state, so it doesn't need the router transition:
+  // a plain useState commits at sync priority, immune to the wedged lane, and
+  // withDeadline (action-deadline.ts) guarantees the flag always clears.
+  const [pending, setPending] = useState(false);
   const [dragX, setDragX] = useState(0);
   const dragStart = useRef<number | null>(null);
   const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,13 +182,38 @@ export function TriageInbox({
   }
 
   /** Optimistic update with rollback (critic F6): a failed action restores the
-   *  queue and surfaces the error — a correction is never silently lost. */
+   *  queue and surfaces the error — a correction is never silently lost.
+   *  Every await is DEADLINE-BOUNDED (action-deadline.ts): a severed response
+   *  stream must degrade to a visible error, never leave `pending` true forever
+   *  (the "every button disabled until reload" stall). On deadline the write has
+   *  usually COMMITTED — rolling back could resurrect an already-filed group —
+   *  so we re-sync the authoritative queue instead. */
+  /** Run `work` with the busy flag held; the flag ALWAYS clears (work must be
+   *  deadline-bounded by its caller, and each caller catches its own errors). */
+  function dispatch(work: () => Promise<void>) {
+    setPending(true);
+    void work().finally(() => setPending(false));
+  }
+
   function runAction(rollback: TriageGroupView[], fn: () => Promise<void>) {
     setError(null);
-    startTransition(async () => {
+    dispatch(async () => {
       try {
-        await fn();
+        await withDeadline(fn());
       } catch (e) {
+        if (e instanceof ActionDeadline) {
+          try {
+            setGroups(await withDeadline(refreshTriageQueue()));
+          } catch {
+            // Re-sync also unconfirmed → keep the optimistic queue (it matches the
+            // server whenever the write committed, which is the common case).
+          }
+          setMode('idle');
+          setActiveRowId(null);
+          setSinglesTool(null);
+          setError('We lost the confirmation for that action, so your queue was re-synced. If the card is gone, it saved (undo is unavailable for that one).');
+          return;
+        }
         setGroups(rollback);
         setMode('idle');
         setActiveRowId(null);
@@ -308,17 +344,25 @@ export function TriageInbox({
     if (!trimmed || pending) return;
     setNewCatError(null);
     logInteraction('tap', `new-category ${trimmed}`);
-    startTransition(async () => {
+    dispatch(async () => {
       let res;
       try {
-        res = await createCustomCategory({
-          name: trimmed,
-          group: newCatGroup,
-          discretionary: newCatDiscretionary,
-        });
-      } catch {
-        // Degrade to the inline-error contract — never the route error boundary (critic P1).
-        setNewCatError('Could not create that category — nothing was saved. Try again.');
+        res = await withDeadline(
+          createCustomCategory({
+            name: trimmed,
+            group: newCatGroup,
+            discretionary: newCatDiscretionary,
+          }),
+        );
+      } catch (e) {
+        // Degrade to the inline-error contract — never the route error boundary
+        // (critic P1). A deadline gets honest copy: the create may have committed
+        // (a retry then reports the duplicate name), so don't claim "nothing was saved".
+        setNewCatError(
+          e instanceof ActionDeadline
+            ? 'We lost the confirmation for that — try again (a "name already exists" reply means it saved).'
+            : 'Could not create that category — nothing was saved. Try again.',
+        );
         return;
       }
       if (!res.ok || !res.id) {
@@ -376,15 +420,28 @@ export function TriageInbox({
     setUndoStack((s) => s.slice(0, -1));
     setRulePrompt(null);
     setError(null);
-    startTransition(async () => {
+    dispatch(async () => {
       try {
-        const fresh =
+        const fresh = await withDeadline(
           last.kind === 'corrections'
-            ? await undoCorrections(last.correctionIds)
-            : await undoSplit(last.transactionId);
+            ? undoCorrections(last.correctionIds)
+            : undoSplit(last.transactionId),
+        );
         setGroups(fresh);
         resetTransient();
       } catch (e) {
+        if (e instanceof ActionDeadline) {
+          // The undo usually COMMITTED (only the confirmation was lost), so the
+          // entry is NOT restored — a second run would double-undo. Re-sync instead.
+          try {
+            setGroups(await withDeadline(refreshTriageQueue()));
+          } catch {
+            /* keep the current queue — re-sync also unconfirmed */
+          }
+          resetTransient();
+          setError('We lost the confirmation for that undo, so your queue was re-synced.');
+          return;
+        }
         setUndoStack((s) => [...s, last]); // the undo opportunity must not vanish
         setError(e instanceof Error ? e.message : 'Undo failed — nothing was changed.');
       }
@@ -455,13 +512,19 @@ export function TriageInbox({
                 logInteraction('tap', `always-rule ${rulePrompt.merchant}`);
                 const id = rulePrompt.correctionId;
                 setRulePrompt(null);
-                startTransition(async () => {
+                dispatch(async () => {
                   try {
-                    await makeRuleFromCorrection(id);
+                    await withDeadline(makeRuleFromCorrection(id));
                   } catch (e) {
                     // A failed "Always" degrades to the inline error — never the route
                     // error boundary, which would wipe the queue position (checker P2).
-                    setError(e instanceof Error ? e.message : 'Could not create the rule.');
+                    setError(
+                      e instanceof ActionDeadline
+                        ? 'We lost the confirmation for that rule — check your rules in Settings before retrying.'
+                        : e instanceof Error
+                          ? e.message
+                          : 'Could not create the rule.',
+                    );
                   }
                 });
               }}

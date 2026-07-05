@@ -6,7 +6,8 @@
  *   - XAI_API_KEY set        → xAI Grok (OpenAI-compatible, cheaper) — PREFERRED.
  *   - else ANTHROPIC_API_KEY  → Anthropic Messages API.
  *   - neither                → null (deterministic pipeline stands; demo needs no key).
- *   - any network/parse/validation failure → null (never throws).
+ *   - any network/parse/validation failure OR a 7s timeout → null (never throws,
+ *     never hangs — an unbounded fetch would stall the calling server action).
  * The result is always validated by parseLlmCategory before use, so a malformed
  * or hallucinated category can't reach the ledger.
  */
@@ -16,6 +17,12 @@ const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 const XAI_URL = 'https://api.x.ai/v1/chat/completions';
 const XAI_DEFAULT_MODEL = 'grok-3-mini';
+// Bound the provider round-trip (same budget as assistant-llm.ts). Without a
+// signal, a hung fetch never settles and the CALLING SERVER ACTION never returns —
+// no error, no log line, just a button stuck disabled-while-pending (the
+// phase2-triage stall signature, STATUS 2026-07-04). On abort the catch below
+// returns null and the deterministic pipeline stands.
+const TIMEOUT_MS = 7000;
 
 /** Extract the first JSON object from model text and validate it (→ null if bad). */
 function parseFromText(text: string): LlmCategory | null {
@@ -36,7 +43,10 @@ export async function suggestCategoryViaLLM(input: {
   const prompt = buildCategorizePrompt(input);
   const xaiKey = process.env.XAI_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (!xaiKey && !anthropicKey) return null; // no provider key → no network, deterministic fallback
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     if (xaiKey) {
       // xAI Grok — OpenAI-compatible /chat/completions (cheaper than Anthropic).
@@ -48,6 +58,7 @@ export async function suggestCategoryViaLLM(input: {
           max_tokens: 100,
           messages: [{ role: 'user', content: prompt }],
         }),
+        signal: controller.signal,
       });
       if (!res.ok) return null;
       const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
@@ -67,6 +78,7 @@ export async function suggestCategoryViaLLM(input: {
           max_tokens: 100,
           messages: [{ role: 'user', content: prompt }],
         }),
+        signal: controller.signal,
       });
       if (!res.ok) return null;
       const data = (await res.json()) as { content?: { text?: string }[] };
@@ -74,8 +86,10 @@ export async function suggestCategoryViaLLM(input: {
       return parseFromText(text);
     }
 
-    return null; // no provider key → deterministic fallback
+    return null; // unreachable (guarded above), kept for exhaustiveness
   } catch {
-    return null; // network error, bad JSON, etc. → fall back deterministically
+    return null; // network error, timeout abort, bad JSON, etc. → fall back deterministically
+  } finally {
+    clearTimeout(timer);
   }
 }
