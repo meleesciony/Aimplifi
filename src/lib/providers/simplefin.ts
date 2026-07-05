@@ -15,7 +15,7 @@
 import { type ISODate, addDays, isoDate, toEpochDays } from '@/lib/dates';
 import { decryptToken } from '@/lib/crypto';
 import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
-import { detectTransfers } from '@/lib/engine/categorize/transfers';
+import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
 import { assistUnsureRows } from '@/server/categorize-assist';
 import { ensureCategories } from '@/server/ensure-categories';
 import { suggestCategoryViaLLM } from '@/server/llm-categorize';
@@ -645,18 +645,10 @@ export async function syncFromSimplefin(
   for (const row of assisted) returnedRefsByAccount.get(row.accountId)?.add(row.providerRef);
   const pendingRemoved = await reconcilePendingTransactions(returnedRefsByAccount, startDate, userId, today);
 
-  // Cross-account transfer PAIRING (parity with Plaid; Hostile Critic CQ-5): the
-  // pure detector flags opposite-amount pairs across the user's own accounts.
-  // Only ADD flags (never unflag a descriptor-based transfer).
-  const allTxns = await prisma.transaction.findMany({
-    where: { account: { userId }, isSplitParent: false },
-    select: { id: true, accountId: true, date: true, amountCents: true, rawDescriptor: true, isTransfer: true },
-  });
-  const flagged = detectTransfers(allTxns);
-  const toFlag = allTxns.filter((t) => flagged.has(t.id) && !t.isTransfer).map((t) => t.id);
-  if (toFlag.length) {
-    await prisma.transaction.updateMany({ where: { id: { in: toFlag } }, data: { isTransfer: true } });
-  }
+  // Cross-account transfer PAIRING (parity with Plaid; Hostile Critic CQ-5):
+  // shared helper — flags opposite-amount pairs across the user's own accounts
+  // (only ever ADDING flags) and files still-in-review pairs as 'transfer' (#165).
+  await refreshTransferFlags(userId);
 
   try {
     await refreshRecurringForUser(userId, today);

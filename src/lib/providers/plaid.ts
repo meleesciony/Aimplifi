@@ -25,7 +25,7 @@ import type { ISODate } from '@/lib/dates';
 import { businessToday } from '@/lib/business-today';
 import { decryptToken, encryptToken } from '@/lib/crypto';
 import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
-import { detectTransfers } from '@/lib/engine/categorize/transfers';
+import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
 import { loadUserRules } from '@/server/rules';
 import { refreshRecurringForUser } from '@/server/recurring';
 import {
@@ -658,7 +658,10 @@ export class PlaidProvider implements DataProvider {
       }
     }
 
-    await this.refreshTransferFlags(userId);
+    // Re-derive isTransfer across the user's full set (descriptor + pair
+    // matching), filing still-in-review pairs — shared helper, one
+    // implementation for every sync source (#165).
+    await refreshTransferFlags(userId);
 
     // Recompute recurring series + the detected scheduled projections from the
     // freshly-ingested data (DECISIONS #22 tail). Best-effort: a derived-projection
@@ -766,20 +769,6 @@ export class PlaidProvider implements DataProvider {
     }
   }
 
-  /** Re-derive isTransfer across the user's full set (descriptor + pair matching). */
-  private async refreshTransferFlags(userId: string): Promise<void> {
-    const txns = await prisma.transaction.findMany({
-      where: { account: { userId }, isSplitParent: false },
-      select: { id: true, accountId: true, date: true, amountCents: true, rawDescriptor: true },
-    });
-    const transferIds = detectTransfers(txns);
-    if (transferIds.size > 0) {
-      await prisma.transaction.updateMany({
-        where: { id: { in: [...transferIds] } },
-        data: { isTransfer: true },
-      });
-    }
-  }
 
   async listAccounts(userId: string) {
     return prisma.account.findMany({ where: { userId }, orderBy: { id: 'asc' } });

@@ -1999,3 +1999,45 @@ managers, etc.) are single-action per interaction — the wedge needs OVERLAPPIN
 so they keep useTransition (exposure noted, not changed). A Next patch upgrade (15.5.19 → latest) may
 fix the underlying abort race upstream — worth taking with the next dependency pass. The e2e reseed-
 per-spec idea (STATUS 2026-07-04 suggestion c) is superseded by the residue contract for now.
+
+## 2026-07-05 — #165 transfer pair FILING: "a transfer is never in review" (owner pick: transfer-pairing for "credit card paid")
+Premise re-checked before building (the #162 stale-premise lesson): pairing already existed
+(detectTransfers, DECISIONS #22) — the real defect was add-flag-only persistence. A pair whose
+descriptor the normalizer doesn't know (probe, real output: normalizeMerchant('CREDIT CARD PAID')
+→ uncategorized/5000 → needsReview:true, while detectTransfers pairs both sides) got isTransfer:true
+(excluded from every sum) yet stayed WEDGED in the triage queue under a wrong guess — the exact prod
+symptom the #161 learned rule worked around. Demo-inert (every seeded pair descriptor is
+normalizer-recognized), which is why it only ever bit in prod.
+
+**Shipped (full detail: DECISIONS #165):** pure planTransferUpdates() flag-vs-file split (file only
+needsReview && !reviewPinned && POSTED && supported-currency; heals legacy wedges; pair filings at
+8500 FLAGGED band — visible AI provenance); ONE shared refreshTransferFlags(userId) helper replacing
+the two drifting provider copies (FK-guarded by ensureCategories, #65); structural queue guards —
+getTriageItems/getTriageGroups/getReviewCount/review-scoped batch all carry
+OR:[{isTransfer:false},{reviewPinned:true}] (PIN WINS; register scope still re-files transfers, #36);
+backfill excludes isTransfer in read AND re-asserted write; categorize-assist refuses 'transfer' in
+BOTH directions (the #155/#163 stance, previously contradicted by an inflow allowance); undo of a
+transfer-flagged row PINS it (undoCorrections + undoSplit).
+
+**Hostile Critic cycle 1 (fresh-context, 8-axis):** 2 P1 (undo-vanish + batch-scope drift), 3 P2
+(provisional/currency/confidence filing; assist-transfer; coverage), 1 P3 — all fixed with locks.
+**Cycle 2 (fresh-context re-verify):** F1–F4 CONFIRMED FIXED; caught 1 NEW P1 — the filing write's
+where was bare `id IN (...)`, no read-guard re-assertion (the backfill cycle-5 class): a user
+decision landing in the read→write window was clobbered, or an undo-pin raced into the unclearable
+pinned-but-filed wedge. Fixed (write re-asserts every guard; helper returns the guarded writes' REAL
+counts) + deterministically locked by mocking ensureCategories to perform the mid-window action
+(transfer-refresh-race.test.ts, fail-old by construction). REGRESSION_LEDGER ×2 (2026-07-05).
+
+**Gate (real, 2026-07-05):** `bash scripts/verify.sh` → ✅ VERIFY GREEN; units **1798/1798, 133
+files** (+20/+2 over #164); phase2-triage e2e 6/6 twice (30–31s); FULL e2e **75/75 (53.4s)** on a
+fresh build. Full-suite runs under heavy machine load dropped 1–2 roaming specs
+(transactions:145/:191, phase4:13) — PROVEN pre-existing by controlled A/B: the stashed pre-#165
+tree fails the SAME :191 plus a DIFFERENT spec on a fresh build, both trees pass the specs solo.
+Same load-correlated class STATUS 2026-07-04 documents; not a #165 regression.
+
+**Accepted (documented in DECISIONS #165):** LLM-key users can still have assist file ONE side of an
+unrecognized pair to a non-transfer category at ingest (assist runs pre-persist; sums stay correct
+via the flag; register-correctable; a deterministic-first reorder needs the assist interface to
+carry account/date — deferred). Provider re-send transient reset healed by end-of-sync re-filing
+(untested lifecycle). Pair matching itself stays loose (any 2 accounts, ±3d) — tightening is a
+separate increment.

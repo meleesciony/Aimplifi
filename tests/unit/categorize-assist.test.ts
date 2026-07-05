@@ -60,7 +60,7 @@ describe('assistUnsureRows — LLM auto-apply at ingest (DECISIONS #42)', () => 
     expect(out[0]).toMatchObject({ categoryId: 'uncategorized', needsReview: true }); // left for review
   });
 
-  it('DOES auto-file an inflow when the LLM picks income/transfer', async () => {
+  it('DOES auto-file an inflow when the LLM picks an Income-group leaf', async () => {
     const inflow: AssistableRow = {
       rawDescriptor: 'PAYROLL XYZ',
       amountCents: 500000,
@@ -71,5 +71,20 @@ describe('assistUnsureRows — LLM auto-apply at ingest (DECISIONS #42)', () => 
     const suggest = vi.fn(async (): Promise<LlmCategory> => ({ categoryId: 'income', confidenceBps: 9500 }));
     const out = await assistUnsureRows([inflow], suggest);
     expect(out[0]).toMatchObject({ categoryId: 'income', needsReview: false });
+  });
+
+  it('NEVER files "transfer" in either direction (#165 critic F4): the deterministic pair pass owns that call', async () => {
+    const outflow: AssistableRow = {
+      rawDescriptor: 'CREDIT CARD PAID',
+      amountCents: -123456,
+      categoryId: 'uncategorized',
+      confidenceBps: 4000,
+      needsReview: true,
+    };
+    const inflow: AssistableRow = { ...outflow, rawDescriptor: 'PAYMENT RECEIVED', amountCents: 123456 };
+    const suggest = vi.fn(async (): Promise<LlmCategory> => ({ categoryId: 'transfer', confidenceBps: 9800 }));
+    const out = await assistUnsureRows([outflow, inflow], suggest);
+    expect(out[0]).toMatchObject({ categoryId: 'uncategorized', needsReview: true }); // stays for review
+    expect(out[1]).toMatchObject({ categoryId: 'uncategorized', needsReview: true }); // stays for review
   });
 });

@@ -634,7 +634,10 @@ export async function undoSplit(transactionId: string): Promise<TriageGroupView[
     prisma.transaction.deleteMany({ where: { splitParentId: transactionId } }),
     prisma.transaction.update({
       where: { id: transactionId },
-      data: { needsReview: true, isSplitParent: false },
+      // #165 critic F1: a transfer-flagged parent restored to review must be
+      // PINNED, or the queue's transfer guard hides it and the next sync's
+      // pair pass re-files it — same restore-is-a-lie failure as undoCorrections.
+      data: { needsReview: true, isSplitParent: false, ...(txn.isTransfer ? { reviewPinned: true } : {}) },
     }),
   ]);
   revalidatePath('/triage');
@@ -688,6 +691,16 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageGr
           needsReview: true,
           confidenceBps: null,
         },
+      });
+      // #165 critic F1: undoing a TRANSFER-FLAGGED row must PIN it, or the
+      // restore is a lie twice over — the queue's transfer guard hides the row
+      // the instant it's restored ("restore to review" returns a queue without
+      // it), and the next sync's pair pass re-files it as 'transfer' over the
+      // user's explicit "I want to re-decide". The pin makes both surfaces
+      // honor the undo (pin wins in the queue guard AND in planTransferUpdates).
+      await tx.transaction.updateMany({
+        where: { id: correction.transactionId, account: { userId }, isTransfer: true },
+        data: { reviewPinned: true },
       });
       if (correction.becameRuleId) {
         // Conditional-claim (STATUS #10 / ROADMAP #9): delete the rule ONLY while it

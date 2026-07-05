@@ -69,8 +69,12 @@ export function similarTransactionsWhere(
       : { merchantId: txn.merchantId };
   // Currency guard (DECISIONS #135): the "apply to N similar" scope touches supported accounts only.
   const account = { userId, OR: [{ currency: null }, { currency: 'USD' }] };
+  // Transfer guard (#165 critic F2): the review-scoped batch carries the SAME
+  // exclusion as the queue/badge (pin wins), so "File all N" can never count or
+  // mutate a hidden pair-flagged row the user isn't shown. The register path
+  // (onlyNeedsReview:false) deliberately keeps re-filing transfers (DECISIONS #36).
   return onlyNeedsReview
-    ? { ...scope, needsReview: true, isSplitParent: false, account }
+    ? { ...scope, needsReview: true, OR: [{ isTransfer: false }, { reviewPinned: true }], isSplitParent: false, account }
     : { ...scope, isSplitParent: false, account };
 }
 
@@ -79,8 +83,12 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
     prisma.transaction.findMany({
       // Currency guard (DECISIONS #135): a withheld non-USD account's rows must not appear in the
       // categorization inbox either (consistency with /accounts + the register).
+      // Transfer guard (#165): a transfer is never a review decision — pair-detected
+      // rows are filed at sync, and this keeps any legacy wedged row out of the queue.
       where: {
         needsReview: true,
+        // (pin wins: a review-pinned row surfaces even if pair-flagged — #148.)
+        OR: [{ isTransfer: false }, { reviewPinned: true }],
         account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
       },
       include: { account: { select: { name: true } }, merchant: true },
@@ -166,8 +174,11 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
   const [txns, rules, meta] = await Promise.all([
     prisma.transaction.findMany({
       // Currency guard (DECISIONS #135): withheld non-USD rows never enter the inbox.
+      // Transfer guard (#165): same exclusion as getTriageItems — queue and badge agree.
       where: {
         needsReview: true,
+        // (pin wins: a review-pinned row surfaces even if pair-flagged — #148.)
+        OR: [{ isTransfer: false }, { reviewPinned: true }],
         account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
       },
       include: { account: { select: { name: true } }, merchant: true },
@@ -227,8 +238,11 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
 export async function getReviewCount(userId: string): Promise<number> {
   const rows = await prisma.transaction.findMany({
     // Currency guard (DECISIONS #135): the inbox badge counts supported-account rows only.
+    // Transfer guard (#165): same exclusion as the queue — badge and queue agree.
     where: {
       needsReview: true,
+      // (pin wins: a review-pinned row surfaces even if pair-flagged — #148.)
+      OR: [{ isTransfer: false }, { reviewPinned: true }],
       account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
     },
     select: { merchantId: true, rawDescriptor: true, merchant: { select: { canonical: true } } },

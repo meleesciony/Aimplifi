@@ -46,14 +46,20 @@ export async function assistUnsureRows<T extends AssistableRow>(
       byDescriptor.get(r.rawDescriptor) ?? null,
     );
     if (picked.source !== 'llm') return r;
+    // Transfer guard (#165 critic F4): the LLM never files 'transfer' in EITHER
+    // direction — mislabeling spend as a transfer silently erases it, and the
+    // tested transfer detection owns that call (the same #155/#163 stance the
+    // backfill enforces). A row the LLM calls a transfer stays in review for
+    // the deterministic pair pass / the user.
+    if (picked.categoryId === 'transfer') return r;
     // #44 sign guard, BOTH directions (#163 hostile-critic P1-2): an INFLOW may
     // only take an Income-GROUP leaf (paycheck, interest-income, tax-refund, …)
-    // or transfer — the literal 'income' id check predated the income split and
-    // rejected every rescued paycheck; and an OUTFLOW must never be filed into
-    // an Income-group category (a debit the LLM calls "interest-income" is a
+    // — the literal 'income' id check predated the income split and rejected
+    // every rescued paycheck; and an OUTFLOW must never be filed into an
+    // Income-group category (a debit the LLM calls "interest-income" is a
     // misread, not income). Either mismatch leaves the row for review.
     const isIncomeGroup = CATEGORY_BY_ID.get(picked.categoryId)?.group === 'Income';
-    if (r.amountCents > 0 && !isIncomeGroup && picked.categoryId !== 'transfer') return r;
+    if (r.amountCents > 0 && !isIncomeGroup) return r;
     if (r.amountCents < 0 && isIncomeGroup) return r;
     return { ...r, categoryId: picked.categoryId, confidenceBps: picked.confidenceBps, needsReview: false };
   });

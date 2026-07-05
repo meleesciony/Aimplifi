@@ -73,6 +73,9 @@ export async function runBackfillForUser(
         // backfill button silently auto-filed a dissolved split and left a
         // contradictory pinned-but-filed row no surface could ever clear.
         reviewPinned: false,
+        // Transfer guard (#165): a transfer is the transfer pass's call, never
+        // backfill's — the LLM must never re-file one (DECISIONS #155/#163 stance).
+        isTransfer: false,
         OR: [{ needsReview: true }, { categoryId: null }, { categoryId: 'uncategorized' }],
       },
       select: {
@@ -169,6 +172,9 @@ export async function runBackfillForUser(
           // Re-asserted like the read (cycle-5 confirmation P1): a row a sync
           // dissolve PINNED inside the read→write window is skipped, not filed.
           reviewPinned: false,
+          // Transfer guard (#165) re-asserted like the read: a row a sync
+          // flagged inside the read→write window is skipped, not re-filed.
+          isTransfer: false,
           OR: [{ needsReview: true }, { categoryId: null }, { categoryId: 'uncategorized' }],
         },
         data: { categoryId: g.categoryId, confidenceBps: g.confidenceBps, needsReview: false },

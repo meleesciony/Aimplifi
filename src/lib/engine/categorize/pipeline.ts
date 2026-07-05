@@ -15,6 +15,7 @@ import { dayOfWeek, isoDate } from '@/lib/dates';
 import { CATEGORY_BY_ID } from './categories';
 import { normalizeMerchant } from './normalize';
 import { computeDescriptorSignature } from './signature';
+import { TRANSFER_CONFIDENCE_BPS } from './transfers';
 
 export const AUTO_SILENT_BPS = 9000;
 export const AUTO_FLAGGED_BPS = 7000;
@@ -167,7 +168,7 @@ export function categorize(txn: TxnInput, rules: readonly RuleLike[] = []): Cate
       merchantCanonical: merchant.canonical,
       merchantKnown: merchant.known,
       categoryId: 'transfer',
-      confidenceBps: 9900,
+      confidenceBps: TRANSFER_CONFIDENCE_BPS,
       needsReview: false,
       aiBadge: false,
       source: 'transfer',

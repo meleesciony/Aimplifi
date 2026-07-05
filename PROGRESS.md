@@ -1,5 +1,38 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-05 (resumed: "push; then continue") — #165 transfer pair filing — DONE ✅ (verify green, critic 2 cycles, FULL e2e 75/75)
+Owner authorized the push (the #161–#164 stack + their CLAUDE.md/LOOP_ENGINEERING.md edits committed
+as docs, all now on origin/main through 9c05431), then picked "transfer-pairing for credit card paid"
+via AskUserQuestion. Premise re-checked FIRST (the #162 lesson): pairing already existed — the real
+defect was add-flag-only persistence wedging pair-detected rows in triage (probe output in DECISIONS
+#165). Shipped engine-first: planTransferUpdates flag/file split + shared refreshTransferFlags helper
++ structural "a transfer is never in review" guards (pin wins) + backfill/assist transfer stances +
+undo-pins-transfer-rows. Hostile Critic cycle 1: 2 P1 + 3 P2 + 1 P3, all fixed with locks; cycle-2
+fresh checker confirmed the fixes and caught 1 NEW P1 (filing write didn't re-assert read guards —
+the backfill cycle-5 class), fixed + deterministically locked (mocked ensureCategories performs the
+mid-window user action). Full-suite e2e drops under load PROVEN pre-existing by stash A/B (clean tree
+fails the same spec + a different one; solo runs green both trees); idle-machine witness 75/75
+(53.4s). Gate: verify.sh ✅ GREEN, 1798 units / 133 files, phase2-triage 6/6 ×2.
+Ledger: DECISIONS #165 (+cycle-2 amendment); REGRESSION_LEDGER ×2; STATUS #165. Committing as #165;
+pushing (the session's opening instruction authorized push).
+
+### HANDOFF (resume after /clear) — 2026-07-05, session "aimplifi", #165 DONE
+**Resume from `C:\dev\Aimplifi`.** Working tree CLEAN after the #165 commit+push; origin/main current.
+**Health baseline (re-confirm, don't trust):** `bash scripts/verify.sh` → GREEN, 1798 units / 133 files;
+full e2e 75/75 on an idle machine (expect 1-2 roaming load-flakes when the machine is busy — documented
+STATUS #165, tree-independent).
+**STANDING OWNER-ONLY (unchanged + new):**
+- Paste ~10 real still-wrong prod descriptors to pin #161 learn.ts signatures against REAL bank strings.
+- Reboot for the full VERIFY_E2E re-witness (#16); #155 Plaid + #156 SimpleFIN live-sandbox spot-checks.
+- Next patch bump (15.5.19 → latest) with the next dependency pass (STATUS #164 follow-up).
+- After the next real sync: confirm the prod "CREDIT CARD PAID" pile drains (pair rows should file to
+  Transfer with an AI badge and leave the review queue).
+**NEXT INCREMENT candidates (owner-gated pick):** ambiguous-remainder multi-select triage polish;
+tighten pair matching (require a CREDIT-account side / same-currency — the F3 residual); LLM assist
+deterministic-first reorder (assist interface needs account/date so the pair pass can run first);
+real-prod-descriptor tuning (needs the owner paste).
+**SAFE to /clear.**
+
 ## 2026-07-05 (resumed: "continue") — #164 phase2-triage stall ROOT-CAUSED + FIXED — DONE ✅ (verify green, FULL e2e 75/75)
 Resumed at the #163 handoff; the one non-owner-gated open item was the phase2-triage
 e2e stall (STATUS 2026-07-04). Re-confirmed baseline: verify.sh GREEN. Took the two
