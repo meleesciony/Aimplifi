@@ -238,12 +238,25 @@ describe('computeSpendingTrends on the seed (real-volume, default normalization)
   it('ranks category movers by absolute delta, excluding non-actionable groups', () => {
     // food-delivery joined the movers when Uber Eats moved dining → food-delivery
     // (Phase 3a: the KNOWN entry now agrees with the generic keyword table).
-    expect(r.movers.map((m) => m.categoryId)).toEqual(['shopping', 'travel', 'groceries', 'fuel', 'food-delivery']);
+    // #163: Delta re-pointed travel → air-travel, splitting the old 'travel'
+    // mover into two independently-ranked movers (travel = hotels/Airbnb,
+    // air-travel = flights), and the ranking re-ordered by absolute delta.
+    expect(r.movers.map((m) => m.categoryId)).toEqual(['travel', 'shopping', 'air-travel', 'groceries', 'fuel', 'food-delivery']);
     for (const m of r.movers) expect(m.group).not.toBe('Transfers & Other');
     for (let i = 1; i < r.movers.length; i++) {
       expect(Math.abs(r.movers[i - 1].deltaCents)).toBeGreaterThanOrEqual(Math.abs(r.movers[i].deltaCents));
     }
+    // #163: 'travel' (now hotels/Airbnb only — flights split to air-travel)
+    // had baseline spend and none this window, so its drop outranks shopping.
     expect(r.movers[0]).toMatchObject({
+      categoryId: 'travel',
+      currentCents: 0,
+      baselineCents: 48998,
+      deltaCents: -48998,
+      direction: 'down',
+    });
+    // The shopping mover keeps its original hand-verified values, one rank down.
+    expect(r.movers[1]).toMatchObject({
       categoryId: 'shopping',
       currentCents: 75511,
       baselineCents: 28456,

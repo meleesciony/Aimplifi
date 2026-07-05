@@ -34,7 +34,7 @@ describe('merchant-group triage (Phase 3b)', () => {
     await prisma.categoryPrediction.deleteMany({ where: { userId: { in: [USER, OTHER] } } });
     await prisma.account.deleteMany({ where: { userId: { in: [USER, OTHER] } } });
     // Seawolf is ours alone (the seed has no such merchant); Zelle stays — seed-owned.
-    await prisma.merchant.deleteMany({ where: { canonical: 'Seawolf Bakers' } });
+    await prisma.merchant.deleteMany({ where: { canonical: 'Seawolf Sundries' } });
     await prisma.user.deleteMany({ where: { id: { in: [USER, OTHER] } } });
   }
 
@@ -48,8 +48,8 @@ describe('merchant-group triage (Phase 3b)', () => {
     });
     MERCH_SEAWOLF = (
       await prisma.merchant.upsert({
-        where: { canonical: 'Seawolf Bakers' },
-        create: { id: `grp-merch-seawolf-${process.pid}`, canonical: 'Seawolf Bakers' },
+        where: { canonical: 'Seawolf Sundries' },
+        create: { id: `grp-merch-seawolf-${process.pid}`, canonical: 'Seawolf Sundries' },
         update: {},
       })
     ).id;
@@ -77,9 +77,9 @@ describe('merchant-group triage (Phase 3b)', () => {
     // Seawolf: 3 review rows across TWO descriptor variants (converged identity)
     await prisma.transaction.createMany({
       data: [
-        { id: `grp-s1-${process.pid}`, accountId: acct.id, date: '2026-06-09', amountCents: -1200, rawDescriptor: 'SQ *SEAWOLF BAKERS', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
-        { id: `grp-s2-${process.pid}`, accountId: acct.id, date: '2026-06-08', amountCents: -950, rawDescriptor: 'SQ *SEAWOLF BAKERS SEATTLE WA', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
-        { id: `grp-s3-${process.pid}`, accountId: acct.id, date: '2026-06-01', amountCents: -1500, rawDescriptor: 'SQ *SEAWOLF BAKERS', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+        { id: `grp-s1-${process.pid}`, accountId: acct.id, date: '2026-06-09', amountCents: -1200, rawDescriptor: 'SQ *SEAWOLF SUNDRIES', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+        { id: `grp-s2-${process.pid}`, accountId: acct.id, date: '2026-06-08', amountCents: -950, rawDescriptor: 'SQ *SEAWOLF SUNDRIES SEATTLE WA', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+        { id: `grp-s3-${process.pid}`, accountId: acct.id, date: '2026-06-01', amountCents: -1500, rawDescriptor: 'SQ *SEAWOLF SUNDRIES', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
         // Zelle: ONE merchant row, TWO payees → two aggregate groups by exact descriptor
         { id: `grp-z1-${process.pid}`, accountId: acct.id, date: '2026-06-07', amountCents: -92500, rawDescriptor: 'ZELLE PAYMENT TO MARCUS CHEN', merchantId: MERCH_ZELLE, categoryId: 'uncategorized', confidenceBps: 4000, needsReview: true },
         { id: `grp-z2-${process.pid}`, accountId: acct.id, date: '2026-05-07', amountCents: -92500, rawDescriptor: 'ZELLE PAYMENT TO MARCUS CHEN', merchantId: MERCH_ZELLE, categoryId: 'uncategorized', confidenceBps: 4000, needsReview: true },
@@ -98,10 +98,10 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(await getReviewCount(USER)).toBe(3); // the badge = decisions, not rows
 
     const seawolf = groups[0]; // count DESC → 3-row Seawolf first
-    expect(seawolf.merchantCanonical).toBe('Seawolf Bakers');
+    expect(seawolf.merchantCanonical).toBe('Seawolf Sundries');
     expect(seawolf.count).toBe(3);
     expect(seawolf.totalCents).toBe(-3650);
-    expect(seawolf.variants.sort()).toEqual(['SQ *SEAWOLF BAKERS', 'SQ *SEAWOLF BAKERS SEATTLE WA']);
+    expect(seawolf.variants.sort()).toEqual(['SQ *SEAWOLF SUNDRIES', 'SQ *SEAWOLF SUNDRIES SEATTLE WA']);
     expect(seawolf.anchorTransactionId).toBe(`grp-s1-${process.pid}`); // newest row
     expect(seawolf.ruleEligible).toBe(true);
     // HONEST suggestion: unknown merchant → null, never an amount-based 'Shopping'
@@ -119,13 +119,13 @@ describe('merchant-group triage (Phase 3b)', () => {
       data: { userId: USER, merchantId: MERCH_SEAWOLF, categoryId: 'coffee', priority: 100 },
     });
     const groups = await getTriageGroups(USER);
-    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Bakers')!;
+    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Sundries')!;
     expect(seawolf.suggestedCategoryId).toBe('coffee');
   });
 
   it('fileMerchantGroup: files ALL rows + per-row corrections + prediction truth + durable rule → next ingest auto-files (trust on repeat)', async () => {
     const groups = await getTriageGroups(USER);
-    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Bakers')!;
+    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Sundries')!;
 
     const res = await fileMerchantGroup({ anchorTransactionId: seawolf.anchorTransactionId, categoryId: 'coffee' });
     expect(res.affected).toBe(3);
@@ -153,7 +153,7 @@ describe('merchant-group triage (Phase 3b)', () => {
     // TRUST ON REPEAT (fix-doc mechanic 2): the NEXT synced Seawolf transaction —
     // under EITHER descriptor variant — auto-files silently at rule confidence.
     const rules = await loadUserRules(USER);
-    for (const raw of ['SQ *SEAWOLF BAKERS', 'SQ *SEAWOLF BAKERS SEATTLE WA']) {
+    for (const raw of ['SQ *SEAWOLF SUNDRIES', 'SQ *SEAWOLF SUNDRIES SEATTLE WA']) {
       const next = categorize({ rawDescriptor: raw, amountCents: -800, date: '2026-06-15', accountId: 'any' }, rules);
       expect(next.needsReview).toBe(false);
       expect(next.categoryId).toBe('coffee');
@@ -295,7 +295,7 @@ describe('merchant-group triage (Phase 3b)', () => {
 
   it('test_regression__stale_rule_wins_recategorize (cycle-3 P1): re-filing a merchant to a DIFFERENT category retires the old rule — the NEW decision wins future ingests', async () => {
     const groups = await getTriageGroups(USER);
-    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Bakers')!;
+    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Sundries')!;
     const first = await fileMerchantGroup({ anchorTransactionId: seawolf.anchorTransactionId, categoryId: 'coffee' });
     expect(first.ruleId).not.toBeNull();
     // The changed mind — the reason recategorize exists. Pre-fix BOTH unconditional
@@ -308,7 +308,7 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(rules).toHaveLength(1); // the coffee rule was RETIRED, not out-tie-broken
     expect(rules[0].categoryId).toBe('dining');
     const verdict = categorize(
-      { rawDescriptor: 'SQ *SEAWOLF BAKERS', amountCents: -800, date: '2026-06-15', accountId: 'any' },
+      { rawDescriptor: 'SQ *SEAWOLF SUNDRIES', amountCents: -800, date: '2026-06-15', accountId: 'any' },
       await loadUserRules(USER),
     );
     expect(verdict.categoryId).toBe('dining'); // the NEW decision drives ingest
@@ -353,7 +353,7 @@ describe('merchant-group triage (Phase 3b)', () => {
 
   it('double-file is idempotent and rules are deduped (checker P1)', async () => {
     const groups = await getTriageGroups(USER);
-    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Bakers')!;
+    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Sundries')!;
     const first = await fileMerchantGroup({ anchorTransactionId: seawolf.anchorTransactionId, categoryId: 'coffee' });
     expect(first.affected).toBe(3);
     // Second fire on the same (now-cleared) group: compare-and-set finds nothing.
@@ -364,7 +364,7 @@ describe('merchant-group triage (Phase 3b)', () => {
     // A new row of the same merchant filed to the SAME category reuses the rule row.
     const acct = await prisma.account.findFirstOrThrow({ where: { userId: USER, providerRef: 'grp-chk' } });
     await prisma.transaction.create({
-      data: { id: `grp-s4-${process.pid}`, accountId: acct.id, date: '2026-06-10', amountCents: -700, rawDescriptor: 'SQ *SEAWOLF BAKERS', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+      data: { id: `grp-s4-${process.pid}`, accountId: acct.id, date: '2026-06-10', amountCents: -700, rawDescriptor: 'SQ *SEAWOLF SUNDRIES', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
     });
     const third = await fileMerchantGroup({ anchorTransactionId: `grp-s4-${process.pid}`, categoryId: 'coffee' });
     expect(third.affected).toBe(1);

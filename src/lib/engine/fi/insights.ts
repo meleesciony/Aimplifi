@@ -122,14 +122,19 @@ export function findOpportunities(
       const delta = Math.abs(s.lastAmountCents) - Math.abs(s.previousAmountCents);
       if (delta > 0) push('price-increase', s.merchantCanonical, delta, false);
     }
-    if (s.categoryId === 'insurance' && s.isSubscription) {
+    // #163: auto premiums now file to their own leaf — both the generic and the
+    // auto leaf are genuinely re-shoppable. Health/dental/vision (employer
+    // plans) and life (medical underwriting) stay excluded: a "shop around"
+    // nudge there is false hope.
+    if ((s.categoryId === 'insurance' || s.categoryId === 'auto-insurance') && s.isSubscription) {
       // re-shopping typically saves ~15% — labeled an estimate
       push('insurance-reshop', s.merchantCanonical, Math.round(Math.abs(s.lastAmountCents) * 0.15), true);
     }
-    if (s.categoryId === 'utilities' && s.isSubscription) {
+    if ((s.categoryId === 'utilities' || s.categoryId === 'internet') && s.isSubscription) {
       // negotiable bills: ~$20/mo is a common retention-offer outcome — estimate.
-      // Intentionally keyed on the `utilities` catch-all ONLY (internet/cable/combined
-      // bills). The #154 split's electricity/natural-gas/water/trash leaves are
+      // Keyed on the `utilities` catch-all plus the `internet` leaf cable ISPs
+      // file to since #163 — the same internet/cable bills the catch-all used to
+      // hold. The #154 split's electricity/natural-gas/water/trash leaves are
       // deliberately excluded: regulated utility monopolies aren't negotiable, so a
       // "call to negotiate" nudge there would be false hope (DECISIONS #154).
       push('negotiable-bill', s.merchantCanonical, 2000, true);

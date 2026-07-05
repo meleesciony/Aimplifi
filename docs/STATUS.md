@@ -1943,3 +1943,21 @@ client handler is e2e-inert on the all-ambiguous demo so it is server-boundary +
 #160/#123 no-RTL precedent); #161 learned rules re-confidencing a still-queued group is the learner working.
 Ledger: DECISIONS #162; REGRESSION_LEDGER 2026-07-04; PROGRESS 2026-07-04 #162 + handoff. Committed, NOT
 pushed (push owner-gated).
+
+## 2026-07-04 — #163 open finding: phase2-triage e2e stall (PRE-EXISTING, roaming — not #163)
+One phase2-triage spec per run times out (60s) on a triage button stuck disabled mid-flow (`pending`
+never settles — a server action that neither errors nor returns; the manually-captured `next start` log
+shows NOTHING). PROVEN pre-existing and tree-independent by controlled A/B runs (all with fresh builds,
+killed 3100 servers):
+  • pre-#163 tree, :109 SOLO run → FAILS;  post-#163 tree, :109 in full-suite → passes.
+  • post-#163 tree, :239 solo → passes;  :239 after 2+ specs in sequence → FAILS (×3).
+  • pre-#163 tree, SAME full spec file in sequence → FAILS at :239 IDENTICALLY.
+The failure roams between specs and trees and correlates with SEQUENCE LENGTH / machine load, matching
+the flake already documented in tests/setup/test-db.ts and tests/e2e/global-setup.ts ("an accept/triage
+write can stall past the click timeout and hang the disabled-while-pending button — the phase2-triage
+flake"): a SQLite writer starved under load. WAL mitigated but did not eliminate it. Secondary note: the
+dev machine's `.env.local` carries a real `XAI_API_KEY` (84 chars) so e2e triage-adjacent actions CAN make
+live LLM calls — worth removing from the e2e server env regardless. Suggested for a future session:
+(a) blank XAI_API_KEY/ANTHROPIC_API_KEY in playwright webServer.env; (b) add a busy_timeout / bounded
+retry probe around the triage write path with instrumentation to catch the stall in the act; (c) consider
+per-spec DB reseed. Not fixed in #163 — pre-existing infrastructure, out of scope.

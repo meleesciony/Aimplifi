@@ -9,6 +9,7 @@
  * unchanged, preserving the demo). Calls are deduped per descriptor and made
  * only for unsure rows, so cost stays bounded to the long tail.
  */
+import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { type LlmCategory, pickAssistedCategory } from '@/lib/engine/categorize/llm';
 
 export interface AssistableRow {
@@ -45,10 +46,15 @@ export async function assistUnsureRows<T extends AssistableRow>(
       byDescriptor.get(r.rawDescriptor) ?? null,
     );
     if (picked.source !== 'llm') return r;
-    // Don't auto-file an INFLOW (refund/credit, positive amount) as a spend
-    // category — only income/transfer are sign-appropriate; else leave for
-    // review so refund-netting and the user decide (#44).
-    if (r.amountCents > 0 && picked.categoryId !== 'income' && picked.categoryId !== 'transfer') return r;
+    // #44 sign guard, BOTH directions (#163 hostile-critic P1-2): an INFLOW may
+    // only take an Income-GROUP leaf (paycheck, interest-income, tax-refund, …)
+    // or transfer — the literal 'income' id check predated the income split and
+    // rejected every rescued paycheck; and an OUTFLOW must never be filed into
+    // an Income-group category (a debit the LLM calls "interest-income" is a
+    // misread, not income). Either mismatch leaves the row for review.
+    const isIncomeGroup = CATEGORY_BY_ID.get(picked.categoryId)?.group === 'Income';
+    if (r.amountCents > 0 && !isIncomeGroup && picked.categoryId !== 'transfer') return r;
+    if (r.amountCents < 0 && isIncomeGroup) return r;
     return { ...r, categoryId: picked.categoryId, confidenceBps: picked.confidenceBps, needsReview: false };
   });
 }

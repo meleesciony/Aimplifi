@@ -172,7 +172,7 @@ describe('prepareSimplefinTransaction (through the shared pipeline)', () => {
     );
     expect(r.amountCents).toBe(-4250);
     expect(r.date).toBe('2026-06-10');
-    expect(r.categoryId).toBe('dining');
+    expect(r.categoryId).toBe('coffee'); // #163: Starbucks = coffee
     expect(r.isTransfer).toBe(false);
     expect(r.status).toBe('POSTED');
     expect(r.providerRef).toBe('tx1');

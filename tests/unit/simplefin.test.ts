@@ -118,7 +118,7 @@ describe('SimpleFIN connect + sync (real actions, mocked server)', () => {
     // transactions ingested with correct signs + categorization
     const starbucks = await prisma.transaction.findFirst({ where: { providerRef: 'tx-1', account: { userId: USER } } });
     expect(starbucks!.amountCents).toBe(-4250); // outflow negative
-    expect(starbucks!.categoryId).toBe('dining');
+    expect(starbucks!.categoryId).toBe('coffee'); // #163: Starbucks = coffee
     const payroll = await prisma.transaction.findFirst({ where: { providerRef: 'tx-2', account: { userId: USER } } });
     expect(payroll!.amountCents).toBe(250000); // inflow positive
   });

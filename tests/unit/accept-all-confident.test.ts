@@ -64,7 +64,7 @@ describe('acceptAllConfident (integration)', () => {
     // Custom categories these tests mint (userId set) — delete AFTER their rules.
     await prisma.category.deleteMany({ where: { userId: { in: [USER, OTHER] } } });
     // Seawolf + our Netflix are test-only; Zelle stays (seed-owned canonical).
-    await prisma.merchant.deleteMany({ where: { canonical: { in: ['Seawolf Bakers', NETFLIX_CANONICAL] } } });
+    await prisma.merchant.deleteMany({ where: { canonical: { in: ['Seawolf Sundries', NETFLIX_CANONICAL] } } });
     await prisma.user.deleteMany({ where: { id: { in: [USER, OTHER] } } });
   }
 
@@ -78,8 +78,8 @@ describe('acceptAllConfident (integration)', () => {
     });
     MERCH_SEAWOLF = (
       await prisma.merchant.upsert({
-        where: { canonical: 'Seawolf Bakers' },
-        create: { id: `acc-merch-seawolf-${process.pid}`, canonical: 'Seawolf Bakers' },
+        where: { canonical: 'Seawolf Sundries' },
+        create: { id: `acc-merch-seawolf-${process.pid}`, canonical: 'Seawolf Sundries' },
         update: {},
       })
     ).id;
@@ -119,9 +119,9 @@ describe('acceptAllConfident (integration)', () => {
     // confidence by adding a Seawolf rule and/or the natively-known Netflix rows.
     await prisma.transaction.createMany({
       data: [
-        { id: `acc-s1-${process.pid}`, accountId: acct.id, date: '2026-06-09', amountCents: -1200, rawDescriptor: 'SQ *SEAWOLF BAKERS', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
-        { id: `acc-s2-${process.pid}`, accountId: acct.id, date: '2026-06-08', amountCents: -950, rawDescriptor: 'SQ *SEAWOLF BAKERS SEATTLE WA', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
-        { id: `acc-s3-${process.pid}`, accountId: acct.id, date: '2026-06-01', amountCents: -1500, rawDescriptor: 'SQ *SEAWOLF BAKERS', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+        { id: `acc-s1-${process.pid}`, accountId: acct.id, date: '2026-06-09', amountCents: -1200, rawDescriptor: 'SQ *SEAWOLF SUNDRIES', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+        { id: `acc-s2-${process.pid}`, accountId: acct.id, date: '2026-06-08', amountCents: -950, rawDescriptor: 'SQ *SEAWOLF SUNDRIES SEATTLE WA', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+        { id: `acc-s3-${process.pid}`, accountId: acct.id, date: '2026-06-01', amountCents: -1500, rawDescriptor: 'SQ *SEAWOLF SUNDRIES', merchantId: MERCH_SEAWOLF, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
         { id: `acc-z1-${process.pid}`, accountId: acct.id, date: '2026-06-07', amountCents: -92500, rawDescriptor: 'ZELLE PAYMENT TO MARCUS CHEN', merchantId: MERCH_ZELLE, categoryId: 'uncategorized', confidenceBps: 4000, needsReview: true },
         { id: `acc-z2-${process.pid}`, accountId: acct.id, date: '2026-05-07', amountCents: -92500, rawDescriptor: 'ZELLE PAYMENT TO MARCUS CHEN', merchantId: MERCH_ZELLE, categoryId: 'uncategorized', confidenceBps: 4000, needsReview: true },
       ],
@@ -148,7 +148,7 @@ describe('acceptAllConfident (integration)', () => {
     // Precondition: exactly the two confident groups + the one ambiguous Zelle group.
     const before = await getTriageGroups(USER);
     expect(selectConfidentGroups(before).map((g) => g.merchantCanonical).sort()).toEqual(
-      [NETFLIX_CANONICAL, 'Seawolf Bakers'].sort(),
+      [NETFLIX_CANONICAL, 'Seawolf Sundries'].sort(),
     );
 
     const res = await acceptAllConfident();

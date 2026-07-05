@@ -250,6 +250,31 @@ export function categorize(txn: TxnInput, rules: readonly RuleLike[] = []): Cate
     };
   }
 
+  // #44 sign guard on the MERCHANT-DEFAULT path (#163 hostile-critic P1-1): an
+  // OUTFLOW must never auto-file into an Income-group leaf — a Stripe balance
+  // debit sharing the payout descriptor, a tenant PAYING rent through Buildium,
+  // or a Gusto/ADP service fee would otherwise be silently booked as income
+  // (inflating income AND erasing spend — the income-side analog of the F4
+  // transfer-erasure class). Such a row is genuinely anomalous → review. The
+  // INFLOW direction is deliberately NOT guarded here: a positive amount on a
+  // spend category is the refund/return case, which files back to the original
+  // category by convention (returns offset spend). User rules stay deliberate
+  // (always apply); learned rules, provider hints, and backfill/LLM assist all
+  // carry their own #44 checks already.
+  const cat = CATEGORY_BY_ID.get(merchant.categoryId);
+  if (!needsReview && txn.amountCents < 0 && cat?.group === 'Income') {
+    return {
+      merchantCanonical: merchant.canonical,
+      merchantKnown: merchant.known,
+      categoryId: 'uncategorized',
+      confidenceBps: 5000,
+      needsReview: true,
+      aiBadge: false,
+      source: 'fallback',
+      matchedRuleId: null,
+    };
+  }
+
   return {
     merchantCanonical: merchant.canonical,
     merchantKnown: merchant.known,

@@ -36,12 +36,12 @@ describe('planBackfill (pure)', () => {
   it('allows an income inflow but blocks an inflow that would resolve to a spend category', () => {
     const plan = planBackfill([
       row({ id: 'in', rawDescriptor: 'GUSTO PAYROLL 9X8Y7Z DIRECT DEP', amountCents: 500000 }), // inflow → income OK
-      row({ id: 'bad', rawDescriptor: 'STARBUCKS 800-782-7282', amountCents: 500 }), // inflow → would be dining → blocked
+      row({ id: 'bad', rawDescriptor: 'STARBUCKS 800-782-7282', amountCents: 500 }), // inflow → would be coffee (a spend leaf) → blocked
     ]);
     const ids = plan.refiles.map((r) => r.id);
     expect(ids).toContain('in');
     expect(ids).not.toContain('bad');
-    expect(plan.refiles.find((r) => r.id === 'in')!.toCategoryId).toBe('income');
+    expect(plan.refiles.find((r) => r.id === 'in')!.toCategoryId).toBe('paycheck'); // #163: payroll = paycheck leaf
     expect(plan.stillUnsure).toBe(1); // the blocked inflow stays for review
   });
 

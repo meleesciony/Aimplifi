@@ -1,5 +1,42 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-04 — #163 categorization-quality pass (owner: "make the categorizer better than Simplifi/Mint") — DONE ✅ (commit 9ba0d38)
+Diagnosed the gap via explorer + measured evals: (a) leaf-precision — merchant
+defaults predate the #63/#65 taxonomy (Starbucks→dining not coffee, CVS→health
+not pharmacy, payroll→income not paycheck…) = the 23.8% silent-misfile class in
+PHASE2_BASELINE; (b) ^-anchored table blind behind bank channel prefixes
+(PURCHASE AUTHORIZED ON…); (c) long-tail coverage; (d) greedy UNIVERSITY token.
+Shipped in src/lib/engine/categorize/normalize.ts: re-pointed defaults,
+stripBankNoise, TST*(Toast)→dining + PADDLE.NET→software processor priors
+(8000 bps, AI badge), ~70 KNOWN + ~25 generic additions, new aggregates
+(Cash App/Apple Cash/PayPal INST XFER/CHECK forms), issuer card-pmt ACH→transfer,
+income split into paycheck/interest-income/govt-benefits/tax-refund, fixed the
+-alternation inflection bug class (WENDYS/WEGMANS/PLUMBING/VETERINARY/...).
+Follow-through: backfill + categorize-assist sign guards → Income GROUP;
+recurring SUBSCRIPTION_CATEGORIES + insights keys extended; LLM assist wired
+into Plaid sync (two-pass; parity with SimpleFIN/CSV/manual). Eval rebuilt as
+3-corpus harness incl. NEW 343-case novel benchmark
+(scripts/categorize-benchmark-corpus.ts). MEASURED: novel review 32.1%→9.3%,
+precision 89.3%→100%; messy wrongs 25→11 (all documented convention drift);
+demo seed stable 1.91% review / 100% recognized; suite 1752/1752; verify.sh
+GREEN (no-e2e run). Regression lock tests/unit/categorize-precision.test.ts
+(36→56 after critic locks). DECISIONS #163 appended + amended with cycle-1.
+Hostile critic cycle 1: FAIL, 3 P1 (proven by execution) → ALL FIXED same
+session: pipeline merchant-default outflow→Income-group guard (P1-1, also
+closes P2-5); categorize-assist sign guard REALLY landed this time, both
+directions (P1-2); greedy tokens tightened — CARTER/CHURCH/HOA/FIDELITY/
+PROGRESSIVE/GOODWILL/CARDMEMBER SERV (P1-3, P2-4, P2-7, P3-8, P3-9); critic
+probes added to the corpus as 14 adversarial traps (P2-6). Post-fix measured:
+NOVEL 357 cases 100% precision / 0 wrong / 12.3% review; suite 1772/1772.
+E2E: 70/71 pass; the 1 failing spec (phase2-triage 'write-in category')
+PROVEN PRE-EXISTING — fails identically on the stashed pre-#163 tree; root
+cause suspicion (live XAI_API_KEY in e2e server) + suggested fix recorded in
+docs/STATUS.md 2026-07-04 (A/B-proven: the stall roams specs AND trees —
+the documented SQLite write-stall flake, not #163). Final gate: verify.sh
+GREEN (tsc 0 / eslint 0 / vitest 1772/1772 / build clean). Committed 9ba0d38;
+NOT pushed (push owner-gated). CLAUDE.md + LOOP_ENGINEERING.md left
+uncommitted (owner's pre-session edits, untouched).
+
 ## 2026-06-23 — Spending Trends / insights (#74, surpass feature #7) — DONE ✅
 User "cont" → continued the match-and-surpass series after the #73 SimpleFIN bug
 fix. Chose feature #7: the "what changed" lens (movers/pace/largest/new merchants)

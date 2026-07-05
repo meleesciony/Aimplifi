@@ -347,7 +347,7 @@ describe('prepareIngestedTransaction — categorized, persist-ready row', () => 
     };
     const row = prepareIngestedTransaction(txn, 'acct-checking');
     expect(row.amountCents).toBe(-575);
-    expect(row.categoryId).toBe('dining');
+    expect(row.categoryId).toBe('coffee'); // #163: Starbucks = coffee
     expect(row.needsReview).toBe(false);
     expect(row.isTransfer).toBe(false);
     expect(row.status).toBe('POSTED');
@@ -365,7 +365,7 @@ describe('prepareIngestedTransaction — categorized, persist-ready row', () => 
     };
     const row = prepareIngestedTransaction(txn, 'acct-checking');
     expect(row.amountCents).toBe(250000);
-    expect(row.categoryId).toBe('income');
+    expect(row.categoryId).toBe('paycheck'); // #163: payroll = paycheck leaf
   });
 
   it('an online transfer is flagged isTransfer and excluded category', () => {
@@ -624,7 +624,7 @@ describe('prepareIngestedTransaction + PFC passthrough (end-to-end, DECISIONS #1
         confidence_level: 'VERY_HIGH',
       },
     };
-    expect(prepareIngestedTransaction(txn, 'acct-checking').categoryId).toBe('dining');
+    expect(prepareIngestedTransaction(txn, 'acct-checking').categoryId).toBe('coffee'); // #163: Starbucks = coffee
   });
 
   it('a LOW-confidence PFC does not rescue (stays in review)', () => {

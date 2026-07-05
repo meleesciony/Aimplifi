@@ -120,7 +120,7 @@ describe('prepareImportedTransaction', () => {
     const [row] = parseTransactionCsv('date,description,amount\n2026-06-01,STARBUCKS STORE 5,-5.75').rows;
     const prepared = prepareImportedTransaction(row, 'acct-checking', rules);
     expect(prepared.amountCents).toBe(-575);
-    expect(prepared.categoryId).toBe('dining');
+    expect(prepared.categoryId).toBe('coffee'); // #163: Starbucks = coffee
     expect(prepared.needsReview).toBe(false);
     expect(prepared.status).toBe('POSTED');
   });

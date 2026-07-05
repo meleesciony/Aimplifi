@@ -75,6 +75,12 @@ const SUBSCRIPTION_CATEGORIES = new Set([
   // recurring obligation just like the `utilities` catch-all it was split from.
   'electricity', 'natural-gas', 'water', 'trash',
   'insurance', 'groceries',
+  // #163 leaf-precision follow-through: merchants that used to file into the
+  // coarse parents above now land on precise leaves (Xfinity → internet,
+  // GEICO *AUTO → auto-insurance, consoles → games). A recurring bill on any
+  // of them is the same subscription it always was.
+  'internet', 'phone', 'subscriptions', 'games', 'music',
+  'auto-insurance', 'health-insurance', 'dental-insurance', 'vision-insurance', 'life-insurance',
 ]);
 
 export function detectRecurring(

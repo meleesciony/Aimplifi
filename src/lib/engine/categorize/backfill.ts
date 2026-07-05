@@ -20,9 +20,12 @@
  *  - The categorizer must come back CONFIDENT and CONCRETE (not needsReview, not
  *    `uncategorized`); otherwise the row stays in review.
  *  - Sign guard (#44): an INFLOW (positive amount) is never auto-filed into a
- *    spend category — only income/transfer are sign-appropriate — so a refund or
+ *    spend category — only an Income-group category or transfer is
+ *    sign-appropriate (#163: income split into paycheck/interest-income/… leaves,
+ *    so the guard checks the GROUP, not the single 'income' id) — so a refund or
  *    credit can't be silently booked as spending.
  */
+import { CATEGORY_BY_ID } from './categories';
 import { categorize, type CategorySource, type RuleLike } from './pipeline';
 
 export interface BackfillRow {
@@ -86,8 +89,10 @@ export function planBackfill(
       stillUnsure++;
       continue;
     }
-    // Sign guard (#44): don't book an inflow as spend.
-    if (r.amountCents > 0 && out.categoryId !== 'income' && out.categoryId !== 'transfer') {
+    // Sign guard (#44): don't book an inflow as spend. Any Income-GROUP leaf
+    // (paycheck, interest-income, tax-refund, …) is sign-appropriate (#163).
+    const isIncomeGroup = CATEGORY_BY_ID.get(out.categoryId)?.group === 'Income';
+    if (r.amountCents > 0 && !isIncomeGroup && out.categoryId !== 'transfer') {
       stillUnsure++;
       continue;
     }

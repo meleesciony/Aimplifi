@@ -78,10 +78,10 @@ describe('#154 NON-regression: unrelated merchants are untouched (goldens hold)'
     expect(normalizeMerchant('QT 712 OUTSIDE ATLANTA GA').categoryId).toBe('fuel');
   });
 
-  it('the seed Xfinity bill still files to the `utilities` catch-all', () => {
+  it('the seed Xfinity bill files to the internet leaf (#163: cable ISP)', () => {
     expect(normalizeMerchant('COMCAST / XFINITY 800-COMCAST')).toMatchObject({
       canonical: 'Xfinity',
-      categoryId: 'utilities',
+      categoryId: 'internet',
     });
   });
 

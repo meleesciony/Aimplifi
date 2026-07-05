@@ -50,8 +50,8 @@ describe('runBackfillForUser — LLM second pass (DECISIONS #117)', () => {
       ids[key] = t.id;
     }
     await txn('det', 'DELTA DENTAL OF GA PREMIUM', -4500); // pass 1 → dental-insurance
-    await txn('llm', 'PADDLE.NET* OBSIDIAN', -1200); // pass 2 (LLM) → software
-    await txn('inflowLlm', 'PADDLE.NET* OBSIDIAN', 1200); // LLM says software but inflow → sign guard blocks
+    await txn('llm', 'GUMROAD* OBSIDIAN', -1200); // pass 2 (LLM) → software (Gumroad: no deterministic tier resolves it; Paddle now has a processor prior, #163)
+    await txn('inflowLlm', 'GUMROAD* OBSIDIAN', 1200); // LLM says software but inflow → sign guard blocks
     await txn('unknown', 'ACME WIDGETS LLC 7781', -2000); // LLM declines → stays in review
   });
   afterAll(wipe);

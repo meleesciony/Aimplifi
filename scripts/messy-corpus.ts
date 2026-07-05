@@ -48,7 +48,12 @@ export const MESSY_MERCHANTS: MessyMerchant[] = [
   { name: 'Anchorhead Coffee', intended: 'coffee', perWeek: 3, amountCents: [525, 980], account: 'card',
     variants: ['SQ *ANCHORHEAD COFFEE', 'SQ *ANCHORHEAD COFFE SEATTLE WA'] },
   { name: 'Amazon', intended: 'shopping', perWeek: 4, amountCents: [899, 14500], account: 'card',
-    variants: ['AMZN Mktp US*RT4Y12', 'AMAZON.COM*M12AB34C AMZN.COM/BILL', 'Amazon Prime*5X8YZ WA'] },
+    variants: ['AMZN Mktp US*RT4Y12', 'AMAZON.COM*M12AB34C AMZN.COM/BILL'] },
+  // Ground-truth correction (#163): Prime is a MEMBERSHIP, not a retail purchase —
+  // the owner would file it as subscriptions. Previously grouped under Amazon for
+  // convenience, which hid a real distinction the categorizer should make.
+  { name: 'Amazon Prime', intended: 'subscriptions', monthly: true, perWeek: 0, amountCents: [1499, 1499], account: 'card',
+    variants: ['Amazon Prime*5X8YZ WA'] },
   { name: 'Kroger (QFC)', intended: 'groceries', perWeek: 3, amountCents: [2400, 16800],
     variants: ['QFC #5847 SEATTLE WA', 'KROGER QFC 5847'] },
   { name: 'Safeway', intended: 'groceries', perWeek: 1, amountCents: [1900, 14300],

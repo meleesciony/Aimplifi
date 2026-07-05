@@ -19,7 +19,7 @@ describe('variant convergence — one real merchant, one identity (Phase 3a)', (
     const sq = normalizeMerchant('SQ *STARBUCKS #4471');
     const plain = normalizeMerchant('STARBUCKS 4471 SEATTLE WA');
     expect(sq.canonical).toBe('Starbucks');
-    expect(sq).toMatchObject({ known: true, categoryId: 'dining', confidenceBps: 9600 });
+    expect(sq).toMatchObject({ known: true, categoryId: 'coffee', confidenceBps: 9600 }); // #163: Starbucks = coffee
     expect(plain.canonical).toBe('Starbucks');
     expect(plain.categoryId).toBe(sq.categoryId); // no more review-vs-silent split
   });

@@ -92,7 +92,7 @@ describe('contextual rules (Phase 2 acceptance #3)', () => {
       txn({ rawDescriptor: 'STARBUCKS 800-782-7282', date: '2026-06-08' }),
       weekendRule,
     );
-    expect(monday.categoryId).toBe('dining'); // merchant default
+    expect(monday.categoryId).toBe('coffee'); // merchant default (#163: Starbucks = coffee)
   });
 
   it('account-scoped rule applies only on that account', () => {
@@ -247,7 +247,7 @@ describe('provider category hint — Plaid PFC passthrough (DECISIONS #155)', ()
     const r = categorize(
       txn({ rawDescriptor: 'STARBUCKS STORE 123', amountCents: -575, providerCategoryHint: shoppingHint }),
     );
-    expect(r.categoryId).toBe('dining');
+    expect(r.categoryId).toBe('coffee'); // #163: Starbucks = coffee
     expect(r.source).toBe('merchant-default');
   });
 

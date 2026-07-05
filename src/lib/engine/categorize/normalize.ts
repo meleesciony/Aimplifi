@@ -34,6 +34,51 @@ export interface MerchantMatch {
   aggregate: boolean;
 }
 
+/**
+ * BANK-SIDE noise prefixes (categorization-quality pass, DECISIONS #163): many
+ * banks prepend a fixed transaction-channel phrase to every card descriptor —
+ * Wells Fargo's "PURCHASE AUTHORIZED ON 06/12", BofA's "CHECKCARD 0612",
+ * "POS DEBIT - ", "DEBIT CARD PURCHASE - ", "RECURRING PAYMENT AUTHORIZED ON…".
+ * The ^-anchored KNOWN_MERCHANTS table can't see a brand behind such a prefix,
+ * so EVERY transaction from those banks previously fell to keyword/vocab tiers
+ * or review. Stripping is deliberately conservative: each pattern is a full,
+ * unambiguous channel phrase (never a lone word), anchored at the start, and
+ * applied repeatedly so stacked prefixes ("PURCHASE AUTHORIZED ON 06/12 POS")
+ * unwrap. Card masks (XXXX1234 / ****1234 / "CARD 1234 ENDING IN") are noise
+ * anywhere in the string. Demo/seed descriptors carry none of these forms, so
+ * their normalization is byte-identical.
+ */
+const BANK_PREFIX_PATTERNS: readonly RegExp[] = [
+  /^(PURCHASE|RECURRING PAYMENT|RECURRING|PAYMENT)\s+AUTHORIZED\s+ON\s+\d{1,2}\/\d{1,2}(\/\d{2,4})?\s*/i,
+  /^POS\s+(DEBIT|PURCHASE|PUR|W\/D)\s*[-–—]?\s*/i,
+  /^DEBIT\s+CARD\s+(PURCHASE|PMT|PAYMENT)\s*[-–—]?\s*/i,
+  /^(CHECK\s?CARD|CHKCARD|CHKCARDPOS)\s+(\d{2,4}\s+)?/i,
+  /^(VISA|MASTERCARD|MC)\s+(DEBIT|PURCHASE|CHECK\s?CARD)\s*[-–—]?\s*/i,
+  /^DBT\s+CRD\s+\d{4}\s*/i,
+  /^CARD\s+PURCHASE\s*[-–—]?\s*(\d{2}\/\d{2}\s*)?/i,
+  // Web-billpay + refund channel prefixes: the payee follows the prefix, and a
+  // refund files back to the payee's own category (returns OFFSET the original
+  // spend — the Mint/Simplifi convention, #163).
+  /^WEB\s+PMT\s+/i,
+  /^REFUND[:\s-]+/i,
+];
+/** Card masks + "CARD ENDING IN 1234" fragments — noise anywhere in the string. */
+const CARD_MASK_RE = /\b(X{2,}\s?\d{2,4}|\*{2,}\d{2,4}|CARD\s+ENDING\s+IN\s+\d{4}|ENDING\s+IN\s+\d{4})\b/gi;
+
+/** Strip bank-channel prefixes + card masks. Returns the input unchanged when none apply. */
+export function stripBankNoise(raw: string): string {
+  let s = raw.trim();
+  for (let pass = 0; pass < 3; pass++) {
+    const before = s;
+    for (const p of BANK_PREFIX_PATTERNS) s = s.replace(p, '');
+    if (s === before) break;
+  }
+  s = s.replace(CARD_MASK_RE, ' ').replace(/\s{2,}/g, ' ').trim();
+  // Never strip the whole descriptor away — a bare "POS DEBIT" row must keep
+  // its original text (it IS the payee-less descriptor, and review is correct).
+  return s.length >= 3 ? s : raw.trim();
+}
+
 interface KnownMerchant {
   pattern: RegExp;
   canonical: string;
@@ -45,13 +90,22 @@ interface KnownMerchant {
 /** Ordered: first match wins. Specific before generic. */
 export const KNOWN_MERCHANTS: KnownMerchant[] = [
   // Square / Toast / processor-prefixed locals
-  { pattern: /^SQ \*BLUE BOTTLE/i, canonical: 'Blue Bottle Coffee', categoryId: 'dining' },
+  // (Leaf-precision pass #163: defaults re-pointed from coarse parents to the
+  //  specific leaves the taxonomy has offered since #63/#65 — Blue Bottle is a
+  //  COFFEE shop, not generic dining; matching Mint/Simplifi leaf precision.)
+  { pattern: /^SQ \*BLUE BOTTLE/i, canonical: 'Blue Bottle Coffee', categoryId: 'coffee' },
   { pattern: /^SQ \*PONCE CITY DONUTS/i, canonical: 'Ponce City Donuts', categoryId: 'dining' },
   { pattern: /^TST\*\s*HATTIE B/i, canonical: "Hattie B's", categoryId: 'dining' },
   { pattern: /^TST\*\s*FOX BROS/i, canonical: 'Fox Bros BBQ', categoryId: 'dining' },
-  // Amazon family — Mktp, retail, refunds
+  // Amazon family — AWS and Prime BEFORE the retail catch-alls (#163: AWS is
+  // cloud software; Prime is a membership subscription, not a purchase), then
+  // Mktp, retail, refunds, and the bare 'AMZN' truncation real feeds send
+  // ('AMZN.COM/BILL WA', 'AMZN DIGITAL').
+  { pattern: /^AMAZON WEB SERVICES|^AWS\.AMAZON|^AWS\b/i, canonical: 'Amazon Web Services', categoryId: 'software' },
+  { pattern: /^AMAZON PRIME|^AMZN PRIME/i, canonical: 'Amazon Prime', categoryId: 'subscriptions' },
   { pattern: /^AMZN Mktp/i, canonical: 'Amazon', categoryId: 'shopping' },
   { pattern: /^AMAZON(\.COM)?/i, canonical: 'Amazon', categoryId: 'shopping' },
+  { pattern: /^AMZN\b/i, canonical: 'Amazon', categoryId: 'shopping' },
   // PayPal pass-throughs
   { pattern: /^PAYPAL \*SPOTIFY/i, canonical: 'Spotify', categoryId: 'entertainment' },
   { pattern: /^PAYPAL \*ETSY/i, canonical: 'Etsy', categoryId: 'shopping' },
@@ -81,8 +135,15 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^LA FITNESS/i, canonical: 'LA Fitness', categoryId: 'fitness' },
   { pattern: /^(PF \*)?PLANET FIT/i, canonical: 'Planet Fitness', categoryId: 'fitness' },
   { pattern: /^HELLOFRESH/i, canonical: 'HelloFresh', categoryId: 'groceries' },
+  // Geico: the *AUTO product line goes to the auto-insurance leaf (#163);
+  // a bare GEICO (could be renters/umbrella) stays generic insurance.
+  // (?!PAY) so 'GEICO AUTOPAY' — the payment CHANNEL, not the product line —
+  // stays generic insurance; only the real *AUTO product token qualifies.
+  { pattern: /^GEICO\s*\*?\s*AUTO(?!\s*PAY)/i, canonical: 'Geico', categoryId: 'auto-insurance' },
   { pattern: /^GEICO/i, canonical: 'Geico', categoryId: 'insurance' },
-  { pattern: /^COMCAST|XFINITY/i, canonical: 'Xfinity', categoryId: 'utilities' },
+  // Comcast/Xfinity is cable internet — the internet leaf, not the
+  // electric/water catch-all 'utilities' (#163).
+  { pattern: /^COMCAST|XFINITY/i, canonical: 'Xfinity', categoryId: 'internet' },
   // Groceries / big box (patterns widened Phase 3a: real feeds vary the suffix —
   // 'KROGER QFC 5847', 'TARGET 00028031', 'TARGET.COM *', 'THE HOME DEPOT',
   // 'HOMEDEPOT.COM', 'SHELL SERVICE STATION' all previously missed their entry)
@@ -90,32 +151,36 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^PUBLIX/i, canonical: 'Publix', categoryId: 'groceries' },
   { pattern: /^SAFEWAY\b/i, canonical: 'Safeway', categoryId: 'groceries' },
   { pattern: /^TRADER JOE/i, canonical: "Trader Joe's", categoryId: 'groceries' },
-  { pattern: /^WM SUPERCENTER/i, canonical: 'Walmart', categoryId: 'shopping' },
+  // 'WM SUPERC' (feed truncation of SUPERCENTER) must still match (#163)
+  { pattern: /^WM SUPERC/i, canonical: 'Walmart', categoryId: 'shopping' },
   // Walmart also arrives as the bare brand ('WALMART', 'WAL-MART #1234',
   // 'WALMART.COM') — the #-suffixed WM SUPERCENTER form is only one of several
   // (real feeds vary): without this the biggest US retailer fell to unknown.
   { pattern: /^WAL[- ]?MART|^WALMART(\.COM)?\b/i, canonical: 'Walmart', categoryId: 'shopping' },
   { pattern: /^TARGET(\.COM)?\b/i, canonical: 'Target', categoryId: 'shopping' },
-  // Dining chains
-  { pattern: /^CHICK-FIL-A/i, canonical: 'Chick-fil-A', categoryId: 'dining' },
-  { pattern: /^MCDONALD'?S/i, canonical: "McDonald's", categoryId: 'dining' },
+  // Dining chains (#163 leaf precision: counter-service chains are fast-food,
+  // Starbucks is the canonical coffee-shop — the leaves Mint/Simplifi use)
+  { pattern: /^CHICK-FIL-A/i, canonical: 'Chick-fil-A', categoryId: 'fast-food' },
+  { pattern: /^MCDONALD'?S/i, canonical: "McDonald's", categoryId: 'fast-food' },
   { pattern: /^CHIPOTLE\b/i, canonical: 'Chipotle', categoryId: 'fast-food' },
-  { pattern: /^STARBUCKS/i, canonical: 'Starbucks', categoryId: 'dining' },
+  { pattern: /^STARBUCKS/i, canonical: 'Starbucks', categoryId: 'coffee' },
   { pattern: /^WAFFLE HOUSE/i, canonical: 'Waffle House', categoryId: 'dining' },
   // Fuel
   { pattern: /^SHELL (OIL|SERVICE)/i, canonical: 'Shell', categoryId: 'fuel' },
   { pattern: /^QT \d/i, canonical: 'QuikTrip', categoryId: 'fuel' },
   { pattern: /^CHEVRON/i, canonical: 'Chevron', categoryId: 'fuel' },
-  // Travel
-  { pattern: /^DELTA AIR/i, canonical: 'Delta Air Lines', categoryId: 'travel' },
+  // Travel (#163: an airline is the air-travel leaf, not the travel catch-all)
+  { pattern: /^DELTA AIR/i, canonical: 'Delta Air Lines', categoryId: 'air-travel' },
   { pattern: /^MARRIOTT/i, canonical: 'Marriott', categoryId: 'travel' },
   { pattern: /^AIRBNB/i, canonical: 'Airbnb', categoryId: 'travel' },
-  // Health
-  { pattern: /^CVS\/PHARM/i, canonical: 'CVS Pharmacy', categoryId: 'health' },
-  { pattern: /^WALGREENS/i, canonical: 'Walgreens', categoryId: 'health' },
-  // Home improvement
-  { pattern: /^(THE\s+)?HOME\s*DEPOT(\.COM)?\b/i, canonical: 'Home Depot', categoryId: 'household' },
-  { pattern: /^LOWES/i, canonical: "Lowe's", categoryId: 'household' },
+  // Health (#163: CVS/Walgreens are drugstores — the pharmacy leaf, as
+  // Mint/Simplifi file them; 'health' is for providers/clinics)
+  { pattern: /^CVS\/PHARM/i, canonical: 'CVS Pharmacy', categoryId: 'pharmacy' },
+  { pattern: /^WALGREENS/i, canonical: 'Walgreens', categoryId: 'pharmacy' },
+  // Home improvement (#163: Home Depot/Lowe's are the home-improvement leaf;
+  // 'household' is day-to-day household supplies)
+  { pattern: /^(THE\s+)?HOME\s*DEPOT(\.COM)?\b/i, canonical: 'Home Depot', categoryId: 'home-improvement' },
+  { pattern: /^LOWES/i, canonical: "Lowe's", categoryId: 'home-improvement' },
   // Phone / memberships (Phase 3a: top-tier national brands previously unmatched)
   { pattern: /^T-?MOBILE\b/i, canonical: 'T-Mobile', categoryId: 'phone' },
   { pattern: /^PATREON\b/i, canonical: 'Patreon', categoryId: 'entertainment' },
@@ -129,7 +194,9 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^ACH WITHDRAWAL PEACHTREE/i, canonical: 'Peachtree Properties (Rent)', categoryId: 'rent' },
   { pattern: /^ACH WITHDRAWAL CARMAX/i, canonical: 'CarMax Auto Finance', categoryId: 'auto-loan' },
   { pattern: /^STORE CARD PURCHASE/i, canonical: 'Store Card Purchase', categoryId: 'shopping', confidenceBps: 6000 },
-  { pattern: /^ATM WITHDRAWAL/i, canonical: 'ATM Withdrawal', categoryId: 'cash' },
+  // ATM forms (#163): network/branded ATMs ('ALLPOINT ATM CASH WITHDRAWAL',
+  // 'NON-BANK ATM WITHDRAWAL 000482 7-ELEVEN') are the same cash pocket.
+  { pattern: /\b(NON-BANK )?ATM (CASH )?WITHDRAWAL\b/i, canonical: 'ATM Withdrawal', categoryId: 'cash' },
   // Utility e-payments (electric/gas/water billers pay via "EPAY"/"BILLMATRIX")
   // must be caught BEFORE the generic transfer pattern below, which would
   // otherwise mislabel a real utility bill as a transfer and silently drop it
@@ -160,10 +227,88 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   // of truth; substring matching here once erased real spending — critic F4)
   { pattern: /^ONLINE TRANSFER/i, canonical: 'Account Transfer', categoryId: 'transfer' },
   { pattern: TRANSFER_DESCRIPTOR, canonical: 'Card Payment', categoryId: 'transfer' },
+  // Issuer card-payment ACH forms (#163): 'CHASE CREDIT CRD AUTOPAY PPD',
+  // 'CAPITAL ONE CRCARDPMT', 'DISCOVER E-PAYMENT', 'BARCLAYCARD … CREDITCARD
+  // PYMT' — each token is a full, issuer-specific payment phrase (never a lone
+  // word), so real spending can't be swallowed (the F4 lesson). CARDMEMBER SERV
+  // additionally requires a payment token (critic P3-8) so 'CARDMEMBER SERVICES
+  // INTEREST CHARGE' — a real fee — is never erased as a transfer.
+  { pattern: /\bCRCARDPMT\b|\bCREDIT CRD AUTOPAY\b|\bCREDITCARD PYMT\b|^DISCOVER\s+E-?PAYMENT|\bCARDMEMBER SERV\w*.*\b(PYMT|PAYMENT)\b/i, canonical: 'Card Payment', categoryId: 'transfer' },
+  // ── Brand-coverage expansion (#163) — top-frequency US merchants real feeds
+  // carry that the table previously missed entirely. Appended AFTER all original
+  // entries (except the ambiguous block below) so no existing first-match
+  // resolution changes; each is a specific, ^-anchored or tightly-worded brand.
+  // Fast food / pizza chains whose descriptors carry no generic keyword:
+  { pattern: /^SUBWAY\b/i, canonical: 'Subway', categoryId: 'fast-food' },
+  { pattern: /^DOMINO'?S\b/i, canonical: "Domino's", categoryId: 'fast-food' },
+  { pattern: /^PIZZA HUT/i, canonical: 'Pizza Hut', categoryId: 'fast-food' },
+  { pattern: /^LITTLE CAESAR/i, canonical: 'Little Caesars', categoryId: 'fast-food' },
+  { pattern: /^DAIRY QUEEN|^DQ (GRILL|#)/i, canonical: 'Dairy Queen', categoryId: 'fast-food' },
+  { pattern: /^CULVER'?S/i, canonical: "Culver's", categoryId: 'fast-food' },
+  { pattern: /^ZAXBY'?S/i, canonical: "Zaxby's", categoryId: 'fast-food' },
+  { pattern: /^BOJANGLES/i, canonical: 'Bojangles', categoryId: 'fast-food' },
+  { pattern: /^IN-?N-?OUT/i, canonical: 'In-N-Out', categoryId: 'fast-food' },
+  { pattern: /^WINGSTOP/i, canonical: 'Wingstop', categoryId: 'fast-food' },
+  { pattern: /^CHURCH'?S (TEXAS )?CHICKEN/i, canonical: "Church's Chicken", categoryId: 'fast-food' },
+  // Groceries — regional banners + the WHOLEFDS truncation:
+  { pattern: /^WHOLEFDS|^WHOLE FOODS/i, canonical: 'Whole Foods', categoryId: 'groceries' },
+  { pattern: /^QFC\b/i, canonical: 'QFC', categoryId: 'groceries' },
+  { pattern: /^FRED MEYER|^FRED-?MEY/i, canonical: 'Fred Meyer', categoryId: 'groceries' },
+  { pattern: /^KING SOOPERS/i, canonical: 'King Soopers', categoryId: 'groceries' },
+  { pattern: /^BJ'?S WHOLESALE|^BJS WHOLESALE/i, canonical: "BJ's Wholesale", categoryId: 'groceries' },
+  // Fuel / convenience:
+  { pattern: /^7-?ELEVEN/i, canonical: '7-Eleven', categoryId: 'fuel' },
+  { pattern: /^BP[#\s]*\d/i, canonical: 'BP', categoryId: 'fuel' },
+  { pattern: /^SHEETZ/i, canonical: 'Sheetz', categoryId: 'fuel' },
+  { pattern: /^CASEY'?S/i, canonical: "Casey's", categoryId: 'fuel' },
+  { pattern: /^PILOT (TRAVEL|#|\d)/i, canonical: 'Pilot', categoryId: 'fuel' },
+  { pattern: /^LOVE'?S (TRAVEL|#|\d)/i, canonical: "Love's", categoryId: 'fuel' },
+  { pattern: /^MURPHY (USA|EXPRESS)/i, canonical: 'Murphy USA', categoryId: 'fuel' },
+  { pattern: /^BUC-?EE'?S/i, canonical: "Buc-ee's", categoryId: 'fuel' },
+  // Airline ticket-number forms ('UNITED 0162341234567' — carrier + e-ticket):
+  { pattern: /^(UNITED|AMERICAN|DELTA|ALASKA|SOUTHWEST|JETBLUE|SPIRIT|FRONTIER)\s+\d{7,}/i, canonical: 'Airline Ticket', categoryId: 'air-travel' },
+  // Telecom:
+  { pattern: /^AT&T\b|^ATT\s*\*|^ATT\b/i, canonical: 'AT&T', categoryId: 'phone' },
+  { pattern: /^VZ ?WRLSS|^VERIZON WR?LS/i, canonical: 'Verizon Wireless', categoryId: 'phone' },
+  { pattern: /^SPECTRUM MOBILE/i, canonical: 'Spectrum Mobile', categoryId: 'phone' },
+  { pattern: /^GOOGLE\s*\*?\s*FI\b/i, canonical: 'Google Fi', categoryId: 'phone' },
+  // Streaming / games / software one-offs:
+  { pattern: /^GOOGLE \*YOUTUBE ?TV|^YOUTUBE ?TV\b/i, canonical: 'YouTube TV', categoryId: 'entertainment' },
+  { pattern: /^STEAMGAMES|^STEAM PURCHASE/i, canonical: 'Steam', categoryId: 'games' },
+  { pattern: /^MAX\.COM/i, canonical: 'Max', categoryId: 'entertainment' },
+  { pattern: /^PARAMOUNT\s?(\+|PLUS)/i, canonical: 'Paramount+', categoryId: 'entertainment' },
+  { pattern: /^KINDLE (UNLTD|UNLIMITED)/i, canonical: 'Kindle Unlimited', categoryId: 'books' },
+  { pattern: /^ITUNES\.COM/i, canonical: 'Apple', categoryId: 'software' },
+  { pattern: /^RING (YEARLY|MONTHLY|PROTECT|PLAN|BASIC)/i, canonical: 'Ring', categoryId: 'subscriptions' },
+  // Retail / grocery / dining stragglers the benchmark surfaced (#163):
+  { pattern: /^ETSY(\.COM)?\b/i, canonical: 'Etsy', categoryId: 'shopping' },
+  { pattern: /^BESTBUY/i, canonical: 'Best Buy', categoryId: 'electronics' },
+  { pattern: /^GIANT #/i, canonical: 'Giant Food', categoryId: 'groceries' },
+  { pattern: /^MURPHY\d+AT/i, canonical: 'Murphy USA', categoryId: 'fuel' },
+  { pattern: /^GREYSTAR\b/i, canonical: 'Greystar (Rent)', categoryId: 'rent' },
+  { pattern: /^RENTPAYMENT\b/i, canonical: 'RentPayment', categoryId: 'rent' },
+  // Airline + e-ticket smashed/truncated forms ('AMERICAN AIR0012345678901',
+  // 'SOUTHWES 5262341234567', 'SPIRIT AIRL 4872341234567'):
+  { pattern: /^(AMERICAN\s?AIR\w*|SOUTHWES\w*|SPIRIT(\s?AIRL\w*)?|UNITED|DELTA|ALASKA|JETBLUE|FRONTIER)\s*\d{7,}/i, canonical: 'Airline Ticket', categoryId: 'air-travel' },
+  // Gig/platform payouts + expense reimbursements — Income-group leaves (#163):
+  { pattern: /^STRIPE (TRANSFER|PAYOUT)/i, canonical: 'Stripe Payout', categoryId: 'side-income' },
+  { pattern: /\b(UBER|LYFT) DRIVER\b|\bDASHER DIRECT\b/i, canonical: 'Gig Driving Payout', categoryId: 'side-income' },
+  { pattern: /\bRENT PAYOUT\b|\bBUILDIUM\b/i, canonical: 'Rental Payout', categoryId: 'rental-income' },
+  { pattern: /\bEXPENSE REIMB\w*\b|\bCONCUR\b|\bEXPENSIFY\b/i, canonical: 'Expense Reimbursement', categoryId: 'reimbursement' },
+  // '<biller-noise> … WATER …' municipal water via web billpay (raw is matched
+  // before the WEB PMT prefix is stripped, so this still sees the token):
+  { pattern: /\bWEB PMT\b.*\bWATER\b/i, canonical: 'Water Bill', categoryId: 'water' },
   // Genuinely ambiguous — must go to review; aggregate ⇒ never offer rules
   { pattern: /^ZELLE PAYMENT/i, canonical: 'Zelle Payment', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
   { pattern: /^VENMO\b/i, canonical: 'Venmo', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
-  { pattern: /^CHECK #/i, canonical: 'Check', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
+  // 'CHECK #2041', 'CHECK 2210', 'CHECK PAID #883' — one aggregate identity (#163).
+  { pattern: /^CHECK( PAID)?\s*#?\s*\d/i, canonical: 'Check', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
+  // Cash App / Apple Cash / bare PayPal transfers are the same class as
+  // Zelle/Venmo (#163): one canonical hides many unrelated payees → review,
+  // and durable merchant-wide rules must never be offered.
+  { pattern: /^CASH ?APP\*?|^SQC\*CASH APP/i, canonical: 'Cash App', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
+  { pattern: /^APPLE CASH/i, canonical: 'Apple Cash', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
+  { pattern: /^PAYPAL (INST XFER|TRANSFER)/i, canonical: 'PayPal Transfer', categoryId: 'uncategorized', confidenceBps: 4000, aggregate: true },
 ];
 
 /**
@@ -184,22 +329,30 @@ const GENERIC_CONFIDENCE_BPS = 8500;
 export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   // Food & dining (specific → broad)
   { pattern: /\b(DOORDASH|GRUBHUB|UBER ?EATS|POSTMATES|SEAMLESS|INSTACART|GOPUFF|CAVIAR)\b/i, categoryId: 'food-delivery' },
-  { pattern: /\b(DUNKIN|PEET'?S|DUTCH BROS|CARIBOU COFFEE|COFFEE|CAFE|CAFÉ|ESPRESSO|ROASTER)\b/i, categoryId: 'coffee' },
-  { pattern: /\b(BURGER KING|WENDY|TACO BELL|CHIPOTLE|POPEYE|ARBY|SONIC DRIVE|FIVE GUYS|SHAKE SHACK|RAISING CANE|WHATABURGER|JACK IN THE BOX|DEL TACO|HARDEE|JIMMY JOHN|PANERA|JERSEY MIKE|FIREHOUSE SUB|KFC)\b/i, categoryId: 'fast-food' },
-  { pattern: /\b(LIQUOR|WINE|SPIRITS|BREWING|BREWERY|TAPROOM|PUB|TAVERN|TOTAL WINE|ABC STORE|DISTILLER)\b/i, categoryId: 'alcohol' },
-  { pattern: /\b(GROCER|GROCERY|SUPERMARKET|WHOLE FOODS|SAFEWAY|ALDI|WEGMAN|SPROUTS|H-?E-?B|FOOD LION|GIANT FOOD|STOP & SHOP|HARRIS TEETER|WINCO|FRESH MARKET|MEIJER|VONS|RALPHS|ALBERTSON|FOOD 4 LESS|WINN[- ]?DIXIE|PIGGLY WIGGLY|HY-?VEE|RALEY|SHOPRITE|PRICE CHOPPER|STATER BROS|SAVE MART|BI-?LO|GIANT EAGLE|MARKET BASKET)\b/i, categoryId: 'groceries' },
-  { pattern: /\b(RESTAURANT|GRILL|KITCHEN|BISTRO|DINER|EATERY|TAQUERIA|PIZZA|PIZZERIA|SUSHI|RAMEN|STEAKHOUSE|CANTINA|TRATTORIA|OYSTER|SEAFOOD|NOODLE|BAKERY|CREAMERY|ICE CREAM|JUICE|SMOOTHIE|BAR ?& ?GRILL|BBQ)\b/i, categoryId: 'dining' },
+  { pattern: /\b(DUNKIN|PEET'?S|DUTCH BROS|CARIBOU COFFEE|TIM HORTONS|SCOOTER'?S|PHILZ|LA COLOMBE|COFFEE|COFFE|CAFE|CAFÉ|ESPRESSO|ROASTER)\b/i, categoryId: 'coffee' },
+  // (#163: plural/possessive-tolerant tokens — feeds send 'WENDYS' without the
+  // apostrophe, which a bare \bWENDY\b can never match.)
+  { pattern: /\b(BURGER KING|WENDY'?S?|TACO BELL|CHIPOTLE|POPEYE'?S?|ARBY'?S?|SONIC DRIVE|FIVE GUYS|SHAKE SHACK|RAISING CANE'?S?|WHATABURGER|JACK IN THE BOX|DEL TACO|HARDEE'?S?|JIMMY JOHN'?S?|PANERA|JERSEY MIKE'?S?|FIREHOUSE SUB|KFC|PAPA JOHN'?S?)\b/i, categoryId: 'fast-food' },
+  { pattern: /\b(LIQUOR|WINE|SPIRITS|BREWING|BREWERY|TAPROOM|PUB|TAVERN|TOTAL WINE|ABC STORE|DISTILLER|BEVMO|SPEC'?S WINE|BINNY'?S)\b/i, categoryId: 'alcohol' },
+  // Casual-dining chains whose names carry no generic food token (#163):
+  { pattern: /\b(OLIVE GARDEN|TEXAS ROADHOUSE|APPLEBEE'?S?|OUTBACK|RED LOBSTER|CRACKER BARREL|CHILI'?S|BUFFALO WILD WINGS|IHOP|DENNY'?S|LONGHORN|RED ROBIN|CHEESECAKE FACTORY|P\.?F\.? CHANG)\b/i, categoryId: 'dining' },
+  { pattern: /\b(GROCER|GROCERY|SUPERMARKET|WHOLE FOODS|SAFEWAY|ALDI|WEGMANS?|SPROUTS|H-?E-?B|FOOD LION|GIANT FOOD|STOP & SHOP|HARRIS TEETER|WINCO|FRESH MARKET|MEIJER|VONS|RALPHS|ALBERTSON'?S?|FOOD 4 LESS|WINN[- ]?DIXIE|PIGGLY WIGGLY|HY-?VEE|RALEY'?S?|SHOPRITE|PRICE CHOPPER|STATER BROS|SAVE MART|BI-?LO|GIANT EAGLE|MARKET BASKET|HANNAFORD|INGLES MARKET'?S?|LIDL|FARMERS'? (MARKET|MKT))\b/i, categoryId: 'groceries' },
+  { pattern: /\b(RESTAURANT|GRILL|KITCHEN|BISTRO|DINER|EATERY|TAQUERIA|PIZZA|PIZZERIA|SUSHI|RAMEN|STEAKHOUSE|CANTINA|TRATTORIA|OYSTER|SEAFOOD|NOODLE|BAKERY|BAKESHOP|BAKERS|DELI|CATERING|CREAMERY|ICE CREAM|JUICE|SMOOTHIE|BAR ?& ?GRILL|BBQ)\b/i, categoryId: 'dining' },
   // Auto & transport
-  { pattern: /\b(EXXON|MOBIL|TEXACO|MARATHON|SUNOCO|CITGO|VALERO|CONOCO|PHILLIPS 66|ARCO|SPEEDWAY|WAWA|RACETRAC|CIRCLE K|FUEL|PETRO|GASOLINE)\b/i, categoryId: 'fuel' },
+  { pattern: /\b(EXXON(MOBIL)?|MOBIL|TEXACO|MARATHON|SUNOCO|CITGO|VALERO|CONOCO|PHILLIPS 66|ARCO|SPEEDWAY|WAWA|RACETRAC|CIRCLE K|FUEL|PETRO|GASOLINE)\b/i, categoryId: 'fuel' },
   { pattern: /\b(TAXI|YELLOW CAB)\b/i, categoryId: 'transport' },
-  { pattern: /\b(METRO TRANSIT|TRANSIT|MTA|BART|MARTA|SEPTA|AMTRAK|GREYHOUND|MEGABUS)\b/i, categoryId: 'public-transit' },
+  { pattern: /\b(METRO TRANSIT|TRANSIT|MTA|BART|MARTA|SEPTA|AMTRAK|GREYHOUND|MEGABUS|FERRY|LIGHT RAIL|WSDOT|WMATA|NJT RAIL)\b/i, categoryId: 'public-transit' },
   { pattern: /\b(PARKING|PARKMOBILE|PAYBYPHONE|SPOTHERO|TOLL|EZ ?PASS|E-?ZPASS|SUNPASS|FASTRAK)\b/i, categoryId: 'parking' },
-  { pattern: /\b(AUTOZONE|O'?REILLY|PEP BOYS|ADVANCE AUTO|NAPA|JIFFY LUBE|VALVOLINE|FIRESTONE|MIDAS|MEINEKE|DISCOUNT TIRE|CAR WASH|AUTO REPAIR|COLLISION|BODY SHOP)\b/i, categoryId: 'auto-maintenance' },
+  { pattern: /\b(AUTOZONE|O'?REILLY|PEP BOYS|ADVANCE AUTO|NAPA|JIFFY LUBE|VALVOLINE|FIRESTONE|MIDAS|MEINEKE|DISCOUNT TIRE|CAR WASH|AUTO REPAIR|COLLISION|BODY SHOP|TAKE 5 OIL|OIL CHANGE)\b/i, categoryId: 'auto-maintenance' },
+  // DMV / registration (#163) — its own leaf, before the fees/taxes tiers.
+  { pattern: /\b(DMV\b|LICENSE PLATE|VEHICLE REG\w*|REGISTRATION FEE|TAG RENEWAL)\b/i, categoryId: 'auto-registration' },
+  // Captive auto lenders (#163) — the recurring car-payment ACH everyone has.
+  { pattern: /\b(TOYOTA FINANCIAL|GM FINANCIAL|HONDA FIN\w*|FORD (MOTOR )?CREDIT|NISSAN MOTOR AC\w*|HYUNDAI (MOTOR )?FIN\w*|ALLY (AUTO|FINANCIAL)|CHRYSLER CAPITAL|VW CREDIT)\b/i, categoryId: 'auto-loan' },
   // Travel
-  { pattern: /\b(UNITED AIR|AMERICAN AIR|SOUTHWEST AIR|JETBLUE|ALASKA AIR|SPIRIT AIR|FRONTIER AIR|AIRLINE|AIR ?LINES?|ALLEGIANT|HAWAIIAN AIR)\b/i, categoryId: 'air-travel' },
-  { pattern: /\b(HILTON|HYATT|HOLIDAY INN|HAMPTON INN|SHERATON|WESTIN|RITZ|COURTYARD|RESIDENCE INN|MOTEL|HOTEL|RAMADA|BEST WESTERN|LA QUINTA|DOUBLETREE|EMBASSY SUITES|FAIRFIELD INN|RESORT)\b/i, categoryId: 'hotel' },
+  { pattern: /\b(UNITED AIR|AMERICAN AIR\w*|SOUTHWEST AIR|JETBLUE|ALASKA AIR|SPIRIT AIR\w*|FRONTIER AIR|AIRLINE|AIR ?LINES?|ALLEGIANT|HAWAIIAN AIR)\b/i, categoryId: 'air-travel' },
+  { pattern: /\b(HILTON|HYATT|HOLIDAY INN|HAMPTON INN|SHERATON|WESTIN|RITZ|COURTYARD|RESIDENCE INN|MOTEL|HOTEL|RAMADA|BEST WESTERN|LA QUINTA|DOUBLETREE|EMBASSY SUITES|FAIRFIELD INN|RESORT|WYNDHAM|SUPER 8|CHOICE HOTELS|COMFORT INN|QUALITY INN|DAYS INN|EXTENDED STAY|IHG\b)\b/i, categoryId: 'hotel' },
   { pattern: /\b(HERTZ|ENTERPRISE RENT|AVIS|BUDGET RENT|NATIONAL CAR|ALAMO|THRIFTY|DOLLAR RENT|SIXT|TURO|RENTAL CAR)\b/i, categoryId: 'rental-car' },
-  { pattern: /\b(EXPEDIA|BOOKING\.COM|PRICELINE|TRAVELOCITY|KAYAK|ORBITZ|HOTWIRE|TRIPADVISOR|VACATION|CRUISE)\b/i, categoryId: 'travel' },
+  { pattern: /\b(EXPEDIA|BOOKING\.COM|PRICELINE|TRAVELOCITY|KAYAK|ORBITZ|HOTWIRE|TRIPADVISOR|VACATION|CRUISE|VRBO|HOMEAWAY)\b/i, categoryId: 'travel' },
   // Health
   { pattern: /\b(RITE[- ]?AID|DUANE READE|PHARMACY|DRUG ?STORE)\b/i, categoryId: 'pharmacy' },
   // Insurance CARRIERS (premiums) — the payer, not the medical service. A Delta
@@ -213,25 +366,53 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   { pattern: /\b(VSP|VISION SERVICE PLAN|EYEMED|DAVIS VISION|SUPERIOR VISION|VISION (INS|INSURANCE|PREMIUM|PPO))\b/i, categoryId: 'vision-insurance' },
   { pattern: /\b(BLUE ?CROSS|BLUE ?SHIELD|BCBS|ANTHEM|AETNA|CIGNA|HUMANA|KAISER PERMANENTE|UNITED ?HEALTHCARE|UHC|OSCAR HEALTH|MOLINA HEALTHCARE|WELLCARE|AMERIGROUP|HEALTH ?INSURANCE|MEDICAL ?INSURANCE)\b/i, categoryId: 'health-insurance' },
   { pattern: /\b(DENTAL|DENTIST|ORTHODONT|ENDODONT|PERIODONT)\b/i, categoryId: 'dental' },
-  { pattern: /\b(VISION|OPTICAL|OPTOMETR|EYE CARE|LENSCRAFTER|WARBY PARKER|EYEGLASS|PEARLE)\b/i, categoryId: 'vision' },
-  { pattern: /\b(GYM|FITNESS|YOGA|PILATES|CROSSFIT|PELOTON|EQUINOX|PLANET FIT|LIFE ?TIME|ORANGETHEORY|ANYTIME FITNESS|CYCLEBAR|SOULCYCLE)\b/i, categoryId: 'fitness' },
-  { pattern: /\b(HOSPITAL|CLINIC|MEDICAL|PHYSICIAN|HEALTHCARE|URGENT CARE|LABCORP|QUEST DIAGNOST|RADIOLOGY|DERMATOLOG|PEDIATRIC|WELLNESS|CHIROPRACT|THERAPY)\b/i, categoryId: 'health' },
+  { pattern: /\b(VISION|OPTICAL|OPTOMETR\w*|EYE CARE|LENSCRAFTER|WARBY PARKER|EYEGLASS|PEARLE|MYEYEDR|VISIONWORKS|AMERICA'?S BEST CONT\w*)\b/i, categoryId: 'vision' },
+  { pattern: /\b(GYM|FITNESS|YOGA|PILATES|CROSSFIT|PELOTON|EQUINOX|PLANET FIT|LIFE ?TIME|ORANGETHEORY|ANYTIME FITNESS|CYCLEBAR|SOULCYCLE|CLASSPASS|YMCA|F45)\b/i, categoryId: 'fitness' },
+  // Mental-health platforms/providers before the broad health rule (#163) so
+  // BETTERHELP files to its own leaf, not generic health.
+  { pattern: /\b(BETTERHELP|TALKSPACE|CEREBRAL|PSYCHIATR|PSYCHOLOG|COUNSELING)\b/i, categoryId: 'mental-health' },
+  // Veterinary BEFORE the broad health rule (#163): 'LAKESIDE VETERINARY
+  // CLINIC' is a vet — the CLINIC token must not steal it into human health.
+  // VETERINAR\w*: the bare stem never matched — \b after 'VETERINAR' fails
+  // inside 'VETERINARY'/'VETERINARIAN' (latent in the original pets rule too).
+  { pattern: /\b(VETERINAR\w*|ANIMAL (HOSPITAL|CLINIC))\b/i, categoryId: 'pets' },
+  { pattern: /\b(HOSPITAL|CLINIC|MEDICAL|PHYSICIAN|HEALTHCARE|URGENT CARE|LABCORP|QUEST DIAGNOST\w*|RADIOLOGY|DERMATOLOG\w*|PEDIATRIC|WELLNESS|CHIROPRACT\w*|THERAPY|ONE MEDICAL)\b/i, categoryId: 'health' },
   // Personal & family
-  { pattern: /\b(SALON|SPA|BARBER|HAIRCUT|NAIL|MASSAGE|SEPHORA|ULTA|GREAT CLIPS|SUPERCUTS|WAXING)\b/i, categoryId: 'personal-care' },
-  { pattern: /\b(PETCO|PETSMART|CHEWY|VETERINAR|ANIMAL HOSPITAL|PET ?SUPPL|PET ?FOOD|BARKBOX)\b/i, categoryId: 'pets' },
+  { pattern: /\b(SALON|SPA|BARBER\w*|HAIRCUT|NAIL|MASSAGE|SEPHORA|ULTA|GREAT CLIPS|SUPERCUTS|WAXING|DRY CLEAN(ER|ING)?S?|CLEANERS|LAUNDROMAT|LAUNDRY|SALLY BEAUTY|FADES? BY)\b/i, categoryId: 'personal-care' },
+  // Kids' clothing/gear chains → the kids leaf (#163), before generic clothing.
+  // CARTER requires the apostrophe form or a store number (critic P1-3: bare
+  // CARTER is a name/location word — 'JIMMY CARTER BLVD', 'CARTER BANK',
+  // 'CARTERS LAKE MARINA' must never file as kids).
+  { pattern: /\b(CARTER'S|CARTERS #\d|CHILDREN'?S PLACE|OSHKOSH|GYMBOREE|BUYBUY ?BABY)\b/i, categoryId: 'kids' },
+  { pattern: /\b(PETCO|PETSMART|CHEWY|VETERINAR|ANIMAL HOSPITAL|PET ?SUPPL|PET ?FOOD|BARKBOX|BANFIELD|VCA ANIMAL|PETSUITES)\b/i, categoryId: 'pets' },
   { pattern: /\b(DAYCARE|CHILD ?CARE|PRESCHOOL|KINDERCARE|BRIGHT HORIZONS|BABYSIT|LEARNING CENTER)\b/i, categoryId: 'childcare' },
-  { pattern: /\b(TUITION|UNIVERSITY|COLLEGE|COURSERA|UDEMY|CHEGG|SCHOLAST)\b/i, categoryId: 'education' },
+  // Education (#163): bare UNIVERSITY/COLLEGE removed — they are location/name
+  // words in food & retail descriptors ('TST* THAI TOM UNIVERSITY' is a
+  // restaurant near a campus, not tuition — a real misfile on the messy
+  // corpus). Kept: unambiguous education-payment tokens.
+  { pattern: /\b(TUITION|BURSAR|COMMUNITY COLLEGE|COURSERA|UDEMY|CHEGG|SCHOLAST|SKILLSHARE|MASTERCLASS|KHAN ACADEMY|DUOLINGO)\b/i, categoryId: 'education' },
   // Shopping
-  { pattern: /\b(BEST BUY|APPLE STORE|MICRO CENTER|NEWEGG|B&H PHOTO|GAMESTOP)\b/i, categoryId: 'electronics' },
-  { pattern: /\b(NIKE|ADIDAS|LULULEMON|OLD NAVY|H&M|ZARA|UNIQLO|FOREVER 21|BANANA REPUBLIC|J\.?CREW|MADEWELL|NORDSTROM|MACY|DILLARD|TJ ?MAXX|MARSHALL|BURLINGTON|UNDER ARMOUR|FOOT LOCKER|CLOTHING|APPAREL)\b/i, categoryId: 'clothing' },
-  { pattern: /\b(IKEA|WAYFAIR|ASHLEY FURN|POTTERY BARN|CRATE ?& ?BARREL|WEST ELM|HOME ?GOODS|FURNITURE|MATTRESS|BED BATH|CB2|ROOMS TO GO)\b/i, categoryId: 'furnishings' },
+  // (GameStop moved to the games leaf, #163.)
+  { pattern: /\b(BEST ?BUY|APPLE STORE|MICRO ?CENTER|NEWEGG|B&H PHOTO)\b/i, categoryId: 'electronics' },
+  { pattern: /\b(NIKE|ADIDAS|LULULEMON|OLD NAVY|H&M|ZARA|UNIQLO|FOREVER 21|BANANA REPUBLIC|J\.?CREW|MADEWELL|NORDSTROM|MACY|DILLARD|TJ ?MAXX|MARSHALL|BURLINGTON|UNDER ARMOUR|FOOT LOCKER|KOHL|JCPENNEY|SHEIN|ROSS (DRESS|STORES)|AMERICAN EAGLE|ANTHROPOLOGIE|URBAN OUTFITTERS|STOCKX|POSHMARK|MERCARI|DEPOP|MARSHALLS?|CLOTHING|APPAREL)\b/i, categoryId: 'clothing' },
+  { pattern: /\b(IKEA|WAYFAIR|ASHLEY FURN|POTTERY BARN|CRATE ?& ?BARREL|WEST ELM|HOME ?GOODS|FURNITURE|MATTRESS|BED BATH|CB2|ROOMS TO GO|AT HOME STORE)\b/i, categoryId: 'furnishings' },
+  // Organization/storage retail → household (#163).
+  { pattern: /\b(CONTAINER STORE)\b/i, categoryId: 'household' },
   { pattern: /\b(DICK'?S SPORTING|REI|ACADEMY SPORTS|BASS PRO|CABELA|HOBBY LOBBY|MICHAELS|JOANN|GUITAR CENTER|GOLF GALAXY|PGA (TOUR )?SUPERSTORE|SPORTING GOODS)\b/i, categoryId: 'hobbies' },
-  { pattern: /\b(BARNES ?& ?NOBLE|BOOKSTORE|BOOKS-?A-?MILLION|AUDIBLE)\b/i, categoryId: 'books' },
-  { pattern: /\b(SAM'?S CLUB|EBAY|ALIEXPRESS|TEMU|SHEIN|DOLLAR TREE|DOLLAR GENERAL|FAMILY DOLLAR|BIG LOTS|FIVE BELOW|KOHL|JCPENNEY)\b/i, categoryId: 'shopping' },
+  { pattern: /\b(BARNES ?& ?NOBLE|BOOKSTORE|BOOKSHOP|BOOK NOOK|BOOKSELLER|BOOKS-?A-?MILLION|AUDIBLE)\b/i, categoryId: 'books' },
+  // Warehouse clubs follow the Costco precedent → groceries (#163); dollar
+  // stores are the general-merchandise leaf; Kohl's/JCPenney/SHEIN moved to
+  // clothing above.
+  { pattern: /\b(SAM'?S CLUB)\b/i, categoryId: 'groceries' },
+  { pattern: /\b(DOLLAR TREE|DOLLAR GENERAL|FAMILY DOLLAR|BIG LOTS|FIVE BELOW)\b/i, categoryId: 'general-merchandise' },
+  { pattern: /\b(EBAY|ALIEXPRESS|TEMU)\b/i, categoryId: 'shopping' },
   // Home
-  { pattern: /\b(ACE HARDWARE|MENARDS|HARBOR FREIGHT|HARDWARE|TRUE VALUE|SHERWIN[- ]?WILLIAMS)\b/i, categoryId: 'home-improvement' },
-  { pattern: /\b(PLUMB|HVAC|ELECTRICIAN|PEST CONTROL|TERMINIX|ORKIN|CLEANING SERVICE|LANDSCAP|HANDYMAN|ROOFING|TRUGREEN)\b/i, categoryId: 'home-services' },
-  { pattern: /\b(NURSERY|GARDEN CENTER|TRACTOR SUPPLY)\b/i, categoryId: 'lawn-garden' },
+  { pattern: /\b(ACE (HARDWARE|HDWE)|MENARDS|HARBOR FREIGHT|HARDWARE|TRUE VALUE|SHERWIN[- ]?WILLIAMS)\b/i, categoryId: 'home-improvement' },
+  // PLUMB\w*/LANDSCAP\w*: the bare stems never matched inside 'PLUMBING'/
+  // 'LANDSCAPING' — \b after the stem fails mid-word (#163, same class as the
+  // VETERINARY bug).
+  { pattern: /\b(PLUMB\w*|HVAC|ELECTRICIAN|PEST CONTROL|TERMINIX|ORKIN|CLEANING SERVICE|LANDSCAP\w*|HANDYMAN|ROOFING|TRUGREEN|MERRY MAIDS|MOLLY MAID|STANLEY STEEMER)\b/i, categoryId: 'home-services' },
+  { pattern: /\b(NURSERY|GARDEN CENTER|TRACTOR SUPPLY|LAWN (CARE|SERVICE|MAINT\w*)|MOWING)\b/i, categoryId: 'lawn-garden' },
   // Bills & utilities
   { pattern: /\b(VERIZON|SPRINT|CRICKET WIRELESS|MINT MOBILE|BOOST MOBILE|US CELLULAR|STRAIGHT TALK|METRO ?PCS|VISIBLE WIRELESS)\b/i, categoryId: 'phone' },
   { pattern: /\b(SPECTRUM|COX COMM|CENTURYLINK|FRONTIER COMM|OPTIMUM|WINDSTREAM|FIOS|GOOGLE FIBER|HUGHESNET|STARLINK)\b/i, categoryId: 'internet' },
@@ -264,22 +445,78 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   { pattern: /\b(NORTHWESTERN MUTUAL|NEW YORK LIFE|NY LIFE|PRIMERICA|MASS ?MUTUAL|LINCOLN FINANCIAL|TRANSAMERICA|JOHN HANCOCK|GUARDIAN LIFE|MUTUAL OF OMAHA|GERBER LIFE|COLONIAL PENN|GLOBE LIFE|BANNER LIFE|HAVEN LIFE|LADDER LIFE|TERM LIFE|WHOLE LIFE|LIFE ?INSURANCE)\b/i, categoryId: 'life-insurance' },
   // "AUTO/CAR INSURANCE" (spaced or space-stripped) → the auto-insurance leaf, not
   // generic insurance — closes the DECISIONS #115 open item. Before the generic rule.
-  { pattern: /\b(AUTO|CAR|VEHICLE) ?INSURANCE\b/i, categoryId: 'auto-insurance' },
-  { pattern: /\b(PROGRESSIVE|STATE FARM|ALLSTATE|LIBERTY MUTUAL|NATIONWIDE|USAA|FARMERS INS|TRAVELERS INS|METLIFE|PRUDENTIAL|AFLAC|INSURANCE)\b/i, categoryId: 'insurance' },
+  // Auto-dominant carriers (#163): Progressive, Root, and The General write
+  // essentially only auto policies — Mint files them as Auto Insurance too.
+  // Multi-line carriers (State Farm, Allstate, USAA…) stay generic insurance.
+  // PROGRESSIVE requires an insurance token (critic P2-4): 'PROGRESSIVE
+  // LEASING' is a rent-to-own fintech with weekly recurring debits.
+  { pattern: /\b((AUTO|CAR|VEHICLE) ?INSURANCE|PROGRESSIVE ?\*? ?(INS\w*|INSURANCE|CASUALTY|AUTO)|ROOT INSURANCE|THE GENERAL INS)\b/i, categoryId: 'auto-insurance' },
+  { pattern: /\b(STATE FARM|ALLSTATE|LIBERTY MUTUAL|NATIONWIDE|USAA|FARMERS INS|TRAVELERS INS|METLIFE|PRUDENTIAL|AFLAC|LEMONADE INS|AMICA|SAFECO|ERIE INSURANCE|INSURANCE)\b/i, categoryId: 'insurance' },
   // Entertainment & software
-  { pattern: /\b(HULU|DISNEY ?\+|DISNEY PLUS|HBO|PARAMOUNT ?\+|PEACOCK|APPLE TV|PRIME VIDEO|TWITCH|AMC|CINEMARK|REGAL CIN|CINEMA|THEATER|THEATRE|TICKETMASTER|STUBHUB|FANDANGO|XBOX|PLAYSTATION|NINTENDO|EPIC GAMES|LIVE NATION|TOPGOLF|GOLF|COUNTRY CLUB|BOWLING|ARCADE|MUSEUM|AQUARIUM|SIX FLAGS|UNIVERSAL STUDIO)\b/i, categoryId: 'entertainment' },
-  { pattern: /\b(ADOBE|MICROSOFT|GITHUB|GOOGLE CLOUD|DROPBOX|NOTION|SLACK|ZOOM|OPENAI|ANTHROPIC|FIGMA|ATLASSIAN|GODADDY|NAMECHEAP|SQUARESPACE|MAILCHIMP|ICLOUD|GOOGLE WORKSPACE|GRAMMARLY|1PASSWORD|NORDVPN)\b/i, categoryId: 'software' },
-  // Income & bank fees — no KNOWN_MERCHANT or other generic rule covered these, so
-  // strong, unambiguous signals (payroll deposits, interest earned, overdraft/late
-  // fees) were falling through to manual review. Descriptor-only like every rule
-  // here; the income-vs-expense SIGN is handled downstream by monthlyFlows.
-  { pattern: /\b(PAYROLL|DIRECT DEP(OSIT)?|GUSTO|ADP|PAYCHEX|TRINET|RIPPLING|INTEREST EARNED|DIVIDEND|PENSION|SOCIAL SECURITY|SSA TREAS|UNEMPLOYMENT)\b/i, categoryId: 'income' },
+  // Games split to their own leaf (#163): consoles/launchers/publishers are
+  // the 'games' subcategory, not generic entertainment. Runs BEFORE the broad
+  // entertainment rule so XBOX/PLAYSTATION never reach it.
+  { pattern: /\b(XBOX|PLAYSTATION|NINTENDO|EPIC GAMES|RIOT GAMES|BLIZZARD|ROBLOX|GAME PASS|GAMESTOP)\b/i, categoryId: 'games' },
+  // Live-event ticketing → the events leaf (#163), before broad entertainment.
+  { pattern: /\b(TICKETMASTER|STUBHUB|LIVE NATION|AXS\.COM|SEATGEEK)\b/i, categoryId: 'events' },
+  { pattern: /\b(HULU|DISNEY ?\+|DISNEY PLUS|HBO|PARAMOUNT ?\+|PEACOCK|APPLE TV|PRIME VIDEO|TWITCH|CRUNCHYROLL|SLING TV|FUBO|SIRIUSXM|AMC|CINEMARK|REGAL CIN|CINEMA|THEATER|THEATRE|FANDANGO|TOPGOLF|GOLF|COUNTRY CLUB|BOWLING|ARCADE|MUSEUM|AQUARIUM|SIX FLAGS|UNIVERSAL STUDIO)\b/i, categoryId: 'entertainment' },
+  { pattern: /\b(ADOBE|MICROSOFT|GITHUB|GOOGLE CLOUD|DROPBOX|NOTION|SLACK|ZOOM|OPENAI|CHATGPT|ANTHROPIC|CLAUDE\.AI|FIGMA|ATLASSIAN|GODADDY|NAMECHEAP|SQUARESPACE|MAILCHIMP|ICLOUD|GOOGLE WORKSPACE|GRAMMARLY|1PASSWORD|NORDVPN)\b/i, categoryId: 'software' },
+  // Income — split to the precise Income leaves (#163): payroll signals are a
+  // PAYCHECK, interest is interest-income, dividends investment-income,
+  // government programs govt-benefits — matching the leaf precision the
+  // taxonomy has offered since #63. Descriptor-only like every rule here; the
+  // income-vs-expense SIGN is handled downstream by monthlyFlows.
+  { pattern: /\b(PAYROLL|DIRECT DEP(OSIT)?|DIR DEP|GUSTO|ADP|PAYCHEX|TRINET|RIPPLING|SALARY)\b/i, categoryId: 'paycheck' },
+  { pattern: /\b(INTEREST (EARNED|PAYMENT|PAID|CREDIT))\b/i, categoryId: 'interest-income' },
+  { pattern: /\b(DIVIDEND)\b/i, categoryId: 'investment-income' },
+  { pattern: /\b(SOCIAL SECURITY|SSA TREAS|UNEMPLOYMENT|SNAP BENEFIT|EDD UI|UI DEPOSIT|UI BENEFIT)\b/i, categoryId: 'govt-benefits' },
+  // TAXRFD/CASTTAXRFD: the smashed refund token state tax boards send (#163).
+  { pattern: /\b(IRS TREAS 310|TAX ?REF(UND)?|\w*TAXRFD)\b/i, categoryId: 'tax-refund' },
+  { pattern: /\b(PENSION|ANNUITY PAYMENT)\b/i, categoryId: 'income' },
   { pattern: /\b(OVERDRAFT|NSF FEE|INSUFFICIENT FUNDS|RETURNED ITEM FEE|LATE FEE|SERVICE CHARGE|MONTHLY (MAINTENANCE|SERVICE) FEE|MAINTENANCE FEE|ANNUAL FEE|FOREIGN TRANSACTION FEE|ATM FEE|WIRE FEE|FINANCE CHARGE|INTEREST CHARGE)\b/i, categoryId: 'fees' },
-  // Financial / giving
+  // Financial / giving. (The tax-refund rule above catches 'IRS TREAS 310' /
+  // 'TAX REF' first, so this taxes rule only sees payments TO tax authorities.)
+  // Property tax has its own Home leaf — before the general taxes rule (#163).
+  { pattern: /\b(PROP(ERTY)? TAX)\b/i, categoryId: 'property-tax' },
   { pattern: /\b(IRS|TAXES?|TURBOTAX|H&R BLOCK|TAX PREP|DEPT OF REVENUE|FRANCHISE TAX)\b/i, categoryId: 'taxes' },
-  { pattern: /\b(STAPLES|OFFICE DEPOT|OFFICEMAX|FEDEX|UPS STORE|USPS|WEWORK)\b/i, categoryId: 'business' },
-  { pattern: /\b(RED CROSS|GOFUNDME|UNICEF|SALVATION ARMY|GOODWILL|CHARITY|DONATION|UNITED WAY|ST JUDE|HABITAT FOR|NONPROFIT)\b/i, categoryId: 'charity' },
-  { pattern: /\b(1-?800-?FLOWERS|TELEFLORA|HALLMARK|EDIBLE ARRANG)\b/i, categoryId: 'gifts' },
+  // Housing obligations the benchmark surfaced (#163): HOA dues; rent through
+  // property-management portals.
+  // Dues-context REQUIRED (critic P1-3): bare \bHOA\b hit 'PHO HOA' (a real
+  // restaurant chain) and 'HOA BINH MARKET'.
+  { pattern: /\bHOA (DUES?|FEES?|PAYMENTS?|ASSESSMENTS?)\b/i, categoryId: 'hoa' },
+  { pattern: /\b(PROP(ERTY)? (MGMT|MANAGEMENT)\b.*\bRENT|RENT\b.*\bPROP(ERTY)? (MGMT|MANAGEMENT))\b/i, categoryId: 'rent' },
+  // Brokerages / robo-advisors / crypto exchanges → investment (#163).
+  // FIDELITY must be qualified (critic P1-3): 'FIDELITY NATIONAL TITLE' is an
+  // escrow company — a $1,500 closing payment is not an investment.
+  { pattern: /\b(VANGUARD|FIDELITY INVEST\w*|FID BKG|CHARLES SCHWAB|SCHWAB|COINBASE|ROBINHOOD|E\*?TRADE|WEALTHFRONT|BETTERMENT|ACORNS|MERRILL)\b/i, categoryId: 'investment' },
+  // Credit bureaus / monitoring → financial; legal services → legal (#163).
+  { pattern: /\b(EXPERIAN|EQUIFAX|TRANSUNION|CREDIT KARMA|CREDIT ?REPORT)\b/i, categoryId: 'financial' },
+  { pattern: /\b(LEGALZOOM|ROCKET LAWYER|NOTARY|LAW OFFICE|ATTORNEY)\b/i, categoryId: 'legal' },
+  // Personal-loan payments (SoFi et al.) → loan-payment (#163).
+  { pattern: /\b(SOFI\b.*\bLOAN|LOAN (PMT|PAYMENT)|LENDING ?CLUB|UPSTART|AVANT\b|BEST ?EGG)\b/i, categoryId: 'loan-payment' },
+  // Ad platforms → advertising (#163).
+  { pattern: /\b(FACEBK ADS|FB\.ME\/ADS|GOOGLE ?\*?ADS\w*|META ADS|TIKTOK ADS|LINKEDIN ADS)\b/i, categoryId: 'advertising' },
+  // Student-loan servicers (#163) — a high-value recurring row with no prior rule.
+  { pattern: /\b(NELNET|MOHELA|NAVIENT|SALLIE MAE|GREAT LAKES ED|FEDLOAN|AIDVANTAGE|STUDENT LN|STUDENT LOAN)\b/i, categoryId: 'loan-payment' },
+  // Buy-now-pay-later installments are purchases being paid off (#163).
+  { pattern: /\b(AFFIRM|KLARNA|AFTERPAY|SEZZLE)\b/i, categoryId: 'shopping' },
+  // Self-storage (#163).
+  { pattern: /\b(PUBLIC STORAGE|EXTRA SPACE STO|CUBESMART|LIFE STORAGE|U-?HAUL STORAGE)\b/i, categoryId: 'storage' },
+  // Office-supply retailers → their own leaf (#163); shipping/coworking stay business.
+  { pattern: /\b(STAPLES|OFFICE DEPOT|OFFICEMAX)\b/i, categoryId: 'office-supplies' },
+  { pattern: /\b(FEDEX|UPS STORE|USPS|WEWORK)\b/i, categoryId: 'business' },
+  // Goodwill RETAIL (a thrift-store purchase) is shopping for clothes, not a
+  // donation (#163) — must precede the charity rule's bare GOODWILL.
+  // 'GOODWILL INDUSTRIES #NN' / 'GOODWILL #NN' are the common register forms
+  // (critic P2-7) — all retail; a bare GOODWILL (a donation) stays charity below.
+  { pattern: /\bGOODWILL (STORE|RETAIL|OUTLET|INDUSTRIES)\b|\bGOODWILL #?\d/i, categoryId: 'clothing' },
+  // Churches/tithing (#163): CHURCH'S CHICKEN is a KNOWN_MERCHANT (fast-food)
+  // and never reaches this rule.
+  // Bare CHURCH removed (critic P1-3): 'FALLS CHURCH' is a Virginia CITY that
+  // rides every local descriptor — only a denominational phrase or 'CHURCH OF'
+  // qualifies.
+  { pattern: /\b(RED CROSS|GOFUNDME|UNICEF|SALVATION ARMY|GOODWILL|CHARITY|DONATION|UNITED WAY|ST JUDE|HABITAT FOR|NONPROFIT|TITHE(LY)?|CHURCH OF|(BAPTIST|METHODIST|LUTHERAN|CATHOLIC|PRESBYTERIAN|COMMUNITY|CHRISTIAN|BIBLE|EPISCOPAL) CHURCH|MINISTRIES)\b/i, categoryId: 'charity' },
+  { pattern: /\b(1-?800-?FLOWERS|TELEFLORA|HALLMARK|EDIBLE ARRANG\w*|FLORIST|FLOWER SHOP)\b/i, categoryId: 'gifts' },
 ];
 
 /**
@@ -449,6 +686,8 @@ export function isAggregateCanonical(canonical: string): boolean {
 
 const DEFAULT_KNOWN_CONFIDENCE = 9600;
 const UNKNOWN_CONFIDENCE = 5000;
+/** Toast ("TST" prefix) restaurant-POS prior — auto-file band, visible AI badge. */
+export const TOAST_PRIOR_CONFIDENCE_BPS = 8000;
 
 /** Trailing-location state codes (feed suffixes like "SEATTLE WA"). */
 const US_STATE_RE =
@@ -456,8 +695,8 @@ const US_STATE_RE =
 
 /** Generic cleanup for descriptors we have no pattern for. */
 export function cleanDescriptor(raw: string): string {
-  let s = raw.trim();
-  s = s.replace(/^(SQ \*|TST\*\s*|PAYPAL \*|PP\*|PY \*|DD \*|POS \d+ )/i, '');
+  let s = stripBankNoise(raw);
+  s = s.replace(/^(SQ \*|TST\*\s*|PAYPAL \*|PP\*|PY \*|DD \*|POS \d+ |PADDLE\.NET\*\s*|FS \*|CKE\*|IN \*|SP \* ?)/i, '');
   s = s.replace(/\b\d{3}-\d{3}-\d{4}\b/g, ''); // phone numbers
   s = s.replace(/\b8\d{2}-[A-Z]+\b/gi, ''); // 800-COMCAST style
   s = s.replace(/[#*]\s*\d+/g, ''); // store numbers
@@ -522,6 +761,15 @@ function matchKnownFull(cleaned: string): MerchantMatch | null {
 export function normalizeMerchant(rawDescriptor: string): MerchantMatch {
   const onRaw = matchKnown(rawDescriptor);
   if (onRaw) return onRaw;
+  // Bank-channel prefixes ("PURCHASE AUTHORIZED ON 06/12 …") hide the brand
+  // from every ^-anchored pattern — try the table again on the stripped form
+  // (#163). Raw is tried FIRST, so any descriptor the table already resolves
+  // is untouched; demo/seed descriptors carry no bank prefixes.
+  const stripped = stripBankNoise(rawDescriptor);
+  if (stripped !== rawDescriptor.trim()) {
+    const onStripped = matchKnown(stripped);
+    if (onStripped) return onStripped;
+  }
   const cleaned = cleanDescriptor(rawDescriptor);
   // Second chance on the CLEANED string (Phase 3a): a processor prefix or store
   // suffix hid a known brand from the ^-anchored table — 'SQ *STARBUCKS #4471'
@@ -558,6 +806,32 @@ export function normalizeMerchant(rawDescriptor: string): MerchantMatch {
       categoryId: vocab.categoryId,
       confidenceBps: vocab.confidenceBps,
       known: true,
+      aggregate: false,
+    };
+  }
+  // Processor priors (#163): some payment processors serve exactly one merchant
+  // vertical, so the PREFIX itself is strong category evidence once every
+  // specific tier has missed. Toast (TST*) is restaurant POS; Paddle
+  // (PADDLE.NET*) processes software/digital products only. File in the
+  // AI-badge band (auto-filed but visibly correctable, never silent). Runs
+  // AFTER vocab so a descriptor carrying an explicit category word keeps the
+  // more specific answer, and only when a real name survived cleaning (a bare
+  // 'TST*' stays review).
+  if (/^TST\*|^TOAST\b/i.test(stripped) && cleaned) {
+    return {
+      canonical: cleaned,
+      categoryId: 'dining',
+      confidenceBps: TOAST_PRIOR_CONFIDENCE_BPS,
+      known: false,
+      aggregate: false,
+    };
+  }
+  if (/^PADDLE\.NET|^FS \*|^FASTSPRING/i.test(stripped) && cleaned) {
+    return {
+      canonical: cleaned,
+      categoryId: 'software',
+      confidenceBps: TOAST_PRIOR_CONFIDENCE_BPS,
+      known: false,
       aggregate: false,
     };
   }

@@ -31,6 +31,7 @@ describe('backfillCategorization (real action, throwaway data — DECISIONS #116
       { id: 'uncategorized', name: 'Uncategorized' },
       { id: 'dental-insurance', name: 'Dental Insurance' },
       { id: 'income', name: 'Income' },
+      { id: 'paycheck', name: 'Paycheck' },
       { id: 'dining', name: 'Dining Out' },
     ]) {
       await prisma.category.upsert({ where: { id: c.id }, update: {}, create: { id: c.id, name: c.name, isSystem: true } });
@@ -94,7 +95,7 @@ describe('backfillCategorization (real action, throwaway data — DECISIONS #116
     expect(dental.confidenceBps).toBe(8500); // generic-rule confidence, NOT user-confirmed 9900
 
     const income = await cat(ids.income);
-    expect(income.categoryId).toBe('income');
+    expect(income.categoryId).toBe('paycheck'); // #163: payroll = paycheck leaf
     expect(income.needsReview).toBe(false);
 
     // sign guard: a positive-amount STARBUCKS stays uncategorized in review

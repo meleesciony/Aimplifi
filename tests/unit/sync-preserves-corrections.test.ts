@@ -42,7 +42,7 @@ const epoch = (y: number, m: number, d: number) => Math.floor(Date.UTC(y, m - 1,
 
 // An unknown merchant: pipeline verdict = uncategorized/5000/needsReview — the exact
 // class the user has to correct by hand, and the exact class a resync used to revert.
-const RAW = 'SQ *LITTLE TART BAKESHOP';
+const RAW = 'SQ *LITTLE TART STUDIO'; // keyword-free: BAKESHOP now auto-files as dining (#163)
 
 describe('SimpleFIN resync preserves user corrections (real actions, mocked server)', () => {
   const USER = `sf-keep-${Date.now()}-${process.pid}`;

@@ -42,6 +42,8 @@ import {
   pickPlaidAprBps,
   prepareIngestedTransaction,
 } from './plaid-map';
+import { assistUnsureRows } from '@/server/categorize-assist';
+import { suggestCategoryViaLLM } from '@/server/llm-categorize';
 import { DemoProvider } from './demo';
 import type { DataProvider, FinanceSnapshot, SyncResult } from './types';
 
@@ -345,10 +347,24 @@ export class PlaidProvider implements DataProvider {
             idByPlaidId = await this.plaidAccountIdMap(userId);
           }
 
-          for (const txn of [...page.added, ...page.modified]) {
-            const accountId = idByPlaidId.get(txn.account_id);
-            if (!accountId) continue; // unmappable account (skipped at upsert) — don't orphan a row
-            const row = prepareIngestedTransaction(txn, accountId, rules);
+          // Pass 1: prepare the page's rows, then LLM-assist the unsure tail in
+          // ONE deduped batch — Plaid-path parity with SimpleFIN/CSV/manual
+          // (#163; the diagnosis flagged Plaid as the only ingest without
+          // assist). No key → suggestCategoryViaLLM returns null → rows
+          // unchanged (demo invariant). Pass 2 below is the original write
+          // loop, byte-identical, over the assisted rows.
+          const pageTxns = [...page.added, ...page.modified]
+            .map((t) => ({ txn: t, accountId: idByPlaidId.get(t.account_id) }))
+            // unmappable account (skipped at upsert) — don't orphan a row
+            .filter((p): p is { txn: PlaidTransaction; accountId: string } => !!p.accountId);
+          const preparedRows = pageTxns.map((p) =>
+            prepareIngestedTransaction(p.txn, p.accountId, rules),
+          );
+          const assistedRows = await assistUnsureRows(preparedRows, suggestCategoryViaLLM);
+
+          for (let i = 0; i < pageTxns.length; i++) {
+            const { txn, accountId } = pageTxns[i];
+            const row = assistedRows[i];
             const merchant = await prisma.merchant.upsert({
               where: { canonical: row.merchantCanonical },
               create: { canonical: row.merchantCanonical, defaultCategoryId: row.categoryId },

@@ -18,7 +18,7 @@ const txn = (over: Partial<TxnInput> & { rawDescriptor: string }): TxnInput => (
 
 describe('critic: 10 messiest seed descriptors through the LIVE pipeline', () => {
   const cases: [string, string, string][] = [
-    ['SQ *BLUE BOTTLE 0042 OAK', 'Blue Bottle Coffee', 'dining'],
+    ['SQ *BLUE BOTTLE 0042 OAK', 'Blue Bottle Coffee', 'coffee'],
     ['TST* HATTIE BS - ATL', "Hattie B's", 'dining'],
     ['AMZN Mktp US*2K4XY1', 'Amazon', 'shopping'],
     ['PAYPAL *SPOTIFYUSA', 'Spotify', 'entertainment'],
