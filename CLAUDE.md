@@ -1,4 +1,4 @@
-# Read LOOP_ENGINEERING.md first.
+# Read LOOP_ENGINEERING.md first. Then skim docs/lessons/INDEX.md — accumulated lessons from prior sessions.
 
 # CLAUDE.md — Aimplifi project memory
 
@@ -83,5 +83,9 @@ language, every projection states its assumptions inline.
 
 Make a high-quality decision, record it in `docs/DECISIONS.md` with rationale, and move
 on. Only ask the human when truly blocked (missing credential, contradictory requirement,
-4 failed critic cycles).
+4 failed critic cycles, or a destructive/irreversible action or real scope change that
+only they can approve). The human is usually not watching in real time: for reversible
+actions that follow from the original request, proceed without asking — never end a turn
+on "Want me to…?" or a promise about work not yet done. When you have enough information
+to act, act; don't re-derive established facts or re-litigate decisions already made.
 
