@@ -60,6 +60,13 @@ describe('parseAssistantQuery — routing', () => {
     ['what did I spend the most on this month', 'top_categories'],
     ['what are my top spending categories', 'top_categories'],
     ['where does my money go', 'top_categories'],
+    // merchant spend (#168): a non-category object after at/on/with is a merchant
+    ['how much did I spend at costco', 'merchant_spend'],
+    ['how much have I spent at trader joes this year', 'merchant_spend'],
+    ['what did I spend at target last month', 'merchant_spend'],
+    // category synonyms keep precedence — "on coffee"/"on groceries" stay categories
+    ['how much did I spend on coffee', 'spend_by_category'],
+    ['how much did I spend on groceries', 'spend_by_category'],
     // account balance
     ["what's my checking balance?", 'account_balance'],
     ['how much is in my savings account', 'account_balance'],
@@ -88,6 +95,24 @@ describe('parseAssistantQuery — extracted params', () => {
     const i = parseAssistantQuery('how much did I spend on food this month', TODAY);
     expect(i.kind).toBe('spend_by_category');
     if (i.kind === 'spend_by_category') expect(i.target).toEqual({ type: 'group', group: 'Food & Dining', label: 'food & dining' });
+  });
+
+  it('resolves a multi-word merchant + timeframe, trimming the timeframe off the term (#168)', () => {
+    const i = parseAssistantQuery('how much did I spend at trader joes last month', TODAY);
+    expect(i).toEqual({
+      kind: 'merchant_spend',
+      timeframe: { fromYm: '2026-05', toYm: '2026-05', label: 'last month' },
+      merchant: 'trader joes',
+    });
+  });
+
+  it('captures a single-word merchant with no timeframe as this month (#168)', () => {
+    const i = parseAssistantQuery('what did I spend at costco', TODAY);
+    expect(i).toEqual({
+      kind: 'merchant_spend',
+      timeframe: { fromYm: '2026-06', toYm: '2026-06', label: 'this month' },
+      merchant: 'costco',
+    });
   });
 });
 
@@ -169,11 +194,29 @@ describe('test_regression__ask-partial-match-hijacks (#166 audit P1)', () => {
   // partially matched: an unresolved "at <merchant>" fell through to the
   // all-spending total, and "afford $X in <month>" was answered with this
   // month's plan, discarding both the amount and the date.
-  it('"spent at <unknown merchant>" abstains instead of answering the total', () => {
-    expect(parseAssistantQuery('how much did I spend at costco', TODAY).kind).toBe('unknown');
-    // 'amazon' is a deliberate Shopping-group synonym (answer discloses its category scope) — use a
-    // genuinely unmapped merchant for the abstain case.
-    expect(parseAssistantQuery('how much did I spend on round1 last month', TODAY).kind).toBe('unknown');
+  it('"spent AT <merchant>" routes to the per-merchant total (#168, was abstain pre-#168)', () => {
+    // #166 abstained here (no merchant intent existed yet); #168 answers the
+    // "at X" merchant construction. The all-spending-total hijack the #166 guard
+    // prevented must still never happen — these route to merchant_spend.
+    expect(parseAssistantQuery('how much did I spend at costco', TODAY).kind).toBe('merchant_spend');
+    expect(parseAssistantQuery('what did I spend at round1 last month', TODAY).kind).toBe('merchant_spend');
+  });
+  it('an unresolved "ON <object>" still abstains — never the all-spending total (#166 invariant, #168)', () => {
+    // "on X" leans category. When X is neither a known category nor a total word,
+    // abstain honestly instead of (a) answering the whole total [#166 hijack] or
+    // (b) treating a category-word as a store ["No spending at Golf"]. "on average"
+    // is likewise not a merchant.
+    expect(parseAssistantQuery('how much did I spend on golf', TODAY).kind).toBe('unknown');
+    expect(parseAssistantQuery('how much do I spend on average', TODAY).kind).toBe('unknown');
+    expect(parseAssistantQuery('what do I spend on average per month', TODAY).kind).toBe('unknown');
+  });
+  it('a payment METHOD after "with" is not a merchant and abstains (#168 P2)', () => {
+    // "spend WITH my card / with venmo" names the tender, not a store — routing it
+    // to merchant_spend would answer a confident-wrong "No spending at Card".
+    expect(parseAssistantQuery('how much did I spend with my card this month', TODAY).kind).toBe('unknown');
+    expect(parseAssistantQuery('how much did I spend with venmo', TODAY).kind).toBe('unknown');
+    // but a real store after "with" still routes to the merchant total
+    expect(parseAssistantQuery('what did I spend with costco this month', TODAY).kind).toBe('merchant_spend');
   });
   it('"afford $X in <month>" routes to the savings-goal solver with BOTH params', () => {
     const i = parseAssistantQuery('can I afford a $3000 vacation in september', TODAY);

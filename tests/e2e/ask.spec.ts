@@ -49,6 +49,12 @@ test('answers typed questions grounded in the seed', async ({ page }) => {
   await expect(page.getByTestId('ask-headline')).toContainText('Costco');
   await expect(page.getByTestId('ask-headline')).toContainText('$158.44');
 
+  // #168 per-merchant spend: "at Costco" sums that merchant's purchases (the seed
+  // has June Costco spend, so a real figure — grounded to /transactions activity).
+  await ask(page, 'How much did I spend at Costco this month?');
+  await expect(page.getByTestId('ask-headline')).toContainText(/You spent \$[\d,]+\.\d{2} at Costco this month\./);
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/transactions');
+
   await ask(page, 'How much can I safely spend this month?');
   await expect(page.getByTestId('ask-headline')).toContainText(/left to spend|over your plan/);
   await expect(page.getByTestId('ask-source')).toBeVisible();

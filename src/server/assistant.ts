@@ -40,6 +40,7 @@ import {
   answerForecast,
   answerIncome,
   answerLargest,
+  answerMerchantSpend,
   answerNetWorth,
   answerRetireAtAge,
   answerSafeToSpend,
@@ -52,6 +53,7 @@ import {
   answerTopCategories,
   answerUnknown,
   largestPurchases,
+  merchantSpend,
   type AssistantAnswer,
   type PurchaseRow,
 } from '@/lib/engine/assistant/answer';
@@ -108,9 +110,30 @@ export async function askAssistant(rawQuestion: string): Promise<AssistantAnswer
   return viaLlm ? { ...answer, interpreted: true } : answer;
 }
 
+type FinanceSnapshot = Awaited<ReturnType<ReturnType<typeof getProvider>['getFinanceSnapshot']>>;
+
+/** POSTED-only purchase rows with a derived canonical merchant — the shared input
+ *  for both merchant intents (largest_purchases + merchant_spend), so they read
+ *  the same universe of purchases and can't diverge. */
+function toPurchaseRows(snap: FinanceSnapshot): PurchaseRow[] {
+  return snap.transactions
+    .filter((t) => t.status === 'POSTED')
+    .map((t) => {
+      const m = normalizeMerchant(t.rawDescriptor);
+      return {
+        date: t.date,
+        amountCents: t.amountCents,
+        categoryId: (t as { categoryId?: string | null }).categoryId ?? m.categoryId,
+        isTransfer: t.isTransfer,
+        isSplitParent: (t as { isSplitParent?: boolean }).isSplitParent ?? false,
+        merchant: m.canonical,
+      };
+    });
+}
+
 async function buildAnswer(
   intent: AssistantIntent,
-  snap: Awaited<ReturnType<ReturnType<typeof getProvider>['getFinanceSnapshot']>>,
+  snap: FinanceSnapshot,
   userId: string,
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
@@ -127,23 +150,13 @@ async function buildAnswer(
       return answerSpendByCategory(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.target, intent.timeframe);
     case 'top_categories':
       return answerTopCategories(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.timeframe, intent.limit);
-    case 'largest_purchases': {
+    case 'largest_purchases':
       // POSTED-only, mirroring /trends exactly (pending charges aren't "purchases").
-      const rows: PurchaseRow[] = snap.transactions
-        .filter((t) => t.status === 'POSTED')
-        .map((t) => {
-          const m = normalizeMerchant(t.rawDescriptor);
-          return {
-            date: t.date,
-            amountCents: t.amountCents,
-            categoryId: (t as { categoryId?: string | null }).categoryId ?? m.categoryId,
-            isTransfer: t.isTransfer,
-            isSplitParent: (t as { isSplitParent?: boolean }).isSplitParent ?? false,
-            merchant: m.canonical,
-          };
-        });
-      return answerLargest(largestPurchases(rows, intent.timeframe, intent.limit, today, meta), intent.timeframe);
-    }
+      return answerLargest(largestPurchases(toPurchaseRows(snap), intent.timeframe, intent.limit, today, meta), intent.timeframe);
+    case 'merchant_spend':
+      // Same POSTED-only purchase rows as largest_purchases (shared builder so the
+      // two merchant surfaces can't drift), summed for the one queried merchant.
+      return answerMerchantSpend(merchantSpend(toPurchaseRows(snap), intent.timeframe, intent.merchant, today, meta), intent.timeframe);
     case 'income': {
       // Full snapshot rows (incl. categoryId + isSplitParent at runtime) → same as
       // /reports & /coach: refunds net against spend, split parents excluded.

@@ -21,10 +21,12 @@ import { parseAssistantQuery, type Timeframe } from '@/lib/engine/assistant/inte
 import {
   answerIncome,
   answerLargest,
+  answerMerchantSpend,
   answerNetWorth,
   answerSpendByCategory,
   answerSpendTotal,
   largestPurchases,
+  merchantSpend,
   type PurchaseRow,
 } from '@/lib/engine/assistant/answer';
 
@@ -135,5 +137,48 @@ describe('largest purchases == /trends computeLargest (POSTED only), pinned', ()
       ['Publix', 4258],
     ]);
     expect(answerLargest(mine, THIS_MONTH).headline).toBe('Your biggest purchase this month was $158.44 at Costco.');
+  });
+});
+
+describe('merchant_spend == summed seed purchases for that merchant (#168), pinned', () => {
+  it('answers "how much did I spend at costco" from the real seed, no invented number', () => {
+    const i = parseAssistantQuery('how much did I spend at costco this month', TODAY);
+    expect(i.kind).toBe('merchant_spend');
+    if (i.kind !== 'merchant_spend') return;
+    expect(i.merchant).toBe('costco');
+    const res = merchantSpend(purchaseRows, i.timeframe, i.merchant, '2026-06-10');
+    // Independent recomputation over the SAME rows (Costco is groceries, so no
+    // Income/Transfers group exclusion bites) — merchantSpend must tie to this.
+    const expected = purchaseRows.filter((t) => {
+      const c = t.merchant.toLowerCase();
+      return (
+        t.date.slice(0, 7) === '2026-06' &&
+        t.date <= '2026-06-10' &&
+        !t.isTransfer &&
+        t.amountCents < 0 &&
+        (c === 'costco' || c.startsWith('costco '))
+      );
+    });
+    const expectedTotal = expected.reduce((s, t) => s - t.amountCents, 0);
+    expect(res.totalCents).toBe(expectedTotal);
+    expect(res.count).toBe(expected.length);
+    expect(res.totalCents).toBeGreaterThan(0);
+    expect(res.merchant).toBe('Costco');
+    // The seed's biggest June purchase ($158.44 at Costco) is one of these.
+    expect(res.totalCents).toBeGreaterThanOrEqual(15844);
+    expect(answerMerchantSpend(res, THIS_MONTH).headline).toBe(`You spent ${fmt(res.totalCents)} at Costco this month.`);
+  });
+
+  it('an apostrophe-less "trader joes" matches the possessive seed canonical (#168 P1)', () => {
+    // The seed descriptor 'TRADER JOE S #735' normalizes to "Trader Joe's"; a user
+    // typing "trader joes" (no apostrophe) must still get their real spend, not a
+    // false "No spending". The pinned largest test proves TJ's ($51.80) is in June.
+    const i = parseAssistantQuery('how much did I spend at trader joes this month', TODAY);
+    expect(i.kind).toBe('merchant_spend');
+    if (i.kind !== 'merchant_spend') return;
+    const res = merchantSpend(purchaseRows, i.timeframe, i.merchant, '2026-06-10');
+    expect(res.merchant).toBe("Trader Joe's");
+    expect(res.count).toBeGreaterThanOrEqual(1);
+    expect(res.totalCents).toBeGreaterThanOrEqual(5180);
   });
 });

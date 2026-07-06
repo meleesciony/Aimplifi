@@ -2117,3 +2117,46 @@ Remaining same-class surfaces (old pattern, lower traffic): add-transaction form
 delete-my-data form, auth forms (navigation class), connect-simplefin. Next
 increments list otherwise unchanged from #166 (merchant-spend Ask intent, category
 drill-down, #71 mobile-nav, Recharts polish).
+
+## 2026-07-05 — #168 merchant-spend Ask intent
+
+(#166/#167 top-queued NEXT item, resumed on "continue".) "How much did I spend at
+Costco?" now answers a per-merchant total instead of abstaining. New `merchant_spend`
+intent: pure `merchantSpend()` aggregator + `answerMerchantSpend()` formatter, server
+`buildAnswer` case reusing a factored `toPurchaseRows()` shared with `largest_purchases`
+(same POSTED-only, `isPurchaseRow`-filtered universe — can't drift). The merchant name
+is derived from the DATA (canonical with the largest matched total), never the user's
+typed string; every dollar traces to a real transaction.
+
+**Precedence + preposition split (the design crux):** `resolveSpendTarget` runs first,
+so category synonyms keep precedence ("on coffee"/"on groceries" stay `spend_by_category`;
+Starbucks→coffee / Amazon→shopping undisturbed). Only an **at/with** object that didn't
+resolve to a category routes to `merchant_spend`; a bare unresolved **"on X"** ("on golf",
+"on average") keeps ABSTAINING to the honest unknown redirect — never the all-spending
+total (the #166 P1 invariant, re-locked). The split made assistant-custom-category's
+"spend on golf → unknown" test pass unchanged.
+
+**Hostile Critic (fresh-context):** 1 P1 + 2 P2 + 2 P3. P1 FIXED — apostrophe/possessive
+false-negative ("mcdonalds"/"trader joes"/"lowes" missed the apostrophe'd canonical →
+confident-wrong "No spending"): symmetric punctuation folding (`merchantKey`), unit +
+seed-grounded locks. P2 FIXED — payment-method phrasings ("with my card/venmo") fabricated
+"No spending at Card": a tender stop-set abstains. P2 ACCEPTED (documented) — GROSS by
+design (matches /trends `largest` + the /transactions activity list it links to; keeps the
+headline reconcilable against the listed facts), where `spend_by_category` reads net. P3
+left: "at A and B" reports only A (uncommon); "at home"-class short terms already caught by
+the GROUPS-substring category precedence.
+
+**Gate (real, 2026-07-05):** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN —
+tsc/eslint clean, **1843 unit / 135 files** (+27 over #167), build clean, **FULL e2e 76/76**
+incl. a new read-only "at Costco" ask.spec assertion. (Diagnostic: the first ask.spec run
+failed all 8 — a straggler `next start` on port 3100 served a stale build under
+`reuseExistingServer`; killed → fresh spawn 8/8. Stale-3100 trap is in playwright.config.ts.)
+
+**OPEN / follow-ups (unchanged from #166/#167 minus this item):** (a) remaining lower-traffic
+reliable-mutation surfaces (add-transaction/import-csv/delete-my-data/auth/connect-simplefin);
+(b) category month-over-month drill-down (Mint-parity); (c) #71 nav redesign + settings
+reorganization (owner-scoped); (d) Recharts pinned-on-load tooltip + width(-1) warning; (e)
+triage accuracy-metric drops when filing ambiguous groups + doesn't restore on undo (agent-1
+P2-1); (f) two adjacent "Connect a bank" buttons need clearer labels (owner uses BOTH
+providers); (g) #168 P3s: multi-merchant "at A and B", and page-scoped shared pending (the
+#167 accepted-P2 follow-up).

@@ -38,6 +38,11 @@ export type AssistantIntent =
   | { kind: 'account_balance'; query: string }
   | { kind: 'spend_total'; timeframe: Timeframe }
   | { kind: 'spend_by_category'; timeframe: Timeframe; target: SpendTarget }
+  // A per-MERCHANT spend total ("how much did I spend at Costco"). `merchant` is
+  // the user's cleaned, lowercased query term; the answer matches it against the
+  // transactions' canonical merchant names (#168) and derives the display name
+  // from the data, so no merchant string is ever fabricated.
+  | { kind: 'merchant_spend'; timeframe: Timeframe; merchant: string }
   | { kind: 'top_categories'; timeframe: Timeframe; limit: number }
   | { kind: 'largest_purchases'; timeframe: Timeframe; limit: number }
   | { kind: 'income'; timeframe: Timeframe }
@@ -59,6 +64,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'account_balance',
   'spend_total',
   'spend_by_category',
+  'merchant_spend',
   'top_categories',
   'largest_purchases',
   'income',
@@ -503,6 +509,60 @@ const TOTAL_SPEND_OBJECTS = new Set([
   'oct', 'october', 'nov', 'november', 'dec', 'december',
 ]);
 
+/**
+ * Objects after a spend-verb's at/with that are NOT merchants: statistical
+ * qualifiers ("with average", "on median" — we compute no average-spend intent)
+ * and PAYMENT METHODS ("spend WITH my card / with venmo" names how you paid, not
+ * where). These keep abstaining to the honest unknown redirect rather than
+ * routing to a merchant total that answers a confident-wrong "No spending at
+ * Card" (#168 P1-fix). "with" is a merchant preposition for real stores
+ * ("with Amazon") but far more often introduces a tender — hence the guard.
+ */
+const NON_MERCHANT_SPEND_OBJECTS = new Set([
+  'average', 'averages', 'avg', 'mean', 'median', 'typically', 'usually',
+  'card', 'cards', 'cash', 'credit', 'debit', 'check', 'cheque',
+  'venmo', 'paypal', 'zelle', 'amex', 'visa', 'mastercard',
+]);
+
+/** Leading articles/possessives to skip before a merchant name ("at THE apple store"). */
+const MERCHANT_LEADING_SKIP = new Set(['the', 'a', 'an', 'my']);
+
+/** Words that end a merchant phrase — timeframe cues so "at costco last month"
+ *  extracts "costco", not "costco last month". Month tokens live in
+ *  TOTAL_SPEND_OBJECTS (also a stop set below). */
+const MERCHANT_STOP_WORDS = new Set([
+  'last', 'this', 'next', 'past', 'in', 'during', 'over', 'since', 'between',
+  'for', 'from', 'to', 'ago', 'so', 'far', 'recently', 'lately',
+  'month', 'months', 'week', 'weeks', 'year', 'years', 'day', 'days',
+  'today', 'yesterday', 'ytd',
+]);
+
+/**
+ * Extract the merchant phrase after a spend verb's AT/WITH, else null. "at X" /
+ * "with X" is the merchant construction ("at Costco", "at Trader Joe's"); a bare
+ * "on X" leans category ("on groceries", "on golf") and is handled separately —
+ * if it didn't resolve to a category it abstains rather than becoming a merchant
+ * we'd answer "No spending at <category-word>" for. Only reached when the object
+ * did NOT resolve to a category (resolveSpendTarget ran first). Multi-word,
+ * capped at 4 tokens, trimmed at the first timeframe/total cue.
+ */
+function extractSpendMerchant(q: string): string | null {
+  const m = /\b(?:spend|spent|spending)\b[^.?!]*?\b(?:at|with)\s+(.+)$/.exec(q);
+  if (!m) return null;
+  const tokens = m[1].split(/\s+/).filter(Boolean);
+  while (tokens.length && MERCHANT_LEADING_SKIP.has(tokens[0])) tokens.shift();
+  const out: string[] = [];
+  for (const raw of tokens) {
+    const w = raw.replace(/[^a-z0-9'&.-]/g, '');
+    if (!w) break;
+    if (TOTAL_SPEND_OBJECTS.has(w) || MERCHANT_STOP_WORDS.has(w)) break;
+    out.push(w);
+    if (out.length >= 4) break;
+  }
+  const phrase = out.join(' ').trim();
+  return phrase || null;
+}
+
 function statedAmountIsPerPeriodRate(q: string): boolean {
   return /\$?\s?\d[\d,]*(?:\.\d{1,2})?\s*(?:\/\s*(?:mo|month|wk|week|yr|year|day)|(?:a|per|each)\s+(?:month|week|year|day|fortnight)|monthly|weekly|biweekly|fortnightly|yearly|annually)\b/.test(
     q,
@@ -707,18 +767,25 @@ export function parseAssistantQuery(
     const timeframe = parseTimeframe(q, today);
     if (wantsRanking && !target) return { kind: 'top_categories', timeframe, limit: DEFAULT_TOP_LIMIT };
     if (target) return { kind: 'spend_by_category', timeframe, target };
-    // #166 (audit P1): "how much did I spend AT COSTCO" reached here with its
-    // qualifier unresolved (Costco is a merchant, not a category) and was
-    // answered with the ALL-spending total — a confident answer to a different
-    // question. If a spend verb is followed by an at/on/with object that did
-    // NOT resolve to a category, abstain to the honest unknown redirect
-    // instead. Per-merchant totals are a real intent to build (NEXT list);
-    // until then honesty beats a wrong headline. "on average" also abstains —
-    // spend_total can't answer that either. Objects that ARE the total
-    // ("on everything", "in total") or a month name ("on March 5" — a
-    // timeframe, parsed above) keep the total answer (critic F7).
-    const objectMatch = /\b(?:spend|spent|spending)\b[^.?!]{0,40}?\b(?:at|on|with)\s+([a-z0-9]+)/.exec(q);
-    if (objectMatch && !TOTAL_SPEND_OBJECTS.has(objectMatch[1])) {
+    // #168: "how much did I spend AT COSTCO" — an at/with object is a MERCHANT,
+    // not a category (resolveSpendTarget ran first and returned null). Route it to
+    // the per-merchant total, which matches the term against the transactions'
+    // own canonical merchant names. A statistical qualifier ("at/with average")
+    // still isn't a merchant and abstains.
+    const merchant = extractSpendMerchant(q);
+    if (merchant) {
+      const first = merchant.split(' ')[0];
+      if (NON_MERCHANT_SPEND_OBJECTS.has(first)) return { kind: 'unknown', question };
+      return { kind: 'merchant_spend', timeframe, merchant };
+    }
+    // #166 invariant kept: an unresolved "on <object>" ("on golf", "on average")
+    // is a question we can't answer precisely — a category we don't track, or a
+    // merchant the user phrased with "on". Abstain to the honest redirect rather
+    // than hijacking to the ALL-spending total. Objects that ARE the total
+    // ("on everything") or a month ("on March 5", already a parsed timeframe)
+    // keep the total answer (critic F7).
+    const onObject = /\b(?:spend|spent|spending)\b[^.?!]*?\bon\s+([a-z0-9]+)/.exec(q);
+    if (onObject && !TOTAL_SPEND_OBJECTS.has(onObject[1])) {
       return { kind: 'unknown', question };
     }
     return { kind: 'spend_total', timeframe };
@@ -834,6 +901,10 @@ export function validateIntent(
     case 'spend_by_category':
       return isTimeframe(o.timeframe) && isSpendTarget(o.target, validCustomIds)
         ? { kind: 'spend_by_category', timeframe: o.timeframe, target: o.target }
+        : null;
+    case 'merchant_spend':
+      return isTimeframe(o.timeframe) && typeof o.merchant === 'string' && o.merchant.trim().length > 0
+        ? { kind: 'merchant_spend', timeframe: o.timeframe, merchant: o.merchant }
         : null;
     case 'top_categories':
       return isTimeframe(o.timeframe) && typeof o.limit === 'number' && o.limit > 0

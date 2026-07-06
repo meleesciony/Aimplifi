@@ -312,6 +312,117 @@ export function answerLargest(largest: readonly LargestTxn[], tf: Timeframe): As
   };
 }
 
+// ─── merchant spend ─────────────────────────────────────────────────────────
+
+const ACTIVITY_SOURCE: AssistantSource = { label: 'See activity', href: '/transactions' };
+
+export interface MerchantSpendResult {
+  /** Display name: the canonical merchant with the largest matched total (so it's
+   *  properly cased — "McDonald's", "Home Depot" — from the merchant table), or
+   *  the title-cased query when nothing matched. */
+  merchant: string;
+  totalCents: number; // positive
+  count: number;
+  /** Matched purchases, amount-desc then most-recent-first; amounts positive. */
+  items: { date: string; merchant: string; amountCents: number }[];
+}
+
+/** Title-case a bare query term for the empty-result fallback ("costco" → "Costco"). */
+function titleCaseTerm(s: string): string {
+  return s
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+/** Fold case + punctuation to a comparison key so a term a user actually TYPES
+ *  matches the merchant table's canonical form: apostrophes and dots dropped,
+ *  every other separator collapsed to a single space. "McDonald's" → "mcdonalds",
+ *  "Trader Joe's" → "trader joes", "Chick-fil-A" → "chick fil a". Without this the
+ *  common apostrophe-less "mcdonalds"/"lowes"/"trader joes" a user types would
+ *  miss every possessive brand and answer a false "No spending" (critic #168 P1). */
+function merchantKey(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/['.]/g, '')
+    .replace(/[^a-z0-9&]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+/** A transaction's canonical merchant matches the user's query when either is a
+ *  whole-word prefix of the other, after punctuation/case folding: "costco"
+ *  matches "Costco" and "Costco Gas"; "mcdonalds" matches "McDonald's". Token-safe
+ *  — "app" never matches "Apple" (the prefix needs a trailing word boundary). */
+function merchantMatches(canonical: string, q: string): boolean {
+  const c = merchantKey(canonical);
+  const qq = merchantKey(q);
+  if (!c || !qq) return false;
+  return c === qq || c.startsWith(`${qq} `) || qq.startsWith(`${c} `);
+}
+
+/**
+ * Sum a single merchant's purchases in [fromYm,toYm] up to `today`, reusing the
+ * exact `isPurchaseRow` definition largest/trends use (so a Zelle/ATM/transfer
+ * pseudo-merchant can never be counted). Pure: rows in, totals out — the server
+ * derives `rows` from the same snapshot the other spending intents read.
+ *
+ * GROSS by design (#168 critic P2, accepted): this counts purchases, not net
+ * spend — a return/refund is not subtracted, matching the sibling "purchase"
+ * surfaces (/trends `largest`, which share `toPurchaseRows`) and the /transactions
+ * activity list this answer links to. It therefore reads gross where
+ * `spend_by_category` reads net; the facts list every counted purchase, so the
+ * headline always equals the sum the user can see, never a netted figure that
+ * wouldn't reconcile against the listed rows.
+ */
+export function merchantSpend(
+  rows: readonly PurchaseRow[],
+  tf: Timeframe,
+  query: string,
+  today: string,
+  meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+): MerchantSpendResult {
+  const q = query.trim().toLowerCase();
+  const matched = rows.filter((t) => {
+    const ym = t.date.slice(0, 7);
+    return ym >= tf.fromYm && ym <= tf.toYm && t.date <= today && isPurchaseRow(t, meta) && merchantMatches(t.merchant, q);
+  });
+  const byCanonical = new Map<string, number>();
+  for (const t of matched) byCanonical.set(t.merchant, (byCanonical.get(t.merchant) ?? 0) - t.amountCents);
+  let display = '';
+  let best = -1;
+  for (const [name, amt] of byCanonical) {
+    if (amt > best) {
+      best = amt;
+      display = name;
+    }
+  }
+  const items = matched
+    .map((t) => ({ date: t.date, merchant: t.merchant, amountCents: -t.amountCents }))
+    .sort((a, b) => b.amountCents - a.amountCents || (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return {
+    merchant: display || titleCaseTerm(query),
+    totalCents: items.reduce((s, i) => s + i.amountCents, 0),
+    count: items.length,
+    items,
+  };
+}
+
+export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): AssistantAnswer {
+  if (res.count === 0 || res.totalCents <= 0) {
+    return { kind: 'merchant_spend', headline: `No spending at ${res.merchant} ${tf.label}.`, facts: [], source: ACTIVITY_SOURCE };
+  }
+  const noun = res.count === 1 ? 'purchase' : 'purchases';
+  return {
+    kind: 'merchant_spend',
+    headline: `You spent ${fmt(res.totalCents)} at ${res.merchant} ${tf.label}.`,
+    detail: `Across ${res.count} ${noun}.`,
+    facts: res.items.slice(0, 5).map((i) => ({ label: `${i.merchant} · ${humanDate(i.date)}`, value: fmt(i.amountCents) })),
+    source: ACTIVITY_SOURCE,
+  };
+}
+
 // ─── income ─────────────────────────────────────────────────────────────────
 
 export function answerIncome(incomeCents: number, tf: Timeframe): AssistantAnswer {
@@ -833,6 +944,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'What is my net worth?',
   'How much did I spend on groceries last month?',
   'How much can I safely spend this month?',
+  'How much did I spend at Costco this month?',
   'What subscriptions am I paying for?',
   'Will I run out of money in the next 90 days?',
   'What was my biggest purchase this month?',
@@ -847,7 +959,7 @@ export function answerUnknown(): AssistantAnswer {
     kind: 'unknown',
     headline: 'I can answer questions grounded in your own accounts and transactions.',
     detail:
-      'Try asking about net worth, spending by category or month, safe-to-spend, what you owe on your cards, subscriptions, your 90-day forecast, income, or savings rate.',
+      'Try asking about net worth, spending by category, month, or a specific store, safe-to-spend, what you owe on your cards, subscriptions, your 90-day forecast, income, or savings rate.',
     facts: [],
     suggestions: [...ASSISTANT_SUGGESTIONS],
   };
