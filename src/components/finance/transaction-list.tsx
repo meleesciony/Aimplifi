@@ -12,9 +12,9 @@
  * owning hooks would balloon hydration and delay the search box becoming
  * interactive. One controller + lightweight row buttons keeps hydration cheap.
  */
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Check, Pencil, Receipt } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatISODate, isoDate } from '@/lib/dates';
@@ -26,6 +26,8 @@ import {
 } from '@/lib/engine/categorize/assign';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import { recategorize } from '@/server/triage-actions';
+import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
+import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
 
 function amountClass(t: TxnView): string {
@@ -46,7 +48,6 @@ export function TransactionList({
    *  user's VISIBLE groups so hidden categories don't appear here (DECISIONS #110). */
   categoryGroups?: { group: string; categories: { id: string; name: string }[] }[];
 }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(null);
   // Open the menu UPWARD when the row sits in the lower part of the viewport:
@@ -73,7 +74,12 @@ export function TransactionList({
   const [chosen, setChosen] = useState<{ rowId: string; id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [pending, startTransition] = useTransition();
+  // Deliberately NOT useTransition (#167, the #164/#166 recipe): plain pending
+  // state + a deadline-bounded await + a full reload on refile. The old
+  // useTransition + router.refresh() path lost the chip update ~50% at human
+  // pacing (scripts/audit-probes/recategorize-mutation.ts: 0/2 rounds landed
+  // pre-#167; also the transactions.spec.ts:145 e2e flake).
+  const [pending, setPending] = useState(false);
   // Write-in "+ New category" inside the picker (#136 increment 3). One
   // controller like the rest of the menu state — never per row.
   const [newCatOpen, setNewCatOpen] = useState(false);
@@ -126,49 +132,64 @@ export function TransactionList({
   /** Create the category, then hand it to the EXISTING two-step confirm
    *  ("File as X? · once / always") — the register never files in one tap
    *  (DECISIONS #121), so the write-in must not either. */
-  function createAndChoose(t: TxnView) {
+  async function createAndChoose(t: TxnView) {
     const trimmed = newCatName.trim().replace(/\s+/g, ' '); // server-normalization parity
     if (!trimmed || pending) return;
     setNewCatError(null);
-    startTransition(async () => {
-      let res;
-      try {
-        res = await createCustomCategory({
-          name: trimmed,
-          group: newCatGroup,
-          discretionary: newCatDiscretionary,
-        });
-      } catch {
-        // Rejected action (network flake / expired session) degrades to the
-        // inline error — never the route error boundary (#136 critic P1 class).
-        setNewCatError('Could not create that category — nothing was saved. Try again.');
+    setPending(true);
+    let res;
+    try {
+      res = await withDeadline(
+        createCustomCategory({ name: trimmed, group: newCatGroup, discretionary: newCatDiscretionary }),
+        FORM_ACTION_DEADLINE_MS,
+      );
+    } catch (e) {
+      if (e instanceof ActionDeadline) {
+        // The create usually COMMITTED and only the confirmation stream was
+        // severed — re-sync; if it saved, the category is in the picker (#164 rule).
+        window.location.reload();
         return;
       }
-      if (!res.ok || !res.id) {
-        setNewCatError(res.error ?? 'Could not create that category.');
-        return;
-      }
-      setChosen({ rowId: t.id, id: res.id, name: trimmed });
-      setNewCatOpen(false);
-      setNewCatName('');
-      // No manual router.refresh(): createCustomCategory's server-side
-      // revalidation already carries the refreshed /transactions payload in
-      // the action response (measured — it's what re-populates the picker).
-    });
+      // Rejected action (network flake / expired session) degrades to the
+      // inline error — never the route error boundary (#136 critic P1 class).
+      setNewCatError('Could not create that category — nothing was saved. Try again.');
+      setPending(false);
+      return;
+    }
+    setPending(false);
+    if (!res.ok || !res.id) {
+      setNewCatError(res.error ?? 'Could not create that category.');
+      return;
+    }
+    setChosen({ rowId: t.id, id: res.id, name: trimmed });
+    setNewCatOpen(false);
+    setNewCatName('');
+    // No manual refresh: createCustomCategory's server-side revalidation
+    // already carries the refreshed /transactions payload in the action
+    // response (measured — it's what re-populates the picker).
   }
 
-  function commit(t: TxnView, scope: 'one' | 'merchant') {
-    if (!chosen || chosen.rowId !== t.id) return; // never file another row's choice
+  async function commit(t: TxnView, scope: 'one' | 'merchant') {
+    if (!chosen || chosen.rowId !== t.id || pending) return; // never file another row's choice
     setError(null);
-    startTransition(async () => {
-      try {
-        await recategorize({ transactionId: t.id, categoryId: chosen.id, scope });
-        close();
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not save — nothing was changed.');
+    setPending(true);
+    try {
+      await withDeadline(
+        recategorize({ transactionId: t.id, categoryId: chosen.id, scope }),
+        FORM_ACTION_DEADLINE_MS,
+      );
+      // Full reload, not router.refresh(): refresh's application was the
+      // coin-flip the probe witnessed — the re-rendered chip is the
+      // confirmation that can't lie. pending stays true until the new page.
+      window.location.reload();
+    } catch (e) {
+      if (e instanceof ActionDeadline) {
+        window.location.reload(); // write usually committed — re-sync (#164 rule)
+        return;
       }
-    });
+      setError(e instanceof Error ? e.message : 'Could not save — nothing was changed.');
+      setPending(false);
+    }
   }
 
   // Shared group-label-aware search (#137): "bills" must find the visible

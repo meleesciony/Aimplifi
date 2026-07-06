@@ -3,12 +3,16 @@
 /**
  * Settings → Your categories (DECISIONS #111). Create your own categories,
  * rename them, or delete them. Each mutation calls a real, ownership-scoped
- * server action; on success the local list updates immediately and the route is
- * refreshed so every picker reflects the change. Deleting re-files that
- * category's transactions as Uncategorized (explained inline before you confirm).
+ * server action. Deleting re-files that category's transactions as
+ * Uncategorized (explained inline before you confirm).
+ *
+ * Reliable-mutation recipe (#167, the #164/#166 pattern): plain pending state,
+ * deadline-bounded await, full reload on success — the re-rendered list (and
+ * every picker fed by it) is the confirmation that can't lie. The previous
+ * optimistic local list + router.refresh() pair is gone: refresh's application
+ * was a coin-flip at human pacing, so the pickers could silently stay stale.
  */
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Pencil, Plus, Trash2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +20,8 @@ import {
   renameCustomCategory,
   deleteCustomCategory,
 } from '@/server/custom-category-actions';
+import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
+import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 
 export interface CustomCategory {
   id: string;
@@ -33,8 +39,7 @@ export function CustomCategoryManager({
   categories: CustomCategory[];
   groups: string[];
 }) {
-  const router = useRouter();
-  const [items, setItems] = useState<CustomCategory[]>(categories);
+  const items = categories; // server truth; every success path reloads
   const [name, setName] = useState('');
   const [group, setGroup] = useState(groups[0] ?? '');
   const [discretionary, setDiscretionary] = useState(true);
@@ -42,53 +47,52 @@ export function CustomCategoryManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
+
+  /** Shared #167 wrapper: deadline-bounded action → reload on success, inline
+   *  error otherwise. A severed confirmation stream (deadline) re-syncs via
+   *  reload too — the write usually committed (#164 recovery rule). */
+  function runMutation(fn: () => Promise<{ ok: boolean; error?: string }>, fallbackError: string) {
+    if (pending) return;
+    setError(null);
+    setPending(true);
+    void (async () => {
+      try {
+        const res = await withDeadline(fn(), FORM_ACTION_DEADLINE_MS);
+        if (!res.ok) {
+          setError(res.error ?? fallbackError);
+          setPending(false);
+          return;
+        }
+        window.location.reload(); // pending stays true until the new page
+      } catch (e) {
+        if (e instanceof ActionDeadline) {
+          window.location.reload();
+          return;
+        }
+        setError(fallbackError);
+        setPending(false);
+      }
+    })();
+  }
 
   function add() {
     const trimmed = name.trim();
-    if (!trimmed || pending) return;
-    setError(null);
-    startTransition(async () => {
-      const res = await createCustomCategory({ name: trimmed, group, discretionary });
-      if (!res.ok || !res.id) {
-        setError(res.error ?? 'Could not create that category.');
-        return;
-      }
-      setItems((xs) => [...xs, { id: res.id!, name: trimmed, group, discretionary }]);
-      setName('');
-      router.refresh();
-    });
+    if (!trimmed) return;
+    runMutation(
+      () => createCustomCategory({ name: trimmed, group, discretionary }),
+      'Could not create that category.',
+    );
   }
 
   function saveRename(id: string) {
     const trimmed = editName.trim();
-    if (!trimmed || pending) return;
-    setError(null);
-    startTransition(async () => {
-      const res = await renameCustomCategory({ id, name: trimmed });
-      if (!res.ok) {
-        setError(res.error ?? 'Could not rename that category.');
-        return;
-      }
-      setItems((xs) => xs.map((x) => (x.id === id ? { ...x, name: trimmed } : x)));
-      setEditingId(null);
-      router.refresh();
-    });
+    if (!trimmed) return;
+    runMutation(() => renameCustomCategory({ id, name: trimmed }), 'Could not rename that category.');
   }
 
   function remove(id: string) {
-    if (pending) return;
-    setError(null);
-    startTransition(async () => {
-      const res = await deleteCustomCategory({ id });
-      if (!res.ok) {
-        setError(res.error ?? 'Could not delete that category.');
-        return;
-      }
-      setItems((xs) => xs.filter((x) => x.id !== id));
-      setConfirmId(null);
-      router.refresh();
-    });
+    runMutation(() => deleteCustomCategory({ id }), 'Could not delete that category.');
   }
 
   return (

@@ -2665,3 +2665,41 @@ corroboration):**
 **Gotchas for the next session:** never reseed the DB under a live server between probe runs (fakes
 alternating results); e2e-green ≠ healthy for pacing-sensitive races — trust the plain-paced probes;
 dev.db at repo root is the dev DB, e2e uses %TEMP%/aimplifi-e2e.db, probes use %TEMP%/aimplifi-audit.db.
+
+## 2026-07-05 (resumed: "continue") — #167 reliable-mutation app-wide + e2e isolation — DONE ✅ (verify green, critic 1 P1 + 2 P2 all addressed)
+
+Took #166 NEXT items 0+1 (severity order). Baseline re-confirmed (verify GREEN), then:
+- **#0:** manual-card-statement.spec.ts → THROWAWAY user (auth.spec signup pattern); zero demo-golden
+  coupling; fixed dates proven clock-safe (parser only enforces due > close).
+- **#1:** five conversions to the #166 recipe: transaction-list (recategorize commit → reload;
+  write-in deadline-guarded, stays inline), accounts-list refreshAfter, backfill-button
+  (flash+reload when refiled>0; refresh NEVER updated the inbox's client state), custom-category-manager
+  (optimistic state deleted, renders from props), category-manager (stays optimistic by design —
+  checker-verified nothing on /settings derives — + deadline guard + thrown-rejection rollback fix).
+  NEW: src/components/finance/flash.ts (one-shot sessionStorage, set only after res.ok; unit-tested 5/5).
+- **Probes (before → after):** scripts/audit-probes/recategorize-mutation.ts 0/2 → 2/2 at plain pacing;
+  accounts-mutation.ts, backfill-mutation.ts new; budget + first-action regression probes green.
+- **Hostile critic (fresh context):** P1 post-reload pre-hydration click drop → state-aware
+  click-and-verify retries in the spec, 3/3 on the exact failing mix; P2 coverage → flash.test.ts +
+  tests/e2e/backfill.spec.ts (throwaway user); P2 ACCEPTED (STATUS #167): reload aborts a sibling's
+  queued action — follow-up is page-scoped shared pending.
+
+**Gate (real output):** VERIFY_E2E=1 bash scripts/verify.sh → ✅ VERIFY GREEN — 1816 unit / 133 files,
+FULL e2e 75/75 (52.2s). Post-critic fixes were TEST-ONLY; targeted mix 3/3 green; **FULL 76-spec rerun
+NOT executed** (owner ended session mid-run) — first act next session: `npx playwright test` → expect 76/76.
+
+**STANDING OWNER-ONLY (unchanged + new):** authorize the push (origin is now 2 behind: #166 + #167);
+prod corroboration after deploy — register recategorize, accounts add/edit, settings category managers
+should now always land at human pacing (same class as the healed budgets/goals); the #166 list's other
+items (real prod descriptors for learn.ts, Plaid/SimpleFIN sandbox checks) still open.
+
+**NEXT INCREMENT candidates (from #166 list, minus what #167 closed):** remaining old-pattern
+low-traffic forms (add-transaction <form action>, import-csv useActionState, delete-my-data,
+connect-simplefin) — same recipe, smaller blast radius; merchant-spend Ask intent; category
+month-over-month drill-down; #71 mobile-nav redesign (owner-scoped); page-scoped shared pending
+(the accepted P2); Recharts pinned-tooltip/width(-1) polish.
+
+**Gotchas:** unchanged from #166 (never reseed under a live server; e2e-green ≠ pacing-healthy — trust
+the plain probes; dev.db root = dev, %TEMP%/aimplifi-e2e.db = e2e, %TEMP%/aimplifi-audit.db = probes).
+Windows: TaskStop on a background `npx next start` does NOT free the port — kill the LISTEN PID
+(netstat -ano | grep :3100) or the next start EADDRINUSEs and probes silently hit the OLD build.

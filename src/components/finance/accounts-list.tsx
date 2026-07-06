@@ -7,9 +7,8 @@
  * rows link to their transactions; manual rows are inline-editable (value) and
  * deletable. "Add asset / Add liability" create manual items.
  */
-import { useState, useTransition } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
@@ -28,6 +27,9 @@ import {
   updateManualAccountValue,
 } from '@/server/networth-actions';
 import { clearManualCardStatement, setManualCardStatement } from '@/server/card-actions';
+import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
+import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { setFlash, takeFlash } from '@/components/finance/flash';
 import type { AccountGroup, AccountView } from '@/lib/engine/transactions/query';
 import type { AccountsView, ManualCardBilling } from '@/server/transactions';
 
@@ -159,34 +161,57 @@ function AccountsEmptyState({ withheldCount }: { withheldCount: number }) {
 }
 
 export function AccountsList({ data }: { data: AccountsView }) {
-  const router = useRouter();
   const [adding, setAdding] = useState<null | 'asset' | 'liability'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [statementCardId, setStatementCardId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  // Deliberately NOT useTransition (#167, the #164/#166 recipe): the pending
+  // flag is plain state, the await is deadline-bounded, and success is a FULL
+  // reload — every row and total on this page is server-derived, and
+  // router.refresh()'s application was a coin-flip at human pacing
+  // (scripts/audit-probes/recategorize-mutation.ts witnessed the class 0/2;
+  // accounts-mutation.ts shares this wiring).
+  const [pending, setPending] = useState(false);
   const isEmpty = data.assets.accounts.length === 0 && data.liabilities.accounts.length === 0;
 
+  // A success message set before the confirming reload (e.g. "Statement saved")
+  // rides sessionStorage across it — the reload IS the confirmation, the flash
+  // is the caption.
+  useEffect(() => {
+    const m = takeFlash('accounts');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration one-shot sessionStorage read (#167); a lazy useState initializer would hydration-mismatch (server renders no flash)
+    if (m) setSuccess(m);
+  }, []);
+
   function refreshAfter(fn: () => Promise<{ ok: boolean; errors?: string[] }>, successMsg?: string) {
+    if (pending) return;
     setError(null);
     setSuccess(null);
-    startTransition(async () => {
+    setPending(true);
+    void (async () => {
       try {
-        const res = await fn();
+        const res = await withDeadline(fn(), FORM_ACTION_DEADLINE_MS);
         if (!res.ok) {
           setError(res.errors?.join(' ') ?? 'Something went wrong.');
+          setPending(false);
           return;
         }
-        setAdding(null);
-        setEditingId(null);
-        setStatementCardId(null);
-        if (successMsg) setSuccess(successMsg);
-        router.refresh();
+        if (successMsg) setFlash('accounts', successMsg);
+        // Reload, not router.refresh() — the re-rendered list can't lie.
+        // pending stays true so controls remain disabled until the new page.
+        window.location.reload();
       } catch (e) {
+        if (e instanceof ActionDeadline) {
+          // The write usually COMMITTED and only the confirmation stream was
+          // severed — re-sync rather than report a false failure (#164 rule).
+          window.location.reload();
+          return;
+        }
         setError(e instanceof Error ? e.message : 'Something went wrong.');
+        setPending(false);
       }
-    });
+    })();
   }
 
   return (

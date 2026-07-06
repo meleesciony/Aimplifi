@@ -15,6 +15,11 @@ Run against a production server on 127.0.0.1:3100 with a freshly seeded demo DB:
 - goal-budget-mutation.ts — goal add ("$1,234" lenient) / delete / "abc" inline error + budget flows.
 - budget-invalid-input.ts — "abc" must show the inline error with BOTH fields preserved, no crash.
 - transactions-first-action.ts — fresh session per control: filter/pagination/Import/search must work.
+- recategorize-mutation.ts — register chip → pick → "Just this once" must re-render the chip, two
+  rounds (#167 witness: 0/2 landed on the old useTransition+refresh path, 2/2 after conversion).
+- accounts-mutation.ts — manual add → edit value → delete round-trip; net worth must revert exactly.
+- backfill-mutation.ts — "Re-run categorizer" must report honestly AND leave the visible queue
+  coherent with the report (reads data-remaining on triage-inbox).
 
 Reseed the DB between runs (wedged runs leave residue that fakes alternating results —
 see docs/lessons/diagnose-hangs-at-boundaries.md).

@@ -2085,3 +2085,35 @@ merchant-spend Ask intent; (c) category month-over-month drill-down; (d) #71 nav
 settings reorganization (owner-scoped); (e) Recharts pinned-on-load tooltip + width(-1) warning;
 (f) triage accuracy-metric drops when filing ambiguous groups + doesn't restore on undo (agent-1
 P2-1); (g) two adjacent "Connect a bank" buttons need clearer labels (owner uses BOTH providers).
+
+## 2026-07-05 — #167 reliable-mutation pattern app-wide + e2e golden isolation
+
+(#166 NEXT items 0+1.) The five surfaces still on useTransition+router.refresh()
+(register recategorize, accounts manual mutations, backfill, settings custom-category
+CRUD, settings visibility toggles) converted to the #166 recipe; the
+manual-card-statement e2e moved onto a throwaway user (no demo-golden coupling).
+Before-witness: recategorize probe lost 0/2 rounds on the old wiring at plain pacing
+(the transactions.spec:145 flake reproduced 2× the same session); after: 2/2, all
+probes green (recategorize/accounts/backfill/budget/first-action). New flash.ts
+carries text confirmations (backfill count, "Statement saved") across the confirming
+reload — set strictly after res.ok; unit-tested.
+
+Hostile Critic (fresh-context): 1 P1 FIXED (post-reload pre-hydration clicks drop —
+state-aware click-and-verify retries in the spec; re-witnessed 3/3 on the exact
+failing mix), coverage P2 FIXED (flash unit tests + a throwaway-user backfill e2e).
+**Accepted P2 (documented, inherent to the recipe since #166):** reload-on-success
+aborts a sibling component's queued action (Next serializes action POSTs per tab;
+pending flags are per-component) — visible and recoverable, one-round-trip window;
+follow-up: page-scoped shared pending that disables sibling mutation surfaces while
+a reload-bearing mutation is in flight.
+
+Gate (real output 2026-07-05): VERIFY_E2E=1 bash scripts/verify.sh → ✅ VERIFY GREEN
+(1816 unit / 133 files, FULL e2e 75/75 at 52.2s). Post-critic-fix changes were
+test-only; the targeted 17-spec mix ran 3/3 green but a FULL 76-spec rerun was not
+executed (session ended on owner request) — re-witness with `npx playwright test`.
+
+Remaining same-class surfaces (old pattern, lower traffic): add-transaction form
+(plain <form action>), import-csv form (useActionState, inline-result shaped),
+delete-my-data form, auth forms (navigation class), connect-simplefin. Next
+increments list otherwise unchanged from #166 (merchant-spend Ask intent, category
+drill-down, #71 mobile-nav, Recharts polish).
