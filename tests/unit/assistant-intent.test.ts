@@ -163,3 +163,46 @@ describe('validateIntent (zod-substitute gate)', () => {
     expect(validateIntent({ kind: 'spend_total' })).toBeNull(); // missing timeframe
   });
 });
+
+describe('test_regression__ask-partial-match-hijacks (#166 audit P1)', () => {
+  // Pre-#166 the parser answered a DIFFERENT question than asked when it only
+  // partially matched: an unresolved "at <merchant>" fell through to the
+  // all-spending total, and "afford $X in <month>" was answered with this
+  // month's plan, discarding both the amount and the date.
+  it('"spent at <unknown merchant>" abstains instead of answering the total', () => {
+    expect(parseAssistantQuery('how much did I spend at costco', TODAY).kind).toBe('unknown');
+    // 'amazon' is a deliberate Shopping-group synonym (answer discloses its category scope) — use a
+    // genuinely unmapped merchant for the abstain case.
+    expect(parseAssistantQuery('how much did I spend on round1 last month', TODAY).kind).toBe('unknown');
+  });
+  it('"afford $X in <month>" routes to the savings-goal solver with BOTH params', () => {
+    const i = parseAssistantQuery('can I afford a $3000 vacation in september', TODAY);
+    expect(i.kind).toBe('savings_goal_by_date');
+    if (i.kind === 'savings_goal_by_date') {
+      expect(i.targetCents).toBe(300000);
+      expect(i.targetDate.startsWith('2026-09')).toBe(true);
+    }
+  });
+  it('critic F1/F2: current-month and bill affordability stay on the affordability answer', () => {
+    // "this month" is EXACTLY what safe_to_spend answers; rerouting it to the
+    // savings solver produced a "too soon to save" refusal (critic cycle 1).
+    expect(parseAssistantQuery('can I afford to spend $200 on groceries this month', TODAY).kind).toBe('safe_to_spend');
+    expect(parseAssistantQuery('can I afford $1000 this month', TODAY).kind).toBe('safe_to_spend');
+    // A recurring obligation is not a savings goal ("afford my rent in July"
+    // must not become a 12-month drip plan toward July 2027).
+    expect(parseAssistantQuery('can I afford my $1,800 rent in july', TODAY).kind).toBe('safe_to_spend');
+    expect(parseAssistantQuery('can I afford my $250 credit card payment in august', TODAY).kind).toBe('safe_to_spend');
+  });
+
+  it('critic F7: total-meaning and month objects after on/at keep the total answer', () => {
+    expect(parseAssistantQuery('how much did I spend on everything last month', TODAY).kind).toBe('spend_total');
+    expect(parseAssistantQuery('what did I spend in total on everything', TODAY).kind).toBe('spend_total');
+    expect(parseAssistantQuery('how much did I spend on march 5', TODAY).kind).toBe('spend_total');
+  });
+
+  it('plain and category spend questions are unchanged', () => {
+    expect(parseAssistantQuery('how much did I spend last month', TODAY).kind).toBe('spend_total');
+    expect(parseAssistantQuery('how much did I spend on groceries last month', TODAY).kind).toBe('spend_by_category');
+    expect(parseAssistantQuery('can I afford a $50 dinner tonight', TODAY).kind).toBe('safe_to_spend');
+  });
+});

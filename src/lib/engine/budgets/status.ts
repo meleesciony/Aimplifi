@@ -10,17 +10,23 @@
  * Conscious-spending framing, not a guilt meter: `isDial` marks a category the
  * user spends on intentionally; the engine reports it, the UI never scolds it.
  */
-import { centsFromDollarString, type Cents } from '@/lib/money';
+import { parseDollarInput, type Cents } from '@/lib/money';
+import { isIncomeCategoryId } from '@/lib/engine/categorize/categories';
 
 /**
- * Categories for which a monthly budget target is meaningful. Income is an
- * inflow, transfers move money between your own accounts, and uncategorized is a
- * holding pen — none are "spending" you'd target. Shared by the page's category
- * picker AND the server action, so the offered set equals the accepted set.
+ * Categories for which a monthly budget target is meaningful. The whole Income
+ * GROUP is out (an inflow isn't spending you'd target — the pre-#163 id set
+ * offered 'Paycheck' as the picker's default spend target), transfers and
+ * credit-card payments move money between your own accounts, and uncategorized
+ * is a holding pen. 'cash' (Cash & ATM) stays budgetable — ATM withdrawals are
+ * real spending leakage worth a target. Custom categories are spending by
+ * definition (DECISIONS #111) and stay budgetable. Shared by the page's
+ * category picker AND the server action, so the offered set equals the
+ * accepted set.
  */
-const NON_BUDGETABLE = new Set(['income', 'transfer', 'uncategorized']);
+const NON_BUDGETABLE = new Set(['transfer', 'credit-card-payment', 'uncategorized']);
 export function isBudgetable(categoryId: string): boolean {
-  return !NON_BUDGETABLE.has(categoryId);
+  return !NON_BUDGETABLE.has(categoryId) && !isIncomeCategoryId(categoryId);
 }
 
 /**
@@ -92,13 +98,8 @@ export function summarizeBudgets(
  * target is a separate action.
  */
 export function parseBudgetTargetCents(s: string): Cents | null {
-  const trimmed = s.trim();
-  if (!trimmed) return null;
-  let c: Cents;
-  try {
-    c = centsFromDollarString(trimmed);
-  } catch {
-    return null;
-  }
-  return c > 0 ? c : null;
+  // Lenient boundary parse (#166): "$500" and "1,000" are things real users
+  // type into a money field — they must set a target, not crash to an error.
+  const c = parseDollarInput(s);
+  return c !== null && c > 0 ? c : null;
 }

@@ -6,15 +6,30 @@
  * wrapper adds an inline "Delete? Yes/Cancel" guard before calling the deleteGoal action,
  * matching the manual-account delete pattern. No modal/focus-trap needed.
  */
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { deleteGoal } from '@/server/goal-actions';
+import { withDeadline } from '@/components/triage/action-deadline';
+import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 
 export function DeleteGoalButton({ goalId, goalName }: { goalId: string; goalName: string }) {
-  const router = useRouter();
   const [confirming, setConfirming] = useState(false);
-  const [pending, start] = useTransition();
+  // #166: explicit useState busy flag + deadline-bounded await + router.refresh,
+  // the #164 pattern — useTransition's pending entangles with the router's
+  // lanes, so a wedged action application froze this card at "Delete? Yes"
+  // forever while the row was already gone server-side (audit agent-2 P1).
+  const [pending, setPending] = useState(false);
+  async function confirmDelete() {
+    setPending(true);
+    try {
+      await withDeadline(deleteGoal(goalId), FORM_ACTION_DEADLINE_MS);
+    } catch {
+      // Deadline: the delete usually COMMITTED — fall through to re-sync.
+    } finally {
+      // Full reload, not router.refresh() — see BudgetTargetForm (#166).
+      window.location.reload();
+    }
+  }
 
   if (!confirming) {
     return (
@@ -41,7 +56,7 @@ export function DeleteGoalButton({ goalId, goalName }: { goalId: string; goalNam
         disabled={pending}
         className="h-auto px-1.5 py-0.5 text-red-400"
         data-testid="goal-delete-confirm"
-        onClick={() => start(async () => { await deleteGoal(goalId); router.refresh(); })}
+        onClick={() => void confirmDelete()}
       >
         Yes
       </Button>

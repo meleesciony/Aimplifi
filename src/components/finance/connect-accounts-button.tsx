@@ -68,6 +68,7 @@ export function ConnectAccountsButton() {
   useEffect(() => {
     if (wantOpen && ready) {
       open();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- pre-existing pattern surfaced by the react-hooks v6 upgrade (#166), not this increment's scope
       setWantOpen(false);
     }
   }, [wantOpen, ready, open]);

@@ -2041,3 +2041,47 @@ via the flag; register-correctable; a deterministic-first reorder needs the assi
 carry account/date — deferred). Provider re-send transient reset healed by end-of-sync re-filing
 (untested lifecycle). Pair matching itself stays loose (any 2 accounts, ±3d) — tightening is a
 separate increment.
+
+## 2026-07-05 — #166 SEAMLESSNESS PASS (owner directive: "too many things don't work seamless")
+
+Full detail in DECISIONS #166 + REGRESSION_LEDGER (3 entries). Headlines:
+- **P0 FIXED:** real users' payroll ('paycheck' leaf since #163) was classified as a refund by
+  `monthlyFlows` — prod income $0, savings rate/FI/coach garbage; goldens stayed green because the
+  demo's payroll matches a merchant rule mapping to the old 'income' id. Group-aware
+  `isIncomeCategoryId` now used by monthlyFlows + isBudgetable ('Paycheck' was the DEFAULT
+  budget-target option). 'refund' leaf still nets (critic F1).
+- **Next 15.5.19 → 16.2.10:** fixes the deterministic client flight-application bug that killed
+  calendar month-paging (the misread "phase4:13 flake") and /transactions filters/pagination/Import
+  (probes: 5/7 fail → 7/7 commit; 4/4 fail → 8/8 work).
+- **Mutation reliability:** post-action page application was ~50% roulette in plain-paced probes on
+  BOTH Next versions (the #164 class beyond triage; almost certainly the old #16/#17 "stall flakes"
+  and a big share of the owner's prod complaint). Budgets/goals mutations now use direct invocation +
+  own busy flag + withDeadline(8s, form-deadline.ts) + full reload on success — probes 5/5
+  deterministic. MoneyDialsForm converted too (its useActionState "saved" confirmation failed the
+  same way mid-gate): direct invocation, inline confirmation from OWN awaited state (no reload —
+  nothing else on the page derives from dials), reload only on a severed confirmation. Typos get
+  inline field errors with fields preserved ("$500"/"1,000" now parse; "abc" never crashes the page).
+- **SW v3 (installability only):** the v1/v2 fetch listener amplified aborted action streams for
+  near-zero value; offline shell retired; existing installs self-heal on update. pwa-offline.spec.ts
+  now regression-tests a server action under a CONTROLLING SW.
+- **Ask honesty:** unresolved "spent at X" abstains (deterministic + LLM fallback); "afford $X by
+  <future date>" solves the savings goal (with current-month/rate/bill guards); subscriptions answer
+  no longer attributes rent/loans to "subscriptions" (~7× overstatement fixed, dashboard card too).
+- **Polish:** overspent safe-to-spend reframe; recurring next-dates un-truncated; year shown in
+  register/triage dates; reports Uncategorized → Inbox link; aimplifi-* export filenames; nav
+  prefetch=false (revalidate prefetch-storm removed).
+
+**Gate (real, 2026-07-05):** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN — tsc/eslint
+clean, **1816 unit / 133 files** (+18 over #165), build clean, **FULL e2e 75/75 (59.7s)** with the
+new e2e `workers: 4` cap (the shared-SQLite harness at default workers severed action-confirmation
+streams under load — the same single-writer reason the unit suite serializes; prod is Postgres).
+Deterministic probe witnesses in scripts/audit-probes/ (budget mutation 5/5 consecutive runs,
+calendar 7/7 months, transactions first-action 8/8, invalid-input fields-preserved).
+
+**OPEN / follow-ups (#166):** (a) apply the reliable-mutation pattern to remaining plain form
+actions (accounts add/edit/delete, settings managers, register recategorize feedback) — the register
+chip staleness agent-1 flagged is this same class; owner corroboration from prod welcome; (b)
+merchant-spend Ask intent; (c) category month-over-month drill-down; (d) #71 nav redesign +
+settings reorganization (owner-scoped); (e) Recharts pinned-on-load tooltip + width(-1) warning;
+(f) triage accuracy-metric drops when filing ambiguous groups + doesn't restore on undo (agent-1
+P2-1); (g) two adjacent "Connect a bank" buttons need clearer labels (owner uses BOTH providers).

@@ -13,6 +13,7 @@ import {
   monthsOfRunway,
 } from '@/lib/engine/fi/insights';
 import { generateMoneyReview } from '@/lib/engine/fi/coach-copy';
+import { CATEGORIES } from '@/lib/engine/categorize/categories';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { cents } from '@/lib/money';
 import { isoDate } from '@/lib/dates';
@@ -97,6 +98,69 @@ describe('refund netting (ROADMAP #4): a return reduces spend, not inflates inco
     ])[0];
     expect(f.expensesCents).toBe(0);
     expect(f.incomeCents).toBe(0);
+  });
+});
+
+describe('test_regression__monthly-flows-income-leaves: Income-GROUP leaves count as income', () => {
+  // REGRESSION (2026-07-05): monthlyFlows keyed on the LITERAL id 'income', which
+  // predates the #163 leaf taxonomy. A real user's payroll descriptor (PAYROLL /
+  // DIRECT DEP / GUSTO / ADP…) categorizes as 'paycheck' (normalize.ts income
+  // rules), so their SALARY was netted against expenses as a "refund": income $0,
+  // expenses absurdly low, savings rate + FI + coach all garbage. The demo seed
+  // dodged it via its merchant-specific rule (ACME → 'income'), which is why every
+  // golden stayed green while production was wrong.
+  it("a 'paycheck' salary counts as income, not a refund (income $3,000 / spend $400 / rate 86.67%)", () => {
+    const f = monthlyFlows([
+      { date: '2026-03-01', amountCents: 300000, rawDescriptor: 'ACH DIRECT DEP GUSTO', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'paycheck' },
+      { date: '2026-03-05', amountCents: -40000, rawDescriptor: 'KROGER', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'groceries' },
+    ])[0];
+    expect(f.incomeCents).toBe(300000);
+    expect(f.expensesCents).toBe(40000);
+    // (300000 − 40000) / 300000 = 86.666…% → 8667 bps (banker-free round half away from zero)
+    expect(f.savingsRateBps).toBe(8667);
+  });
+
+  it('EVERY Income-group leaf in the taxonomy counts a positive as income (canary for future leaves)', () => {
+    // 'refund' is the one deliberate exception: a manually-filed "Refund" is a
+    // merchandise return and NETS against spend (ROADMAP #4; #166 critic F1 —
+    // counting it as income inflated income AND expenses vs the same return
+    // filed to its purchase category).
+    for (const c of CATEGORIES.filter((c) => c.group === 'Income' && c.id !== 'refund')) {
+      const f = monthlyFlows([
+        { date: '2026-03-01', amountCents: 12345, rawDescriptor: 'X', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: c.id },
+      ])[0];
+      expect(f.incomeCents, `leaf '${c.id}' must classify as income`).toBe(12345);
+      expect(f.expensesCents, `leaf '${c.id}' must not net against spend`).toBe(0);
+    }
+  });
+
+  it("the 'refund' leaf NETS against spend — a store return filed as Refund is not income (#166 F1)", () => {
+    const f = monthlyFlows([
+      { date: '2026-03-01', amountCents: 300000, rawDescriptor: 'PAYROLL', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'paycheck' },
+      { date: '2026-03-05', amountCents: -50000, rawDescriptor: 'TV STORE', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'electronics' },
+      { date: '2026-03-12', amountCents: 10000, rawDescriptor: 'TV RETURN', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'refund' },
+    ])[0];
+    // Same figures as filing the return to 'electronics': income 3000, spend 400.
+    expect(f.incomeCents).toBe(300000);
+    expect(f.expensesCents).toBe(40000);
+  });
+
+  it('a positive in a NON-income category is still netted as a refund (behavior preserved)', () => {
+    const f = monthlyFlows([
+      { date: '2026-03-05', amountCents: -45000, rawDescriptor: 'AMZN', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'shopping' },
+      { date: '2026-03-12', amountCents: 10000, rawDescriptor: 'AMZN REFUND', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'shopping' },
+    ])[0];
+    expect(f.incomeCents).toBe(0);
+    expect(f.expensesCents).toBe(35000);
+  });
+
+  it('a positive in a CUSTOM category (unknown id) is netted, not income (custom = spending by definition)', () => {
+    const f = monthlyFlows([
+      { date: '2026-03-05', amountCents: -30000, rawDescriptor: 'GOLF SHOP', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'cl_custom123' },
+      { date: '2026-03-12', amountCents: 5000, rawDescriptor: 'GOLF SHOP REFUND', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'cl_custom123' },
+    ])[0];
+    expect(f.incomeCents).toBe(0);
+    expect(f.expensesCents).toBe(25000);
   });
 });
 

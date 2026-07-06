@@ -19,3 +19,20 @@ Corollary learned the same session: an always-failing test MASKS every defect be
 point. The moment the stall was fixed, two deterministic test-ordering bugs surfaced that had been
 invisible for weeks as "did not run". After fixing a chronic blocker, re-run everything downstream of
 it before declaring the tail healthy.
+
+**2026-07-05 (#166) — confirmed and extended twice in one session:**
+1. The same action-application race turned out to be app-wide, not triage-specific: budgets/goals
+   mutations committed server-side while the page stayed stale ~50% of plain-paced probe runs — on
+   BOTH Next 15.5.19 and 16.2.10, with and without the service worker, prefetch storm, or device
+   emulation. Each of those suspects was convicted by correlation and acquitted by a controlled A/B;
+   the durable fix was making confirmation structurally unable to lie (own busy flag + withDeadline +
+   full reload), not curing the layer-of-the-day.
+2. **E2E-green is not health.** The 75/75 suite passed for months over this defect because
+   Pixel-5-paced specs outran the race; plain-paced probes (and real users) lost it half the time.
+   The prior "load-correlated e2e flakes" (#16/#17, phase4:13) were this bug wearing an
+   environment costume — the SECOND time this repo pattern-matched a real product defect to
+   "environment flake". A flake that only bites at human pacing is a race, and it is shipping.
+3. Probe-protocol hygiene is part of the diagnosis: mid-investigation I reseeded the DB under a live
+   server and left residue between probe runs, which manufactured an "alternating" failure pattern
+   that sent an hour into a service-worker rabbit hole. Reset state cold between A/B runs, or the
+   experiment lies.

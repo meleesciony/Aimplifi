@@ -28,6 +28,14 @@ export default defineConfig({
   globalSetup: './tests/e2e/global-setup.ts',
   timeout: 60_000,
   fullyParallel: true,
+  // 4 workers (#166): the shared-SQLite e2e DB is the same single-writer harness
+  // the unit suite already serializes for (tests/setup/test-db.ts). At the
+  // default worker count on a loaded machine, write contention severs enough
+  // server-action confirmation streams to flunk the reload-bearing mutation
+  // specs (solo-green every time) and to widen the manual-card net-worth window
+  // into the golden readers. Production is Postgres per-request — 8 concurrent
+  // sessions against one SQLite file tests the harness, not the app.
+  workers: 4,
   reporter: [['list']],
   use: {
     // 127.0.0.1, NOT localhost: Node 17+ resolves localhost to ::1 first, so the

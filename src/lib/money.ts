@@ -114,6 +114,28 @@ export function centsFromDollarString(s: string): Cents {
 }
 
 /**
+ * Lenient parse for a dollar amount TYPED BY A USER at a form boundary:
+ * tolerates a leading '$', thousands commas, and whitespace ("$1,234.56" →
+ * 123456; " 500 " → 50000). Returns null — never throws — on anything else
+ * ("abc", "", "1.2.3"). Use this for raw form input; internal/machine amounts
+ * keep the strict, throwing centsFromDollarString. (Seamlessness #166: typing
+ * "$500" into the goal form crashed to the app error page via the strict
+ * parser + a plain form action.)
+ */
+export function parseDollarInput(s: string): Cents | null {
+  const trimmed = s.trim().replace(/^\$\s*/, '').replace(/^(-)\s*\$\s*/, '$1');
+  // Commas must be REAL thousands grouping ("1,234", "12,345,678"): a
+  // comma-as-decimal typist's "1,00" (meaning $1.00) must not silently become
+  // $100 — reject and let the form's inline error ask again (#166 critic F2).
+  if (trimmed.includes(',') && !/^-?\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(trimmed)) return null;
+  try {
+    return centsFromDollarString(trimmed.replace(/,/g, ''));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Format integer cents as US dollars for display: 123456 → "$1,234.56",
  * -50 → "-$0.50". The ONLY place cents become a dollar string.
  */

@@ -47,6 +47,11 @@ export default async function CalendarPage({
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Cash-flow calendar</h1>
         <div className="flex items-center gap-2 text-sm">
+          {/* #166: on Next 15.5.x these same-page searchParams navigations silently
+              failed to commit whenever the TARGET month had events (deterministic:
+              scripts/audit-probes/calendar-month-nav.ts, 5/7 failed) — an upstream client flight-application
+              bug, unaffected by prefetch={false}, fixed by Next 16 (7/7 commit). If a
+              future Next bump regresses month paging, re-run that probe first. */}
           <Link href={`/calendar?month=${prev}`} aria-label="Previous month" className="rounded-md border px-2 py-1 hover:bg-accent" data-testid="cal-prev">
             ←
           </Link>
@@ -75,7 +80,10 @@ export default async function CalendarPage({
         </CardHeader>
         <CardContent>
           {eventDays.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No scheduled activity this month.</p>
+            <p className="text-sm text-muted-foreground">
+              No scheduled activity this month. The calendar tracks scheduled income, bills, and
+              card due dates — day-to-day spending lives in Reports.
+            </p>
           ) : (
             <ul className="space-y-2" data-testid="calendar-list">
               {eventDays.map((day) => (

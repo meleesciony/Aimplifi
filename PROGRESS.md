@@ -2532,3 +2532,136 @@ local `main` = 4 commits ahead (2 docs + #161 + #162), all UNPUSHED — ride out
   fork, only if the owner still feels friction after #161+#162 in real use.
 - Or LLM second-pass tuning / transfer-pairing for "credit card paid" (the other earlier fork).
 - Or pull real prod descriptors (owner action) → tune normalize/#161 against them.
+
+## 2026-07-05 — #166 SEAMLESSNESS PASS (owner: "make it something users want over Simplifi/Mint; too many things don't work seamless")
+
+**Step 1 — full-app audit (DONE):** production build + fresh seeded audit DB (%TEMP%/aimplifi-audit.db) +
+`next start -p 3100`; scripted walk of all 17 pages at 380x800 (scripts/audit-walk.ts, screenshots in
+.audit/): ZERO console errors / failed requests / page errors, warm loads <700ms. 3 interactive audit
+agents (triage+register / forms+settings / ask+nav+charts) + 1 docs-mining agent dispatched.
+
+**Step 2 — P0 FOUND & FIXED (fail-old proven): real users' income misclassified since #163.**
+`monthlyFlows` (fi/insights.ts:63) keyed income on the LITERAL id 'income'; #163's leaf taxonomy makes
+real payroll descriptors (PAYROLL/DIRECT DEP/GUSTO/ADP → 'paycheck') classify as a *refund netted
+against expenses* → prod income $0, savings rate/FI/coach/Money Review garbage. Demo dodged it via the
+merchant-specific ACME→'income' rule (why every golden stayed green). Fix: new
+`isIncomeCategoryId` (group-aware, categories.ts) used by monthlyFlows + `isBudgetable` (which offered
+'Paycheck' as the DEFAULT budget-target option — same stale-id class; now excludes the Income group +
+credit-card-payment, keeps 'cash' + custom). 6 new tests incl. an every-Income-leaf canary; fail-old
+proven (4 fail pre-fix); FULL unit suite 1804/1804 green, tsc/eslint clean on touched files.
+
+**Step 3 — view-layer polish (pending verify):** /recurring row: next-charge date moved to the fixed
+right column (was truncate-swallowed at 380px: "next ~ Mon, Ju…"); overspent Safe-to-Spend reframe
+(ROADMAP COPY-1): hero label "Over plan this month" + positive amount, dashboard card "Over by $X",
+both with "safe to spend is $0" subtitles — matches the assistant's existing phrasing.
+
+**Audit findings queue (for fix ordering):** two adjacent "Connect a bank" buttons on /accounts
+(SimpleFIN vs Plaid — owner uses BOTH; label, don't merge); goals debt-name truncation; interactive-agent
+reports pending.
+
+## 2026-07-05 — #166 SEAMLESSNESS PASS — COMPLETE (pending final e2e gate line below)
+
+**What the owner asked:** "make this app something users will want to use over Simplifi or Mint —
+far too many things don't work seamless." Full detail: DECISIONS #166, STATUS #166, REGRESSION_LEDGER ×3,
+lessons/diagnose-hangs-at-boundaries (extended).
+
+**Method:** 17-page scripted audit (clean) → 3 interactive audit agents + docs-miner → fixes in severity
+order → 3 fresh-context hostile critics on the diff → every critic P1 fixed → deterministic probe
+witnesses (.audit/) → full verify.
+
+**Shipped:**
+1. P0: group-aware income classification (real payroll was being netted as a refund since #163 —
+   prod savings rate/FI/coach garbage; goldens blind to it). isBudgetable group-aware ('Paycheck' was
+   the default budget-target option). 'refund' leaf still nets (critic).
+2. Next 15.5.19 → 16.2.10 exact-pinned (+ eslint-config-next 16 flat config): fixes the deterministic
+   GET flight-application bug — calendar paging 7/7 (was 5/7 FAIL, the "phase4:13 flake"),
+   transactions filters/pagination/Import 8/8 (was 4/4 FAIL).
+3. Mutation reliability: budgets/goals forms + clear/delete + MoneyDialsForm now direct-invoke +
+   own busy + withDeadline(8s) + reload-on-success (dials: inline confirmation, reload only on
+   severed confirmation) — post-action page application was a ~50% coin-flip on BOTH Next versions,
+   the #164 class app-wide; e2e had outrun it for months and the dials spec caught it mid-gate.
+   budget-probe 5/5 deterministic.
+   Money typos: inline errors, fields preserved, "$500"/"1,000" parse, "1,00" rejected (never ×100),
+   no more crash-to-boundary.
+4. SW v3: installability only, no fetch handler (v1/v2 amplified aborted action streams; offline
+   shell retired; installed clients self-heal). pwa spec now drives an action under a CONTROLLING SW.
+5. Ask honesty: unresolved-merchant spend abstains (parser + LLM fallback); afford+amount+future-date
+   → savings solver (current-month/rate/bill guards per critic); subscriptions total no longer ~7× off.
+6. Polish: overspent safe-to-spend reframe, recurring/goals truncation fixes, year in register/triage
+   dates, reports Uncategorized→Inbox link, aimplifi-* exports, nav prefetch=false, calendar
+   empty-month copy, dials error spacing.
+
+**Critics:** A (financial) 0 P0/P1 — F1 refund-leaf fixed, F2 comma-guard fixed, F3 doc fixed;
+B (forms/actions) P1 auto-reset — fixed structurally (no form-action dispatch at all);
+C (Ask routing) P1s F1/F2/F6 — all fixed + regression-locked, F7 whitelist added.
+
+**STANDING OWNER-ONLY:**
+- Push when authorized (this rides with the earlier unpushed #161/#162 + docs commits).
+- PROD CORROBORATION ASK: after deploying, use budgets/goals on the phone — mutations should now
+  always land. If other surfaces (accounts add/edit, settings, register recategorize) still feel
+  "did nothing", that's the same class → next increment applies the same pattern there.
+- The Vercel deploy must serve the new sw.js (it will — byte-change → clients update within a day).
+
+**NEXT INCREMENT candidates:** reliable-mutation pattern app-wide; merchant-spend Ask intent;
+category month-over-month drill-down; #71 nav redesign + settings reorg (owner-scoped); Recharts
+pinned-tooltip/width warning; triage accuracy-metric UX; "Connect a bank" button labels.
+
+### HANDOFF (resume after /clear) — 2026-07-05, session "#166 seamlessness", for Opus 4.8
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md + this handoff + docs/lessons/INDEX.md first
+(CLAUDE.md rule). The #166 seamlessness pass is COMPLETE and committed (see the commit right at HEAD;
+if no #166 commit exists at HEAD, the session died between gate and commit — the tree holds the full
+verified work: run `bash scripts/verify.sh`, then commit with the message in the paragraph below).
+
+**State:** local `main` carries the unpushed #161 + #162 commits (+ doc commits) AND the new #166
+commit. `origin/main` is at f17b0d0 (#160). **Push remains owner-gated** — when the owner says push,
+everything rides together. Working tree should be CLEAN after the #166 commit; `.audit/` is gitignored
+session scratch (probe outputs, screenshots) — leave or delete freely.
+
+**What #166 changed (full detail: DECISIONS #166, STATUS #166, REGRESSION_LEDGER 2026-07-05 ×3,
+docs/lessons/diagnose-hangs-at-boundaries.md):**
+- P0 money fix: `isIncomeCategoryId()` group-aware income classification (real payroll was netted as
+  a refund since #163 — prod savings rate/FI/coach were garbage; goldens were blind). 'refund' leaf
+  still nets. `isBudgetable` group-aware ('Paycheck' was the DEFAULT budget-target option).
+- Next 15.5.19 → **16.2.10** (exact-pinned; eslint-config-next 16 flat config in eslint.config.mjs).
+  Fixes the deterministic GET flight-application bug (calendar paging, transactions filters).
+- Mutation reliability: GoalForm / BudgetTargetForm / ClearBudgetButton / DeleteGoalButton /
+  MoneyDialsForm now direct-invoke server actions + own useState busy + withDeadline(8s,
+  src/components/finance/form-deadline.ts) + reload-on-success (dials: inline confirmation instead —
+  nothing on that page derives from them). NEVER convert these back to useActionState/form-action —
+  React 19 auto-reset wipes input on validation failure AND the pending/result application is the
+  #164 race (~50% loss at human pacing on this machine, e2e outruns it).
+- SW v3 = installability only (public/sw.js, NO fetch handler; offline shell retired; old installs
+  self-heal). Nav links prefetch={false} (app-nav.tsx). Ask honesty fixes (intent.ts/llm.ts/answer.ts).
+  Copy/layout polish per DECISIONS #166 item 7.
+- Probes live in **scripts/audit-probes/** (README explains how to run them; they catch what e2e
+  can't — plain pacing). Use them before/after touching mutations, navigation, Next version.
+
+**STANDING OWNER-ONLY (unchanged + new):**
+- Authorize the push (now: #161 + #162 + #166 + doc commits).
+- PROD CORROBORATION after deploy: budgets/goals/settings mutations on the phone should now always
+  land. If accounts add/edit, register recategorize, or settings category toggles still feel "did
+  nothing", that's the SAME class — next increment applies the same pattern there (see NEXT below).
+- Reboot-gated re-witness (#16) is OBSOLETE — #164/#166 root-caused that flake class; ignore old notes.
+- Paste ~10 real prod descriptors to pin #161's learn.ts signatures (still open from last session).
+- #155 Plaid / #156 SimpleFIN live-sandbox spot-checks (still open).
+
+**NEXT INCREMENT candidates (severity-ordered from the #166 audit; pick with the owner or by prod
+corroboration):**
+0. E2E scheduling hygiene: move manual-card-statement.spec.ts onto a THROWAWAY USER (auth.spec has
+   the signup pattern) — its $500-balance add→delete window collides with the exact net-worth
+   golden readers (phase1:38, ask:38/46) under fullyParallel; a retrying assertion cannot converge
+   on a static server render, so isolation is the only real fix. MITIGATED for now by the e2e
+   workers:4 cap (playwright.config.ts, #166) — the shared-SQLite harness at 8 workers severed
+   action streams and widened the collision window; at 4 the FULL suite is green (75/75, 59.7s).
+1. Reliable-mutation pattern app-wide: accounts add/edit/delete forms, settings category/custom
+   managers, register recategorize (agent-1 saw stale chips — same class), split/backfill buttons.
+   Recipe = the five #166 conversions; witness with a probe per surface.
+2. Merchant-spend Ask intent ("how much did I spend at Costco" should be ANSWERED, not abstained).
+3. Category month-over-month drill-down (reports rows → filtered register / per-category trend).
+4. #71 mobile-nav redesign + settings-page reorganization (owner-scoped design work).
+5. Smaller: Recharts pinned-on-load tooltip + width(-1) warning; triage accuracy-metric UX
+   (drops when filing ambiguous groups, doesn't restore on undo); "Connect a bank" button labels.
+
+**Gotchas for the next session:** never reseed the DB under a live server between probe runs (fakes
+alternating results); e2e-green ≠ healthy for pacing-sensitive races — trust the plain-paced probes;
+dev.db at repo root is the dev DB, e2e uses %TEMP%/aimplifi-e2e.db, probes use %TEMP%/aimplifi-audit.db.

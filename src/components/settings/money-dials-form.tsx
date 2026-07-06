@@ -1,14 +1,16 @@
 'use client';
 
 /**
- * Money Dials form. Posts to the updateMoneyDials server action via
- * useActionState so per-field validation errors render inline without leaving
- * the page. Inputs are pre-populated from the stored values (via the engine's
+ * Money Dials form. Calls the updateMoneyDials server action directly so
+ * per-field validation errors render inline without leaving the page (#166 —
+ * see the onSubmit comment for why not useActionState). Inputs are pre-populated from the stored values (via the engine's
  * UI-boundary display helpers); every projection field states its assumption
  * inline per the coaching guardrails.
  */
 import Link from 'next/link';
-import { useActionState } from 'react';
+import { useState } from 'react';
+import { withDeadline } from '@/components/triage/action-deadline';
+import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { CheckCircle2 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +28,7 @@ const fieldClass =
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
-    <span id={id} role="alert" className="text-xs text-red-400" data-testid={id}>
+    <span id={id} role="alert" className="block text-xs text-red-400" data-testid={id}>
       {message}
     </span>
   );
@@ -49,10 +51,30 @@ export function MoneyDialsForm({
   };
   accounts: { id: string; name: string }[];
 }) {
-  const [result, action, pending] = useActionState<DialsResult | null, FormData>(
-    updateMoneyDials,
-    null,
-  );
+  // #166: direct invocation + own busy flag + deadline — NOT useActionState
+  // (whose result/pending application was a coin-flip in probes: the
+  // "dials-saved" confirmation could simply never arrive while the save had
+  // committed). Unlike the budgets/goals forms, NO reload on success: nothing
+  // else on this page derives from the dials, and the result here is plain
+  // awaited state — deterministic on its own. Only a severed confirmation
+  // (deadline) reloads to show the truth.
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<DialsResult | null>(null);
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setBusy(true);
+    try {
+      const res = await withDeadline(updateMoneyDials(null, fd), FORM_ACTION_DEADLINE_MS);
+      setResult(res);
+    } catch {
+      // Deadline: the save usually COMMITTED — the reload shows the truth.
+      window.location.reload();
+      return;
+    } finally {
+      setBusy(false);
+    }
+  }
   const err = (f: DialField) => result?.errors?.[f];
   const describedBy = (f: DialField, hintId: string) =>
     err(f) ? `dials-error-${f} ${hintId}` : hintId;
@@ -64,7 +86,7 @@ export function MoneyDialsForm({
         <CardTitle className="text-base">Money dials</CardTitle>
       </CardHeader>
       <CardContent>
-        <form action={action} className="space-y-4" data-testid="money-dials-form">
+        <form onSubmit={onSubmit} className="space-y-4" data-testid="money-dials-form">
           {/* payment account — the input the whole cash-needed answer is built on */}
           {accounts.length === 0 ? (
             <div
@@ -277,8 +299,8 @@ export function MoneyDialsForm({
           </fieldset>
 
           <div className="flex items-center gap-3">
-            <Button type="submit" disabled={pending} data-testid="dials-submit">
-              {pending ? 'Saving…' : 'Save dials'}
+            <Button type="submit" disabled={busy} data-testid="dials-submit">
+              {busy ? 'Saving…' : 'Save dials'}
             </Button>
             {/* persistent live region so the success is announced (WCAG SC 4.1.3);
                 the dials-saved node stays conditional for the e2e count assertions */}

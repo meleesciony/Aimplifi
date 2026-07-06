@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { prisma } from '@/lib/db';
 import { goalFIImpact } from '@/lib/engine/goals';
@@ -12,7 +11,7 @@ import { getCoachData } from '@/server/coach';
 import { loadDebtAccounts } from '@/server/debt';
 import { DeleteGoalButton } from '@/components/finance/delete-goal-button';
 import { DebtFreedomPlanner } from '@/components/finance/debt-freedom-planner';
-import { createGoal } from '@/server/goal-actions';
+import { GoalForm } from '@/components/finance/goal-form';
 
 export const metadata = { title: "Goals" };
 
@@ -154,39 +153,7 @@ export default async function GoalsPage() {
           <CardTitle className="text-base">New goal</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={createGoal} className="flex flex-wrap items-end gap-2" data-testid="goal-form">
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Name
-              <input
-                name="name"
-                required
-                className="w-40 rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
-                placeholder="Emergency fund"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Target $
-              <input
-                name="target"
-                required
-                inputMode="decimal"
-                className="w-28 rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
-                placeholder="10000"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Monthly $ (optional)
-              <input
-                name="monthly"
-                inputMode="decimal"
-                className="w-28 rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
-                placeholder="500"
-              />
-            </label>
-            <Button type="submit" size="sm" data-testid="goal-create">
-              Add goal
-            </Button>
-          </form>
+          <GoalForm />
         </CardContent>
       </Card>
 

@@ -108,6 +108,16 @@ export function ReportsView({
                 <div className="flex items-baseline justify-between text-sm">
                   <span className="truncate">
                     {c.name} <span className="text-xs text-muted-foreground">· {c.group}</span>
+                    {/* #166: "Uncategorized" topping the list with no path to fix it
+                        reads as broken — link straight to the inbox that drains it. */}
+                    {c.categoryId === 'uncategorized' && (
+                      <>
+                        {' '}
+                        <Link href="/triage" className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+                          review in Inbox →
+                        </Link>
+                      </>
+                    )}
                   </span>
                   <span className="ml-2 shrink-0 tabular-nums">{formatCents(cents(c.amountCents))}</span>
                 </div>

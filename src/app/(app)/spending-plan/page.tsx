@@ -38,8 +38,11 @@ export default async function SpendingPlanPage() {
         data-testid="spending-plan-hero"
         className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-sm"
       >
+        {/* Overspent reframe (ROADMAP COPY-1): a giant "-$89.29" under a "safe to
+            spend" label reads like a broken number. Say what it means instead:
+            you're over plan by a positive amount, and safe-to-spend is $0. */}
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Safe to spend this month
+          {positive ? 'Safe to spend this month' : 'Over plan this month'}
         </p>
         <p
           data-testid="safe-to-spend"
@@ -47,7 +50,7 @@ export default async function SpendingPlanPage() {
             positive ? 'text-foreground' : 'text-red-500'
           }`}
         >
-          {formatCents(cents(p.leftToSpendCents))}
+          {formatCents(cents(positive ? p.leftToSpendCents : -p.leftToSpendCents))}
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
           {positive ? (
@@ -56,8 +59,8 @@ export default async function SpendingPlanPage() {
               the {p.daysLeftInMonth} day{p.daysLeftInMonth === 1 ? '' : 's'} left
             </>
           ) : (
-            <>You&apos;re {formatCents(cents(-p.leftToSpendCents))} over plan with {p.daysLeftInMonth} day
-            {p.daysLeftInMonth === 1 ? '' : 's'} left — ease off.</>
+            <>Safe to spend is $0 for the {p.daysLeftInMonth} day{p.daysLeftInMonth === 1 ? '' : 's'} left —
+            one tight month is weather, not climate.</>
           )}
         </p>
 

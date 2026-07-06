@@ -34,6 +34,7 @@ export default function PlaidOAuthReturnPage() {
     }
     const stored = readStoredLinkToken();
     if (!stored) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- pre-existing pattern surfaced by the react-hooks v6 upgrade (#166), not this increment's scope
       setStatus('');
       setError('Your bank connection session expired. Please start the connection again.');
       return;

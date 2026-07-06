@@ -232,8 +232,10 @@ export function TransactionList({
       ) : (
         groups.map((g) => (
           <div key={g.date}>
+            {/* 'long' (#166): the register spans years — "Wed, Jan 15" with no year
+                made Jan 2025 indistinguishable from Jan 2026. */}
             <div className="sticky top-0 bg-background/95 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
-              {formatISODate(isoDate(g.date))}
+              {formatISODate(isoDate(g.date), 'long')}
             </div>
             <ul className="divide-y rounded-md border">
               {g.items.map((t) => {

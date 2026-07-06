@@ -34,6 +34,7 @@ export function TransactionFilters({
   const [search, setSearch] = useState(current.search);
 
   // keep the local search box in sync if the URL changes elsewhere (e.g. Clear)
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- pre-existing pattern surfaced by the react-hooks v6 upgrade (#166), not this increment's scope
   useEffect(() => setSearch(current.search), [current.search]);
 
   function commit(next: Partial<typeof current>) {
@@ -66,7 +67,7 @@ export function TransactionFilters({
           type="search"
           inputMode="search"
           aria-label="Search transactions"
-          placeholder="Search merchant, description, or category…"
+          placeholder="Search transactions…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           data-testid="txn-search"

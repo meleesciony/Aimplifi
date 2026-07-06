@@ -78,10 +78,10 @@ export function assignableGroups(
 
 /**
  * Groups a user may file a CUSTOM category under (DECISIONS #111, critic F2/F4).
- * SPENDING groups only: the flow engines classify income and transfers by literal
- * id (`monthlyFlows` nets non-`income` inflows as refunds; reports/query exclude
- * `id==='transfer'`), so a custom placed in "Income" or "Transfers & Other" would
- * be mis-aggregated. Excluding those two groups makes every custom a genuine
+ * SPENDING groups only: the flow engines classify income by GROUP
+ * (`isIncomeCategoryId` — see #166; custom ids are never in the static
+ * taxonomy, so they always net as spending) and transfers by flag/id, so a
+ * custom placed in "Income" or "Transfers & Other" would be mis-aggregated. Excluding those two groups makes every custom a genuine
  * spending category, so a custom can never be mistaken for income or a transfer.
  */
 const NON_CUSTOM_GROUPS: ReadonlySet<string> = new Set(['Income', 'Transfers & Other']);

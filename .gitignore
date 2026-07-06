@@ -63,3 +63,4 @@ _*
 
 # Local secrets / recovery codes — never commit
 keys/
+.audit/

@@ -32,11 +32,13 @@ export function SafeToSpendCard({ plan }: { plan: SpendingPlan }) {
         </p>
       ) : (
         <>
+          {/* Overspent reframe (ROADMAP COPY-1): "Over by $X" beats a bare
+              negative dollar under a "safe to spend" label. */}
           <p
             className={`mt-1.5 text-2xl font-bold tabular-nums ${ok ? 'text-foreground' : 'text-rose-500'}`}
             data-testid="dashboard-safe-to-spend-amount"
           >
-            {formatCents(cents(plan.leftToSpendCents))}
+            {ok ? formatCents(cents(plan.leftToSpendCents)) : <>Over by {formatCents(cents(-plan.leftToSpendCents))}</>}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {ok ? (
@@ -45,7 +47,7 @@ export function SafeToSpendCard({ plan }: { plan: SpendingPlan }) {
                 {plan.daysLeftInMonth === 1 ? '' : 's'} left
               </>
             ) : (
-              <>over plan · {plan.daysLeftInMonth} day{plan.daysLeftInMonth === 1 ? '' : 's'} left</>
+              <>safe to spend is $0 · {plan.daysLeftInMonth} day{plan.daysLeftInMonth === 1 ? '' : 's'} left</>
             )}
           </p>
         </>

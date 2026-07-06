@@ -92,7 +92,13 @@ export function intentFromKind(kindRaw: string | null, question: string, today: 
       return { kind, timeframe, limit: 5 };
     case 'spend_by_category': {
       const target = resolveSpendTarget(question.toLowerCase());
-      return target ? { kind, timeframe, target } : { kind: 'spend_total', timeframe };
+      // #166 (critic F6): when the model says "category spend" but the category
+      // can't be re-derived from the user's own words, the old spend_total
+      // fallback re-created the exact hijack the deterministic parser now
+      // abstains from ("spent at costco" -> the ALL-spending total). Honest
+      // null (unknown) instead -- the model's kind is a hint, never a licence
+      // to answer a different question.
+      return target ? { kind, timeframe, target } : null;
     }
     case 'debt_free_by_date': {
       // The date is re-derived deterministically from the user's own words — the model

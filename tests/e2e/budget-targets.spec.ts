@@ -50,5 +50,7 @@ test('budget targets: set, scan a11y, overwrite atomically, then clear', async (
 
   // Clear it — this is also the cleanup, leaving the shared demo DB target-free.
   await page.getByTestId('budget-clear-dining').click();
-  await expect(page.getByTestId('budget-clear-dining')).toHaveCount(0);
+  // 15s: the clear confirms then FULL-RELOADS (#166 reliable-mutation pattern);
+  // deadline (8s worst case) + reload under full-suite load exceeds the default 5s.
+  await expect(page.getByTestId('budget-clear-dining')).toHaveCount(0, { timeout: 15000 });
 });

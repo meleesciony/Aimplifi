@@ -147,7 +147,8 @@ describe('custom category lifecycle (real actions, throwaway data — DECISIONS 
     const fd = new FormData();
     fd.set('categoryId', id);
     fd.set('amount', '120');
-    await setBudget(fd);
+    const setRes = await setBudget(null, fd);
+    expect(setRes.ok).toBe(true);
     expect(await prisma.budget.count({ where: { userId: USER, categoryId: id } })).toBe(1);
 
     // a rule + a transaction referencing it, to exercise the delete cleanup

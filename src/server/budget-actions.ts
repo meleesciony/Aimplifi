@@ -12,20 +12,41 @@ import { isBudgetable, parseBudgetTargetCents } from '@/lib/engine/budgets/statu
 import { auditLog, requireUserId } from '@/server/authz';
 import { assertOwnedCategory } from '@/server/category-meta';
 
-export async function setBudget(formData: FormData): Promise<void> {
+export interface BudgetFormResult {
+  ok: boolean;
+  /** Inline message for the amount field when validation failed (#166). */
+  amountError?: string;
+  /**
+   * Echoed for the form's defaultValues: React 19 resets the form after EVERY
+   * dispatch, snapping the select back to the first option — a user retyping
+   * a corrected amount could silently target the WRONG category (#166 critic
+   * P1). categoryId is echoed on success AND failure (keep the selection);
+   * amount only on failure (clear it once set).
+   */
+  values?: { categoryId: string; amount: string };
+}
+
+export async function setBudget(
+  _prev: BudgetFormResult | null,
+  formData: FormData,
+): Promise<BudgetFormResult> {
   const userId = await requireUserId();
   const categoryId = String(formData.get('categoryId') ?? '').trim();
   // Validate against the SAME set the UI offers (real + budgetable), so the
   // accepted set equals the offered set — a hand-crafted POST can't target
   // income/transfer/uncategorized. `isBudgetable` rejects those; `assertOwned`
   // then confirms the id is a known system category OR a custom this user owns,
-  // so it can't target a foreign custom id either (DECISIONS #111).
+  // so it can't target a foreign custom id either (DECISIONS #111). The picker
+  // can't produce a bad id, so a bad one stays a throw (tamper, not typo).
   if (!isBudgetable(categoryId)) {
     throw new Error('Choose a valid spending category');
   }
   await assertOwnedCategory(userId, categoryId);
+  // The amount IS free-typed — a typo gets an inline error, never a crash (#166).
   const monthCents = parseBudgetTargetCents(String(formData.get('amount') ?? ''));
-  if (monthCents === null) throw new Error('Enter a monthly target greater than $0');
+  if (monthCents === null) {
+    return { ok: false, amountError: 'Enter a monthly amount above $0 — like 500 or $1,200.' };
+  }
 
   // One target per (user, category): a single atomic upsert on the compound
   // unique — structurally one row, no find-then-write race (schema @@unique).
@@ -36,6 +57,7 @@ export async function setBudget(formData: FormData): Promise<void> {
   });
   await auditLog(userId, 'budget.set', { categoryId, monthCents });
   revalidatePath('/budgets');
+  return { ok: true };
 }
 
 export async function clearBudget(categoryId: string): Promise<void> {

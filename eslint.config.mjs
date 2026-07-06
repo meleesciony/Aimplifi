@@ -1,16 +1,11 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+// eslint-config-next 16 ships native flat configs (the FlatCompat wrapper used
+// for the 15.x eslintrc-style config now throws a circular-structure error).
+import coreWebVitals from "eslint-config-next/core-web-vitals";
+import typescript from "eslint-config-next/typescript";
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...coreWebVitals,
+  ...typescript,
   {
     ignores: [
       "node_modules/**",
@@ -18,6 +13,9 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Session-audit scratch output (probe scripts, screenshots) — gitignored,
+      // not product code.
+      ".audit/**",
     ],
   },
 ];

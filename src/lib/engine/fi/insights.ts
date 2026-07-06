@@ -9,7 +9,7 @@
 import { type Cents, cents } from '@/lib/money';
 import { type ISODate, addMonthsClamped, isoDate } from '@/lib/dates';
 import { categorize } from '@/lib/engine/categorize/pipeline';
-import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId } from '@/lib/engine/categorize/categories';
 import type { RecurringSeriesResult } from '@/lib/engine/recurring/detect';
 import { opportunityFVCents, savingsRateBps } from './fi';
 
@@ -49,10 +49,16 @@ export interface MonthlyFlow {
  * Refunds are NETTED against spend (ROADMAP #4): a positive transaction in a
  * NON-income category (e.g. a return to 'shopping') reduces that month's
  * expenses rather than counting as income — so a $450 purchase with a $100
- * return shows $350 of spend, not $450 of spend + $100 of "income". Payroll and
- * other true income (category 'income') still count as income; a positive with
- * no/unknown category stays income (we don't net an ambiguous inflow against
- * spend). A month's expenses never go below 0.
+ * return shows $350 of spend, not $450 of spend + $100 of "income". A positive
+ * in an Income-GROUP category ('income' or a #163 leaf like 'paycheck' — the
+ * id the categorizer assigns real PAYROLL/DIRECT-DEP descriptors) counts as
+ * income — EXCEPT the 'refund' leaf: a manually-filed "Refund" is a
+ * merchandise return, and counting it as income would inflate income AND
+ * expenses versus the same return filed to its purchase category (#166 critic
+ * F1); tax refunds and reimbursements DO count as income (they aren't offsets
+ * of a tracked purchase). A positive with no/unknown category stays income
+ * (we don't net an ambiguous inflow against spend). A month's expenses never
+ * go below 0.
  */
 export function monthlyFlows(transactions: readonly TxnLike[]): MonthlyFlow[] {
   const byMonth = new Map<string, { income: number; expenses: number }>();
@@ -60,7 +66,7 @@ export function monthlyFlows(transactions: readonly TxnLike[]): MonthlyFlow[] {
     if (!countsInFlows(t)) continue;
     const slot = byMonth.get(ym(t.date)) ?? { income: 0, expenses: 0 };
     if (t.amountCents > 0) {
-      if (t.categoryId && t.categoryId !== 'income') slot.expenses -= t.amountCents; // refund
+      if (t.categoryId && (t.categoryId === 'refund' || !isIncomeCategoryId(t.categoryId))) slot.expenses -= t.amountCents; // refund
       else slot.income += t.amountCents;
     } else {
       slot.expenses += -t.amountCents;

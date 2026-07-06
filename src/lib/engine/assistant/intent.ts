@@ -482,6 +482,33 @@ const DEFAULT_LARGEST_LIMIT = 5;
  * caught before the generic "savings" account match; "how much can I spend" is
  * safe-to-spend, tested before the past-tense "how much did I spend" total).
  */
+/**
+ * True when the question's dollar figure is a per-period RATE ("$500 a month",
+ * "$500/mo", "$500 monthly") rather than a lump-sum target — solving a lump
+ * goal from a rate contradicts the user's own number. The digit must sit
+ * ADJACENT to the period cue (whitespace only), so "how much per month to save
+ * $20,000 by 2027" does NOT fire (confirm-critic #126). Shared by the
+ * savings-goal and afford routes (#166) so they can't disagree.
+ */
+/**
+ * Objects after a spend-verb's at/on/with that still mean "the whole total"
+ * ("on everything", "in total") or a month/date reference ("on March 5" — a
+ * timeframe parseTimeframe already consumed). Anything else after at/on/with
+ * is an unresolved target (merchant, card, "average") and abstains (#166).
+ */
+const TOTAL_SPEND_OBJECTS = new Set([
+  'everything', 'everyone', 'all', 'total', 'it',
+  'jan', 'january', 'feb', 'february', 'mar', 'march', 'apr', 'april', 'may',
+  'jun', 'june', 'jul', 'july', 'aug', 'august', 'sep', 'sept', 'september',
+  'oct', 'october', 'nov', 'november', 'dec', 'december',
+]);
+
+function statedAmountIsPerPeriodRate(q: string): boolean {
+  return /\$?\s?\d[\d,]*(?:\.\d{1,2})?\s*(?:\/\s*(?:mo|month|wk|week|yr|year|day)|(?:a|per|each)\s+(?:month|week|year|day|fortnight)|monthly|weekly|biweekly|fortnightly|yearly|annually)\b/.test(
+    q,
+  );
+}
+
 export function parseAssistantQuery(
   question: string,
   today: ISODate,
@@ -560,10 +587,7 @@ export function parseAssistantQuery(
     // Crucially this does NOT fire when "per month"/"monthly" is the QUANTITY BEING SOLVED FOR
     // ("how much per month to save $20,000 by 2027") — the digit must be adjacent, whitespace only
     // (confirm-critic #126: the broad whole-question guard blocked the feature's own canonical form).
-    const amountIsRate =
-      /\$?\s?\d[\d,]*(?:\.\d{1,2})?\s*(?:\/\s*(?:mo|month|wk|week|yr|year|day)|(?:a|per|each)\s+(?:month|week|year|day|fortnight)|monthly|weekly|biweekly|fortnightly|yearly|annually)\b/.test(
-        q,
-      );
+    const amountIsRate = statedAmountIsPerPeriodRate(q);
     // A PAST/STATUS review with NO figure ("did I reach my savings goal in March", "…as of
     // December") isn't a forward plan — suppress ONLY the amount-free clarify path. Once a real
     // amount is present it's a concrete goal, so route it even with an inverted "have I"
@@ -631,6 +655,26 @@ export function parseAssistantQuery(
     /\bcan i (afford|safely spend|spend)\b/.test(q) ||
     /\bafford\b/.test(q)
   ) {
+    // #166 (audit P1): "can I afford a $3,000 vacation in September" was
+    // answered with THIS MONTH's plan, silently discarding both the amount and
+    // the date. With a concrete LUMP amount AND a target date STRICTLY BEYOND
+    // the current month it IS the inverse savings question — route it to the
+    // same solver as "can I save $X by <date>". Guards (critic F1/F2): a
+    // per-period rate ("afford $500 a month…"), a CURRENT-month date ("this
+    // month" — exactly what safe_to_spend answers), and recurring-bill
+    // vocabulary ("afford my rent/payment" — an obligation, not a savings
+    // goal) all stay on the affordability answer.
+    if (
+      /\bafford\b/.test(q) &&
+      !statedAmountIsPerPeriodRate(q) &&
+      !/\b(rent|mortgage|bills?|payments?)\b/.test(q)
+    ) {
+      const amount = parseTargetAmount(q);
+      const target = amount !== null ? parseTargetDate(q, today) : null;
+      if (amount !== null && target && target.date.slice(0, 7) > today.slice(0, 7)) {
+        return { kind: 'savings_goal_by_date', targetDate: target.date, targetCents: amount, label: target.label };
+      }
+    }
     return { kind: 'safe_to_spend' };
   }
 
@@ -663,6 +707,20 @@ export function parseAssistantQuery(
     const timeframe = parseTimeframe(q, today);
     if (wantsRanking && !target) return { kind: 'top_categories', timeframe, limit: DEFAULT_TOP_LIMIT };
     if (target) return { kind: 'spend_by_category', timeframe, target };
+    // #166 (audit P1): "how much did I spend AT COSTCO" reached here with its
+    // qualifier unresolved (Costco is a merchant, not a category) and was
+    // answered with the ALL-spending total — a confident answer to a different
+    // question. If a spend verb is followed by an at/on/with object that did
+    // NOT resolve to a category, abstain to the honest unknown redirect
+    // instead. Per-merchant totals are a real intent to build (NEXT list);
+    // until then honesty beats a wrong headline. "on average" also abstains —
+    // spend_total can't answer that either. Objects that ARE the total
+    // ("on everything", "in total") or a month name ("on March 5" — a
+    // timeframe, parsed above) keep the total answer (critic F7).
+    const objectMatch = /\b(?:spend|spent|spending)\b[^.?!]{0,40}?\b(?:at|on|with)\s+([a-z0-9]+)/.exec(q);
+    if (objectMatch && !TOTAL_SPEND_OBJECTS.has(objectMatch[1])) {
+      return { kind: 'unknown', question };
+    }
     return { kind: 'spend_total', timeframe };
   }
 

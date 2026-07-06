@@ -1,10 +1,16 @@
 /**
- * PWA offline support (ROADMAP #5): the service worker registers (production
- * build) and an offline navigation falls back to the precached /offline shell
- * instead of the browser's error page. 380×800.
+ * PWA service worker (#166, supersedes the ROADMAP #5 offline shell): the SW
+ * registers and CONTROLS the page, and — the regression this spec exists for —
+ * a server action still round-trips UNDER that controlling SW.
  *
- * The SW is network-first for navigations, so this is the ONLY spec that goes
- * offline — every other spec always hits the network (fresh), unaffected.
+ * History: the v1/v2 SW's fetch listener intermittently aborted streamed
+ * server-action POST responses (net::ERR_ABORTED after a 200) in Chromium AND
+ * branded Chrome, so useActionState never resolved: buttons wedged at
+ * "Setting…", mutations looked like silent no-ops app-wide. v3 removes the
+ * fetch handler entirely (installability only, no interception, no offline
+ * shell — an offline visit now fails like any website). Every prior e2e run
+ * dodged the bug because tests outran SW activation; this spec explicitly
+ * WAITS for the SW to control the page before driving the action.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -14,26 +20,31 @@ async function signIn(page: Page) {
   await page.waitForURL('**/dashboard');
 }
 
-test('service worker registers and an offline reload shows the offline shell', async ({ page, context }) => {
+test('server actions round-trip under a CONTROLLING service worker (the v1/v2 abort regression)', async ({ page }) => {
   await signIn(page);
 
-  // The SW registers on window-load (production build) and claims the page.
+  // The SW registers on window-load (production build); v3's clients.claim()
+  // takes control without a reload. Wait for actual CONTROL, not just an
+  // active registration — control is what routed requests through the SW and
+  // triggered the abort.
   await page.waitForFunction(
     async () => {
       if (!('serviceWorker' in navigator)) return false;
       const reg = await navigator.serviceWorker.getRegistration();
-      return Boolean(reg && reg.active);
+      return Boolean(reg && reg.active && navigator.serviceWorker.controller);
     },
     undefined,
     { timeout: 20000 },
   );
-  // `ready` resolves with an active SW; the /offline shell is precached at install.
-  await page.evaluate(() => navigator.serviceWorker.ready);
 
-  // Offline navigation → the SW serves the precached /offline shell, not a crash.
-  await context.setOffline(true);
-  await page.reload();
-  await expect(page.getByTestId('offline-heading')).toBeVisible({ timeout: 10000 });
-
-  await context.setOffline(false);
+  // Drive a real useActionState server action under the controlling SW:
+  // set a budget target, see it render, then clear it (leaves the shared demo
+  // DB target-free). Under the v1/v2 SW this sequence wedged at "Setting…".
+  await page.goto('/budgets');
+  await page.getByTestId('budget-category').selectOption('groceries');
+  await page.getByTestId('budget-amount').fill('123');
+  await page.getByTestId('budget-set').click();
+  await expect(page.getByTestId('budget-clear-groceries')).toBeVisible({ timeout: 15000 });
+  await page.getByTestId('budget-clear-groceries').click();
+  await expect(page.getByTestId('budget-clear-groceries')).toHaveCount(0, { timeout: 15000 });
 });

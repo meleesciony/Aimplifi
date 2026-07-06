@@ -739,14 +739,27 @@ export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer 
   const facts = summary.subscriptions
     .slice(0, 5)
     .map((s) => ({ label: s.merchantCanonical, value: `${fmt(s.monthlyEquivalentCents)}/mo` }));
-  let detail: string | undefined;
+  // #166: the headline must total SUBSCRIPTIONS only. monthlyRecurringSpendCents
+  // is subs + bills, so the old copy attributed rent/loans to "subscriptions"
+  // (~7× off for the demo: $2,552.43 claimed vs the true $367.43) — visibly
+  // contradicting its own top-5 facts list.
+  const subsMonthlyCents = summary.subscriptions.reduce((a, s) => a + s.monthlyEquivalentCents, 0);
+  const billsMonthlyCents = summary.bills.reduce((a, s) => a + s.monthlyEquivalentCents, 0);
+  const detailParts: string[] = [];
+  if (billsMonthlyCents > 0) {
+    detailParts.push(
+      `Recurring bills (rent, loans, utilities) add ${fmt(billsMonthlyCents)}/mo on top — ${fmt(summary.monthlyRecurringSpendCents)}/mo of recurring charges in total.`,
+    );
+  }
   if (summary.priceIncreases.length > 0) {
-    detail = `${summary.priceIncreases.length} ${summary.priceIncreases.length === 1 ? 'subscription has' : 'subscriptions have'} gone up in price recently.`;
+    detailParts.push(
+      `${summary.priceIncreases.length} ${summary.priceIncreases.length === 1 ? 'subscription has' : 'subscriptions have'} gone up in price recently.`,
+    );
   }
   return {
     kind: 'subscriptions',
-    headline: `You're paying about ${fmt(summary.monthlyRecurringSpendCents)}/mo across ${summary.activeSubscriptionCount} active ${summary.activeSubscriptionCount === 1 ? 'subscription' : 'subscriptions'}.`,
-    detail,
+    headline: `You're paying about ${fmt(subsMonthlyCents)}/mo across ${summary.activeSubscriptionCount} active ${summary.activeSubscriptionCount === 1 ? 'subscription' : 'subscriptions'}.`,
+    detail: detailParts.length > 0 ? detailParts.join(' ') : undefined,
     facts,
     source,
   };

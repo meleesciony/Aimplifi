@@ -262,20 +262,40 @@ describe('answerCashNeeded', () => {
 });
 
 describe('answerSubscriptions', () => {
-  it('total + count + price-increase note', () => {
+  // #166: the headline totals SUBSCRIPTIONS ONLY. The old copy used
+  // monthlyRecurringSpendCents (subs + bills), attributing rent/loans to
+  // "subscriptions" (~7× off for the demo). Bills are disclosed separately.
+  it('headline totals subscriptions only; bills disclosed in detail; price-increase note kept', () => {
     const summary = {
       activeSubscriptionCount: 3,
-      monthlyRecurringSpendCents: 4997,
+      monthlyRecurringSpendCents: 4997 + 180000,
       subscriptions: [
         { merchantCanonical: 'NETFLIX', monthlyEquivalentCents: 1799 },
         { merchantCanonical: 'SPOTIFY', monthlyEquivalentCents: 1199 },
+        { merchantCanonical: 'HULU', monthlyEquivalentCents: 1999 },
       ],
+      bills: [{ merchantCanonical: 'RENT', monthlyEquivalentCents: 180000 }],
       priceIncreases: [{ merchantCanonical: 'NETFLIX' }],
     } as unknown as RecurringSummary;
     const a = answerSubscriptions(summary);
     expect(a.headline).toBe("You're paying about $49.97/mo across 3 active subscriptions.");
-    expect(a.detail).toBe('1 subscription has gone up in price recently.');
+    expect(a.detail).toBe(
+      'Recurring bills (rent, loans, utilities) add $1,800.00/mo on top — $1,849.97/mo of recurring charges in total. 1 subscription has gone up in price recently.',
+    );
     expect(a.facts[0]).toEqual({ label: 'NETFLIX', value: '$17.99/mo' });
+  });
+
+  it('no bills → no bills sentence', () => {
+    const summary = {
+      activeSubscriptionCount: 1,
+      monthlyRecurringSpendCents: 1799,
+      subscriptions: [{ merchantCanonical: 'NETFLIX', monthlyEquivalentCents: 1799 }],
+      bills: [],
+      priceIncreases: [],
+    } as unknown as RecurringSummary;
+    const a = answerSubscriptions(summary);
+    expect(a.headline).toBe("You're paying about $17.99/mo across 1 active subscription.");
+    expect(a.detail).toBeUndefined();
   });
 });
 

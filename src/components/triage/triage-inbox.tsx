@@ -135,6 +135,7 @@ export function TriageInbox({
 
   // Overlay bridge → prune once the server list knows the id (critic P2).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- pre-existing pattern surfaced by the react-hooks v6 upgrade (#166), not this increment's scope
     setExtraCategories((xs) => {
       if (xs.length === 0) return xs;
       const pruned = xs.filter((c) => !categories.some((k) => k.id === c.id));
@@ -967,8 +968,8 @@ export function TriageInbox({
           </div>
           <p className="text-xs text-muted-foreground" data-testid="triage-group-meta">
             {one
-              ? `1 transaction · ${formatISODate(isoDate(top.newestDate))} · ${anchorRow.accountName}`
-              : `${top.count} transactions · ${formatISODate(isoDate(top.oldestDate))} – ${formatISODate(isoDate(top.newestDate))}`}
+              ? `1 transaction · ${formatISODate(isoDate(top.newestDate), 'long')} · ${anchorRow.accountName}`
+              : `${top.count} transactions · ${formatISODate(isoDate(top.oldestDate), 'long')} – ${formatISODate(isoDate(top.newestDate), 'long')}`}
             {one && anchorRow.status === 'PENDING' && (
               <Badge variant="outline" className="ml-1">
                 pending
@@ -1016,7 +1017,7 @@ export function TriageInbox({
             <div key={r.id} className="rounded-md border px-2 py-1.5" data-testid="triage-single-row">
               <div className="flex items-center justify-between gap-2 text-sm">
                 <span className="text-xs text-muted-foreground">
-                  {formatISODate(isoDate(r.date))} · {r.accountName}
+                  {formatISODate(isoDate(r.date), 'long')} · {r.accountName}
                 </span>
                 <span className="tabular-nums">{formatCents(cents(r.amountCents), { signDisplay: 'always' })}</span>
               </div>

@@ -68,16 +68,23 @@ function Row({
         </div>
         <div className="truncate text-xs text-muted-foreground">
           {catName} · {accountNames[item.accountId] ?? '—'}
-          {item.active ? (
-            <> · next ~ {formatISODate(isoDate(item.nextExpectedAt))}</>
-          ) : (
-            <> · last seen {formatISODate(isoDate(item.lastSeenAt))}</>
-          )}
         </div>
       </div>
-      <div className="shrink-0 text-right tabular-nums">
-        <span className="font-medium">{formatCents(cents(mag))}</span>
-        <span className="text-xs text-muted-foreground">{CADENCE_SUFFIX[item.cadence]}</span>
+      {/* The next-charge date is the row's key fact — it lives in the fixed right
+          column so the truncating left subtitle can never swallow it (it did at
+          380px: "next ~ Mon, Ju…"). */}
+      <div className="shrink-0 text-right">
+        <div className="tabular-nums">
+          <span className="font-medium">{formatCents(cents(mag))}</span>
+          <span className="text-xs text-muted-foreground">{CADENCE_SUFFIX[item.cadence]}</span>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {item.active ? (
+            <>next ~ {formatISODate(isoDate(item.nextExpectedAt))}</>
+          ) : (
+            <>last seen {formatISODate(isoDate(item.lastSeenAt))}</>
+          )}
+        </div>
       </div>
     </li>
   );

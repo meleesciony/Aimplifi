@@ -7,10 +7,12 @@
  * Golden-safety: the statement balance is $0, so the card joins the cash-needed
  * answer with cashRequired = 0 → it is EXCLUDED from the headline total, leaving
  * the demo's pinned cash-needed values ($5,412.33 etc.) untouched for the
- * concurrent phase-1 specs. The card's positive *balance* perturbs net worth only
- * for the brief add→delete window — the same, already-accepted pattern as the
- * manual-home test (DECISIONS #39), and Playwright's retrying assertions converge
- * once it's deleted. The REAL-amount precise-path effect (a $1,200 statement
+ * concurrent phase-1 specs. The card's positive *balance* perturbs net worth for
+ * the add→delete window — a pre-existing, accepted scheduling roulette (the
+ * manual-home precedent, DECISIONS #39) whose odds worsened once #166's
+ * reload-bearing specs slowed the suite; note a retrying assertion CANNOT
+ * converge on a static server render, so the real fix is running this spec on a
+ * THROWAWAY USER (top of the #166 NEXT list), not longer timeouts. The REAL-amount precise-path effect (a $1,200 statement
  * producing an exact obligation) is proven deterministically and in isolation in
  * tests/unit/card-actions.test.ts.
  */

@@ -54,7 +54,12 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
 
   return (
     <>
-      {/* top nav: full set from sm up; secondary-only on phones (primary moves to the bottom bar) */}
+      {/* top nav: full set from sm up; secondary-only on phones (primary moves to the bottom bar).
+          prefetch={false} on ALL nav links (#166): every revalidatePath invalidated the router
+          cache and re-fired ~12 nav prefetches at once; a post-action router.refresh() racing
+          that storm was intermittently aborted (net::ERR_ABORTED), so mutations looked like
+          silent no-ops. Nav clicks now fetch on demand (~600ms warm) — a fair trade for
+          mutations that always land. */}
       <nav className="flex items-center gap-0.5 sm:gap-1" aria-label="Main">
         <Link href="/dashboard" className="mr-1 text-base font-bold tracking-tight sm:mr-2 sm:text-lg">
           Aim<span className="text-emerald-500">plifi</span>
@@ -63,6 +68,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
           <Link
             key={item.href}
             href={item.href}
+            prefetch={false}
             data-testid={item.testid}
             aria-current={isActive(item.href) ? 'page' : undefined}
             className={`hidden sm:block ${topLinkClass(isActive(item.href))}`}
@@ -78,6 +84,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               data-testid={item.testid}
               aria-current={active ? 'page' : undefined}
               aria-label={item.label}
@@ -112,6 +119,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               aria-current={active ? 'page' : undefined}
               data-testid={`bottom-${item.testid}`}
               className={`pointer-events-auto relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] ${

@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CATEGORIES, categoryName, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
 import { isBudgetable, netSpendByCategory, summarizeBudgets } from '@/lib/engine/budgets/status';
@@ -9,7 +8,8 @@ import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { cents, formatCents } from '@/lib/money';
 import { getProvider } from '@/lib/providers/demo';
 import { prisma } from '@/lib/db';
-import { clearBudget, setBudget } from '@/server/budget-actions';
+import { BudgetTargetForm } from '@/components/finance/budget-target-form';
+import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
 import { getCustomCategories } from '@/server/category-meta';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { ConsciousBucketsStrip } from '@/components/finance/conscious-buckets-strip';
@@ -102,23 +102,7 @@ export default async function BudgetsPage() {
                       )}
                     </span>
                     {row.budgetCents !== null && (
-                      <form
-                        action={async () => {
-                          'use server';
-                          await clearBudget(row.categoryId);
-                        }}
-                      >
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          type="submit"
-                          aria-label={`Clear target for ${row.name}`}
-                          data-testid={`budget-clear-${row.categoryId}`}
-                          className="h-6 px-1 text-xs text-muted-foreground"
-                        >
-                          Clear
-                        </Button>
-                      </form>
+                      <ClearBudgetButton categoryId={row.categoryId} name={row.name} />
                     )}
                   </span>
                 </div>
@@ -163,37 +147,7 @@ export default async function BudgetsPage() {
           <CardTitle className="text-base">Set a monthly target</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={setBudget} className="flex flex-wrap items-end gap-2" data-testid="budget-target-form">
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Category
-              <select
-                name="categoryId"
-                required
-                data-testid="budget-category"
-                className="h-9 w-44 rounded-md border border-input bg-background px-2 text-sm text-foreground"
-              >
-                {categoryOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Monthly $
-              <input
-                name="amount"
-                required
-                inputMode="decimal"
-                placeholder="500"
-                data-testid="budget-amount"
-                className="h-9 w-28 rounded-md border border-input bg-background px-2 text-sm text-foreground"
-              />
-            </label>
-            <Button type="submit" size="sm" data-testid="budget-set">
-              Set target
-            </Button>
-          </form>
+          <BudgetTargetForm categoryOptions={categoryOptions.map((c) => ({ id: c.id, name: c.name }))} />
           <p className="mt-2 text-xs text-muted-foreground">
             Setting a target just adds a progress bar — it never blocks spending or judges a
             category. Clear it anytime.

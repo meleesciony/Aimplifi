@@ -9,6 +9,7 @@ import {
   parseBudgetTargetCents,
   summarizeBudgets,
 } from '@/lib/engine/budgets/status';
+import { CATEGORIES } from '@/lib/engine/categorize/categories';
 
 const NAME = (id: string) => ({ dining: 'Dining Out', groceries: 'Groceries', rent: 'Rent' }[id] ?? id);
 const DIALS = new Set(['Dining Out']);
@@ -114,6 +115,21 @@ describe('isBudgetable', () => {
     expect(isBudgetable('transfer')).toBe(false);
     expect(isBudgetable('uncategorized')).toBe(false);
   });
+
+  // REGRESSION (2026-07-05): the id deny-list predated the #163 leaf taxonomy,
+  // so 'Paycheck' — an Income-group leaf — was the picker's DEFAULT option for a
+  // monthly SPENDING target. The whole Income group and credit-card payments
+  // (money movement, not spend) are out; custom ids stay budgetable.
+  it('test_regression__budgetable-income-leaves: every Income-group leaf is excluded', () => {
+    for (const c of CATEGORIES.filter((c) => c.group === 'Income')) {
+      expect(isBudgetable(c.id), `Income leaf '${c.id}' must not be a spend target`).toBe(false);
+    }
+  });
+
+  it('excludes credit-card-payment (money movement), keeps custom categories budgetable', () => {
+    expect(isBudgetable('credit-card-payment')).toBe(false);
+    expect(isBudgetable('cl_custom123')).toBe(true);
+  });
 });
 
 describe('parseBudgetTargetCents', () => {
@@ -127,7 +143,11 @@ describe('parseBudgetTargetCents', () => {
     ['', null],
     ['   ', null],
     ['abc', null],
-    ['$5', null],
+    // #166 lenient boundary parse: "$5" / "1,200" are what real users type —
+    // they now parse instead of silently failing (was pinned null pre-#166).
+    ['$5', 500],
+    ['1,200', 120000],
+    ['$1,200.50', 120050],
     ['5.555', null],
   ];
   it.each(cases)('%s -> %s', (input, expected) => {

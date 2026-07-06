@@ -42,8 +42,13 @@ export function RecurringSummaryCard({ summary }: { summary: RecurringSummary })
             {formatCents(cents(summary.monthlyRecurringSpendCents))}
             <span className="ml-1 text-sm font-normal text-muted-foreground">/mo</span>
           </p>
+          {/* #166: the headline total is subscriptions + bills — say so. "8
+              subscriptions" alone misattributed rent/loans to subscriptions. */}
           <p className="mt-0.5 text-xs text-muted-foreground">
             {summary.activeSubscriptionCount} subscription{summary.activeSubscriptionCount === 1 ? '' : 's'}
+            {summary.bills.length > 0 && (
+              <> + {summary.bills.length} bill{summary.bills.length === 1 ? '' : 's'}</>
+            )}
             {next && (
               <>
                 {' '}

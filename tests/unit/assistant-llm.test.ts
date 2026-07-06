@@ -44,11 +44,12 @@ describe('intentFromKind — params come from the question, not the model', () =
       target: { type: 'category', categoryId: 'groceries', label: 'Groceries' },
     });
   });
-  it('category route with no resolvable target falls back to a total', () => {
-    expect(intentFromKind('spend_by_category', 'how much did I spend', TODAY)).toEqual({
-      kind: 'spend_total',
-      timeframe: { fromYm: '2026-06', toYm: '2026-06', label: 'this month' },
-    });
+  it('category route with no resolvable target returns null — never a total (#166 critic F6)', () => {
+    // The old spend_total fallback re-created the hijack the deterministic
+    // parser abstains from: with an LLM key set, "spent at costco" escalated
+    // to the model, came back spend_by_category, failed to resolve, and was
+    // answered with the ALL-spending total anyway. Honest unknown instead.
+    expect(intentFromKind('spend_by_category', 'how much did I spend at costco', TODAY)).toBeNull();
   });
   it('rejects a null / non-routable kind', () => {
     expect(intentFromKind(null, 'x', TODAY)).toBeNull();

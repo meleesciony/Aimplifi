@@ -114,8 +114,11 @@ export function DebtFreedomPlanner({ debts, today }: { debts: DebtInput[]; today
             return (
               <li key={d.id} className="flex items-baseline justify-between gap-2">
                 <span className="min-w-0 truncate font-medium">{d.name}</span>
+                {/* Two-line right column: the single-line "cleared by … · $… interest"
+                    starved the debt name to ~6 chars at 380px ("Platinu…"). */}
                 <span className="shrink-0 text-right tabular-nums text-muted-foreground">
-                  {when ? `cleared by ${when}` : 'not on this plan'} · {formatCents(cents(d.interestCents))} interest
+                  <span className="block">{when ? `cleared by ${when}` : 'not on this plan'}</span>
+                  <span className="block text-xs">{formatCents(cents(d.interestCents))} interest</span>
                 </span>
               </li>
             );

@@ -3,6 +3,7 @@ import {
   averageDailyBalanceInterestCents,
   cents,
   centsFromDollarString,
+  parseDollarInput,
   floorAtZero,
   formatCents,
   maxCents,
@@ -148,6 +149,31 @@ describe('centsFromDollarString — exact parsing, no float math', () => {
     expect(() => centsFromDollarString('12.345')).toThrow();
     expect(() => centsFromDollarString('$12')).toThrow();
     expect(() => centsFromDollarString('')).toThrow();
+  });
+});
+
+describe('parseDollarInput — lenient form-boundary parse (seamlessness #166)', () => {
+  it('accepts the formats real users type', () => {
+    expect(parseDollarInput('$500')).toBe(50000);
+    expect(parseDollarInput('1,000')).toBe(100000);
+    expect(parseDollarInput('$1,234.56')).toBe(123456);
+    expect(parseDollarInput('  500  ')).toBe(50000);
+    expect(parseDollarInput('0.5')).toBe(50);
+    expect(parseDollarInput('-$5')).toBe(-500); // sign preserved; callers gate positivity
+  });
+  it('returns null (never throws) on garbage', () => {
+    expect(parseDollarInput('abc')).toBeNull();
+    expect(parseDollarInput('')).toBeNull();
+    expect(parseDollarInput('1.2.3')).toBeNull();
+    expect(parseDollarInput('12.345')).toBeNull();
+    expect(parseDollarInput('$')).toBeNull();
+  });
+  it('commas must be real thousands grouping — comma-as-decimal is rejected, never 100x (#166 F2)', () => {
+    expect(parseDollarInput('1,00')).toBeNull(); // meant $1.00 — must not become $100
+    expect(parseDollarInput('0,5')).toBeNull();
+    expect(parseDollarInput('12,34')).toBeNull();
+    expect(parseDollarInput('1,2,3')).toBeNull();
+    expect(parseDollarInput('12,345,678.90')).toBe(1234567890); // real grouping still parses
   });
 });
 

@@ -27,9 +27,12 @@ describe('parser custom-category matching', () => {
     }
   });
 
-  it('without the custom list, the same question is a plain spend total (unchanged behavior)', () => {
+  it('without the custom list, the same question ABSTAINS (#166 — never answer the total for an unresolved target)', () => {
+    // Pre-#166 this returned spend_total: a confident all-spending headline for a
+    // question about golf specifically — the audit's "answers a different
+    // question" P1. Unknown → the honest redirect with suggestions.
     const intent = parseAssistantQuery('how much did I spend on golf this month', TODAY);
-    expect(intent.kind).toBe('spend_total');
+    expect(intent.kind).toBe('unknown');
   });
 
   it('a system synonym still wins over a custom name', () => {

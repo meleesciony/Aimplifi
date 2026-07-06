@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="pulse-transactions.csv"',
+        'Content-Disposition': 'attachment; filename="aimplifi-transactions.csv"',
       },
     });
   }
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="pulse-net-worth.csv"',
+        'Content-Disposition': 'attachment; filename="aimplifi-net-worth.csv"',
       },
     });
   }
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(Buffer.from(pdf), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': 'attachment; filename="pulse-net-worth.pdf"',
+        'Content-Disposition': 'attachment; filename="aimplifi-net-worth.pdf"',
       },
     });
   }

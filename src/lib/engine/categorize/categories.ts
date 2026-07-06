@@ -144,6 +144,20 @@ export const CATEGORIES: SystemCategory[] = [
 export const CATEGORY_BY_ID = new Map(CATEGORIES.map((c) => [c.id, c]));
 
 /**
+ * True when a SYSTEM category id belongs to the Income group ('income' plus the
+ * #163 leaves: paycheck, bonus, side-income, interest-income, investment-income,
+ * rental-income, govt-benefits, tax-refund, reimbursement, refund). Custom
+ * category ids return false — custom categories are spending by definition
+ * (DECISIONS #111). This is THE income test for flow classification: id-literal
+ * checks (`=== 'income'`) predate the #163 leaf taxonomy and silently
+ * misclassify a real user's 'paycheck' payroll — see REGRESSION_LEDGER
+ * 2026-07-05 (monthlyFlows) before adding a new id-literal income check.
+ */
+export function isIncomeCategoryId(id: string): boolean {
+  return CATEGORY_BY_ID.get(id)?.group === 'Income';
+}
+
+/**
  * The minimal metadata every category-resolution site needs (name/group for
  * display + grouping, discretionary for lifestyle-creep). A structural SUBSET of
  * SystemCategory, so `CATEGORY_BY_ID` (Map<string, SystemCategory>) is itself a

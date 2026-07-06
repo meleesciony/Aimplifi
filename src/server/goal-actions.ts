@@ -5,7 +5,7 @@
  */
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
-import { cents, centsFromDollarString, formatCents } from '@/lib/money';
+import { cents, formatCents, parseDollarInput } from '@/lib/money';
 import { auditLog, requireUserId } from '@/server/authz';
 import { getProvider } from '@/lib/providers/demo';
 import { formatMonth, isoDate, type ISODate } from '@/lib/dates';
@@ -15,27 +15,55 @@ import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
 import { solveSavingsGoalByDate } from '@/lib/engine/solve/savings-goal-by-date';
 import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 
-export async function createGoal(formData: FormData): Promise<void> {
+export interface GoalFormResult {
+  ok: boolean;
+  /** Per-field messages when validation failed — rendered inline by GoalForm. */
+  errors?: { name?: string; target?: string; monthly?: string };
+}
+
+/**
+ * Result-returning action (#166): validation problems return inline field
+ * errors instead of throwing — a typo ("$10,000", "abc") must never crash the
+ * page to the app error boundary. Amounts parse leniently via parseDollarInput.
+ * Invoked DIRECTLY from GoalForm's onSubmit (the #164 pattern), not via a
+ * form action; the (prev, formData) signature stays useActionState-compatible.
+ */
+export async function createGoal(
+  _prev: GoalFormResult | null,
+  formData: FormData,
+): Promise<GoalFormResult> {
   const userId = await requireUserId();
   const name = String(formData.get('name') ?? '').trim();
   const target = String(formData.get('target') ?? '').trim();
   const monthly = String(formData.get('monthly') ?? '').trim();
-  if (!name || !target) throw new Error('Name and target are required');
-  const targetCents = centsFromDollarString(target);
-  const monthlyCents = monthly ? centsFromDollarString(monthly) : null;
-  if (targetCents <= 0) throw new Error('Target must be positive');
+
+  const errors: NonNullable<GoalFormResult['errors']> = {};
+  if (!name) errors.name = 'Give the goal a name.';
+  const targetCents = parseDollarInput(target);
+  if (targetCents === null || targetCents <= 0) {
+    errors.target = 'Enter an amount above $0 — like 10000 or $10,000.';
+  }
+  let monthlyCents: number | null = null;
+  if (monthly) {
+    monthlyCents = parseDollarInput(monthly);
+    if (monthlyCents === null || monthlyCents <= 0) {
+      errors.monthly = 'Enter a monthly amount above $0, or leave it blank.';
+    }
+  }
+  if (errors.name || errors.target || errors.monthly) return { ok: false, errors };
 
   await prisma.goal.create({
     data: {
       userId,
       name,
-      targetCents,
+      targetCents: targetCents!,
       savedCents: 0,
       monthlyContributionCents: monthlyCents,
     },
   });
   await auditLog(userId, 'goal.create', { name });
   revalidatePath('/goals');
+  return { ok: true };
 }
 
 /**
