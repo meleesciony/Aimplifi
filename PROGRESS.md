@@ -2703,3 +2703,38 @@ month-over-month drill-down; #71 mobile-nav redesign (owner-scoped); page-scoped
 the plain probes; dev.db root = dev, %TEMP%/aimplifi-e2e.db = e2e, %TEMP%/aimplifi-audit.db = probes).
 Windows: TaskStop on a background `npx next start` does NOT free the port — kill the LISTEN PID
 (netstat -ano | grep :3100) or the next start EADDRINUSEs and probes silently hit the OLD build.
+
+## 2026-07-07 — #169 triage accuracy metric recovers on undo (#166/#168 follow-up (e))
+
+**DONE (verify green, critic 0 P0/P1/P2, committed).** The /triage categorization-accuracy
+card (DECISIONS #37) dropped when you filed an ambiguous group (filing stamps
+`CategoryPrediction.actualCategoryId` = your chosen category as ground truth, and a mis-guess
+scores as a miss) but NEVER recovered when you undid the filing: `undoCorrections` restored the
+transaction to review and removed the minted rule yet left `actualCategoryId` set, so
+`getCategorizationAccuracy` kept counting a retracted decision. The exact STATUS #168 open
+follow-up (e), "accuracy-metric drops when filing ambiguous groups + doesn't restore on undo".
+
+**Fix:** one write inside the existing per-correction `$transaction` in `undoCorrections`
+(`src/server/triage-actions.ts`): null `categoryPrediction.actualCategoryId` for the restored
+transaction, atomic with the inverse-correction insert + restore + transfer-pin + rule cleanup.
+Invariant now symmetric with the four filing writes: a `needsReview` row carries no confirmed
+label. `undoSplit` deliberately untouched — `splitTransaction` sets categoryId=null and never
+labels a prediction (children are brand-new rows with no CategoryPrediction), critic-verified.
+
+**Proof:** new `tests/unit/accuracy-undo.test.ts` (2, real `applyCategory` -> `undoCorrections`
+against throwaway data — MISS and HIT both un-counted on undo). Fail-old/pass-new PROVEN by
+stash-run: fix stashed -> 2/2 fail (label stays 'dining' after undo; the un-nulled sample even
+leaks into the sibling test's count 2!=1); restored -> 2/2 pass. Fresh-context hostile Critic
+acquitted every adversarial angle (scoping via transactionId @unique, over-revert-is-correct,
+undoSplit, undo-funnel completeness, idempotency/atomicity, golden-safety, metric-honesty):
+**0 P0/P1/P2**. Gate (real 2026-07-07): `VERIFY_E2E=1 bash scripts/verify.sh` -> VERIFY GREEN,
+**1845 unit / 136 files** (+2/+1), build clean, FULL e2e **76/76 (47.7s)** incl. the existing
+"accuracy card shows a measured value" spec. Ledgers: DECISIONS #169, REGRESSION_LEDGER 2026-07-07,
+STATUS #169.
+
+**NEXT INCREMENT candidates (from #166/#168 list, minus this item):** remaining lower-traffic
+reliable-mutation forms (add-transaction `<form action>`, import-csv useActionState,
+delete-my-data, connect-simplefin — same recipe, smaller blast radius); category
+month-over-month drill-down (Mint-parity); #71 mobile-nav redesign (owner-scoped); page-scoped
+shared pending (the #167 accepted P2); Recharts pinned-tooltip/width(-1) polish; the two
+adjacent "Connect a bank" button labels; #168 P3 multi-merchant "at A and B".

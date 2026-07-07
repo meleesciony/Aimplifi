@@ -2160,3 +2160,41 @@ triage accuracy-metric drops when filing ambiguous groups + doesn't restore on u
 P2-1); (f) two adjacent "Connect a bank" buttons need clearer labels (owner uses BOTH
 providers); (g) #168 P3s: multi-merchant "at A and B", and page-scoped shared pending (the
 #167 accepted-P2 follow-up).
+
+## 2026-07-07 — #169 triage accuracy metric recovers on undo (was #168 open follow-up (e)) — DONE
+
+The /triage categorization-accuracy card (DECISIONS #37) dropped when you filed an ambiguous
+group but never recovered when you undid the filing. Filing stamps
+`CategoryPrediction.actualCategoryId` = the chosen category (ground truth), so a mis-guess scores
+as a miss and drops the displayed accuracy; `undoCorrections` restored the transaction to review
++ removed any minted rule but NEVER cleared `actualCategoryId`, so `getCategorizationAccuracy`
+(counts predictions WHERE actualCategoryId is not null) kept counting a decision the user took
+back. Reachable in the seed's own drain flow.
+
+**Shipped:** one write inside the existing per-correction `$transaction` in `undoCorrections`
+(`src/server/triage-actions.ts`) — null `categoryPrediction.actualCategoryId` for the restored
+transaction, atomic with the inverse-correction insert + restore + transfer-pin + rule cleanup.
+Invariant now symmetric with the four filing writes (applyCategory / applyToAllSimilar /
+fileMerchantGroup / recategorize): a `needsReview` row carries no confirmed label. `undoSplit`
+deliberately unchanged — `splitTransaction` sets categoryId=null and never labels a prediction.
+
+**Fresh-context hostile Critic (adversarial, refute-by-default): 0 P0/P1/P2** — scoping
+(transactionId @unique -> at most one row; userId session-trusted), over-revert (null is the ONLY
+consistent label for a restored review row; restoring a prior label would be the bug), undoSplit,
+undo-funnel completeness (recategorize/applyToAllSimilar have no undo path bypassing
+undoCorrections), idempotency/atomicity, golden-safety, and metric-honesty all acquitted with
+evidence.
+
+**Gate (real output 2026-07-07):** `VERIFY_E2E=1 bash scripts/verify.sh` -> VERIFY GREEN —
+tsc/eslint clean, **1845 unit / 136 files** (+2/+1 over #168: tests/unit/accuracy-undo.test.ts),
+build clean, **FULL e2e 76/76 (47.7s)** incl. the existing "accuracy card shows a measured value
+(DECISIONS #37)" spec. Fail-old/pass-new PROVEN by stash-run (2/2 fail without the fix, incl. the
+un-nulled sample leaking into the sibling test's count; 2/2 pass restored). Committed. Ledgers:
+DECISIONS #169, REGRESSION_LEDGER 2026-07-07, PROGRESS 2026-07-07.
+
+**OPEN / follow-ups (unchanged from #168 minus this item (e)):** (a) remaining lower-traffic
+reliable-mutation surfaces (add-transaction/import-csv/delete-my-data/connect-simplefin); (b)
+category month-over-month drill-down (Mint-parity); (c) #71 nav redesign + settings
+reorganization (owner-scoped); (d) Recharts pinned-on-load tooltip + width(-1) warning; (e) two
+adjacent "Connect a bank" buttons need clearer labels (owner uses BOTH providers); (f) #168 P3s:
+multi-merchant "at A and B", and page-scoped shared pending (the #167 accepted-P2 follow-up).

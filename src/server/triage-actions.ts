@@ -702,6 +702,18 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageGr
         where: { id: correction.transactionId, account: { userId }, isTransfer: true },
         data: { reviewPinned: true },
       });
+      // #169: un-label the accuracy sample too. Filing stamped this prediction's
+      // actualCategoryId as ground truth (DECISIONS #37); undoing the correction
+      // restores the row to review, so the RETRACTED label must be cleared or
+      // getCategorizationAccuracy keeps counting a decision the user took back and
+      // the displayed accuracy never recovers after undo. Invariant, symmetric with
+      // filing: a needsReview row carries no confirmed label (null actualCategoryId).
+      // undoSplit needs no counterpart — splitting sets categoryId=null and never
+      // labels a prediction.
+      await tx.categoryPrediction.updateMany({
+        where: { transactionId: correction.transactionId, userId },
+        data: { actualCategoryId: null },
+      });
       if (correction.becameRuleId) {
         // Conditional-claim (STATUS #10 / ROADMAP #9): delete the rule ONLY while it
         // still points back to THIS correction (createdFrom === correction.id). If a
