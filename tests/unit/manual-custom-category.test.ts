@@ -72,7 +72,8 @@ describe('manual entry + triage filing with a CUSTOM category (regression #136)'
     form.set('categoryId', golfId);
 
     // Before the fix this threw `Unknown category "<cuid>"` from prepareManualTransaction.
-    await createManualTransaction(form);
+    // (#170 changed the signature to the useActionState shape: (prev, formData).)
+    await createManualTransaction(null, form);
 
     const row = await prisma.transaction.findFirst({
       where: { account: { userId: USER }, rawDescriptor: 'GREENS FEE 0714' },

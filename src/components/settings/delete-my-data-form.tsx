@@ -9,6 +9,7 @@
  * form is suppressed entirely.
  */
 import { useState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
   DELETE_CONFIRMATION_PHRASE,
@@ -16,6 +17,29 @@ import {
   type DeletionSummaryRow,
 } from '@/lib/engine/account/deletion';
 import { deleteMyData } from '@/server/account-actions';
+
+/**
+ * Submit button with a live busy state (#170): the delete cascades every
+ * user-owned row and then signs out, which takes a beat — `useFormStatus` (a
+ * child of the form) reflects that so the button reads "Deleting…" and is
+ * disabled while the action runs, giving feedback on an irreversible action and
+ * blocking a double-submit. Kept as a native `<form action>` so the server-side
+ * signOut redirect is unchanged.
+ */
+function DeleteSubmit({ armed }: { armed: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button
+      type="submit"
+      variant="destructive"
+      disabled={!armed || pending}
+      aria-describedby="delete-warning"
+      data-testid="delete-submit"
+    >
+      {pending ? 'Deleting…' : 'Delete my data permanently'}
+    </Button>
+  );
+}
 
 export function DeleteMyDataForm({ summary }: { summary: DeletionSummaryRow[] }) {
   const [confirm, setConfirm] = useState('');
@@ -69,15 +93,7 @@ export function DeleteMyDataForm({ summary }: { summary: DeletionSummaryRow[] })
             className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
           />
         </label>
-        <Button
-          type="submit"
-          variant="destructive"
-          disabled={!armed}
-          aria-describedby="delete-warning"
-          data-testid="delete-submit"
-        >
-          Delete my data permanently
-        </Button>
+        <DeleteSubmit armed={armed} />
       </form>
     </div>
   );

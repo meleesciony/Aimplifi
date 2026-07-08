@@ -142,6 +142,33 @@ test('manual entry: add a cash transaction and see it in the register', async ({
   await expect(row).toContainText('Dining Out');
 });
 
+test('manual entry: an invalid amount shows an inline error and preserves the entries (#170)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/transactions/new');
+
+  // A non-numeric amount used to throw to the app error boundary; now it returns
+  // an inline error and writes no row (onSubmit recipe, like GoalForm). Choose a
+  // NON-default account first: because a plain onSubmit never triggers React 19's
+  // form reset, a failure must leave the account (and the typed fields) exactly as
+  // the user left them — a useActionState form would revert it and re-file the
+  // retry to the WRONG account (#170 critic P1).
+  const account = page.getByTestId('txn-account');
+  await account.selectOption({ index: 1 });
+  const chosen = await account.inputValue();
+
+  await page.getByTestId('txn-descriptor').fill('E2E Bad Amount');
+  await page.getByTestId('txn-amount').fill('abc');
+  await page.getByTestId('txn-submit').click();
+
+  await expect(page.getByTestId('add-txn-error')).toBeVisible({ timeout: 20000 });
+  // Did NOT navigate away (the form posts to itself on the error path).
+  await expect(page).toHaveURL(/\/transactions\/new$/);
+  // The correction flow preserves the user's work — account, description, amount.
+  await expect(account).toHaveValue(chosen);
+  await expect(page.getByTestId('txn-descriptor')).toHaveValue('E2E Bad Amount');
+  await expect(page.getByTestId('txn-amount')).toHaveValue('abc');
+});
+
 test('inline recategorization on the register refiles a transaction (DECISIONS #36)', async ({ page }) => {
   await signIn(page);
 

@@ -2738,3 +2738,47 @@ delete-my-data, connect-simplefin — same recipe, smaller blast radius); catego
 month-over-month drill-down (Mint-parity); #71 mobile-nav redesign (owner-scoped); page-scoped
 shared pending (the #167 accepted P2); Recharts pinned-tooltip/width(-1) polish; the two
 adjacent "Connect a bank" button labels; #168 P3 multi-merchant "at A and B".
+
+## 2026-07-07 — #170 reliable-mutation pass finished (last four surfaces)
+
+**DONE (verify green, 2 critic passes → PASS 0 P0/P1, committed).** The #166/#167 top-queued NEXT
+item (a): the last four lower-traffic mutation surfaces, each judged on its merits (LOOP rule 3 — don't
+force the recipe on the unbroken).
+
+- **connect-simplefin** (the only true stale-UI defect): useTransition + `router.refresh()` (the coin-flip
+  #166/#167 retired) → reload + `setFlash('accounts')` recipe; failure = red inline error, no reload. No
+  `withDeadline` (a SimpleFIN action is a single-shot NETWORK call that can outlast the 8s deadline). The
+  connect/sync SUCCESS branch is dormant/UNVERIFIED (no creds) — inspection-verified; dormant form-opens
+  e2e stays green.
+- **add-transaction**: plain `<form action>` that THREW on reachable bad input (non-numeric/zero/negative
+  amount) to the app error boundary → the proven GoalForm onSubmit recipe (own busy + withDeadline +
+  inline errors + `window.location.assign('/transactions')` on ok; action returns AddTxnResult, no
+  redirect; catch splits ActionDeadline→navigate vs real error→inline).
+- **delete-my-data**: `useFormStatus` "Deleting…" busy state (native form + signOut redirect unchanged).
+- **import-csv LEFT AS-IS** (documented): self-contained inline imported/skipped/per-row-error report, no
+  same-page stale list — already compliant; flash+reload would regress the per-row report.
+
+**The mid-course correction (the useful part):** I FIRST converted add-transaction with `useActionState`
+— gate-green EXCEPT my own new e2e assertion `expect(account).toHaveValue(chosen)` FAILED. React 19's
+form-action auto-reset silently reverts the account `<select>` to the first option on the error return →
+a corrected retry files to the WRONG account (critic P1). Echo-back-as-defaultValue did NOT reliably
+restore the select. Fix = switch to the plain onSubmit recipe (no reset → uncontrolled inputs untouched),
+re-confirming the #166 finding that this app moved OFF useActionState for exactly this class. Distilled to
+`docs/lessons/mutation-form-recipe.md` so the next session doesn't re-derive it the hard way.
+
+**Critic (2 fresh-context passes):** find → 1 P1 (account revert) + 2 P2 (green "failed" banner;
+over-broad assertOwnedCategory catch); all fixed. confirm → PASS, 0 P0/P1, all three verified resolved
+with code evidence, no new P0/P1. Accepted P2s: onSubmit non-deadline catch now surfaces the error;
+combined role="alert" not per-field (errors aren't field-keyed); harmless dead redirect mocks.
+
+**Gate (real output 2026-07-07):** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN — tsc/eslint
+clean, **1848 unit / 137 files** (+3: tests/unit/manual-txn-validation.test.ts), build clean, **FULL e2e
+77/77 (48.4s)** (+1: the error-path-with-account-preservation spec). Fail-old PROVEN both ways: validation
+lock 3/3 fail with the try/catch defeated (engine throw propagates); the account-revert P1 was witnessed
+failing the full gate on the useActionState attempt. Ledgers: DECISIONS #170, REGRESSION_LEDGER 2026-07-07,
+STATUS #170, lessons/mutation-form-recipe.md.
+
+**NEXT INCREMENT candidates:** category month-over-month drill-down (Mint-parity); #71 mobile-nav
+(owner-scoped); connect-simplefin network success branch UNVERIFIED (dormant, needs creds); import-csv's
+own latent useActionState reset (milder — no mis-file, rows filed server-side before the reset);
+Recharts pinned-tooltip/width(-1) polish; the two "Connect a bank" button labels; #168 P3 multi-merchant.

@@ -2198,3 +2198,49 @@ category month-over-month drill-down (Mint-parity); (c) #71 nav redesign + setti
 reorganization (owner-scoped); (d) Recharts pinned-on-load tooltip + width(-1) warning; (e) two
 adjacent "Connect a bank" buttons need clearer labels (owner uses BOTH providers); (f) #168 P3s:
 multi-merchant "at A and B", and page-scoped shared pending (the #167 accepted-P2 follow-up).
+
+## 2026-07-07 — #170 reliable-mutation pass finished (last four surfaces)
+
+(#166/#167 top-queued NEXT item (a), resumed on "continue".) The four remaining lower-traffic
+mutation surfaces, each treated on its merits rather than force-fitting the recipe:
+
+- **connect-simplefin** — the only TRUE stale-UI defect (useTransition + `router.refresh()`, the
+  coin-flip #166/#167 retired, on a same-page mutation). Converted to the reload + `setFlash('accounts')`
+  recipe; a failure shows a red inline error and does NOT reload. No `withDeadline` (a SimpleFIN action
+  is a single-shot NETWORK call that can outlast the 8s form deadline; no severed-stream case). The
+  connect/sync SUCCESS branch is dormant/UNVERIFIED (no creds) — inspection-verified only; the dormant
+  form-opens e2e stays green.
+- **add-transaction** — a plain `<form action>` whose action THREW on reachable bad input (non-numeric /
+  zero / negative amount) to the app error boundary. Converted to the proven GoalForm onSubmit recipe
+  (own busy + `withDeadline` + inline errors + `window.location.assign('/transactions')` on success; the
+  action returns `AddTxnResult`, no longer redirects). **First tried useActionState and the new e2e caught
+  React 19's form-reset silently reverting the account `<select>` to the first option (critic P1 — a
+  wrong-account mis-file); onSubmit avoids the reset entirely (the #166 lesson, re-confirmed).**
+- **delete-my-data** — added a `useFormStatus` "Deleting…" busy state (native form + signOut redirect
+  unchanged) so the irreversible action gives feedback and blocks a double-submit.
+- **import-csv — LEFT AS-IS (by design):** it already satisfies the invariant — a self-contained inline
+  imported/skipped/per-row-error report with no same-page stale list. flash+reload would REGRESS that
+  per-row report. Documented, not converted.
+
+**Hostile Critic (2 fresh-context passes — find + confirm):** find pass scored the money math clean and
+found **1 P1 + 2 P2, all FIXED**: (P1) the useActionState form-reset account revert → onSubmit recipe +
+an e2e that selects a non-default account and asserts it survives the error; (P2) "Connected, but first
+sync failed" flashed GREEN → success-framed copy; (P2) a bare `catch` mislabeled any DB error as
+"category not found" → narrowed to the exact `'Choose a valid category'` throw. **Confirm pass: PASS,
+0 P0/P1** (all three verified resolved with code evidence, no new P0/P1). Accepted P2s: the onSubmit
+non-deadline catch now surfaces the error (tighter than GoalForm); one combined `role="alert"` rather
+than per-field wiring (the errors aren't field-keyed); two harmless dead `redirect` mocks in test files.
+
+**Gate (real output 2026-07-07):** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN — tsc/eslint
+clean, **1848 unit / 137 files** (+3 over #169: tests/unit/manual-txn-validation.test.ts), build clean,
+**FULL e2e 77/77** (+1: the error-path-with-account-preservation spec). Fail-old PROVEN both ways: the
+validation lock 3/3 fail when the try/catch is defeated (engine throw propagates); the P1 account-revert
+was witnessed failing the full gate on the useActionState attempt (`expect(account).toHaveValue(chosen)`).
+
+**OPEN / follow-ups (unchanged from #169 minus item (a)):** (a) category month-over-month drill-down
+(Mint-parity); (b) #71 nav redesign + settings reorganization (owner-scoped); (c) Recharts pinned-on-load
+tooltip + width(-1) warning; (d) two adjacent "Connect a bank" buttons need clearer labels (owner uses
+BOTH providers); (e) #168 P3s: multi-merchant "at A and B", and page-scoped shared pending (the #167
+accepted-P2 follow-up); (f) NEW: import-csv's own account `<select>` shares the latent useActionState
+reset (milder — rows are filed server-side with the correct account BEFORE the reset, so no mis-file),
+left as pre-existing; (g) NEW: connect-simplefin's network success branch remains UNVERIFIED (dormant).

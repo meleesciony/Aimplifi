@@ -5,9 +5,20 @@
  * user pastes a one-time setup token from simplefin.org; the action claims it,
  * stores an encrypted read-only access URL, and pulls accounts + transactions.
  * Dormant until used; no network on render.
+ *
+ * Reliable-mutation recipe (#166/#167, finished in #170): a successful
+ * connect/sync/disconnect confirms with a FULL reload — not router.refresh() —
+ * so the re-rendered accounts page can never show stale connection or
+ * transaction state. The confirmation TEXT ("Synced 3 new transactions") rides
+ * `flash('accounts')` across that one reload and renders in the accounts-list
+ * success banner (this component is a child of AccountsList, which reads it).
+ * No withDeadline here: unlike the light DB writes, a SimpleFIN action is a
+ * single-shot NETWORK call that can legitimately outlast the 8s form deadline —
+ * an early reload would abandon a live sync — and there is no rapid-sequential
+ * severed-stream case to recover from.
  */
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { setFlash } from '@/components/finance/flash';
 import { connectSimplefin, disconnectSimplefin, syncSimplefinNow } from '@/server/simplefin-actions';
 
 interface Result {
@@ -18,33 +29,43 @@ interface Result {
 }
 
 export function ConnectSimplefin({ connected, lastSyncedAt }: { connected: boolean; lastSyncedAt: string | null }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [token, setToken] = useState('');
-  const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, setPending] = useState(false);
 
   function run(fn: () => Promise<Result>) {
+    if (pending) return;
     setError(null);
-    setMsg(null);
-    start(async () => {
+    setPending(true);
+    void (async () => {
       try {
         const r = await fn();
         if (!r.ok) {
           setError(r.error ?? 'Something went wrong.');
+          setPending(false);
           return;
         }
-        if (r.error) setError(r.error); // connected but first sync failed
-        else if (r.message) setMsg(r.message);
-        else if (typeof r.added === 'number') setMsg(`Synced ${r.added} new transaction${r.added === 1 ? '' : 's'}.`);
-        setOpen(false);
-        setToken('');
-        router.refresh();
+        // Success. Carry the confirmation text across the confirming reload.
+        // `r.error` on an ok result is the connected-but-first-sync-failed case:
+        // the connection DID save, so reload to show it — but frame it as the
+        // success it is (a "failed" string would render green in the accounts
+        // success banner; #170 critic P2) with the retry as the next step.
+        const text = r.error
+          ? 'Bank connected — open Accounts and tap “Sync now” to pull your transactions.'
+          : (r.message ??
+            (typeof r.added === 'number'
+              ? `Synced ${r.added} new transaction${r.added === 1 ? '' : 's'}.`
+              : 'Done.'));
+        setFlash('accounts', text);
+        // Reload, not router.refresh() — the re-rendered page can't lie. `pending`
+        // stays true so the controls remain disabled until the new page paints.
+        window.location.reload();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Something went wrong.');
+        setPending(false);
       }
-    });
+    })();
   }
 
   const btn = 'rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50';
@@ -63,7 +84,6 @@ export function ConnectSimplefin({ connected, lastSyncedAt }: { connected: boole
             Disconnect
           </button>
         </div>
-        {msg && <p role="status" className="text-xs text-emerald-400">{msg}</p>}
         {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
         <p className="text-[11px] text-amber-300/80" data-testid="simplefin-type-notice">
           Account types are guessed from the bank’s name — double-check that any cards or loans
@@ -116,7 +136,6 @@ export function ConnectSimplefin({ connected, lastSyncedAt }: { connected: boole
           </div>
         </div>
       )}
-      {msg && <p role="status" className="text-xs text-emerald-400" data-testid="simplefin-msg">{msg}</p>}
       {error && <p role="alert" className="text-xs text-red-400" data-testid="simplefin-error">{error}</p>}
     </div>
   );

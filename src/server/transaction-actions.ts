@@ -6,10 +6,9 @@
  * as ingested rows; audit-logged. Balances are provider-authoritative and are
  * NOT mutated here (docs/DECISIONS.md).
  */
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
-import { prepareManualTransaction } from '@/lib/engine/transactions/manual';
+import { type PreparedTxn, prepareManualTransaction } from '@/lib/engine/transactions/manual';
 import {
   parseTransactionCsv,
   prepareImportedTransaction,
@@ -21,34 +20,79 @@ import { suggestCategoryViaLLM } from '@/server/llm-categorize';
 import { loadUserRules } from '@/server/rules';
 import { assertOwnedCategory, getCustomCategories } from '@/server/category-meta';
 
-export async function createManualTransaction(formData: FormData): Promise<void> {
+export interface AddTxnResult {
+  ok: boolean;
+  /** Inline field errors surfaced under the form (never the app error boundary). */
+  errors?: string[];
+}
+
+export async function createManualTransaction(
+  _prev: AddTxnResult | null,
+  formData: FormData,
+): Promise<AddTxnResult> {
   const userId = await requireUserId();
 
   const accountId = String(formData.get('accountId') ?? '');
-  const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
-  if (!account) throw new Error('Account not found');
-
   const categoryRaw = String(formData.get('categoryId') ?? '').trim();
+  const descriptor = String(formData.get('descriptor') ?? '');
+  const amount = String(formData.get('amount') ?? '');
+  const dateStr = String(formData.get('date') ?? '');
+  const direction = String(formData.get('direction') ?? 'out') === 'in' ? 'in' : 'out';
+
+  const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+  if (!account) return { ok: false, errors: ['That account wasn’t found — refresh and try again.'] };
+
   // An EXPLICIT category must be a known system id or a custom this user owns —
   // a foreign/garbage id would otherwise be trusted into the row (DECISIONS #111).
   // Auto-detect (empty) skips this; the pipeline only yields system ids.
-  if (categoryRaw) await assertOwnedCategory(userId, categoryRaw);
+  if (categoryRaw) {
+    try {
+      await assertOwnedCategory(userId, categoryRaw);
+    } catch (e) {
+      // assertOwnedCategory throws exactly 'Choose a valid category' for a
+      // not-owned id; anything else (e.g. a DB blip) is unexpected — don't
+      // mislabel it "category not found" (#170 P2).
+      return e instanceof Error && e.message === 'Choose a valid category'
+        ? { ok: false, errors: ['That category wasn’t found — pick one from the list.'] }
+        : { ok: false, errors: ['Something went wrong — please try again.'] };
+    }
+  }
   const rules = await loadUserRules(userId);
-  const prepared = prepareManualTransaction(
-    {
-      descriptor: String(formData.get('descriptor') ?? ''),
-      amount: String(formData.get('amount') ?? ''),
-      direction: String(formData.get('direction') ?? 'out') === 'in' ? 'in' : 'out',
-      date: String(formData.get('date') ?? ''),
-      accountId,
-      categoryId: categoryRaw || null,
-    },
-    rules,
-    // The engine re-checks ids for defense in depth but only knows the system
-    // set; a custom id is a per-user cuid. Pass exactly the one id that
-    // assertOwnedCategory just verified above (regression #136).
-    categoryRaw ? new Set([categoryRaw]) : undefined,
-  );
+
+  // prepareManualTransaction validates the amount/date/description and THROWS on
+  // bad input — a non-numeric or non-positive amount, a malformed date. Those are
+  // reachable from the form (the amount box is free text), so catch them into an
+  // inline field error instead of letting them hit the app error boundary
+  // (#170 — finishing the reliable-mutation pass; matches the goal/budget forms).
+  let prepared: PreparedTxn;
+  try {
+    prepared = prepareManualTransaction(
+      {
+        descriptor,
+        amount,
+        direction,
+        date: dateStr,
+        accountId,
+        categoryId: categoryRaw || null,
+      },
+      rules,
+      // The engine re-checks ids for defense in depth but only knows the system
+      // set; a custom id is a per-user cuid. Pass exactly the one id that
+      // assertOwnedCategory just verified above (regression #136).
+      categoryRaw ? new Set([categoryRaw]) : undefined,
+    );
+  } catch (e) {
+    // Map the engine's (sometimes technical) validation throws to a friendly,
+    // non-leaky hint. Amount is the only free-form numeric input; date is a
+    // native date picker but can still be cleared/malformed.
+    const msg = e instanceof Error ? e.message : '';
+    const friendly = /amount/i.test(msg)
+      ? 'Enter a positive dollar amount, like 12.50.'
+      : /date/i.test(msg)
+        ? 'Enter a valid calendar date.'
+        : 'Please check your entries and try again.';
+    return { ok: false, errors: [friendly] };
+  }
 
   // When the user didn't dictate a category, let the optional LLM assist an
   // UNKNOWN merchant (DECISIONS #38). No ANTHROPIC_API_KEY → null → the
@@ -96,7 +140,10 @@ export async function createManualTransaction(formData: FormData): Promise<void>
 
   revalidatePath('/transactions');
   revalidatePath('/triage');
-  redirect('/transactions');
+  // Return success; the client navigates to /transactions (a full navigation, so
+  // the register can't show stale state) — NOT a server redirect, so the form
+  // stays a plain onSubmit + reload recipe like GoalForm (#170).
+  return { ok: true };
 }
 
 export interface ImportResult {
