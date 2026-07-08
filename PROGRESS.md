@@ -3007,3 +3007,53 @@ redesign; the mobile-380 Playwright infra fix.
 (investments provenance tag + benchmark line), Gap 6 §1 (CI verify.sh in Actions), per-account
 last-activity on /accounts (carried since #171), PROGRESS.md backfill #173–175 (still outstanding).
 **SAFE to /clear.**
+
+## 2026-07-08 (resumed: "continue" after /clear, model Opus 4.8) — #179 per-account freshness on /accounts (Gap 1 §3 follow-up) — DONE ✅ (verify green, targeted e2e green, self-review clean)
+Resumed at the #178 handoff in the Opus/routine lane it names. Re-confirmed baseline before any
+change (measured, not trusted): core `bash scripts/verify.sh` → GREEN (1987 unit / 148 files). Picked
+the "per-account last-activity on /accounts" slice — the increment #171 explicitly deferred as "the
+next slice" and the highest-value fully-in-session-verifiable item on the #178 menu (Gap 6 §1 CI can't
+be observed green without a push, which is owner-gated; this can).
+
+Scoped via the explorer subagent (codegraph absent here): #171's connection-health engine
+(`engine/sync/health.ts`) is reusable verbatim; per-account freshness did NOT exist (only a global
+banner + one SimpleFIN connected-row status). Built engine-first (LOOP #5):
+- Pure `perAccountFreshness(accounts, today)` in health.ts → id→FreshnessResult|null; null for
+  non-linked (provider {manual,demo}) + INVESTMENT; else classify from
+  mostRecentDate(newestTxn, connectionLastSync) — #171's quiet-account guard applied per row.
+- `getAccountsView`: +1 `transaction.groupBy(_max date by accountId)` in the existing Promise.all;
+  isLinkedFeed = provider in {simplefin,plaid}; connectionLastSyncedAt = sfLastSynced for simplefin
+  only; assigns `AccountView.freshness` (new optional field).
+- `LinkedRow`: freshness sub-line (`data-testid="account-freshness"`, amber on very_stale) via the
+  existing `freshnessMessage`.
+GOLDEN-SAFE by construction: demo accounts are provider 'demo' → no line → demo /accounts byte-identical
+(locked by an account-freshness count-0 e2e assertion).
+
+Proportionate adversarial self-review (display-only, single-path, reuses tested classification — #33/#57
+precedent, not a multi-agent workflow): consistency with banner + connection status confirmed on the
+month-old e2e fixture; no double-count (_max not sum); non-USD withheld excluded; deterministic. One
+gap FIXED: the amber very_stale line was only reachable in the linked-stale state (phase5-a11y is
+demo-only) → added a full-page axe WCAG-AA scan of /accounts to the stale e2e (green). Known limitation
+documented (latent-only): a quiet Plaid account has no sync stamp (cursor only) → grades by txn recency
+alone; Plaid dormant, no live impact.
+
+Gate (real 2026-07-08): `bash scripts/verify.sh` → ✅ GREEN — tsc/eslint clean, 1994 unit / 148 files
+(+7), build clean. Targeted `connection-health.spec.ts` 2/2 (demo count-0 golden lock + stale positive
+per-row reconnect line + /accounts axe AA). 30 other /accounts-touching e2e pass; lone `auth.spec.ts`
+sign-out failure PROVEN pre-existing (mobile-380 viewport flake) by git-stash A/B (identical clean-tree
+result). Ledgers: DECISIONS #179, STATUS #179. No REGRESSION_LEDGER entry (feature, not a bug fix).
+Committing as #179; NOT pushed (push owner-gated, #171–#179 ride together).
+
+### HANDOFF (resume after /clear) — 2026-07-08, #179 DONE
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md + docs/lessons/INDEX.md first.
+**State:** #179 committed at HEAD; local main ahead of origin (#171–#179); push owner-gated.
+**Health baseline:** core verify GREEN, 1994 unit / 148 files; full VERIFY_E2E=1 cannot exit 0 on this
+machine (documented mobile-380 viewport flake, docs/lessons/mobile-380-viewport-scaling-flake.md) —
+git-stash A/B control before blaming any new diff.
+**STANDING OWNER-ONLY:** the push; Gap 1 §1–2 live walkthroughs (tokens); Gap 3 §2 mobile nav redesign;
+the mobile-380 Playwright infra fix.
+**NEXT INCREMENT candidates (Opus/routine lane):** Gap 5 (investments provenance tag surfaced on
+/investments + benchmark-vs-index line), Gap 6 §1 (CI verify.sh in GitHub Actions — note: can't observe
+green without a push, so pair with the owner's next push), PROGRESS.md backfill #173–175 (still
+outstanding — reconstruct from STATUS #173/#174/#175 only, don't invent live detail).
+**SAFE to /clear.**

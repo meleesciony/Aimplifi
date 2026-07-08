@@ -12,6 +12,8 @@ import {
   summarizeDataFreshness,
   dataFreshnessBanner,
   mostRecentDate,
+  perAccountFreshness,
+  type AccountFreshnessInput,
   FRESH_THROUGH_DAYS,
   STALE_THROUGH_DAYS,
   type FreshnessLevel,
@@ -119,5 +121,77 @@ describe('summarizeDataFreshness — dashboard banner gating', () => {
     expect(dataFreshnessBanner(s)).toBe(
       "Your linked accounts haven't shown new activity in 14 days. A sync may have stopped — check your connections on the Accounts page.",
     );
+  });
+});
+
+describe('perAccountFreshness — per-row /accounts freshness (today = 2026-06-10)', () => {
+  // A helper that fills the defaults so each case names only the field it exercises.
+  const acct = (over: Partial<AccountFreshnessInput> & { id: string }): AccountFreshnessInput => ({
+    isLinkedFeed: true,
+    type: 'CHECKING',
+    newestTxnDate: null,
+    connectionLastSyncedAt: null,
+    ...over,
+  });
+
+  it('non-linked accounts (manual/demo) never get a freshness result', () => {
+    const out = perAccountFreshness(
+      [acct({ id: 'manual', isLinkedFeed: false, newestTxnDate: d('2026-06-10') })],
+      TODAY,
+    );
+    expect(out.manual).toBeNull();
+  });
+
+  it('INVESTMENT accounts are excluded even when linked (holdings-valued, no txn feed)', () => {
+    const out = perAccountFreshness(
+      [acct({ id: 'brk', type: 'INVESTMENT', newestTxnDate: d('2026-06-10') })],
+      TODAY,
+    );
+    expect(out.brk).toBeNull();
+  });
+
+  it('a linked account with a recent transaction reads fresh', () => {
+    const out = perAccountFreshness([acct({ id: 'chk', newestTxnDate: d('2026-06-09') })], TODAY);
+    expect(out.chk).toMatchObject({ level: 'fresh', daysSince: 1 });
+  });
+
+  it('a linked account whose newest txn is old but connection synced recently reads fresh (quiet-account guard)', () => {
+    // Newest txn 2026-05-01 (40 days → very_stale on its own), but the connection synced
+    // 2026-06-09 (1 day) → mostRecentDate wins → fresh, no false reconnect nudge.
+    const out = perAccountFreshness(
+      [acct({ id: 'sav', newestTxnDate: d('2026-05-01'), connectionLastSyncedAt: d('2026-06-09') })],
+      TODAY,
+    );
+    expect(out.sav).toMatchObject({ level: 'fresh', daysSince: 1, referenceDate: d('2026-06-09') });
+  });
+
+  it('a linked account stale on BOTH signals grades very_stale', () => {
+    const out = perAccountFreshness(
+      [acct({ id: 'chk', newestTxnDate: d('2026-05-01'), connectionLastSyncedAt: d('2026-05-01') })],
+      TODAY,
+    );
+    expect(out.chk?.level).toBe('very_stale');
+    expect(freshnessMessage(out.chk!)).toContain('you may need to reconnect');
+  });
+
+  it('a linked account with no txns and no sync stamp is unknown ("Not synced yet")', () => {
+    const out = perAccountFreshness([acct({ id: 'new' })], TODAY);
+    expect(out.new).toMatchObject({ level: 'unknown', daysSince: null });
+    expect(freshnessMessage(out.new!)).toBe('Not synced yet');
+  });
+
+  it('classifies every account in one pass, keyed by id', () => {
+    const out = perAccountFreshness(
+      [
+        acct({ id: 'a', newestTxnDate: d('2026-06-10') }),
+        acct({ id: 'b', isLinkedFeed: false }),
+        acct({ id: 'c', type: 'INVESTMENT' }),
+      ],
+      TODAY,
+    );
+    expect(Object.keys(out).sort()).toEqual(['a', 'b', 'c']);
+    expect(out.a?.level).toBe('fresh');
+    expect(out.b).toBeNull();
+    expect(out.c).toBeNull();
   });
 });

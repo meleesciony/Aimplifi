@@ -16,7 +16,7 @@ import {
 } from '@/lib/providers/currency';
 import { businessToday } from '@/lib/business-today';
 import { isoDate } from '@/lib/dates';
-import { type FreshnessResult, classifyFreshness } from '@/lib/engine/sync/health';
+import { type FreshnessResult, classifyFreshness, perAccountFreshness } from '@/lib/engine/sync/health';
 import {
   type AccountView,
   type AccountsSummary,
@@ -142,7 +142,7 @@ export interface AccountsView extends AccountsSummary {
 
 /** Every account, grouped into assets vs liabilities with net worth + trend. */
 export async function getAccountsView(userId: string): Promise<AccountsView> {
-  const [user, accounts, snapshots, statements, autopays, sfConn] = await Promise.all([
+  const [user, accounts, snapshots, statements, autopays, sfConn, newestByAccount] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
     prisma.balanceSnapshot.findMany({
@@ -159,6 +159,9 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       select: { accountId: true, mode: true, fixedAmountCents: true },
     }),
     prisma.simpleFinConnection.findUnique({ where: { userId }, select: { lastSyncedAt: true } }),
+    // Newest transaction date per account — the per-row freshness reference (Gap 1 §3
+    // follow-up). One grouped query rather than N per-account reads.
+    prisma.transaction.groupBy({ by: ['accountId'], where: { account: { userId } }, _max: { date: true } }),
   ]);
 
   // Currency guard (DECISIONS #135): withhold non-USD accounts from the /accounts page so its
@@ -203,6 +206,25 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
 
   const today = businessToday(userId);
   const trend = netWorthSeries({ snapshots, accounts: views, today });
+
+  // Per-account connection freshness (Gap 1 §3 follow-up). The engine decides which
+  // accounts get a result (SimpleFIN/Plaid feeds, non-INVESTMENT); manual/demo rows and
+  // brokerages come back null and render no line. A SimpleFIN account's connection sync
+  // floors its reference date so a quiet-but-live feed doesn't false-alarm.
+  const newestTxnByAccount = new Map<string, string>();
+  for (const g of newestByAccount) if (g._max.date) newestTxnByAccount.set(g.accountId, g._max.date);
+  const sfLastSynced = sfConn?.lastSyncedAt ? isoDate(sfConn.lastSyncedAt) : null;
+  const freshnessById = perAccountFreshness(
+    supported.map((a) => ({
+      id: a.id,
+      isLinkedFeed: a.provider === 'simplefin' || a.provider === 'plaid',
+      type: a.type,
+      newestTxnDate: newestTxnByAccount.has(a.id) ? isoDate(newestTxnByAccount.get(a.id)!) : null,
+      connectionLastSyncedAt: a.provider === 'simplefin' ? sfLastSynced : null,
+    })),
+    today,
+  );
+  for (const v of views) v.freshness = freshnessById[v.id] ?? null;
 
   return {
     ...groupAccounts(views),

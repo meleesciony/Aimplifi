@@ -2615,3 +2615,49 @@ NEXT: Gap 5 (investments provenance tag, benchmark-vs-index line) and Gap 6 §1 
 GitHub Actions) are the largest unblocked increments — both Opus/routine lane. Owner-gated
 (unchanged): the push (#171–#178 ride together), Gap 1 §1–2 live-sync walkthroughs, Gap 3 §2
 mobile secondary-nav redesign, the mobile-380 Playwright viewport fix.
+
+## Post-Phase-5: Per-account data freshness on /accounts (#179, Competitive-Gap Gap 1 §3 follow-up)
+
+The "per-account last-activity on /accounts" slice #171 deferred as "the next slice". #171 shipped
+connection-health at the whole-connection level (one dashboard banner + one SimpleFIN connected-row
+status); #179 brings it to EACH linked row, so a user with several linked banks can see WHICH feed
+went quiet, not just that "something" is stale.
+
+Reuses the tested engine verbatim (no new classification). New pure
+`perAccountFreshness(accounts, today)` in `src/lib/engine/sync/health.ts` → id→`FreshnessResult|null`:
+`null` for accounts with no sync concept (non-linked provider {manual,demo}, or type INVESTMENT —
+holdings-valued, not a transaction feed); else
+`classifyFreshness(mostRecentDate(newestTxnDate, connectionLastSyncedAt), today)`. The `mostRecentDate`
+floor is #171's quiet-account guard applied per-row: a SimpleFIN account's per-user connection
+`lastSyncedAt` floors its reference date, so a quiet-but-live feed reads fresh instead of a false
+"reconnect" nudge. `getAccountsView` adds ONE `prisma.transaction.groupBy({by:['accountId'],_max:{date}})`
+to the existing `Promise.all` (no extra round-trip), sets `connectionLastSyncedAt` only for simplefin
+rows, and assigns each `AccountView.freshness` (new optional field). `LinkedRow` renders a
+`data-testid="account-freshness"` sub-line via the existing `freshnessMessage` (amber on very_stale,
+matching the shipped ConnectSimplefin stale hint on the same page).
+
+GOLDEN-SAFE BY CONSTRUCTION: demo accounts are provider 'demo' → isLinkedFeed false → no line → the
+demo /accounts page is byte-identical (locked by an `account-freshness` count-0 assertion in the demo
+e2e). Proportionate adversarial self-review (display-only, single-path, reuses tested classification):
+consistency with the banner + connection status verified on the month-old e2e fixture; no double-count
+(`_max`, not a sum); non-USD withheld accounts excluded; deterministic (isoDate + integer day math).
+One gap found + FIXED: the amber very_stale line was only reachable in the linked-stale state, which
+phase5-a11y (demo-only) never covers → added a full-page axe WCAG-AA scan of /accounts in the stale
+e2e.
+
+KNOWN LIMITATION (documented, latent-only): a quiet **Plaid** account has no per-connection sync
+timestamp available (PlaidItem carries only a cursor), so it grades by transaction recency alone and a
+genuinely quiet Plaid feed could read stale. No live impact — Plaid is dormant/UNVERIFIED (item #12).
+
+Gate (real output 2026-07-08): `bash scripts/verify.sh` → ✅ VERIFY GREEN — tsc/eslint clean,
+**1994 unit / 148 files** (+7: `perAccountFreshness` cases in tests/unit/sync-health.test.ts), build
+clean. Targeted `connection-health.spec.ts` 2/2 (demo count-0 golden lock + stale positive per-row
+reconnect line + /accounts axe AA). 30 other /accounts-touching e2e pass; the lone `auth.spec.ts`
+sign-out failure was PROVEN pre-existing (mobile-380 viewport flake, docs/lessons/
+mobile-380-viewport-scaling-flake.md) via a git-stash A/B control (identical 1-fail/2-pass on the clean
+tree). Full VERIFY_E2E exit-0 remains blocked by that documented flake, unchanged since #175.
+
+NEXT: Gap 5 (investments provenance tag, benchmark-vs-index line) and Gap 6 §1 (CI verify.sh in
+GitHub Actions) are the largest unblocked increments — both Opus/routine lane. Owner-gated (unchanged):
+the push (#171–#179 ride together), Gap 1 §1–2 live-sync walkthroughs, Gap 3 §2 mobile secondary-nav
+redesign, the mobile-380 Playwright viewport fix.

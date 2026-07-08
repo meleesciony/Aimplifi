@@ -12,6 +12,7 @@
  */
 import { type Cents, cents } from '@/lib/money';
 import { compareDates, isoDate } from '@/lib/dates';
+import type { FreshnessResult } from '@/lib/engine/sync/health';
 
 export interface TxnView {
   id: string;
@@ -182,6 +183,10 @@ export interface AccountView {
   currentBalanceCents: number; // stored positive
   /** True for user-added manual assets/liabilities (editable; no transactions). */
   manual?: boolean;
+  /** Per-account connection freshness (Gap 1 §3 follow-up). Null when the account has no
+   *  sync feed (manual/demo) or is holdings-valued (INVESTMENT); set for SimpleFIN/Plaid
+   *  rows so /accounts can show a "synced N days ago" / reconnect line per account. */
+  freshness?: FreshnessResult | null;
 }
 
 export interface AccountGroup {

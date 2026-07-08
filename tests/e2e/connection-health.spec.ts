@@ -28,6 +28,8 @@ test('demo user (no linked feed) sees no staleness banner; /accounts shows the c
   // No SimpleFIN connection for the demo user → the connect front-door, not the connected row.
   await expect(page.getByTestId('simplefin-connect-btn')).toBeVisible();
   await expect(page.getByTestId('simplefin-connected')).toHaveCount(0);
+  // Every demo account is provider 'demo' → no per-account freshness line (golden-safe).
+  await expect(page.getByTestId('account-freshness')).toHaveCount(0);
 });
 
 test('a linked account with month-old data surfaces the staleness banner + reconnect hint', async ({ page }) => {
@@ -71,4 +73,17 @@ test('a linked account with month-old data surfaces the staleness banner + recon
   const status = page.getByTestId('simplefin-sync-status');
   await expect(status).toBeVisible();
   await expect(status).toContainText('you may need to reconnect');
+
+  // Per-account freshness (Gap 1 §3 follow-up): the linked checking row carries its own
+  // very_stale line — the same month-old reference the connection status uses.
+  const freshness = page.getByTestId('account-freshness');
+  await expect(freshness).toHaveCount(1);
+  await expect(freshness).toContainText('you may need to reconnect');
+
+  // Axe on /accounts in the stale state — the demo page never renders the amber freshness
+  // line (all accounts are provider 'demo'), so phase5-a11y cannot cover it.
+  const accountsAxe = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(accountsAxe.violations).toEqual([]);
 });

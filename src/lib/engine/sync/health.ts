@@ -120,3 +120,41 @@ export function dataFreshnessBanner(summary: DataFreshnessSummary): string | nul
     ? `${lead} A sync may have stopped — check your connections on the Accounts page.`
     : `${lead} If that seems off, you can reconnect from the Accounts page.`;
 }
+
+export interface AccountFreshnessInput {
+  id: string;
+  /** True only for real external feeds (SimpleFIN/Plaid). Manual/demo accounts don't
+   *  sync, so they have no freshness concept — the server decides this from the provider. */
+  isLinkedFeed: boolean;
+  /** Account type — INVESTMENT accounts are valued by holdings, not a transaction feed. */
+  type: string;
+  /** Newest transaction date on THIS account, or null when it has none. */
+  newestTxnDate: ISODate | null;
+  /** The linked connection's last successful sync, when known (SimpleFIN); else null. A
+   *  recent whole-connection sync proves a quiet account is still live (see mostRecentDate). */
+  connectionLastSyncedAt: ISODate | null;
+}
+
+/**
+ * Per-account data freshness for the /accounts rows (Gap 1 §3 follow-up — the connection
+ * story #171 shipped at the dashboard/whole-connection level, this brings it to each row).
+ * Returns a map id → result, with `null` for accounts that have no freshness concept:
+ * non-linked (manual/demo — no feed to go stale) and INVESTMENT accounts (holdings-valued,
+ * not a transaction feed). A linked account's reference date is the MORE RECENT of its
+ * newest transaction and its connection's last sync (via mostRecentDate), so a legitimately
+ * quiet feed that synced recently reads fresh instead of tripping a false "reconnect" nudge.
+ */
+export function perAccountFreshness(
+  accounts: readonly AccountFreshnessInput[],
+  today: ISODate,
+): Record<string, FreshnessResult | null> {
+  const out: Record<string, FreshnessResult | null> = {};
+  for (const a of accounts) {
+    if (!a.isLinkedFeed || a.type === 'INVESTMENT') {
+      out[a.id] = null;
+      continue;
+    }
+    out[a.id] = classifyFreshness(mostRecentDate(a.newestTxnDate, a.connectionLastSyncedAt), today);
+  }
+  return out;
+}

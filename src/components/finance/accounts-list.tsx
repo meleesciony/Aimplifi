@@ -21,6 +21,7 @@ import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { MANUAL_ASSET_TYPES, MANUAL_LIABILITY_TYPES } from '@/lib/engine/networth/manual';
+import { freshnessMessage } from '@/lib/engine/sync/health';
 import {
   addManualAccount,
   deleteManualAccount,
@@ -439,6 +440,14 @@ function LinkedRow({
             {account.mask ? ` ····${account.mask}` : ''}
             {isInvestment && <span data-testid="account-row-investment-cue"> · View holdings →</span>}
           </div>
+          {account.freshness && (
+            <div
+              data-testid="account-freshness"
+              className={`text-xs ${account.freshness.level === 'very_stale' ? 'text-amber-500' : 'text-muted-foreground'}`}
+            >
+              {freshnessMessage(account.freshness)}
+            </div>
+          )}
         </div>
         <div className={`shrink-0 tabular-nums ${isLiability ? 'text-red-400' : 'text-foreground'}`}>
           {isLiability ? '−' : ''}
