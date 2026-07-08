@@ -14,6 +14,8 @@ import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { deletionSummary } from '@/lib/engine/account/deletion';
 import { getVapidPublicKey } from '@/lib/push';
 import { PushOptIn } from '@/components/settings/push-optin';
+import { AccuracyMetrics } from '@/components/triage/accuracy-card';
+import { getCategorizationAccuracy } from '@/server/accuracy';
 import { prisma } from '@/lib/db';
 
 export const metadata = { title: "Settings" };
@@ -23,7 +25,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/sign-in');
 
   const userId = session.user.id;
-  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories] =
+  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -51,6 +53,7 @@ export default async function SettingsPage() {
       prisma.categorizationRule.count({ where: { userId } }),
       getCategoryCatalog(userId),
       getCustomCategories(userId),
+      getCategorizationAccuracy(userId),
     ]);
   if (!user) redirect('/sign-in');
 
@@ -171,6 +174,21 @@ export default async function SettingsPage() {
             </h3>
             <CategoryManager catalog={categoryCatalog} />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="ai-trust-card">
+        <CardHeader className="pb-2">
+          <CardDescription>How well the AI files your transactions</CardDescription>
+          <CardTitle className="text-base">AI trust</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <AccuracyMetrics result={accuracy} />
+          <p className="text-xs text-muted-foreground">
+            Aimplifi’s AI never invents a figure — every number is computed from your own
+            transactions. This is how accurately it files them, scored against the categories you
+            confirm.
+          </p>
         </CardContent>
       </Card>
 

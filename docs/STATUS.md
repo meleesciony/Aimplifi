@@ -2531,3 +2531,38 @@ increment covers the connect/confirm/reveal wiring; a literal "3-step wizard pag
 progress UI was considered and rejected in favor of reusing the existing surfaces — see
 DECISIONS #176 rationale). Gap 1 §1–2 live Plaid/SimpleFIN walkthroughs + sync cron (owner-gated,
 needs tokens) remain the only fully-blocked items in the whole plan.
+
+## Post-Phase-5: AI-trust accuracy panel in Settings (#177, Competitive-Gap plan Gap 4 §2)
+
+Gap 4 ("make the trust moat visible") §2: surface the already-instrumented categorization
+accuracy on a Settings panel — the plan's "data exists, UI is thin". Pure COMPOSITION, no new
+engine, no schema, no money math (routine/Opus lane): the accuracy math
+(engine/accuracy/score.ts), the ownership-scoped read (getCategorizationAccuracy), and a triage
+AccuracyCard have existed since DECISIONS #37 — the only gap was that Settings never showed it.
+Extracted a presentational `AccuracyMetrics` from accuracy-card.tsx (the triage AccuracyCard now
+wraps it, byte-identical output + same testids) so the new Settings "AI trust" card reuses the
+SAME guardrail-safe copy from one source instead of duplicating it. The panel adds one plain
+sentence stating the no-fabrication promise ("never invents a figure — every number is computed
+from your own transactions"). Golden-safe: read-only, no writes; the seeded demo's labeled
+predictions (n>0) render a real percentage, identical to the triage card.
+
+Gate (real output 2026-07-08): `npx tsc --noEmit` clean; `npx eslint . --max-warnings=0` clean;
+`npx vitest run` → **1971/1971 (147 files, unchanged** — the refactor is presentational, no
+engine touched); `npx next build` clean. New e2e in settings-dials.spec.ts (read-only: panel
+visible, shows "Categorization accuracy" + a %, states "never invents", card-scoped axe WCAG-AA
+clean) → PASS on [mobile-380], alongside the existing mutating dials test. The refactored
+component is directly exercised and proven correct by that passing Settings render.
+
+Known env flake (NOT this change): phase2-triage "accuracy card shows a measured value" fails at
+its `signInToTriage` helper (line 42, a `bottom-nav-triage` click) — the documented mobile-380
+viewport-scaling flake (docs/lessons/mobile-380-viewport-scaling-flake.md). It dies at navigation
+before /triage renders, a code path this change does not touch; the accuracy component itself
+renders fine (proven by the passing Settings e2e). Only the [mobile-380] Playwright project is
+currently configured, so a [desktop] isolation run wasn't available; `verify.sh` still can't exit
+0 on this machine for any diff until that issue is separately investigated (unchanged #175/#176).
+
+NEXT: Gap 4 §1 (Glass-Box "tap any number → the rows it's made of, reconciled to the penny") is
+the flagship trust-moat build — a **Fable-lane** feature (data-integrity critic), and the natural
+/clear + model-switch point. Gap 3 §2 (mobile secondary-nav redesign) and Gap 1 §1–2 (live-sync
+token walkthroughs) remain owner-gated. PROGRESS.md backfill for #173–176 still outstanding
+(flagged in #176).

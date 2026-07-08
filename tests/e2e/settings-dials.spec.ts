@@ -10,12 +10,38 @@
  * FI numbers other specs assert are never perturbed.
  */
 import { expect, test, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 async function signIn(page: Page) {
   await page.goto('/sign-in');
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
 }
+
+test('settings surfaces the AI-trust accuracy panel (Competitive-Gap Gap 4 §2)', async ({ page }) => {
+  // Read-only: this asserts the panel renders and reconciles with the seeded
+  // accuracy data. It mutates nothing, so it is golden-safe alongside the mutating
+  // dials test in this file under the fullyParallel suite.
+  await signIn(page);
+  await page.goto('/settings');
+
+  const card = page.getByTestId('ai-trust-card');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('AI trust');
+  await expect(card).toContainText('Categorization accuracy');
+  // the seeded demo has labeled predictions (n > 0), so a real percentage renders
+  // (same guarantee the triage accuracy-card test relies on).
+  await expect(card).toContainText('%');
+  // the no-fabrication promise is stated plainly (Gap 4 — make the trust moat visible)
+  await expect(card).toContainText('never invents');
+
+  // the new panel itself is WCAG-AA clean (scoped so unrelated page content can't flake it)
+  const results = await new AxeBuilder({ page })
+    .include('[data-testid="ai-trust-card"]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
 
 test('money dials: dormant nudge in demo, pre-populated form, validates, round-trips', async ({ page }) => {
   await signIn(page);
