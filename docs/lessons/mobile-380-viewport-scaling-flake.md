@@ -1,0 +1,63 @@
+# mobile-380 Playwright project: viewport-scaling e2e flake (this machine)
+
+**One-line summary:** on this Windows dev machine, the `mobile-380` Playwright project
+(`devices['Pixel 5']` + `viewport: {width:380, height:800}`) actually renders at ~425×895 CSS
+px — an ~11.8% mismatch — which makes clicks on the fixed bottom-nav bar and other
+edge-of-viewport elements land on the wrong content; it is an environment artifact, not an
+app bug, and reproduces identically on a clean `git stash` of any pending diff.
+
+## Symptom
+
+`VERIFY_E2E=1 bash scripts/verify.sh` (or a raw `npx playwright test`) intermittently-but-
+reproducibly fails the SAME small set of `[mobile-380]` tests every run — always ones that
+click a `bottom-nav-*` testid (or another element near a viewport edge) shortly after
+navigating to `/dashboard`:
+
+- `auth.spec.ts` — sign-up → onboarding → **sign out** (blocked on the Sign-out button)
+- `phase2-triage.spec.ts` — clicking `bottom-nav-triage`
+- `phase3-coach.spec.ts` — clicking `bottom-nav-coach`
+- `phase4-features.spec.ts` — clicking `bottom-nav-calendar`
+- `phase5-a11y.spec.ts` — a keyboard-only cash-needed assertion
+
+Playwright's error always reads `<something> subtree intercepts pointer events`, naming an
+unrelated card (e.g. the Cash Flow Radar card's description) or nav link as the blocker, and
+the retry loop exhausts the full 60s timeout without ever resolving — this is NOT a one-frame
+animation race (a race would clear within a few retries).
+
+## Root cause (confirmed via a throwaway diagnostic spec, since deleted)
+
+```js
+const viewport = page.viewportSize();          // {width: 380, height: 800}  <- what Playwright thinks
+const doc = await page.evaluate(() => ({ innerWidth: window.innerWidth, innerHeight: window.innerHeight }));
+// {innerWidth: 425, innerHeight: 895}          <- what the page actually renders at
+```
+
+380×800 → 425×895 is a uniform ~1.118× scale-up. The app's CSS is not at fault: the fixed
+bottom nav bar's `boundingBox()` correctly sits flush with the REAL viewport bottom (y+height
+== innerHeight == 895), so `position: fixed; bottom: 0` is doing exactly the right thing
+relative to what the browser actually rendered. The bug is that Playwright's own click-time
+actionability/interception check does not consistently agree with that same real geometry —
+whether because of the device-scale-factor 2.75 (`devices['Pixel 5']`) interacting with this
+machine's OS-level display scaling, or a Chromium/Playwright version quirk on Windows, wasn't
+pinned down further (out of scope to chase — see below).
+
+## How this was confirmed as pre-existing / not-a-regression
+
+`git stash` any pending diff, rerun the exact same failing spec files against a clean
+`main` HEAD → the SAME tests fail with the SAME interception pattern. This is now the
+standard control before blaming a diff for a `mobile-380`-only failure: stash, rerun, compare
+the failing-test list. Reducing `--workers` (4 → 2 → 1) does **not** clear it, ruling out
+parallel-worker resource contention as the cause.
+
+## What to do when you hit this again
+
+1. Don't assume your diff caused it — run the git-stash A/B control above first.
+2. If the failing-test set matches this list (or is clearly the same bottom-nav-click shape),
+   treat it as this known environment issue: report the real `tsc`/`eslint`/`vitest`/`build`
+   state plus the honest e2e count, name this lesson file, and move on — don't burn a session
+   trying to make `scripts/verify.sh` exit 0 by fighting Chromium's viewport emulation.
+3. Actually fixing it (e.g. dropping `devices['Pixel 5']`'s `deviceScaleFactor`, or pinning a
+   Chromium version, or investigating this machine's Windows display-scaling setting) is a
+   real fix someone should eventually do, but it's a Playwright/environment investigation, not
+   an app change — scope it as its own task rather than folding it into an unrelated feature
+   or backlog session.

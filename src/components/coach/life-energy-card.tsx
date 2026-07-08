@@ -46,24 +46,32 @@ export function LifeEnergyCard({
         </div>
       </CardHeader>
       <CardContent>
-        <ul className="space-y-1.5 text-sm" data-testid="life-energy-list">
-          {items.map((item, i) => (
-            <li key={i} className="flex items-baseline justify-between gap-2">
-              <span className="truncate">
-                {item.merchant}
-                <span className="ml-1 text-xs text-muted-foreground">
-                  {formatISODate(isoDate(item.date))}
-                </span>
-              </span>
-              <span className="font-medium tabular-nums">
-                {showHours ? `${item.hours} hrs` : formatCents(cents(item.amountCents))}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 text-xs text-muted-foreground">
-          {COACH_COPY.lifeEnergyFootnote(cents(hourlyWageCents))}
-        </p>
+        {items.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground" data-testid="life-energy-empty">
+            No large purchases in the last 90 days.
+          </p>
+        ) : (
+          <>
+            <ul className="space-y-1.5 text-sm" data-testid="life-energy-list">
+              {items.map((item, i) => (
+                <li key={i} className="flex items-baseline justify-between gap-2">
+                  <span className="truncate">
+                    {item.merchant}
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      {formatISODate(isoDate(item.date))}
+                    </span>
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {showHours ? `${item.hours} hrs` : formatCents(cents(item.amountCents))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {COACH_COPY.lifeEnergyFootnote(cents(hourlyWageCents))}
+            </p>
+          </>
+        )}
       </CardContent>
     </Card>
   );

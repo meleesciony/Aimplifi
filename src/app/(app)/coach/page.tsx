@@ -77,27 +77,33 @@ export default async function CoachPage() {
           )}
         </CardHeader>
         <CardContent>
-          <ul className="space-y-3 text-sm" data-testid="opportunities-list">
-            {data.opportunities.map((o, i) => (
-              <li key={i} className="space-y-0.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-medium">{o.merchant}</span>
-                  <Badge variant={o.isEstimate ? 'outline' : 'secondary'} className="shrink-0">
-                    {o.isEstimate ? `~${formatCents(o.monthlyCents)}/mo est.` : `${formatCents(o.monthlyCents)}/mo`}
-                  </Badge>
-                </div>
-                {i === 0 && (
-                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400" data-testid="biggest-lever">
-                    {COACH_COPY.biggestLever()}
+          {data.opportunities.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground" data-testid="opportunities-empty">
+              Nothing to flag right now — check back after a few more weeks of spending data.
+            </p>
+          ) : (
+            <ul className="space-y-3 text-sm" data-testid="opportunities-list">
+              {data.opportunities.map((o, i) => (
+                <li key={i} className="space-y-0.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-medium">{o.merchant}</span>
+                    <Badge variant={o.isEstimate ? 'outline' : 'secondary'} className="shrink-0">
+                      {o.isEstimate ? `~${formatCents(o.monthlyCents)}/mo est.` : `${formatCents(o.monthlyCents)}/mo`}
+                    </Badge>
+                  </div>
+                  {i === 0 && (
+                    <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400" data-testid="biggest-lever">
+                      {COACH_COPY.biggestLever()}
+                    </p>
+                  )}
+                  {/* the actionable line first; the compounding math in a quiet second line */}
+                  <p className="text-xs text-muted-foreground">
+                    {COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}
                   </p>
-                )}
-                {/* the actionable line first; the compounding math in a quiet second line */}
-                <p className="text-xs text-muted-foreground">
-                  {COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}
-                </p>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
 

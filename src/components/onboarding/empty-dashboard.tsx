@@ -11,7 +11,11 @@ export function EmptyDashboard() {
   return (
     <Card data-testid="empty-dashboard">
       <CardHeader>
-        <CardTitle className="text-xl">Welcome to Aimplifi 👋</CardTitle>
+        {/* This card is the entire page for a brand-new (zero-account) user across every
+            cash-engine-backed route (dashboard, cards, coach, goals, calendar, ...) — it's
+            the only heading those pages render, so it must be the page's <h1>, not the
+            CardTitle default of <h2> (production-readiness backlog, 2026-06-24). */}
+        <CardTitle as="h1" className="text-xl">Welcome to Aimplifi 👋</CardTitle>
         <CardDescription>
           Add your accounts and Aimplifi will tell you exactly how much you need, and by when, to pay
           every card in full — plus your net worth, spending, and savings rate.

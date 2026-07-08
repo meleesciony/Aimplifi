@@ -12,6 +12,13 @@ async function signIn(page: Page) {
   await page.waitForURL('**/dashboard');
 }
 
+test('investments has its own main-nav entry (production-readiness backlog, 2026-06-24)', async ({ page }) => {
+  await signIn(page);
+  await page.getByTestId('nav-investments').click();
+  await page.waitForURL('**/investments');
+  await expect(page.getByTestId('investments-total-value')).toContainText('$142,000.00');
+});
+
 test('investments is reachable from accounts and shows the seeded portfolio', async ({ page }) => {
   await signIn(page);
   await page.goto('/accounts');

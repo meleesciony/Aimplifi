@@ -2417,3 +2417,69 @@ consistent); `weekly_digest:` keys pruned only by the #173 notify cron's global 
 `RESEND_API_KEY`, wire `/api/cron/digest` weekly in `vercel.json`) is a pure operator step (DEPLOY.md).
 **This completes Gap 2** (radar #172 + notifications #173 + digest #174). Gap 3 (onboarding + mobile
 polish) is next.
+
+## Post-Phase-5: Gap 3 §1 — production-readiness backlog burn-down (#175)
+
+Started Gap 3 (onboarding + mobile polish) with its first, smallest slice: the 2026-06-24 UX/
+production-readiness audit's "DO NEXT" list (7 items — loading skeleton, empty states, heading
+structure, per-page titles, delete confirmations, popover dismissal, an Investments nav entry). An
+explorer survey against the current codebase found **5 of the 7 already done** by prior sessions
+without ever being checked off the backlog: `(app)/loading.tsx` skeleton exists and covers every
+route; every one of the 19 routes already sets `metadata.title` through the existing `%s · Aimplifi`
+template, and `global-error.tsx` is already branded; `CardTitle` already renders a real `<h2>` (via
+an `as` override for deeper nesting) and every spot-checked page already carries its own `<h1>`;
+both the manual-account delete and the goal delete already use an inline two-step "Delete? Yes /
+Cancel" confirm; the recategorize popover already dismisses on outside-click AND Escape. That left
+3 genuine gaps, all additive UI-only fixes (no engine/schema touch, so no critic cycle — routine
+lane):
+
+1. **Heading structure, the real miss.** `EmptyDashboard` — the entire page for a brand-new,
+   zero-account user, rendered as the early return on 13 different routes (dashboard, cards, ask,
+   forecast, goals, coach, budgets, calendar, investments, recurring, reports, spending-plan,
+   trends) — used `CardTitle`'s default `<h2>` as its ONLY heading. A first-run user's very first
+   screen, on every one of those routes, had no `<h1>` at all. Fixed with one line
+   (`<CardTitle as="h1">`) since the primitive already supported the override; fixes all 13 routes
+   at once.
+2. **Empty states.** `LifeEnergyCard` (coach) rendered a silently blank `<ul>` for a user with no
+   large purchases in the last 90 days; the coach `opportunities-card` did the same for zero
+   detected savings opportunities. Both now guard with the same empty-state pattern already used in
+   `reports-view.tsx`. (The forecast `AreaChart` the survey flagged as "unguarded" turned out to be
+   a non-issue on inspection — `f.days` is built by a `for (d=0; d<=horizonDays; d++)` loop, so it
+   always has at least 1 entry; no true-empty case exists, so no guard was added — LOOP rule 2.)
+3. **Investments nav entry.** `/investments` (#78) was fully built but reachable only via an inline
+   "View investments →" link on /accounts or by clicking an INVESTMENT-type account row — not from
+   either app nav. Added as an 8th `SECONDARY` nav entry (`LineChart` icon) between Accounts and
+   Activity.
+
+New/extended e2e locks (no new spec files needed — the natural fixtures already existed):
+`auth.spec.ts`'s fresh-signup test gained an `<h1>` count/text assertion at the exact point
+`empty-dashboard` first renders; its "sparse dashboard" test (one manual asset, zero
+transactions — already the zero-opportunities/zero-life-energy fixture) gained assertions that both
+new empty states render and the old list testids are absent; `investments.spec.ts` gained a
+nav-click-through test.
+
+**A pre-existing, unrelated e2e infra issue was found and root-caused, not fixed, while running the
+gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → tsc/eslint/vitest (**1969/1969 unchanged**, no
+engine touched)/build all clean, but Playwright reported **75 passed, 5 failed**, all 5 on the
+`[mobile-380]` project. `git stash`-ing this entire diff and rerunning the same spec files against
+clean `main` HEAD reproduced the identical 5 failures (confirmed again with `--workers` reduced
+4→2→1) — proving this predates and is unrelated to this session's changes. A throwaway diagnostic
+spec (written, run, then deleted) found the root cause: on this machine, the `mobile-380` Playwright
+project (configured `viewport: {width:380,height:800}`) actually renders the page at
+`window.innerWidth/innerHeight` ≈ **425×895** — an ~11.8% mismatch. The app's CSS is not at fault
+(the fixed bottom-nav bar's `boundingBox()` correctly sits flush with the REAL 895px-tall viewport
+bottom); this is a Chromium/Playwright viewport-emulation-vs-OS-display-scaling artifact on this
+Windows machine, and it makes clicks on the fixed bottom-nav bar (and other edge-of-viewport
+elements) land on unrelated page content instead. Documented as
+`docs/lessons/mobile-380-viewport-scaling-flake.md` (with the git-stash A/B control recipe for the
+next session that hits it) rather than silently patched — mutating shared Playwright device config
+inside an unrelated backlog session would be a silent side-fix, not a scoped one. Every one of THIS
+session's own new/modified e2e assertions passed (none of the 3 files touched are in the 5 failing
+tests); the `[desktop]` project (no fixed bottom nav) passed in full on every run.
+
+**Honest gate:** `npx tsc --noEmit` clean; `npx eslint . --max-warnings=0` clean; `npx vitest run` →
+**1969/1969** (147 files); `npx next build` clean; `VERIFY_E2E=1 bash scripts/verify.sh` →
+75 passed / 5 failed (pre-existing, root-caused, unrelated — see above) — `scripts/verify.sh` cannot
+currently exit 0 on this machine for any diff until the viewport-scaling issue is separately
+investigated. NEXT Gap 3 increments: §2 mobile secondary-nav redesign (7→8 icons now, still
+"scope with owner" per the plan), §3 guided first-run connect flow.

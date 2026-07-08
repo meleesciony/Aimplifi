@@ -22,6 +22,11 @@ test('email/password sign-up → empty onboarding → sign out → sign back in'
   await page.waitForURL('**/dashboard', { timeout: 20000 });
   await expect(page.getByTestId('empty-dashboard')).toBeVisible();
   await expect(page.getByTestId('demo-banner')).toHaveCount(0);
+  // Onboarding is the ENTIRE page for a zero-account user, so it must still carry a
+  // single real <h1> for screen readers (production-readiness backlog, 2026-06-24) —
+  // not just the CardTitle's default <h2>.
+  await expect(page.locator('h1')).toHaveCount(1);
+  await expect(page.locator('h1')).toHaveText('Welcome to Aimplifi 👋');
 
   // Every cash-engine-backed page shows onboarding (not a crash) for a zero-account user (#44).
   for (const path of ['/cards', '/coach', '/goals', '/calendar']) {
@@ -80,6 +85,15 @@ test('first manual account → dashboard explains its sparse cards (no bare $0.0
   await expect(page.getByTestId('empty-dashboard')).toHaveCount(0);
   await expect(page.getByTestId('dashboard-safe-to-spend-empty')).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('dashboard-recurring-empty')).toBeVisible();
+
+  // Coach page with zero transactions: opportunities and life-energy must explain
+  // their emptiness rather than render a silent blank list (production-readiness
+  // backlog, 2026-06-24).
+  await page.goto('/coach');
+  await expect(page.getByTestId('opportunities-empty')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('opportunities-list')).toHaveCount(0);
+  await expect(page.getByTestId('life-energy-empty')).toBeVisible();
+  await expect(page.getByTestId('life-energy-list')).toHaveCount(0);
 });
 
 test('wrong password is rejected with a friendly error', async ({ page }) => {
