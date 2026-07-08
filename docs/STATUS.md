@@ -2750,3 +2750,54 @@ Gap 1 §1–2 live-sync token walkthroughs, Gap 3 §2 mobile secondary-nav redes
 viewport fix. **Once the owner pushes, the FIRST thing to confirm is the Actions run: if it's green,
 flip #181 from UNVERIFIED to verified and note the first-ever clean full-suite e2e; if mobile-380
 fails, that's real.**
+
+## Post-Phase-5 refinement: multi-device session invalidation + PII-free deletion record (DECISIONS #182, Competitive-Gap Gap 6 §3)
+
+Closed the two items PRIVACY.md §Deletion had listed as deferred "real-auth release"
+limitations. Resumed on "continue" (Fable lane); a full-codebase reconciliation first
+found COMPETITIVE_GAP_PLAN stale (Cash Flow Radar, web push, and the weekly digest were
+already BUILT — the plan's §2 now carries a dated reconciliation banner so no future
+session rebuilds them), leaving Gap 6 §3 as the highest-value UNBLOCKED, rule-3 slice.
+
+- **Mechanism:** `User.sessionEpoch` (Int @default(0), golden-safe) stamped into the JWT
+  at sign-in and re-checked on every Node-side session resolution. Pure core
+  `isSessionCurrent` + `hashUserRef` in `engine/auth/session.ts` (unit-pinned, fail-closed);
+  Node enforcement in `server/session-guard.ts` called from a Node `session`-callback
+  override (auth.ts) that strips `user` on a stale/absent epoch → `requireUserId` throws on
+  every device. Edge middleware stays Prisma-free (coarse gate; all data access re-resolves
+  through the enforced Node callback, so a stale token that passes middleware leaks nothing).
+- **Triggers:** `revokeOtherSessions()` (Settings → "Sign out of all devices", bumps the
+  epoch, signs out this device too — honest "everywhere"); account deletion (user gone →
+  existence check fails everywhere, no extra code).
+- **Deletion record:** `DeletionRecord` (no User relation → survives the cascade), only
+  `hashUserRef(id)` + timestamp, written ATOMICALLY with `user.delete` (array-form
+  `$transaction`) so it exists IFF the deletion committed. Keyed by a SECRET salt
+  (AUTH_SECRET) so low-entropy ids (a Google id embeds an email) aren't enumerable.
+
+**Hostile Critic (fresh-context Fable, refute-by-default): cycle 1 FAIL — 1 P0, 2 P1, all
+FIXED + re-verified.**
+- **P0-1 (serious):** demo + Google tokens were minted at a hardcoded epoch 0, so one
+  "sign out of all devices" would BRICK those accounts (fresh sign-in re-minted 0 ≠ bumped
+  DB epoch → infinite redirect; violates CLAUDE.md rule 4). FIXED: removed the
+  edge/authorize stamp; a Node `jwt` override now stamps `token.epoch` from the DB
+  (`currentSessionEpoch`) at sign-in for EVERY provider, so re-sign-in reads the current
+  epoch. Regression-locked (round-trip test: revoke → old token dead → fresh stamp == bumped
+  epoch → valid).
+- **P1-1:** deletion record + delete were non-atomic → wrapped in `$transaction`.
+- **P1-2 (coverage):** the stamp↔check seam was untested → added the round-trip regression
+  (mechanically catches P0-1).
+- **P2s FIXED:** hash keyed by AUTH_SECRET (was public-salt-enumerable); overclaimed
+  "non-enumerable" comments softened to honest "pseudonymous unless secret salt". **Accepted
+  P2s (documented):** one indexed-PK findUnique per Node `auth()` (negligible beside the
+  per-render snapshot load; React `cache()` dedupe is a possible future trim); `db push`
+  convention means a Postgres deploy must push before the new code runs, else the password
+  authorize / session guard 500 on a column-short DB.
+
+Gate (real output 2026-07-08): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — tsc/eslint
+clean, **2010 unit / 150 files** (+2 files: `session-lifecycle` 8 pure + `session-invalidation`
+real-DB revoke/delete/round-trip), build clean. Touched e2e `account-deletion.spec.ts` 2/2 (a
+render-only Sessions-control assertion — never clicks revoke, which would bump the shared demo
+epoch and sign every parallel spec out; the real bump + rejection is proven by the integration
+test). Full `VERIFY_E2E=1` still cannot exit 0 on this Windows machine (documented mobile-380
+viewport flake, docs/lessons/mobile-380-viewport-scaling-flake.md — unrelated). Committing as
+#182; NOT pushed (push owner-gated, #171–#182 ride together).

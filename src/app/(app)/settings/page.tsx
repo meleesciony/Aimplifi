@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { buttonVariants } from '@/components/ui/button';
 import { MoneyDialsForm } from '@/components/settings/money-dials-form';
 import { DeleteMyDataForm } from '@/components/settings/delete-my-data-form';
+import { SignOutEverywhere } from '@/components/settings/sign-out-everywhere';
 import { CategoryManager } from '@/components/settings/category-manager';
 import { CustomCategoryManager } from '@/components/settings/custom-category-manager';
 import { getCategoryCatalog } from '@/server/categories';
@@ -189,6 +190,16 @@ export default async function SettingsPage() {
             transactions. This is how accurately it files them, scored against the categories you
             confirm.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="security-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Security — control your signed-in sessions</CardDescription>
+          <CardTitle className="text-base">Sessions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SignOutEverywhere />
         </CardContent>
       </Card>
 

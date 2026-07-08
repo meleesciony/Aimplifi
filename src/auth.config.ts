@@ -51,6 +51,11 @@ export const authConfig = {
         return token;
       }
       if (user?.id) token.sub = user.id; // credentials (demo / password): our DB id
+      // NOTE: the session epoch is NOT stamped here — the edge jwt callback is
+      // Prisma-free, and demo/Google authorize can't carry it. It is stamped from
+      // the DB in the Node jwt override (src/auth.ts) at sign-in, for every provider
+      // uniformly, so a fresh sign-in after a revoke always re-reads the CURRENT
+      // epoch (Gap 6 §3 — the fix for the demo/Google lock-out P0).
       return token;
     },
     session: ({ session, token }) => {

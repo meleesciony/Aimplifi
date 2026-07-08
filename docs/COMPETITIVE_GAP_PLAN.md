@@ -26,6 +26,34 @@ finance app a habit instead of a tool.
 
 ## 2. The gap plan (priority order)
 
+> **STATUS RECONCILIATION (2026-07-08, updated as of #182).** A full-codebase audit
+> found this plan was written (2026-07-07) without noticing several listed "gaps" were
+> **already built**. Corrected state, so no future session rebuilds them:
+> - **Gap 1:** §3 connection-health UX **BUILT** (`engine/sync/health.ts`, dashboard
+>   `StaleDataBanner`, per-account freshness #179). §1 live walkthroughs + §2 sync cron
+>   remain **owner/env-gated** (tokens, `CRON_SECRET`). §4 sync-*failure* surfacing (vs
+>   recency) is still **NOT BUILT**.
+> - **Gap 2 (the "strategic build"):** §1 Cash Flow Radar **BUILT & surfaced** on the
+>   dashboard (`engine/radar/radar.ts`, `cash-flow-radar-card.tsx`). §2 web push **BUILT**
+>   (`lib/push.ts`, `/api/push/*`, `PushSubscription`, `PushOptIn`) + materiality filter
+>   (`engine/notify/select.ts`, `/api/cron/notify`). §3 weekly digest **BUILT**
+>   (`engine/digest/build.ts`, `/api/cron/digest`). Email/push delivery is **env-gated**
+>   (`RESEND_API_KEY`, `VAPID_*`). **Genuine remaining gap:** `/api/cron/notify` and
+>   `/api/cron/digest` are **NOT in `vercel.json`** — they never fire even once the env is set.
+> - **Gap 4:** §1 Glass-Box **BUILT** (#178), §2 AI-trust panel **BUILT** (#177).
+> - **Gap 5:** §1 provenance tag **BUILT** (#180); Plaid holdings parity + benchmark line
+>   **owner/data-gated** (no market-data feed / holdings-history schema).
+> - **Gap 6:** §1 CI **BUILT** (#181). §3 session invalidation + PII-free deletion record
+>   **BUILT (#182, this).** §2 error tracking + §4 Neon backups still **NOT BUILT**.
+> - **Gap 3:** §3 guided first-run **BUILT** (#176), Investments nav **BUILT**; §1 loading
+>   skeletons + destructive-delete confirms **NOT BUILT**; §2 mobile nav **owner-design-gated**.
+>
+> **True unblocked, in-session-verifiable remaining work:** wire the two crons into
+> `vercel.json` (Gap 2); Gap 1 §4 sync-failure surfacing; Gap 3 §1 skeletons + delete
+> confirmations; Gap 6 §2 error tracking (partially env-gated). Everything else is
+> owner/env-gated or already done.
+
+
 ### Gap 1 — Live-data reliability (usefulness gate; everything else is downstream)
 
 The app's differentiators only matter on *live* data. Today Plaid and SimpleFIN network paths

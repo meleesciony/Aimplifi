@@ -39,18 +39,38 @@ Settings → Export: transactions (CSV), net worth (CSV/PDF) via
 2. For each linked Plaid item: `POST /item/remove` revokes the token at Plaid
    (`PlaidProvider.removeItem`), best-effort — a Plaid failure never blocks the
    user's right to delete.
-3. `DELETE FROM User WHERE id = ?` — the schema cascades (`onDelete: Cascade`)
+3. A **PII-free deletion record** is written first (`DeletionRecord`): a one-way
+   salted hash of the user id (`hashUserRef` = sha256(salt:id)) plus a timestamp,
+   in a table with NO relation to `User` so the cascade never removes it. It
+   retains nothing recoverable — not the email (even for a Google user, whose id
+   embeds one), not the name — but proves a deletion occurred. An operator holding
+   a specific id can confirm its deletion; nobody can enumerate ids from the sink.
+4. `DELETE FROM User WHERE id = ?` — the schema cascades (`onDelete: Cascade`)
    to accounts, transactions, statements, payments, scheduled transactions,
    balance snapshots, rules, corrections, recurring series, goals, budgets,
-   Plaid items, **and audit log rows**: deletion removes everything, audit trail
-   included (nothing about the user is retained). The action is idempotent — if
-   the row is already gone it simply signs out (no error).
+   Plaid items, **and audit log rows**: deletion removes everything personal, audit
+   trail included (nothing recoverable about the user is retained — only the hashed
+   deletion record above survives). The action is idempotent — if the row is already
+   gone it simply signs out (no error).
 
-**Known limitations (real-auth release):** the session is stateless JWT, so
-`signOut` clears only the current browser — other active devices stay valid until
-token expiry (move to DB sessions or add a user-existence check then). No durable,
-non-cascading deletion record is kept (the audit row is cascade-removed by design);
-a separate PII-free compliance sink is the future path.
+**Multi-device session invalidation (Gap 6 §3 — now implemented):** each user
+carries a `sessionEpoch` stamped into the JWT at sign-in and re-checked on every
+Node-side session resolution (`isSessionEpochCurrent`, called from the Node session
+callback that every server action + page reaches via `requireUserId`). A deleted
+account (row gone) fails the check on **every** device, not just the current
+browser; and Settings → "Sign out of all devices" (`revokeOtherSessions`) bumps the
+epoch to invalidate every previously issued token — including the current one, so
+you sign back in. Enforcement is at the Node data-access boundary; the edge
+middleware stays Prisma-free (a stale token may pass the coarse route gate but
+cannot read any user data, since all data access re-resolves the session through
+the enforced callback).
+
+**Known limitations (real-auth release):** there is no password-change flow yet, so
+the deliberate revoke control is the only user-initiated epoch bump today. The
+epoch check adds one indexed primary-key lookup per authenticated request
+(negligible beside the per-render snapshot load). DB-strategy sessions remain a
+possible future move if instant per-request revocation without a token round-trip
+is ever needed.
 
 ## Security measures
 

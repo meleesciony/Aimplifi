@@ -37,3 +37,17 @@ test('delete my data: shows the summary and gates the button behind the exact ph
 
   // Intentionally NOT submitting — see the file header.
 });
+
+test('sessions: the "sign out of all devices" control renders on settings', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/settings');
+
+  // Render + copy only. NOT clicked: revokeOtherSessions would bump the shared demo
+  // user's session epoch and sign every parallel spec's session out. The real bump +
+  // old-epoch rejection is proven by tests/unit/session-invalidation.test.ts.
+  await expect(page.getByTestId('security-card')).toBeVisible();
+  const revoke = page.getByTestId('revoke-sessions-submit');
+  await expect(revoke).toBeVisible();
+  await expect(revoke).toBeEnabled();
+  await expect(page.getByTestId('security-card')).toContainText('every signed-in session');
+});

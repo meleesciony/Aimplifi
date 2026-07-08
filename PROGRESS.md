@@ -3113,3 +3113,73 @@ feed above; Gap 6 §1 (CI verify.sh in GitHub Actions — can't observe green wi
 with the owner's next push); Gap 6 §2 (prod error tracking); PROGRESS.md backfill #173–175
 (still outstanding — reconstruct from STATUS #173/#174/#175 only, don't invent live detail).
 **SAFE to /clear.**
+
+## 2026-07-08 (resumed: "continue" after /clear, model Fable 5) — #182 multi-device session invalidation + PII-free deletion record (Gap 6 §3) — DONE ✅ (verify GREEN, critic FAIL→fixed→re-verified, touched e2e 2/2)
+
+Resumed at the #181 HEAD. First action was a full-codebase reconciliation (two explorer
+sweeps) because the #180/#181 handoffs pointed back at the COMPETITIVE_GAP_PLAN — which
+turned out to be STALE: Cash Flow Radar (`engine/radar/radar.ts` + dashboard card), web
+push (`lib/push.ts`, `/api/push/*`, `PushSubscription`, `PushOptIn`), and the weekly digest
+(`engine/digest/build.ts`, `/api/cron/digest`) were ALL already built though the plan (written
+07-07) listed them as gaps. Annotated `COMPETITIVE_GAP_PLAN.md §2` with a dated reconciliation
+banner (per-gap BUILT/PARTIAL/NOT-BUILT/GATED) so no future session rebuilds them. Also noted:
+**#181 (CI) committed without its own PROGRESS entry** — its full record is DECISIONS/STATUS #181;
+this is that backfill acknowledgement. (The older #173–175 PROGRESS backfill is STILL outstanding —
+reconstruct from STATUS only.)
+
+Picked Gap 6 §3 as the highest-value UNBLOCKED, in-session-verifiable, rule-3 (security/data-
+integrity) slice — the two items PRIVACY.md §Deletion listed as deferred. Built engine-first:
+- `engine/auth/session.ts` — pure `isSessionCurrent(dbEpoch|null, tokenEpoch?)` (fail-closed) +
+  `hashUserRef` (salted sha256), unit-pinned against independently-computed vectors.
+- `User.sessionEpoch` (Int @default(0), golden-safe) + new `DeletionRecord` (no User relation →
+  survives the cascade). `prisma db push` applied.
+- `server/session-guard.ts` — `currentSessionEpoch` (stamp source) + `isSessionEpochCurrent`
+  (request check), ONE DB source so stamp and check can't diverge.
+- auth.ts — Node `jwt` override stamps `token.epoch` from the DB at sign-in for EVERY provider;
+  Node `session` override strips `user` on a stale/absent epoch → `requireUserId` throws on every
+  device. Edge middleware stays Prisma-free.
+- `revokeOtherSessions()` action (bump + audit + signOut) + Settings "Sign out of all devices".
+- `deleteMyData` writes the `DeletionRecord` ATOMICALLY with the cascade (`$transaction`), keyed
+  by AUTH_SECRET.
+
+FRESH-CONTEXT HOSTILE CRITIC (Fable, refute-by-default) — **cycle 1 FAIL: 1 P0 + 2 P1, all FIXED
++ re-verified**:
+- **P0-1** demo/Google tokens minted at a hardcoded epoch 0 → one "sign out of all devices" would
+  BRICK those accounts (fresh sign-in re-minted 0 ≠ bumped DB epoch → infinite redirect; breaks
+  CLAUDE.md rule 4). FIX: dropped the edge/authorize stamp; the Node `jwt` override reads the DB
+  epoch at sign-in for all providers. Regression-locked by a round-trip test.
+- **P1-1** non-atomic record+delete → `$transaction`.
+- **P1-2** untested stamp↔check seam → round-trip regression added (catches P0-1 mechanically).
+- **P2s** hash keyed by AUTH_SECRET (was public-salt-enumerable for Google ids); overclaimed
+  comments softened. Accepted: per-request PK findUnique (negligible); `db push` deploy note.
+
+Gate (real 2026-07-08): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — tsc/eslint clean,
+**2010 unit / 150 files**, build clean. `VERIFY_E2E=1 account-deletion.spec.ts` 2/2 (demo sign-in
+exercises the P0 fix; new render-only Sessions assertion, never clicks revoke). Full VERIFY_E2E
+can't exit 0 on this Windows machine (documented mobile-380 viewport flake — unrelated). Ledgers:
+DECISIONS #182, STATUS #182, PRIVACY §Deletion rewritten, COMPETITIVE_GAP_PLAN §2 reconciled. No
+REGRESSION_LEDGER entry (the P0/P1 were caught in-cycle, never shipped). Committing as #182; NOT
+pushed (push owner-gated, #171–#182 ride together).
+
+### HANDOFF (resume after /clear) — 2026-07-08, #182 DONE
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md + docs/lessons/INDEX.md first.
+**State:** #182 committed at HEAD; local main ahead of origin (#171–#182, push owner-gated).
+**Health baseline (re-confirm, don't trust):** core `bash scripts/verify.sh` → GREEN, 2010 unit /
+150 files, build clean. Full `VERIFY_E2E=1` cannot exit 0 here (mobile-380 viewport flake,
+docs/lessons/mobile-380-viewport-scaling-flake.md) — git-stash A/B control before blaming any new
+diff; run the touched spec directly.
+**IMPORTANT — the plan was stale; trust the reconciliation, not the raw gap list.** COMPETITIVE_GAP_PLAN
+§2 now has a dated BUILT/GATED banner. **True unblocked, in-session-verifiable remaining work:**
+(1) wire `/api/cron/notify` + `/api/cron/digest` into `vercel.json` crons (Gap 2 — they exist but
+never fire; ~config, low-risk, pair with the owner push to observe); (2) Gap 1 §4 sync-FAILURE
+surfacing in the reminders card (needs a persisted sync-error state — real engine work); (3) Gap 3
+§1 loading skeletons + destructive-delete confirmations (mechanical, Opus/Sonnet lane); (4) Gap 6
+§2 prod error tracking (Sentry — partially env-gated, hard to observe green in-session).
+**STANDING OWNER-ONLY:** the push; Gap 1 §1–2 live Plaid/SimpleFIN walkthroughs (tokens) + sync
+cron enable; Gap 3 §2 mobile secondary-nav redesign (design input); Gap 5 benchmark line (market-
+data feed + holdings-history schema, #180); the mobile-380 Playwright infra fix; #173–175 PROGRESS
+backfill (doc chore, reconstruct from STATUS only).
+**Gotchas:** never reseed under a live server; e2e uses %TEMP%/aimplifi-e2e.db; a solo `npx playwright
+test` spawns its own `next start` from current `.next` — rebuild AFTER stashing for a valid control;
+kill :3100 LISTEN PID on EADDRINUSE.
+**SAFE to /clear.**

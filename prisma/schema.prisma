@@ -28,6 +28,12 @@ model User {
   expectedReturnBps Int     @default(700) // opportunity-cost compounding
   moneyDials        String? // JSON-encoded string[] (SQLite has no Json type)
   paymentAccountId  String? // designated checking account for card payments
+  // Multi-device session invalidation (Gap 6 §3). Stamped into the JWT at sign-in
+  // and re-checked on every Node-side session resolution; bumping it (see
+  // revokeOtherSessions) makes every previously issued token stale. A deleted user
+  // (row gone) also fails the check, so an account deletion kills sessions on every
+  // device. Default 0 keeps existing/demo tokens valid — golden-safe.
+  sessionEpoch      Int     @default(0)
   // Retirement-planning assumptions (DECISIONS #123). Nullable: null = use the
   // documented RETIREMENT_ASSUMPTIONS default, so an un-customized (e.g. demo)
   // user projects identically to #122 and golden values never move.
@@ -50,6 +56,21 @@ model User {
   customCategories Category[]
   pushSubscriptions PushSubscription[]
   notificationsSent NotificationSent[]
+}
+
+// PII-free deletion record (Gap 6 §3, docs/PRIVACY.md §Deletion). Deliberately has
+// NO relation to User, so `prisma.user.delete`'s cascade never removes it: it is the
+// one artifact that outlives the account. It retains only a one-way salted hash of the
+// deleted user's id (hashUserRef) plus a timestamp — no email, no name, nothing
+// recoverable — proving a deletion occurred without keeping personal data. Hashed with
+// a SECRET salt (AUTH_SECRET) in production, so the records are non-enumerable even
+// though a user id can be low-entropy (a Google id embeds an email).
+model DeletionRecord {
+  id          String   @id @default(cuid())
+  userRefHash String // sha256(salt:userId), PII-free
+  deletedAt   DateTime @default(now())
+
+  @@index([userRefHash])
 }
 
 // Per-user "hide this category from the pickers" preference (DECISIONS #110).

@@ -13,6 +13,7 @@ import { applyGoogleSignIn } from '@/lib/auth/google-provision';
 import { verifyPassword } from '@/lib/auth/password';
 import { normalizeEmail } from '@/lib/auth/validate';
 import { prisma } from '@/lib/db';
+import { currentSessionEpoch, isSessionEpochCurrent } from '@/server/session-guard';
 import { DEMO_USER_ID, authConfig } from '@/auth.config';
 
 export { DEMO_USER_ID };
@@ -51,6 +52,39 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
       }
       return true;
+    },
+    // Node jwt override (Gap 6 §3). Runs the edge logic first (sets token.sub for
+    // credentials/Google), then — ONLY at sign-in (a fresh mint carries `user` or
+    // `account`) — stamps the token epoch from the DB. This is where Prisma is
+    // available (the sign-in POST is Node), so EVERY provider (password, demo,
+    // Google) gets the CURRENT epoch, not a static 0. Without this, demo/Google
+    // tokens minted at a hardcoded 0 could never match a bumped epoch, so a single
+    // "sign out of all devices" would brick those accounts on the next sign-in.
+    // Subsequent requests carry no user/account → no DB read (the per-request check
+    // lives in the session callback below).
+    jwt: async (params) => {
+      const token = await authConfig.callbacks.jwt(params);
+      if ((params.user || params.account) && token.sub) {
+        const epoch = await currentSessionEpoch(token.sub);
+        if (epoch !== undefined) token.epoch = epoch;
+      }
+      return token;
+    },
+    // Node-only session enforcement (Gap 6 §3). The edge session callback
+    // (authConfig) maps token.sub → session.user.id with no DB; here — where
+    // Prisma is available — we additionally verify the token's stamped epoch is
+    // still current and the user still exists. A stale token (revokeOtherSessions
+    // bumped the epoch) or a deleted account (row gone) yields a user-less session,
+    // so requireUserId throws Unauthorized on this device and every other. Every
+    // Node auth() call (all server actions + pages via requireUserId) passes
+    // through here; middleware keeps using the Prisma-free edge config.
+    session: async (params) => {
+      const base = authConfig.callbacks.session(params);
+      const { token } = params;
+      if (token.sub && !(await isSessionEpochCurrent(token.sub, token.epoch))) {
+        return { ...base, user: undefined as unknown as (typeof base)['user'] };
+      }
+      return base;
     },
   },
 });
