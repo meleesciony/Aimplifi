@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type DatedFlow,
   type Holding,
+  holdingProvenance,
   isPerShareApproximate,
   linkReturns,
   summarizePortfolio,
@@ -255,5 +256,31 @@ describe('xirr — money-weighted (dollar-weighted) return', () => {
     } else {
       expect(r).toBeNull();
     }
+  });
+});
+
+describe('holdingProvenance — the /investments "Synced" badge decision (DECISIONS #180)', () => {
+  it('manual / absent source → no badge (keeps the all-manual demo /investments unchanged)', () => {
+    expect(holdingProvenance('manual')).toBeNull();
+    expect(holdingProvenance(undefined)).toBeNull();
+    expect(holdingProvenance('')).toBeNull();
+  });
+
+  it('a real feed key → a "Synced" badge (simplefin today; plaid when #5 lands)', () => {
+    const expected = { label: 'Synced', title: 'Synced from your linked brokerage' };
+    expect(holdingProvenance('simplefin')).toEqual(expected);
+    expect(holdingProvenance('plaid')).toEqual(expected);
+  });
+
+  it('source is passed through valuation + roll-up and changes NO money value', () => {
+    const withSource = h({ symbol: 'SF', quantity: 1, priceCents: cents(1000), costBasisCents: cents(900), source: 'simplefin' });
+    const p = valuePosition(withSource);
+    expect(p.source).toBe('simplefin');
+    // Identical valuation to the no-source position — provenance is display-only.
+    const bare = valuePosition(h({ symbol: 'SF', quantity: 1, priceCents: cents(1000), costBasisCents: cents(900) }));
+    expect(p.marketValueCents).toBe(bare.marketValueCents);
+    expect(p.unrealizedGainCents).toBe(bare.unrealizedGainCents);
+    // summarizePortfolio preserves source through the weight-assignment map.
+    expect(summarizePortfolio([withSource]).positions[0].source).toBe('simplefin');
   });
 });

@@ -145,3 +145,24 @@ describe('addHolding — input hardening (a bad row can never break the read pat
     expect(await prisma.holding.count({ where: { accountId: ACCT, symbol: { contains: '日' } } })).toBe(0);
   });
 });
+
+describe('getInvestments — surfaces holding provenance to the UI (DECISIONS #180)', () => {
+  it('exposes each position’s source so the view can badge a synced feed holding', async () => {
+    // A synced (feed) holding and a default (manual) holding, created directly.
+    await prisma.holding.createMany({
+      data: [
+        { accountId: ACCT, symbol: 'SYNC', quantity: 1, costBasisCents: 1000, priceCents: 1200, marketValueCents: 1200, source: 'simplefin' },
+        { accountId: ACCT, symbol: 'HAND', quantity: 1, costBasisCents: 1000, priceCents: 1200 }, // source defaults to 'manual'
+      ],
+    });
+    try {
+      const view = await getInvestments();
+      const synced = view.overall.positions.find((p) => p.symbol === 'SYNC')!;
+      const manual = view.overall.positions.find((p) => p.symbol === 'HAND')!;
+      expect(synced.source).toBe('simplefin'); // → holdingProvenance renders a "Synced" badge
+      expect(manual.source).toBe('manual'); //    → holdingProvenance renders no badge (demo-safe)
+    } finally {
+      await prisma.holding.deleteMany({ where: { accountId: ACCT, symbol: { in: ['SYNC', 'HAND'] } } });
+    }
+  });
+});

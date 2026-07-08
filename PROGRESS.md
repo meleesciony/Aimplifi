@@ -3057,3 +3057,59 @@ the mobile-380 Playwright infra fix.
 green without a push, so pair with the owner's next push), PROGRESS.md backfill #173–175 (still
 outstanding — reconstruct from STATUS #173/#174/#175 only, don't invent live detail).
 **SAFE to /clear.**
+
+## 2026-07-08 (resumed: "continue" after /clear, model Fable 5) — #180 Holding provenance badge on /investments (Gap 5 §1) + benchmark line blocked — DONE ✅ (verify green, targeted e2e 7/7, self-review clean)
+Resumed at the #179 handoff. From its Opus/routine menu the Fable-lane fit was Gap 5 — the one
+menu item with a genuine money-math component (the benchmark-vs-index line); the others were
+owner-gated (Gap 6 §1 CI needs a push to observe green) or pure doc backfill. Re-confirmed
+baseline before any change (measured, not trusted): `bash scripts/verify.sh` → ✅ GREEN.
+
+Scoped via the explorer subagent (codegraph absent here): `Holding.source` already exists
+(`String @default("manual")`, set to `'simplefin'` only by `reconcileSimplefinHoldings`; manual
+adds + the demo seed leave it default), but `getInvestments` did NOT select it and the view
+never showed it. Built engine-first (LOOP #5):
+- Pure `holdingProvenance(source)` in `engine/investments/portfolio.ts` (the #118
+  priceChangeBadge pattern — badge decision unit-locked without a DOM): manual/absent → null
+  (no badge); any real feed key → "Synced" (one branch covers simplefin now + plaid later).
+- Optional display-only `source?` passthrough on `Holding` + `PositionValuation` (alongside
+  the existing `name?`; zero weight in any valuation — pinned identical marketValue/gain).
+- `getInvestments`: +`source` in the holdings select, threaded through `toEngineHolding`.
+- `investments-view.tsx`: `<Badge data-testid="holding-provenance">Synced</Badge>` after the
+  symbol, only when `holdingProvenance` is non-null.
+GOLDEN-SAFE by construction: demo holdings all `manual` → no badge → demo /investments
+byte-identical (locked by a `holding-provenance` count-0 e2e assertion).
+
+**Benchmark-vs-index line (Gap 5's 2nd item) DEFERRED — BLOCKED, not faked:** needs a
+per-holding valuation history / acquisition dates (only current snapshot + cost basis stored →
+the portfolio's own period return is uncomputable; the `timeWeightedReturn`/`xirr` engines have
+no dated series) AND an index market-data source (none configured; bash allowlist has no
+market-data host). Building it now = inventing both the period and the index return = a
+no-fabrication violation. Recorded owner-gated (needs a market-data feed + a purchase-date /
+periodic-snapshot schema addition) — DECISIONS #180 + STATUS #180.
+
+Proportionate adversarial self-review (display-only single-path passthrough reusing tested
+classification — #33/#57/#179 precedent, not a multi-agent workflow): golden-safety structural
++ e2e-locked; money inert (passthrough unit test); existing valuation tests assert per-field so
+`source:undefined` breaks nothing; axe WCAG-AA green on the badge-free demo panel.
+
+Gate (real 2026-07-08): `bash scripts/verify.sh` → ✅ GREEN — tsc/eslint clean, build clean;
+targeted `investments.test.ts` + `investments-server.test.ts` 47/47 (+6); `VERIFY_E2E=1
+investments.spec.ts` 7/7 (count-0 golden lock + axe AA). Full VERIFY_E2E can't exit 0 on this
+machine (documented mobile-380 viewport flake) — the spec is run directly. Ledgers: DECISIONS
+#180, STATUS #180. No REGRESSION_LEDGER entry (feature, not a bug fix). Committing as #180;
+NOT pushed (push owner-gated, #171–#180 ride together).
+
+### HANDOFF (resume after /clear) — 2026-07-08, #180 DONE
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md + docs/lessons/INDEX.md first.
+**State:** #180 committed at HEAD; local main ahead of origin (#171–#180); push owner-gated.
+**Health baseline:** core verify GREEN; full VERIFY_E2E=1 cannot exit 0 on this machine
+(mobile-380 viewport flake, docs/lessons/mobile-380-viewport-scaling-flake.md) — git-stash A/B
+control before blaming any new diff; run the touched spec directly.
+**STANDING OWNER-ONLY:** the push; Gap 1 §1–2 live Plaid/SimpleFIN walkthroughs (tokens);
+Gap 3 §2 mobile nav redesign; the mobile-380 Playwright infra fix; the Gap 5 benchmark line
+(needs a market-data feed + a purchase-date/periodic-snapshot schema addition — see #180).
+**NEXT INCREMENT candidates (Opus/routine lane):** Gap 5 remainder gated on the market-data
+feed above; Gap 6 §1 (CI verify.sh in GitHub Actions — can't observe green without a push, pair
+with the owner's next push); Gap 6 §2 (prod error tracking); PROGRESS.md backfill #173–175
+(still outstanding — reconstruct from STATUS #173/#174/#175 only, don't invent live detail).
+**SAFE to /clear.**

@@ -52,6 +52,7 @@ type DbHolding = {
   costBasisCents: number;
   priceCents: number;
   marketValueCents: number | null;
+  source: string;
 };
 
 const toEngineHolding = (h: DbHolding): Holding => ({
@@ -64,6 +65,9 @@ const toEngineHolding = (h: DbHolding): Holding => ({
   // holdings) → the engine derives round(quantity × priceCents), so demo/golden values
   // are unchanged. cents() validates the stored integer at this read boundary.
   marketValueCents: h.marketValueCents == null ? undefined : cents(h.marketValueCents),
+  // Display-only provenance (DECISIONS #180) — 'manual' (default) or a feed key; the UI
+  // badges a synced position via holdingProvenance(). Carries no weight in any math.
+  source: h.source,
 });
 
 /** Build each INVESTMENT account's portfolio + an overall roll-up for the current user. */
@@ -79,7 +83,7 @@ export async function getInvestments(): Promise<InvestmentsView> {
       currentBalanceCents: true,
       holdings: {
         orderBy: { symbol: 'asc' },
-        select: { symbol: true, name: true, quantity: true, costBasisCents: true, priceCents: true, marketValueCents: true },
+        select: { symbol: true, name: true, quantity: true, costBasisCents: true, priceCents: true, marketValueCents: true, source: true },
       },
     },
   });

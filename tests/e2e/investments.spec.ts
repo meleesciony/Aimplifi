@@ -31,6 +31,11 @@ test('investments is reachable from accounts and shows the seeded portfolio', as
   await expect(page.getByTestId('investments-total-value')).toContainText('$142,000.00');
   await expect(page.getByTestId('investments-total-gain')).toContainText('total return');
   await expect(page.getByTestId('holding-row').filter({ hasText: 'AAPL' })).toBeVisible();
+
+  // DECISIONS #180 golden lock: the seed's five holdings are all user-entered (source
+  // 'manual'), so NO "Synced" provenance badge renders — the demo /investments is
+  // byte-identical to before this feature. A synced badge only appears on a real feed row.
+  await expect(page.getByTestId('holding-provenance')).toHaveCount(0);
 });
 
 test('an investment account row links straight to the portfolio view (DECISIONS #159)', async ({ page }) => {

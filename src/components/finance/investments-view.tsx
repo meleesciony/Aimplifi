@@ -9,8 +9,9 @@
 import Link from 'next/link';
 import { PieChart, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { cents, formatCents } from '@/lib/money';
-import { isPerShareApproximate } from '@/lib/engine/investments/portfolio';
+import { holdingProvenance, isPerShareApproximate } from '@/lib/engine/investments/portfolio';
 import { resolveInvestmentScope } from '@/lib/engine/investments/scope';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { RetirementOutlookCard } from '@/components/finance/retirement-outlook-card';
@@ -142,11 +143,19 @@ export function InvestmentsView({
                   <ul className="divide-y">
                     {a.portfolio.positions.map((p) => {
                       const Icon = p.unrealizedGainCents >= 0 ? TrendingUp : TrendingDown;
+                      // Provenance badge (DECISIONS #180): only synced feed positions carry one;
+                      // manual holdings (the whole demo) render no badge → demo byte-identical.
+                      const prov = holdingProvenance(p.source);
                       return (
                         <li key={p.symbol} className="flex items-center justify-between gap-3 px-4 py-2" data-testid="holding-row">
                           <div className="min-w-0">
                             <div className="flex items-baseline gap-2">
                               <span className="font-medium">{p.symbol}</span>
+                              {prov ? (
+                                <Badge variant="outline" className="shrink-0 text-[10px]" title={prov.title} data-testid="holding-provenance">
+                                  {prov.label}
+                                </Badge>
+                              ) : null}
                               {p.name ? <span className="truncate text-xs text-muted-foreground">{p.name}</span> : null}
                             </div>
                             <div className="text-xs tabular-nums text-muted-foreground">

@@ -2661,3 +2661,41 @@ NEXT: Gap 5 (investments provenance tag, benchmark-vs-index line) and Gap 6 §1 
 GitHub Actions) are the largest unblocked increments — both Opus/routine lane. Owner-gated (unchanged):
 the push (#171–#179 ride together), Gap 1 §1–2 live-sync walkthroughs, Gap 3 §2 mobile secondary-nav
 redesign, the mobile-380 Playwright viewport fix.
+
+## 2026-07-08 — #180 Holding provenance badge on /investments (Competitive-Gap Gap 5 §1) + benchmark line blocked
+
+Resumed on "continue" in the Fable lane per the #179 handoff. Shipped Gap 5's first
+item — a per-holding provenance badge on /investments — and recorded Gap 5's second
+item (benchmark-vs-index line) as blocked rather than faking it.
+
+- **Provenance badge (SHIPPED):** the `Holding.source` column already existed
+  (`String @default("manual")`; `reconcileSimplefinHoldings` sets `'simplefin'`).
+  Engine-first, display-only: optional `source?` passthrough on `Holding`/`PositionValuation`
+  (alongside the existing display-only `name?`, zero weight in any math), a pure
+  `holdingProvenance(source)` in `portfolio.ts` (manual/absent → no badge; any real feed
+  → "Synced"), `getInvestments` selects + threads `source`, and `investments-view.tsx`
+  renders a `<Badge data-testid="holding-provenance">Synced</Badge>` only for feed rows.
+  GOLDEN-SAFE by construction: the demo's 5 holdings are all `manual` → no badge → demo
+  /investments byte-identical (locked by a `holding-provenance` count-0 e2e assertion).
+- **Benchmark-vs-index line (BLOCKED — owner-gated, not faked):** an honest portfolio-vs-index
+  comparison needs (a) a per-holding valuation history / acquisition dates — the app stores
+  only a current snapshot + cost basis, so the portfolio's own period return is uncomputable
+  (the `timeWeightedReturn`/`xirr` engines have no dated series) — and (b) an index
+  market-data source (none configured; the bash network allowlist has no market-data host).
+  Shipping it now would mean inventing both the period and the index return, a no-fabrication
+  violation. Needs a market-data feed + a schema addition (purchase dates or periodic holding
+  snapshots) before it can be built honestly. See DECISIONS #180.
+
+Proportionate adversarial self-review (display-only single-path passthrough, reuses tested
+classification — #33/#57/#179 precedent, not a multi-agent workflow): golden-safety structural
++ e2e-locked; money values proven inert by the passthrough unit test; existing valuation tests
+assert per-field so `source:undefined` on manual rows breaks nothing; axe WCAG-AA green on the
+(badge-free) demo panel.
+
+Gate (real output 2026-07-08): `bash scripts/verify.sh` → ✅ VERIFY GREEN — tsc/eslint clean,
+build clean; targeted `tests/unit/investments.test.ts` + `investments-server.test.ts` 47/47
+(+6: `holdingProvenance` cases + a source-passthrough + a getInvestments source-flow test);
+`VERIFY_E2E=1 investments.spec.ts` 7/7 (incl. the count-0 golden lock + the WCAG-AA axe scan).
+Full `VERIFY_E2E=1` still can't exit 0 on this machine (documented mobile-380 viewport flake,
+docs/lessons/mobile-380-viewport-scaling-flake.md) — the investments spec is run directly.
+Committing as #180; NOT pushed (push owner-gated; #171–#180 ride together).

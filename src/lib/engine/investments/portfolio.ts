@@ -32,6 +32,13 @@ export interface Holding {
    * source that knows the real total must pass it here rather than only a per-share price.
    */
   marketValueCents?: Cents;
+  /**
+   * Display-only provenance of where this holding came from — 'manual' (the default, a
+   * user-entered position) or a feed key ('simplefin'; 'plaid' when #5 lands). Like
+   * `name`, it carries no weight in any valuation math; it exists so the UI can badge a
+   * synced position (DECISIONS #180). Absent/'manual' → the row shows no provenance badge.
+   */
+  source?: string;
 }
 
 export interface PositionValuation {
@@ -46,6 +53,8 @@ export interface PositionValuation {
   gainPct: number | null;
   /** Share of total portfolio market value, [0, 1]. */
   weight: number;
+  /** Display-only provenance (see Holding.source); passed through, never used in math. */
+  source?: string;
 }
 
 export interface Portfolio {
@@ -92,7 +101,23 @@ export function valuePosition(h: Holding): PositionValuation {
     unrealizedGainCents,
     gainPct: h.costBasisCents > 0 ? unrealizedGainCents / h.costBasisCents : null,
     weight: 0,
+    source: h.source,
   };
+}
+
+/**
+ * Display provenance for a holding's `source` (DECISIONS #180) — the pure decision behind
+ * the /investments "Synced" badge, extracted so the UI logic is unit-locked without a DOM
+ * (the #118 priceChangeBadge pattern). A user-entered position (`source` absent or
+ * 'manual') gets NO badge — that is the unremarkable default, and it keeps the all-manual
+ * demo portfolio's /investments byte-identical. Any real feed key (currently 'simplefin';
+ * 'plaid' when #5's holdings sync lands) is provenance worth surfacing → a "Synced" badge.
+ * Source strings are code-set, never user input, so no value is trusted here beyond the
+ * manual/absent short-circuit.
+ */
+export function holdingProvenance(source: string | undefined): { label: string; title: string } | null {
+  if (!source || source === 'manual') return null;
+  return { label: 'Synced', title: 'Synced from your linked brokerage' };
 }
 
 /** Aggregate holdings into a portfolio with totals and allocation weights. */
