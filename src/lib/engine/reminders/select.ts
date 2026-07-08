@@ -131,6 +131,24 @@ export function selectPaymentReminders(params: SelectRemindersParams): PaymentRe
   );
 }
 
+/**
+ * One plain-text bullet for a reminder, with autopay disclosure. Shared by the
+ * reminder email and the weekly digest (Gap 2 §3) so both render a due identically.
+ */
+export function reminderLine(r: PaymentReminder): string {
+  const when = r.daysUntil === 0 ? 'today' : r.daysUntil === 1 ? 'tomorrow' : `in ${r.daysUntil} days`;
+  let how: string;
+  if (r.autopayCovered) {
+    how = `autopay will handle it — just keep the funds in your account`;
+  } else if (r.autopayCents > 0) {
+    // Partial autopay (top-up): disclose both portions so the headline amount isn't misread.
+    how = `autopay covers ${formatCents(r.autopayCents)}; you'll pay the remaining ${formatCents(r.userActionCents)} yourself`;
+  } else {
+    how = `you'll pay ${formatCents(r.userActionCents)} yourself`;
+  }
+  return `• ${r.accountName}: ${formatCents(r.cashRequiredCents)} due ${formatISODate(r.dueDate, 'long')} (${when})${r.isEstimated ? ' [estimated]' : ''} — ${how}`;
+}
+
 export interface ReminderEmail {
   subject: string;
   text: string;
@@ -145,19 +163,7 @@ export function buildReminderEmail(
   const n = reminders.length;
   const subject = `Aimplifi: ${n} payment${n === 1 ? '' : 's'} coming up`;
 
-  const lines = reminders.map((r) => {
-    const when = r.daysUntil === 0 ? 'today' : r.daysUntil === 1 ? 'tomorrow' : `in ${r.daysUntil} days`;
-    let how: string;
-    if (r.autopayCovered) {
-      how = `autopay will handle it — just keep the funds in your account`;
-    } else if (r.autopayCents > 0) {
-      // Partial autopay (top-up): disclose both portions so the headline amount isn't misread.
-      how = `autopay covers ${formatCents(r.autopayCents)}; you'll pay the remaining ${formatCents(r.userActionCents)} yourself`;
-    } else {
-      how = `you'll pay ${formatCents(r.userActionCents)} yourself`;
-    }
-    return `• ${r.accountName}: ${formatCents(r.cashRequiredCents)} due ${formatISODate(r.dueDate, 'long')} (${when})${r.isEstimated ? ' [estimated]' : ''} — ${how}`;
-  });
+  const lines = reminders.map(reminderLine);
 
   const text = [
     `Here's what's coming up as of ${formatISODate(today, 'long')}:`,

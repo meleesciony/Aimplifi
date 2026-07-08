@@ -36,3 +36,11 @@ test('reminder cron route requires the secret', async ({ browser }) => {
   expect(res.status()).toBe(401);
   await fresh.close();
 });
+
+test('weekly digest cron route requires the secret', async ({ browser }) => {
+  const fresh = await browser.newContext();
+  const anon = await fresh.newPage();
+  const res = await anon.request.get('/api/cron/digest');
+  expect(res.status()).toBe(401);
+  await fresh.close();
+});

@@ -8,7 +8,25 @@
 import { describe, expect, it } from 'vitest';
 import { COACH_COPY, generateMoneyReview } from '@/lib/engine/fi/coach-copy';
 import type { CreepResult, MonthlyFlow, Opportunity } from '@/lib/engine/fi/insights';
+import { type PaymentReminder, reminderLine } from '@/lib/engine/reminders/select';
 import { cents } from '@/lib/money';
+import { isoDate } from '@/lib/dates';
+
+/** A representative reminder for guardrail-scanning the shared line (used by the digest). */
+const sampleReminder = (over: Partial<PaymentReminder> = {}): PaymentReminder => ({
+  accountId: 'a1',
+  accountName: 'Sapphire',
+  obligationType: 'card',
+  dueDate: isoDate('2026-06-15'),
+  daysUntil: 5,
+  urgency: 'upcoming',
+  cashRequiredCents: cents(50000),
+  userActionCents: cents(50000),
+  autopayCents: cents(0),
+  autopayCovered: false,
+  isEstimated: false,
+  ...over,
+});
 
 const creepFlagged: CreepResult = {
   flagged: true,
@@ -93,6 +111,18 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'assetsVsLiabilities', text: COACH_COPY.assetsVsLiabilities(), isProjection: false },
   { label: 'moneyRules:withDials', text: COACH_COPY.moneyRules(['Travel', 'Dining Out']), isProjection: false },
   { label: 'moneyRules:empty', text: COACH_COPY.moneyRules([]), isProjection: false },
+  { label: 'digestSubject', text: COACH_COPY.digestSubject(), isProjection: false },
+  { label: 'digestIntro', text: COACH_COPY.digestIntro('June 10, 2026'), isProjection: false },
+  { label: 'digestPaymentsHeader', text: COACH_COPY.digestPaymentsHeader(), isProjection: false },
+  { label: 'digestNothingDue', text: COACH_COPY.digestNothingDue(), isProjection: false },
+  { label: 'digestOutro', text: COACH_COPY.digestOutro(), isProjection: false },
+  { label: 'runway:noExpenses', text: COACH_COPY.runway(Infinity), isProjection: false },
+  { label: 'reviewImprovementRunway:noExpenses', text: COACH_COPY.reviewImprovementRunway(Infinity), isProjection: false },
+  // The shared reminder line renders inside the digest body — scan its variants too.
+  { label: 'reminderLine:selfPay', text: reminderLine(sampleReminder()), isProjection: false },
+  { label: 'reminderLine:partialAutopay', text: reminderLine(sampleReminder({ userActionCents: cents(20000), autopayCents: cents(30000) })), isProjection: false },
+  { label: 'reminderLine:covered', text: reminderLine(sampleReminder({ userActionCents: cents(0), autopayCents: cents(50000), autopayCovered: true })), isProjection: false },
+  { label: 'reminderLine:estimated', text: reminderLine(sampleReminder({ isEstimated: true, daysUntil: 0 })), isProjection: false },
   ...(() => {
     const review = generateMoneyReview({
       flows,
@@ -142,5 +172,15 @@ describe('coach copy guardrails — zero shame, assumptions everywhere, no ticke
   it('the disclaimer marks the coach as educational, not advice', () => {
     expect(COACH_COPY.disclaimer()).toMatch(/educational/i);
     expect(COACH_COPY.disclaimer()).toMatch(/not financial advice/i);
+  });
+
+  // Critic #174 P2-1: a first-week user (empty flows) makes monthsOfRunway = Infinity;
+  // the runway copy must never render the literal "Infinity" — on /coach OR in the digest.
+  it('never renders "Infinity" months for a zero-expense user', () => {
+    expect(COACH_COPY.runway(Infinity)).not.toMatch(/infinity/i);
+    expect(COACH_COPY.reviewImprovementRunway(Infinity)).not.toMatch(/infinity/i);
+    const review = generateMoneyReview({ flows: [], creep: creepClear, opportunities: [], runwayMonths: Infinity });
+    expect(review.improvement).not.toMatch(/infinity/i);
+    expect(review.improvement.length).toBeGreaterThan(0);
   });
 });

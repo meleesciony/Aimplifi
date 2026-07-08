@@ -76,7 +76,9 @@ export const COACH_COPY = {
     `Spending growth is tracking income growth over the last ${c.windowMonths} months — no lifestyle drift detected.`,
 
   runway: (months: number) =>
-    `Room for error: ${months} months of expenses in cash. The richest feeling money buys is not needing the next paycheck.`,
+    Number.isFinite(months)
+      ? `Room for error: ${months} months of expenses in cash. The richest feeling money buys is not needing the next paycheck.`
+      : `Room for error: you have cash and no recorded expenses yet — your runway fills in as spending is tracked.`,
 
   lifeEnergy: (amount: Cents, hours: number) =>
     `${formatCents(amount)} ≈ ${hours} hours of your working life, assuming your after-tax hourly wage. A lens, not a judgment.`,
@@ -88,7 +90,9 @@ export const COACH_COPY = {
     `What improved in ${monthLabel}: savings rate moved from ${pct1(fromBps)} to ${pct1(toBps)}.`,
 
   reviewImprovementRunway: (months: number) =>
-    `What held steady: your cash runway covers ${months} months of expenses — room for error is wealth working quietly.`,
+    Number.isFinite(months)
+      ? `What held steady: your cash runway covers ${months} months of expenses — room for error is wealth working quietly.`
+      : `What held steady: once a few weeks of spending land, your cash runway will show here — room for error is wealth working quietly.`,
 
   reviewCreep: (merchant: string, delta: Cents) =>
     `What crept: ${merchant} now costs ${formatCents(delta)}/mo more than it used to.`,
@@ -190,6 +194,14 @@ export const COACH_COPY = {
   // C16 · Aliche (Get Good with Money) + Sethi (your money rules) — shown on /coach.
   moneyRules: (dials: string[]) =>
     `The few rules this app is built around: pay every card in full, pay yourself first before you spend, and ${dials.length ? `spend on ${dials.join(', ')} without guilt` : 'spend on the few things you value without guilt'}. Getting good with money is mostly a short list of rules you actually keep — they beat a perfect plan you won't.`,
+
+  // ── Gap 2 §3: weekly digest email (composes the Money Review + the week's dues) ──
+  digestSubject: () => `Your week with Aimplifi`,
+  digestIntro: (todayLong: string) =>
+    `Your weekly check-in as of ${todayLong} — a quick look at what changed and what's coming up.`,
+  digestPaymentsHeader: () => `Coming up in the next 7 days:`,
+  digestNothingDue: () => `Nothing due in the next 7 days — a clear week ahead.`,
+  digestOutro: () => `That's your week. Aimplifi reminds you; it never moves your money.`,
 } as const;
 
 // ── Monthly Money Review (generated from real data) ──────────────────────────

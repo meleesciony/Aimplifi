@@ -2375,3 +2375,45 @@ per-device (a transient per-device failure with another device succeeding still 
 deliberate anti-retry-storm choice, comment corrected); `disable()` doesn't check `res.ok` (self-
 heals via the next 410-prune); a payment `dueDate` correction mid-cycle is a rare wobble the radar
 cooldown doesn't cover (payment keys are otherwise stable).
+
+## Post-Phase-5: Weekly digest email (#174, Competitive-Gap plan Gap 2 §3 — completes the proactive layer)
+
+The last Gap-2 increment and the plan's "cheapest retention win": a weekly email that brings the
+user back without a new surface. Mostly COMPOSITION over tested engines — pure
+`engine/digest/build.ts` (`buildWeeklyDigest`) renders the Monthly Money Review (the SAME `review`
+object /coach shows, via `getCoachData`) + the upcoming week's dues (`selectPaymentReminders` within
+7 days) as plain text. No fabrication: the builder touches no number — it passes the already-formatted
+MoneyReview strings through verbatim and renders each due via the SHARED `reminderLine` (extracted
+from `buildReminderEmail` as a byte-identical pure move), so the digest reconciles with /coach and the
+reminder surface by construction.
+
+Delivery reuses the dormant email path (#47): new `/api/cron/digest` (CRON_SECRET-guarded), dormant
+without RESEND_API_KEY. Once-per-ISO-week dedup reuses #173's `NotificationSent` keyed on the week's
+Monday, recorded ONLY after a real send (dormant week records nothing → activation later still
+delivers; race-safe via @@unique + P2002-scoped catch). New digest copy (5 COACH_COPY strings) + the
+shared reminderLine variants are in coach-copy.test.ts ALL_STRINGS so the shame/ticker/projection
+guardrails scan them.
+
+Fresh-context Opus hostile critic (refute-by-default, routine-cycle lane — no new money math/schema/
+security): **PASS — 0 P0 / 0 P1** (financial 9 / correctness 9 / data-integrity 10 / copy-safety 7);
+proved the reminderLine extraction byte-identical, the Monday math correct for every weekday, no
+key-namespace collision, and the prune-induced-resend attack FAILED. **1 P2 FIXED** — an inherited
+/coach bug the digest would have EMAILED: a first-week user (checking account, zero transactions) →
+`monthsOfRunway=Infinity` → the runway copy rendered the literal "Infinity months". Both
+`COACH_COPY.runway` and `reviewImprovementRunway` (unguarded on /coach too) now branch on
+`Number.isFinite`, fixed at the copy SOURCE so /coach and the digest are both correct; locked by a
+no-"Infinity" empty-flows test.
+
+Gate (real output 2026-07-08): `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN — tsc/eslint
+clean, **1969 unit / 147 files** (+31/+2 over #173: digest, cron-digest + coach-copy guardrail
+additions + the reminders reminderLine refactor), build clean, **FULL e2e 84/84** (+1: digest cron
+401 gate). EDGE_CASES §Weekly Digest added.
+
+**Accepted / follow-ups (documented, non-gating):** concurrent-sweep double-send (same accepted #173
+TOCTOU; Vercel cron doesn't overlap; one duplicate weekly email at worst); the getCoachData +
+getCashNeeded double snapshot load per user (fine for a weekly cron; each surface is internally
+consistent); `weekly_digest:` keys pruned only by the #173 notify cron's global 120-day prune
+(negligible ~52 rows/user/yr, indexed, if notify isn't scheduled). Digest/email *activation* (set
+`RESEND_API_KEY`, wire `/api/cron/digest` weekly in `vercel.json`) is a pure operator step (DEPLOY.md).
+**This completes Gap 2** (radar #172 + notifications #173 + digest #174). Gap 3 (onboarding + mobile
+polish) is next.
