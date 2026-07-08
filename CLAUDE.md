@@ -79,6 +79,16 @@ schema portable), NextAuth (Auth.js v5), TanStack Query, Recharts, Vitest + Play
 language, every projection states its assumptions inline.
 * Commit after every green verify: `phase-N: <summary> (verify green)`.
 
+## Model handoff line
+
+End every substantive turn (after the PASS/FAIL contract) with a `NEXT MODEL:` line — the
+recommended model for the next session after a `/clear`, chosen per
+`docs/COMPETITIVE_GAP_PLAN.md` §3: **Fable 5** for new money-math engines, architecture,
+and hostile-critic passes on money/security/data-integrity; **Opus 4.8** as the default for
+feature slices, UI, refactors, routine critic cycles; **Sonnet (or Opus at medium effort)**
+for well-specified mechanical slices; heavy reads always via the Haiku `explorer` subagent
+regardless of the main model. One line: model + effort + why.
+
 ## When blocked
 
 Make a high-quality decision, record it in `docs/DECISIONS.md` with rationale, and move
