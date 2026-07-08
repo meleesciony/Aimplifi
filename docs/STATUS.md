@@ -2699,3 +2699,54 @@ build clean; targeted `tests/unit/investments.test.ts` + `investments-server.tes
 Full `VERIFY_E2E=1` still can't exit 0 on this machine (documented mobile-380 viewport flake,
 docs/lessons/mobile-380-viewport-scaling-flake.md) — the investments spec is run directly.
 Committing as #180; NOT pushed (push owner-gated; #171–#180 ride together).
+
+## 2026-07-08 — #181 CI: verify.sh in GitHub Actions (Competitive-Gap Gap 6 §1)
+
+Resumed on "continue" per the #180 handoff, which named Gap 6 §1 (CI) as one of the two
+largest UNBLOCKED increments. Added `.github/workflows/verify.yml` — config only, ZERO
+app-code/schema/engine change (so no critic cycle; the YAML is outside the tsc/eslint/vitest
+globs). Runs on every push + PR.
+
+**What it does:** `ubuntu-latest`, Node 20 (matches `@types/node ^20`; no `engines` field in
+the repo) → `npm ci` (postinstall runs `prisma generate`) → `npx prisma db push --accept-data-loss`
+(materializes `file:./dev.db` so `next build` has a valid DB) → `npx playwright install --with-deps
+chromium` (the sole `mobile-380` Playwright project is a Pixel 5 = chromium) → `VERIFY_E2E=1 bash
+scripts/verify.sh` → upload `playwright-report/` + `test-results/` on failure. `concurrency` cancels
+a superseded run per ref; 30-min timeout.
+
+**Env:** the local `.env` is gitignored (`.env*`), so the workflow supplies the same dev-only,
+non-secret values (`DATA_PROVIDER=demo`, `DATABASE_URL=file:./dev.db`, a throwaway CI `AUTH_SECRET`,
+`DEMO_TODAY=2026-06-10`). Those feed `next build` ONLY — the unit + e2e suites relocate their own
+SQLite DBs under `os.tmpdir()` via `tests/setup/test-db.ts` (cross-platform; `/tmp` on the runner),
+and the seed's destructive-wipe guard is Postgres-only, so a `file:` CI DB seeds freely. GitHub
+Actions sets `CI=true`, so `playwright.config`'s `reuseExistingServer` is false → it spawns a fresh
+`next start` against the seeded e2e DB.
+
+**WHY CI MATTERS HERE SPECIFICALLY:** a full `VERIFY_E2E=1` run cannot exit 0 on the maintainer's
+Windows machine because of the documented mobile-380 Playwright viewport-scaling artifact
+(`docs/lessons/mobile-380-viewport-scaling-flake.md`) — a Chromium-vs-OS-display-scaling mismatch
+that is Windows-display-specific. A headless Linux runner has no OS display scaling, so **CI is
+expected to produce the first GREEN full e2e run this machine structurally can't**, and becomes the
+authoritative full-suite gate. A mobile-380 failure on CI would be a real regression, not the flake.
+
+**VERIFIED locally** (proportionate to a config-only add): YAML parses (pyyaml `safe_load` OK); the
+one novel step `npx prisma db push --accept-data-loss` runs and honors the `DATABASE_URL` env
+override (real output: `Datasource "db": SQLite database "dev.db" … The database is already in sync`);
+Prisma 7 dropped `--skip-generate` (my first draft used it; `unknown or unexpected option` → switched
+to `--accept-data-loss`, the flag e2e global-setup already uses); all referenced paths exist
+(`package-lock.json` for `npm ci`, `scripts/set-sqlite-wal.ts`, `prisma/seed.ts`); DB harness is
+`os.tmpdir()`-based.
+
+**UNVERIFIED (honest):** the workflow has never executed on GitHub Actions from here — the actual
+run only happens on push, which is owner-gated (#171–#181 ride together). Like the Plaid/SimpleFIN
+network paths, every command it wraps is locally proven but the orchestration itself is untested until
+it runs on Actions. No app source changed this session, so tsc/eslint/vitest/build are unchanged from
+#180's green (1994 unit / 148 files).
+
+**NEXT (unblocked):** Gap 6 §2 (prod error tracking — Sentry/Vercel monitoring) and Gap 6 §3–4
+(deferred auth/compliance items, Neon backups) are the remaining Gap 6 slices; the outstanding
+PROGRESS.md backfill for #173–176 (flagged in #176) is still open. Owner-gated (unchanged): the push,
+Gap 1 §1–2 live-sync token walkthroughs, Gap 3 §2 mobile secondary-nav redesign, the mobile-380
+viewport fix. **Once the owner pushes, the FIRST thing to confirm is the Actions run: if it's green,
+flip #181 from UNVERIFIED to verified and note the first-ever clean full-suite e2e; if mobile-380
+fails, that's real.**

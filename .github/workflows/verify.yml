@@ -1,0 +1,78 @@
+# CI — the single Definition-of-Done gate (scripts/verify.sh) on a clean Linux runner.
+#
+# Why this exists (Competitive-Gap plan Gap 6 §1): verify.sh was on-demand/local-only.
+# This runs it on every push + PR so a regression can't land silently.
+#
+# Why CI specifically matters for THIS repo: a full `VERIFY_E2E=1` run cannot exit 0 on
+# the maintainer's Windows machine because of the documented mobile-380 Playwright
+# viewport-scaling artifact (docs/lessons/mobile-380-viewport-scaling-flake.md) — a
+# Chromium-vs-OS-display-scaling mismatch that is Windows-display-specific. A headless
+# Linux runner has no OS display scaling, so CI is expected to produce the first green
+# FULL e2e run the local machine can't. If the mobile-380 specs fail HERE, that is a real
+# failure, not the flake.
+#
+# Env: the local .env is gitignored (.env*), so CI supplies the same dev-only, non-secret
+# values itself. The app runs on SQLite locally/CI (provider "sqlite" in schema.prisma) and
+# only switches to Postgres when DATABASE_URL is a postgres:// URL (DECISIONS #35). The
+# unit + e2e suites relocate their OWN SQLite DBs under the OS temp dir (tests/setup/test-db.ts),
+# so the file:./dev.db below is used only by `next build`.
+
+name: verify
+
+on:
+  push:
+  pull_request:
+
+# A newer push to the same ref supersedes an in-flight run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Mirror the gitignored local .env (dev-only, non-secret). Demo mode needs no
+      # third-party credentials; AUTH_SECRET is a throwaway CI value.
+      DATA_PROVIDER: demo
+      DATABASE_URL: "file:./dev.db"
+      AUTH_SECRET: "ci-verify-dev-secret-not-used-in-production"
+      DEMO_TODAY: "2026-06-10"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      # postinstall runs `prisma generate` (needs the committed sqlite schema).
+      - name: Install dependencies
+        run: npm ci
+
+      # Materialize file:./dev.db so `next build` has a valid database (the test
+      # suites push their own temp-dir DBs; this one is for the build only).
+      - name: Create build database
+        run: npx prisma db push --accept-data-loss
+
+      # Only Chromium is needed: the sole Playwright project (mobile-380) is a
+      # Pixel 5 device (playwright.config.ts).
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # GitHub Actions sets CI=true, so playwright.config's reuseExistingServer is
+      # false → it spawns a fresh `next start` against the seeded e2e DB.
+      - name: Verify (typecheck + lint + unit + build + e2e)
+        run: VERIFY_E2E=1 bash scripts/verify.sh
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
