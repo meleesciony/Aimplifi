@@ -763,3 +763,33 @@ A user with a checking account but zero transactions ⇒ empty flows ⇒ `months
 `COACH_COPY.runway(Infinity)` and `reviewImprovementRunway(Infinity)` render the "runway fills in as
 spending is tracked" line, NOT the literal "Infinity months" — so neither /coach nor the emailed
 digest ever shows it.
+
+## §Glass-Box (DECISIONS #178 — Gap 4 §1, `traceCashNeeded` / `traceSafeToSpend`)
+
+A trace never recomputes a number: it reshapes the engine result's OWN rows and computes their
+plain sum, so `reconciles` (sum === headline, integer cents) is a real check with no parallel
+derivation that can drift. Pinned in `tests/unit/glass-box.test.ts`; e2e reconciliation in
+`tests/e2e/glass-box.spec.ts` parses the RENDERED row amounts off the DOM and sums them.
+
+### G. Cash-Needed rows (today 2026-06-10, PAY_IN_FULL unless noted)
+- **G1** Amex $2,100.00 (autopay STATEMENT_BALANCE) + Chase $2,712.33, both due 06-15:
+  rows [210000, 271233], sum **481233** = headline (the §A anchor). Amex row carries the
+  engine's "Autopay handles this payment" note; Chase has none. Basis empty.
+- **G2** same cards, MINIMUM: Amex cash = max(min $35, autopay $2,100) = **210000**;
+  Chase = min **3500**; sum **213500** = headline. The autopay-max path reconciles.
+- **G3** estimated-only (no statement anywhere; balance $500, next due 06-20): one row,
+  `isEstimated`, sum **50000** = headline; basis states the statement-not-generated estimate.
+- **G4** real Chase + estimated Store: rows = [Chase 271233] only; the estimated card is
+  `upcoming` (next cycle), EXCLUDED from the headline and disclosed in basis — sum **271233**.
+- **G5** past-due (due 06-05 → clamped today) and weekend (Sat 06-13 → Fri 06-12) rows carry the
+  EFFECTIVE date and still reconcile.
+- **G6** no cards ⇒ 0 rows, $0, vacuously reconciled; a fully-paid card ($1,000 statement,
+  $1,000 applied) contributes NO row and the rest still reconcile.
+- **G7 (fail-loud)** a doctored result (headline +1¢) ⇒ `reconciles=false`, `sumCents` keeps the
+  TRUE row sum 481233 — the mismatch is reported, never clamped.
+
+### S. Safe-to-spend rows (signed identity: +income −spent −bills −savings)
+- **S1** +500000 −123456 −78900 −50000 = **247644** = `leftToSpendCents` (500000−252356).
+- **S2** overspent: +100000 −150000 = **−50000** = headline (negative reconciles).
+- **S3** empty month: four $0 rows, 0 = 0. UI signs are by ROLE (income '+', others '−') so a
+  $0 row never flips to "+ $0.00".

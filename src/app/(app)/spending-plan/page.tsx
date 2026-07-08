@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { getSpendingPlan } from '@/server/spending-plan';
+import { traceSafeToSpend } from '@/lib/engine/glass-box/trace';
 import { formatCents } from '@/lib/money';
 import { cents } from '@/lib/money';
 import { prisma } from '@/lib/db';
@@ -23,12 +24,26 @@ export default async function SpendingPlanPage() {
   const pct = (n: number) => `${Math.max(0, Math.min(100, (n / total) * 100))}%`;
   const leftWidth = pct(Math.max(0, p.leftToSpendCents));
 
-  const rows: { label: string; cents: number; tone: string; sign: '+' | '−' }[] = [
-    { label: 'Expected income', cents: p.expectedIncomeCents, tone: 'text-emerald-500', sign: '+' },
-    { label: 'Spent so far', cents: p.spentSoFarCents, tone: 'text-foreground', sign: '−' },
-    { label: 'Bills still coming', cents: p.upcomingBillsCents, tone: 'text-foreground', sign: '−' },
-    { label: 'Planned savings', cents: p.plannedSavingsCents, tone: 'text-foreground', sign: '−' },
-  ];
+  // Glass-Box (DECISIONS #178): the breakdown rows come from the tested trace
+  // engine — the same signed rows whose plain sum IS the headline — so the
+  // reconciliation line below is a real, engine-checked claim, not decoration.
+  const trace = traceSafeToSpend(p);
+  const rows = trace.rows.map((r) => ({
+    label: r.label,
+    cents: Math.abs(r.amountCents),
+    tone: r.id === 'income' ? 'text-emerald-500' : 'text-foreground',
+    // Sign from the VALUE (so the rendered lines can never contradict the
+    // reconciled sum), with the row's role deciding only the $0 case — a $0
+    // deduction keeps its '−' meaning instead of flipping to "+ $0.00".
+    sign:
+      r.amountCents > 0
+        ? ('+' as const)
+        : r.amountCents < 0
+          ? ('−' as const)
+          : r.id === 'income'
+            ? ('+' as const)
+            : ('−' as const),
+  }));
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
@@ -80,7 +95,7 @@ export default async function SpendingPlanPage() {
           {rows.map((r) => (
             <div key={r.label} className="flex items-center justify-between py-2">
               <dt className="text-muted-foreground">{r.label}</dt>
-              <dd className={`tabular-nums ${r.tone}`}>
+              <dd className={`tabular-nums ${r.tone}`} data-testid="plan-row-amount">
                 {r.sign} {formatCents(cents(r.cents))}
               </dd>
             </div>
@@ -88,12 +103,30 @@ export default async function SpendingPlanPage() {
           <div className="flex items-center justify-between py-2.5">
             <dt className="font-semibold">Left to spend</dt>
             <dd
+              data-testid="plan-total"
               className={`text-base font-bold tabular-nums ${positive ? 'text-emerald-500' : 'text-red-500'}`}
             >
-              {formatCents(cents(p.leftToSpendCents))}
+              {formatCents(cents(trace.sumCents))}
             </dd>
           </div>
         </dl>
+        {trace.reconciles ? (
+          <p className="mt-3 text-xs text-muted-foreground" data-testid="plan-reconciled">
+            These four lines add up to exactly the &ldquo;Left to spend&rdquo; amount — matched to
+            the penny from your own transactions, recurring bills, and goals. Nothing here is
+            invented.
+          </p>
+        ) : (
+          <p className="mt-3 text-xs" data-testid="plan-mismatch">
+            These lines don&apos;t add up to the headline exactly — we can&apos;t fully reconcile it
+            right now, and we&apos;d rather say so than pretend.
+          </p>
+        )}
+        {trace.basis.map((b) => (
+          <p key={b} className="mt-1.5 text-xs text-muted-foreground">
+            {b}
+          </p>
+        ))}
         <p className="mt-3 text-xs text-muted-foreground">
           Income left after what you&apos;ve already spent, the recurring bills still due this month, and your
           goal savings. Unlike a basic budget, it accounts for bills that haven&apos;t hit yet — so it won&apos;t

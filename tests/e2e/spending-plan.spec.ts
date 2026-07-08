@@ -15,6 +15,6 @@ test('Spending Plan: safe-to-spend headline + breakdown render for the demo user
 
   await expect(page.getByTestId('spending-plan-hero')).toBeVisible();
   await expect(page.getByTestId('safe-to-spend')).toHaveText(/-?\$[\d,]+\.\d{2}/);
-  await expect(page.getByText('Expected income')).toBeVisible();
-  await expect(page.getByText('Bills still coming')).toBeVisible();
+  await expect(page.getByText('Expected income', { exact: true })).toBeVisible();
+  await expect(page.getByText('Bills still coming', { exact: true })).toBeVisible();
 });

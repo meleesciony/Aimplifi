@@ -1,7 +1,9 @@
 /**
  * THE answer, above the fold: how much must be in checking, and by when,
  * to pay every card in full this cycle. Server component — all math comes
- * from the cash-needed engine; nothing is recomputed here.
+ * from the cash-needed engine; nothing is recomputed here. The headline is
+ * a Glass-Box number (DECISIONS #178): tap it to see the rows it's made of,
+ * reconciled to the penny.
  */
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -13,7 +15,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { GlassBoxNumber } from '@/components/finance/glass-box';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
+import { traceCashNeeded } from '@/lib/engine/glass-box/trace';
 import { formatISODate, formatRelativeDays, isoDate, type ISODate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 
@@ -48,16 +52,19 @@ export function CashNeededCard({
     <Card data-testid="cash-needed-card" className="border-emerald-900/40">
       <CardHeader className="pb-2">
         <CardDescription>Cash needed for cards this cycle</CardDescription>
-        <CardTitle className="text-3xl tabular-nums sm:text-4xl" data-testid="cash-needed-amount">
-          {formatCents(headline.requiredCents)}
-        </CardTitle>
-        <p className="text-sm text-muted-foreground" data-testid="cash-needed-headline">
-          needed in {paymentAccountName} by{' '}
-          <span className="font-medium text-foreground">
-            {formatISODate(isoDate(headline.byDate))}
-          </span>{' '}
-          to pay all {headline.cardsDueCount} cards in full this cycle.
-        </p>
+        <GlassBoxNumber
+          trace={traceCashNeeded(result)}
+          amountTestId="cash-needed-amount"
+          amountClassName="text-3xl tabular-nums sm:text-4xl"
+        >
+          <p className="text-sm text-muted-foreground" data-testid="cash-needed-headline">
+            needed in {paymentAccountName} by{' '}
+            <span className="font-medium text-foreground">
+              {formatISODate(isoDate(headline.byDate))}
+            </span>{' '}
+            to pay all {headline.cardsDueCount} cards in full this cycle.
+          </p>
+        </GlassBoxNumber>
       </CardHeader>
       <CardContent className="space-y-3">
         {covered ? (

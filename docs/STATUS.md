@@ -2566,3 +2566,52 @@ the flagship trust-moat build — a **Fable-lane** feature (data-integrity criti
 /clear + model-switch point. Gap 3 §2 (mobile secondary-nav redesign) and Gap 1 §1–2 (live-sync
 token walkthroughs) remain owner-gated. PROGRESS.md backfill for #173–176 still outstanding
 (flagged in #176).
+
+## Post-Phase-5: Glass-Box reconciled numbers (#178, Competitive-Gap Gap 4 §1)
+
+The flagship trust-moat build, run in the Fable lane per the plan §3: tap the dashboard
+Cash-Needed headline → a panel of the exact rows it's made of, reconciled to the penny; and
+/spending-plan's "How we got there" breakdown re-sourced from a tested trace engine with an
+explicit reconciliation line. The AI plan §2.1 adversarial verdict had flagged the sharp failure
+mode (a trace module drifting from the engine and stamping "can't reconcile" on a CORRECT number)
+— answered architecturally: `engine/glass-box/trace.ts` never recomputes anything from raw
+inputs, it only reshapes the engine result it is handed (`traceCashNeeded` flattens `perDueDate`,
+the same `due` set engine.ts:199 summed into the headline; `traceSafeToSpend` carries the
+income−spent−bills−savings identity as SIGNED rows so plain summation IS the headline). The one
+computed value — the row sum — makes `reconciles` a real check; a doctored result reports the
+mismatch with the true sum (fail-loud), locked by G7/S4. Safe-to-spend's proof lives on
+/spending-plan, not the dashboard card, because that card is deliberately a whole-card Link
+(no nested interactive elements). Upcoming (estimated next-cycle) cards stay excluded and are
+disclosed in the panel's basis notes.
+
+Gate (real output 2026-07-08): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — tsc/eslint clean,
+**1987 unit / 148 files** (+16/+1: glass-box trace suite, G1–G7 + S1–S4 hand-verified in
+EDGE_CASES §Glass-Box), build clean. Targeted e2e (full-suite exit 0 still blocked by the
+documented mobile-380 viewport flake, unchanged #175–#177): **14/14** across glass-box.spec.ts
+(NEW — parses the RENDERED row amounts off the DOM, sums them, compares to the rendered headline:
+271233+210000+60000=541233; scoped axe WCAG-AA on the expanded panel; disclosure toggle
+round-trip) + phase1-cash-needed + spending-plan + phase5-a11y + not-found (every pre-existing
+lock on the touched surfaces, incl. the pinned `$5,412.33` headline text on the moved testid).
+
+Fresh-context hostile critic (Fable lane, refute-by-default, ran the suites itself): **PASS —
+0 P0/P1, 7 P2** (financial 9 / data-integrity 9 / copy 8 / UX-a11y 8 / tests 8). It independently
+re-derived every pinned value, verified every `due` obligation lands in exactly one `perDueDate`
+point, and FAILED to construct any honest engine input where rows ≠ headline (attacked past-due
+clamp, weekend walk-back, FIXED_AMOUNT>remaining, $0 cards, MINIMUM+autopay max(), pending, −0).
+P2s fixed before sign-off: tautological invariant test → S4 doctored-plan fail-loud test;
+/spending-plan renders `trace.basis` (and the old spec's case-insensitive substring locators,
+newly ambiguous, tightened to `exact: true`); rendered sign now derives from the value ($0 keeps
+role sign) so displayed lines can never contradict the sum; aria-label on the disclosure button;
+host-coupled mismatch copy dropped; `autopayCents` rendered as "(autopay)"; position-hardened row
+ids. Accepted P2s: duplicate-cardId notes join (unreachable — DB primary keys) and no
+component-render test for the mismatch branches (no component harness exists; the trace-level
+doctored tests lock the contract).
+
+**Ledger note:** DECISIONS had no #177 row (that session committed without writing it) — backfilled
+minimally this session, pointing at STATUS #177 as the authoritative record. PROGRESS.md backfill
+for #173–175 remains outstanding (flagged in #176).
+
+NEXT: Gap 5 (investments provenance tag, benchmark-vs-index line) and Gap 6 §1 (CI verify.sh in
+GitHub Actions) are the largest unblocked increments — both Opus/routine lane. Owner-gated
+(unchanged): the push (#171–#178 ride together), Gap 1 §1–2 live-sync walkthroughs, Gap 3 §2
+mobile secondary-nav redesign, the mobile-380 Playwright viewport fix.

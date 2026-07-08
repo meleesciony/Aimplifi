@@ -2974,3 +2974,36 @@ exists (no server persists between separate tool calls in this environment, conf
 session via `netstat`) — so a "control" run against reverted source is only valid if you ran
 `npx next build` AFTER stashing, not before; kill the :3100 LISTEN PID if next start EADDRINUSEs.
 **SAFE to /clear.**
+
+## 2026-07-08 — #178 Glass-Box reconciled numbers (Gap 4 §1) — DONE, committed
+
+Fable-lane session (model switched per the #177 handoff). Built the trust-moat flagship: tap the
+dashboard Cash-Needed headline → panel of the rows it's made of + per-row engine notes + the
+literal row-sum Total + "matched to the penny… nothing is invented"; /spending-plan breakdown
+re-sourced from the same trace engine + reconciliation line + basis. Core design: traces RESHAPE
+the engine result (never recompute), so sum(rows)===headline is structural and the mismatch branch
+(fail-loud, doctored-result-tested) is the only alternative. New: engine/glass-box/trace.ts,
+components/finance/glass-box.tsx, tests/unit/glass-box.test.ts (16), tests/e2e/glass-box.spec.ts
+(2, real DOM-parsed sum + scoped axe). Modified: cash-needed-card.tsx (headline → disclosure
+button, testid + text preserved), spending-plan/page.tsx, spending-plan.spec.ts (exact:true
+locators — getByText is case-insensitive and the new basis copy collided), EDGE_CASES §Glass-Box,
+DECISIONS #177(backfill)+#178, STATUS #178.
+
+Gate: bash scripts/verify.sh → ✅ VERIFY GREEN (tsc/eslint clean, 1987 unit / 148 files, build
+clean); targeted e2e 14/14 on every touched surface (full-suite exit 0 still blocked by the known
+mobile-380 viewport flake — unchanged, do NOT re-investigate in-task). Fresh-context Fable critic:
+PASS 0 P0/P1, 7 P2 (fixed all but two accepted — duplicate-cardId notes join unreachable via DB
+PKs; no component-render test for mismatch branches, no harness exists).
+
+### HANDOFF (resume after /clear) — 2026-07-08, #178 DONE
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md + docs/lessons/INDEX.md first.
+**State:** #178 committed at HEAD; local main ahead of origin (#171–#178); push owner-gated.
+**Health baseline:** core verify GREEN, 1987 unit / 148 files; full VERIFY_E2E=1 cannot exit 0 on
+this machine (documented mobile-380 viewport flake, docs/lessons/mobile-380-viewport-scaling-flake.md)
+— git-stash A/B control before blaming any new diff.
+**STANDING OWNER-ONLY:** the push; Gap 1 §1–2 live walkthroughs (tokens); Gap 3 §2 mobile nav
+redesign; the mobile-380 Playwright infra fix.
+**NEXT INCREMENT candidates (Opus/routine lane — /clear + model-switch point):** Gap 5
+(investments provenance tag + benchmark line), Gap 6 §1 (CI verify.sh in Actions), per-account
+last-activity on /accounts (carried since #171), PROGRESS.md backfill #173–175 (still outstanding).
+**SAFE to /clear.**
