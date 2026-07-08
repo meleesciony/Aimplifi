@@ -2278,3 +2278,51 @@ lastSyncedAt → a quiet-but-healthy feed could show a banner contradicting its 
 now both reconcile through the most-recent-reference rule (unit-locked). Accepted (documented): a
 single portfolio banner can't say WHICH of several linked feeds stalled (per-account last-activity
 on /accounts is the next slice); live sync/reconnect stays owner-gated.
+
+## Post-Phase-5: Cash Flow Radar (#172, Competitive-Gap plan Gap 2 §1 — AI plan §1.2, adjudicated build-now)
+
+The strategic proactive-layer build, engine-first (LOOP #5), Fable lane per plan §3. New pure
+engine `src/lib/engine/radar/`: `burn.ts` (day-to-day discretionary checking pace — WEEKLY
+nearest-rank p50/p80 ÷ 7, clamped to real account history; selection excludes transfers, split
+parents, pending, and committed merchants) and `radar.ts` (`projectCardDues` — cash-needed
+obligations + synthesized future cycles from each card's raw due date at the FULL statement
+basis, always `isEstimated`; `computeRadar` — one committed-only walk via `computeForecast`
+merging /forecast's exact scheduled+loan events with the card dues, first-negative + lowest
+point, colliding-card attribution + dip-day events, minimum timed cover-transfer, burn band).
+Server `radarFromSnapshot` (pure, seed-groundable) + `getCashFlowRadar`; dashboard
+`CashFlowRadarCard`; e2e `cash-flow-radar.spec.ts` (demo: alert on 2026-06-24 after the Jun-15
+Platinum+Sapphire dues, cover $6,950.00 by Tue Jun 23 from High-Yield Savings, axe AA).
+
+All three adjudicated conditions are engine-enforced and test-pinned: (1) status derives from
+the committed line only — the burn band can raise at most `watch`, never `alert`; (2) transfer
+sources are CHECKING/SAVINGS only, never the payment account or the demo's $142k brokerage;
+(3) every synthesized future cycle is labeled estimated, including in the colliding-card
+sentence. `pushWorthy` (committed dip ≤ 7 days) is the Gap 2 §2 notification hook, unused yet.
+
+Hostile Critic cycle 1 (fresh-context, refute-by-default): FAIL — 2 P1 + 4 P2 + 5 P3, both P1s
+proven by execution. P1-1 FIXED: future cycles repeated the post-mid-cycle-payment RESIDUAL
+(seed Freedom: $600 instead of the $1,000 statement) — optimistic bias on the alarm line; now
+`cycleBasisCents` (full statement balance) drives synthesis, a fully-paid card still projects
+its future cycles, demo cover corrected $6,150 → $6,950 (exactly the predicted +$800). P1-2
+FIXED: the daily-percentile burn collapsed to a false $0/day on sparse-but-real spend (~$966 in
+the demo window) and the fallback copy asserted a falsehood — replaced with the weekly
+estimator (demo now 1400¢/3051¢ per day) and a literally-true zero-spend sentence. P2s: cover
+copy now says what the amount buys ("the whole 90 days"); estimated label added to the
+colliding sentence; the #134 loan-ACH double-count (which the radar promotes from chart wobble
+to alarm input) now detected and disclosed as a hedged "counted twice → conservative"
+assumption (no heuristic dedupe — STATUS #134 stands); DECISIONS #172 written. Confirmation
+Checker (independent seed probe): **PASS, 0 open P0/P1**, no new defects from the fixes.
+
+Accepted / follow-ups (documented, non-gating): mortgage/unbranded-loan overlap disclosure gap
+(normalize.ts has no mortgage category, so only auto-loan overlaps are detectable — same
+accepted-residual class as #134); CD/money-market map to SAVINGS and are within condition 2's
+letter as transfer sources (liquidity caveat); the dashboard now runs a 9th parallel snapshot +
+a detectRecurring pass per load (pre-existing pattern, grounding-over-perf); cover amount is
+sized to the whole-horizon worst dip (estimate-dominated when future cycles drive it) — the
+copy states this basis. NEXT radar increments: wire `pushWorthy` into notifications (Gap 2 §2),
+a sparkline of the three lines on /forecast, per-card "what if I pay early" interaction.
+
+Gate (real output 2026-07-08): `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN —
+tsc/eslint clean, **1908 unit / 141 files** (+39/+3 over #171: radar.test.ts,
+radar-burn.test.ts, radar-grounding.test.ts), build clean, **FULL e2e 80/80** (54.4s, +1:
+cash-flow-radar.spec.ts). EDGE_CASES §Cash Flow Radar added (hand-verified cases A–F).

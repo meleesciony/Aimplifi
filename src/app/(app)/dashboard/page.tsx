@@ -7,6 +7,7 @@ import { NetWorthCard } from '@/components/finance/net-worth-card';
 import { PaymentRemindersCard } from '@/components/finance/payment-reminders-card';
 import { RecurringSummaryCard } from '@/components/finance/recurring-summary-card';
 import { AskAimplifiCard } from '@/components/finance/ask-aimplifi-card';
+import { CashFlowRadarCard } from '@/components/finance/cash-flow-radar-card';
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
 import { SpendingInsightsCard } from '@/components/finance/spending-insights-card';
 import { StaleDataBanner } from '@/components/finance/stale-data-banner';
@@ -19,6 +20,7 @@ import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { getDataFreshness } from '@/server/connection-health';
+import { getCashFlowRadar } from '@/server/radar';
 import { getRecurring } from '@/server/recurring';
 import { getReports } from '@/server/reports';
 import { getSpendingPlan } from '@/server/spending-plan';
@@ -35,7 +37,7 @@ export default async function DashboardPage() {
   const accountCount = await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } });
   if (accountCount === 0) return <EmptyDashboard />;
 
-  const [data, coach, plan, reports, recurring, trends, withheld, freshness] = await Promise.all([
+  const [data, coach, plan, reports, recurring, trends, withheld, freshness, radar] = await Promise.all([
     getDashboardData(session.user.id),
     getCoachData(session.user.id),
     getSpendingPlan(session.user.id),
@@ -44,6 +46,7 @@ export default async function DashboardPage() {
     getSpendingTrends(session.user.id),
     getWithheldAccountSummary(session.user.id),
     getDataFreshness(session.user.id),
+    getCashFlowRadar(session.user.id),
   ]);
 
   // Single source of truth: the dashboard snapshot already carries the stored
@@ -87,6 +90,10 @@ export default async function DashboardPage() {
       {/* one-time setup nudge — only until a payment account is confirmed
           (dormant for the seeded demo user, who always has one) */}
       {showOnboarding && <OnboardingNudge />}
+
+      {/* Cash Flow Radar (Gap 2 §1): the forward warning system — committed-only
+          90-day walk, first dip, colliding card, minimum timed cover-transfer */}
+      <CashFlowRadarCard radar={radar.radar} paymentAccountName={radar.paymentAccountName} />
 
       {/* the flagship conversational surface — ask anything, grounded in your data */}
       <AskAimplifiCard />

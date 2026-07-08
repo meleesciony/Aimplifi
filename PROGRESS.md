@@ -2818,3 +2818,50 @@ commit — #163/#170 precedent).
 + reconnect (OWNER-GATED — needs tokens); Gap 2 Cash Flow Radar (the strategic build — a NEW money-math
 sim, routed to FABLE 5 per plan §3, not Opus); per-account last-activity on /accounts (this increment's
 deferred follow-up, Opus-lane); the #170 tail (category month-over-month drill-down, #71 nav redesign).
+
+## 2026-07-08 (resumed: "continue" after /clear, model set to Fable 5) — #172 Cash Flow Radar (Gap 2 §1) — DONE ✅ (verify green ×2, critic FAIL→fixed→confirm PASS 0 open P0/P1)
+
+Resumed at the #171 handoff; next plan increment = Gap 2 §1 Cash Flow Radar, explicitly Fable-lane
+(new money-math engine). Baseline re-confirmed GREEN before any change. Built engine-first:
+`src/lib/engine/radar/burn.ts` + `radar.ts` (committed-only walk composing the TESTED computeForecast
++ cash-needed obligations; future cycles synthesized at full statement basis, estimated-labeled;
+minimum timed cover-transfer, deposit-only sources; weekly-percentile burn band; pushWorthy hook),
+pure `radarFromSnapshot` in `src/server/radar.ts` (reuses cashNeededFromSnapshot + /forecast's exact
+event assembly — seed-grounding test pins no-drift), dashboard `CashFlowRadarCard`, e2e spec.
+EDGE_CASES §Cash Flow Radar (hand-verified A–F).
+
+Hostile critic (fresh-context) cycle 1: FAIL — 2 P1 (both proven by execution) + 4 P2 + 5 P3:
+P1-1 future cycles repeated the post-mid-cycle-payment residual (optimistic bias; demo cover was
+$800 low) → cycleBasisCents = full statement; P1-2 daily-percentile burn = false $0/day on
+sparse-but-real spend + a false fallback sentence → weekly estimator + honest copy. P2s fixed
+(cover-copy attribution, estimated label on colliding names, #134 loan-overlap disclosed as a
+hedged conservative assumption, DECISIONS written). Confirmation Checker: PASS, 0 open P0/P1,
+independent seed probe reproduced $6,950 / 1400¢ / 3051¢.
+
+**Gate (real output 2026-07-08): `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN — tsc/eslint
+clean, 1908 unit / 141 files (+39/+3 over #171), build clean, FULL e2e 80/80 (54.4s, +1
+cash-flow-radar.spec.ts incl. axe AA).** Demo surface: alert, dip Wed 2026-06-24 (after the Jun-15
+Platinum+Sapphire dues, rent tips it), cover $6,950.00 by Tue Jun 23 from High-Yield Savings,
+burn ~$14/day typical ~$30.51/day heavy. Committing as #172 (NOT pushed — owner-gated). The owner's
+CLAUDE.md edit + docs/COMPETITIVE_GAP_PLAN.md remain uncommitted (theirs to commit — #163/#170/#171
+precedent).
+
+### HANDOFF (resume after /clear) — 2026-07-08, session "aimplifi", #172 DONE
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md + docs/lessons/INDEX.md first (CLAUDE.md rule).
+**State:** #172 committed at HEAD; local main 2 ahead of origin (`cded4a9` #171 + the #172 commit); push
+owner-gated. Working tree should hold ONLY the owner's CLAUDE.md edit + docs/COMPETITIVE_GAP_PLAN.md.
+**Health baseline (re-confirm, don't trust):** `bash scripts/verify.sh` → GREEN, 1908 unit / 141 files;
+`VERIFY_E2E=1` → FULL e2e 80/80.
+**STANDING OWNER-ONLY (unchanged + new):** authorize the push (#171 + #172 ride together); Gap 1 §1–2
+live Plaid/SimpleFIN walkthroughs + sync cron in vercel.json (needs tokens); real prod descriptors for
+#161 learn.ts; prod corroboration of the #166/#167/#170 mutation surfaces on the phone.
+**NEXT INCREMENT candidates (Competitive-Gap plan order):** Gap 2 §2 notification delivery — wire the
+radar's `pushWorthy` + payment reminders into email (RESEND_API_KEY dormant path exists) + PWA web push
+(manifest+SW in place; push is the missing half) + the minimal materiality filter (Opus-lane feature
+slice, engine-first for the filter); Gap 2 §3 weekly digest email (cheapest retention win); Gap 3 §1
+production-readiness DO-NEXT burn-down (Sonnet/Opus-medium lane); radar follow-ups (forecast sparkline
+of the three lines; mortgage-overlap disclosure P3; per-account last-activity on /accounts from #171).
+**Gotchas:** never reseed the DB under a live server; e2e uses %TEMP%/aimplifi-e2e.db; a solo
+`npx playwright test` serves a STALE .next (run the full verify, it builds first — #171 note); kill the
+:3100 LISTEN PID if next start EADDRINUSEs (Windows TaskStop doesn't free it).
+**SAFE to /clear.**
