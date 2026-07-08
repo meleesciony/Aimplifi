@@ -2326,3 +2326,52 @@ Gate (real output 2026-07-08): `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VER
 tsc/eslint clean, **1908 unit / 141 files** (+39/+3 over #171: radar.test.ts,
 radar-burn.test.ts, radar-grounding.test.ts), build clean, **FULL e2e 80/80** (54.4s, +1:
 cash-flow-radar.spec.ts). EDGE_CASES §Cash Flow Radar added (hand-verified cases A–F).
+
+## Post-Phase-5: Notification delivery (#173, Competitive-Gap plan Gap 2 §2 — the proactive stickiness layer)
+
+The delivery half of the proactive layer, wiring #172's dormant `pushWorthy` hook to a real
+channel. Engine-first (LOOP #5): a PURE `engine/notify/select.ts` (`selectNotifications`) unifies
+imminent payment reminders + a pushWorthy radar dip into one material, deduped, most-urgent-first
+list. Materiality = actionability + urgency (NO dollar floor): a payment surfaces only when
+`userActionCents > 0` (autopay-fully-covered → suppressed; partial-autopay with a remainder →
+surfaced at the user-action amount) AND due ≤ 3 days; a radar alert only when `radar.pushWorthy`
+(committed dip ≤ 7d). No fabrication: every amount is copied verbatim from the source engine, so a
+push can't disagree with the in-app card.
+
+Delivery is Web Push behind the SAME dormant contract as email (#47): `lib/push.ts` no-ops
+(`{sent:false,reason:'no-provider'}`, no crypto/network) unless all three `VAPID_*` vars are set,
+never throws, and reports `{gone:true}` on 404/410 to prune a dead subscription. New
+`/api/cron/notify` (CRON_SECRET-guarded) runs the engine per user and delivers via the standard
+`web-push` lib. Golden-safe by construction: a `NotificationSent` dedup row is written ONLY after a
+real delivery to ≥1 live device, so no-VAPID / zero-subs / all-gone writes NOTHING and a later
+opt-in still fires. The seeded demo (provider 'demo', zero subs, no VAPID) is a pure no-op that
+reports what it WOULD send — the settings opt-in card is hidden (gated on `getVapidPublicKey()`).
+Two SQLite-portable models (`PushSubscription`, `NotificationSent`), both `onDelete: Cascade` so
+deletion #31 still fully wipes. SW v4 gains `push` + `notificationclick` (still NO fetch handler).
+
+Fresh-context Fable hostile critic (refute-by-default, money/data-integrity lane): **PASS — 0 P0 /
+0 P1** (financial 10 / security 8 / correctness 8 / data-integrity 9); the dedup matrix (dormant /
+0-subs / all-410 / partial-410 / DB-race), no-fabrication, dormancy byte-identity, materiality
+(incl. partial-autopay), auth-scoping, and cascade all survived attack. 2 P2 + substantive P3s
+FIXED same session, each test-locked: SSRF (`isAllowedPushEndpoint` — https-only, rejects all
+IP literals + localhost, WHATWG-canonicalized; enforced at subscribe AND re-checked before send);
+P2-1 radar dip-date wobble → `radarAlertOnCooldown` (4-day recency, engine-applied) so one episode
+pushes ~once; P2-2 unbounded subs → cap 20, oldest-evicted; P3-2 dedup catch narrowed to P2002;
+P3-3 NotificationSent pruned at 120d; P3-4 notificationclick pathname-match; P3-6 `'Notification'
+in window` guard.
+
+Gate (real output 2026-07-08): `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN — tsc/eslint
+clean, **1938 unit / 145 files** (+30/+4 over #172: notify-select, push, push-subscriptions,
+cron-notify), build clean, **FULL e2e 83/83** (+3: notifications.spec — cron 401, subscribe-
+unauthed 401, demo-settings-shows-no-card). EDGE_CASES §Notifications added.
+
+**Accepted / follow-ups (documented, non-gating):** email *activation* (set `RESEND_API_KEY`) and
+wiring `/api/cron/notify` + `VAPID_*` into `vercel.json`/env are pure operator steps (DEPLOY.md),
+consistent with the reminders/sync crons — the mechanism is dormant until then, so live push
+delivery (real VAPID + a real push service) is proven at unit/integration level, not e2e (same
+stance as the SimpleFIN/Plaid network-dormant precedent). The **weekly digest** (plan §3) is the
+next Gap-2 increment. P3s left (critic backlog, non-gating): once-per-subject is per-USER not
+per-device (a transient per-device failure with another device succeeding still records — a
+deliberate anti-retry-storm choice, comment corrected); `disable()` doesn't check `res.ok` (self-
+heals via the next 410-prune); a payment `dueDate` correction mid-cycle is a rare wobble the radar
+cooldown doesn't cover (payment keys are otherwise stable).

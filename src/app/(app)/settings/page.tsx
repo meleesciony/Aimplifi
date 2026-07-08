@@ -12,6 +12,8 @@ import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/dials';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { deletionSummary } from '@/lib/engine/account/deletion';
+import { getVapidPublicKey } from '@/lib/push';
+import { PushOptIn } from '@/components/settings/push-optin';
 import { prisma } from '@/lib/db';
 
 export const metadata = { title: "Settings" };
@@ -57,6 +59,8 @@ export default async function SettingsPage() {
   const eligibleAccounts = accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))
     .map((a) => ({ id: a.id, name: a.name }));
+
+  const vapidPublicKey = getVapidPublicKey();
 
   const deletion = deletionSummary({
     accounts: accounts.length,
@@ -131,6 +135,23 @@ export default async function SettingsPage() {
           rest (AES-256-GCM); only account masks (last 4) are ever stored.
         </CardContent>
       </Card>
+
+      {vapidPublicKey && (
+        <Card data-testid="notifications-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Proactive heads-ups</CardDescription>
+            <CardTitle className="text-base">Notifications</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Get a push when a card payment is due within a few days or your checking is on track to
+              dip below $0. Aimplifi never moves money — these are heads-ups so nothing catches you by
+              surprise.
+            </p>
+            <PushOptIn publicKey={vapidPublicKey} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card data-testid="categories-card">
         <CardHeader className="pb-2">

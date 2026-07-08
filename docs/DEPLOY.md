@@ -76,6 +76,7 @@ Optional, add only if/when you want the feature:
 | `ANTHROPIC_API_KEY` | Same feature via Anthropic when no `XAI_API_KEY` is set; optional `ANTHROPIC_MODEL` (default `claude-haiku-4-5-20251001`) |
 | `CRON_SECRET` | protects the `/api/cron/*` sweep routes if you wire Vercel Cron |
 | `RESEND_API_KEY` + `REMINDER_FROM_EMAIL` | actually send payment-reminder emails (otherwise reminders show in-app only) |
+| `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` | turn on Web-Push notifications (payment-due + cash-flow-radar heads-ups). Generate once with `npx web-push generate-vapid-keys`; `VAPID_SUBJECT` is a `mailto:` you own. All three unset = dormant (no push UI, nothing sent). Then wire `/api/cron/notify` (e.g. `{ "path": "/api/cron/notify", "schedule": "0 13 * * *" }` in `vercel.json`) alongside the reminders/sync crons, guarded by `CRON_SECRET`. |
 
 ## 5. Deploy
 

@@ -48,6 +48,8 @@ model User {
   predictions CategoryPrediction[]
   hiddenCategories HiddenCategory[]
   customCategories Category[]
+  pushSubscriptions PushSubscription[]
+  notificationsSent NotificationSent[]
 }
 
 // Per-user "hide this category from the pickers" preference (DECISIONS #110).
@@ -434,4 +436,39 @@ model RateLimit {
   // Index-backed pruning of expired windows (the key space is attacker-controlled
   // via signin:<email>, so expired rows must be reclaimable without a table scan).
   @@index([resetAt])
+}
+
+// A browser Web-Push endpoint the user opted into (Gap 2 §2). Stores only the
+// standard subscription triple (endpoint + the two RFC-8291 keys); the endpoint
+// is @unique so re-subscribing the same browser upserts rather than duplicates.
+// onDelete: Cascade so account deletion (DECISIONS #31) wipes these with the user.
+// Fully dormant without VAPID_* env: nothing is ever stored unless a user with a
+// configured deployment opts in.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String // client public key (base64url) for payload encryption
+  auth      String // client auth secret (base64url)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Idempotency log so a daily notification sweep never re-sends the same alert
+// (Gap 2 §2 — the reminders cron had no dedup and would re-notify every run).
+// `key` is the pure engine's stable notification key (e.g.
+// "payment_due:<accountId>:<dueDate>"); @@unique([userId, key]) makes the first
+// delivery win a race and every later sweep skip it. `sentAt` is index-backed so
+// old rows prune without a table scan, mirroring RateLimit.
+model NotificationSent {
+  id     String   @id @default(cuid())
+  userId String
+  key    String
+  sentAt DateTime @default(now())
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([sentAt])
 }

@@ -1,5 +1,10 @@
 /**
- * Aimplifi service worker v3 — installability shell ONLY. NO fetch handler.
+ * Aimplifi service worker v4 — installability shell + Web Push. NO fetch handler.
+ *
+ * v4 adds `push` + `notificationclick` handlers (Gap 2 §2) so proactive payment /
+ * cash-flow alerts can reach an installed PWA. It still does NOT intercept fetch
+ * (see the v2→v3 note below) — push and notifications are independent of fetch, so
+ * the streamed-server-action abort class that retired the fetch listener is untouched.
  *
  * v1/v2 intercepted requests (network-first navigations + a cached offline
  * shell). #166's probes (scripts/audit-probes/budget-mutation.ts) recorded streamed
@@ -30,5 +35,48 @@ self.addEventListener('activate', (event) => {
       .keys()
       .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
+  );
+});
+
+// A push payload is {title, body, url, tag} (see src/lib/push.ts). Show it as a
+// notification; a malformed/empty payload degrades to a safe generic heads-up.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+  const title = data.title || 'Aimplifi';
+  const options = {
+    body: data.body || '',
+    tag: data.tag || undefined,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: data.url || '/' },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Focus an existing tab on the target path if one is open, else open a new one.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Focus a tab already on the target PATH (substring match would let the '/'
+      // radar link steal focus from any same-origin tab).
+      for (const client of clientList) {
+        let path = '';
+        try {
+          path = new URL(client.url).pathname;
+        } catch {
+          path = '';
+        }
+        if (path === target && 'focus' in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(target);
+      return undefined;
+    }),
   );
 });
