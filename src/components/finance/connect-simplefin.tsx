@@ -20,6 +20,7 @@
 import { useState } from 'react';
 import { setFlash } from '@/components/finance/flash';
 import { connectSimplefin, disconnectSimplefin, syncSimplefinNow } from '@/server/simplefin-actions';
+import { type FreshnessResult, freshnessMessage } from '@/lib/engine/sync/health';
 
 interface Result {
   ok: boolean;
@@ -28,7 +29,14 @@ interface Result {
   message?: string;
 }
 
-export function ConnectSimplefin({ connected, lastSyncedAt }: { connected: boolean; lastSyncedAt: string | null }) {
+export function ConnectSimplefin({
+  connected,
+  health,
+}: {
+  connected: boolean;
+  /** Freshness of the last sync (Gap 1 §3) — drives the "synced N days ago / reconnect" hint. */
+  health: FreshnessResult;
+}) {
   const [open, setOpen] = useState(false);
   const [token, setToken] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -70,12 +78,17 @@ export function ConnectSimplefin({ connected, lastSyncedAt }: { connected: boole
 
   const btn = 'rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50';
 
+  const stale = health.level === 'stale' || health.level === 'very_stale';
+
   if (connected) {
     return (
       <div className="space-y-1" data-testid="simplefin-connected">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            Bank sync connected{lastSyncedAt ? ` · last synced ${lastSyncedAt}` : ' · not yet synced'}
+          <span
+            className={`text-xs ${stale ? 'text-amber-300' : 'text-muted-foreground'}`}
+            data-testid="simplefin-sync-status"
+          >
+            Bank sync connected · {freshnessMessage(health)}
           </span>
           <button type="button" data-testid="simplefin-sync" disabled={pending} onClick={() => run(syncSimplefinNow)} className={btn}>
             {pending ? 'Syncing…' : 'Sync now'}

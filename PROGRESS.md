@@ -2782,3 +2782,39 @@ STATUS #170, lessons/mutation-form-recipe.md.
 (owner-scoped); connect-simplefin network success branch UNVERIFIED (dormant, needs creds); import-csv's
 own latent useActionState reset (milder — no mis-file, rows filed server-side before the reset);
 Recharts pinned-tooltip/width(-1) polish; the two "Connect a bank" button labels; #168 P3 multi-merchant.
+
+## 2026-07-07 (resumed: "continue") — #171 connection-health / data-staleness (Competitive-Gap Gap 1 §3–4) — DONE ✅ (verify green, critic 0 P0/P1)
+
+The #166–#170 seamlessness/reliable-mutation thread finished at #170; the working tree held only the
+owner's freshly-written docs/COMPETITIVE_GAP_PLAN.md + a CLAUDE.md handoff-line edit. "continue" =
+start executing that plan, top-down, taking the highest-value slice buildable now. Gap 1 (live-data
+reliability) is the stated #1 priority; its token-gated live-sync items are owner-only, but items 3–4
+(a pure staleness classifier + surfacing) are engine-first and Opus-lane. Baseline re-confirmed before
+any change: `bash scripts/verify.sh` → ✅ GREEN.
+
+Built engine-first (LOOP #5): `src/lib/engine/sync/health.ts` (classifyFreshness / freshnessMessage /
+summarizeDataFreshness / dataFreshnessBanner / mostRecentDate; thresholds 3/13 exported + pinned) + 21
+hand-verified unit tests. Wiring, NO schema change: getAccountsView → `simplefin.health` (from the
+existing lastSyncedAt); new `server/connection-health.ts` getDataFreshness (grades the most recent of
+lastSyncedAt + newest linked transaction); connect-simplefin connected row shows the freshness message
+(amber when stale); new StaleDataBanner on the dashboard. e2e: connection-health.spec.ts (negative
+demo-lock + positive throwaway via scripts/e2e-add-stale-linked-account.ts).
+
+DIAGNOSTIC NOTE (recorded so the next session doesn't relearn it): an isolated `npx playwright test`
+served a STALE `.next` — the webServer runs `next start` and never rebuilds, so the positive banner
+test failed because the build predated the new code while the negative test passed either way. Fix =
+run the full verify (it builds first). Same stale-3100 trap already documented in playwright.config.ts / #168.
+
+Hostile critic (fresh-context, refute-by-default): 0 P0/P1; 1 P2 (dashboard graded newest-txn while
+/accounts graded lastSyncedAt → a healthy quiet feed could show a contradictory banner) FIXED via the
+most-recent-reference rule + a unit lock. Gate (real 2026-07-07): `VERIFY_E2E=1 verify.sh` → ✅ GREEN —
+**1869 unit / 138 files**, build clean, **FULL e2e 79/79** (48.2s). DECISIONS #171 + STATUS #171.
+
+Committing as #171 (NOT pushed — push is owner-gated per the #164/#165 precedent). The owner's
+uncommitted CLAUDE.md handoff-line edit + docs/COMPETITIVE_GAP_PLAN.md are LEFT as-is (the owner's to
+commit — #163/#170 precedent).
+
+**NEXT INCREMENT candidates (Competitive-Gap plan order):** Gap 1 §1–2 live Plaid/SimpleFIN sync + cron
++ reconnect (OWNER-GATED — needs tokens); Gap 2 Cash Flow Radar (the strategic build — a NEW money-math
+sim, routed to FABLE 5 per plan §3, not Opus); per-account last-activity on /accounts (this increment's
+deferred follow-up, Opus-lane); the #170 tail (category month-over-month drill-down, #71 nav redesign).

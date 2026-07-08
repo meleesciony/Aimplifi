@@ -278,7 +278,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
       />
 
       {/* Link real accounts: SimpleFIN (cheaper, no Plaid gatekeeping) or Plaid */}
-      <ConnectSimplefin connected={data.simplefin.connected} lastSyncedAt={data.simplefin.lastSyncedAt} />
+      <ConnectSimplefin connected={data.simplefin.connected} health={data.simplefin.health} />
       <ConnectAccountsButton />
 
       {/* Add manual items */}

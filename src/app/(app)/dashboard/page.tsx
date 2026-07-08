@@ -9,6 +9,7 @@ import { RecurringSummaryCard } from '@/components/finance/recurring-summary-car
 import { AskAimplifiCard } from '@/components/finance/ask-aimplifi-card';
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
 import { SpendingInsightsCard } from '@/components/finance/spending-insights-card';
+import { StaleDataBanner } from '@/components/finance/stale-data-banner';
 import { TopSpendingCard } from '@/components/finance/top-spending-card';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { OnboardingNudge } from '@/components/settings/onboarding-nudge';
@@ -17,6 +18,7 @@ import { prisma } from '@/lib/db';
 import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
 import { getWithheldAccountSummary } from '@/server/transactions';
+import { getDataFreshness } from '@/server/connection-health';
 import { getRecurring } from '@/server/recurring';
 import { getReports } from '@/server/reports';
 import { getSpendingPlan } from '@/server/spending-plan';
@@ -33,7 +35,7 @@ export default async function DashboardPage() {
   const accountCount = await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } });
   if (accountCount === 0) return <EmptyDashboard />;
 
-  const [data, coach, plan, reports, recurring, trends, withheld] = await Promise.all([
+  const [data, coach, plan, reports, recurring, trends, withheld, freshness] = await Promise.all([
     getDashboardData(session.user.id),
     getCoachData(session.user.id),
     getSpendingPlan(session.user.id),
@@ -41,6 +43,7 @@ export default async function DashboardPage() {
     getRecurring(session.user.id),
     getSpendingTrends(session.user.id),
     getWithheldAccountSummary(session.user.id),
+    getDataFreshness(session.user.id),
   ]);
 
   // Single source of truth: the dashboard snapshot already carries the stored
@@ -76,6 +79,10 @@ export default async function DashboardPage() {
       {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
           vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
       <CurrencyExclusionBanner summary={withheld} />
+
+      {/* linked-feed staleness heads-up (Gap 1 §3–4): shows only when the auto-synced
+          feed has gone quiet. Silent for fresh feeds, manual-only, and the demo user. */}
+      <StaleDataBanner summary={freshness} />
 
       {/* one-time setup nudge — only until a payment account is confirmed
           (dormant for the seeded demo user, who always has one) */}

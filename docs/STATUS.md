@@ -2244,3 +2244,37 @@ BOTH providers); (e) #168 P3s: multi-merchant "at A and B", and page-scoped shar
 accepted-P2 follow-up); (f) NEW: import-csv's own account `<select>` shares the latent useActionState
 reset (milder — rows are filed server-side with the correct account BEFORE the reset, so no mis-file),
 left as pre-existing; (g) NEW: connect-simplefin's network success branch remains UNVERIFIED (dormant).
+
+## Post-Phase-5 refinement: connection-health / data-staleness (#171, Competitive-Gap plan Gap 1 §3–4)
+
+First increment executing docs/COMPETITIVE_GAP_PLAN.md (written 2026-07-07). The #166–#170
+seamlessness/reliable-mutation thread finished at #170; "continue" picks up the plan's top
+NON-owner-gated slice of Gap 1 (live-data reliability): a pure staleness classifier + its
+surfacing. Live Plaid/SimpleFIN sync + reconnect (Gap 1 §1–2) stay owner-gated (need tokens).
+
+Pure engine `src/lib/engine/sync/health.ts` grades a linked feed fresh/stale/very_stale/unknown
+by whole-day recency (FRESH_THROUGH_DAYS=3, STALE_THROUGH_DAYS=13, exported + boundary-pinned).
+Copy states data is OLD but NEVER asserts a connection is "broken" — there is no persisted
+sync-error signal to observe, so a "broken" claim would fabricate (no-fabrication rule at product
+scope). Surfaces: /accounts SimpleFIN connected row → "Synced N days ago" / amber "…you may need
+to reconnect" (from the existing SimpleFinConnection.lastSyncedAt; getAccountsView gains
+simplefin.health, no new query); dashboard StaleDataBanner (from getDataFreshness in
+server/connection-health.ts). No schema change; the network layer is untouched.
+
+Golden-safe: linked = provider in {plaid,simplefin}; demo accounts are all provider 'demo' → no
+linked feed → banner self-nulls and /accounts is unchanged (hostile critic proved the demo
+byte-identical). getDataFreshness grades the MOST RECENT of {lastSyncedAt, newest linked
+transaction}, so a healthy-but-quiet linked feed can't trip a false "sync may have stopped".
+
+Gate (real output 2026-07-07): `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN —
+tsc/eslint clean, **1869 unit / 138 files** (+21: tests/unit/sync-health.test.ts), build clean,
+**FULL e2e 79/79** (+2: connection-health.spec.ts negative demo-lock + positive throwaway fixture
+via scripts/e2e-add-stale-linked-account.ts, incl. axe AA on the banner).
+
+Hostile Critic (fresh-context, refute-by-default): **0 P0/P1**. Honesty, golden-safety (proven),
+classifier boundaries (recomputed), ownership, perf (2 indexed queries), e2e rigor, and isoDate
+crash-safety all PASS. One P2 FIXED: the dashboard graded newest-transaction while /accounts graded
+lastSyncedAt → a quiet-but-healthy feed could show a banner contradicting its own /accounts row;
+now both reconcile through the most-recent-reference rule (unit-locked). Accepted (documented): a
+single portfolio banner can't say WHICH of several linked feeds stalled (per-account last-activity
+on /accounts is the next slice); live sync/reconnect stays owner-gated.

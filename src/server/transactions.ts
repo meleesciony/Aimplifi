@@ -15,6 +15,8 @@ import {
   summarizeWithheldAccounts,
 } from '@/lib/providers/currency';
 import { businessToday } from '@/lib/business-today';
+import { isoDate } from '@/lib/dates';
+import { type FreshnessResult, classifyFreshness } from '@/lib/engine/sync/health';
 import {
   type AccountView,
   type AccountsSummary,
@@ -131,8 +133,9 @@ export interface AccountsView extends AccountsSummary {
   trend: NetWorthSeriesPoint[];
   /** Per-account billing for manual credit cards, keyed by account id. */
   cardBilling: Record<string, ManualCardBilling>;
-  /** SimpleFIN bank-sync connection status (ROADMAP: cheaper Plaid alternative). */
-  simplefin: { connected: boolean; lastSyncedAt: string | null };
+  /** SimpleFIN bank-sync connection status (ROADMAP: cheaper Plaid alternative).
+   *  `health` grades how recently the connection last synced (Gap 1 §3). */
+  simplefin: { connected: boolean; lastSyncedAt: string | null; health: FreshnessResult };
   /** What the currency guard withheld — drives the disclosure banner (#135 residual). */
   withheld: WithheldAccountSummary;
 }
@@ -206,7 +209,11 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     paymentAccountId: user?.paymentAccountId ?? null,
     trend,
     cardBilling,
-    simplefin: { connected: sfConn !== null, lastSyncedAt: sfConn?.lastSyncedAt ?? null },
+    simplefin: {
+      connected: sfConn !== null,
+      lastSyncedAt: sfConn?.lastSyncedAt ?? null,
+      health: classifyFreshness(sfConn?.lastSyncedAt ? isoDate(sfConn.lastSyncedAt) : null, today),
+    },
     // The unfiltered rows are already in hand, so the disclosure costs no extra query.
     withheld: summarizeWithheldAccounts(accounts),
   };
