@@ -17,7 +17,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePlaidLink } from 'react-plaid-link';
 import { linkPlaidAccount } from '@/server/plaid-actions';
-import { clearStoredLinkToken, isOAuthRedirect, readStoredLinkToken } from '@/lib/plaid-oauth';
+import {
+  clearStoredLinkToken,
+  clearStoredOriginPath,
+  isOAuthRedirect,
+  readStoredLinkToken,
+  readStoredOriginPath,
+} from '@/lib/plaid-oauth';
 
 export default function PlaidOAuthReturnPage() {
   const router = useRouter();
@@ -45,18 +51,24 @@ export default function PlaidOAuthReturnPage() {
   const onSuccess = useCallback(
     (publicToken: string) => {
       setStatus('Importing your accounts…');
+      // Read BEFORE clearing — a big OAuth bank may have been started from any
+      // zero-account route (Gap 3 §3 inlined Connect on EmptyDashboard), not just
+      // /accounts, so send the user back to where they actually started.
+      const origin = readStoredOriginPath();
       void linkPlaidAccount(publicToken)
         .then((r) => {
           clearStoredLinkToken();
+          clearStoredOriginPath();
           if (!r.ok) {
             setStatus('');
             setError(r.error ?? 'Linking failed — please try again.');
           } else {
-            router.replace('/accounts');
+            router.replace(origin);
           }
         })
         .catch(() => {
           clearStoredLinkToken();
+          clearStoredOriginPath();
           setStatus('');
           setError('Linking failed — please try again.');
         });
@@ -73,12 +85,14 @@ export default function PlaidOAuthReturnPage() {
     receivedRedirectUri: token && typeof window !== 'undefined' ? window.location.href : undefined,
     onSuccess,
     onExit: (err) => {
+      const origin = readStoredOriginPath();
       clearStoredLinkToken();
+      clearStoredOriginPath();
       if (err) {
         setStatus('');
         setError(err.display_message ?? err.error_message ?? 'Bank connection was cancelled.');
       } else {
-        router.replace('/accounts');
+        router.replace(origin);
       }
     },
   });

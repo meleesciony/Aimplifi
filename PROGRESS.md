@@ -2865,3 +2865,112 @@ of the three lines; mortgage-overlap disclosure P3; per-account last-activity on
 `npx playwright test` serves a STALE .next (run the full verify, it builds first — #171 note); kill the
 :3100 LISTEN PID if next start EADDRINUSEs (Windows TaskStop doesn't free it).
 **SAFE to /clear.**
+
+## 2026-07-08 — #173 Notification delivery (Competitive-Gap Gap 2 §2) — DONE ✅ (backfilled from STATUS.md; this session did not run it live)
+
+*(Backfill note: this entry and the two below reconstruct #173/#174/#175 from their STATUS.md
+records — those sessions shipped and verified the work but didn't write a PROGRESS.md entry.
+Condensed from what STATUS already recorded, not reconstructed from memory.)*
+
+Unified `engine/notify/select.ts` (`selectNotifications`) drives BOTH email reminders and a new
+Web Push channel from one materiality rule (imminent payment due <=3 days with a real
+user-action amount, OR `radar.pushWorthy`). Web Push behind the same dormant-until-configured
+contract as email: `lib/push.ts` no-ops without all three `VAPID_*` vars, never throws, prunes
+dead subscriptions on 404/410. New `/api/cron/notify` (CRON_SECRET-guarded). Golden-safe: a
+`NotificationSent` dedup row is written only after a real delivery, so a dormant/no-op run
+writes nothing. Two new Prisma models (`PushSubscription`, `NotificationSent`), cascade-deleted.
+SSRF guard on subscribe endpoints (https-only, rejects IP literals/localhost). Fresh Fable
+hostile critic (money/security lane): PASS 0 P0/P1; 2 P2 + P3s fixed (radar cooldown to prevent
+push-spam on one dip episode, subscription cap, dedup pruning). Gate: `VERIFY_E2E=1 verify.sh` ->
+GREEN, 1938 unit / 145 files, FULL e2e 83/83.
+
+## 2026-07-08 — #174 Weekly digest email (Competitive-Gap Gap 2 §3) — DONE ✅ (backfilled; completes Gap 2)
+
+Mostly composition, not new math: `engine/digest/build.ts` renders the SAME Money Review object
+/coach shows plus the upcoming week's dues, as plain text — no number the digest touches is
+computed independently of /coach or the reminder surface. New `/api/cron/digest`
+(CRON_SECRET-guarded), dormant without `RESEND_API_KEY`, reuses #173's dedup table keyed on the
+ISO week's Monday. Fresh Opus hostile critic (routine lane): PASS 0 P0/P1; 1 P2 fixed — an
+inherited /coach bug the digest would have EMAILED (a first-week zero-transaction user's
+`monthsOfRunway = Infinity` rendered the literal word "Infinity"; both the digest copy and the
+un-guarded /coach source fixed together). Gate: GREEN, 1969 unit / 147 files, FULL e2e 84/84.
+This completed Gap 2 (radar #172 + notifications #173 + digest #174); Gap 3 (onboarding + mobile
+polish) started next.
+
+## 2026-07-08 — #175 Gap 3 §1 production-readiness backlog burn-down — DONE ✅ (backfilled; honest gate, pre-existing e2e flake first documented here)
+
+Explorer survey of the 2026-06-24 audit's 7-item "DO NEXT" list found 5 already done by prior
+sessions without a backlog checkoff; shipped the 3 genuine gaps (EmptyDashboard's missing `<h1>`
+on 13 zero-account routes; two silent-blank empty states in LifeEnergyCard/opportunities-card;
+an Investments nav entry). UI-only, no critic cycle (routine additive lane). First session to hit
+and root-cause the `[mobile-380]` Playwright viewport-scaling flake (config 380x800 actually
+renders ~425x895 on this machine — a Chromium/Windows scaling artifact, not app CSS) via a
+`git stash` A/B control; documented in `docs/lessons/mobile-380-viewport-scaling-flake.md`. Gate:
+tsc/eslint/vitest (1969/1969) /build clean; `VERIFY_E2E=1 verify.sh` -> 75 passed / 5 failed, all
+5 pre-existing — `scripts/verify.sh` has not been able to exit 0 on this machine since.
+
+## 2026-07-08 (resumed: "continue.") — #176 Guided first-run connect flow (Competitive-Gap Gap 3 §3) — DONE ✅ (verify green modulo the documented flake, critic FAIL→2 P1 fixed)
+
+Resumed at the #175 handoff with no further user input ("continue."). Re-confirmed baseline
+GREEN, surveyed the codebase (explorer subagent) for what the guided flow needed, found the app
+already had ~90% of a 3-step "bank → confirm → see number" flow spread across three existing
+surfaces with no shared narrative and no inlined connect UI. Built pure UI composition:
+`EmptyDashboard` now renders `<ConnectSimplefin>`/`<ConnectAccountsButton>` directly (SimpleFIN
+walkthrough inlined, zero navigation, on all 13 zero-account routes); a new shared
+`StepIndicator`; step badges on the dashboard's cash-needed reveal and `OnboardingNudge`, both
+gated on the existing `showOnboarding` boolean; Plaid button label gained "(Plaid)" (closes a
+#175-flagged loose end).
+
+Fresh-context hostile critic (routine feature-slice lane): FAIL → 2 P1. **P1-1**: the step
+badges read backwards (a "Step 3" cash-needed badge rendered ABOVE a "Step 2" nudge below it) —
+fixed by renumbering to match the app's actual top-to-bottom reveal instead of moving the
+deliberately payoff-first `CashNeededCard`; locked with a `boundingBox().y` DOM-order e2e
+assertion. **P1-2**: `ConnectAccountsButton` is no longer /accounts-only, but `/plaid-oauth`'s
+post-OAuth resume was hardcoded to `/accounts` — a Chase/BofA connect started from the
+dashboard's Step 1 would strand the user off the flow. Fixed with a new origin-path
+stash/read/clear trio in `lib/plaid-oauth.ts` (same lifecycle as the existing link-token
+storage), 2 new unit tests. Both re-verified fixed inline (routine lane, no separate confirm-pass
+agent).
+
+**Gate (real, 2026-07-08):** `npx tsc --noEmit` / `npx eslint . --max-warnings=0` clean;
+`npx vitest run` → **1971/1971** (147 files, +2 over #175); `npx next build` clean;
+`VERIFY_E2E=1 bash scripts/verify.sh` → **77 passed, 4 failed, 5 did not run** on `[mobile-380]`
+— proven pre-existing and unrelated via a `git stash` + fresh `next build` A/B control run TWICE
+(matches 4 of the 5 documented symptoms in `docs/lessons/mobile-380-viewport-scaling-flake.md`;
+only this session's own new test flips fail→pass between the stashed and unstashed runs).
+`scripts/verify.sh` still can't exit 0 on this machine for any diff (unchanged since #175) — that
+viewport investigation remains its own separate task, not this session's to fix.
+
+New/changed: `src/components/onboarding/empty-dashboard.tsx`, `src/components/onboarding/step-indicator.tsx`
+(new), `src/components/settings/onboarding-nudge.tsx`, `src/app/(app)/dashboard/page.tsx`,
+`src/components/finance/connect-accounts-button.tsx`, `src/lib/plaid-oauth.ts`,
+`src/app/plaid-oauth/page.tsx`, `tests/e2e/guided-onboarding.spec.ts` (new),
+`tests/unit/plaid-oauth.test.ts`. Ledgers: DECISIONS #176, STATUS #176 (incl. the PROGRESS.md
+backfill note above), REGRESSION_LEDGER not touched (no bug fix to a shipped defect — the P1s
+were caught in-cycle before ever being committed, so nothing regressed for a user). Committing as
+#176; NOT pushed — push remains owner-gated per the #164/#165/#171/#172 precedent.
+
+### HANDOFF (resume after /clear) — 2026-07-08, session "aimplifi", #176 DONE
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md + docs/lessons/INDEX.md first (CLAUDE.md rule).
+**State:** #176 committed at HEAD; local main ahead of origin (#171 through #176, 7 commits); push
+owner-gated.
+**Health baseline (re-confirm, don't trust):** `bash scripts/verify.sh` (no E2E) → GREEN, 1971 unit
+/ 147 files, build clean. `VERIFY_E2E=1` → 77 passed / 4 failed / 5 did not run on `[mobile-380]`,
+ALL pre-existing per `docs/lessons/mobile-380-viewport-scaling-flake.md` — do not re-investigate
+inside an unrelated task; do a `git stash` A/B control first if a NEW test starts failing, to tell
+a real regression from this known flake.
+**STANDING OWNER-ONLY (unchanged + new):** authorize the push (#171–#176 ride together); Gap 1
+§1–2 live Plaid/SimpleFIN walkthroughs + sync cron (needs tokens); Gap 3 §2 mobile secondary-nav
+redesign (explicitly flagged in the plan as needing owner design input — a real product decision,
+not a mechanical slice); the mobile-380 viewport-scaling Playwright fix itself (its own infra
+task, scope per the lesson file).
+**NEXT INCREMENT candidates:** Gap 3's remaining polish (per-account last-activity on /accounts,
+carried since #171); Gap 4 (Glass-Box assistant, AI-trust panel); Gap 5 (investments provenance
+tag, benchmark line); Gap 6 (CI verify.sh in Actions, error tracking, backups) — all smaller,
+independently schedulable slices with nothing else fully blocking.
+**Gotchas:** never reseed the DB under a live server; e2e uses %TEMP%/aimplifi-e2e.db; a solo
+`npx playwright test` invocation spawns its OWN `next start` from whatever `.next` currently
+exists (no server persists between separate tool calls in this environment, confirmed this
+session via `netstat`) — so a "control" run against reverted source is only valid if you ran
+`npx next build` AFTER stashing, not before; kill the :3100 LISTEN PID if next start EADDRINUSEs.
+**SAFE to /clear.**

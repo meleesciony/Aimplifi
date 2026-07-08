@@ -13,7 +13,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import { linkTokenParams } from '@/lib/providers/plaid';
-import { OAUTH_LINK_TOKEN_KEY, isOAuthRedirect } from '@/lib/plaid-oauth';
+import {
+  OAUTH_LINK_TOKEN_KEY,
+  OAUTH_ORIGIN_PATH_KEY,
+  isOAuthRedirect,
+  readStoredOriginPath,
+} from '@/lib/plaid-oauth';
 
 describe('linkTokenParams — redirect_uri is opt-in (configured-only)', () => {
   it('omits redirect_uri when none is provided (non-OAuth linking unaffected)', () => {
@@ -66,5 +71,22 @@ describe('OAUTH_LINK_TOKEN_KEY', () => {
   it('is a stable, non-empty storage key', () => {
     expect(typeof OAUTH_LINK_TOKEN_KEY).toBe('string');
     expect(OAUTH_LINK_TOKEN_KEY.length).toBeGreaterThan(0);
+  });
+});
+
+describe('OAUTH_ORIGIN_PATH_KEY / readStoredOriginPath (Gap 3 §3 critic P1 fix)', () => {
+  it('is a stable, non-empty storage key distinct from the link-token key', () => {
+    expect(typeof OAUTH_ORIGIN_PATH_KEY).toBe('string');
+    expect(OAUTH_ORIGIN_PATH_KEY.length).toBeGreaterThan(0);
+    expect(OAUTH_ORIGIN_PATH_KEY).not.toBe(OAUTH_LINK_TOKEN_KEY);
+  });
+
+  it('falls back to /accounts when nothing was stashed (this suite runs without a window)', () => {
+    // The unit suite runs under vitest's `environment: 'node'` (vitest.config.ts) —
+    // no `window`, so the try/catch inside readStoredOriginPath is exactly the path
+    // exercised here. This pins the safe default: a resume with no stashed origin
+    // (storage unavailable, or Link opened before this fix existed) always has
+    // somewhere sane to land, never `undefined`/a crash.
+    expect(readStoredOriginPath()).toBe('/accounts');
   });
 });

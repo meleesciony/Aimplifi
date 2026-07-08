@@ -13,6 +13,7 @@ import { SpendingInsightsCard } from '@/components/finance/spending-insights-car
 import { StaleDataBanner } from '@/components/finance/stale-data-banner';
 import { TopSpendingCard } from '@/components/finance/top-spending-card';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
+import { StepIndicator } from '@/components/onboarding/step-indicator';
 import { OnboardingNudge } from '@/components/settings/onboarding-nudge';
 import { PAYMENT_ACCOUNT_TYPES, needsOnboarding } from '@/lib/engine/settings/dials';
 import { prisma } from '@/lib/db';
@@ -71,7 +72,23 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-4">
       <h1 className="sr-only">Dashboard</h1>
-      {/* THE answer — first thing on screen, zero navigation required */}
+      {/* THE answer — first thing on screen, zero navigation required. Step 2 of the
+          guided first-run flow (Gap 3 §3) for a user who hasn't confirmed a payment
+          account yet — the SAME showOnboarding gate as OnboardingNudge below (which
+          is Step 3), so the two badges always agree on whether onboarding is still
+          open AND read in numeric order top-to-bottom (critic-caught: numbering this
+          "3" read backwards above a "Step 2" nudge that renders below it). The number
+          itself is never fabricated (resolvePaymentAccount always grounds it in a
+          real account), but which account is a best guess until Step 3 confirms it —
+          stated inline per the coaching guardrail, not left implicit. */}
+      {showOnboarding && (
+        <div className="space-y-0.5">
+          <StepIndicator step={2} />
+          <p className="text-xs text-muted-foreground">
+            Using our best guess for which account pays your cards — confirm it below.
+          </p>
+        </div>
+      )}
       <CashNeededCard
         result={data.payInFull}
         paymentAccountName={data.paymentAccountName}

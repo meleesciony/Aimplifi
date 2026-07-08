@@ -2483,3 +2483,51 @@ tests); the `[desktop]` project (no fixed bottom nav) passed in full on every ru
 currently exit 0 on this machine for any diff until the viewport-scaling issue is separately
 investigated. NEXT Gap 3 increments: §2 mobile secondary-nav redesign (7→8 icons now, still
 "scope with owner" per the plan), §3 guided first-run connect flow.
+
+## Post-Phase-5: Guided first-run connect flow (#176, Competitive-Gap Gap 3 §3)
+
+Bank → confirm payment account → see your Cash-Needed number, with zero navigation for Step 1
+(SimpleFIN/Plaid connect widgets now render INLINE on `EmptyDashboard`, not linked out to
+/accounts) and the Step-2/Step-3 badges tied to the existing `showOnboarding` gate. Pure UI
+composition — reuses `ConnectSimplefin`, `ConnectAccountsButton`, `needsOnboarding()`, and
+`MoneyDialsForm` verbatim; no schema/server-action/engine change.
+
+Numbering follows the app's ACTUAL top-to-bottom reveal (connect → an instant best-guess
+Cash-Needed number → confirm the account to lock it in), not the plan doc's literal prose order —
+a hostile critic caught that numbering the confirm nudge "Step 2" below a "Step 3" cash-needed
+badge above it read backwards on the one page showing both; fixed by renumbering (2↔3) to match
+the deliberately payoff-first dashboard layout rather than moving the card. A `boundingBox().y`
+DOM-order assertion in `tests/e2e/guided-onboarding.spec.ts` locks this.
+
+Second critic P1: `ConnectAccountsButton` is no longer /accounts-only — it now renders on all 13
+zero-account routes via `EmptyDashboard` — but `/plaid-oauth`'s post-OAuth resume was hardcoded
+to `router.replace('/accounts')`. A user starting a big OAuth bank (Chase/BofA) from the
+dashboard's Step 1 would land on /accounts instead of back on the guided flow. Fixed with a new
+origin-path stash/read/clear trio in `lib/plaid-oauth.ts` (same lifecycle as the existing
+link-token storage), 2 new unit tests.
+
+Also closes the #175 loose end: `ConnectAccountsButton`'s label now reads "+ Connect a bank or
+brokerage (Plaid)", matching SimpleFIN's existing "(SimpleFIN)" suffix.
+
+Gate (real, 2026-07-08): `VERIFY_E2E=1 bash scripts/verify.sh` → tsc/eslint clean, **1971/1971**
+unit (147 files, +2), build clean, **77 passed / 4 failed / 5 did not run** on `[mobile-380]`.
+Confirmed pre-existing and unrelated via a `git stash` + fresh `next build` A/B control run
+TWICE (once quick, once with the port-3100 server killed and rebuilt from scratch): identical
+4-failed/5-did-not-run pattern on clean `main` HEAD, matching 4 of the 5 documented symptoms in
+`docs/lessons/mobile-380-viewport-scaling-flake.md`; only this session's own new test flips
+fail→pass between the two runs. `scripts/verify.sh` still can't exit 0 on this machine for any
+diff (unchanged from #175) until that viewport issue is separately investigated as its own task.
+
+**Ledger gap, not this session's:** PROGRESS.md was not updated across #173 (notifications),
+#174 (weekly digest), or #175 (production-readiness backlog) — those sessions' work is fully
+recorded in DECISIONS.md/STATUS.md/git history, just not in the resume log. Flagged rather than
+silently backfilled (reconstructing after the fact risks inventing detail nobody actually
+recorded live); the next session doing routine ledger cleanup should backfill three short
+one-paragraph PROGRESS.md entries from the existing DECISIONS #173–175 rows.
+
+**NEXT Gap 3 increments:** §2 mobile secondary-nav redesign (still "scope with owner" per the
+plan — a genuine product/design decision, not a mechanical slice); §3's remaining piece (this
+increment covers the connect/confirm/reveal wiring; a literal "3-step wizard page" with its own
+progress UI was considered and rejected in favor of reusing the existing surfaces — see
+DECISIONS #176 rationale). Gap 1 §1–2 live Plaid/SimpleFIN walkthroughs + sync cron (owner-gated,
+needs tokens) remain the only fully-blocked items in the whole plan.

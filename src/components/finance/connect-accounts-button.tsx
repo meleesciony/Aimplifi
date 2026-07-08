@@ -11,12 +11,17 @@
  * which destroys this component's state — so the freshly-minted token is stashed
  * (storeLinkToken) for /plaid-oauth to recover and resume Link. It's cleared on
  * every terminal outcome (success, error, exit).
+ *
+ * This button now renders on every zero-account route (inlined on EmptyDashboard,
+ * Gap 3 §3), not just /accounts — so the current path is stashed alongside the
+ * token (storeOriginPath) too, and /plaid-oauth sends the user back to wherever
+ * they started Link instead of a hardcoded '/accounts'.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePlaidLink } from 'react-plaid-link';
 import { createPlaidLinkToken, linkPlaidAccount } from '@/server/plaid-actions';
-import { clearStoredLinkToken, storeLinkToken } from '@/lib/plaid-oauth';
+import { clearStoredLinkToken, storeLinkToken, storeOriginPath } from '@/lib/plaid-oauth';
 
 export function ConnectAccountsButton() {
   const router = useRouter();
@@ -87,8 +92,11 @@ export function ConnectAccountsButton() {
       setToken(r.linkToken);
       // Persist for a possible OAuth round-trip: an OAuth bank navigates the
       // browser away (destroying this component's state), and /plaid-oauth needs
-      // the token to resume Link. Harmless for non-OAuth banks.
+      // the token (and where to send the user back) to resume Link. Harmless for
+      // non-OAuth banks — the resume page is never visited, and the entries are
+      // cleared on every subsequent Link open.
       storeLinkToken(r.linkToken);
+      storeOriginPath(window.location.pathname);
       setWantOpen(true);
     } catch {
       setError('Could not start bank linking — please try again.');
@@ -106,7 +114,7 @@ export function ConnectAccountsButton() {
         onClick={start}
         className="rounded-md border border-emerald-700/40 bg-emerald-950/30 px-3 py-1.5 text-sm font-medium text-emerald-300 hover:bg-emerald-950/50 disabled:opacity-50"
       >
-        {busy ? 'Connecting…' : '+ Connect a bank or brokerage'}
+        {busy ? 'Connecting…' : '+ Connect a bank or brokerage (Plaid)'}
       </button>
       {error && (
         <p role="alert" data-testid="connect-error" className="text-xs text-red-400">

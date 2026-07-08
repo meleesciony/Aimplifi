@@ -57,3 +57,46 @@ export function clearStoredLinkToken(): void {
     /* nothing to clear / storage unavailable — non-fatal */
   }
 }
+
+/**
+ * localStorage key holding the page the user was on when they opened Link — so
+ * the OAuth return page can send them back to where they started (Gap 3 §3
+ * critic P1: ConnectAccountsButton is no longer /accounts-only, it's inlined on
+ * EmptyDashboard across 13 routes; a hardcoded post-OAuth '/accounts' redirect
+ * would strand a dashboard-onboarding user off the guided flow after a big
+ * OAuth bank like Chase/BofA). Same lifecycle and storage pattern as the link
+ * token: stashed before Link opens, cleared on every terminal outcome.
+ */
+export const OAUTH_ORIGIN_PATH_KEY = 'aimplifi.plaid.origin_path';
+
+/** Stash the page Link was opened from (browser-only; no-op on failure). */
+export function storeOriginPath(path: string): void {
+  try {
+    window.localStorage.setItem(OAUTH_ORIGIN_PATH_KEY, path);
+  } catch {
+    /* localStorage unavailable — OAuth resume just won't remember the origin */
+  }
+}
+
+/**
+ * Read back the origin path on the OAuth return page (browser-only). Falls back
+ * to /accounts — a safe default that always has a bank-connect entry point —
+ * when nothing was stashed (storage unavailable, or Link opened before this
+ * origin-tracking existed).
+ */
+export function readStoredOriginPath(): string {
+  try {
+    return window.localStorage.getItem(OAUTH_ORIGIN_PATH_KEY) ?? '/accounts';
+  } catch {
+    return '/accounts';
+  }
+}
+
+/** Clear the stashed origin path once the round-trip is over (success, error, or exit). */
+export function clearStoredOriginPath(): void {
+  try {
+    window.localStorage.removeItem(OAUTH_ORIGIN_PATH_KEY);
+  } catch {
+    /* nothing to clear / storage unavailable — non-fatal */
+  }
+}
