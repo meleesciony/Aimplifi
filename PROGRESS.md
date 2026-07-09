@@ -2782,3 +2782,55 @@ STATUS #170, lessons/mutation-form-recipe.md.
 (owner-scoped); connect-simplefin network success branch UNVERIFIED (dormant, needs creds); import-csv's
 own latent useActionState reset (milder — no mis-file, rows filed server-side before the reset);
 Recharts pinned-tooltip/width(-1) polish; the two "Connect a bank" button labels; #168 P3 multi-merchant.
+
+## 2026-07-09 (cloud: "continue with the work") — #171 category MoM drill-down — DONE ✅
+
+Resumed at origin/main `#170`. Top unblocked follow-up = category month-over-month drill-down
+(Mint-parity). Engine-first: `categorySpendSeries` + `monthDateBounds` + `isSpendDrilldownCategory`;
+server optional `categorySeries` on `getReports`; `/reports?category=` panel + register deep-link
+(no type=expense); category rows as Links. Hostile critic FAIL → 4 P1 fixed. Gate: verify GREEN
+1853 unit / 136 files; reports e2e 2/2.
+
+### HANDOFF (resume after /clear) — 2026-07-09, #171 DONE
+**Resume from repo root.** Read LOOP_ENGINEERING.md + docs/lessons/INDEX.md first.
+**State:** #171 on branch `cursor/category-mom-drilldown-fd9a` (PR #1).
+**Health baseline (re-confirm):** `bash scripts/verify.sh` → GREEN, 1853 unit / 136 files;
+`AUTH_SECRET=… npx playwright test tests/e2e/reports.spec.ts` → 2/2.
+**NEXT INCREMENT candidates:** #71 nav redesign (owner-scoped); Recharts polish; Connect-a-bank
+button labels; #168 P3s; Trends mover → `?category=` deep-link (optional); ROADMAP ALSO CONSIDER
+UX/a11y list (skip-to-content, calendar aria-labels, etc.).
+**SAFE to /clear.**
+
+## 2026-07-09 (cloud: "continue") — #172 Trends→MoM + spending-plan legend — DONE ✅
+
+Stacked on #171 branch. Trends mover names → `/reports?category=`; spending-plan visible
+allocation legend. Gate: verify GREEN 1853 unit; e2e trends+spending-plan+reports 7/7.
+
+### HANDOFF (resume after /clear) — 2026-07-09, #172 DONE
+**State:** #171+#172 on `cursor/category-mom-drilldown-fd9a` (PR #1).
+**Health:** verify GREEN 1853/136; AUTH_SECRET e2e trends+spending-plan+reports 7/7.
+**NEXT:** #71 nav (owner); empty-register no-data vs no-match; Recharts polish; Connect labels;
+#168 P3s. Skip-to-content / calendar aria / safe-area / overspent reframe / triage split already
+built (#81/#89/#90/#166).
+**SAFE to /clear.**
+
+## 2026-07-09 (cloud: "continue") — #173 empty-register no-data vs no-match — DONE ✅
+
+Stacked on #171/#172 branch. Pure empty-reason helpers; dual empty UI; e2e both branches.
+Gate: verify GREEN 1855 unit; register-empty e2e 2/2.
+
+### HANDOFF — 2026-07-09, #173 DONE
+**State:** #171–#173 on `cursor/category-mom-drilldown-fd9a` (PR #1).
+**Health:** verify GREEN 1855/136; AUTH_SECRET e2e register-empty 2/2.
+**NEXT:** #71 nav (owner); Recharts polish; Connect labels; #168 P3s.
+**SAFE to /clear.**
+
+## 2026-07-09 (cloud: "continue") — #174 Connect provider-first labels — DONE ✅
+
+SimpleFIN/Plaid buttons lead with provider name; bank-connections section on /accounts.
+Gate: verify GREEN 1855; accounts+SimpleFIN e2e 2/2. Witnessed Recharts width(-1) on /accounts.
+
+### HANDOFF — 2026-07-09, #174 DONE
+**State:** #171–#174 on `cursor/category-mom-drilldown-fd9a` (PR #1).
+**NEXT:** Recharts width(-1) polish (witnessed); #71 nav (owner); #168 P3s; import-csv reset.
+**SAFE to /clear.**

@@ -28,7 +28,12 @@ import { createCustomCategory } from '@/server/custom-category-actions';
 import { recategorize } from '@/server/triage-actions';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
-import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
+import type {
+  PageInfo,
+  RegisterEmptyReason,
+  TxnSummary,
+  TxnView,
+} from '@/lib/engine/transactions/query';
 
 function amountClass(t: TxnView): string {
   if (t.isTransfer) return 'text-muted-foreground';
@@ -40,6 +45,7 @@ export function TransactionList({
   summary,
   pageInfo,
   categoryGroups = ASSIGNABLE_GROUPS,
+  emptyReason = null,
 }: {
   rows: TxnView[];
   summary: TxnSummary;
@@ -47,6 +53,8 @@ export function TransactionList({
   /** Two-level picker source; defaults to the full set, but the page passes the
    *  user's VISIBLE groups so hidden categories don't appear here (DECISIONS #110). */
   categoryGroups?: { group: string; categories: { id: string; name: string }[] }[];
+  /** Distinguishes no-data vs no-match when the list is empty (DECISIONS #173). */
+  emptyReason?: RegisterEmptyReason | null;
 }) {
   const searchParams = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -244,11 +252,52 @@ export function TransactionList({
 
       {rows.length === 0 ? (
         <div
-          className="flex flex-col items-center gap-2 rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground"
+          className="flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground"
           data-testid="txn-empty"
+          data-empty={emptyReason ?? 'no-match'}
         >
           <Receipt className="size-6" aria-hidden />
-          No transactions match these filters.
+          {emptyReason === 'no-data' ? (
+            <div data-testid="txn-empty-no-data" className="space-y-2">
+              <p className="font-medium text-foreground">No transactions yet</p>
+              <p>
+                Import a CSV, add one by hand, or connect a bank — activity from checking,
+                savings, and credit cards shows up here.
+              </p>
+              <div className="flex flex-wrap justify-center gap-3 pt-1 text-xs">
+                <Link
+                  href="/transactions/import"
+                  className="font-medium text-foreground underline-offset-2 hover:underline"
+                >
+                  Import CSV →
+                </Link>
+                <Link
+                  href="/transactions/new"
+                  className="font-medium text-foreground underline-offset-2 hover:underline"
+                >
+                  Add a transaction →
+                </Link>
+                <Link
+                  href="/accounts"
+                  className="font-medium text-foreground underline-offset-2 hover:underline"
+                >
+                  Link accounts →
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div data-testid="txn-empty-no-match" className="space-y-2">
+              <p className="font-medium text-foreground">No transactions match these filters</p>
+              <p>Try a broader search or date range, or clear filters to see everything.</p>
+              <Link
+                href="/transactions"
+                className="inline-block pt-1 text-xs font-medium text-foreground underline-offset-2 hover:underline"
+                data-testid="txn-empty-clear"
+              >
+                Clear filters →
+              </Link>
+            </div>
+          )}
         </div>
       ) : (
         groups.map((g) => (

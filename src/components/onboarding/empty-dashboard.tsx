@@ -21,7 +21,7 @@ export function EmptyDashboard() {
         <p className="text-sm font-medium">Get started:</p>
         <div className="flex flex-col gap-2">
           <Link href="/accounts" className={buttonVariants({ variant: 'default' })} data-testid="onboard-connect">
-            Connect a bank or brokerage
+            Link accounts (SimpleFIN or Plaid)
           </Link>
           <Link href="/transactions/import" className={buttonVariants({ variant: 'outline' })} data-testid="onboard-import">
             Import a CSV from your bank
@@ -31,8 +31,8 @@ export function EmptyDashboard() {
           </Link>
         </div>
         <p className="text-xs text-muted-foreground">
-          Connecting a bank needs Plaid configured; otherwise CSV import and manual entry work with no
-          setup. Your data is private to your account.
+          SimpleFIN and Plaid live on the Accounts page when configured; CSV import and manual entry
+          work with no setup. Your data is private to your account.
         </p>
       </CardContent>
     </Card>

@@ -8,6 +8,11 @@
  */
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { hasActiveTxnFilters, type FlowType } from '@/lib/engine/transactions/query';
+
+function asFlowType(t: string): FlowType {
+  return t === 'income' || t === 'expense' || t === 'transfer' || t === 'all' ? t : 'all';
+}
 
 const TYPE_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -50,9 +55,14 @@ export function TransactionFilters({
     router.push(qs ? `/transactions?${qs}` : '/transactions');
   }
 
-  const hasFilters =
-    !!(current.search || current.account || current.category || current.from || current.to) ||
-    current.type !== 'all';
+  const hasFilters = hasActiveTxnFilters({
+    search: current.search,
+    accountId: current.account || null,
+    categoryId: current.category || null,
+    type: asFlowType(current.type),
+    from: current.from || null,
+    to: current.to || null,
+  });
 
   return (
     <div className="space-y-2" data-testid="txn-filters">

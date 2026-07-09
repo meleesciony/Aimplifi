@@ -122,13 +122,14 @@ export default async function SettingsPage() {
       <Card data-testid="connections-card">
         <CardHeader className="pb-2">
           <CardDescription>Bank connections</CardDescription>
-          <CardTitle className="text-base">Connect a bank or brokerage</CardTitle>
+          <CardTitle className="text-base">SimpleFIN or Plaid</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           Link an account from the{' '}
           <a href="/accounts" className="underline hover:text-foreground">Accounts</a> page —
-          SimpleFIN (a few dollars/year, no business gate) or Plaid. Access tokens are encrypted at
-          rest (AES-256-GCM); only account masks (last 4) are ever stored.
+          <b> Connect with SimpleFIN</b> (a few dollars/year, no business gate) or{' '}
+          <b>Connect with Plaid</b> (banks &amp; brokerages). Access tokens are encrypted at rest
+          (AES-256-GCM); only account masks (last 4) are ever stored.
         </CardContent>
       </Card>
 

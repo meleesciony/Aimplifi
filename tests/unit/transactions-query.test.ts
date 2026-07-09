@@ -4,8 +4,10 @@ import {
   type TxnView,
   filterTransactions,
   groupAccounts,
+  hasActiveTxnFilters,
   isLiabilityType,
   paginate,
+  registerEmptyReason,
   sortByDateDesc,
   summarizeTransactions,
 } from '@/lib/engine/transactions/query';
@@ -186,5 +188,26 @@ describe('groupAccounts — assets, liabilities, net worth', () => {
     expect(g.netWorthCents).toBe(0);
     expect(g.assets.subtotalCents).toBe(0);
     expect(g.liabilities.subtotalCents).toBe(0);
+  });
+});
+
+describe('hasActiveTxnFilters + registerEmptyReason (#173)', () => {
+  it('treats empty / type=all as inactive; any other dimension as active', () => {
+    expect(hasActiveTxnFilters({})).toBe(false);
+    expect(hasActiveTxnFilters({ type: 'all' })).toBe(false);
+    expect(hasActiveTxnFilters({ search: '  ' })).toBe(false);
+    expect(hasActiveTxnFilters({ search: 'Costco' })).toBe(true);
+    expect(hasActiveTxnFilters({ accountId: 'a1' })).toBe(true);
+    expect(hasActiveTxnFilters({ categoryId: 'dining' })).toBe(true);
+    expect(hasActiveTxnFilters({ from: '2026-06-01' })).toBe(true);
+    expect(hasActiveTxnFilters({ to: '2026-06-30' })).toBe(true);
+    expect(hasActiveTxnFilters({ type: 'expense' })).toBe(true);
+  });
+
+  it('returns no-data when both counts are zero; no-match when filters hid rows', () => {
+    expect(registerEmptyReason(0, 0)).toBe('no-data');
+    expect(registerEmptyReason(0, 42)).toBe('no-match');
+    expect(registerEmptyReason(5, 42)).toBeNull();
+    expect(registerEmptyReason(5, 0)).toBeNull(); // defensive: filtered can't exceed unfiltered in practice
   });
 });

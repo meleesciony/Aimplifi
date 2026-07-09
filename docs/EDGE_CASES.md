@@ -625,3 +625,26 @@ money-matching is rejected (STATUS #134). The narrow residual — a loan whose A
 as a non-transfer checking row double-counts (now on forecast too, same population already doubling on the
 calendar) — is pinned by a regression test that documents the accepted limitation. Not demo-reachable
 (`refreshRecurringForUser` runs only on real Plaid/SimpleFIN sync, never for the seeded demo).
+
+---
+
+## §Category month-over-month series (DECISIONS #171)
+
+Same spend definition as `spendingByCategory` (expenses only; refunds net; income / transfer /
+split parents excluded). Series keeps zero months for chart continuity.
+
+### MoM-A. Three-month dining series with refund
+- Txns: Apr dining −$40.00; May dining −$50.00; Jun dining −$50.00 + −$30.00 + refund +$20.00;
+  Jun groceries −$80.00; income / transfer / split-parent / Mar dining ignored.
+- `categorySpendSeries(txns, 'dining', '2026-06', 3)`:
+  - months = Apr $40.00, May $50.00, Jun $60.00
+  - currentCents = **6000**, priorCents = **5000**, deltaCents = **+1000**, pctChange = **0.2**
+
+### MoM-B. Zero prior months → null pct
+- Same fixture, `categoryId = 'groceries'`, monthCount 3:
+  - months = Apr $0, May $0, Jun $80.00
+  - priorCents = **0**, deltaCents = **+8000**, pctChange = **null**
+
+### MoM-C. Register deep-link bounds
+- `monthDateBounds('2026-06')` → from **2026-06-01**, to **2026-06-30**
+- `monthDateBounds('2024-02')` → from **2024-02-01**, to **2024-02-29** (leap)

@@ -211,6 +211,22 @@ export function formatMonth(ym: string, style: 'long' | 'short' = 'long'): strin
   return style === 'long' ? `${name} ${m[1]}` : `${name} '${m[1].slice(2)}`;
 }
 
+/**
+ * Inclusive calendar bounds for a YYYY-MM month. Pure civil-date math — no
+ * `Date` objects. Used by reports MoM drill-down → register deep-links
+ * (DECISIONS #171).
+ */
+export function monthDateBounds(ym: string): { from: ISODate; to: ISODate } {
+  const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(ym);
+  if (!m) throw new Error(`monthDateBounds: malformed month "${ym}"`);
+  const year = +m[1];
+  const month = +m[2];
+  return {
+    from: fromParts(year, month, 1),
+    to: fromParts(year, month, daysInMonth(year, month)),
+  };
+}
+
 /** Relative phrasing for a date vs "today": "today", "tomorrow", "in 3 days", "2 days ago". */
 export function formatRelativeDays(today: ISODate, date: ISODate): string {
   const days = daysBetween(today, date);

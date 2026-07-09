@@ -2244,3 +2244,61 @@ BOTH providers); (e) #168 P3s: multi-merchant "at A and B", and page-scoped shar
 accepted-P2 follow-up); (f) NEW: import-csv's own account `<select>` shares the latent useActionState
 reset (milder — rows are filed server-side with the correct account BEFORE the reset, so no mis-file),
 left as pre-existing; (g) NEW: connect-simplefin's network success branch remains UNVERIFIED (dormant).
+
+## 2026-07-09 — #171 category month-over-month drill-down (Mint-parity) — DONE
+
+(#170 top-queued NEXT item (a).) Engine-first pure `categorySpendSeries` reuses `spendingByCategory`
+per month (one spend definition). `/reports?category=` opens a 6-month MoM panel with vs-prior delta
+and a register deep-link (`monthDateBounds` → `/transactions?category&from&to`, no `type=expense`
+so refunds that net into MoM still appear). Category breakdown rows are Links; no `?category=` keeps
+the default reports DOM free of the panel (golden count-0 e2e). Complementary to #74 movers
+(MoM last-vs-prior, not vs baseline average). Critic cycle 1 FAIL → 4 P1 fixed: register type
+filter, pending disclosure, `isSpendDrilldownCategory` income/transfer gate, sr-only month summary
+(replaced `role="img"`).
+
+**Gate (real output 2026-07-09):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — tsc/eslint clean,
+**1853 unit / 136 files** (+5 over #170), build clean. Targeted e2e `reports.spec.ts` **2/2**
+(with `AUTH_SECRET` set for this cloud env).
+
+**OPEN / follow-ups (unchanged from #170 minus item (a)):** (a) #71 nav redesign + settings
+reorganization (owner-scoped); (b) Recharts pinned-on-load tooltip + width(-1) warning; (c) two
+adjacent "Connect a bank" buttons need clearer labels; (d) #168 P3s: multi-merchant "at A and B",
+page-scoped shared pending; (e) import-csv latent useActionState reset (no mis-file); (f)
+connect-simplefin network success branch UNVERIFIED (dormant); (g) optional: Trends mover rows →
+same `?category=` deep-link (deferred — reports is the Mint-parity path).
+
+## 2026-07-09 — #172 Trends→MoM deep-link + spending-plan legend — DONE
+
+(#171 follow-up (g) + ROADMAP ALSO CONSIDER allocation legend.) Trends mover category names link
+to `/reports?category=` (same MoM panel). Spending-plan bar gets a visible legend (Spent / Bills
+due / Savings / Left|Over). No engine change. Proportionate self-review (display-only, reuses
+#171 path): name-only link avoids nested interactives; legend mirrors investments-view.
+
+**Gate (real output 2026-07-09):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1853 unit /
+136 files**, build clean. Targeted e2e trends+spending-plan+reports **7/7**.
+
+**OPEN / follow-ups:** (a) #71 nav redesign (owner-scoped); (b) Recharts pinned-tooltip/width(-1);
+(c) Connect-a-bank button labels; (d) #168 P3s; (e) import-csv useActionState reset; (f)
+connect-simplefin success UNVERIFIED; (g) empty-register no-data vs no-match distinction.
+
+## 2026-07-09 — #173 empty-register no-data vs no-match — DONE
+
+ROADMAP ALSO CONSIDER. Pure `registerEmptyReason` + `totalUnfiltered` from getTransactions.
+no-data → "No transactions yet" + CTAs; no-match → filter copy + Clear. E2E both branches.
+
+**Gate (real output 2026-07-09):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1855 unit /
+136 files**, build clean. Targeted e2e `register empty` **2/2**.
+
+## 2026-07-09 — #174 Connect-button provider-first labels — DONE
+
+Audit follow-up: adjacent SimpleFIN/Plaid buttons no longer share "Connect a bank…" lead-in.
+`+ Connect with SimpleFIN` / `+ Connect with Plaid` + `bank-connections` section explainer.
+Empty-dashboard / settings / register no-data CTAs aligned. E2E distinct-label assertions.
+
+**Gate (real output 2026-07-09):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1855 unit /
+136 files**. Targeted e2e accounts+SimpleFIN **2/2** (also witnessed Recharts width(-1)
+console warning on /accounts — next slice).
+
+**OPEN / follow-ups:** (a) #71 nav redesign (owner-scoped); (b) Recharts pinned-tooltip/width(-1);
+(c) #168 P3s (multi-merchant "at A and B", page-scoped shared pending); (d) import-csv
+useActionState reset; (e) connect-simplefin success UNVERIFIED.

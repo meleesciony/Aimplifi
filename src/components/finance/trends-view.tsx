@@ -40,7 +40,16 @@ function MoverRow({ m, isDial = false }: { m: CategoryMover; isDial?: boolean })
     <li className="flex items-center justify-between gap-3 py-2">
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-medium">{m.name}</span>
+          {/* #172: name → /reports?category= MoM panel (same path as #171 reports rows).
+              Link the name only — not the whole row — so the direction icon stays a
+              sibling, not a nested interactive. */}
+          <Link
+            href={`/reports?category=${encodeURIComponent(m.categoryId)}`}
+            className="truncate text-sm font-medium underline-offset-2 hover:underline"
+            data-testid={`trends-mover-drill-${m.categoryId}`}
+          >
+            {m.name}
+          </Link>
           {isDial && <Gauge className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />}
         </div>
         <div className="truncate text-xs text-muted-foreground">

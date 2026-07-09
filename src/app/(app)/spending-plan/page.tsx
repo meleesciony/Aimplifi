@@ -64,13 +64,36 @@ export default async function SpendingPlanPage() {
           )}
         </p>
 
-        {/* allocation bar */}
-        <div className="mt-5 flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
-          <div className="bg-rose-400/80" style={{ width: pct(p.spentSoFarCents) }} title="Spent" />
-          <div className="bg-amber-400/80" style={{ width: pct(p.upcomingBillsCents) }} title="Upcoming bills" />
-          <div className="bg-sky-400/80" style={{ width: pct(p.plannedSavingsCents) }} title="Savings" />
-          <div className="bg-emerald-500/80" style={{ width: leftWidth }} title="Left to spend" />
+        {/* allocation bar + visible legend (ROADMAP ALSO CONSIDER; title= alone is
+            mouse-only — match investments-view's dot+label pattern). */}
+        <div
+          className="mt-5 flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
+          data-testid="spending-plan-bar"
+          aria-hidden
+        >
+          <div className="bg-rose-400/80" style={{ width: pct(p.spentSoFarCents) }} />
+          <div className="bg-amber-400/80" style={{ width: pct(p.upcomingBillsCents) }} />
+          <div className="bg-sky-400/80" style={{ width: pct(p.plannedSavingsCents) }} />
+          <div className="bg-emerald-500/80" style={{ width: leftWidth }} />
         </div>
+        <ul
+          className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
+          data-testid="spending-plan-legend"
+        >
+          <li className="inline-flex items-center gap-1">
+            <span className="size-2 rounded-full bg-rose-400/80" aria-hidden /> Spent
+          </li>
+          <li className="inline-flex items-center gap-1">
+            <span className="size-2 rounded-full bg-amber-400/80" aria-hidden /> Bills due
+          </li>
+          <li className="inline-flex items-center gap-1">
+            <span className="size-2 rounded-full bg-sky-400/80" aria-hidden /> Savings
+          </li>
+          <li className="inline-flex items-center gap-1">
+            <span className="size-2 rounded-full bg-emerald-500/80" aria-hidden />{' '}
+            {positive ? 'Left to spend' : 'Over plan'}
+          </li>
+        </ul>
       </section>
 
       {/* Breakdown */}

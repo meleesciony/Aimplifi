@@ -46,6 +46,37 @@ export interface TxnFilter {
   to?: string | null; // inclusive YYYY-MM-DD upper bound
 }
 
+/**
+ * True when any register filter narrows the list away from "everything".
+ * Shared by the filter bar Clear button and the empty-state branch
+ * (no-data vs no-match — DECISIONS #173). `type: 'all'` / absent is inactive.
+ */
+export function hasActiveTxnFilters(filter: TxnFilter = {}): boolean {
+  return !!(
+    filter.search?.trim() ||
+    filter.accountId ||
+    filter.categoryId ||
+    filter.from ||
+    filter.to ||
+    (filter.type && filter.type !== 'all')
+  );
+}
+
+/** Empty-register reason for the UI (DECISIONS #173). */
+export type RegisterEmptyReason = 'no-data' | 'no-match';
+
+/**
+ * Distinguish "ledger is empty" from "filters hid everything". When the
+ * filtered count is non-zero, returns null (list should render rows).
+ */
+export function registerEmptyReason(
+  filteredCount: number,
+  totalUnfiltered: number,
+): RegisterEmptyReason | null {
+  if (filteredCount > 0) return null;
+  return totalUnfiltered === 0 ? 'no-data' : 'no-match';
+}
+
 export interface TxnSummary {
   count: number;
   /** Sum of positive, non-transfer amounts. */
