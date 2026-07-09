@@ -2824,3 +2824,13 @@ Gate: verify GREEN 1855 unit; register-empty e2e 2/2.
 **Health:** verify GREEN 1855/136; AUTH_SECRET e2e register-empty 2/2.
 **NEXT:** #71 nav (owner); Recharts polish; Connect labels; #168 P3s.
 **SAFE to /clear.**
+
+## 2026-07-09 (cloud: "continue") — #174 Connect provider-first labels — DONE ✅
+
+SimpleFIN/Plaid buttons lead with provider name; bank-connections section on /accounts.
+E2E asserts distinct labels.
+
+### HANDOFF — 2026-07-09, #174 DONE
+**State:** #171–#174 on `cursor/category-mom-drilldown-fd9a` (PR #1).
+**NEXT:** #71 nav (owner); Recharts polish; #168 P3s; import-csv reset; SimpleFIN success UNVERIFIED.
+**SAFE to /clear.**

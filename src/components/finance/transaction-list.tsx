@@ -281,7 +281,7 @@ export function TransactionList({
                   href="/accounts"
                   className="font-medium text-foreground underline-offset-2 hover:underline"
                 >
-                  Connect a bank →
+                  Link accounts →
                 </Link>
               </div>
             </div>

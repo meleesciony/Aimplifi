@@ -2288,3 +2288,13 @@ no-data → "No transactions yet" + CTAs; no-match → filter copy + Clear. E2E 
 
 **Gate (real output 2026-07-09):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1855 unit /
 136 files**, build clean. Targeted e2e `register empty` **2/2**.
+
+## 2026-07-09 — #174 Connect-button provider-first labels — DONE
+
+Audit follow-up: adjacent SimpleFIN/Plaid buttons no longer share "Connect a bank…" lead-in.
+`+ Connect with SimpleFIN` / `+ Connect with Plaid` + `bank-connections` section explainer.
+Empty-dashboard / settings / register no-data CTAs aligned. E2E distinct-label assertions.
+
+**OPEN / follow-ups:** (a) #71 nav redesign (owner-scoped); (b) Recharts pinned-tooltip/width(-1);
+(c) #168 P3s (multi-merchant "at A and B", page-scoped shared pending); (d) import-csv
+useActionState reset; (e) connect-simplefin success UNVERIFIED.

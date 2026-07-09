@@ -102,7 +102,7 @@ export function ConnectSimplefin({ connected, lastSyncedAt }: { connected: boole
         onClick={() => { setOpen(!open); setError(null); }}
         className="rounded-md border border-emerald-700/40 bg-emerald-950/30 px-3 py-1.5 text-sm font-medium text-emerald-300 hover:bg-emerald-950/50 disabled:opacity-50"
       >
-        + Connect a bank (SimpleFIN)
+        + Connect with SimpleFIN
       </button>
       {open && (
         <div className="space-y-2 rounded-lg border p-3" data-testid="simplefin-form">

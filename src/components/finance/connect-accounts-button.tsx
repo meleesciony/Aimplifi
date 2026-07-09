@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * "Connect a bank or brokerage" — Plaid Link front door (DECISIONS #41). Opens
+ * "Connect with Plaid" — Plaid Link front door (DECISIONS #41 / #174). Opens
  * Plaid's hosted Link UI, then hands the public token to the sandbox-validated
  * exchange path (linkPlaidAccount), which pulls accounts, transactions, and
  * liabilities. The link token is fetched ON CLICK (never on render), so the
@@ -106,7 +106,7 @@ export function ConnectAccountsButton() {
         onClick={start}
         className="rounded-md border border-emerald-700/40 bg-emerald-950/30 px-3 py-1.5 text-sm font-medium text-emerald-300 hover:bg-emerald-950/50 disabled:opacity-50"
       >
-        {busy ? 'Connecting…' : '+ Connect a bank or brokerage'}
+        {busy ? 'Connecting…' : '+ Connect with Plaid'}
       </button>
       {error && (
         <p role="alert" data-testid="connect-error" className="text-xs text-red-400">

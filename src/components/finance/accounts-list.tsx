@@ -150,7 +150,7 @@ function AccountsEmptyState({ withheldCount }: { withheldCount: number }) {
       </CardHeader>
       <CardContent>
         <p className="text-sm text-muted-foreground">
-          Connect a bank or brokerage below, or add an account manually — even things a bank feed
+          Link accounts with SimpleFIN or Plaid below, or add one manually — even things a bank feed
           can&apos;t see, like your home or car. Once an account is here you&apos;ll see your net
           worth, and Aimplifi can tell you exactly how much you need to pay every card in full, and
           by when.
@@ -277,9 +277,22 @@ export function AccountsList({ data }: { data: AccountsView }) {
         onCancelStatement={() => setStatementCardId(null)}
       />
 
-      {/* Link real accounts: SimpleFIN (cheaper, no Plaid gatekeeping) or Plaid */}
-      <ConnectSimplefin connected={data.simplefin.connected} lastSyncedAt={data.simplefin.lastSyncedAt} />
-      <ConnectAccountsButton />
+      {/* Two providers side-by-side (#174): label each — don't merge. Owner uses BOTH. */}
+      <section className="space-y-2" data-testid="bank-connections" aria-labelledby="bank-connections-heading">
+        <div>
+          <h2 id="bank-connections-heading" className="text-sm font-semibold">
+            Bank connections
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Two ways to link — SimpleFIN (low-cost, paste a setup token) or Plaid (banks &amp;
+            brokerages via Link). Pick either or both.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <ConnectSimplefin connected={data.simplefin.connected} lastSyncedAt={data.simplefin.lastSyncedAt} />
+          <ConnectAccountsButton />
+        </div>
+      </section>
 
       {/* Add manual items */}
       <div className="flex gap-2">

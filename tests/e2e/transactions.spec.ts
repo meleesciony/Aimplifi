@@ -32,7 +32,13 @@ test('accounts page groups assets/liabilities and matches dashboard net worth', 
 
   await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$144,804.74');
   await expect(page.getByTestId('accounts-net-worth-trend')).toBeVisible(); // net worth over time (DECISIONS #40)
-  await expect(page.getByTestId('connect-bank-btn')).toBeVisible(); // Plaid Link entry point (DECISIONS #41)
+  // #174: two adjacent connect buttons must lead with the provider name (not
+  // twin "Connect a bank…" labels — owner uses BOTH SimpleFIN and Plaid).
+  await expect(page.getByTestId('bank-connections')).toBeVisible();
+  await expect(page.getByTestId('simplefin-connect-btn')).toHaveText(/SimpleFIN/i);
+  await expect(page.getByTestId('connect-bank-btn')).toHaveText(/Plaid/i);
+  await expect(page.getByTestId('simplefin-connect-btn')).not.toHaveText(/Plaid/i);
+  await expect(page.getByTestId('connect-bank-btn')).not.toHaveText(/SimpleFIN/i);
   await expect(page.getByTestId('account-group-asset')).toBeVisible();
   await expect(page.getByTestId('account-group-liability')).toBeVisible();
 
@@ -136,6 +142,7 @@ test('SimpleFIN connect affordance is present and opens its token form (dormant)
   await page.goto('/accounts');
   const btn = page.getByTestId('simplefin-connect-btn');
   await expect(btn).toBeVisible();
+  await expect(btn).toHaveText('+ Connect with SimpleFIN');
   await btn.click();
   await expect(page.getByTestId('simplefin-form')).toBeVisible();
   await expect(page.getByTestId('simplefin-token')).toBeVisible();
