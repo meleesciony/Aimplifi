@@ -8,11 +8,28 @@
  * dashboard with no accounts; this offers a clear recovery path (reseed) rather
  * than a crash. (redirect()/signOut() throws are control flow, not errors, and
  * are not caught here.)
+ *
+ * Gap 6 §2 (#189): report to Sentry when configured (dormant without DSN).
  */
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { captureError } from '@/lib/errors';
 
-export default function AppError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function AppError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    void captureError(error, {
+      boundary: 'app',
+      tags: error.digest ? { digest: error.digest.slice(0, 64) } : undefined,
+    });
+  }, [error]);
+
   return (
     <div className="mx-auto max-w-md space-y-4 py-12 text-center" data-testid="app-error">
       <h1 className="text-xl font-semibold">Something went wrong</h1>

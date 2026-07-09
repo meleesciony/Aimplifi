@@ -5,8 +5,26 @@
  * the normal (app)/error.tsx can't help and the app CSS may not have loaded — and renders
  * a self-contained, branded dark recovery screen with inline styles so it works even if
  * the stylesheet failed. Replaces a raw white browser 500.
+ *
+ * Gap 6 §2 (#189): report to Sentry when configured (dormant without DSN).
  */
-export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+import { useEffect } from 'react';
+import { captureError } from '@/lib/errors';
+
+export default function GlobalError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    void captureError(error, {
+      boundary: 'global',
+      tags: error.digest ? { digest: error.digest.slice(0, 64) } : undefined,
+    });
+  }, [error]);
+
   return (
     <html lang="en">
       <body

@@ -49,7 +49,9 @@ finance app a habit instead of a tool.
 > - **Gap 5:** §1 provenance tag **BUILT** (#180); Plaid holdings parity + benchmark line
 >   **owner/data-gated** (no market-data feed / holdings-history schema).
 > - **Gap 6:** §1 CI **BUILT** (#181). §3 session invalidation + PII-free deletion record
->   **BUILT (#182, this).** §2 error tracking + §4 Neon backups still **NOT BUILT**.
+>   **BUILT (#182).** §2 error tracking **BUILT (#189)** — dormant-until-DSN Sentry envelope
+>   client (`lib/errors.ts` + `instrumentation.ts` + error boundaries); §4 Neon backups still
+>   **NOT BUILT** (owner/ops).
 > - **Gap 3:** §3 guided first-run **BUILT** (#176), Investments nav **BUILT**; §1 **FULLY
 >   BUILT (reconciled #185)** — loading skeleton, popover dismissal, titles, empty states,
 >   CardTitle heading, every destructive Delete confirmed; Budget-`Clear` is a consistent
@@ -59,9 +61,10 @@ finance app a habit instead of a tool.
 > **True unblocked, in-session-verifiable remaining work:** ~~wire the two crons into
 > `vercel.json` (Gap 2)~~ **DONE #184**; ~~Gap 1 §4 sync-failure surfacing~~ **DONE #183**;
 > ~~Gap 3 §1 skeletons + delete confirmations~~ **DONE — reconciled as already-built #185**.
-> What genuinely remains: Gap 6 §2 error tracking (partially env-gated) and Gap 6 §4 Neon
-> backups. ~~ROADMAP "ALSO CONSIDER"~~ **DONE #186**. ~~Gap 3 §2 mobile nav~~ **DONE #187**.
-> Everything else is owner/env-gated or done.
+> What genuinely remains: Gap 6 §4 Neon backups (owner/ops). ~~Gap 6 §2 error tracking~~
+> **DONE #189** (set `SENTRY_DSN` in Vercel to activate). ~~ROADMAP "ALSO CONSIDER"~~
+> **DONE #186**. ~~Gap 3 §2 mobile nav~~ **DONE #187**. Everything else is owner/env-gated
+> or done.
 
 
 ### Gap 1 — Live-data reliability (usefulness gate; everything else is downstream)

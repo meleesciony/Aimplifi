@@ -12,6 +12,9 @@ import type { NextConfig } from "next";
  * eval, so 'unsafe-eval' is added in development only and prod stays strict.
  */
 const isDev = process.env.NODE_ENV !== "production";
+// Sentry ingest only when a DSN is configured — keep prod CSP tight otherwise
+// (PRIVACY.md: no third-party scripts; connect-src widened only for ingest).
+const sentryConfigured = !!(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN);
 
 const securityHeaders = [
   {
@@ -25,7 +28,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.plaid.com",
+      `connect-src 'self' https://*.plaid.com${sentryConfigured ? " https://*.ingest.sentry.io" : ""}`,
       "frame-src https://*.plaid.com",
       "frame-ancestors 'none'",
       "form-action 'self'",

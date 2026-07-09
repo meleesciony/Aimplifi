@@ -1,5 +1,20 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-09 — #189 Prod error tracking (Gap 6 §2) — DONE ✅
+
+Owner: "continue with what's next" after #188 confirmed fixed. Next unblocked
+plan item = Gap 6 §2. Shipped dormant-until-DSN Sentry envelope client
+(`lib/errors.ts`), `instrumentation.ts` onRequestError, error-boundary wiring,
+CSP gate, DEPLOY.md. No `@sentry/nextjs` dep (thin fetch, email/push pattern).
+Unit locks in `errors.test.ts`. Neon backups (§4) remain owner/ops.
+
+### HANDOFF — 2026-07-09, #189 DONE
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** Gap 6 §4 Neon backups (owner), live Plaid/SimpleFIN walkthroughs
+(tokens), Gap 5 benchmark (market-data), or mobile-380 Playwright infra.
+Set `SENTRY_DSN` in Vercel when ready to activate error tracking.
+**SAFE to /clear.**
+
 ## 2026-07-09 — #187 Mobile More-sheet nav (Gap 3 §2) — DONE ✅
 
 Owner: "lets work on mobile-nav redesign; polish and make it beautiful and user

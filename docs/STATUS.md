@@ -2,6 +2,14 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Post-Phase-5: Prod error tracking — dormant Sentry (#189, Gap 6 §2)
+
+Thin `lib/errors.ts` envelope client + `instrumentation.ts` `onRequestError` +
+error-boundary capture. Dormant without `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN`
+(same stance as email/push). CSP widens ingest only when configured. Owner
+activates by setting the DSN in Vercel (DEPLOY.md). Gate evidence in the #189
+commit. **Remaining Gap 6:** §4 Neon backups (owner/ops).
+
 ## Post-Phase-5: Desktop header Settings/Sign-out overlap (#188)
 
 Owner report after #187: on desktop, Settings overlapped Sign out. Cause: nav
@@ -21,9 +29,9 @@ Targeted e2e (mobile-nav + spending-plan + reports + investments + phase4 +
 not-found) **18/18**. Full `VERIFY_E2E=1` still can't exit 0 on this Windows
 machine (mobile-380 flake — unrelated; new More path uses mid-header clicks).
 
-**Remaining after #187:** env-gated live Plaid/SimpleFIN spot-checks; Gap 6 §2
-error tracking + §4 Neon backups; Gap 5 benchmark line; mobile-380 Playwright
-infra fix. Mobile-nav redesign is **done**.
+**Remaining after #187:** env-gated live Plaid/SimpleFIN spot-checks; ~~Gap 6 §2
+error tracking~~ **DONE #189**; Gap 6 §4 Neon backups; Gap 5 benchmark line;
+mobile-380 Playwright infra fix. Mobile-nav redesign is **done**.
 
 ## Post-Phase-5: ROADMAP ALSO CONSIDER UX/a11y burn-down (DECISIONS #186)
 
