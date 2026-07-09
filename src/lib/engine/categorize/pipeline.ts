@@ -88,8 +88,10 @@ export type CategorySource =
  * Is `hint` usable to auto-file a transaction of `amountCents`? A provider hint
  * only ever RESCUES a row headed for review, so it must clear the same bars the
  * ingest/backfill auto-file path clears:
- *  - CONFIDENT enough to auto-file (≥ AUTO_FLAGGED) — a low-confidence hint leaves
- *    the row in review, exactly as our own low-confidence merchant match would;
+ *  - CONFIDENT enough to auto-file (≥ the effective AUTO_FLAGGED boundary: the
+ *    global constant, or the user's tuned value when threshold tuning is active,
+ *    DECISIONS #190) — a low-confidence hint leaves the row in review, exactly
+ *    as our own low-confidence merchant match would;
  *  - a REAL, concrete system category — never `transfer` (mislabeling spend as a
  *    transfer silently erases it — critic F4; our tested transfer detection owns
  *    that call) and never `uncategorized` (that IS review), and never a bogus id;
@@ -100,8 +102,9 @@ export type CategorySource =
 function isUsableProviderHint(
   hint: { categoryId: string; confidenceBps: number },
   amountCents: number,
+  flaggedBps: number,
 ): boolean {
-  if (hint.confidenceBps < AUTO_FLAGGED_BPS) return false;
+  if (hint.confidenceBps < flaggedBps) return false;
   if (hint.categoryId === 'transfer' || hint.categoryId === 'uncategorized') return false;
   const cat = CATEGORY_BY_ID.get(hint.categoryId);
   if (!cat) return false; // unknown / garbage id — never file to a category that doesn't exist
@@ -159,7 +162,25 @@ export function ruleMatches(rule: RuleLike, txn: TxnInput, merchantCanonical: st
   return true;
 }
 
-export function categorize(txn: TxnInput, rules: readonly RuleLike[] = []): CategorizedTxn {
+export interface CategorizeOptions {
+  /**
+   * Per-user AUTO_FLAGGED (auto-file vs review) boundary from bounded threshold
+   * tuning (categorize/tuning.ts, DECISIONS #190) — omitted/undefined means the
+   * global AUTO_FLAGGED_BPS, so every existing call site is byte-identical.
+   * SAFETY INVARIANT: only the flagged/review boundary moves. The aiBadge
+   * checks below compare against the global AUTO_SILENT_BPS constant, so no
+   * flaggedBps value — however wrong — can produce a new SILENT filing: a
+   * tuned-in row is always a visible, correctable guess.
+   */
+  flaggedBps?: number;
+}
+
+export function categorize(
+  txn: TxnInput,
+  rules: readonly RuleLike[] = [],
+  opts?: CategorizeOptions,
+): CategorizedTxn {
+  const flaggedBps = opts?.flaggedBps ?? AUTO_FLAGGED_BPS;
   const merchant = normalizeMerchant(txn.rawDescriptor);
 
   // Transfers between own accounts are never income or expense.
@@ -225,7 +246,7 @@ export function categorize(txn: TxnInput, rules: readonly RuleLike[] = []): Cate
   }
 
   // Merchant default / generic fallback.
-  const needsReview = merchant.confidenceBps < AUTO_FLAGGED_BPS;
+  const needsReview = merchant.confidenceBps < flaggedBps;
 
   // Provider-category rescue (DECISIONS #155): our own normalization is about to send
   // this row to review (an unknown / low-confidence merchant). If the ingest provider
@@ -238,7 +259,7 @@ export function categorize(txn: TxnInput, rules: readonly RuleLike[] = []): Cate
   // (isUsableProviderHint). The hint's confidence is capped below AUTO_SILENT upstream,
   // so it carries the visible "AI" badge — a correctable guess, never a silent one.
   const hint = txn.providerCategoryHint;
-  if (needsReview && !merchant.aggregate && hint && isUsableProviderHint(hint, txn.amountCents)) {
+  if (needsReview && !merchant.aggregate && hint && isUsableProviderHint(hint, txn.amountCents, flaggedBps)) {
     return {
       merchantCanonical: merchant.canonical,
       merchantKnown: merchant.known,

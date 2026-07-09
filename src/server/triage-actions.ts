@@ -152,10 +152,11 @@ export async function applyCategory(input: {
       data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900, reviewPinned: false },
     });
     // Ground truth for the accuracy metric (DECISIONS #37): the user just confirmed
-    // the real category for this transaction's prediction.
+    // the real category for this transaction's prediction. labeledAt marks this as a
+    // USER label — the only kind threshold tuning may learn from (DECISIONS #190).
     await tx.categoryPrediction.updateMany({
       where: { transactionId: fresh.id, userId },
-      data: { actualCategoryId: input.categoryId },
+      data: { actualCategoryId: input.categoryId, labeledAt: new Date() },
     });
     return { correction: created, ruleId: createdRuleId, minted: ruleMinted, merchantId: fresh.merchantId };
   });
@@ -254,7 +255,7 @@ export async function applyToAllSimilar(input: {
     });
     await tx.categoryPrediction.updateMany({
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
-      data: { actualCategoryId: input.categoryId },
+      data: { actualCategoryId: input.categoryId, labeledAt: new Date() },
     });
     return ids;
   });
@@ -359,7 +360,7 @@ export async function fileMerchantGroup(input: {
     });
     await tx.categoryPrediction.updateMany({
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
-      data: { actualCategoryId: input.categoryId },
+      data: { actualCategoryId: input.categoryId, labeledAt: new Date() },
     });
     return { correctionIds: ids, ruleId: createdRuleId, minted: mintedRule, affected: updated.count };
   });
@@ -533,7 +534,7 @@ export async function recategorize(input: {
     });
     await tx.categoryPrediction.updateMany({
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
-      data: { actualCategoryId: input.categoryId },
+      data: { actualCategoryId: input.categoryId, labeledAt: new Date() },
     });
     return { correctionIds: ids, ruleId: rid, minted: ruleMinted, affected: targets.length };
   });
@@ -712,7 +713,7 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageGr
       // labels a prediction.
       await tx.categoryPrediction.updateMany({
         where: { transactionId: correction.transactionId, userId },
-        data: { actualCategoryId: null },
+        data: { actualCategoryId: null, labeledAt: null },
       });
       if (correction.becameRuleId) {
         // Conditional-claim (STATUS #10 / ROADMAP #9): delete the rule ONLY while it

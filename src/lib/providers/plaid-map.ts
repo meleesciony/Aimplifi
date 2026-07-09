@@ -562,6 +562,8 @@ export function prepareIngestedTransaction(
   txn: PlaidTransaction,
   accountId: string,
   rules: readonly RuleLike[] = [],
+  /** Per-user AUTO_FLAGGED boundary (threshold tuning, DECISIONS #190); undefined = global. */
+  flaggedBps?: number,
 ): IngestedTransaction {
   const rawDescriptor = txn.name?.trim() || txn.merchant_name?.trim() || 'Unknown Merchant';
   const amountCents = plaidAmountToCents(txn.amount);
@@ -580,6 +582,7 @@ export function prepareIngestedTransaction(
       providerCategoryHint: mapPlaidPersonalFinanceCategory(txn.personal_finance_category),
     },
     rules,
+    { flaggedBps },
   );
   return {
     providerRef: txn.transaction_id,

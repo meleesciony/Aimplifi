@@ -2,6 +2,23 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Post-Phase-5: Bounded per-user threshold tuning + live prediction log (#190, TASKS 3.6)
+
+Pure engine (`categorize/tuning.ts`): per-user Brier over user-labeled predictions nudges
+the AUTO_FLAGGED boundary ±500bps around 7000, ≥20 committed samples, recomputed from
+scratch, one-sided auto-revert on recent-window regression; can never create a silent
+filing (aiBadge stays pinned to the global AUTO_SILENT). Disclosed on the Settings
+AI-trust panel. Critic F1 fixed in-cycle: live ingest never wrote CategoryPrediction
+rows (seed-only), so the #177 accuracy panel and this loop were demo-ware — now all 4
+ingest paths log the pipeline's verdict and predictions follow Plaid id churn like
+Corrections. **Known limitations:** live committed labels are corrections-biased
+(miss-heavy), so live tuning mostly tightens (safe direction) until an explicit
+confirm surface gives it positive evidence; rows ingested before #190 have no
+prediction rows (going-forward data only). Gate (real 2026-07-09):
+`bash scripts/verify.sh` → **✅ VERIFY GREEN** — **2071 unit / 157 files** (+24:
+tuning engine + pipeline opts 17, labeledAt lifecycle 3, live ingest log 4); build
+clean. E2e (real, mobile-380): settings-dials + phase2-triage 8/8, transactions 16/16.
+
 ## Post-Phase-5: Prod error tracking — dormant Sentry (#189, Gap 6 §2)
 
 Thin `lib/errors.ts` envelope client + `instrumentation.ts` `onRequestError` +

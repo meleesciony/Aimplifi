@@ -18,6 +18,8 @@ import { auditLog, requireUserId } from '@/server/authz';
 import { assistUnsureRows } from '@/server/categorize-assist';
 import { suggestCategoryViaLLM } from '@/server/llm-categorize';
 import { loadUserRules } from '@/server/rules';
+import { getThresholdTuning } from '@/server/tuning';
+import { logCategoryPredictions } from '@/server/predictions';
 import { assertOwnedCategory, getCustomCategories } from '@/server/category-meta';
 
 export interface AddTxnResult {
@@ -57,7 +59,7 @@ export async function createManualTransaction(
         : { ok: false, errors: ['Something went wrong — please try again.'] };
     }
   }
-  const rules = await loadUserRules(userId);
+  const [rules, tuning] = await Promise.all([loadUserRules(userId), getThresholdTuning(userId)]);
 
   // prepareManualTransaction validates the amount/date/description and THROWS on
   // bad input — a non-numeric or non-positive amount, a malformed date. Those are
@@ -80,6 +82,7 @@ export async function createManualTransaction(
       // set; a custom id is a per-user cuid. Pass exactly the one id that
       // assertOwnedCategory just verified above (regression #136).
       categoryRaw ? new Set([categoryRaw]) : undefined,
+      tuning.flaggedBps,
     );
   } catch (e) {
     // Map the engine's (sometimes technical) validation throws to a friendly,
@@ -118,7 +121,7 @@ export async function createManualTransaction(
     if (picked.source === 'llm') needsReview = false; // a confident LLM pick auto-files
   }
 
-  await prisma.transaction.create({
+  const createdRow = await prisma.transaction.create({
     data: {
       accountId: prepared.accountId,
       date: prepared.date,
@@ -131,6 +134,12 @@ export async function createManualTransaction(
       isTransfer: prepared.isTransfer,
     },
   });
+  // Log the pipeline/LLM verdict for the accuracy metric + threshold tuning
+  // (DECISIONS #190). An EXPLICIT user category carries confidence 10000 and is
+  // skipped inside the helper — the user dictating a category is not a prediction.
+  await logCategoryPredictions(userId, [
+    { transactionId: createdRow.id, categoryId, confidenceBps },
+  ]);
 
   await auditLog(userId, 'transaction.create.manual', {
     accountId,
@@ -179,9 +188,9 @@ export async function importTransactionsCsv(
   const custom = await getCustomCategories(userId);
   const customByName = new Map(custom.map((c) => [c.name.toLowerCase(), c.id]));
   const { rows, errors } = parseTransactionCsv(text, customByName);
-  const rules = await loadUserRules(userId);
+  const [rules, tuning] = await Promise.all([loadUserRules(userId), getThresholdTuning(userId)]);
   const prepared = rows.map((row) => {
-    const p = prepareImportedTransaction(row, accountId, rules);
+    const p = prepareImportedTransaction(row, accountId, rules, tuning.flaggedBps);
     return {
       accountId,
       date: p.date,
@@ -200,7 +209,19 @@ export async function importTransactionsCsv(
   // returns null → rows unchanged (demo stays deterministic + credential-free).
   const data = await assistUnsureRows(prepared, suggestCategoryViaLLM);
 
-  if (data.length > 0) await prisma.transaction.createMany({ data });
+  if (data.length > 0) {
+    const createdRows = await prisma.transaction.createManyAndReturn({
+      data,
+      select: { id: true, categoryId: true, confidenceBps: true },
+    });
+    // Log each pipeline/LLM verdict for the accuracy metric + threshold tuning
+    // (DECISIONS #190). Rows whose category the CSV dictated carry confidence
+    // 10000 and are skipped inside the helper.
+    await logCategoryPredictions(
+      userId,
+      createdRows.map((r) => ({ transactionId: r.id, categoryId: r.categoryId, confidenceBps: r.confidenceBps })),
+    );
+  }
 
   await auditLog(userId, 'transaction.import.csv', {
     accountId,

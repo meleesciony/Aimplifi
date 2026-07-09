@@ -47,6 +47,8 @@ export function prepareManualTransaction(
    * assertOwnedCategory, so defense in depth is preserved (regression #136).
    */
   extraValidCategoryIds: ReadonlySet<string> = NO_EXTRA_IDS,
+  /** Per-user AUTO_FLAGGED boundary (threshold tuning, DECISIONS #190); undefined = global. */
+  flaggedBps?: number,
 ): PreparedTxn {
   const descriptor = input.descriptor.trim();
   if (!descriptor) throw new Error('Description is required');
@@ -89,6 +91,7 @@ export function prepareManualTransaction(
   const result = categorize(
     { rawDescriptor: descriptor, amountCents, date, accountId: input.accountId },
     rules,
+    { flaggedBps },
   );
   return {
     accountId: input.accountId,

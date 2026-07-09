@@ -28,6 +28,8 @@ import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
 import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
 import { safeSyncErrorReason } from '@/lib/providers/sync-status';
 import { loadUserRules } from '@/server/rules';
+import { getThresholdTuning } from '@/server/tuning';
+import { logCategoryPredictions } from '@/server/predictions';
 import { refreshRecurringForUser } from '@/server/recurring';
 import {
   type MappedLoanFields,
@@ -291,7 +293,7 @@ export class PlaidProvider implements DataProvider {
    */
   async syncTransactions(userId: string): Promise<SyncResult> {
     const items = await prisma.plaidItem.findMany({ where: { userId } });
-    const rules = await loadUserRules(userId);
+    const [rules, tuning] = await Promise.all([loadUserRules(userId), getThresholdTuning(userId)]);
     const today = this.today(userId); // stamp per-item sync success/failure (Gap 1 §4)
     let added = 0;
     let modified = 0;
@@ -360,7 +362,7 @@ export class PlaidProvider implements DataProvider {
             // unmappable account (skipped at upsert) — don't orphan a row
             .filter((p): p is { txn: PlaidTransaction; accountId: string } => !!p.accountId);
           const preparedRows = pageTxns.map((p) =>
-            prepareIngestedTransaction(p.txn, p.accountId, rules),
+            prepareIngestedTransaction(p.txn, p.accountId, rules, tuning.flaggedBps),
           );
           const assistedRows = await assistUnsureRows(preparedRows, suggestCategoryViaLLM);
 
@@ -507,6 +509,12 @@ export class PlaidProvider implements DataProvider {
                           where: { transactionId: predecessor.id, userId },
                           data: { transactionId: container.id },
                         });
+                        // The prediction log follows the charge across id churn too
+                        // (DECISIONS #190) — same "audit = state" rule as corrections.
+                        await tx.categoryPrediction.updateMany({
+                          where: { transactionId: predecessor.id, userId },
+                          data: { transactionId: container.id },
+                        });
                         await tx.transaction.delete({ where: { id: predecessor.id } });
                         return true;
                       }
@@ -534,6 +542,10 @@ export class PlaidProvider implements DataProvider {
                         where: { transactionId: predecessor.id, userId },
                         data: { transactionId: replacement.id },
                       });
+                      await tx.categoryPrediction.updateMany({
+                        where: { transactionId: predecessor.id, userId },
+                        data: { transactionId: replacement.id },
+                      });
                       await tx.transaction.delete({ where: { id: predecessor.id } });
                       return true;
                     }
@@ -552,6 +564,10 @@ export class PlaidProvider implements DataProvider {
                         },
                       });
                       await tx.correction.updateMany({
+                        where: { transactionId: predecessor.id, userId },
+                        data: { transactionId: pinned.id },
+                      });
+                      await tx.categoryPrediction.updateMany({
                         where: { transactionId: predecessor.id, userId },
                         data: { transactionId: pinned.id },
                       });
@@ -577,6 +593,10 @@ export class PlaidProvider implements DataProvider {
                       where: { transactionId: predecessor.id, userId },
                       data: { transactionId: created.id },
                     });
+                    await tx.categoryPrediction.updateMany({
+                      where: { transactionId: predecessor.id, userId },
+                      data: { transactionId: created.id },
+                    });
                     await tx.transaction.delete({ where: { id: predecessor.id } });
                     return true;
                   })
@@ -585,7 +605,15 @@ export class PlaidProvider implements DataProvider {
                 modified++;
               } else {
                 try {
-                  await prisma.transaction.create({ data: { accountId, providerRef: row.providerRef, ...data } });
+                  const createdRow = await prisma.transaction.create({
+                    data: { accountId, providerRef: row.providerRef, ...data },
+                  });
+                  // Log the pipeline's verdict for the accuracy metric + threshold
+                  // tuning (DECISIONS #190): the live-path counterpart of the seed's
+                  // prediction log. After the create — a raced loser never logs.
+                  await logCategoryPredictions(userId, [
+                    { transactionId: createdRow.id, categoryId: row.categoryId, confidenceBps: row.confidenceBps },
+                  ]);
                   added++;
                 } catch (e) {
                   // Two overlapping syncs can both miss the findFirst and race the create

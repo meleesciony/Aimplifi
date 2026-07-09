@@ -355,7 +355,14 @@ model CategoryPrediction {
   predictedCategoryId String
   confidenceBps       Int
   actualCategoryId    String? // null until confirmed/known
-  createdAt           DateTime @default(now())
+  // When a USER set actualCategoryId (filing/correcting in triage or the
+  // register). Stays null for seed-time labels: per-user threshold tuning
+  // (TASKS 3.6, DECISIONS #190) derives ONLY from user-labeled rows, so the
+  // demo user's pre-labeled seed predictions can never activate tuning
+  // (golden-safe) — the same "no corrections ⇒ derive nothing" property
+  // learn.ts has. Cleared on undo, symmetric with actualCategoryId (#169).
+  labeledAt           DateTime?
+  createdAt           DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

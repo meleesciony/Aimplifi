@@ -30,6 +30,7 @@ import { assistUnsureRows } from '@/server/categorize-assist';
 import { assertOwnedCategory } from '@/server/category-meta';
 import { ensureCategories } from '@/server/ensure-categories';
 import { loadUserRules } from '@/server/rules';
+import { getThresholdTuning } from '@/server/tuning';
 
 export type SuggestCategoryFn = (input: {
   rawDescriptor: string;
@@ -62,7 +63,7 @@ export async function runBackfillForUser(
   // satisfy the FK on a fresh Postgres — same guard applyCategory uses (#65).
   await ensureCategories();
 
-  const [rows, rules] = await Promise.all([
+  const [rows, rules, tuning] = await Promise.all([
     prisma.transaction.findMany({
       where: {
         account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } },
@@ -90,6 +91,7 @@ export async function runBackfillForUser(
       },
     }),
     loadUserRules(userId),
+    getThresholdTuning(userId),
   ]);
 
   // Pass 1 — deterministic.
@@ -105,6 +107,7 @@ export async function runBackfillForUser(
       isSplitParent: r.isSplitParent,
     })),
     rules,
+    tuning.flaggedBps,
   );
 
   // Pass 2 — LLM over the rows pass 1 couldn't settle. assistUnsureRows dedupes

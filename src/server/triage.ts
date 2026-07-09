@@ -10,6 +10,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { categorize, suggestAlternatives } from '@/lib/engine/categorize/pipeline';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { loadUserRules } from '@/server/rules';
+import { getThresholdTuning } from '@/server/tuning';
 import { getCategoryMeta } from '@/server/category-meta';
 
 export interface TriageItem {
@@ -79,7 +80,7 @@ export function similarTransactionsWhere(
 }
 
 export async function getTriageItems(userId: string): Promise<TriageItem[]> {
-  const [txns, rules, meta] = await Promise.all([
+  const [txns, rules, meta, tuning] = await Promise.all([
     prisma.transaction.findMany({
       // Currency guard (DECISIONS #135): a withheld non-USD account's rows must not appear in the
       // categorization inbox either (consistency with /accounts + the register).
@@ -96,6 +97,7 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
     }),
     loadUserRules(userId), // the user's own rules drive suggestions (cycle-1 C2)
     getCategoryMeta(userId), // a custom-category suggestion (via a user rule) resolves its name (#111)
+    getThresholdTuning(userId), // suggestions use the same tuned boundary ingest does (#190)
   ]);
 
   const items: TriageItem[] = [];
@@ -108,6 +110,7 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
         accountId: t.accountId,
       },
       rules,
+      { flaggedBps: tuning.flaggedBps },
     );
     const suggested = out.categoryId === 'uncategorized' ? bestGuess(t.amountCents) : out.categoryId;
     const aggregate = normalizeMerchant(t.rawDescriptor).aggregate;
@@ -171,7 +174,7 @@ export interface TriageGroupView extends TriageGroup {
  * (which suggested 'Shopping' on 144/144 baseline cards).
  */
 export async function getTriageGroups(userId: string): Promise<TriageGroupView[]> {
-  const [txns, rules, meta] = await Promise.all([
+  const [txns, rules, meta, tuning] = await Promise.all([
     prisma.transaction.findMany({
       // Currency guard (DECISIONS #135): withheld non-USD rows never enter the inbox.
       // Transfer guard (#165): same exclusion as getTriageItems — queue and badge agree.
@@ -186,12 +189,14 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
     }),
     loadUserRules(userId),
     getCategoryMeta(userId),
+    getThresholdTuning(userId), // suggestions use the same tuned boundary ingest does (#190)
   ]);
 
   const reviewRows: ReviewRow[] = txns.map((t) => {
     const out = categorize(
       { rawDescriptor: t.rawDescriptor, amountCents: t.amountCents, date: t.date, accountId: t.accountId },
       rules,
+      { flaggedBps: tuning.flaggedBps },
     );
     return {
       id: t.id,

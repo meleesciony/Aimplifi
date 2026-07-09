@@ -69,6 +69,8 @@ function isUnsure(r: BackfillRow): boolean {
 export function planBackfill(
   rows: readonly BackfillRow[],
   rules: readonly RuleLike[] = [],
+  /** Per-user AUTO_FLAGGED boundary (threshold tuning, DECISIONS #190); undefined = global. */
+  flaggedBps?: number,
 ): BackfillPlan {
   const refiles: BackfillRefile[] = [];
   let scanned = 0;
@@ -82,6 +84,7 @@ export function planBackfill(
     const out = categorize(
       { rawDescriptor: r.rawDescriptor, amountCents: r.amountCents, date: r.date, accountId: r.accountId },
       rules,
+      { flaggedBps },
     );
 
     // Must be a confident, concrete verdict — otherwise leave it for the human.

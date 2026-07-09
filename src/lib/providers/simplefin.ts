@@ -21,6 +21,8 @@ import { assistUnsureRows } from '@/server/categorize-assist';
 import { ensureCategories } from '@/server/ensure-categories';
 import { suggestCategoryViaLLM } from '@/server/llm-categorize';
 import { loadUserRules } from '@/server/rules';
+import { getThresholdTuning } from '@/server/tuning';
+import { logCategoryPredictions } from '@/server/predictions';
 import { refreshRecurringForUser } from '@/server/recurring';
 import {
   type IngestedSfTransaction,
@@ -388,7 +390,7 @@ async function runSimplefinSync(
 ): Promise<SyncResult> {
   await ensureCategories(); // FK target for every txn.categoryId the categorizer emits (#63)
   const accessUrl = decryptToken(conn.accessUrl);
-  const rules = await loadUserRules(userId);
+  const [rules, tuning] = await Promise.all([loadUserRules(userId), getThresholdTuning(userId)]);
 
   // Window: a forced full refresh (opts.fullLookbackDays) or the FIRST sync pulls
   // a wide history so the views aren't empty; incremental syncs overlap 5 days so
@@ -448,7 +450,7 @@ async function runSimplefinSync(
         refs.add(txn.id);
       }
       try {
-        prepared.push(prepareSimplefinTransaction(txn, accountId, today, rules));
+        prepared.push(prepareSimplefinTransaction(txn, accountId, today, rules, tuning.flaggedBps));
       } catch {
         continue; // malformed row (e.g. unparseable amount) — skip, don't abort the sync
       }
@@ -635,9 +637,14 @@ async function runSimplefinSync(
       modified++;
     } else {
       try {
-        await prisma.transaction.create({
+        const createdRow = await prisma.transaction.create({
           data: { accountId: row.accountId, providerRef: row.providerRef, ...data2 },
         });
+        // Log the pipeline's verdict for the accuracy metric + threshold tuning
+        // (DECISIONS #190): the live-path counterpart of the seed's prediction log.
+        await logCategoryPredictions(userId, [
+          { transactionId: createdRow.id, categoryId: row.categoryId, confidenceBps: row.confidenceBps },
+        ]);
         added++;
       } catch (e) {
         // Cycle-2 P2 (the documented CQ-2 race, reopened when cycle 1 split the

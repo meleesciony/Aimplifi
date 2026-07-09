@@ -17,6 +17,7 @@ import { getVapidPublicKey } from '@/lib/push';
 import { PushOptIn } from '@/components/settings/push-optin';
 import { AccuracyMetrics } from '@/components/triage/accuracy-card';
 import { getCategorizationAccuracy } from '@/server/accuracy';
+import { getThresholdTuning } from '@/server/tuning';
 import { prisma } from '@/lib/db';
 
 export const metadata = { title: "Settings" };
@@ -26,7 +27,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/sign-in');
 
   const userId = session.user.id;
-  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy] =
+  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy, tuning] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -55,6 +56,7 @@ export default async function SettingsPage() {
       getCategoryCatalog(userId),
       getCustomCategories(userId),
       getCategorizationAccuracy(userId),
+      getThresholdTuning(userId),
     ]);
   if (!user) redirect('/sign-in');
 
@@ -184,7 +186,7 @@ export default async function SettingsPage() {
           <CardTitle className="text-base">AI trust</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <AccuracyMetrics result={accuracy} />
+          <AccuracyMetrics result={accuracy} tuning={tuning} />
           <p className="text-xs text-muted-foreground">
             Aimplifi’s AI never invents a figure — every number is computed from your own
             transactions. This is how accurately it files them, scored against the categories you

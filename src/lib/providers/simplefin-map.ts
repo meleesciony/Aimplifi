@@ -220,6 +220,8 @@ export function prepareSimplefinTransaction(
   accountId: string,
   today: ISODate,
   rules: readonly RuleLike[] = [],
+  /** Per-user AUTO_FLAGGED boundary (threshold tuning, DECISIONS #190); undefined = global. */
+  flaggedBps?: number,
 ): IngestedSfTransaction {
   const rawDescriptor = (txn.description || txn.payee || txn.memo || '').trim() || 'Unknown Merchant';
   const amountCents = simplefinAmountToCents(txn.amount);
@@ -232,7 +234,7 @@ export function prepareSimplefinTransaction(
         ? simplefinPostedToDate(txn.transacted_at)
         : today;
   const merchant = normalizeMerchant(rawDescriptor);
-  const result = categorize({ rawDescriptor, amountCents, date, accountId }, rules);
+  const result = categorize({ rawDescriptor, amountCents, date, accountId }, rules, { flaggedBps });
   return {
     providerRef: txn.id,
     accountId,

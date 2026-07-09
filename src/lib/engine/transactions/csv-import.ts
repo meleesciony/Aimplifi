@@ -174,6 +174,8 @@ export function prepareImportedTransaction(
   row: ParsedCsvRow,
   accountId: string,
   rules: readonly RuleLike[] = [],
+  /** Per-user AUTO_FLAGGED boundary (threshold tuning, DECISIONS #190); undefined = global. */
+  flaggedBps?: number,
 ): PreparedImportRow {
   const merchant = normalizeMerchant(row.description);
   if (row.categoryId) {
@@ -193,6 +195,7 @@ export function prepareImportedTransaction(
   const result = categorize(
     { rawDescriptor: row.description, amountCents: row.amountCents, date: row.date, accountId },
     rules,
+    { flaggedBps },
   );
   return {
     accountId,

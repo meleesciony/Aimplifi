@@ -3238,3 +3238,34 @@ backfill (doc chore, reconstruct from STATUS only).
 test` spawns its own `next start` from current `.next` — rebuild AFTER stashing for a valid control;
 kill :3100 LISTEN PID on EADDRINUSE.
 **SAFE to /clear.**
+
+## 2026-07-09 — #190 Bounded per-user threshold tuning (TASKS 3.6) — DONE
+
+Gate (real 2026-07-09): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — tsc/eslint clean,
+**2071 unit / 157 files** (+24 over #189's 2047/154 baseline… note #189 recorded 154 files;
++3 files: tuning, threshold-tuning-labels, ingest-prediction-log), build clean. E2e real
+runs (mobile-380): settings-dials + phase2-triage **8/8**, transactions **16/16**.
+
+**What shipped:** pure tuning engine (`src/lib/engine/categorize/tuning.ts`) — per-user
+Brier → AUTO_FLAGGED offset clamp((brier−150)×5, ±500), ≥20 committed user-labeled
+samples, recompute-from-scratch, one-sided auto-revert (recent 20 vs prior, >25 milli);
+optional `flaggedBps` threaded through categorize() + 5 wrappers, loaded at all 7 per-user
+read sites; additive `CategoryPrediction.labeledAt` (user filings set it, undo clears it,
+seed rows stay null ⇒ demo/golden byte-identical); Settings AI-trust disclosure. Hostile
+critic F1 (P1) fixed in-cycle: live ingest never wrote prediction rows — now all 4 ingest
+paths log verdicts (`src/server/predictions.ts`; user-dictated 10000-confidence rows
+skipped) and predictions follow Plaid pending→posted churn like Corrections. Ledgers:
+DECISIONS #190, STATUS #190, REGRESSION_LEDGER (ingest log), EDGE_CASES §Threshold tuning
+(hand-verified Brier table). TASKS 3.6 → [x]. NOT pushed (push owner-gated, #171+ ride
+together).
+
+### HANDOFF (resume after /clear) — 2026-07-09, #190 DONE
+**Resume from `C:\dev\Aimplifi`.** Read AGENTS.md → LOOP_ENGINEERING.md → CLAUDE.md →
+docs/lessons/INDEX.md, then TASKS.md. **State:** #190 committed at HEAD; local main ahead
+of origin (owner-gated push, #171–#190). Health baseline (re-confirm, don't trust): core
+verify GREEN 2071/157, build clean; full VERIFY_E2E=1 still can't exit 0 here (mobile-380
+viewport flake — docs/lessons). **Next per TASKS.md routing:** Wave-0 0.2 (flake
+quarantine, Opus) unblocks local full-e2e; Wave-1 1.1/1.3/1.7 are open Opus lanes; 3.6 is
+done — its follow-on leverage is a user-facing confirm surface (would give tuning positive
+evidence; today live labels are corrections-biased → tighten-only, documented in STATUS
+#190). Owner-gated: push (0.1), deploy (0.3), live provider spot-checks (0.4), backups (0.6).
