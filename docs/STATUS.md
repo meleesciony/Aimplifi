@@ -2,6 +2,42 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Post-Phase-5 reconciliation: Gap 3 §1 is already built (DECISIONS #185, Competitive-Gap Gap 3 §1)
+
+Resumed on "continue" (Fable lane, #184 handoff). The plan §2 still listed "Gap 3 §1
+loading skeletons + destructive-delete confirms" as unblocked-and-in-session-verifiable.
+A read-only file:line audit found the whole 2026-06-24 ROADMAP "DO NEXT" backlog is
+**already built** — the note was stale (the "written without noticing already-built" hazard
+§2 exists to catch). Verified-built: `(app)/loading.tsx` (#81); recategorize-popover Escape +
+outside-click dismissal (`transaction-list.tsx:315-323` / `:106-117`); `<title>` template
+(`layout.tsx:17`) + `global-error.tsx`; empty states on reports/coach/life-energy/cards/
+investments; `CardTitle` real heading (`ui/card.tsx:36-54`); Investments nav (#176-era);
+inline goal/budget validation returns field errors, never throws (`goal-actions.ts:31-67` #166,
+`parseBudgetTargetCents` #30); and every destructive **Delete** already confirms — account-data
+typed-phrase (`engine/account/deletion.ts:16`), goal (#83), manual-account
+(`accounts-list.tsx:509-517`), custom-category two-step.
+
+**Budget-`Clear` adjudicated a non-gap (not a missing confirm).** The audit flagged
+`clear-budget-button.tsx` one-tap "Clear" as missing confirmation by grouping it with the
+Deletes. But the app follows a coherent, documented convention: *Delete a persistent entity*
+→ confirm; *Clear a reversible attribute* → one-tap. Budget-`Clear` removes a display-only
+per-category target (#30, restorable in seconds, no money/history loss); its true sibling is
+manual-statement `Clear`, whose one-tap behavior is an EXPLICIT decision (STATUS
+§manual-card-statements, "reversible, no money/history loss"). A confirm would make it
+inconsistent with that sibling and fail the backlog's own "only change if markedly better" bar.
+
+DOCS-ONLY reconciliation (no app-code/schema/engine/test change; #181/#184 precedent — no
+critic cycle). No source touched → tsc/eslint/vitest/build unchanged from #184's green.
+Gate (real output 2026-07-08): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — typecheck/lint
+clean, **2039 unit / 153 files**, build clean (see evidence in the commit).
+
+**Fable-lane in-session-verifiable backlog is now exhausted.** Genuine remaining work: the
+ROADMAP "ALSO CONSIDER" mechanical UX/a11y items (skip-to-content link, calendar-arrow
+aria-labels, triage-split 2nd-category preview, overspent "Safe to spend" reframe, iOS PWA
+safe-area, spending-plan legend) — all **Opus/Sonnet-lane** per §3 — plus env-gated (live
+Plaid/SimpleFIN spot-checks, Gap 6 §2 error-tracking DSN, Gap 6 §4 Neon backups) and the
+owner-design-gated mobile-nav redesign.
+
 ## Post-Phase-5 refinement: proactive-cron scheduling (DECISIONS #184, Competitive-Gap Gap 2 §2/§3)
 
 The notify (Web Push) and digest (weekly email) sweeps were fully built,

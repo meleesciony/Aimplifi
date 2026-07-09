@@ -50,13 +50,23 @@ finance app a habit instead of a tool.
 >   **owner/data-gated** (no market-data feed / holdings-history schema).
 > - **Gap 6:** §1 CI **BUILT** (#181). §3 session invalidation + PII-free deletion record
 >   **BUILT (#182, this).** §2 error tracking + §4 Neon backups still **NOT BUILT**.
-> - **Gap 3:** §3 guided first-run **BUILT** (#176), Investments nav **BUILT**; §1 loading
->   skeletons + destructive-delete confirms **NOT BUILT**; §2 mobile nav **owner-design-gated**.
+> - **Gap 3:** §3 guided first-run **BUILT** (#176), Investments nav **BUILT**; §1 **FULLY
+>   BUILT (reconciled #185)** — the "loading skeletons + destructive-delete confirms NOT BUILT"
+>   note was itself STALE (a file:line audit found all of it done): loading skeleton
+>   `(app)/loading.tsx` (#81), popover Escape+click-away dismissal (`transaction-list.tsx:106-117,315-323`),
+>   `<title>` template (`layout.tsx:17`) + `global-error.tsx`, empty states (reports/coach/
+>   life-energy/cards/investments), CardTitle real heading (`ui/card.tsx`), and EVERY destructive
+>   _Delete_ already confirmed (account-data typed-phrase, goal/manual-account/custom-category
+>   two-step). Budget-`Clear` is a CONSISTENT one-tap (reversible display-only target, same class
+>   as the documented one-tap manual-statement `Clear`), NOT a gap. §2 mobile nav **owner-design-gated**.
 >
 > **True unblocked, in-session-verifiable remaining work:** ~~wire the two crons into
 > `vercel.json` (Gap 2)~~ **DONE #184**; ~~Gap 1 §4 sync-failure surfacing~~ **DONE #183**;
-> Gap 3 §1 skeletons + delete confirmations; Gap 6 §2 error tracking (partially env-gated).
-> Everything else is owner/env-gated or already done.
+> ~~Gap 3 §1 skeletons + delete confirmations~~ **DONE — reconciled as already-built #185**.
+> What genuinely remains: Gap 6 §2 error tracking (partially env-gated) and the ROADMAP
+> "ALSO CONSIDER" mechanical UX/a11y list (skip-to-content link, calendar-arrow aria-labels,
+> triage-split preview, overspent-"Safe to spend" reframe, iOS PWA safe-area, spending-plan
+> legend) — all **Opus/Sonnet-lane** per §3, not Fable. Everything else is owner/env-gated or done.
 
 
 ### Gap 1 — Live-data reliability (usefulness gate; everything else is downstream)

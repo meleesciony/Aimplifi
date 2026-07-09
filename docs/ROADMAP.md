@@ -263,16 +263,23 @@ DONE this pass: /investments view; removed the dev command from the production e
 screen; fixed "Pulse"→"Aimplifi" brand leaks on bank-connect + reminder copy;
 corrected the Settings card that told real users they were in "demo mode".
 
-DO NEXT (high-value, mostly additive):
-- Add `src/app/(app)/loading.tsx` skeleton(s) so routes stream instead of blocking on
-  server queries (protects the <10s "how much do I need?" goal).
-- Empty states for charts/cards with no data (reports, coach, life-energy, forecast, cards).
-- Heading structure for screen readers: a single <h1> per page + make CardTitle render a
-  real heading (shared primitive — verify visually).
-- Per-page <title> via a root template ('%s · Aimplifi'); add a branded global-error.tsx.
-- Confirmation step before destructive deletes (manual accounts, goals).
-- Escape/outside-click dismissal for the inline recategorize popover.
-- An "Investments" nav entry (page already exists; or link INVESTMENT rows to /investments).
+DO NEXT — **ALL DONE (reconciled #185 via a file:line audit; this list was stale)**:
+- ~~Add `src/app/(app)/loading.tsx` skeleton(s)~~ **DONE (#81)** — route-group Suspense skeleton.
+- ~~Empty states for charts/cards with no data~~ **DONE** — reports (`reports-view.tsx:83,103`),
+  coach/life-energy (`life-energy-card.tsx:49-52`), cards (`cards/page.tsx:18-30`), investments
+  (`investments-view.tsx:64-74`). (Forecast always has a seeded balance series; no zero-state path.)
+- ~~Heading structure~~ **DONE** — `CardTitle` renders a real heading (`ui/card.tsx:36-54`, `as`-prop,
+  default `h2`); pages carry a page `<h1>`.
+- ~~Per-page <title> template + global-error.tsx~~ **DONE** — `layout.tsx:17` (`template:"%s · Aimplifi"`),
+  `src/app/global-error.tsx` present.
+- ~~Confirmation before destructive deletes (manual accounts, goals)~~ **DONE** — goal delete
+  (`delete-goal-button.tsx`, #83), manual-account delete (`accounts-list.tsx:509-517`), custom-category
+  delete (`custom-category-manager.tsx`), account-data typed-phrase gate (`engine/account/deletion.ts:16`).
+  Budget-`Clear` is a deliberate one-tap (reversible display-only target, same class as manual-statement
+  `Clear`) — a CONSISTENT non-gap, not a missing confirm (#185).
+- ~~Escape/outside-click dismissal for the recategorize popover~~ **DONE** —
+  `transaction-list.tsx:315-323` (Escape→close+refocus) + `:106-117` (mousedown click-away).
+- ~~An "Investments" nav entry~~ **DONE (#176-era)**.
 
 ALSO CONSIDER: distinguish empty-register states (no data vs no match); make the triage
 split flow usable (2nd category hardcoded to "Shopping", no preview); budgets first-run
