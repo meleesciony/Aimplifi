@@ -5,6 +5,7 @@
  */
 import AxeBuilder from '@axe-core/playwright';
 import { type Page, expect, test } from '@playwright/test';
+import { clickMoreNav } from './helpers/more-nav';
 
 async function signIn(page: Page) {
   await page.goto('/sign-in');
@@ -14,7 +15,8 @@ async function signIn(page: Page) {
 
 test('investments has its own main-nav entry (production-readiness backlog, 2026-06-24)', async ({ page }) => {
   await signIn(page);
-  await page.getByTestId('nav-investments').click();
+  // #187: secondary destinations live in the More sheet on phones.
+  await clickMoreNav(page, 'nav-investments');
   await page.waitForURL('**/investments');
   await expect(page.getByTestId('investments-total-value')).toContainText('$142,000.00');
 });

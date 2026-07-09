@@ -4,13 +4,14 @@
  * money-shaped value + the breakdown structure rather than a brittle pinned number.
  */
 import { expect, test } from '@playwright/test';
+import { clickMoreNav } from './helpers/more-nav';
 
 test('Spending Plan: safe-to-spend headline + breakdown render for the demo user', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
 
-  await page.getByTestId('nav-spending-plan').first().click();
+  await clickMoreNav(page, 'nav-spending-plan');
   await page.waitForURL('**/spending-plan');
 
   await expect(page.getByTestId('spending-plan-hero')).toBeVisible();

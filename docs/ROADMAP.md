@@ -292,4 +292,5 @@ ALSO CONSIDER (reconciled #186 — code truth, not the 2026-06-24 note):
 - ~~iOS PWA safe-area~~ **DONE #90**
 - ~~reframe overspent "Safe to spend" as "Over plan by $X"~~ **DONE #186** (dashboard header + amount; /spending-plan already reframed)
 - ~~spending-plan allocation legend~~ **DONE #186**
-(Mobile nav redesign — 7 unlabeled icons, sub-44px targets — is a real issue but a rework of existing UI: scope with owner.)
+- ~~Mobile nav redesign (7→8 unlabeled icons, sub-44px targets)~~ **DONE #187** —
+  labelled More sheet; primary bottom tabs unchanged.

@@ -1,5 +1,19 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-09 — #187 Mobile More-sheet nav (Gap 3 §2) — DONE ✅
+
+Owner: "lets work on mobile-nav redesign; polish and make it beautiful and user
+friendly." Kept 5 primary bottom tabs (e2e-safe). Replaced 8 unlabeled top icons
+with a labelled More sheet (2-col icon+label grid + Explore section). Updated
+secondary e2e to open More first; new mobile-nav.spec.ts. Ledgers: DECISIONS/
+STATUS/ROADMAP/COMPETITIVE_GAP_PLAN #187.
+
+### HANDOFF — 2026-07-09, #187 DONE
+**Resume from `C:\dev\Aimplifi`.** Gap 3 §2 mobile nav is shipped.
+**NEXT:** env-gated (live sync, error tracking, backups) or Gap 5 benchmark /
+mobile-380 infra. No further owner-design-gated nav work.
+**SAFE to /clear.**
+
 ## 2026-07-09 (resumed: "push, then continue") — push #171–#185 + #186 ALSO CONSIDER UX burn-down — DONE ✅
 
 Owner: "push, then continue." Pushed local main `83428e2..cd77bad` (16 commits, #171–#185)

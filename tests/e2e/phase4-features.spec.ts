@@ -3,6 +3,7 @@
  * budgets, exports (CSV + PDF with audit), PWA manifest, security headers.
  */
 import { expect, test, type Page } from '@playwright/test';
+import { clickMoreNav } from './helpers/more-nav';
 
 async function signIn(page: Page) {
   await page.goto('/sign-in');
@@ -31,7 +32,7 @@ test('calendar shows inflows, outflows, and effective card due dates on one time
 
 test('goals: creating a goal shows its effect on the FI date', async ({ page }) => {
   await signIn(page);
-  await page.getByTestId('nav-goals').click();
+  await clickMoreNav(page, 'nav-goals');
   await page.waitForURL('**/goals');
 
   await page.locator('input[name="name"]').fill('Japan trip');
@@ -52,7 +53,7 @@ test('goals: creating a goal shows its effect on the FI date', async ({ page }) 
 
 test('budgets page shows category spending with transfers excluded', async ({ page }) => {
   await signIn(page);
-  await page.getByTestId('nav-budgets').click();
+  await clickMoreNav(page, 'nav-budgets');
   await page.waitForURL('**/budgets');
   const list = page.getByTestId('budget-list');
   await expect(list).toBeVisible();

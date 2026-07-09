@@ -20,7 +20,13 @@ const BASE = 'http://127.0.0.1:3100';
   await page.goto(`${BASE}/sign-in`);
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard', { timeout: 30_000 });
-  if (process.env.SOFT === '1') { await page.getByTestId('nav-budgets').click(); await page.waitForURL('**/budgets'); } else { await page.goto(`${BASE}/budgets`); }
+  if (process.env.SOFT === '1') {
+    await page.getByTestId('nav-more').click();
+    await page.getByTestId('nav-budgets').click();
+    await page.waitForURL('**/budgets');
+  } else {
+    await page.goto(`${BASE}/budgets`);
+  }
   await page.waitForLoadState('networkidle');
 
   console.log('--- SET #1 (groceries 500) ---');

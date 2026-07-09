@@ -1,12 +1,20 @@
 'use client';
 
 /**
- * App navigation (cycle-1 H3): active-state aware on every viewport; at <sm
- * the five primary destinations live in a fixed bottom tab bar (thumb reach)
- * and the rest in the top bar, so nothing is hidden behind invisible scroll.
+ * App navigation (DECISIONS #187 / Gap 3 §2):
+ * - sm+: full labelled text links in the header (unchanged).
+ * - phones: five primary destinations in the fixed bottom tab bar; secondary
+ *   destinations live in a labelled "More" sheet opened from the header —
+ *   replacing the old 8 unlabeled top icons (ROADMAP / COMPETITIVE_GAP_PLAN).
+ *
+ * prefetch={false} on ALL nav links (#166): every revalidatePath invalidated
+ * the router cache and re-fired ~12 nav prefetches at once; a post-action
+ * router.refresh() racing that storm was intermittently aborted, so mutations
+ * looked like silent no-ops. Nav clicks now fetch on demand.
  */
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   BarChart3,
   Calendar,
@@ -16,11 +24,17 @@ import {
   Landmark,
   LayoutDashboard,
   LineChart,
+  Menu,
   PiggyBank,
   Receipt,
   Settings,
   Sprout,
+  TrendingUp,
   Wallet,
+  X,
+  MessageCircle,
+  Repeat,
+  Waves,
 } from 'lucide-react';
 
 const PRIMARY = [
@@ -31,6 +45,7 @@ const PRIMARY = [
   { href: '/calendar', label: 'Calendar', icon: Calendar, testid: 'nav-calendar' },
 ] as const;
 
+/** Secondary destinations — labelled More sheet on phones; text links on sm+. */
 const SECONDARY = [
   { href: '/spending-plan', label: 'Plan', icon: Gauge, testid: 'nav-spending-plan' },
   { href: '/reports', label: 'Reports', icon: BarChart3, testid: 'nav-reports' },
@@ -40,6 +55,14 @@ const SECONDARY = [
   { href: '/goals', label: 'Goals', icon: PiggyBank, testid: 'nav-goals' },
   { href: '/budgets', label: 'Spending', icon: Wallet, testid: 'nav-budgets' },
   { href: '/settings', label: 'Settings', icon: Settings, testid: 'nav-settings' },
+] as const;
+
+/** Dashboard-only surfaces — discoverable from More so they aren't orphaned. */
+const DISCOVER = [
+  { href: '/ask', label: 'Ask', icon: MessageCircle, testid: 'nav-ask' },
+  { href: '/trends', label: 'Trends', icon: TrendingUp, testid: 'nav-trends' },
+  { href: '/recurring', label: 'Recurring', icon: Repeat, testid: 'nav-recurring' },
+  { href: '/forecast', label: 'Forecast', icon: Waves, testid: 'nav-forecast' },
 ] as const;
 
 function topLinkClass(active: boolean) {
@@ -53,19 +76,44 @@ function topLinkClass(active: boolean) {
 export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
   const pathname = usePathname();
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
+  const sheetTitleId = useId();
+
+  const closeMore = useCallback(() => setMoreOpen(false), []);
+
+  // Escape closes the sheet; restore focus to the trigger.
+  // Route changes close via onClick on sheet + bottom-tab links (no pathname
+  // setState-in-effect — react-hooks/set-state-in-effect).
+  useEffect(() => {
+    if (!moreOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMoreOpen(false);
+        moreBtnRef.current?.focus();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    // Soft lock: prevent background scroll while the sheet is open.
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [moreOpen]);
+
+  const secondaryActive = SECONDARY.some((i) => isActive(i.href)) || DISCOVER.some((i) => isActive(i.href));
 
   return (
     <>
-      {/* top nav: full set from sm up; secondary-only on phones (primary moves to the bottom bar).
-          prefetch={false} on ALL nav links (#166): every revalidatePath invalidated the router
-          cache and re-fired ~12 nav prefetches at once; a post-action router.refresh() racing
-          that storm was intermittently aborted (net::ERR_ABORTED), so mutations looked like
-          silent no-ops. Nav clicks now fetch on demand (~600ms warm) — a fair trade for
-          mutations that always land. */}
-      <nav className="flex items-center gap-0.5 sm:gap-1" aria-label="Main">
-        <Link href="/dashboard" className="mr-1 text-base font-bold tracking-tight sm:mr-2 sm:text-lg">
+      <nav className="flex min-w-0 flex-1 items-center gap-0.5 sm:gap-1" aria-label="Main">
+        <Link href="/dashboard" className="mr-1 shrink-0 text-base font-bold tracking-tight sm:mr-2 sm:text-lg">
           Aim<span className="text-emerald-500">plifi</span>
         </Link>
+
+        {/* Desktop: full labelled set */}
         {PRIMARY.map((item) => (
           <Link
             key={item.href}
@@ -79,34 +127,159 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
             {item.href === '/triage' && reviewBadge}
           </Link>
         ))}
-        {SECONDARY.map((item) => {
-          const active = isActive(item.href);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch={false}
-              data-testid={item.testid}
-              aria-current={active ? 'page' : undefined}
-              aria-label={item.label}
-              title={item.label}
-              // phones: a 44px-tall icon target (was a sub-44px cramped icon); sm+: the
-              // labelled text link, unchanged. px swaps so the two never both apply.
-              className={`flex min-h-11 items-center justify-center rounded-md px-1.5 text-sm sm:block sm:min-h-0 sm:px-2 sm:py-1 ${
-                active
-                  ? 'bg-accent font-medium text-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-              }`}
-            >
-              <Icon className="size-5 sm:hidden" aria-hidden />
-              <span className="hidden sm:inline">{item.label}</span>
-            </Link>
-          );
-        })}
+        {SECONDARY.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            prefetch={false}
+            // testids live on the More-sheet copies (phones) — e2e is mobile-380
+            // only; putting the same id here would duplicate when the sheet opens.
+            aria-current={isActive(item.href) ? 'page' : undefined}
+            className={`hidden sm:block ${topLinkClass(isActive(item.href))}`}
+          >
+            {item.label}
+          </Link>
+        ))}
+
+        {/* Phones: one labelled More control replaces the old 8-icon strip */}
+        <button
+          ref={moreBtnRef}
+          type="button"
+          data-testid="nav-more"
+          aria-expanded={moreOpen}
+          aria-controls="nav-more-sheet"
+          aria-haspopup="dialog"
+          onClick={() => setMoreOpen((o) => !o)}
+          className={`ml-auto flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium sm:hidden ${
+            moreOpen || secondaryActive
+              ? 'bg-emerald-500/15 text-emerald-500'
+              : 'bg-accent/60 text-foreground'
+          }`}
+        >
+          {moreOpen ? <X className="size-4" aria-hidden /> : <Menu className="size-4" aria-hidden />}
+          More
+        </button>
       </nav>
 
-      {/* bottom tab bar — phones only */}
+      {/* More sheet — phones only; labelled 2-col grid (Gap 3 §2).
+          Fragment (not a flow wrapper) so opening it doesn't steal header flex space. */}
+      {moreOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close menu"
+            data-testid="nav-more-backdrop"
+            className="fixed inset-0 z-[45] bg-black/50 backdrop-blur-[2px] sm:hidden"
+            onClick={closeMore}
+          />
+          <div
+            id="nav-more-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={sheetTitleId}
+            data-testid="nav-more-sheet"
+            className="nav-more-sheet pointer-events-auto fixed inset-x-0 bottom-0 z-50 flex max-h-[min(78vh,36rem)] flex-col rounded-t-2xl border-t border-border/80 bg-background shadow-[0_-12px_40px_rgba(0,0,0,0.35)] sm:hidden"
+            // Sit above the bottom tab bar + safe area so tabs stay reachable
+            // and the sheet doesn't cover the home indicator.
+            style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
+          >
+            <div className="flex shrink-0 items-center justify-between px-4 pb-2 pt-3">
+              <div className="mx-auto h-1 w-10 rounded-full bg-muted-foreground/30" aria-hidden />
+            </div>
+            <div className="flex items-center justify-between px-4 pb-3">
+              <h2 id={sheetTitleId} className="text-base font-semibold tracking-tight">
+                More
+              </h2>
+              <button
+                type="button"
+                data-testid="nav-more-close"
+                aria-label="Close"
+                onClick={() => {
+                  closeMore();
+                  moreBtnRef.current?.focus();
+                }}
+                className="flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+              <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Money &amp; accounts
+              </p>
+              <ul className="grid grid-cols-2 gap-2" data-testid="nav-more-secondary">
+                {SECONDARY.map((item) => {
+                  const active = isActive(item.href);
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        prefetch={false}
+                        data-testid={item.testid}
+                        aria-current={active ? 'page' : undefined}
+                        onClick={closeMore}
+                        className={`flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2.5 transition ${
+                          active
+                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-500'
+                            : 'border-border/60 bg-card text-foreground hover:border-foreground/20 hover:bg-accent/50'
+                        }`}
+                      >
+                        <span
+                          className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
+                            active ? 'bg-emerald-500/20' : 'bg-muted'
+                          }`}
+                        >
+                          <Icon className="size-4" aria-hidden />
+                        </span>
+                        <span className="text-sm font-medium leading-tight">{item.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <p className="mb-2 mt-4 px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Explore
+              </p>
+              <ul className="grid grid-cols-2 gap-2" data-testid="nav-more-discover">
+                {DISCOVER.map((item) => {
+                  const active = isActive(item.href);
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        prefetch={false}
+                        data-testid={item.testid}
+                        aria-current={active ? 'page' : undefined}
+                        onClick={closeMore}
+                        className={`flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2.5 transition ${
+                          active
+                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-500'
+                            : 'border-border/60 bg-card text-foreground hover:border-foreground/20 hover:bg-accent/50'
+                        }`}
+                      >
+                        <span
+                          className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
+                            active ? 'bg-emerald-500/20' : 'bg-muted'
+                          }`}
+                        >
+                          <Icon className="size-4" aria-hidden />
+                        </span>
+                        <span className="text-sm font-medium leading-tight">{item.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {/* bottom tab bar — phones only; five primary destinations unchanged */}
       <nav
         // pointer-events-none on the strip so content scrolled flush to the
         // viewport bottom stays clickable; links re-enable their own events
@@ -124,6 +297,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
               prefetch={false}
               aria-current={active ? 'page' : undefined}
               data-testid={`bottom-${item.testid}`}
+              onClick={closeMore}
               className={`pointer-events-auto relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] ${
                 active ? 'text-emerald-500' : 'text-muted-foreground'
               }`}

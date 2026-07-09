@@ -2,6 +2,23 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Post-Phase-5: Mobile More-sheet nav (DECISIONS #187, Competitive-Gap Gap 3 §2)
+
+Owner authorized the long-gated mobile secondary-nav redesign. Phones no longer
+show 8 unlabeled top icons — header is brand + labelled **More** + Sign out;
+More opens a bottom sheet with a 2-col labelled grid (Plan/Reports/Accounts/
+Investments/Activity/Goals/Spending/Settings) plus Explore (Ask/Trends/Recurring/
+Forecast). Five primary bottom tabs unchanged (`bottom-nav-*` e2e intact).
+Desktop text nav unchanged. Gate (real 2026-07-09): `bash scripts/verify.sh` →
+**✅ VERIFY GREEN** — tsc/eslint clean, **2039 unit / 153 files**, build clean.
+Targeted e2e (mobile-nav + spending-plan + reports + investments + phase4 +
+not-found) **18/18**. Full `VERIFY_E2E=1` still can't exit 0 on this Windows
+machine (mobile-380 flake — unrelated; new More path uses mid-header clicks).
+
+**Remaining after #187:** env-gated live Plaid/SimpleFIN spot-checks; Gap 6 §2
+error tracking + §4 Neon backups; Gap 5 benchmark line; mobile-380 Playwright
+infra fix. Mobile-nav redesign is **done**.
+
 ## Post-Phase-5: ROADMAP ALSO CONSIDER UX/a11y burn-down (DECISIONS #186)
 
 Resumed on "push, then continue" after the #171–#185 stack landed on `origin/main`
@@ -23,10 +40,10 @@ No critic cycle (UI-only, #81/#175 class). Gate (real 2026-07-09):
 budget-targets) **4/4**. Full `VERIFY_E2E=1` still can't exit 0 on this Windows
 machine (mobile-380 flake — unrelated).
 
-**Remaining after #186:** owner-design-gated mobile secondary-nav redesign; env-gated
-live Plaid/SimpleFIN spot-checks + Gap 6 §2 error tracking + Gap 6 §4 Neon backups;
-Gap 5 benchmark line (market-data feed + holdings history); mobile-380 Playwright
-infra fix. No further unblocked ALSO CONSIDER items.
+**Remaining after #186:** ~~owner-design-gated mobile secondary-nav redesign~~
+**DONE #187**; env-gated live Plaid/SimpleFIN spot-checks + Gap 6 §2 error
+tracking + Gap 6 §4 Neon backups; Gap 5 benchmark line (market-data feed +
+holdings history); mobile-380 Playwright infra fix.
 
 ## Post-Phase-5 reconciliation: Gap 3 §1 is already built (DECISIONS #185, Competitive-Gap Gap 3 §1)
 

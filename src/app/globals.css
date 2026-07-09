@@ -29,6 +29,26 @@ html {
   }
 }
 
+/* Mobile "More" sheet (#187) — short slide-up; reduced-motion users get a fade. */
+@keyframes nav-more-in {
+  from {
+    transform: translateY(12%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.nav-more-sheet {
+  animation: nav-more-in 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-more-sheet {
+    animation: none;
+  }
+}
+
 /* iOS Safari force-zooms the whole page when a focused form control's font-size
    is under 16px — and every raw input/select in the app is Tailwind text-sm
    (14px), so the category pickers "zoomed in" the moment their search box took

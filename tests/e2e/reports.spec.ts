@@ -3,13 +3,14 @@
  * spending-by-category breakdown render.
  */
 import { expect, test } from '@playwright/test';
+import { clickMoreNav } from './helpers/more-nav';
 
 test('Reports: income/expense chart + category breakdown render for the demo user', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
 
-  await page.getByTestId('nav-reports').first().click();
+  await clickMoreNav(page, 'nav-reports');
   await page.waitForURL('**/reports');
 
   await expect(page.getByTestId('income-expense-chart')).toBeVisible();
