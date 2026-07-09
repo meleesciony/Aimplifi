@@ -54,9 +54,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* sticky glass header on desktop; on phones it stays static (the fixed
           bottom tab bar is the primary nav there, and a sticky top bar trips a
           mobile scroll-into-view quirk) */}
-      <header className="-mx-3 flex items-center justify-between gap-2 border-b bg-background px-3 py-3 sm:sticky sm:top-0 sm:z-30 sm:-mx-6 sm:bg-background/80 sm:px-6 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-background/60">
+      {/* items-center on phones (brand + More + Sign out on one row); items-start
+          on sm+ so a wrapped link row doesn't vertically center Sign out into it.
+          Sign-out shrink-0: never share width with the 13 desktop text links (#188). */}
+      <header className="-mx-3 flex items-center justify-between gap-3 border-b bg-background px-3 py-3 sm:sticky sm:top-0 sm:z-30 sm:items-start sm:-mx-6 sm:bg-background/80 sm:px-6 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-background/60">
         <AppNav reviewBadge={<ReviewBadge userId={session.user.id} />} />
-        <form action={doSignOut}>
+        <form action={doSignOut} className="shrink-0 sm:pt-0.5" data-testid="sign-out-form">
           <Button variant="ghost" size="sm" type="submit">
             Sign out
           </Button>

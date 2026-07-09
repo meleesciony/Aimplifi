@@ -2,6 +2,12 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Post-Phase-5: Desktop header Settings/Sign-out overlap (#188)
+
+Owner report after #187: on desktop, Settings overlapped Sign out. Cause: nav
+`flex-1` + 13 text links expanded into the Sign-out sibling. Fix: wrap +
+`shrink-0` Sign out; e2e bbox lock at 1280×800. Gate evidence in the #188 commit.
+
 ## Post-Phase-5: Mobile More-sheet nav (DECISIONS #187, Competitive-Gap Gap 3 §2)
 
 Owner authorized the long-gated mobile secondary-nav redesign. Phones no longer

@@ -66,7 +66,8 @@ const DISCOVER = [
 ] as const;
 
 function topLinkClass(active: boolean) {
-  return `rounded-md px-2 py-1 text-sm ${
+  // shrink-0 so wrapped desktop rows keep whole labels (never squash into Sign out).
+  return `shrink-0 rounded-md px-1.5 py-1 text-sm sm:px-2 ${
     active
       ? 'bg-accent font-medium text-foreground'
       : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -108,7 +109,13 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
 
   return (
     <>
-      <nav className="flex min-w-0 flex-1 items-center gap-0.5 sm:gap-1" aria-label="Main">
+      {/* flex-1 + wrap on sm+: links share the header row with Sign out (sibling)
+          without overlapping it; phones keep a single-line brand + More. */}
+      <nav
+        className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5 sm:gap-x-0.5 sm:gap-y-1"
+        aria-label="Main"
+        data-testid="main-nav"
+      >
         <Link href="/dashboard" className="mr-1 shrink-0 text-base font-bold tracking-tight sm:mr-2 sm:text-lg">
           Aim<span className="text-emerald-500">plifi</span>
         </Link>
@@ -121,7 +128,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
             prefetch={false}
             data-testid={item.testid}
             aria-current={isActive(item.href) ? 'page' : undefined}
-            className={`hidden sm:block ${topLinkClass(isActive(item.href))}`}
+            className={`hidden sm:inline-flex ${topLinkClass(isActive(item.href))}`}
           >
             {item.label}
             {item.href === '/triage' && reviewBadge}
@@ -132,10 +139,11 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
             key={item.href}
             href={item.href}
             prefetch={false}
-            // testids live on the More-sheet copies (phones) — e2e is mobile-380
-            // only; putting the same id here would duplicate when the sheet opens.
+            // Desktop-only testids (phones use the More-sheet copies — never both
+            // mounted). Prefix keeps mobile e2e on nav-* sheet links unambiguous.
+            data-testid={`desktop-${item.testid}`}
             aria-current={isActive(item.href) ? 'page' : undefined}
-            className={`hidden sm:block ${topLinkClass(isActive(item.href))}`}
+            className={`hidden sm:inline-flex ${topLinkClass(isActive(item.href))}`}
           >
             {item.label}
           </Link>
