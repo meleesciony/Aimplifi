@@ -3256,16 +3256,25 @@ critic F1 (P1) fixed in-cycle: live ingest never wrote prediction rows — now a
 paths log verdicts (`src/server/predictions.ts`; user-dictated 10000-confidence rows
 skipped) and predictions follow Plaid pending→posted churn like Corrections. Ledgers:
 DECISIONS #190, STATUS #190, REGRESSION_LEDGER (ingest log), EDGE_CASES §Threshold tuning
-(hand-verified Brier table). TASKS 3.6 → [x]. NOT pushed (push owner-gated, #171+ ride
-together).
+(hand-verified Brier table). TASKS 3.6 → [x]. **PUSHED 2026-07-09** (owner: "push") —
+`git push origin main` → `34671b4..5e9d616`; origin/main now matches HEAD, #171–#190 all
+live on GitHub. TASKS 0.1 → [x]. CI (#181, `.github/workflows/verify.yml`) should now have
+fired on this push for the first time ever — **UNVERIFIED from this machine** (`gh` CLI here
+is unauthenticated and the unauthenticated REST API 404s on this repo, consistent with it
+being private); confirm the Actions run in the GitHub UI or via an authenticated `gh run
+list` next session, and flip #181 from UNVERIFIED to verified (or log a real regression) once
+seen.
 
-### HANDOFF (resume after /clear) — 2026-07-09, #190 DONE
+### HANDOFF (resume after /clear) — 2026-07-09, #190 DONE + pushed
 **Resume from `C:\dev\Aimplifi`.** Read AGENTS.md → LOOP_ENGINEERING.md → CLAUDE.md →
-docs/lessons/INDEX.md, then TASKS.md. **State:** #190 committed at HEAD; local main ahead
-of origin (owner-gated push, #171–#190). Health baseline (re-confirm, don't trust): core
-verify GREEN 2071/157, build clean; full VERIFY_E2E=1 still can't exit 0 here (mobile-380
-viewport flake — docs/lessons). **Next per TASKS.md routing:** Wave-0 0.2 (flake
-quarantine, Opus) unblocks local full-e2e; Wave-1 1.1/1.3/1.7 are open Opus lanes; 3.6 is
-done — its follow-on leverage is a user-facing confirm surface (would give tuning positive
-evidence; today live labels are corrections-biased → tighten-only, documented in STATUS
-#190). Owner-gated: push (0.1), deploy (0.3), live provider spot-checks (0.4), backups (0.6).
+docs/lessons/INDEX.md, then TASKS.md. **State:** #190 committed AND pushed; local main =
+origin/main (`5e9d616`). Health baseline (re-confirm, don't trust): core verify GREEN
+2071/157, build clean; full VERIFY_E2E=1 still can't exit 0 here (mobile-380 viewport
+flake — docs/lessons). **First thing next session:** check whether the #181 GitHub Actions
+run went green (first-ever real run) — flip its UNVERIFIED status either way. **Next per
+TASKS.md routing:** Wave-0 0.2 (flake quarantine, Opus) unblocks local full-e2e; Wave-0 0.5
+(activation checklist panel, Sonnet) is the other unblocked non-owner item; Wave-1
+1.1/1.3/1.7 are open Opus lanes; 3.6 is done — its follow-on leverage is a user-facing
+confirm surface (would give tuning positive evidence; today live labels are
+corrections-biased → tighten-only, documented in STATUS #190). Still owner-gated: deploy
+env vars (0.3), live provider spot-checks (0.4), Neon backups (0.6).

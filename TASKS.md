@@ -39,7 +39,7 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done (verify green) · `
 
 | # | Task | Owner/Agent | Effort | Est. budget | Status |
 |---|------|-------------|--------|------------|--------|
-| 0.1 | Push #171–#182 to GitHub; confirm CI (#181) runs verify.sh green. Single-machine loss risk until done. | Human + Sonnet (assist) | low | 10k | [ ] |
+| 0.1 | Push #171–#182 to GitHub; confirm CI (#181) runs verify.sh green. Single-machine loss risk until done. | Human + Sonnet (assist) | low | 10k | [~] pushed 2026-07-09 (#171–#190 on origin/main); CI run unconfirmed from this machine (gh unauthenticated) — check Actions UI next session |
 | 0.2 | Quarantine mobile-380 Playwright flake on Windows (skip-if-local tag or CI-only gate) so local verify can exit 0 again; CI is the arbiter per docs/lessons. | Opus 4.8 | medium | 40k | [ ] |
 | 0.3 | Deploy: Vercel + Neon, set `DATABASE_URL`, `AUTH_SECRET`, `DATA_ENCRYPTION_KEY`, `SIGNUP_ALLOWLIST`, `CRON_SECRET`, `RESEND_API_KEY`, `VAPID_*`, `SENTRY_DSN` per docs/DEPLOY.md. Verify crons fire. | Human (keys) + Haiku (checklist walkthrough) | low | 10k | [ ] |
 | 0.4 | Live SimpleFIN + Plaid sandbox spot-checks per walkthrough docs; flip UNVERIFIED labels with logged output. | Human (tokens) + Sonnet | low | 20k | [ ] |
