@@ -2274,6 +2274,9 @@ to `/reports?category=` (same MoM panel). Spending-plan bar gets a visible legen
 due / Savings / Left|Over). No engine change. Proportionate self-review (display-only, reuses
 #171 path): name-only link avoids nested interactives; legend mirrors investments-view.
 
+**Gate (real output 2026-07-09):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1853 unit /
+136 files**, build clean. Targeted e2e trends+spending-plan+reports **7/7**.
+
 **OPEN / follow-ups:** (a) #71 nav redesign (owner-scoped); (b) Recharts pinned-tooltip/width(-1);
 (c) Connect-a-bank button labels; (d) #168 P3s; (e) import-csv useActionState reset; (f)
 connect-simplefin success UNVERIFIED; (g) empty-register no-data vs no-match distinction.
