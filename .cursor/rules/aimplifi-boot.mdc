@@ -1,0 +1,13 @@
+---
+description: Aimplifi boot — canonical agent operating rules for this repo
+alwaysApply: true
+---
+
+Before doing any work in this repo, follow `AGENTS.md` at the repo root: read
+`LOOP_ENGINEERING.md` (working method), then `CLAUDE.md` (project rules — it binds all
+agents, not only Claude), then skim `docs/lessons/INDEX.md` (cross-session lessons).
+
+Non-negotiables even before reading: no fabricated results (unverified ⇒ say `UNVERIFIED`);
+all money in integer cents, never floats; `bash scripts/verify.sh` is the done-gate; make
+surgical, minimal changes only; never weaken a test to go green; end substantive turns with
+the PASS/FAIL contract defined in `LOOP_ENGINEERING.md`.
