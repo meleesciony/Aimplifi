@@ -7,8 +7,9 @@ Living document; updated at each phase boundary and critic cycle.
 Thin `lib/errors.ts` envelope client + `instrumentation.ts` `onRequestError` +
 error-boundary capture. Dormant without `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN`
 (same stance as email/push). CSP widens ingest only when configured. Owner
-activates by setting the DSN in Vercel (DEPLOY.md). Gate evidence in the #189
-commit. **Remaining Gap 6:** §4 Neon backups (owner/ops).
+activates by setting the DSN in Vercel (DEPLOY.md). Gate (real 2026-07-09):
+`bash scripts/verify.sh` → **✅ VERIFY GREEN** — **2047 unit / 154 files**
+(+8 errors.test); build clean. **Remaining Gap 6:** §4 Neon backups (owner/ops).
 
 ## Post-Phase-5: Desktop header Settings/Sign-out overlap (#188)
 
