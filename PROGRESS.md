@@ -2783,17 +2783,19 @@ STATUS #170, lessons/mutation-form-recipe.md.
 own latent useActionState reset (milder — no mis-file, rows filed server-side before the reset);
 Recharts pinned-tooltip/width(-1) polish; the two "Connect a bank" button labels; #168 P3 multi-merchant.
 
-## 2026-07-09 (cloud: "continue with the work") — #171 category MoM drill-down — IN PROGRESS → DONE
+## 2026-07-09 (cloud: "continue with the work") — #171 category MoM drill-down — DONE ✅
 
 Resumed at origin/main `#170`. Top unblocked follow-up = category month-over-month drill-down
-(Mint-parity). Engine-first: `categorySpendSeries` + `monthDateBounds`; server optional
-`categorySeries` on `getReports`; `/reports?category=` panel + register deep-link; category rows
-as Links. Known-answer unit tests (EDGE_CASES §Category MoM); e2e panel + register bounds.
+(Mint-parity). Engine-first: `categorySpendSeries` + `monthDateBounds` + `isSpendDrilldownCategory`;
+server optional `categorySeries` on `getReports`; `/reports?category=` panel + register deep-link
+(no type=expense); category rows as Links. Hostile critic FAIL → 4 P1 fixed. Gate: verify GREEN
+1853 unit / 136 files; reports e2e 2/2.
 
 ### HANDOFF (resume after /clear) — 2026-07-09, #171 DONE
 **Resume from repo root.** Read LOOP_ENGINEERING.md + docs/lessons/INDEX.md first.
-**State:** #171 on branch `cursor/category-mom-drilldown-fd9a` (PR).
-**Health baseline (re-confirm):** `bash scripts/verify.sh` + `VERIFY_E2E=1` reports.spec.
+**State:** #171 on branch `cursor/category-mom-drilldown-fd9a` (PR #1).
+**Health baseline (re-confirm):** `bash scripts/verify.sh` → GREEN, 1853 unit / 136 files;
+`AUTH_SECRET=… npx playwright test tests/e2e/reports.spec.ts` → 2/2.
 **NEXT INCREMENT candidates:** #71 nav redesign (owner-scoped); Recharts polish; Connect-a-bank
 button labels; #168 P3s; Trends mover → `?category=` deep-link (optional); ROADMAP ALSO CONSIDER
 UX/a11y list (skip-to-content, calendar aria-labels, etc.).

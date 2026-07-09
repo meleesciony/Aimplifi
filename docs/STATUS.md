@@ -2249,9 +2249,16 @@ left as pre-existing; (g) NEW: connect-simplefin's network success branch remain
 
 (#170 top-queued NEXT item (a).) Engine-first pure `categorySpendSeries` reuses `spendingByCategory`
 per month (one spend definition). `/reports?category=` opens a 6-month MoM panel with vs-prior delta
-and a register deep-link (`monthDateBounds` → `/transactions?category&from&to&type=expense`).
-Category breakdown rows are Links; no `?category=` keeps the default reports DOM free of the panel
-(golden count-0 e2e). Complementary to #74 movers (MoM last-vs-prior, not vs baseline average).
+and a register deep-link (`monthDateBounds` → `/transactions?category&from&to`, no `type=expense`
+so refunds that net into MoM still appear). Category breakdown rows are Links; no `?category=` keeps
+the default reports DOM free of the panel (golden count-0 e2e). Complementary to #74 movers
+(MoM last-vs-prior, not vs baseline average). Critic cycle 1 FAIL → 4 P1 fixed: register type
+filter, pending disclosure, `isSpendDrilldownCategory` income/transfer gate, sr-only month summary
+(replaced `role="img"`).
+
+**Gate (real output 2026-07-09):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — tsc/eslint clean,
+**1853 unit / 136 files** (+5 over #170), build clean. Targeted e2e `reports.spec.ts` **2/2**
+(with `AUTH_SECRET` set for this cloud env).
 
 **OPEN / follow-ups (unchanged from #170 minus item (a)):** (a) #71 nav redesign + settings
 reorganization (owner-scoped); (b) Recharts pinned-on-load tooltip + width(-1) warning; (c) two
