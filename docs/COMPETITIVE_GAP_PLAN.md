@@ -40,8 +40,11 @@ finance app a habit instead of a tool.
 >   (`lib/push.ts`, `/api/push/*`, `PushSubscription`, `PushOptIn`) + materiality filter
 >   (`engine/notify/select.ts`, `/api/cron/notify`). §3 weekly digest **BUILT**
 >   (`engine/digest/build.ts`, `/api/cron/digest`). Email/push delivery is **env-gated**
->   (`RESEND_API_KEY`, `VAPID_*`). **Genuine remaining gap:** `/api/cron/notify` and
->   `/api/cron/digest` are **NOT in `vercel.json`** — they never fire even once the env is set.
+>   (`RESEND_API_KEY`, `VAPID_*`). ~~**Genuine remaining gap:** `/api/cron/notify` and
+>   `/api/cron/digest` are **NOT in `vercel.json`**~~ **WIRED (#184)** — both scheduled
+>   (notify daily 13:00, digest Mon 14:00), locked by a bidirectional `vercel.json`↔route
+>   coherence test. **Gap 2 is now fully built; delivery remains env-gated (keys) and,
+>   for the weekly digest + 4-cron count, Vercel-Pro-gated (Hobby is daily-only/2-cron).**
 > - **Gap 4:** §1 Glass-Box **BUILT** (#178), §2 AI-trust panel **BUILT** (#177).
 > - **Gap 5:** §1 provenance tag **BUILT** (#180); Plaid holdings parity + benchmark line
 >   **owner/data-gated** (no market-data feed / holdings-history schema).
@@ -50,9 +53,9 @@ finance app a habit instead of a tool.
 > - **Gap 3:** §3 guided first-run **BUILT** (#176), Investments nav **BUILT**; §1 loading
 >   skeletons + destructive-delete confirms **NOT BUILT**; §2 mobile nav **owner-design-gated**.
 >
-> **True unblocked, in-session-verifiable remaining work:** wire the two crons into
-> `vercel.json` (Gap 2); ~~Gap 1 §4 sync-failure surfacing~~ **DONE #183**; Gap 3 §1
-> skeletons + delete confirmations; Gap 6 §2 error tracking (partially env-gated).
+> **True unblocked, in-session-verifiable remaining work:** ~~wire the two crons into
+> `vercel.json` (Gap 2)~~ **DONE #184**; ~~Gap 1 §4 sync-failure surfacing~~ **DONE #183**;
+> Gap 3 §1 skeletons + delete confirmations; Gap 6 §2 error tracking (partially env-gated).
 > Everything else is owner/env-gated or already done.
 
 

@@ -2,6 +2,28 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Post-Phase-5 refinement: proactive-cron scheduling (DECISIONS #184, Competitive-Gap Gap 2 §2/§3)
+
+The notify (Web Push) and digest (weekly email) sweeps were fully built,
+`CRON_SECRET`-guarded, and unit-tested (`cron-notify.test.ts`/`cron-digest.test.ts`)
+but were absent from `vercel.json` crons, so the entire proactive/stickiness layer
+never fired even with keys set (the plan's "genuine remaining gap"). Added both
+schedules (`/api/cron/notify` daily 13:00 UTC, `/api/cron/digest` Mon 14:00 UTC) and
+a bidirectional coherence regression (`tests/unit/cron-wiring.test.ts`): every
+`api/cron/<name>/route.ts` must be scheduled AND every scheduled path must resolve to a
+route — so neither "built-but-unscheduled" nor "scheduled-but-404" can reappear.
+Delivery stays dormant without `VAPID_*`/`RESEND_API_KEY` (safe no-op, records nothing),
+so wiring perturbs no golden and is inert until an operator sets keys. Deploy caveat
+(documented, not a code defect): the weekly schedule + 4-cron count need Vercel **Pro**
+(Hobby is daily-only, 2-cron max).
+
+Gate (real output 2026-07-08): `bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+typecheck/lint clean, **2039 unit / 153 files** (+3/+1, the wiring test), build clean
+(all four `/api/cron/*` routes compile as functions). No new e2e: a `vercel.json` cron
+is a platform trigger with no locally-drivable runtime surface, and the handlers
+themselves are already integration-tested against their real GET (consistent with the
+reminders/sync cron precedent — scheduling is an operator deploy step).
+
 ## Post-Phase-5 refinement: sync-failure surfacing (DECISIONS #183, Competitive-Gap Gap 1 §4)
 
 The connection-health engine graded data *recency* (#171/#179) but by design never
