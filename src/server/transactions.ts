@@ -37,6 +37,8 @@ export interface TransactionsResult {
   accountOptions: { id: string; name: string }[];
   /** Pagination state for the current (filtered) page (ROADMAP #8). */
   pageInfo: PageInfo;
+  /** Count before filters — drives no-data vs no-match empty copy (#173). */
+  totalUnfiltered: number;
 }
 
 /** Rows per register page. */
@@ -91,6 +93,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     merchantCount: t.merchantId ? merchantCounts.get(t.merchantId) : undefined,
   }));
 
+  const totalUnfiltered = rows.length;
   const filtered = sortByDateDesc(filterTransactions(rows, filter));
 
   // Summary totals are over the FULL filtered set (accurate); the page slice keeps
@@ -105,7 +108,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   for (const r of rows) if (!seen.has(r.accountId)) seen.set(r.accountId, r.accountName);
   const accountOptions = [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => (a.name < b.name ? -1 : 1));
 
-  return { rows: items, summary, accountOptions, pageInfo: info };
+  return { rows: items, summary, accountOptions, pageInfo: info, totalUnfiltered };
 }
 
 /**

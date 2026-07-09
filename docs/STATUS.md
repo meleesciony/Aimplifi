@@ -2280,3 +2280,8 @@ due / Savings / Left|Over). No engine change. Proportionate self-review (display
 **OPEN / follow-ups:** (a) #71 nav redesign (owner-scoped); (b) Recharts pinned-tooltip/width(-1);
 (c) Connect-a-bank button labels; (d) #168 P3s; (e) import-csv useActionState reset; (f)
 connect-simplefin success UNVERIFIED; (g) empty-register no-data vs no-match distinction.
+
+## 2026-07-09 — #173 empty-register no-data vs no-match — DONE
+
+ROADMAP ALSO CONSIDER. Pure `registerEmptyReason` + `totalUnfiltered` from getTransactions.
+no-data → "No transactions yet" + CTAs; no-match → filter copy + Clear. E2E both branches.

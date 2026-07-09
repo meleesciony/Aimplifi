@@ -97,6 +97,39 @@ test('transaction register lists, summarizes, filters, and searches', async ({ p
   await expect(first).toContainText('Blue Bottle');
 });
 
+test('register empty: no-match vs no-data (#173)', async ({ page }) => {
+  // no-match: demo seed has rows; a nonsense search empties the filtered set.
+  await signIn(page);
+  await page.goto('/transactions');
+  await page.getByTestId('txn-search').fill('ZZZNOMATCH_E2E_173');
+  await page.getByTestId('txn-search').press('Enter');
+  await expect(page).toHaveURL(/q=ZZZNOMATCH/, { timeout: 20000 });
+  await expect(page.getByTestId('txn-empty-no-match')).toBeVisible();
+  await expect(page.getByTestId('txn-empty-no-data')).toHaveCount(0);
+  await expect(page.getByTestId('txn-row')).toHaveCount(0);
+  await expect(page.getByTestId('txn-empty-clear')).toBeVisible();
+
+  // no-data: throwaway user with a non-spending manual asset (home) — register
+  // only loads spending-account txns, so the ledger is empty with no filters.
+  const email = `e2e-nodata-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+  await page.goto('/accounts');
+  await page.getByTestId('add-asset-btn').click();
+  await page.getByTestId('manual-name').fill('Primary home');
+  await page.getByTestId('manual-value').fill('100000');
+  await page.getByTestId('manual-submit').click();
+  await expect(page.getByTestId('manual-account-row')).toBeVisible({ timeout: 20000 });
+  await page.goto('/transactions');
+  await expect(page.getByTestId('txn-empty-no-data')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('txn-empty-no-match')).toHaveCount(0);
+  await expect(page.getByText('No transactions yet')).toBeVisible();
+});
+
 test('SimpleFIN connect affordance is present and opens its token form (dormant)', async ({ page }) => {
   await signIn(page);
   await page.goto('/accounts');

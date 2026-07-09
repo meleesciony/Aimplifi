@@ -6,7 +6,11 @@ import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion
 import { TransactionFilters } from '@/components/finance/transaction-filters';
 import { TransactionList } from '@/components/finance/transaction-list';
 import { buttonVariants } from '@/components/ui/button';
-import type { FlowType, TxnFilter } from '@/lib/engine/transactions/query';
+import {
+  registerEmptyReason,
+  type FlowType,
+  type TxnFilter,
+} from '@/lib/engine/transactions/query';
 import { getTransactions, getWithheldAccountSummary } from '@/server/transactions';
 import { getVisibleGroups } from '@/server/categories';
 
@@ -45,11 +49,16 @@ export default async function TransactionsPage({
     to: to || null,
   };
 
-  const [{ rows, summary, accountOptions, pageInfo }, categoryGroups, withheld] = await Promise.all([
-    getTransactions(session.user.id, filter, page),
-    getVisibleGroups(session.user.id),
-    getWithheldAccountSummary(session.user.id),
-  ]);
+  const [{ rows, summary, accountOptions, pageInfo, totalUnfiltered }, categoryGroups, withheld] =
+    await Promise.all([
+      getTransactions(session.user.id, filter, page),
+      getVisibleGroups(session.user.id),
+      getWithheldAccountSummary(session.user.id),
+    ]);
+
+  // Use summary.count (full filtered set), not the page slice — pagination must
+  // not flip a non-empty register into the empty branch.
+  const emptyReason = registerEmptyReason(summary.count, totalUnfiltered);
 
   return (
     <div className="space-y-4">
@@ -87,7 +96,13 @@ export default async function TransactionsPage({
         categoryOptions={categoryGroups.flatMap((g) => g.categories)}
         current={{ search, account, category, type, from, to }}
       />
-      <TransactionList rows={rows} summary={summary} pageInfo={pageInfo} categoryGroups={categoryGroups} />
+      <TransactionList
+        rows={rows}
+        summary={summary}
+        pageInfo={pageInfo}
+        categoryGroups={categoryGroups}
+        emptyReason={emptyReason}
+      />
     </div>
   );
 }

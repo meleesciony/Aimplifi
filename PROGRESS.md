@@ -2813,3 +2813,12 @@ allocation legend. Gate: verify GREEN 1853 unit; e2e trends+spending-plan+report
 #168 P3s. Skip-to-content / calendar aria / safe-area / overspent reframe / triage split already
 built (#81/#89/#90/#166).
 **SAFE to /clear.**
+
+## 2026-07-09 (cloud: "continue") — #173 empty-register no-data vs no-match — DONE ✅
+
+Stacked on #171/#172 branch. Pure empty-reason helpers; dual empty UI; e2e both branches.
+
+### HANDOFF — 2026-07-09, #173 DONE
+**State:** #171–#173 on `cursor/category-mom-drilldown-fd9a` (PR #1).
+**NEXT:** #71 nav (owner); Recharts polish; Connect labels; #168 P3s.
+**SAFE to /clear.**
