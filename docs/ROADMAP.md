@@ -282,3 +282,4 @@ arrows; skip-to-content link; iOS PWA safe-area; reframe overspent "Safe to spen
 "Over plan by $X"; spending-plan allocation legend. (Mobile nav redesign — 7 unlabeled
 icons, sub-44px targets — is a real issue but a rework of existing UI: scope with owner.)
 ~~Category month-over-month drill-down (reports → MoM panel → filtered register)~~ DONE #171.
+~~Trends movers → MoM deep-link; spending-plan allocation legend~~ DONE #172.

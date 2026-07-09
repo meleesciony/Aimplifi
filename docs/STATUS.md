@@ -2266,3 +2266,14 @@ adjacent "Connect a bank" buttons need clearer labels; (d) #168 P3s: multi-merch
 page-scoped shared pending; (e) import-csv latent useActionState reset (no mis-file); (f)
 connect-simplefin network success branch UNVERIFIED (dormant); (g) optional: Trends mover rows →
 same `?category=` deep-link (deferred — reports is the Mint-parity path).
+
+## 2026-07-09 — #172 Trends→MoM deep-link + spending-plan legend — DONE
+
+(#171 follow-up (g) + ROADMAP ALSO CONSIDER allocation legend.) Trends mover category names link
+to `/reports?category=` (same MoM panel). Spending-plan bar gets a visible legend (Spent / Bills
+due / Savings / Left|Over). No engine change. Proportionate self-review (display-only, reuses
+#171 path): name-only link avoids nested interactives; legend mirrors investments-view.
+
+**OPEN / follow-ups:** (a) #71 nav redesign (owner-scoped); (b) Recharts pinned-tooltip/width(-1);
+(c) Connect-a-bank button labels; (d) #168 P3s; (e) import-csv useActionState reset; (f)
+connect-simplefin success UNVERIFIED; (g) empty-register no-data vs no-match distinction.

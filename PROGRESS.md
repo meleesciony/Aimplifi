@@ -2800,3 +2800,15 @@ server optional `categorySeries` on `getReports`; `/reports?category=` panel + r
 button labels; #168 P3s; Trends mover → `?category=` deep-link (optional); ROADMAP ALSO CONSIDER
 UX/a11y list (skip-to-content, calendar aria-labels, etc.).
 **SAFE to /clear.**
+
+## 2026-07-09 (cloud: "continue") — #172 Trends→MoM + spending-plan legend — DONE ✅
+
+Stacked on #171 branch. Trends mover names → `/reports?category=`; spending-plan visible
+allocation legend. E2E: trends drill + spending-plan legend.
+
+### HANDOFF (resume after /clear) — 2026-07-09, #172 DONE
+**State:** #171+#172 on `cursor/category-mom-drilldown-fd9a` (PR #1).
+**NEXT:** #71 nav (owner); empty-register no-data vs no-match; Recharts polish; Connect labels;
+#168 P3s. Skip-to-content / calendar aria / safe-area / overspent reframe / triage split already
+built (#81/#89/#90/#166).
+**SAFE to /clear.**

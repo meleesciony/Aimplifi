@@ -49,3 +49,19 @@ test('trends page passes WCAG 2.1 AA (axe)', async ({ page }) => {
     .analyze();
   expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
 });
+
+test('trends mover drills to reports MoM panel (#172)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/trends');
+  await expect(page.getByTestId('trends-movers')).toBeVisible();
+
+  const firstDrill = page.locator('[data-testid^="trends-mover-drill-"]').first();
+  await expect(firstDrill).toBeVisible();
+  const href = await firstDrill.getAttribute('href');
+  expect(href).toMatch(/^\/reports\?category=/);
+
+  await firstDrill.click();
+  await page.waitForURL(/\/reports\?category=/);
+  await expect(page.getByTestId('category-mom-panel')).toBeVisible();
+  await expect(page.getByTestId('category-mom-bars')).toBeVisible();
+});
