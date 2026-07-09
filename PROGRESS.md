@@ -2817,8 +2817,10 @@ built (#81/#89/#90/#166).
 ## 2026-07-09 (cloud: "continue") — #173 empty-register no-data vs no-match — DONE ✅
 
 Stacked on #171/#172 branch. Pure empty-reason helpers; dual empty UI; e2e both branches.
+Gate: verify GREEN 1855 unit; register-empty e2e 2/2.
 
 ### HANDOFF — 2026-07-09, #173 DONE
 **State:** #171–#173 on `cursor/category-mom-drilldown-fd9a` (PR #1).
+**Health:** verify GREEN 1855/136; AUTH_SECRET e2e register-empty 2/2.
 **NEXT:** #71 nav (owner); Recharts polish; Connect labels; #168 P3s.
 **SAFE to /clear.**

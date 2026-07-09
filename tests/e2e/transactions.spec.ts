@@ -97,8 +97,7 @@ test('transaction register lists, summarizes, filters, and searches', async ({ p
   await expect(first).toContainText('Blue Bottle');
 });
 
-test('register empty: no-match vs no-data (#173)', async ({ page }) => {
-  // no-match: demo seed has rows; a nonsense search empties the filtered set.
+test('register empty: no-match when filters hide every row (#173)', async ({ page }) => {
   await signIn(page);
   await page.goto('/transactions');
   await page.getByTestId('txn-search').fill('ZZZNOMATCH_E2E_173');
@@ -108,9 +107,11 @@ test('register empty: no-match vs no-data (#173)', async ({ page }) => {
   await expect(page.getByTestId('txn-empty-no-data')).toHaveCount(0);
   await expect(page.getByTestId('txn-row')).toHaveCount(0);
   await expect(page.getByTestId('txn-empty-clear')).toBeVisible();
+});
 
-  // no-data: throwaway user with a non-spending manual asset (home) — register
-  // only loads spending-account txns, so the ledger is empty with no filters.
+test('register empty: no-data when the ledger has no spending rows (#173)', async ({ page }) => {
+  // Fresh signup (no prior demo session — /sign-in redirects when already authed).
+  // Manual REAL_ESTATE asset is not a spending account, so the register is empty.
   const email = `e2e-nodata-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
   await page.goto('/sign-in');
   await page.getByTestId('auth-toggle').click();

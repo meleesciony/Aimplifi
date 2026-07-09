@@ -2285,3 +2285,6 @@ connect-simplefin success UNVERIFIED; (g) empty-register no-data vs no-match dis
 
 ROADMAP ALSO CONSIDER. Pure `registerEmptyReason` + `totalUnfiltered` from getTransactions.
 no-data → "No transactions yet" + CTAs; no-match → filter copy + Clear. E2E both branches.
+
+**Gate (real output 2026-07-09):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1855 unit /
+136 files**, build clean. Targeted e2e `register empty` **2/2**.
