@@ -1,12 +1,13 @@
 'use client';
 
 /**
- * Reports view (DECISIONS #67): income vs. expense over 6 months + this month's
- * spending by category with parent-group rollup. Recharts for the bars; inline
- * bars for the category breakdown (crisp, no axis clutter).
+ * Reports view (DECISIONS #67 + #171): income vs. expense over 6 months + this
+ * month's spending by category. Category rows deep-link to ?category= for the
+ * Mint-style MoM drill-down panel; the panel links onward to the filtered register.
  */
 import Link from 'next/link';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
+import { CategoryMomPanel } from '@/components/finance/category-mom-panel';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { cents, formatCents } from '@/lib/money';
 import { withheldInlineNote, type WithheldAccountSummary } from '@/lib/providers/currency';
@@ -37,6 +38,7 @@ export function ReportsView({
   // all-USD → renders nothing → byte-identical). The banner announces it once at the top;
   // this restates it where the spending total is shown.
   const currencyNote = withheldInlineNote(withheld);
+  const selectedId = data.categorySeries?.categoryId ?? null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -86,6 +88,8 @@ export function ReportsView({
         )}
       </section>
 
+      {data.categorySeries ? <CategoryMomPanel series={data.categorySeries} /> : null}
+
       {/* Spending by category */}
       <section className="rounded-2xl border bg-card p-5 shadow-sm">
         <div className="mb-3 flex items-baseline justify-between">
@@ -103,32 +107,47 @@ export function ReportsView({
           <p className="py-6 text-center text-sm text-muted-foreground">No spending this month yet.</p>
         ) : (
           <div className="space-y-2.5" data-testid="category-breakdown">
-            {top.map((c, i) => (
-              <div key={c.categoryId}>
-                <div className="flex items-baseline justify-between text-sm">
-                  <span className="truncate">
-                    {c.name} <span className="text-xs text-muted-foreground">· {c.group}</span>
-                    {/* #166: "Uncategorized" topping the list with no path to fix it
-                        reads as broken — link straight to the inbox that drains it. */}
-                    {c.categoryId === 'uncategorized' && (
-                      <>
-                        {' '}
-                        <Link href="/triage" className="text-xs text-muted-foreground underline-offset-2 hover:underline">
-                          review in Inbox →
-                        </Link>
-                      </>
-                    )}
-                  </span>
-                  <span className="ml-2 shrink-0 tabular-nums">{formatCents(cents(c.amountCents))}</span>
+            {top.map((c, i) => {
+              const selected = selectedId === c.categoryId;
+              return (
+                <div key={c.categoryId} data-testid={`category-row-${c.categoryId}`}>
+                  <div className="flex items-baseline justify-between text-sm">
+                    <span className="truncate">
+                      <Link
+                        href={`/reports?category=${encodeURIComponent(c.categoryId)}`}
+                        className={
+                          selected
+                            ? 'font-medium text-foreground underline-offset-2'
+                            : 'text-foreground underline-offset-2 hover:underline'
+                        }
+                        aria-current={selected ? 'page' : undefined}
+                        data-testid={`category-drill-${c.categoryId}`}
+                      >
+                        {c.name}
+                      </Link>{' '}
+                      <span className="text-xs text-muted-foreground">· {c.group}</span>
+                      {/* #166: "Uncategorized" topping the list with no path to fix it
+                          reads as broken — link straight to the inbox that drains it. */}
+                      {c.categoryId === 'uncategorized' && (
+                        <>
+                          {' '}
+                          <Link href="/triage" className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+                            review in Inbox →
+                          </Link>
+                        </>
+                      )}
+                    </span>
+                    <span className="ml-2 shrink-0 tabular-nums">{formatCents(cents(c.amountCents))}</span>
+                  </div>
+                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-2 rounded-full"
+                      style={{ width: `${(c.amountCents / max) * 100}%`, backgroundColor: PALETTE[i % PALETTE.length] }}
+                    />
+                  </div>
                 </div>
-                <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full"
-                    style={{ width: `${(c.amountCents / max) * 100}%`, backgroundColor: PALETTE[i % PALETTE.length] }}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

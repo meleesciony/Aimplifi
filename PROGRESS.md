@@ -2782,3 +2782,19 @@ STATUS #170, lessons/mutation-form-recipe.md.
 (owner-scoped); connect-simplefin network success branch UNVERIFIED (dormant, needs creds); import-csv's
 own latent useActionState reset (milder — no mis-file, rows filed server-side before the reset);
 Recharts pinned-tooltip/width(-1) polish; the two "Connect a bank" button labels; #168 P3 multi-merchant.
+
+## 2026-07-09 (cloud: "continue with the work") — #171 category MoM drill-down — IN PROGRESS → DONE
+
+Resumed at origin/main `#170`. Top unblocked follow-up = category month-over-month drill-down
+(Mint-parity). Engine-first: `categorySpendSeries` + `monthDateBounds`; server optional
+`categorySeries` on `getReports`; `/reports?category=` panel + register deep-link; category rows
+as Links. Known-answer unit tests (EDGE_CASES §Category MoM); e2e panel + register bounds.
+
+### HANDOFF (resume after /clear) — 2026-07-09, #171 DONE
+**Resume from repo root.** Read LOOP_ENGINEERING.md + docs/lessons/INDEX.md first.
+**State:** #171 on branch `cursor/category-mom-drilldown-fd9a` (PR).
+**Health baseline (re-confirm):** `bash scripts/verify.sh` + `VERIFY_E2E=1` reports.spec.
+**NEXT INCREMENT candidates:** #71 nav redesign (owner-scoped); Recharts polish; Connect-a-bank
+button labels; #168 P3s; Trends mover → `?category=` deep-link (optional); ROADMAP ALSO CONSIDER
+UX/a11y list (skip-to-content, calendar aria-labels, etc.).
+**SAFE to /clear.**

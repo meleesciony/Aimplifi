@@ -2244,3 +2244,18 @@ BOTH providers); (e) #168 P3s: multi-merchant "at A and B", and page-scoped shar
 accepted-P2 follow-up); (f) NEW: import-csv's own account `<select>` shares the latent useActionState
 reset (milder — rows are filed server-side with the correct account BEFORE the reset, so no mis-file),
 left as pre-existing; (g) NEW: connect-simplefin's network success branch remains UNVERIFIED (dormant).
+
+## 2026-07-09 — #171 category month-over-month drill-down (Mint-parity) — DONE
+
+(#170 top-queued NEXT item (a).) Engine-first pure `categorySpendSeries` reuses `spendingByCategory`
+per month (one spend definition). `/reports?category=` opens a 6-month MoM panel with vs-prior delta
+and a register deep-link (`monthDateBounds` → `/transactions?category&from&to&type=expense`).
+Category breakdown rows are Links; no `?category=` keeps the default reports DOM free of the panel
+(golden count-0 e2e). Complementary to #74 movers (MoM last-vs-prior, not vs baseline average).
+
+**OPEN / follow-ups (unchanged from #170 minus item (a)):** (a) #71 nav redesign + settings
+reorganization (owner-scoped); (b) Recharts pinned-on-load tooltip + width(-1) warning; (c) two
+adjacent "Connect a bank" buttons need clearer labels; (d) #168 P3s: multi-merchant "at A and B",
+page-scoped shared pending; (e) import-csv latent useActionState reset (no mis-file); (f)
+connect-simplefin network success branch UNVERIFIED (dormant); (g) optional: Trends mover rows →
+same `?category=` deep-link (deferred — reports is the Mint-parity path).
