@@ -95,6 +95,15 @@ test('transaction register lists, summarizes, filters, and searches', async ({ p
   const first = page.getByTestId('txn-row').first();
   await expect(first).toBeVisible();
   await expect(first).toContainText('Blue Bottle');
+
+  // Empty-register distinction (#186): an impossible filter shows the
+  // "no match" copy, not the "no transactions yet" first-run copy.
+  await page.goto('/transactions');
+  await page.getByTestId('txn-search').fill('ZZZ_NO_MATCH_E2E_186');
+  await page.getByTestId('txn-search').press('Enter');
+  await expect(page).toHaveURL(/q=ZZZ_NO_MATCH/, { timeout: 20000 });
+  await expect(page.getByTestId('txn-empty')).toHaveText(/No transactions match these filters/);
+  await expect(page.getByTestId('txn-empty')).not.toContainText(/No transactions yet/);
 });
 
 test('SimpleFIN connect affordance is present and opens its token form (dormant)', async ({ page }) => {

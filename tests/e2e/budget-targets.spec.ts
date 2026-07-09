@@ -21,6 +21,8 @@ test('budget targets: set, scan a11y, overwrite atomically, then clear', async (
   await signIn(page);
   await page.goto('/budgets');
   await expect(page.getByTestId('budget-list')).toBeVisible();
+  // Seed has no budgets (#37) — first-run hint is visible before we set one (#186).
+  await expect(page.getByTestId('budget-no-targets-hint')).toBeVisible();
 
   // Set a $500/mo target on Dining Out.
   await page.getByTestId('budget-category').selectOption('dining');
@@ -29,6 +31,7 @@ test('budget targets: set, scan a11y, overwrite atomically, then clear', async (
 
   const row = page.getByTestId('budget-row-dining');
   await expect(row).toBeVisible();
+  await expect(page.getByTestId('budget-no-targets-hint')).toHaveCount(0);
   await expect(row).toContainText('/ $500.00'); // actual / target
   await expect(row).toContainText(/left this month|over target/); // remaining status
   await expect(page.getByTestId('budget-clear-dining')).toBeVisible();

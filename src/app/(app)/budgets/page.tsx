@@ -147,6 +147,18 @@ export default async function BudgetsPage() {
           <CardTitle className="text-base">Set a monthly target</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* First-run hint when accounts exist but no targets yet (ROADMAP ALSO
+              CONSIDER / #186). Seed has zero budgets, so demo always sees this
+              until the user sets one — coaching, not a guilt meter. */}
+          {budgets.length === 0 && (
+            <p
+              className="mb-3 rounded-md border border-dashed bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+              data-testid="budget-no-targets-hint"
+            >
+              No monthly targets yet. Pick a category below to add an optional progress
+              bar — it never blocks spending.
+            </p>
+          )}
           <BudgetTargetForm categoryOptions={categoryOptions.map((c) => ({ id: c.id, name: c.name }))} />
           <p className="mt-2 text-xs text-muted-foreground">
             Setting a target just adds a progress bar — it never blocks spending or judges a

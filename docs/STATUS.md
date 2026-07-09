@@ -2,6 +2,32 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Post-Phase-5: ROADMAP ALSO CONSIDER UX/a11y burn-down (DECISIONS #186)
+
+Resumed on "push, then continue" after the #171–#185 stack landed on `origin/main`
+(`cd77bad`). Opus/Sonnet-lane per COMPETITIVE_GAP_PLAN §3. A read-only audit found
+six of the ten ALSO CONSIDER items already built (#81/#89/#90/#166) and left stale
+in the plan — same hazard as #185. Shipped the four genuine remaining items
+(display/copy only, no engine/schema/money math):
+
+1. Spending-plan allocation legend (`spending-plan-legend`) under the four-segment bar.
+2. Dashboard overspent reframe: header "Over plan" + amount "Over plan by $X".
+3. Empty-register no-data vs no-match (`hasFilters` → branched `txn-empty` copy).
+4. Budgets no-target first-run hint (`budget-no-targets-hint` when `budgets.length === 0`).
+
+Docs reconciled (ROADMAP ALSO CONSIDER + COMPETITIVE_GAP_PLAN §2 + this file).
+E2E: legend labels; impossible-filter empty copy; hint visible→gone on budget set.
+No critic cycle (UI-only, #81/#175 class). Gate (real 2026-07-09):
+`bash scripts/verify.sh` → **✅ VERIFY GREEN** — tsc/eslint clean, **2039 unit /
+153 files**, build clean. Targeted e2e (spending-plan + transactions register +
+budget-targets) **4/4**. Full `VERIFY_E2E=1` still can't exit 0 on this Windows
+machine (mobile-380 flake — unrelated).
+
+**Remaining after #186:** owner-design-gated mobile secondary-nav redesign; env-gated
+live Plaid/SimpleFIN spot-checks + Gap 6 §2 error tracking + Gap 6 §4 Neon backups;
+Gap 5 benchmark line (market-data feed + holdings history); mobile-380 Playwright
+infra fix. No further unblocked ALSO CONSIDER items.
+
 ## Post-Phase-5 reconciliation: Gap 3 §1 is already built (DECISIONS #185, Competitive-Gap Gap 3 §1)
 
 Resumed on "continue" (Fable lane, #184 handoff). The plan §2 still listed "Gap 3 §1
@@ -31,12 +57,11 @@ critic cycle). No source touched → tsc/eslint/vitest/build unchanged from #184
 Gate (real output 2026-07-08): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — typecheck/lint
 clean, **2039 unit / 153 files**, build clean (see evidence in the commit).
 
-**Fable-lane in-session-verifiable backlog is now exhausted.** Genuine remaining work: the
-ROADMAP "ALSO CONSIDER" mechanical UX/a11y items (skip-to-content link, calendar-arrow
-aria-labels, triage-split 2nd-category preview, overspent "Safe to spend" reframe, iOS PWA
-safe-area, spending-plan legend) — all **Opus/Sonnet-lane** per §3 — plus env-gated (live
-Plaid/SimpleFIN spot-checks, Gap 6 §2 error-tracking DSN, Gap 6 §4 Neon backups) and the
-owner-design-gated mobile-nav redesign.
+**Fable-lane in-session-verifiable backlog is now exhausted.** ALSO CONSIDER mechanical
+UX/a11y list was the remaining Opus/Sonnet-lane work — **burned down in #186** (four
+genuine gaps shipped; six already-built items struck in ROADMAP). Remaining: env-gated
+(live Plaid/SimpleFIN spot-checks, Gap 6 §2 error-tracking DSN, Gap 6 §4 Neon backups)
+and the owner-design-gated mobile-nav redesign.
 
 ## Post-Phase-5 refinement: proactive-cron scheduling (DECISIONS #184, Competitive-Gap Gap 2 §2/§3)
 

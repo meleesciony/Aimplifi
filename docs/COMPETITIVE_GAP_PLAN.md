@@ -63,10 +63,10 @@ finance app a habit instead of a tool.
 > **True unblocked, in-session-verifiable remaining work:** ~~wire the two crons into
 > `vercel.json` (Gap 2)~~ **DONE #184**; ~~Gap 1 §4 sync-failure surfacing~~ **DONE #183**;
 > ~~Gap 3 §1 skeletons + delete confirmations~~ **DONE — reconciled as already-built #185**.
-> What genuinely remains: Gap 6 §2 error tracking (partially env-gated) and the ROADMAP
-> "ALSO CONSIDER" mechanical UX/a11y list (skip-to-content link, calendar-arrow aria-labels,
-> triage-split preview, overspent-"Safe to spend" reframe, iOS PWA safe-area, spending-plan
-> legend) — all **Opus/Sonnet-lane** per §3, not Fable. Everything else is owner/env-gated or done.
+> What genuinely remains: Gap 6 §2 error tracking (partially env-gated) and Gap 6 §4 Neon
+> backups. ~~ROADMAP "ALSO CONSIDER" mechanical UX/a11y list~~ **DONE #186** (four genuine
+> gaps shipped; six already-built items reconciled — see ROADMAP ALSO CONSIDER). Everything
+> else is owner/env-gated or done.
 
 
 ### Gap 1 — Live-data reliability (usefulness gate; everything else is downstream)

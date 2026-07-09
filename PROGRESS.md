@@ -1,5 +1,31 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-09 (resumed: "push, then continue") — push #171–#185 + #186 ALSO CONSIDER UX burn-down — DONE ✅
+
+Owner: "push, then continue." Pushed local main `83428e2..cd77bad` (16 commits, #171–#185)
+to `origin/main` — now matches HEAD. Then burned down ROADMAP ALSO CONSIDER (the only
+unblocked in-session work left after #185): audit found 6/10 already built; shipped the
+4 genuine gaps (spending-plan legend, overspent dashboard reframe, empty-register
+no-data/no-match, budgets no-target hint) + reconciled ROADMAP/STATUS/plan. No engine/
+schema. Gate (real): verify.sh ✅ GREEN, 2039 unit / 153 files; targeted e2e 4/4.
+Committing + pushing as #186 (owner authorized push this session).
+
+### HANDOFF (resume after /clear) — 2026-07-09, #186 DONE
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md + docs/lessons/INDEX.md first.
+**State:** #186 at HEAD on origin/main (pushed with the #171–#185 stack earlier this
+session, then this commit). Working tree should be clean aside from any owner-local
+untracked (`.cursor/`, `AGENTS.md` if still untracked).
+**Health baseline (re-confirm, don't trust):** core `bash scripts/verify.sh` → GREEN,
+2039 unit / 153 files; full `VERIFY_E2E=1` still can't exit 0 here (mobile-380 flake).
+**STANDING OWNER-ONLY:** Gap 1 §1–2 live Plaid/SimpleFIN walkthroughs; Gap 3 §2 mobile nav
+redesign (design input); Gap 5 benchmark (market-data + holdings history); Gap 6 §2/§4;
+mobile-380 Playwright infra; set `RESEND_API_KEY`/`VAPID_*` for delivery; Vercel Pro for
+weekly digest + 4-cron.
+**NEXT:** no further unblocked ALSO CONSIDER items. Next increments are owner/env-gated
+or the mobile-nav redesign. Check GitHub Actions `verify.yml` on the push (first CI
+full-e2e witness — was UNVERIFIED until the #171–#185 push).
+**SAFE to /clear.**
+
 ## 2026-07-05 (resumed: "push; then continue") — #165 transfer pair filing — DONE ✅ (verify green, critic 2 cycles, FULL e2e 75/75)
 Owner authorized the push (the #161–#164 stack + their CLAUDE.md/LOOP_ENGINEERING.md edits committed
 as docs, all now on origin/main through 9c05431), then picked "transfer-pairing for credit card paid"

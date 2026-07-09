@@ -44,6 +44,10 @@ export default async function TransactionsPage({
     from: from || null,
     to: to || null,
   };
+  // Same predicate as TransactionFilters.hasFilters — empty-register copy
+  // branches on it (ROADMAP ALSO CONSIDER / #186).
+  const hasFilters =
+    !!(search || account || category || from || to) || type !== 'all';
 
   const [{ rows, summary, accountOptions, pageInfo }, categoryGroups, withheld] = await Promise.all([
     getTransactions(session.user.id, filter, page),
@@ -87,7 +91,13 @@ export default async function TransactionsPage({
         categoryOptions={categoryGroups.flatMap((g) => g.categories)}
         current={{ search, account, category, type, from, to }}
       />
-      <TransactionList rows={rows} summary={summary} pageInfo={pageInfo} categoryGroups={categoryGroups} />
+      <TransactionList
+        rows={rows}
+        summary={summary}
+        pageInfo={pageInfo}
+        categoryGroups={categoryGroups}
+        hasFilters={hasFilters}
+      />
     </div>
   );
 }

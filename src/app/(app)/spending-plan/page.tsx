@@ -79,13 +79,36 @@ export default async function SpendingPlanPage() {
           )}
         </p>
 
-        {/* allocation bar */}
-        <div className="mt-5 flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+        {/* allocation bar + visible legend (ROADMAP ALSO CONSIDER / #186) —
+            title= tooltips alone are invisible on touch; label the four segments. */}
+        <div
+          className="mt-5 flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
+          role="img"
+          aria-label="Allocation of expected income: spent, upcoming bills, savings, left to spend"
+        >
           <div className="bg-rose-400/80" style={{ width: pct(p.spentSoFarCents) }} title="Spent" />
           <div className="bg-amber-400/80" style={{ width: pct(p.upcomingBillsCents) }} title="Upcoming bills" />
           <div className="bg-sky-400/80" style={{ width: pct(p.plannedSavingsCents) }} title="Savings" />
           <div className="bg-emerald-500/80" style={{ width: leftWidth }} title="Left to spend" />
         </div>
+        <ul
+          data-testid="spending-plan-legend"
+          className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground"
+        >
+          {(
+            [
+              { swatch: 'bg-rose-400/80', label: 'Spent' },
+              { swatch: 'bg-amber-400/80', label: 'Upcoming bills' },
+              { swatch: 'bg-sky-400/80', label: 'Savings' },
+              { swatch: 'bg-emerald-500/80', label: 'Left to spend' },
+            ] as const
+          ).map((item) => (
+            <li key={item.label} className="inline-flex items-center gap-1.5">
+              <span className={`size-2 shrink-0 rounded-full ${item.swatch}`} aria-hidden />
+              {item.label}
+            </li>
+          ))}
+        </ul>
       </section>
 
       {/* Breakdown */}

@@ -24,7 +24,10 @@ export function SafeToSpendCard({ plan }: { plan: SpendingPlan }) {
       className="block rounded-2xl border bg-card p-4 shadow-sm transition hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        <Gauge className="size-3.5" aria-hidden /> Safe to spend
+        <Gauge className="size-3.5" aria-hidden />
+        {/* ROADMAP COPY-1 / #186: when overspent, the header itself must not
+            still say "Safe to spend" above an overage — reframe both label and amount. */}
+        {ok || noData ? 'Safe to spend' : 'Over plan'}
       </div>
       {noData ? (
         <p className="mt-1.5 text-sm text-muted-foreground" data-testid="dashboard-safe-to-spend-empty">
@@ -32,13 +35,15 @@ export function SafeToSpendCard({ plan }: { plan: SpendingPlan }) {
         </p>
       ) : (
         <>
-          {/* Overspent reframe (ROADMAP COPY-1): "Over by $X" beats a bare
-              negative dollar under a "safe to spend" label. */}
           <p
             className={`mt-1.5 text-2xl font-bold tabular-nums ${ok ? 'text-foreground' : 'text-rose-500'}`}
             data-testid="dashboard-safe-to-spend-amount"
           >
-            {ok ? formatCents(cents(plan.leftToSpendCents)) : <>Over by {formatCents(cents(-plan.leftToSpendCents))}</>}
+            {ok ? (
+              formatCents(cents(plan.leftToSpendCents))
+            ) : (
+              <>Over plan by {formatCents(cents(-plan.leftToSpendCents))}</>
+            )}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {ok ? (

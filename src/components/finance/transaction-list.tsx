@@ -40,6 +40,7 @@ export function TransactionList({
   summary,
   pageInfo,
   categoryGroups = ASSIGNABLE_GROUPS,
+  hasFilters = false,
 }: {
   rows: TxnView[];
   summary: TxnSummary;
@@ -47,6 +48,9 @@ export function TransactionList({
   /** Two-level picker source; defaults to the full set, but the page passes the
    *  user's VISIBLE groups so hidden categories don't appear here (DECISIONS #110). */
   categoryGroups?: { group: string; categories: { id: string; name: string }[] }[];
+  /** True when any register filter is active — distinguishes "no data yet" from
+   *  "filters matched nothing" (ROADMAP ALSO CONSIDER / #186). */
+  hasFilters?: boolean;
 }) {
   const searchParams = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -248,7 +252,9 @@ export function TransactionList({
           data-testid="txn-empty"
         >
           <Receipt className="size-6" aria-hidden />
-          No transactions match these filters.
+          {hasFilters
+            ? 'No transactions match these filters.'
+            : 'No transactions yet. Add one, import a CSV, or connect an account.'}
         </div>
       ) : (
         groups.map((g) => (

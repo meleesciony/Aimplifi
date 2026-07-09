@@ -281,10 +281,15 @@ DO NEXT — **ALL DONE (reconciled #185 via a file:line audit; this list was sta
   `transaction-list.tsx:315-323` (Escape→close+refocus) + `:106-117` (mousedown click-away).
 - ~~An "Investments" nav entry~~ **DONE (#176-era)**.
 
-ALSO CONSIDER: distinguish empty-register states (no data vs no match); make the triage
-split flow usable (2nd category hardcoded to "Shopping", no preview); budgets first-run
-empty state; inline goal/budget amount validation (currently throws to the masked error
-boundary); calendar shortfall warning shown unconditionally; aria-labels on calendar
-arrows; skip-to-content link; iOS PWA safe-area; reframe overspent "Safe to spend" as
-"Over plan by $X"; spending-plan allocation legend. (Mobile nav redesign — 7 unlabeled
-icons, sub-44px targets — is a real issue but a rework of existing UI: scope with owner.)
+ALSO CONSIDER (reconciled #186 — code truth, not the 2026-06-24 note):
+- ~~distinguish empty-register states (no data vs no match)~~ **DONE #186**
+- ~~make the triage split flow usable (2nd category + preview)~~ **DONE #89** (shopping is a default, not a hard-lock)
+- ~~budgets first-run empty state~~ **DONE** zero-account `#87` + no-target hint **#186**
+- ~~inline goal/budget amount validation~~ **DONE #166 / #30** (field errors, never boundary)
+- ~~calendar shortfall warning shown unconditionally~~ **DONE** (gated on `shortfallDate` + recommendation)
+- ~~aria-labels on calendar arrows~~ **DONE #81**
+- ~~skip-to-content link~~ **DONE #81**
+- ~~iOS PWA safe-area~~ **DONE #90**
+- ~~reframe overspent "Safe to spend" as "Over plan by $X"~~ **DONE #186** (dashboard header + amount; /spending-plan already reframed)
+- ~~spending-plan allocation legend~~ **DONE #186**
+(Mobile nav redesign — 7 unlabeled icons, sub-44px targets — is a real issue but a rework of existing UI: scope with owner.)
