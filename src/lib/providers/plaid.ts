@@ -26,6 +26,7 @@ import { businessToday } from '@/lib/business-today';
 import { decryptToken, encryptToken } from '@/lib/crypto';
 import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
 import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
+import { safeSyncErrorReason } from '@/lib/providers/sync-status';
 import { loadUserRules } from '@/server/rules';
 import { refreshRecurringForUser } from '@/server/recurring';
 import {
@@ -291,6 +292,7 @@ export class PlaidProvider implements DataProvider {
   async syncTransactions(userId: string): Promise<SyncResult> {
     const items = await prisma.plaidItem.findMany({ where: { userId } });
     const rules = await loadUserRules(userId);
+    const today = this.today(userId); // stamp per-item sync success/failure (Gap 1 §4)
     let added = 0;
     let modified = 0;
     let removed = 0;
@@ -640,7 +642,11 @@ export class PlaidProvider implements DataProvider {
           });
         }
 
-        await prisma.plaidItem.update({ where: { id: item.id }, data: { cursor } });
+        // Success: advance the cursor AND clear any prior failure signal (Gap 1 §4).
+        await prisma.plaidItem.update({
+          where: { id: item.id },
+          data: { cursor, lastSyncedAt: today, lastSyncAttemptAt: today, lastSyncError: null },
+        });
         lastCursor = cursor ?? null;
       } catch (e) {
         // One item in an error state (e.g. ITEM_LOGIN_REQUIRED needing re-auth) must
@@ -654,6 +660,11 @@ export class PlaidProvider implements DataProvider {
               meta: JSON.stringify({ itemId: item.itemId, error: e instanceof Error ? e.message : String(e) }),
             },
           })
+          .catch(() => {});
+        // Gap 1 §4: persist a SANITIZED per-item failure signal (never the raw error) so
+        // this item surfaces a reconnect prompt; leave lastSyncedAt (last good data) intact.
+        await prisma.plaidItem
+          .update({ where: { id: item.id }, data: { lastSyncAttemptAt: today, lastSyncError: safeSyncErrorReason(e) } })
           .catch(() => {});
       }
     }

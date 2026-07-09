@@ -16,6 +16,7 @@ import { connectSimplefin, syncSimplefinNow } from '@/server/simplefin-actions';
 import { decryptToken } from '@/lib/crypto';
 import { isoDate, toEpochDays } from '@/lib/dates';
 import { prisma } from '@/lib/db';
+import { isSyncFailureReason } from '@/lib/providers/sync-status';
 
 const CLAIM_URL = 'https://claim.example/abc123';
 const SETUP_TOKEN = Buffer.from(CLAIM_URL, 'utf8').toString('base64');
@@ -225,5 +226,44 @@ describe('SimpleFIN connect + sync (real actions, mocked server)', () => {
     expect(r.ok).toBe(true);
     expect(r.added).toBe(1); // only the good row
     expect(await prisma.transaction.findFirst({ where: { providerRef: 'bad', account: { userId: USER } } })).toBeNull();
+  });
+
+  it('a failed sync persists a SANITIZED error signal and keeps the last-good date (Gap 1 §4)', async () => {
+    await connectSimplefin(SETUP_TOKEN); // 1st sync succeeds → lastSyncedAt set, no error
+    const healthy = await prisma.simpleFinConnection.findUnique({ where: { userId: USER } });
+    expect(healthy!.lastSyncedAt).toBe('2026-06-10');
+    expect(healthy!.lastSyncError).toBeNull();
+
+    // Next sync: the /accounts GET fails with a message that embeds the credential URL.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown, init?: { method?: string }) => {
+        if (init?.method === 'POST' && String(input) === CLAIM_URL) return { ok: true, status: 200, text: async () => ACCESS_URL } as Response;
+        if (String(input).startsWith('https://bridge.example/simplefin/accounts')) {
+          return { ok: false, status: 500, text: async () => `boom ${ACCESS_URL}`, json: async () => ({}) } as Response;
+        }
+        return { ok: false, status: 404 } as Response;
+      }),
+    );
+    const r = await syncSimplefinNow();
+    expect(r.ok).toBe(false);
+    expect(r.error).not.toContain('bridge.example'); // fixed message, no credential leak
+
+    const broken = await prisma.simpleFinConnection.findUnique({ where: { userId: USER } });
+    expect(broken!.lastSyncError).not.toBeNull();
+    expect(isSyncFailureReason(broken!.lastSyncError)).toBe(true); // an allow-listed reason…
+    expect(broken!.lastSyncError).not.toContain('bridge.example'); // …never the raw URL
+    expect(broken!.lastSyncedAt).toBe('2026-06-10'); // last GOOD data preserved
+    expect(broken!.lastSyncAttemptAt).toBe('2026-06-10'); // attempt recorded
+  });
+
+  it('a later successful sync clears the failure signal (Gap 1 §4)', async () => {
+    await connectSimplefin(SETUP_TOKEN);
+    // Force a broken state, then let the healthy mock (restored by beforeEach) sync.
+    await prisma.simpleFinConnection.update({ where: { userId: USER }, data: { lastSyncError: 'server' } });
+    const r = await syncSimplefinNow();
+    expect(r.ok).toBe(true);
+    const conn = await prisma.simpleFinConnection.findUnique({ where: { userId: USER } });
+    expect(conn!.lastSyncError).toBeNull(); // cleared on success
   });
 });

@@ -97,9 +97,11 @@ model HiddenCategory {
 model SimpleFinConnection {
   id           String   @id @default(cuid())
   userId       String   @unique
-  accessUrl    String // AES-256-GCM ciphertext (the URL carries the credentials)
-  lastSyncedAt String? // YYYY-MM-DD
-  createdAt    DateTime @default(now())
+  accessUrl        String // AES-256-GCM ciphertext (the URL carries the credentials)
+  lastSyncedAt     String? // YYYY-MM-DD — last SUCCESSFUL sync
+  lastSyncAttemptAt String? // YYYY-MM-DD — last attempt (success or failure)
+  lastSyncError    String? // sanitized SyncFailureReason on a failed attempt; null when healthy (Gap 1 §4)
+  createdAt        DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -115,6 +117,9 @@ model PlaidItem {
   accessToken String // AES-256-GCM ciphertext (see src/lib/crypto.ts)
   cursor      String? // /transactions/sync incremental cursor
   institution String?
+  lastSyncedAt      String? // YYYY-MM-DD — last SUCCESSFUL per-item sync (Gap 1 §4)
+  lastSyncAttemptAt String? // YYYY-MM-DD — last attempt (success or failure)
+  lastSyncError     String? // sanitized SyncFailureReason on a failed attempt; null when healthy
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

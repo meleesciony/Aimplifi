@@ -19,7 +19,14 @@
 import { prisma } from '@/lib/db';
 import { businessToday } from '@/lib/business-today';
 import { isoDate } from '@/lib/dates';
-import { type DataFreshnessSummary, mostRecentDate, summarizeDataFreshness } from '@/lib/engine/sync/health';
+import {
+  type ConnectionAlert,
+  type ConnectionHealthInput,
+  type DataFreshnessSummary,
+  mostRecentDate,
+  selectConnectionAlerts,
+  summarizeDataFreshness,
+} from '@/lib/engine/sync/health';
 
 /** Providers whose data arrives via an automated feed (so staleness is meaningful). */
 const LINKED_PROVIDERS = ['plaid', 'simplefin'];
@@ -47,4 +54,48 @@ export async function getDataFreshness(userId: string): Promise<DataFreshnessSum
     newest ? isoDate(newest.date) : null,
   );
   return summarizeDataFreshness(reference, today);
+}
+
+/**
+ * Reconnect alerts for the dashboard (Gap 1 §4). One per currently-broken linked
+ * connection across BOTH providers, derived only from the persisted `lastSyncError`
+ * signal — so a healthy or merely-quiet feed (and the demo user, who has neither
+ * connection row) yields an empty list. Ownership-scoped; the pure grading lives in
+ * engine/sync/health.ts.
+ */
+export async function getConnectionAlerts(userId: string): Promise<ConnectionAlert[]> {
+  const today = businessToday(userId);
+
+  const [sfConn, plaidItems] = await Promise.all([
+    prisma.simpleFinConnection.findUnique({
+      where: { userId },
+      select: { id: true, lastSyncAttemptAt: true, lastSyncError: true },
+    }),
+    prisma.plaidItem.findMany({
+      where: { userId },
+      select: { id: true, institution: true, lastSyncAttemptAt: true, lastSyncError: true },
+    }),
+  ]);
+
+  const inputs: ConnectionHealthInput[] = [];
+  if (sfConn) {
+    inputs.push({
+      connectionId: sfConn.id,
+      provider: 'SimpleFIN',
+      institution: null,
+      lastSyncAttemptAt: sfConn.lastSyncAttemptAt ? isoDate(sfConn.lastSyncAttemptAt) : null,
+      lastSyncError: sfConn.lastSyncError,
+    });
+  }
+  for (const item of plaidItems) {
+    inputs.push({
+      connectionId: item.id,
+      provider: 'Plaid',
+      institution: item.institution,
+      lastSyncAttemptAt: item.lastSyncAttemptAt ? isoDate(item.lastSyncAttemptAt) : null,
+      lastSyncError: item.lastSyncError,
+    });
+  }
+
+  return selectConnectionAlerts(inputs, today);
 }

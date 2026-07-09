@@ -2,13 +2,21 @@
  * Connection health / data-staleness classifier (Competitive-Gap plan, Gap 1 §3–4).
  *
  * A linked bank feed (SimpleFIN, Plaid) is only useful when it is *current*. This
- * pure module answers one question from data the app already has — "how long since
- * this connection last produced fresh data?" — and grades it fresh / stale /
- * very_stale / unknown. It NEVER asserts a connection is "broken": there is no
- * persisted sync-error signal to observe, so the honest claim is about data
- * *recency*, not connection state. Copy follows the coaching guardrail — a neutral
- * heads-up, no shame, and the reconnect nudge is phrased as "you may need to", not a
- * false certainty.
+ * pure module answers two questions from data the app already has:
+ *
+ *  1. *Recency* — "how long since this connection last produced fresh data?" — graded
+ *     fresh / stale / very_stale / unknown (`classifyFreshness` and friends).
+ *  2. *Connection state* — "did the last sync actually fail?" — graded ok / broken /
+ *     unknown (`classifyConnectionHealth`, Gap 1 §4).
+ *
+ * The state question is answered ONLY from a PERSISTED sync-error signal that the
+ * provider writes on a caught failure and CLEARS on every success — never inferred
+ * from recency. This is the no-fabrication rule at product scope: a "connection
+ * broken" claim shown to the user must trace to a real, recorded failure, not to a
+ * quiet feed that might simply have had no new activity. A stale-but-working feed is
+ * `stale`, not `broken`. The persisted reason is a sanitized label (never the raw
+ * provider error, which can carry a credentialed URL — #5), and the user-facing copy
+ * never echoes it. Copy follows the coaching guardrail — a neutral heads-up, no shame.
  *
  * No I/O, no `Date` — all arithmetic is integer day math via dates.ts, so the same
  * inputs classify identically on every machine and in every timezone.
@@ -157,4 +165,113 @@ export function perAccountFreshness(
     out[a.id] = classifyFreshness(mostRecentDate(a.newestTxnDate, a.connectionLastSyncedAt), today);
   }
   return out;
+}
+
+// ── Connection state: did the last sync actually fail? (Gap 1 §4) ──────────────────
+//
+// Distinct from freshness (above), which is about data age. This grades whether a
+// linked connection is currently in a FAILED state, and it does so from ONE signal
+// only: a persisted `lastSyncError` that the provider sets on a caught sync failure
+// and clears (to null) on the next success. `lastSyncError != null` is therefore an
+// exact, non-inferred statement that the most recent sync attempt failed — the only
+// honest basis for telling a user "reconnect". No recency heuristic ever promotes a
+// merely-stale feed to "broken".
+
+export type ConnectionState = 'ok' | 'broken' | 'unknown';
+
+export interface ConnectionHealthInput {
+  /** Stable id of the linked connection row (SimpleFinConnection.id / PlaidItem.id). */
+  connectionId: string;
+  /** Provider label for copy ("SimpleFIN", "Plaid"). */
+  provider: string;
+  /** Institution name when known (Plaid), else null — for a friendlier alert. */
+  institution: string | null;
+  /** When the last sync ATTEMPT ran (success or failure); null = never attempted. */
+  lastSyncAttemptAt: ISODate | null;
+  /** Sanitized reason recorded on the last FAILED attempt, cleared on success. Its
+   *  presence is the sole "broken" signal; its text is never shown to the user. */
+  lastSyncError: string | null;
+}
+
+export interface ConnectionHealthResult {
+  connectionId: string;
+  provider: string;
+  institution: string | null;
+  state: ConnectionState;
+  /** Whole days since the last attempt; null when never attempted. */
+  daysSinceAttempt: number | null;
+}
+
+/**
+ * Grade one connection: `broken` iff a failure is currently recorded, else `ok` if it
+ * has ever been attempted, else `unknown` (never synced). Recency is reported for copy
+ * only — it never changes the state.
+ */
+export function classifyConnectionHealth(
+  input: ConnectionHealthInput,
+  today: ISODate,
+): ConnectionHealthResult {
+  const daysSinceAttempt =
+    input.lastSyncAttemptAt == null ? null : Math.max(0, daysBetween(input.lastSyncAttemptAt, today));
+  const state: ConnectionState =
+    input.lastSyncError != null ? 'broken' : input.lastSyncAttemptAt == null ? 'unknown' : 'ok';
+  return {
+    connectionId: input.connectionId,
+    provider: input.provider,
+    institution: input.institution,
+    state,
+    daysSinceAttempt,
+  };
+}
+
+export interface ConnectionAlert {
+  connectionId: string;
+  provider: string;
+  institution: string | null;
+  daysSinceAttempt: number | null;
+  message: string;
+}
+
+/**
+ * The reconnect alerts to surface — one per currently-broken connection, provider then
+ * id order (deterministic). Healthy and never-synced connections yield nothing, so this
+ * is empty for the demo user and for any user whose feeds last synced cleanly.
+ */
+export function selectConnectionAlerts(
+  connections: readonly ConnectionHealthInput[],
+  today: ISODate,
+): ConnectionAlert[] {
+  const alerts: ConnectionAlert[] = [];
+  for (const c of connections) {
+    const h = classifyConnectionHealth(c, today);
+    if (h.state !== 'broken') continue;
+    alerts.push({
+      connectionId: h.connectionId,
+      provider: h.provider,
+      institution: h.institution,
+      daysSinceAttempt: h.daysSinceAttempt,
+      message: connectionAlertMessage(h),
+    });
+  }
+  return alerts.sort(
+    (a, b) => a.provider.localeCompare(b.provider) || a.connectionId.localeCompare(b.connectionId),
+  );
+}
+
+/**
+ * Guardrail-safe reconnect copy for a broken connection. States the fact (the sync
+ * failed) and the one action (reconnect on Accounts) without echoing the recorded
+ * error text or blaming the user. `daysSinceAttempt` softens the timing when known.
+ */
+export function connectionAlertMessage(h: ConnectionHealthResult): string {
+  const who = h.institution ? `${h.institution} (${h.provider})` : `${h.provider}`;
+  const when =
+    h.daysSinceAttempt == null
+      ? ''
+      : h.daysSinceAttempt === 0
+        ? ' in the latest sync'
+        : h.daysSinceAttempt === 1
+          ? ' since yesterday'
+          : ` for ${h.daysSinceAttempt} days`;
+  return `Your ${who} connection couldn't sync${when}. Reconnect it on the Accounts page so your numbers stay current.`;
 }

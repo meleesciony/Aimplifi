@@ -30,9 +30,11 @@ finance app a habit instead of a tool.
 > found this plan was written (2026-07-07) without noticing several listed "gaps" were
 > **already built**. Corrected state, so no future session rebuilds them:
 > - **Gap 1:** §3 connection-health UX **BUILT** (`engine/sync/health.ts`, dashboard
->   `StaleDataBanner`, per-account freshness #179). §1 live walkthroughs + §2 sync cron
->   remain **owner/env-gated** (tokens, `CRON_SECRET`). §4 sync-*failure* surfacing (vs
->   recency) is still **NOT BUILT**.
+>   `StaleDataBanner`, per-account freshness #179). §4 sync-*failure* surfacing (vs
+>   recency) **BUILT (#183)** — persisted `lastSyncError` signal on both connection models,
+>   pure broken/ok/unknown classifier, dashboard `ConnectionAlertsCard`. §1 live
+>   walkthroughs + §2 sync cron remain **owner/env-gated** (tokens, `CRON_SECRET`).
+>   **Gap 1 is now fully built except the owner/env-gated live spot-checks.**
 > - **Gap 2 (the "strategic build"):** §1 Cash Flow Radar **BUILT & surfaced** on the
 >   dashboard (`engine/radar/radar.ts`, `cash-flow-radar-card.tsx`). §2 web push **BUILT**
 >   (`lib/push.ts`, `/api/push/*`, `PushSubscription`, `PushOptIn`) + materiality filter
@@ -49,9 +51,9 @@ finance app a habit instead of a tool.
 >   skeletons + destructive-delete confirms **NOT BUILT**; §2 mobile nav **owner-design-gated**.
 >
 > **True unblocked, in-session-verifiable remaining work:** wire the two crons into
-> `vercel.json` (Gap 2); Gap 1 §4 sync-failure surfacing; Gap 3 §1 skeletons + delete
-> confirmations; Gap 6 §2 error tracking (partially env-gated). Everything else is
-> owner/env-gated or already done.
+> `vercel.json` (Gap 2); ~~Gap 1 §4 sync-failure surfacing~~ **DONE #183**; Gap 3 §1
+> skeletons + delete confirmations; Gap 6 §2 error tracking (partially env-gated).
+> Everything else is owner/env-gated or already done.
 
 
 ### Gap 1 — Live-data reliability (usefulness gate; everything else is downstream)

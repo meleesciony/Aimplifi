@@ -22,6 +22,8 @@ test('demo user (no linked feed) sees no staleness banner; /accounts shows the c
   // absence (the #141 anchor rule — never a layout element that flushes over a skeleton).
   await expect(page.getByTestId('net-worth-card')).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('stale-data-banner')).toHaveCount(0);
+  // Gap 1 §4: no connection ever failed for the demo user → no reconnect alert (no false alarm).
+  await expect(page.getByTestId('connection-alerts-card')).toHaveCount(0);
 
   await page.goto('/accounts');
   await expect(page.getByTestId('accounts-net-worth')).toBeVisible({ timeout: 20000 });
@@ -86,4 +88,39 @@ test('a linked account with month-old data surfaces the staleness banner + recon
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   expect(accountsAxe.violations).toEqual([]);
+});
+
+test('a connection whose last sync FAILED surfaces the dashboard reconnect alert (Gap 1 §4)', async ({ page }) => {
+  const email = `e2e-broken-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  const password = 'e2e-password-123';
+
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill(password);
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+  await expect(page.getByTestId('empty-dashboard')).toBeVisible();
+
+  // Put this user's SimpleFIN connection into a persisted FAILED state (guarded helper).
+  execSync(`npx tsx scripts/e2e-set-broken-connection.ts ${email}`, {
+    env: { ...process.env, DATABASE_URL: E2E_DB_URL },
+    stdio: 'inherit',
+  });
+
+  await page.goto('/dashboard');
+  const alert = page.getByTestId('connection-alerts-card');
+  await expect(alert).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('empty-dashboard')).toHaveCount(0);
+  await expect(alert).toContainText("couldn't sync");
+  await expect(alert).toContainText('Reconnect it on the Accounts page');
+  // The sanitized reason is a breadcrumb only — never shown to the user.
+  await expect(alert).not.toContainText('auth');
+  await expect(alert.getByRole('link', { name: 'Go to Accounts' })).toBeVisible();
+
+  // Axe on the destructive alert — the demo user never renders it, so phase5-a11y can't cover it.
+  const axe = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(axe.violations).toEqual([]);
 });

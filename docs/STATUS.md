@@ -2,6 +2,39 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Post-Phase-5 refinement: sync-failure surfacing (DECISIONS #183, Competitive-Gap Gap 1 §4)
+
+The connection-health engine graded data *recency* (#171/#179) but by design never
+claimed a connection was "broken" — there was no persisted sync-error signal to observe.
+This slice creates that signal and surfaces it as a dashboard reconnect alert. Nullable
+`lastSyncAttemptAt` + `lastSyncError` on `SimpleFinConnection`/`PlaidItem` (PlaidItem also
+gains `lastSyncedAt`); providers persist a SANITIZED reason (`safeSyncErrorReason` →
+allow-listed `{auth,timeout,network,server,unknown}`, never the raw error, which can carry
+the credentialed access URL — #5) on a caught sync failure and clear it on every success.
+Pure `classifyConnectionHealth`/`selectConnectionAlerts` grade `broken` IFF `lastSyncError
+!= null` — never inferred from recency — and `ConnectionAlertsCard` renders the reconnect
+prompt (message never echoes the recorded reason). Golden/demo-safe by construction (the
+demo user has no connection rows → zero alerts).
+
+Gate (real output 2026-07-08): `bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+typecheck/lint clean, **2036 unit / 152 files** (+26/+2), build clean; `connection-health`
+e2e **3/3** (broken-connection render + axe WCAG-AA + the demo count-0 negative). Full
+`VERIFY_E2E=1` still can't exit 0 on this Windows machine: the 4 failures are ALL the
+documented mobile-380 bottom-nav viewport flake (item #16 / lesson file), on flows where
+this card renders `null` (zero DOM added) — not a regression.
+
+Hostile Critic (fresh-context, refute-by-default): could not break claims 1–8
+(honesty/no-false-positive, no-credential-leak, recovery, non-masking, refactor-safety,
+golden-safety, multi-item-Plaid isolation, ownership). **1 P2 confirmed + FIXED:** the
+SimpleFIN success bookkeeping write sat inside the failure-catch, so a transient DB blip on
+that final write (after ingest committed) could persist a false "broken" alert
+(self-healing, but a false fact) → relocated the success write OUTSIDE the try, so only a
+real ingest failure can set the signal. **Accepted P2 (documented):** Plaid's per-item
+success write keeps the same merged-write shape; the identical self-healing edge is left
+as-is because the Plaid live path is UNVERIFIED (no sandbox creds) and adding control-flow
+to that untested loop for a self-healing edge is disproportionate — the SimpleFIN
+(verifiable) path is airtight.
+
 ## Phase 1 (complete — critic cycle 2 green)
 
 Hostile Critic cycle 1 verdict: FAIL (2× P1). Both fixed in cycle 2; the

@@ -11,6 +11,7 @@ import { CashFlowRadarCard } from '@/components/finance/cash-flow-radar-card';
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
 import { SpendingInsightsCard } from '@/components/finance/spending-insights-card';
 import { StaleDataBanner } from '@/components/finance/stale-data-banner';
+import { ConnectionAlertsCard } from '@/components/finance/connection-alerts-card';
 import { TopSpendingCard } from '@/components/finance/top-spending-card';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { StepIndicator } from '@/components/onboarding/step-indicator';
@@ -20,7 +21,7 @@ import { prisma } from '@/lib/db';
 import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
 import { getWithheldAccountSummary } from '@/server/transactions';
-import { getDataFreshness } from '@/server/connection-health';
+import { getConnectionAlerts, getDataFreshness } from '@/server/connection-health';
 import { getCashFlowRadar } from '@/server/radar';
 import { getRecurring } from '@/server/recurring';
 import { getReports } from '@/server/reports';
@@ -38,7 +39,7 @@ export default async function DashboardPage() {
   const accountCount = await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } });
   if (accountCount === 0) return <EmptyDashboard />;
 
-  const [data, coach, plan, reports, recurring, trends, withheld, freshness, radar] = await Promise.all([
+  const [data, coach, plan, reports, recurring, trends, withheld, freshness, connectionAlerts, radar] = await Promise.all([
     getDashboardData(session.user.id),
     getCoachData(session.user.id),
     getSpendingPlan(session.user.id),
@@ -47,6 +48,7 @@ export default async function DashboardPage() {
     getSpendingTrends(session.user.id),
     getWithheldAccountSummary(session.user.id),
     getDataFreshness(session.user.id),
+    getConnectionAlerts(session.user.id),
     getCashFlowRadar(session.user.id),
   ]);
 
@@ -103,6 +105,11 @@ export default async function DashboardPage() {
       {/* linked-feed staleness heads-up (Gap 1 §3–4): shows only when the auto-synced
           feed has gone quiet. Silent for fresh feeds, manual-only, and the demo user. */}
       <StaleDataBanner summary={freshness} />
+
+      {/* broken-connection alert (Gap 1 §4): a sync that actually FAILED — more urgent
+          than staleness, so it sits here at the top. Driven only by a persisted failure
+          signal, so it's silent for healthy feeds and the demo user (never a false alarm). */}
+      <ConnectionAlertsCard alerts={connectionAlerts} />
 
       {/* one-time setup nudge — only until a payment account is confirmed
           (dormant for the seeded demo user, who always has one) */}

@@ -16,6 +16,7 @@ import { type ISODate, addDays, isoDate, toEpochDays } from '@/lib/dates';
 import { decryptToken } from '@/lib/crypto';
 import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
 import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
+import { safeSyncErrorReason } from '@/lib/providers/sync-status';
 import { assistUnsureRows } from '@/server/categorize-assist';
 import { ensureCategories } from '@/server/ensure-categories';
 import { suggestCategoryViaLLM } from '@/server/llm-categorize';
@@ -354,6 +355,37 @@ export async function syncFromSimplefin(
   const conn = await prisma.simpleFinConnection.findUnique({ where: { userId } });
   if (!conn) return { added: 0, modified: 0, removed: 0, nextCursor: null };
 
+  let result: SyncResult;
+  try {
+    result = await runSimplefinSync(conn, userId, today, opts);
+  } catch (e) {
+    // Gap 1 §4: persist a SANITIZED failure signal so the dashboard can honestly say
+    // "reconnect". Never the raw error — it can carry the credential-bearing access URL
+    // (#5). lastSyncedAt is left untouched (the last GOOD data still stands). Best-effort:
+    // a failure recording that itself errors must not mask the original sync error.
+    await prisma.simpleFinConnection
+      .update({ where: { userId }, data: { lastSyncAttemptAt: today, lastSyncError: safeSyncErrorReason(e) } })
+      .catch(() => {});
+    throw e;
+  }
+
+  // Success bookkeeping runs OUTSIDE the failure-catch on purpose (Hostile Critic P2): the
+  // ingest has already committed, so if THIS write blips it must never be re-read as a sync
+  // failure and persist a false "broken" alert. Advance the last-good date and clear any
+  // prior failure signal; a failure here propagates (pre-existing) and self-heals next sync.
+  await prisma.simpleFinConnection.update({
+    where: { userId },
+    data: { lastSyncedAt: today, lastSyncAttemptAt: today, lastSyncError: null },
+  });
+  return result;
+}
+
+async function runSimplefinSync(
+  conn: { accessUrl: string; lastSyncedAt: string | null },
+  userId: string,
+  today: ISODate,
+  opts: { fullLookbackDays?: number },
+): Promise<SyncResult> {
   await ensureCategories(); // FK target for every txn.categoryId the categorizer emits (#63)
   const accessUrl = decryptToken(conn.accessUrl);
   const rules = await loadUserRules(userId);
@@ -655,7 +687,9 @@ export async function syncFromSimplefin(
   } catch {
     // derived projection — never fail the sync over it
   }
-  await prisma.simpleFinConnection.update({ where: { userId }, data: { lastSyncedAt: today } });
+  // Health bookkeeping (lastSyncedAt / lastSyncError) is done by the caller AFTER this
+  // returns, so a bookkeeping-write blip is never misrecorded as a sync failure (see
+  // syncFromSimplefin). This function's job ends at a committed ingest.
   return {
     added,
     modified,
