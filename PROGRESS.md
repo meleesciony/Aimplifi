@@ -2828,9 +2828,9 @@ Gate: verify GREEN 1855 unit; register-empty e2e 2/2.
 ## 2026-07-09 (cloud: "continue") — #174 Connect provider-first labels — DONE ✅
 
 SimpleFIN/Plaid buttons lead with provider name; bank-connections section on /accounts.
-E2E asserts distinct labels.
+Gate: verify GREEN 1855; accounts+SimpleFIN e2e 2/2. Witnessed Recharts width(-1) on /accounts.
 
 ### HANDOFF — 2026-07-09, #174 DONE
 **State:** #171–#174 on `cursor/category-mom-drilldown-fd9a` (PR #1).
-**NEXT:** #71 nav (owner); Recharts polish; #168 P3s; import-csv reset; SimpleFIN success UNVERIFIED.
+**NEXT:** Recharts width(-1) polish (witnessed); #71 nav (owner); #168 P3s; import-csv reset.
 **SAFE to /clear.**

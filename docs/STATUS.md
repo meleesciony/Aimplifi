@@ -2295,6 +2295,10 @@ Audit follow-up: adjacent SimpleFIN/Plaid buttons no longer share "Connect a ban
 `+ Connect with SimpleFIN` / `+ Connect with Plaid` + `bank-connections` section explainer.
 Empty-dashboard / settings / register no-data CTAs aligned. E2E distinct-label assertions.
 
+**Gate (real output 2026-07-09):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — **1855 unit /
+136 files**. Targeted e2e accounts+SimpleFIN **2/2** (also witnessed Recharts width(-1)
+console warning on /accounts — next slice).
+
 **OPEN / follow-ups:** (a) #71 nav redesign (owner-scoped); (b) Recharts pinned-tooltip/width(-1);
 (c) #168 P3s (multi-merchant "at A and B", page-scoped shared pending); (d) import-csv
 useActionState reset; (e) connect-simplefin success UNVERIFIED.
