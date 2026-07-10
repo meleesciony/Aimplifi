@@ -21,6 +21,7 @@ import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { MANUAL_ASSET_TYPES, MANUAL_LIABILITY_TYPES } from '@/lib/engine/networth/manual';
+import type { SuspectedDuplicatePair } from '@/lib/engine/account/duplicates';
 import { freshnessMessage } from '@/lib/engine/sync/health';
 import {
   addManualAccount,
@@ -243,6 +244,8 @@ export function AccountsList({ data }: { data: AccountsView }) {
         </p>
       )}
 
+      <DuplicateAccountsWarning pairs={data.duplicates} />
+
       <Group
         group={data.assets}
         title="Assets"
@@ -319,6 +322,69 @@ export function AccountsList({ data }: { data: AccountsView }) {
         a bank/credit account’s activity. Connecting a bank does all of this automatically.
       </p>
     </div>
+  );
+}
+
+const PROVIDER_LABEL: Record<string, string> = {
+  plaid: 'Plaid',
+  simplefin: 'SimpleFIN',
+  manual: 'Manual',
+  demo: 'Demo',
+};
+
+/**
+ * Advisory warning for suspected same-account-via-two-providers duplicates (DECISIONS #192).
+ * Display-only: the app has no cross-provider dedup, so a duplicate double-counts until the
+ * user disconnects one side (via the existing SimpleFIN disconnect / Plaid / manual-delete
+ * flows). Never auto-deletes — which side to keep is the user's call.
+ */
+function DuplicateAccountsWarning({ pairs }: { pairs: SuspectedDuplicatePair[] }) {
+  if (pairs.length === 0) return null;
+  const label = (p: { provider: string; mask: string | null }) =>
+    `${PROVIDER_LABEL[p.provider] ?? p.provider}${p.mask ? ` ····${p.mask}` : ''}`;
+  return (
+    <Card
+      data-testid="duplicate-accounts-warning"
+      className="border-amber-900/50 bg-amber-950/30"
+      role="alert"
+    >
+      <CardHeader className="pb-2">
+        <CardDescription className="text-amber-300">Possible duplicate accounts</CardDescription>
+        <CardTitle className="text-base">One account may be connected twice</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p className="text-muted-foreground">
+          These look like the same real account linked through two providers. Each connection is
+          counted separately, so a duplicate <strong>doubles</strong> that balance in your net worth
+          and its spending. Keep one and disconnect or delete the other.
+        </p>
+        <ul className="space-y-2" role="list">
+          {pairs.map((p) => (
+            <li
+              key={`${p.a.id}-${p.b.id}`}
+              data-testid="duplicate-pair"
+              className="rounded-md border border-amber-900/40 px-3 py-2"
+            >
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="font-medium">{p.a.name}</span>
+                <span className="text-xs text-muted-foreground">({label(p.a)})</span>
+                <span aria-hidden className="text-muted-foreground">
+                  ↔
+                </span>
+                <span className="font-medium">{p.b.name}</span>
+                <span className="text-xs text-muted-foreground">({label(p.b)})</span>
+                <span
+                  className={`ml-auto rounded px-1.5 py-0.5 text-xs ${p.confidence === 'high' ? 'bg-amber-900/60 text-amber-100' : 'bg-amber-900/30 text-amber-200'}`}
+                >
+                  {p.confidence === 'high' ? 'likely' : 'possible'}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{p.reasons.join(' · ')}</p>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 

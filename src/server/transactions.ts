@@ -9,6 +9,7 @@ import { isRuleEligibleMerchant } from '@/lib/engine/categorize/assign';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type NetWorthSeriesPoint, netWorthSeries } from '@/lib/engine/networth/series';
+import { type SuspectedDuplicatePair, detectDuplicateAccounts } from '@/lib/engine/account/duplicates';
 import {
   type WithheldAccountSummary,
   isSupportedCurrency,
@@ -138,6 +139,9 @@ export interface AccountsView extends AccountsSummary {
   simplefin: { connected: boolean; lastSyncedAt: string | null; health: FreshnessResult };
   /** What the currency guard withheld — drives the disclosure banner (#135 residual). */
   withheld: WithheldAccountSummary;
+  /** Suspected same-account-via-two-providers pairs (DECISIONS #192). Advisory only — the
+   *  app has no cross-provider dedup, so these double-count until the user disconnects one. */
+  duplicates: SuspectedDuplicatePair[];
 }
 
 /** Every account, grouped into assets vs liabilities with net worth + trend. */
@@ -238,6 +242,19 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     },
     // The unfiltered rows are already in hand, so the disclosure costs no extra query.
     withheld: summarizeWithheldAccounts(accounts),
+    // Computed over the accounts actually shown (same currency guard as the page), so the
+    // warning never references a hidden row. Advisory: the app has no cross-provider dedup.
+    duplicates: detectDuplicateAccounts(
+      supported.map((a) => ({
+        id: a.id,
+        provider: a.provider,
+        name: a.name,
+        type: a.type,
+        mask: a.mask,
+        currentBalanceCents: a.currentBalanceCents,
+        currency: a.currency,
+      })),
+    ),
   };
 }
 

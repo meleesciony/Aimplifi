@@ -2,6 +2,42 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 1.8: cross-provider duplicate-account guard (#192, DECISIONS #192)
+
+Answering the owner's "is running both Plaid and SimpleFIN redundant?" surfaced a real
+data-integrity gap: the app has **no cross-provider dedup**. Plaid, SimpleFIN, and manual
+entry each mint their own `Account` row, and transaction dedup is
+`@@unique([accountId, providerRef])` — scoped to one account and one provider's id scheme.
+So the SAME real account connected through two providers is stored twice and its
+balance/transactions double-count in net worth, spending, and cash-needed (verified against
+the ingest + `netWorthSeries` paths — no code matches a Plaid account to a SimpleFIN one).
+
+Shipped an **advisory** guard: pure `engine/account/duplicates.ts` (`detectDuplicateAccounts`)
+flags cross-provider pairs sharing account `type` + `currency` with ≥1 signal — matching
+last-4 (high), identical non-zero balance (high), or a shared distinctive name token (medium);
+`demo`/seed rows never compared; zero-balance token-less pairs never flagged. Surfaced as a
+**display-only** amber `role="alert"` card on /accounts (`duplicate-accounts-warning`) — it
+never auto-deletes (which side to keep is the user's call; they disconnect via existing flows),
+computed over the currency-guarded `supported` set so it never references a hidden row.
+Matching is heuristic by necessity (SimpleFIN carries no mask → no exact cross-provider key).
+
+Maker→Checker self-review (data-integrity display surface, non-destructive — proportionate to
+an inline hostile pass, not a multi-agent workflow): confirmed golden-safety (demo user is
+single-provider → zero pairs, integration-tested); no false positive on same-provider pairs
+(Plaid dedups within itself), different type/currency, or zero-balance empties; advisory-only
+so a false positive costs a dismissible card, never data loss. Accepted limitation (documented):
+purely heuristic — a user with two genuinely different accounts at the same bank with a shared
+name token gets a `medium` false-positive warning (safe: advisory, and the reason string shows
+exactly why); and two same-institution accounts renamed with no shared token + different
+balances would be missed (`low`-signal false negative). Both are acceptable for a warning.
+
+Gate (real 2026-07-09): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — tsc/eslint clean,
+**2085 unit / 158 files** (+14/+1: 12 known-answer engine + 2 real-`getAccountsView`
+integration incl. the demo-user=0 golden-safety control), build clean. No new Playwright spec
+(the demo user shows no warning by design; the positive path needs throwaway cross-provider
+rows, which the integration test drives against the real server view — the account-deletion
+precedent for a destructive/data-shaped flow proven by integration rather than browser e2e).
+
 ## Wave 0.4: live provider spot-checks — Plaid VERIFIED, SimpleFIN re-confirmed (#191)
 
 Ran the two provider validators live from the dev machine (egress to the providers

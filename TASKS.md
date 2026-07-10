@@ -57,6 +57,7 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done (verify green) · `
 | 1.5 | Route-specific empty states (coach/goals/calendar get their own framing instead of the shared EmptyDashboard card). | Cursor/Grok 4.5 | — | — | [ ] |
 | 1.6 | Glass-Box shareable snapshot (redacted PNG/clipboard of a reconciled trace; no live data leaves the client). | Cursor/Grok 4.5 UI; Opus review (privacy) | medium | 30k | [ ] |
 | 1.7 | Personalized triage alternatives: `suggestAlternatives` consults the user's Correction history before the generic list. Pure function change + tests. | Opus 4.8 | medium | 40k | [ ] |
+| 1.8 | **Cross-provider duplicate-account guard**: the app has no cross-provider dedup, so the same real account linked via both Plaid and SimpleFIN double-counts. Pure detector + advisory /accounts warning. | Opus 4.8 | medium | 60k | [x] done 2026-07-09 (#192, DECISIONS #192). `engine/account/duplicates.ts` + `duplicate-accounts-warning` card; display-only, never auto-deletes. 2085 unit / 158 files, verify green. |
 
 ## Wave 2 — Ask grows a memory (90 days)
 
