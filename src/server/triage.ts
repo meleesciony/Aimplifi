@@ -8,8 +8,9 @@ import { categoryName } from '@/lib/engine/categorize/categories';
 import { type ReviewRow, type TriageGroup, groupKey, groupReviewRows } from '@/lib/engine/categorize/group';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { categorize, suggestAlternatives } from '@/lib/engine/categorize/pipeline';
+import { deriveCorrectionHints } from '@/lib/engine/categorize/learn';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
-import { loadUserRules } from '@/server/rules';
+import { loadCorrectionInputs, loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { getCategoryMeta } from '@/server/category-meta';
 
@@ -80,7 +81,7 @@ export function similarTransactionsWhere(
 }
 
 export async function getTriageItems(userId: string): Promise<TriageItem[]> {
-  const [txns, rules, meta, tuning] = await Promise.all([
+  const [txns, rules, meta, tuning, corrections] = await Promise.all([
     prisma.transaction.findMany({
       // Currency guard (DECISIONS #135): a withheld non-USD account's rows must not appear in the
       // categorization inbox either (consistency with /accounts + the register).
@@ -98,6 +99,7 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
     loadUserRules(userId), // the user's own rules drive suggestions (cycle-1 C2)
     getCategoryMeta(userId), // a custom-category suggestion (via a user rule) resolves its name (#111)
     getThresholdTuning(userId), // suggestions use the same tuned boundary ingest does (#190)
+    loadCorrectionInputs(userId), // personalized swipe-left alternatives (#206)
   ]);
 
   const items: TriageItem[] = [];
@@ -115,12 +117,20 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
     const suggested = out.categoryId === 'uncategorized' ? bestGuess(t.amountCents) : out.categoryId;
     const aggregate = normalizeMerchant(t.rawDescriptor).aggregate;
     const ruleEligible = !aggregate;
-    const pool = suggestAlternatives({
-      rawDescriptor: t.rawDescriptor,
-      amountCents: t.amountCents,
-      date: t.date,
-      accountId: t.accountId,
-    });
+    const pool = suggestAlternatives(
+      {
+        rawDescriptor: t.rawDescriptor,
+        amountCents: t.amountCents,
+        date: t.date,
+        accountId: t.accountId,
+      },
+      {
+        personalized: deriveCorrectionHints(
+          { rawDescriptor: t.rawDescriptor, amountCents: t.amountCents },
+          corrections,
+        ),
+      },
+    );
     // always exactly 3 alternatives, never duplicating the suggestion
     const alts = [...new Set([...pool, 'dining', 'groceries', 'household', 'cash'])]
       .filter((c) => c !== suggested)
@@ -174,7 +184,7 @@ export interface TriageGroupView extends TriageGroup {
  * (which suggested 'Shopping' on 144/144 baseline cards).
  */
 export async function getTriageGroups(userId: string): Promise<TriageGroupView[]> {
-  const [txns, rules, meta, tuning] = await Promise.all([
+  const [txns, rules, meta, tuning, corrections] = await Promise.all([
     prisma.transaction.findMany({
       // Currency guard (DECISIONS #135): withheld non-USD rows never enter the inbox.
       // Transfer guard (#165): same exclusion as getTriageItems — queue and badge agree.
@@ -190,6 +200,7 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
     loadUserRules(userId),
     getCategoryMeta(userId),
     getThresholdTuning(userId), // suggestions use the same tuned boundary ingest does (#190)
+    loadCorrectionInputs(userId), // personalized swipe-left alternatives (#206)
   ]);
 
   const reviewRows: ReviewRow[] = txns.map((t) => {
@@ -216,12 +227,20 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
   return groupReviewRows(reviewRows).map((g) => {
     const anchor = anchors.get(g.anchorTransactionId);
     const pool = anchor
-      ? suggestAlternatives({
-          rawDescriptor: anchor.rawDescriptor,
-          amountCents: anchor.amountCents,
-          date: anchor.date,
-          accountId: anchor.accountId,
-        })
+      ? suggestAlternatives(
+          {
+            rawDescriptor: anchor.rawDescriptor,
+            amountCents: anchor.amountCents,
+            date: anchor.date,
+            accountId: anchor.accountId,
+          },
+          {
+            personalized: deriveCorrectionHints(
+              { rawDescriptor: anchor.rawDescriptor, amountCents: anchor.amountCents },
+              corrections,
+            ),
+          },
+        )
       : [];
     const alts = [...new Set([...pool, 'dining', 'groceries', 'household', 'cash'])]
       .filter((c) => c !== g.suggestedCategoryId)

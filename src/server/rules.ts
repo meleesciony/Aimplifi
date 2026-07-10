@@ -65,15 +65,11 @@ export async function loadExplicitUserRules(userId: string): Promise<RuleLike[]>
 }
 
 /**
- * Synthetic LEARNED rules derived from the user's correction history
- * (DECISIONS #161). The pure learner (engine/categorize/learn.ts) owns every
- * threshold + guard; this loader just joins each Correction to its transaction
- * (for the raw descriptor + amount the learner keys on) and hands over flat
- * rows. Corrections come back createdAt-ascending, so the array index is the
- * monotonic `seq` the learner uses for latest-correction-wins. A user with no
- * corrections (the demo seed) derives nothing — goldens stay byte-identical.
+ * Flat correction history for the pure learner / triage hints (DECISIONS #161,
+ * #206). Shared by `loadLearnedRules` and triage `suggestAlternatives`.
+ * Demo seed (zero corrections) returns [] — goldens stay byte-identical.
  */
-export async function loadLearnedRules(userId: string): Promise<RuleLike[]> {
+export async function loadCorrectionInputs(userId: string): Promise<LearnedCorrectionInput[]> {
   const corrections = await prisma.correction.findMany({
     where: { userId },
     orderBy: { createdAt: 'asc' },
@@ -99,7 +95,17 @@ export async function loadLearnedRules(userId: string): Promise<RuleLike[]> {
       amountCents: t.amountCents,
     });
   });
-  return deriveLearnedRules(inputs);
+  return inputs;
+}
+
+/**
+ * Synthetic LEARNED rules derived from the user's correction history
+ * (DECISIONS #161). The pure learner (engine/categorize/learn.ts) owns every
+ * threshold + guard; this loader just joins each Correction to its transaction
+ * and hands over flat rows.
+ */
+export async function loadLearnedRules(userId: string): Promise<RuleLike[]> {
+  return deriveLearnedRules(await loadCorrectionInputs(userId));
 }
 
 /**

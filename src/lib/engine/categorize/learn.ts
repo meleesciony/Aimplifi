@@ -136,6 +136,54 @@ export function deriveLearnedRules(corrections: readonly LearnedCorrectionInput[
 }
 
 /**
+ * Soft hints for triage swipe-left alternatives (TASKS 1.7 / DECISIONS #206).
+ *
+ * Same identity model as `deriveLearnedRules` (signature + latest-wins + sign
+ * guard), but threshold = 1: a single consistent correction is enough to
+ * surface that category early in `suggestAlternatives`. Conflicting categories
+ * for the same signature yield no hint (same as learnableCategory).
+ *
+ * Returns category ids ordered most-recent `seq` first. Empty when history
+ * does not support a hint for this txn — callers fall through to generics.
+ */
+export function deriveCorrectionHints(
+  txn: { rawDescriptor: string; amountCents: number },
+  corrections: readonly LearnedCorrectionInput[],
+): string[] {
+  if (corrections.length === 0) return [];
+  const targetSig = computeDescriptorSignature(txn.rawDescriptor);
+  if (!targetSig || !hasDistinguishingToken(targetSig)) return [];
+
+  const latestByTxn = new Map<string, LearnedCorrectionInput>();
+  for (const c of corrections) {
+    const cur = latestByTxn.get(c.transactionId);
+    if (!cur || c.seq > cur.seq) latestByTxn.set(c.transactionId, c);
+  }
+
+  // Matching intents for this signature, newest first.
+  const matches: LearnedCorrectionInput[] = [];
+  for (const c of latestByTxn.values()) {
+    if (c.isUndo) continue;
+    if (c.toCategoryId === 'uncategorized') continue;
+    if (computeDescriptorSignature(c.rawDescriptor) !== targetSig) continue;
+    matches.push(c);
+  }
+  matches.sort((a, b) => b.seq - a.seq);
+
+  if (matches.length === 0) return [];
+
+  const categories = new Set(matches.map((m) => m.toCategoryId));
+  if (categories.size !== 1) return []; // conflict → no preferred hint
+  const category = matches[0]!.toCategoryId;
+
+  // #44 sign guard against THIS txn (not the historical amounts).
+  if (isSpendCategory(category) && txn.amountCents > 0) return [];
+  if (isIncomeCategory(category) && txn.amountCents < 0) return [];
+
+  return [category];
+}
+
+/**
  * The category a group has EARNED, or null. Requires: exactly one target
  * category (a conflicting correction blocks learning), at least LEARN_THRESHOLD
  * distinct transactions, and the #44 sign guard (never learn an inflow into a

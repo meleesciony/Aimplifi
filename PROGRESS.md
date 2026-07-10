@@ -1,5 +1,17 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #206 personalized triage alternatives (TASKS 1.7) — DONE ✅
+
+`deriveCorrectionHints` + `suggestAlternatives({ personalized })` + triage
+wiring via `loadCorrectionInputs`. Demo/zero corrections unchanged.
+Gate: verify ✅ (suggest-alternatives 9 + full suite).
+
+### HANDOFF — 2026-07-10, #206 / TASKS 1.7 DONE
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** Wave 1.3 value receipts (Opus+Fable) or 4.2 household slice 1
+(Opus+Fable). Cron fire still UNVERIFIED.
+**SAFE to /clear.**
+
 ## 2026-07-10 — #205 savings-rate streaks (TASKS 1.4) + #204 Resend verified — DONE ✅
 
 Owner confirmed Resend domain + Delivered test (#204). Shipped Wave 1.4:

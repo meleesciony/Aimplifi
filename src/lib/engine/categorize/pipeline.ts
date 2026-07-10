@@ -310,7 +310,10 @@ export function categorize(
 }
 
 /** Top-3 alternative categories for the triage inbox's swipe-left flow. */
-export function suggestAlternatives(txn: TxnInput): string[] {
+export function suggestAlternatives(
+  txn: TxnInput,
+  opts?: { personalized?: readonly string[] },
+): string[] {
   const merchant = normalizeMerchant(txn.rawDescriptor);
   const base =
     merchant.categoryId !== 'uncategorized'
@@ -318,12 +321,13 @@ export function suggestAlternatives(txn: TxnInput): string[] {
       : txn.amountCents > 0
         ? ['income']
         : [];
+  const personalized = opts?.personalized ?? [];
   const generic =
     txn.amountCents > 0
       ? ['income', 'transfer', 'shopping']
       : ['shopping', 'dining', 'household', 'groceries'];
   const out: string[] = [];
-  for (const c of [...base, ...generic]) {
+  for (const c of [...base, ...personalized, ...generic]) {
     if (!out.includes(c)) out.push(c);
     if (out.length === 3) break;
   }
