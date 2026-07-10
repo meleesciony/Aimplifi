@@ -101,10 +101,14 @@ every future household surface. Details below.
   transaction. Instead the invariant is *recompute-from-scratch at read* (the learn.ts /
   tuning.ts idiom): `requireViewer()` self-heals — if the resolved household has members but
   no `owner`, the member with the earliest `joinedAt` (tie-break: lowest `userId`) is
-  promoted idempotently at read; a household with ZERO members is unreachable by
-  construction (every query enters via membership) and is reaped opportunistically
+  promoted idempotently at read; a household with ZERO members is invisible on every
+  member-scoped surface (every read enters via membership) and is reaped opportunistically
   (best-effort delete in household actions, the `maybePruneExpired` idiom — never a cron
-  dependency). `leaveHousehold`/`removeMember` still do their own bookkeeping inline
+  dependency). One honest edge (slice-1 critic F6): `acceptInvite` enters via inviteId, not
+  membership, so a pending invite CAN admit someone into a memberless "ghost" household if
+  both members departed concurrently and the best-effort reap lost its race — harmless by
+  the same invariant (departures already reset all share flags; the accepter is promoted to
+  owner of an empty household at next read), but "unreachable" is member-scoped reads only. `leaveHousehold`/`removeMember` still do their own bookkeeping inline
   (consent-reset + reap-if-empty), but correctness never depends on it: concurrent
   departures, crashes between steps, and account deletion all converge to a repaired state
   on the next read, deterministically. "No orphan rows" is thus replaced by the honest,
@@ -350,7 +354,7 @@ and mutations keep the viewer's own set; `getCategoryMeta` and its six callers a
 | T3 | No mutation can touch a partner's rows outside the slice-6 recategorize boundary (until slice 6 lands: none at all) | grep-lock: every `*-actions.ts` mutation keeps `userId` scope; integration: partner attempting mutation on shared account → not found; slice 6 updates both locks explicitly, never silently |
 | T4 | Leaving/removal ends visibility immediately AND resets the departed member's share flags | integration: leave → flags false, queries empty |
 | T5 | Credentials never cross: no Plaid/SimpleFIN token, connection row, or sync control is reachable for a partner's account | code-review lock + integration on /accounts connection sections |
-| T6 | Demo/golden untouched: demo user has no membership; all new tables empty; `'mine'` scope byte-identical | existing full golden e2e suite + a `visibleAccountsWhere` degeneracy unit |
+| T6 | Demo/golden untouched: demo user CANNOT hold a membership (guarded at create/accept/invite, not just unseeded); `'mine'` scope byte-identical | existing full golden e2e suite + demo-guard integration units + a `visibleAccountsWhere` degeneracy unit |
 | T7 | Invite cannot be accepted by anyone but the addressed, signed-in email; expired/revoked invites inert | unit (lazy expiry) + integration (wrong-email accept fails) |
 | T8 | Export contains only the exporter's own rows | extend existing export test with a household fixture |
 | T9 | Joint answer never counts an account twice (self-share, both-partners-share-same-real-bank via different providers); #192 detector input stays the owned set for a household viewer | merge unit: disjoint-by-account-id proof + detector-input-set unit |
@@ -359,8 +363,19 @@ and mutations keep the viewer's own set; `getCategoryMeta` and its six callers a
 | T12 | Invite redemption requires code possession: correct email + wrong/missing code always fails; attempts cap revokes; the plaintext code exists nowhere at rest | unit on the redemption gate + schema review (codeHash only) |
 
 Abuse controls: invite creation rate-limited (durable), `@@unique([householdId, email])`
-caps duplicates, expiry lazy-enforced. Enumeration: `acceptInvite` reveals nothing about
-other households (lookup is by invite id + session email match).
+caps duplicates, expiry lazy-enforced; a DECLINED invite is sticky for the life of its
+original window (re-invite refused until the declined invite's expiresAt passes), so "no"
+stops the settings-page nag without being a permanent dead-end (slice-1 critic F4).
+Enumeration: `acceptInvite` reveals nothing about other households — the redemption gate
+checks the EMAIL factor before disclosing anything about the accepter's own state
+('already_member' is reachable only by the addressed email; every other failure is one
+generic message), and only a CODE mismatch burns an attempt, so a stranger can neither
+probe invite liveness nor burn a victim's invite to revocation (slice-1 critic F2).
+
+Demo-user guard (T6 is a GUARD, not a seed accident — slice-1 critic F1): the demo login
+is shared and credential-free, so a demo membership would seat every anonymous visitor in
+a real user's household. `createHousehold` and `acceptInvite` refuse the demo user, and
+`inviteToHousehold` refuses the demo user's address, so no live invite row for it exists.
 
 ### 4.7 Golden/demo safety and migration
 

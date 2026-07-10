@@ -49,23 +49,24 @@ model User {
   // "today" means every stamp equals the last, so the demo gap is always 0 (no card).
   lastSeenDate      String?
 
-  accounts    Account[]
-  rules       CategorizationRule[]
-  goals       Goal[]
-  budgets     Budget[]
-  auditLogs   AuditLog[]
-  corrections Correction[]
-  recurring   RecurringSeries[]
-  plaidItems  PlaidItem[]
-  simplefin   SimpleFinConnection?
-  predictions CategoryPrediction[]
-  hiddenCategories HiddenCategory[]
-  customCategories Category[]
-  pushSubscriptions PushSubscription[]
-  notificationsSent NotificationSent[]
-  valueReceipts     ValueReceipt[]
-  unknownQuestions  UnknownQuestion[]
-  engagementEvents  EngagementEvent[]
+  accounts            Account[]
+  rules               CategorizationRule[]
+  goals               Goal[]
+  budgets             Budget[]
+  auditLogs           AuditLog[]
+  corrections         Correction[]
+  recurring           RecurringSeries[]
+  plaidItems          PlaidItem[]
+  simplefin           SimpleFinConnection?
+  predictions         CategoryPrediction[]
+  hiddenCategories    HiddenCategory[]
+  customCategories    Category[]
+  pushSubscriptions   PushSubscription[]
+  notificationsSent   NotificationSent[]
+  valueReceipts       ValueReceipt[]
+  unknownQuestions    UnknownQuestion[]
+  engagementEvents    EngagementEvent[]
+  householdMembership HouseholdMember? // v1: at most one household per user (HOUSEHOLD_ARCHITECTURE §4.1)
 }
 
 // PII-free deletion record (Gap 6 §3, docs/PRIVACY.md §Deletion). Deliberately has
@@ -105,13 +106,13 @@ model HiddenCategory {
 // URL embeds basic-auth credentials, so it is AES-256-GCM encrypted at rest
 // (src/lib/crypto.ts) — never plaintext, never logged. One connection per user.
 model SimpleFinConnection {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  accessUrl        String // AES-256-GCM ciphertext (the URL carries the credentials)
-  lastSyncedAt     String? // YYYY-MM-DD — last SUCCESSFUL sync
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  accessUrl         String // AES-256-GCM ciphertext (the URL carries the credentials)
+  lastSyncedAt      String? // YYYY-MM-DD — last SUCCESSFUL sync
   lastSyncAttemptAt String? // YYYY-MM-DD — last attempt (success or failure)
-  lastSyncError    String? // sanitized SyncFailureReason on a failed attempt; null when healthy (Gap 1 §4)
-  createdAt        DateTime @default(now())
+  lastSyncError     String? // sanitized SyncFailureReason on a failed attempt; null when healthy (Gap 1 §4)
+  createdAt         DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -121,16 +122,16 @@ model SimpleFinConnection {
 // the per-item /transactions/sync cursor. Replaces the v1 stopgap of packing
 // the token into Account.providerRef (ROADMAP #1).
 model PlaidItem {
-  id          String   @id @default(cuid())
-  userId      String
-  itemId      String   @unique
-  accessToken String // AES-256-GCM ciphertext (see src/lib/crypto.ts)
-  cursor      String? // /transactions/sync incremental cursor
-  institution String?
+  id                String   @id @default(cuid())
+  userId            String
+  itemId            String   @unique
+  accessToken       String // AES-256-GCM ciphertext (see src/lib/crypto.ts)
+  cursor            String? // /transactions/sync incremental cursor
+  institution       String?
   lastSyncedAt      String? // YYYY-MM-DD — last SUCCESSFUL per-item sync (Gap 1 §4)
   lastSyncAttemptAt String? // YYYY-MM-DD — last attempt (success or failure)
   lastSyncError     String? // sanitized SyncFailureReason on a failed attempt; null when healthy
-  createdAt   DateTime @default(now())
+  createdAt         DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -153,6 +154,7 @@ model Account {
   minimumPaymentCents   Int? // non-card LOAN/MORTGAGE: fixed monthly payment (cards use Statement.minimumPaymentCents)
   dueDayOfMonth         Int? // credit cards: issuer due day (e.g. 15, 28)
   cycleCloseDayOfMonth  Int? // credit cards: statement close day
+  sharedToHousehold     Boolean @default(false) // owner-consented read-only share into the owner's CURRENT household (HOUSEHOLD_ARCHITECTURE §4.1). Deliberately names no household: visibility requires BOTH this flag AND live membership, so departure ends visibility instantly. Inert until 4.2 slice 2 reads it.
 
   autopay      AutopayConfig?
   statements   Statement[]
@@ -172,13 +174,13 @@ model Account {
 // net worth; holdings are an optional, additive detail (they may not sum to the balance).
 // `quantity` is shares (may be fractional); priceCents/costBasisCents are integer cents.
 model Holding {
-  id             String   @id @default(cuid())
-  accountId      String
-  symbol         String
-  name           String?
-  quantity       Float // shares; may be fractional
-  costBasisCents Int // total invested, integer cents
-  priceCents     Int // current price per share, integer cents
+  id               String   @id @default(cuid())
+  accountId        String
+  symbol           String
+  name             String?
+  quantity         Float // shares; may be fractional
+  costBasisCents   Int // total invested, integer cents
+  priceCents       Int // current price per share, integer cents
   // Authoritative TOTAL market value, integer cents (DECISIONS #129, live-ingest
   // backlog #5). A brokerage feed reports a position's TOTAL market_value; deriving
   // it from a rounded per-share priceCents loses low-price / high-quantity lots (a
@@ -193,8 +195,8 @@ model Holding {
   // touches ONLY its own source='simplefin' rows — it never modifies (even on a
   // same-ticker collision) or deletes a source='manual' position, so a hand-entered
   // holding (and its cost basis) is never overwritten or wiped by the feed.
-  source         String   @default("manual")
-  updatedAt      DateTime @default(now())
+  source           String   @default("manual")
+  updatedAt        DateTime @default(now())
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
@@ -290,11 +292,11 @@ model MerchantPattern {
 }
 
 model Category {
-  id       String  @id @default(cuid())
-  name     String
-  parentId String?
-  icon     String?
-  isSystem Boolean @default(false)
+  id            String  @id @default(cuid())
+  name          String
+  parentId      String?
+  icon          String?
+  isSystem      Boolean @default(false)
   // Custom (user-created) categories (DECISIONS #111): userId set, isSystem=false,
   // carrying a parent `group` name + discretionary flag. System rows keep
   // userId=null (global) and resolve via the static CATEGORY_BY_ID map, so these
@@ -315,7 +317,7 @@ model Category {
 }
 
 model CategorizationRule {
-  id             String  @id @default(cuid())
+  id             String   @id @default(cuid())
   userId         String
   merchantId     String?
   minAmountCents Int? // contextual conditions — all optional, ANDed
@@ -359,9 +361,9 @@ model Correction {
 // (Brier) metric. actualCategoryId stays null until ground truth arrives
 // (a known-merchant seed label, or a user confirmation/correction).
 model CategoryPrediction {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   userId              String
-  transactionId       String   @unique
+  transactionId       String    @unique
   predictedCategoryId String
   confidenceBps       Int
   actualCategoryId    String? // null until confirmed/known
@@ -380,18 +382,18 @@ model CategoryPrediction {
 }
 
 model RecurringSeries {
-  id                 String  @id @default(cuid())
-  userId             String
-  merchantId         String
-  cadence            String // WEEKLY | BIWEEKLY | MONTHLY | ANNUAL | IRREGULAR
-  typicalAmountCents Int
-  lastAmountCents    Int
+  id                  String  @id @default(cuid())
+  userId              String
+  merchantId          String
+  cadence             String // WEEKLY | BIWEEKLY | MONTHLY | ANNUAL | IRREGULAR
+  typicalAmountCents  Int
+  lastAmountCents     Int
   previousAmountCents Int? // pre-price-change amount (old vs new, EDGE_CASES §Categorization)
-  possiblyUnused     Boolean @default(false) // heuristic — surfaced as a question, never an accusation
-  priceChangedAt     String? // YYYY-MM-DD
-  lastSeenAt         String // YYYY-MM-DD — drives "unused 90+ days"
-  nextExpectedAt     String? // YYYY-MM-DD
-  isSubscription     Boolean
+  possiblyUnused      Boolean @default(false) // heuristic — surfaced as a question, never an accusation
+  priceChangedAt      String? // YYYY-MM-DD
+  lastSeenAt          String // YYYY-MM-DD — drives "unused 90+ days"
+  nextExpectedAt      String? // YYYY-MM-DD
+  isSubscription      Boolean
 
   merchant Merchant @relation(fields: [merchantId], references: [id])
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -577,4 +579,56 @@ model EngagementEvent {
   @@index([userId])
   @@index([createdAt])
   @@index([userId, subjectKey])
+}
+
+// ---------------------------------------------------------------------------
+// Household mode (TASKS 4.2 slice 1, HOUSEHOLD_ARCHITECTURE.md §4.2 — verbatim
+// from the approved design doc). Additive only: the demo user joins no
+// household, all three tables start empty, and every existing query keeps its
+// userId scope, so demo/golden bytes are untouched by construction (T6).
+// ---------------------------------------------------------------------------
+
+model Household {
+  id        String   @id @default(cuid())
+  name      String // display name, e.g. "Our household"
+  createdAt DateTime @default(now())
+
+  members HouseholdMember[]
+  invites HouseholdInvite[]
+}
+
+model HouseholdMember {
+  id          String   @id @default(cuid())
+  householdId String
+  userId      String   @unique // v1: at most one household per user
+  role        String // 'owner' | 'partner'
+  joinedAt    DateTime @default(now())
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([householdId])
+}
+
+// Invite trust model (§4.3 rule 5): TWO factors — possession of a one-time code
+// (hashed at rest, attempt-capped) + a DB-row email match for the signed-in
+// accepter. No invite tokens in URLs. `expiresAt` is an operational timestamp
+// (NotificationSent.sentAt precedent), lazily expired at read — no stored
+// 'expired' status, no cron. `invitedById` is a plain string (no FK) so the
+// row survives inviter deletion, like DeletionRecord.
+model HouseholdInvite {
+  id          String   @id @default(cuid())
+  householdId String
+  email       String // normalized (normalizeEmail), the invitee's sign-in email
+  codeHash    String // hash of the one-time redemption code (never the code itself at rest)
+  invitedById String // acting member's userId (plain string, no FK)
+  status      String   @default("pending") // 'pending' | 'accepted' | 'declined' | 'revoked'
+  attempts    Int      @default(0) // failed redemption attempts (hard cap -> revoked)
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime // operational timestamp — lazy-expired at read
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, email])
+  @@index([email])
 }

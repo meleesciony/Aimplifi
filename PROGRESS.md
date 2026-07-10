@@ -1,5 +1,35 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #210 Household MVP slice 1: membership core (TASKS 4.2 §5.1) — DONE ✅
+
+Engine-first per HOUSEHOLD_ARCHITECTURE.md: §4.2 schema verbatim (3 tables +
+inert `Account.sharedToHousehold`), pure `engine/household/membership.ts`
+(two-factor redemption gate, lazy expiry, deterministic repair, role rules),
+`requireViewer()` self-heal (authz.ts), the 7 actions, `getHouseholdView`,
+/settings Household card (one-time code shown once, #167 recipe). Fresh-context
+Fable hostile critic on the state machine: **cycle 1 FAIL — 1 P1 + 3 P2, all
+fixed in-cycle** (demo-user guard = T6 as a GUARD; email-factor-first gate order
+kills the invite-liveness oracle + only code mismatches burn attempts;
+serializableTx pending-claim on accept kills the revoke-overwrite TOCTOU; sticky
+declines until window expiry) + P3s (converging cap-revoke, P2002-aware catches,
+`isValidEmail` on invites, honest entropy comment, doc reconciliation). Ledgers:
+DECISIONS #210, STATUS, PRIVACY §What-is-stored, TASKS 4.2 → [~] slice 1,
+HOUSEHOLD_ARCHITECTURE §4.1/§4.6 updated. Tests: 24 engine units + 19
+integration (real actions, throwaway users, T2/T4/T6/T7/T10/T11/T12 locks) +
+render-only e2e (demo empty state + axe AA).
+
+### HANDOFF — 2026-07-10, #210 / TASKS 4.2 slice 1 DONE
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md → CLAUDE.md →
+docs/lessons/INDEX.md, then TASKS.md.
+**NEXT:** 4.2 slice 2 — `visibleAccountsWhere` + degeneracy units + /accounts
+"Shared with you" as a SEPARATE query path (the #192 detector constraint, T9)
++ `setAccountShared` action (owner-only, requires live membership). Opus lane;
+Fable critic optional (helper is small but is THE confidentiality boundary —
+recommend a scoped critic on the helper + action only). Alternatives: 2.1
+conversation frame (Opus high + Fable), 3.2 weekly self-audit (Opus).
+Cron fire still UNVERIFIED (0.3).
+**SAFE to /clear.**
+
 ## 2026-07-10 — #209 EngagementEvent capture (TASKS 3.1) — DONE ✅
 
 Closed-set `EngagementEvent` + dashboard dismiss/expand/act hooks +

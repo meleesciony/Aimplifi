@@ -2,6 +2,21 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 4.2 slice 1: Household membership core (#210)
+
+Schema (3 tables + inert `Account.sharedToHousehold`), pure membership engine,
+`requireViewer()` lazy-repair self-heal, the 7 actions, /settings Household card.
+Fresh-context Fable critic cycle 1 FAIL (1 P1 + 3 P2) → all fixed in-cycle +
+re-verified (demo-user guard; enumeration-safe gate order; serializable accept
+claim; sticky declines). Known limitations (accepted, documented in DECISIONS
+#210): dev-fallback invite-code salt when AUTH_SECRET is absent (demo-mode
+zero-env rule; real deploys always have AUTH_SECRET); T11 concurrency locked by
+determinism units + scoped-updateMany construction, not a true concurrent probe;
+invite-existence timing oracle (cuid ids unguessable); ghost-household edge via
+acceptInvite after a lost double-leave reap race (harmless — flags already
+reset, accepter promoted at next read, still lazily reapable). Sharing UI +
+`visibleAccountsWhere` are slice 2 — the flag exists but NOTHING reads it yet.
+
 ## Wave 3.1: EngagementEvent capture (#209, TASKS 3.1)
 
 Additive `EngagementEvent` + closed-set validator + dashboard hooks

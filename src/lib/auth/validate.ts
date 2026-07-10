@@ -19,6 +19,12 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/** Same shape signup enforces — reused wherever an email is accepted (e.g.
+ * household invites), so an address that could never sign in is never stored. */
+export function isValidEmail(normalized: string): boolean {
+  return EMAIL_RE.test(normalized);
+}
+
 export function validateSignup(input: { email: string; password: string }): SignupOk | SignupErr {
   const errors: string[] = [];
   const email = normalizeEmail(input.email ?? '');

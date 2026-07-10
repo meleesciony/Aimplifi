@@ -5,12 +5,85 @@
  */
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
+import {
+  householdRepairAction,
+  type HouseholdRole,
+} from '@/lib/engine/household/membership';
 
 export async function requireUserId(): Promise<string> {
   const session = await auth();
   const id = session?.user?.id;
   if (!id) throw new Error('Unauthorized');
   return id;
+}
+
+export type Viewer = {
+  userId: string;
+  household: null | {
+    id: string;
+    name: string;
+    /** The VIEWER's role, post-repair. */
+    role: HouseholdRole;
+    memberIds: string[];
+  };
+};
+
+/**
+ * Resolves the session to viewer identity + household context in one query
+ * (HOUSEHOLD_ARCHITECTURE §4.3). Membership is evaluated per request against
+ * the DB, so removal/leave takes effect on the next query with no JWT work.
+ *
+ * SELF-HEAL (§4.1 lazy repair, T11): if the resolved household has members but
+ * no owner (the owner left, was deleted, or a crash interrupted bookkeeping),
+ * the deterministic promotion target (earliest joinedAt, tie-break lowest
+ * userId — pure `householdRepairAction`) is promoted idempotently here, at
+ * read. Concurrent readers compute the SAME target, so the updateMany
+ * converges. A zero-member household is unreachable through this path (the
+ * viewer IS a member) and is reaped opportunistically by the household actions.
+ */
+export async function requireViewer(): Promise<Viewer> {
+  const userId = await requireUserId();
+  const membership = await prisma.householdMember.findUnique({
+    where: { userId },
+    select: {
+      household: {
+        select: {
+          id: true,
+          name: true,
+          members: { select: { userId: true, role: true, joinedAt: true } },
+        },
+      },
+    },
+  });
+  if (!membership) return { userId, household: null };
+
+  let members = membership.household.members;
+  const repair = householdRepairAction(members);
+  if (repair.kind === 'promote') {
+    await prisma.householdMember.updateMany({
+      where: { householdId: membership.household.id, userId: repair.userId },
+      data: { role: 'owner' },
+    });
+    members = members.map((m) =>
+      m.userId === repair.userId ? { ...m, role: 'owner' } : m,
+    );
+  }
+
+  const mine = members.find((m) => m.userId === userId);
+  // Guaranteed present (members came from the same query snapshot as the
+  // viewer's own membership row) — the guard exists for type narrowing and
+  // fails CLOSED to "no household" if that invariant is ever broken.
+  if (!mine) return { userId, household: null };
+
+  return {
+    userId,
+    household: {
+      id: membership.household.id,
+      name: membership.household.name,
+      role: mine.role as HouseholdRole,
+      memberIds: members.map((m) => m.userId),
+    },
+  };
 }
 
 export async function auditLog(userId: string, action: string, meta: Record<string, unknown> = {}) {

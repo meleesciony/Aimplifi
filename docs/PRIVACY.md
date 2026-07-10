@@ -26,6 +26,15 @@ fictional dataset; everything below applies fully once Plaid is connected.
 - Delivered-notification dedup keys (`NotificationSent`): the stable key + timestamp
   of each push/digest actually delivered, kept so the same alert isn't re-sent
   (pruned after 120 days).
+- Household membership (`Household`/`HouseholdMember`/`HouseholdInvite`, 4.2 slice 1):
+  the household's display name, who belongs to it (role + joined date), and pending
+  invites — each invite stores the invitee's normalized sign-in email, the inviting
+  user's id, and a one-way salted hash of the one-time invite code (**the plaintext
+  code exists nowhere at rest** and is never emailed; it is shown once to the inviter
+  for out-of-band handoff). Members of the same household see each other's name and
+  sign-in email in Settings. Membership rows cascade on account deletion; leaving or
+  being removed resets every account-sharing consent the departing member had granted.
+  The shared demo account is guarded out of household membership entirely.
 - Plaid **access tokens, AES-256-GCM encrypted at rest** (`DATA_ENCRYPTION_KEY`,
   32 bytes) — applies to the dormant Plaid path; demo mode stores no tokens.
   Tokens are never logged and never sent to the client. Raw bank credentials

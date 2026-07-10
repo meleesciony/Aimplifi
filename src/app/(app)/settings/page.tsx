@@ -18,6 +18,8 @@ import { emailProviderConfigured } from '@/lib/email';
 import { errorTrackingConfigured } from '@/lib/errors';
 import { buildActivationChecklist, activationSummary } from '@/lib/engine/ops/activation';
 import { PushOptIn } from '@/components/settings/push-optin';
+import { HouseholdCard } from '@/components/settings/household-card';
+import { getHouseholdView } from '@/server/household';
 import { AccuracyMetrics } from '@/components/triage/accuracy-card';
 import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getThresholdTuning } from '@/server/tuning';
@@ -61,6 +63,7 @@ export default async function SettingsPage() {
       getCategorizationAccuracy(userId),
       getThresholdTuning(userId),
     ]);
+  const householdView = await getHouseholdView();
   if (!user) redirect('/sign-in');
 
   const customGroups = CUSTOM_CATEGORY_GROUPS;
@@ -256,6 +259,22 @@ export default async function SettingsPage() {
               </li>
             ))}
           </ul>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="household-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Money is a team sport — when you choose it to be</CardDescription>
+          <CardTitle className="text-base">Household</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground" data-testid="household-disclosure">
+            A household connects your account with a partner&apos;s. Membership alone shares
+            nothing: no partner can see any account, balance, or transaction of yours unless you
+            explicitly share it, and you can leave at any time — leaving ends anything you&apos;ve
+            shared.
+          </p>
+          <HouseholdCard view={householdView} />
         </CardContent>
       </Card>
 
