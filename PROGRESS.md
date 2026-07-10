@@ -1,5 +1,19 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — prod deploy confirmed (post-#211)
+
+`main` clean @ `20152fb` (#211) + `f420925` (#210). GitHub→Vercel auto-deploy
+**Ready** `dpl_Bg3XVz6u9rWrzEPYmgzrQVF4zizs` → aliases `aimplifi.app` /
+`www.aimplifi.app`. Build includes `/api/cron/audit` (Mon 15:00). Spot-check:
+`GET /api/cron/audit` → **401** (route live, secret-gated); `/sign-in` → 200.
+CLI `vercel --prod` upload failed once (empty Vercel error); git deploy is the
+source of truth. **Do not seed.** Cron *fire* still UNVERIFIED.
+
+### HANDOFF — 2026-07-10, deploy confirmed
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** 4.2 slice 2 `visibleAccountsWhere` (Opus), or 3.3 / 3.4.
+**SAFE to /clear.**
+
 ## 2026-07-10 — #211 weekly self-audit Critic (TASKS 3.2) — DONE ✅
 
 Pure rates + `SelfAuditSnapshot` + `/api/cron/audit` + AI-trust panel.
