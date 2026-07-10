@@ -38,6 +38,20 @@ test('answers a suggestion chip', async ({ page }) => {
   await expect(page.getByTestId('ask-headline')).toContainText('$144,804.74');
 });
 
+test('shows contextual follow-up chips after a spend answer and re-asks on click', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto('/ask');
+  // "this month" = June 2026 on the demo clock — biggest purchase is Costco $158.44.
+  await ask(page, 'How much did I spend on groceries this month?');
+  const chips = page.getByTestId('ask-follow-up');
+  await expect(chips).toHaveCount(3);
+  await chips.filter({ hasText: /biggest purchase/i }).click();
+  await expect(page.getByTestId('ask-answer')).toBeVisible();
+  await expect(page.getByTestId('ask-headline')).toContainText('Costco');
+});
+
 test('answers typed questions grounded in the seed', async ({ page }) => {
   await signIn(page);
   await page.goto('/ask');

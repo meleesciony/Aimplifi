@@ -55,7 +55,8 @@ export interface AssistantAnswer {
   facts: AssistantFact[];
   /** Where the full view lives, for "show me more" grounding. */
   source?: AssistantSource;
-  /** Follow-up question chips (used for the capabilities / unknown answer). */
+  /** Follow-up question chips — contextual per intent (#197) or the unknown
+   *  capabilities list from answerUnknown(). */
   suggestions?: string[];
   /** True when the routing came from the LLM classifier (an inference, not an
    *  exact phrase match) — surfaced in the UI so the guess is never silent. */

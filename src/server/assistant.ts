@@ -30,6 +30,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { mergeCategoryMeta, type CategoryMeta, type CustomCategoryInput } from '@/lib/engine/categorize/categories';
 import { getCustomCategories } from '@/server/category-meta';
 import { parseAssistantQuery, validateIntent, type AssistantIntent } from '@/lib/engine/assistant/intent';
+import { followUpQuestions } from '@/lib/engine/assistant/follow-ups';
 import { intentFromKind } from '@/lib/engine/assistant/llm';
 import { classifyIntentViaLLM } from '@/server/assistant-llm';
 import {
@@ -107,7 +108,12 @@ export async function askAssistant(rawQuestion: string): Promise<AssistantAnswer
   const snap = await provider.getFinanceSnapshot(userId);
 
   const answer = await buildAnswer(intent, snap, userId, today, meta);
-  return viaLlm ? { ...answer, interpreted: true } : answer;
+  // Contextual follow-up chips (TASKS 1.2 / #197): static intent→question map.
+  // unknown already carries ASSISTANT_SUGGESTIONS from answerUnknown().
+  const followUps = followUpQuestions(intent);
+  const withChips =
+    followUps.length > 0 ? { ...answer, suggestions: [...followUps] } : answer;
+  return viaLlm ? { ...withChips, interpreted: true } : withChips;
 }
 
 type FinanceSnapshot = Awaited<ReturnType<ReturnType<typeof getProvider>['getFinanceSnapshot']>>;

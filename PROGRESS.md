@@ -1,5 +1,17 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-09 — #197 Contextual Ask follow-up chips (TASKS 1.2) — DONE ✅
+
+Static `followUpQuestions(intent)` map → server merges onto `suggestions` →
+UI chips via existing plumbing. No new parsing. Fixed ISODate branding in
+unit test (`isoDate()`). Gate: verify ✅ 2113 unit / 162 files; ask.spec
+e2e 9/9 (incl. follow-up re-ask). Ledgers: DECISIONS/STATUS/TASKS #197.
+
+### HANDOFF — 2026-07-09, #197 / TASKS 1.2 DONE
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** Wave 1.3 value receipts, or Wave 0.3 deploy (owner keys per #196).
+**SAFE to /clear.**
+
 ## 2026-07-09 — #189 Prod error tracking (Gap 6 §2) — DONE ✅
 
 Owner: "continue with what's next" after #188 confirmed fixed. Next unblocked

@@ -2,6 +2,20 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 1.2: contextual Ask follow-up chips (#197, TASKS 1.2)
+
+After every non-unknown Ask answer, up to 3 contextual follow-up chips
+(static intent→full-NL-question map). Pure `engine/assistant/follow-ups.ts`
+(`followUpQuestions`); server merges onto `answer.suggestions`; UI reuses
+existing chip plumbing (`ask-follow-up`). No new parsing — every chip is a
+complete question the existing parser already routes. `unknown` keeps
+`ASSISTANT_SUGGESTIONS` from `answerUnknown`.
+
+Gate (real 2026-07-09): `bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+tsc/eslint clean, **2113 unit / 162 files** (+4/+1: assistant-follow-ups),
+build clean. Targeted e2e `ask.spec.ts` **9/9** (incl. new follow-up chips
+re-ask → Costco biggest-purchase). See DECISIONS #197.
+
 ## Wave 1.1: return-moment "Since you were away" greeting (#195, TASKS 1.1)
 
 First Wave-1 (return-loop) slice and the audit's highest-impact idea (idea 3,

@@ -195,13 +195,18 @@ export function AskView({
             )}
 
             {answer.suggestions && answer.suggestions.length > 0 && (
-              <ul className="mt-3 flex flex-wrap gap-2 border-t pt-3">
+              <ul
+                className="mt-3 flex flex-wrap gap-2 border-t pt-3"
+                aria-label="Follow-up questions"
+              >
                 {answer.suggestions.map((s) => (
                   <li key={s}>
                     <button
                       type="button"
+                      data-testid="ask-follow-up"
                       onClick={() => pick(s)}
-                      className="rounded-full border px-3 py-1 text-xs text-muted-foreground transition hover:border-foreground/30 hover:text-foreground"
+                      disabled={pending}
+                      className="rounded-full border px-3 py-1 text-xs text-muted-foreground transition hover:border-foreground/30 hover:text-foreground disabled:opacity-50"
                     >
                       {s}
                     </button>
