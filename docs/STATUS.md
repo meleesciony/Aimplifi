@@ -20,8 +20,11 @@ allowlist; merge filtering a full cross-user snapshot in memory) — all fixed i
 the doc, cycle-2 self-check no open P0/P1. Invariants T1–T12 each mapped to a
 future locking test; 6-slice MVP plan recorded in TASKS 4.2.
 
-Open (owner, non-blocking for slices 1–3): partner triage on shared accounts
-(v2 fork), household digest vs per-partner, UI naming ("Household"/"Partner").
+Owner answered all three open questions same day (DECISIONS #201): partner
+categorization YES (slice 6, single-teacher boundary — one-off recategorize,
+acting-user corrections, no partner rules, no prediction labeling, Fable
+critic); ONE joint household digest (slice 7); naming "Household". Slice plan
+is now 8 slices; design fully unblocked for TASKS 4.2.
 
 Gate (real 2026-07-10, docs-only — no source touched): `bash scripts/verify.sh`
 → **✅ VERIFY GREEN** — tsc/eslint clean, **2113 unit / 162 files**, build clean.

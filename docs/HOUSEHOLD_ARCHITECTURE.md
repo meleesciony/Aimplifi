@@ -1,6 +1,8 @@
 # HOUSEHOLD_ARCHITECTURE.md — household mode decision doc + schema design (TASKS 4.1)
 
-*Status: DESIGN APPROVED-PENDING-OWNER-REVIEW · 2026-07-10 · Fable 5 spike (DECISIONS #200).
+*Status: DESIGN APPROVED — owner reviewed and answered all three open questions 2026-07-10
+(DECISIONS #201: partner categorization YES, one joint digest, naming "Household") ·
+Fable 5 spike (DECISIONS #200).
 Scope of this doc: architecture decision + schema design ONLY — no product code ships with it.
 MVP implementation is TASKS 4.2, sliced at the end of this doc.*
 
@@ -29,7 +31,10 @@ Household is modeled as a **new entity with explicit membership and per-account,
 read-only sharing** — not as a tenant layer. Three additive tables (`Household`,
 `HouseholdMember`, `HouseholdInvite`) plus one additive Boolean on `Account`
 (`sharedToHousehold`, default `false`). Every existing row keeps its single owner; every
-existing query keeps its `userId` scope; **no existing write gains cross-user reach in v1**.
+existing query keeps its `userId` scope; **no existing write gains cross-user reach in the
+read-only core (slices 1–5)** — the one deliberate exception, partner recategorization on
+shared accounts, was owner-approved on 2026-07-10 (#201) and lands as its own
+Fable-critic'd slice under the §6.1 boundary.
 The only new read reach is through one central, unit-tested helper (`visibleAccountsWhere`)
 that a member's queries use to see partners' *shared* accounts. Joint cash-needed is a pure
 snapshot **merge** in the assembly layer — the Cash-Needed Engine itself is already pure over
@@ -105,11 +110,13 @@ every future household surface. Details below.
   on the next read, deterministically. "No orphan rows" is thus replaced by the honest,
   testable claim: *an ownerless household is repaired at next read; a memberless household
   is unreachable and lazily reaped.*
-- **Sharing is per-account, owner-only, opt-in, and read-only (v1):**
+- **Sharing is per-account, owner-only, opt-in, and read-only in the core (slices 1–5):**
   `Account.sharedToHousehold = true` set only by the account's owner via a new action. A
   shared account is *visible* (balances, statements, transactions, its role in joint
-  cash-needed) to fellow members. It is never *mutable* by them: every existing mutation
-  keeps its `userId` ownership scope unchanged.
+  cash-needed) to fellow members; every existing mutation keeps its `userId` ownership
+  scope unchanged through slice 5. The single approved write extension — partner
+  recategorization, slice 6 — is bounded by §6.1 (one-off only, acting-user attribution,
+  no rules, no prediction labeling).
 - **Visibility requires BOTH the flag and live membership.** The Boolean deliberately does
   not name a household: an account is shared "into the owner's current household."
   Membership ends → visibility ends instantly, with no cleanup step that can be forgotten
@@ -340,7 +347,7 @@ and mutations keep the viewer's own set; `getCategoryMeta` and its six callers a
 |---|-----------|----------------------|
 | T1 | A member never sees a partner's UNSHARED account (any surface, any fetcher) | integration: partner with 1 shared + 1 private account → private absent from accounts/transactions/cards/calendar/joint cash-needed |
 | T2 | A non-member never sees anything (flag set but membership absent/ended) | unit on `visibleAccountsWhere` + integration after `leaveHousehold` |
-| T3 | No existing mutation can touch a partner's rows | grep-lock: every `*-actions.ts` mutation keeps `userId` scope; integration: partner attempting mutation on shared account → not found |
+| T3 | No mutation can touch a partner's rows outside the slice-6 recategorize boundary (until slice 6 lands: none at all) | grep-lock: every `*-actions.ts` mutation keeps `userId` scope; integration: partner attempting mutation on shared account → not found; slice 6 updates both locks explicitly, never silently |
 | T4 | Leaving/removal ends visibility immediately AND resets the departed member's share flags | integration: leave → flags false, queries empty |
 | T5 | Credentials never cross: no Plaid/SimpleFIN token, connection row, or sync control is reachable for a partner's account | code-review lock + integration on /accounts connection sections |
 | T6 | Demo/golden untouched: demo user has no membership; all new tables empty; `'mine'` scope byte-identical | existing full golden e2e suite + a `visibleAccountsWhere` degeneracy unit |
@@ -387,24 +394,51 @@ other households (lookup is by invite id + session email match).
    assumptions copy. **Fable hostile critic (money surface).** (T9 + full pass.)
 5. **Cards/calendar household scope + copy audit** — dues across shared cards; guardrail
    scan of all new household copy. Sonnet-lane.
-6. **Full-surface hostile critic** — fresh-context Fable pass over T1–T10 with the
+6. **Partner categorization on shared accounts** (owner decision #201) — one-off
+   recategorize only, per the §6.1 boundary: acting-user-attributed corrections, no partner
+   rules, no batch, no prediction labeling. Touches categorization routing ⇒ **Fable
+   hostile critic.** (T3 narrows to "no partner mutation outside the recategorize path" —
+   its grep-lock and integration test are updated in this slice, not silently weakened.)
+7. **Joint household digest** (owner decision #201) — one email, household-scope content,
+   both partners receive it, personal digest retired for members only; joint copy enters
+   the guardrail scan set. Depends on slice 4's merge. Opus-lane.
+8. **Full-surface hostile critic** — fresh-context Fable pass over T1–T12 with the
    integration fixtures in place; REGRESSION_LEDGER entries for anything found.
 
-## 6. Open owner questions (none block slices 1–3)
+## 6. Owner decisions (ANSWERED 2026-07-10 — DECISIONS #201)
 
-1. **Partner triage (v2 fork):** should a partner eventually be able to categorize
-   transactions on a shared account? V1 says no (two-teachers problem: whose corrections
-   train whose rules; predictions are `transactionId @unique` per one user). If yes later,
-   the recorded design direction is: corrections stay attributed to the acting user;
-   ingest-time rule application stays owner-only; display prefers owner filing.
-2. **Household digest:** per-partner digests (v1, already true) or one joint email
-   covering shared accounts? Affects Vercel-Pro cron budget not at all (same sweep), but
-   needs joint-copy guardrails.
-3. **Naming/copy:** "Household" vs "Partner"/"Family" in UI copy (pure copy decision).
+1. **Partner categorization: YES** — a partner may categorize transactions on shared
+   accounts. Scheduled as slice 6 (below). Recorded design direction, preserving
+   single-teacher learning (the reason this was originally deferred):
+   - The transaction's `categoryId` is objective shared state — either partner may
+     recategorize a shared-account transaction; last write wins (same semantics as any
+     shared document; conflicts between two partners are a conversation, not a merge
+     algorithm).
+   - Every `Correction` row stays attributed to the **acting** user (audit trail honest).
+   - **Ingest-time rule application stays owner-only.** V1 of partner writes is one-off
+     recategorization only: no "Always" rules from a partner on the owner's accounts (a
+     partner-owned rule would never fire in the owner's ingest pipeline — offering the
+     consent prompt would be a lie), and no batch "apply to all similar" across the owner's
+     register. The triage UI on partner rows shows the one-off path only.
+   - The owner's `CategoryPrediction` row is **NOT** marked `labeledAt` by a partner's
+     correction — per-user Brier tuning (#190) stays single-teacher by construction. Honest
+     side-effect, documented: partner-corrected transactions contribute nothing to the
+     owner's accuracy panel.
+   - This touches categorization-routing semantics ⇒ the slice ends with a **Fable hostile
+     critic** per the TASKS routing rule.
+2. **Digest: ONE JOINT household digest** — household members receive a single joint email
+   (household-scope content: joint dues + shared-account movement, assumptions copy per
+   §4.4) instead of two per-partner digests; users with no household keep the personal
+   digest unchanged. Delivery/dedup mechanics stay per-user (`NotificationSent` key per
+   recipient; both partners receive the same joint content). Scheduled as slice 7; joint
+   copy passes the guardrail scan set.
+3. **Naming: "Household"** in all UI copy.
 
 ## 7. Explicitly deferred (v2+), with the reason
 
-- Partner writes / shared triage (two-teachers learning problem — question 1).
+- Partner "Always" rules / household-scoped rules and batch filing by partners (the
+  two-teachers problem returns the moment partner corrections can mint rules or label
+  predictions; needs its own design — see §6.1 for the v1 boundary).
 - Multi-household membership (drop the `userId` unique + picker UI; additive later).
 - Joint funding model for cash-needed (split "who pays" across two payment accounts).
 - Household-scope coach/reports/goals (per-partner is the shame-guardrail default; any

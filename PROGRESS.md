@@ -11,12 +11,14 @@ code+DB-email invites. Fresh-context Fable hostile critic cycle 1 FAIL
 (5 P1 / 5 P2 / 1 P3, all confirmed) → all fixed in doc. T1–T12 invariant→test
 map; 6-slice MVP plan in TASKS 4.2. Gate: verify ✅ GREEN 2113/162 (docs-only).
 
-### HANDOFF — 2026-07-10, #200 / TASKS 4.1 DONE
+### HANDOFF — 2026-07-10, #200 + #201 / TASKS 4.1 DONE, owner questions ANSWERED
 **Resume from `C:\dev\Aimplifi`.**
+Owner answered §6 same day (#201): partner categorization YES (slice 6,
+single-teacher boundary), ONE joint digest (slice 7), naming "Household".
+Slice plan now 8 slices; design fully unblocked.
 **NEXT:** 4.2 slice 1 membership core (Opus build + Fable critic), or Wave 1.3
 value receipts (Opus + Fable critic), or 1.4 streaks (Sonnet), or owner keys
-(`RESEND_API_KEY` ± `SENTRY_DSN`) to close 0.3. Owner review of the household
-doc's 3 open questions (§6) welcome but non-blocking for slices 1–3.
+(`RESEND_API_KEY` ± `SENTRY_DSN`) to close 0.3.
 **SAFE to /clear.**
 
 ## 2026-07-10 — #199 Route-specific empty states (TASKS 1.5) + #198 ledger — DONE ✅
