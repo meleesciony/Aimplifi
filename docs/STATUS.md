@@ -2,6 +2,38 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 0.2: local full-e2e unblocked — the "mobile-380 flake" was a masked deterministic bug (#193)
+
+Task 0.2 was scoped as "quarantine the mobile-380 viewport flake so local `VERIFY_E2E=1`
+can exit 0." Investigation found the premise was wrong: the recurring "full e2e can't
+exit 0 on this Windows machine" (reported across #183/#186/#187) was **not** the viewport
+flake — it was a **deterministic** `auth.spec.ts` failure hiding behind that attribution.
+
+Root cause: #182 ("Sign out of all devices" / multi-device session revocation) added a
+button (`revoke-sessions-submit`) on /settings whose accessible name **contains** "Sign
+out". `auth.spec.ts` ends its nav loop on /settings, then clicked a bare
+`getByRole('button', { name: 'Sign out' })` → Playwright **strict-mode violation** (2
+matches), on **every** run. #182 landed after auth.spec's last edit (#175) and never
+updated the now-ambiguous locator; the red gate was then written off as the known flake
+in three subsequent sessions. Fix: scope the click to the header form
+(`getByTestId('sign-out-form').getByRole('button', { name: 'Sign out' })`) — a **test-only**
+one-line change (the revoke button keeps its own render coverage in
+`account-deletion.spec.ts`; no product code touched).
+
+**No quarantine was needed.** Across three full `mobile-380` suite runs this session the
+viewport-interception flake did not reproduce (0 `intercepts pointer events` failures) —
+likely defused by the #187 nav redesign and/or Playwright 1.60.0. The lesson file is kept
+(intermittent flakes can recur) but annotated with this correction and a "read the error
+signature before blaming the flake" rule. Standing assumption is now: **full e2e exits 0
+here.** Maker→Checker: test-only, no golden/money/schema surface; verified no other spec
+carries the same bare `Sign out` locator (grep: only auth.spec, now scoped).
+
+Gate (real 2026-07-09): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+tsc/eslint clean, **2085 unit / 158 files**, build clean, **93 e2e passed** (first time the
+full gate incl. Playwright exits 0 on this machine). Two prior full runs same session: one
+green, one green-but-for the deterministic auth failure this fixes (0 viewport failures in
+either).
+
 ## Wave 1.8: cross-provider duplicate-account guard (#192, DECISIONS #192)
 
 Answering the owner's "is running both Plaid and SimpleFIN redundant?" surfaced a real

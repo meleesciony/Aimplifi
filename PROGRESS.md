@@ -3278,3 +3278,21 @@ TASKS.md routing:** Wave-0 0.2 (flake quarantine, Opus) unblocks local full-e2e;
 confirm surface (would give tuning positive evidence; today live labels are
 corrections-biased → tighten-only, documented in STATUS #190). Still owner-gated: deploy
 env vars (0.3), live provider spot-checks (0.4), Neon backups (0.6).
+
+### HANDOFF (resume after /clear) — 2026-07-09, #193 DONE (Wave 0.2), NOT yet pushed
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md → CLAUDE.md → docs/lessons/INDEX.md,
+then TASKS.md. **State:** #193 committed locally, **NOT pushed** (was clean-synced with
+origin `ef4616f` at session start; this adds one commit — push next). **What #193 did:**
+Wave 0.2 (flake quarantine) closed WITHOUT quarantine — the recurring "full VERIFY_E2E can't
+exit 0 here" was a MISDIAGNOSIS. Real cause: deterministic `auth.spec.ts` strict-mode locator
+bug from #182's "Sign out of all devices" button; scoped the locator → full gate green.
+**Health baseline (real, re-confirm don't trust):** `VERIFY_E2E=1 bash scripts/verify.sh`
+→ ✅ GREEN, 2085 unit / 158 files, build clean, **93 e2e passed** — full gate exits 0 on this
+machine now (3 full runs green this session, 0 viewport-flake recurrence). Standing assumption
+flipped: local full e2e is expected to exit 0; read the actual error signature before blaming
+the mobile-380 lesson. **Open non-owner items next (per TASKS.md):** 0.5 activation-checklist
+panel (Sonnet, recon done — 3 `…Configured()` helpers exist to aggregate); Wave-1 1.1 return
+moment (Opus), 1.3 value-receipts ledger (Opus build + Fable critic — money-adjacent copy),
+1.4 streaks (Sonnet), 1.7 personalized triage alternatives (Opus). **Still owner-gated:** 0.1
+confirm CI Actions run went green (gh unauth here — check Actions UI), 0.3 deploy env vars,
+0.6 Neon backups; live Plaid Link UI + webhook round-trip.

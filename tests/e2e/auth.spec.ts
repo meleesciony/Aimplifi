@@ -46,8 +46,11 @@ test('email/password sign-up → empty onboarding → sign out → sign back in'
     await expect(page.getByTestId('app-error'), `${path} should not crash`).toHaveCount(0);
   }
 
-  // Sign out.
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  // Sign out. Scope to the header sign-out form: since #182 the Settings page also
+  // renders a "Sign out of all devices" button (revoke-sessions-submit) whose
+  // accessible name contains "Sign out", so a bare getByRole here matches two
+  // elements (this spec's nav loop ends on /settings) — strict-mode violation.
+  await page.getByTestId('sign-out-form').getByRole('button', { name: 'Sign out' }).click();
   await page.waitForURL('**/sign-in', { timeout: 20000 });
 
   // Sign back in (form defaults to sign-in mode).

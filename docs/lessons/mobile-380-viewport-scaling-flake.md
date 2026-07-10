@@ -1,5 +1,23 @@
 # mobile-380 Playwright project: viewport-scaling e2e flake (this machine)
 
+> **CORRECTION 2026-07-09 (#193):** the recurring "full `VERIFY_E2E=1` can't exit 0 on
+> this machine" reported across #183/#186/#187 was NOT this flake — it was a DETERMINISTIC
+> failure hiding behind this lesson's name. #182 added a "Sign out of all devices" button
+> (`revoke-sessions-submit`) on /settings whose accessible name contains "Sign out";
+> `auth.spec.ts` ends its nav loop on /settings then clicked a bare
+> `getByRole('button', {name:'Sign out'})` → strict-mode violation (2 elements), every run.
+> Fixed by scoping to `getByTestId('sign-out-form')` (REGRESSION_LEDGER 2026-07-09). After
+> the fix, the full suite (93 tests) went green and `VERIFY_E2E=1 bash scripts/verify.sh`
+> exited 0 for the first time — across THREE full runs this session the viewport-interception
+> flake below did **not** reproduce (0 `intercepts pointer events` failures). Likely defused
+> by the #187 mobile-nav redesign (the failing clicks were on nav elements it restructured)
+> and/or Playwright 1.60.0. The lesson is KEPT (not deleted) because intermittent flakes can
+> recur and the diagnostic method is still valuable — but the standing assumption should now be
+> "full e2e exits 0 here." **Do NOT reflexively blame a red `mobile-380` gate on this flake:**
+> read the actual error signature first — `intercepts pointer events` is this flake; anything
+> else (strict-mode, assertion, timeout on a non-nav element) is a real bug. That reflex is
+> exactly what masked the auth regression for three sessions.
+
 **One-line summary:** on this Windows dev machine, the `mobile-380` Playwright project
 (`devices['Pixel 5']` + `viewport: {width:380, height:800}`) actually renders at ~425×895 CSS
 px — an ~11.8% mismatch — which makes clicks on the fixed bottom-nav bar and other
