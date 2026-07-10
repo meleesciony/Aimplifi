@@ -93,6 +93,8 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'dialTag', text: COACH_COPY.dialTag('Dining Out'), isProjection: false },
   { label: 'volatilityPrice', text: COACH_COPY.volatilityPrice(700), isProjection: true },
   { label: 'fifteenPercentReference', text: COACH_COPY.fifteenPercentReference(), isProjection: false },
+  { label: 'savingsStreak:3', text: COACH_COPY.savingsStreak(3, 2653), isProjection: false },
+  { label: 'savingsPersonalBest', text: COACH_COPY.savingsPersonalBest(3197, 'May 2026'), isProjection: false },
   { label: 'cushionIsAGoal', text: COACH_COPY.cushionIsAGoal(), isProjection: false },
   { label: 'assumptionsChange', text: COACH_COPY.assumptionsChange(), isProjection: false },
   { label: 'consciousSpending', text: COACH_COPY.consciousSpending(58, 14, 28), isProjection: false },

@@ -20,6 +20,8 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   // FI number present and formatted
   await expect(page.getByTestId('fi-number')).toContainText('$');
   await expect(page.getByTestId('savings-rate-amount')).toContainText('%');
+  // Wave 1.4: demo seed has consecutive positive full months → streak and/or PB line
+  await expect(page.getByTestId('savings-rate-streak').or(page.getByTestId('savings-rate-personal-best'))).toBeVisible();
 
   // interactive slider: dragging to a higher rate CHANGES the live caption
   const before = await page.getByTestId('slider-result').textContent();

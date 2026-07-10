@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/card';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { MonthlyFlow } from '@/lib/engine/fi/insights';
+import { computeSavingsStreak } from '@/lib/engine/fi/savings-streak';
 import { formatMonth } from '@/lib/dates';
 import { cents } from '@/lib/money';
 
@@ -30,6 +31,7 @@ export function SavingsRateCard({
   // the unspent gap of that same month — Housel's "invisible wealth"
   const lastFlow = recent.length ? recent[recent.length - 1] : null;
   const savedGapCents = lastFlow ? lastFlow.incomeCents - lastFlow.expensesCents : 0;
+  const streak = computeSavingsStreak(recent);
 
   return (
     <Card data-testid="savings-rate-card">
@@ -52,6 +54,16 @@ export function SavingsRateCard({
         {savedGapCents > 0 && (
           <p className="text-xs text-emerald-600 dark:text-emerald-400" data-testid="invisible-wealth">
             {COACH_COPY.invisibleWealth(cents(savedGapCents), monthLabel)}
+          </p>
+        )}
+        {streak.streakMonths >= 2 && streak.latestRateBps !== null && (
+          <p className="text-xs text-emerald-600 dark:text-emerald-400" data-testid="savings-rate-streak">
+            {COACH_COPY.savingsStreak(streak.streakMonths, streak.latestRateBps)}
+          </p>
+        )}
+        {streak.isPersonalBest && streak.latestRateBps !== null && monthLabel && (
+          <p className="text-xs text-muted-foreground" data-testid="savings-rate-personal-best">
+            {COACH_COPY.savingsPersonalBest(streak.latestRateBps, monthLabel)}
           </p>
         )}
       </CardHeader>

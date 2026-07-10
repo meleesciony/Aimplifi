@@ -147,6 +147,13 @@ export const COACH_COPY = {
   fifteenPercentReference: () =>
     `The dashed line marks 15% — a common savings-rate reference point for retirement, not a rule you're failing if you're under it.`,
 
+  // Wave 1.4 · habit mechanics — streak / personal best (educational, not a grade)
+  savingsStreak: (months: number, latestRateBps: number) =>
+    `${months} months in a row with a positive savings rate (latest ${pct1(latestRateBps)}). Consistency compounds — one month is weather; a streak is climate.`,
+
+  savingsPersonalBest: (rateBps: number, monthLabel: string) =>
+    `${monthLabel} is a personal best so far at ${pct1(rateBps)} — worth noticing, not a grade.`,
+
   // C2 · Housel — saving for its own sake is a goal; the cushion is room for error
   cushionIsAGoal: () =>
     `Saving with no specific goal is still a goal — an unallocated cushion is room for error, and room for error is wealth working quietly.`,

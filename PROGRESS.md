@@ -1,5 +1,17 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #205 savings-rate streaks (TASKS 1.4) + #204 Resend verified — DONE ✅
+
+Owner confirmed Resend domain + Delivered test (#204). Shipped Wave 1.4:
+`computeSavingsStreak` + COACH_COPY + SavingsRateCard streak/PB lines.
+Gate: verify ✅ **2127 unit**; phase3-coach e2e 1/1.
+
+### HANDOFF — 2026-07-10, #205 / TASKS 1.4 DONE
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** Wave 1.3 value receipts (Opus+Fable), 1.7 triage alternatives (Opus),
+or 4.2 household slice 1 (Opus+Fable). Cron fire still UNVERIFIED (0.3).
+**SAFE to /clear.**
+
 ## 2026-07-10 — #203 Sentry deferred (owner) + Resend live
 
 Owner: no Sentry DSN for now (cost; personal/family app). Recorded #203.

@@ -2,6 +2,19 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 1.4: savings-rate streaks + celebration copy (#205, TASKS 1.4)
+
+Pure `computeSavingsStreak` over existing `MonthlyFlow[]` (bps, no floats).
+COACH_COPY `savingsStreak` / `savingsPersonalBest` guardrail-registered.
+`SavingsRateCard` shows streak (≥2 months) and personal-best lines.
+Gate: verify ✅ (unit + coach-copy); phase3 e2e asserts streak or PB visible.
+
+## Wave 0.3: Resend domain verified (#204) — 2026-07-10
+
+Owner verified `aimplifi.app` in Resend (Vercel DNS) and confirmed a Delivered
+test to `michael.lee.p@gmail.com`. Email + digest env path is live. Cron *fire*
+still UNVERIFIED. Sentry remains deferred (#203).
+
 ## Wave 1.6: Glass-Box shareable snapshot (#202, TASKS 1.6)
 
 Client-only redacted share from the open reconciled Cash-Needed Glass-Box
