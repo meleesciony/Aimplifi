@@ -1,5 +1,20 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #198 Wave 0.3 partial env activation — DONE (partial) ✅
+
+Owner: "how do you not know there is a vercel project… Please connect all of
+those." Linked `C:\dev\Aimplifi` → `reiforge/aimplifi`. Inventory: Neon + auth +
+encryption + Plaid + XAI already live. Added Production `SIGNUP_ALLOWLIST`,
+`CRON_SECRET`, `VAPID_*`; redeploy READY (`dpl_7h8vU7LeEWoiUPjzLEH3N7aJGd9T`).
+Still need owner `RESEND_API_KEY` + `SENTRY_DSN`. Seed = skip (live account).
+
+### HANDOFF — 2026-07-10, #198 PARTIAL
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** Owner pastes `RESEND_API_KEY` (+ optional Sentry DSN) → agent sets +
+redeploys + verifies /settings Activation checklist + cron logs. Else Wave 1.5
+empty states (Grok) or 1.3 value receipts (Opus+Fable).
+**SAFE to /clear** after owner answers the two key questions (or defers them).
+
 ## 2026-07-09 — #197 Contextual Ask follow-up chips (TASKS 1.2) — DONE ✅
 
 Static `followUpQuestions(intent)` map → server merges onto `suggestions` →

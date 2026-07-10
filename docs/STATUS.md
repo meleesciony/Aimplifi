@@ -2,6 +2,35 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 0.3: production env activation (partial, #198) — 2026-07-10
+
+Linked local checkout to existing Vercel project `reiforge/aimplifi`
+(`prj_Zr3x9TKUklr2LRswwc1rqZR4lcRO`); prod already live at https://aimplifi.app
+(Neon `DATABASE_URL` + `AUTH_SECRET` + `DATA_ENCRYPTION_KEY` + Plaid + `XAI_API_KEY`
+were already set — this was never a greenfield deploy).
+
+**Added to Production (2026-07-10) and redeployed** (`dpl_7h8vU7LeEWoiUPjzLEH3N7aJGd9T`,
+READY, aliased to www.aimplifi.app):
+- `SIGNUP_ALLOWLIST=michael.lee.p@gmail.com` (owners still always allowed via
+  baked `OWNER_ALLOWLIST` incl. lizysuh55@gmail.com — DECISIONS #60)
+- `CRON_SECRET` (generated)
+- `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT=mailto:michael.lee.p@gmail.com`
+
+**Still missing (owner keys — cannot invent):**
+- `RESEND_API_KEY` (+ optional `REMINDER_FROM_EMAIL`; default From is
+  `Aimplifi <reminders@aimplifi.app>`) — email + digest stay dormant without it
+- `SENTRY_DSN` — error tracking stays dormant without it
+
+**Seed recommendation: DO NOT run `prisma db seed` / `--force-prod`.** Owner
+account is already active on the live Neon DB; seed deletes every row.
+
+**Cron fire verification:** schedule is in `vercel.json` (4 jobs); bearer secret
+now set. Actual Vercel Cron invocations = UNVERIFIED until a scheduled run is
+observed in Vercel logs (or a manual bearer-authenticated probe). Requires
+Vercel Pro for weekly digest + 4-cron count (Hobby is daily-only / 2-cron).
+
+See DECISIONS #198.
+
 ## Wave 1.2: contextual Ask follow-up chips (#197, TASKS 1.2)
 
 After every non-unknown Ask answer, up to 3 contextual follow-up chips
