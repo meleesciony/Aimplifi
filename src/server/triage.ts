@@ -99,7 +99,7 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
     loadUserRules(userId), // the user's own rules drive suggestions (cycle-1 C2)
     getCategoryMeta(userId), // a custom-category suggestion (via a user rule) resolves its name (#111)
     getThresholdTuning(userId), // suggestions use the same tuned boundary ingest does (#190)
-    loadCorrectionInputs(userId), // personalized swipe-left alternatives (#206)
+    loadCorrectionInputs(userId), // personalized swipe-left alternatives (#207)
   ]);
 
   const items: TriageItem[] = [];
@@ -200,7 +200,7 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
     loadUserRules(userId),
     getCategoryMeta(userId),
     getThresholdTuning(userId), // suggestions use the same tuned boundary ingest does (#190)
-    loadCorrectionInputs(userId), // personalized swipe-left alternatives (#206)
+    loadCorrectionInputs(userId), // personalized swipe-left alternatives (#207)
   ]);
 
   const reviewRows: ReviewRow[] = txns.map((t) => {

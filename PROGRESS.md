@@ -1,15 +1,16 @@
 # PROGRESS.md — session resume log
 
-## 2026-07-10 — #206 personalized triage alternatives (TASKS 1.7) — DONE ✅
+## 2026-07-10 — #207 personalized triage alternatives (TASKS 1.7) — DONE ✅
 
 `deriveCorrectionHints` + `suggestAlternatives({ personalized })` + triage
 wiring via `loadCorrectionInputs`. Demo/zero corrections unchanged.
-Gate: verify ✅ (suggest-alternatives 9 + full suite).
+(Renumbered from a colliding #206 — value-receipts already claimed #206.)
+Gate: verify ✅ **2179 unit**.
 
-### HANDOFF — 2026-07-10, #206 / TASKS 1.7 DONE
+### HANDOFF — 2026-07-10, #207 / TASKS 1.7 DONE
 **Resume from `C:\dev\Aimplifi`.**
-**NEXT:** Wave 1.3 value receipts (Opus+Fable) or 4.2 household slice 1
-(Opus+Fable). Cron fire still UNVERIFIED.
+**NEXT:** Wave 4.2 household slice 1 (Opus+Fable), or remaining Wave 1/2/3
+open rows. Cron fire still UNVERIFIED (0.3).
 **SAFE to /clear.**
 
 ## 2026-07-10 — #205 savings-rate streaks (TASKS 1.4) + #204 Resend verified — DONE ✅

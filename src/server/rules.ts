@@ -66,7 +66,7 @@ export async function loadExplicitUserRules(userId: string): Promise<RuleLike[]>
 
 /**
  * Flat correction history for the pure learner / triage hints (DECISIONS #161,
- * #206). Shared by `loadLearnedRules` and triage `suggestAlternatives`.
+ * #207). Shared by `loadLearnedRules` and triage `suggestAlternatives`.
  * Demo seed (zero corrections) returns [] — goldens stay byte-identical.
  */
 export async function loadCorrectionInputs(userId: string): Promise<LearnedCorrectionInput[]> {

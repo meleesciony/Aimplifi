@@ -2,6 +2,23 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 1.7: personalized triage alternatives (#207, TASKS 1.7)
+
+Soft hints for swipe-left: pure `deriveCorrectionHints` (same signature +
+latest-wins + #44 sign guard as learned rules; threshold = 1; conflicts → no
+hint). `suggestAlternatives(txn, { personalized })` merges base → personalized
+→ generic (cap 3). Server: `loadCorrectionInputs` shared with learned rules;
+`getTriageItems` / `getTriageGroups` pass hints. Demo/zero corrections → [] →
+byte-identical golden. No schema. Numbered #207 because #206 was claimed by
+value-receipts in a parallel session.
+
+Gate (real 2026-07-10): `bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+**2179 unit**. Known-answer tests in `suggest-alternatives.test.ts`.
+
+**Known limitations (accepted):** one consistent correction is enough to hint
+(earlier than LEARN_THRESHOLD=2 auto-rules); conflicting categories for a
+signature suppress the hint entirely (no majority vote).
+
 ## Wave 1.3: value-receipts ledger — "What Aimplifi caught" (#206, TASKS 1.3)
 
 Append-only `ValueReceipt` (additive; `@@unique([userId,key])`) + pure

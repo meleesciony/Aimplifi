@@ -1,5 +1,5 @@
 /**
- * Personalized triage alternatives (TASKS 1.7 / DECISIONS #206).
+ * Personalized triage alternatives (TASKS 1.7 / DECISIONS #207).
  * Correction history soft-hints swipe-left categories; empty history is golden.
  */
 import { describe, expect, it } from 'vitest';

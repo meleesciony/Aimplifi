@@ -136,7 +136,7 @@ export function deriveLearnedRules(corrections: readonly LearnedCorrectionInput[
 }
 
 /**
- * Soft hints for triage swipe-left alternatives (TASKS 1.7 / DECISIONS #206).
+ * Soft hints for triage swipe-left alternatives (TASKS 1.7 / DECISIONS #207).
  *
  * Same identity model as `deriveLearnedRules` (signature + latest-wins + sign
  * guard), but threshold = 1: a single consistent correction is enough to
