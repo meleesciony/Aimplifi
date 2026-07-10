@@ -2,6 +2,56 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 1.1: return-moment "Since you were away" greeting (#195, TASKS 1.1)
+
+First Wave-1 (return-loop) slice and the audit's highest-impact idea (idea 3,
+impact 9): a returning user after a >7-day gap is greeted with a short story of
+what happened while away, instead of being punished with a backlog (audit
+persona E). Composes FOUR already-computed pieces and originates no number.
+
+Pure composer `engine/return-moment/build.ts` (`buildReturnMoment`), mirroring
+`buildWeeklyDigest`: takes `daysSinceLastSeen` + the four pieces and returns a
+structured `ReturnMoment | null`. Null for a first-ever visit
+(`daysSinceLastSeen === null`) or a gap of ≤ 7 days; a quiet return still greets
+honestly (radar `clear`, zero counts) — the reassurance is the point. Every
+value is copied verbatim: radar clear/warning from the tested `RadarResult`,
+auto-filed count from a userId-scoped `CategoryPrediction` query, price bumps
+from `findOpportunities` (`kind:'price-increase'`), and one guardrail-scanned
+sentence from `MoneyReview.improvement`. No cents are formatted in the engine
+(formatCents stays a UI-boundary concern).
+
+Additive nullable schema `User.lastSeenDate String?` — a CALENDAR DATE (the
+provider's "today"), not a timestamp, per the date-discipline rule, so the gap
+is TZ-free and lives in the same civil-date domain as every other business date.
+Thin server `server/return-moment.ts` reads the stored date, measures the
+civil-day gap (`daysBetween`), stamps today (only when changed → no write
+amplification; short-circuits the count query below the threshold), and — on a
+real return — counts silently auto-filed predictions (`confidenceBps >=
+AUTO_SILENT_BPS`, `createdAt >=` the previous visit's midnight-UTC) then calls
+the engine with the page's ALREADY-fetched `coach.review` / `coach.opportunities`
+/ `radar.radar` (no re-fetch, no new money math). The dismissable
+`ReturnMomentCard` (which also self-retires once the visit stamps today) renders
+directly under THE cash-needed answer.
+
+Golden/demo-safe by construction: no engine reads `lastSeenDate`, and the
+fixed-today demo user's every stamp equals the last → gap always 0 → no card.
+Maker→Checker (proportionate inline pass — display-only surface + a benign
+last-seen write; no money/authz/routing): no P0/P1. Accepted P2s (documented):
+the auto-filed `since` boundary is midnight-UTC-approximate (a count, not money —
+errs toward inclusion); the card's own copy is not yet in the guardrail-scan set
+(trends-copy precedent); and the positive card RENDER is not browser-tested —
+proven by the engine + integration tests, since the shared fixed-today demo user
+can't seed a >7-day gap without racing the auto-stamp (the #192/#183 "positive
+path by integration, demo shows nothing by e2e" precedent).
+
+Gate (real 2026-07-09): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — tsc/eslint clean, **2109 unit / 161 files** (+17/+2: 9 known-answer
+engine — gate boundary, verbatim copy, honest-empty, no-mutation — and 8
+real-`getReturnMoment` integration — first-visit/active/7-day-boundary/10-day
+return/no-double-greet/silent-band count/price-increase filter/radar warning),
+build clean, **95 e2e** (+1: demo golden-safety — dashboard renders, no greeting,
+holds across a reload).
+
 ## Wave 0.1: CI arbiter confirmed GREEN (owner-verified, 2026-07-09)
 
 GitHub Actions had been **disabled** for the repo — which is why no run appeared for

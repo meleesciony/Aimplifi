@@ -24,6 +24,8 @@ import { getWithheldAccountSummary } from '@/server/transactions';
 import { getConnectionAlerts, getDataFreshness } from '@/server/connection-health';
 import { getCashFlowRadar } from '@/server/radar';
 import { getRecurring } from '@/server/recurring';
+import { getReturnMoment } from '@/server/return-moment';
+import { ReturnMomentCard } from '@/components/dashboard/return-moment-card';
 import { getReports } from '@/server/reports';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { getSpendingTrends } from '@/server/trends';
@@ -51,6 +53,17 @@ export default async function DashboardPage() {
     getConnectionAlerts(session.user.id),
     getCashFlowRadar(session.user.id),
   ]);
+
+  // Return moment (TASKS 1.1): "since you were away" greeting for a user back after
+  // a >7-day gap. Composes ALREADY-fetched pieces (coach review + opportunities,
+  // radar) — no re-fetch, no new money math — and stamps today as last-seen. Null
+  // (no card) for first visits, active users, and the fixed-today demo user.
+  const returnMoment = await getReturnMoment(session.user.id, {
+    today: radar.radar.today,
+    review: coach.review,
+    opportunities: coach.opportunities,
+    radar: radar.radar,
+  });
 
   // Single source of truth: the dashboard snapshot already carries the stored
   // payment-account id and every account, so the nudge needs no extra read.
@@ -97,6 +110,10 @@ export default async function DashboardPage() {
         today={data.today}
         transferSource={transferSource}
       />
+
+      {/* "Since you were away" greeting (TASKS 1.1) — sits right under THE answer.
+          Present only for a genuine return (>7-day gap); silent otherwise. */}
+      {returnMoment && <ReturnMomentCard moment={returnMoment} />}
 
       {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
           vanish silently. Renders nothing for all-USD users (the overwhelming case). */}

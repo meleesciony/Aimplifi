@@ -41,6 +41,13 @@ model User {
   retirementAge     Int? // planned retirement age; null → default 65
   endAge            Int? // plan-through age; null → default 95
   inflationBps      Int? // long-run inflation assumption, bps; null → default 250 (2.50%)
+  // Calendar date (YYYY-MM-DD, provider "today") of the user's last dashboard view,
+  // for the return-moment greeting (TASKS 1.1). A CALENDAR DATE, not a timestamp, per
+  // the date-discipline rule — so the gap is measured in the same civil-date domain as
+  // everything else and is TZ-free. null = never viewed (first-ever visit shows no
+  // greeting). Golden-safe: no engine reads it, and the demo user's fixed provider
+  // "today" means every stamp equals the last, so the demo gap is always 0 (no card).
+  lastSeenDate      String?
 
   accounts    Account[]
   rules       CategorizationRule[]
