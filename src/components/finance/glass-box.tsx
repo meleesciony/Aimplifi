@@ -10,6 +10,7 @@
 import { useId, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { CardTitle } from '@/components/ui/card';
+import { GlassBoxShare } from '@/components/finance/glass-box-share';
 import type { NumberTrace } from '@/lib/engine/glass-box/trace';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
@@ -114,6 +115,7 @@ export function GlassBoxNumber({
             {b}
           </p>
         ))}
+        <GlassBoxShare trace={trace} />
       </div>
     </>
   );

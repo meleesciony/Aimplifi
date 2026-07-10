@@ -1,5 +1,18 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #202 Glass-Box shareable snapshot (TASKS 1.6) — DONE ✅
+
+Client-only redacted share on reconciled Cash-Needed Glass-Box. Pure
+`redactTraceForShare` + clipboard/PNG (Canvas 2D, no third-party, no network).
+Gate: verify ✅ 2117/163; glass-box.spec 3/3 (incl. share redaction).
+
+### HANDOFF — 2026-07-10, #202 / TASKS 1.6 DONE
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** Owner `RESEND_API_KEY` (± Sentry) to finish 0.3; or Wave 1.3 value
+receipts / 1.4 streaks / 1.7 triage alternatives / 4.2 slice 1 (Opus+Fable).
+Optional: Opus privacy pass on #202.
+**SAFE to /clear.**
+
 ## 2026-07-10 — TASKS 4.1 Household architecture spike (#200, Fable lane) — DONE ✅
 
 Owner green-lit household (#196). Deliverable was decision doc + schema design

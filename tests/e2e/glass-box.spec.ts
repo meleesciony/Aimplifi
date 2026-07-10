@@ -63,6 +63,26 @@ test('dashboard cash-needed: tapping the number opens rows that sum to it exactl
   await expect(amount).toHaveAttribute('aria-expanded', 'false');
 });
 
+test('share snapshot is redacted and stays client-side', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await signIn(page);
+
+  await page.getByTestId('cash-needed-amount').click();
+  await expect(page.getByTestId('glass-box-panel')).toBeVisible();
+  await expect(page.getByTestId('glass-box-share')).toBeVisible();
+
+  // Live panel still shows real seed card names; the share TARGET must not.
+  await expect(page.getByTestId('glass-box-panel')).toContainText(/Platinum|Sapphire|Freedom/i);
+  const target = page.getByTestId('glass-box-share-target');
+  await expect(target).toContainText('Card 1');
+  await expect(target).toContainText('$5,412.33');
+  await expect(target).not.toContainText(/Platinum|Sapphire|Freedom/i);
+  await expect(target).toContainText('Nothing left this device');
+
+  await page.getByTestId('glass-box-share').click();
+  await expect(page.getByTestId('glass-box-share-status')).toContainText(/Copied|Saved/i);
+});
+
 test('spending plan: the four breakdown lines sum to "Left to spend" exactly', async ({ page }) => {
   await signIn(page);
   await page.goto('/spending-plan');

@@ -2,6 +2,18 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 1.6: Glass-Box shareable snapshot (#202, TASKS 1.6)
+
+Client-only redacted share from the open reconciled Cash-Needed Glass-Box
+panel. Pure `redactTraceForShare` / `formatShareText` (amounts unchanged;
+card names → Card N; notes stripped). UI copies text (+ best-effort PNG via
+Canvas 2D, no html2canvas) — no network. Share hidden when `!reconciles`.
+Gate: verify ✅ **2117 unit / 163 files** (+4/+1); glass-box.spec share case.
+
+**Privacy note:** Opus privacy review still recommended (TASKS routing) —
+inline check: no server path, share-target excludes live labels, clipboard
+fallback downloads .txt only.
+
 ## Wave 4.1: household architecture spike — decision doc landed (#200) — 2026-07-10
 
 `docs/HOUSEHOLD_ARCHITECTURE.md` (DECISIONS #200): household entity + explicit
