@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { Gauge } from 'lucide-react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
+import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 
 /**
  * Dashboard summary of the Spending Plan (DECISIONS #66) — the "safe to spend"
@@ -18,8 +18,9 @@ export function SafeToSpendCard({ plan }: { plan: SpendingPlan }) {
     plan.plannedSavingsCents === 0;
   const ok = !plan.overspent;
   return (
-    <Link
+    <TrackedActedLink
       href="/spending-plan"
+      subjectKey="safe-to-spend"
       data-testid="dashboard-safe-to-spend"
       className="block rounded-2xl border bg-card p-4 shadow-sm transition hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
@@ -57,6 +58,6 @@ export function SafeToSpendCard({ plan }: { plan: SpendingPlan }) {
           </p>
         </>
       )}
-    </Link>
+    </TrackedActedLink>
   );
 }

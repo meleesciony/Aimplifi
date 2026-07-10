@@ -18,6 +18,11 @@ fictional dataset; everything below applies fully once Plaid is connected.
   deterministic parser could not route (including ones the optional LLM later
   rescued) — emails/amounts/digits stripped before write. Feeds future vocabulary
   mining only; never used to answer or to compute money.
+- Engagement events (`EngagementEvent`, #209): first-party records of which
+  dashboard cards you view, dismiss, expand, or act on (closed-set card ids only —
+  no free text, no amounts, no third-party analytics). Stored so future adaptive
+  layout and notification cadence can learn from your attention; cascades on
+  account deletion.
 - Delivered-notification dedup keys (`NotificationSent`): the stable key + timestamp
   of each push/digest actually delivered, kept so the same alert isn't re-sent
   (pruned after 120 days).

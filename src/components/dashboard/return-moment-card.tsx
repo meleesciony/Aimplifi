@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { type ISODate, formatISODate } from '@/lib/dates';
 import { type Cents, formatCents } from '@/lib/money';
 import type { ReturnMoment } from '@/lib/engine/return-moment/build';
+import { logEngagement } from '@/server/engagement-actions';
 
 /**
  * "Since you were away" re-entry card (TASKS 1.1). Shown once when a user returns
@@ -16,11 +17,17 @@ import type { ReturnMoment } from '@/lib/engine/return-moment/build';
  *
  * Dismissable in the session; it also naturally stops appearing after this visit,
  * since loading the dashboard stamps today's date as the new last-seen.
+ * Engagement: viewed on mount + dismissed on "Got it" (TASKS 3.1).
  */
 const MAX_PRICE_ROWS = 3;
 
 export function ReturnMomentCard({ moment }: { moment: ReturnMoment }) {
   const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    void logEngagement({ surface: 'dashboard', verb: 'viewed', subjectKey: 'return-moment' });
+  }, []);
+
   if (dismissed) return null;
 
   const shownIncreases = moment.priceIncreases.slice(0, MAX_PRICE_ROWS);
@@ -69,7 +76,18 @@ export function ReturnMomentCard({ moment }: { moment: ReturnMoment }) {
         )}
 
         <div className="pt-1">
-          <Button variant="outline" size="sm" onClick={() => setDismissed(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void logEngagement({
+                surface: 'dashboard',
+                verb: 'dismissed',
+                subjectKey: 'return-moment',
+              });
+              setDismissed(true);
+            }}
+          >
             Got it
           </Button>
         </div>

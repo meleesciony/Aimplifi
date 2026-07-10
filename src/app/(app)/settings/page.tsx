@@ -207,6 +207,11 @@ export default async function SettingsPage() {
             transactions. This is how accurately it files them, scored against the categories you
             confirm.
           </p>
+          <p className="text-xs text-muted-foreground" data-testid="engagement-disclosure">
+            We also keep a first-party log of which dashboard cards you open, expand, or skip —
+            only to personalize layout and quiet ignored tips later. Nothing is sent to third-party
+            analytics; delete your account and the log goes with it.
+          </p>
         </CardContent>
       </Card>
 

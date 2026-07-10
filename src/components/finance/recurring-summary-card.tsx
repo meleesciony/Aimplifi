@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { Repeat, TrendingUp } from 'lucide-react';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
+import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 
 /**
  * Dashboard entry point for Recurring & subscriptions (DECISIONS #71): the
@@ -16,8 +16,9 @@ export function RecurringSummaryCard({ summary }: { summary: RecurringSummary })
   )[0];
 
   return (
-    <Link
+    <TrackedActedLink
       href="/recurring"
+      subjectKey="recurring-summary"
       data-testid="dashboard-recurring"
       className="block rounded-2xl border bg-card p-4 shadow-sm transition hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
@@ -58,6 +59,6 @@ export function RecurringSummaryCard({ summary }: { summary: RecurringSummary })
           </p>
         </>
       )}
-    </Link>
+    </TrackedActedLink>
   );
 }

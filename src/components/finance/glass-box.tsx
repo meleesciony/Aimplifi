@@ -14,16 +14,21 @@ import { GlassBoxShare } from '@/components/finance/glass-box-share';
 import type { NumberTrace } from '@/lib/engine/glass-box/trace';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
+import { logEngagement } from '@/server/engagement-actions';
+import type { EngagementSubjectKey } from '@/lib/engine/engagement/event';
 
 export function GlassBoxNumber({
   trace,
   amountTestId,
   amountClassName,
+  engagementSubjectKey,
   children,
 }: {
   trace: NumberTrace;
   amountTestId: string;
   amountClassName?: string;
+  /** When set, opening the panel records an `expanded` engagement event (TASKS 3.1). */
+  engagementSubjectKey?: EngagementSubjectKey;
   /** Caption rendered between the number and the (toggleable) panel. */
   children?: ReactNode;
 }) {
@@ -35,7 +40,19 @@ export function GlassBoxNumber({
       <CardTitle className={amountClassName}>
         <button
           type="button"
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => {
+            setOpen((o) => {
+              const next = !o;
+              if (next && engagementSubjectKey) {
+                void logEngagement({
+                  surface: 'dashboard',
+                  verb: 'expanded',
+                  subjectKey: engagementSubjectKey,
+                });
+              }
+              return next;
+            });
+          }}
           aria-expanded={open}
           aria-controls={panelId}
           aria-label={`${formatCents(trace.headlineCents)} — show what this number is made of`}

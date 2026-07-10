@@ -73,7 +73,7 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done (verify green) · `
 
 | # | Task | Owner/Agent | Effort | Est. budget | Status |
 |---|------|-------------|--------|------------|--------|
-| 3.1 | EngagementEvent capture: one generic additive table + thin record hooks on card view/dismiss/expand/act. First-party only, user-visible, no third-party analytics. | Opus 4.8 | medium | 60k | [ ] |
+| 3.1 | EngagementEvent capture: one generic additive table + thin record hooks on card view/dismiss/expand/act. First-party only, user-visible, no third-party analytics. | Opus 4.8 | medium | 60k | [x] done 2026-07-10 (#209). Closed-set `EngagementEvent` + `logEngagement` hooks on dashboard dismiss/expand/act; PRIVACY + AI-trust disclosure; writes-only (3.3 reads later). |
 | 3.2 | Weekly self-audit snapshot (cron): per-user review-rate, unknown-rate, alert act-rate → metrics table, surfaced on the AI-trust panel (#177). This is the Critic that gates every other loop. | Opus 4.8 | medium | 60k | [ ] |
 | 3.3 | Adaptive dashboard order: derive card weights from EngagementEvent at read time (learn.ts idiom — recompute-from-scratch, no ratchet); chronically-ignored cards collapse behind "More". Critical alerts never demotable. | Opus 4.8 build; Cursor/Grok UI | medium | 80k | [ ] |
 | 3.4 | Tenure/tone coach-copy variants: pre-written COACH_COPY variants (guardrail-test-scanned) selected by tenure bucket + dismissal history. Runtime picks *which approved sentence*, never what it says. | Sonnet (variants) + Opus (selector) | medium | 60k | [ ] |

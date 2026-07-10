@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import { ArrowRight, Sparkles } from 'lucide-react';
+import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 
 /**
  * Dashboard entry to Ask Aimplifi (DECISIONS #75). The flagship conversational
@@ -11,8 +11,9 @@ const EXAMPLES = ['What can I safely spend?', 'Spending on groceries last month?
 
 export function AskAimplifiCard() {
   return (
-    <Link
+    <TrackedActedLink
       href="/ask"
+      subjectKey="ask-aimplifi"
       data-testid="dashboard-ask"
       className="block rounded-2xl border bg-card p-4 shadow-sm transition hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
@@ -27,6 +28,6 @@ export function AskAimplifiCard() {
       </p>
       {/* plain example prompts (not buttons) — the whole card is the single tap target */}
       <p className="mt-2 text-xs text-muted-foreground">{EXAMPLES.map((e) => `“${e}”`).join('  ·  ')}</p>
-    </Link>
+    </TrackedActedLink>
   );
 }

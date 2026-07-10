@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { ConnectionAlert } from '@/lib/engine/sync/health';
+import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 
 /**
  * Dashboard reconnect alert when a linked feed's last sync actually FAILED (Gap 1 §4) —
@@ -26,9 +26,13 @@ export function ConnectionAlertsCard({ alerts }: { alerts: ConnectionAlert[] }) 
             </li>
           ))}
         </ul>
-        <Link href="/accounts" className="mt-1 inline-block font-medium underline underline-offset-2">
+        <TrackedActedLink
+          href="/accounts"
+          subjectKey="connection-alerts"
+          className="mt-1 inline-block font-medium underline underline-offset-2"
+        >
           Go to Accounts
-        </Link>
+        </TrackedActedLink>
       </AlertDescription>
     </Alert>
   );

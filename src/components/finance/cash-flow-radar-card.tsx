@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { formatCents, type Cents } from '@/lib/money';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import type { RadarResult } from '@/lib/engine/radar/radar';
+import { TrackedDetails } from '@/components/engagement/tracked-details';
 
 const fmt = (n: number) => formatCents(n as Cents);
 
@@ -126,14 +127,17 @@ export function CashFlowRadarCard({
               : `Day-to-day ${paymentAccountName} spend (last ${burn.sampleDays} days): typically ${fmt(burn.typicalDailyCents)}/day, ${fmt(burn.heavyDailyCents)}/day in a heavy week — a realistic ${radar.horizonDays}-day end lands between ${fmt(burn.conservative!.endingCents)} and ${fmt(burn.expected!.endingCents)}.`}
         </p>
 
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer">Assumptions</summary>
+        <TrackedDetails
+          subjectKey="radar-assumptions"
+          className="text-xs text-muted-foreground"
+          summary="Assumptions"
+        >
           <ul className="mt-1 list-disc space-y-1 pl-5">
             {radar.assumptions.map((a) => (
               <li key={a}>{a}</li>
             ))}
           </ul>
-        </details>
+        </TrackedDetails>
       </CardContent>
     </Card>
   );

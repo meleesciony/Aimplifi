@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { ArrowDownRight, ArrowUpRight, LineChart, Sparkles } from 'lucide-react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingTrends } from '@/lib/engine/trends/trends';
+import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 
 const money = (n: number) => formatCents(cents(n));
 
@@ -16,8 +16,9 @@ export function SpendingInsightsCard({ trends }: { trends: SpendingTrends }) {
   const paceUp = pace ? pace.deltaVsPriorCents > 0 : false;
 
   return (
-    <Link
+    <TrackedActedLink
       href="/trends"
+      subjectKey="spending-insights"
       data-testid="dashboard-spending-insights"
       className="block rounded-2xl border bg-card p-4 shadow-sm transition hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
@@ -79,6 +80,6 @@ export function SpendingInsightsCard({ trends }: { trends: SpendingTrends }) {
           </span>
         </div>
       )}
-    </Link>
+    </TrackedActedLink>
   );
 }

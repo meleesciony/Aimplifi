@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { PieChart } from 'lucide-react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingBreakdown } from '@/lib/engine/reports/reports';
+import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 
 const PALETTE = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa'];
 
@@ -13,8 +13,9 @@ export function TopSpendingCard({ breakdown }: { breakdown: SpendingBreakdown })
   const top = breakdown.byCategory.slice(0, 4);
   const max = Math.max(1, ...top.map((c) => c.amountCents));
   return (
-    <Link
+    <TrackedActedLink
       href="/reports"
+      subjectKey="top-spending"
       data-testid="dashboard-top-spending"
       className="block rounded-2xl border bg-card p-4 shadow-sm transition hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
@@ -48,6 +49,6 @@ export function TopSpendingCard({ breakdown }: { breakdown: SpendingBreakdown })
           ))}
         </div>
       )}
-    </Link>
+    </TrackedActedLink>
   );
 }

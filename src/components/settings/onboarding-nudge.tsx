@@ -8,10 +8,10 @@
  * account. Rendered BELOW the cash-needed card so it never displaces the
  * above-the-fold answer — Step 3 renders after Step 2 for exactly that reason.
  */
-import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { StepIndicator } from '@/components/onboarding/step-indicator';
+import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 
 export function OnboardingNudge() {
   return (
@@ -25,13 +25,14 @@ export function OnboardingNudge() {
             your real balance — and set your money dials to personalize your coaching.
           </p>
         </div>
-        <Link
+        <TrackedActedLink
           href="/settings"
+          subjectKey="onboarding-nudge"
           className={buttonVariants({ size: 'sm' })}
           data-testid="onboarding-nudge-cta"
         >
           Set up
-        </Link>
+        </TrackedActedLink>
       </CardContent>
     </Card>
   );

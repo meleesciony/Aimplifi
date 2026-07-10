@@ -1,5 +1,18 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #209 EngagementEvent capture (TASKS 3.1) — DONE ✅
+
+Closed-set `EngagementEvent` + dashboard dismiss/expand/act hooks +
+PRIVACY/AI-trust disclosure. Writes-only (3.3 reads later).
+Gate: verify ✅ **2195 unit / 171 files**.
+
+### HANDOFF — 2026-07-10, #209 / TASKS 3.1 DONE
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** Wave 4.2 household slice 1 (Opus + Fable critic), or 2.1 conversation
+frame (Opus high + Fable), or 3.2 weekly self-audit (Opus). Cron fire still
+UNVERIFIED (0.3).
+**SAFE to /clear.**
+
 ## 2026-07-10 — #208 UnknownQuestion ledger (TASKS 2.2) — DONE ✅
 
 Pure `scrubQuestionText` + additive `UnknownQuestion` + Ask wiring on

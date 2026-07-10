@@ -2,6 +2,18 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 3.1: EngagementEvent capture (#209, TASKS 3.1)
+
+Additive `EngagementEvent` + closed-set validator + dashboard hooks
+(viewed/dismissed/expanded/acted). First-party only; PRIVACY.md + Settings
+AI-trust disclosure. **No read path** — layout unchanged until Wave 3.3.
+
+Gate (real 2026-07-10): `bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+tsc/eslint clean, **2195 unit / 171 files**, build clean. Known limitations
+(accepted): (1) deletion-preview counts omit these rows (ledger precedent);
+(2) demo dashboard CTA taps append rows (inert for goldens); (3) `viewed` only
+on return-moment (not every card mount — avoids write amplification).
+
 ## Wave 2.2: UnknownQuestion ledger (#208, TASKS 2.2)
 
 Additive `UnknownQuestion` + pure `scrubQuestionText` + `recordUnknownQuestion`

@@ -65,6 +65,7 @@ model User {
   notificationsSent NotificationSent[]
   valueReceipts     ValueReceipt[]
   unknownQuestions  UnknownQuestion[]
+  engagementEvents  EngagementEvent[]
 }
 
 // PII-free deletion record (Gap 6 §3, docs/PRIVACY.md §Deletion). Deliberately has
@@ -558,4 +559,22 @@ model UnknownQuestion {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+// EngagementEvent ledger (TASKS 3.1, DECISIONS #209): first-party card
+// interactions (viewed/dismissed/expanded/acted) for adaptive layout (3.3) and
+// cadence (3.5). Closed-set surface/verb/subjectKey only — no free-text, no
+// third-party analytics. Append-only; nothing reads these rows until 3.3.
+model EngagementEvent {
+  id         String   @id @default(cuid())
+  userId     String
+  surface    String // dashboard | coach | settings | ask | triage
+  verb       String // viewed | dismissed | expanded | acted
+  subjectKey String // closed-set card id (engine/engagement/event.ts)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([userId, subjectKey])
 }
