@@ -3312,3 +3312,10 @@ Wave-1 1.1 return-moment card (Opus, engine-first), 1.3 value-receipts ledger (O
 Fable critic — money-adjacent copy), 1.4 savings streaks (Sonnet), 1.7 personalized triage
 alternatives (Opus). **Owner-gated:** 0.1 enable Actions + confirm CI green, 0.3 deploy env vars,
 0.6 Neon backups, live Plaid Link UI + webhook round-trip.
+
+### UPDATE — 2026-07-09, CI arbiter confirmed GREEN (Wave 0.1 DONE)
+Supersedes the "CI STILL UNCONFIRMED / likely OFF" note above: owner ENABLED GitHub Actions;
+the `verify` workflow run **#15** (from the #194 push) was **owner-confirmed GREEN** on the
+Linux runner — first confirmed CI-arbiter pass. Wave 0.1 done; single-machine-loss net now
+holds; a green CI e2e independently confirms the mobile-380 flake is Windows-local. Next lane
+unchanged: Wave-1 1.1 return-moment (Opus, engine-first).

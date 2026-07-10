@@ -2,6 +2,18 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 0.1: CI arbiter confirmed GREEN (owner-verified, 2026-07-09)
+
+GitHub Actions had been **disabled** for the repo — which is why no run appeared for
+#181 (the `.github/workflows/verify.yml` file was correct and pushed all along; #193
+diagnosed this). The owner enabled Actions; the `verify` workflow run **#15**, triggered
+by the #194 push, was **owner-confirmed GREEN** on the clean `ubuntu-latest` runner —
+the first confirmed CI pass of `scripts/verify.sh` (typecheck + lint + unit + build +
+full e2e). Significance: CI is now a real arbiter, the single-machine-loss risk (TASKS
+0.1) is retired, and because a headless Linux runner has no OS display scaling, a green
+CI e2e also independently confirms the mobile-380 viewport artifact is Windows-local
+(not an app bug). Any future red CI e2e is therefore a real failure, not the flake.
+
 ## Wave 0.5: operator activation-checklist panel on /settings (#194, TASKS 0.5)
 
 An operator-facing "Activation checklist" card on /settings that reads env-var
