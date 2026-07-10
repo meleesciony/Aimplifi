@@ -2,6 +2,30 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 4.1: household architecture spike — decision doc landed (#200) — 2026-07-10
+
+`docs/HOUSEHOLD_ARCHITECTURE.md` (DECISIONS #200): household entity + explicit
+membership (one household per user in v1) + per-account, owner-consented,
+**read-only** sharing (`Account.sharedToHousehold Boolean @default(false)`), NOT
+a tenant layer. No existing action's authz changes; one central
+`visibleAccountsWhere` helper; joint cash-needed via query-scoped
+`getSharedSnapshotSlice` + pure `mergeSnapshots` (engine untouched); deterministic
+lazy-repair lifecycle; invite = hashed out-of-band code + DB-row email match.
+Docs-only — **no schema/product code shipped**; three tables + one Boolean are
+DESIGNED, not pushed. Fresh-context Fable hostile critic: cycle 1 **FAIL (5 P1,
+5 P2, 1 P3)** — all confirmed real (deletion-transaction promotion structurally
+impossible; Household orphan on owner deletion; `getCategoryMeta` widening
+contaminating six personal surfaces; invite trust on unverified email + dormant
+allowlist; merge filtering a full cross-user snapshot in memory) — all fixed in
+the doc, cycle-2 self-check no open P0/P1. Invariants T1–T12 each mapped to a
+future locking test; 6-slice MVP plan recorded in TASKS 4.2.
+
+Open (owner, non-blocking for slices 1–3): partner triage on shared accounts
+(v2 fork), household digest vs per-partner, UI naming ("Household"/"Partner").
+
+Gate (real 2026-07-10, docs-only — no source touched): `bash scripts/verify.sh`
+→ **✅ VERIFY GREEN** — tsc/eslint clean, **2113 unit / 162 files**, build clean.
+
 ## Wave 1.5: route-specific empty states (#199, TASKS 1.5)
 
 Zero-account coach/goals/calendar no longer show the shared dashboard welcome.

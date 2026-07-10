@@ -1,5 +1,24 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — TASKS 4.1 Household architecture spike (#200, Fable lane) — DONE ✅
+
+Owner green-lit household (#196). Deliverable was decision doc + schema design
+ONLY — shipped `docs/HOUSEHOLD_ARCHITECTURE.md`: household entity + membership
+(one/user v1) + per-account read-only sharing; authz untouched on all 41
+existing actions; central `visibleAccountsWhere`; joint cash-needed via
+query-scoped `getSharedSnapshotSlice` + pure merge; lazy-repair lifecycle;
+code+DB-email invites. Fresh-context Fable hostile critic cycle 1 FAIL
+(5 P1 / 5 P2 / 1 P3, all confirmed) → all fixed in doc. T1–T12 invariant→test
+map; 6-slice MVP plan in TASKS 4.2. Gate: verify ✅ GREEN 2113/162 (docs-only).
+
+### HANDOFF — 2026-07-10, #200 / TASKS 4.1 DONE
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** 4.2 slice 1 membership core (Opus build + Fable critic), or Wave 1.3
+value receipts (Opus + Fable critic), or 1.4 streaks (Sonnet), or owner keys
+(`RESEND_API_KEY` ± `SENTRY_DSN`) to close 0.3. Owner review of the household
+doc's 3 open questions (§6) welcome but non-blocking for slices 1–3.
+**SAFE to /clear.**
+
 ## 2026-07-10 — #199 Route-specific empty states (TASKS 1.5) + #198 ledger — DONE ✅
 
 Resend/Sentry still pending → shipped Wave 1.5. Extracted
