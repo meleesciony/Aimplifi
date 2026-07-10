@@ -3,7 +3,13 @@
  * follow-up). Runs the app's REAL functions — claimAccessUrl → fetchSimplefinAccounts
  * → mapSimplefinAccount/prepareSimplefinTransaction — end to end, so the network
  * path that was previously UNVERIFIED is exercised for real. Demo data only; no
- * bank, no secret. Usage: tsx scripts/simplefin-validate.ts <setupToken>
+ * bank, no secret. Usage: tsx scripts/simplefin-validate.ts <setupTokenOrAccessUrl>
+ *
+ * The arg may be EITHER a one-time setup token (base64 claim URL — claimed via
+ * claimAccessUrl) OR an already-claimed access URL (starts with http, used as-is).
+ * The public demo setup token is single-use and is permanently consumed after its
+ * first claim, so re-runs against the free demo must pass the demo access URL
+ * (https://demo:demo@beta-bridge.simplefin.org/simplefin) directly.
  */
 import { claimAccessUrl, fetchSimplefinAccounts } from '@/lib/providers/simplefin';
 import { mapSimplefinAccount, prepareSimplefinTransaction } from '@/lib/providers/simplefin-map';
@@ -12,14 +18,23 @@ import { isoDate } from '@/lib/dates';
 
 const token = process.argv[2] ?? process.env.SIMPLEFIN_SETUP_TOKEN;
 if (!token) {
-  console.error('Pass a SimpleFIN setup token: tsx scripts/simplefin-validate.ts <token>');
+  console.error(
+    'Pass a SimpleFIN setup token or access URL: tsx scripts/simplefin-validate.ts <tokenOrUrl>',
+  );
   process.exit(1);
 }
 
-async function main(setupToken: string) {
-  console.log('1) claimAccessUrl(setupToken) — POST the claim URL …');
-  const accessUrl = await claimAccessUrl(setupToken);
-  console.log('   ✓ got access URL:', accessUrl.replace(/\/\/[^@]+@/, '//***:***@'));
+async function main(setupTokenOrUrl: string) {
+  const isAccessUrl = /^https?:\/\//i.test(setupTokenOrUrl);
+  let accessUrl: string;
+  if (isAccessUrl) {
+    console.log('1) access URL supplied directly — skipping single-use claim …');
+    accessUrl = setupTokenOrUrl;
+  } else {
+    console.log('1) claimAccessUrl(setupToken) — POST the claim URL …');
+    accessUrl = await claimAccessUrl(setupTokenOrUrl);
+  }
+  console.log('   ✓ access URL:', accessUrl.replace(/\/\/[^@]+@/, '//***:***@'));
 
   console.log('2) fetchSimplefinAccounts(accessUrl) — GET /accounts …');
   const data = await fetchSimplefinAccounts(accessUrl);

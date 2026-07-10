@@ -8,14 +8,25 @@ URL** — never your bank password (SimpleFIN holds that, not us).
 ## ✅ Status: implemented AND live-path VERIFIED (against the SimpleFIN demo server)
 
 The SimpleFIN protocol here was implemented from the documented spec, and the live
-network path is now **VERIFIED end-to-end** by `npm run simplefin:validate <token>`
+network path is now **VERIFIED end-to-end** by `npm run simplefin:validate <tokenOrUrl>`
 (`scripts/simplefin-validate.ts`), which runs the app's REAL functions —
 `claimAccessUrl` → `fetchSimplefinAccounts` → `mapSimplefinAccount` /
 `prepareSimplefinTransaction` — against SimpleFIN's public **demo** server
 (`beta-bridge.simplefin.org`, the free `demo:demo` dataset). Confirmed on 2026-06-22:
 claim POST → access URL → GET /accounts → 3 accounts (Savings/Checking/Empty), correct
 account types, balances to the cent (`"114405.51"` → `11440551`), and signed
-transaction cents/dates (`"-110.00"` → `-11000`, unix `posted` → calendar date). The
+transaction cents/dates (`"-110.00"` → `-11000`, unix `posted` → calendar date).
+
+**Re-confirmed 2026-07-09 (Wave 0.4):** the `fetchSimplefinAccounts` → map path ran
+green today — 3 accounts, `SimpleFIN Savings "114125.51"` → `11412551` cents,
+Groceries categorized, outflow signs preserved (no flip). **Finding:** the public
+demo *setup token* (`…/simplefin/claim/demo`) is **single-use** and was permanently
+consumed by the 2026-06-22 claim — re-POSTing it now returns `403 Forbidden (was it
+already claimed?)`. So the validator was extended to also accept an already-claimed
+**access URL** directly (arg starting with `http`, no claim step); re-runs against the
+free demo must pass `https://demo:demo@beta-bridge.simplefin.org/simplefin`. The
+one-time `claimAccessUrl` step itself stays covered by the mocked-server unit test
+(`tests/unit/simplefin.test.ts`), not re-exercised live. The
 parts that would corrupt your ledger if wrong — sign, cents, dates, account-type,
 categorization, dedup — are also unit-tested (`tests/unit/simplefin-map.test.ts`), and
 the claim+sync orchestration is tested against a mocked server

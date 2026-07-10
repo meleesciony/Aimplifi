@@ -2,6 +2,38 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 0.4: live provider spot-checks — Plaid VERIFIED, SimpleFIN re-confirmed (#191)
+
+Ran the two provider validators live from the dev machine (egress to the providers
+is open here; sandbox creds are in `.env.local`).
+
+- **Plaid sandbox** (`npm run plaid:validate`): `✅ VALIDATION PASSED` — 12 accounts
+  (2 credit), 50 transactions with correct signs (5 outflow / 1 inflow in the newest-6
+  sample), 1 statement from `/liabilities/get`; encrypted `PlaidItem` token stored
+  (len 110); item + temp user cleaned up. Flipped `docs/PLAID_WALKTHROUGH.md` from
+  **UNVERIFIED → LIVE-PATH VERIFIED** for the exchange / `/accounts` /
+  `/transactions/sync` / `/liabilities/get` paths. Still UNVERIFIED (need a
+  human/hosted step, not the headless validator): the browser Link UI and the live
+  webhook round-trip.
+- **SimpleFIN demo** (`npm run simplefin:validate <accessUrl>`): re-confirmed the
+  `fetchSimplefinAccounts` → map path — 3 accounts, `"114125.51"` → `11412551` cents,
+  Groceries categorized, outflow signs preserved. Already VERIFIED (2026-06-22); this
+  re-confirms it. **Finding + fix:** the public demo *setup token* is single-use and
+  was permanently consumed by the first claim (re-POST → `403 Forbidden (was it already
+  claimed?)`), so `scripts/simplefin-validate.ts` now also accepts an already-claimed
+  access URL directly (dev-script-only change; the claim step stays covered by the
+  mocked-server unit test). Pass `https://demo:demo@beta-bridge.simplefin.org/simplefin`
+  to re-run against the free demo.
+
+Docs/dev-script only — no app/engine/money/schema code touched, so no golden moves and
+no critic cycle (docs-only precedent #185). Gate below.
+
+**Blocked in this environment (owner-only, credentials):** Wave 0.3 (Vercel + Neon env
+vars, Sentry DSN — no `VERCEL_TOKEN`/`NEON_API_KEY`/CLI/`.vercel` link, `gh` unauth,
+prod secrets in the Drive crash-backup folder) and Wave 0.6 (Neon scheduled backups —
+Neon dashboard/ops). The code/config side of 0.3 is confirmed ready: `vercel.json` wires
+all four crons (`sync`/`reminders`/`notify`/`digest`); `docs/DEPLOY.md` is complete.
+
 ## Post-Phase-5: Bounded per-user threshold tuning + live prediction log (#190, TASKS 3.6)
 
 Pure engine (`categorize/tuning.ts`): per-user Brier over user-labeled predictions nudges

@@ -1,6 +1,14 @@
 # Plaid sandbox walkthrough (manual)
 
-**Status: IMPLEMENTED + HARDENED, UNVERIFIED against a live sandbox.** The full
+**Status: IMPLEMENTED + HARDENED + LIVE-PATH VERIFIED (Plaid sandbox, 2026-07-09).**
+`npm run plaid:validate` ran green against the live sandbox (Wave 0.4):
+`✅ VALIDATION PASSED — 12 accounts (2 credit), 50 transactions with correct signs,
+1 statement from /liabilities/get`; encrypted `PlaidItem` token stored (len 110),
+then item + temp user cleaned up. This flips the network paths §5 exercises —
+`/sandbox/public_token/create`, exchange, `/accounts`, `/transactions/sync`,
+`/liabilities/get` — from UNVERIFIED to verified. Still UNVERIFIED: the interactive
+browser Link UI and the live webhook round-trip (both need a human/hosted step, not
+`plaid:validate`). The full
 path is real code, not a stub: link-token creation, public-token exchange
 (AES-256-GCM token storage in the `PlaidItem` table), `/accounts/get`,
 `/transactions/sync` (cursor loop, categorized through the standard pipeline,
@@ -17,10 +25,11 @@ never overrides a rule/transfer/confident-merchant/aggregate, is sign-guarded, a
 never infers a `transfer`) (`tests/unit/plaid-map.test.ts`,
 `tests/unit/categorize.test.ts`); the webhook JWT verifier with an injected key
 resolver (`tests/unit/plaid-webhook.test.ts`); and the Plaid error-envelope
-formatter (`tests/unit/plaid-errors.test.ts`). What is **UNVERIFIED**: all
-network orchestration in `plaid.ts` has never run against a live Plaid sandbox
-(no credentials in the build env) — §5 flips that for the paths it exercises. When
-you run §5, spot-check that live transactions carry `personal_finance_category`
+formatter (`tests/unit/plaid-errors.test.ts`). What is now **VERIFIED live**
+(2026-07-09, `npm run plaid:validate`): the `plaid.ts` network orchestration for
+exchange → `/accounts` → `/transactions/sync` → `/liabilities/get` against the real
+sandbox. Still UNVERIFIED: the interactive browser Link UI and the live webhook
+round-trip. When you re-run §5, spot-check that live transactions carry `personal_finance_category`
 with the `{primary, detailed, confidence_level}` shape the mapper expects (older
 items may omit it — the row then simply falls through to our own review path).
 
