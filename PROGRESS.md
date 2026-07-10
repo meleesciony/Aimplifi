@@ -1,5 +1,36 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #213 Household slice 3: shared transactions in register (TASKS 4.2 §5 slice 3) — DONE ✅
+
+Resumed on "continue" after #212. **What shipped:** `categoryNamesByIds` in
+category-meta.ts (scoped-ids only — getCategoryMeta untouched, F3);
+`getSharedTransactionsView()` SEPARATE from `getTransactions` (personal
+summary/picker isolation, §4.5); `SharedTransactionList` on /transactions
+(owner badge, plain-text category, no triage); consent copy updated on
+/accounts; PRIVACY disclosure widened to transactions.
+
+**Locks:** T1 (private absent), T2/T4 (leave empties), T3 (recategorize → not
+found), F3 (viewer meta lacks partner customs), personal-register isolation,
+T6 e2e absence on /transactions. No Fable critic this slice (authz locked in
+#212; money merge is slice 4).
+
+**Gate (real output 2026-07-10):** `bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — tsc/eslint clean, **2271 unit / 177 files** (+8 in new file), build
+clean. Targeted e2e `household.spec.ts` **4/4**. Ledgers: DECISIONS #213,
+STATUS §Wave 4.2 slice 3, PRIVACY, TASKS 4.2 → slices 1–3 done,
+REGRESSION_LEDGER F3 line.
+
+### HANDOFF (resume after /clear) — 2026-07-10, #213 DONE
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md → CLAUDE.md →
+docs/lessons/INDEX.md, then TASKS.md. **State:** #213 at HEAD (push+deploy
+this session). Health baseline: verify GREEN 2271/177, household e2e 4/4.
+**Next per TASKS.md:** 4.2 slice 4 — joint cash-needed (`getSharedSnapshotSlice`
++ pure `mergeSnapshots()` with EDGE_CASES fixtures; dashboard scope toggle;
+assumptions copy; **Fable hostile critic — money surface**; T9). Alternatives:
+3.3 adaptive dashboard / 3.4 tone variants (lighter). **Owner-gated
+(unchanged):** cron FIRE verification in Vercel logs (0.3), Neon backups (0.6),
+live Plaid Link UI + webhook round-trip, Wave 4.5 allowlist widening.
+
 ## 2026-07-10 — #212 Household slice 2: account sharing (TASKS 4.2 §5 slice 2) — DONE ✅
 
 Resumed on "continue" (Fable lane — slice 2 IS the central authz seam, so build +

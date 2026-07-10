@@ -2,6 +2,22 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 4.2 slice 3: Shared transactions in the register (#213)
+
+`getSharedTransactionsView()` SEPARATE from `getTransactions` (§4.5); scoped
+`categoryNamesByIds` (never a `getCategoryMeta` widening — F3); read-only
+`SharedTransactionList` on /transactions (owner badge, no triage affordances);
+consent copy updated. Locks T1/T2/T3/T4/T6 + F3 + personal-register isolation.
+
+Gate (real 2026-07-10): `bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+tsc/eslint clean, **2271 unit / 177 files**, build clean. Targeted e2e
+household.spec **4/4** (demo golden-safety on settings/accounts/transactions +
+member-state share round-trip + axe). Known limitations (accepted): shared
+section capped at 100 most-recent (truncation disclosed; no pagination yet);
+shared rows not filterable via the personal register filters; no member-state
+e2e for the shared-txn DOM (integration covers the data path; two-browser
+partner round-trip deferred).
+
 ## Wave 4.2 slice 2: Household account sharing (#212)
 
 `partnerIdsOf`/`partnerSharedAccountsWhere`/`visibleAccountsWhere` in authz.ts

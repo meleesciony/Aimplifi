@@ -39,14 +39,17 @@ fictional dataset; everything below applies fully once Plaid is connected.
   sign-in email in Settings. Membership rows cascade on account deletion; leaving or
   being removed resets every account-sharing consent the departing member had granted.
   The shared demo account is guarded out of household membership entirely.
-- Account sharing (`Account.sharedToHousehold`, 4.2 slice 2): a per-account Boolean
-  the account's OWNER sets on /accounts. While the owner is a household member,
-  partners see that account's **name, type, last-4 mask, and current balance**
-  (read-only, owner-badged) — no transactions, no connection or sync controls, and
-  no credentials cross users. Visibility requires BOTH the flag AND a live
-  membership, so leaving/removal ends it immediately; every widened read goes
-  through one audited helper (`visibleAccountsWhere`). Share/unshare actions are
-  audit-logged.
+- Account sharing (`Account.sharedToHousehold`, 4.2 slices 2–3): a per-account
+  Boolean the account's OWNER sets on /accounts. While the owner is a household
+  member, partners see that account's **name, type, last-4 mask, current balance,
+  and transactions** (read-only on /transactions, owner-badged; no triage or
+  recategorize until a later slice) — no connection or sync controls, and no
+  credentials cross users. Category *names* on shared rows resolve only for the
+  category ids that appear on those rows (the partner's full category vocabulary
+  is never loaded into personal surfaces). Visibility requires BOTH the flag AND
+  a live membership, so leaving/removal ends it immediately; every widened read
+  goes through one audited helper (`visibleAccountsWhere` /
+  `partnerSharedAccountsWhere`). Share/unshare actions are audit-logged.
 - Plaid **access tokens, AES-256-GCM encrypted at rest** (`DATA_ENCRYPTION_KEY`,
   32 bytes) — applies to the dormant Plaid path; demo mode stores no tokens.
   Tokens are never logged and never sent to the client. Raw bank credentials

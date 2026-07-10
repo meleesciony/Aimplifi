@@ -1,17 +1,27 @@
 /**
- * Household view assembly for /settings (TASKS 4.2 slice 1). Read path only.
- * Goes through `requireViewer()` so the §4.1 lazy repair runs on every
- * settings read — the self-heal's primary trigger point.
+ * Household view assembly for /settings (TASKS 4.2 slice 1) and the shared
+ * register section (slice 3). Read path only. Goes through `requireViewer()`
+ * so the §4.1 lazy repair runs on every settings/register read — the
+ * self-heal's primary trigger point.
  */
 import { prisma } from '@/lib/db';
 import { partnerSharedAccountsWhere, requireViewer } from '@/server/authz';
+import { categoryNamesByIds } from '@/server/category-meta';
 import { normalizeEmail } from '@/lib/auth/validate';
 import { isSupportedCurrency } from '@/lib/providers/currency';
-import { isLiabilityType } from '@/lib/engine/transactions/query';
+import { categoryName } from '@/lib/engine/categorize/categories';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import {
+  isLiabilityType,
+  SPENDING_ACCOUNT_TYPES,
+} from '@/lib/engine/transactions/query';
 import {
   inviteEffectiveStatus,
   type HouseholdRole,
 } from '@/lib/engine/household/membership';
+
+/** Cap for the shared-register section (personal register paginates separately). */
+const SHARED_TXN_CAP = 100;
 
 export type HouseholdView =
   | {
@@ -139,6 +149,105 @@ export async function getAccountSharingView(): Promise<AccountSharingView> {
         isLiability: isLiabilityType(a.type),
         ownerLabel: a.user.name ?? a.user.email,
       })),
+  };
+}
+
+/** A partner-shared transaction row for the register (TASKS 4.2 slice 3).
+ * Read-only by construction — no merchantId / ruleEligible / merchantCount, so
+ * the UI cannot offer triage or "Always" affordances (T3 until slice 6). */
+export type SharedTxnRow = {
+  id: string;
+  date: string;
+  accountId: string;
+  accountName: string;
+  merchantName: string;
+  categoryId: string;
+  categoryName: string;
+  amountCents: number;
+  status: string;
+  isTransfer: boolean;
+  /** Owner display label (name, else email) — attribution honesty (§4.4). */
+  ownerLabel: string;
+};
+
+export type SharedTransactionsView =
+  | { kind: 'none' }
+  | {
+      kind: 'member';
+      householdName: string;
+      rows: SharedTxnRow[];
+      /** True when more shared rows exist than SHARED_TXN_CAP. */
+      truncated: boolean;
+    };
+
+/**
+ * /transactions "Shared with you" section (TASKS 4.2 slice 3). DELIBERATELY a
+ * separate query path from `getTransactions` — the personal register's summary
+ * totals, merchant counts, and category picker stay the viewer's OWN set
+ * (§4.5: analysis is personal). Partner rows go through
+ * `partnerSharedAccountsWhere` (§4.3); category names resolve via
+ * `categoryNamesByIds` on exactly the ids that appear on those rows — never a
+ * `getCategoryMeta` widening (critic F3).
+ */
+export async function getSharedTransactionsView(): Promise<SharedTransactionsView> {
+  const viewer = await requireViewer();
+  if (!viewer.household) return { kind: 'none' };
+
+  const sharedWhere = partnerSharedAccountsWhere(viewer);
+  if (!sharedWhere) {
+    return { kind: 'member', householdName: viewer.household.name, rows: [], truncated: false };
+  }
+
+  // Fetch one past the cap so we can report truncation without a separate count.
+  const txns = await prisma.transaction.findMany({
+    where: {
+      account: {
+        AND: [
+          sharedWhere,
+          // Spending + currency guard — same predicates as getTransactions (#62/#135).
+          { type: { in: [...SPENDING_ACCOUNT_TYPES] } },
+          { OR: [{ currency: null }, { currency: 'USD' }] },
+        ],
+      },
+      isSplitParent: false,
+    },
+    // No category join — names come from the scoped-ids lookup below (F3).
+    include: {
+      account: {
+        select: {
+          id: true,
+          name: true,
+          user: { select: { name: true, email: true } },
+        },
+      },
+      merchant: true,
+    },
+    orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    take: SHARED_TXN_CAP + 1,
+  });
+
+  const truncated = txns.length > SHARED_TXN_CAP;
+  const page = truncated ? txns.slice(0, SHARED_TXN_CAP) : txns;
+
+  const nameById = await categoryNamesByIds(page.map((t) => t.categoryId));
+
+  return {
+    kind: 'member',
+    householdName: viewer.household.name,
+    truncated,
+    rows: page.map((t) => ({
+      id: t.id,
+      date: t.date,
+      accountId: t.accountId,
+      accountName: t.account.name,
+      merchantName: t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical,
+      categoryId: t.categoryId ?? 'uncategorized',
+      categoryName: nameById.get(t.categoryId ?? '') ?? categoryName(t.categoryId),
+      amountCents: t.amountCents,
+      status: t.status,
+      isTransfer: t.isTransfer,
+      ownerLabel: t.account.user.name ?? t.account.user.email,
+    })),
   };
 }
 

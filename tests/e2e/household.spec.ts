@@ -104,7 +104,7 @@ test('member state: create household → add account → share it (real mutation
   // The member-state sharing card mounts with the FULL consent disclosure (F2).
   const card = page.getByTestId('household-sharing-card');
   await expect(card).toBeVisible({ timeout: 20000 });
-  await expect(card).toContainText('name, type, last 4 digits, and balance');
+  await expect(card).toContainText('name, type, last 4 digits, balance, and transactions');
   const row = card.getByTestId('own-share-row').filter({ hasText: 'E2E Shared Checking' });
   await expect(row).toBeVisible();
 
@@ -122,4 +122,17 @@ test('member state: create household → add account → share it (real mutation
     .withTags(['wcag2a', 'wcag2aa'])
     .analyze();
   expect(results.violations).toEqual([]);
+});
+
+test('slice 3 golden safety: /transactions shows NO shared-txn section for the demo user (T6)', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto('/transactions');
+
+  await expect(page.getByTestId('txn-list')).toBeVisible();
+  // getSharedTransactionsView → kind 'none' without membership: demo register
+  // is byte-identical aside from the (absent) shared section.
+  await expect(page.getByTestId('shared-txn-section')).toHaveCount(0);
+  await expect(page.getByTestId('shared-txn-row')).toHaveCount(0);
 });

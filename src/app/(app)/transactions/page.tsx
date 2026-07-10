@@ -7,6 +7,8 @@ import { TransactionFilters } from '@/components/finance/transaction-filters';
 import { TransactionList } from '@/components/finance/transaction-list';
 import { buttonVariants } from '@/components/ui/button';
 import type { FlowType, TxnFilter } from '@/lib/engine/transactions/query';
+import { SharedTransactionList } from '@/components/finance/shared-transaction-list';
+import { getSharedTransactionsView } from '@/server/household';
 import { getTransactions, getWithheldAccountSummary } from '@/server/transactions';
 import { getVisibleGroups } from '@/server/categories';
 
@@ -49,11 +51,15 @@ export default async function TransactionsPage({
   const hasFilters =
     !!(search || account || category || from || to) || type !== 'all';
 
-  const [{ rows, summary, accountOptions, pageInfo }, categoryGroups, withheld] = await Promise.all([
-    getTransactions(session.user.id, filter, page),
-    getVisibleGroups(session.user.id),
-    getWithheldAccountSummary(session.user.id),
-  ]);
+  const [{ rows, summary, accountOptions, pageInfo }, categoryGroups, withheld, shared] =
+    await Promise.all([
+      getTransactions(session.user.id, filter, page),
+      getVisibleGroups(session.user.id),
+      getWithheldAccountSummary(session.user.id),
+      // Separate path from getTransactions (§4.5 / T9 twin of slice 2) — personal
+      // summary + picker stay the viewer's own set.
+      getSharedTransactionsView(),
+    ]);
 
   return (
     <div className="space-y-4">
@@ -98,6 +104,14 @@ export default async function TransactionsPage({
         categoryGroups={categoryGroups}
         hasFilters={hasFilters}
       />
+
+      {shared.kind === 'member' && (
+        <SharedTransactionList
+          householdName={shared.householdName}
+          rows={shared.rows}
+          truncated={shared.truncated}
+        />
+      )}
     </div>
   );
 }

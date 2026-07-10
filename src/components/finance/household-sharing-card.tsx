@@ -3,14 +3,14 @@
 /**
  * /accounts → Household sharing (TASKS 4.2 slice 2). Two sections:
  *  - "Shared with you": READ-ONLY partner accounts (name, type, balance, owner
- *    badge). No link, no controls — a partner's transactions arrive in slice 3,
- *    and no connection/sync affordance ever appears here (T5).
+ *    badge). No link, no controls — partner transactions live on /transactions
+ *    (slice 3); no connection/sync affordance ever appears here (T5).
  *  - "Share your accounts": per-account share toggle on the viewer's OWN
  *    accounts via `setAccountShared` (#167 reliable-mutation recipe: plain
  *    pending, deadline-bounded await, full reload on success).
  *
- * Honesty guardrails: copy states exactly what sharing reveals (name + balance,
- * to current household members, transactions later and labeled when they come)
+ * Honesty guardrails: copy states exactly what sharing reveals (name, type,
+ * last 4, balance, and read-only transactions on /transactions, owner-labeled)
  * and that the partner list here shows ONLY what partners chose to share.
  * Rendered ONLY for household members — solo and demo users never see it.
  */
@@ -153,10 +153,10 @@ export function HouseholdSharingCard({
             </ul>
           )}
           <p className="mt-1 text-xs text-muted-foreground">
-            Sharing shows an account&apos;s name, type, last 4 digits, and balance to
-            everyone in your household, updated as it syncs. Transactions are not
-            shared yet. You can stop sharing anytime, and leaving the household
-            unshares everything.
+            Sharing shows an account&apos;s name, type, last 4 digits, balance, and
+            transactions (read-only, labeled with your name on their register) to
+            everyone in your household, updated as it syncs. You can stop sharing
+            anytime, and leaving the household unshares everything.
           </p>
         </div>
 
