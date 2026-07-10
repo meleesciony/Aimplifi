@@ -2,6 +2,39 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 0.5: operator activation-checklist panel on /settings (#194, TASKS 0.5)
+
+An operator-facing "Activation checklist" card on /settings that reads env-var
+**presence** only (never values) and shows which dormant systems are live vs dormant,
+with the exact env-var **names** still needed for each dormant one. Answers "on this
+deployment, is email/push/digest/Sentry/cron actually going to fire?" at a glance.
+
+Pure engine `engine/ops/activation.ts` (`buildActivationChecklist` + `activationSummary`):
+takes four presence booleans (cronSecret / email / push / errorTracking) and returns a
+fixed-order 7-row map — base capabilities (error-tracking, email, web-push,
+scheduled-jobs) then the composed delivery jobs (payment-reminders, weekly-digest,
+push-notifications). "Live" is honest about **compound** gates: a delivery job is live
+only when BOTH its `CRON_SECRET` bearer AND its provider are present — the same two-part
+gate the cron routes encode. The engine reads no `process.env` (booleans in), so it is
+deterministic, unit-testable, and cannot leak a value.
+
+The server component (`/settings/page.tsx`, an RSC) supplies the booleans via the three
+existing `*Configured()` helpers (`emailProviderConfigured`/`pushProviderConfigured`/
+`errorTrackingConfigured`) plus an inline `!!process.env.CRON_SECRET`, and renders the
+derived rows inline — only booleans and env-var **names** cross into the markup; no secret
+value ever reaches the client (Next inlines only `NEXT_PUBLIC_*`). Shown to all signed-in
+users (invite-only app, no admin role) — acceptable operational transparency, no value
+disclosed. Maker→Checker (proportionate: display-only, no writes/money/schema): no secret
+path, compound gates correct, a11y status conveyed by text not color, no P0/P1.
+
+Gate (real 2026-07-09): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+tsc/eslint clean, **2092 unit / 159 files** (+7 known-answer: all-off/all-on/partial
+compound + secret-free-names invariant + summary counts), build clean, **94 e2e passed**
+(+1: renders all 7 rows, engine↔UI coherence — summary count equals Live badges — dormant
+rows advertise only known env names, axe WCAG-AA scoped to the card). The e2e asserts
+coherence, not a hard "0 of 7", so it holds both in CI (all dormant) and locally where
+`.env.local` may set some keys.
+
 ## Wave 0.2: local full-e2e unblocked — the "mobile-380 flake" was a masked deterministic bug (#193)
 
 Task 0.2 was scoped as "quarantine the mobile-380 viewport flake so local `VERIFY_E2E=1`

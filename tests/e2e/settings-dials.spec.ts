@@ -43,6 +43,54 @@ test('settings surfaces the AI-trust accuracy panel (Competitive-Gap Gap 4 §2)'
   expect(results.violations).toEqual([]);
 });
 
+test('settings shows the operator activation checklist, coherent and secret-free (Wave 0.5)', async ({ page }) => {
+  // Read-only: renders env-var PRESENCE only. Mutates nothing → golden-safe under the
+  // fullyParallel suite. Deliberately does NOT hard-code "0 of 7": the dev machine's
+  // .env.local may set some keys, while CI sets none — so instead it asserts the panel
+  // is internally coherent (the summary count equals the number of Live badges) and
+  // that every dormant row advertises a real env-var NAME, never a value.
+  const KEYS = [
+    'error-tracking',
+    'email',
+    'web-push',
+    'scheduled-jobs',
+    'payment-reminders',
+    'weekly-digest',
+    'push-notifications',
+  ];
+  await signIn(page);
+  await page.goto('/settings');
+
+  const card = page.getByTestId('activation-card');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('Activation checklist');
+
+  const statuses: string[] = [];
+  for (const key of KEYS) {
+    await expect(page.getByTestId(`activation-row-${key}`)).toBeVisible();
+    const status = (await page.getByTestId(`activation-status-${key}`).innerText()).trim();
+    expect(status === 'Live' || status === 'Dormant', `${key} status is Live|Dormant`).toBe(true);
+    statuses.push(status);
+    // Dormant rows must name the env vars to set — from the known name set, never a value.
+    if (status === 'Dormant') {
+      const row = page.getByTestId(`activation-row-${key}`);
+      await expect(row).toContainText('Set to activate:');
+      await expect(row).toContainText(/CRON_SECRET|RESEND_API_KEY|VAPID_[A-Z_]+|SENTRY_DSN/);
+    }
+  }
+
+  // Engine ↔ UI coherence: the header count must equal the Live badges actually shown.
+  const liveCount = statuses.filter((s) => s === 'Live').length;
+  await expect(page.getByTestId('activation-summary')).toContainText(`${liveCount} of 7 systems live`);
+
+  // The panel itself is WCAG-AA clean (scoped so unrelated page content can't flake it).
+  const results = await new AxeBuilder({ page })
+    .include('[data-testid="activation-card"]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test('money dials: dormant nudge in demo, pre-populated form, validates, round-trips', async ({ page }) => {
   await signIn(page);
 

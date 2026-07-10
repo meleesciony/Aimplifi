@@ -3295,3 +3295,20 @@ moment (Opus), 1.3 value-receipts ledger (Opus build + Fable critic — money-ad
 1.4 streaks (Sonnet), 1.7 personalized triage alternatives (Opus). **Still owner-gated:** 0.1
 confirm CI Actions run went green (gh unauth here — check Actions UI), 0.3 deploy env vars,
 0.6 Neon backups; live Plaid Link UI + webhook round-trip.
+
+### HANDOFF (resume after /clear) — 2026-07-09, #194 DONE (Wave 0.5)
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md → CLAUDE.md → docs/lessons/INDEX.md,
+then TASKS.md. **State after this session:** #193 (Wave 0.2, auth-locator fix) + #194 (Wave 0.5,
+activation checklist) done. **What #194 did:** operator activation-checklist panel on /settings —
+pure `engine/ops/activation.ts` (env-var PRESENCE → 7 live/dormant rows, compound cron+provider
+gates) + RSC panel (`activation-card`); booleans + env-var NAMES only, no secret value to client.
+**Health baseline (real, re-confirm don't trust):** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅
+GREEN, 2092 unit / 159 files, build clean, 94 e2e passed. Full gate exits 0 locally (Wave 0.2).
+**CI STILL UNCONFIRMED / likely OFF:** owner reported NO Actions run for #181; workflow file is
+correct + pushed, so GitHub **Actions is probably DISABLED for the repo** — owner must enable it
+(repo Settings → Actions → General → Allow all actions → Save), then a push triggers it. Until
+then "CI is the arbiter" does not hold (TASKS 0.1). **Open non-owner items next (TASKS.md):**
+Wave-1 1.1 return-moment card (Opus, engine-first), 1.3 value-receipts ledger (Opus build +
+Fable critic — money-adjacent copy), 1.4 savings streaks (Sonnet), 1.7 personalized triage
+alternatives (Opus). **Owner-gated:** 0.1 enable Actions + confirm CI green, 0.3 deploy env vars,
+0.6 Neon backups, live Plaid Link UI + webhook round-trip.

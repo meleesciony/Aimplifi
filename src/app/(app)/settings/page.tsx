@@ -13,7 +13,10 @@ import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/dials';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { deletionSummary } from '@/lib/engine/account/deletion';
-import { getVapidPublicKey } from '@/lib/push';
+import { getVapidPublicKey, pushProviderConfigured } from '@/lib/push';
+import { emailProviderConfigured } from '@/lib/email';
+import { errorTrackingConfigured } from '@/lib/errors';
+import { buildActivationChecklist, activationSummary } from '@/lib/engine/ops/activation';
 import { PushOptIn } from '@/components/settings/push-optin';
 import { AccuracyMetrics } from '@/components/triage/accuracy-card';
 import { getCategorizationAccuracy } from '@/server/accuracy';
@@ -67,6 +70,18 @@ export default async function SettingsPage() {
     .map((a) => ({ id: a.id, name: a.name }));
 
   const vapidPublicKey = getVapidPublicKey();
+
+  // Operator activation checklist (Wave 0.5): compute env-var PRESENCE booleans here
+  // in the server component (via the existing *Configured() helpers) and pass only the
+  // derived rows down — no raw process.env value ever reaches the client. CRON_SECRET
+  // has no helper; its presence is read inline (server-only) the same way.
+  const activation = buildActivationChecklist({
+    cronSecret: !!process.env.CRON_SECRET,
+    email: emailProviderConfigured(),
+    push: pushProviderConfigured(),
+    errorTracking: errorTrackingConfigured(),
+  });
+  const activationCount = activationSummary(activation);
 
   const deletion = deletionSummary({
     accounts: accounts.length,
@@ -192,6 +207,50 @@ export default async function SettingsPage() {
             transactions. This is how accurately it files them, scored against the categories you
             confirm.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="activation-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Operator — which integrations are live on this deployment</CardDescription>
+          <CardTitle className="text-base">Activation checklist</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground" data-testid="activation-summary">
+            {activationCount.live} of {activationCount.total} systems live. Dormant systems are safe
+            no-ops — they turn on only when their environment variables are set (never shown here, only
+            their names).
+          </p>
+          <ul role="list" className="space-y-2">
+            {activation.map((row) => (
+              <li
+                key={row.key}
+                data-testid={`activation-row-${row.key}`}
+                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-border/60 pt-2 first:border-t-0 first:pt-0"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{row.label}</div>
+                  <div className="text-xs text-muted-foreground">{row.detail}</div>
+                  {row.status === 'dormant' && (
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      Set to activate:{' '}
+                      <span className="font-mono">{row.missing.join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+                <span
+                  data-testid={`activation-status-${row.key}`}
+                  className={
+                    row.status === 'live'
+                      ? 'shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300'
+                      : 'shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'
+                  }
+                >
+                  {row.status === 'live' ? 'Live' : 'Dormant'}
+                </span>
+              </li>
+            ))}
+          </ul>
         </CardContent>
       </Card>
 
