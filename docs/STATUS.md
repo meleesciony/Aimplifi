@@ -67,7 +67,9 @@ READY, aliased to www.aimplifi.app):
 - ~~`RESEND_API_KEY`~~ **SET 2026-07-10** (redeployed). Default From =
   `Aimplifi <reminders@aimplifi.app>` — confirm that domain/sender is verified
   in the Resend dashboard or mail will fail at send time.
-- `SENTRY_DSN` — error tracking stays dormant without it
+- ~~`SENTRY_DSN`~~ **DEFERRED by owner (#203, 2026-07-10)** — personal/family
+  app; paid error tracking not wanted for now. Dormant client stays in place;
+  activate later only if needed.
 
 **Seed recommendation: DO NOT run `prisma db seed` / `--force-prod`.** Owner
 account is already active on the live Neon DB; seed deletes every row.

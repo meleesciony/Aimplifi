@@ -1,5 +1,17 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #203 Sentry deferred (owner) + Resend live
+
+Owner: no Sentry DSN for now (cost; personal/family app). Recorded #203.
+`RESEND_API_KEY` already on prod. Wave 0.3 remaining: Resend domain verify +
+cron fire check — not Sentry.
+
+### HANDOFF — 2026-07-10, #203
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** Confirm Resend domain for `reminders@aimplifi.app`, or build Wave 1.3 /
+1.4 / 1.7 / 4.2 slice 1. Do not ask for Sentry again unless owner reopens.
+**SAFE to /clear.**
+
 ## 2026-07-10 — #202 Glass-Box shareable snapshot (TASKS 1.6) — DONE ✅
 
 Client-only redacted share on reconciled Cash-Needed Glass-Box. Pure
