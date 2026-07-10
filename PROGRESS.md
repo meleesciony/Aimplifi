@@ -22,14 +22,16 @@ REGRESSION_LEDGER F3 line.
 
 ### HANDOFF (resume after /clear) — 2026-07-10, #213 DONE
 **Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md → CLAUDE.md →
-docs/lessons/INDEX.md, then TASKS.md. **State:** #213 at HEAD (push+deploy
-this session). Health baseline: verify GREEN 2271/177, household e2e 4/4.
+docs/lessons/INDEX.md, then TASKS.md. **State:** #213 at `9d98087` on main;
+prod deploy **Ready** `dpl_2e88AFkkXjbFBgXe6YS5HrTVLgcB` → `aimplifi.app` /
+`www.aimplifi.app`. Health baseline: verify GREEN 2271/177, household e2e 4/4.
 **Next per TASKS.md:** 4.2 slice 4 — joint cash-needed (`getSharedSnapshotSlice`
 + pure `mergeSnapshots()` with EDGE_CASES fixtures; dashboard scope toggle;
 assumptions copy; **Fable hostile critic — money surface**; T9). Alternatives:
 3.3 adaptive dashboard / 3.4 tone variants (lighter). **Owner-gated
 (unchanged):** cron FIRE verification in Vercel logs (0.3), Neon backups (0.6),
 live Plaid Link UI + webhook round-trip, Wave 4.5 allowlist widening.
+**SAFE to /clear.**
 
 ## 2026-07-10 — #212 Household slice 2: account sharing (TASKS 4.2 §5 slice 2) — DONE ✅
 
