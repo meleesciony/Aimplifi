@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
+import { EmptyCoach } from '@/components/onboarding/route-empty';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { formatMonth } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
@@ -28,8 +28,8 @@ export const metadata = { title: "Coach" };
 export default async function CoachPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
-  // No accounts yet → first-run onboarding (the FI/cash engine needs accounts).
-  if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
+  // No accounts yet → route-framed onboarding (the FI/cash engine needs accounts).
+  if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyCoach />;
   const [data, withheld] = await Promise.all([
     getCoachData(session.user.id),
     getWithheldAccountSummary(session.user.id),

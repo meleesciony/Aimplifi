@@ -28,12 +28,27 @@ test('email/password sign-up → empty onboarding → sign out → sign back in'
   await expect(page.locator('h1')).toHaveCount(1);
   await expect(page.locator('h1')).toHaveText('Welcome to Aimplifi 👋');
 
-  // Every cash-engine-backed page shows onboarding (not a crash) for a zero-account user (#44).
-  for (const path of ['/cards', '/coach', '/goals', '/calendar']) {
+  // Cash-engine pages onboard without crashing (#44). Dashboard/cards keep the
+  // shared EmptyDashboard welcome; coach/goals/calendar use route-specific framing
+  // (TASKS 1.5) while still offering the same connect affordances.
+  await page.goto('/cards');
+  await expect(page.getByTestId('empty-dashboard'), '/cards should onboard, not crash').toBeVisible({
+    timeout: 20000,
+  });
+
+  const routeEmpties: Array<{ path: string; testId: string; h1: string }> = [
+    { path: '/coach', testId: 'coach-empty', h1: 'FI Coach' },
+    { path: '/goals', testId: 'goals-empty', h1: 'Goals' },
+    { path: '/calendar', testId: 'calendar-empty', h1: 'Cash-flow calendar' },
+  ];
+  for (const { path, testId, h1 } of routeEmpties) {
     await page.goto(path);
-    await expect(page.getByTestId('empty-dashboard'), `${path} should onboard, not crash`).toBeVisible({
+    await expect(page.getByTestId(testId), `${path} should onboard, not crash`).toBeVisible({
       timeout: 20000,
     });
+    await expect(page.getByTestId('empty-dashboard')).toHaveCount(0);
+    await expect(page.locator('h1')).toHaveText(h1);
+    await expect(page.getByTestId('onboard-manual')).toBeVisible();
   }
   // /accounts shows its own first-run empty state (not a meaningless $0.00 net worth).
   await page.goto('/accounts');

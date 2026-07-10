@@ -1,5 +1,19 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #199 Route-specific empty states (TASKS 1.5) + #198 ledger — DONE ✅
+
+Resend/Sentry still pending → shipped Wave 1.5. Extracted
+`ConnectOnboardingPanel`; coach/goals/calendar get `EmptyCoach`/`EmptyGoals`/
+`EmptyCalendar`. Also recorded #198 Wave 0.3 partial (prod env already live;
+SIGNUP/CRON/VAPID set). Gate: verify ✅ 2113/162; auth.spec 3/3;
+guided-onboarding 1/1.
+
+### HANDOFF — 2026-07-10, #199 DONE
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** Owner `RESEND_API_KEY` (± `SENTRY_DSN`) to finish 0.3; else Wave 1.6
+Glass-Box (Grok) or 1.3 value receipts (Opus + Fable critic) or 1.4 streaks (Sonnet).
+**SAFE to /clear.**
+
 ## 2026-07-09 — #197 Contextual Ask follow-up chips (TASKS 1.2) — DONE ✅
 
 Static `followUpQuestions(intent)` map → server merges onto `suggestions` →

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowDownLeft, ArrowUpRight, CreditCard, Landmark } from 'lucide-react';
 import { auth } from '@/auth';
-import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
+import { EmptyCalendar } from '@/components/onboarding/route-empty';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { prisma } from '@/lib/db';
@@ -20,8 +20,8 @@ export default async function CalendarPage({
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
-  // No accounts yet → onboarding; getCashNeeded throws on empty (DECISIONS #44).
-  if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
+  // No accounts yet → route-framed onboarding; getCashNeeded throws on empty (DECISIONS #44).
+  if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyCalendar />;
   const { today, snap, result, loanObligations } = await getCashNeeded(session.user.id);
   const params = await searchParams;
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? '')
