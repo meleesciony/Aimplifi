@@ -64,8 +64,9 @@ READY, aliased to www.aimplifi.app):
 - `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT=mailto:michael.lee.p@gmail.com`
 
 **Still missing (owner keys — cannot invent):**
-- `RESEND_API_KEY` (+ optional `REMINDER_FROM_EMAIL`; default From is
-  `Aimplifi <reminders@aimplifi.app>`) — email + digest stay dormant without it
+- ~~`RESEND_API_KEY`~~ **SET 2026-07-10** (redeployed). Default From =
+  `Aimplifi <reminders@aimplifi.app>` — confirm that domain/sender is verified
+  in the Resend dashboard or mail will fail at send time.
 - `SENTRY_DSN` — error tracking stays dormant without it
 
 **Seed recommendation: DO NOT run `prisma db seed` / `--force-prod`.** Owner
