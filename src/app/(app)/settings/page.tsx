@@ -20,9 +20,10 @@ import { buildActivationChecklist, activationSummary } from '@/lib/engine/ops/ac
 import { PushOptIn } from '@/components/settings/push-optin';
 import { HouseholdCard } from '@/components/settings/household-card';
 import { getHouseholdView } from '@/server/household';
-import { AccuracyMetrics } from '@/components/triage/accuracy-card';
+import { AccuracyMetrics, SelfAuditMetrics } from '@/components/triage/accuracy-card';
 import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getThresholdTuning } from '@/server/tuning';
+import { getLatestSelfAuditSnapshot } from '@/server/self-audit';
 import { prisma } from '@/lib/db';
 
 export const metadata = { title: "Settings" };
@@ -32,7 +33,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/sign-in');
 
   const userId = session.user.id;
-  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy, tuning] =
+  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy, tuning, selfAudit] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -62,6 +63,7 @@ export default async function SettingsPage() {
       getCustomCategories(userId),
       getCategorizationAccuracy(userId),
       getThresholdTuning(userId),
+      getLatestSelfAuditSnapshot(userId),
     ]);
   const householdView = await getHouseholdView();
   if (!user) redirect('/sign-in');
@@ -205,6 +207,7 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           <AccuracyMetrics result={accuracy} tuning={tuning} />
+          <SelfAuditMetrics snapshot={selfAudit} />
           <p className="text-xs text-muted-foreground">
             Aimplifi’s AI never invents a figure — every number is computed from your own
             transactions. This is how accurately it files them, scored against the categories you

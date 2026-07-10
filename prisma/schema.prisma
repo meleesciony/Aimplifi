@@ -66,6 +66,7 @@ model User {
   valueReceipts       ValueReceipt[]
   unknownQuestions    UnknownQuestion[]
   engagementEvents    EngagementEvent[]
+  selfAuditSnapshots  SelfAuditSnapshot[]
   householdMembership HouseholdMember? // v1: at most one household per user (HOUSEHOLD_ARCHITECTURE §4.1)
 }
 
@@ -579,6 +580,29 @@ model EngagementEvent {
   @@index([userId])
   @@index([createdAt])
   @@index([userId, subjectKey])
+}
+
+// Weekly self-audit Critic (TASKS 3.2, DECISIONS #211): one row per user×ISO-week
+// with review / unknown / alert-act rates (bps) + raw counts. No money fields;
+// money engines never read this table. Upserted by /api/cron/audit.
+model SelfAuditSnapshot {
+  id              String   @id @default(cuid())
+  userId          String
+  weekStart       String // YYYY-MM-DD Monday
+  reviewNeeding   Int      @default(0)
+  reviewTotal     Int      @default(0)
+  unknownStayed   Int      @default(0)
+  unknownAttempts Int      @default(0)
+  alertsSent      Int      @default(0)
+  alertsActed     Int      @default(0)
+  reviewRateBps   Int      @default(0)
+  unknownRateBps  Int      @default(0)
+  alertActRateBps Int      @default(0)
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStart])
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------

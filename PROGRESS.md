@@ -1,5 +1,18 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #211 weekly self-audit Critic (TASKS 3.2) — DONE ✅
+
+Pure rates + `SelfAuditSnapshot` + `/api/cron/audit` + AI-trust panel.
+Alert act-rate is an engagement proxy until 3.5.
+Gate: verify ✅ **2248 unit / 175 files**.
+
+### HANDOFF — 2026-07-10, #211 / TASKS 3.2 DONE
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** 4.2 slice 2 `visibleAccountsWhere` (Opus; scoped Fable critic on
+helper), or 3.3 adaptive dashboard (Opus+Grok UI), or 3.4 coach-copy (Sonnet).
+Cron fire still UNVERIFIED (0.3).
+**SAFE to /clear.**
+
 ## 2026-07-10 — #210 Household MVP slice 1: membership core (TASKS 4.2 §5.1) — DONE ✅
 
 Engine-first per HOUSEHOLD_ARCHITECTURE.md: §4.2 schema verbatim (3 tables +

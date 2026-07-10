@@ -23,6 +23,10 @@ fictional dataset; everything below applies fully once Plaid is connected.
   no free text, no amounts, no third-party analytics). Stored so future adaptive
   layout and notification cadence can learn from your attention; cascades on
   account deletion.
+- Weekly self-audit snapshots (`SelfAuditSnapshot`, #211): per-user weekly rates
+  for review queue share, Ask unrecognized-stay rate, and alert attention (counts
+  + basis points only — no money). Surfaced on Settings → AI trust; cascades on
+  deletion.
 - Delivered-notification dedup keys (`NotificationSent`): the stable key + timestamp
   of each push/digest actually delivered, kept so the same alert isn't re-sent
   (pruned after 120 days).

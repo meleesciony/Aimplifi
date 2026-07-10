@@ -93,7 +93,7 @@ export function buildActivationChecklist(inputs: ActivationInputs): ActivationRo
     makeRow(
       'scheduled-jobs',
       'Scheduled jobs (cron)',
-      'Bearer secret that lets the four Vercel cron routes run; every job 401s without it.',
+      'Bearer secret that lets the Vercel cron routes run; every job 401s without it.',
       [cron],
     ),
     makeRow(

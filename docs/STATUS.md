@@ -2,6 +2,19 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 3.2: weekly self-audit Critic (#211, TASKS 3.2)
+
+Additive `SelfAuditSnapshot` + pure bps rates + `/api/cron/audit` (Mon 15:00)
++ AI-trust `SelfAuditMetrics`. Review = triage queue snapshot; unknown =
+UnknownQuestion window; alert act = NotificationSent vs engagement proxy
+(radar/connection). No money fields.
+
+Gate (real 2026-07-10): `bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+tsc/eslint clean, **2248 unit / 175 files**, build clean (incl. `/api/cron/audit`).
+Known limitations (accepted): (1) alert act-rate is a proxy until 3.5; (2)
+unknown denominator is parser-unknown attempts only; (3) empty until first cron
+fire (demo shows empty-state copy).
+
 ## Wave 4.2 slice 1: Household membership core (#210)
 
 Schema (3 tables + inert `Account.sharedToHousehold`), pure membership engine,

@@ -5,8 +5,10 @@
  */
 import { Card, CardContent } from '@/components/ui/card';
 import type { AccuracyResult } from '@/lib/engine/accuracy/score';
+import { formatRateBps, type SelfAuditView } from '@/lib/engine/audit/snapshot';
 import { AUTO_FLAGGED_BPS } from '@/lib/engine/categorize/pipeline';
 import type { ThresholdTuning } from '@/lib/engine/categorize/tuning';
+import { formatISODate, isoDate } from '@/lib/dates';
 
 /**
  * Threshold-tuning disclosure (DECISIONS #190): every runtime adaptation must be
@@ -78,6 +80,61 @@ export function AccuracyMetrics({ result, tuning }: { result: AccuracyResult; tu
         </p>
       )}
       {tuning ? <TuningDisclosure tuning={tuning} /> : null}
+    </div>
+  );
+}
+
+/**
+ * Weekly self-audit Critic (TASKS 3.2 / #211) — review / unknown / alert-act
+ * rates from the latest cron snapshot. Distinct from categorization accuracy.
+ */
+export function SelfAuditMetrics({ snapshot }: { snapshot: SelfAuditView | null }) {
+  if (!snapshot) {
+    return (
+      <div className="space-y-1 border-t border-border/60 pt-2" data-testid="self-audit-metrics">
+        <p className="text-sm font-medium">Weekly self-audit</p>
+        <p className="text-xs text-muted-foreground">
+          Weekly self-audit starts after your first scheduled Critic run — it tracks how much still
+          needs review, how often Ask stays unrecognized, and whether alert surfaces get attention.
+        </p>
+      </div>
+    );
+  }
+
+  const { counts } = snapshot;
+  return (
+    <div className="space-y-1 border-t border-border/60 pt-2" data-testid="self-audit-metrics">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-medium">Weekly self-audit</p>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          week of {formatISODate(isoDate(snapshot.weekStart))}
+        </span>
+      </div>
+      <ul className="space-y-0.5 text-xs text-muted-foreground">
+        <li data-testid="self-audit-review">
+          Review queue:{' '}
+          <span className="font-medium text-foreground tabular-nums">
+            {formatRateBps(snapshot.reviewRateBps)}
+          </span>{' '}
+          needed sorting ({counts.reviewNeeding} of {counts.reviewTotal})
+        </li>
+        <li data-testid="self-audit-unknown">
+          Ask:{' '}
+          <span className="font-medium text-foreground tabular-nums">
+            {formatRateBps(snapshot.unknownRateBps)}
+          </span>{' '}
+          of unrecognized phrasings stayed unknown ({counts.unknownStayed} of{' '}
+          {counts.unknownAttempts})
+        </li>
+        <li data-testid="self-audit-alerts">
+          Alerts:{' '}
+          <span className="font-medium text-foreground tabular-nums">
+            {formatRateBps(snapshot.alertActRateBps)}
+          </span>{' '}
+          acted on ({counts.alertsActed} of {counts.alertsSent} sent) — attention proxy until
+          per-alert hooks land
+        </li>
+      </ul>
     </div>
   );
 }
