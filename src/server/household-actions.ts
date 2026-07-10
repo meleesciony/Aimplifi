@@ -75,10 +75,18 @@ export async function createHousehold(rawName: string): Promise<HouseholdActionR
   try {
     // Nested create = atomic household+owner in one statement; the @@unique on
     // HouseholdMember.userId makes "already in a household" a constraint, not
-    // a check-then-act race.
-    await prisma.household.create({
-      data: { name: v.name, members: { create: { userId, role: 'owner' } } },
-    });
+    // a check-then-act race. The flag reset rides the same transaction — a new
+    // household starts with zero shared accounts (§4.1 "consent never survives
+    // the relationship that granted it"; critic slice-2 F1 stale-flag class).
+    await prisma.$transaction([
+      prisma.household.create({
+        data: { name: v.name, members: { create: { userId, role: 'owner' } } },
+      }),
+      prisma.account.updateMany({
+        where: { userId, sharedToHousehold: true },
+        data: { sharedToHousehold: false },
+      }),
+    ]);
   } catch (e) {
     // Only the membership-unique race maps to the friendly message; any other
     // DB fault surfaces (never misreported — critic #210 F7).
@@ -235,6 +243,15 @@ export async function acceptInvite(
       await tx.householdMember.create({
         data: { householdId: invite.householdId, userId, role: 'partner' },
       });
+      // §4.1: "consent never survives the relationship that granted it" — a
+      // join starts with ZERO shared accounts. This retires every stale-flag
+      // path (e.g. the setAccountShared/leave write race, critic slice-2 F1):
+      // whatever a flag's history, it cannot follow the user into a new
+      // household. Self-scoped; atomic with the membership create.
+      await tx.account.updateMany({
+        where: { userId, sharedToHousehold: true },
+        data: { sharedToHousehold: false },
+      });
     });
   } catch (e) {
     if (e instanceof InviteClaimLost) return { ok: false, error: GENERIC_REDEEM_ERROR };
@@ -339,5 +356,61 @@ export async function removeMember(targetUserId: string): Promise<HouseholdActio
   }
   await auditLog(viewer.userId, 'household.member.remove', { householdId, targetUserId });
   revalidatePath('/settings');
+  return { ok: true };
+}
+
+/**
+ * Share/unshare one of MY OWN accounts with my current household (TASKS 4.2
+ * slice 2 — §4.3 rule 4). Owner-only by construction: the update is scoped
+ * `where: { id, userId }`, so a partner's (or stranger's) accountId matches
+ * zero rows and returns "not found" — no existence oracle across users.
+ * Sharing ON requires a live membership; sharing OFF is always allowed (a
+ * leftover flag is inert without membership, but the owner can still tidy it).
+ */
+export async function setAccountShared(
+  accountId: string,
+  shared: boolean,
+): Promise<HouseholdActionResult> {
+  const viewer = await requireViewer();
+  if (isDemoUser(viewer.userId)) return { ok: false, error: DEMO_HOUSEHOLD_ERROR };
+  // 'use server' endpoints take attacker-shaped input: refuse non-scalar args
+  // (a filter object as accountId would turn the scoped update into a bulk
+  // toggle — self-scoped either way, but validate at the boundary).
+  if (typeof accountId !== 'string' || typeof shared !== 'boolean') {
+    return { ok: false, error: 'Account not found.' };
+  }
+  if (shared && !viewer.household) {
+    return { ok: false, error: 'Join a household before sharing an account.' };
+  }
+  const { count } = await prisma.account.updateMany({
+    // Sharing ON is SELF-GUARDING (the leaveHousehold/removeMember idiom): the
+    // write re-checks live membership in its own where, so a leave/remove
+    // committing between requireViewer's read and this statement cannot strand
+    // a consentless flag that would auto-share into a future household
+    // (critic slice-2 F1). OFF stays unguarded — revocation is always allowed.
+    where: shared
+      ? { id: accountId, userId: viewer.userId, user: { householdMembership: { isNot: null } } }
+      : { id: accountId, userId: viewer.userId },
+    data: { sharedToHousehold: shared },
+  });
+  if (count === 0) {
+    if (shared) {
+      // Distinguish "not yours / doesn't exist" from "membership raced away"
+      // honestly. The probe is scoped to the caller's own rows — no cross-user
+      // existence oracle.
+      const owned = await prisma.account.findFirst({
+        where: { id: accountId, userId: viewer.userId },
+        select: { id: true },
+      });
+      if (owned) return { ok: false, error: 'Join a household before sharing an account.' };
+    }
+    return { ok: false, error: 'Account not found.' };
+  }
+  await auditLog(viewer.userId, 'account.share', {
+    accountId,
+    shared,
+    householdId: viewer.household?.id ?? null,
+  });
+  revalidatePath('/accounts');
   return { ok: true };
 }

@@ -46,3 +46,80 @@ test('settings renders the Household card in its no-household state (T6: demo us
     .analyze();
   expect(results.violations).toEqual([]);
 });
+
+test('slice 2 golden safety: /accounts shows NO household-sharing card for the demo user (T6)', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto('/accounts');
+
+  // The page itself renders normally…
+  await expect(page.getByTestId('accounts-net-worth')).toBeVisible();
+  await expect(page.getByTestId('account-row').first()).toBeVisible();
+  // …and the household-sharing surface is entirely absent without a membership
+  // (getAccountSharingView → kind 'none'): demo /accounts is byte-identical.
+  await expect(page.getByTestId('household-sharing-card')).toHaveCount(0);
+  await expect(page.getByTestId('shared-account-row')).toHaveCount(0);
+  await expect(page.getByTestId('own-share-row')).toHaveCount(0);
+});
+
+/**
+ * Slice-2 member state (critic F4): a THROWAWAY signup user (auth.spec /
+ * manual-card-statement pattern — never the demo user, T6 guard untouched)
+ * creates a household, adds a manual account, and toggles a REAL share via
+ * setAccountShared. Locks the mounted card's consent copy (full disclosure —
+ * critic F2), the round-trip flag flip, and WCAG AA on the member-state DOM.
+ * Post-reload clicks use the state-aware click-and-verify retry (#167).
+ */
+test('member state: create household → add account → share it (real mutation round-trip + axe)', async ({
+  page,
+}) => {
+  const email = `e2e-share-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+
+  // Create a household (state-aware retry: a pre-hydration submit is dropped).
+  await page.goto('/settings');
+  await expect(async () => {
+    if (!(await page.getByTestId('household-name').isVisible().catch(() => false))) {
+      await page.getByTestId('household-create-name').fill('E2E Casa');
+      await page.getByTestId('household-create-submit').click({ timeout: 2000 });
+    }
+    await expect(page.getByTestId('household-name')).toHaveText('E2E Casa', { timeout: 3000 });
+  }).toPass({ timeout: 30000 });
+
+  // Add a manual account so there is something to share.
+  await page.goto('/accounts');
+  await expect(page.getByTestId('accounts-empty')).toBeVisible({ timeout: 20000 });
+  await page.getByTestId('add-asset-btn').click();
+  await page.getByTestId('manual-name').fill('E2E Shared Checking');
+  await page.getByTestId('manual-type').selectOption('CHECKING');
+  await page.getByTestId('manual-value').fill('250');
+  await page.getByTestId('manual-submit').click();
+
+  // The member-state sharing card mounts with the FULL consent disclosure (F2).
+  const card = page.getByTestId('household-sharing-card');
+  await expect(card).toBeVisible({ timeout: 20000 });
+  await expect(card).toContainText('name, type, last 4 digits, and balance');
+  const row = card.getByTestId('own-share-row').filter({ hasText: 'E2E Shared Checking' });
+  await expect(row).toBeVisible();
+
+  // Share it — a real setAccountShared round-trip (success = full reload).
+  await expect(async () => {
+    if (!(await row.getByText('· shared').isVisible().catch(() => false))) {
+      await row.getByRole('button').click({ timeout: 2000 });
+    }
+    await expect(row.getByRole('button')).toHaveText('Stop sharing', { timeout: 3000 });
+  }).toPass({ timeout: 30000 });
+
+  // WCAG AA on the mounted member-state card (scoped, ai-trust precedent).
+  const results = await new AxeBuilder({ page })
+    .include('[data-testid="household-sharing-card"]')
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});

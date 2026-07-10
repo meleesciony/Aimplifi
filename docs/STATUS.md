@@ -2,6 +2,33 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 4.2 slice 2: Household account sharing (#212)
+
+`partnerIdsOf`/`partnerSharedAccountsWhere`/`visibleAccountsWhere` in authz.ts
+(§4.3 central helpers; EXACT `{ userId }` degeneracy deep-equality-locked, T6);
+`getAccountSharingView()` as a SEPARATE query path from `getAccountsView`
+(#192/T9 detector-input constraint, unit-locked with a provably trip-worthy
+twin); `setAccountShared` (owner-only row scope, self-guarding ON-write,
+audited); `HouseholdSharingCard` on /accounts (member-only render).
+
+Fresh-context Fable critic cycle 1 FAIL (1 P1 + 3 P2) → all fixed in-cycle +
+re-verified. P1: setAccountShared(ON) vs leave/remove race could strand a
+consentless flag that would auto-share into the user's NEXT household — fixed
+both sides (membership re-checked inside the ON-write's own where; join paths
+reset the joiner's flags atomically; both locked by tests). P2s: consent copy
+states the full disclosure; owner's toggle list not currency-filtered (consent
+must always be visible/revocable); member-state e2e (real signup → household →
+share round-trip → axe AA at 380px). Known limitations (accepted, DECISIONS
+#212): partner account ids ship to the client (all actions userId-scoped);
+no rate limit on the toggle (matches declineInvite; self-scoped); slice-3+
+surfaces composing `partnerSharedAccountsWhere` must replicate the currency
+guard where money aggregation demands it (partner-side /accounts display does).
+
+Gate (real 2026-07-10, post-critic): `bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — tsc/eslint clean, **2263 unit / 176 files**, build clean. Targeted
+e2e household.spec **3/3** (demo golden-safety absence + member-state real
+share round-trip + axe WCAG-AA).
+
 ## Wave 3.2: weekly self-audit Critic (#211, TASKS 3.2)
 
 Additive `SelfAuditSnapshot` + pure bps rates + `/api/cron/audit` (Mon 15:00)

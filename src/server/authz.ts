@@ -3,6 +3,7 @@
  * Use these EVERYWHERE — every server action and route handler re-verifies
  * the session, scopes queries by userId, and audit-logs sensitive actions.
  */
+import type { Prisma } from '@/generated/prisma/client';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import {
@@ -84,6 +85,43 @@ export async function requireViewer(): Promise<Viewer> {
       memberIds: members.map((m) => m.userId),
     },
   };
+}
+
+/** The viewer's household partners (member ids minus self). Empty without a household. */
+export function partnerIdsOf(viewer: Viewer): string[] {
+  if (!viewer.household) return [];
+  return viewer.household.memberIds.filter((id) => id !== viewer.userId);
+}
+
+/**
+ * The partner-shared slice of the visible set (TASKS 4.2 slice 2 —
+ * HOUSEHOLD_ARCHITECTURE §4.3): accounts a LIVE household partner has flagged
+ * `sharedToHousehold`. Returns null when the viewer has no partners, so callers
+ * can skip the query entirely — a `userId: { in: [] }` where matches nothing,
+ * but null makes the degenerate case explicit and unqueryable by accident.
+ *
+ * Liveness is inherited from `requireViewer()`: `memberIds` is resolved from
+ * the DB per request, so a departed partner (T2/T4) drops out of this predicate
+ * on the next read even if their share flags were somehow left set.
+ */
+export function partnerSharedAccountsWhere(viewer: Viewer): Prisma.AccountWhereInput | null {
+  const partnerIds = partnerIdsOf(viewer);
+  if (partnerIds.length === 0) return null;
+  return { sharedToHousehold: true, userId: { in: partnerIds } };
+}
+
+/**
+ * THE single widened read scope (§4.3 rule 2) — hand-rolled OR clauses in
+ * fetchers are a review-rejectable defect; compose this instead. With no
+ * household, or a household with no partners, it MUST degenerate to exactly
+ * `{ userId }` (T6 — unit-locked by deep equality, not just equivalent
+ * semantics), so every existing surface that adopts it stays byte-identical
+ * for solo users and the demo user.
+ */
+export function visibleAccountsWhere(viewer: Viewer): Prisma.AccountWhereInput {
+  const shared = partnerSharedAccountsWhere(viewer);
+  if (!shared) return { userId: viewer.userId };
+  return { OR: [{ userId: viewer.userId }, shared] };
 }
 
 export async function auditLog(userId: string, action: string, meta: Record<string, unknown> = {}) {

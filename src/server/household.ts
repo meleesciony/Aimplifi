@@ -4,8 +4,10 @@
  * settings read — the self-heal's primary trigger point.
  */
 import { prisma } from '@/lib/db';
-import { requireViewer } from '@/server/authz';
+import { partnerSharedAccountsWhere, requireViewer } from '@/server/authz';
 import { normalizeEmail } from '@/lib/auth/validate';
+import { isSupportedCurrency } from '@/lib/providers/currency';
+import { isLiabilityType } from '@/lib/engine/transactions/query';
 import {
   inviteEffectiveStatus,
   type HouseholdRole,
@@ -37,6 +39,108 @@ export type HouseholdView =
       /** Pending, unexpired outgoing invites for this household. */
       pendingInvites: Array<{ id: string; email: string; expiresAt: string }>;
     };
+
+/** A partner's shared account, read-only (TASKS 4.2 slice 2). Balance is copied
+ * verbatim from the owner's row — no recomputation (no-fabrication). */
+export type SharedAccountRow = {
+  id: string;
+  name: string;
+  type: string;
+  mask: string | null;
+  currentBalanceCents: number;
+  isLiability: boolean;
+  /** Owner display label (name, else email) — attribution honesty (§4.4). */
+  ownerLabel: string;
+};
+
+export type AccountSharingView =
+  | { kind: 'none' }
+  | {
+      kind: 'member';
+      householdName: string;
+      /** The viewer's OWN accounts with their share flag — the toggle list.
+       * Currency-supported only, matching every other surface's guard. */
+      mine: Array<{
+        id: string;
+        name: string;
+        type: string;
+        mask: string | null;
+        sharedToHousehold: boolean;
+      }>;
+      /** Accounts LIVE partners have shared — read-only, owner-badged. */
+      sharedWithMe: SharedAccountRow[];
+    };
+
+/**
+ * /accounts household-sharing view (TASKS 4.2 slice 2). DELIBERATELY a
+ * separate query path from `getAccountsView` — the #192 cross-provider
+ * duplicate detector's input must stay the viewer's OWNED set
+ * (HOUSEHOLD_ARCHITECTURE §4.4 critic F10 / T9), so partner rows never enter
+ * that function. The widened read goes through `partnerSharedAccountsWhere`
+ * (§4.3 rule 2); no connection, sync, or credential fields are selected for
+ * partner rows (T5).
+ */
+export async function getAccountSharingView(): Promise<AccountSharingView> {
+  const viewer = await requireViewer();
+  if (!viewer.household) return { kind: 'none' };
+
+  const sharedWhere = partnerSharedAccountsWhere(viewer);
+  const [mine, shared] = await Promise.all([
+    prisma.account.findMany({
+      where: { userId: viewer.userId },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        mask: true,
+        sharedToHousehold: true,
+      },
+      orderBy: [{ type: 'asc' }, { name: 'asc' }],
+    }),
+    sharedWhere
+      ? prisma.account.findMany({
+          where: sharedWhere,
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            mask: true,
+            currency: true,
+            currentBalanceCents: true,
+            user: { select: { name: true, email: true } },
+          },
+          orderBy: [{ type: 'asc' }, { name: 'asc' }],
+        })
+      : Promise.resolve([]),
+  ]);
+
+  return {
+    kind: 'member',
+    householdName: viewer.household.name,
+    // Deliberately NOT currency-filtered (critic slice-2 F3): the toggle list
+    // is consent management, not money aggregation — an owner must always be
+    // able to SEE and REVOKE a share flag, even on an account the money
+    // surfaces withhold. (Partner-side display below stays currency-guarded.)
+    mine: mine.map((a) => ({
+      id: a.id,
+      name: a.name,
+      type: a.type,
+      mask: a.mask,
+      sharedToHousehold: a.sharedToHousehold,
+    })),
+    sharedWithMe: shared
+      .filter((a) => isSupportedCurrency(a.currency))
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        mask: a.mask,
+        currentBalanceCents: a.currentBalanceCents,
+        isLiability: isLiabilityType(a.type),
+        ownerLabel: a.user.name ?? a.user.email,
+      })),
+  };
+}
 
 export async function getHouseholdView(): Promise<HouseholdView> {
   const viewer = await requireViewer();

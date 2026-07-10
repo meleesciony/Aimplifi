@@ -1,5 +1,55 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #212 Household slice 2: account sharing (TASKS 4.2 §5 slice 2) — DONE ✅
+
+Resumed on "continue" (Fable lane — slice 2 IS the central authz seam, so build +
+critic ran on Fable in one session, the #210/#206 precedent). **What shipped:**
+§4.3's central helpers in `src/server/authz.ts` — `partnerIdsOf`,
+`partnerSharedAccountsWhere` (null without partners), `visibleAccountsWhere`
+(degenerates to EXACTLY `{ userId }`, deep-equality-locked — T6);
+`getAccountSharingView()` in server/household.ts as a SEPARATE query path from
+`getAccountsView` so the #192 duplicate detector's input stays the OWNED set
+(T9 — unit proves a partner-shared twin that WOULD pair never trips it);
+`setAccountShared` action (owner-only row scope, demo refused, audited);
+`HouseholdSharingCard` on /accounts ("Shared with you" read-only owner-badged
+rows + own-account share toggles, #167 mutation recipe); PRIVACY.md disclosure.
+
+**Fresh-context Fable hostile critic: cycle 1 FAIL — 1 P1 + 3 P2, all fixed
+in-cycle.** P1 (real consent race): setAccountShared(ON) racing leave/remove
+strands `sharedToHousehold=true` with no membership → since the flag names no
+household, it would auto-share into the user's NEXT household (§4.1 violation).
+Fixed both sides: the ON-write re-checks live membership inside its own `where`
+(leaveHousehold idiom), AND createHousehold/acceptInvite reset the joiner's
+flags atomically with the membership create — locked by tests on both join
+paths. P2s fixed: consent copy now states the FULL disclosure (name, type,
+last 4, balance); owner's toggle list is NOT currency-filtered (consent must
+always be visible/revocable; partner-side display stays guarded); member-state
+e2e added (throwaway signup → create household → manual account → REAL share
+round-trip → axe WCAG-AA at 380px). P3 hygiene: scalar-args validation on the
+action. Accepted P3s documented in DECISIONS #212 / STATUS §4.2-slice-2.
+
+**Gate (real output 2026-07-10, post-critic):** `bash scripts/verify.sh` →
+**✅ VERIFY GREEN** — tsc/eslint clean, **2263 unit / 176 files** (+15: 5 pure
+degeneracy + 8 integration + 2 join-reset locks), build clean. Targeted e2e
+`household.spec.ts` **3/3** (demo golden-safety + member-state mutation + axe).
+Ledgers: DECISIONS #212, STATUS §Wave 4.2 slice 2, PRIVACY §What-is-stored,
+TASKS 4.2 → slices 1–2 done.
+
+### HANDOFF (resume after /clear) — 2026-07-10, #212 DONE
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md → CLAUDE.md →
+docs/lessons/INDEX.md, then TASKS.md. **State:** #212 committed at HEAD (push
+owner-gated? No — pushes are unblocked since 0.1; push after commit unless the
+owner said otherwise this session). Health baseline (re-confirm, don't trust):
+verify GREEN 2263/176, household e2e 3/3. **Next per TASKS.md:** 4.2 slice 3 —
+shared transactions in the register (read-only rows, owner badge, NO triage
+affordances on partner rows, category names via a scoped-ids lookup — NEVER a
+`getCategoryMeta` widening; T1, T3 — Opus lane per routing, Fable critic not
+required until slice 4's money merge) — or 3.3 adaptive dashboard order / 3.4
+tone variants if a lighter session is wanted. Slice 4 (joint cash-needed) is
+the next Fable-critic money surface. **Owner-gated (unchanged):** cron FIRE
+verification in Vercel logs (0.3), Neon backups (0.6), live Plaid Link UI +
+webhook round-trip, Wave 4.5 allowlist widening.
+
 ## 2026-07-10 — prod deploy confirmed (post-#211)
 
 `main` clean @ `20152fb` (#211) + `f420925` (#210). GitHub→Vercel auto-deploy
