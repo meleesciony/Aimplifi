@@ -1,5 +1,18 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — #208 UnknownQuestion ledger (TASKS 2.2) — DONE ✅
+
+Pure `scrubQuestionText` + additive `UnknownQuestion` + Ask wiring on
+parser-unknown (incl. LLM rescue). Golden-safe (engines never read).
+Gate: verify ✅ **2189 unit / 169 files**.
+
+### HANDOFF — 2026-07-10, #208 / TASKS 2.2 DONE
+**Resume from `C:\dev\Aimplifi`.**
+**NEXT:** Wave 4.2 household slice 1 (Opus + Fable critic on membership state
+machine), or Wave 2.1 conversation frame (Opus high + Fable), or 3.1
+EngagementEvent (Opus). Cron fire still UNVERIFIED (0.3).
+**SAFE to /clear.**
+
 ## 2026-07-10 — #207 personalized triage alternatives (TASKS 1.7) — DONE ✅
 
 `deriveCorrectionHints` + `suggestAlternatives({ personalized })` + triage

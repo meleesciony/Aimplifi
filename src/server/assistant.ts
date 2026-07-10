@@ -33,6 +33,7 @@ import { parseAssistantQuery, validateIntent, type AssistantIntent } from '@/lib
 import { followUpQuestions } from '@/lib/engine/assistant/follow-ups';
 import { intentFromKind } from '@/lib/engine/assistant/llm';
 import { classifyIntentViaLLM } from '@/server/assistant-llm';
+import { recordUnknownQuestion } from '@/server/unknown-questions';
 import {
   answerAccountBalance,
   answerCashNeeded,
@@ -68,28 +69,46 @@ const MAX_QUESTION_LEN = 500;
 const LLM_RATE_LIMIT = 30;
 const LLM_RATE_WINDOW_MS = 60_000;
 
+type ResolveResult = {
+  intent: AssistantIntent;
+  viaLlm: boolean;
+  /** True when the deterministic parser returned `unknown` (ledger write gate). */
+  parserUnknown: boolean;
+  /** Raw LLM kind before validation; null if the classifier was not called. */
+  llmGuessKind: string | null;
+};
+
 /**
  * Resolve the typed intent, escalating a deterministic `unknown` to the LLM
  * classifier only when a provider key is present AND the per-user LLM budget
  * allows — re-deriving every parameter deterministically and re-validating the
  * model's choice before any data is touched. Reports whether the LLM was used so
- * the answer can disclose it was an interpretation.
+ * the answer can disclose it was an interpretation. Parser-unknown outcomes
+ * (rescued or not) feed the UnknownQuestion ledger (TASKS 2.2).
  */
 async function resolveIntent(
   question: string,
   today: string,
   userId: string,
   custom: readonly CustomCategoryInput[],
-): Promise<{ intent: AssistantIntent; viaLlm: boolean }> {
+): Promise<ResolveResult> {
   const parsed = parseAssistantQuery(question, today as Parameters<typeof parseAssistantQuery>[1], custom);
-  if (parsed.kind !== 'unknown') return { intent: parsed, viaLlm: false };
-  if (!process.env.XAI_API_KEY && !process.env.ANTHROPIC_API_KEY) return { intent: parsed, viaLlm: false };
-  if (!(await rateLimitDurable(`assistant-llm:${userId}`, LLM_RATE_LIMIT, LLM_RATE_WINDOW_MS))) return { intent: parsed, viaLlm: false };
+  if (parsed.kind !== 'unknown') {
+    return { intent: parsed, viaLlm: false, parserUnknown: false, llmGuessKind: null };
+  }
+  if (!process.env.XAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+    return { intent: parsed, viaLlm: false, parserUnknown: true, llmGuessKind: null };
+  }
+  if (!(await rateLimitDurable(`assistant-llm:${userId}`, LLM_RATE_LIMIT, LLM_RATE_WINDOW_MS))) {
+    return { intent: parsed, viaLlm: false, parserUnknown: true, llmGuessKind: null };
+  }
 
   const kind = await classifyIntentViaLLM(question);
   const proposed = intentFromKind(kind, question, today as Parameters<typeof intentFromKind>[2]);
   const valid = proposed ? validateIntent(proposed, custom) : null;
-  return valid ? { intent: valid, viaLlm: true } : { intent: parsed, viaLlm: false };
+  return valid
+    ? { intent: valid, viaLlm: true, parserUnknown: true, llmGuessKind: kind }
+    : { intent: parsed, viaLlm: false, parserUnknown: true, llmGuessKind: kind };
 }
 
 export async function askAssistant(rawQuestion: string): Promise<AssistantAnswer> {
@@ -101,7 +120,23 @@ export async function askAssistant(rawQuestion: string): Promise<AssistantAnswer
   // Golf"), and the merged meta makes the spend answers resolve them correctly.
   const custom = await getCustomCategories(userId);
   const meta = mergeCategoryMeta(custom);
-  const { intent, viaLlm } = await resolveIntent(question, today, userId, custom);
+  const { intent, viaLlm, parserUnknown, llmGuessKind } = await resolveIntent(
+    question,
+    today,
+    userId,
+    custom,
+  );
+  // Vocabulary mining (TASKS 2.2): every parser-unknown Ask, including LLM
+  // rescues. Awaited so a fault is contained inside recordUnknownQuestion; never
+  // aborts the answer. Deterministic routes write nothing.
+  if (parserUnknown) {
+    await recordUnknownQuestion({
+      userId,
+      rawQuestion: question,
+      llmGuessKind,
+      resolvedIntent: intent.kind,
+    });
+  }
 
   // One snapshot read serves every "direct" intent; composed answers reuse the
   // shipped read-paths (which load the same snapshot) so they can't drift.

@@ -14,6 +14,10 @@ fictional dataset; everything below applies fully once Plaid is connected.
   warning, a flagged subscription price increase — each with an amount copied from
   the moment of the catch, an account/merchant label, and a business date. Feeds
   the /coach "What Aimplifi caught" card and the weekly-digest tally line only.
+- Unknown questions (`UnknownQuestion`, #208): PII-scrubbed Ask phrasings the
+  deterministic parser could not route (including ones the optional LLM later
+  rescued) — emails/amounts/digits stripped before write. Feeds future vocabulary
+  mining only; never used to answer or to compute money.
 - Delivered-notification dedup keys (`NotificationSent`): the stable key + timestamp
   of each push/digest actually delivered, kept so the same alert isn't re-sent
   (pruned after 120 days).

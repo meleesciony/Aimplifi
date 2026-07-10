@@ -64,7 +64,7 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done (verify green) · `
 | # | Task | Owner/Agent | Effort | Est. budget | Status |
 |---|------|-------------|--------|------------|--------|
 | 2.1 | **Conversation frame engine**: pure, deterministic ellipsis resolution — hold `{lastIntent, timeframe, category, merchant}` per session; "what about last month / and groceries / same for Amex" re-runs the frame with one slot swapped. New parser semantics on a money-displaying surface. | **Opus 4.8 (high)** build; **Fable 5 critic** | high | 120k + 40k | [ ] |
-| 2.2 | UnknownQuestion ledger: log unroutable + LLM-rescued phrasings (PII-scrubbed: strip digits/emails/amounts), tiny additive table, golden-safe. | Sonnet | medium | 40k | [ ] |
+| 2.2 | UnknownQuestion ledger: log unroutable + LLM-rescued phrasings (PII-scrubbed: strip digits/emails/amounts), tiny additive table, golden-safe. | Sonnet | medium | 40k | [x] done 2026-07-10 (#208). Pure `scrubQuestionText` + `UnknownQuestion` + `recordUnknownQuestion` on parser-unknown Ask; money engines never read it. |
 | 2.3 | VocabEntry table + weekly mining pass (cron): cluster unknowns, promote to shadow→flagged→active per the audit §4.2 loop-2 gates (held-out replay before promotion). Routing-semantics change ⇒ critic. | Opus 4.8 build; **Fable 5 critic** | high | 100k + 30k | [ ] |
 | 2.4 | Per-user vocab in the LLM classifier prompt (top merchants + custom categories injected into the closed-set prompt; closed set unchanged). | Sonnet | low | 20k | [ ] |
 | 2.5 | Evaluate local Qwen (OpenAI-compatible endpoint) as the runtime intent/label picker per COMPETITIVE_GAP_PLAN §3 — provider addition behind existing validation. | Opus 4.8 | medium | 60k | [ ] |

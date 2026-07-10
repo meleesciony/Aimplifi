@@ -2,6 +2,20 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 2.2: UnknownQuestion ledger (#208, TASKS 2.2)
+
+Additive `UnknownQuestion` + pure `scrubQuestionText` + `recordUnknownQuestion`
+on every parser-`unknown` Ask (rescued or not). Deterministic routes write
+nothing. Money engines never read the table → golden-safe. PRIVACY.md discloses
+scrubbed storage.
+
+Gate (real 2026-07-10): `bash scripts/verify.sh` → **✅ VERIFY GREEN** —
+tsc/eslint clean, **2189 unit / 169 files**, build clean. Known limitations
+(accepted): (1) deletion-preview counts omit these rows (NotificationSent/
+ValueReceipt precedent; cascade itself is complete); (2) demo Ask of gibberish
+will append rows in the shared demo DB — not consumed by goldens; (3) no prune
+cron yet (Wave 2.3 mining can add retention).
+
 ## Wave 1.7: personalized triage alternatives (#207, TASKS 1.7)
 
 Soft hints for swipe-left: pure `deriveCorrectionHints` (same signature +

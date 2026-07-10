@@ -64,6 +64,7 @@ model User {
   pushSubscriptions PushSubscription[]
   notificationsSent NotificationSent[]
   valueReceipts     ValueReceipt[]
+  unknownQuestions  UnknownQuestion[]
 }
 
 // PII-free deletion record (Gap 6 §3, docs/PRIVACY.md §Deletion). Deliberately has
@@ -537,4 +538,24 @@ model ValueReceipt {
 
   // No separate @@index([userId]): the unique's left prefix already covers it.
   @@unique([userId, key])
+}
+
+// Unknown-question ledger (TASKS 2.2, DECISIONS #208): every Ask the deterministic
+// parser cannot route (including ones the optional LLM later rescues) appends one
+// PII-scrubbed row for vocabulary mining (Wave 2.3). Append-only; no dedup — each
+// ask is a mining signal. Never read by money engines → golden-safe.
+model UnknownQuestion {
+  id             String   @id @default(cuid())
+  userId         String
+  // Scrubbed question text only (emails/amounts/digits stripped) — never raw.
+  scrubbedText   String
+  // Raw kind from classifyIntentViaLLM before validation; null if LLM not called.
+  llmGuessKind   String?
+  // Final intent.kind after resolve (`unknown` or a rescued kind).
+  resolvedIntent String?
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }
