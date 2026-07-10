@@ -3434,3 +3434,10 @@ Wave 2.1 conversation-frame engine (Opus-high build + Fable critic, 120k+40k) or
 MVP slice 1 (membership core, Opus build + Fable critic on the state machine — TASKS 4.2, green-lit
 and "schedule sooner"; HOUSEHOLD_ARCHITECTURE.md §5 has the 8-slice plan). **Owner-gated:** cron
 FIRE verification in Vercel logs (0.3), Neon backups (0.6), live Plaid Link UI + webhook.
+
+### UPDATE — 2026-07-10, #206 PUSHED (owner: "push")
+`git push origin main` → `8fea5de..7011fcd`; local main = origin/main. CI `verify` workflow should
+fire on this push — confirm green in the Actions UI next session (gh here is unauthenticated).
+Owner guidance recorded: engine-first always before UI; if the engine is complete per plan, carry
+on without pausing. Next: TASKS 1.7 (Opus), then Household MVP slice 1 (engine/state-machine first,
+per HOUSEHOLD_ARCHITECTURE.md §5 slice plan; Fable critic on the membership state machine).
