@@ -86,4 +86,42 @@ describe('buildWeeklyDigest', () => {
     const digest = buildWeeklyDigest({ review: REVIEW, reminders: dues, today: TODAY });
     expect(digest!.text).toContain('[estimated]');
   });
+
+  // Wave 1.3 — the cumulative "what Aimplifi caught" tally, via the SHARED receiptLines.
+  it('renders the receipts tally through the same lines the /coach card shows', () => {
+    const receipts = {
+      total: 4,
+      remindersCount: 2,
+      remindersAmountCents: cents(173456),
+      radarCount: 1,
+      priceIncreaseCount: 1,
+      priceIncreaseMonthlyCents: cents(250),
+    };
+    const digest = buildWeeklyDigest({ review: REVIEW, reminders: [], today: TODAY, receipts });
+    expect(digest!.text).toContain('running tally of what Aimplifi has caught');
+    expect(digest!.text).toContain('2 payment reminders delivered, covering $1,734.56 in payments due.');
+    expect(digest!.text).toContain('1 early warning before checking was projected to dip below $0.');
+    expect(digest!.text).toContain('1 quiet price increase flagged — $2.50/mo in total.');
+  });
+
+  it('an all-zero or absent tally adds nothing, and receipts alone never trigger a digest', () => {
+    const zero = {
+      total: 0,
+      remindersCount: 0,
+      remindersAmountCents: cents(0),
+      radarCount: 0,
+      priceIncreaseCount: 0,
+      priceIncreaseMonthlyCents: cents(0),
+    };
+    const withZero = buildWeeklyDigest({ review: REVIEW, reminders: [], today: TODAY, receipts: zero });
+    expect(withZero!.text).not.toContain('caught');
+    // No review + nothing due → null even with a non-zero tally (a tally alone isn't news).
+    const tallyOnly = buildWeeklyDigest({
+      review: null,
+      reminders: [],
+      today: TODAY,
+      receipts: { ...zero, total: 3, priceIncreaseCount: 3, priceIncreaseMonthlyCents: cents(900) },
+    });
+    expect(tallyOnly).toBeNull();
+  });
 });

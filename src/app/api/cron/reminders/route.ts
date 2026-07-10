@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCashNeeded } from '@/server/finance';
 import { buildReminderEmail, selectPaymentReminders } from '@/lib/engine/reminders/select';
+import { receiptsFromReminders } from '@/lib/engine/receipts/receipts';
+import { recordReceipts } from '@/server/receipts';
 import { emailProviderConfigured, sendEmail } from '@/lib/email';
 import { checkCronBearer } from '@/lib/cron-auth';
 
@@ -56,7 +58,14 @@ export async function GET(request: NextRequest) {
         const r = await sendEmail({ to: user.email, subject: email.subject, text: email.text });
         sent = r.sent;
         reason = r.reason;
-        if (sent) emailsSent += 1;
+        if (sent) {
+          emailsSent += 1;
+          // Value receipt per reminder actually delivered (TASKS 1.3) — the same
+          // once-per-catch stance as NotificationSent: a dormant/failed send mints
+          // nothing, and the payment-keyed dedup means a later push about the same
+          // due payment won't double-count it.
+          await recordReceipts(user.id, receiptsFromReminders(reminders, today));
+        }
       }
 
       results.push({ userId: user.id, reminders: reminders.length, sent, reason });

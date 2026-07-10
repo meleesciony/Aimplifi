@@ -9,6 +9,14 @@ fictional dataset; everything below applies fully once Plaid is connected.
   Full account numbers are never requested, stored, or displayed.
 - Transactions, statements, balances, scheduled transactions — the data the
   product's engines need.
+- Value receipts (`ValueReceipt`, #206): an append-only per-user tally of what the
+  app proactively surfaced — a delivered payment reminder, a delivered cash-flow
+  warning, a flagged subscription price increase — each with an amount copied from
+  the moment of the catch, an account/merchant label, and a business date. Feeds
+  the /coach "What Aimplifi caught" card and the weekly-digest tally line only.
+- Delivered-notification dedup keys (`NotificationSent`): the stable key + timestamp
+  of each push/digest actually delivered, kept so the same alert isn't re-sent
+  (pruned after 120 days).
 - Plaid **access tokens, AES-256-GCM encrypted at rest** (`DATA_ENCRYPTION_KEY`,
   32 bytes) — applies to the dormant Plaid path; demo mode stores no tokens.
   Tokens are never logged and never sent to the client. Raw bank credentials
@@ -48,7 +56,8 @@ Settings → Export: transactions (CSV), net worth (CSV/PDF) via
 4. `DELETE FROM User WHERE id = ?` — the schema cascades (`onDelete: Cascade`)
    to accounts, transactions, statements, payments, scheduled transactions,
    balance snapshots, rules, corrections, recurring series, goals, budgets,
-   Plaid items, **and audit log rows**: deletion removes everything personal, audit
+   Plaid items, category predictions, push subscriptions, notification dedup keys,
+   value receipts, **and audit log rows**: deletion removes everything personal, audit
    trail included (nothing recoverable about the user is retained — only the hashed
    deletion record above survives). The action is idempotent — if the row is already
    gone it simply signs out (no error).

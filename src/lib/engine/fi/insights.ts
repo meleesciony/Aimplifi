@@ -99,6 +99,18 @@ export interface Opportunity {
   fv30Cents: Cents;
   /** Big-win framing, with the assumption stated. From coach-copy templates. */
   isEstimate: boolean;
+  /**
+   * For kind 'price-increase' only (absent for every other kind): the series'
+   * detected change date plus the absolute before/after prices, copied verbatim.
+   * The value-receipt idempotency key (TASKS 1.3) is anchored on the PRICE
+   * TRANSITION (from→to), not the date — detectRecurring's change date is a
+   * detection artifact that can shift under transaction re-import churn, and a
+   * shifted date must not re-mint the same increase (critic #206 P2-2). The date
+   * is kept as the receipt's business `occurredOn`.
+   */
+  priceChangedAt?: string;
+  priceFromCents?: Cents;
+  priceToCents?: Cents;
 }
 
 export function findOpportunities(
@@ -106,7 +118,13 @@ export function findOpportunities(
   expectedReturnBps: number,
 ): Opportunity[] {
   const out: Opportunity[] = [];
-  const push = (kind: OpportunityKind, merchant: string, monthly: number, isEstimate: boolean) => {
+  const push = (
+    kind: OpportunityKind,
+    merchant: string,
+    monthly: number,
+    isEstimate: boolean,
+    price?: { changedAt: string; fromCents: Cents; toCents: Cents },
+  ) => {
     const m = cents(Math.abs(monthly));
     if (m === 0) return;
     out.push({
@@ -117,6 +135,13 @@ export function findOpportunities(
       fv20Cents: opportunityFVCents(m, 240, expectedReturnBps),
       fv30Cents: opportunityFVCents(m, 360, expectedReturnBps),
       isEstimate,
+      ...(price !== undefined
+        ? {
+            priceChangedAt: price.changedAt,
+            priceFromCents: price.fromCents,
+            priceToCents: price.toCents,
+          }
+        : {}),
     });
   };
 
@@ -126,7 +151,13 @@ export function findOpportunities(
     // expense whose price rose is (REC-2).
     if (!s.isIncome && s.priceChangedAt && s.previousAmountCents !== null) {
       const delta = Math.abs(s.lastAmountCents) - Math.abs(s.previousAmountCents);
-      if (delta > 0) push('price-increase', s.merchantCanonical, delta, false);
+      if (delta > 0) {
+        push('price-increase', s.merchantCanonical, delta, false, {
+          changedAt: s.priceChangedAt,
+          fromCents: cents(Math.abs(s.previousAmountCents)),
+          toCents: cents(Math.abs(s.lastAmountCents)),
+        });
+      }
     }
     // #163: auto premiums now file to their own leaf — both the generic and the
     // auto leaf are genuinely re-shoppable. Health/dental/vision (employer

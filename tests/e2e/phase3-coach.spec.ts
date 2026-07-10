@@ -52,6 +52,18 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(page.getByTestId('review-creep')).not.toBeEmpty();
   await expect(page.getByTestId('review-next-action')).toContainText('One next action');
 
+  // Wave 1.3 value receipts: visiting /coach mints the seed's single price-increase
+  // catch (Netflix $15.49 → $17.99 = $2.50/mo, keyed on its change date), so the
+  // "What Aimplifi caught" card shows the tally — and a reload doesn't double-count
+  // (the mint is idempotent per key).
+  await expect(page.getByTestId('value-receipts-card')).toBeVisible();
+  await expect(page.getByTestId('value-receipts-headline')).toContainText('1 catch so far');
+  await expect(page.getByTestId('value-receipts-lines')).toContainText(
+    '1 quiet price increase flagged — $2.50/mo in total.',
+  );
+  await page.reload();
+  await expect(page.getByTestId('value-receipts-headline')).toContainText('1 catch so far');
+
   // the educational disclaimer is on the page (global footer)
   await expect(page.locator('text=not financial advice')).toBeVisible();
 });

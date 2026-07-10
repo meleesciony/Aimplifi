@@ -77,6 +77,10 @@ describe('GET /api/cron/reminders', () => {
     // The sweep audited what it would have sent.
     const audit = await prisma.auditLog.findFirst({ where: { userId: USER, action: 'reminders.cron' } });
     expect(audit).not.toBeNull();
+
+    // TASKS 1.3: a dormant run mints NO value receipt — "reminder delivered" means
+    // delivered, never "would have been delivered".
+    expect(await prisma.valueReceipt.count({ where: { userId: USER } })).toBe(0);
   });
 
   it('with an email key, actually sends and counts the email (non-dormant)', async () => {
@@ -92,5 +96,20 @@ describe('GET /api/cron/reminders', () => {
     const mine = body.results.find((r: { userId: string }) => r.userId === USER);
     expect(mine.sent).toBe(true);
     expect(fetchSpy).toHaveBeenCalled();
+
+    // TASKS 1.3: the delivered reminder minted a value receipt with the payment amount
+    // copied verbatim (cashRequiredCents = the $500.00 statement), and a second
+    // delivery about the same due payment would dedup on the payment key.
+    const receipts = await prisma.valueReceipt.findMany({ where: { userId: USER } });
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].kind).toBe('reminder-delivered');
+    expect(receipts[0].amountCents).toBe(50_000);
+    expect(receipts[0].label).toBe('Imminent Card');
+    expect(receipts[0].key.startsWith('payment_due:')).toBe(true);
+
+    // Re-run: same reminder re-emails (reminders have no once-per-key send dedup),
+    // but the receipt count must not grow — one catch, one receipt.
+    await GET(req('test-secret'));
+    expect(await prisma.valueReceipt.count({ where: { userId: USER } })).toBe(1);
   });
 });

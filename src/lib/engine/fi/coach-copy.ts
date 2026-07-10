@@ -202,6 +202,24 @@ export const COACH_COPY = {
   moneyRules: (dials: string[]) =>
     `The few rules this app is built around: pay every card in full, pay yourself first before you spend, and ${dials.length ? `spend on ${dials.join(', ')} without guilt` : 'spend on the few things you value without guilt'}. Getting good with money is mostly a short list of rules you actually keep — they beat a perfect plan you won't.`,
 
+  // ── Wave 1.3: value receipts — "what Aimplifi caught" (TASKS 1.3) ───────────
+  // HONESTY RULE: these state what was SURFACED (reminders delivered, warnings shown,
+  // increases flagged) and never claim an outcome or savings — Aimplifi can't know
+  // what the user did next, so "we saved you $X" would be a fabricated causation.
+  receiptsHeadline: (total: number) =>
+    total === 1
+      ? `1 catch so far — a moment Aimplifi flagged something so you could decide.`
+      : `${total} catches so far — moments Aimplifi flagged something so you could decide.`,
+  receiptsReminders: (count: number, coveredCents: Cents) =>
+    `${count} payment reminder${count === 1 ? '' : 's'} delivered, covering ${formatCents(coveredCents)} in payments due.`,
+  receiptsRadar: (count: number) =>
+    `${count} early warning${count === 1 ? '' : 's'} before checking was projected to dip below $0.`,
+  receiptsPriceIncreases: (count: number, monthlyCents: Cents) =>
+    `${count} quiet price increase${count === 1 ? '' : 's'} flagged — ${formatCents(monthlyCents)}/mo in total.`,
+  receiptsFooter: () =>
+    `A running tally of what Aimplifi surfaced, not a score: it counts the reminders, warnings, and flags themselves — what you did next stays yours, and it never moves your money.`,
+  digestCaughtHeader: () => `The running tally of what Aimplifi has caught for you:`,
+
   // ── Gap 2 §3: weekly digest email (composes the Money Review + the week's dues) ──
   digestSubject: () => `Your week with Aimplifi`,
   digestIntro: (todayLong: string) =>

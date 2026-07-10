@@ -2,6 +2,53 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 1.3: value-receipts ledger — "What Aimplifi caught" (#206, TASKS 1.3)
+
+Append-only `ValueReceipt` (additive; `@@unique([userId,key])`) + pure
+`engine/receipts`: amounts copied verbatim at catch time (reminder →
+cashRequiredCents; radar → the alert's own coverTransfer amount; price
+increase → monthlyCents). Minting: reminder/radar receipts ONLY on real
+delivery (reminders/notify crons; channel-agnostic `payment_due` keys →
+email+push mint one receipt per catch; ESTIMATED reminders mint nothing);
+price receipts keyed on the PRICE TRANSITION
+(`price_increase:merchant:from>to`, from/to/changedAt threaded onto
+price-increase Opportunities) and minted where the flag is actually surfaced
+(/coach render; digest cron only after a real send). Surfaces: /coach
+`value-receipts-card` (hidden until the first catch) + a digest tally via the
+SHARED `receiptLines`; the digest null-rule is unchanged (a tally alone never
+triggers a send). Honesty is structural: the summary is per-kind counts/totals
+only (no cross-kind dollar field exists in the type) and a coach-copy test
+bans "saved you / earned you" phrasing — the tally counts what was SURFACED,
+never outcomes.
+
+**Hostile critic (fresh-context Fable, refute-by-default): cycle 1 = 0 P0/P1,
+4 P2 — all fixed in-cycle:** digest price-mint was not delivery-gated (now
+mints only after a real send); price keys were detection-date-anchored and
+re-mintable under re-import churn (now transition-anchored); estimated
+reminder amounts entered the permanent tally unmarked and could double-mint
+when the real statement's due date differed (estimates now mint nothing —
+undercount-safe); PRIVACY.md omitted the new table (now discloses ValueReceipt
+AND the pre-existing NotificationSent). P3 fixes: seed→opportunity threading
+lock in insights.test; redundant `@@index([userId])` dropped.
+
+**Known limitations (accepted, documented):** (1) radar catches count only on
+actual push delivery — a user with no push subscription accrues none even if
+the dashboard showed the warning (honest: nothing was proactively delivered);
+(2) the mocked-provider unit cron tests sweep every user in the vitest DB, so
+its demo user can accrue receipt rows — test-DB residue only, reseed clears,
+the e2e golden DB untouched; (3) receipts are append-only history — later
+renames don't rewrite recorded labels (by design); (4) deletion-preview counts
+omit receipt rows (NotificationSent precedent; the cascade itself is complete);
+(5) a non-P2002 receipt-write error in the notify loop defers that user's
+remaining pushes to the next sweep (contained by the per-user try).
+
+Gate (real 2026-07-10, post-critic): `bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — tsc/eslint clean, **2170 unit / 166 files** (receipts engine 17 +
+receipts-server integration 7 + digest/coach-copy/cron/insights additions),
+build clean. Targeted e2e: phase3-coach (incl. new "1 catch … $2.50/mo" demo
+assertions + reload idempotency) **1/1**, payment-reminders + notifications
+**6/6**, phase5-a11y + auth **10/10** (critic-run, WCAG-AA with the new card).
+
 ## Wave 1.4: savings-rate streaks + celebration copy (#205, TASKS 1.4)
 
 Pure `computeSavingsStreak` over existing `MonthlyFlow[]` (bps, no floats).

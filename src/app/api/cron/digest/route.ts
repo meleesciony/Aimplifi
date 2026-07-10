@@ -18,6 +18,8 @@ import { getCashNeeded } from '@/server/finance';
 import { getCoachData } from '@/server/coach';
 import { selectPaymentReminders } from '@/lib/engine/reminders/select';
 import { buildWeeklyDigest } from '@/lib/engine/digest/build';
+import { receiptsFromOpportunities } from '@/lib/engine/receipts/receipts';
+import { getValueReceiptsSummary, recordReceipts } from '@/server/receipts';
 import { emailProviderConfigured, sendEmail } from '@/lib/email';
 import { checkCronBearer } from '@/lib/cron-auth';
 
@@ -62,8 +64,10 @@ export async function GET(request: NextRequest) {
         today,
         withinDays: DIGEST_WINDOW_DAYS,
       });
-      const { review } = await getCoachData(user.id);
-      const digest = buildWeeklyDigest({ review, reminders, today });
+      const { review, opportunities } = await getCoachData(user.id);
+      // The tally line reflects everything caught SO FAR (already-persisted rows).
+      const receipts = await getValueReceiptsSummary(user.id);
+      const digest = buildWeeklyDigest({ review, reminders, today, receipts });
 
       let sent = false;
       let reason: string | undefined;
@@ -82,6 +86,12 @@ export async function GET(request: NextRequest) {
           } catch (e) {
             if ((e as { code?: string })?.code !== 'P2002') throw e;
           }
+          // Value receipts for the price increases this digest actually surfaced
+          // (its Money Review creep line names the increase) — minted ONLY after a
+          // real send, the same delivery-gated stance as reminders/radar (critic
+          // #206 P2-1). They join the tally line from the NEXT digest onward; the
+          // /coach visit mints them too, whichever happens first.
+          await recordReceipts(user.id, receiptsFromOpportunities(opportunities));
         }
       } else {
         reason = 'no-email';

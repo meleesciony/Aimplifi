@@ -3403,3 +3403,34 @@ the `verify` workflow run **#15** (from the #194 push) was **owner-confirmed GRE
 Linux runner — first confirmed CI-arbiter pass. Wave 0.1 done; single-machine-loss net now
 holds; a green CI e2e independently confirms the mobile-380 flake is Windows-local. Next lane
 unchanged: Wave-1 1.1 return-moment (Opus, engine-first).
+
+## 2026-07-10 — #206 Value-receipts ledger (TASKS 1.3) — DONE
+
+Gate (real 2026-07-10, post-critic): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — tsc/eslint
+clean, **2170 unit / 166 files**, build clean. Targeted e2e (mobile-380): phase3-coach (new
+"1 catch … $2.50/mo" + reload idempotency) + payment-reminders + notifications **7/7**; critic
+independently ran phase5-a11y + auth **10/10** (WCAG-AA with the new card visible).
+
+**What shipped:** additive `ValueReceipt` (`@@unique([userId,key])`, user-cascade) + pure
+`engine/receipts/receipts.ts` (verbatim-copy builders, per-kind summary, shared `receiptLines`) +
+`server/receipts.ts` (filter-then-create + P2002 swallow) + delivery-gated minting in the
+reminders/notify crons (channel-agnostic `payment_due` keys; estimated reminders mint nothing) +
+price receipts keyed on the PRICE TRANSITION (`price_increase:merchant:from>to`; from/to/changedAt
+threaded onto price-increase Opportunities) minted on the /coach render and post-send in the digest
+cron + /coach "What Aimplifi caught" card (hidden until first catch) + digest tally section.
+Honesty structural: per-kind counts/totals only, no cross-kind $ field, copy-guardrail test bans
+saved/earned phrasing. Fresh-context Fable hostile critic: **0 P0/P1, 4 P2 — all fixed in-cycle**
+(digest delivery gate; transition keys vs date-churn re-mint; estimated-amount skip; PRIVACY.md
+disclosure) + P3s (insights threading lock, redundant index). Ledgers: DECISIONS #206, STATUS
+§Wave 1.3, EDGE_CASES §Value-Receipts, PRIVACY §What-is-stored/§Deletion, TASKS 1.3 → [x].
+
+### HANDOFF (resume after /clear) — 2026-07-10, #206 DONE
+**Resume from `C:\dev\Aimplifi`.** Read LOOP_ENGINEERING.md → CLAUDE.md → docs/lessons/INDEX.md,
+then TASKS.md. **State:** #206 committed at HEAD. Health baseline (re-confirm, don't trust): verify
+GREEN 2170/166, build clean; full VERIFY_E2E expected to exit 0 locally (#193 standing assumption).
+**Wave 1 is now closed except 1.7** (personalized triage alternatives — Opus lane, pure function +
+tests). **Next per TASKS.md routing:** 1.7 (Opus, 40k) is the last small Wave-1 slice; then either
+Wave 2.1 conversation-frame engine (Opus-high build + Fable critic, 120k+40k) or start Household
+MVP slice 1 (membership core, Opus build + Fable critic on the state machine — TASKS 4.2, green-lit
+and "schedule sooner"; HOUSEHOLD_ARCHITECTURE.md §5 has the 8-slice plan). **Owner-gated:** cron
+FIRE verification in Vercel logs (0.3), Neon backups (0.6), live Plaid Link UI + webhook.

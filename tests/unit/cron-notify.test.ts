@@ -82,6 +82,8 @@ describe('GET /api/cron/notify', () => {
     expect(sendNotification).not.toHaveBeenCalled();
     // CRITICAL: nothing recorded, so a later opt-in still gets this alert.
     expect(await prisma.notificationSent.count({ where: { userId: USER } })).toBe(0);
+    // TASKS 1.3: and no value receipt either — nothing was actually delivered.
+    expect(await prisma.valueReceipt.count({ where: { userId: USER } })).toBe(0);
   });
 
   it('configured + subscribed: delivers, records the key, and dedups the next sweep', async () => {
@@ -109,6 +111,15 @@ describe('GET /api/cron/notify', () => {
     expect(sendNotification).not.toHaveBeenCalled();
     // No duplicate rows from the second sweep.
     expect(await prisma.notificationSent.count({ where: { userId: USER } })).toBe(recorded);
+
+    // TASKS 1.3: the delivered payment push minted ONE value receipt with the payment
+    // amount copied verbatim ($500.00 statement), on the channel-agnostic payment key
+    // (so a reminder EMAIL about the same due payment could not double-count it).
+    const receipts = await prisma.valueReceipt.findMany({ where: { userId: USER } });
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].kind).toBe('reminder-delivered');
+    expect(receipts[0].amountCents).toBe(50_000);
+    expect(receipts[0].key.startsWith('payment_due:')).toBe(true);
   });
 
   it('a gone (410) subscription is pruned and the key is NOT recorded', async () => {
@@ -128,5 +139,9 @@ describe('GET /api/cron/notify', () => {
     // Dead endpoint pruned; nothing recorded (no live device got it).
     expect(await prisma.pushSubscription.count({ where: { userId: USER } })).toBe(0);
     expect(await prisma.notificationSent.count({ where: { userId: USER } })).toBe(0);
+    // TASKS 1.3: a phantom send mints no NEW receipt — the count stays at the single
+    // receipt the earlier REAL delivery minted (receipts are append-only history, so
+    // wiping the dedup log above doesn't touch them).
+    expect(await prisma.valueReceipt.count({ where: { userId: USER } })).toBe(1);
   });
 });

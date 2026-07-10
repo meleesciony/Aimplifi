@@ -63,6 +63,7 @@ model User {
   customCategories Category[]
   pushSubscriptions PushSubscription[]
   notificationsSent NotificationSent[]
+  valueReceipts     ValueReceipt[]
 }
 
 // PII-free deletion record (Gap 6 §3, docs/PRIVACY.md §Deletion). Deliberately has
@@ -511,4 +512,29 @@ model NotificationSent {
 
   @@unique([userId, key])
   @@index([sentAt])
+}
+
+// Value-receipts ledger (TASKS 1.3, DECISIONS #206): one row per proactive catch
+// Aimplifi actually surfaced — a payment reminder delivered, a radar dip warning
+// delivered, or a price increase flagged. Rows are APPEND-ONLY facts copied verbatim
+// from the source engines at the moment of the catch (never recomputed later, so the
+// tally can't silently rewrite history when underlying data changes). `key` is the
+// channel-agnostic idempotency key (an email and a push about the same due payment
+// mint ONE receipt). `amountCents` meaning is per kind — see engine/receipts.
+model ValueReceipt {
+  id          String   @id @default(cuid())
+  userId      String
+  // 'reminder-delivered' | 'radar-catch' | 'price-increase' (engine/receipts kinds)
+  kind        String
+  key         String
+  amountCents Int
+  // Display label captured at catch time (account or merchant name) — data, not copy.
+  label       String
+  // Business calendar date of the catch (YYYY-MM-DD), per the date-discipline rule.
+  occurredOn  String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // No separate @@index([userId]): the unique's left prefix already covers it.
+  @@unique([userId, key])
 }

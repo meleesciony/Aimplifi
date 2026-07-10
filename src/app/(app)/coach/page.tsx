@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { CheckCircle2, Eye, TrendingUp } from 'lucide-react';
+import { CheckCircle2, Eye, ShieldCheck, TrendingUp } from 'lucide-react';
 import { auth } from '@/auth';
 import { AutomationBlueprintCard } from '@/components/coach/automation-blueprint-card';
 import { FICard } from '@/components/coach/fi-card';
@@ -20,7 +20,9 @@ import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { formatMonth } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
 import { prisma } from '@/lib/db';
+import { receiptLines, receiptsFromOpportunities } from '@/lib/engine/receipts/receipts';
 import { getCoachData } from '@/server/coach';
+import { getValueReceiptsSummary, recordReceipts } from '@/server/receipts';
 import { getWithheldAccountSummary } from '@/server/transactions';
 
 export const metadata = { title: "Coach" };
@@ -34,6 +36,12 @@ export default async function CoachPage() {
     getCoachData(session.user.id),
     getWithheldAccountSummary(session.user.id),
   ]);
+  // Value receipts (TASKS 1.3): /coach is where price-increase flags are surfaced, so
+  // it mints their receipts (key-dedup → idempotent, one row per increase ever), then
+  // reads the cumulative tally. Reminder/radar receipts are minted by their delivery
+  // crons; this only ever adds rows for newly detected increases.
+  await recordReceipts(session.user.id, receiptsFromOpportunities(data.opportunities));
+  const receipts = await getValueReceiptsSummary(session.user.id);
 
   return (
     <div className="space-y-4">
@@ -167,6 +175,31 @@ export default async function CoachPage() {
       <AutomationBlueprintCard steps={data.blueprint} />
 
       <LifeEnergyCard items={data.lifeEnergy} hourlyWageCents={data.hourlyWageCents} />
+
+      {/* What Aimplifi caught (TASKS 1.3) — the cumulative value-receipts tally.
+          Honest by construction: counts + per-kind totals of what was surfaced,
+          never an outcome or "saved you $X" claim. Hidden until there's a catch. */}
+      {receipts.total > 0 && (
+        <Card data-testid="value-receipts-card">
+          <CardHeader className="pb-2">
+            <CardDescription>What Aimplifi caught</CardDescription>
+            <CardTitle className="text-base" data-testid="value-receipts-headline">
+              {COACH_COPY.receiptsHeadline(receipts.total)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <ul className="space-y-2" data-testid="value-receipts-lines">
+              {receiptLines(receipts).map((line) => (
+                <li key={line} className="flex items-start gap-2">
+                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-500" aria-hidden />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground">{COACH_COPY.receiptsFooter()}</p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card data-testid="money-review-card">
         <CardHeader className="pb-2">

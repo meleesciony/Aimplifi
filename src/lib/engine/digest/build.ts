@@ -17,6 +17,7 @@
 import { type ISODate, formatISODate } from '@/lib/dates';
 import { COACH_COPY, type MoneyReview } from '@/lib/engine/fi/coach-copy';
 import { type PaymentReminder, reminderLine } from '@/lib/engine/reminders/select';
+import { receiptLines, type ValueReceiptsSummary } from '@/lib/engine/receipts/receipts';
 
 export interface WeeklyDigest {
   subject: string;
@@ -27,14 +28,24 @@ export function buildWeeklyDigest(input: {
   review: MoneyReview | null;
   reminders: readonly PaymentReminder[];
   today: ISODate;
+  /**
+   * Cumulative value-receipts tally (TASKS 1.3), rendered via the SAME receiptLines
+   * the /coach card uses. Optional and never a send trigger: a digest with no review
+   * and nothing due stays null — a running tally alone isn't news.
+   */
+  receipts?: ValueReceiptsSummary | null;
 }): WeeklyDigest | null {
-  const { review, reminders, today } = input;
+  const { review, reminders, today, receipts } = input;
   if (!review && reminders.length === 0) return null;
 
   const parts: string[] = [COACH_COPY.digestIntro(formatISODate(today, 'long')), ''];
 
   if (review) {
     parts.push(review.improvement, review.creep, '', review.nextAction, '');
+  }
+
+  if (receipts && receipts.total > 0) {
+    parts.push(COACH_COPY.digestCaughtHeader(), ...receiptLines(receipts).map((l) => `• ${l}`), '');
   }
 
   parts.push(COACH_COPY.digestPaymentsHeader());

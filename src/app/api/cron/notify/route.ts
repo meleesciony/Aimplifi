@@ -21,7 +21,9 @@ import { businessToday } from '@/lib/business-today';
 import { getCashNeeded } from '@/server/finance';
 import { getCashFlowRadar } from '@/server/radar';
 import { selectPaymentReminders } from '@/lib/engine/reminders/select';
-import { selectNotifications } from '@/lib/engine/notify/select';
+import { paymentNotificationKey, selectNotifications } from '@/lib/engine/notify/select';
+import { receiptFromRadarAlert, receiptsFromReminders } from '@/lib/engine/receipts/receipts';
+import { recordReceipts } from '@/server/receipts';
 import { isAllowedPushEndpoint, pushProviderConfigured, sendPush } from '@/lib/push';
 import { deleteGoneEndpoint } from '@/server/push-subscriptions';
 import { checkCronBearer } from '@/lib/cron-auth';
@@ -145,6 +147,16 @@ export async function GET(request: NextRequest) {
             } catch (e) {
               if ((e as { code?: string })?.code !== 'P2002') throw e;
               // already recorded by a concurrent sweep — fine, it was delivered
+            }
+            // Value receipt for the delivered catch (TASKS 1.3). Keys are
+            // channel-agnostic (payment receipts share the reminder-email key), so
+            // whichever channel delivered first minted it and this is a no-op then.
+            if (n.kind === 'cash_flow_alert' && radar) {
+              const receipt = receiptFromRadarAlert(radar, today);
+              if (receipt) await recordReceipts(user.id, [receipt]);
+            } else if (n.kind === 'payment_due') {
+              const reminder = reminders.find((r) => paymentNotificationKey(r) === n.key);
+              if (reminder) await recordReceipts(user.id, receiptsFromReminders([reminder], today));
             }
           }
         }

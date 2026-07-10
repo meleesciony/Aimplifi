@@ -189,6 +189,17 @@ describe('savings opportunities ranked by compounded impact', () => {
     expect(netflix.monthlyCents).toBe(250);
   });
 
+  it('price-increase opportunities carry their transition + change date (value-receipt anchors, #206); other kinds do not', () => {
+    const netflix = opportunities.find((o) => o.kind === 'price-increase')!;
+    expect(netflix.priceFromCents).toBe(1549);
+    expect(netflix.priceToCents).toBe(1799);
+    expect(netflix.priceChangedAt).toBe('2026-02-03');
+    for (const o of opportunities.filter((x) => x.kind !== 'price-increase')) {
+      expect(o.priceFromCents).toBeUndefined();
+      expect(o.priceChangedAt).toBeUndefined();
+    }
+  });
+
   it('estimates are labeled as estimates', () => {
     expect(opportunities.find((o) => o.kind === 'insurance-reshop')!.isEstimate).toBe(true);
     expect(opportunities.find((o) => o.kind === 'unused-subscription')!.isEstimate).toBe(false);

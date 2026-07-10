@@ -113,6 +113,15 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'assetsVsLiabilities', text: COACH_COPY.assetsVsLiabilities(), isProjection: false },
   { label: 'moneyRules:withDials', text: COACH_COPY.moneyRules(['Travel', 'Dining Out']), isProjection: false },
   { label: 'moneyRules:empty', text: COACH_COPY.moneyRules([]), isProjection: false },
+  // Wave 1.3 — value receipts ("what Aimplifi caught"): counts of what was surfaced,
+  // never an outcome/savings claim (the engine-side honesty rule).
+  { label: 'receiptsHeadline:1', text: COACH_COPY.receiptsHeadline(1), isProjection: false },
+  { label: 'receiptsHeadline:many', text: COACH_COPY.receiptsHeadline(7), isProjection: false },
+  { label: 'receiptsReminders', text: COACH_COPY.receiptsReminders(3, cents(173456)), isProjection: false },
+  { label: 'receiptsRadar', text: COACH_COPY.receiptsRadar(1), isProjection: false },
+  { label: 'receiptsPriceIncreases', text: COACH_COPY.receiptsPriceIncreases(2, cents(1250)), isProjection: false },
+  { label: 'receiptsFooter', text: COACH_COPY.receiptsFooter(), isProjection: false },
+  { label: 'digestCaughtHeader', text: COACH_COPY.digestCaughtHeader(), isProjection: false },
   { label: 'digestSubject', text: COACH_COPY.digestSubject(), isProjection: false },
   { label: 'digestIntro', text: COACH_COPY.digestIntro('June 10, 2026'), isProjection: false },
   { label: 'digestPaymentsHeader', text: COACH_COPY.digestPaymentsHeader(), isProjection: false },
@@ -169,6 +178,16 @@ describe('coach copy guardrails — zero shame, assumptions everywhere, no ticke
 
   it.each(ALL_STRINGS.map((s) => [s.label, s] as const))('%s: no security recommendations', (_, s) => {
     expect(s.text).not.toMatch(TICKERS);
+  });
+
+  // Wave 1.3 honesty rule: the receipts tally counts what was SURFACED; it must never
+  // claim an outcome — Aimplifi can't know what the user did after a reminder/flag.
+  it('receipts copy never claims savings or an outcome', () => {
+    const receipts = ALL_STRINGS.filter((s) => s.label.startsWith('receipts') || s.label === 'digestCaughtHeader');
+    expect(receipts.length).toBeGreaterThanOrEqual(7);
+    for (const s of receipts) {
+      expect(s.text, s.label).not.toMatch(/\bsaved you\b|\bwe saved\b|\byou saved\b|\bearned you\b|\bmade you\b/i);
+    }
   });
 
   it('the disclaimer marks the coach as educational, not advice', () => {

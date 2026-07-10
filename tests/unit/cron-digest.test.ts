@@ -76,11 +76,33 @@ describe('GET /api/cron/digest', () => {
     const fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     vi.stubGlobal('fetch', fetchSpy);
 
+    // TASKS 1.3: an existing catch makes the digest carry the cumulative tally line.
+    await prisma.valueReceipt.create({
+      data: {
+        userId: USER,
+        kind: 'price-increase',
+        key: 'price_increase:Netflix:2026-02-03',
+        amountCents: 250,
+        label: 'Netflix',
+        occurredOn: '2026-02-03',
+      },
+    });
+
     const first = await (await GET(req('test-secret'))).json();
     expect(first.dormant).toBe(false);
     const mine1 = first.results.find((r: { userId: string }) => r.userId === USER);
     expect(mine1.sent).toBe(true); // sendEmail returned sent → fetch was called for USER
     expect(fetchSpy).toHaveBeenCalled();
+
+    // The email actually sent to USER contains the caught tally, via the shared lines.
+    const userCall = fetchSpy.mock.calls.find((call) => {
+      const init = call[1] as { body?: unknown } | undefined;
+      return typeof init?.body === 'string' && init.body.includes(`${USER}@test.local`);
+    });
+    expect(userCall).toBeDefined();
+    const sentBody = String((userCall![1] as { body: string }).body);
+    expect(sentBody).toContain('running tally of what Aimplifi has caught');
+    expect(sentBody).toContain('1 quiet price increase flagged');
     // Exactly one week key recorded for USER (the real send).
     expect(await prisma.notificationSent.count({ where: { userId: USER, key: weekKey } })).toBe(1);
 
