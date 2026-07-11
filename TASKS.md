@@ -97,7 +97,23 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done (verify green) · `
 | 4.4 | Crisis-mode coach framing (multi-collision radar state → triage-order copy; guardrails extended, not bypassed). | Opus 4.8 + Sonnet copy | medium | 50k | [ ] |
 | 4.5 | Widen the allowlist deliberately; watch Wave-3.2 metrics as the first real cohort lands. | Human | — | — | [ ] |
 
----
+## Wave S — Skills, scripts & docs hygiene (see docs/SKILLS_PLAN.md for full specs)
+
+Cheap-model wave: removes repeated AI work from every future session. Do S-tasks between
+feature waves; none blocks Wave 0.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+| S.1 | `scripts/ledger.ts` (decision/regression/progress appender + DECISIONS_INDEX.md generator) + package.json aliases (`verify`, `verify:e2e`, `verify:fast`, `eval:categorize`). Plan §2 S2+S4. | Sonnet | medium | 40k | [x] done 2026-07-10 (DECISIONS #214). `scripts/ledger.ts` (decision/regression/progress appenders, CRLF-safe, DECISIONS_INDEX.md generator) + package.json `verify:e2e`/`verify:fast`/`ledger` aliases (`verify`/`eval:categorize` already existed). Also restored TASKS.md itself, which had lost Waves 0-4 completed-status history in the working tree before this session (see PROGRESS.md). Gate: `bash scripts/verify.sh` → VERIFY GREEN, 2271 unit/177 files, build clean. |
+| S.2 | Docs de-dup pass D1–D8 (plan §5): archive START_HERE/SESSION_CONTEXT×4/REVIEW_CYCLES/categorization one-offs; HISTORICAL banners on SPEC/PHASE_0/SCHWAB sketch; finish Pulse→Aimplifi rename (frozen seed strings excluded); README test-count + review-rate honesty fix; one-status-home rule added to CLAUDE.md. | Sonnet (or Cursor/Grok) | medium | 50k | [ ] |
+| S.3 | `scripts/docs-lint.ts` (Pulse-leak allowlist, hardcoded-count ban, archive banners, command phrasing) + warning step in verify.yml. Locks S.2 permanently. | Sonnet | medium | 40k | [ ] |
+| S.4 | Skills K3 `mutation-form`, K4 `e2e-recipe`, K5 `schema-change` (.claude/skills/) + their .cursor/rules mirrors. Extraction from lessons/precedents. | Sonnet; Opus reviews K5 golden-safety wording | medium | 60k | [ ] |
+| S.5 | Skills K1 `hostile-critic` + K6 `session-close` — the biggest per-session token savers. | Opus 4.8 | medium | 60k | [ ] |
+| S.6 | `scripts/scaffold-engine.ts` + skill K2 `new-engine`. | Sonnet | medium | 40k | [ ] |
+| S.7 | Skills K7 `categorization-tuning` + K8 `deploy-runbook`. | Sonnet | low | 30k | [ ] |
+| S.8 | Define `.claude/agents/explorer.md` (haiku, read-only) + `.claude/agents/critic.md` in-repo so the routing policy works on every machine/CI. | Sonnet | low | 20k | [ ] |
+| S.9 | Owner reconciliation D9: Vercel team name ("reiforge" vs "Mike's projects") — confirm and fix the wrong doc. | Human | — | — | [ ] |
+
 
 ## Standing rules for whoever picks up a task
 

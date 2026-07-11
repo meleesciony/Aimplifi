@@ -19,6 +19,9 @@
     "benchmark": "tsx scripts/benchmark.ts",
     "eval:categorize": "tsx scripts/categorize-eval.ts",
     "verify": "bash scripts/verify.sh",
+    "verify:e2e": "VERIFY_E2E=1 bash scripts/verify.sh",
+    "verify:fast": "npm run typecheck && npm run lint && npm run test",
+    "ledger": "tsx scripts/ledger.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

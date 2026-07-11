@@ -1,5 +1,9 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-10 — S.1 ledger.ts + TASKS.md restore (Wave S)
+
+**What shipped:** `scripts/ledger.ts` (decision/regression/progress appenders + `docs/DECISIONS_INDEX.md` generator, zero model calls) + package.json aliases `verify:e2e`, `verify:fast`, `ledger` (`verify`/`eval:categorize` already existed). Per docs/SKILLS_PLAN.md S2+S4.
+
 ## 2026-07-10 — #213 Household slice 3: shared transactions in register (TASKS 4.2 §5 slice 3) — DONE ✅
 
 Resumed on "continue" after #212. **What shipped:** `categoryNamesByIds` in
