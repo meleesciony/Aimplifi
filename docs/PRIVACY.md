@@ -50,6 +50,14 @@ fictional dataset; everything below applies fully once Plaid is connected.
   a live membership, so leaving/removal ends it immediately; every widened read
   goes through one audited helper (`visibleAccountsWhere` /
   `partnerSharedAccountsWhere`). Share/unshare actions are audit-logged.
+- Joint cash-needed (4.2 slice 4): a partner's SHARED card/loan obligations
+  (statement balance, due date, minimum payment, prior card payments, and the
+  transactions needed to compute a mid-cycle credit) fold into the household
+  "cash needed" dashboard toggle — the same data already exposed by account
+  sharing above, read via a dedicated per-partner query (never the partner's
+  full account list). The viewer's own net worth and the account that FUNDS
+  the answer stay personal and are never drawn from a partner's account, even
+  if the viewer has no checking account of their own.
 - Plaid **access tokens, AES-256-GCM encrypted at rest** (`DATA_ENCRYPTION_KEY`,
   32 bytes) — applies to the dormant Plaid path; demo mode stores no tokens.
   Tokens are never logged and never sent to the client. Raw bank credentials

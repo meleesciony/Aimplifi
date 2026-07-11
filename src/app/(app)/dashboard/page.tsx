@@ -13,6 +13,7 @@ import { SpendingInsightsCard } from '@/components/finance/spending-insights-car
 import { StaleDataBanner } from '@/components/finance/stale-data-banner';
 import { ConnectionAlertsCard } from '@/components/finance/connection-alerts-card';
 import { TopSpendingCard } from '@/components/finance/top-spending-card';
+import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { StepIndicator } from '@/components/onboarding/step-indicator';
 import { OnboardingNudge } from '@/components/settings/onboarding-nudge';
@@ -32,7 +33,11 @@ import { getSpendingTrends } from '@/server/trends';
 
 export const metadata = { title: "Dashboard" };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ scope?: string }>;
+}) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
 
@@ -41,8 +46,14 @@ export default async function DashboardPage() {
   const accountCount = await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } });
   if (accountCount === 0) return <EmptyDashboard />;
 
+  // Joint cash-needed scope toggle (TASKS 4.2 slice 4) — a plain searchParam so
+  // the toggle is a Link, no client JS. `getDashboardData` re-derives the
+  // EFFECTIVE scope (falls back to 'mine' without live partners), so a stale
+  // `?scope=household` link never errors, just silently degenerates.
+  const requestedScope = (await searchParams).scope === 'household' ? 'household' : 'mine';
+
   const [data, coach, plan, reports, recurring, trends, withheld, freshness, connectionAlerts, radar] = await Promise.all([
-    getDashboardData(session.user.id),
+    getDashboardData(session.user.id, requestedScope),
     getCoachData(session.user.id),
     getSpendingPlan(session.user.id),
     getReports(session.user.id),
@@ -103,6 +114,9 @@ export default async function DashboardPage() {
             Using our best guess for which account pays your cards — confirm it below.
           </p>
         </div>
+      )}
+      {data.household?.hasPartners && (
+        <HouseholdScopeToggle scope={data.scope} householdName={data.household.name} />
       )}
       <CashNeededCard
         result={data.payInFull}

@@ -63,6 +63,23 @@ test('slice 2 golden safety: /accounts shows NO household-sharing card for the d
   await expect(page.getByTestId('own-share-row')).toHaveCount(0);
 });
 
+test('slice 4 golden safety: /dashboard shows NO household-scope toggle for the demo user (T6)', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto('/dashboard');
+
+  await expect(page.getByTestId('cash-needed-card')).toBeVisible();
+  // No membership → getDashboardData's `household` is null: the toggle never mounts.
+  await expect(page.getByTestId('household-scope-toggle')).toHaveCount(0);
+
+  // A stale/guessed `?scope=household` link must never error — getDashboardData
+  // silently degenerates to 'mine' without live partners (§4.4).
+  await page.goto('/dashboard?scope=household');
+  await expect(page.getByTestId('cash-needed-card')).toBeVisible();
+  await expect(page.getByTestId('household-scope-toggle')).toHaveCount(0);
+});
+
 /**
  * Slice-2 member state (critic F4): a THROWAWAY signup user (auth.spec /
  * manual-card-statement pattern — never the demo user, T6 guard untouched)
@@ -122,6 +139,14 @@ test('member state: create household → add account → share it (real mutation
     .withTags(['wcag2a', 'wcag2aa'])
     .analyze();
   expect(results.violations).toEqual([]);
+
+  // Slice 4: a single-member household (no partner has joined yet) still shows
+  // no toggle — `hasPartners` is false, so there is nothing a "household" scope
+  // could add. The two-partner merge itself is proven against a real DB in
+  // tests/unit/household-cash-needed.test.ts (this e2e user has no partner to
+  // invite/accept within one Playwright session).
+  await page.goto('/dashboard');
+  await expect(page.getByTestId('household-scope-toggle')).toHaveCount(0);
 });
 
 test('slice 3 golden safety: /transactions shows NO shared-txn section for the demo user (T6)', async ({

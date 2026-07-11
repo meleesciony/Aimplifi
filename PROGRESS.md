@@ -1,5 +1,9 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-11 — Household MVP slice 4 — Joint cash-needed
+
+Gate (real 2026-07-11): `bash scripts/verify.sh` -> **VERIFY GREEN** -- tsc/eslint clean,
+
 ## 2026-07-10 — S.1 ledger.ts + TASKS.md restore (Wave S)
 
 **What shipped:** `scripts/ledger.ts` (decision/regression/progress appenders + `docs/DECISIONS_INDEX.md` generator, zero model calls) + package.json aliases `verify:e2e`, `verify:fast`, `ledger` (`verify`/`eval:categorize` already existed). Per docs/SKILLS_PLAN.md S2+S4.
