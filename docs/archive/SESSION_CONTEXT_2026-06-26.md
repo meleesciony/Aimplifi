@@ -1,3 +1,6 @@
+> **HISTORICAL** — self-labeled disposable session handoff, superseded by later `PROGRESS.md`
+> HANDOFF entries and `docs/STATUS.md`. Kept for provenance only.
+
 # Session Context / Handoff — 2026-06-26 (session "aimplifi")
 
 > **UPDATE (2026-06-26, resumed session):** Plaid PRODUCTION questionnaire is **SUBMITTED ✅** (owner) — Thread 2

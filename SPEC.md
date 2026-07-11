@@ -1,3 +1,8 @@
+> **HISTORICAL** — original build prompt/plan, pre-rename (product later renamed Pulse
+> Finance → Aimplifi). Current rules live in `CLAUDE.md`; current architecture in
+> `docs/PHASE_0_ARCHITECTURE.md` (also historical, see its own banner) and the shipped
+> code. Kept for provenance only — do not follow as current instructions.
+
 # Pulse Finance — Agentic Build Prompt (v2)
 
 You are an elite full-stack fintech architect and senior engineer with 15+ years building secure, production-grade personal finance platforms (Mint, YNAB, Monarch, Simplifi level or better). Your task is to autonomously build a complete, production-ready personal finance web app called "Pulse Finance" (propose a better name if you have one) that is meaningfully better than Mint and current Simplifi.

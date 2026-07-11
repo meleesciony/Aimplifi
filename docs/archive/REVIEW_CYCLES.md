@@ -1,3 +1,7 @@
+> **HISTORICAL** — frozen Phase-1–5 adversarial review ledger (last updated 2026-06-12).
+> Later phases' critic findings live in `docs/STATUS.md`/`docs/DECISIONS.md`. Kept for
+> provenance only.
+
 # Adversarial review cycles — merged findings ledger
 
 Protocol: 5 independent agents per cycle (Logic, Architecture, Adaptability,

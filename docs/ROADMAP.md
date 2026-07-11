@@ -69,9 +69,10 @@
   recurring/forecast/coach/net-worth), so /ask can't drift from /reports, /coach,
   or /trends. An optional, key-gated, rate-limited, 7s-timeout LLM only classifies
   an unrecognized question (and can abstain); the demo works with zero keys.
-  Dashboard card + page, no 8th nav icon (#71/#74). Pure engine + 93 unit tests
-  (parser, formatters, seed grounding, no-key no-network) + 5 e2e; two hostile-
-  critic cycles, all P0/P1 fixed and regression-locked.
+  Dashboard card + page, no 8th nav icon (#71/#74). Pure engine unit tests
+  (parser, formatters, seed grounding, no-key no-network) + e2e; two hostile-
+  critic cycles, all P0/P1 fixed and regression-locked. (Current test counts:
+  docs/STATUS.md — the only status home.)
 - Plan in Words — debt-free-BY-A-DATE inverse planner (`/ask` + `/goals`, DECISIONS
   #125): state a goal date ("be debt-free by December 2027") and the app SOLVES the
   tested debt engine for the minimal extra/mo (bisection over `planDebtPayoff`, the
@@ -226,9 +227,9 @@ interactive what-if: number inputs for retire/plan-through age + inflation recom
 SAME pure `projectRetirement` live (byte-identical to the server at the saved values,
 exploratory/never-persists so it can't perturb golden data), reset-to-saved, Settings link.
 The invariant-maintaining lever logic is a pure, fuzz-tested module
-(`retirement-whatif.ts`). +38 tests; two hostile-critic Checkers, the one P1 (untested
-client logic) fixed via the pure-module extraction. Verify GREEN (1200 unit/97 files);
-settings + investments e2e 5/5 incl. axe AA.
+(`retirement-whatif.ts`). Added unit tests; two hostile-critic Checkers, the one P1
+(untested client logic) fixed via the pure-module extraction. Verify GREEN (counts:
+docs/STATUS.md); settings + investments e2e all green incl. axe AA.
 
 ### Live brokerage-holdings ingest from SimpleFIN (DECISIONS #124) — DONE ✅
 
@@ -243,11 +244,11 @@ which upserts feed positions as `source='simplefin'` and deletes sold ones — t
 own synced rows (additive `Holding.source` column, default `'manual'`), so a hand-entered
 holding is never overwritten or wiped. **Net worth is unaffected** (the account's
 `currentBalanceCents` stays authoritative; holdings are a within-account breakdown), so demo/
-golden is byte-identical. 29 tests (19 pure mapper incl. end-to-end through the engine + 10
+golden is byte-identical. Added tests (pure mapper incl. end-to-end through the engine +
 mocked-server integration); two hostile-critic Checkers — a confirmed P0 (same-ticker upsert
 silently overwrote a manual holding) FIXED + regression-locked, plus a transient-empty
-data-loss P2 fixed (reconcile only on an explicit holdings array). Verify GREEN (1229 unit/99
-files); full e2e 56/56 + investments 4/4 incl. axe AA. LIVE NETWORK UNVERIFIED (no token) —
+data-loss P2 fixed (reconcile only on an explicit holdings array). Verify GREEN (counts:
+docs/STATUS.md); full e2e + investments e2e all green incl. axe AA. LIVE NETWORK UNVERIFIED (no token) —
 consistent with the existing SimpleFIN/Plaid live-path labeling; the mocked-server integration
 is the labeled end-to-end simulation.
 LATER: a "Synced from your brokerage" provenance tag on /investments (the `source` column is

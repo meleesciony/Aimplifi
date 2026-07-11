@@ -16,7 +16,7 @@ recurring/scheduled re-detection on the tail), `/liabilities/get` → `Statement
 the webhook receiver **with ES256 `Plaid-Verification` JWT verification**, and
 `/item/remove`.
 
-What is **tested** (pure, no network): every Plaid→Pulse mapping in
+What is **tested** (pure, no network): every Plaid→Aimplifi mapping in
 `src/lib/providers/plaid-map.ts` — sign flip, signed-balance conversion,
 account-type mapping, liability→statement, per-row categorization, and the
 `personal_finance_category` passthrough (DECISIONS #155 — Plaid's own per-txn
@@ -79,7 +79,7 @@ above. Run §5 to validate before trusting this with real money.
   map into `Transaction` via `prepareIngestedTransaction` (normalize → user
   rules → categorize → set category/confidence/needsReview/isTransfer), removed
   rows are deleted, the cursor is persisted on the `PlaidItem`.
-- **Sign convention flip** (tested): Plaid amounts are outflow-POSITIVE; Pulse
+- **Sign convention flip** (tested): Plaid amounts are outflow-POSITIVE; Aimplifi
   stores outflow-NEGATIVE — `plaidAmountToCents` negates on ingest.
 - Re-runs until `has_more` is false. After ingest, `refreshTransferFlags`
   re-derives `isTransfer` across the user's full set (descriptor + pair matching),
@@ -100,7 +100,7 @@ above. Run §5 to validate before trusting this with real money.
   `next_payment_due_date` → `dueDate`,
   `last_statement_issue_date` → `cycleEnd`.
 - Autopay flags from `is_overdue`/issuer data are NOT provided by Plaid —
-  autopay config remains a user setting in Pulse.
+  autopay config remains a user setting in Aimplifi.
 
 ## 5. Validation
 

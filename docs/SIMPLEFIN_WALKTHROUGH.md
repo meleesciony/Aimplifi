@@ -1,7 +1,7 @@
 # SimpleFIN — getting your real data in without Plaid
 
 SimpleFIN is a cheaper, privacy-first bank-data service. Unlike Plaid it has no
-business onboarding/approval gate and costs a few dollars a year. Pulse talks to it
+business onboarding/approval gate and costs a few dollars a year. Aimplifi talks to it
 over a dead-simple read-only HTTP protocol and stores only an **encrypted access
 URL** — never your bank password (SimpleFIN holds that, not us).
 
@@ -37,7 +37,7 @@ and the money-critical mapping are proven.
 **Before trusting it with real money data, confirm the field shapes against the current
 SimpleFIN spec** (`https://www.simplefin.org/protocol.html`), specifically:
 - the `/accounts` JSON shape (`accounts[].{id,name,balance,org,transactions[]}`),
-- transaction `amount` sign (we assume **negative = money out**, no flip — same as Pulse),
+- transaction `amount` sign (we assume **negative = money out**, no flip — same as Aimplifi),
 - `posted` being a **unix timestamp in seconds**,
 - the setup-token → claim-URL → access-URL exchange (base64 decode → POST → access URL).
 If any differ, adjust `src/lib/providers/simplefin-map.ts` / `simplefin.ts` and the tests.
@@ -51,8 +51,8 @@ If any differ, adjust `src/lib/providers/simplefin-map.ts` / `simplefin.ts` and 
    ```
 2. **Get a setup token** from SimpleFIN (simplefin.org / a SimpleFIN Bridge): create an
    account, connect your bank(s), and copy the **one-time setup token**.
-3. In Pulse: **Accounts → "+ Connect a bank (SimpleFIN)"** → paste the token → Connect.
-   Pulse claims the token (single-use → a permanent access URL), encrypts + stores it,
+3. In Aimplifi: **Accounts → "+ Connect a bank (SimpleFIN)"** → paste the token → Connect.
+   Aimplifi claims the token (single-use → a permanent access URL), encrypts + stores it,
    and pulls your accounts + transactions. Use **Sync now** to refresh, **Disconnect**
    to remove the link.
 

@@ -1,5 +1,9 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-11 — #216 Docs de-dup pass (TASKS S.1 + S.2)
+
+**S.1 re-confirmed done** (was already DONE from a prior session, DECISIONS #214): `scripts/ledger.ts` + package.json aliases exist and work (used by this very entry).
+
 ## 2026-07-11 — Housekeeping: push #216, confirm CI green — DONE ✅ (tree clean, origin green)
 
 Session scope: no new features. The 4 line-ending files the task named (CLAUDE.md,

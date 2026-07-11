@@ -1,3 +1,6 @@
+> **HISTORICAL** — self-labeled disposable session handoff, superseded by later `PROGRESS.md`
+> HANDOFF entries and `docs/STATUS.md`. Kept for provenance only.
+
 # Session Context / Handoff — 2026-06-27 (session "OneDrive relocation")
 
 Self-contained context to resume after a chat clear. Files persist on disk; clearing the

@@ -1,3 +1,6 @@
+> **HISTORICAL** — self-labeled disposable session handoff, superseded by later `PROGRESS.md`
+> HANDOFF entries and `docs/STATUS.md`. Kept for provenance only.
+
 # Session Context / Handoff — 2026-06-27 (session "aimplifi": live brokerage-holdings ingest #124)
 
 Self-contained context to resume after a `/clear`. Files persist on disk; clearing the

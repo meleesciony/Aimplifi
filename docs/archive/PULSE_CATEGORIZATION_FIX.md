@@ -1,3 +1,7 @@
+> **HISTORICAL** — one-off task prompt that drove the categorization rebuild (2026-07-02).
+> Task complete; the engine it produced is documented in `CLAUDE.md`/`docs/STATUS.md`. Kept
+> for provenance only — do not follow as current instructions.
+
 # Aimplifi — Categorization Inbox: Diagnose & Rebuild
 
 You are Claude Fable 5 running in Claude Code with multi-day autonomy, self-testing, and browser control. Use all of it. This is not a small tweak — the categorization inbox as built does not meet its own spec, and the goal is to make it genuinely 10x better than Mint or Simplifi's triage flow, not incrementally better.

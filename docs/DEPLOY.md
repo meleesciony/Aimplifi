@@ -1,4 +1,4 @@
-# Deploying Pulse Finance for real users (you + spouse + testers)
+# Deploying Aimplifi for real users (you + spouse + testers)
 
 This gets the app off your laptop and onto the web, so each person logs in from
 their own device and sees only their own money. It uses **Vercel** (hosting, free)

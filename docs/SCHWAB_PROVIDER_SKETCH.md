@@ -1,3 +1,7 @@
+> **HISTORICAL** — premise superseded by #124 (SimpleFIN holdings ingest is the live
+> brokerage-holdings path). This sketch predates that decision; revisit only if a Schwab-
+> specific integration is prioritized again. Nothing here is implemented.
+
 # SchwabProvider — Design Sketch (PLAN ONLY, not built)
 
 > Generated 2026-06-26 by a 4-agent design workflow: parallel survey of the

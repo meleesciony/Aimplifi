@@ -78,6 +78,11 @@ schema portable), NextAuth (Auth.js v5), TanStack Query, Recharts, Vitest + Play
 * All copy follows the coaching guardrails: educational not advisory, no shame-based
 language, every projection states its assumptions inline.
 * Commit after every green verify: `phase-N: <summary> (verify green)`.
+* **One status home:** `docs/STATUS.md` (plus `docs/TASKS.md` for the build queue) is the
+only place current status/counts live. Never hardcode test counts, coverage numbers, or
+"as of" totals in README, ROADMAP, PHASES, or the gap plan — those files describe what a
+feature does or what's next, never how many tests currently pass. `docs/DECISIONS_INDEX.md`
+is the index into `docs/DECISIONS.md`; read the index first on large-file lookups.
 
 ## Model handoff line
 

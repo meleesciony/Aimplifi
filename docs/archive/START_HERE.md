@@ -1,3 +1,7 @@
+> **HISTORICAL** — original pre-rename onboarding kit for the project's first session.
+> Superseded by `AGENTS.md` (reading order) + `CLAUDE.md` (build loop); the product was
+> later renamed Pulse Finance → Aimplifi. Kept for provenance only — do not follow.
+
 # Pulse Finance — Claude Code Handoff Kit
 
 This zip is a complete handoff package for building **Pulse Finance** with Claude Code

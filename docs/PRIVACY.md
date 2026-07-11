@@ -1,6 +1,6 @@
 # Privacy & data handling
 
-GDPR/CCPA-minded handling for Pulse Finance. Demo mode stores only the seeded
+GDPR/CCPA-minded handling for Aimplifi. Demo mode stores only the seeded
 fictional dataset; everything below applies fully once Plaid is connected.
 
 ## What is stored

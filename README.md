@@ -28,8 +28,9 @@ hand-verified expected values in `docs/EDGE_CASES.md`.
 ## Verification (Definition of Done)
 
 ```bash
-bash scripts/verify.sh              # typecheck + lint + 409 unit tests + build
-VERIFY_E2E=1 bash scripts/verify.sh # + 18 Playwright e2e at 380×800 (incl. axe WCAG AA)
+bash scripts/verify.sh              # typecheck + lint + unit tests + build
+VERIFY_E2E=1 bash scripts/verify.sh # + Playwright e2e at 380×800 (incl. axe WCAG AA)
+# current test counts live in docs/STATUS.md (single source of truth) — not here
 ```
 
 Every engine number is unit-tested against hand-computed values; the seed
@@ -51,7 +52,10 @@ in `tests/unit/critic*-*.test.ts`.
 - **Categorization** (`engine/categorize/`) — merchant normalization (SQ\*,
   TST\*, AMZN Mktp, PAYPAL \*, airport POS…), confidence routing (auto-silent ≥
   90%, AI-badge 70–90%, review < 70%), contextual rules (amount bands, weekend,
-  account scope), **3.60% review rate** on the last 60 seed days (target < 5%).
+  account scope), **3.60% review rate** on the last 60 seed days (target < 5%) —
+  the seed benchmark is intentionally clean; the messy-corpus rate (realistic
+  merchant strings) is tracked by `npm run eval:categorize` and reported in its
+  own output, not restated here.
 - **Triage inbox** (`/triage`) — swipe right accept, swipe left for 3
   alternatives, long-press split, batch “apply to all N similar”, universal
   undo (inverse corrections), one-tap durable rules with explicit consent.
@@ -103,7 +107,7 @@ src/server/                    # session+ownership-scoped data assembly & action
 prisma/seed.ts + src/lib/seed/ # deterministic demo dataset (pure builder)
 docs/                          # architecture, edge cases (hand math), critic
                                # rubric, status, privacy, Plaid walkthrough
-tests/unit + tests/e2e         # 409 unit tests; 18 e2e incl. axe WCAG AA
+tests/unit + tests/e2e         # unit + e2e tests (counts: docs/STATUS.md), incl. axe WCAG AA
 ```
 
 Known limitations are honestly listed in `docs/STATUS.md`; the v1-vs-future

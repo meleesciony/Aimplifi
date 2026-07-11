@@ -1,3 +1,7 @@
+> **HISTORICAL** — original architecture/plan, pre-rename (product later renamed Pulse
+> Finance → Aimplifi). Binding at the time it was written; subsequent revisions live in
+> `docs/DECISIONS.md`. Current rules live in `CLAUDE.md`. Kept for provenance.
+
 # Phase 0 — Architecture & Project Plan (COMPLETE)
 
 Status: ✅ Complete. Claude Code starts at Phase 1.

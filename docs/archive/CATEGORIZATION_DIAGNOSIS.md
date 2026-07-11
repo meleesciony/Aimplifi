@@ -1,3 +1,6 @@
+> **HISTORICAL** — point-in-time diagnosis from the PULSE_CATEGORIZATION_FIX task (2026-07-02).
+> Superseded by the shipped categorization engine + `docs/STATUS.md`. Kept for provenance only.
+
 # Categorization diagnosis (PULSE_CATEGORIZATION_FIX Phase 1, 2026-07-02)
 
 Read-only findings, workflow wf_37625155 (5 readers, executed tsx traces). Full detail in
