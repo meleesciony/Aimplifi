@@ -1,5 +1,38 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-11 — Housekeeping: push #216, confirm CI green — DONE ✅ (tree clean, origin green)
+
+Session scope: no new features. The 4 line-ending files the task named (CLAUDE.md,
+docs/PRIVACY.md, docs/archive/{CATEGORIZATION_DIAGNOSIS,PULSE_CATEGORIZATION_FIX}.md) already
+matched HEAD byte-for-byte — nothing to restore. The #216 fix (transaction-filters.tsx +
+transactions.spec.ts) was already committed in `5ceb390` with its ledger entries. Pushed the
+6 local commits (`a892402..e1fca4a`) to `origin/main`.
+
+**First CI run (`29140509509`, commit `e1fca4a`) was RED**, not the flake it might have looked
+like: `tests/unit/self-audit-server.test.ts` failed deterministically (reproduced on a manual
+rerun too — ruled out flake before touching code). Root cause: CI's `verify.yml` pins
+`DEMO_TODAY=2026-06-10` at the job level, which overrides `businessToday()` for **every** user
+by design (DECISIONS #58) — but the test seeded `UnknownQuestion`/`NotificationSent`/
+`EngagementEvent` rows with implicit `now()` timestamps, then queried them by a
+`[weekStart, weekStart+7)` window built from that pinned date. Locally `vitest run` never
+loads `.env`, so `DEMO_TODAY` is unset there and `now()` happens to coincide with the
+real-clock week, masking the bug. In CI the real insert clock (2026-07-11) and the pinned
+week (containing 2026-06-10) are a month apart, so the windowed counts came back 0. Fixed by
+seeding those three rows with an explicit in-window timestamp instead of relying on wall-clock
+coincidence (`9c60cc3`, REGRESSION_LEDGER 2026-07-11). Fail-old proven via
+`DEMO_TODAY=2026-06-10 npx vitest run tests/unit/self-audit-server.test.ts` before the fix.
+
+After the fix, two more full CI runs each failed on a DIFFERENT e2e assertion timeout
+(`budget-targets.spec.ts`, then `phase2-triage.spec.ts`) — neither touched by this session's
+diff, neither repeating on its own rerun, unit suite green throughout. Diagnosed as CI-runner
+timing contention, not a regression (see new lesson `docs/lessons/ci-e2e-timing-flake.md`,
+distinct from the local-Windows `mobile-380-viewport-scaling-flake.md`). A fourth full run
+(same commit `9c60cc3`, run `29141495777`) came back **green**.
+
+Gate (real 2026-07-11): CI run https://github.com/meleesciony/Aimplifi/actions/runs/29141495777
+→ **conclusion: success** on `9c60cc3`. `git status` → clean, up to date with `origin/main`.
+**SAFE to /clear.**
+
 ## 2026-07-11 — #216 register-search hydration bug — DONE ✅ (tree clean, HEAD green)
 
 Session opened to finish a "large uncommitted change set" (all `(app)` pages, schema,
