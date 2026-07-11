@@ -32,6 +32,13 @@ describe('isAlertNotificationKey', () => {
 describe('server/self-audit + GET /api/cron/audit', () => {
   const today = getProvider().today();
   const weekStart = weekStartMonday(today);
+  // The windowed counts (unknown/alert) are queried by a [weekStart, weekStart+7)
+  // range, but DEMO_TODAY (pinned by CI at the job level — DECISIONS #58) makes
+  // `today`/`weekStart` independent of the real wall clock. Seed rows with an
+  // explicit timestamp inside that week instead of relying on the DB's implicit
+  // now() default to land there by coincidence (#216-adjacent: CI-only failure,
+  // real-DB-timestamp vs pinned-demo-date week mismatch).
+  const inWeek = new Date(`${weekStart}T12:00:00.000Z`);
 
   beforeAll(async () => {
     await prisma.user.deleteMany({ where: { id: USER } });
@@ -63,10 +70,11 @@ describe('server/self-audit + GET /api/cron/audit', () => {
         userId: USER,
         scrubbedText: 'blorp the flibbert',
         resolvedIntent: 'unknown',
+        createdAt: inWeek,
       },
     });
     await prisma.notificationSent.create({
-      data: { userId: USER, key: `payment_due:card:${today}` },
+      data: { userId: USER, key: `payment_due:card:${today}`, sentAt: inWeek },
     });
     await prisma.engagementEvent.create({
       data: {
@@ -74,6 +82,7 @@ describe('server/self-audit + GET /api/cron/audit', () => {
         surface: 'dashboard',
         verb: 'expanded',
         subjectKey: 'radar-assumptions',
+        createdAt: inWeek,
       },
     });
   });
