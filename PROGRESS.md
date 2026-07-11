@@ -1,5 +1,54 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-11 — #216 register-search hydration bug — DONE ✅ (tree clean, HEAD green)
+
+Session opened to finish a "large uncommitted change set" (all `(app)` pages, schema,
+cron routes). **It did not exist.** The four modified files had EMPTY diffs — EOL-only
+phantoms (`core.autocrlf=true`, no `.gitattributes`); the only real untracked item was
+`docs/archive/README.md` (now committed, `b9a713a`). The remembered change set was
+already committed as slices 1–4 (#210/#212/#213/#215). `stash@{0}` ("Cursor: moved local
+changes to cloud agent") + branch `cursor/cloud-agent-1783688239547-e4cv5` hold the SAME
+four ledger/doc files for #198, all of which are **already in main** and superseded by
+main's newer TASKS 0.3 row (#198/#203/#204) — kept, not dropped, pending owner sign-off.
+
+**HEAD was NOT green.** `VERIFY_E2E=1 bash scripts/verify.sh` at `3375d9c` → ❌ 3 e2e
+failures. Two (exports, pwa-offline) were load flakes that passed in isolation; the third
+was **deterministic on mobile-380**. Not the known viewport flake — the signature was not
+`intercepts pointer events` (per docs/lessons, read the signature before blaming it).
+
+Root cause (#216, REGRESSION_LEDGER): `txn-search` was a CONTROLLED input. Text typed
+before hydration attached `onChange` never reached React state; the first render blanked
+the DOM box and `commit()` pushed `/transactions` — the same URL — with an EMPTY query.
+The user's search silently vanished and they stayed on the unfiltered register. Fixed by
+letting the DOM own the typed text: uncontrolled input (`name="q"` + `defaultValue`, keyed
+on `current.search` so Clear remounts it), `onSubmit` reads the live value via `FormData`.
+Also retires the `react-hooks/set-state-in-effect` eslint-disable that flagged this exact
+smell in #166.
+
+**Process gap worth keeping:** slice 4's recorded gate line is plain `bash scripts/verify.sh`
+(unit-only). e2e only runs under `VERIFY_E2E=1`, so this shipped as "verify green" with the
+e2e lane never executed. Run the e2e lane before stamping a slice green.
+
+Gate (real 2026-07-11): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**, exit 0 —
+tsc/eslint clean, **2285 unit / 178 files**, build clean, **103 e2e** (+1: the #216 lock,
+fail-old proven on mobile-380 before the fix).
+
+### HANDOFF — 2026-07-11
+**NEXT:** TASKS 4.2 **slice 5** — cards/calendar household scope + copy audit (**Sonnet-lane**,
+not slice 6). Surfaces mapped: `/cards` calls `getDashboardData(userId)` at the default
+`'mine'` scope (one-line hook); `/calendar` calls `getCashNeeded(userId)` and already parses
+a `month` searchParam (add `scope` alongside it, and carry BOTH on the `cal-prev`/`cal-next`
+links, which currently drop everything but `month`). Scope type is `'mine' | 'household'`
+(`src/server/finance.ts:27`). Two design notes for that session: (a) keep the engine free of
+any user concept — build a `cardId → ownerLabel` map server-side in `getDashboardData` and
+badge partner cards in `CardsBreakdown`, mirroring the slice-2/3 owner-badge precedent,
+rather than adding an owner field to `CardObligation`; (b) **there is no `HOUSEHOLD_COPY`
+module** — all household copy is inline JSX, and `tests/unit/coach-copy.test.ts` scans only
+CALLABLE exported copy (its `ALL_STRINGS` array invokes copy fns; no auto-discovery), so the
+"guardrail scan of all new household copy" requires extracting household copy into a callable
+constant first. Slice 7 assumes that module exists.
+**SAFE to /clear.**
+
 ## 2026-07-11 — Household MVP slice 4 — Joint cash-needed
 
 Gate (real 2026-07-11): `bash scripts/verify.sh` -> **VERIFY GREEN** -- tsc/eslint clean,

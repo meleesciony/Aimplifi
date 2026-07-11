@@ -66,3 +66,32 @@ filed server-side with the correct account before the reset, so no mis-file.)
 
 The regression lock that catches this: select a NON-default option, submit bad input, assert the option
 (and typed fields) survive the error. A `useActionState` form fails it; an `onSubmit` form passes.
+
+## The same family: a CONTROLLED input loses text typed before hydration (#216)
+
+Same root principle, different mechanism — **React state that hydration can clobber must never be the
+source of truth for what the user typed.** The register's search box was controlled
+(`value={search}` from `useState`, plus a `useEffect(() => setSearch(current.search), [current.search])`
+resync). Text entered before hydration attached `onChange` never reaches React state, so the first
+render blanks the DOM box; the submit handler then reads a stale `''` and pushes the UNFILTERED URL.
+Because that URL equals the current one, the navigation doesn't even commit — the query vanishes with
+no error and the user is left staring at an unfiltered list that looks like a legitimate result.
+
+Fix: let the DOM own the typed text — uncontrolled `name="q"` + `defaultValue`, `key={current.search}`
+so a URL-driven change (Clear) remounts it, and read the live value at submit:
+
+```tsx
+onSubmit={(e) => { e.preventDefault();
+  const typed = new FormData(e.currentTarget).get('q');
+  commit({ search: typeof typed === 'string' ? typed : '' });
+}}
+```
+
+Two tells worth generalizing:
+- A `react-hooks/set-state-in-effect` eslint-disable on a "keep local state in sync with props" effect is
+  a smell, not a formality. This one carried a "not this increment's scope" comment from #166 and was the
+  bug two increments later.
+- **A slow-hydration failure hides in the slowest project.** It reproduced deterministically only on
+  `mobile-380` and only for the search whose result set was empty (the URL was unchanged either way, so a
+  non-empty result masked it). Don't dismiss a mobile-380-only failure as the viewport flake — that flake's
+  signature is `intercepts pointer events`, nothing else.
