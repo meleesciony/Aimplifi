@@ -7,7 +7,6 @@
  * the pure query engine.
  */
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 
 const TYPE_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -31,11 +30,6 @@ export function TransactionFilters({
   current: { search: string; account: string; category: string; type: string; from: string; to: string };
 }) {
   const router = useRouter();
-  const [search, setSearch] = useState(current.search);
-
-  // keep the local search box in sync if the URL changes elsewhere (e.g. Clear)
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- pre-existing pattern surfaced by the react-hooks v6 upgrade (#166), not this increment's scope
-  useEffect(() => setSearch(current.search), [current.search]);
 
   function commit(next: Partial<typeof current>) {
     const merged = { ...current, ...next };
@@ -59,17 +53,25 @@ export function TransactionFilters({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          commit({ search });
+          // Read the LIVE DOM value, never React state (#216). Text typed before
+          // hydration never reaches a controlled input's state, and submitting
+          // that stale '' pushed the unfiltered URL — silently eating the query.
+          const typed = new FormData(e.currentTarget).get('q');
+          commit({ search: typeof typed === 'string' ? typed : '' });
         }}
         className="flex gap-2"
       >
+        {/* Uncontrolled by design (#216): the DOM owns what the user typed, so a
+            slow hydration can never clobber it. `key` remounts the box with the
+            committed value when the URL's search changes (e.g. Clear). */}
         <input
+          key={current.search}
           type="search"
           inputMode="search"
+          name="q"
+          defaultValue={current.search}
           aria-label="Search transactions"
           placeholder="Search transactions…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
           data-testid="txn-search"
           className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
         />
@@ -150,10 +152,8 @@ export function TransactionFilters({
         {hasFilters && (
           <button
             type="button"
-            onClick={() => {
-              setSearch('');
-              router.push('/transactions');
-            }}
+            // current.search → '' remounts the box empty via its key (#216).
+            onClick={() => router.push('/transactions')}
             data-testid="txn-clear"
             className="h-9 rounded-md px-2 text-sm text-muted-foreground underline-offset-2 hover:underline"
           >

@@ -73,6 +73,29 @@ test('manual net-worth items: add a home asset (net worth updates), then delete 
   await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$144,804.74');
 });
 
+/**
+ * REGRESSION #216 — search query silently lost to a pre-hydration fill.
+ *
+ * The search box used to be a CONTROLLED input (`value={search}` from useState).
+ * Text typed before hydration attached the onChange listener never reached React
+ * state, and the first render then reset the DOM box to ''. Submitting therefore
+ * committed an EMPTY search and pushed `/transactions` — the same URL, so the
+ * navigation never committed and the user's query vanished with no feedback.
+ * Deterministic on the slow-hydrating mobile-380 project; a real bug for anyone
+ * who types and hits Enter on a slow connection.
+ *
+ * `waitUntil: 'commit'` returns as soon as the response lands, so the fill races
+ * hydration exactly as it did in the wild. Fails-old / passes-new.
+ */
+test('regression #216: a search typed before hydration still commits', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/transactions', { waitUntil: 'commit' });
+  await page.getByTestId('txn-search').fill('Blue Bottle');
+  await page.getByTestId('txn-search').press('Enter');
+  await expect(page).toHaveURL(/q=Blue/, { timeout: 20000 });
+  await expect(page.getByTestId('txn-row').first()).toContainText('Blue Bottle');
+});
+
 test('transaction register lists, summarizes, filters, and searches', async ({ page }) => {
   await signIn(page);
   await page.goto('/transactions');
