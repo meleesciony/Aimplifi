@@ -874,11 +874,11 @@ function isTimeframe(x: unknown): x is Timeframe {
 function isSpendTarget(x: unknown, validCustomIds: ReadonlySet<string> = new Set()): x is SpendTarget {
   if (!x || typeof x !== 'object') return false;
   const t = x as Record<string, unknown>;
+  if (typeof t.label !== 'string' || t.label.length === 0 || t.label.length > MAX_LABEL_LEN) return false;
   if (t.type === 'category')
     return (
       typeof t.categoryId === 'string' &&
-      (CATEGORY_BY_ID.has(t.categoryId) || validCustomIds.has(t.categoryId)) &&
-      typeof t.label === 'string'
+      (CATEGORY_BY_ID.has(t.categoryId) || validCustomIds.has(t.categoryId))
     );
   if (t.type === 'categories')
     return (
@@ -886,11 +886,48 @@ function isSpendTarget(x: unknown, validCustomIds: ReadonlySet<string> = new Set
       t.categoryIds.length > 0 &&
       t.categoryIds.every(
         (id) => typeof id === 'string' && (CATEGORY_BY_ID.has(id) || validCustomIds.has(id)),
-      ) &&
-      typeof t.label === 'string'
+      )
     );
-  if (t.type === 'group') return typeof t.group === 'string' && GROUPS.includes(t.group as string) && typeof t.label === 'string';
+  if (t.type === 'group') return typeof t.group === 'string' && GROUPS.includes(t.group as string);
   return false;
+}
+
+/**
+ * The label a target is ALLOWED to carry, derived from the target's own identity.
+ *
+ * A `SpendTarget` now round-trips through the client (the conversation frame,
+ * TASKS 2.1), so its label is untrusted text that lands verbatim in a money
+ * headline — "You spent $840.00 on Groceries this month." A forged frame could
+ * otherwise attach the label "Groceries" to the TRAVEL group and get a true
+ * figure under a false name. So the label is never trusted: it is RE-DERIVED
+ * from the id/group, and only an umbrella (whose label is a synthesized phrase
+ * like "utilities") keeps its own — validated against the closed set of labels
+ * the synonym table can actually produce (critic P2-B, cycle 2).
+ */
+function canonicalTargetLabel(
+  t: SpendTarget,
+  custom: readonly { id: string; name?: string }[],
+): string | null {
+  if (t.type === 'category') {
+    const system = CATEGORY_BY_ID.get(t.categoryId)?.name;
+    if (system) return system;
+    const own = custom.find((c) => c.id === t.categoryId)?.name;
+    return own ?? null;
+  }
+  if (t.type === 'group') {
+    // The synonym table's own phrasing for this group ("eating out"), else the group.
+    const spoken = SYNONYMS.find(
+      (s) => s.target.type === 'group' && s.target.group === t.group,
+    )?.target.label;
+    return spoken ?? t.group;
+  }
+  // Umbrella: the id set is what identifies it, so match the label to the entry
+  // whose leaves it names. An unrecognised umbrella is not a target we emit.
+  const key = [...t.categoryIds].sort().join(',');
+  const entry = SYNONYMS.find(
+    (s) => s.target.type === 'categories' && [...s.target.categoryIds].sort().join(',') === key,
+  );
+  return entry?.target.label ?? null;
 }
 
 /**
@@ -901,11 +938,17 @@ function isSpendTarget(x: unknown, validCustomIds: ReadonlySet<string> = new Set
  */
 export function validateIntent(
   x: unknown,
-  custom: readonly { id: string }[] = [],
+  custom: readonly { id: string; name?: string }[] = [],
 ): AssistantIntent | null {
   if (!x || typeof x !== 'object') return null;
   const o = x as Record<string, unknown>;
   const validCustomIds = new Set(custom.map((c) => c.id));
+  /** Accept a target only with a label derived from its own identity, never the
+   *  client's (see canonicalTargetLabel). */
+  const withCanonicalLabel = (t: SpendTarget): SpendTarget | null => {
+    const label = canonicalTargetLabel(t, custom);
+    return label ? { ...t, label } : null;
+  };
   switch (o.kind) {
     case 'net_worth':
     case 'safe_to_spend':
@@ -950,10 +993,11 @@ export function validateIntent(
       return isTimeframe(o.timeframe) ? { kind: 'spend_total', timeframe: o.timeframe } : null;
     case 'income':
       return isTimeframe(o.timeframe) ? { kind: 'income', timeframe: o.timeframe } : null;
-    case 'spend_by_category':
-      return isTimeframe(o.timeframe) && isSpendTarget(o.target, validCustomIds)
-        ? { kind: 'spend_by_category', timeframe: o.timeframe, target: o.target }
-        : null;
+    case 'spend_by_category': {
+      if (!isTimeframe(o.timeframe) || !isSpendTarget(o.target, validCustomIds)) return null;
+      const target = withCanonicalLabel(o.target);
+      return target ? { kind: 'spend_by_category', timeframe: o.timeframe, target } : null;
+    }
     case 'merchant_spend':
       return isTimeframe(o.timeframe) &&
         typeof o.merchant === 'string' &&

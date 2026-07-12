@@ -324,6 +324,79 @@ describe('regression — hostile critic cycle 1', () => {
   });
 });
 
+/** Cycle 2 of the same critic: the fixes held (0 P0/P1), and it found these. */
+describe('regression — hostile critic cycle 2', () => {
+  it('P2-B: a target label is DERIVED from its identity, never trusted from the client', () => {
+    // A forged frame labelled the TRAVEL group "Groceries" — a true figure under a
+    // false name in the headline. The label is now re-derived from the group/id.
+    const forged = {
+      kind: 'spend_by_category',
+      timeframe: THIS_MONTH,
+      target: { type: 'group', group: 'Travel', label: 'Groceries' },
+    };
+    const out = validateIntent(forged);
+    expect(out).toMatchObject({ kind: 'spend_by_category' });
+    expect((out as { target: { label: string } }).target.label).not.toBe('Groceries');
+
+    // Same for a leaf category: the client's label is ignored, the canonical name wins.
+    const relabelled = validateIntent({
+      kind: 'spend_by_category',
+      timeframe: THIS_MONTH,
+      target: { type: 'category', categoryId: 'groceries', label: 'Travel' },
+    });
+    expect((relabelled as { target: { label: string } }).target.label).toBe('Groceries');
+
+    // An over-long label is rejected outright, not truncated into the copy.
+    expect(
+      validateIntent({
+        kind: 'spend_by_category',
+        timeframe: THIS_MONTH,
+        target: { type: 'category', categoryId: 'groceries', label: 'A'.repeat(331) },
+      }),
+    ).toBeNull();
+  });
+
+  it('P2-B: a custom category keeps its OWN name (derived from the user\'s list)', () => {
+    const out = validateIntent(
+      {
+        kind: 'spend_by_category',
+        timeframe: THIS_MONTH,
+        target: { type: 'category', categoryId: 'cus_1', label: 'Groceries' },
+      },
+      [{ id: 'cus_1', name: 'Golf' }],
+    );
+    expect((out as { target: { label: string } }).target.label).toBe('Golf');
+  });
+
+  it('P2-A: a stray "at" in a fragment does not manufacture a merchant', () => {
+    const frame = frameAfter('how much did I spend this month?');
+    expect(resolveEllipsis('and last month at least?', TODAY, frame)).toBeNull();
+    expect(resolveEllipsis('what about at work?', TODAY, frame)).toBeNull();
+  });
+
+  it('P3-C: a store whose name contains an ordinary word still resolves', () => {
+    const frame = frameAfter('how much did I spend at costco this month?');
+    expect(resolveEllipsis('and at save mart?', TODAY, frame)).toEqual({
+      kind: 'merchant_spend',
+      timeframe: THIS_MONTH,
+      merchant: 'save mart',
+    });
+  });
+
+  it('P3-D: a carried TRAILING window is re-named once today leaves it', () => {
+    const frame = frameAfter('how much did I spend in the last 3 months?');
+    expect(frame?.timeframe).toMatchObject({ fromYm: '2026-04', toYm: '2026-06' });
+    // Same month: the label was true when asked, and still is.
+    expect(resolveEllipsis('what about groceries?', TODAY, frame)).toMatchObject({
+      timeframe: { label: 'the last 3 months' },
+    });
+    // September: the window is still Apr–Jun, so "the last 3 months" is now a lie.
+    expect(resolveEllipsis('what about groceries?', isoDate('2026-09-02'), frame)).toMatchObject({
+      timeframe: { fromYm: '2026-04', toYm: '2026-06', label: 'April 2026 – June 2026' },
+    });
+  });
+});
+
 describe('the frame is only consulted on a parser-unknown (no hijacking)', () => {
   // The server calls resolveEllipsis ONLY when parseAssistantQuery returns unknown.
   // These questions route on their own, so the frame can never touch them.
@@ -375,8 +448,8 @@ describe('a client-supplied frame is validated like any untrusted input', () => 
       timeframe: THIS_MONTH,
       target: { type: 'category', categoryId: 'cus_gone', label: 'Golf' },
     };
-    // Turn 1: the category existed.
-    expect(frameFromIntent(validateIntent(prior, [{ id: 'cus_gone' }])!)).toMatchObject({
+    // Turn 1: the category existed (the server passes the user's real list, names included).
+    expect(frameFromIntent(validateIntent(prior, [{ id: 'cus_gone', name: 'Golf' }])!)).toMatchObject({
       kind: 'spend_by_category',
     });
     // Turn 2: the user deleted it — the echoed frame is rejected, not resurrected.

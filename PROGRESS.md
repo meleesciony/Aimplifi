@@ -1,5 +1,9 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-12 — #224 Frame critic cycle 2 — PASS (0 P0/P1)
+
+Cycle 2 (same critic, every repro re-executed against the fixed tree): **PASS — 0 P0, 0 P1**. All 7 cycle-1 findings CLOSED by re-run repros; a 19-case sweep found no legitimate ellipsis broken by the new guards. Two new P2s found and fixed: (a) `validateIntent` derived nothing about `target.label`, so a client-echoed frame could label the TRAVEL group "Groceries" — a true figure under a false name in a money headline; labels are now re-derived from the target's own identity (`canonicalTargetLabel`). (b) a stray "at" manufactured merchants ("at least", "at work"). Plus two P3s: "save"/"cut"/"back" left the question-word guard ("and at Save Mart?" must resolve), and a carried TRAILING window is re-named once today leaves it ("the last 3 months" → "April 2026 – June 2026").
+
 ## 2026-07-12 — #222/#223 Ask conversation frame (TASKS 2.1) — DONE
 
 Gate (real 2026-07-12, post-critic): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — tsc/eslint clean, **2429 unit / 181 files** (+38), build clean. `npx playwright test tests/e2e/ask.spec.ts` → **10/10**, including a new flow that drives the real UI through two chained ellipses (window swap, then category swap) — proving the client→server→client frame round-trip, not just the pure engine.

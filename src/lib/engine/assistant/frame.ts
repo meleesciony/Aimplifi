@@ -144,7 +144,11 @@ const QUESTION_WORDS = new Set([
   'is', 'are', 'was', 'were', 'am', 'be', 'been',
   'do', 'does', 'did', 'can', 'could', 'should', 'would', 'will', 'shall', 'might',
   'if', 'because', 'than', 'then', 'vs', 'versus', 'compared', 'against',
-  'much', 'many', 'more', 'less', 'high', 'low', 'cut', 'back', 'save',
+  'much', 'many', 'more', 'less', 'least', 'most',
+  // NOT here: "save", "cut", "back", "high", "low". Each is redundant (every
+  // sentence they appear in also carries an interrogative or a modal above) and
+  // each is a real store name or part of one — "and at Save Mart?" must resolve
+  // (critic P3-C, cycle 2).
 ]);
 
 /**
@@ -239,6 +243,8 @@ const INTENT_NOUNS = new Set([
   'forecast', 'runway', 'debt', 'debts', 'loan', 'loans', 'payoff',
   'budget', 'plan', 'goal', 'goals', 'retirement', 'investments', 'portfolio',
   'transfer', 'transfers', 'total', 'spending', 'spend',
+  // Places and abstractions a stray "at" can pick up ("…at work", "at home").
+  'work', 'home', 'school',
 ]);
 
 /**
@@ -284,12 +290,24 @@ function strip(w: string): string {
  * never moved — only its name is corrected ("this month" → "June 2026").
  */
 function relabelForToday(tf: Timeframe, today: ISODate): Timeframe {
-  if (tf.label !== 'this month' && tf.label !== 'last month') return tf;
-  if (tf.fromYm !== tf.toYm) return tf;
   const todayYm = today.slice(0, 7);
+
+  // A trailing window ("the last 3 months") is relative to when it was ASKED.
+  // Once today leaves it, the name is a lie even though the window is right —
+  // so name the months instead (critic P3-D, cycle 2).
+  if (tf.fromYm !== tf.toYm) {
+    if (!/\blast\b/.test(tf.label) || tf.toYm === todayYm) return tf;
+    return { ...tf, label: `${monthName(tf.fromYm)} – ${monthName(tf.toYm)}` };
+  }
+
+  if (tf.label !== 'this month' && tf.label !== 'last month') return tf;
   const prevYm = addMonthsClamped(isoDate(`${todayYm}-01`), -1).slice(0, 7);
   if (tf.fromYm === todayYm) return { ...tf, label: 'this month' };
   if (tf.fromYm === prevYm) return { ...tf, label: 'last month' };
-  const month = MONTH_TITLE[Number(tf.fromYm.slice(5, 7)) - 1];
-  return { ...tf, label: `${month} ${tf.fromYm.slice(0, 4)}` };
+  return { ...tf, label: monthName(tf.fromYm) };
+}
+
+/** "2026-06" → "June 2026". */
+function monthName(ym: string): string {
+  return `${MONTH_TITLE[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
 }

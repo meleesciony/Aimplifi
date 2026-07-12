@@ -48,20 +48,35 @@ boundary before this slice; and a CARRIED deictic window is re-labelled against 
 guard fails SAFE — a false hit abstains to the honest `unknown` and the LLM rescue still gets
 its turn.
 
-Gate (real 2026-07-12): `bash scripts/verify.sh` → **✅ VERIFY GREEN, exit 0** — tsc clean ·
-eslint clean · `npx vitest run` **2429 unit / 181 files** (+38 this slice) · `npx next build`
-clean. `npx playwright test tests/e2e/ask.spec.ts` → **10/10**, including a new flow that
-drives the real UI through two chained ellipses (window swap, then category swap). 6
+Cycle 2 (same critic, every repro re-executed against the fixed tree): **PASS — 0 P0, 0 P1.**
+All seven cycle-1 findings confirmed closed, and a 19-case sweep found no legitimate ellipsis
+broken by the new guards. It found two more P2s, both fixed: `validateIntent` derived nothing
+about `target.label`, so a client-echoed frame could label the TRAVEL group "Groceries" and put
+a true figure under a false name in a money headline — labels are now RE-DERIVED from the
+target's own identity (`canonicalTargetLabel`), never trusted; and a stray "at" manufactured
+merchants ("at least", "at work"). Two P3s fixed with them: "save"/"cut"/"back" left the
+question-word guard (redundant against the interrogatives, and real store-name words — "and at
+Save Mart?" must resolve), and a carried TRAILING window is re-named once today leaves it ("the
+last 3 months" → "April 2026 – June 2026").
+
+Gate (real 2026-07-12, post-cycle-2): `bash scripts/verify.sh` → **✅ VERIFY GREEN, exit 0** —
+tsc clean · eslint clean · `npx vitest run` **2434 unit / 181 files** (+43 this slice) ·
+`npx next build` clean. `npx playwright test tests/e2e/ask.spec.ts` → **10/10**, including a new
+flow that drives the real UI through two chained ellipses (window swap, then category swap). 9
 REGRESSION_LEDGER entries (2026-07-12).
 
 Accepted limitations (recorded, not fixed): memory is ONE turn — an intervening `unknown`
 answer carries no intent, so a typo'd follow-up clears the frame. No comparison intent
-exists, so "compared to last month?" answers a lone figure rather than a comparison. A novel
-non-category noun ("what about my raise?") can still read as a merchant and answer "No
-spending at raise" — which is exactly what the parser does today for "how much did I spend at
-raise", so the frame introduces no new failure mode. "same for Amex" deliberately abstains:
-#168 established that payment methods are not merchants, and the frame reuses that guard
-rather than contradicting it.
+exists, so "compared to last month?" answers a lone figure rather than a comparison. The
+open-vocabulary merchant tail survives: "what about my 401k?" still reads as a merchant and
+answers "No spending at 401k this month" — a self-disclosing $0, never a wrong figure, and
+byte-identical to what the shipped parser already does for "how much did I spend at 401k". A
+denylist can only cover what someone thought of; the honest fix (require the merchant to exist
+in the user's own transactions) would put a data read inside a pure engine, so it waits for a
+deliberate design. It is at least observable now — the ledger records it as
+`frame:merchant_spend` instead of swallowing it. "same for Amex" deliberately abstains: #168
+established that payment methods are not merchants, and the frame reuses that guard rather than
+contradicting it.
 
 ## Wave 4.2 slice 8: full-surface household hostile critic (#221) — HOUSEHOLD MVP COMPLETE
 
