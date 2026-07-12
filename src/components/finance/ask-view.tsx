@@ -38,9 +38,14 @@ export function AskView({
     setAsked(trimmed);
     setError(null);
     setSaveState('idle');
+    // The previous answer's intent is the conversation frame (TASKS 2.1): it lets
+    // the server resolve a follow-up fragment ("what about last month?") against
+    // the question it follows. The server re-validates it; a self-sufficient
+    // question ignores it entirely.
+    const priorIntent = answer?.intent;
     startTransition(async () => {
       try {
-        setAnswer(await askAssistant(trimmed));
+        setAnswer(await askAssistant(trimmed, priorIntent));
       } catch {
         setError('Something went wrong answering that. Please try again.');
         setAnswer(null);

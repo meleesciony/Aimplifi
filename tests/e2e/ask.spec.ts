@@ -163,6 +163,28 @@ test('an off-topic question still returns a safe, non-empty answer (no crash)', 
   await expect(page.getByTestId('ask-headline')).not.toBeEmpty();
 });
 
+test('a follow-up fragment is answered against the previous question (TASKS 2.1)', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto('/ask');
+
+  // The frame: a category question in the current window (June 2026 on the demo clock).
+  await ask(page, 'How much did I spend on groceries this month?');
+  await expect(page.getByTestId('ask-headline')).toContainText(/Groceries/i);
+  await expect(page.getByTestId('ask-headline')).toContainText(/this month/i);
+
+  // Ellipsis 1 — swap the WINDOW; the category is carried, not re-stated.
+  await ask(page, 'what about last month?');
+  await expect(page.getByTestId('ask-headline')).toContainText(/Groceries/i);
+  await expect(page.getByTestId('ask-headline')).toContainText(/last month/i);
+
+  // Ellipsis 2 — swap the CATEGORY; the window (last month) is carried.
+  await ask(page, 'and restaurants?');
+  await expect(page.getByTestId('ask-headline')).toContainText(/last month/i);
+  await expect(page.getByTestId('ask-headline')).not.toContainText(/Groceries/i);
+});
+
 test('the answered Ask page passes WCAG 2.1 AA (axe)', async ({ page }) => {
   await signIn(page);
   await page.goto('/ask');

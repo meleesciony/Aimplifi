@@ -97,7 +97,9 @@ const MONTH_NAMES = [
   'december',
 ] as const;
 const MONTH_ABBR = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const;
-const MONTH_TITLE = [
+/** Month names for a concrete window label ("June 2026"). Exported so the
+ *  conversation frame can re-label a carried deictic window (see frame.ts). */
+export const MONTH_TITLE = [
   'January',
   'February',
   'March',
@@ -124,6 +126,23 @@ function priorYm(ym: string, n: number): string {
  * ending with (and including) the current month.
  */
 export function parseTimeframe(qRaw: string, today: ISODate): Timeframe {
+  return parseExplicitTimeframe(qRaw, today) ?? thisMonth(today);
+}
+
+/** The current-month window — the timeframe used when a question names none. */
+function thisMonth(today: ISODate): Timeframe {
+  const todayYm = ymOf(today);
+  return { fromYm: todayYm, toYm: todayYm, label: 'this month' };
+}
+
+/**
+ * The same resolution as `parseTimeframe`, but `null` when the text names NO
+ * timeframe at all (instead of silently defaulting to this month). The
+ * conversation frame (TASKS 2.1) needs the difference: "what about last month?"
+ * carries a timeframe slot to swap, "what about groceries?" does not — and a
+ * silent default would overwrite the frame's timeframe with the current month.
+ */
+export function parseExplicitTimeframe(qRaw: string, today: ISODate): Timeframe | null {
   const q = qRaw.toLowerCase();
   const todayYm = ymOf(today);
   const y = Number(today.slice(0, 4));
@@ -167,7 +186,7 @@ export function parseTimeframe(qRaw: string, today: ISODate): Timeframe {
     return { fromYm: ym, toYm: ym, label: `${MONTH_TITLE[i]} ${year}` };
   }
 
-  return { fromYm: todayYm, toYm: todayYm, label: 'this month' };
+  return null;
 }
 
 // ─── target-date parsing (for the inverse "debt-free by <date>" planner) ──────
@@ -549,7 +568,18 @@ const MERCHANT_STOP_WORDS = new Set([
 function extractSpendMerchant(q: string): string | null {
   const m = /\b(?:spend|spent|spending)\b[^.?!]*?\b(?:at|with)\s+(.+)$/.exec(q);
   if (!m) return null;
-  const tokens = m[1].split(/\s+/).filter(Boolean);
+  return extractMerchantPhrase(m[1]);
+}
+
+/**
+ * The merchant tokenizer, shared by the parser's "spend at X" route and the
+ * conversation frame's fragment route ("what about at Costco?", TASKS 2.1), so
+ * the two can never disagree about what counts as a merchant name. Input is the
+ * lowercase text AFTER the merchant preposition. Drops leading articles, stops
+ * at the first timeframe/total cue, caps at 4 tokens.
+ */
+export function extractMerchantPhrase(after: string): string | null {
+  const tokens = after.toLowerCase().split(/\s+/).filter(Boolean);
   while (tokens.length && MERCHANT_LEADING_SKIP.has(tokens[0])) tokens.shift();
   const out: string[] = [];
   for (const raw of tokens) {
@@ -561,6 +591,17 @@ function extractSpendMerchant(q: string): string | null {
   }
   const phrase = out.join(' ').trim();
   return phrase || null;
+}
+
+/**
+ * True for objects that name a payment method or a statistical qualifier rather
+ * than a store ("amex", "card", "venmo", "average") — the #168 guard. Exported
+ * so the conversation frame abstains on "same for Amex" exactly as the parser
+ * abstains on "how much did I spend with Amex", instead of answering a
+ * confident-wrong "No spending at Amex".
+ */
+export function isNonMerchantObject(word: string): boolean {
+  return NON_MERCHANT_SPEND_OBJECTS.has(word);
 }
 
 function statedAmountIsPerPeriodRate(q: string): boolean {
@@ -806,16 +847,27 @@ export function parseAssistantQuery(
 
 // ─── validation (the zod-substitute, matching the parseLlmCategory convention) ─
 
+/** A real calendar month key: month 01–12 only (`2026-13` is not a window). */
+const YM_RE = /^\d{4}-(?:0[1-9]|1[0-2])$/;
+/** Labels are UI copy echoed into an answer's headline; a real one is short
+ *  ("the last 24 months" is 19 chars). A longer one is not a label — reject it
+ *  rather than let a client-echoed frame smuggle a sentence into the copy. */
+const MAX_LABEL_LEN = 40;
+/** The parser emits at most 4 merchant tokens; a longer one is not a store name. */
+const MAX_MERCHANT_LEN = 64;
+
 function isTimeframe(x: unknown): x is Timeframe {
   if (!x || typeof x !== 'object') return false;
   const t = x as Record<string, unknown>;
   return (
     typeof t.fromYm === 'string' &&
-    /^\d{4}-\d{2}$/.test(t.fromYm) &&
+    YM_RE.test(t.fromYm) &&
     typeof t.toYm === 'string' &&
-    /^\d{4}-\d{2}$/.test(t.toYm) &&
+    YM_RE.test(t.toYm) &&
     t.fromYm <= t.toYm &&
-    typeof t.label === 'string'
+    typeof t.label === 'string' &&
+    t.label.length > 0 &&
+    t.label.length <= MAX_LABEL_LEN
   );
 }
 
@@ -903,7 +955,10 @@ export function validateIntent(
         ? { kind: 'spend_by_category', timeframe: o.timeframe, target: o.target }
         : null;
     case 'merchant_spend':
-      return isTimeframe(o.timeframe) && typeof o.merchant === 'string' && o.merchant.trim().length > 0
+      return isTimeframe(o.timeframe) &&
+        typeof o.merchant === 'string' &&
+        o.merchant.trim().length > 0 &&
+        o.merchant.length <= MAX_MERCHANT_LEN
         ? { kind: 'merchant_spend', timeframe: o.timeframe, merchant: o.merchant }
         : null;
     case 'top_categories':

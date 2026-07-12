@@ -63,6 +63,11 @@ export interface AssistantAnswer {
   interpreted?: boolean;
   /** An optional confirm-before-create action the UI may surface (e.g. save a goal). */
   action?: AssistantGoalAction;
+  /** The resolved intent, echoed so the next turn can resolve an ellipsis against
+   *  it ("what about last month?" — TASKS 2.1). Set by the server orchestrator,
+   *  never by an answer formatter; absent for `unknown` (nothing to carry). The
+   *  client hands it straight back, so the server re-validates it on arrival. */
+  intent?: AssistantIntent;
 }
 
 const fmt = (n: number) => formatCents(n as Cents);

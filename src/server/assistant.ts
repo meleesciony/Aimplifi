@@ -30,6 +30,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { mergeCategoryMeta, type CategoryMeta, type CustomCategoryInput } from '@/lib/engine/categorize/categories';
 import { getCustomCategories } from '@/server/category-meta';
 import { parseAssistantQuery, validateIntent, type AssistantIntent } from '@/lib/engine/assistant/intent';
+import { frameFromIntent, resolveEllipsis, type AskFrame } from '@/lib/engine/assistant/frame';
 import { followUpQuestions } from '@/lib/engine/assistant/follow-ups';
 import { intentFromKind } from '@/lib/engine/assistant/llm';
 import { classifyIntentViaLLM } from '@/server/assistant-llm';
@@ -72,6 +73,10 @@ const LLM_RATE_WINDOW_MS = 60_000;
 type ResolveResult = {
   intent: AssistantIntent;
   viaLlm: boolean;
+  /** True when the previous turn's frame resolved an ellipsis ("what about last
+   *  month?") — deterministic, so it is NOT an LLM interpretation and NOT a
+   *  vocabulary gap. */
+  viaFrame: boolean;
   /** True when the deterministic parser returned `unknown` (ledger write gate). */
   parserUnknown: boolean;
   /** Raw LLM kind before validation; null if the classifier was not called. */
@@ -79,39 +84,63 @@ type ResolveResult = {
 };
 
 /**
- * Resolve the typed intent, escalating a deterministic `unknown` to the LLM
- * classifier only when a provider key is present AND the per-user LLM budget
- * allows — re-deriving every parameter deterministically and re-validating the
- * model's choice before any data is touched. Reports whether the LLM was used so
- * the answer can disclose it was an interpretation. Parser-unknown outcomes
- * (rescued or not) feed the UnknownQuestion ledger (TASKS 2.2).
+ * Resolve the typed intent. Order is deterministic-first, by design:
+ *   1. the parser (self-sufficient questions — never re-interpreted),
+ *   2. the conversation frame (an ellipsis against the previous turn, TASKS 2.1),
+ *   3. the LLM classifier — only when a provider key is present AND the per-user
+ *      LLM budget allows, re-deriving every parameter deterministically and
+ *      re-validating the model's choice before any data is touched.
+ * Reports how it routed so the answer can disclose an LLM interpretation, and so
+ * the UnknownQuestion ledger (TASKS 2.2) records only genuine vocabulary gaps.
  */
 async function resolveIntent(
   question: string,
   today: string,
   userId: string,
   custom: readonly CustomCategoryInput[],
+  frame: AskFrame | null,
 ): Promise<ResolveResult> {
   const parsed = parseAssistantQuery(question, today as Parameters<typeof parseAssistantQuery>[1], custom);
   if (parsed.kind !== 'unknown') {
-    return { intent: parsed, viaLlm: false, parserUnknown: false, llmGuessKind: null };
+    return { intent: parsed, viaLlm: false, viaFrame: false, parserUnknown: false, llmGuessKind: null };
+  }
+  const framed = resolveEllipsis(
+    question,
+    today as Parameters<typeof resolveEllipsis>[1],
+    frame,
+    custom,
+  );
+  if (framed) {
+    return { intent: framed, viaLlm: false, viaFrame: true, parserUnknown: true, llmGuessKind: null };
   }
   if (!process.env.XAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
-    return { intent: parsed, viaLlm: false, parserUnknown: true, llmGuessKind: null };
+    return { intent: parsed, viaLlm: false, viaFrame: false, parserUnknown: true, llmGuessKind: null };
   }
   if (!(await rateLimitDurable(`assistant-llm:${userId}`, LLM_RATE_LIMIT, LLM_RATE_WINDOW_MS))) {
-    return { intent: parsed, viaLlm: false, parserUnknown: true, llmGuessKind: null };
+    return { intent: parsed, viaLlm: false, viaFrame: false, parserUnknown: true, llmGuessKind: null };
   }
 
   const kind = await classifyIntentViaLLM(question);
   const proposed = intentFromKind(kind, question, today as Parameters<typeof intentFromKind>[2]);
   const valid = proposed ? validateIntent(proposed, custom) : null;
   return valid
-    ? { intent: valid, viaLlm: true, parserUnknown: true, llmGuessKind: kind }
-    : { intent: parsed, viaLlm: false, parserUnknown: true, llmGuessKind: kind };
+    ? { intent: valid, viaLlm: true, viaFrame: false, parserUnknown: true, llmGuessKind: kind }
+    : { intent: parsed, viaLlm: false, viaFrame: false, parserUnknown: true, llmGuessKind: kind };
 }
 
-export async function askAssistant(rawQuestion: string): Promise<AssistantAnswer> {
+/**
+ * Answer one question. `priorIntent` is the intent the PREVIOUS answer carried,
+ * handed back by the client so a follow-up fragment can be resolved against it
+ * (TASKS 2.1). It is untrusted client input, so it goes through the same
+ * `validateIntent` gate the LLM's proposals do before it becomes a frame: a
+ * malformed, hallucinated, or foreign-category intent simply yields no frame.
+ * (Even a well-formed forged frame can only re-ask a question about the caller's
+ * OWN snapshot — every read below is ownership-scoped.)
+ */
+export async function askAssistant(
+  rawQuestion: string,
+  priorIntent?: unknown,
+): Promise<AssistantAnswer> {
   const userId = await requireUserId();
   const question = (rawQuestion ?? '').trim().slice(0, MAX_QUESTION_LEN);
   const provider = getProvider();
@@ -120,21 +149,32 @@ export async function askAssistant(rawQuestion: string): Promise<AssistantAnswer
   // Golf"), and the merged meta makes the spend answers resolve them correctly.
   const custom = await getCustomCategories(userId);
   const meta = mergeCategoryMeta(custom);
-  const { intent, viaLlm, parserUnknown, llmGuessKind } = await resolveIntent(
+  const validPrior = priorIntent == null ? null : validateIntent(priorIntent, custom);
+  const frame = validPrior ? frameFromIntent(validPrior) : null;
+  const { intent, viaLlm, viaFrame, parserUnknown, llmGuessKind } = await resolveIntent(
     question,
     today,
     userId,
     custom,
+    frame,
   );
   // Vocabulary mining (TASKS 2.2): every parser-unknown Ask, including LLM
-  // rescues. Awaited so a fault is contained inside recordUnknownQuestion; never
-  // aborts the answer. Deterministic routes write nothing.
+  // rescues AND frame-resolved ellipses. Awaited so a fault is contained inside
+  // recordUnknownQuestion; never aborts the answer. Deterministic routes write
+  // nothing.
+  //
+  // A frame-resolved row is tagged `frame:<kind>` rather than the bare kind: the
+  // phrasing is CONTEXT-dependent ("what about last month?" means nothing on its
+  // own), so the TASKS 2.3 miner must never promote it into a context-FREE vocab
+  // rule — while the row itself still keeps a mis-resolution visible instead of
+  // silently swallowing it. `resolvedIntent === 'unknown'` (the self-audit's
+  // unknown-rate, TASKS 3.2) is unaffected either way.
   if (parserUnknown) {
     await recordUnknownQuestion({
       userId,
       rawQuestion: question,
       llmGuessKind,
-      resolvedIntent: intent.kind,
+      resolvedIntent: viaFrame ? `frame:${intent.kind}` : intent.kind,
     });
   }
 
@@ -148,7 +188,11 @@ export async function askAssistant(rawQuestion: string): Promise<AssistantAnswer
   const followUps = followUpQuestions(intent);
   const withChips =
     followUps.length > 0 ? { ...answer, suggestions: [...followUps] } : answer;
-  return viaLlm ? { ...withChips, interpreted: true } : withChips;
+  // Echo the resolved intent so the next turn can swap one slot of it (TASKS 2.1).
+  // `unknown` carries nothing — there is no frame to follow up on.
+  const withFrame: AssistantAnswer =
+    intent.kind === 'unknown' ? withChips : { ...withChips, intent };
+  return viaLlm ? { ...withFrame, interpreted: true } : withFrame;
 }
 
 type FinanceSnapshot = Awaited<ReturnType<ReturnType<typeof getProvider>['getFinanceSnapshot']>>;

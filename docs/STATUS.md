@@ -2,6 +2,67 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 2.1: Ask conversation frame — deterministic ellipsis resolution (#222/#223)
+
+The assistant no longer has amnesia. A follow-up fragment — "what about last month?",
+"and groceries?", "at Costco?" — is now answered against the question it follows, with
+no LLM and no new number. New pure engine `src/lib/engine/assistant/frame.ts`:
+`frameFromIntent` distils the previous turn's RESOLVED intent into a slot frame
+(`{kind, timeframe, target, merchant, limit}`), and `resolveEllipsis` rebuilds that same
+intent with the one slot the fragment names swapped.
+
+Three structural properties make it safe rather than clever:
+**(1) It is consulted only on a parser-`unknown`.** A question that routes on its own is
+never re-interpreted, so every pre-existing Ask route is byte-identical whether a frame is
+present or not. **(2) It originates nothing.** Every slot comes from the already-validated
+frame or from the user's own words through the parser's OWN helpers — `parseTimeframe` was
+split into `parseExplicitTimeframe` (null when no window is named) plus the this-month
+default, and the merchant tokenizer + the #168 payment-method guard are now exported and
+shared rather than re-implemented. **(3) Session state lives in the answer, not the
+server.** `AssistantAnswer.intent` is echoed to the client and handed back on the next ask
+— no table, no session store, no cross-tab coupling — and because that value returns as
+untrusted client input, it passes through the same `validateIntent` gate the LLM's
+proposals do before it becomes a frame. Routing order is parser → frame → LLM, so a
+deterministic answer always beats a model call.
+
+Frame-resolved asks are written to the UnknownQuestion ledger tagged `frame:<kind>`: the
+phrasing is context-DEPENDENT, so the TASKS 2.3 vocab miner must exclude the prefix (a
+context-free rule for "what about last month?" would be a bug), while a mis-resolution
+still leaves a trail instead of vanishing.
+
+Fresh-context Fable hostile critic, cycle 1: **FAIL — 0 P0, 3 P1, 4 P2 — all fixed and
+regression-locked in-cycle** (cycle 1 of the 4-cap). Every P1 was the same disease, the one
+this slice exists to prevent: the frame answering a question the user did not ask. A
+timeframe-FIRST fragment ("and this month at costco?") silently dropped the merchant and
+answered the carried category; negation was unmodelled, so "restaurants not groceries"
+answered GROCERIES (the synonym table is first-match-wins); and the assistant's own
+vocabulary became merchant probes — "what about income?" → "No spending at Income" — which
+also stole the question from the LLM classifier that routes it correctly. Fixed: merchant
+search anywhere in the fragment; negation and question-word guards that abstain the whole
+fragment before ANY slot extraction; an intent-noun/pronoun guard on the merchant path;
+`largest_purchases` removed from the spend family (no engine computes "the biggest purchase
+at Costco", so abstaining beats silently answering a merchant total); `validateIntent` now
+bounds month (01–12), label (≤40) and merchant (≤64), having never been a client-facing
+boundary before this slice; and a CARRIED deictic window is re-labelled against today, since
+"this month" framed in June is a false name in July (the window itself never moves). Every
+guard fails SAFE — a false hit abstains to the honest `unknown` and the LLM rescue still gets
+its turn.
+
+Gate (real 2026-07-12): `bash scripts/verify.sh` → **✅ VERIFY GREEN, exit 0** — tsc clean ·
+eslint clean · `npx vitest run` **2429 unit / 181 files** (+38 this slice) · `npx next build`
+clean. `npx playwright test tests/e2e/ask.spec.ts` → **10/10**, including a new flow that
+drives the real UI through two chained ellipses (window swap, then category swap). 6
+REGRESSION_LEDGER entries (2026-07-12).
+
+Accepted limitations (recorded, not fixed): memory is ONE turn — an intervening `unknown`
+answer carries no intent, so a typo'd follow-up clears the frame. No comparison intent
+exists, so "compared to last month?" answers a lone figure rather than a comparison. A novel
+non-category noun ("what about my raise?") can still read as a merchant and answer "No
+spending at raise" — which is exactly what the parser does today for "how much did I spend at
+raise", so the frame introduces no new failure mode. "same for Amex" deliberately abstains:
+#168 established that payment methods are not merchants, and the frame reuses that guard
+rather than contradicting it.
+
 ## Wave 4.2 slice 8: full-surface household hostile critic (#221) — HOUSEHOLD MVP COMPLETE
 
 Three FRESH-CONTEXT Fable critics ran in parallel over T1–T12 (A: membership/authz state
