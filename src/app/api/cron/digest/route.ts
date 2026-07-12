@@ -10,12 +10,25 @@
  * #173, the key is recorded ONLY after a real send, so a dormant week records nothing
  * and activating email later still delivers. Per-user failures are audited, never abort
  * the sweep; zero-account users are skipped cleanly. The seeded demo is a dormant no-op.
+ *
+ * JOINT HOUSEHOLD DIGEST (TASKS 4.2 slice 7, DECISIONS #201(2) / #220): a member with a
+ * live partner gets ONE household-scope digest instead of a personal one — dues across
+ * the household's shared cards (`getCashNeeded(..., 'household')`, the slice-4 merge),
+ * plus a symmetric shared-account movement summary and the §4.4 assumptions copy. It is
+ * composed PER RECIPIENT, because household scope is viewer-relative by definition
+ * ("your accounts + what your partner shared"): a single byte-identical email could only
+ * be built by either leaking a partner's private accounts (T1) or dropping each member's
+ * own private-card reminders — see DECISIONS #220. The dedup key is UNCHANGED
+ * (`weekly_digest:<monday>`), so joining or leaving a household mid-week can never
+ * produce a second digest email in the same week.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { addDays, dayOfWeek } from '@/lib/dates';
 import { getCashNeeded } from '@/server/finance';
 import { getCoachData } from '@/server/coach';
+import { partnerIdsOf, resolveViewer } from '@/server/household-authz';
+import { getHouseholdDigestContext } from '@/server/household-digest';
 import { selectPaymentReminders } from '@/lib/engine/reminders/select';
 import { buildWeeklyDigest } from '@/lib/engine/digest/build';
 import { receiptsFromOpportunities } from '@/lib/engine/receipts/receipts';
@@ -46,8 +59,20 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
+      // A member with a live partner gets the household-scope answer; everyone
+      // else (no household, or a household of one) keeps the personal digest,
+      // byte-identical to pre-slice-7 — `getCashNeeded` itself downgrades a
+      // partnerless 'household' request to 'mine' (T6), but resolving the viewer
+      // here keeps the request honest and gives us the shared-account context.
+      const viewer = await resolveViewer(user.id);
+      const isJoint = partnerIdsOf(viewer).length > 0;
+
       // The week's Monday is the stable once-per-week dedup key.
-      const { today, result, loanObligations } = await getCashNeeded(user.id, 'PAY_IN_FULL');
+      const { today, result, loanObligations } = await getCashNeeded(
+        user.id,
+        'PAY_IN_FULL',
+        isJoint ? 'household' : 'mine',
+      );
       const weekStart = addDays(today, -((dayOfWeek(today) + 6) % 7));
       const dedupKey = `weekly_digest:${weekStart}`;
       const already = await prisma.notificationSent.findUnique({
@@ -64,10 +89,16 @@ export async function GET(request: NextRequest) {
         today,
         withinDays: DIGEST_WINDOW_DAYS,
       });
+      // Personal by design even inside the joint digest (§4.5): the review is
+      // computed over the recipient's OWN accounts and reaches only their inbox.
       const { review, opportunities } = await getCoachData(user.id);
       // The tally line reflects everything caught SO FAR (already-persisted rows).
       const receipts = await getValueReceiptsSummary(user.id);
-      const digest = buildWeeklyDigest({ review, reminders, today, receipts });
+      // Shared-account movement over an inclusive 7-day window ending today.
+      const household = isJoint
+        ? await getHouseholdDigestContext(viewer, addDays(today, -(DIGEST_WINDOW_DAYS - 1)), today)
+        : null;
+      const digest = buildWeeklyDigest({ review, reminders, today, receipts, household });
 
       let sent = false;
       let reason: string | undefined;
@@ -97,12 +128,12 @@ export async function GET(request: NextRequest) {
         reason = 'no-email';
       }
 
-      results.push({ userId: user.id, sent, reason });
+      results.push({ userId: user.id, sent, reason, joint: isJoint });
       await prisma.auditLog.create({
         data: {
           userId: user.id,
           action: 'digest.cron',
-          meta: JSON.stringify({ sent, reason, dormant }),
+          meta: JSON.stringify({ sent, reason, dormant, joint: isJoint }),
         },
       });
     } catch (e) {

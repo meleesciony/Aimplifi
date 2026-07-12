@@ -132,11 +132,26 @@ export function selectPaymentReminders(params: SelectRemindersParams): PaymentRe
 }
 
 /**
+ * "today" / "tomorrow" / "in N days" — exported so the joint household digest's
+ * partner-owned line (TASKS 4.2 slice 7) phrases the SAME due identically to
+ * `reminderLine` without copying the expression and letting the two drift.
+ */
+export function reminderWhen(daysUntil: number): string {
+  return daysUntil === 0 ? 'today' : daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`;
+}
+
+/**
  * One plain-text bullet for a reminder, with autopay disclosure. Shared by the
  * reminder email and the weekly digest (Gap 2 §3) so both render a due identically.
+ *
+ * SECOND PERSON BY CONSTRUCTION ("you'll pay … yourself") — it may only render a
+ * due on an account the RECIPIENT owns. A partner's shared card in the joint
+ * digest goes through `HOUSEHOLD_COPY.digestPartnerDue` instead (slice-7 critic
+ * F1): telling a household member they will personally pay their partner's card
+ * is a false money claim, and invites a double payment.
  */
 export function reminderLine(r: PaymentReminder): string {
-  const when = r.daysUntil === 0 ? 'today' : r.daysUntil === 1 ? 'tomorrow' : `in ${r.daysUntil} days`;
+  const when = reminderWhen(r.daysUntil);
   let how: string;
   if (r.autopayCovered) {
     how = `autopay will handle it — just keep the funds in your account`;

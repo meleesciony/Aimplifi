@@ -125,3 +125,174 @@ describe('buildWeeklyDigest', () => {
     expect(tallyOnly).toBeNull();
   });
 });
+
+/**
+ * TASKS 4.2 slice 7 — the JOINT household digest (DECISIONS #201(2) / #220).
+ * The composer is the whole household surface here: presence of `household`
+ * flips the subject + dues header and appends the shared-movement block with the
+ * §4.4 assumptions copy. Absence of it must leave the pre-slice-7 personal digest
+ * byte-identical (T6).
+ */
+describe('buildWeeklyDigest — joint household digest', () => {
+  const MOVEMENT = {
+    accountCount: 2,
+    transactionCount: 14,
+    outflowCents: cents(124_055),
+    inflowCents: cents(500_00),
+  };
+  const HOUSEHOLD = {
+    name: 'The Nguyens',
+    movement: MOVEMENT,
+    partnerAccountLabels: {},
+    withheldAccountCount: 0,
+  };
+
+  it('household context flips the subject and dues header, and states its assumptions inline', () => {
+    const dues = [reminder({ accountId: 'a1', accountName: "Partner's Sapphire", dueDate: '2026-06-15', daysUntil: 5 })];
+    const digest = buildWeeklyDigest({ review: REVIEW, reminders: dues, today: TODAY, household: HOUSEHOLD });
+
+    expect(digest!.subject).toBe("Your household's week with Aimplifi");
+    expect(digest!.text).toContain('Coming up in the next 7 days across your household:');
+    // Household-scope dues still render through the SHARED reminderLine.
+    expect(digest!.text).toContain(reminderLine(dues[0]));
+    expect(digest!.text).toContain('Shared in The Nguyens:');
+    expect(digest!.text).toContain('14 transactions on 2 shared accounts in the last 7 days — $1,240.55 out, $500.00 in.');
+    // The joint number never implies completeness (§4.4 guardrail).
+    expect(digest!.text).toContain("Anything not shared isn't counted.");
+    // …and the personal review inside it is disclosed as personal (§4.5).
+    expect(digest!.text).toContain('Your partner\'s copy of this email shows theirs, never yours.');
+  });
+
+  it('names no merchant and no partner — descriptive, never a verdict on a partner (§4.5)', () => {
+    const digest = buildWeeklyDigest({ review: REVIEW, reminders: [], today: TODAY, household: HOUSEHOLD });
+    const shared = digest!.text.slice(digest!.text.indexOf('Shared in'));
+    // The movement block is a count and two totals. Nothing else about the rows.
+    expect(shared).not.toMatch(/spent|overspent|too much|your partner spent/i);
+  });
+
+  it('a quiet week on shared accounts says so, without rendering "0 shared accounts"', () => {
+    const digest = buildWeeklyDigest({
+      review: REVIEW,
+      reminders: [],
+      today: TODAY,
+      household: { ...HOUSEHOLD, movement: { ...MOVEMENT, transactionCount: 0, outflowCents: cents(0), inflowCents: cents(0) } },
+    });
+    expect(digest!.text).toContain('No transactions on the 2 shared accounts in the last 7 days.');
+    expect(digest!.text).not.toContain('0 shared account');
+  });
+
+  it('partners but nothing shared: says the email counts only your own accounts', () => {
+    const digest = buildWeeklyDigest({
+      review: REVIEW,
+      reminders: [],
+      today: TODAY,
+      household: { ...HOUSEHOLD, movement: { accountCount: 0, transactionCount: 0, outflowCents: cents(0), inflowCents: cents(0) } },
+    });
+    expect(digest!.text).toContain('No accounts are shared in The Nguyens yet, so this email counts only your own.');
+    expect(digest!.text).not.toContain('transactions on the 0 shared');
+  });
+
+  it('household context is NEVER a send trigger on its own (parity with receipts)', () => {
+    expect(
+      buildWeeklyDigest({ review: null, reminders: [], today: TODAY, household: HOUSEHOLD }),
+    ).toBeNull();
+  });
+
+  /**
+   * Slice-7 critic F1 (P1, fail-old/pass-new). The personal `reminderLine` is
+   * second-person ("you'll pay $600 yourself" / "keep the funds in your account").
+   * Rendering it for a PARTNER's shared card tells the reader they must pay someone
+   * else's bill — false, and an invitation for both partners to pay it.
+   */
+  describe("a partner's shared card is owner-attributed, never billed to the reader (critic F1)", () => {
+    const partnerDue = reminder({
+      accountId: 'partner-card',
+      accountName: 'Sapphire',
+      dueDate: '2026-06-15',
+      daysUntil: 5,
+      userActionCents: 60_000,
+    });
+    const withPartner = { ...HOUSEHOLD, partnerAccountLabels: { 'partner-card': 'Sam' } };
+
+    it('names the owner and never says the reader will pay it', () => {
+      const digest = buildWeeklyDigest({
+        review: REVIEW,
+        reminders: [partnerDue],
+        today: TODAY,
+        household: withPartner,
+      });
+      const line = digest!.text.split('\n').find((l) => l.includes('Sapphire'))!;
+      expect(line).toContain("Sapphire (Sam's)");
+      // Same date/urgency phrasing as the personal line (shared `reminderWhen`).
+      expect(line).toContain('$600.00 due Mon, Jun 15, 2026 (in 5 days)');
+      expect(line).toContain("it's on Sam's account, not yours");
+      expect(line).toContain("Aimplifi doesn't decide who pays");
+      // The exact claims that made this a P1:
+      expect(line).not.toContain("you'll pay");
+      expect(line).not.toContain('yourself');
+      expect(line).not.toContain('your account');
+    });
+
+    it('autopay on a partner card points at THEIR account, not the reader\'s', () => {
+      const covered = { ...partnerDue, userActionCents: cents(0), autopayCents: cents(60_000), autopayCovered: true };
+      const digest = buildWeeklyDigest({
+        review: REVIEW,
+        reminders: [covered],
+        today: TODAY,
+        household: withPartner,
+      });
+      const line = digest!.text.split('\n').find((l) => l.includes('Sapphire'))!;
+      expect(line).toContain("the funds need to be in Sam's account");
+      // The personal line would have said "just keep the funds in your account".
+      expect(line).not.toContain('your account');
+    });
+
+    it("the reader's OWN card in the same digest keeps the personal line verbatim", () => {
+      const mine = reminder({ accountId: 'my-card', accountName: 'Freedom', dueDate: '2026-06-13', daysUntil: 3 });
+      const digest = buildWeeklyDigest({
+        review: REVIEW,
+        reminders: [mine, partnerDue],
+        today: TODAY,
+        household: withPartner,
+      });
+      expect(digest!.text).toContain(reminderLine(mine)); // byte-identical
+      expect(digest!.text).not.toContain(reminderLine(partnerDue)); // never for the partner's
+    });
+  });
+
+  it('a currency-withheld shared account is disclosed, never silently dropped (critic F3)', () => {
+    const onlyForeign = buildWeeklyDigest({
+      review: REVIEW,
+      reminders: [],
+      today: TODAY,
+      household: {
+        ...HOUSEHOLD,
+        movement: { accountCount: 0, transactionCount: 0, outflowCents: cents(0), inflowCents: cents(0) },
+        withheldAccountCount: 1,
+      },
+    });
+    // "Nothing is shared yet" would be a lie — something IS shared, in EUR.
+    expect(onlyForeign!.text).not.toContain('No accounts are shared');
+    expect(onlyForeign!.text).toContain("1 shared account isn't counted above");
+
+    const alsoForeign = buildWeeklyDigest({
+      review: REVIEW,
+      reminders: [],
+      today: TODAY,
+      household: { ...HOUSEHOLD, withheldAccountCount: 2 },
+    });
+    expect(alsoForeign!.text).toContain('14 transactions on 2 shared accounts');
+    expect(alsoForeign!.text).toContain("2 shared accounts aren't counted above");
+  });
+
+  it('T6: without household context the digest is byte-identical to the personal one', () => {
+    const dues = [reminder({ accountId: 'a1', accountName: 'Sapphire', dueDate: '2026-06-15', daysUntil: 5 })];
+    const personal = buildWeeklyDigest({ review: REVIEW, reminders: dues, today: TODAY });
+    for (const absent of [undefined, null] as const) {
+      const same = buildWeeklyDigest({ review: REVIEW, reminders: dues, today: TODAY, household: absent });
+      expect(same).toEqual(personal);
+    }
+    expect(personal!.text).not.toContain('Shared in');
+    expect(personal!.text).not.toContain('household');
+  });
+});

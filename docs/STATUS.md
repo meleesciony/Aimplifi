@@ -2,6 +2,85 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 4.2 slice 7: joint household digest (#220)
+
+A household member with a LIVE partner now receives ONE household-scope weekly
+digest instead of the personal one (owner decision #201(b)): dues computed at
+household scope through the slice-4 merge, a shared-account movement summary, and
+the §4.4 assumptions copy inline. New pure engine `src/lib/engine/household/digest.ts`
+(`summarizeSharedMovement` — inclusive window; excludes transfers, split parents and
+PENDING, the same exclusion set as coach/radar, so a shared total can never disagree
+with the register). New Prisma-only server read `src/server/household-digest.ts`
+(keeps NextAuth out of the cron import graph, the `household-finance.ts` precedent).
+`buildWeeklyDigest` takes an optional `household` field; without it the personal
+digest is byte-identical to pre-slice-7 (T6, deep-equality locked). The household
+copy guardrail scan is now EXHAUSTIVE over `HOUSEHOLD_COPY`'s keys, so no household
+string can ship unscanned. Dedup key deliberately unchanged (`weekly_digest:<monday>`),
+so a household join/leave mid-week can never produce a second digest that week.
+
+Deliberate DEVIATION from a literal reading of #201(b) (DECISIONS #220): the joint
+email is composed PER RECIPIENT rather than as one byte-identical message. Household
+scope is viewer-relative by §4.4's own definition ("your accounts + accounts your
+partner has shared"), so one identical email could only be built by leaking a
+partner's unshared accounts (T1) or by dropping the personal Money Review entirely.
+The one genuinely symmetric section — shared-account movement — IS identical in both
+inboxes.
+
+Fresh-context Fable hostile critic (independent agent): cycle 1 **FAIL — 1 P1 + 6 P2**,
+all addressed. The P1 was real and is the reason this slice needed a critic: joint dues
+rendered a PARTNER's card through the personal, second-person `reminderLine` — "B Shared
+Card: $600.00 due — you'll pay $600.00 yourself", and in the autopay variant "just keep
+the funds in your account" (the wrong account entirely). It told one partner they must
+personally pay the other's bill and invited a double payment. Partner-owned dues now
+render through `HOUSEHOLD_COPY.digestPartnerDue`: owner-attributed, stating whose account
+it sits on, ending with "Aimplifi doesn't decide who pays". The owner-label map covers
+shared accounts of EVERY type (a shared LOAN reaches the digest via `loanObligations` and
+would otherwise have fallen through the same false line). `reminderLine` now documents its
+precondition (it may only render an account the RECIPIENT owns), and the banned phrasings
+are locked by `PARTNER_DUE_BANNED` in the copy guardrail. P2s fixed: a currency-withheld
+shared account is now COUNTED and DISCLOSED rather than silently dropped (#135 stance);
+EDGE_CASES gained a §Household Digest Movement block with the hand-verified fixtures; the
+#220 rationale was corrected where it overstated its own case (private-card *reminders*
+have independent coverage via the reminders cron — the binding constraint is the Money
+Review, not missed payments).
+
+Gate (real 2026-07-12): `npx tsc --noEmit` clean · `npx eslint .` clean · `npx vitest run`
+**2355 unit / 180 files** (+36 this slice) · `npx next build` clean. **E2E: NOT GREEN in a
+full `verify.sh` run, and NOT attributable to this slice** — see the flake note below. Its
+absence is stated, not papered over: `bash scripts/verify.sh` exits 1.
+
+Known limitations (accepted): "both partners receive it" is a default, not a guarantee —
+a member owning ZERO accounts is skipped by the sweep's no-accounts guard (resolvePaymentAccount
+throws on an empty snapshot), and a member with no review and nothing due gets no email that
+week (household movement is deliberately never a send trigger, parity with the receipts
+tally). Inherited and NOT fixed here (critic F5, routed to slice 8): if two partners each
+connect the SAME real bank account via different providers and both share it, nothing dedupes
+it — the #192 detector's input is each owner's OWN account set — so movement and dues
+double-count, and the digest is the first surface to mail that doubled number.
+
+## E2E gate: local full-suite flake, 2026-07-12 (NOT a slice-7 regression)
+
+The full local `VERIFY_E2E=1` e2e step is currently failing one or two DIFFERENT tests per
+run on this machine, rotating across `settings-dials`, `budget-targets` and `phase4-features`
+(goals) — the last two are the very tests named in `docs/lessons/ci-e2e-timing-flake.md`.
+
+Proof it is environmental, not slice 7: a full `verify.sh` run on **clean HEAD with the
+slice-7 work stashed** ALSO failed (`phase4-features.spec.ts:33` goals, 60s `locator.click`
+timeout), and a standalone `npx playwright test` on the slice-7 tree passed **104/104**
+earlier in the same session. Nothing in the slice-7 diff (cron digest route, digest engine,
+household copy, reminders docstring) imports or renders any of those pages.
+
+One symptom deserves naming because it looks like a data bug: `settings-dials` failed twice
+with a CORRUPTED persisted value (`Travel, Dining Out, ClimbingTravel`) that survived a
+reload. Under contention Playwright's `fill()` lands mid-hydration; on a navigation assertion
+that surfaces as a timeout, on a form it surfaces as a mangled value. Same cause, different
+symptom — see `docs/lessons/e2e-dials-value-corruption-flake.md`. If that spec ever fails
+with the same signature while clean HEAD passes, it stops being a flake and becomes a real
+`mutation-form-recipe.md`-family bug worth diagnosing.
+
+CI (GitHub Actions) is the arbiter for e2e per the lessons ledger; this slice's e2e status is
+therefore UNVERIFIED locally and left to the CI verify run on push.
+
 ## Wave 4.2 slice 6: partner categorization on shared accounts (#219)
 
 `recategorizeSharedTransaction` (`src/server/household-actions.ts`) is the

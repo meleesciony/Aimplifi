@@ -15,13 +15,35 @@
  * a brand-new user with no history and nothing due gets no digest.
  */
 import { type ISODate, formatISODate } from '@/lib/dates';
+import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import { COACH_COPY, type MoneyReview } from '@/lib/engine/fi/coach-copy';
-import { type PaymentReminder, reminderLine } from '@/lib/engine/reminders/select';
+import type { SharedMovementSummary } from '@/lib/engine/household/digest';
+import { type PaymentReminder, reminderLine, reminderWhen } from '@/lib/engine/reminders/select';
 import { receiptLines, type ValueReceiptsSummary } from '@/lib/engine/receipts/receipts';
 
 export interface WeeklyDigest {
   subject: string;
   text: string;
+}
+
+/**
+ * Household context for the JOINT digest (TASKS 4.2 slice 7, DECISIONS #201(2)):
+ * present only for a member with at least one live partner. Its presence flips the
+ * subject, the dues header (the `reminders` passed in are then household-scope) and
+ * appends the shared-movement + assumptions block.
+ */
+export interface HouseholdDigestContext {
+  name: string;
+  movement: SharedMovementSummary;
+  /**
+   * accountId → owning partner's display name, for PARTNER-owned shared accounts
+   * ONLY (never the viewer's own). A due on one of these must not render through
+   * the second-person `reminderLine` (slice-7 critic F1) — the viewer does not pay
+   * their partner's card, and saying they do invites a double payment.
+   */
+  partnerAccountLabels: Record<string, string>;
+  /** Shared accounts withheld from every figure by the #135 currency guard — disclosed, never silent. */
+  withheldAccountCount: number;
 }
 
 export function buildWeeklyDigest(input: {
@@ -34,8 +56,14 @@ export function buildWeeklyDigest(input: {
    * and nothing due stays null — a running tally alone isn't news.
    */
   receipts?: ValueReceiptsSummary | null;
+  /**
+   * Household scope (slice 7). Like `receipts`, NEVER a send trigger on its own:
+   * a member with no review and nothing due gets no email just because a shared
+   * account moved. Absent/null ⇒ the personal digest, byte-identical to pre-slice-7.
+   */
+  household?: HouseholdDigestContext | null;
 }): WeeklyDigest | null {
-  const { review, reminders, today, receipts } = input;
+  const { review, reminders, today, receipts, household } = input;
   if (!review && reminders.length === 0) return null;
 
   const parts: string[] = [COACH_COPY.digestIntro(formatISODate(today, 'long')), ''];
@@ -48,14 +76,64 @@ export function buildWeeklyDigest(input: {
     parts.push(COACH_COPY.digestCaughtHeader(), ...receiptLines(receipts).map((l) => `• ${l}`), '');
   }
 
-  parts.push(COACH_COPY.digestPaymentsHeader());
+  parts.push(household ? HOUSEHOLD_COPY.digestPaymentsHeader() : COACH_COPY.digestPaymentsHeader());
   if (reminders.length === 0) {
     parts.push(COACH_COPY.digestNothingDue());
   } else {
-    for (const r of reminders) parts.push(reminderLine(r));
+    for (const r of reminders) {
+      // A partner's shared card NEVER renders through the second-person
+      // reminderLine (critic F1): the viewer is not the one paying it.
+      const ownerLabel = household?.partnerAccountLabels[r.accountId];
+      parts.push(
+        ownerLabel
+          ? HOUSEHOLD_COPY.digestPartnerDue({
+              accountName: r.accountName,
+              ownerLabel,
+              cashRequiredCents: r.cashRequiredCents,
+              userActionCents: r.userActionCents,
+              autopayCents: r.autopayCents,
+              autopayCovered: r.autopayCovered,
+              dueDateLong: formatISODate(r.dueDate, 'long'),
+              when: reminderWhen(r.daysUntil),
+              isEstimated: r.isEstimated,
+            })
+          : reminderLine(r),
+      );
+    }
+  }
+
+  if (household) {
+    const { accountCount, transactionCount, outflowCents, inflowCents } = household.movement;
+    parts.push('', HOUSEHOLD_COPY.digestSharedHeader(household.name));
+    if (accountCount === 0 && household.withheldAccountCount === 0) {
+      // Partners, but nobody has shared an account: household scope is exactly
+      // 'mine', and the copy says so rather than rendering "0 shared accounts".
+      parts.push(HOUSEHOLD_COPY.digestNothingShared(household.name));
+    } else if (accountCount === 0) {
+      // Everything shared is in an unsupported currency — say so (critic F3):
+      // "nothing is shared yet" would be a lie, and a silent withhold breaks #135.
+      parts.push(HOUSEHOLD_COPY.digestUnsupportedCurrency(household.withheldAccountCount));
+    } else if (transactionCount === 0) {
+      parts.push(HOUSEHOLD_COPY.digestNoMovement(accountCount));
+    } else {
+      parts.push(
+        HOUSEHOLD_COPY.digestMovement(transactionCount, accountCount, outflowCents, inflowCents),
+      );
+    }
+    if (accountCount > 0 && household.withheldAccountCount > 0) {
+      parts.push(HOUSEHOLD_COPY.digestUnsupportedCurrency(household.withheldAccountCount));
+    }
+    // Assumptions inline, always (CLAUDE.md coaching guardrail): the joint number
+    // above must never imply completeness — a partner's private card is invisible
+    // by design (§4.4), and the reader is told so in the same breath.
+    parts.push('', HOUSEHOLD_COPY.scopeAssumptions());
+    if (review) parts.push(HOUSEHOLD_COPY.digestPrivacyNote());
   }
 
   parts.push('', COACH_COPY.digestOutro());
 
-  return { subject: COACH_COPY.digestSubject(), text: parts.join('\n') };
+  return {
+    subject: household ? HOUSEHOLD_COPY.digestSubject() : COACH_COPY.digestSubject(),
+    text: parts.join('\n'),
+  };
 }
