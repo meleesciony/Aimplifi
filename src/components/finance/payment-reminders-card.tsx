@@ -5,6 +5,7 @@
  * color alone) for accessibility.
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import { formatCents } from '@/lib/money';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import type { PaymentReminder, ReminderUrgency } from '@/lib/engine/reminders/select';
@@ -15,7 +16,35 @@ const URGENCY: Record<ReminderUrgency, { label: string; cls: string }> = {
   upcoming: { label: 'Upcoming', cls: 'border-border bg-accent text-muted-foreground' },
 };
 
-export function PaymentRemindersCard({ reminders, today }: { reminders: PaymentReminder[]; today: string }) {
+/**
+ * The autopay/action suffix for one reminder row. A PARTNER-owned reminder
+ * (household scope) must never render the second-person phrasing — "you pay
+ * $X" on a partner's card is a false money claim that invites a double
+ * payment (slice-8 critic F-1, same class as the digest's slice-7 F1).
+ */
+function howLine(r: PaymentReminder, ownerLabel: string | undefined): string {
+  if (ownerLabel) {
+    if (r.autopayCovered) return ` · ${HOUSEHOLD_COPY.reminderPartnerAutopayCovered(ownerLabel)}`;
+    if (r.autopayCents > 0)
+      return ` · ${HOUSEHOLD_COPY.reminderPartnerPartialAutopay(ownerLabel, r.autopayCents, r.userActionCents)}`;
+    return ` · ${HOUSEHOLD_COPY.reminderPartnerManual(ownerLabel)}`;
+  }
+  if (r.autopayCovered) return ' · autopay handles it — keep funds present';
+  if (r.autopayCents > 0)
+    return ` · autopay covers ${formatCents(r.autopayCents)}, you pay ${formatCents(r.userActionCents)}`;
+  return '';
+}
+
+export function PaymentRemindersCard({
+  reminders,
+  today,
+  accountOwnerLabel = {},
+}: {
+  reminders: PaymentReminder[];
+  today: string;
+  /** accountId → owning partner's name at household scope (empty for 'mine'). */
+  accountOwnerLabel?: Record<string, string>;
+}) {
   const t = isoDate(today);
   return (
     <Card data-testid="payment-reminders-card">
@@ -32,22 +61,22 @@ export function PaymentRemindersCard({ reminders, today }: { reminders: PaymentR
           <ul className="divide-y">
             {reminders.map((r) => {
               const u = URGENCY[r.urgency];
+              const owner = accountOwnerLabel[r.accountId];
               return (
                 <li key={`${r.accountId}:${r.dueDate}`} className="flex items-center justify-between gap-3 px-4 py-2" data-testid="reminder-row">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${u.cls}`}>{u.label}</span>
-                      <span className="truncate font-medium" data-testid="reminder-card-name">{r.accountName}</span>
+                      <span className="truncate font-medium" data-testid="reminder-card-name">
+                        {r.accountName}
+                        {owner ? ` (${owner}'s)` : ''}
+                      </span>
                       {r.obligationType === 'loan' && <span className="shrink-0 text-[10px] text-muted-foreground">loan</span>}
                       {r.isEstimated && <span className="shrink-0 text-[10px] text-muted-foreground">est.</span>}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       due {formatISODate(isoDate(r.dueDate))} · {formatRelativeDays(t, isoDate(r.dueDate))}
-                      {r.autopayCovered
-                        ? ' · autopay handles it — keep funds present'
-                        : r.autopayCents > 0
-                          ? ` · autopay covers ${formatCents(r.autopayCents)}, you pay ${formatCents(r.userActionCents)}`
-                          : ''}
+                      {howLine(r, owner)}
                     </div>
                   </div>
                   <div className="shrink-0 tabular-nums">{formatCents(r.cashRequiredCents)}</div>

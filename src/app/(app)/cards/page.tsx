@@ -47,14 +47,21 @@ export default async function CardsPage({
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Credit cards</h1>
       {data.household?.hasPartners && (
-        <HouseholdScopeToggle scope={data.scope} householdName={data.household.name} basePath="/cards" />
+        <HouseholdScopeToggle
+          scope={data.scope}
+          householdName={data.household.name}
+          basePath="/cards"
+          withheldCount={data.householdWithheldCount}
+          duplicates={data.householdDuplicates}
+        />
       )}
       <CardsBreakdown
         payInFull={data.payInFull}
         minimum={data.minimum}
         paymentAccountName={data.paymentAccountName}
         today={data.today}
-        cardOwnerLabel={data.cardOwnerLabel}
+        accountOwnerLabel={data.accountOwnerLabel}
+        householdName={data.scope === 'household' ? data.household?.name ?? null : null}
       />
     </div>
   );

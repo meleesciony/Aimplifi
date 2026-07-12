@@ -113,15 +113,14 @@ function toRef(c: DuplicateAccountCandidate): DuplicateAccountRef {
 }
 
 /**
- * Evaluate one ordered pair. Returns a flagged pair, or null when the two accounts are not a
- * suspected duplicate. Assumes `lo` and `hi` are already in `order()` order.
+ * The heuristic core, shared by the personal and household detectors: hard
+ * prerequisites (same type, same currency, no seed rows) plus at least one
+ * positive signal. Returns null when the pair is not a suspected duplicate.
  */
-function evaluatePair(
+function duplicateSignals(
   lo: DuplicateAccountCandidate,
   hi: DuplicateAccountCandidate,
-): SuspectedDuplicatePair | null {
-  // Only cross-provider pairs can be un-deduped duplicates; same-provider ingest already dedups.
-  if (lo.provider === hi.provider) return null;
+): { confidence: DuplicateConfidence; reasons: string[] } | null {
   if (EXCLUDED_PROVIDERS.has(lo.provider) || EXCLUDED_PROVIDERS.has(hi.provider)) return null;
   // A genuine duplicate is the same account: same type and same currency are hard prerequisites.
   if (lo.type !== hi.type) return null;
@@ -150,7 +149,22 @@ function evaluatePair(
   }
 
   if (confidence === null) return null;
-  return { a: toRef(lo), b: toRef(hi), confidence, reasons };
+  return { confidence, reasons };
+}
+
+/**
+ * Evaluate one ordered pair. Returns a flagged pair, or null when the two accounts are not a
+ * suspected duplicate. Assumes `lo` and `hi` are already in `order()` order.
+ */
+function evaluatePair(
+  lo: DuplicateAccountCandidate,
+  hi: DuplicateAccountCandidate,
+): SuspectedDuplicatePair | null {
+  // Only cross-provider pairs can be un-deduped duplicates; same-provider ingest already dedups.
+  if (lo.provider === hi.provider) return null;
+  const signals = duplicateSignals(lo, hi);
+  if (!signals) return null;
+  return { a: toRef(lo), b: toRef(hi), ...signals };
 }
 
 /**
@@ -179,4 +193,69 @@ export function detectDuplicateAccounts(
 
 export function hasSuspectedDuplicates(accounts: DuplicateAccountCandidate[]): boolean {
   return detectDuplicateAccounts(accounts).length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Household variant (TASKS 4.2 slice 8, critic F5 / T9(b)).
+// ---------------------------------------------------------------------------
+
+export interface HouseholdDuplicateAccountCandidate extends DuplicateAccountCandidate {
+  /** The member who owns this account row (viewer or a partner). */
+  ownerId: string;
+}
+
+export interface HouseholdDuplicateRef extends DuplicateAccountRef {
+  ownerId: string;
+}
+
+export interface SuspectedHouseholdDuplicatePair {
+  a: HouseholdDuplicateRef;
+  b: HouseholdDuplicateRef;
+  confidence: DuplicateConfidence;
+  reasons: string[];
+}
+
+/**
+ * Suspected duplicates across a HOUSEHOLD's visible account set (the viewer's
+ * own accounts + every partner's shared accounts). Two partners who each
+ * connect the SAME real joint bank account — via different providers or the
+ * same one — mint two `Account` rows with different ids, so the merge's
+ * disjoint-by-id guard can never catch it and every household figure counts
+ * the money twice (critic F5). This detector is the disclosure half: ADVISORY
+ * only, like the personal #192 detector — it never merges, drops, or adjusts a
+ * number, because the heuristic has false positives and silently dropping a
+ * REAL account from money math is strictly worse than a disclosed possible
+ * double-count.
+ *
+ * The one difference from the personal detector: the same-provider skip
+ * applies only WITHIN one owner ("same-provider ingest already dedups" is true
+ * per user and false across two users) — both partners linking the same bank
+ * through Plaid is the most likely F5 shape and must still be flagged.
+ */
+export function detectHouseholdDuplicateAccounts(
+  accounts: HouseholdDuplicateAccountCandidate[],
+): SuspectedHouseholdDuplicatePair[] {
+  const sorted = [...accounts].sort(order);
+  const pairs: SuspectedHouseholdDuplicatePair[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const lo = sorted[i];
+      const hi = sorted[j];
+      if (lo.provider === hi.provider && lo.ownerId === hi.ownerId) continue;
+      const signals = duplicateSignals(lo, hi);
+      if (!signals) continue;
+      pairs.push({
+        a: { ...toRef(lo), ownerId: lo.ownerId },
+        b: { ...toRef(hi), ownerId: hi.ownerId },
+        ...signals,
+      });
+    }
+  }
+  const rank: Record<DuplicateConfidence, number> = { high: 0, medium: 1 };
+  return pairs.sort(
+    (p, q) =>
+      rank[p.confidence] - rank[q.confidence] ||
+      p.a.name.localeCompare(q.a.name) ||
+      p.b.name.localeCompare(q.b.name),
+  );
 }

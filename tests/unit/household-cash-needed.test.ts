@@ -46,13 +46,18 @@ function emptySlice(accounts: AccountLike[] = []): CashNeededSnapshotSlice {
   return { accounts, autopays: [], statements: [], cardPayments: [], transactions: [], scheduled: [] };
 }
 
+/** Partner slice fixture — nothing currency-withheld unless a test says so (slice 8). */
+function partnerSlice(accounts: AccountLike[], today: ReturnType<typeof isoDate>): PartnerSnapshotSlice {
+  return { ...emptySlice(accounts), today, withheldAccountCount: 0 };
+}
+
 describe('mergeSnapshots (pure)', () => {
   const TODAY = isoDate('2026-07-10');
 
   it('unions disjoint accounts from the viewer + N partners', () => {
     const mine = emptySlice([account('mine-1')]);
-    const p1: PartnerSnapshotSlice = { ...emptySlice([account('p1-1')]), today: TODAY };
-    const p2: PartnerSnapshotSlice = { ...emptySlice([account('p2-1'), account('p2-2')]), today: TODAY };
+    const p1: PartnerSnapshotSlice = partnerSlice([account('p1-1')], TODAY);
+    const p2: PartnerSnapshotSlice = partnerSlice([account('p2-1'), account('p2-2')], TODAY);
     const merged = mergeSnapshots(TODAY, mine, [p1, p2]);
     expect(merged.accounts.map((a) => a.id)).toEqual(['mine-1', 'p1-1', 'p2-1', 'p2-2']);
   });
@@ -64,20 +69,20 @@ describe('mergeSnapshots (pure)', () => {
 
   it('T9: the SAME account id in both the viewer slice and a partner slice fails loudly (never silently double-counts)', () => {
     const mine = emptySlice([account('shared-oops')]);
-    const partner: PartnerSnapshotSlice = { ...emptySlice([account('shared-oops')]), today: TODAY };
+    const partner: PartnerSnapshotSlice = partnerSlice([account('shared-oops')], TODAY);
     expect(() => mergeSnapshots(TODAY, mine, [partner])).toThrow(/more than one household member/);
   });
 
   it('T9: the SAME account id across two different partner slices fails loudly', () => {
     const mine = emptySlice();
-    const p1: PartnerSnapshotSlice = { ...emptySlice([account('dup')]), today: TODAY };
-    const p2: PartnerSnapshotSlice = { ...emptySlice([account('dup')]), today: TODAY };
+    const p1: PartnerSnapshotSlice = partnerSlice([account('dup')], TODAY);
+    const p2: PartnerSnapshotSlice = partnerSlice([account('dup')], TODAY);
     expect(() => mergeSnapshots(TODAY, mine, [p1, p2])).toThrow(/more than one household member/);
   });
 
   it('drift guard: a partner slice computed for a different business day fails loudly', () => {
     const mine = emptySlice();
-    const partner: PartnerSnapshotSlice = { ...emptySlice([account('p1')]), today: isoDate('2026-07-09') };
+    const partner: PartnerSnapshotSlice = partnerSlice([account('p1')], isoDate('2026-07-09'));
     expect(() => mergeSnapshots(TODAY, mine, [partner])).toThrow(/today mismatch|partner slice computed for/);
   });
 
@@ -92,6 +97,7 @@ describe('mergeSnapshots (pure)', () => {
     };
     const partner: PartnerSnapshotSlice = {
       today: TODAY,
+      withheldAccountCount: 0,
       accounts: [account('partner-card')],
       autopays: [{ accountId: 'partner-card', mode: 'STATEMENT_BALANCE', fixedAmountCents: null }],
       statements: [{ id: 's-partner', accountId: 'partner-card', cycleEnd: '2026-06-18', dueDate: '2026-07-01', statementBalanceCents: 2000, minimumPaymentCents: 70 }],
@@ -264,15 +270,15 @@ describe('household cash-needed (integration)', () => {
     expect(household.household).toEqual({ name: 'Casa CashNeeded', hasPartners: true });
   });
 
-  it("TASKS 4.2 slice 5: getDashboardData's cardOwnerLabel badges only the partner's SHARED card, empty in 'mine' scope (T6)", async () => {
+  it("TASKS 4.2 slice 5: getDashboardData's accountOwnerLabel badges only the partner's SHARED card, empty in 'mine' scope (T6)", async () => {
     const mineView = await getDashboardData(ownerId, 'mine');
-    expect(mineView.cardOwnerLabel).toEqual({});
+    expect(mineView.accountOwnerLabel).toEqual({});
 
     const householdView = await getDashboardData(ownerId, 'household');
-    expect(householdView.cardOwnerLabel).toEqual({ [partnerSharedCard]: 'partner' });
+    expect(householdView.accountOwnerLabel).toEqual({ [partnerSharedCard]: 'partner' });
     // The private card never entered the merge, so it can never get a label either.
-    expect(householdView.cardOwnerLabel[partnerPrivateCard]).toBeUndefined();
-    expect(householdView.cardOwnerLabel[ownerCard]).toBeUndefined();
+    expect(householdView.accountOwnerLabel[partnerPrivateCard]).toBeUndefined();
+    expect(householdView.accountOwnerLabel[ownerCard]).toBeUndefined();
   });
 
   it('T9: household cash-needed merge does not perturb the #192 duplicate detector (still owner-owned-only)', async () => {
@@ -292,7 +298,7 @@ describe('household cash-needed (integration)', () => {
     const data = await getDashboardData(solo, 'household');
     expect(data.scope).toBe('mine');
     expect(data.household).toBeNull();
-    expect(data.cardOwnerLabel).toEqual({});
+    expect(data.accountOwnerLabel).toEqual({});
 
     // TASKS 4.2 slice 5: getCashNeeded degenerates the same way for a solo user.
     const cashNeeded = await getCashNeeded(solo, 'PAY_IN_FULL', 'household');
@@ -364,5 +370,104 @@ describe('regression: household scope never funds from a partner\'s shared check
     expect(data.scope).toBe('household');
     expect(data.paymentAccountName).toBe('Owner-Only Visa');
     expect(data.paymentAccountName).not.toBe('Partner Rich Checking');
+  });
+});
+
+/**
+ * TASKS 4.2 slice 8 — critic F-5 (T9(b)) + F-6. The same real joint account
+ * connected by BOTH partners mints two Account rows with different ids: the
+ * merge cannot catch it and every household figure counts the money twice.
+ * The mitigation is DISCLOSURE (advisory pairs on the toggle + digest), never
+ * adjustment — a heuristic false positive silently dropping a real account
+ * would be worse than a disclosed possible double-count. F-6: a partner's
+ * non-USD shared account is withheld from household figures but COUNTED, so
+ * the interactive surfaces can disclose it like the digest already does.
+ */
+describe('household duplicate + withheld disclosures (slice 8 — F-5/F-6)', () => {
+  let aId: string; // viewer
+  let bId: string; // partner
+  let twinA = ''; // viewer's plaid connection of the joint account
+  let twinB = ''; // partner's SHARED simplefin connection of the SAME real account
+
+  beforeAll(async () => {
+    aId = await seedUser('dupA');
+    bId = await seedUser('dupB');
+    await prisma.household.create({
+      data: {
+        name: 'Casa Dup',
+        members: {
+          create: [
+            { userId: aId, role: 'owner' },
+            { userId: bId, role: 'partner' },
+          ],
+        },
+      },
+    });
+    twinA = (
+      await prisma.account.create({
+        data: {
+          userId: aId, provider: 'plaid', name: 'Chase Joint Checking', type: 'CHECKING',
+          mask: '1234', currentBalanceCents: 512_345, currency: 'USD',
+        },
+      })
+    ).id;
+    await prisma.user.update({ where: { id: aId }, data: { paymentAccountId: twinA } });
+    twinB = (
+      await prisma.account.create({
+        data: {
+          userId: bId, provider: 'simplefin', name: 'CHASE Joint Checking', type: 'CHECKING',
+          currentBalanceCents: 512_345, currency: 'USD', sharedToHousehold: true,
+        },
+      })
+    ).id;
+    // F-6: the partner also shares a EUR card — withheld from figures, disclosed.
+    await prisma.account.create({
+      data: {
+        userId: bId, provider: 'simplefin', name: 'Partner Euro Card', type: 'CREDIT',
+        currentBalanceCents: 30_000, currency: 'EUR', sharedToHousehold: true,
+      },
+    });
+  });
+  afterAll(wipe);
+
+  it('household scope surfaces exactly one cross-owner pair, owner-labeled for display', async () => {
+    const data = await getDashboardData(aId, 'household');
+    expect(data.householdDuplicates).toHaveLength(1);
+    const [pair] = data.householdDuplicates;
+    // plaid sorts before simplefin: a = the viewer's row, b = the partner's.
+    expect(pair.a).toEqual({ name: 'Chase Joint Checking', ownerLabel: 'yours' });
+    expect(pair.b).toEqual({ name: 'CHASE Joint Checking', ownerLabel: "dupB's" });
+    expect(pair.confidence).toBe('high'); // identical non-zero balance
+  });
+
+  it("'mine' scope and getCashNeeded parity: disclosures empty at 'mine' (T6), populated at household", async () => {
+    const mine = await getDashboardData(aId, 'mine');
+    expect(mine.householdDuplicates).toEqual([]);
+    expect(mine.householdWithheldCount).toBe(0);
+
+    const cn = await getCashNeeded(aId, 'PAY_IN_FULL', 'household');
+    expect(cn.householdDuplicates).toHaveLength(1);
+    expect(cn.householdWithheldCount).toBe(1);
+    const cnMine = await getCashNeeded(aId, 'PAY_IN_FULL', 'mine');
+    expect(cnMine.householdDuplicates).toEqual([]);
+    expect(cnMine.householdWithheldCount).toBe(0);
+  });
+
+  it("the personal #192 detector is UNCHANGED by the household fixture — its input stays the viewer's owned set (T9(c))", async () => {
+    const view = await getAccountsView(aId);
+    expect(view.duplicates).toEqual([]);
+  });
+
+  it('F-6: the withheld EUR share is counted for disclosure and absent from the merged figures', async () => {
+    const data = await getDashboardData(aId, 'household');
+    expect(data.householdWithheldCount).toBe(1);
+    expect(data.payInFull.cards.map((c) => c.cardName)).not.toContain('Partner Euro Card');
+  });
+
+  it('DOCUMENTED, not fixed: the merged snapshot still contains both twins — the double-count is disclosed, never silently adjusted', async () => {
+    const cn = await getCashNeeded(aId, 'PAY_IN_FULL', 'household');
+    const ids = cn.snap.accounts.map((a) => a.id);
+    expect(ids).toContain(twinA);
+    expect(ids).toContain(twinB); // fail-old for any future "auto-dedup" that silently drops a real account
   });
 });

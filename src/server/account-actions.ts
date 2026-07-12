@@ -61,12 +61,37 @@ export async function deleteMyData(formData: FormData): Promise<void> {
     // artifact that outlives the account. Atomicity guarantees the record exists IFF
     // the deletion actually committed: a failed cascade rolls the record back too, so
     // there is never a false "deleted" record nor a committed deletion with no record.
+    // Capture the household BEFORE the cascade removes the membership row, so a
+    // now-memberless household can be reaped after (slice-8 critic A-F1).
+    const membership = await prisma.householdMember.findUnique({
+      where: { userId },
+      select: { householdId: true },
+    });
     await prisma.$transaction([
       prisma.deletionRecord.create({
         data: { userRefHash: hashUserRef(userId, deletionRefSalt) },
       }),
       prisma.user.delete({ where: { id: userId } }),
     ]);
+
+    // Opportunistic reap of a now-memberless household — same best-effort shape
+    // as leaveHousehold. Without it, a household whose LAST member deletes their
+    // data leaves a ghost Household row plus any live outgoing invites, which a
+    // later accepter could still redeem into an empty household (slice-8 critic
+    // A-F1). Lazy repair keeps correctness independent of this succeeding; the
+    // Household delete cascades its invites.
+    if (membership) {
+      try {
+        const remaining = await prisma.householdMember.count({
+          where: { householdId: membership.householdId },
+        });
+        if (remaining === 0) {
+          await prisma.household.delete({ where: { id: membership.householdId } });
+        }
+      } catch {
+        // best-effort cleanup; a memberless household is unreachable regardless
+      }
+    }
   }
 
   await signOut({ redirectTo: '/sign-in' });

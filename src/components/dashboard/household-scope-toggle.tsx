@@ -13,7 +13,9 @@
  * searchParam through both links so switching scope never resets navigation.
  */
 import Link from 'next/link';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
+import type { HouseholdDuplicateDisplayPair } from '@/server/finance';
 import { cn } from '@/lib/utils';
 
 function hrefFor(basePath: string, extraParams: Record<string, string>, scope?: 'household') {
@@ -28,11 +30,19 @@ export function HouseholdScopeToggle({
   householdName,
   basePath,
   extraParams = {},
+  withheldCount = 0,
+  duplicates = [],
 }: {
   scope: 'mine' | 'household';
   householdName: string;
   basePath: string;
   extraParams?: Record<string, string>;
+  /** Partner shared accounts withheld by the currency guard at household scope
+   *  (slice-8 critic F-6) — disclosed here, once, for every page with a toggle. */
+  withheldCount?: number;
+  /** Suspected same-real-account-connected-twice pairs (slice-8 critic F-5).
+   *  Advisory disclosure only — the figures are never adjusted. */
+  duplicates?: HouseholdDuplicateDisplayPair[];
 }) {
   return (
     <div className="flex flex-col gap-1 text-sm" data-testid="household-scope-toggle">
@@ -64,6 +74,24 @@ export function HouseholdScopeToggle({
         <p className="text-xs text-muted-foreground" data-testid="household-scope-assumptions">
           {HOUSEHOLD_COPY.scopeAssumptions()}
         </p>
+      )}
+      {scope === 'household' && withheldCount > 0 && (
+        <p className="text-xs text-muted-foreground" data-testid="household-withheld-disclosure">
+          {HOUSEHOLD_COPY.scopeUnsupportedCurrency(withheldCount)}
+        </p>
+      )}
+      {scope === 'household' && duplicates.length > 0 && (
+        <Alert role="status" data-testid="household-duplicate-warning">
+          <AlertTitle>{HOUSEHOLD_COPY.householdDuplicateTitle()}</AlertTitle>
+          <AlertDescription>
+            {duplicates.map((p, i) => (
+              <span key={i} className="block">
+                {HOUSEHOLD_COPY.householdDuplicatePair(p.a.name, p.a.ownerLabel, p.b.name, p.b.ownerLabel)}
+              </span>
+            ))}
+            <span className="mt-1 block">{HOUSEHOLD_COPY.householdDuplicateFooter()}</span>
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );

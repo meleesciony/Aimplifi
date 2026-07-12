@@ -6,7 +6,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   type DuplicateAccountCandidate,
+  type HouseholdDuplicateAccountCandidate,
   detectDuplicateAccounts,
+  detectHouseholdDuplicateAccounts,
   distinctiveNameTokens,
   hasSuspectedDuplicates,
 } from '@/lib/engine/account/duplicates';
@@ -180,5 +182,74 @@ describe('getAccountsView duplicates (integration — real server view)', () => 
   it('the seeded demo user (single provider) surfaces zero duplicates — golden-safe', async () => {
     const demo = await getAccountsView('user-demo');
     expect(demo.duplicates).toEqual([]);
+  });
+});
+
+/**
+ * Household variant (TASKS 4.2 slice 8 — critic F5 / T9(b)): two partners each
+ * connecting the SAME real joint account mint two Account rows with different
+ * ids, invisible to the merge's disjoint-by-id guard. The detector is the
+ * DISCLOSURE half — advisory only, figures never adjusted.
+ */
+describe('detectHouseholdDuplicateAccounts (slice 8 — F5 / T9(b))', () => {
+  function hAcct(
+    p: Partial<HouseholdDuplicateAccountCandidate> & { id: string; ownerId: string },
+  ): HouseholdDuplicateAccountCandidate {
+    return { ...acct(p), ownerId: p.ownerId };
+  }
+
+  it('flags a cross-owner CROSS-provider pair — the classic joint-account shape', () => {
+    const pairs = detectHouseholdDuplicateAccounts([
+      hAcct({ id: 'a', ownerId: 'u1', provider: 'plaid', name: 'Chase Joint Checking', mask: '1234', currentBalanceCents: 512_345 }),
+      hAcct({ id: 'b', ownerId: 'u2', provider: 'simplefin', name: 'CHASE Joint Checking', mask: null, currentBalanceCents: 512_345 }),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].confidence).toBe('high'); // identical non-zero balance
+    expect(new Set([pairs[0].a.ownerId, pairs[0].b.ownerId])).toEqual(new Set(['u1', 'u2']));
+  });
+
+  it('flags a cross-owner SAME-provider pair — the relaxed skip (both partners on Plaid)', () => {
+    // The personal detector's same-provider skip ("ingest already dedups") is
+    // true within one user and FALSE across two: each partner's Plaid item is
+    // its own connection. Regression lock on the relaxed skip.
+    const pairs = detectHouseholdDuplicateAccounts([
+      hAcct({ id: 'a', ownerId: 'u1', provider: 'plaid', name: 'Chase Joint Checking', mask: '1234', currentBalanceCents: 512_345 }),
+      hAcct({ id: 'b', ownerId: 'u2', provider: 'plaid', name: 'Chase Joint Checking', mask: '1234', currentBalanceCents: 512_345 }),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].confidence).toBe('high');
+    expect(pairs[0].reasons).toContain('same last-4 (1234)');
+  });
+
+  it('still skips a same-owner same-provider pair — that ingest really does dedup', () => {
+    expect(
+      detectHouseholdDuplicateAccounts([
+        hAcct({ id: 'a', ownerId: 'u1', provider: 'plaid', name: 'Chase Checking', mask: '1234', currentBalanceCents: 512_345 }),
+        hAcct({ id: 'b', ownerId: 'u1', provider: 'plaid', name: 'Chase Checking', mask: '1234', currentBalanceCents: 512_345 }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("a same-owner CROSS-provider pair is still flagged — the viewer's own #192 dupes double household figures too", () => {
+    const pairs = detectHouseholdDuplicateAccounts([
+      hAcct({ id: 'a', ownerId: 'u1', provider: 'plaid', name: 'Chase Checking', mask: '1234', currentBalanceCents: 50_000 }),
+      hAcct({ id: 'b', ownerId: 'u1', provider: 'simplefin', name: 'CHASE Checking', currentBalanceCents: 48_000 }),
+    ]);
+    expect(pairs).toHaveLength(1);
+  });
+
+  it('hard prerequisites unchanged: different type or currency never pairs', () => {
+    expect(
+      detectHouseholdDuplicateAccounts([
+        hAcct({ id: 'a', ownerId: 'u1', provider: 'plaid', name: 'Chase', type: 'CHECKING', currentBalanceCents: 100 }),
+        hAcct({ id: 'b', ownerId: 'u2', provider: 'simplefin', name: 'Chase', type: 'SAVINGS', currentBalanceCents: 100 }),
+      ]),
+    ).toEqual([]);
+    expect(
+      detectHouseholdDuplicateAccounts([
+        hAcct({ id: 'a', ownerId: 'u1', provider: 'plaid', name: 'Chase', currency: 'USD', currentBalanceCents: 100 }),
+        hAcct({ id: 'b', ownerId: 'u2', provider: 'simplefin', name: 'Chase', currency: 'EUR', currentBalanceCents: 100 }),
+      ]),
+    ).toEqual([]);
   });
 });

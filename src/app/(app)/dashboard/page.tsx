@@ -116,13 +116,20 @@ export default async function DashboardPage({
         </div>
       )}
       {data.household?.hasPartners && (
-        <HouseholdScopeToggle scope={data.scope} householdName={data.household.name} basePath="/dashboard" />
+        <HouseholdScopeToggle
+          scope={data.scope}
+          householdName={data.household.name}
+          basePath="/dashboard"
+          withheldCount={data.householdWithheldCount}
+          duplicates={data.householdDuplicates}
+        />
       )}
       <CashNeededCard
         result={data.payInFull}
         paymentAccountName={data.paymentAccountName}
         today={data.today}
         transferSource={transferSource}
+        householdName={data.scope === 'household' ? data.household?.name ?? null : null}
       />
 
       {/* "Since you were away" greeting (TASKS 1.1) — sits right under THE answer.
@@ -172,8 +179,14 @@ export default async function DashboardPage({
       {/* monthly recurring / subscriptions (links to its view) */}
       <RecurringSummaryCard summary={recurring.summary} />
 
-      {/* upcoming card payments (ROADMAP #6) — same obligations as the headline */}
-      <PaymentRemindersCard reminders={data.reminders} today={data.today} />
+      {/* upcoming card payments (ROADMAP #6) — same obligations as the headline.
+          accountOwnerLabel (slice-8 critic F-1): at household scope a partner's
+          card/loan renders owner-attributed, never "you pay". */}
+      <PaymentRemindersCard
+        reminders={data.reminders}
+        today={data.today}
+        accountOwnerLabel={data.accountOwnerLabel}
+      />
     </div>
   );
 }

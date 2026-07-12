@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { GlassBoxNumber } from '@/components/finance/glass-box';
+import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { traceCashNeeded } from '@/lib/engine/glass-box/trace';
 import { formatISODate, formatRelativeDays, isoDate, type ISODate } from '@/lib/dates';
@@ -26,12 +27,17 @@ export function CashNeededCard({
   paymentAccountName,
   today,
   transferSource,
+  householdName = null,
 }: {
   result: CashNeededResult;
   paymentAccountName: string;
   today: string;
   /** The real account the transfer can come from (name + live balance). */
   transferSource?: { name: string; balanceCents: number } | null;
+  /** Set ONLY at household scope (slice-8 critic F-3): a partner's autopay
+   *  drafts from THEIR account, so the joint total is needed ACROSS the
+   *  household — never claimed to belong in the viewer's funding account. */
+  householdName?: string | null;
 }) {
   const { headline } = result;
 
@@ -59,7 +65,11 @@ export function CashNeededCard({
           engagementSubjectKey="cash-needed"
         >
           <p className="text-sm text-muted-foreground" data-testid="cash-needed-headline">
-            needed in {paymentAccountName} by{' '}
+            needed{' '}
+            {householdName
+              ? HOUSEHOLD_COPY.headlineAcrossHousehold(householdName)
+              : `in ${paymentAccountName}`}{' '}
+            by{' '}
             <span className="font-medium text-foreground">
               {formatISODate(isoDate(headline.byDate))}
             </span>{' '}

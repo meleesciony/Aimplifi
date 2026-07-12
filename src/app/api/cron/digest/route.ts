@@ -67,12 +67,46 @@ export async function GET(request: NextRequest) {
       const viewer = await resolveViewer(user.id);
       const isJoint = partnerIdsOf(viewer).length > 0;
 
+      // Household reads degrade to PERSONAL, never to silence (slice-8 critic
+      // F-9): a merge guard tripping (drift/duplicate-id — both defend against
+      // a WRONG number, not against the personal path) used to cost the member
+      // their entire digest for the week, Money Review and own dues included.
+      // The personal digest makes no household claim, so it is always honest to
+      // send; the degradation is audited so it can't hide. The dues read and
+      // the shared-context read succeed or degrade TOGETHER: household-scope
+      // reminders rendered without the context's owner labels would push a
+      // partner's due through the second-person reminderLine — the exact F1
+      // bug this whole surface exists to prevent.
+      let householdRead: Awaited<ReturnType<typeof getCashNeeded>> | null = null;
+      let household: Awaited<ReturnType<typeof getHouseholdDigestContext>> = null;
+      if (isJoint) {
+        try {
+          const h = await getCashNeeded(user.id, 'PAY_IN_FULL', 'household');
+          // Shared-account movement over an inclusive 7-day window ending today.
+          household = await getHouseholdDigestContext(
+            viewer,
+            addDays(h.today, -(DIGEST_WINDOW_DAYS - 1)),
+            h.today,
+          );
+          if (!household) throw new Error('household context unavailable for a joint member');
+          householdRead = h;
+        } catch (e) {
+          const message = e instanceof Error ? e.message : 'household read failed';
+          household = null;
+          await prisma.auditLog.create({
+            data: {
+              userId: user.id,
+              action: 'digest.household.degraded',
+              meta: JSON.stringify({ message }),
+            },
+          });
+        }
+      }
+      const joint = householdRead !== null;
+
       // The week's Monday is the stable once-per-week dedup key.
-      const { today, result, loanObligations } = await getCashNeeded(
-        user.id,
-        'PAY_IN_FULL',
-        isJoint ? 'household' : 'mine',
-      );
+      const { today, result, loanObligations } =
+        householdRead ?? (await getCashNeeded(user.id, 'PAY_IN_FULL', 'mine'));
       const weekStart = addDays(today, -((dayOfWeek(today) + 6) % 7));
       const dedupKey = `weekly_digest:${weekStart}`;
       const already = await prisma.notificationSent.findUnique({
@@ -94,10 +128,8 @@ export async function GET(request: NextRequest) {
       const { review, opportunities } = await getCoachData(user.id);
       // The tally line reflects everything caught SO FAR (already-persisted rows).
       const receipts = await getValueReceiptsSummary(user.id);
-      // Shared-account movement over an inclusive 7-day window ending today.
-      const household = isJoint
-        ? await getHouseholdDigestContext(viewer, addDays(today, -(DIGEST_WINDOW_DAYS - 1)), today)
-        : null;
+      // `household` was resolved (or degraded to null, together with the dues
+      // read) above — reminders and context are guaranteed same-scope here.
       const digest = buildWeeklyDigest({ review, reminders, today, receipts, household });
 
       let sent = false;
@@ -128,12 +160,15 @@ export async function GET(request: NextRequest) {
         reason = 'no-email';
       }
 
-      results.push({ userId: user.id, sent, reason, joint: isJoint });
+      // `joint` = the scope actually mailed; `degraded` = a household member
+      // who fell back to the personal digest this week (F-9 audit trail).
+      const degraded = isJoint && !joint;
+      results.push({ userId: user.id, sent, reason, joint, degraded });
       await prisma.auditLog.create({
         data: {
           userId: user.id,
           action: 'digest.cron',
-          meta: JSON.stringify({ sent, reason, dormant, joint: isJoint }),
+          meta: JSON.stringify({ sent, reason, dormant, joint, degraded }),
         },
       });
     } catch (e) {

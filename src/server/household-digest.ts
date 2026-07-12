@@ -24,11 +24,13 @@
 import type { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/lib/db';
 import type { ISODate } from '@/lib/dates';
+import { detectHouseholdDuplicateAccounts } from '@/lib/engine/account/duplicates';
 import type { HouseholdDigestContext } from '@/lib/engine/digest/build';
 import { summarizeSharedMovement } from '@/lib/engine/household/digest';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { isSupportedCurrency } from '@/lib/providers/currency';
 import { partnerIdsOf, type Viewer } from '@/server/household-authz';
+import { getHouseholdDuplicateCandidates } from '@/server/household-finance';
 
 /**
  * Shared-account context for the joint digest, or null when there is no joint
@@ -60,13 +62,15 @@ export async function getHouseholdDigestContext(
   });
 
   // accountId → owner name, for PARTNER-owned shared accounts only. The viewer's
-  // OWN cards keep the personal second-person line, byte-identical.
+  // OWN cards keep the personal second-person line, byte-identical. `|| 'Partner'`
+  // unconditionally (slice-8 critic F-8): an absent or empty-string display name
+  // must never leave a partner account unlabeled — an unlabeled partner due would
+  // fall through to the second-person `reminderLine`, the exact F1 bug.
   const memberNames = viewer.household.memberNames;
   const partnerAccountLabels: Record<string, string> = {};
   for (const a of accounts) {
     if (a.userId === viewer.userId) continue;
-    const label = memberNames[a.userId];
-    if (label) partnerAccountLabels[a.id] = label;
+    partnerAccountLabels[a.id] = memberNames[a.userId] || 'Partner';
   }
 
   // Currency guard (DECISIONS #135 parity): a non-USD shared account is withheld
@@ -93,10 +97,23 @@ export async function getHouseholdDigestContext(
       })
     : [];
 
+  // Same-real-account-connected-twice disclosure (slice-8 critic F-5): the set
+  // is the viewer's own accounts + partners' shared — exactly what the mailed
+  // dues/movement are computed over. Advisory count only; nothing is adjusted.
+  const duplicatePairCount = detectHouseholdDuplicateAccounts(
+    await getHouseholdDuplicateCandidates(viewer.userId, partnerIdsOf(viewer)),
+  ).length;
+
   return {
     name: viewer.household.name,
     partnerAccountLabels,
     withheldAccountCount,
+    // ALL supported shared accounts, of any type (slice-8 critic F-4): the
+    // "is anything shared at all?" branch must count a shared LOAN too — a
+    // loan-only household must never read "no accounts are shared" beside
+    // that loan's own due line.
+    sharedAccountCount: supported.length,
+    duplicatePairCount,
     movement: summarizeSharedMovement({
       rows: rows.map((r) => ({ ...r, date: r.date as ISODate })),
       accountCount: accountIds.length,

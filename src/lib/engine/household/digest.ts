@@ -31,7 +31,10 @@ export interface MovementRow {
 }
 
 export interface SharedMovementSummary {
-  /** Shared accounts across the household (mine + partners'), post currency guard. */
+  /** Shared SPENDING accounts across the household (mine + partners'), post
+   *  currency guard — the tally set. NOT all shared accounts: a shared loan is
+   *  counted for dues but has no movement here (slice-8 critic F-4 — the old
+   *  comment claimed all types and misled a consumer into "nothing is shared"). */
   accountCount: number;
   /** Non-transfer rows inside the window (transfers are neither spend nor income). */
   transactionCount: number;

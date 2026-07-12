@@ -211,6 +211,21 @@ describe('joint household digest — server read + cron route', () => {
       ],
     });
 
+    // B also shares a LOAN (slice-8 critic F-4): a non-spending shared account
+    // must count toward "is anything shared?" (sharedAccountCount) while never
+    // entering the movement tally. Deliberately inert for dues (no payment
+    // fields), so every hand-verified figure above is unchanged.
+    await prisma.account.create({
+      data: {
+        userId: B,
+        provider: 'manual',
+        name: 'B Shared Mortgage',
+        type: 'LOAN',
+        currentBalanceCents: -12_345_600,
+        sharedToHousehold: true,
+      },
+    });
+
     // SOLO: no household at all — the T6 control.
     await prisma.account.create({
       data: { userId: SOLO, provider: 'manual', name: 'Solo Checking', type: 'CHECKING', currentBalanceCents: 300_000 },
@@ -257,6 +272,30 @@ describe('joint household digest — server read + cron route', () => {
     const forA = await getHouseholdDigestContext(await resolveViewer(A), since, today);
     const forB = await getHouseholdDigestContext(await resolveViewer(B), since, today);
     expect(forB!.movement).toEqual(forA!.movement);
+  });
+
+  it('F-4: the shared LOAN counts toward sharedAccountCount but never the movement tally set', async () => {
+    const ctx = await getHouseholdDigestContext(await resolveViewer(A), since, today);
+    // A's shared checking + B's shared card + B's shared mortgage.
+    expect(ctx!.sharedAccountCount).toBe(3);
+    // …while the movement set stays the two SPENDING accounts.
+    expect(ctx!.movement.accountCount).toBe(2);
+    // And the loan is owner-labeled, so its due (if it ever gains one) can only
+    // render owner-attributed (the slice-7 F1 defense, type-exhaustive).
+    const loan = await prisma.account.findFirst({ where: { userId: B, type: 'LOAN' }, select: { id: true } });
+    expect(ctx!.partnerAccountLabels[loan!.id]).toBe(B);
+  });
+
+  it('F-5: the context carries a duplicatePairCount from the household detector (this fixture trips one pair)', async () => {
+    // A Private Card (A's own set) and B Shared Card are cross-owner, same
+    // type/currency, identical non-zero balance → one advisory pair. This also
+    // locks the wiring: candidates = viewer's OWN accounts + partners' SHARED.
+    const ctx = await getHouseholdDigestContext(await resolveViewer(A), since, today);
+    expect(ctx!.duplicatePairCount).toBe(1);
+    // B's view: B's own two cards are same-owner/same-provider (skipped), and
+    // nothing else pairs — the disclosure is honestly viewer-relative.
+    const forB = await getHouseholdDigestContext(await resolveViewer(B), since, today);
+    expect(forB!.duplicatePairCount).toBe(0);
   });
 
   it('T6: a user with no household gets no household context at all', async () => {
@@ -322,7 +361,7 @@ describe('joint household digest — server read + cron route', () => {
     expect(toA).toContain('A Private Card');
     // The symmetric movement block + the §4.4 assumptions, inline.
     expect(toA).toContain('Shared in The Testers:');
-    expect(toA).toContain('3 transactions on 2 shared accounts in the last 7 days');
+    expect(toA).toContain('3 transactions on 2 shared spending accounts in the last 7 days');
     expect(toA).toContain("Anything not shared isn't counted.");
 
     // The solo user's digest is untouched by any of this (T6).

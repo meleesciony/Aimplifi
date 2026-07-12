@@ -19,7 +19,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { requireViewer } from '@/server/authz';
+import { requireViewer, visibleAccountsWhere } from '@/server/authz';
 import {
   acceptInvite,
   createHousehold,
@@ -487,6 +487,23 @@ describe('lazy repair (T10, T11)', () => {
     const partner = await seedUser('del-partner');
     await establishHousehold(owner, partner);
 
+    // Slice-8 critic A-F2: exercise the VISIBILITY half of T10, not just the
+    // promotion half — seed a SHARED account on the soon-to-be-deleted user and
+    // prove the survivor sees it before, and zero of it after.
+    const doomed = await prisma.account.create({
+      data: {
+        userId: owner, provider: 'simplefin', name: 'Doomed Shared Checking',
+        type: 'CHECKING', currentBalanceCents: 12345, currency: 'USD',
+        sharedToHousehold: true,
+      },
+    });
+    actAs(partner);
+    const before = await prisma.account.findMany({
+      where: visibleAccountsWhere(await requireViewer()),
+      select: { id: true },
+    });
+    expect(before.map((a) => a.id)).toContain(doomed.id);
+
     actAs(owner);
     const fd = new FormData();
     fd.set('confirm', 'delete my data');
@@ -501,5 +518,13 @@ describe('lazy repair (T10, T11)', () => {
     // deleted user's data because that data no longer exists (cascade).
     expect(v.household?.role).toBe('owner');
     expect(v.household?.memberIds).toEqual([partner]);
+    // The visibility half, asserted rather than assumed: the deleted user's
+    // shared account is gone from the survivor's widened read AND from the DB.
+    const after = await prisma.account.findMany({
+      where: visibleAccountsWhere(v),
+      select: { id: true },
+    });
+    expect(after.map((a) => a.id)).not.toContain(doomed.id);
+    expect(await prisma.account.count({ where: { id: doomed.id } })).toBe(0);
   });
 });

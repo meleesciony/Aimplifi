@@ -44,6 +44,17 @@ export interface HouseholdDigestContext {
   partnerAccountLabels: Record<string, string>;
   /** Shared accounts withheld from every figure by the #135 currency guard — disclosed, never silent. */
   withheldAccountCount: number;
+  /**
+   * ALL supported shared accounts, of ANY type (slice-8 critic F-4) — distinct
+   * from `movement.accountCount`, which spans shared SPENDING accounts only.
+   * Drives the "is anything shared at all?" branch: a household sharing only a
+   * loan must never be told "no accounts are shared" while that loan's due is
+   * listed in the same email.
+   */
+  sharedAccountCount: number;
+  /** Suspected same-real-account-connected-twice pairs across the set the
+   *  mailed figures are computed over (slice-8 critic F-5) — disclosed. */
+  duplicatePairCount: number;
 }
 
 export function buildWeeklyDigest(input: {
@@ -104,15 +115,24 @@ export function buildWeeklyDigest(input: {
 
   if (household) {
     const { accountCount, transactionCount, outflowCents, inflowCents } = household.movement;
+    const { sharedAccountCount } = household;
     parts.push('', HOUSEHOLD_COPY.digestSharedHeader(household.name));
-    if (accountCount === 0 && household.withheldAccountCount === 0) {
+    // The "anything shared?" branch keys on sharedAccountCount — ALL supported
+    // shared accounts — never on the spending-only movement.accountCount
+    // (slice-8 critic F-4: a loan-only household got "no accounts are shared"
+    // directly beside its shared loan's due line).
+    if (sharedAccountCount === 0 && household.withheldAccountCount === 0) {
       // Partners, but nobody has shared an account: household scope is exactly
       // 'mine', and the copy says so rather than rendering "0 shared accounts".
       parts.push(HOUSEHOLD_COPY.digestNothingShared(household.name));
-    } else if (accountCount === 0) {
+    } else if (sharedAccountCount === 0) {
       // Everything shared is in an unsupported currency — say so (critic F3):
       // "nothing is shared yet" would be a lie, and a silent withhold breaks #135.
       parts.push(HOUSEHOLD_COPY.digestUnsupportedCurrency(household.withheldAccountCount));
+    } else if (accountCount === 0) {
+      // Shared accounts exist but none is a spending account (a loan, say):
+      // there is no movement to tally, and the copy says WHY, truthfully.
+      parts.push(HOUSEHOLD_COPY.digestNoSpendingShared(sharedAccountCount));
     } else if (transactionCount === 0) {
       parts.push(HOUSEHOLD_COPY.digestNoMovement(accountCount));
     } else {
@@ -120,8 +140,13 @@ export function buildWeeklyDigest(input: {
         HOUSEHOLD_COPY.digestMovement(transactionCount, accountCount, outflowCents, inflowCents),
       );
     }
-    if (accountCount > 0 && household.withheldAccountCount > 0) {
+    if (sharedAccountCount > 0 && household.withheldAccountCount > 0) {
       parts.push(HOUSEHOLD_COPY.digestUnsupportedCurrency(household.withheldAccountCount));
+    }
+    if (household.duplicatePairCount > 0) {
+      // F-5: the figures above may double-count a twice-connected account —
+      // disclosed in the same email that mails them.
+      parts.push(HOUSEHOLD_COPY.digestDuplicateWarning(household.duplicatePairCount));
     }
     // Assumptions inline, always (CLAUDE.md coaching guardrail): the joint number
     // above must never imply completeness — a partner's private card is invisible

@@ -29,6 +29,12 @@ export interface CashNeededSnapshotSlice {
 /** A partner's shared slice, tagged with the business day it was read on. */
 export interface PartnerSnapshotSlice extends CashNeededSnapshotSlice {
   today: ISODate;
+  /**
+   * Shared accounts the #135 currency guard withheld from this slice (slice-8
+   * critic F-6). Carried so household surfaces can DISCLOSE the withhold — the
+   * merge itself ignores it (a withheld account contributes no rows).
+   */
+  withheldAccountCount: number;
 }
 
 /**

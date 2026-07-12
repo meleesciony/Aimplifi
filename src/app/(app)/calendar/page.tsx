@@ -28,23 +28,36 @@ export default async function CalendarPage({
   // /cards: getCashNeeded re-derives the EFFECTIVE scope (falls back to 'mine'
   // without live partners), so a stale `?scope=household` link never errors.
   const requestedScope = params.scope === 'household' ? 'household' : 'mine';
-  const { today, snap, result, loanObligations, scope, household } = await getCashNeeded(
-    session.user.id,
-    'PAY_IN_FULL',
-    requestedScope,
-  );
+  const {
+    today,
+    snap,
+    result,
+    loanObligations,
+    scope,
+    household,
+    accountOwnerLabel,
+    householdWithheldCount,
+    householdDuplicates,
+  } = await getCashNeeded(session.user.id, 'PAY_IN_FULL', requestedScope);
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? '')
     ? params.month!
     : today.slice(0, 7);
+
+  // Owner attribution at household scope (slice-8 critic F-10): a partner's
+  // due/scheduled event is labeled with whose account it is, applied to the
+  // INPUT labels here so the calendar engine stays free of any user concept.
+  // 'mine' scope: the map is empty, every label byte-identical (T6).
+  const withOwner = (id: string, label: string) =>
+    accountOwnerLabel[id] ? `${label} (${accountOwnerLabel[id]}'s)` : label;
 
   // result.cards already contains every obligation (estimates included);
   // upcoming is a SUBSET of it — spreading both double-counted (cycle-3 H1).
   // loanObligations adds the next LOAN/MORTGAGE payments as their own due events (#134).
   const calendar = buildCashFlowCalendar({
     month,
-    scheduled: snap.scheduled,
-    cardObligations: result.cards,
-    loanObligations,
+    scheduled: snap.scheduled.map((s) => ({ ...s, description: withOwner(s.accountId, s.description) })),
+    cardObligations: result.cards.map((c) => ({ ...c, cardName: withOwner(c.cardId, c.cardName) })),
+    loanObligations: loanObligations.map((l) => ({ ...l, accountName: withOwner(l.accountId, l.accountName) })),
   });
 
   const prev = addMonthsClamped(isoDate(`${month}-01`), -1).slice(0, 7);
@@ -57,7 +70,14 @@ export default async function CalendarPage({
   return (
     <div className="space-y-4">
       {household?.hasPartners && (
-        <HouseholdScopeToggle scope={scope} householdName={household.name} basePath="/calendar" extraParams={{ month }} />
+        <HouseholdScopeToggle
+          scope={scope}
+          householdName={household.name}
+          basePath="/calendar"
+          extraParams={{ month }}
+          withheldCount={householdWithheldCount}
+          duplicates={householdDuplicates}
+        />
       )}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Cash-flow calendar</h1>

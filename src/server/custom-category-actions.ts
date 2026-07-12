@@ -143,9 +143,17 @@ export async function deleteCustomCategory(input: { id: string }): Promise<Categ
   // off the soon-to-be-deleted id (so a later undo can't restore a dangling
   // categoryId and FK-crash — critic F3), then delete the category. The id is a
   // cuid unique to this user's custom row and every write path is guarded by
-  // assertOwnedCategory, so only this user's rows can reference it.
+  // assertOwnedCategory, so only this user's rows can reference it — but that
+  // invariant is now defended at exactly ONE gate (slice-6's system-only check
+  // on the partner recategorize path), so the transaction re-file carries an
+  // explicit owner scope anyway (slice-8 critic B-2): if a custom id ever
+  // crosses onto a partner's row through a future defect, this must not become
+  // a cross-user bulk write that silently re-files their register.
   await prisma.$transaction([
-    prisma.transaction.updateMany({ where: { categoryId: input.id }, data: { categoryId: 'uncategorized' } }),
+    prisma.transaction.updateMany({
+      where: { categoryId: input.id, account: { userId } },
+      data: { categoryId: 'uncategorized' },
+    }),
     prisma.correction.updateMany({ where: { userId, fromCategoryId: input.id }, data: { fromCategoryId: 'uncategorized' } }),
     prisma.correction.updateMany({ where: { userId, toCategoryId: input.id }, data: { toCategoryId: 'uncategorized' } }),
     prisma.categoryPrediction.updateMany({ where: { userId, predictedCategoryId: input.id }, data: { predictedCategoryId: 'uncategorized' } }),

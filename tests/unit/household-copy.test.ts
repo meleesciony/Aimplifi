@@ -50,6 +50,40 @@ const ALL_STRINGS: { label: string; text: string }[] = [
   { label: 'digestNoMovement', text: HOUSEHOLD_COPY.digestNoMovement(2) },
   { label: 'digestNothingShared', text: HOUSEHOLD_COPY.digestNothingShared('Our household') },
   { label: 'digestPrivacyNote', text: HOUSEHOLD_COPY.digestPrivacyNote() },
+  // TASKS 4.2 slice 8 — full-surface hostile critic fixes (F-1..F-6).
+  { label: 'headlineAcrossHousehold', text: HOUSEHOLD_COPY.headlineAcrossHousehold('Our household') },
+  { label: 'reminderPartnerAutopayCovered', text: HOUSEHOLD_COPY.reminderPartnerAutopayCovered('Sam') },
+  {
+    label: 'reminderPartnerPartialAutopay',
+    text: HOUSEHOLD_COPY.reminderPartnerPartialAutopay('Sam', cents(40_000), cents(20_000)),
+  },
+  { label: 'reminderPartnerManual', text: HOUSEHOLD_COPY.reminderPartnerManual('Sam') },
+  { label: 'cardsPartnerToPayLabel', text: HOUSEHOLD_COPY.cardsPartnerToPayLabel() },
+  { label: 'cardsPartnerDueNote', text: HOUSEHOLD_COPY.cardsPartnerDueNote('Sam') },
+  { label: 'cardsPartnerAutopayCovered', text: HOUSEHOLD_COPY.cardsPartnerAutopayCovered('Sam') },
+  {
+    label: 'cardsPartnerPartialAutopay',
+    text: HOUSEHOLD_COPY.cardsPartnerPartialAutopay('Sam', cents(40_000), cents(20_000)),
+  },
+  {
+    label: 'cardsDueFirstPartner',
+    text: HOUSEHOLD_COPY.cardsDueFirstPartner({
+      cardName: 'Sapphire',
+      ownerLabel: 'Sam',
+      amountCents: cents(43_400),
+      dateLong: 'June 15, 2026',
+      when: 'in 5 days',
+    }),
+  },
+  { label: 'scopeUnsupportedCurrency', text: HOUSEHOLD_COPY.scopeUnsupportedCurrency(1) },
+  { label: 'householdDuplicateTitle', text: HOUSEHOLD_COPY.householdDuplicateTitle() },
+  {
+    label: 'householdDuplicatePair',
+    text: HOUSEHOLD_COPY.householdDuplicatePair('Chase Checking', 'yours', 'CHASE Checking', "Sam's"),
+  },
+  { label: 'householdDuplicateFooter', text: HOUSEHOLD_COPY.householdDuplicateFooter() },
+  { label: 'digestNoSpendingShared', text: HOUSEHOLD_COPY.digestNoSpendingShared(1) },
+  { label: 'digestDuplicateWarning', text: HOUSEHOLD_COPY.digestDuplicateWarning(1) },
 ];
 
 const BANNED = [
@@ -78,6 +112,12 @@ const DISCLOSURE_LABELS = new Set([
   'digestPrivacyNote',
   'digestPartnerDue',
   'digestUnsupportedCurrency',
+  // Slice 8: the new household-scope disclosures carry the same duty.
+  'scopeUnsupportedCurrency',
+  'cardsPartnerDueNote',
+  'digestNoSpendingShared',
+  'digestDuplicateWarning',
+  'householdDuplicateFooter',
 ]);
 
 /**
@@ -111,6 +151,39 @@ describe('household copy guardrails — zero shame, disclosures state what is/is
    */
   it('scans every key of HOUSEHOLD_COPY — no household string ships unscanned', () => {
     expect(new Set(ALL_STRINGS.map((s) => s.label))).toEqual(new Set(Object.keys(HOUSEHOLD_COPY)));
+  });
+
+  /**
+   * Slice-8 critics F-1/F-2: the SAME ban, applied to every in-app partner-due
+   * string. "you'll pay" / "yourself" / "your account" on a partner's card is a
+   * false money claim that invites a double payment, on any surface.
+   */
+  it('every in-app partner-owned string passes the partner-due ban', () => {
+    const partnerStrings = [
+      HOUSEHOLD_COPY.reminderPartnerAutopayCovered('Sam'),
+      HOUSEHOLD_COPY.reminderPartnerPartialAutopay('Sam', cents(40_000), cents(20_000)),
+      HOUSEHOLD_COPY.reminderPartnerManual('Sam'),
+      HOUSEHOLD_COPY.cardsPartnerToPayLabel(),
+      HOUSEHOLD_COPY.cardsPartnerDueNote('Sam'),
+      HOUSEHOLD_COPY.cardsPartnerAutopayCovered('Sam'),
+      HOUSEHOLD_COPY.cardsPartnerPartialAutopay('Sam', cents(40_000), cents(20_000)),
+      HOUSEHOLD_COPY.cardsDueFirstPartner({
+        cardName: 'Sapphire',
+        ownerLabel: 'Sam',
+        amountCents: cents(43_400),
+        dateLong: 'June 15, 2026',
+        when: 'in 5 days',
+      }),
+    ];
+    for (const text of partnerStrings) {
+      for (const banned of PARTNER_DUE_BANNED) {
+        expect(text, `"${text}" must not match ${banned}`).not.toMatch(banned);
+      }
+    }
+    // Owner-attributed in every string that names an amount or account.
+    for (const text of partnerStrings.filter((t) => t.includes('$') || /account/i.test(t))) {
+      expect(text).toContain("Sam's");
+    }
   });
 
   it('digestPartnerDue never bills the reader for a partner\'s card, in ANY autopay shape', () => {

@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
@@ -23,7 +24,8 @@ export function CardsBreakdown({
   minimum,
   paymentAccountName,
   today,
-  cardOwnerLabel = {},
+  accountOwnerLabel = {},
+  householdName = null,
 }: {
   payInFull: CashNeededResult;
   minimum: CashNeededResult;
@@ -31,7 +33,11 @@ export function CardsBreakdown({
   today: string;
   /** cardId → owning partner's name, for cards folded in from household scope
    *  (TASKS 4.2 slice 5). Empty for solo/'mine' scope — no badge renders. */
-  cardOwnerLabel?: Record<string, string>;
+  accountOwnerLabel?: Record<string, string>;
+  /** Set ONLY at household scope (slice-8 critic F-3): the joint total is
+   *  needed ACROSS the household — attributing it to the viewer's own funding
+   *  account would claim a partner's autopay draft must sit there. */
+  householdName?: string | null;
 }) {
   const [scenario, setScenario] = useState<'PAY_IN_FULL' | 'MINIMUM'>('PAY_IN_FULL');
   const result = scenario === 'PAY_IN_FULL' ? payInFull : minimum;
@@ -66,7 +72,10 @@ export function CardsBreakdown({
               <span className="font-semibold text-foreground" data-testid="scenario-required">
                 {formatCents(result.headline.requiredCents)}
               </span>{' '}
-              in {paymentAccountName} by {formatISODate(isoDate(result.headline.byDate))}
+              {householdName
+                ? HOUSEHOLD_COPY.headlineAcrossHousehold(householdName)
+                : `in ${paymentAccountName}`}{' '}
+              by {formatISODate(isoDate(result.headline.byDate))}
             </>
           ) : (
             'Nothing due this cycle'
@@ -97,23 +106,39 @@ export function CardsBreakdown({
                 className="rounded-lg border border-emerald-900/50 bg-emerald-950/30 px-3 py-2 text-sm"
                 data-testid="do-this-first"
               >
-                <span className="font-medium">Do this first:</span> pay {firstAction.cardName}
-                {cardOwnerLabel[firstAction.cardId] ? ` (${cardOwnerLabel[firstAction.cardId]}'s)` : ''}{' '}
-                {formatCents(firstAction.userActionCents)} by{' '}
-                {formatISODate(isoDate(firstAction.effectiveDueDate))} (
-                {formatRelativeDays(isoDate(today), isoDate(firstAction.effectiveDueDate))}).
+                {accountOwnerLabel[firstAction.cardId] ? (
+                  // A PARTNER's card is never an imperative to the reader
+                  // (slice-8 critic F-2): it's on the partner's account, and
+                  // Aimplifi doesn't decide who pays.
+                  HOUSEHOLD_COPY.cardsDueFirstPartner({
+                    cardName: firstAction.cardName,
+                    ownerLabel: accountOwnerLabel[firstAction.cardId],
+                    amountCents: firstAction.userActionCents,
+                    dateLong: formatISODate(isoDate(firstAction.effectiveDueDate)),
+                    when: formatRelativeDays(isoDate(today), isoDate(firstAction.effectiveDueDate)),
+                  })
+                ) : (
+                  <>
+                    <span className="font-medium">Do this first:</span> pay {firstAction.cardName}{' '}
+                    {formatCents(firstAction.userActionCents)} by{' '}
+                    {formatISODate(isoDate(firstAction.effectiveDueDate))} (
+                    {formatRelativeDays(isoDate(today), isoDate(firstAction.effectiveDueDate))}).
+                  </>
+                )}
               </p>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
-              {ordered.map((card) => (
+              {ordered.map((card) => {
+                const owner = accountOwnerLabel[card.cardId];
+                return (
                 <Card key={card.cardId} data-testid={`card-${card.cardId}`}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between gap-2">
                       <CardTitle className="text-base">{card.cardName}</CardTitle>
                       <div className="flex gap-1">
-                        {cardOwnerLabel[card.cardId] && (
+                        {owner && (
                           <Badge variant="outline" data-testid={`card-owner-${card.cardId}`}>
-                            {cardOwnerLabel[card.cardId]}
+                            {owner}
                           </Badge>
                         )}
                         {card.isEstimated && <Badge variant="outline">est.</Badge>}
@@ -128,9 +153,13 @@ export function CardsBreakdown({
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-1 text-sm">
-                    {/* THE answer for this card, biggest thing on it */}
+                    {/* THE answer for this card, biggest thing on it. "You must
+                        pay" is true only for the reader's OWN card — a partner's
+                        card gets the neutral label (slice-8 critic F-2). */}
                     <div className="flex items-baseline justify-between">
-                      <span className="text-muted-foreground">You must pay</span>
+                      <span className="text-muted-foreground">
+                        {owner ? HOUSEHOLD_COPY.cardsPartnerToPayLabel() : 'You must pay'}
+                      </span>
                       <span
                         className="text-xl font-semibold tabular-nums"
                         data-testid={`user-action-${card.cardId}`}
@@ -140,7 +169,9 @@ export function CardsBreakdown({
                     </div>
                     {card.userActionCents === 0 && card.autopayCents > 0 && (
                       <p className="text-xs text-emerald-500">
-                        Autopay handles it — just keep the cash in place.
+                        {owner
+                          ? HOUSEHOLD_COPY.cardsPartnerAutopayCovered(owner)
+                          : 'Autopay handles it — just keep the cash in place.'}
                       </p>
                     )}
                     <div className="flex justify-between pt-1">
@@ -161,16 +192,36 @@ export function CardsBreakdown({
                         <span className="tabular-nums">{formatCents(card.autopayCents)}</span>
                       </div>
                     )}
-                    {card.notes.length > 0 && (
+                    {/* Engine notes are second-person by construction ("you must
+                        pay the remaining … yourself") — on a PARTNER's card they
+                        are replaced with owner-attributed equivalents built from
+                        the same structured amounts (slice-8 critic F-2). */}
+                    {owner ? (
                       <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
-                        {card.notes.map((n) => (
-                          <li key={n}>{n}</li>
-                        ))}
+                        {card.autopayCents > 0 && card.userActionCents > 0 && (
+                          <li>
+                            {HOUSEHOLD_COPY.cardsPartnerPartialAutopay(
+                              owner,
+                              card.autopayCents,
+                              card.userActionCents,
+                            )}
+                          </li>
+                        )}
+                        <li>{HOUSEHOLD_COPY.cardsPartnerDueNote(owner)}</li>
                       </ul>
+                    ) : (
+                      card.notes.length > 0 && (
+                        <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+                          {card.notes.map((n) => (
+                            <li key={n}>{n}</li>
+                          ))}
+                        </ul>
+                      )
                     )}
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           </>
         );

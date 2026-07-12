@@ -92,7 +92,10 @@ export async function resolveViewer(userId: string): Promise<Viewer> {
       name: membership.household.name,
       role: mine.role as HouseholdRole,
       memberIds: members.map((m) => m.userId),
-      memberNames: Object.fromEntries(members.map((m) => [m.userId, m.user.name ?? m.user.email])),
+      // `||`, not `??` (slice-8 critic F-8): a persisted empty-string display
+      // name must still fall back to the email — an empty label downstream
+      // would let a partner-owned due fall through to second-person copy.
+      memberNames: Object.fromEntries(members.map((m) => [m.userId, m.user.name || m.user.email])),
     },
   };
 }
@@ -127,6 +130,17 @@ export function partnerSharedAccountsWhere(viewer: Viewer): Prisma.AccountWhereI
  * `{ userId }` (T6 — unit-locked by deep equality, not just equivalent
  * semantics), so every existing surface that adopts it stays byte-identical
  * for solo users and the demo user.
+ *
+ * SANCTIONED PREDICATE SITES (slice-8 critic B-3). Exactly four widened-read
+ * predicates exist; anything else hand-rolling a share clause is a defect:
+ *   1. this helper + `partnerSharedAccountsWhere` above (viewer-relative);
+ *   2. `household-finance.ts` — `{ userId: partnerId, sharedToHousehold: true }`
+ *      per PARTNER slice (the aggregate helper can't express a per-partner read);
+ *   3. `household-digest.ts` — `{ userId: { in: memberIds }, sharedToHousehold:
+ *      true }` — SYMMETRIC (includes the viewer's own shared rows) by design;
+ *      copying it into a viewer-relative surface would be wrong;
+ *   4. `household.ts` consent/read views via `partnerSharedAccountsWhere`.
+ * If you need a new shape, add it HERE and to this list in the same commit.
  */
 export function visibleAccountsWhere(viewer: Viewer): Prisma.AccountWhereInput {
   const shared = partnerSharedAccountsWhere(viewer);

@@ -963,3 +963,29 @@ A + B; A shares a checking, B shares a card, B also holds a PRIVATE card and a P
 checking. **Expected:** `accountCount` = 2 (both shared accounts, never the private ones — T1),
 and B's private-account rows are absent from every figure. Both partners' contexts return
 IDENTICAL movement figures (the one symmetric section of the joint digest).
+
+Slice-8 additions (critic F-4): B also shares a LOAN (inert for dues). **Expected:**
+`sharedAccountCount` = 3 (ALL supported shared accounts, any type — drives the "is anything
+shared?" branch) while `movement.accountCount` stays 2 (the SPENDING tally set). A household
+sharing ONLY the loan renders `digestNoSpendingShared`, never "no accounts are shared".
+
+## §Household Duplicate Detection (TASKS 4.2 slice 8 — critic F-5 / T9(b), `detectHouseholdDuplicateAccounts`)
+
+Not money arithmetic — set logic over the household's visible accounts (viewer's own +
+partners' shared, supported currencies only). Same signals as the personal #192 detector
+(same type + same currency prerequisites; last-4 / identical non-zero balance / shared
+distinctive name token), with ONE deliberate difference: the same-provider skip applies only
+within one owner, because "same-provider ingest already dedups" is true per user and false
+across two users (both partners linking the same bank through Plaid is the most likely shape).
+
+- **Joint-account twins:** A owns `plaid` "Chase Joint Checking" mask 1234, balance 512,345¢
+  ($5,123.45); B shares `simplefin` "CHASE Joint Checking" mask null, same balance, both
+  USD CHECKING. **Expected:** exactly one pair, HIGH (identical non-zero balance), spanning
+  both owners.
+- **Same-provider cross-owner:** both rows `plaid`, same mask. **Expected:** still one pair
+  (the relaxed-skip regression lock). Same owner + same provider: **no pair.**
+- **Advisory only, by decision:** the merged figures deliberately still contain BOTH twins
+  (locked by a fail-old test) — the heuristic has false positives, and silently dropping a
+  REAL account from money math is strictly worse than a disclosed possible double-count.
+  Disclosure surfaces: the household scope toggle (dashboard/cards/calendar) and one line in
+  the joint digest.

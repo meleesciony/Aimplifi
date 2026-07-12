@@ -19,8 +19,10 @@ import { cents } from '@/lib/money';
 // imports `@/auth` (next-auth) at module scope, which would drag the full
 // NextAuth instance into every caller of getCashNeeded/getDashboardData
 // (cron routes included), breaking any test that doesn't mock `@/auth`.
-import { partnerIdsOf, resolveViewer } from '@/server/household-authz';
-import { getSharedSnapshotSlice } from '@/server/household-finance';
+import { partnerIdsOf, resolveViewer, type Viewer } from '@/server/household-authz';
+import { getHouseholdDuplicateCandidates, getSharedSnapshotSlice } from '@/server/household-finance';
+import { detectHouseholdDuplicateAccounts } from '@/lib/engine/account/duplicates';
+import type { PartnerSnapshotSlice } from '@/lib/engine/household/merge-snapshot';
 
 /** Cash-needed scope (TASKS 4.2 slice 4): 'mine' is byte-identical to pre-household
  *  behavior; 'household' folds in every LIVE partner's shared-account obligations. */
@@ -51,13 +53,61 @@ export interface DashboardData {
   /** Present whenever the viewer belongs to a household, regardless of scope —
    *  drives the toggle's visibility. Null for solo/demo users (T6). */
   household: { name: string; hasPartners: boolean } | null;
-  /** cardId → owning partner's display name, for every card in `payInFull.cards`/
-   *  `minimum.cards` that belongs to a PARTNER's shared account (TASKS 4.2 slice
-   *  5). Empty in 'mine' scope (T6) — the engine stays free of any user concept
-   *  (`CardObligation` carries no owner field); this map is built server-side
-   *  from the same partner slices the merge already fetched, never re-derived
-   *  from the merged/untyped account rows. */
-  cardOwnerLabel: Record<string, string>;
+  /** accountId → owning partner's display name, for EVERY account folded in
+   *  from a partner's shared slice (TASKS 4.2 slice 5; widened from cards-only
+   *  in slice 8 — critic F-1: loans reach `reminders` via `loanObligations`,
+   *  and an unlabeled one would render through second-person copy). Empty in
+   *  'mine' scope (T6) — the engine stays free of any user concept; this map is
+   *  built server-side from the same partner slices the merge already fetched,
+   *  never re-derived from the merged/untyped account rows. */
+  accountOwnerLabel: Record<string, string>;
+  /** Partner shared accounts withheld by the #135 currency guard at household
+   *  scope — disclosed, never silent (slice-8 critic F-6). 0 in 'mine' scope. */
+  householdWithheldCount: number;
+  /** Suspected same-real-account-connected-twice pairs across the household's
+   *  visible set (slice-8 critic F-5 / T9(b)). ADVISORY: figures are NOT
+   *  adjusted; the UI disclosure is the mitigation, mirroring #192's stance.
+   *  Empty in 'mine' scope (T6). */
+  householdDuplicates: HouseholdDuplicateDisplayPair[];
+}
+
+export interface HouseholdDuplicateDisplayPair {
+  a: { name: string; ownerLabel: string };
+  b: { name: string; ownerLabel: string };
+  confidence: 'high' | 'medium';
+}
+
+/**
+ * Household-scope extras shared by `getCashNeeded` and `getDashboardData`
+ * (slice 8): the all-types owner-label map (F-1), the withheld-account
+ * disclosure count (F-6), and the duplicate-pair disclosure (F-5), with owner
+ * ids resolved to display labels ("yours" / "Sam's"). `|| 'Partner'` — not
+ * `??` — so an empty-string display name can never yield an unlabeled partner
+ * account that falls through to second-person copy (critic F-8).
+ */
+async function householdExtras(
+  userId: string,
+  viewer: Viewer,
+  partnerIds: string[],
+  slices: PartnerSnapshotSlice[],
+): Promise<Pick<DashboardData, 'accountOwnerLabel' | 'householdWithheldCount' | 'householdDuplicates'>> {
+  const memberNames = viewer.household?.memberNames ?? {};
+  const accountOwnerLabel: Record<string, string> = {};
+  partnerIds.forEach((partnerId, i) => {
+    const label = memberNames[partnerId] || 'Partner';
+    for (const a of slices[i].accounts) accountOwnerLabel[a.id] = label;
+  });
+  const householdWithheldCount = slices.reduce((n, s) => n + s.withheldAccountCount, 0);
+  const ownerLabelOf = (ownerId: string) =>
+    ownerId === userId ? 'yours' : `${memberNames[ownerId] || 'Partner'}'s`;
+  const householdDuplicates = detectHouseholdDuplicateAccounts(
+    await getHouseholdDuplicateCandidates(userId, partnerIds),
+  ).map((p) => ({
+    a: { name: p.a.name, ownerLabel: ownerLabelOf(p.a.ownerId) },
+    b: { name: p.b.name, ownerLabel: ownerLabelOf(p.b.ownerId) },
+    confidence: p.confidence,
+  }));
+  return { accountOwnerLabel, householdWithheldCount, householdDuplicates };
 }
 
 /**
@@ -155,11 +205,23 @@ export async function getCashNeeded(
       householdName: viewer.household?.name ?? null,
       scope,
       household,
+      ...(await householdExtras(userId, viewer, partnerIds, slices)),
       ...cashNeededFromSnapshot(householdSnap, today, scenario, paymentAccountId),
     };
   }
 
-  return { today, snap, scope, household, ...cashNeededFromSnapshot(snap, today, scenario) };
+  const emptyExtras: Pick<
+    DashboardData,
+    'accountOwnerLabel' | 'householdWithheldCount' | 'householdDuplicates'
+  > = { accountOwnerLabel: {}, householdWithheldCount: 0, householdDuplicates: [] };
+  return {
+    today,
+    snap,
+    scope,
+    household,
+    ...emptyExtras,
+    ...cashNeededFromSnapshot(snap, today, scenario),
+  };
 }
 
 export async function getDashboardData(
@@ -185,18 +247,17 @@ export async function getDashboardData(
   // code computed over. 'household': a merged copy: same disjoint-union merge
   // as `getCashNeeded`'s household branch (§4.4).
   let cashNeededSnap = snap;
-  // cardId → owning partner's name (TASKS 4.2 slice 5) — built directly from
-  // each partner's OWN slice (never from the merged/untyped account rows,
-  // which lose the per-partner boundary once unioned).
-  const cardOwnerLabel: Record<string, string> = {};
+  // accountId → owning partner's name + the household disclosures (TASKS 4.2
+  // slice 5, widened slice 8) — built directly from each partner's OWN slice
+  // (never from the merged/untyped account rows, which lose the per-partner
+  // boundary once unioned).
+  let extras: Pick<
+    DashboardData,
+    'accountOwnerLabel' | 'householdWithheldCount' | 'householdDuplicates'
+  > = { accountOwnerLabel: {}, householdWithheldCount: 0, householdDuplicates: [] };
   if (scope === 'household') {
     const slices = await Promise.all(partnerIds.map((id) => getSharedSnapshotSlice(id)));
-    partnerIds.forEach((partnerId, i) => {
-      const label = viewer.household?.memberNames[partnerId] ?? 'Partner';
-      for (const a of slices[i].accounts) {
-        if (a.type === 'CREDIT') cardOwnerLabel[a.id] = label;
-      }
-    });
+    extras = await householdExtras(userId, viewer, partnerIds, slices);
     const merged = mergeSnapshots(today, snap, slices);
     cashNeededSnap = { ...snap, ...merged };
   }
@@ -248,6 +309,6 @@ export async function getDashboardData(
     accounts,
     scope,
     household,
-    cardOwnerLabel,
+    ...extras,
   };
 }

@@ -2,6 +2,54 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 4.2 slice 8: full-surface household hostile critic (#221) — HOUSEHOLD MVP COMPLETE
+
+Three FRESH-CONTEXT Fable critics ran in parallel over T1–T12 (A: membership/authz state
+machine; B: read-visibility + mutation boundary with an exhaustive fetcher/action inventory;
+C: money surfaces with hand-verified fixture arithmetic). Verdict: **0 P0, 7 P1, 10 P2** —
+every P1 and every actionable P2 fixed and regression-locked in one cycle (cycle 1 of the
+4-cap). The authz state machine and the mutation boundary survived every attack (TOCTOU,
+double-accept, enumeration, repair races — critic A found zero P0/P1); the money math itself
+was hand-verified correct. The P1s all lived at the COMPOSITION boundary: household scope
+bolted onto surfaces whose copy/disclosure assumed "everything on screen is yours" — the
+disease slice 7 cured in the digest email only. Fixed: in-app partner dues now render
+owner-attributed on the reminders card and /cards (new HOUSEHOLD_COPY keys, exhaustive-scanned
++ partner-due-banned); the household headline reads "across <household>" (a partner's autopay
+drafts THEIR account — attribution fixed, number deliberately untouched, DECISIONS #221);
+digest `sharedAccountCount` ends the loan-only "no accounts are shared" false disclosure;
+interactive household scope now DISCLOSES currency-withheld partner accounts (#135 stance)
+and filters their orphan dependent rows from the merge; the calendar owner-labels partner
+events; the cron digest degrades household→personal atomically and audited, never to silence.
+
+Inherited F5 CLOSED (T9(b)): same-real-account-connected-twice is now DETECTED
+(`detectHouseholdDuplicateAccounts` — #192 signals with the same-provider skip relaxed to
+same-provider-AND-same-owner) and DISCLOSED on the scope toggle (dashboard/cards/calendar)
+and in the joint digest. Advisory by decision: figures are NOT auto-adjusted (heuristic false
+positives; silently dropping a real account is worse than a disclosed double-count) — a
+fail-old test locks the merged snapshot still containing both twins. Hardening: T8 export
+lock added (the promised household fixture existed for every invariant but this one);
+T10's visibility half now asserted, not assumed; deleteMyData reaps a now-memberless
+household (ghost-household invite redemption closed); deleteCustomCategory's re-file is
+owner-scoped (defense in depth); empty-string display names can no longer strand a partner
+account unlabeled (`name || email` / `|| 'Partner'`); sanctioned share-predicate sites
+indexed in household-authz.ts.
+
+Gate (real 2026-07-12): `bash scripts/verify.sh` with `VERIFY_E2E=1` → **✅ VERIFY GREEN,
+exit 0**: tsc clean · eslint clean · `npx vitest run` **2391 unit / 180 files** (+36 this
+slice) · `npx next build` clean · Playwright **104/104 passed at the configured 4 workers**
+(the local contention flake did not fire this run). 8 REGRESSION_LEDGER entries (2026-07-12).
+
+Accepted limitations (recorded, not fixed): the household-scope shortfall/transfer
+recommendation still projects every merged due against the viewer's own funding account —
+the §4.4 v1 model, now disclosed by the extended scopeAssumptions autopay sentence; a
+deeper per-owner projection is future work. An invite from a member who later departs stays
+redeemable into the household (standard team-invite semantics; the code factor still gates —
+critic A-F3, recorded in DECISIONS #221). The cross-owner identical-balance duplicate signal
+can false-positive on two genuinely different same-balance accounts — tolerable because the
+disclosure is advisory and self-explaining. Component-level headline attribution (F-3) is
+wired but has no component test (no React test harness in this repo); covered by copy scan +
+tsc + build.
+
 ## Wave 4.2 slice 7: joint household digest (#220)
 
 A household member with a LIVE partner now receives ONE household-scope weekly

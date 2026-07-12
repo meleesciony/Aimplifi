@@ -145,6 +145,11 @@ describe('buildWeeklyDigest — joint household digest', () => {
     movement: MOVEMENT,
     partnerAccountLabels: {},
     withheldAccountCount: 0,
+    // Slice 8 (critic F-4/F-5): ALL supported shared accounts (any type) and
+    // the same-real-account-twice disclosure count. Baseline fixture: the two
+    // spending accounts are the only shared accounts; nothing suspicious.
+    sharedAccountCount: 2,
+    duplicatePairCount: 0,
   };
 
   it('household context flips the subject and dues header, and states its assumptions inline', () => {
@@ -156,7 +161,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
     // Household-scope dues still render through the SHARED reminderLine.
     expect(digest!.text).toContain(reminderLine(dues[0]));
     expect(digest!.text).toContain('Shared in The Nguyens:');
-    expect(digest!.text).toContain('14 transactions on 2 shared accounts in the last 7 days — $1,240.55 out, $500.00 in.');
+    expect(digest!.text).toContain('14 transactions on 2 shared spending accounts in the last 7 days — $1,240.55 out, $500.00 in.');
     // The joint number never implies completeness (§4.4 guardrail).
     expect(digest!.text).toContain("Anything not shared isn't counted.");
     // …and the personal review inside it is disclosed as personal (§4.5).
@@ -177,7 +182,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
       today: TODAY,
       household: { ...HOUSEHOLD, movement: { ...MOVEMENT, transactionCount: 0, outflowCents: cents(0), inflowCents: cents(0) } },
     });
-    expect(digest!.text).toContain('No transactions on the 2 shared accounts in the last 7 days.');
+    expect(digest!.text).toContain('No transactions on the 2 shared spending accounts in the last 7 days.');
     expect(digest!.text).not.toContain('0 shared account');
   });
 
@@ -186,7 +191,11 @@ describe('buildWeeklyDigest — joint household digest', () => {
       review: REVIEW,
       reminders: [],
       today: TODAY,
-      household: { ...HOUSEHOLD, movement: { accountCount: 0, transactionCount: 0, outflowCents: cents(0), inflowCents: cents(0) } },
+      household: {
+        ...HOUSEHOLD,
+        sharedAccountCount: 0,
+        movement: { accountCount: 0, transactionCount: 0, outflowCents: cents(0), inflowCents: cents(0) },
+      },
     });
     expect(digest!.text).toContain('No accounts are shared in The Nguyens yet, so this email counts only your own.');
     expect(digest!.text).not.toContain('transactions on the 0 shared');
@@ -267,6 +276,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
       today: TODAY,
       household: {
         ...HOUSEHOLD,
+        sharedAccountCount: 0,
         movement: { accountCount: 0, transactionCount: 0, outflowCents: cents(0), inflowCents: cents(0) },
         withheldAccountCount: 1,
       },
@@ -281,8 +291,52 @@ describe('buildWeeklyDigest — joint household digest', () => {
       today: TODAY,
       household: { ...HOUSEHOLD, withheldAccountCount: 2 },
     });
-    expect(alsoForeign!.text).toContain('14 transactions on 2 shared accounts');
+    expect(alsoForeign!.text).toContain('14 transactions on 2 shared spending accounts');
     expect(alsoForeign!.text).toContain("2 shared accounts aren't counted above");
+  });
+
+  /**
+   * Slice-8 critic F-4 (P1, fail-old/pass-new): the "anything shared?" branch
+   * keyed on the SPENDING-only movement.accountCount, so a household sharing
+   * only a LOAN read "No accounts are shared in …" directly beside that loan's
+   * own due line — a false disclosure in a money email.
+   */
+  it('F-4: a loan-only share never claims "no accounts are shared" while listing its due', () => {
+    const loanDue = reminder({
+      accountId: 'partner-loan',
+      accountName: 'Mortgage',
+      dueDate: '2026-06-15',
+      daysUntil: 5,
+      userActionCents: 120_000,
+    });
+    const digest = buildWeeklyDigest({
+      review: REVIEW,
+      reminders: [loanDue],
+      today: TODAY,
+      household: {
+        ...HOUSEHOLD,
+        partnerAccountLabels: { 'partner-loan': 'Sam' },
+        sharedAccountCount: 1, // the loan
+        movement: { accountCount: 0, transactionCount: 0, outflowCents: cents(0), inflowCents: cents(0) },
+      },
+    });
+    expect(digest!.text).toContain("Mortgage (Sam's)"); // the due IS listed
+    expect(digest!.text).not.toContain('No accounts are shared'); // fail-old assertion
+    expect(digest!.text).toContain("The 1 shared account isn't a spending account");
+    expect(digest!.text).not.toContain('0 shared');
+  });
+
+  it('F-5: a suspected twice-connected account is disclosed in the same email that mails the figures', () => {
+    const digest = buildWeeklyDigest({
+      review: REVIEW,
+      reminders: [],
+      today: TODAY,
+      household: { ...HOUSEHOLD, duplicatePairCount: 1 },
+    });
+    expect(digest!.text).toContain('look like the same real account connected twice');
+    // …and absent when nothing is suspected (the baseline fixture).
+    const clean = buildWeeklyDigest({ review: REVIEW, reminders: [], today: TODAY, household: HOUSEHOLD });
+    expect(clean!.text).not.toContain('connected twice');
   });
 
   it('T6: without household context the digest is byte-identical to the personal one', () => {
