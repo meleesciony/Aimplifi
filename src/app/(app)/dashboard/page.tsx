@@ -116,7 +116,7 @@ export default async function DashboardPage({
         </div>
       )}
       {data.household?.hasPartners && (
-        <HouseholdScopeToggle scope={data.scope} householdName={data.household.name} />
+        <HouseholdScopeToggle scope={data.scope} householdName={data.household.name} basePath="/dashboard" />
       )}
       <CashNeededCard
         result={data.payInFull}

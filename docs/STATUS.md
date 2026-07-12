@@ -2,6 +2,30 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 4.2 slice 5: cards/calendar household scope + copy audit (#218)
+
+`/cards` and `/calendar` now accept the same `?scope=mine|household` contract
+as `/dashboard` (TASKS 4.2 slice 5): `getDashboardData`/`getCashNeeded` both
+resolve the viewer's household unconditionally and return `household`/`scope`
+so a page can decide whether to offer `HouseholdScopeToggle` — generalized
+with a `basePath` + `extraParams` prop (calendar carries `month` through both
+scope links, so paging months no longer silently resets scope to `mine`).
+Card ownership: a `cardId → ownerLabel` map is built server-side in
+`getDashboardData` from each partner's pre-merge slice (no owner field added
+to `CardObligation` — the engine stays free of any user concept);
+`CardsBreakdown` badges partner cards with it. Cross-app copy audit: every
+household disclosure/consent string across settings, `household-card`,
+`household-sharing-card`, `shared-transaction-list`, and the scope toggle was
+extracted verbatim (no wording changed) into `src/lib/copy/household-copy.ts`
+and is now scanned by `tests/unit/household-copy.test.ts` against the same
+guardrails as `coach-copy.test.ts` (zero shame language, every disclosure
+states what is/isn't shared) — previously this copy was inline JSX and never
+guardrail-scanned. All existing strings passed unchanged.
+
+Gate (real 2026-07-12): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — tsc/eslint clean, **2305 unit / 179 files**, build clean, **104
+e2e** (+1: slice-5 T6 golden-safety lock on `/cards` + `/calendar`).
+
 ## Wave S: S.3 docs-lint script (#217)
 
 `scripts/docs-lint.ts` — zero-model-call check over every tracked `*.md` file for

@@ -51,6 +51,13 @@ export interface DashboardData {
   /** Present whenever the viewer belongs to a household, regardless of scope —
    *  drives the toggle's visibility. Null for solo/demo users (T6). */
   household: { name: string; hasPartners: boolean } | null;
+  /** cardId → owning partner's display name, for every card in `payInFull.cards`/
+   *  `minimum.cards` that belongs to a PARTNER's shared account (TASKS 4.2 slice
+   *  5). Empty in 'mine' scope (T6) — the engine stays free of any user concept
+   *  (`CardObligation` carries no owner field); this map is built server-side
+   *  from the same partner slices the merge already fetched, never re-derived
+   *  from the merged/untyped account rows. */
+  cardOwnerLabel: Record<string, string>;
 }
 
 /**
@@ -113,36 +120,46 @@ export function cashNeededFromSnapshot(
  * folds in every live partner's shared-account slice via `getSharedSnapshotSlice`
  * + the pure `mergeSnapshots` (HOUSEHOLD_ARCHITECTURE §4.4) — falls back to
  * `mine` (silently, since it's a no-op) when the viewer has no live partners.
+ *
+ * `household`/`scope` on the return (TASKS 4.2 slice 5): the viewer is resolved
+ * regardless of the REQUESTED scope — a cheap, indexed read that never changes
+ * the 'mine' computation below — so a caller (the /calendar page) can decide
+ * whether to OFFER the household toggle at all, mirroring `getDashboardData`.
  */
 export async function getCashNeeded(
   userId: string,
   scenario: 'PAY_IN_FULL' | 'MINIMUM' = 'PAY_IN_FULL',
-  scope: CashNeededScope = 'mine',
+  requestedScope: CashNeededScope = 'mine',
 ) {
   const provider = getProvider();
   const today = provider.today(userId);
   const snap = await provider.getFinanceSnapshot(userId);
 
+  const viewer = await resolveViewer(userId);
+  const partnerIds = partnerIdsOf(viewer);
+  const household = viewer.household
+    ? { name: viewer.household.name, hasPartners: partnerIds.length > 0 }
+    : null;
+  const scope: CashNeededScope = requestedScope === 'household' && partnerIds.length > 0 ? 'household' : 'mine';
+
   if (scope === 'household') {
-    const viewer = await resolveViewer(userId);
-    const partnerIds = partnerIdsOf(viewer);
-    if (partnerIds.length > 0) {
-      // Resolved from the PERSONAL snapshot, BEFORE merging (critic P0 fix) —
-      // never let the merged accounts array influence which account funds this.
-      const paymentAccountId = resolvePaymentAccount(snap).id;
-      const slices = await Promise.all(partnerIds.map((id) => getSharedSnapshotSlice(id)));
-      const merged = mergeSnapshots(today, snap, slices);
-      const householdSnap: FinanceSnapshot = { ...snap, ...merged };
-      return {
-        today,
-        snap: householdSnap,
-        householdName: viewer.household?.name ?? null,
-        ...cashNeededFromSnapshot(householdSnap, today, scenario, paymentAccountId),
-      };
-    }
+    // Resolved from the PERSONAL snapshot, BEFORE merging (critic P0 fix) —
+    // never let the merged accounts array influence which account funds this.
+    const paymentAccountId = resolvePaymentAccount(snap).id;
+    const slices = await Promise.all(partnerIds.map((id) => getSharedSnapshotSlice(id)));
+    const merged = mergeSnapshots(today, snap, slices);
+    const householdSnap: FinanceSnapshot = { ...snap, ...merged };
+    return {
+      today,
+      snap: householdSnap,
+      householdName: viewer.household?.name ?? null,
+      scope,
+      household,
+      ...cashNeededFromSnapshot(householdSnap, today, scenario, paymentAccountId),
+    };
   }
 
-  return { today, snap, ...cashNeededFromSnapshot(snap, today, scenario) };
+  return { today, snap, scope, household, ...cashNeededFromSnapshot(snap, today, scenario) };
 }
 
 export async function getDashboardData(
@@ -168,8 +185,18 @@ export async function getDashboardData(
   // code computed over. 'household': a merged copy: same disjoint-union merge
   // as `getCashNeeded`'s household branch (§4.4).
   let cashNeededSnap = snap;
+  // cardId → owning partner's name (TASKS 4.2 slice 5) — built directly from
+  // each partner's OWN slice (never from the merged/untyped account rows,
+  // which lose the per-partner boundary once unioned).
+  const cardOwnerLabel: Record<string, string> = {};
   if (scope === 'household') {
     const slices = await Promise.all(partnerIds.map((id) => getSharedSnapshotSlice(id)));
+    partnerIds.forEach((partnerId, i) => {
+      const label = viewer.household?.memberNames[partnerId] ?? 'Partner';
+      for (const a of slices[i].accounts) {
+        if (a.type === 'CREDIT') cardOwnerLabel[a.id] = label;
+      }
+    });
     const merged = mergeSnapshots(today, snap, slices);
     cashNeededSnap = { ...snap, ...merged };
   }
@@ -221,5 +248,6 @@ export async function getDashboardData(
     accounts,
     scope,
     household,
+    cardOwnerLabel,
   };
 }

@@ -23,6 +23,11 @@ export type Viewer = {
     /** The VIEWER's role, post-repair. */
     role: HouseholdRole;
     memberIds: string[];
+    /** userId → display name (name ?? email), same fallback as the slice 2/3
+     *  owner-badge precedent (`src/server/household.ts`). Additive (TASKS 4.2
+     *  slice 5): lets a caller badge which partner a shared card/account
+     *  belongs to without a second query. */
+    memberNames: Record<string, string>;
   };
 };
 
@@ -48,7 +53,14 @@ export async function resolveViewer(userId: string): Promise<Viewer> {
         select: {
           id: true,
           name: true,
-          members: { select: { userId: true, role: true, joinedAt: true } },
+          members: {
+            select: {
+              userId: true,
+              role: true,
+              joinedAt: true,
+              user: { select: { name: true, email: true } },
+            },
+          },
         },
       },
     },
@@ -80,6 +92,7 @@ export async function resolveViewer(userId: string): Promise<Viewer> {
       name: membership.household.name,
       role: mine.role as HouseholdRole,
       memberIds: members.map((m) => m.userId),
+      memberNames: Object.fromEntries(members.map((m) => [m.userId, m.user.name ?? m.user.email])),
     },
   };
 }

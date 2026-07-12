@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowDownLeft, ArrowUpRight, CreditCard, Landmark } from 'lucide-react';
 import { auth } from '@/auth';
+import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
 import { EmptyCalendar } from '@/components/onboarding/route-empty';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,14 +17,22 @@ export const metadata = { title: "Calendar" };
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; scope?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
   // No accounts yet → route-framed onboarding; getCashNeeded throws on empty (DECISIONS #44).
   if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyCalendar />;
-  const { today, snap, result, loanObligations } = await getCashNeeded(session.user.id);
   const params = await searchParams;
+  // Household scope toggle (TASKS 4.2 slice 5) — same contract as /dashboard,
+  // /cards: getCashNeeded re-derives the EFFECTIVE scope (falls back to 'mine'
+  // without live partners), so a stale `?scope=household` link never errors.
+  const requestedScope = params.scope === 'household' ? 'household' : 'mine';
+  const { today, snap, result, loanObligations, scope, household } = await getCashNeeded(
+    session.user.id,
+    'PAY_IN_FULL',
+    requestedScope,
+  );
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? '')
     ? params.month!
     : today.slice(0, 7);
@@ -41,9 +50,15 @@ export default async function CalendarPage({
   const prev = addMonthsClamped(isoDate(`${month}-01`), -1).slice(0, 7);
   const next = addMonthsClamped(isoDate(`${month}-01`), 1).slice(0, 7);
   const eventDays = calendar.days.filter((d) => d.events.length > 0);
+  // Month nav must carry the active scope too (TASKS 4.2 slice 5) — otherwise
+  // paging months while in household scope silently drops back to 'mine'.
+  const scopeQuery = scope === 'household' ? '&scope=household' : '';
 
   return (
     <div className="space-y-4">
+      {household?.hasPartners && (
+        <HouseholdScopeToggle scope={scope} householdName={household.name} basePath="/calendar" extraParams={{ month }} />
+      )}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Cash-flow calendar</h1>
         <div className="flex items-center gap-2 text-sm">
@@ -52,13 +67,13 @@ export default async function CalendarPage({
               scripts/audit-probes/calendar-month-nav.ts, 5/7 failed) — an upstream client flight-application
               bug, unaffected by prefetch={false}, fixed by Next 16 (7/7 commit). If a
               future Next bump regresses month paging, re-run that probe first. */}
-          <Link href={`/calendar?month=${prev}`} aria-label="Previous month" className="rounded-md border px-2 py-1 hover:bg-accent" data-testid="cal-prev">
+          <Link href={`/calendar?month=${prev}${scopeQuery}`} aria-label="Previous month" className="rounded-md border px-2 py-1 hover:bg-accent" data-testid="cal-prev">
             ←
           </Link>
           <span className="font-medium" data-testid="cal-month" data-month={month}>
             {formatMonth(month)}
           </span>
-          <Link href={`/calendar?month=${next}`} aria-label="Next month" className="rounded-md border px-2 py-1 hover:bg-accent" data-testid="cal-next">
+          <Link href={`/calendar?month=${next}${scopeQuery}`} aria-label="Next month" className="rounded-md border px-2 py-1 hover:bg-accent" data-testid="cal-next">
             →
           </Link>
         </div>

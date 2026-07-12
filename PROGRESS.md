@@ -1,5 +1,9 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-12 — Household MVP slice 5: cards/calendar household scope + copy audit (#218)
+
+**What shipped:** /cards and /calendar wired to the existing slice-4 scope support (getDashboardData/getCashNeeded already merged partner cards; slice 5 was pure plumbing, no engine change). HouseholdScopeToggle generalized (basePath + extraParams) and reused on both new pages; calendar's month nav now carries scope so paging months does not reset it to mine. cardId -> ownerLabel map built server-side (resolveViewer gained memberNames) so CardsBreakdown can badge a partner's shared card without touching CardObligation. Cross-app copy audit extracted every household disclosure into src/lib/copy/household-copy.ts (verbatim, no wording changed) with a new guardrail test (tests/unit/household-copy.test.ts) mirroring coach-copy.test.ts -- closes the blind spot slice 7's joint digest will otherwise inherit. New/extended tests: tests/unit/household-cash-needed.test.ts (getCashNeeded household/scope parity with getDashboardData, cardOwnerLabel T6-empty-in-mine + correct-in-household), tests/e2e/household.spec.ts (slice 5 T6 golden safety: no toggle on /cards or /calendar for the demo user, stale ?scope=household never errors).
+
 ## 2026-07-11 — S.3: scripts/docs-lint.ts
 
 Built and verified scripts/docs-lint.ts (Pulse-leak / hardcoded-count / archive-banner / verify-phrasing checks). Added

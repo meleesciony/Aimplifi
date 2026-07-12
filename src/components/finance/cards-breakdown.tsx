@@ -23,11 +23,15 @@ export function CardsBreakdown({
   minimum,
   paymentAccountName,
   today,
+  cardOwnerLabel = {},
 }: {
   payInFull: CashNeededResult;
   minimum: CashNeededResult;
   paymentAccountName: string;
   today: string;
+  /** cardId → owning partner's name, for cards folded in from household scope
+   *  (TASKS 4.2 slice 5). Empty for solo/'mine' scope — no badge renders. */
+  cardOwnerLabel?: Record<string, string>;
 }) {
   const [scenario, setScenario] = useState<'PAY_IN_FULL' | 'MINIMUM'>('PAY_IN_FULL');
   const result = scenario === 'PAY_IN_FULL' ? payInFull : minimum;
@@ -93,7 +97,8 @@ export function CardsBreakdown({
                 className="rounded-lg border border-emerald-900/50 bg-emerald-950/30 px-3 py-2 text-sm"
                 data-testid="do-this-first"
               >
-                <span className="font-medium">Do this first:</span> pay {firstAction.cardName}{' '}
+                <span className="font-medium">Do this first:</span> pay {firstAction.cardName}
+                {cardOwnerLabel[firstAction.cardId] ? ` (${cardOwnerLabel[firstAction.cardId]}'s)` : ''}{' '}
                 {formatCents(firstAction.userActionCents)} by{' '}
                 {formatISODate(isoDate(firstAction.effectiveDueDate))} (
                 {formatRelativeDays(isoDate(today), isoDate(firstAction.effectiveDueDate))}).
@@ -106,6 +111,11 @@ export function CardsBreakdown({
                     <div className="flex items-center justify-between gap-2">
                       <CardTitle className="text-base">{card.cardName}</CardTitle>
                       <div className="flex gap-1">
+                        {cardOwnerLabel[card.cardId] && (
+                          <Badge variant="outline" data-testid={`card-owner-${card.cardId}`}>
+                            {cardOwnerLabel[card.cardId]}
+                          </Badge>
+                        )}
                         {card.isEstimated && <Badge variant="outline">est.</Badge>}
                         {card.autopayCents > 0 && <Badge variant="secondary">autopay</Badge>}
                       </div>

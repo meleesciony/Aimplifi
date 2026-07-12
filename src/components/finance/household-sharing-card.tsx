@@ -22,6 +22,7 @@ import type { AccountSharingView } from '@/server/household';
 import { formatCents, cents } from '@/lib/money';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 
 const TYPE_LABEL: Record<string, string> = {
   CHECKING: 'Checking',
@@ -108,8 +109,7 @@ export function HouseholdSharingCard({
               ))}
             </ul>
             <p className="mt-1 text-xs text-muted-foreground">
-              Read-only balances your partner chose to share. Anything they haven&apos;t
-              shared isn&apos;t shown — this is not their full picture.
+              {HOUSEHOLD_COPY.sharedWithYouDisclosure()}
             </p>
           </div>
         )}
@@ -120,7 +120,7 @@ export function HouseholdSharingCard({
           </h3>
           {view.mine.length === 0 ? (
             <p className="mt-1 text-sm text-muted-foreground">
-              Connect or add an account first — then you can share it here.
+              {HOUSEHOLD_COPY.noAccountsToShare()}
             </p>
           ) : (
             <ul className="mt-1 divide-y">
@@ -153,10 +153,7 @@ export function HouseholdSharingCard({
             </ul>
           )}
           <p className="mt-1 text-xs text-muted-foreground">
-            Sharing shows an account&apos;s name, type, last 4 digits, balance, and
-            transactions (read-only, labeled with your name on their register) to
-            everyone in your household, updated as it syncs. You can stop sharing
-            anytime, and leaving the household unshares everything.
+            {HOUSEHOLD_COPY.shareYourAccountsDisclosure()}
           </p>
         </div>
 

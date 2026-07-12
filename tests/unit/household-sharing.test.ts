@@ -45,7 +45,7 @@ function viewer(userId: string, memberIds: string[] | null): Viewer {
   return {
     userId,
     household: memberIds
-      ? { id: 'hh-1', name: 'Casa', role: 'owner', memberIds }
+      ? { id: 'hh-1', name: 'Casa', role: 'owner', memberIds, memberNames: {} }
       : null,
   };
 }

@@ -29,6 +29,7 @@ import {
 import type { HouseholdView } from '@/server/household';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 
 const fieldClass =
   'h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground';
@@ -123,7 +124,7 @@ function NoHousehold({
                 {invite.invitedByName ? ` — invited by ${invite.invitedByName}` : ''}
               </p>
               <p className="text-xs text-muted-foreground">
-                Enter the invite code they gave you directly (it&apos;s never emailed).
+                {HOUSEHOLD_COPY.inviteCodeHint()}
               </p>
               <form
                 className="flex flex-wrap items-center gap-2"
@@ -298,9 +299,7 @@ function MemberView({
             {issuedCode.code}
           </p>
           <p className="text-xs text-muted-foreground">
-            Share this code with them directly (in person or a message) — it is shown only once
-            and never emailed. They enter it here in Settings after signing in with{' '}
-            {issuedCode.email}. It expires in 14 days.
+            {HOUSEHOLD_COPY.inviteCodeIssued(issuedCode.email)}
           </p>
           <Button
             type="button"
@@ -347,8 +346,7 @@ function MemberView({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Use the email they sign in with. You&apos;ll get a one-time code to hand them
-            directly — nothing is emailed on your behalf.
+            {HOUSEHOLD_COPY.inviteFormHint()}
           </p>
         </form>
       )}
@@ -357,7 +355,7 @@ function MemberView({
         {confirmLeave ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              Leave {view.name}? Any accounts you&apos;ve shared stop being shared.
+              {HOUSEHOLD_COPY.leaveConfirm(view.name)}
             </span>
             <Button
               type="button"

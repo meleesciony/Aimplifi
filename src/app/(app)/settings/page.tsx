@@ -25,6 +25,7 @@ import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getThresholdTuning } from '@/server/tuning';
 import { getLatestSelfAuditSnapshot } from '@/server/self-audit';
 import { prisma } from '@/lib/db';
+import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 
 export const metadata = { title: "Settings" };
 
@@ -267,15 +268,12 @@ export default async function SettingsPage() {
 
       <Card data-testid="household-card">
         <CardHeader className="pb-2">
-          <CardDescription>Money is a team sport — when you choose it to be</CardDescription>
+          <CardDescription>{HOUSEHOLD_COPY.teamSportTagline()}</CardDescription>
           <CardTitle className="text-base">Household</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground" data-testid="household-disclosure">
-            A household connects your account with a partner&apos;s. Membership alone shares
-            nothing: no partner can see any account, balance, or transaction of yours unless you
-            explicitly share it, and you can leave at any time — leaving ends anything you&apos;ve
-            shared.
+            {HOUSEHOLD_COPY.disclosure()}
           </p>
           <HouseholdCard view={householdView} />
         </CardContent>

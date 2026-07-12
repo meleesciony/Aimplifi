@@ -149,6 +149,26 @@ test('member state: create household → add account → share it (real mutation
   await expect(page.getByTestId('household-scope-toggle')).toHaveCount(0);
 });
 
+test('slice 5 golden safety: /cards and /calendar show NO household-scope toggle for the demo user (T6)', async ({
+  page,
+}) => {
+  await signIn(page);
+
+  await page.goto('/cards');
+  await expect(page.getByTestId('household-scope-toggle')).toHaveCount(0);
+  // Stale `?scope=household` must never error — getDashboardData silently
+  // degenerates to 'mine' without live partners (§4.4), same as /dashboard.
+  await page.goto('/cards?scope=household');
+  await expect(page.getByTestId('household-scope-toggle')).toHaveCount(0);
+
+  await page.goto('/calendar');
+  await expect(page.getByTestId('cal-month')).toBeVisible();
+  await expect(page.getByTestId('household-scope-toggle')).toHaveCount(0);
+  await page.goto('/calendar?scope=household');
+  await expect(page.getByTestId('cal-month')).toBeVisible();
+  await expect(page.getByTestId('household-scope-toggle')).toHaveCount(0);
+});
+
 test('slice 3 golden safety: /transactions shows NO shared-txn section for the demo user (T6)', async ({
   page,
 }) => {

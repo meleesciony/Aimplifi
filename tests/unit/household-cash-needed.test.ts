@@ -254,6 +254,27 @@ describe('household cash-needed (integration)', () => {
     expect(householdView.accounts.map((a) => a.id)).toEqual(mineView.accounts.map((a) => a.id));
   });
 
+  it("TASKS 4.2 slice 5: getCashNeeded exposes household/scope like getDashboardData, so /calendar can offer the toggle", async () => {
+    const mine = await getCashNeeded(ownerId, 'PAY_IN_FULL', 'mine');
+    expect(mine.scope).toBe('mine');
+    expect(mine.household).toEqual({ name: 'Casa CashNeeded', hasPartners: true });
+
+    const household = await getCashNeeded(ownerId, 'PAY_IN_FULL', 'household');
+    expect(household.scope).toBe('household');
+    expect(household.household).toEqual({ name: 'Casa CashNeeded', hasPartners: true });
+  });
+
+  it("TASKS 4.2 slice 5: getDashboardData's cardOwnerLabel badges only the partner's SHARED card, empty in 'mine' scope (T6)", async () => {
+    const mineView = await getDashboardData(ownerId, 'mine');
+    expect(mineView.cardOwnerLabel).toEqual({});
+
+    const householdView = await getDashboardData(ownerId, 'household');
+    expect(householdView.cardOwnerLabel).toEqual({ [partnerSharedCard]: 'partner' });
+    // The private card never entered the merge, so it can never get a label either.
+    expect(householdView.cardOwnerLabel[partnerPrivateCard]).toBeUndefined();
+    expect(householdView.cardOwnerLabel[ownerCard]).toBeUndefined();
+  });
+
   it('T9: household cash-needed merge does not perturb the #192 duplicate detector (still owner-owned-only)', async () => {
     const view = await getAccountsView(ownerId);
     const viewIds = new Set([...view.assets.accounts, ...view.liabilities.accounts].map((a) => a.id));
@@ -271,6 +292,12 @@ describe('household cash-needed (integration)', () => {
     const data = await getDashboardData(solo, 'household');
     expect(data.scope).toBe('mine');
     expect(data.household).toBeNull();
+    expect(data.cardOwnerLabel).toEqual({});
+
+    // TASKS 4.2 slice 5: getCashNeeded degenerates the same way for a solo user.
+    const cashNeeded = await getCashNeeded(solo, 'PAY_IN_FULL', 'household');
+    expect(cashNeeded.scope).toBe('mine');
+    expect(cashNeeded.household).toBeNull();
   });
 });
 

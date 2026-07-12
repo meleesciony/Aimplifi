@@ -8,6 +8,7 @@
  */
 import { Badge } from '@/components/ui/badge';
 import { formatISODate, isoDate } from '@/lib/dates';
+import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import { cents, formatCents } from '@/lib/money';
 import type { SharedTxnRow } from '@/server/household';
 
@@ -39,9 +40,8 @@ export function SharedTransactionList({
       <div>
         <h2 className="text-base font-semibold">Shared with you — {householdName}</h2>
         <p className="text-xs text-muted-foreground">
-          Read-only transactions from accounts your partner chose to share.
-          Categories and amounts are theirs; your own register above is unchanged.
-          {truncated && <> Showing the most recent {rows.length}.</>}
+          {HOUSEHOLD_COPY.sharedTxnDisclosure()}
+          {truncated && <> {HOUSEHOLD_COPY.sharedTxnTruncated(rows.length)}</>}
         </p>
       </div>
 
