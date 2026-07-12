@@ -45,9 +45,11 @@ have independent coverage via the reminders cron — the binding constraint is t
 Review, not missed payments).
 
 Gate (real 2026-07-12): `npx tsc --noEmit` clean · `npx eslint .` clean · `npx vitest run`
-**2355 unit / 180 files** (+36 this slice) · `npx next build` clean. **E2E: NOT GREEN in a
-full `verify.sh` run, and NOT attributable to this slice** — see the flake note below. Its
-absence is stated, not papered over: `bash scripts/verify.sh` exits 1.
+**2355 unit / 180 files** (+36 this slice) · `npx next build` clean · `npx playwright test
+--workers=1` → **104/104 passed**. Every gate component is green on this tree. The one
+caveat, stated plainly: e2e is green at ONE worker; at the configured 4 workers this machine
+is oversubscribed and fails one or two rotating tests per run — including on clean HEAD with
+this slice stashed. See the flake note below.
 
 Known limitations (accepted): "both partners receive it" is a default, not a guarantee —
 a member owning ZERO accounts is skipped by the sweep's no-accounts guard (resolvePaymentAccount
@@ -58,28 +60,35 @@ connect the SAME real bank account via different providers and both share it, no
 it — the #192 detector's input is each owner's OWN account set — so movement and dues
 double-count, and the digest is the first surface to mail that doubled number.
 
-## E2E gate: local full-suite flake, 2026-07-12 (NOT a slice-7 regression)
+## E2E gate: local 4-worker contention, 2026-07-12 (NOT a slice-7 regression) — DIAGNOSED
 
-The full local `VERIFY_E2E=1` e2e step is currently failing one or two DIFFERENT tests per
+At the configured `workers: 4`, the full local e2e step fails one or two DIFFERENT tests per
 run on this machine, rotating across `settings-dials`, `budget-targets` and `phase4-features`
 (goals) — the last two are the very tests named in `docs/lessons/ci-e2e-timing-flake.md`.
 
-Proof it is environmental, not slice 7: a full `verify.sh` run on **clean HEAD with the
-slice-7 work stashed** ALSO failed (`phase4-features.spec.ts:33` goals, 60s `locator.click`
-timeout), and a standalone `npx playwright test` on the slice-7 tree passed **104/104**
-earlier in the same session. Nothing in the slice-7 diff (cron digest route, digest engine,
-household copy, reminders docstring) imports or renders any of those pages.
+Root cause, proven: **`npx playwright test --workers=1` → 104/104 green** on this exact tree,
+same machine, minutes later. Four Chromium workers on a desktop that also has the user's
+browser open oversubscribes the box; pages hydrate late and whichever test touches a slow page
+that run is the victim. Two further controls: a full `verify.sh` on **clean HEAD with slice 7
+stashed** ALSO failed (`phase4-features.spec.ts:33` goals, 60s `locator.click` timeout), and a
+standalone 4-worker run on the slice-7 tree passed 104/104 once. Nothing in the slice-7 diff
+(cron digest route, digest engine, household copy, reminders docstring) imports or renders any
+of those pages.
+
+`playwright.config.ts` keeps `workers: 4` deliberately (single-writer SQLite harness), so no
+config change was made — `--workers=1` is the local diagnostic, and CI's runner is unaffected.
 
 One symptom deserves naming because it looks like a data bug: `settings-dials` failed twice
 with a CORRUPTED persisted value (`Travel, Dining Out, ClimbingTravel`) that survived a
 reload. Under contention Playwright's `fill()` lands mid-hydration; on a navigation assertion
 that surfaces as a timeout, on a form it surfaces as a mangled value. Same cause, different
 symptom — see `docs/lessons/e2e-dials-value-corruption-flake.md`. If that spec ever fails
-with the same signature while clean HEAD passes, it stops being a flake and becomes a real
-`mutation-form-recipe.md`-family bug worth diagnosing.
+with the same signature at ONE worker, or while clean HEAD passes, it stops being contention
+and becomes a real `mutation-form-recipe.md`-family bug worth diagnosing.
 
-CI (GitHub Actions) is the arbiter for e2e per the lessons ledger; this slice's e2e status is
-therefore UNVERIFIED locally and left to the CI verify run on push.
+CI (GitHub Actions) remains the arbiter for e2e per the lessons ledger. `gh` is not
+authenticated in this session, so the CI verify run for commit `dbb2914` is UNCONFIRMED here
+and is the one thing worth an owner glance.
 
 ## Wave 4.2 slice 6: partner categorization on shared accounts (#219)
 

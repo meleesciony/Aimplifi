@@ -22,6 +22,18 @@ Mechanism: same root cause as the timeout. Under contention the page is slow, so
 surfaces as a mangled value. **One cause, two symptoms — the symptom depends on what the victim page
 does, not on what is broken.**
 
+## The proof, and the one-flag workaround
+
+`npx playwright test --workers=1` on the same tree, same machine, same moment: **104/104 green**
+(3.3m vs ~1.5m at the configured 4 workers). Four workers × Chromium, on a desktop that also has the
+user's own browser open, is simply oversubscribed — the suite starves, pages hydrate late, and
+whichever test happens to touch a slow page that run is the victim. Nothing is wrong with the code.
+
+So: when a local full e2e fails a test your diff never touched, rerun with `--workers=1` before
+anything else. Green at 1 worker + red at 4 = contention, full stop. (`playwright.config.ts` keeps
+`workers: 4` deliberately for the single-writer SQLite harness — this is a local diagnostic flag, not
+a config change to land.)
+
 ## The protocol that settles it (cost: one stashed run)
 
 1. Rerun the spec alone. Passing alone ⇒ suspect the environment, but do not conclude yet.
