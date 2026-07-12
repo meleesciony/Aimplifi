@@ -42,9 +42,12 @@ export const HOUSEHOLD_COPY = {
 
   // ── src/components/finance/shared-transaction-list.tsx — /transactions ─────
   sharedTxnDisclosure: () =>
-    `Read-only transactions from accounts your partner chose to share. Categories and amounts are theirs; your own register above is unchanged.`,
+    `Transactions from accounts your partner chose to share. You can recategorize one at a time — no rule is created and it never changes how your partner's future transactions file; amounts and everything else are theirs, unchanged.`,
 
   sharedTxnTruncated: (count: number) => `Showing the most recent ${count}.`,
+
+  sharedTxnRecatHint: () =>
+    `Recategorizes it for both of you — no rule is created, and it never changes how your partner's future transactions file.`,
 
   // ── src/components/dashboard/household-scope-toggle.tsx — cash-needed scope
   //    toggle, shared across /dashboard, /cards, /calendar (TASKS 4.2 slice 5) ─

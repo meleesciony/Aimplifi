@@ -15,6 +15,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { recategorize } from '@/server/triage-actions';
+import { recategorizeSharedTransaction } from '@/server/household-actions';
 import { loadUserRules } from '@/server/rules';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 
@@ -82,5 +83,87 @@ describe('learned rules from real corrections (throwaway data — DECISIONS #161
     expect(out.categoryId).toBe('transfer');
     expect(out.source).toBe('user-rule');
     expect(out.needsReview).toBe(false);
+  });
+});
+
+describe('slice 6: a household partner\'s correction never becomes ANYONE\'s learned rule (hostile-critic finding)', () => {
+  const stamp = `${Date.now()}-${process.pid}`;
+  const OWNER = `learn-owner-${stamp}`;
+  const PARTNER = `learn-partner-${stamp}`;
+  const ids: string[] = [];
+
+  async function wipe() {
+    await prisma.household.deleteMany({ where: { name: `Learn Household ${stamp}` } });
+    await prisma.user.deleteMany({ where: { id: { in: [OWNER, PARTNER] } } });
+  }
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: OWNER, email: `${OWNER}@test.local` } });
+    await prisma.user.create({ data: { id: PARTNER, email: `${PARTNER}@test.local` } });
+    await prisma.household.create({
+      data: {
+        name: `Learn Household ${stamp}`,
+        members: {
+          create: [
+            { userId: OWNER, role: 'owner' },
+            { userId: PARTNER, role: 'partner' },
+          ],
+        },
+      },
+    });
+    const acct = await prisma.account.create({
+      data: {
+        userId: OWNER,
+        provider: 'manual',
+        name: 'Shared Checking',
+        type: 'CHECKING',
+        currentBalanceCents: 0,
+        currency: 'USD',
+        sharedToHousehold: true,
+      },
+    });
+    // Same date-fragmented descriptor twice — exactly the shape that mints a
+    // learned rule at the SECOND correction when the corrector owns the row
+    // (see the describe block above). Here the corrector is a PARTNER, not
+    // the owner.
+    for (const d of ['07/01', '08/01']) {
+      const t = await prisma.transaction.create({
+        data: {
+          accountId: acct.id,
+          date: `2026-${d.slice(0, 2)}-${d.slice(3)}`,
+          amountCents: -80000,
+          rawDescriptor: `CREDIT CARD PAID ${d}`,
+          categoryId: 'uncategorized',
+          needsReview: true,
+        },
+      });
+      ids.push(t.id);
+    }
+  });
+
+  afterAll(wipe);
+
+  it('two consistent partner corrections on the same descriptor mint NO learned rule for the partner or the owner', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: PARTNER } } as never);
+    for (const id of ids) {
+      const res = await recategorizeSharedTransaction({ transactionId: id, categoryId: 'transfer' });
+      expect(res).toEqual({ ok: true });
+    }
+    // Both corrections landed, attributed to the partner.
+    expect(
+      await prisma.correction.count({ where: { userId: PARTNER, toCategoryId: 'transfer' } }),
+    ).toBe(2);
+
+    // Neither side's loader turns them into a learned rule: the owner's
+    // loadCorrectionInputs filters `correction.userId = OWNER` (excludes these
+    // partner-attributed rows entirely), and the partner's filters
+    // `correction.userId = PARTNER` but then joins `transaction.findMany` scoped
+    // to `account: { userId: PARTNER }` — a set these owner-owned transactions
+    // are never in.
+    const ownerRules = await loadUserRules(OWNER);
+    expect(ownerRules.some((r) => r.descriptorSignature === 'CREDIT CARD PAID')).toBe(false);
+    const partnerRules = await loadUserRules(PARTNER);
+    expect(partnerRules.some((r) => r.descriptorSignature === 'CREDIT CARD PAID')).toBe(false);
   });
 });

@@ -655,6 +655,22 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageGr
   for (const id of correctionIds) {
     const correction = await prisma.correction.findFirst({ where: { id, userId } });
     if (!correction) continue;
+    // A Correction's userId is the ACTING user, which since TASKS 4.2 slice 6
+    // may be a household partner correcting a transaction on an account someone
+    // ELSE owns — this action's restore below is (and must stay) scoped by
+    // transaction OWNERSHIP (account: { userId }), the same as every other
+    // owner-scoped write in this file. Without this guard, undoing a partner's
+    // shared-account correction would still record an inverse Correction (a
+    // "reverted" audit entry) while the restore matched zero rows — the
+    // transaction's category would silently stay wherever the partner last set
+    // it, an audit-lies-about-state defect (hostile-critic finding, slice 6;
+    // unreachable via any UI today, since nothing offers undo on a shared row,
+    // but a latent trap for whatever surfaces one next).
+    const owned = await prisma.transaction.findFirst({
+      where: { id: correction.transactionId, account: { userId } },
+      select: { id: true },
+    });
+    if (!owned) continue;
     // idempotent retry: skip if this correction's inverse was already recorded
     const alreadyUndone = await prisma.correction.findFirst({
       where: {

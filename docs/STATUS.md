@@ -2,6 +2,43 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 4.2 slice 6: partner categorization on shared accounts (#219)
+
+`recategorizeSharedTransaction` (`src/server/household-actions.ts`) is the
+entire partner-write surface on shared data (HOUSEHOLD_ARCHITECTURE §6.1,
+owner decision #201): one-off only (no scope param), system categories only
+(never a custom, either side's), no "Always" rule, no batch, Correction
+attributed to the acting user, `CategoryPrediction.labeledAt` never touched
+(per-user Brier tuning #190 stays single-teacher). Authorization is re-derived
+from a live DB read inside the serializable transaction rather than trusted
+from the pre-transaction `requireViewer()` snapshot, closing a TOCTOU window
+on a concurrently-removed viewer. `SharedTransactionList` is now interactive
+(one-off recategorize picker, system categories only) instead of read-only.
+
+Fresh-context Fable hostile critic (dispatched as an independent agent): cycle
+1 FAIL — 2 P1 + 7 P2, all fixed before re-verify. P1s: (1) Plaid's
+pending→posted correction-transplant `where` clauses (4 sites) were scoped by
+the syncing owner's userId, so a partner's correction was silently stranded on
+the deleted predecessor id and reverted by the next re-sync — fixed by scoping
+the transplant to `transactionId` only; (2) the action accepted non-scalar
+input and audit-logged the raw input rather than the in-tx-resolved row — both
+now guarded. P2s: `ensureCategories()` FK-safety call; the
+`needsReview`/`confidenceBps`/`reviewPinned` write is now explicitly
+documented as intentional parity with the owner's `applyCategory`; audit meta
+carries `accountId`/`ownerUserId`; `undoCorrections` now checks transaction
+ownership before writing an inverse Correction (closes a latent "reverted"
+audit-lie for a shared-account correction — unreachable via any UI today, but
+now structurally closed); the T3 grep-lock counts `correction.createMany` too
+and the component is banned from importing `@/server/triage-actions` at all.
+
+Gate (real 2026-07-12): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY
+GREEN** — tsc/eslint clean, **2319 unit / 179 files**, build clean, **104
+e2e**. Known limitations (accepted): no two-browser partner-recategorize e2e
+(same accepted gap as slice 2/3 — a single Playwright session has no second
+signed-in identity to invite/accept within one run); behavior is proven at the
+integration level instead (`tests/unit/household-shared-txns.test.ts`,
+`tests/unit/learn-loader.test.ts`, `tests/unit/sync-preserves-corrections.test.ts`).
+
 ## Wave 4.2 slice 5: cards/calendar household scope + copy audit (#218)
 
 `/cards` and `/calendar` now accept the same `?scope=mine|household` contract

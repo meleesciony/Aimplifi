@@ -21,6 +21,7 @@ const ALL_STRINGS: { label: string; text: string }[] = [
   { label: 'shareYourAccountsDisclosure', text: HOUSEHOLD_COPY.shareYourAccountsDisclosure() },
   { label: 'sharedTxnDisclosure', text: HOUSEHOLD_COPY.sharedTxnDisclosure() },
   { label: 'sharedTxnTruncated', text: HOUSEHOLD_COPY.sharedTxnTruncated(100) },
+  { label: 'sharedTxnRecatHint', text: HOUSEHOLD_COPY.sharedTxnRecatHint() },
   { label: 'scopeAssumptions', text: HOUSEHOLD_COPY.scopeAssumptions() },
 ];
 

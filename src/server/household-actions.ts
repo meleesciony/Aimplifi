@@ -18,6 +18,9 @@ import { prisma, serializableTx } from '@/lib/db';
 import { DEMO_USER_ID } from '@/auth.config';
 import { auditLog, rateLimitDurable, requireUserId, requireViewer } from '@/server/authz';
 import { isValidEmail, normalizeEmail } from '@/lib/auth/validate';
+import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { ensureCategories } from '@/server/ensure-categories';
 import {
   INVITE_MAX_ATTEMPTS,
   INVITE_TTL_DAYS,
@@ -412,5 +415,135 @@ export async function setAccountShared(
     householdId: viewer.household?.id ?? null,
   });
   revalidatePath('/accounts');
+  return { ok: true };
+}
+
+export type RecategorizeSharedResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * One-off recategorize on a PARTNER-SHARED transaction (TASKS 4.2 slice 6 —
+ * owner decision #201, HOUSEHOLD_ARCHITECTURE.md §6.1). This is the ENTIRE
+ * partner-write surface on shared data: T3 narrows to "no mutation touches a
+ * partner's rows outside THIS path" (locked in
+ * tests/unit/household-shared-txns.test.ts) — every other write (rules,
+ * batch, ingest, prediction labeling) stays exactly where it was.
+ *
+ * Deliberately narrower than the owner's own `recategorize`/`applyCategory`
+ * (`@/server/triage-actions`):
+ *  - single transaction only — no scope param, no "Always" rule, no batch
+ *    apply-to-all-similar. Ingest-time rule application stays owner-only (a
+ *    partner-owned rule would never fire in the owner's own ingest pipeline —
+ *    offering the consent prompt would be a lie).
+ *  - SYSTEM categories only (`CATEGORY_BY_ID`, excluding the internal
+ *    `uncategorized` placeholder — same "not a decision" exclusion
+ *    `ASSIGNABLE_CATEGORIES` applies on the owner's own picker) — never a
+ *    custom id, whether the acting user's own or the transaction owner's. A
+ *    custom id here would attribute a Category row one user owns to the OTHER
+ *    user's transaction — exactly the vocabulary-widening §4.5 forbids (never
+ *    via `getCategoryMeta`, never via a write either).
+ *  - the Correction is attributed to the ACTING user (`viewer.userId`), never
+ *    the transaction's owner — the audit trail records who actually decided.
+ *    `categoryId` is shared objective state on the transaction; last write
+ *    wins between partners, the same as any other shared document.
+ *  - deliberately NEVER touches `CategoryPrediction.labeledAt` — per-user
+ *    Brier tuning (DECISIONS #190) stays single-teacher by construction. A
+ *    partner's correction contributes nothing to the owner's accuracy panel.
+ *  - mirrors `applyCategory`'s own write shape on the transaction itself
+ *    (`needsReview`/`confidenceBps`/`reviewPinned` all clear the same way): an
+ *    explicit human categorization — owner or, since this slice, a partner's
+ *    one-off — is treated as the same kind of decision either way, including
+ *    releasing a dissolve-forced review pin (DECISIONS #148). Called out
+ *    explicitly here because this write lands on the OWNER's own triage state,
+ *    not just the shared `categoryId` (hostile-critic finding, slice 6).
+ */
+export async function recategorizeSharedTransaction(input: {
+  transactionId: string;
+  categoryId: string;
+}): Promise<RecategorizeSharedResult> {
+  const viewer = await requireViewer();
+  if (!viewer.household) return { ok: false, error: 'Transaction not found' };
+  // 'use server' endpoints take attacker-shaped input (the setAccountShared
+  // idiom, above): refuse non-scalar args before they reach a Prisma `where`,
+  // where an object would otherwise be trusted in as a filter operator.
+  if (typeof input.transactionId !== 'string' || typeof input.categoryId !== 'string') {
+    return { ok: false, error: 'Transaction not found' };
+  }
+  // System categories only, never the internal placeholder — see doc comment.
+  if (input.categoryId === 'uncategorized' || !CATEGORY_BY_ID.has(input.categoryId)) {
+    return { ok: false, error: 'Choose a valid category' };
+  }
+  await ensureCategories(); // new subcategory ids need a Category row (FK) (#65)
+
+  // Serializable + a FRESH in-tx read of BOTH the viewer's live membership and
+  // the target's visibility (the applyCategory idiom, DECISIONS #146):
+  // partnerIds is re-derived from the DATABASE inside the transaction rather
+  // than trusted from the `requireViewer()` snapshot taken before it opened —
+  // closing a TOCTOU window where a concurrent `removeMember`/`leaveHousehold`
+  // on the VIEWER (not the partner — the partner's own departure already
+  // self-guards via the live `sharedToHousehold` read below) could otherwise
+  // let a just-removed member's in-flight request still land (hostile-critic
+  // finding, slice 6).
+  const result = await serializableTx(async (tx) => {
+    const membership = await tx.householdMember.findUnique({
+      where: { userId: viewer.userId },
+      select: { householdId: true },
+    });
+    if (!membership) return null;
+    const partners = await tx.householdMember.findMany({
+      where: { householdId: membership.householdId, userId: { not: viewer.userId } },
+      select: { userId: true },
+    });
+    if (partners.length === 0) return null;
+    const partnerIds = partners.map((p) => p.userId);
+
+    // Same visibility guard as getSharedTransactionsView (§4.5 / #62/#135): a
+    // member may act only on a row they can actually see in the shared section.
+    const fresh = await tx.transaction.findFirst({
+      where: {
+        id: input.transactionId,
+        isSplitParent: false,
+        account: {
+          AND: [
+            { sharedToHousehold: true, userId: { in: partnerIds } },
+            { type: { in: [...SPENDING_ACCOUNT_TYPES] } },
+            { OR: [{ currency: null }, { currency: 'USD' }] },
+          ],
+        },
+      },
+      select: { id: true, categoryId: true, accountId: true, account: { select: { userId: true } } },
+    });
+    if (!fresh) return null;
+    const correction = await tx.correction.create({
+      data: {
+        userId: viewer.userId,
+        transactionId: fresh.id,
+        fromCategoryId: fresh.categoryId,
+        toCategoryId: input.categoryId,
+      },
+    });
+    await tx.transaction.update({
+      where: { id: fresh.id },
+      data: {
+        categoryId: input.categoryId,
+        needsReview: false,
+        confidenceBps: 9900,
+        reviewPinned: false,
+      },
+    });
+    return { correction, accountId: fresh.accountId, ownerUserId: fresh.account.userId };
+  });
+  if (!result) return { ok: false, error: 'Transaction not found' };
+
+  // Meta identifies the IN-TX-RESOLVED row, never the raw input (an actor must
+  // never control what the audit trail says was affected — hostile-critic
+  // finding, slice 6).
+  await auditLog(viewer.userId, 'household.transaction.recategorize', {
+    transactionId: result.correction.transactionId,
+    accountId: result.accountId,
+    ownerUserId: result.ownerUserId,
+    categoryId: input.categoryId,
+    householdId: viewer.household.id,
+  });
+  revalidatePath('/transactions');
   return { ok: true };
 }

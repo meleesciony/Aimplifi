@@ -31,6 +31,7 @@ import { connectSimplefin } from '@/server/simplefin-actions';
 import { syncFromSimplefin } from '@/lib/providers/simplefin';
 import { PlaidProvider } from '@/lib/providers/plaid';
 import { applyCategory } from '@/server/triage-actions';
+import { recategorizeSharedTransaction } from '@/server/household-actions';
 import { runBackfillForUser } from '@/server/backfill';
 import { encryptToken } from '@/lib/crypto';
 import { isoDate } from '@/lib/dates';
@@ -570,6 +571,65 @@ describe('Plaid resync preserves user corrections (real provider, mocked server)
     const corrections = await prisma.correction.findMany({ where: { userId: USER } });
     expect(corrections.length).toBeGreaterThan(0);
     for (const c of corrections) expect(c.transactionId).toBe(rows[0].id);
+  });
+
+  it('slice 6 regression (hostile-critic finding): a PARTNER-attributed correction survives pending→posted id churn instead of stranding on the deleted id', async () => {
+    const PARTNER = `pl-partner-${Date.now()}-${process.pid}`;
+    const HOUSEHOLD_NAME = `Churn Household ${process.pid}`;
+    await prisma.user.create({ data: { id: PARTNER, email: `${PARTNER}@test.local` } });
+    await prisma.household.create({
+      data: {
+        name: HOUSEHOLD_NAME,
+        members: {
+          create: [
+            { userId: USER, role: 'owner' },
+            { userId: PARTNER, role: 'partner' },
+          ],
+        },
+      },
+    });
+    try {
+      // Sync 1: pending txn arrives on the OWNER's account.
+      syncPages = [{ accounts: [acct], added: [plaidTxn()], modified: [], removed: [], next_cursor: 'cur-1', has_more: false }];
+      await new PlaidProvider().syncTransactions(USER);
+      const before = await row();
+
+      // Owner shares the account; the PARTNER (not the owner) one-off
+      // recategorizes it — the correction is attributed to PARTNER, not USER.
+      await prisma.account.update({ where: { id: before.accountId }, data: { sharedToHousehold: true } });
+      vi.mocked(auth).mockResolvedValueOnce({ user: { id: PARTNER } } as never);
+      const res = await recategorizeSharedTransaction({ transactionId: before.id, categoryId: 'coffee' });
+      expect(res).toEqual({ ok: true });
+      vi.mocked(auth).mockResolvedValue({ user: { id: USER } } as never); // restore for the sync below
+
+      // Sync 2: Plaid retires ptx-1 and posts the SAME charge as ptx-2, linked
+      // via pending_transaction_id — the exact churn this finding was about.
+      syncPages = [{
+        accounts: [acct],
+        added: [plaidTxn({ transaction_id: 'ptx-2', pending: false, pending_transaction_id: 'ptx-1' })],
+        modified: [],
+        removed: [{ transaction_id: 'ptx-1' }],
+        next_cursor: 'cur-2',
+        has_more: false,
+      }];
+      await new PlaidProvider().syncTransactions(USER);
+
+      const rows = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+      expect(rows).toHaveLength(1);
+      expect(rows[0].providerRef).toBe('ptx-2');
+      // The partner's decision survived the id churn (pre-fix: the transplant's
+      // `where: { transactionId, userId }` used the SYNCING OWNER's id, so a
+      // partner-attributed correction never matched and was orphaned on the
+      // deleted predecessor — the fresh pipeline verdict silently landed instead).
+      expect(rows[0].categoryId).toBe('coffee');
+      expect(rows[0].needsReview).toBe(false);
+      const corrections = await prisma.correction.findMany({ where: { userId: PARTNER } });
+      expect(corrections.length).toBeGreaterThan(0);
+      for (const c of corrections) expect(c.transactionId).toBe(rows[0].id); // no dangling audit
+    } finally {
+      await prisma.household.deleteMany({ where: { name: HOUSEHOLD_NAME } });
+      await prisma.user.deleteMany({ where: { id: PARTNER } });
+    }
   });
 
   it('a corrected txn re-sent in `modified` keeps its category (and still posts)', async () => {

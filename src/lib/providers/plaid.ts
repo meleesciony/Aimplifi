@@ -505,8 +505,14 @@ export class PlaidProvider implements DataProvider {
                           where: { splitParentId: predecessor.id },
                           data: { splitParentId: container.id, status: row.status },
                         });
+                        // Scoped by transactionId ONLY (not userId): since TASKS 4.2
+                        // slice 6, a Correction's userId may be a household partner who
+                        // one-off recategorized this row, not the syncing owner — every
+                        // correction on this specific (already ownership-resolved via
+                        // `predecessor`) transaction id legitimately transplants with it,
+                        // regardless of who authored it (critic finding, slice 6).
                         await tx.correction.updateMany({
-                          where: { transactionId: predecessor.id, userId },
+                          where: { transactionId: predecessor.id },
                           data: { transactionId: container.id },
                         });
                         // The prediction log follows the charge across id churn too
@@ -538,8 +544,10 @@ export class PlaidProvider implements DataProvider {
                           reviewPinned: true,
                         },
                       });
+                      // Scoped by transactionId only — see the container-path comment
+                      // above (slice 6: a partner's correction transplants too).
                       await tx.correction.updateMany({
-                        where: { transactionId: predecessor.id, userId },
+                        where: { transactionId: predecessor.id },
                         data: { transactionId: replacement.id },
                       });
                       await tx.categoryPrediction.updateMany({
@@ -563,8 +571,10 @@ export class PlaidProvider implements DataProvider {
                           reviewPinned: true,
                         },
                       });
+                      // Scoped by transactionId only — see the container-path comment
+                      // above (slice 6: a partner's correction transplants too).
                       await tx.correction.updateMany({
-                        where: { transactionId: predecessor.id, userId },
+                        where: { transactionId: predecessor.id },
                         data: { transactionId: pinned.id },
                       });
                       await tx.categoryPrediction.updateMany({
@@ -588,9 +598,14 @@ export class PlaidProvider implements DataProvider {
                         isTransfer: settled ? predecessor.isTransfer : row.isTransfer,
                       },
                     });
-                    // Corrections follow the transaction across the id churn (audit = state).
+                    // Corrections follow the transaction across the id churn (audit =
+                    // state). Scoped by transactionId only — not userId — since a
+                    // Correction's userId may be a household partner who one-off
+                    // recategorized this row (TASKS 4.2 slice 6); every correction on
+                    // this (already ownership-resolved) transaction id transplants
+                    // regardless of who authored it.
                     await tx.correction.updateMany({
-                      where: { transactionId: predecessor.id, userId },
+                      where: { transactionId: predecessor.id },
                       data: { transactionId: created.id },
                     });
                     await tx.categoryPrediction.updateMany({
