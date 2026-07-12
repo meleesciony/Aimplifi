@@ -3741,3 +3741,31 @@ fire on this push — confirm green in the Actions UI next session (gh here is u
 Owner guidance recorded: engine-first always before UI; if the engine is complete per plan, carry
 on without pausing. Next: TASKS 1.7 (Opus), then Household MVP slice 1 (engine/state-machine first,
 per HOUSEHOLD_ARCHITECTURE.md §5 slice plan; Fable critic on the membership state machine).
+
+## 2026-07-12 — #225/#226 Learned vocabulary (TASKS 2.3) — DONE
+
+Gate (real 2026-07-12, post-critic): `bash scripts/verify.sh` → **✅ VERIFY GREEN** — tsc/eslint
+clean, **2503 unit / 184 files**, build clean. `npx playwright test tests/e2e/ask.spec.ts` → **11/11**,
+including a new flow that signs up a REAL account, drives the actual miner (3 independent rescues →
+shadow; 2 held-out → flagged), answers an unroutable phrasing with the learned rule, and forgets it.
+Committed at 2f9a94e.
+
+**What shipped:** additive `VocabEntry` (per-user, `@@unique([userId,phrase])`, cascade) + pure
+`engine/vocab/vocab.ts` (`normalizePhrase` / `matchVocab` / `mineVocab`) + Prisma-only `server/vocab.ts`
++ `server/vocab-actions.ts` (undo) + weekly `/api/cron/vocab` (Mon 16:00) + the learned disclosure and
+"Not what I meant" on the Ask answer + the "Phrasings Aimplifi learned from you" list on Settings → AI
+trust. Routing order parser → frame → **vocab** → LLM, on a parser-`unknown` only. **An entry supplies an
+intent KIND and nothing else** — every parameter is re-derived from the asker's own words via
+`intentFromKind` + `validateIntent`, the same contract the LLM classifier has had since #75.
+
+**Critic cycle 1 (3 fresh-context Fable critics in parallel — routing/money · the loop · authz+privacy):
+0 P0, 5 P1, 11 P2 — all P1s + actionable P2s fixed in-cycle, 7 REGRESSION_LEDGER entries.** The routing
+critic confirmed the kind-only claim held; the other two found the real leaks, all in the loop's BACK
+half: the shared demo account learned (a visitor's typed words would render in the next visitor's
+settings); a "Forget this" landing mid-mining-run was silently reverted; a served entry was
+unmonitorable and self-promoted; `VocabEntry` was undisclosed in PRIVACY; plus a PRE-EXISTING
+cardinal-sin parser bug ("spend at 星巴克" → the ALL-spending total, unhedged).
+
+Ledgers: DECISIONS #225 (+#226 critic), STATUS §Wave 2.3, TASKS 2.3 → [x], PRIVACY (store + deletion
+cascade), REGRESSION_LEDGER ×7, two new lessons (`shared-demo-account-must-not-learn.md`,
+`self-improving-loops-leak-in-the-back-half.md`) + INDEX.
