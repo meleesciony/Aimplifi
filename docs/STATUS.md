@@ -2,6 +2,25 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave S: S.3 docs-lint script (#217)
+
+`scripts/docs-lint.ts` — zero-model-call check over every tracked `*.md` file for
+unallowlisted "Pulse" mentions, hardcoded test-count claims outside docs/STATUS.md,
+missing `> HISTORICAL` archive banners, and stale verify-command phrasing. Ledgers
+(DECISIONS/DECISIONS_INDEX/STATUS/PROGRESS/REGRESSION_LEDGER/TASKS) and anything
+already bannered HISTORICAL are exempt (frozen records). `npm run docs:lint`; a
+non-gating `continue-on-error: true` step runs it in CI alongside (not inside) the
+required verify job.
+
+Gate (real 2026-07-11): `bash scripts/verify.sh` → **VERIFY GREEN** —
+tsc/eslint clean, **2285 unit / 178 files**, build clean. `docs:lint` itself: 0
+findings across 49 markdown files (confirms S.2 D1–D8 holds). Known limitations
+(accepted): warning-only by design (see DECISIONS #217 rationale); allowlists are
+named per-file/per-string rather than a general heuristic, so a genuinely new
+leak in an unlisted file would still be caught, but a new *legitimate* historical
+reference in a not-yet-exempted doc will false-positive once and need a one-line
+allowlist addition.
+
 ## Wave 4.2 slice 3: Shared transactions in the register (#213)
 
 `getSharedTransactionsView()` SEPARATE from `getTransactions` (§4.5); scoped

@@ -22,6 +22,7 @@
     "verify:e2e": "VERIFY_E2E=1 bash scripts/verify.sh",
     "verify:fast": "npm run typecheck && npm run lint && npm run test",
     "ledger": "tsx scripts/ledger.ts",
+    "docs:lint": "tsx scripts/docs-lint.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

@@ -1,5 +1,9 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-11 — S.3: scripts/docs-lint.ts
+
+Built and verified scripts/docs-lint.ts (Pulse-leak / hardcoded-count / archive-banner / verify-phrasing checks). Added
+
 ## 2026-07-11 — #216 Docs de-dup pass (TASKS S.1 + S.2)
 
 **S.1 re-confirmed done** (was already DONE from a prior session, DECISIONS #214): `scripts/ledger.ts` + package.json aliases exist and work (used by this very entry).

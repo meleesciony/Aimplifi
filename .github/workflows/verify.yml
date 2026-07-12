@@ -66,6 +66,12 @@ jobs:
       - name: Verify (typecheck + lint + unit + build + e2e)
         run: VERIFY_E2E=1 bash scripts/verify.sh
 
+      # Docs drift (SKILLS_PLAN.md S3): Pulse-leak/hardcoded-count/archive-banner/
+      # verify-phrasing checks. Warning only — does not gate the required `verify` job.
+      - name: Docs lint (warning only)
+        run: npm run docs:lint
+        continue-on-error: true
+
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
