@@ -43,6 +43,21 @@ shared accounts of **every type**, not just the spending types — a shared LOAN
    string whose meaning was pinned by a single-actor assumption, widened without re-auditing the
    consumers that quietly relied on it.
 
+## Extension (#221, slice 8): fixing ONE surface is not fixing the bug
+
+Slice 7 fixed this disease in the digest **email only**. The slice-8 full-surface critic found the
+IDENTICAL false claims still live on every in-app surface rendering the same merged data: the
+dashboard reminders card ("you pay $200" on a partner's card), /cards ("You must pay", "Do this
+first: pay …", "just keep the cash in place", plus the engine's second-person notes flowing verbatim
+into partner card tiles), and the household headline ("Needs $600 in Owner Checking" counting a
+partner's autopay draft that can only come from the partner's account). The rule that follows: **when
+a copy-subject bug is found on one surface, immediately grep every OTHER surface fed by the same
+widened data for the same pronoun class — the fix isn't done until the data class is covered, not the
+surface.** Slice 8's mechanical answer: all partner-facing strings live in `HOUSEHOLD_COPY` (the
+exhaustive key scan means none can ship unscanned), the partner-due ban now applies to every in-app
+partner string, and the owner-label map (`accountOwnerLabel`) covers ALL account types on ALL scoped
+surfaces.
+
 ## Why the fresh-context critic caught it and the implementer did not
 
 The implementer had just built the merge and knew the numbers were right, so the dues section read as
