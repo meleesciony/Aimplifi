@@ -18,6 +18,18 @@ fictional dataset; everything below applies fully once Plaid is connected.
   deterministic parser could not route (including ones the optional LLM later
   rescued) — emails/amounts/digits stripped before write. Feeds future vocabulary
   mining only; never used to answer or to compute money.
+- Learned phrasings (`VocabEntry`, #225): when you ask the SAME unrecognized question
+  several times and it routes the same way each time, Aimplifi keeps that phrasing — the
+  PII-scrubbed, normalized text of your own question — so it can answer it directly next
+  time instead of guessing. An entry stores which of Aimplifi's existing answers to show
+  and nothing else: it can never supply a figure, a date range, or a category, all of
+  which are re-derived from the words you actually type. Yours alone: a phrasing learned
+  from your questions is never pooled, shared, or shown to another person, and the shared
+  demo account never learns at all. Every learned phrasing is listed on Settings → AI
+  trust with a one-click "Forget this", which is permanent — a forgotten phrasing is never
+  re-learned. Once a week, the scrubbed phrase (never your account data) may be sent to
+  the same optional AI routing model described below, to re-check that it still means what
+  we think it means; if it disagrees, the phrasing is dropped. Cascades on deletion.
 - Engagement events (`EngagementEvent`, #209): first-party records of which
   dashboard cards you view, dismiss, expand, or act on (closed-set card ids only —
   no free text, no amounts, no third-party analytics). Stored so future adaptive
@@ -98,7 +110,8 @@ Settings → Export: transactions (CSV), net worth (CSV/PDF) via
    to accounts, transactions, statements, payments, scheduled transactions,
    balance snapshots, rules, corrections, recurring series, goals, budgets,
    Plaid items, category predictions, push subscriptions, notification dedup keys,
-   value receipts, **and audit log rows**: deletion removes everything personal, audit
+   value receipts, unknown questions, learned phrasings (`VocabEntry`), engagement
+   events, self-audit snapshots, **and audit log rows**: deletion removes everything personal, audit
    trail included (nothing recoverable about the user is retained — only the hashed
    deletion record above survives). The action is idempotent — if the row is already
    gone it simply signs out (no error).

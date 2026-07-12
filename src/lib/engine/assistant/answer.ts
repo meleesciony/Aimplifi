@@ -59,8 +59,14 @@ export interface AssistantAnswer {
    *  capabilities list from answerUnknown(). */
   suggestions?: string[];
   /** True when the routing came from the LLM classifier (an inference, not an
-   *  exact phrase match) — surfaced in the UI so the guess is never silent. */
+   *  exact phrase match) — surfaced in the UI so the guess is never silent. Also set
+   *  for a `flagged` learned phrase, which is an inference on trial. */
   interpreted?: boolean;
+  /** Set when this user's LEARNED vocabulary routed the question (TASKS 2.3). The
+   *  entry supplied only the intent KIND; every figure below still comes from the
+   *  same engines. Surfaced so the adaptation is visible, with `entryId` carrying
+   *  the one-click undo (the server re-scopes it to the caller). */
+  learned?: { entryId: string; phrase: string; status: 'flagged' | 'active' };
   /** An optional confirm-before-create action the UI may surface (e.g. save a goal). */
   action?: AssistantGoalAction;
   /** The resolved intent, echoed so the next turn can resolve an ellipsis against

@@ -35,6 +35,8 @@ import { followUpQuestions } from '@/lib/engine/assistant/follow-ups';
 import { intentFromKind } from '@/lib/engine/assistant/llm';
 import { classifyIntentViaLLM } from '@/server/assistant-llm';
 import { recordUnknownQuestion } from '@/server/unknown-questions';
+import { lookupVocab } from '@/server/vocab';
+import type { VocabMatch } from '@/lib/engine/vocab/vocab';
 import {
   answerAccountBalance,
   answerCashNeeded,
@@ -77,21 +79,35 @@ type ResolveResult = {
    *  month?") — deterministic, so it is NOT an LLM interpretation and NOT a
    *  vocabulary gap. */
   viaFrame: boolean;
+  /** The learned phrase that routed this question, if any (TASKS 2.3). */
+  vocab: VocabMatch | null;
   /** True when the deterministic parser returned `unknown` (ledger write gate). */
   parserUnknown: boolean;
   /** Raw LLM kind before validation; null if the classifier was not called. */
   llmGuessKind: string | null;
 };
 
+const NO_ROUTE = { viaLlm: false, viaFrame: false, vocab: null, parserUnknown: true } as const;
+
 /**
  * Resolve the typed intent. Order is deterministic-first, by design:
  *   1. the parser (self-sufficient questions — never re-interpreted),
  *   2. the conversation frame (an ellipsis against the previous turn, TASKS 2.1),
- *   3. the LLM classifier — only when a provider key is present AND the per-user
- *      LLM budget allows, re-deriving every parameter deterministically and
- *      re-validating the model's choice before any data is touched.
- * Reports how it routed so the answer can disclose an LLM interpretation, and so
- * the UnknownQuestion ledger (TASKS 2.2) records only genuine vocabulary gaps.
+ *   3. this user's LEARNED vocabulary (TASKS 2.3) — a phrasing they have asked
+ *      repeatedly, which an independent resolver agreed on, promoted by the weekly
+ *      miner. Deterministic and free, so it precedes the model call (and keeps
+ *      working when no provider key is configured at all),
+ *   4. the LLM classifier — only when a provider key is present AND the per-user
+ *      LLM budget allows.
+ *
+ * Steps 3 and 4 are the SAME contract: they supply a KIND and nothing else. Every
+ * parameter is re-derived from the user's own words by `intentFromKind` and
+ * re-validated by `validateIntent` before any data is touched — so neither a model
+ * nor a learned rule can inject a figure, a window, or a category. A learned kind
+ * that cannot be re-derived falls through to the LLM rather than guessing.
+ *
+ * Reports how it routed so the answer can disclose the interpretation, and so the
+ * UnknownQuestion ledger records what resolved each ask (TASKS 2.2).
  */
 async function resolveIntent(
   question: string,
@@ -102,7 +118,7 @@ async function resolveIntent(
 ): Promise<ResolveResult> {
   const parsed = parseAssistantQuery(question, today as Parameters<typeof parseAssistantQuery>[1], custom);
   if (parsed.kind !== 'unknown') {
-    return { intent: parsed, viaLlm: false, viaFrame: false, parserUnknown: false, llmGuessKind: null };
+    return { intent: parsed, viaLlm: false, viaFrame: false, vocab: null, parserUnknown: false, llmGuessKind: null };
   }
   const framed = resolveEllipsis(
     question,
@@ -111,21 +127,42 @@ async function resolveIntent(
     custom,
   );
   if (framed) {
-    return { intent: framed, viaLlm: false, viaFrame: true, parserUnknown: true, llmGuessKind: null };
+    return { intent: framed, viaLlm: false, viaFrame: true, vocab: null, parserUnknown: true, llmGuessKind: null };
   }
+
+  const learned = await lookupVocab(userId, question);
+  if (learned) {
+    const proposed = intentFromKind(learned.kind, question, today as Parameters<typeof intentFromKind>[2]);
+    const valid = proposed ? validateIntent(proposed, custom) : null;
+    // The learned kind must ROUND-TRIP. The phrase key masks digits, so one key spans
+    // "can I pay off my car by 2027" (a date) and "…by 65" (an age); `intentFromKind`
+    // answers the second with a DIFFERENT kind — it silently degrades
+    // debt_free_by_date to debt_payoff when no date parses (llm.ts). Down the LLM path
+    // that is fine: the model read the actual question. Down this path nothing did —
+    // the rule was learned from the OTHER form — so a kind swap means the words in
+    // front of us are not the question this rule was mined from. Abstain: the LLM (or
+    // the honest `unknown`) still gets its turn (#226 P2).
+    //
+    // A null re-derivation abstains for the same reason: a kind we cannot ground in
+    // the user's own words is not an answer, it's a guess.
+    if (valid && valid.kind === learned.kind) {
+      return { intent: valid, viaLlm: false, viaFrame: false, vocab: learned, parserUnknown: true, llmGuessKind: null };
+    }
+  }
+
   if (!process.env.XAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
-    return { intent: parsed, viaLlm: false, viaFrame: false, parserUnknown: true, llmGuessKind: null };
+    return { intent: parsed, ...NO_ROUTE, llmGuessKind: null };
   }
   if (!(await rateLimitDurable(`assistant-llm:${userId}`, LLM_RATE_LIMIT, LLM_RATE_WINDOW_MS))) {
-    return { intent: parsed, viaLlm: false, viaFrame: false, parserUnknown: true, llmGuessKind: null };
+    return { intent: parsed, ...NO_ROUTE, llmGuessKind: null };
   }
 
   const kind = await classifyIntentViaLLM(question);
   const proposed = intentFromKind(kind, question, today as Parameters<typeof intentFromKind>[2]);
   const valid = proposed ? validateIntent(proposed, custom) : null;
   return valid
-    ? { intent: valid, viaLlm: true, viaFrame: false, parserUnknown: true, llmGuessKind: kind }
-    : { intent: parsed, viaLlm: false, viaFrame: false, parserUnknown: true, llmGuessKind: kind };
+    ? { intent: valid, viaLlm: true, viaFrame: false, vocab: null, parserUnknown: true, llmGuessKind: kind }
+    : { intent: parsed, ...NO_ROUTE, llmGuessKind: kind };
 }
 
 /**
@@ -151,7 +188,7 @@ export async function askAssistant(
   const meta = mergeCategoryMeta(custom);
   const validPrior = priorIntent == null ? null : validateIntent(priorIntent, custom);
   const frame = validPrior ? frameFromIntent(validPrior) : null;
-  const { intent, viaLlm, viaFrame, parserUnknown, llmGuessKind } = await resolveIntent(
+  const { intent, viaLlm, viaFrame, vocab, parserUnknown, llmGuessKind } = await resolveIntent(
     question,
     today,
     userId,
@@ -169,13 +206,14 @@ export async function askAssistant(
   // rule — while the row itself still keeps a mis-resolution visible instead of
   // silently swallowing it. `resolvedIntent === 'unknown'` (the self-audit's
   // unknown-rate, TASKS 3.2) is unaffected either way.
+  //
+  // A row the LEARNED VOCABULARY resolved is tagged `vocab:<kind>` for the same
+  // reason, inverted: the miner must never count its own answers as evidence FOR
+  // itself (a flagged entry would then confirm itself forever). It counts them only
+  // as `served`, and a bare kind therefore always means an INDEPENDENT resolution.
   if (parserUnknown) {
-    await recordUnknownQuestion({
-      userId,
-      rawQuestion: question,
-      llmGuessKind,
-      resolvedIntent: viaFrame ? `frame:${intent.kind}` : intent.kind,
-    });
+    const tag = viaFrame ? `frame:${intent.kind}` : vocab ? `vocab:${intent.kind}` : intent.kind;
+    await recordUnknownQuestion({ userId, rawQuestion: question, llmGuessKind, resolvedIntent: tag });
   }
 
   // One snapshot read serves every "direct" intent; composed answers reuse the
@@ -192,7 +230,20 @@ export async function askAssistant(
   // `unknown` carries nothing — there is no frame to follow up on.
   const withFrame: AssistantAnswer =
     intent.kind === 'unknown' ? withChips : { ...withChips, intent };
-  return viaLlm ? { ...withFrame, interpreted: true } : withFrame;
+  if (viaLlm) return { ...withFrame, interpreted: true };
+  // A learned phrasing is never served silently (audit §4 constitution: every
+  // adaptation is visible and undoable). At the `flagged` band it carries the SAME
+  // "I interpreted your question" hedge an LLM answer does, because that is exactly
+  // what it is — a provisional route, on trial. At `active` it is disclosed as
+  // learned, with the same one-click undo.
+  if (vocab) {
+    return {
+      ...withFrame,
+      learned: { entryId: vocab.entryId, phrase: vocab.phrase, status: vocab.status },
+      ...(vocab.status === 'flagged' ? { interpreted: true } : {}),
+    };
+  }
+  return withFrame;
 }
 
 type FinanceSnapshot = Awaited<ReturnType<ReturnType<typeof getProvider>['getFinanceSnapshot']>>;

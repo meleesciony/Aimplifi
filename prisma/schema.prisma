@@ -65,6 +65,7 @@ model User {
   notificationsSent   NotificationSent[]
   valueReceipts       ValueReceipt[]
   unknownQuestions    UnknownQuestion[]
+  vocabEntries        VocabEntry[]
   engagementEvents    EngagementEvent[]
   selfAuditSnapshots  SelfAuditSnapshot[]
   householdMembership HouseholdMember? // v1: at most one household per user (HOUSEHOLD_ARCHITECTURE §4.1)
@@ -562,6 +563,55 @@ model UnknownQuestion {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+// Learned vocabulary (TASKS 2.3, DECISIONS #225): a phrasing this ONE user asks
+// repeatedly, which the deterministic parser cannot route, mined from that user's
+// own UnknownQuestion rows by the weekly cron. PER-USER by construction — a phrase
+// is user-authored text (scrubbed, not anonymized), so it never becomes another
+// user's routing rule.
+//
+// An entry carries an intent KIND and nothing else. Every parameter (timeframe,
+// category, merchant, amount, age) is re-derived from the asker's own words at
+// answer time via intentFromKind + validateIntent — the same gate the LLM
+// classifier's proposals pass. So a wrong entry can only route to a wrong KIND;
+// it can never inject a figure, a window, or a category.
+//
+// status ladder (audit §4.2 loop 2): shadow (minted, NOT served — accruing
+// held-out evidence) → flagged (served, with an "interpreted" disclosure the user
+// can reject) → active (served, disclosed as learned, still undoable). `retired`
+// is TERMINAL: a user rejection, or a single held-out disagreement, tombstones the
+// phrase so the miner can never resurrect it on the same evidence.
+model VocabEntry {
+  id     String @id @default(cuid())
+  userId String
+  // Normalized, PII-scrubbed question key (scrub → lowercase → depunctuate). Digits
+  // and amounts are already masked by the scrub, so one phrase spans "retire at 60"
+  // and "retire at 67" — exactly the parameters intentFromKind re-derives.
+  phrase String
+  // One of LLM_ROUTABLE_KINDS. Never a parameter — see above.
+  kind   String
+  // 'shadow' | 'flagged' | 'active' | 'retired'
+  status String @default("shadow")
+  // Evidence, RECOMPUTED from the ledger on every mining run (never incremented —
+  // the no-ratchet rule). Display + gate inputs only.
+  supportCount  Int @default(0)
+  heldOutHits   Int @default(0)
+  heldOutMisses Int @default(0)
+  servedCount   Int @default(0)
+  // The newest ledger row that SUPPORTED the mint. Held-out evidence is everything
+  // strictly newer. Drawn from the data, not from the miner's clock: a wall-clock
+  // boundary lets a row stamped by a fast-clocked instance be recounted as held-out
+  // evidence for a rule it helped create, defeating the only gate that validates a
+  // promotion (#226).
+  evidenceThrough DateTime?
+  createdAt  DateTime  @default(now())
+  promotedAt DateTime?
+  retiredAt  DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // The unique's left prefix already covers a userId-only lookup.
+  @@unique([userId, phrase])
 }
 
 // EngagementEvent ledger (TASKS 3.1, DECISIONS #209): first-party card

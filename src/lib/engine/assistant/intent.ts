@@ -808,6 +808,17 @@ export function parseAssistantQuery(
     const timeframe = parseTimeframe(q, today);
     if (wantsRanking && !target) return { kind: 'top_categories', timeframe, limit: DEFAULT_TOP_LIMIT };
     if (target) return { kind: 'spend_by_category', timeframe, target };
+    // #226 (critic, pre-existing): the spend-object tokenizers are ASCII-only —
+    // `extractMerchantPhrase` strips every non-[a-z0-9'&.-] character and the `on`
+    // guard below matches `[a-z0-9]+`. So a store or category named in another script
+    // either vanished ("at 星巴克" → no merchant → the ALL-spending TOTAL, a true figure
+    // under a false question, with no hedge) or was silently mangled ("with Zürich Café"
+    // → merchant "zrich"). The user named an object; if we cannot read the object, we do
+    // not answer a different question. Abstain BEFORE the tokenizer sees it, and let the
+    // LLM route — which reads the raw words — have its turn.
+    if (/\b(?:spend|spent|spending)\b[^.?!]*?\b(?:at|with|on)\s+\S*[^\x00-\x7F]/.test(q)) {
+      return { kind: 'unknown', question };
+    }
     // #168: "how much did I spend AT COSTCO" — an at/with object is a MERCHANT,
     // not a category (resolveSpendTarget ran first and returned null). Route it to
     // the per-merchant total, which matches the term against the transactions'

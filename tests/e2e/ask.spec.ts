@@ -5,8 +5,10 @@
  * seed values (net worth $144,804.74; biggest June purchase Costco $158.44) and
  * runs a WCAG-AA axe scan on the answered page.
  */
+import { execSync } from 'node:child_process';
 import AxeBuilder from '@axe-core/playwright';
 import { type Page, expect, test } from '@playwright/test';
+import { E2E_DB_URL } from '../setup/test-db';
 
 async function signIn(page: Page) {
   await page.goto('/sign-in');
@@ -193,4 +195,62 @@ test('the answered Ask page passes WCAG 2.1 AA (axe)', async ({ page }) => {
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
+});
+
+/**
+ * Learned vocabulary (TASKS 2.3 / DECISIONS #225). The demo dataset learns nothing on
+ * its own, so the fixture plants the EVIDENCE a repeat-asker would generate and runs
+ * the real miner over it (3 independent rescues → shadow; 2 held-out → flagged).
+ *
+ * Then the whole user-facing contract, in one flow: a phrasing the parser cannot route
+ * is answered anyway, the answer says so, and one click ends it permanently.
+ */
+test('a learned phrasing answers, discloses itself, and can be forgotten', async ({ page }) => {
+  // A REAL account, not the one-click demo: the shared demo login deliberately never
+  // learns (one visitor's typed words must not reach the next), so the loop can only
+  // be driven end-to-end as a signed-up user.
+  const email = `vocab-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+
+  execSync('npx tsx scripts/e2e-vocab-fixture.ts', {
+    stdio: 'inherit',
+    env: { ...process.env, DATABASE_URL: E2E_DB_URL, VOCAB_FIXTURE_EMAIL: email },
+  });
+
+  await page.goto('/ask');
+
+  // Slang the deterministic parser has no rule for — with no LLM key configured, the
+  // ONLY thing that can answer it is the learned phrase.
+  await ask(page, 'Whats the damage on groceries?');
+  await expect(page.getByTestId('ask-headline')).toContainText(/Groceries/i);
+  // The figure is the ENGINE's, not the rule's — this account has no transactions, so
+  // the honest answer is the zero-spend copy. The rule routed the question; it did not
+  // supply, and could not have supplied, a number.
+  await expect(page.getByTestId('ask-headline')).toContainText(/No Groceries spending/i);
+  const learnedHeadline = await page.getByTestId('ask-headline').textContent();
+
+  // Nothing is served silently: the flagged band discloses + offers the undo.
+  const learned = page.getByTestId('ask-learned');
+  await expect(learned).toBeVisible();
+  await expect(learned).toContainText(/learned from how you ask/i);
+
+  // Forgetting is terminal — the same question falls back to the honest `unknown`.
+  await page.getByTestId('ask-forget-phrase').click();
+  await expect(page.getByTestId('ask-forget-phrase')).toContainText(/Forgotten/i);
+
+  // Reload first: the previous answer is still the client's conversation frame
+  // (TASKS 2.1), and this question names a category the frame would legitimately swap
+  // in. A fresh page isolates the vocabulary route, which is what's under test.
+  await page.reload();
+  await ask(page, 'Whats the damage on groceries?');
+  await expect(page.getByTestId('ask-answer')).not.toContainText(/learned from how you ask/i);
+  await expect(page.getByTestId('ask-headline')).toContainText(
+    /I can answer questions grounded in your own accounts/i,
+  );
+  expect(learnedHeadline).not.toBe(await page.getByTestId('ask-headline').textContent());
 });

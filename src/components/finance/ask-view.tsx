@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { ArrowRight, CornerDownLeft, Sparkles } from 'lucide-react';
 import { askAssistant } from '@/server/assistant';
 import { saveDebtFreeGoal, saveRetirementAge, saveSavingsGoal } from '@/server/goal-actions';
+import { forgetLearnedPhrase } from '@/server/vocab-actions';
 import { ASSISTANT_SUGGESTIONS, type AssistantAnswer, type AssistantGoalAction } from '@/lib/engine/assistant/answer';
 
 export function AskView({
@@ -28,8 +29,10 @@ export function AskView({
   const [answer, setAnswer] = useState<AssistantAnswer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [forgotten, setForgotten] = useState(false);
   const [pending, startTransition] = useTransition();
   const [saving, startSaving] = useTransition();
+  const [forgetting, startForgetting] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
   function run(q: string) {
@@ -38,6 +41,7 @@ export function AskView({
     setAsked(trimmed);
     setError(null);
     setSaveState('idle');
+    setForgotten(false);
     // The previous answer's intent is the conversation frame (TASKS 2.1): it lets
     // the server resolve a follow-up fragment ("what about last month?") against
     // the question it follows. The server re-validates it; a self-sufficient
@@ -83,6 +87,20 @@ export function AskView({
         setSaveState('saved');
       } catch {
         setSaveState('error');
+      }
+    });
+  }
+
+  /** Reject a learned phrasing (TASKS 2.3). Terminal: the phrase is tombstoned, so the
+   *  weekly miner cannot re-learn it from the evidence the user just rejected. */
+  function forget(entryId: string) {
+    if (forgetting || forgotten) return;
+    startForgetting(async () => {
+      try {
+        await forgetLearnedPhrase(entryId);
+        setForgotten(true);
+      } catch {
+        /* leave the control live so the user can retry */
       }
     });
   }
@@ -141,7 +159,8 @@ export function AskView({
         {answer && !error && (
           <div data-testid="ask-answer" className={`rounded-2xl border bg-card p-4 shadow-sm ${pending ? 'opacity-60' : ''}`}>
             {asked && <p className="mb-2 text-xs text-muted-foreground">“{asked}”</p>}
-            {answer.interpreted && (
+            {/* A learned phrase carries its own, more specific disclosure below. */}
+            {answer.interpreted && !answer.learned && (
               <p className="mb-2 text-xs text-muted-foreground">
                 I interpreted your question — double-check this is what you meant.
               </p>
@@ -196,6 +215,31 @@ export function AskView({
                 {saveState === 'error' && (
                   <span className="text-xs text-rose-600 dark:text-rose-400">Couldn’t save that — please try again.</span>
                 )}
+              </div>
+            )}
+
+            {/* Learned vocabulary (TASKS 2.3): never served silently. The entry supplied
+                only the intent KIND — every figure above still comes from the same
+                engines — and the user can end it in one click. */}
+            {answer.learned && (
+              <div
+                data-testid="ask-learned"
+                className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3"
+              >
+                <p className="text-xs text-muted-foreground">
+                  {answer.learned.status === 'active'
+                    ? 'Answered using a phrasing Aimplifi learned from how you ask.'
+                    : 'Aimplifi is trying a phrasing it learned from how you ask — check this is what you meant.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => forget(answer.learned!.entryId)}
+                  disabled={forgetting || forgotten || pending}
+                  data-testid="ask-forget-phrase"
+                  className="rounded-full border px-3 py-1 text-xs text-muted-foreground transition hover:border-foreground/30 hover:text-foreground disabled:opacity-60"
+                >
+                  {forgotten ? 'Forgotten ✓' : forgetting ? 'Forgetting…' : 'Not what I meant'}
+                </button>
               </div>
             )}
 

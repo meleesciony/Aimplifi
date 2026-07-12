@@ -24,6 +24,8 @@ import { AccuracyMetrics, SelfAuditMetrics } from '@/components/triage/accuracy-
 import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getThresholdTuning } from '@/server/tuning';
 import { getLatestSelfAuditSnapshot } from '@/server/self-audit';
+import { listLearnedPhrases } from '@/server/vocab';
+import { LearnedPhrases } from '@/components/settings/learned-phrases';
 import { prisma } from '@/lib/db';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 
@@ -34,7 +36,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/sign-in');
 
   const userId = session.user.id;
-  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy, tuning, selfAudit] =
+  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy, tuning, selfAudit, learnedPhrases] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -65,6 +67,7 @@ export default async function SettingsPage() {
       getCategorizationAccuracy(userId),
       getThresholdTuning(userId),
       getLatestSelfAuditSnapshot(userId),
+      listLearnedPhrases(userId),
     ]);
   const householdView = await getHouseholdView();
   if (!user) redirect('/sign-in');
@@ -209,6 +212,7 @@ export default async function SettingsPage() {
         <CardContent className="space-y-2">
           <AccuracyMetrics result={accuracy} tuning={tuning} />
           <SelfAuditMetrics snapshot={selfAudit} />
+          <LearnedPhrases phrases={learnedPhrases} />
           <p className="text-xs text-muted-foreground">
             Aimplifi’s AI never invents a figure — every number is computed from your own
             transactions. This is how accurately it files them, scored against the categories you

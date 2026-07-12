@@ -2,6 +2,83 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 2.3: Learned vocabulary — the weekly mining loop (#225/#226)
+
+The parser now gets smarter every week with no deploy. When a user asks the same
+question several times, the deterministic parser can't route it, and an independent
+resolver keeps agreeing on what it means, the weekly cron learns that phrasing. New
+additive `VocabEntry` + pure `src/lib/engine/vocab/vocab.ts` + Prisma-only
+`src/server/vocab.ts` + `/api/cron/vocab` (Mon 16:00).
+
+The one property everything else rests on: **a learned entry supplies an intent KIND
+and nothing else.** Every timeframe, category, merchant, amount and age is re-derived
+from the asker's own words by `intentFromKind` and re-validated by `validateIntent` —
+byte-for-byte the contract the LLM classifier has lived under since #75. So the vocab
+layer is exactly as powerful as the model route it replaces, minus the model call: a
+wrong entry can route to a wrong kind, and can never inject a figure, a window, or a
+category. Routing order is parser → frame → vocab → LLM, consulted only on a
+parser-`unknown`, so every existing route is byte-identical. Because it is deterministic
+and free, it also keeps working with **no LLM key at all** — no 7-second timeout, no
+rate limit, no provider outage.
+
+The ladder (audit §4.2 loop 2): **shadow** (minted from ≥3 unanimous independent
+rescues; not served, accruing held-out evidence) → **flagged** (≥2 held-out agreements,
+zero disagreements; served, carrying the same "I interpreted your question" hedge an LLM
+answer carries) → **active** (≥2 disclosed serves, no rejection; served, disclosed as
+learned) → **retired** (terminal tombstone). The loop cannot confirm itself: rows its own
+entries resolved are tagged `vocab:<kind>` and count only as `served`, never as evidence,
+and `frame:`-tagged rows (#222) make a phrase permanently ineligible. Every count is
+recomputed from the ledger each run, never incremented. Undo is one click on the answer
+("Not what I meant") or on Settings → AI trust ("Forget this"), and it is terminal — the
+miner can never re-mint a phrase from the evidence the user just rejected.
+
+Vocabulary is **per user**, a deliberate deviation from the audit's "≥N distinct users"
+clustering (DECISIONS #225): a phrase is user-authored text that has been PII-scrubbed,
+not anonymized, so pooling it would copy one person's words into another's routing table
+and onto their screen.
+
+Three fresh-context Fable hostile critics in parallel (routing/money · the learning loop ·
+authz+privacy), cycle 1: **FAIL — 0 P0, 5 P1, 11 P2 — all P1s and every actionable P2
+fixed in-cycle and regression-locked** (cycle 1 of the 4-cap). The routing critic confirmed
+the kind-only claim held under every injection attack it could build; the other two then
+found what it couldn't see — the loop's *back half* was where the design leaked. **The
+shared demo account learned**, so one anonymous visitor's typed question would have been
+mined and rendered in the next visitor's settings (fixed: the demo user never learns —
+the second instance of the #210 rule that anything accumulating a user's own INPUT must
+fence the shared demo login off). **A user's "Forget this" landing mid-mining-run was
+silently reverted** by the miner's stale write, and the rejection lives nowhere else, so
+it was gone for good (fixed: a tombstone always wins the race). **A served entry became
+unmonitorable** — it short-circuits the LLM, so no independent evidence about it could
+ever be written again, and flagged→active promoted on the entry's own serves (fixed: the
+weekly cron now replays every served phrase against the classifier that never sees the
+rule, and retires it on disagreement — audit constitution (e), restored). `VocabEntry`
+was an undisclosed store (fixed in PRIVACY.md). And a **pre-existing** cardinal-sin bug in
+the parser: "how much did I spend at 星巴克 last month" answered the ALL-SPENDING TOTAL
+with no hedge, because both #166 abstain guards are ASCII-only (fixed: abstain before the
+tokenizer sees it).
+
+Gate (real 2026-07-12, post-fixes): `bash scripts/verify.sh` → **✅ VERIFY GREEN, exit 0** —
+tsc clean · eslint clean · `npx vitest run` **2503 unit / 184 files** (+69 this slice) ·
+`npx next build` clean. `npx playwright test tests/e2e/ask.spec.ts` → **11/11**, including
+a new flow that signs up a real account, mints and promotes a rule through the REAL miner
+(3 independent rescues → shadow; 2 held-out → flagged), answers an unroutable phrasing with
+it, and forgets it. 7 REGRESSION_LEDGER entries (2026-07-12).
+
+Accepted limitations (recorded, not fixed): **`status` is a durable ratchet** — an entry
+whose supporting rows age out of the 2000-row mining window keeps serving with counts
+recomputed to zero. Deliberate: a rule that passed its gates should not be un-learned
+because the ledger scrolled, and it stays safe because every DOWNWARD path remains open
+forever on no evidence budget at all (user rejection, held-out disagreement, a `frame:`
+row, and the weekly independent re-check can each retire a serving entry at any time).
+The **key is a whole scrubbed question**, not the audit's n-gram cluster, so only phrasings
+a user actually repeats are learned — an n-gram rule can fire on a question it was never
+mined from, which is the audit's own named failure mode, and there is no real ledger data
+yet to tune a clustering threshold against. A **flagged** route seeds the next turn's frame,
+and a follow-up fragment resolved against it carries no hedge of its own (the user saw the
+disclosure on the anchor turn). `merchant_spend` sits in `LLM_ROUTABLE_KINDS` but
+`intentFromKind` cannot produce it, so it can never be served — harmless today, and the
+round-trip guard would abstain anyway.
+
 ## Wave 2.1: Ask conversation frame — deterministic ellipsis resolution (#222/#223)
 
 The assistant no longer has amnesia. A follow-up fragment — "what about last month?",

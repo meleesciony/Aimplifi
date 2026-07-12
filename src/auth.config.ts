@@ -17,7 +17,12 @@ import type { NextAuthConfig } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import Google from 'next-auth/providers/google';
 
-export const DEMO_USER_ID = 'user-demo';
+// Defined in a NextAuth-free module so the cron import graph can recognize the demo
+// user without pulling Auth.js in (#220 / #225). Re-exported here: every existing
+// `import { DEMO_USER_ID } from '@/auth.config'` keeps working.
+import { DEMO_USER_ID } from '@/lib/demo-user';
+
+export { DEMO_USER_ID };
 
 const googleProviders =
   process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET

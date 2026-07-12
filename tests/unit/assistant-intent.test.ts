@@ -248,4 +248,19 @@ describe('test_regression__ask-partial-match-hijacks (#166 audit P1)', () => {
     expect(parseAssistantQuery('how much did I spend on groceries last month', TODAY).kind).toBe('spend_by_category');
     expect(parseAssistantQuery('can I afford a $50 dinner tonight', TODAY).kind).toBe('safe_to_spend');
   });
+
+  it('test_regression__spend_at_non_ascii_merchant (#226): abstains, never the all-spending total', () => {
+    // Both #166 guards are ASCII-only — `extractMerchantPhrase` strips every
+    // non-[a-z0-9'&.-] character, and the `on <object>` guard matches `[a-z0-9]+` —
+    // so a store or category named in a non-Latin script tokenized to NOTHING and fell
+    // through to `spend_total`: the user's TOTAL spending, answered to a question about
+    // ONE store, with no hedge. A true figure under a false question. Abstain instead.
+    expect(parseAssistantQuery('how much did I spend at 星巴克 last month', TODAY).kind).toBe('unknown');
+    expect(parseAssistantQuery('how much did I spend with Zürich Café last month', TODAY).kind).toBe('unknown');
+    expect(parseAssistantQuery('how much did I spend on 食料品 last month', TODAY).kind).toBe('unknown');
+    // …while every ASCII phrasing keeps the route it had.
+    expect(parseAssistantQuery('how much did I spend at Costco last month', TODAY).kind).toBe('merchant_spend');
+    expect(parseAssistantQuery('how much did I spend on everything last month', TODAY).kind).toBe('spend_total');
+    expect(parseAssistantQuery('did I spend at all last month', TODAY).kind).toBe('spend_total');
+  });
 });
