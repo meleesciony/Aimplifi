@@ -22,6 +22,7 @@ import {
   parseTargetDate,
   parseTimeframe,
   resolveSpendTarget,
+  unconsumedSpendObject,
 } from './intent';
 
 /** The kinds the model is allowed to choose (everything except the fallback). */
@@ -93,7 +94,14 @@ export function intentFromKind(kindRaw: string | null, question: string, today: 
     case 'account_balance':
       return { kind, query: question.toLowerCase() };
     case 'spend_total':
-      return { kind, timeframe };
+      // The same POSITIVE LICENCE the parser's sink requires (TASKS 2.6): the
+      // parser abstained on "At Costco, how much did I spend?" precisely because
+      // the total does not answer a one-store question — and the model's closed
+      // set has no `merchant_spend`, so its only expressible reading of that
+      // question IS the total. A kind is a hint, never a licence to answer a
+      // different question (the F6 precedent): an unconsumed at/with/on object
+      // anywhere in the question keeps the honest unknown.
+      return unconsumedSpendObject(question) ? null : { kind, timeframe };
     case 'income':
       return { kind, timeframe };
     case 'top_categories':

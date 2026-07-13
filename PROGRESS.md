@@ -1,5 +1,9 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-12 — #229 TASKS 2.6 — spend_total earns its answer (the inversion) — DONE, verify green, critic cycle 2 PASS
+
+**Done:** TASKS 2.6 shipped (DECISIONS #229). `spend_total` now requires a POSITIVE LICENCE — the new shared primitive `unconsumedSpendObject` (every at/with/on/in object anywhere in the question must be consumed-class, whole-object, up to a genuine closer) — enforced identically at the parser sink, in `intentFromKind` (LLM + vocab routes), and in the conversation frame. Fronted objects ("At Costco, how much did I spend?"), sentence breaks, "@"/"in" phrasings and punctuation glue abstain instead of answering the user's entire spending. Bundled siblings: home depot/homegoods/home-and-garden → merchant_spend (tier-3 group fallback word-bounded + extension-checked); "at - costco"/"at... costco" → merchant "costco"; custom "Café" reachable (NFC + Unicode boundaries + exact-object carve-outs, tail included); the frame BLOCKS guard-refused objects ("with amex in june" / "income in june" no longer answer the carried question's window swap; pronouns still carry).
+
 ## 2026-07-12 — #224 Frame critic cycle 2 — PASS (0 P0/P1)
 
 Cycle 2 (same critic, every repro re-executed against the fixed tree): **PASS — 0 P0, 0 P1**. All 7 cycle-1 findings CLOSED by re-run repros; a 19-case sweep found no legitimate ellipsis broken by the new guards. Two new P2s found and fixed: (a) `validateIntent` derived nothing about `target.label`, so a client-echoed frame could label the TRAVEL group "Groceries" — a true figure under a false name in a money headline; labels are now re-derived from the target's own identity (`canonicalTargetLabel`). (b) a stray "at" manufactured merchants ("at least", "at work"). Plus two P3s: "save"/"cut"/"back" left the question-word guard ("and at Save Mart?" must resolve), and a carried TRAILING window is re-named once today leaves it ("the last 3 months" → "April 2026 – June 2026").

@@ -494,3 +494,94 @@ describe('test_regression__frame_abstains_on_unreadable_names (#226 cycle 3)', (
     });
   });
 });
+
+describe('test_regression__refused_object_falls_to_the_timeframe_swap (TASKS 2.6)', () => {
+  // The #168/P1-3 guards refused a payment method or intent noun as a MERCHANT —
+  // but when the fragment also named a window, the refusal returned plain null
+  // and the resolution FELL THROUGH to the timeframe-only swap: the refused
+  // object was silently dropped and the CARRIED question answered in its place.
+  it('"with amex in june" must not answer the carried question\'s June total', () => {
+    const frame = frameAfter('how much did I spend this month?');
+    // Was: spend_total, June 2026 — Amex silently dropped (#168's disease, one window over).
+    expect(resolveEllipsis('what about with amex in june?', TODAY, frame)).toBeNull();
+    expect(resolveEllipsis('same for my card in june', TODAY, frame)).toBeNull();
+  });
+
+  it('"income in june" is a different QUESTION, not a window for the spend total', () => {
+    const frame = frameAfter('how much did I spend this month?');
+    // Was: spend_total, June 2026 — a SPEND figure answering an INCOME question.
+    expect(resolveEllipsis('what about income in june?', TODAY, frame)).toBeNull();
+    expect(resolveEllipsis('what about at work in march?', TODAY, frame)).toBeNull();
+  });
+
+  it('a PRONOUN names the carried question itself — the timeframe swap is exactly right', () => {
+    const frame = frameAfter('how much did I spend this month?');
+    expect(resolveEllipsis('what about that in june?', TODAY, frame)).toMatchObject({
+      kind: 'spend_total',
+      timeframe: { fromYm: '2026-06', toYm: '2026-06' },
+    });
+  });
+
+  it('a real store with a window still resolves (no false abstain)', () => {
+    const frame = frameAfter('how much did I spend this month?');
+    expect(resolveEllipsis('and at save mart in march?', TODAY, frame)).toEqual({
+      kind: 'merchant_spend',
+      timeframe: { fromYm: '2026-03', toYm: '2026-03', label: 'March 2026' },
+      merchant: 'save mart',
+    });
+  });
+});
+
+describe('test_regression__non_ascii_custom_category_in_a_fragment (TASKS 2.6)', () => {
+  const CAFE = [{ id: 'cust_cafe', name: 'Café' }];
+
+  it('"what about café?" resolves the user\'s OWN category — their vocabulary is readable', () => {
+    const frame = frameFromIntent(parseAssistantQuery('how much did I spend last month?', TODAY, CAFE));
+    // Was: null — the unreadable-name abstain made the user's own category unreachable.
+    expect(resolveEllipsis('what about café?', TODAY, frame, CAFE)).toEqual({
+      kind: 'spend_by_category',
+      timeframe: LAST_MONTH,
+      target: { type: 'category', categoryId: 'cust_cafe', label: 'Café' },
+    });
+  });
+
+  it('equality, not containment: "café zurich" is a STORE and still abstains', () => {
+    const frame = frameAfter('how much did I spend last month?');
+    expect(resolveEllipsis('what about café zurich?', TODAY, frame, CAFE)).toBeNull();
+  });
+
+  it('"at café" reads the same as the parser reads it (critic cycle 1, F6)', () => {
+    // The parser answers "how much did I spend at café?" with the custom
+    // category; the frame must not read the identical shape differently.
+    const frame = frameAfter('how much did I spend last month?');
+    expect(resolveEllipsis('what about at café?', TODAY, frame, CAFE)).toMatchObject({
+      kind: 'spend_by_category',
+      target: { type: 'category', categoryId: 'cust_cafe', label: 'Café' },
+    });
+  });
+});
+
+describe('test_regression__unreadable_object_behind_other_prepositions (critic cycle 1, F3 — P1)', () => {
+  // The unreadable-object guard scanned only at/with, while the bare-merchant
+  // path accepts every LEADING_PREPOSITION — so "on 🍕 last month" deleted the
+  // pizza, kept the window, and answered the CARRIED question (coffee!) for
+  // last month. Same mechanism through "for", and through a bare unreadable
+  // object with no preposition at all.
+  it('never silently swaps the subject of the carried question', () => {
+    const frame = frameAfter('how much did I spend on coffee this month?');
+    expect(frame?.kind).toBe('spend_by_category');
+    for (const fragment of [
+      'what about on 🍕 last month?',
+      'what about for 🍕 last month?',
+      'what about on ⓒⓞⓢⓣⓒⓞ last month?',
+      '🍕 last month?', // bare — no preposition for any guard to anchor on
+    ]) {
+      expect(resolveEllipsis(fragment, TODAY, frame), fragment).toBeNull();
+    }
+    // …while a readable window-only fragment still swaps the window.
+    expect(resolveEllipsis('what about last month?', TODAY, frame)).toMatchObject({
+      kind: 'spend_by_category',
+      timeframe: { fromYm: '2026-05', toYm: '2026-05' },
+    });
+  });
+});

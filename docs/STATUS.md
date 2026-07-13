@@ -2,55 +2,54 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
-## ⚠️ OPEN — Ask parser: the spend-family sink (4-cycle cap reached, #226)
+## ⚠️ OPEN — Ask parser/vocab, remaining items (post-2.6)
 
-**Human decision needed.** TASKS 2.3 (learned vocabulary) is DONE and passes: the critics'
-final sweep found **no P0/P1 in the vocab engine, server, cron or UI**. But while reviewing
-it, four successive hostile-critic cycles kept finding the same *pre-existing* defect class in
-the **Ask parser** (`intent.ts` / `frame.ts` / `llm.ts`), which this slice touches. That class
-hit the 4-cycle cap, so per CLAUDE.md the remaining findings are written here rather than
-patched a fifth time.
+The #226 escalation (the spend-family sink) is **RESOLVED — TASKS 2.6 shipped 2026-07-12**
+(DECISIONS #229; §Wave 2.6 below). Items 1–4 of the escalation are fixed and
+regression-locked. Still open, each honest-but-unanswered (no wrong number is ever shown):
 
-**The diagnosis (cycle 4, and it is correct):** `spend_total` is the *unconditional sink* of
-the spending family. Every guard in front of it is scoped to one sentence shape — verb, then
-preposition, then object — so each time a guard was hardened, the input moved one syntactic
-inch and landed on the sink anyway: the user's ENTIRE spending, presented as the answer to a
-question about one store, with no hedge. That is the repo's cardinal sin (a true figure under
-a false question), and it has now been reached three different ways.
+1. **The weekly vocab re-check cannot distinguish the classifier answering "none" (a real
+   disagreement) from a network fault**; both mean "no opinion, no change", so a rule the
+   resolver now considers unanswerable keeps serving. (Escalation item 5, unchanged.)
+2. **Tier-1 synonyms inside store names** — "at travel lodge" → the Travel group, "at total
+   wine" → alcohol, "at 24 hour fitness" → fitness, "at shell gas station" → fuel: a curated
+   synonym anywhere in the question outranks the merchant reading. Sometimes right ("at the
+   gas station" → fuel is correct), sometimes the same disease 2.6 cured at tier 3. Needs its
+   own slice with care per synonym, not a blanket rule (2.6 critic, noted-not-charged).
+3. **`largest_purchases` ignores a merchant scope** — "biggest purchase at costco" answers the
+   global biggest purchase (the frame already abstains on this shape; the parser's own route
+   doesn't).
+4. **Bare-year / numeric-date windows abstain** — "how much did I spend in 2025" / "on 3/5"
+   now return the honest redirect (before 2.6 they answered a THIS-MONTH total under a
+   different-window question — strictly worse). A timeframe-parser follow-up (bare year,
+   numeric dates) would let them earn real answers.
+5. **A residual licence gap by construction:** a store spelled entirely in licence-consumed
+   tokens can still license the total in fronted order. The one real instance found ("Do It
+   Best") is fixed and locked; the class cannot be closed without a merchant database, and the
+   licence's conservative bias means new instances cost an honest redirect for everyone else.
 
-**FIXED this session** (each locked by the critic's own executed repro):
-an unreadable object no longer reaches ANY route — the readability check runs *before*
-category resolution; an object that survives stripping as nothing at all ("at ⓒⓞⓢⓣⓒⓞ",
-"at 🍕") abstains; input is NFC-composed, so decomposed "café" can no longer match the `cafe`
-synonym and answer all coffee-shop spending; `spend_total` must now *earn* its answer
-(`containsUnreadableName(q)` is a precondition), which closes fronted objects, sentence breaks
-and zero-width-space glue for every letter script; `intentFromKind` refuses an unreadable
-question, so the LLM cannot re-answer what the parser just abstained on; and the conversation
-frame abstains on the same input the parser does, instead of mangling the store or silently
-dropping it and answering the CARRIED one.
+## Wave 2.6: `spend_total` earns its answer — the inversion (#229, 2026-07-12)
 
-**STILL OPEN — needs an owner decision (see TASKS 2.6):**
-1. **Fronted ASCII objects.** "At Costco, how much did I spend?" → `spend_total` (the
-   all-spending total). Identical sin, plain ASCII, and it PREDATES all of this work — the
-   merchant extractor only recognizes verb-then-preposition order. The durable fix is the
-   inversion the critic recommends: `spend_total` should require a positive licence (no
-   unconsumed at/with/on object anywhere in the question), not merely the absence of the
-   patterns we thought to look for. That is a real parser change with its own blast radius,
-   which is why it is not being done at the tail of a slice about vocabulary.
-2. **"at home depot" / "at homegoods" → `spend_by_category` "home" group** (rent + mortgage
-   included in a figure for a question about one retailer). Pre-existing #111-era substring
-   fallback; Home Depot is a top-10 US merchant.
-3. **Punctuation after the preposition:** "at - costco" → merchant `"- costco"`; "at... costco"
-   → `spend_total`.
-4. A **custom category with a non-ASCII name** ("Café") can never match its own synonym, so the
-   user's own category is unreachable (it abstains honestly — no wrong number).
-5. The weekly vocab re-check cannot distinguish the classifier answering "none" (a real
-   disagreement) from a network fault; both mean "no opinion, no change", so a rule the resolver
-   now considers unanswerable keeps serving.
+The spend-family sink now requires a **positive licence**: no unconsumed at/with/on/in object
+anywhere in the question (shared primitive `unconsumedSpendObject`, enforced identically in
+the parser sink, `intentFromKind` — so neither the LLM nor a learned vocab rule can re-answer
+what the parser abstained on — and the conversation frame). Fronted objects ("At Costco, how
+much did I spend?"), sentence breaks, "@"/"in" phrasings and punctuation glue all abstain
+instead of answering the user's entire spending. Bundled fixes: "at home depot"/"at
+homegoods"/"at home and garden" are merchants, never the Home group (word-bounded,
+extension-checked tier-3 fallback); "at - costco"/"at... costco" resolve merchant "costco";
+non-ASCII custom categories ("Café") are reachable by exact object equality — tail included,
+so "at café in 星巴克 town" still abstains; the frame BLOCKS a guard-refused object ("with
+amex in june", "income in june") instead of silently answering the carried question's window
+swap, while pronouns ("that in june") still carry.
 
-Nothing above is a regression from this session; items 1–4 are all older than it, and the tree is
-strictly better than it was (many variants that used to answer the total now abstain). But the
-class is live, it is money-facing, and it deserves its own slice rather than a fifth patch.
+Two fresh-context Fable hostile-critic cycles: **cycle 1 FAIL — 2 P0** (the licence's first
+consumed token licensed the whole object: "at Best Buy / Top Golf / All Saints / 5 Guys / 76"
+still took the total through every route at once), **1 P1** (the frame's on/for silent drop),
+2 P2, 2 P3 — all fixed in-cycle. **Cycle 2 PASS — all 7 closed by re-executed repros, 0
+P0/P1**; its 2 new P2s ("Do It Best", carve-out prefix-equality) also fixed and locked.
+Gate: `bash scripts/verify.sh` → VERIFY GREEN — **2537 unit / 185 files**, tsc/eslint/build
+clean; `npx playwright test tests/e2e/ask.spec.ts` → **11/11**. 6 REGRESSION_LEDGER entries.
 
 ## Wave 2.3: Learned vocabulary — the weekly mining loop (#225/#226)
 

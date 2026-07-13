@@ -23,6 +23,7 @@
 import { addMonthsClamped, isoDate, type ISODate } from '@/lib/dates';
 import {
   containsUnreadableName,
+  customCategoryForObject,
   extractMerchantPhrase,
   isNonMerchantObject,
   spendObjectUnreadable,
@@ -174,16 +175,27 @@ export function resolveEllipsis(
   // "what about at 星巴克 last month?" silently DROPPED the unreadable store and answered
   // the CARRIED one — the previous merchant's total under a question about a different
   // shop. A fragment we cannot read is not a slot swap; it is a question for the LLM.
-  if (containsUnreadableName(q)) return null;
-  // The second clause catches an object made of glyphs that are not LETTERS — so the
-  // check above says nothing about them — but which the tokenizer deletes entirely:
-  // "what about at 🍕 last month?" strips to no merchant, and the timeframe-only
-  // fallback then answered the CARRIED store for last month (#226 cycle 4).
-  const objectHere = /\b(?:at|with)\s+(.+)$/.exec(q);
-  if (objectHere && spendObjectUnreadable(objectHere[1])) return null;
-
+  //
   const rest = q.replace(CUE_RE, '').trim();
   if (!rest) return null;
+  // Sole exception to the unreadable abstains below (TASKS 2.6): a fragment that IS
+  // one of the user's own custom categories ("what about café?", "and at café?") —
+  // their own vocabulary, readable by definition; resolveSpendTarget (NFC,
+  // Unicode-bounded) resolves it further down. Equality, not containment, so
+  // "what about café zurich?" still abstains.
+  const ownCategory = customCategoryForObject(rest, custom);
+  if (containsUnreadableName(q) && !ownCategory) return null;
+  // The second guard catches an object made of glyphs that are not LETTERS — so the
+  // check above says nothing about them — but which the tokenizer deletes entirely:
+  // "what about at 🍕 last month?" strips to no merchant, and the timeframe-only
+  // fallback then answered the CARRIED store for last month (#226 cycle 4). Runs on
+  // the CUE-STRIPPED rest over the frame's full preposition set — cycle 1 of this
+  // slice's critic (F3, P1) reproduced the identical silent drop through "on 🍕" /
+  // "for 🍕" (the guard scanned only at/with, while the bare-merchant path accepts
+  // every LEADING_PREPOSITION), and through "what about …" whose own "about"
+  // satisfied a q-anchored scan before the real preposition could.
+  const objectHere = /\b(?:at|with|for|on|in|about)\b[\s.…,:;!—–-]*(.+)$/.exec(rest);
+  if (objectHere && spendObjectUnreadable(objectHere[1]) && !ownCategory) return null;
   const words = rest.split(' ');
   if (words.length > MAX_FRAGMENT_TOKENS) return null;
   // A sentence, a comparison, or an exclusion — none of which is a slot swap.
@@ -191,7 +203,17 @@ export function resolveEllipsis(
 
   const timeframe = parseExplicitTimeframe(rest, today);
   const target = resolveSpendTarget(rest, custom);
-  const merchant = target ? null : merchantFragment(rest);
+  const candidate = target ? NO_CANDIDATE : merchantFragment(rest);
+  // The fragment NAMED an object and the guards refused it as a store (a payment
+  // method, one of the assistant's own intent nouns, prose). Before TASKS 2.6 this
+  // fell through to the timeframe-only swap when a window was also present — "what
+  // about with amex in june?" silently DROPPED Amex and answered the carried
+  // question's June total, and "income in june?" answered a SPEND total to an income
+  // question. A refused object is a different question: abstain (the LLM still gets
+  // its turn). A PRONOUN is the opposite case — "what about that in june?" refers to
+  // the carried question itself — so it keeps the timeframe-only path.
+  if (candidate.blocked) return null;
+  const merchant = candidate.merchant;
   if (!timeframe && !target && !merchant) return null;
 
   // A category/merchant swap only makes sense against a spending question.
@@ -264,19 +286,38 @@ const INTENT_NOUNS = new Set([
 ]);
 
 /**
+ * The outcome of reading a fragment as a merchant. `blocked` records the
+ * difference between "the fragment named no store" (a pure timeframe swap may
+ * proceed) and "the fragment named an object we REFUSED as a store" (a payment
+ * method, an intent noun, prose — a different question; the whole resolution
+ * must abstain, or the refused object is silently dropped and the carried
+ * intent answers it — TASKS 2.6).
+ */
+interface MerchantCandidate {
+  merchant: string | null;
+  blocked: boolean;
+}
+const NO_CANDIDATE: MerchantCandidate = { merchant: null, blocked: false };
+const BLOCKED: MerchantCandidate = { merchant: null, blocked: true };
+
+/**
  * A merchant named by a fragment: "at Costco" / "with Costco" ANYWHERE in it
  * (so "last month at costco" keeps the merchant the user named — critic P1-1),
  * else the fragment read as a bare store name ("Costco"). Reuses the parser's
  * tokenizer, then applies three guards:
  *  - #168: a payment method or statistical qualifier ("same for Amex", "what
- *    about average") is NOT a merchant — abstain rather than answer "No spending
- *    at Amex".
- *  - a word from the assistant's own intent vocabulary is not a store (P1-3).
- *  - a bare (preposition-less) name is short; a longer phrase is prose.
+ *    about average") is NOT a merchant — and BLOCKS the fragment rather than
+ *    letting a co-present timeframe answer the carried question instead.
+ *  - a word from the assistant's own intent vocabulary is not a store (P1-3) —
+ *    also blocking, for the same reason ("income in june?" is not a spend swap).
+ *  - a bare (preposition-less) name is short; a longer phrase is prose (blocks).
+ * A PRONOUN names the carried question itself ("that", "it"), so it yields no
+ * merchant WITHOUT blocking — the timeframe-only swap is exactly what it asks.
  */
-function merchantFragment(rest: string): string | null {
-  // "…at costco", "…with costco" — the merchant construction, wherever it sits.
-  const led = /\b(?:at|with)\s+(.+)$/.exec(rest);
+function merchantFragment(rest: string): MerchantCandidate {
+  // "…at costco", "…with costco" — the merchant construction, wherever it sits
+  // (punctuation glue after the preposition tolerated, mirroring the parser).
+  const led = /\b(?:at|with)\b[\s.…,:;!—–-]*(.+)$/.exec(rest);
   if (led) return cleanMerchant(led[1], false);
   // NOTE: an at/with object that we cannot READ never reaches here — resolveEllipsis
   // abstains the whole fragment first (containsUnreadableName + spendObjectUnreadable),
@@ -286,17 +327,22 @@ function merchantFragment(rest: string): string | null {
 
   const tokens = rest.split(' ');
   const after = LEADING_PREPOSITIONS.has(tokens[0]) ? tokens.slice(1).join(' ') : rest;
-  if (!after.trim()) return null;
+  if (!after.trim()) return NO_CANDIDATE;
   return cleanMerchant(after, true);
 }
 
-function cleanMerchant(after: string, bare: boolean): string | null {
+function cleanMerchant(after: string, bare: boolean): MerchantCandidate {
   const phrase = extractMerchantPhrase(after);
-  if (!phrase) return null;
+  // The fragment PUT something here and the tokenizer could not read any of it
+  // ("same for 🍕 last month" with no preposition left after the cue strip):
+  // belt-and-braces BLOCK, so a co-present timeframe can never answer the
+  // carried question in the unreadable object's place (critic cycle 1, F3).
+  if (!phrase) return spendObjectUnreadable(after) ? BLOCKED : NO_CANDIDATE;
   const words = phrase.split(' ');
-  if (words.some((w) => isNonMerchantObject(w) || INTENT_NOUNS.has(w) || PRONOUNS.has(w))) return null;
-  if (bare && words.length > MAX_BARE_MERCHANT_TOKENS) return null;
-  return phrase.slice(0, MAX_MERCHANT_LEN);
+  if (words.some((w) => isNonMerchantObject(w) || INTENT_NOUNS.has(w))) return BLOCKED;
+  if (words.some((w) => PRONOUNS.has(w))) return NO_CANDIDATE;
+  if (bare && words.length > MAX_BARE_MERCHANT_TOKENS) return BLOCKED;
+  return { merchant: phrase.slice(0, MAX_MERCHANT_LEN), blocked: false };
 }
 
 /** Punctuation-stripped word, for the guard sets ("groceries," → "groceries"). */

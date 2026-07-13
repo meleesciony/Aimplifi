@@ -60,6 +60,29 @@ Concretely: readability became a *precondition of routing* (checked before categ
 it fails), and `spend_total` now requires `!containsUnreadableName(q)` to be returned at all — by the
 parser, by the frame, and by the LLM's re-derivation alike.
 
+## The inversion has the same disease one level down (TASKS 2.6, critic cycles 1–2)
+
+The positive licence shipped (#229) — and its own first draft failed the same way twice, caught by the
+fresh-context critic before commit:
+
+- **One licensed word is not a licence.** The licence scanned the object's *first* token and let one
+  consumed word ("best" is an idiom, "all" a total, "5" a number, "last" a cue) license the whole object —
+  so `at Best Buy / Top Golf / All Saints / 5 Guys / 76, how much did I spend?` took the all-spending
+  total, through every route at once *because* the primitive is shared. A licence over a phrase must
+  consume **every word of the phrase**, up to the token that genuinely closes it (sentence punctuation, a
+  timeframe cue). The same shape recurred a second time at word granularity: "Do It Best" is a real chain
+  spelled entirely in consumed-class tokens, so an auxiliary ("do", "did") now counts as question
+  machinery only when the *next* word is question machinery too.
+- **Prefix equality is containment in disguise.** The custom-category carve-out ("the object IS the
+  user's own category name") truncated the object at a stop word and tested equality on the prefix — so
+  `at café in 星巴克 town` "equaled" *Café* and the unreadable store rode through, silently dropped, with
+  the carve-out disabling the exact guards it was carved out of. Equality over a truncated view must also
+  prove the discarded tail is pure cues.
+
+Both are the sink lesson again, one level down: an allowlist consulted about a *part* of the input
+licenses the *whole* input. Whatever unit the safety decision is about — the object, the phrase, the
+name — the check must consume all of it.
+
 ## The rule
 
 - When you add a guard in front of parser P, make the guard consume P's own tokenizer/normalizer output.
@@ -68,5 +91,7 @@ parser, by the frame, and by the LLM's re-derivation alike.
   the new boundary. The hostile-critic cycle that catches this costs far more than the five minutes.
 - If you are writing the **third** guard in front of the same fall-through, stop guarding and invert: the
   bug is not in the predicate, it is in the branch that answers when the predicate says nothing.
+- A positive licence must consume the ENTIRE unit it licenses — first-token and prefix checks are the
+  filter mistake reborn inside the inversion.
 - Normalize once, at the entrance (NFC), so two byte sequences a user cannot tell apart cannot route
   differently.

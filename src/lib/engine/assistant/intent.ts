@@ -466,27 +466,63 @@ const SYNONYMS: { re: RegExp; target: SpendTarget }[] = [
   { re: /\b(taxes?)\b/, target: catTarget('taxes') },
 ];
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * True when the text right after a verbatim group-name match continues the NAME
+ * rather than the sentence: "at home depot" is a question about one retailer,
+ * and answering it with the Home GROUP puts rent + mortgage inside a figure for
+ * a store (#111-era substring fallback; #226 → TASKS 2.6). Only a following
+ * timeframe/total cue or end-of-object keeps the group reading — connectors are
+ * NOT group-preserving ("at home and garden" is a store; critic cycle 1, F4:
+ * the protective case, "home and utilities", is claimed by the `utilities`
+ * synonym before this fallback ever runs).
+ */
+function groupMentionExtended(rest: string): boolean {
+  for (const raw of rest.replace(/[’‘`]/g, "'").split(/\s+/)) {
+    if (!raw) continue;
+    const t = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').toLowerCase();
+    if (!t) continue; // punctuation glue decides nothing
+    return !(TOTAL_SPEND_OBJECTS.has(t) || MERCHANT_STOP_WORDS.has(t));
+  }
+  return false;
+}
+
 /** Map free text to a spending target (leaf category or group), else null. The
  *  user's custom categories are matched by name AFTER the system synonyms (so a
  *  built-in mapping always wins) but BEFORE the verbatim-group fallback. */
 export function resolveSpendTarget(
-  q: string,
+  qRaw: string,
   custom: readonly { id: string; name: string }[] = [],
 ): SpendTarget | null {
+  // NFC so a custom category with a non-ASCII name ("Café") matches however the
+  // caller's platform composed the bytes (the parser already normalizes; the
+  // conversation frame passes raw fragments) — TASKS 2.6.
+  const q = qRaw.normalize('NFC');
   for (const { re, target } of SYNONYMS) {
     if (re.test(q)) return target;
   }
   // Custom categories (DECISIONS #111), longest name first so "golf club" beats
-  // "golf"; word-boundary + escaped so it can't be a stray substring hit.
+  // "golf". Unicode-aware boundaries instead of \b: JS \b is ASCII-word-based,
+  // so `\bcafé\b` could never match — the boundary after "é" does not exist —
+  // and the user's own category was unreachable (TASKS 2.6).
   for (const c of [...custom].sort((a, b) => b.name.length - a.name.length)) {
-    const name = c.name.trim().toLowerCase();
+    const name = c.name.trim().toLowerCase().normalize('NFC');
     if (!name) continue;
-    const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
-    if (re.test(q)) return catTarget(c.id, c.name);
+    const re = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(name)}(?![\\p{L}\\p{N}])`, 'u');
+    if (re.test(q)) return catTarget(c.id, c.name.trim());
   }
-  // Fallback: a group name spoken verbatim (e.g. "personal & family").
+  // Fallback: a group name spoken verbatim (e.g. "personal & family"). Word-
+  // bounded — "homegoods" is not a mention of Home — and not extended by a
+  // further name word — "home depot" is a store, not the Home group (TASKS 2.6;
+  // both used to hit the bare-substring `includes` and answered rent + mortgage
+  // for a question about one retailer).
   for (const g of GROUPS) {
-    if (q.includes(g.toLowerCase())) return groupTarget(g, g.toLowerCase());
+    const gl = g.toLowerCase();
+    const m = new RegExp(`(?<![a-z0-9])${escapeRe(gl)}(?![a-z0-9])`).exec(q);
+    if (!m) continue;
+    if (groupMentionExtended(q.slice(m.index + gl.length))) continue;
+    return groupTarget(g, gl);
   }
   return null;
 }
@@ -577,7 +613,13 @@ const MERCHANT_STOP_WORDS = new Set([
  * capped at 4 tokens, trimmed at the first timeframe/total cue.
  */
 function extractSpendMerchant(q: string): string | null {
-  const m = /\b(?:spend|spent|spending)\b[^.?!]*?\b(?:at|with)\s+(.+)$/.exec(q);
+  // `[\s.…,:;!—–-]*` after the preposition: punctuation GLUE ("at... costco",
+  // "at - costco", "at, costco") is filler between the preposition and the name,
+  // not part of it — before this, "at... costco" matched nothing (the old `\s+`
+  // required whitespace immediately after "at") and fell through to the
+  // all-spending total (TASKS 2.6). The `\b` after at/with still rejects
+  // "atcostco"-style non-words.
+  const m = /\b(?:spend|spent|spending)\b[^.?!]*?\b(?:at|with)\b[\s.…,:;!—–-]*(.+)$/.exec(q);
   if (!m) return null;
   return extractMerchantPhrase(m[1]);
 }
@@ -592,8 +634,18 @@ function extractSpendMerchant(q: string): string | null {
 export function extractMerchantPhrase(after: string): string | null {
   const out: string[] = [];
   for (const raw of merchantTokens(after)) {
+    // A punctuation-only token ("at - costco", "at .. costco") is filler between
+    // words, not a word: skip it, or the dash becomes part of the store name and
+    // the answer is a confident-wrong "No spending at - costco" (TASKS 2.6). A
+    // token that stripped to nothing but was NOT mere punctuation (glyphs the
+    // tokenizer deletes) still ENDS the phrase — never guess past something we
+    // could not read. (The unreadable-object guards run before this, so that
+    // arm is defense in depth.)
     const word = stripToken(raw);
-    if (!word) break;
+    if (!word || !/[a-z0-9]/.test(word)) {
+      if (/^[\s'&.,:;!?"“”()[\]…—–-]*$/.test(raw)) continue;
+      break;
+    }
     if (TOTAL_SPEND_OBJECTS.has(word) || MERCHANT_STOP_WORDS.has(word)) break;
     out.push(word);
     if (out.length >= 4) break;
@@ -644,8 +696,205 @@ export function containsUnreadableName(text: string): boolean {
  * object at all.
  */
 function spendObjectOf(q: string): string | null {
-  const m = /\b(?:at|with|on)\s+(.+)$/.exec(q);
+  // Same punctuation-glue tolerance as the merchant extractor ("at... costco",
+  // "at - costco") so the guard and the extractor read the same object.
+  const m = /\b(?:at|with|on)\b[\s.…,:;!—–-]*(.+)$/.exec(q);
   return m ? m[1] : null;
+}
+
+// ─── the spend_total licence (TASKS 2.6) ────────────────────────────────────
+
+/**
+ * Objects after at/with/on that the ALL-spending total still answers, beyond the
+ * total/timeframe cues: idioms ("at least", "at the end of last month", "on
+ * track") and self-reference ("with my spending"). Deliberately CONSERVATIVE: a
+ * word missing from this set costs an honest redirect; a word wrongly present
+ * costs the cardinal sin (the user's entire spending presented as the answer to
+ * a question about one store). When in doubt, leave it out.
+ */
+const LICENSED_SPEND_OBJECTS = new Set([
+  'least', 'most', 'first', 'once', 'twice', 'moment', 'point', 'time', 'times',
+  'end', 'start', 'beginning', 'track', 'top', 'worst', 'best',
+  'minimum', 'maximum', 'min', 'max', 'very',
+  'spending', 'spend', 'spent', 'money',
+]);
+
+/** Prepositions/particles: "going on WITH my spending" — the outer preposition's
+ *  "object" is just the inner preposition, whose own object is scanned on its own
+ *  turn. */
+const OBJECT_PREPOSITIONS = new Set(['at', 'with', 'on', 'in', 'of', 'for', 'from', 'to', 'by', 'about']);
+
+/**
+ * Question machinery: once the object phrase runs (uncomma'd) into the question
+ * itself — "at the very least how much did i spend" — these words are the
+ * QUESTION, not the object. Consulted ONLY by the licence scan. Auxiliaries are
+ * split out because they are consumed only when the NEXT word is itself
+ * question machinery ("did I", "do we") — "Do It Best" is a real ~1,400-store
+ * hardware chain whose every word this scan otherwise recognizes, and it took
+ * the all-spending total in fronted word order (critic cycle 2, NEW-1).
+ */
+const QUESTION_MACHINERY = new Set([
+  'how', 'much', 'many', 'what', 'i', "i'm", 'we', 'you', 'me',
+  'general', 'overall', 'altogether',
+]);
+const QUESTION_AUXILIARIES = new Set([
+  'did', 'do', 'does', 'am', 'is', 'are', 'was', 'were', 'have', 'has', 'had',
+  'will', 'would', 'should', 'could', 'can', 'shall', 'might',
+]);
+
+/** The month tokens (a subset of TOTAL_SPEND_OBJECTS), so a day-of-month digit
+ *  can be recognized as part of a DATE ("on March 5") and nothing else. */
+const MONTH_TOKENS = new Set<string>([...MONTH_NAMES, ...MONTH_ABBR, 'sept']);
+
+/** A day/year digit token, only ever consumed right after a month name. */
+const DAY_OR_YEAR_RE = /^\d{1,4}(?:st|nd|rd|th)?$/;
+
+/** Sentence punctuation that CLOSES an object phrase ("at Best Buy, how much…"). */
+const OBJECT_TERMINATOR_RE = /[,.;:?!…]\s*$/;
+
+/**
+ * The first at/with/on object ANYWHERE in the question that the all-spending
+ * total would not account for, else null. This is the POSITIVE LICENCE the
+ * spend-family sink must earn (TASKS 2.6, the #226 inversion): four critic
+ * cycles each hardened one verb-anchored guard, and each time the input moved
+ * one syntactic inch — a fronted object ("At Costco, how much did I spend?"), a
+ * sentence break, punctuation glue — and landed on `spend_total` anyway: the
+ * user's ENTIRE spending, presented unhedged as the answer to a question about
+ * one store. So the sink no longer trusts the guards in front of it: an
+ * unconsumed object anywhere means we do not know what was asked, and the total
+ * is the most confidently wrong thing we could say. Abstain instead.
+ *
+ * "Consumed" = a total word ("on everything"), a timeframe cue ("at the end of
+ * last month", "on March 5"), a licensed idiom ("at least", "on track"), a
+ * number/date, or another preposition (scanned on its own turn). Everything
+ * else — a merchant the verb-anchored extractor missed, a payment method, a
+ * word we cannot place — withholds the licence. Shared by the parser's sink,
+ * the conversation frame, and `intentFromKind`, so no route can re-answer what
+ * another abstained on.
+ */
+export function unconsumedSpendObject(question: string): string | null {
+  // "@" is "at" typed faster; the scanner must read it or "spend @ costco"
+  // keeps the total (critic cycle 1, F5).
+  const q = question.normalize('NFC').toLowerCase().replace(/@/g, ' at ');
+  const prep = /\b(?:at|with|on|in)\b/g;
+  for (let m = prep.exec(q); m; m = prep.exec(q)) {
+    const raws = q
+      .slice(m.index + m[0].length)
+      .replace(/[’‘`]/g, "'")
+      .split(/\s+/)
+      .filter(Boolean);
+    // EVERY word of the object must be consumed-class, up to the token that
+    // CLOSES the object (sentence punctuation, or a timeframe cue). Cycle 1 of
+    // this slice's critic (F1/F2, P0): the first consumed token used to license
+    // the WHOLE object, so "at BEST buy", "at TOP golf", "at ALL saints", "at 5
+    // guys" — real retailers whose first word the licence happened to recognize
+    // — each took the user's entire spending. One licensed word is not a
+    // licence for the words behind it.
+    // Pre-trim so an auxiliary can look ahead at the NEXT word (NEW-1).
+    const toks = raws
+      .map((raw) => ({
+        raw,
+        punctOnly: /^[^\p{L}\p{N}]+$/u.test(raw),
+        t: raw.replace(/^[^\p{L}\p{N}$]+|[^\p{L}\p{N}]+$/gu, ''),
+        closes: OBJECT_TERMINATOR_RE.test(raw),
+      }))
+      .filter((x) => x.punctOnly || x.t);
+    let sawWord = false;
+    let prevWasMonth = false;
+    let broke = false;
+    for (let i = 0; i < toks.length && !broke; i++) {
+      const { punctOnly, t, closes, raw } = toks[i];
+      if (punctOnly) {
+        // Bare punctuation: glue before the object ("at - costco" — decides
+        // nothing), a CLOSER after it ("at least , then…").
+        if (sawWord && /[,.;:?!…]/.test(raw)) broke = true;
+        continue;
+      }
+      // A timeframe cue ENDS the object (mirroring extractMerchantPhrase):
+      // whatever follows "…at the end of LAST MONTH" is the sentence, not the
+      // object. Everything before it must already have been consumed.
+      if (MERCHANT_STOP_WORDS.has(t)) break;
+      // An auxiliary is question machinery only ahead of a question word
+      // ("did I", "how much DO WE spend") — ahead of anything else it is a
+      // store's word ("at DO IT best" — critic cycle 2, NEW-1).
+      const next = toks[i + 1];
+      const auxConsumed =
+        QUESTION_AUXILIARIES.has(t) &&
+        next !== undefined &&
+        !next.punctOnly &&
+        (QUESTION_MACHINERY.has(next.t) || QUESTION_AUXILIARIES.has(next.t));
+      const consumed =
+        MERCHANT_LEADING_SKIP.has(t) || // "at THE end", "with MY spending"
+        TOTAL_SPEND_OBJECTS.has(t) || // "on everything", "on march…"
+        LICENSED_SPEND_OBJECTS.has(t) || // "at least", "on track"
+        OBJECT_PREPOSITIONS.has(t) || // "going on WITH …" — scanned on its own turn
+        QUESTION_MACHINERY.has(t) || // "…at the very least HOW MUCH…"
+        auxConsumed || // "…DID I spend", never "at DO it best"
+        (prevWasMonth && DAY_OR_YEAR_RE.test(t)); // "on march 5", "in may 2026"
+      if (!consumed) return t; // an object word the total does not answer
+      sawWord = true;
+      prevWasMonth = MONTH_TOKENS.has(t);
+      if (closes) break; // "at least, …" — licensed and closed
+    }
+  }
+  return null;
+}
+
+/**
+ * The user's own custom category when the OBJECT — after articles, up to the
+ * first timeframe/total cue — IS that category's name, else null. The sole
+ * exception to the unreadable-object abstain (TASKS 2.6): "Café" is the user's
+ * OWN vocabulary, readable by definition, so "how much did I spend on café?"
+ * must reach their category instead of abstaining — while "at café zurich"
+ * (a STORE whose name merely contains it) still abstains, because equality, not
+ * containment, is required.
+ */
+export function customCategoryForObject(
+  after: string,
+  custom: readonly { id: string; name: string }[],
+): SpendTarget | null {
+  if (custom.length === 0) return null;
+  const words: string[] = [];
+  const raws = after.normalize('NFC').toLowerCase().replace(/[’‘`]/g, "'").split(/\s+/).filter(Boolean);
+  let i = 0;
+  for (; i < raws.length; i++) {
+    const t = raws[i].replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+    if (!t) continue;
+    // Leading articles AND prepositions: the parser hands this the text after
+    // the preposition, the frame hands it the whole fragment ("at café") — the
+    // two routes must read the same shape the same way (critic cycle 1, F6).
+    if (words.length === 0 && (MERCHANT_LEADING_SKIP.has(t) || OBJECT_PREPOSITIONS.has(t))) continue;
+    if (TOTAL_SPEND_OBJECTS.has(t) || MERCHANT_STOP_WORDS.has(t)) break;
+    words.push(t);
+    if (words.length > 6) break;
+  }
+  const phrase = words.join(' ');
+  if (!phrase) return null;
+  // The TAIL after the cue that ended the phrase must itself be pure
+  // timeframe/total cues. Equality tested on a PREFIX is containment in
+  // disguise (critic cycle 2, NEW-2): "at café in 星巴克 town" truncated at
+  // "in", matched "café", and the unreadable store rode through silently
+  // dropped — the carve-out granting exactly what the unreadable guards exist
+  // to refuse.
+  for (; i < raws.length; i++) {
+    const raw = raws[i];
+    if (/^[^\p{L}\p{N}]+$/u.test(raw)) {
+      // ASCII punctuation decides nothing; a glyph token ("… in 🍕") is an
+      // object the phrase equality never saw.
+      if (/^[\s'&.,:;!?"“”()[\]…—–-]*$/.test(raw)) continue;
+      return null;
+    }
+    const t = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+    if (!t) continue;
+    if (TOTAL_SPEND_OBJECTS.has(t) || MERCHANT_STOP_WORDS.has(t) || MERCHANT_LEADING_SKIP.has(t)) continue;
+    return null; // the question says more than the category's name
+  }
+  for (const c of custom) {
+    // label = the TRIMMED name: it lands verbatim in a money headline, and a
+    // padded "  Café  " must not (critic cycle 1, F7).
+    if (c.name.trim().toLowerCase().normalize('NFC') === phrase) return catTarget(c.id, c.name.trim());
+  }
+  return null;
 }
 
 /**
@@ -903,7 +1152,16 @@ export function parseAssistantQuery(
     // synonym and answered ALL coffee-shop spending for a question about one store,
     // because `resolveSpendTarget` ran first and the guard sat below it. Readability is
     // a precondition of routing, not a fallback for when routing fails.
-    if (spendObjectUnreadable(spendObjectOf(q) ?? '')) return { kind: 'unknown', question };
+    //
+    // Sole exception (TASKS 2.6): an object that IS one of the user's own custom
+    // categories — "how much did I spend on Café?" is their own vocabulary, readable by
+    // definition. Equality, not containment: "at café zurich" still abstains.
+    const spendObject = spendObjectOf(q);
+    if (spendObject !== null && spendObjectUnreadable(spendObject)) {
+      const own = customCategoryForObject(spendObject, custom);
+      if (own) return { kind: 'spend_by_category', timeframe: parseTimeframe(q, today), target: own };
+      return { kind: 'unknown', question };
+    }
     const target = resolveSpendTarget(q, custom);
     const wantsRanking =
       /\b(top|most|biggest|highest|main)\b.*\bcategor/.test(q) ||
@@ -926,24 +1184,18 @@ export function parseAssistantQuery(
       if (NON_MERCHANT_SPEND_OBJECTS.has(first)) return { kind: 'unknown', question };
       return { kind: 'merchant_spend', timeframe, merchant };
     }
-    // #166 invariant kept: an unresolved "on <object>" ("on golf", "on average")
-    // is a question we can't answer precisely — a category we don't track, or a
-    // merchant the user phrased with "on". Abstain to the honest redirect rather
-    // than hijacking to the ALL-spending total. Objects that ARE the total
-    // ("on everything") or a month ("on March 5", already a parsed timeframe)
-    // keep the total answer (critic F7).
-    const onObject = /\b(?:spend|spent|spending)\b[^.?!]*?\bon\s+([a-z0-9]+)/.exec(q);
-    if (onObject && !TOTAL_SPEND_OBJECTS.has(onObject[1])) {
-      return { kind: 'unknown', question };
-    }
-    // `spend_total` is the SINK of this family, and every guard above is scoped to one
-    // sentence shape (verb, then preposition, then object). Three critic cycles each
-    // hardened a guard and each time the input moved one inch and landed here: a FRONTED
-    // object ("At 星巴克, how much did I spend?"), a sentence break ("I spent so much. At
-    // 星巴克 how much?"), a zero-width space glued to the preposition. So stop patching the
-    // filters and make the sink earn its answer: name content we cannot read, ANYWHERE in
-    // a spending question, means we do not know what was asked — and the user's total
-    // spending is the most confidently wrong thing we could say (#226 cycle 4).
+    // `spend_total` is the SINK of this family, and it must EARN its answer (TASKS 2.6,
+    // the #226 inversion). Four critic cycles each hardened one verb-anchored guard in
+    // front of it, and each time the input moved one syntactic inch — a fronted object
+    // ("At Costco, how much did I spend?"), a sentence break, punctuation glue — and
+    // landed here anyway: the user's ENTIRE spending, presented unhedged as the answer
+    // to a question about one store. So the sink no longer trusts the guards: the total
+    // requires a POSITIVE LICENCE — no at/with/on object anywhere in the question that
+    // the total does not account for (this subsumes the old verb-anchored "on <object>"
+    // #166 guard), and no name content we cannot read. Objects that ARE the total ("on
+    // everything"), a timeframe ("on March 5"), or a licensed idiom ("at least", "at
+    // the end of last month") keep the total answer.
+    if (unconsumedSpendObject(q) !== null) return { kind: 'unknown', question };
     if (containsUnreadableName(q)) return { kind: 'unknown', question };
     return { kind: 'spend_total', timeframe };
   }
@@ -1027,8 +1279,9 @@ function canonicalTargetLabel(
   if (t.type === 'category') {
     const system = CATEGORY_BY_ID.get(t.categoryId)?.name;
     if (system) return system;
-    const own = custom.find((c) => c.id === t.categoryId)?.name;
-    return own ?? null;
+    // Trimmed: this label lands verbatim in a money headline (critic F7).
+    const own = custom.find((c) => c.id === t.categoryId)?.name?.trim();
+    return own || null;
   }
   if (t.type === 'group') {
     // The synonym table's own phrasing for this group ("eating out"), else the group.
