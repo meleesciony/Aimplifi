@@ -263,4 +263,125 @@ describe('test_regression__ask-partial-match-hijacks (#166 audit P1)', () => {
     expect(parseAssistantQuery('how much did I spend on everything last month', TODAY).kind).toBe('spend_total');
     expect(parseAssistantQuery('did I spend at all last month', TODAY).kind).toBe('spend_total');
   });
+
+  it('test_regression__unreadable_merchant_behind_an_article (#226 cycle 2)', () => {
+    // The cycle-1 guard read the FIRST token after the preposition; the tokenizer skips
+    // leading articles first. So the identical harm was one article away: "at THE 星巴克"
+    // sailed past the guard, tokenized to nothing, and answered the ALL-spending total.
+    // Guard and tokenizer now walk the same token stream.
+    for (const q of [
+      'how much did I spend at the 星巴克 last month',
+      'how much did I spend at a 星巴克 last month',
+      'how much did I spend at my 田中 store last month',
+      'how much did I spend at the café zurich last month', // mangled to "caf zurich" before
+    ]) {
+      expect(parseAssistantQuery(q, TODAY).kind, q).toBe('unknown');
+    }
+  });
+
+  it('test_regression__unreadable_merchant_glued_to_a_stop_word (#226 cycle 3)', () => {
+    // The cycle-2 guard tested the STRIPPED token — and "星巴克last" strips to "last", a
+    // timeframe cue, so the scan terminated before the guard ever saw the raw bytes and
+    // the all-spending total came back. A missing space between an IME and a Latin word
+    // is the canonical typo for exactly the users this guard exists for. The raw token
+    // is now tested FIRST, always.
+    for (const q of [
+      'how much did i spend at 星巴克last month', // strips to the stop word "last"
+      'how much did i spend at 星巴克total', // strips to a TOTAL_SPEND_OBJECT
+      'how much did i spend at 星巴克may', // strips to a month name
+      'how much did i spend at , 星巴克', // punctuation-only token ended the scan
+      'how much did i spend at trader 星巴克 last month', // unreadable in token 2
+    ]) {
+      expect(parseAssistantQuery(q, TODAY).kind, q).toBe('unknown');
+    }
+  });
+
+  it('test_regression__unreadable_guard_refuses_only_NAME_content (#226 cycle 3)', () => {
+    // The guard must refuse only what it cannot READ. A quote, a dash, an emoji carries
+    // no name content the tokenizer would drop, so abstaining on it would refuse
+    // questions we answer perfectly well — the same class of self-inflicted regression
+    // the curly apostrophe was (cycle 2).
+    expect(parseAssistantQuery('how much did I spend at “costco” last month', TODAY)).toMatchObject({
+      kind: 'merchant_spend',
+      merchant: 'costco',
+    });
+    expect(parseAssistantQuery('how much did I spend at costco 🎉 last month', TODAY)).toMatchObject({
+      kind: 'merchant_spend',
+      merchant: 'costco',
+    });
+    // A non-ASCII character AFTER the object ended is not part of the name.
+    expect(parseAssistantQuery('how much did I spend at costco last month 🎉', TODAY)).toMatchObject({
+      kind: 'merchant_spend',
+      merchant: 'costco',
+    });
+  });
+
+  it('test_regression__object_that_strips_to_nothing (#226 cycle 4, P0)', () => {
+    // A store written in glyphs the tokenizer DELETES: enclosed alphanumerics, emoji.
+    // These are symbols, not letters, so the (deliberately narrow) name-char predicate
+    // says nothing about them — and the object vanished, landing on the ALL-spending
+    // total. The question that matters is not "is there a symbol?" but "did the object
+    // survive being read?".
+    for (const q of [
+      'how much did i spend at ⓒⓞⓢⓣⓒⓞ',
+      'how much did i spend at 🅲🅾🆂🆃🅲🅾',
+      'how much did i spend at 🍕',
+      'how much did i spend on 🍕',
+      'how much did i spend on ⓖⓡⓞⓒⓔⓡⓘⓔⓢ',
+    ]) {
+      expect(parseAssistantQuery(q, TODAY).kind, q).toBe('unknown');
+    }
+    // …while a symbol NEXT TO a readable name keeps its answer (no false abstain).
+    expect(parseAssistantQuery('how much did I spend at costco 🎉 last month', TODAY)).toMatchObject({
+      kind: 'merchant_spend',
+      merchant: 'costco',
+    });
+    // An unreadable name past the tokenizer's 4-token window is still the store the user
+    // asked about — answering for the first four words would name a shop they never said.
+    expect(parseAssistantQuery('how much did i spend at big apple corner store 星巴克', TODAY).kind).toBe('unknown');
+  });
+
+  it('test_regression__nfd_accents_cannot_reach_the_category_route (#226 cycle 4, P0)', () => {
+    // DECOMPOSED "café" is "cafe" + U+0301, and a combining mark is not a word char — so
+    // `\bcafe\b` matched it and the question about ONE STORE was answered with ALL
+    // coffee-shop spending, while the composed spelling of the same question abstained.
+    // Two byte sequences the user cannot tell apart must not route differently.
+    const base = 'how much did i spend at café zurich';
+    const nfd = base.normalize('NFD');
+    const nfc = base.normalize('NFC');
+    expect(nfd).not.toBe(nfc); // genuinely different bytes…
+    // …and they must ROUTE the same. (The echoed `question` keeps the user's own bytes,
+    // so only the routing DECISION is compared.)
+    expect(parseAssistantQuery(nfd, TODAY).kind).toBe('unknown');
+    expect(parseAssistantQuery(nfc, TODAY).kind).toBe('unknown');
+  });
+
+  it('test_regression__fronted_and_split_unreadable_objects (#226 cycle 4, P1)', () => {
+    // Every guard was scoped to one sentence shape (verb → preposition → object). The
+    // input just moved: a fronted object, a sentence break, a zero-width space glued to
+    // the preposition. `spend_total` is the SINK of this family and must earn its answer.
+    for (const q of [
+      'at 星巴克, how much did i spend?',
+      'i spent so much. at 星巴克 how much?',
+      'how much did i spend at​星巴克', // ZWSP instead of a space
+    ]) {
+      expect(parseAssistantQuery(q, TODAY).kind, q).toBe('unknown');
+    }
+  });
+
+  it('test_regression__smart_apostrophe_merchant_still_resolves (#226 cycle 2)', () => {
+    // A curly apostrophe is non-ASCII but carries no meaning — it is what the iOS
+    // keyboard types by default. The cycle-1 guard abstained on it, silently breaking
+    // every phone-typed possessive store name (and the LLM cannot rescue it: the
+    // classifier is never offered `merchant_spend`). Folded to ASCII before the test.
+    const curly = parseAssistantQuery('how much did I spend at mcdonald’s last month', TODAY);
+    expect(curly.kind).toBe('merchant_spend');
+    expect(curly).toMatchObject({ merchant: "mcdonald's" });
+    // …and it lands on the same key as the straight-quote spelling.
+    expect(parseAssistantQuery('how much did I spend at mcdonald\'s last month', TODAY)).toEqual(curly);
+    expect(parseAssistantQuery('how much did I spend at trader joe’s last month', TODAY)).toMatchObject({
+      kind: 'merchant_spend',
+      merchant: "trader joe's",
+    });
+  });
 });

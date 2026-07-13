@@ -289,13 +289,19 @@ describe('test_regression__vocab_weekly_independent_recheck (#226 P1)', () => {
     );
   };
 
-  it('retires a SERVING entry the independent resolver now disagrees with', async () => {
+  it('retires a SERVING entry the independent resolver now disagrees with, and says so', async () => {
     await serving();
     mockClassifier('income');
 
     expect((await runVocabMining(U)).recheckRetired).toBe(1);
     expect((await prisma.vocabEntry.findFirstOrThrow({ where: { userId: U } })).status).toBe('retired');
     expect(await lookupVocab(U, QUESTION)).toBeNull();
+
+    // A machine-initiated un-learning is never silent, and is distinguishable from the
+    // user's own "Not what I meant" in the trail (#226 cycle 2).
+    const log = await prisma.auditLog.findFirst({ where: { userId: U, action: 'vocab.retired.recheck' } });
+    expect(log).not.toBeNull();
+    expect(JSON.parse(log!.meta as string)).toMatchObject({ learnedKind: 'spend_by_category', verdict: 'income' });
   });
 
   it('leaves it serving when the independent resolver agrees', async () => {

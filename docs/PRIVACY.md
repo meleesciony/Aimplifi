@@ -27,9 +27,10 @@ fictional dataset; everything below applies fully once Plaid is connected.
   from your questions is never pooled, shared, or shown to another person, and the shared
   demo account never learns at all. Every learned phrasing is listed on Settings → AI
   trust with a one-click "Forget this", which is permanent — a forgotten phrasing is never
-  re-learned. Once a week, the scrubbed phrase (never your account data) may be sent to
-  the same optional AI routing model described below, to re-check that it still means what
-  we think it means; if it disagrees, the phrasing is dropped. Cascades on deletion.
+  re-learned. Once a week, the scrubbed phrase (never your account data) may be sent to the
+  optional AI routing service described under "What leaves the app", to re-check that it
+  still means what Aimplifi thinks it means; if it disagrees, the phrasing is dropped.
+  Cascades on deletion.
 - Engagement events (`EngagementEvent`, #209): first-party records of which
   dashboard cards you view, dismiss, expand, or act on (closed-set card ids only —
   no free text, no amounts, no third-party analytics). Stored so future adaptive
@@ -76,9 +77,34 @@ fictional dataset; everything below applies fully once Plaid is connected.
   never touch this system (they go to Plaid Link directly).
 - Audit log — what is logged TODAY: sign-in (best-effort — never blocks login), data exports (CSV/PDF), goal
   create/delete, budget set/clear, money-dials update, rule creation and
-  batch-apply, cron sync runs, (dormant Plaid path) item link/remove, and
+  batch-apply, cron sync runs, learned-phrasing changes (`vocab.retired` when you forget
+  one, `vocab.retired.recheck` when the weekly re-check drops one — so a machine-initiated
+  un-learning is never silent), (dormant Plaid path) item link/remove, and
   account deletion (`account.delete`, written immediately before the cascade that
   also removes it — per §Deletion, nothing about the user is retained).
+
+## What leaves the app: the optional AI routing model
+
+Aimplifi answers questions with its own tested engines — no AI model ever produces a
+number, a date range, or a category. But an operator may configure an optional AI
+service (xAI or Anthropic) to help ROUTE a question Aimplifi's own parser does not
+recognize: the model is shown a closed list of the answers Aimplifi already knows how to
+give, and picks one. Every parameter is then re-derived from your own words by Aimplifi's
+code, and the model's choice is re-validated before any data is read.
+
+What is sent, and only when the parser has already failed to route the question:
+
+- **The text of that question, as you typed it.** Nothing else — no balances, no
+  transactions, no account names, no identity. If a question contains something personal,
+  it is because you typed it into the question.
+- **Once a week, the PII-scrubbed text of each phrasing Aimplifi has learned from you**
+  (`VocabEntry`, above), so the same service can re-check that the phrasing still means
+  what Aimplifi thinks it means. A learned phrasing that no longer round-trips is dropped.
+
+If no API key is configured, none of this happens at all: no request is made, and Aimplifi
+falls back to saying it doesn't recognize the question. The whole product, including the
+demo, works with zero credentials. Answers routed this way are always labelled as
+interpreted, so a guess is never presented as a certainty.
 
 ## What is NOT stored
 

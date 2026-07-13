@@ -2,6 +2,56 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ⚠️ OPEN — Ask parser: the spend-family sink (4-cycle cap reached, #226)
+
+**Human decision needed.** TASKS 2.3 (learned vocabulary) is DONE and passes: the critics'
+final sweep found **no P0/P1 in the vocab engine, server, cron or UI**. But while reviewing
+it, four successive hostile-critic cycles kept finding the same *pre-existing* defect class in
+the **Ask parser** (`intent.ts` / `frame.ts` / `llm.ts`), which this slice touches. That class
+hit the 4-cycle cap, so per CLAUDE.md the remaining findings are written here rather than
+patched a fifth time.
+
+**The diagnosis (cycle 4, and it is correct):** `spend_total` is the *unconditional sink* of
+the spending family. Every guard in front of it is scoped to one sentence shape — verb, then
+preposition, then object — so each time a guard was hardened, the input moved one syntactic
+inch and landed on the sink anyway: the user's ENTIRE spending, presented as the answer to a
+question about one store, with no hedge. That is the repo's cardinal sin (a true figure under
+a false question), and it has now been reached three different ways.
+
+**FIXED this session** (each locked by the critic's own executed repro):
+an unreadable object no longer reaches ANY route — the readability check runs *before*
+category resolution; an object that survives stripping as nothing at all ("at ⓒⓞⓢⓣⓒⓞ",
+"at 🍕") abstains; input is NFC-composed, so decomposed "café" can no longer match the `cafe`
+synonym and answer all coffee-shop spending; `spend_total` must now *earn* its answer
+(`containsUnreadableName(q)` is a precondition), which closes fronted objects, sentence breaks
+and zero-width-space glue for every letter script; `intentFromKind` refuses an unreadable
+question, so the LLM cannot re-answer what the parser just abstained on; and the conversation
+frame abstains on the same input the parser does, instead of mangling the store or silently
+dropping it and answering the CARRIED one.
+
+**STILL OPEN — needs an owner decision (see TASKS 2.6):**
+1. **Fronted ASCII objects.** "At Costco, how much did I spend?" → `spend_total` (the
+   all-spending total). Identical sin, plain ASCII, and it PREDATES all of this work — the
+   merchant extractor only recognizes verb-then-preposition order. The durable fix is the
+   inversion the critic recommends: `spend_total` should require a positive licence (no
+   unconsumed at/with/on object anywhere in the question), not merely the absence of the
+   patterns we thought to look for. That is a real parser change with its own blast radius,
+   which is why it is not being done at the tail of a slice about vocabulary.
+2. **"at home depot" / "at homegoods" → `spend_by_category` "home" group** (rent + mortgage
+   included in a figure for a question about one retailer). Pre-existing #111-era substring
+   fallback; Home Depot is a top-10 US merchant.
+3. **Punctuation after the preposition:** "at - costco" → merchant `"- costco"`; "at... costco"
+   → `spend_total`.
+4. A **custom category with a non-ASCII name** ("Café") can never match its own synonym, so the
+   user's own category is unreachable (it abstains honestly — no wrong number).
+5. The weekly vocab re-check cannot distinguish the classifier answering "none" (a real
+   disagreement) from a network fault; both mean "no opinion, no change", so a rule the resolver
+   now considers unanswerable keeps serving.
+
+Nothing above is a regression from this session; items 1–4 are all older than it, and the tree is
+strictly better than it was (many variants that used to answer the total now abstain). But the
+class is live, it is money-facing, and it deserves its own slice rather than a fifth patch.
+
 ## Wave 2.3: Learned vocabulary — the weekly mining loop (#225/#226)
 
 The parser now gets smarter every week with no deploy. When a user asks the same
@@ -57,14 +107,32 @@ the parser: "how much did I spend at 星巴克 last month" answered the ALL-SPEN
 with no hedge, because both #166 abstain guards are ASCII-only (fixed: abstain before the
 tokenizer sees it).
 
-Gate (real 2026-07-12, post-fixes): `bash scripts/verify.sh` → **✅ VERIFY GREEN, exit 0** —
-tsc clean · eslint clean · `npx vitest run` **2503 unit / 184 files** (+69 this slice) ·
+Cycle 2 (fresh context, every cycle-1 repro re-executed): **all 11 cycle-1 findings confirmed
+CLOSED — and 1 NEW P1, inside the cycle-1 fix itself.** The non-ASCII abstention guard read the
+first token after the preposition, but the merchant tokenizer skips leading articles first — so
+guard and tokenizer disagreed about where the merchant starts, and the cardinal sin was one
+article away: "how much did I spend at **the** 星巴克 last month" still answered the all-spending
+total. Both now walk one shared token stream, so a guard can never inspect different input than
+its subject. That fix also closed a P2 the cycle-1 guard had *caused*: a curly apostrophe (the
+iOS keyboard default) is non-ASCII but meaningless, so "at mcdonald’s" had started abstaining —
+silently breaking every phone-typed possessive store name. Two more P2s fixed: an audit-initiated
+retire is no longer silent (`vocab.retired.recheck`), and PRIVACY.md now actually describes the AI
+routing service it had been promising to describe — the raw-question send had never been disclosed
+at all, since #75.
+
+Gate (real 2026-07-12, post-cycle-2): `bash scripts/verify.sh` → **✅ VERIFY GREEN, exit 0** —
+tsc clean · eslint clean · `npx vitest run` **2505 unit / 184 files** (+71 this slice) ·
 `npx next build` clean. `npx playwright test tests/e2e/ask.spec.ts` → **11/11**, including
 a new flow that signs up a real account, mints and promotes a rule through the REAL miner
 (3 independent rescues → shadow; 2 held-out → flagged), answers an unroutable phrasing with
 it, and forgets it. 7 REGRESSION_LEDGER entries (2026-07-12).
 
-Accepted limitations (recorded, not fixed): **`status` is a durable ratchet** — an entry
+Accepted limitations (recorded, not fixed): an **audit-retire is terminal**, like a user's
+rejection, so one stochastic misclassification permanently forecloses a phrase — the cost is that
+the question returns to the route it had before it was ever learned (no user-visible harm), and the
+asymmetry against a false PROMOTE justifies the bias; it is visible in the audit trail rather than
+silent. Retired tombstones and the demo user's `UnknownQuestion` ledger both grow without bound
+(storage hygiene only — nothing is rendered from either). **`status` is a durable ratchet** — an entry
 whose supporting rows age out of the 2000-row mining window keeps serving with counts
 recomputed to zero. Deliberate: a rule that passed its gates should not be un-learned
 because the ledger scrolled, and it stays safe because every DOWNWARD path remains open

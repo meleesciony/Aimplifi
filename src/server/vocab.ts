@@ -126,7 +126,23 @@ async function auditServableEntries(userId: string): Promise<number> {
       where: { id: entry.id, userId, status: { in: [...SERVABLE_STATUSES] } },
       data: { status: 'retired', retiredAt: new Date() },
     });
+    if (written.count === 0) continue;
     retired += written.count;
+    // A machine-initiated reversal must not be silent — the constitution says every
+    // adaptation is VISIBLE, and that has to include un-learning. The user-initiated
+    // undo writes `vocab.retired`; this writes its own action, so the two are
+    // distinguishable in the trail rather than looking identical at rest (#226 cycle 2).
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'vocab.retired.recheck',
+          meta: JSON.stringify({ entryId: entry.id, learnedKind: entry.kind, verdict }),
+        },
+      });
+    } catch {
+      /* an audit-write fault must not leave a disproven rule serving */
+    }
   }
   return retired;
 }

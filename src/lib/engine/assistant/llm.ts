@@ -16,6 +16,7 @@ import type { ISODate } from '@/lib/dates';
 import {
   type AssistantIntent,
   ASSISTANT_INTENT_KINDS,
+  containsUnreadableName,
   parseTargetAge,
   parseTargetAmount,
   parseTargetDate,
@@ -69,6 +70,15 @@ export function parseIntentKind(raw: unknown): string | null {
  */
 export function intentFromKind(kindRaw: string | null, question: string, today: ISODate): AssistantIntent | null {
   if (!kindRaw || !(LLM_ROUTABLE_KINDS as readonly string[]).includes(kindRaw)) return null;
+  // The parser abstains on a question naming an object it cannot read ("how much did I
+  // spend at 星巴克") specifically to hand it to the model — but the model's only
+  // expressible reading of a store-scoped spend question is `spend_total`
+  // (`merchant_spend` is not in its closed set), and that would answer the user's ENTIRE
+  // spending for a question about one shop. Every parameter below is re-derived from
+  // these same unreadable words, so nothing here can be grounded: abstain (#226 cycle 4).
+  // The F6 precedent, generalized — a kind is a hint, never a licence to answer a
+  // different question.
+  if (containsUnreadableName(question)) return null;
   const kind = kindRaw as (typeof LLM_ROUTABLE_KINDS)[number];
   const timeframe = parseTimeframe(question, today);
   switch (kind) {

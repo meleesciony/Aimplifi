@@ -493,9 +493,20 @@ export function resolveSpendTarget(
 
 // ─── intent parsing ─────────────────────────────────────────────────────────
 
-/** Normalize: lowercase, collapse whitespace, strip a trailing question mark. */
+/**
+ * Normalize: NFC-compose, lowercase, collapse whitespace. Punctuation (including a
+ * trailing "?") is deliberately LEFT IN — every route regex below tolerates it, and the
+ * merchant tokenizer strips it per-token. (#226 cycle 3: the comment used to claim it
+ * stripped a trailing question mark, which it never did.)
+ *
+ * NFC matters for money (#226 cycle 4): DECOMPOSED "café" is "cafe" + U+0301, and a
+ * combining mark is not a word character — so `\bcafe\b` matched it, and "how much did I
+ * spend at café zurich" answered ALL COFFEE-SHOP spending for a question about one store,
+ * while the composed spelling of the very same question abstained. Two byte sequences the
+ * user cannot tell apart must not route differently.
+ */
 function normalize(question: string): string {
-  return question.toLowerCase().replace(/\s+/g, ' ').trim();
+  return question.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 const DEFAULT_TOP_LIMIT = 5;
@@ -579,18 +590,108 @@ function extractSpendMerchant(q: string): string | null {
  * at the first timeframe/total cue, caps at 4 tokens.
  */
 export function extractMerchantPhrase(after: string): string | null {
-  const tokens = after.toLowerCase().split(/\s+/).filter(Boolean);
-  while (tokens.length && MERCHANT_LEADING_SKIP.has(tokens[0])) tokens.shift();
   const out: string[] = [];
-  for (const raw of tokens) {
-    const w = raw.replace(/[^a-z0-9'&.-]/g, '');
-    if (!w) break;
-    if (TOTAL_SPEND_OBJECTS.has(w) || MERCHANT_STOP_WORDS.has(w)) break;
-    out.push(w);
+  for (const raw of merchantTokens(after)) {
+    const word = stripToken(raw);
+    if (!word) break;
+    if (TOTAL_SPEND_OBJECTS.has(word) || MERCHANT_STOP_WORDS.has(word)) break;
+    out.push(word);
     if (out.length >= 4) break;
   }
   const phrase = out.join(' ').trim();
   return phrase || null;
+}
+
+/** The object's tokens: smart quotes folded to ASCII (a curly apostrophe carries no
+ *  meaning — "mcdonald’s" IS "mcdonald's"), leading articles dropped. */
+function merchantTokens(after: string): string[] {
+  const tokens = after
+    .toLowerCase()
+    .replace(/[’‘`]/g, "'")
+    .split(/\s+/)
+    .filter(Boolean);
+  while (tokens.length && MERCHANT_LEADING_SKIP.has(tokens[0])) tokens.shift();
+  return tokens;
+}
+
+const stripToken = (raw: string) => raw.replace(/[^a-z0-9'&.-]/g, '');
+
+/**
+ * A character that is part of a NAME (a letter, digit or combining mark) and is not
+ * ASCII — i.e. name content the ASCII tokenizer would silently delete.
+ *
+ * Deliberately narrower than "any non-ASCII byte" (#226 cycle 3). Quotes, dashes,
+ * emoji and other symbols are not name content: they carry nothing the tokenizer would
+ * drop, so treating them as unreadable only refuses questions we can answer perfectly
+ * well ("at “costco”", "at costco 🎉"). Cycle 2 made exactly that mistake with the
+ * curly apostrophe and broke every phone-typed possessive store name.
+ */
+const NON_ASCII_NAME_CHAR = /(?![\x00-\x7F])[\p{L}\p{N}\p{M}]/u;
+
+/** True when TEXT contains name content this parser cannot read (a store, a category,
+ *  a person, in a script the ASCII tokenizers delete). Shared with the conversation
+ *  frame and the LLM re-derivation, which must abstain on the same input the parser
+ *  abstains on. */
+export function containsUnreadableName(text: string): boolean {
+  return NON_ASCII_NAME_CHAR.test(text.normalize('NFC'));
+}
+
+/**
+ * The text after a spend question's at/with/on — the OBJECT the user named. Deliberately
+ * NOT anchored to the verb: the object can be fronted ("At Costco, how much did I
+ * spend?"), so a verb-then-preposition pattern misses it entirely and the question falls
+ * to the all-spending total (#226 cycle 4). Returns null when the question names no
+ * object at all.
+ */
+function spendObjectOf(q: string): string | null {
+  const m = /\b(?:at|with|on)\s+(.+)$/.exec(q);
+  return m ? m[1] : null;
+}
+
+/**
+ * True when the object the user named cannot be READ — a store or category in a script
+ * the ASCII tokenizer silently drops ("at 星巴克" → no merchant at all → the ALL-SPENDING
+ * TOTAL, a true figure under a false question) or mangles mid-word ("with café zurich" →
+ * merchant "caf zurich" → a confident-wrong "No spending at caf zurich"). If we cannot
+ * read the object, we do not answer a different question: abstain, and let the LLM route
+ * — which reads the raw words — have its turn.
+ *
+ * THE RAW TOKEN IS TESTED FIRST, ALWAYS. This is the third attempt at this guard, and
+ * every previous version died on the same mistake: reasoning about the STRIPPED token.
+ * Cycle 2 tested the first whitespace token while the tokenizer skipped leading articles
+ * ("at THE 星巴克" walked straight through). Cycle 3 tested inside a stream that
+ * terminated on a stop word computed from the stripped form — and "星巴克last" strips to
+ * "last", a timeframe cue, so the stream ended before the guard ever saw the raw bytes
+ * ("at 星巴克last month" → the all-spending total again). The stripped form of unreadable
+ * text is a LIE; it must never be consulted before the raw form has been.
+ */
+export function spendObjectUnreadable(after: string): boolean {
+  let taken = 0; // tokens that survived stripping — i.e. a name we can actually read
+  let sawObject = false; // the user put SOMETHING after the preposition
+  for (const raw of merchantTokens(after)) {
+    if (NON_ASCII_NAME_CHAR.test(raw)) return true; // raw first — always
+    const word = stripToken(raw);
+    // A genuine timeframe/total cue ends the OBJECT, so anything after it is not part of
+    // the name. But if the object up to here was there and yet NOTHING survived
+    // stripping, we still never read it.
+    if (TOTAL_SPEND_OBJECTS.has(word) || MERCHANT_STOP_WORDS.has(word)) return sawObject && taken === 0;
+    sawObject = true;
+    // Punctuation-only token ("at , 星巴克"): it ends the merchant PHRASE, but it must not
+    // end this SCAN — cycle 3 walked an unreadable store in behind exactly such a token.
+    // Nor does the tokenizer's 4-token cap end it: "at big apple corner store 星巴克" would
+    // otherwise answer for "big apple corner store", a name the user never asked about
+    // (#226 cycle 4). Only a genuine timeframe/total cue ends the object.
+    if (!word) continue;
+    taken += 1;
+  }
+  // The object was PRESENT but nothing survived stripping: a store written in glyphs the
+  // tokenizer deletes entirely — "at ⓒⓞⓢⓣⓒⓞ", "at 🅲🅾🆂🆃🅲🅾", "on 🍕". These are not
+  // letters, so NON_ASCII_NAME_CHAR (deliberately narrow, so emoji NEXT TO a name don't
+  // cause a false abstain) says nothing about them — and cycle 4 walked straight through
+  // to the ALL-spending total. The distinction that matters is not "is there a symbol?"
+  // but "did the object survive being read?" (#226 cycle 4). "at costco 🎉" keeps its
+  // answer; "at 🍕" does not get one.
+  return sawObject && taken === 0;
 }
 
 /**
@@ -797,6 +898,12 @@ export function parseAssistantQuery(
   // Spending family
   const mentionsSpend = /\b(spend|spent|spending)\b/.test(q) || /\bhow much .*\bon\b/.test(q) || /\bmoney go\b/.test(q);
   if (mentionsSpend) {
+    // BEFORE any object is resolved (#226 cycle 4): an unreadable object must not reach
+    // the CATEGORY route either. It did — decomposed "café zurich" matched the `cafe`
+    // synonym and answered ALL coffee-shop spending for a question about one store,
+    // because `resolveSpendTarget` ran first and the guard sat below it. Readability is
+    // a precondition of routing, not a fallback for when routing fails.
+    if (spendObjectUnreadable(spendObjectOf(q) ?? '')) return { kind: 'unknown', question };
     const target = resolveSpendTarget(q, custom);
     const wantsRanking =
       /\b(top|most|biggest|highest|main)\b.*\bcategor/.test(q) ||
@@ -808,17 +915,6 @@ export function parseAssistantQuery(
     const timeframe = parseTimeframe(q, today);
     if (wantsRanking && !target) return { kind: 'top_categories', timeframe, limit: DEFAULT_TOP_LIMIT };
     if (target) return { kind: 'spend_by_category', timeframe, target };
-    // #226 (critic, pre-existing): the spend-object tokenizers are ASCII-only —
-    // `extractMerchantPhrase` strips every non-[a-z0-9'&.-] character and the `on`
-    // guard below matches `[a-z0-9]+`. So a store or category named in another script
-    // either vanished ("at 星巴克" → no merchant → the ALL-spending TOTAL, a true figure
-    // under a false question, with no hedge) or was silently mangled ("with Zürich Café"
-    // → merchant "zrich"). The user named an object; if we cannot read the object, we do
-    // not answer a different question. Abstain BEFORE the tokenizer sees it, and let the
-    // LLM route — which reads the raw words — have its turn.
-    if (/\b(?:spend|spent|spending)\b[^.?!]*?\b(?:at|with|on)\s+\S*[^\x00-\x7F]/.test(q)) {
-      return { kind: 'unknown', question };
-    }
     // #168: "how much did I spend AT COSTCO" — an at/with object is a MERCHANT,
     // not a category (resolveSpendTarget ran first and returned null). Route it to
     // the per-merchant total, which matches the term against the transactions'
@@ -840,6 +936,15 @@ export function parseAssistantQuery(
     if (onObject && !TOTAL_SPEND_OBJECTS.has(onObject[1])) {
       return { kind: 'unknown', question };
     }
+    // `spend_total` is the SINK of this family, and every guard above is scoped to one
+    // sentence shape (verb, then preposition, then object). Three critic cycles each
+    // hardened a guard and each time the input moved one inch and landed here: a FRONTED
+    // object ("At 星巴克, how much did I spend?"), a sentence break ("I spent so much. At
+    // 星巴克 how much?"), a zero-width space glued to the preposition. So stop patching the
+    // filters and make the sink earn its answer: name content we cannot read, ANYWHERE in
+    // a spending question, means we do not know what was asked — and the user's total
+    // spending is the most confidently wrong thing we could say (#226 cycle 4).
+    if (containsUnreadableName(q)) return { kind: 'unknown', question };
     return { kind: 'spend_total', timeframe };
   }
 

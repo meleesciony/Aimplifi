@@ -22,8 +22,10 @@
  */
 import { addMonthsClamped, isoDate, type ISODate } from '@/lib/dates';
 import {
+  containsUnreadableName,
   extractMerchantPhrase,
   isNonMerchantObject,
+  spendObjectUnreadable,
   MONTH_TITLE,
   parseExplicitTimeframe,
   parseTimeframe,
@@ -165,6 +167,20 @@ export function resolveEllipsis(
   if (!frame) return null;
   const q = question.toLowerCase().replace(/\s+/g, ' ').trim().replace(/\?+$/, '').trim();
   if (!q) return null;
+  // Name content this parser cannot read (a store or category in a script the ASCII
+  // tokenizers delete) abstains the WHOLE fragment, exactly as it does on the parser's
+  // own spend route (#226 cycle 3). The frame inherited both halves of that bug: "what
+  // about at café zurich?" answered a confident-wrong "No spending at caf zurich", and
+  // "what about at 星巴克 last month?" silently DROPPED the unreadable store and answered
+  // the CARRIED one — the previous merchant's total under a question about a different
+  // shop. A fragment we cannot read is not a slot swap; it is a question for the LLM.
+  if (containsUnreadableName(q)) return null;
+  // The second clause catches an object made of glyphs that are not LETTERS — so the
+  // check above says nothing about them — but which the tokenizer deletes entirely:
+  // "what about at 🍕 last month?" strips to no merchant, and the timeframe-only
+  // fallback then answered the CARRIED store for last month (#226 cycle 4).
+  const objectHere = /\b(?:at|with)\s+(.+)$/.exec(q);
+  if (objectHere && spendObjectUnreadable(objectHere[1])) return null;
 
   const rest = q.replace(CUE_RE, '').trim();
   if (!rest) return null;
@@ -262,6 +278,11 @@ function merchantFragment(rest: string): string | null {
   // "…at costco", "…with costco" — the merchant construction, wherever it sits.
   const led = /\b(?:at|with)\s+(.+)$/.exec(rest);
   if (led) return cleanMerchant(led[1], false);
+  // NOTE: an at/with object that we cannot READ never reaches here — resolveEllipsis
+  // abstains the whole fragment first (containsUnreadableName + spendObjectUnreadable),
+  // so a store written in glyphs the tokenizer deletes can neither be mangled into a
+  // wrong merchant nor SILENTLY DROPPED, leaving the carried one to answer a question
+  // about a different shop (#226 cycles 3–4).
 
   const tokens = rest.split(' ');
   const after = LEADING_PREPOSITIONS.has(tokens[0]) ? tokens.slice(1).join(' ') : rest;

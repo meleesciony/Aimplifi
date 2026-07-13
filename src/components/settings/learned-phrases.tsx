@@ -68,7 +68,9 @@ export function LearnedPhrases({ phrases }: { phrases: readonly LearnedPhrase[] 
         When you ask the same unrecognized question several times and it routes the same way each
         time, Aimplifi remembers the phrasing. It only ever learns which of its existing answers to
         show — never what the answer says. Every figure is still computed from your own
-        transactions. Nothing here is shared with anyone else.
+        transactions. A phrasing you teach Aimplifi is never shared with another person; once a week
+        the phrase itself (never your account data) may be re-checked by the same AI routing service
+        that routes unrecognized questions, and dropped if it no longer holds up.
       </p>
       <ul className="space-y-1.5">
         {visible.map((p) => (

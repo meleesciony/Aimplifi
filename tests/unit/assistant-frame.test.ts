@@ -463,3 +463,34 @@ describe('a client-supplied frame is validated like any untrusted input', () => 
     });
   });
 });
+
+describe('test_regression__frame_abstains_on_unreadable_names (#226 cycle 3)', () => {
+  // The frame consumed the parser's merchant TOKENIZER but never its unreadable-object
+  // GUARD, so both halves of the parser's cardinal-sin bug lived on here.
+  it('does not mangle a store it cannot read into a confident-wrong merchant', () => {
+    const frame = frameAfter('how much did I spend at Costco last month?');
+    // Was: merchant_spend "caf zurich" → "No spending at caf zurich last month."
+    expect(resolveEllipsis('what about at café zurich?', TODAY, frame)).toBeNull();
+  });
+
+  it('does not silently DROP an unreadable store and answer the CARRIED one', () => {
+    const frame = frameAfter('how much did I spend at Costco last month?');
+    // Was: merchant_spend COSTCO, last month — the previous store's total, under a
+    // question about a different shop the user just named. A true figure, a false question.
+    expect(resolveEllipsis('what about at 星巴克 last month?', TODAY, frame)).toBeNull();
+    expect(resolveEllipsis('what about 星巴克?', TODAY, frame)).toBeNull();
+  });
+
+  it('still resolves every readable fragment (the guard refuses only NAME content)', () => {
+    const frame = frameAfter('how much did I spend at Costco last month?');
+    expect(resolveEllipsis('what about at mcdonald’s?', TODAY, frame)).toMatchObject({
+      kind: 'merchant_spend',
+      merchant: "mcdonald's",
+    });
+    expect(resolveEllipsis('what about this month? 🎉', TODAY, frame)).toMatchObject({
+      kind: 'merchant_spend',
+      merchant: 'costco',
+      timeframe: THIS_MONTH,
+    });
+  });
+});

@@ -13,6 +13,15 @@ import { runVocabMining } from '@/server/vocab';
  * Reads and writes nothing a money engine ever touches, so the demo/golden dataset
  * stays byte-identical. A per-user fault is logged and the sweep continues.
  */
+/**
+ * The only cron that makes outbound calls (the weekly independent re-check, one per
+ * SERVED phrase, ≤200 per user). Sequential per user, so give it real headroom rather
+ * than dying mid-sweep and leaving later users unmined (#226 cycle 2, P3). Per-user
+ * try/catch means a truncated sweep is a liveness gap, never an inconsistent state:
+ * the next run recomputes everything from the ledger anyway.
+ */
+export const maxDuration = 300;
+
 export async function GET(request: NextRequest) {
   if (!checkCronBearer(request.headers.get('authorization'), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
