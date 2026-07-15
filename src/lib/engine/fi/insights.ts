@@ -32,6 +32,18 @@ function countsInFlows(t: TxnLike): boolean {
   return !t.isTransfer && t.status === 'POSTED' && !t.isSplitParent;
 }
 
+/**
+ * The exact rows `monthlyFlows` counts as INCOME, exported so the Glass-Box
+ * trace (GLASSBOX_PLAN) cites the same rows the flows summed — one predicate,
+ * two surfaces, no drift. A positive counts as income when it has no category,
+ * or an Income-group category other than the 'refund' leaf (a merchandise
+ * return nets against spend instead — #166).
+ */
+export function isIncomeFlowRow(t: TxnLike): boolean {
+  if (!countsInFlows(t) || t.amountCents <= 0) return false;
+  return !t.categoryId || (t.categoryId !== 'refund' && isIncomeCategoryId(t.categoryId));
+}
+
 /** Month key 'YYYY-MM'. */
 const ym = (date: string) => date.slice(0, 7);
 
@@ -65,12 +77,9 @@ export function monthlyFlows(transactions: readonly TxnLike[]): MonthlyFlow[] {
   for (const t of transactions) {
     if (!countsInFlows(t)) continue;
     const slot = byMonth.get(ym(t.date)) ?? { income: 0, expenses: 0 };
-    if (t.amountCents > 0) {
-      if (t.categoryId && (t.categoryId === 'refund' || !isIncomeCategoryId(t.categoryId))) slot.expenses -= t.amountCents; // refund
-      else slot.income += t.amountCents;
-    } else {
-      slot.expenses += -t.amountCents;
-    }
+    if (isIncomeFlowRow(t)) slot.income += t.amountCents;
+    else if (t.amountCents > 0) slot.expenses -= t.amountCents; // refund nets spend down
+    else slot.expenses += -t.amountCents;
     byMonth.set(ym(t.date), slot);
   }
   return [...byMonth.entries()]

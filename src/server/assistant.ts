@@ -26,7 +26,6 @@ import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 import type { ISODate } from '@/lib/dates';
 import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
-import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { mergeCategoryMeta, type CategoryMeta, type CustomCategoryInput } from '@/lib/engine/categorize/categories';
 import { getCustomCategories } from '@/server/category-meta';
 import { parseAssistantQuery, validateIntent, type AssistantIntent } from '@/lib/engine/assistant/intent';
@@ -59,6 +58,7 @@ import {
   answerUnknown,
   largestPurchases,
   merchantSpend,
+  toPurchaseRows as enginePurchaseRows,
   type AssistantAnswer,
   type PurchaseRow,
 } from '@/lib/engine/assistant/answer';
@@ -248,24 +248,9 @@ export async function askAssistant(
 
 type FinanceSnapshot = Awaited<ReturnType<ReturnType<typeof getProvider>['getFinanceSnapshot']>>;
 
-/** POSTED-only purchase rows with a derived canonical merchant — the shared input
- *  for both merchant intents (largest_purchases + merchant_spend), so they read
- *  the same universe of purchases and can't diverge. */
-function toPurchaseRows(snap: FinanceSnapshot): PurchaseRow[] {
-  return snap.transactions
-    .filter((t) => t.status === 'POSTED')
-    .map((t) => {
-      const m = normalizeMerchant(t.rawDescriptor);
-      return {
-        date: t.date,
-        amountCents: t.amountCents,
-        categoryId: (t as { categoryId?: string | null }).categoryId ?? m.categoryId,
-        isTransfer: t.isTransfer,
-        isSplitParent: (t as { isSplitParent?: boolean }).isSplitParent ?? false,
-        merchant: m.canonical,
-      };
-    });
-}
+// toPurchaseRows moved into the answer engine (GLASSBOX_PLAN slice 1) so the
+// merchant intents and the Glass-Box trace share one purchase universe.
+const toPurchaseRows = (snap: FinanceSnapshot): PurchaseRow[] => enginePurchaseRows(snap.transactions);
 
 async function buildAnswer(
   intent: AssistantIntent,

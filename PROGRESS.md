@@ -1,5 +1,43 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-15 — Glass-Box slice 1 (GLASSBOX_PLAN, engine) — code done, verify green, critic cycle 1 IN FLIGHT
+
+**Done:** the ROW-SUM trace engine per docs/GLASSBOX_PLAN.md. (a) reports.ts: `isSpendRow` /
+`spendRowCategoryId` / `spendContributionCents` extracted from `spendingByCategory`, which now calls
+them (claimed byte-identical; C6 reference test locks it). (b) insights.ts: `isIncomeFlowRow`
+extracted from `monthlyFlows`, loop refactored. (c) answer.ts: `toPurchaseRows` moved in from
+server/assistant.ts (new `SnapshotTxnLike`); server delegates. (d) NEW
+src/lib/engine/assistant/trace.ts — `traceAnswer(intent, {transactions, today, meta})`: spend_total
+hierarchical (byCategory IS the reconciliation; net-refund categories excluded), spend_by_category
+(category/umbrella/group), top_categories (headline = top category's rows; all listed as groups),
+merchant_spend (pure reshape of `merchantSpend().items`, gross), income (windowed `monthlyFlows`
+sum + `isIncomeFlowRow` rows), largest_purchases (the single top row). Derivation intents →
+`{kind:'not_row_sum'}`; `ROW_SUM_KINDS` exported for UI tappability. Runtime `reconciled` check —
+fail loud, never a wrong number. (e) NEW tests/unit/assistant-trace.test.ts: acceptance criteria
+1–6 incl. seed grounding (36 tests).
+
+**Evidence:** `bash scripts/verify.sh` → ✅ VERIFY GREEN; `npx vitest run` → **2630 passed / 188
+files** (+36/+1 over #230's 2594/187). Seed income note: June (asOf 2026-06-10) has $0 income —
+non-vacuous income grounding asserted on May instead.
+
+**Critic cycle 1 (fresh-context Fable, 2026-07-15): FAIL — 2 P1, 1 P2, 2 P3.** The lockstep core
+survived a 4000-iteration old-vs-new fuzz (~160k intent checks) clean; both P1s were API-shape:
+(F1) `TraceInput.meta` optional → a meta-less caller mis-bucketed custom categories, wrong number
+stamped reconciled — FIXED: meta now REQUIRED, custom-meta tests added (F3). (F2) no answer→tap
+drift detection — FIXED: `expectedHeadlineCents?` folds the tapped figure into `reconciled`.
+(F4/F5, P3) recorded as binding slice-2 constraints in GLASSBOX_PLAN §Sequencing: per-figure
+tappability (detail sentences with totals/share-% stay non-tappable), largest runner-up facts
+non-tappable, server must thread mergeCategoryMeta + expectedHeadlineCents. Post-fix:
+verify GREEN, **2635 unit / 188 files** (41 trace tests).
+
+**Critic cycle 2 (fresh-context Fable, 2026-07-15): PASS — 0 P0/P1.** Both cycle-1 P1 repros
+re-executed independently and confirmed closed (incl. tsc rejecting a meta-less call); falsy-zero
+`expectedHeadlineCents`, not_row_sum interaction, and additivity all verified; independent
+400-iteration fuzz clean. 3 P3s: dead `TxnLike` cast (removed), expectedHeadlineCents-optional
+trap (slice-2 constraint (c) — consider required when the first caller lands), custom-Income-group
+observation (recorded in STATUS). **DONE:** docs updated (STATUS wave section, DECISIONS #232 +
+index, 2 REGRESSION_LEDGER entries), committed.
+
 ## 2026-07-14 — #230 TASKS 2.7 — timeframe follow-up + largest merchant scope — DONE, verify green, critic cycle 2 PASS
 
 **Done:** TASKS 2.7 shipped (DECISIONS #230). (a) `parseExplicitTimeframe` learns bare years / since / ranges / numeric dates (month-window rule for M/D, matching the shipped worded form); future years and months are never windows. (b) NEW `unresolvedDateShape` guard: an unwindowable date shape abstains every timeframe-carrying route — parser, `intentFromKind` (LLM + vocab, custom categories now threaded), and the conversation frame. Fixed CONFIRMED live cardinal sins: 'groceries in 2025' → the THIS-MONTH figure, 'since 2024' / 'between 2024 and 2025' → the this-month total, 'since march' → March-only. (c) The #229 licence takes `today` and consumes exactly what the parser windows (shared recognizers). (d) `largest_purchases` gains optional `merchant` via shared `largestScope` (at/with/from; abstains on fronted stores, #168 payment/account words, unreadable names, category/unknown modifiers); frame carries the merchant on window swaps and re-scopes on 'what about at X?' (supersedes #223 P2-5); `validateIntent` bounds it. (e) NEW shared `isLicensedIdiomPhrase`: 'at the moment' / 'at the end of last month' are idioms, not stores — also fixes pre-existing merchant_spend 'No spending at Moment' answers.

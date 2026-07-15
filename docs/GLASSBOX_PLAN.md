@@ -91,6 +91,14 @@ honest fallback, never a wrong number.
   (money grounding — the reconciliation must not lie in either direction).
 - **Slice 2 (UI):** make row-sum headline/facts tappable in `ask-view.tsx` (plain `<p>`/`<dd>`
   today), a trace drawer, and the one-tap correction chip; derivation numbers stay non-tappable.
+  **Binding constraints from critic cycle 1 (2026-07-15, P3s F4/F5):** (a) tappability is
+  PER-FIGURE, not per-intent-kind — `answerTopCategories.detail` embeds the period total and
+  `answerSpendByCategory.detail` embeds a share-%, neither of which the trace reconciles; detail
+  sentences stay non-tappable. (b) `largest_purchases` traces only the headline row; the runner-up
+  facts are NOT in the trace — pin them non-tappable (or extend the trace first). (c) The server
+  must pass `mergeCategoryMeta(custom)` and the tapped figure's cents (`expectedHeadlineCents`,
+  from the answer payload) into `traceAnswer` — both are load-bearing (critic P1s F1/F2, fixed in
+  the slice-1 engine API).
 - **Slice 3:** derivation-chain "show the formula + inputs" view for `cash_needed` / `net_worth` /
   `savings_rate` (no fake row-sum).
 

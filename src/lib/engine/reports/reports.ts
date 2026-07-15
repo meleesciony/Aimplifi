@@ -31,6 +31,33 @@ export interface SpendingBreakdown {
   byGroup: GroupSpend[]; // sorted desc
 }
 
+/**
+ * The per-row spending filter `spendingByCategory` applies, exported so the
+ * Glass-Box trace (GLASSBOX_PLAN) selects contributing rows with the SAME
+ * predicate the breakdown summed — by construction, never a re-derivation
+ * that can drift. Any change here changes both surfaces together.
+ */
+export function isSpendRow(
+  t: ReportTxn,
+  range: { fromYm: string; toYm: string },
+  meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+): boolean {
+  if (t.isSplitParent || t.isTransfer) return false;
+  const ym = t.date.slice(0, 7);
+  if (ym < range.fromYm || ym > range.toYm) return false;
+  const id = t.categoryId ?? 'uncategorized';
+  if (id === 'transfer') return false;
+  if (meta.get(id)?.group === 'Income') return false; // income isn't spending
+  return true;
+}
+
+/** The category bucket a spend row lands in (shared with the trace). */
+export const spendRowCategoryId = (t: ReportTxn): string => t.categoryId ?? 'uncategorized';
+
+/** A spend row's signed contribution to its bucket: purchases add, refunds net
+ *  down — both branches are exactly −amountCents (spend rows are negative). */
+export const spendContributionCents = (t: ReportTxn): number => -t.amountCents;
+
 /** Spending grouped by category for months in [fromYm, toYm] (inclusive). */
 export function spendingByCategory(
   txns: readonly ReportTxn[],
@@ -41,18 +68,9 @@ export function spendingByCategory(
 ): SpendingBreakdown {
   const totals = new Map<string, number>();
   for (const t of txns) {
-    if (t.isSplitParent || t.isTransfer) continue;
-    const ym = t.date.slice(0, 7);
-    if (ym < range.fromYm || ym > range.toYm) continue;
-    const id = t.categoryId ?? 'uncategorized';
-    if (id === 'transfer') continue;
-    const cat = meta.get(id);
-    if (cat?.group === 'Income') continue; // income isn't spending
-    if (t.amountCents < 0) {
-      totals.set(id, (totals.get(id) ?? 0) + -t.amountCents);
-    } else {
-      totals.set(id, (totals.get(id) ?? 0) - t.amountCents); // refund nets down
-    }
+    if (!isSpendRow(t, range, meta)) continue;
+    const id = spendRowCategoryId(t);
+    totals.set(id, (totals.get(id) ?? 0) + spendContributionCents(t));
   }
 
   const byCategory: CategorySpend[] = [];

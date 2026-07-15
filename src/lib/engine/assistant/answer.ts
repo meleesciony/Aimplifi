@@ -19,6 +19,7 @@ import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { addMonthsClamped, compareDates, formatMonth, isoDate } from '@/lib/dates';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
@@ -254,6 +255,39 @@ export interface PurchaseRow {
   isTransfer?: boolean;
   isSplitParent?: boolean;
   merchant: string;
+}
+
+/** A raw snapshot transaction as the assistant reads it. `categoryId` and
+ *  `isSplitParent` are present on DB rows at runtime (declared here instead of
+ *  re-cast at each call site — GLASSBOX_PLAN readiness note). */
+export interface SnapshotTxnLike {
+  date: string;
+  amountCents: number;
+  rawDescriptor: string;
+  status: string;
+  isTransfer: boolean;
+  isSplitParent?: boolean;
+  categoryId?: string | null;
+}
+
+/** POSTED-only purchase rows with a derived canonical merchant — the shared input
+ *  for both merchant intents (largest_purchases + merchant_spend) AND the
+ *  Glass-Box trace, so all three read the same universe of purchases and can't
+ *  diverge. (Moved from the server orchestrator for that lockstep.) */
+export function toPurchaseRows(txns: readonly SnapshotTxnLike[]): PurchaseRow[] {
+  return txns
+    .filter((t) => t.status === 'POSTED')
+    .map((t) => {
+      const m = normalizeMerchant(t.rawDescriptor);
+      return {
+        date: t.date,
+        amountCents: t.amountCents,
+        categoryId: t.categoryId ?? m.categoryId,
+        isTransfer: t.isTransfer,
+        isSplitParent: t.isSplitParent ?? false,
+        merchant: m.canonical,
+      };
+    });
 }
 
 /** Non-actionable money movement — cash/ATM, transfers, card payments, and

@@ -54,6 +54,34 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Glass-Box slice 1: the row-sum trace engine (#232, 2026-07-15)
+
+The Wave-2 lead (AI_DIFFERENTIATION_PLAN §2.1, plan: docs/GLASSBOX_PLAN.md) is engine-complete:
+`src/lib/engine/assistant/trace.ts` traces the 6 ROW-SUM intents (spend_total hierarchical,
+spend_by_category, top_categories, merchant_spend gross, income, largest_purchases single-row)
+to the exact transaction rows behind the headline, reconciled to the penny at runtime — fail
+loud in both directions, never a wrong number under a green check. Lockstep by construction:
+the engines' own row predicates were extracted and shared (`isSpendRow`/`spendRowCategoryId`/
+`spendContributionCents` from reports.ts, `isIncomeFlowRow` from insights.ts, `toPurchaseRows`
+into answer.ts), each extraction pinned byte-identical. The 12 derivation-chain intents return
+`not_row_sum` (`ROW_SUM_KINDS` drives UI tappability) — no fake row-sum is ever offered.
+
+Two fresh-context Fable critic cycles: **cycle 1 FAIL — 2 P1** (optional `meta` silently
+mis-bucketed custom categories: a wrong figure stamped reconciled; no answer→tap drift check:
+a sync between answer and tap green-checked a different number than tapped), 1 P2, 2 P3 — P1s
+fixed (`meta` required; `expectedHeadlineCents` folded into `reconciled`), P2 tested, P3s
+recorded as binding slice-2 constraints in GLASSBOX_PLAN §Sequencing. **Cycle 2 PASS — 0 P0/P1**
+(both repros re-executed independently incl. tsc-level rejection; independent 400-iteration
+fuzz clean; cycle 1 had already fuzzed the extractions old-vs-new 4000 iterations clean). Its
+3 P3s: dead cast removed; expectedHeadlineCents-optional trap → slice-2 constraint (consider
+required when the first real caller lands); custom-Income-group categories are refund-netted
+by income while merged-meta spending excludes them as Income — pre-existing, both surfaces
+agree (lockstep holds), revisit if custom categories ever join the Income group. Gate:
+`bash scripts/verify.sh` → VERIFY GREEN — **2635 unit / 188 files** (41 trace tests), tsc/
+eslint/build clean. 2 REGRESSION_LEDGER entries, DECISIONS #232. **Next: slice 2 (UI)** —
+tappable row-sum figures + trace drawer + correction chip in ask-view.tsx, honoring the
+recorded per-figure tappability constraints.
+
 ## Wave 2.7: timeframe follow-up + largest merchant scope (#230, 2026-07-14)
 
 The 2.6 escalation's last two items now earn real answers — and the slice fixed
