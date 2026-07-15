@@ -41,6 +41,11 @@ import {
   type MerchantSpendResult,
 } from './answer';
 import type { AssistantIntent, SpendTarget, Timeframe } from './intent';
+// Type-only: the derivation-chain trace family (slice 3 — "formula + inputs"
+// for net_worth / cash_needed / savings_rate). Built by derivation.ts where the
+// engine results are live, attached by the server, and unioned here so the
+// answer payload carries one discriminated `trace` field.
+import type { DerivationTrace } from './derivation';
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -120,7 +125,7 @@ export interface NotRowSumTrace {
   intentKind: AssistantIntent['kind'];
 }
 
-export type AnswerTrace = RowSumTrace | NotRowSumTrace;
+export type AnswerTrace = RowSumTrace | NotRowSumTrace | DerivationTrace;
 
 /** The intent kinds whose figures are traceable to rows — the UI renders ONLY
  *  these as tappable (GLASSBOX_PLAN: never offer a reconciliation we can't honor). */

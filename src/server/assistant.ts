@@ -63,6 +63,11 @@ import {
   type PurchaseRow,
 } from '@/lib/engine/assistant/answer';
 import { ROW_SUM_KINDS, traceAnswer, type TraceTxn } from '@/lib/engine/assistant/trace';
+import {
+  traceCashNeededDerivation,
+  traceNetWorthDerivation,
+  traceSavingsRateDerivation,
+} from '@/lib/engine/assistant/derivation';
 import { CORRECTABLE_KINDS } from '@/lib/engine/assistant/trace-view';
 import { applyCategory, undoCorrections } from '@/server/triage-actions';
 
@@ -393,8 +398,16 @@ async function buildAnswer(
   meta: ReadonlyMap<string, CategoryMeta>,
 ): Promise<AssistantAnswer> {
   switch (intent.kind) {
-    case 'net_worth':
-      return answerNetWorth(snap.accounts);
+    case 'net_worth': {
+      // Slice 3: derivation traces are attached HERE, where the engine inputs
+      // are live (composeAnswer's row-sum attach recomputes from transactions,
+      // which these formulas don't read). `headlineCents`/`headlineBps` is the
+      // builder's own figure, so the trace's equality is a real drift gate.
+      const answer = answerNetWorth(snap.accounts);
+      return answer.headlineCents === undefined
+        ? answer
+        : { ...answer, trace: traceNetWorthDerivation(snap.accounts, answer.headlineCents) };
+    }
     case 'account_balance':
       return answerAccountBalance(snap.accounts, intent.query);
     case 'spend_total':
@@ -430,18 +443,35 @@ async function buildAnswer(
       // (its currentRateBps = the most recent complete month's savingsRateBps).
       const coach = await getCoachData(userId);
       const last = coach.flows[coach.flows.length - 1];
-      return answerSavingsRate({
+      const answer = answerSavingsRate({
         rateBps: coach.currentRateBps,
         incomeCents: last?.incomeCents ?? 0,
         expensesCents: last?.expensesCents ?? 0,
         monthLabel: last ? ymLabel(last.month) : '',
       });
+      // Slice 3: the trace RECOMPUTES the rate from the month's flows, while
+      // `headlineBps` is the coach's STORED value the builder displayed — the
+      // equality is the canary if the coach's definition ever drifts.
+      return answer.headlineBps === undefined || !last
+        ? answer
+        : {
+            ...answer,
+            trace: traceSavingsRateDerivation(
+              { incomeCents: last.incomeCents, expensesCents: last.expensesCents, monthLabel: ymLabel(last.month) },
+              answer.headlineBps,
+            ),
+          };
     }
     case 'safe_to_spend':
       return answerSafeToSpend(await getSpendingPlan(userId));
     case 'cash_needed': {
       const { result } = await getCashNeeded(userId);
-      return answerCashNeeded(result, resolvePaymentAccount(snap).name);
+      const answer = answerCashNeeded(result, resolvePaymentAccount(snap).name);
+      // Slice 3: the trace reshapes the SAME engine result (via the dashboard
+      // glass-box rows) — no headlineCents (nothing due) → no figure, no tap.
+      return answer.headlineCents === undefined
+        ? answer
+        : { ...answer, trace: traceCashNeededDerivation(result, answer.headlineCents) };
     }
     case 'debt_payoff': {
       // Same read-path + engine as the /goals planner (avalanche default, no extra)

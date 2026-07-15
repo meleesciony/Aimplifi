@@ -54,6 +54,45 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Glass-Box slice 3: derivation "formula + inputs" panels (#235, 2026-07-15) — GLASSBOX_PLAN complete
+
+Slice 3 closes GLASSBOX_PLAN (AI plan §2.1): the three derivation figures Ask can honestly explain —
+net_worth, cash_needed, savings_rate — are now tappable, opening a "formula + inputs" panel whose
+displayed lines provably produce the displayed number. No fake row-sum: these are formula results.
+
+**Engine (`assistant/derivation.ts`, pure):** a new `DerivationTrace` variant on `AnswerTrace`, built
+under the glass-box cardinal rule — reshape the engine result, never recompute from raw inputs.
+net_worth: one signed line per account, side by the canonical `isLiabilityType` (an overdrawn checking
+is a negative-contribution asset, never sign-inferred; −0 normalized). cash_needed: rows REUSED from
+the dashboard glass-box trace (the engine's own `perDueDate` partition — the real-statements-else-
+estimated due-selection is never re-implemented; "(autopay)" markers carried for /cards parity);
+reconciled also binds `byDate`. savings_rate: income/expenses lines summing to saved, the rate
+recomputed via the same `savingsRateBps` and gated against the coach's STORED bps — the canary that
+fires if the coach's definition ever drifts from the formula shown.
+
+**The gate is triple + local:** builders declare their OWN figure (`headlineCents` widened to
+net_worth/cash_needed; new `headlineBps` for savings_rate) so line sum ≡ engine figure ≡ builder
+figure at build time; a pure `derivationView` (trace-view.ts) re-runs the whole chain client-side
+(re-sum, per-kind formula re-run, every-row integer-cents guard, empty-rows guard) before the UI
+offers anything under a ✓. No figure (zero-due, null rate, zero accounts) → no trace → no tap.
+Untraced derivation kinds (forecast, safe_to_spend, …) stay a plain `<p>` — pinned by e2e. One
+formatter per claim: `bpsToPct1dp` shared by headline+panel; `humanDate` exported so the "Needed by"
+footer and row dates restate the headline's date claim in its own format.
+
+**Two fresh-context Fable critic cycles, both PASS 0 P0/P1; 9 P2s found and ALL FIXED** (cycle 1: basis
+copy misstating manual accounts/OTHER_LIABILITY, overpaid-card double negative, footer ISO mismatch,
+dead export, autopay parity, empty-accounts hollow tap; cycle 2 verified those fixes + found: 380px
+truncation could clip the disclosure markers, raw-ISO row dates, integer-guard asymmetry). Both cycles
+hand-verified the three formulas on paper and re-ran every gate themselves. 2 REGRESSION_LEDGER
+entries; DECISIONS #235.
+
+Gate (real output 2026-07-15): `bash scripts/verify.sh` → **✅ VERIFY GREEN — 2714 unit / 194 files**
+(+42/+2: assistant-derivation 26, assistant-derivation-view 16), tsc/eslint/build clean; ask e2e
+**20/20** (3 new tappable-formula specs re-running the arithmetic off the DOM at 380px — owned−owed,
+card rows re-sum + same-format footer date, income−expenses=kept + panel rate === headline rate — plus
+the untraced safe_to_spend pin; axe WCAG-AA with the formula panel open). **Next: AI plan Wave-2 §2.2
+(Smart Notification & Nudge Engine, rank #7) — needs its own scoping decision first.**
+
 ## Glass-Box slice 2b: per-fact taps + the one-tap correction chip (#234, 2026-07-15)
 
 Slice 2b completes the read surface and ships the first Ask WRITE path (GLASSBOX_PLAN §2b).
@@ -101,8 +140,7 @@ committed-write lock), tsc/eslint/build clean; ask e2e **17/17** (2 new specs: a
 rows re-summed off the DOM to its own figure; chip render-only — editor open/cancel, no apply
 click against the shared demo DB per the #182 precedent — and merchant rows proven chip-free),
 axe WCAG-AA clean with the fact panel and the editor open. 2 REGRESSION_LEDGER entries,
-DECISIONS #234. **Next: slice 3** — derivation-chain "show the formula + inputs" for
-cash_needed / net_worth / savings_rate (no fake row-sum).
+DECISIONS #234. (Slice 3 shipped 2026-07-15 — §above.)
 
 ## Glass-Box slice 2a: the trace UI — tappable numbers + reconciliation panel (#233, 2026-07-15)
 

@@ -17,6 +17,7 @@ import {
   answerLargest,
   answerMerchantSpend,
   answerNetWorth,
+  answerSafeToSpend,
   answerSpendByCategory,
   answerSpendTotal,
   answerTopCategories,
@@ -24,6 +25,7 @@ import {
   type AssistantAnswer,
   type MerchantSpendResult,
 } from '@/lib/engine/assistant/answer';
+import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
 import type { SpendingBreakdown } from '@/lib/engine/reports/reports';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
 import type { Timeframe } from '@/lib/engine/assistant/intent';
@@ -103,12 +105,34 @@ describe('headlineCents — absent when there is no figure to reconcile', () => 
   });
 });
 
-describe('headlineCents — never set for a derivation intent (stays non-tappable)', () => {
-  it('net_worth carries no headlineCents', () => {
+describe('headlineCents — the slice-3 boundary: TRACED derivation kinds set it, untraced ones never do', () => {
+  // Slice 3 moved net_worth / cash_needed / savings_rate across the line: they
+  // now declare their own figure and the server attaches a DERIVATION trace, so
+  // the tap they gain is honored (assistant-derivation.test.ts locks that side).
+  it('net_worth sets headlineCents, and the headline string shows exactly that figure', () => {
     const accounts: AccountLike[] = [
       { id: 'a1', name: 'Checking', type: 'CHECKING', currentBalanceCents: 100000 },
       { id: 'a2', name: 'Card', type: 'CREDIT', currentBalanceCents: 30000 },
     ];
-    expect(answerNetWorth(accounts).headlineCents).toBeUndefined();
+    const a = answerNetWorth(accounts);
+    expect(a.headlineCents).toBe(70000);
+    expect(a.headline).toContain(formatCents(70000 as Cents));
+  });
+
+  // UNTRACED derivation intents keep the original invariant — no figure field,
+  // no tap: the UI must never offer an explanation slice 3 didn't build.
+  it('safe_to_spend carries no headlineCents', () => {
+    expect(
+      answerSafeToSpend({
+        expectedIncomeCents: 650000,
+        spentSoFarCents: 200000,
+        upcomingBillsCents: 100000,
+        plannedSavingsCents: 50000,
+        leftToSpendCents: 300000,
+        perDayCents: 10000,
+        daysLeftInMonth: 30,
+        overspent: false,
+      } as SpendingPlan).headlineCents,
+    ).toBeUndefined();
   });
 });

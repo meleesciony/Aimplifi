@@ -31,6 +31,10 @@ import type { AssistantIntent, SpendTarget, Timeframe } from './intent';
 // so a value import would cycle; a type import does not. The server attaches the
 // trace object; the client reads it to render the reconciliation panel (slice 2).
 import type { AnswerTrace } from './trace';
+// Runtime import is safe: trace-view is dependency-light and imports only TYPES
+// from this module's graph (no cycle). Shared so the savings-rate headline and
+// the derivation panel format the same bps through the same function (slice 3).
+import { bpsToPct1dp } from './trace-view';
 
 export interface AssistantFact {
   label: string;
@@ -68,16 +72,23 @@ export interface AssistantAnswer {
   /** The direct answer, in plain language with the figure embedded. */
   headline: string;
   /** The exact integer cents of the figure embedded in `headline`, set ONLY by
-   *  the row-sum builders (Glass-Box slice 2) from their OWN computed figure —
-   *  independent of the trace, so the trace's drift check (`expectedHeadlineCents`)
-   *  is a real equality gate, not a self-comparison. Absent for derivation-chain
-   *  intents and empty results (no number to reconcile → the UI keeps them
-   *  non-tappable). */
+   *  builders whose figure a trace can honor — the row-sum family (slice 2) and
+   *  the cents-headline derivation kinds net_worth / cash_needed (slice 3) —
+   *  always from the builder's OWN computed figure, independent of the trace,
+   *  so the trace's drift check is a real equality gate, not a self-comparison.
+   *  Absent for untraced intents and empty results (no number to reconcile →
+   *  the UI keeps them non-tappable). */
   headlineCents?: number;
-  /** The row-sum reconciliation for `headlineCents`, computed by the server after
-   *  the answer is built (slice 2). The client renders it in the inline trace
-   *  panel when `kind === 'row_sum'`; a `not_row_sum` / absent trace stays
-   *  non-tappable. Never offered for a figure the trace can't honor. */
+  /** savings_rate only (slice 3): the rate embedded in `headline`, in BASIS
+   *  POINTS (not cents — the figure is a percent). The builder's own value, so
+   *  the derivation trace's recompute-vs-displayed equality is a real gate.
+   *  Absent when no rate exists (income ≤ 0 → no figure, no tap). */
+  headlineBps?: number;
+  /** The reconciliation for the headline figure: a row-sum trace computed by
+   *  the server after the answer is built (slice 2), or a derivation trace
+   *  ("formula + inputs", slice 3) attached where the engine result is live.
+   *  The client renders the matching inline panel; a `not_row_sum` / absent
+   *  trace stays non-tappable. Never offered for a figure a trace can't honor. */
   trace?: AnswerTrace;
   /** One supporting sentence — assumptions or context (never a new number). */
   detail?: string;
@@ -108,8 +119,11 @@ export interface AssistantAnswer {
 const fmt = (n: number) => formatCents(n as Cents);
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-/** 'YYYY-MM-DD' → 'Mon D, YYYY', without a Date object (business-date safe). */
-function humanDate(s: string): string {
+/** 'YYYY-MM-DD' → 'Mon D, YYYY', without a Date object (business-date safe).
+ *  Exported (slice-3 critic F3): the derivation panel's "Needed by" footer
+ *  restates the cash-needed headline's own date claim, so both must format it
+ *  through THIS one function — never two renderings of the same claim. */
+export function humanDate(s: string): string {
   const [y, m, d] = s.split('-');
   return `${MON[Number(m) - 1]} ${Number(d)}, ${y}`;
 }
@@ -154,7 +168,13 @@ export function answerNetWorth(accounts: readonly AccountLike[]): AssistantAnswe
   return {
     kind: 'net_worth',
     headline: `Your net worth is ${fmt(net)}.`,
-    detail: 'Everything you own minus everything you owe, across all linked accounts.',
+    // Slice 3: the builder's own figure — the independent half of the
+    // derivation trace's drift gate (traceNetWorthDerivation reshapes the
+    // accounts separately and must land on exactly this number).
+    // No accounts → no computed figure, no tap (slice-3 critic F6): "$0.00" with
+    // an empty formula panel behind it is a hollow reconciliation, not a real one.
+    ...(accounts.length > 0 ? { headlineCents: net } : {}),
+    detail: "Everything you own minus everything you owe, across every account you've linked or added.",
     facts: [
       { label: 'Assets', value: fmt(assets) },
       { label: 'Liabilities', value: fmt(liabilities) },
@@ -609,6 +629,9 @@ export function answerCashNeeded(result: CashNeededResult, paymentAccountName: s
   return {
     kind: 'cash_needed',
     headline: `You need ${fmt(s.requiredCents)}${s.byDate ? ` by ${humanDate(s.byDate)}` : ''} to pay your cards in full.`,
+    // Slice 3: the builder's own figure for the derivation trace's drift gate.
+    // Set only on this path — the zero-due answer above has no figure to trace.
+    headlineCents: s.requiredCents,
     detail,
     facts,
     source,
@@ -1042,11 +1065,17 @@ export function answerSavingsRate(input: {
       source,
     };
   }
-  const pct = (input.rateBps / 100).toFixed(1);
+  // ONE formatter for the percent (bpsToPct1dp) — the derivation panel renders
+  // the same bps through the same function, so headline and panel can never
+  // display two different roundings of the same rate (slice 3).
+  const pct = bpsToPct1dp(input.rateBps);
   const saved = input.incomeCents - input.expensesCents;
   return {
     kind: 'savings_rate',
     headline: `Your savings rate was ${pct}% in ${input.monthLabel}.`,
+    // The builder's own figure, in bps — the independent half of the derivation
+    // trace's gate (the trace RECOMPUTES the rate from the month's flows).
+    headlineBps: input.rateBps,
     detail: `You kept ${fmt(saved)} of ${fmt(input.incomeCents)} in income that month.`,
     facts: [
       { label: 'Income', value: fmt(input.incomeCents) },

@@ -15,6 +15,7 @@ import { saveDebtFreeGoal, saveRetirementAge, saveSavingsGoal } from '@/server/g
 import { forgetLearnedPhrase } from '@/server/vocab-actions';
 import {
   ASSISTANT_SUGGESTIONS,
+  humanDate,
   type AssistantAnswer,
   type AssistantGoalAction,
   type AssistantSource,
@@ -22,9 +23,16 @@ import {
 // Type-only (erased): the trace object arrives already serialized on the answer
 // payload; importing the shape doesn't pull the engine into the client bundle.
 import type { RowSumTrace, TraceRow } from '@/lib/engine/assistant/trace';
-// Pure, dependency-light (type-only imports) — safe to bundle client-side; keeps
-// the "what reconciles a figure" decision in tested functions, not inline logic.
-import { CORRECTABLE_KINDS, factView, reconciledView } from '@/lib/engine/assistant/trace-view';
+import type { DerivationRow, DerivationTrace } from '@/lib/engine/assistant/derivation';
+// Pure, dependency-light — safe to bundle client-side; keeps the "what
+// reconciles a figure" decision in tested functions, not inline logic.
+import {
+  CORRECTABLE_KINDS,
+  bpsToPct1dp,
+  derivationView,
+  factView,
+  reconciledView,
+} from '@/lib/engine/assistant/trace-view';
 import { formatCents, type Cents } from '@/lib/money';
 
 /** Everything a trace row needs to offer the one-tap correction (slice 2b);
@@ -293,10 +301,13 @@ export function AskView({
                 I interpreted your question — double-check this is what you meant.
               </p>
             )}
-            {/* Glass-Box (GLASSBOX_PLAN slice 2): a row-sum figure is tappable —
-                it opens the reconciliation panel showing the exact rows behind it.
-                Derivation figures carry no trace and stay a plain, untappable <p>. */}
-            {answer.trace?.kind === 'row_sum' && !staleAnswer ? (
+            {/* Glass-Box (GLASSBOX_PLAN slices 2–3): a traced figure is tappable —
+                a row-sum trace opens the transaction reconciliation panel; a
+                derivation trace (net_worth / cash_needed / savings_rate) opens the
+                "formula + inputs" panel. Untraced figures (forecast, safe_to_spend,
+                …) carry no trace and stay a plain, untappable <p> — the UI never
+                offers an explanation the engine didn't build. */}
+            {(answer.trace?.kind === 'row_sum' || answer.trace?.kind === 'derivation') && !staleAnswer ? (
               <>
                 <button
                   type="button"
@@ -316,9 +327,11 @@ export function AskView({
                 </button>
                 {!traceOpen && (
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {answer.trace.reconciled
-                      ? 'Tap to see the transactions behind this number.'
-                      : 'Tap for details on this number.'}
+                    {!answer.trace.reconciled
+                      ? 'Tap for details on this number.'
+                      : answer.trace.kind === 'derivation'
+                        ? 'Tap to see how this number is computed.'
+                        : 'Tap to see the transactions behind this number.'}
                   </p>
                 )}
               </>
@@ -368,6 +381,9 @@ export function AskView({
 
             {answer.trace?.kind === 'row_sum' && traceOpen && (
               <TracePanel trace={answer.trace} source={answer.source} correction={correctionControls} />
+            )}
+            {answer.trace?.kind === 'derivation' && traceOpen && (
+              <DerivationPanel trace={answer.trace} source={answer.source} />
             )}
 
             {answer.facts.length > 0 && (
@@ -740,5 +756,206 @@ function TracePanel({
 
       <BasisList basis={trace.basis} />
     </div>
+  );
+}
+
+/** One derivation input line: optional date · label … signed amount. Money is
+ *  formatted here (the one UI boundary); the signed cents come straight from
+ *  the engine's trace — never re-signed or prettified. */
+function DerivationLines({ rows }: { rows: readonly DerivationRow[] }) {
+  return (
+    <ul className="space-y-1.5">
+      {rows.map((r, i) => (
+        <li key={`${r.label}-${i}`} data-testid="ask-deriv-row" className="flex items-baseline justify-between gap-3 text-sm">
+          {/* min-w-0 WITHOUT truncate (critic-2 P2-1): the label WRAPS like the
+              dashboard glass-box, so the credit-balance / (autopay) / est.
+              disclosures can never be clipped away at 380px — a marker that
+              exists to prevent confusion must always be visible. */}
+          <span className="min-w-0 text-muted-foreground">
+            {/* Dates formatted through the same humanDate as the footer and the
+                headline (critic-2 P2-2): one claim, one format, everywhere. */}
+            {r.date && <span className="tabular-nums">{humanDate(r.date)} · </span>}
+            {r.label}
+            {/* Same "(autopay)" marker the dashboard glass-box shows for this
+                row — Ask must never suggest manual action autopay covers. */}
+            {(r.autopayCents ?? 0) > 0 && <span className="ml-1.5 text-xs">(autopay)</span>}
+            {r.isEstimated && (
+              <span className="ml-1.5 rounded-full border px-1.5 py-0.5 text-[10px] uppercase tracking-wide">est.</span>
+            )}
+          </span>
+          <span data-testid="ask-deriv-row-amount" className="shrink-0 font-medium tabular-nums">
+            {fmtCents(r.amountCents)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A labeled subtotal line under a group of derivation lines. */
+function DerivationSubtotal({ label, cents, testId }: { label: string; cents: number; testId: string }) {
+  return (
+    <p className="mt-1.5 flex items-baseline justify-between gap-3 border-t pt-1.5 text-sm font-semibold">
+      <span>{label}</span>
+      <span data-testid={testId} className="shrink-0 tabular-nums">
+        {fmtCents(cents)}
+      </span>
+    </p>
+  );
+}
+
+/**
+ * Glass-Box derivation panel (GLASSBOX_PLAN slice 3): the formula and its input
+ * lines behind a derivation figure — net worth (assets − liabilities), cash
+ * needed (per-card due amounts), savings rate (income − expenses, ÷ income).
+ * `derivationView` re-verifies the whole chain locally before anything renders
+ * under a ✓; when it can't (answer→data drift or a payload that doesn't add
+ * up), the panel says so honestly and points to the full view — it NEVER shows
+ * a formula that does not produce the number on screen.
+ */
+function DerivationPanel({ trace, source }: { trace: DerivationTrace; source?: AssistantSource }) {
+  const view = derivationView(trace);
+  if (!view) {
+    return (
+      <div
+        id="ask-trace-panel"
+        data-testid="ask-trace"
+        role="region"
+        aria-label="How this number is computed"
+        className="mt-3 rounded-xl border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground"
+      >
+        <p data-testid="ask-trace-unreconciled">
+          I can’t fully verify this number right now — the underlying data may have changed since this
+          answer.
+          {source && (
+            <>
+              {' '}
+              Open{' '}
+              <Link
+                href={source.href}
+                className="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+              >
+                {source.label.toLowerCase()}
+              </Link>{' '}
+              for the full picture.
+            </>
+          )}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      id="ask-trace-panel"
+      data-testid="ask-trace"
+      role="region"
+      aria-label="How this number is computed"
+      className="mt-3 space-y-3 rounded-xl border bg-muted/30 p-3"
+    >
+      {view.intentKind === 'net_worth' && <NetWorthDerivation trace={view} />}
+      {view.intentKind === 'cash_needed' && <CashNeededDerivation trace={view} />}
+      {view.intentKind === 'savings_rate' && <SavingsRateDerivation trace={view} />}
+      <BasisList basis={view.basis} />
+    </div>
+  );
+}
+
+function NetWorthDerivation({ trace }: { trace: DerivationTrace & { intentKind: 'net_worth' } }) {
+  // Split by the engine-set group tag (derivationView guarantees every line has
+  // one). Subtotals are plain sums of the displayed lines; the gate verified
+  // assets + liabilityContributions === netCents, so the formula line below is
+  // the displayed lines' own arithmetic, not a new number.
+  const assets = trace.rows.filter((r) => r.group === 'asset');
+  const liabilities = trace.rows.filter((r) => r.group === 'liability');
+  const assetsCents = assets.reduce((s, r) => s + r.amountCents, 0);
+  // Liability lines carry NEGATED balances (their sum is the formula's minus
+  // term); show each as the positive amount owed under the "owe" heading.
+  const owedCents = -liabilities.reduce((s, r) => s + r.amountCents, 0);
+  return (
+    <>
+      <p className="flex items-center gap-1.5 text-sm font-medium">
+        <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+        <span data-testid="ask-deriv-reconciled">What you own minus what you owe</span>
+      </p>
+      <div data-testid="ask-deriv-assets">
+        <p className="border-b pb-1 text-sm font-semibold">What you own</p>
+        <div className="mt-1.5">
+          <DerivationLines rows={assets} />
+        </div>
+        <DerivationSubtotal label="Total owned" cents={assetsCents} testId="ask-deriv-assets-total" />
+      </div>
+      <div data-testid="ask-deriv-liabilities">
+        <p className="border-b pb-1 text-sm font-semibold">What you owe</p>
+        <div className="mt-1.5">
+          <DerivationLines
+            rows={liabilities.map((r) => {
+              // Show the amount OWED (the negated contribution). An overpaid card
+              // legitimately shows negative owed — label it so "−$50.00 owed"
+              // reads as the credit it is, not a sign error (critic F2).
+              const owed = -r.amountCents || 0;
+              return {
+                ...r,
+                amountCents: owed,
+                label: owed < 0 ? `${r.label} (credit balance — the card owes you)` : r.label,
+              };
+            })}
+          />
+        </div>
+        <DerivationSubtotal label="Total owed" cents={owedCents} testId="ask-deriv-owed-total" />
+      </div>
+      <p className="flex items-baseline justify-between gap-3 border-t pt-2 text-sm font-semibold">
+        <span>
+          {fmtCents(assetsCents)} − {fmtCents(owedCents)}
+        </span>
+        <span data-testid="ask-deriv-total" className="shrink-0 tabular-nums">
+          {fmtCents(trace.netCents)}
+        </span>
+      </p>
+    </>
+  );
+}
+
+function CashNeededDerivation({ trace }: { trace: DerivationTrace & { intentKind: 'cash_needed' } }) {
+  return (
+    <>
+      <p className="flex items-center gap-1.5 text-sm font-medium">
+        <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+        <span data-testid="ask-deriv-reconciled">
+          {trace.rows.length === 1 ? '1 card payment adds' : `${trace.rows.length} card payments add`} up to{' '}
+          {fmtCents(trace.sumCents)}
+        </span>
+      </p>
+      <DerivationLines rows={trace.rows} />
+      <p className="flex items-baseline justify-between gap-3 border-t pt-2 text-sm font-semibold">
+        {/* The footer restates the headline's "by DATE" claim — formatted through
+            the SAME humanDate the headline used, never a second rendering. */}
+        <span>{trace.byDate ? `Needed by ${humanDate(trace.byDate)}` : 'Needed'}</span>
+        <span data-testid="ask-deriv-total" className="shrink-0 tabular-nums">
+          {fmtCents(trace.requiredCents)}
+        </span>
+      </p>
+    </>
+  );
+}
+
+function SavingsRateDerivation({ trace }: { trace: DerivationTrace & { intentKind: 'savings_rate' } }) {
+  return (
+    <>
+      <p className="flex items-center gap-1.5 text-sm font-medium">
+        <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+        <span data-testid="ask-deriv-reconciled">What you kept of your income, as a share of it</span>
+      </p>
+      <DerivationLines rows={trace.rows} />
+      <DerivationSubtotal label="Kept" cents={trace.savedCents} testId="ask-deriv-saved" />
+      <p className="flex items-baseline justify-between gap-3 border-t pt-2 text-sm font-semibold">
+        <span>
+          {fmtCents(trace.savedCents)} ÷ {fmtCents(trace.incomeCents)}
+        </span>
+        <span data-testid="ask-deriv-rate" className="shrink-0 tabular-nums">
+          {bpsToPct1dp(trace.rateBps)}%
+        </span>
+      </p>
+    </>
   );
 }

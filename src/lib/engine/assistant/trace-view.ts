@@ -5,7 +5,15 @@
  * into the browser bundle.
  */
 import type { AnswerTrace, RowSumTrace, TraceGroup, TraceRow } from './trace';
+import type { DerivationTrace } from './derivation';
 import type { AssistantIntent } from './intent';
+// Runtime imports stay dependency-light on purpose (this module ships to the
+// client): money.ts is already at the UI boundary, and fi.ts imports nothing
+// but money. `savingsRateBps` here is the SAME function the engine used — the
+// local recheck must not re-implement the rounding it guards (the
+// guard-must-read-what-it-guards lesson).
+import { cents } from '@/lib/money';
+import { savingsRateBps } from '@/lib/engine/fi/fi';
 
 /**
  * The rows the UI may show UNDER the reconciled check, and the group breakdown to
@@ -80,4 +88,64 @@ export function factView(
   const sum = g.rows.reduce((s, r) => s + r.contributionCents, 0);
   if (sum !== g.amountCents || g.amountCents !== expectedCents) return null;
   return { label: g.label, amountCents: g.amountCents, rows: g.rows };
+}
+
+// ─── derivation traces (slice 3) ─────────────────────────────────────────────
+
+/** ONE formatter for a bps rate at one decimal place, shared by the
+ *  savings-rate headline builder AND the derivation panel — so the two can
+ *  never display different roundings of the same rate. */
+export function bpsToPct1dp(bps: number): string {
+  return (bps / 100).toFixed(1);
+}
+
+/**
+ * Derivation-panel gate (slice 3) — the per-figure honesty check for the
+ * "formula + inputs" view, mirroring `factView`'s stance: the UI opens the
+ * formula panel ONLY when this gate re-verifies the whole chain LOCALLY,
+ * never trusting the engine's `reconciled` flag alone:
+ *  1. the trace is a derivation trace the engine already reconciled;
+ *  2. the input lines re-sum to the trace's own `sumCents`;
+ *  3. the formula re-run over the DISPLAYED lines lands on the DISPLAYED
+ *     result — per kind: net worth = the signed row sum; cash needed = the
+ *     row sum, with `byDate` matching the latest row date; savings rate =
+ *     saved ≡ income − expenses AND the rate recomputed via the SAME
+ *     `savingsRateBps` the engine used (integer-guarded: a corrupt payload
+ *     returns null, it never throws in the component).
+ * Any failure → null → the headline stays or falls back honestly — the panel
+ * must never show a formula that does not produce the number on screen.
+ */
+export function derivationView(trace: AnswerTrace | undefined): DerivationTrace | null {
+  if (!trace || trace.kind !== 'derivation' || !trace.reconciled) return null;
+  // Every line must be integer cents (critic-2 P2-3): a fractional amount can
+  // pass the sum equalities yet render a malformed money string under the ✓ —
+  // and the savings arm's cents() below would throw instead of declining.
+  if (!trace.rows.every((r) => Number.isSafeInteger(r.amountCents))) return null;
+  const sum = trace.rows.reduce((s, r) => s + r.amountCents, 0);
+  if (sum !== trace.sumCents) return null;
+  switch (trace.intentKind) {
+    case 'net_worth': {
+      // No lines → no formula to show (critic F6, mirroring cash_needed below):
+      // an empty two-column "$0.00 − $0.00" is a hollow reconciliation. The
+      // builder already withholds the tap (no headlineCents without accounts);
+      // this local guard stands on its own like every other check here.
+      if (trace.rows.length === 0) return null;
+      // Every line must carry its side of the formula (the panel groups by it —
+      // a group-less line would silently vanish from both columns).
+      if (!trace.rows.every((r) => r.group === 'asset' || r.group === 'liability')) return null;
+      return sum === trace.netCents ? trace : null;
+    }
+    case 'cash_needed': {
+      if (sum !== trace.requiredCents || trace.rows.length === 0) return null;
+      if (!trace.rows.every((r) => typeof r.date === 'string')) return null;
+      const latest = trace.rows.reduce((m, r) => (r.date! > m ? r.date! : m), trace.rows[0].date!);
+      return latest === trace.byDate ? trace : null;
+    }
+    case 'savings_rate': {
+      if (!Number.isSafeInteger(trace.incomeCents) || !Number.isSafeInteger(trace.expensesCents)) return null;
+      if (trace.savedCents !== trace.incomeCents - trace.expensesCents || sum !== trace.savedCents) return null;
+      const recomputed = savingsRateBps(cents(trace.incomeCents), cents(trace.expensesCents));
+      return recomputed !== null && recomputed === trace.rateBps ? trace : null;
+    }
+  }
 }

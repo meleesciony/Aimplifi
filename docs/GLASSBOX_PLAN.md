@@ -122,8 +122,16 @@ honest fallback, never a wrong number.
     headline row; the runner-up facts are NOT in the trace — pin them non-tappable (or extend the
     trace first). (c) The server must pass `mergeCategoryMeta(custom)` and the tapped figure's
     cents (`expectedHeadlineCents`) into `traceAnswer` — both load-bearing (critic P1s F1/F2).
-- **Slice 3:** derivation-chain "show the formula + inputs" view for `cash_needed` / `net_worth` /
-  `savings_rate` (no fake row-sum).
+- **Slice 3 — SHIPPED #235 (2026-07-15), plan complete:** derivation-chain "formula + inputs" view
+  for `cash_needed` / `net_worth` / `savings_rate` (no fake row-sum). New `DerivationTrace` on
+  `AnswerTrace` built by pure RESHAPES (derivation.ts): net_worth signs each account by the canonical
+  `isLiabilityType`; cash_needed reuses the dashboard glass-box rows (the engine's own `perDueDate`
+  partition, incl. "(autopay)"), binding `byDate` too; savings_rate recomputes the rate via the same
+  `savingsRateBps` against the coach's stored bps (the definitional-drift canary). Builders declare
+  their own figure (`headlineCents` widened / new `headlineBps`); pure `derivationView` re-verifies
+  the whole chain locally (integer-cents + empty-rows guards); one formatter per claim; untraced
+  derivation kinds stay non-tappable (pinned by e2e on safe_to_spend). Two Fable critic cycles PASS
+  (0 P0/P1; 6+3 P2s all fixed — see DECISIONS #235). verify 2714/194; ask e2e 20/20.
 
 ## Readiness notes (from the surface map)
 - `AssistantAnswer.intent` already echoes the full resolved intent (incl. timeframe) to the client

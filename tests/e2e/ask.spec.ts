@@ -159,14 +159,93 @@ test('Glass-Box: top-categories traces ONLY the top category, not the whole peri
   await expect(page.getByTestId('ask-trace-row').first()).toBeVisible();
 });
 
-test('Glass-Box: a derivation figure (net worth) is NOT tappable — no reconciliation offered', async ({ page }) => {
-  // Derivation-chain intents (net_worth = assets − liabilities) are not row sums;
-  // offering a row-sum trace would be dishonest, so the figure stays a plain <p>.
+/** "$1,234.56" / "−$1,234.56" → signed integer cents (DOM re-computation helper). */
+const centsOf = (t: string) => Number(t.replace(/[^0-9]/g, '')) * (/^[−-]/.test(t.trim()) ? -1 : 1);
+
+test('Glass-Box 3: net worth is tappable — the formula panel shows assets − liabilities = the headline', async ({ page }) => {
+  // GLASSBOX_PLAN slice 3: derivation figures get a "formula + inputs" panel, not
+  // a fake row-sum. Net worth = assets − liabilities; we re-run the subtraction
+  // off the DOM's own subtotals and it must land on the tapped headline figure.
   await signIn(page);
   await page.goto('/ask');
   await ask(page, 'What is my net worth?');
+
   const headline = page.getByTestId('ask-headline');
   await expect(headline).toContainText('$144,804.74');
+  // Now a disclosure control (slice 3 superseded the slice-2 "stays a plain <p>"
+  // pin — the tap is honored by a derivation trace), collapsed by default.
+  await expect(headline).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByTestId('ask-trace')).toHaveCount(0);
+
+  await headline.click();
+  await expect(page.getByTestId('ask-trace')).toBeVisible();
+  await expect(page.getByTestId('ask-deriv-row').first()).toBeVisible(); // per-account lines
+
+  // The formula re-run off the DOM: own − owe = the tapped number, to the penny.
+  const owned = centsOf((await page.getByTestId('ask-deriv-assets-total').textContent()) ?? '');
+  const owed = centsOf((await page.getByTestId('ask-deriv-owed-total').textContent()) ?? '');
+  expect(owned - owed).toBe(14480474);
+  await expect(page.getByTestId('ask-deriv-total')).toContainText('$144,804.74');
+
+  // The answered page — formula panel OPEN — still passes WCAG 2.1 AA.
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
+});
+
+test('Glass-Box 3: cash needed is tappable — per-card due amounts re-sum to the headline', async ({ page }) => {
+  // The seed has cards due this cycle (the dashboard glass-box spec pins the same
+  // engine result), so the Ask answer carries a real figure and its derivation.
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'What do I owe on my cards?');
+
+  const headline = page.getByTestId('ask-headline');
+  await expect(headline).toContainText(/You need \$[\d,]+\.\d{2}/);
+  const amount = ((await headline.textContent()) ?? '').match(/\$[\d,]+\.\d{2}/)?.[0];
+  expect(amount).toBeTruthy();
+
+  await headline.click();
+  await expect(page.getByTestId('ask-trace')).toBeVisible();
+  const rowTexts = await page.getByTestId('ask-deriv-row-amount').allTextContents();
+  expect(rowTexts.length).toBeGreaterThan(0);
+  expect(rowTexts.reduce((s, t) => s + centsOf(t), 0)).toBe(centsOf(amount!));
+  await expect(page.getByTestId('ask-deriv-total')).toContainText(amount!);
+  // The footer restates the headline's "by DATE" claim in the SAME format —
+  // one formatter, never two renderings of one claim (critic F3).
+  const byDate = ((await headline.textContent()) ?? '').match(/by ([A-Z][a-z]{2} \d{1,2}, \d{4})/)?.[1];
+  expect(byDate).toBeTruthy();
+  await expect(page.getByTestId('ask-trace')).toContainText(`Needed by ${byDate}`);
+});
+
+test('Glass-Box 3: savings rate is tappable — income − expenses = kept, and the panel rate IS the headline rate', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, "What's my savings rate?");
+
+  const headline = page.getByTestId('ask-headline');
+  await expect(headline).toContainText(/savings rate was -?\d+\.\d%/);
+  const pct = ((await headline.textContent()) ?? '').match(/(-?\d+\.\d)%/)?.[1];
+  expect(pct).toBeTruthy();
+
+  await headline.click();
+  await expect(page.getByTestId('ask-trace')).toBeVisible();
+  // The subtraction re-run off the DOM's own lines: income + (−expenses) = kept.
+  const lines = await page.getByTestId('ask-deriv-row-amount').allTextContents();
+  expect(lines).toHaveLength(2);
+  const kept = centsOf((await page.getByTestId('ask-deriv-saved').textContent()) ?? '');
+  expect(lines.reduce((s, t) => s + centsOf(t), 0)).toBe(kept);
+  // One formatter end to end: the panel's rate is exactly the headline's rate.
+  await expect(page.getByTestId('ask-deriv-rate')).toHaveText(`${pct}%`);
+});
+
+test('Glass-Box 3: an UNTRACED derivation figure (safe-to-spend) stays a plain, untappable <p>', async ({ page }) => {
+  // Slice 3 built formula panels for net_worth / cash_needed / savings_rate ONLY.
+  // Every other derivation intent must keep the honest non-offer — no trace, no tap.
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'How much can I safely spend this month?');
+  const headline = page.getByTestId('ask-headline');
+  await expect(headline).toContainText(/left to spend|over your plan/);
   await expect(headline).toHaveJSProperty('tagName', 'P'); // a paragraph, not a button
   await expect(page.getByTestId('ask-trace')).toHaveCount(0);
 });
