@@ -105,8 +105,16 @@ same lockstep discipline as glass-box `trace.ts`.
   suppression-adjacent (a mis-tier buries a material warning), the same safety class as 3.5.
 - **Slice 2 (UI):** dashboard "Today" feed card — headline + collapsed rest, why-this
   disclosure, show-everything, dismiss wiring via existing patterns (`EngagementEvent`
-  logging from 3.1; reminder dismissedKeys). e2e: headline present, autopay quiet, dismissal
+  logging from 3.1; the dismissed-key idiom). e2e: headline present, autopay quiet, dismissal
   honesty, axe. No schema change.
+  **Dismissal-wiring guardrail (do NOT misread "reminder dismissedKeys"):** nudge dismissals
+  write ONLY the dedicated nudge suppression store that feeds `NudgeInput.dismissedKeys`.
+  They must NEVER be routed into `selectPaymentReminders`' own upstream `dismissedKeys`
+  filter — that drops the reminder from the feed's INPUT before the engine's CRITICAL
+  exemption can act, while the push cron (which passes no `dismissedKeys`) still pushes it:
+  push-but-absent-from-feed, the exact bury-failure, invisible to engine-level tests. Build
+  the feed's reminder input with the SAME (today: absent) `dismissedKeys` the notify cron
+  uses, so push and feed share byte-identical reminder rows.
 - **Slice 3 (= TASKS 3.5, merged):** cadence adaptation — repeatedly-dismissed-without-action
   kinds demote a level (never below the CRITICAL floor), acted-on kinds hold; audit §4
   constitution end-to-end; demo-fenced; **Fable critic** (alert suppression = safety surface).
