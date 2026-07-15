@@ -24,9 +24,9 @@ const JUNE: Timeframe = { fromYm: '2026-06', toYm: '2026-06', label: 'this month
 // groceries (8000); total 28600. So the top-category headline (12100) is strictly
 // less than the total, which is exactly the shape that exposed the bug.
 const TXNS: TraceTxn[] = [
-  { date: '2026-06-03', amountCents: -12100, categoryId: 'shopping', rawDescriptor: 'AMZN Mktp US*1A2B3', accountId: 'a1', status: 'POSTED', isTransfer: false },
-  { date: '2026-06-07', amountCents: -8500, categoryId: 'dining', rawDescriptor: 'CHIPOTLE 1122', accountId: 'a1', status: 'POSTED', isTransfer: false },
-  { date: '2026-06-02', amountCents: -8000, categoryId: 'groceries', rawDescriptor: 'KROGER #529', accountId: 'a1', status: 'POSTED', isTransfer: false },
+  { id: 'tx-shop', date: '2026-06-03', amountCents: -12100, categoryId: 'shopping', rawDescriptor: 'AMZN Mktp US*1A2B3', accountId: 'a1', status: 'POSTED', isTransfer: false },
+  { id: 'tx-dine', date: '2026-06-07', amountCents: -8500, categoryId: 'dining', rawDescriptor: 'CHIPOTLE 1122', accountId: 'a1', status: 'POSTED', isTransfer: false },
+  { id: 'tx-groc', date: '2026-06-02', amountCents: -8000, categoryId: 'groceries', rawDescriptor: 'KROGER #529', accountId: 'a1', status: 'POSTED', isTransfer: false },
 ];
 
 const BREAKDOWN = spendingByCategory(TXNS, JUNE, CATEGORY_BY_ID);

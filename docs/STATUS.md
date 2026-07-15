@@ -54,6 +54,56 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Glass-Box slice 2b: per-fact taps + the one-tap correction chip (#234, 2026-07-15)
+
+Slice 2b completes the read surface and ships the first Ask WRITE path (GLASSBOX_PLAN §2b).
+
+**Per-fact tappability (read):** builders now TAG their category facts — `AssistantFact.traceKey`
+(categoryId) + `.cents` (the builder's own figure) — so no display string is ever matched back to
+a trace group (the slice-1 fragility). A pure `factView` gate (trace-view.ts) opens a per-fact
+panel only when the full chain reconciles: reconciled trace → tagged fact → group exists → group
+rows sum to the group amount → group amount equals the fact's own cents (the per-fact analog of
+`expectedHeadlineCents` — builder and trace compute independently, so the equality is a real
+drift gate). Any break → plain text, never a dead tap or an unbacked ✓. `top_categories`' non-top
+facts are now individually tappable — exactly what 2a's headline panel honestly refused to show.
+
+**Correction chip (write, money-adjacent — Maker/Checker):** spend-family trace rows carry
+`txnId` (`TraceTxn.id` is REQUIRED — the slice-1 optional-meta lesson applied to ids); "Fix
+category" on a row → "This should be <category>" → `correctFromAsk` delegates the write to
+triage's `applyCategory` VERBATIM (ownership-scoped serializable tx, append-only Correction,
+audit) — zero drift with every other recategorization surface — then re-dispatches the
+re-validated intent through the same module-private compose pipeline (`composeAnswer`, kept
+unexported from the 'use server' file deliberately), so the user watches the figure move,
+LLM-free by construction. Undo reuses `undoCorrections` (idempotent, restores to review — the
+copy says so). Scope: CORRECTABLE_KINDS only (spend_total / spend_by_category / top_categories —
+where the correction visibly moves the tapped figure); merchant/income/largest rows carry no
+txnId and no chip. **Ask never passes `always` → no durable rule is ever minted from Ask** — the
+shared-demo-account fence that matters: the correction itself is a reseedable category pick
+(triage parity, no typed input → vocab's `learningDisabled` fence doesn't apply), but a demo
+visitor durably teaching the shared account is fenced off by construction.
+
+**Committed-write honesty (critic-driven):** a recompute failure AFTER the committed write
+returns `{ answer: null, correctionId }` — never a false "try again" — and the client enters a
+stale state that closes AND withholds every reconciliation tap (a ✓ must never be reachable over
+rows the write just moved), disclosing "ask again to see the new numbers" with Undo still live.
+
+**Two fresh-context Fable critic cycles, both PASS 0 P0/P1, 4 P2s found and FIXED:** cycle 1 —
+committed-write-as-false-failure (fault-injection-locked), undo copy hiding the review-queue
+return; cycle 2 — stale states left taps live over pre-write rows, `run()` missing the
+`correcting` race guard. Accepted P3s (recorded in DECISIONS #234): single-undo-depth on /ask;
+hidden-category `toCategoryId` parity with /triage; single-member umbrella tags stay inert
+(pinned by test — the headline reconciles the same figure). Cycle 2 independently re-ran
+tsc/eslint/vitest AND the 17-spec ask e2e, and re-executed the factView mutation repro.
+
+Gate (real output 2026-07-15): `bash scripts/verify.sh` → **✅ VERIFY GREEN — 2672 unit / 192
+files** (+2 files: assistant-fact-view 18, ask-correction-action 4 incl. the fault-injected
+committed-write lock), tsc/eslint/build clean; ask e2e **17/17** (2 new specs: a non-top fact's
+rows re-summed off the DOM to its own figure; chip render-only — editor open/cancel, no apply
+click against the shared demo DB per the #182 precedent — and merchant rows proven chip-free),
+axe WCAG-AA clean with the fact panel and the editor open. 2 REGRESSION_LEDGER entries,
+DECISIONS #234. **Next: slice 3** — derivation-chain "show the formula + inputs" for
+cash_needed / net_worth / savings_rate (no fake row-sum).
+
 ## Glass-Box slice 2a: the trace UI — tappable numbers + reconciliation panel (#233, 2026-07-15)
 
 Slice 2a wires the slice-1 engine into Ask (GLASSBOX_PLAN §Sequencing): a row-sum answer's

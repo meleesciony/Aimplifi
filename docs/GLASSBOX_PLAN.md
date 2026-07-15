@@ -102,12 +102,19 @@ honest fallback, never a wrong number.
     `expectedHeadlineCents` are threaded. Two Fable critic cycles: cycle 1 FAIL (P1-1:
     top_categories green-checked a count/sum across ALL listed categories → fixed by
     `reconciledView`), cycle 2 PASS. verify 2650/190, ask e2e 15/15.
-  - **Slice 2b (UI, next):** per-FACT tappability (each listed category/runner-up its own tap) —
-    needs the answer builders to TAG facts with their trace key (categoryId), since string-matching
-    a fact's display label back to a group is the fragility the slice-1 critic flagged; and the
-    one-tap correction chip ("this should be `<category>`") — a money-adjacent WRITE path
-    (persists a category override, re-dispatches the resolved intent bypassing the LLM) with the
-    shared-demo-account learning fence, so it gets its own Maker/Checker slice.
+  - **Slice 2b (UI + write) — SHIPPED #234 (2026-07-15):** per-FACT tappability via builder-set
+    tags (`AssistantFact.traceKey` = categoryId + `.cents` = the builder's own figure — never
+    string-matched) gated by pure `factView` (full chain: reconciled trace → tag → group → group
+    rows sum to group amount → amount === the fact's own cents); and the correction chip —
+    `TraceTxn.id` required, spend-family rows carry `txnId`, `correctFromAsk`/`undoAskCorrection`
+    reuse triage's `applyCategory`/`undoCorrections` verbatim and re-dispatch the re-validated
+    intent through module-private `composeAnswer` (LLM bypassed). Chip scope = CORRECTABLE_KINDS
+    (spend_total/spend_by_category/top_categories) only; **no `always` — Ask never mints a durable
+    rule** (the demo fence that matters; the correction itself is triage-parity reseedable state).
+    Committed-write honesty: post-write recompute failure → `{answer: null}` + client stale states
+    that withhold every reconciliation tap. Two Fable critic cycles PASS (0 P0/P1; 4 P2s fixed —
+    false-failure-after-commit, undo copy, stale-tap reopening, ask/correct race). verify
+    2672/192; ask e2e 17/17. Accepted P3s + evidence: DECISIONS #234.
   - **Binding constraints from slice-1 critic cycle 1 (2026-07-15, P3s F4/F5)** — still govern 2b:
     (a) tappability is PER-FIGURE, not per-intent-kind — `answerTopCategories.detail` embeds the
     period total and `answerSpendByCategory.detail` embeds a share-%, neither of which the trace

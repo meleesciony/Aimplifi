@@ -10,7 +10,7 @@
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, CornerDownLeft, Sparkles } from 'lucide-react';
-import { askAssistant } from '@/server/assistant';
+import { askAssistant, correctFromAsk, undoAskCorrection } from '@/server/assistant';
 import { saveDebtFreeGoal, saveRetirementAge, saveSavingsGoal } from '@/server/goal-actions';
 import { forgetLearnedPhrase } from '@/server/vocab-actions';
 import {
@@ -23,18 +23,33 @@ import {
 // payload; importing the shape doesn't pull the engine into the client bundle.
 import type { RowSumTrace, TraceRow } from '@/lib/engine/assistant/trace';
 // Pure, dependency-light (type-only imports) — safe to bundle client-side; keeps
-// the "what reconciles the headline" decision one tested function, not inline logic.
-import { reconciledView } from '@/lib/engine/assistant/trace-view';
+// the "what reconciles a figure" decision in tested functions, not inline logic.
+import { CORRECTABLE_KINDS, factView, reconciledView } from '@/lib/engine/assistant/trace-view';
 import { formatCents, type Cents } from '@/lib/money';
+
+/** Everything a trace row needs to offer the one-tap correction (slice 2b);
+ *  absent → rows render read-only (non-correctable intents, no options). */
+interface CorrectionControls {
+  correctingTxnId: string | null;
+  onStart: (txnId: string) => void;
+  onCancel: () => void;
+  onApply: (txnId: string, toCategoryId: string) => void;
+  busy: boolean;
+  options: readonly { id: string; name: string }[];
+}
 
 export function AskView({
   suggestions = ASSISTANT_SUGGESTIONS,
   assistEnabled = false,
+  categoryOptions = [],
 }: {
   suggestions?: readonly string[];
   /** True when an LLM provider key is configured (unknown questions may be routed
    *  by the model) — drives the third-party disclosure footnote. */
   assistEnabled?: boolean;
+  /** Correction-chip picker options (slice 2b) — the page's visible-groups read.
+   *  Empty → the chip is simply not offered (rows stay read-only). */
+  categoryOptions?: readonly { id: string; name: string }[];
 }) {
   const [question, setQuestion] = useState('');
   const [asked, setAsked] = useState<string | null>(null);
@@ -43,19 +58,36 @@ export function AskView({
   const [saveState, setSaveState] = useState<'idle' | 'saved' | 'error'>('idle');
   const [forgotten, setForgotten] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
+  const [openFactKey, setOpenFactKey] = useState<string | null>(null);
+  const [correctingTxnId, setCorrectingTxnId] = useState<string | null>(null);
+  const [lastCorrectionId, setLastCorrectionId] = useState<string | null>(null);
+  // 'savedStale' / 'undoneStale': the write COMMITTED but the refreshed answer
+  // couldn't be composed (critic 2b F1) — the panels are closed (never a green
+  // check standing on moved data) and the figures on screen are disclosed stale.
+  const [correctionState, setCorrectionState] = useState<
+    'idle' | 'saved' | 'savedStale' | 'undone' | 'undoneStale' | 'error'
+  >('idle');
   const [pending, startTransition] = useTransition();
   const [saving, startSaving] = useTransition();
   const [forgetting, startForgetting] = useTransition();
+  const [correcting, startCorrecting] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
   function run(q: string) {
     const trimmed = q.trim();
-    if (!trimmed || pending) return;
+    // `correcting` guard (critic 2b cycle-2 F2): a new ask racing an in-flight
+    // correction lets whichever transition lands last render under the wrong
+    // caption — the same guard saveGoal/applyCorrection already carry.
+    if (!trimmed || pending || correcting) return;
     setAsked(trimmed);
     setError(null);
     setSaveState('idle');
     setForgotten(false);
     setTraceOpen(false); // a new answer starts with its trace panel collapsed
+    setOpenFactKey(null);
+    setCorrectingTxnId(null);
+    setLastCorrectionId(null);
+    setCorrectionState('idle');
     // The previous answer's intent is the conversation frame (TASKS 2.1): it lets
     // the server resolve a follow-up fragment ("what about last month?") against
     // the question it follows. The server re-validates it; a self-sufficient
@@ -119,6 +151,88 @@ export function AskView({
     });
   }
 
+  /**
+   * One-tap correction (Glass-Box slice 2b): re-file ONE cited row, then show
+   * the SAME question re-answered — the server re-dispatches the resolved
+   * intent straight to the engines (no LLM anywhere on this path) and the
+   * replaced answer's fresh trace shows the figure moved. Undoable in place.
+   */
+  function applyCorrection(txnId: string, toCategoryId: string) {
+    const intent = answer?.intent;
+    if (!intent || correcting) return;
+    setCorrectionState('idle');
+    startCorrecting(async () => {
+      try {
+        const res = await correctFromAsk({ transactionId: txnId, toCategoryId, intent });
+        setLastCorrectionId(res.correctionId);
+        setCorrectingTxnId(null);
+        if (res.answer) {
+          setAnswer(res.answer);
+          setCorrectionState('saved');
+        } else {
+          // Committed but not refreshed (critic 2b F1): close every reconciliation
+          // panel — a green check must never stand next to figures the write just
+          // moved — and disclose the split. Undo stays one tap away.
+          setTraceOpen(false);
+          setOpenFactKey(null);
+          setCorrectionState('savedStale');
+        }
+      } catch {
+        setCorrectionState('error'); // nothing committed; editor stays open so the user can retry
+      }
+    });
+  }
+
+  function undoCorrection() {
+    const intent = answer?.intent;
+    if (!intent || !lastCorrectionId || correcting) return;
+    startCorrecting(async () => {
+      try {
+        const res = await undoAskCorrection({ correctionId: lastCorrectionId, intent });
+        setLastCorrectionId(null);
+        if (res.answer) {
+          setAnswer(res.answer);
+          setCorrectionState('undone');
+        } else {
+          setTraceOpen(false);
+          setOpenFactKey(null);
+          setCorrectionState('undoneStale');
+        }
+      } catch {
+        // The undo may or may not have committed (it is idempotent server-side,
+        // so retrying is always safe) — keep the handle and let the user retry.
+        setCorrectionState('error');
+      }
+    });
+  }
+
+  /** The chip is offered ONLY where the write's effect is visible in this very
+   *  panel: a reconciled category-sum trace (CORRECTABLE_KINDS), an echoed
+   *  intent to re-dispatch, and categories to pick from. */
+  const correctionControls: CorrectionControls | undefined =
+    answer?.trace?.kind === 'row_sum' &&
+    answer.trace.reconciled &&
+    CORRECTABLE_KINDS.has(answer.trace.intentKind) &&
+    answer.intent &&
+    categoryOptions.length > 0
+      ? {
+          correctingTxnId,
+          onStart: (txnId) => {
+            setCorrectionState('idle');
+            setCorrectingTxnId(txnId);
+          },
+          onCancel: () => setCorrectingTxnId(null),
+          onApply: applyCorrection,
+          busy: correcting || pending,
+          options: categoryOptions,
+        }
+      : undefined;
+
+  /** After a committed write whose recompute failed, every figure on screen is
+   *  PRE-WRITE data (critic 2b cycle-2 F1): reconciliation taps are withheld —
+   *  a green check must never be reachable over rows the write just moved. */
+  const staleAnswer = correctionState === 'savedStale' || correctionState === 'undoneStale';
+
   /** Retirement plans persist to the planning dial (surfaced on /investments), not a /goals row. */
   const isRetire = answer?.action?.kind === 'save_retirement_age';
   const saveLabel = isRetire ? 'Save as my plan' : 'Save as a goal';
@@ -151,7 +265,7 @@ export function AskView({
         />
         <button
           type="submit"
-          disabled={pending || !question.trim()}
+          disabled={pending || correcting || !question.trim()}
           data-testid="ask-submit"
           className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80 disabled:opacity-50"
         >
@@ -182,7 +296,7 @@ export function AskView({
             {/* Glass-Box (GLASSBOX_PLAN slice 2): a row-sum figure is tappable —
                 it opens the reconciliation panel showing the exact rows behind it.
                 Derivation figures carry no trace and stay a plain, untappable <p>. */}
-            {answer.trace?.kind === 'row_sum' ? (
+            {answer.trace?.kind === 'row_sum' && !staleAnswer ? (
               <>
                 <button
                   type="button"
@@ -215,19 +329,105 @@ export function AskView({
             )}
             {answer.detail && <p className="mt-1 text-sm text-muted-foreground">{answer.detail}</p>}
 
+            {/* Correction outcome (slice 2b): the figures above ARE the re-answered
+                question — say so plainly, and keep the undo one tap away. */}
+            {(correctionState === 'saved' || correctionState === 'savedStale') && (
+              <div
+                data-testid="ask-correction-saved"
+                className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-600/30 bg-emerald-500/5 px-3 py-2 text-sm"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                  {correctionState === 'saved'
+                    ? 'Category updated — this answer now reflects it.'
+                    : 'Category updated, but this answer couldn’t be refreshed — ask again to see the new numbers.'}
+                </span>
+                <button
+                  type="button"
+                  onClick={undoCorrection}
+                  disabled={correcting || pending}
+                  data-testid="ask-correction-undo"
+                  className="rounded-full border px-3 py-1 text-xs text-muted-foreground transition hover:border-foreground/30 hover:text-foreground disabled:opacity-60"
+                >
+                  {correcting ? 'Undoing…' : 'Undo'}
+                </button>
+              </div>
+            )}
+            {(correctionState === 'undone' || correctionState === 'undoneStale') && (
+              <p data-testid="ask-correction-undone" className="mt-2 text-sm text-muted-foreground">
+                {correctionState === 'undone'
+                  ? 'Change undone — this answer is back to how it was. That transaction returns to your review queue so you can re-decide its category.'
+                  : 'Change undone, but this answer couldn’t be refreshed — ask again to see the current numbers. That transaction returns to your review queue so you can re-decide its category.'}
+              </p>
+            )}
+            {correctionState === 'error' && (
+              <p data-testid="ask-correction-error" className="mt-2 text-sm text-rose-600 dark:text-rose-400">
+                Couldn’t update that category — please try again.
+              </p>
+            )}
+
             {answer.trace?.kind === 'row_sum' && traceOpen && (
-              <TracePanel trace={answer.trace} source={answer.source} />
+              <TracePanel trace={answer.trace} source={answer.source} correction={correctionControls} />
             )}
 
             {answer.facts.length > 0 && (
-              <dl className="mt-3 space-y-1.5 border-t pt-3">
-                {answer.facts.map((f, i) => (
-                  <div key={i} className="flex items-center justify-between gap-3 text-sm">
-                    <dt className="truncate text-muted-foreground">{f.label}</dt>
-                    <dd className="shrink-0 font-medium tabular-nums">{f.value}</dd>
-                  </div>
-                ))}
-              </dl>
+              <ul className="mt-3 space-y-1.5 border-t pt-3">
+                {answer.facts.map((f, i) => {
+                  // Per-fact tap gate (slice 2b): builders TAG facts with their trace
+                  // key + own cents; factView opens a panel only when that fact's
+                  // group reconciles to exactly the displayed figure. Untagged or
+                  // unreconciled facts render as plain text — never a dead tap.
+                  const fv = staleAnswer ? null : factView(answer.trace, f.traceKey, f.cents);
+                  const open = fv !== null && openFactKey === f.traceKey;
+                  return (
+                    <li key={i} data-testid="ask-fact">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="truncate text-muted-foreground">{f.label}</span>
+                        {fv ? (
+                          <button
+                            type="button"
+                            data-testid="ask-fact-value"
+                            onClick={() => setOpenFactKey(open ? null : f.traceKey!)}
+                            aria-expanded={open}
+                            aria-controls={open ? `ask-fact-panel-${f.traceKey}` : undefined}
+                            aria-label={`${f.label}: ${f.value}`}
+                            className="flex shrink-0 items-center gap-1 rounded-sm font-medium tabular-nums decoration-dotted underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                          >
+                            {f.value}
+                            <ChevronDown
+                              className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+                              aria-hidden
+                            />
+                          </button>
+                        ) : (
+                          <span data-testid="ask-fact-value" className="shrink-0 font-medium tabular-nums">
+                            {f.value}
+                          </span>
+                        )}
+                      </div>
+                      {open && fv && (
+                        <div
+                          id={`ask-fact-panel-${f.traceKey}`}
+                          data-testid="ask-fact-trace"
+                          role="region"
+                          aria-label={`Reconciliation for ${f.label}`}
+                          className="mt-2 space-y-3 rounded-xl border bg-muted/30 p-3"
+                        >
+                          <p className="flex items-center gap-1.5 text-sm font-medium">
+                            <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                            <span data-testid="ask-fact-reconciled">
+                              {fv.rows.length === 1 ? '1 transaction adds' : `${fv.rows.length} transactions add`} up
+                              to {fmtCents(fv.amountCents)}
+                            </span>
+                          </p>
+                          <TraceRows rows={fv.rows} correction={correctionControls} />
+                          {answer.trace?.kind === 'row_sum' && <BasisList basis={answer.trace.basis} />}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             )}
 
             {answer.source && (
@@ -303,7 +503,7 @@ export function AskView({
                       type="button"
                       data-testid="ask-follow-up"
                       onClick={() => pick(s)}
-                      disabled={pending}
+                      disabled={pending || correcting}
                       className="rounded-full border px-3 py-1 text-xs text-muted-foreground transition hover:border-foreground/30 hover:text-foreground disabled:opacity-50"
                     >
                       {s}
@@ -349,23 +549,107 @@ export function AskView({
 const fmtCents = (c: number) => formatCents(c as Cents);
 
 /** The cited rows behind a trace figure — date · merchant … contribution. Money is
- *  formatted here (the one UI boundary); the cents come straight from the engine. */
-function TraceRows({ rows }: { rows: readonly TraceRow[] }) {
+ *  formatted here (the one UI boundary); the cents come straight from the engine.
+ *  With `correction` present, rows that carry a txnId offer the one-tap
+ *  "this should be <category>" editor (slice 2b). */
+function TraceRows({ rows, correction }: { rows: readonly TraceRow[]; correction?: CorrectionControls }) {
   return (
-    <dl className="space-y-1.5">
-      {rows.map((r, i) => (
-        <div
-          key={`${r.date}-${r.merchant}-${i}`}
-          data-testid="ask-trace-row"
-          className="flex items-baseline justify-between gap-3 text-sm"
-        >
-          <dt className="min-w-0 truncate text-muted-foreground">
-            <span className="tabular-nums">{r.date}</span> · {r.merchant}
-          </dt>
-          <dd className="shrink-0 font-medium tabular-nums">{fmtCents(r.contributionCents)}</dd>
-        </div>
+    <ul className="space-y-1.5">
+      {rows.map((r, i) => {
+        const fixable = !!correction && !!r.txnId;
+        const editing = fixable && correction.correctingTxnId === r.txnId;
+        return (
+          <li key={`${r.date}-${r.merchant}-${i}`} data-testid="ask-trace-row">
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="min-w-0 truncate text-muted-foreground">
+                <span className="tabular-nums">{r.date}</span> · {r.merchant}
+              </span>
+              <span className="flex shrink-0 items-baseline gap-2">
+                <span data-testid="ask-trace-row-amount" className="font-medium tabular-nums">
+                  {fmtCents(r.contributionCents)}
+                </span>
+                {fixable && (
+                  <button
+                    type="button"
+                    data-testid="ask-trace-fix"
+                    onClick={() => (editing ? correction.onCancel() : correction.onStart(r.txnId!))}
+                    disabled={correction.busy}
+                    aria-expanded={editing}
+                    aria-label={
+                      editing
+                        ? `Cancel fixing ${r.merchant} (${r.date})`
+                        : `Fix category for ${r.merchant} (${r.date})`
+                    }
+                    className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground transition hover:border-foreground/30 hover:text-foreground disabled:opacity-60"
+                  >
+                    {editing ? 'Cancel' : 'Fix category'}
+                  </button>
+                )}
+              </span>
+            </div>
+            {editing && correction && <CorrectionEditor row={r} correction={correction} />}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** "This should be <category>" — the one-tap correction editor (slice 2b). The pick
+ *  list is the page's visible-groups read, minus the category the row is already in. */
+function CorrectionEditor({ row, correction }: { row: TraceRow; correction: CorrectionControls }) {
+  const [picked, setPicked] = useState('');
+  const selectId = `ask-correction-${row.txnId}`;
+  const choices = correction.options.filter((o) => o.id !== row.categoryId);
+  return (
+    <div
+      data-testid="ask-correction-editor"
+      className="mt-1.5 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-2"
+    >
+      <label htmlFor={selectId} className="text-xs text-muted-foreground">
+        This should be
+      </label>
+      <select
+        id={selectId}
+        value={picked}
+        onChange={(e) => setPicked(e.target.value)}
+        data-testid="ask-correction-select"
+        className="rounded-lg border bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <option value="" disabled>
+          Choose a category…
+        </option>
+        {choices.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.name}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        disabled={!picked || correction.busy}
+        onClick={() => correction.onApply(row.txnId!, picked)}
+        data-testid="ask-correction-apply"
+        className="rounded-full border px-3 py-1 text-xs font-medium transition hover:border-foreground/30 disabled:opacity-60"
+      >
+        {correction.busy ? 'Updating…' : 'Update category'}
+      </button>
+    </div>
+  );
+}
+
+/** The trace's include/exclude lines (assumption transparency), shared by the
+ *  headline panel and every per-fact panel. */
+function BasisList({ basis }: { basis: readonly string[] }) {
+  if (basis.length === 0) return null;
+  return (
+    <ul className="space-y-1 border-t pt-2">
+      {basis.map((b, i) => (
+        <li key={i} className="text-xs text-muted-foreground">
+          {b}
+        </li>
       ))}
-    </dl>
+    </ul>
   );
 }
 
@@ -375,7 +659,15 @@ function TraceRows({ rows }: { rows: readonly TraceRow[] }) {
  * reconciled (answer→data drift), it says so honestly and points to the full view
  * — it NEVER shows a green check next to a number it can't stand behind.
  */
-function TracePanel({ trace, source }: { trace: RowSumTrace; source?: AssistantSource }) {
+function TracePanel({
+  trace,
+  source,
+  correction,
+}: {
+  trace: RowSumTrace;
+  source?: AssistantSource;
+  correction?: CorrectionControls;
+}) {
   if (!trace.reconciled) {
     return (
       <div
@@ -437,24 +729,16 @@ function TracePanel({ trace, source }: { trace: RowSumTrace; source?: AssistantS
                 <span className="shrink-0 tabular-nums">{fmtCents(g.amountCents)}</span>
               </div>
               <div className="mt-1.5">
-                <TraceRows rows={g.rows} />
+                <TraceRows rows={g.rows} correction={correction} />
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <TraceRows rows={rows} />
+        <TraceRows rows={rows} correction={correction} />
       )}
 
-      {trace.basis.length > 0 && (
-        <ul className="space-y-1 border-t pt-2">
-          {trace.basis.map((b, i) => (
-            <li key={i} className="text-xs text-muted-foreground">
-              {b}
-            </li>
-          ))}
-        </ul>
-      )}
+      <BasisList basis={trace.basis} />
     </div>
   );
 }

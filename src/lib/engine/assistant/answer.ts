@@ -35,6 +35,18 @@ import type { AnswerTrace } from './trace';
 export interface AssistantFact {
   label: string;
   value: string;
+  /** Glass-Box slice 2b: the trace-group key (categoryId) whose rows reconcile
+   *  this fact's figure. Set ONLY by builders whose facts are per-category sums
+   *  the trace groups by (spend_total / umbrella spend_by_category /
+   *  top_categories) — facts are TAGGED at build time, never matched back to
+   *  groups by display string (the slice-1 critic's fragility finding). Absent →
+   *  the fact is not tappable (largest runner-ups, account balances, details). */
+  traceKey?: string;
+  /** The fact's own integer cents, from the SAME breakdown entry the builder
+   *  formatted into `value` — the per-fact analog of `headlineCents`, so the
+   *  UI's tap gate (`factView`) is a real equality check against the trace
+   *  group's independently recomputed amount, not a self-comparison. */
+  cents?: number;
 }
 export interface AssistantSource {
   label: string;
@@ -208,7 +220,11 @@ export function answerSpendTotal(breakdown: SpendingBreakdown, tf: Timeframe): A
     headline: `You spent ${fmt(breakdown.totalCents)} ${tf.label}.`,
     headlineCents: breakdown.totalCents,
     detail: 'Purchases only — transfers, credit-card payments, and income are excluded.',
-    facts: breakdown.byCategory.slice(0, 3).map((c) => ({ label: c.name, value: fmt(c.amountCents) })),
+    // Tagged (slice 2b): each top category is a trace group, so its figure is
+    // independently tappable. traceKey/cents come from the SAME breakdown entry.
+    facts: breakdown.byCategory
+      .slice(0, 3)
+      .map((c) => ({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents })),
     source: REPORTS_SOURCE,
   };
 }
@@ -224,11 +240,14 @@ export function answerSpendByCategory(breakdown: SpendingBreakdown, target: Spen
     const ids = new Set(target.categoryIds);
     const matches = breakdown.byCategory.filter((c) => ids.has(c.categoryId));
     amount = matches.reduce((sum, c) => sum + c.amountCents, 0);
-    for (const c of matches.slice(0, 3)) facts.push({ label: c.name, value: fmt(c.amountCents) });
+    // Tagged (slice 2b): each member category is a trace group when >1 are cited.
+    for (const c of matches.slice(0, 3))
+      facts.push({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents });
   } else {
     const g = breakdown.byGroup.find((x) => x.group === target.group);
     amount = g?.amountCents ?? 0;
-    for (const c of g?.categories.slice(0, 3) ?? []) facts.push({ label: c.name, value: fmt(c.amountCents) });
+    for (const c of g?.categories.slice(0, 3) ?? [])
+      facts.push({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents });
   }
 
   if (amount <= 0) {
@@ -262,7 +281,10 @@ export function answerTopCategories(breakdown: SpendingBreakdown, tf: Timeframe,
     // reconciles (the period total in `detail` is NOT traced, so it stays untapped).
     headlineCents: top[0].amountCents,
     detail: `Total ${tf.label}: ${fmt(breakdown.totalCents)}.`,
-    facts: top.map((c) => ({ label: c.name, value: fmt(c.amountCents) })),
+    // Tagged (slice 2b): every listed category rides in the trace as a reconciled
+    // group, so each fact is independently tappable — including the non-top ones
+    // the HEADLINE panel honestly hides (they don't sum to the tapped figure).
+    facts: top.map((c) => ({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents })),
     source: REPORTS_SOURCE,
   };
 }

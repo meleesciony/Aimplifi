@@ -40,22 +40,26 @@ const TODAY = '2026-06-15';
 const JUNE: Timeframe = { fromYm: '2026-06', toYm: '2026-06', label: 'this month' };
 
 /** Fixture row helper: POSTED by default; categoryId explicit (stored category). */
+let txnSeq = 0;
 const T = (
   date: string,
   amountCents: number,
   categoryId: string | null,
   rawDescriptor: string,
   extra: Partial<TraceTxn> = {},
-): TraceTxn => ({
-  date,
-  amountCents,
-  categoryId,
-  rawDescriptor,
-  accountId: 'a1',
-  status: 'POSTED',
-  isTransfer: false,
-  ...extra,
-});
+): TraceTxn => {
+  const row: TraceTxn = {
+    id: `t${++txnSeq}`, // TraceTxn.id is required (slice 2b — the correction chip's write key)
+    date,
+    amountCents,
+    categoryId,
+    rawDescriptor,
+    accountId: 'a1',
+    status: 'POSTED',
+    isTransfer: false,
+  };
+  return { ...row, ...extra, id: extra.id ?? row.id };
+};
 
 /**
  * Hand-verified fixture (see inline sums). June 2026, today = 2026-06-15.
@@ -418,7 +422,8 @@ describe('C6 — spendingByCategory output is identical to the pre-refactor refe
 describe('Seed grounding — every ROW-SUM intent reconciles on the demo dataset', () => {
   const SEED_TODAY = isoDate('2026-06-10');
   const seed = buildSeedData('2026-06-10');
-  const seedTxns: TraceTxn[] = seed.transactions.map((t) => ({
+  const seedTxns: TraceTxn[] = seed.transactions.map((t, i) => ({
+    id: `seed-${i}`,
     date: t.date,
     amountCents: t.amountCents,
     rawDescriptor: t.rawDescriptor,

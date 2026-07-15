@@ -63,6 +63,8 @@ import {
   type PurchaseRow,
 } from '@/lib/engine/assistant/answer';
 import { ROW_SUM_KINDS, traceAnswer, type TraceTxn } from '@/lib/engine/assistant/trace';
+import { CORRECTABLE_KINDS } from '@/lib/engine/assistant/trace-view';
+import { applyCategory, undoCorrections } from '@/server/triage-actions';
 
 const MONTH_TITLE = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const ymLabel = (ym: string) => `${MONTH_TITLE[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
@@ -217,9 +219,43 @@ export async function askAssistant(
     await recordUnknownQuestion({ userId, rawQuestion: question, llmGuessKind, resolvedIntent: tag });
   }
 
+  const withFrame = await composeAnswer(userId, intent, today, meta);
+  if (viaLlm) return { ...withFrame, interpreted: true };
+  // A learned phrasing is never served silently (audit §4 constitution: every
+  // adaptation is visible and undoable). At the `flagged` band it carries the SAME
+  // "I interpreted your question" hedge an LLM answer does, because that is exactly
+  // what it is — a provisional route, on trial. At `active` it is disclosed as
+  // learned, with the same one-click undo.
+  if (vocab) {
+    return {
+      ...withFrame,
+      learned: { entryId: vocab.entryId, phrase: vocab.phrase, status: vocab.status },
+      ...(vocab.status === 'flagged' ? { interpreted: true } : {}),
+    };
+  }
+  return withFrame;
+}
+
+/**
+ * Compose the full answer for a RESOLVED intent: one snapshot read → buildAnswer
+ * → Glass-Box trace → follow-up chips → intent echo. Module-PRIVATE by design:
+ * this file is 'use server', so an export would become a client-invokable
+ * endpoint — and this helper trusts its arguments (a session-verified userId and
+ * a validated intent). Shared by askAssistant and the slice-2b correction
+ * re-dispatch, so a corrected answer is rebuilt by EXACTLY the pipeline that
+ * built the original — and the LLM is bypassed by construction (the intent
+ * arrives already resolved; routing flags like interpreted/learned are the
+ * caller's concern).
+ */
+async function composeAnswer(
+  userId: string,
+  intent: AssistantIntent,
+  today: string,
+  meta: ReadonlyMap<string, CategoryMeta>,
+): Promise<AssistantAnswer> {
   // One snapshot read serves every "direct" intent; composed answers reuse the
   // shipped read-paths (which load the same snapshot) so they can't drift.
-  const snap = await provider.getFinanceSnapshot(userId);
+  const snap = await getProvider().getFinanceSnapshot(userId);
 
   const answer = await buildAnswer(intent, snap, userId, today, meta);
   // Glass-Box trace (GLASSBOX_PLAN slice 2): for a row-sum answer carrying a real
@@ -250,22 +286,97 @@ export async function askAssistant(
     followUps.length > 0 ? { ...withTrace, suggestions: [...followUps] } : withTrace;
   // Echo the resolved intent so the next turn can swap one slot of it (TASKS 2.1).
   // `unknown` carries nothing — there is no frame to follow up on.
-  const withFrame: AssistantAnswer =
-    intent.kind === 'unknown' ? withChips : { ...withChips, intent };
-  if (viaLlm) return { ...withFrame, interpreted: true };
-  // A learned phrasing is never served silently (audit §4 constitution: every
-  // adaptation is visible and undoable). At the `flagged` band it carries the SAME
-  // "I interpreted your question" hedge an LLM answer does, because that is exactly
-  // what it is — a provisional route, on trial. At `active` it is disclosed as
-  // learned, with the same one-click undo.
-  if (vocab) {
-    return {
-      ...withFrame,
-      learned: { entryId: vocab.entryId, phrase: vocab.phrase, status: vocab.status },
-      ...(vocab.status === 'flagged' ? { interpreted: true } : {}),
-    };
+  return intent.kind === 'unknown' ? withChips : { ...withChips, intent };
+}
+
+/** Shared gate for the slice-2b correction actions: the intent is untrusted
+ *  client input → validateIntent; and only the category-sum family
+ *  (CORRECTABLE_KINDS) is accepted — the only intents whose UI offers the chip
+ *  and whose figures a category correction visibly moves. */
+function validatedCorrectionIntent(
+  raw: unknown,
+  custom: readonly CustomCategoryInput[],
+): AssistantIntent {
+  const intent = validateIntent(raw, custom);
+  if (!intent || !CORRECTABLE_KINDS.has(intent.kind)) {
+    throw new Error('This answer does not support corrections.');
   }
-  return withFrame;
+  return intent;
+}
+
+/**
+ * Glass-Box slice 2b — the one-tap correction chip's write path.
+ *
+ * "This row should be <category>": records the correction through the SAME
+ * proven triage action every other recategorization surface uses
+ * (`applyCategory`: ownership-scoped, serializable transaction, append-only
+ * Correction row, undoable), then re-answers the SAME resolved intent so the
+ * user sees the figure move. Deliberate scope:
+ *  - NEVER `always`: Ask mints no durable merchant rule. "This should be X" is
+ *    a statement about ONE transaction; durable learning stays on /triage,
+ *    where a rule's scope is shown and manageable. This is also the
+ *    shared-demo-account fence that matters here — the correction itself is a
+ *    category pick on shared seeded data (reversible, reseedable, no typed
+ *    input: the same write /triage already allows the demo user), but Ask must
+ *    never let a demo visitor DURABLY teach the shared account. (The
+ *    typed-input fence lives in vocab.ts `learningDisabled` and is untouched.)
+ *  - The LLM is bypassed by construction: the intent arrives already resolved
+ *    and re-validated; no model call happens anywhere on this path.
+ */
+export async function correctFromAsk(input: {
+  transactionId: string;
+  toCategoryId: string;
+  /** The answer's echoed resolved intent — untrusted, re-validated here. */
+  intent: unknown;
+}): Promise<{ answer: AssistantAnswer | null; correctionId: string }> {
+  const userId = await requireUserId();
+  const custom = await getCustomCategories(userId);
+  const intent = validatedCorrectionIntent(input.intent, custom);
+  // Ownership, category validity (system or caller-owned custom), the
+  // append-only Correction, and the audit log are all applyCategory's own
+  // gates — reused verbatim so this surface can never drift from /triage.
+  const { correctionIds } = await applyCategory({
+    transactionId: input.transactionId,
+    categoryId: input.toCategoryId,
+  });
+  // The write above is COMMITTED. A recompute failure past this point must not
+  // masquerade as a failed correction (critic 2b F1): that would show a false
+  // "try again" next to a now-stale green check, with the undo handle lost.
+  // Return the correction handle with no answer; the client discloses the split
+  // honestly (panels closed, undo offered, "ask again to refresh").
+  try {
+    const answer = await composeAnswer(userId, intent, getProvider().today(userId), mergeCategoryMeta(custom));
+    return { answer, correctionId: correctionIds[0] };
+  } catch {
+    return { answer: null, correctionId: correctionIds[0] };
+  }
+}
+
+/**
+ * Undo an Ask correction (slice 2b): the inverse Correction via the same triage
+ * undo (owner-scoped, idempotent, restores the row to review — audit = state),
+ * then re-answer the same resolved intent so the figure moves back. A forged or
+ * foreign correctionId is a no-op inside undoCorrections (scoped to the caller),
+ * so the recompute below is the worst a bad id can obtain.
+ */
+export async function undoAskCorrection(input: {
+  correctionId: string;
+  /** The answer's echoed resolved intent — untrusted, re-validated here. */
+  intent: unknown;
+}): Promise<{ answer: AssistantAnswer | null }> {
+  const userId = await requireUserId();
+  const custom = await getCustomCategories(userId);
+  const intent = validatedCorrectionIntent(input.intent, custom);
+  await undoCorrections([input.correctionId]);
+  // Same committed-write honesty as correctFromAsk (critic 2b F1): the undo is
+  // durable and idempotent (a retried undo is a no-op), so a recompute failure
+  // returns null rather than pretending the undo failed.
+  try {
+    const answer = await composeAnswer(userId, intent, getProvider().today(userId), mergeCategoryMeta(custom));
+    return { answer };
+  } catch {
+    return { answer: null };
+  }
 }
 
 type FinanceSnapshot = Awaited<ReturnType<ReturnType<typeof getProvider>['getFinanceSnapshot']>>;

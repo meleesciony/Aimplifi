@@ -47,6 +47,11 @@ import type { AssistantIntent, SpendTarget, Timeframe } from './intent';
 /** A raw snapshot transaction as the trace reads it — the same shape the
  *  answer engines consume (ReportTxn ∪ TxnLike ∪ SnapshotTxnLike). */
 export interface TraceTxn {
+  /** DB row id — REQUIRED (slice 2b): the correction chip's write path needs to
+   *  name the exact row, and an optional id that silently vanished would make the
+   *  chip disappear without a test noticing (the slice-1 optional-`meta` lesson:
+   *  optional inputs that silently degrade are traps). Snapshot rows always have it. */
+  id: string;
   date: string; // YYYY-MM-DD
   amountCents: number; // signed; negative = spend
   rawDescriptor: string;
@@ -66,6 +71,13 @@ export interface TraceRow {
   categoryId?: string;
   /** Signed contribution to the headline (a refund cites negative). */
   contributionCents: number;
+  /** The underlying transaction's DB id — set ONLY on spend-family rows
+   *  (spendRowsFor), where the correction chip is offered: a category
+   *  correction visibly moves those figures. merchant_spend / income /
+   *  largest rows are reshaped from engine results whose figures a category
+   *  change does not move the same way, so they carry no id and no chip
+   *  (slice 2b scope — never offer a correction whose effect we can't show). */
+  txnId?: string;
 }
 
 /** A per-category bucket inside a hierarchical trace (spend_total & friends):
@@ -143,6 +155,7 @@ function spendRowsFor(
       merchant: normalizeMerchant(t.rawDescriptor).canonical,
       categoryId: id,
       contributionCents: spendContributionCents(t),
+      txnId: t.id,
     }));
 }
 

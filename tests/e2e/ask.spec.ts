@@ -171,6 +171,77 @@ test('Glass-Box: a derivation figure (net worth) is NOT tappable — no reconcil
   await expect(page.getByTestId('ask-trace')).toHaveCount(0);
 });
 
+test('Glass-Box 2b: a listed FACT is tappable on its own and reconciles to its rows', async ({ page }) => {
+  // Slice 2b: per-fact tappability. On top_categories the HEADLINE panel honestly
+  // hides the group breakdown (only the top category is behind the tapped figure,
+  // slice-2a P1-1) — but each LISTED category fact now opens its OWN panel,
+  // reconciled to that fact's figure. We tap a NON-TOP fact to prove exactly the
+  // capability 2a couldn't offer, and re-sum its rows off the DOM.
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'What are my top spending categories this month?');
+
+  // A non-top fact's value is a disclosure button, collapsed by default.
+  const factValue = page.getByTestId('ask-fact-value').nth(1);
+  await expect(factValue).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByTestId('ask-fact-trace')).toHaveCount(0);
+  const amount = ((await factValue.textContent()) ?? '').match(/\$[\d,]+\.\d{2}/)?.[0];
+  expect(amount).toBeTruthy();
+
+  await factValue.click();
+  await expect(factValue).toHaveAttribute('aria-expanded', 'true');
+  const panel = page.getByTestId('ask-fact-trace');
+  await expect(panel).toBeVisible();
+  // The panel's ✓ line states this FACT's figure — and the rows really sum to it.
+  await expect(page.getByTestId('ask-fact-reconciled')).toContainText(amount!);
+  const rowTexts = await panel.getByTestId('ask-trace-row-amount').allTextContents();
+  expect(rowTexts.length).toBeGreaterThan(0);
+  const rowSum = rowTexts.reduce((acc, t) => acc + Number(t.replace(/[^0-9]/g, '')) * (/^[−-]/.test(t.trim()) ? -1 : 1), 0);
+  expect(rowSum).toBe(Number(amount!.replace(/[^0-9]/g, '')));
+  // The headline's own panel stayed closed — the fact tap is independent.
+  await expect(page.getByTestId('ask-trace')).toHaveCount(0);
+
+  // The answered page — fact panel OPEN — still passes WCAG 2.1 AA.
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
+});
+
+test('Glass-Box 2b: the correction chip renders on spend rows and NEVER on merchant rows (render-only)', async ({ page }) => {
+  // RENDER-ONLY by design: clicking "Update category" would persist a Correction
+  // for the SHARED demo user and perturb every parallel spec's pinned seed figures
+  // (the #182 session-revoke precedent). The real write path — figure moves,
+  // append-only Correction, undo restores — is proven by the integration test
+  // (tests/unit/ask-correction-action.test.ts) against throwaway data.
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'How much did I spend this month?');
+  await page.getByTestId('ask-headline').click();
+  await expect(page.getByTestId('ask-trace')).toBeVisible();
+
+  // Spend rows offer the chip; the editor opens with a picker and a disabled
+  // apply until a category is chosen; Cancel closes it without any write.
+  const fix = page.getByTestId('ask-trace-fix').first();
+  await expect(fix).toBeVisible();
+  await fix.click();
+  const editor = page.getByTestId('ask-correction-editor');
+  await expect(editor).toBeVisible();
+  await expect(editor).toContainText('This should be');
+  await expect(page.getByTestId('ask-correction-apply')).toBeDisabled();
+  // The editor open passes WCAG 2.1 AA (labelled select, focusable controls).
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
+  await fix.click(); // now reads "Cancel"
+  await expect(editor).toHaveCount(0);
+
+  // A merchant answer's rows carry NO chip — a category change doesn't move that
+  // figure, so offering the correction there would be a write we can't show.
+  await ask(page, 'How much did I spend at Costco this month?');
+  await page.getByTestId('ask-headline').click();
+  await expect(page.getByTestId('ask-trace')).toBeVisible();
+  await expect(page.getByTestId('ask-trace-row').first()).toBeVisible();
+  await expect(page.getByTestId('ask-trace-fix')).toHaveCount(0);
+});
+
 test('plans debt-free BY A DATE (inverse planning) and offers to save it as a goal', async ({ page }) => {
   // DECISIONS #125 — "Plan in Words" debt slice: a stated date is solved for the
   // required extra payment, grounded in the same debt read-path as /goals.
