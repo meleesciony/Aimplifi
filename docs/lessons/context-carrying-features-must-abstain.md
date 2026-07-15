@@ -64,3 +64,15 @@ The critic was worth more than the builder's own second pass would have been, pr
 did not know which fragments the builder had in mind. It went looking for the questions a user
 would type that the design had never considered — which is exactly the set that a self-review,
 anchored on the design, cannot see.
+
+**Extended #230 (TASKS 2.7, critic F4):** the third instance of the silent-drop
+disease, and a rule for the next one: when a new abstention invariant is declared
+for "every route" (here: an unwindowable date shape abstains every
+timeframe-carrying route), enumerate the routes from the ANSWER SURFACE backward
+— parser, intentFromKind, vocab, AND the conversation frame — not from the files
+just touched. The frame was forgotten, so "what about groceries in 2027?"
+resolved the category, found no timeframe, and answered the CARRIED window: last
+month's groceries under a question about 2027. The 2.6 refused-object rule (a
+refused slot abstains the whole fragment, never falls to the timeframe-only
+swap) applies to every slot class the fragment can name — objects, and now
+dates.
