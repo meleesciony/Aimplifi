@@ -12,15 +12,37 @@ unanswered (no wrong number is ever shown):
 1. **The weekly vocab re-check cannot distinguish the classifier answering "none" (a real
    disagreement) from a network fault**; both mean "no opinion, no change", so a rule the
    resolver now considers unanswerable keeps serving. (Escalation item 5, unchanged.)
-2. **Tier-1 synonyms inside store names** — "at travel lodge" → the Travel group, "at total
-   wine" → alcohol, "at 24 hour fitness" → fitness, "at shell gas station" → fuel: a curated
-   synonym anywhere in the question outranks the merchant reading. Sometimes right ("at the
-   gas station" → fuel is correct), sometimes the same disease 2.6 cured at tier 3. Needs its
-   own slice with care per synonym, not a blanket rule (2.6 critic, noted-not-charged).
-3. **A residual licence gap by construction:** a store spelled entirely in licence-consumed
-   tokens can still license the total in fronted order. The one real instance found ("Do It
-   Best") is fixed and locked; the class cannot be closed without a merchant database, and the
-   licence's conservative bias means new instances cost an honest redirect for everyone else.
+2. **Tier-1 synonyms inside store names — ATTEMPTED as TASKS 2.8 (#231), found
+   MERCHANT-DB-BLOCKED, and REVERTED (tree back at #230).** "at travel lodge" → the Travel
+   group, "at total wine" → alcohol, "at 24 hour fitness" → fitness: a curated synonym inside a
+   store name outranks the merchant reading and answers the whole CATEGORY. Note the failure
+   class: the category is a **superset** of the store, so this is a nonzero, wrong-SCOPE figure
+   — never a $0. The 2.8 slice tried to route these to `merchant_spend` by detecting a
+   "distinctive" store token adjacent to the synonym (a `resolveSpendTarget` guard aligned with
+   `extractSpendMerchant`, span-based synonym coverage, curated tail/modifier sets). **Three
+   fresh-context Fable critic cycles proved the approach unsound.** The decisive finding:
+   "SHELL gas station" (a brand) and "FANCY gas station" (an adjective) are structurally
+   identical `[X][synonym][tail]`, and **no lexicon or structural rule separates a brand token
+   from a generic modifier — that IS the merchant-identification problem** (the same dependency
+   as item 3). Worse, the precision fix **regressed common, currently-correct category
+   phrasings into confident $0 fabrications**: "at gas stations" (plural) → "No spending at Gas
+   Stations", "at the fancy/big/old/neighborhood coffee shop" → $0. Trading a common
+   correct answer for a confident $0 to win a rarer store answer is a net-negative trade
+   (cardinal-sin direction), so the slice was reverted rather than shipped. **CONCLUSION: this
+   is the SAME class as item 3 below — closable only with a merchant database.** Until one
+   exists, the safe category-superset answer stands (nonzero, directionally-correct, never a
+   $0). A future *narrow* slice could soundly fix only the un-ambiguous sub-cases — possessives
+   ("gold's gym") and digit-bearing names ("24 hour fitness") — but every headline name
+   ("travel lodge", "total wine", "shell gas station") is in the ambiguous class. Full evidence:
+   DECISIONS #231; the three critic reports are summarized there.
+3. **A residual licence gap by construction (now the umbrella for item 2's class too):** a
+   store whose name we cannot distinguish from category/reserved words without a merchant
+   database. Two instances: (a) a store spelled entirely in licence-consumed tokens ("Do It
+   Best") can license the total in fronted order — the one real case is fixed and locked; (b)
+   a store name that is `[brand-or-adjective][category-synonym][place-tail]` ("shell gas
+   station" vs "fancy gas station") — item 2's reverted 2.8 investigation. Both need a
+   merchant database; the conservative bias means new instances cost an honest redirect or a
+   category-superset figure, never a wrong $0.
 4. **Recorded 2.7 trades and limits** (each an honest redirect or a disclosed coarsening,
    never a wrong figure; see EDGE_CASES §Ask Timeframes / §Largest Merchant Scope): fronted
    largest objects ("At Costco, what was my biggest purchase?") redirect rather than scope;
