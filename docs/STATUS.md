@@ -2,11 +2,12 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
-## ⚠️ OPEN — Ask parser/vocab, remaining items (post-2.6)
+## ⚠️ OPEN — Ask parser/vocab, remaining items (post-2.7)
 
-The #226 escalation (the spend-family sink) is **RESOLVED — TASKS 2.6 shipped 2026-07-12**
-(DECISIONS #229; §Wave 2.6 below). Items 1–4 of the escalation are fixed and
-regression-locked. Still open, each honest-but-unanswered (no wrong number is ever shown):
+The #226 escalation is fully **RESOLVED**: TASKS 2.6 shipped 2026-07-12 (#229) and TASKS 2.7
+shipped 2026-07-14 (#230; §Wave 2.7 below) — escalation items 3 (largest merchant scope) and
+4 (bare-year/numeric-date windows) now earn real answers. Still open, each honest-but-
+unanswered (no wrong number is ever shown):
 
 1. **The weekly vocab re-check cannot distinguish the classifier answering "none" (a real
    disagreement) from a network fault**; both mean "no opinion, no change", so a rule the
@@ -16,17 +17,55 @@ regression-locked. Still open, each honest-but-unanswered (no wrong number is ev
    synonym anywhere in the question outranks the merchant reading. Sometimes right ("at the
    gas station" → fuel is correct), sometimes the same disease 2.6 cured at tier 3. Needs its
    own slice with care per synonym, not a blanket rule (2.6 critic, noted-not-charged).
-3. **`largest_purchases` ignores a merchant scope** — "biggest purchase at costco" answers the
-   global biggest purchase (the frame already abstains on this shape; the parser's own route
-   doesn't).
-4. **Bare-year / numeric-date windows abstain** — "how much did I spend in 2025" / "on 3/5"
-   now return the honest redirect (before 2.6 they answered a THIS-MONTH total under a
-   different-window question — strictly worse). A timeframe-parser follow-up (bare year,
-   numeric dates) would let them earn real answers.
-5. **A residual licence gap by construction:** a store spelled entirely in licence-consumed
+3. **A residual licence gap by construction:** a store spelled entirely in licence-consumed
    tokens can still license the total in fronted order. The one real instance found ("Do It
    Best") is fixed and locked; the class cannot be closed without a merchant database, and the
    licence's conservative bias means new instances cost an honest redirect for everyone else.
+4. **Recorded 2.7 trades and limits** (each an honest redirect or a disclosed coarsening,
+   never a wrong figure; see EDGE_CASES §Ask Timeframes / §Largest Merchant Scope): fronted
+   largest objects ("At Costco, what was my biggest purchase?") redirect rather than scope;
+   attributive merchants ("biggest costco purchase") redirect — resolving them needs a
+   merchant database; single idiom-word stores ("at Max") cede to the idiom/total reading;
+   "at Bank of America" redirects (account words joined the #168 set); verb-order "at do it
+   best" still truncates to merchant "do" ('it' is a phrase-ending total word — pre-existing);
+   day-granular windows ("on 3/5" as a DAY) deferred — `Timeframe` is month-granular, and the
+   widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
+   ("biggest grocery purchase") redirects — no engine computes it.
+
+## Wave 2.7: timeframe follow-up + largest merchant scope (#230, 2026-07-14)
+
+The 2.6 escalation's last two items now earn real answers — and the slice fixed
+CONFIRMED live cardinal-sin bugs, not just abstains: "groceries in 2025" answered the
+unhedged THIS-MONTH Groceries figure, "since 2024" / "between 2024 and 2025" the
+this-month total, "since march" a March-only window, and every scoped-largest question
+the GLOBAL biggest purchase.
+
+**(a) Timeframes:** bare years ("in 2025"; current year → "2026 so far"), "since
+<year|month|last month|last year>", year ranges (a range ending in the current year is
+labeled "since <lo>" so frame staleness re-labeling covers it), numeric dates ("3/5" US
+M/D → the containing MONTH window, the shipped worded-"on March 5" rule). Future
+years/months are never windows. **(b)** New guard `unresolvedDateShape`: a date shape the
+parser could not window ("in 2027", "on 13/5", "fy2025", "2025/26") abstains every
+timeframe-carrying route — parser, `intentFromKind`, and the conversation frame — instead
+of the silent this-month default. **(c)** The #229 licence consumes exactly what the
+parser windows (shared recognizers + `today`). **(d)** `largest_purchases` gains an
+optional merchant (at/with/from) via shared `largestScope`, abstaining on fronted
+stores, payment methods (#168, now incl. account words), unreadable names, and
+category/unknown attributive modifiers; the frame carries the merchant on window swaps
+and re-scopes on "what about at X?" (supersedes #223 P2-5). **(e)** New shared
+`isLicensedIdiomPhrase`: "at the moment" / "at the end of last month" are idioms, not
+stores — fixing pre-existing "No spending at Moment" confident-wrong answers in
+merchant_spend too.
+
+Two fresh-context Fable hostile-critic cycles: **cycle 1 FAIL — 4 P1** (licensed idioms
+became merchants; attributive/"from" merchants answered the global ranking; month+future-
+year escaped every refusal; the frame silently dropped unresolvable dates), 3 P2, 2 P3 —
+all fixed in-cycle. **Cycle 2 PASS — all 9 closed by re-executed repros, 0 P0/P1**; its 2
+new P2s (account-word merchants, "item" noun) also fixed and locked; N-2/N-4 recorded as
+deliberate trades (§OPEN item 4, EDGE_CASES). Gate: `bash scripts/verify.sh` → VERIFY
+GREEN — **2594 unit / 187 files**, tsc/eslint/build clean; `npx playwright test
+tests/e2e/ask.spec.ts` → **12/12** incl. the new year-window + scoped-largest flow.
+5 REGRESSION_LEDGER entries, DECISIONS #230.
 
 ## Wave 2.6: `spend_total` earns its answer — the inversion (#229, 2026-07-12)
 

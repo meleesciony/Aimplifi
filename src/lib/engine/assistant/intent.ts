@@ -44,7 +44,10 @@ export type AssistantIntent =
   // from the data, so no merchant string is ever fabricated.
   | { kind: 'merchant_spend'; timeframe: Timeframe; merchant: string }
   | { kind: 'top_categories'; timeframe: Timeframe; limit: number }
-  | { kind: 'largest_purchases'; timeframe: Timeframe; limit: number }
+  // Optionally scoped to one merchant ("biggest purchase at Costco", TASKS
+  // 2.7); `merchant` follows the merchant_spend contract — the user's cleaned
+  // query term, matched against the transactions' own canonical names.
+  | { kind: 'largest_purchases'; timeframe: Timeframe; limit: number; merchant?: string }
   | { kind: 'income'; timeframe: Timeframe }
   | { kind: 'safe_to_spend' }
   | { kind: 'cash_needed' }
@@ -114,10 +117,112 @@ export const MONTH_TITLE = [
   'December',
 ] as const;
 
+/** Month names + abbreviations as one regex alternation (full names first so
+ *  "january" is never half-claimed by "jan"). */
+const MONTH_MATCH_ALT = [...MONTH_NAMES, 'sept', ...MONTH_ABBR].join('|');
+
+/** The 0-based month index a matched name/abbreviation refers to, else null. */
+function monthIndexOf(word: string): number | null {
+  const i = (MONTH_NAMES as readonly string[]).indexOf(word);
+  if (i >= 0) return i;
+  if (word === 'sept') return 8;
+  const j = (MONTH_ABBR as readonly string[]).indexOf(word);
+  return j >= 0 ? j : null;
+}
+
 const ymOf = (date: string) => date.slice(0, 7);
 /** The month key `n` months before `ym` (clamped month arithmetic, no Date). */
 function priorYm(ym: string, n: number): string {
   return addMonthsClamped(isoDate(`${ym}-01`), -n).slice(0, 7);
+}
+
+// ─── numeric dates & bare years (TASKS 2.7) ─────────────────────────────────
+
+/**
+ * A 4-digit token read as a calendar year: 2000 through the CURRENT year. A
+ * future year is deliberately NOT a window — "how much will I spend in 2027"
+ * is a forecast question, and a past-tense figure under it (or worse, a
+ * silently-defaulted this-month window) answers a different question. The
+ * shape still counts as a date (see `unresolvedDateShape`), so the routes
+ * abstain rather than guess.
+ */
+function bareYearValue(t: string, today: ISODate): number | null {
+  if (!/^20\d{2}$/.test(t)) return null;
+  const y = Number(t);
+  return y <= Number(today.slice(0, 4)) ? y : null;
+}
+
+/**
+ * A numeric-date token — "3/5" (US M/D), "3/2025" (M/YYYY), "3/5/2025" — read
+ * as its containing calendar MONTH, the same shipped rule as the worded
+ * "on March 5" (the month window, disclosed by the label). Null for anything
+ * invalid or ambiguous: a 13th month (we do not guess DD/MM), a day the month
+ * doesn't have, a two-digit year, a future year. A year-less M/D resolves to
+ * the most recent non-future occurrence of that month, mirroring the
+ * month-name rule below.
+ */
+function numericDateYm(t: string, today: ISODate): { ym: string; month: number; year: number } | null {
+  const m = /^(\d{1,2})\/(\d{1,4})(?:\/(\d{4}))?$/.exec(t);
+  if (!m) return null;
+  const month = Number(m[1]);
+  if (month < 1 || month > 12) return null;
+  const ty = Number(today.slice(0, 4));
+  const tm = Number(today.slice(5, 7));
+  let year: number;
+  let day: number | null;
+  if (m[3] !== undefined) {
+    year = Number(m[3]);
+    day = Number(m[2]);
+  } else if (m[2].length === 4) {
+    year = Number(m[2]);
+    day = null;
+  } else {
+    day = Number(m[2]);
+    year = month > tm ? ty - 1 : ty;
+  }
+  if (year < 2000 || year > ty) return null;
+  if (day !== null && (day < 1 || day > daysInMonth(year, month))) return null;
+  return { ym: `${year}-${String(month).padStart(2, '0')}`, month, year };
+}
+
+/** A tight year range typed as one token ("2024-2025"), both years valid. */
+function yearRangeToken(t: string, today: ISODate): { lo: number; hi: number } | null {
+  const m = /^(20\d{2})[-–—](20\d{2})$/.exec(t);
+  if (!m) return null;
+  const a = bareYearValue(m[1], today);
+  const b = bareYearValue(m[2], today);
+  if (a === null || b === null) return null;
+  return { lo: Math.min(a, b), hi: Math.max(a, b) };
+}
+
+/**
+ * A token that is date-SHAPED (a numeric date or a 4-digit 20xx year), whether
+ * or not it resolves to a window. Used to END a merchant phrase ("at costco
+ * 2025" is the store costco in the 2025 window, not a store named "costco
+ * 2025") — shape-level on purpose, so an unresolvable date never becomes part
+ * of a store name either.
+ */
+const DATE_SHAPED_TOKEN_RE = /^(?:20\d{2}(?:[-–—]20\d{2})?|\d{1,2}\/\d{1,4}(?:\/\d{2,4})?)$/;
+
+/** A date shape ANYWHERE in the question: a numeric date, a standalone 20xx
+ *  year (not part of a longer word/number, not a "$2025" amount), a
+ *  year-first season ("2025/26"), or a fiscal year ("FY2025", "fy 25") —
+ *  the last two are never windowed, so they always abstain (critic F6:
+ *  income answered the silent this-month default under "in fy2025"). */
+const DATE_SHAPE_RE = /(?<![\w/.$-])(?:\d{1,2}\/\d{1,4}(?:\/\d{2,4})?|20\d{2}(?:\/\d{1,4})?|fy\s?\d{2,4})(?![\w/])/i;
+
+/**
+ * True when the question names a date SHAPE that `parseExplicitTimeframe`
+ * could NOT resolve into a window — a future year, "13/5", "3/5/26". Every
+ * timeframe-carrying route must then ABSTAIN rather than fall back to the
+ * silent this-month default: before TASKS 2.7, "how much did I spend on
+ * groceries in 2025" answered the unhedged THIS-MONTH Groceries figure, and
+ * "since 2024" the this-month total — a true figure under a different window,
+ * the repo's cardinal sin. Shared by the parser's routes and `intentFromKind`
+ * so no route answers a window another route refused.
+ */
+export function unresolvedDateShape(question: string, today: ISODate): boolean {
+  return DATE_SHAPE_RE.test(question) && parseExplicitTimeframe(question, today) === null;
 }
 
 /**
@@ -151,6 +256,39 @@ export function parseExplicitTimeframe(qRaw: string, today: ISODate): Timeframe 
   if (/\b(this|current) month\b/.test(q) || /\bmonth to date\b/.test(q) || /\bmtd\b/.test(q)) {
     return { fromYm: todayYm, toYm: todayYm, label: 'this month' };
   }
+
+  // "since <year | month | last month>" — a window that runs THROUGH today
+  // (TASKS 2.7). Checked before the bare last-month/month rules so "since
+  // march" is March-through-today, not the March-only window it used to claim,
+  // and "since last month" spans both months. A future "since" start resolves
+  // nothing (falls through; the date-shape guard then abstains the route).
+  {
+    const sm = new RegExp(
+      `\\bsince\\s+(?:the\\s+)?(?:(20\\d{2})|((?:last|previous|prior)\\s+(?:month|year))|(${MONTH_MATCH_ALT})(?:\\s+(20\\d{2}))?)\\b`,
+    ).exec(q);
+    if (sm) {
+      if (sm[1]) {
+        const yr = bareYearValue(sm[1], today);
+        if (yr !== null) return { fromYm: `${yr}-01`, toYm: todayYm, label: `since ${yr}` };
+      } else if (sm[2]) {
+        // "since last year" runs from LAST January through today — one inch
+        // from "since 2025", which already did (critic cycle 1, F5).
+        return /year/.test(sm[2])
+          ? { fromYm: `${y - 1}-01`, toYm: todayYm, label: 'since last year' }
+          : { fromYm: priorYm(todayYm, 1), toYm: todayYm, label: 'since last month' };
+      } else if (sm[3]) {
+        const mi = monthIndexOf(sm[3]);
+        if (mi !== null) {
+          const yr = sm[4] ? Number(sm[4]) : mi + 1 > m ? y - 1 : y;
+          const fromYm = `${yr}-${String(mi + 1).padStart(2, '0')}`;
+          if (fromYm <= todayYm) {
+            return { fromYm, toYm: todayYm, label: `since ${MONTH_TITLE[mi]} ${yr}` };
+          }
+        }
+      }
+    }
+  }
+
   if (/\b(last|previous|prior|past) month\b/.test(q)) {
     const p = priorYm(todayYm, 1);
     return { fromYm: p, toYm: p, label: 'last month' };
@@ -183,7 +321,73 @@ export function parseExplicitTimeframe(qRaw: string, today: ISODate): Timeframe 
     let year = yearMatch ? Number(yearMatch[1]) : y;
     if (!yearMatch && i + 1 > m) year = y - 1; // most recent past occurrence
     const ym = `${year}-${String(i + 1).padStart(2, '0')}`;
+    // An explicitly-dated FUTURE month is not a window either (TASKS 2.7
+    // critic F3): "how much did I make in December 2030" used to get a
+    // definitive past-tense answer about a window four years out, and "since
+    // march 2027" fell through the since-rule only to be claimed HERE as a
+    // March-2027-only window. Resolve nothing — the date-shape guard abstains
+    // the route. (A year-less month is always resolved to the past above, so
+    // only explicit years can land here.)
+    if (ym > todayYm) return null;
     return { fromYm: ym, toYm: ym, label: `${MONTH_TITLE[i]} ${year}` };
+  }
+
+  // Numeric dates (TASKS 2.7): "3/5" (US M/D), "3/2025", "3/5/2025" — the
+  // containing MONTH window, the same shipped rule as the worded "on March 5",
+  // disclosed by the label. An INVALID shape ("13/5", "3/45", a two-digit
+  // year) resolves nothing — deliberately `null` right here rather than
+  // falling through, so the date-shape guard abstains the route instead of a
+  // co-present bare year answering a window the user didn't name.
+  {
+    const nm = /(?<![\w/.$-])(\d{1,2}\/\d{1,4}(?:\/\d{4})?)(?![\w/])/.exec(q);
+    if (nm) {
+      const d = numericDateYm(nm[1], today);
+      return d ? { fromYm: d.ym, toYm: d.ym, label: `${MONTH_TITLE[d.month - 1]} ${d.year}` } : null;
+    }
+  }
+
+  // Bare year(s) (TASKS 2.7): "in 2025" → that calendar year; the current year
+  // → January through today (the YTD window and label); two or more years →
+  // the span ("between 2024 and 2025", "from 2024 to 2026", "2024-2025"). A
+  // FUTURE year poisons the whole set — "between 2024 and 2027" must not
+  // half-answer 2024 — and a comparison ("2024 vs 2025") is not a window we
+  // can represent, so both resolve nothing and the shape guard abstains.
+  {
+    const years: number[] = [];
+    const range = /(?<![\w/.$-])(20\d{2})\s*[-–—]\s*(20\d{2})(?![\w/])/.exec(q);
+    if (range) {
+      const lo = bareYearValue(range[1], today);
+      const hi = bareYearValue(range[2], today);
+      if (lo === null || hi === null) return null; // a future endpoint poisons it
+      years.push(lo, hi);
+    } else {
+      const re = /(?<![\w/.$-])(20\d{2})(?![\w/])/g;
+      for (let ym = re.exec(q); ym; ym = re.exec(q)) {
+        const yr = bareYearValue(ym[1], today);
+        if (yr === null) return null; // a future year poisons the set
+        years.push(yr);
+      }
+    }
+    if (years.length > 0) {
+      if (years.length > 1 && /\b(vs|versus|compared?|against)\b/.test(q)) return null;
+      const lo = Math.min(...years);
+      const hi = Math.max(...years);
+      // Labels land mid-sentence in money copy ("You spent $X <label>.",
+      // "No purchases at Costco <label>."), so a bare "2025" reads like part
+      // of the store name — "in 2025" doesn't (critic F9).
+      if (lo === hi) {
+        return lo === y
+          ? { fromYm: `${y}-01`, toYm: todayYm, label: `${y} so far` }
+          : { fromYm: `${lo}-01`, toYm: `${lo}-12`, label: `in ${lo}` };
+      }
+      // A range ending in the CURRENT year is the same window as "since <lo>"
+      // (lo-January through today) — label it that way, so the frame's
+      // staleness re-labeling covers it for free (critic F8: a clamped
+      // "2024–2026" label kept implying through-today after July).
+      return hi === y
+        ? { fromYm: `${lo}-01`, toYm: todayYm, label: `since ${lo}` }
+        : { fromYm: `${lo}-01`, toYm: `${hi}-12`, label: `in ${lo}–${hi}` };
+    }
   }
 
   return null;
@@ -588,6 +792,12 @@ const NON_MERCHANT_SPEND_OBJECTS = new Set([
   'average', 'averages', 'avg', 'mean', 'median', 'typically', 'usually',
   'card', 'cards', 'cash', 'credit', 'debit', 'check', 'cheque',
   'venmo', 'paypal', 'zelle', 'amex', 'visa', 'mastercard',
+  // Account self-reference is a payment SOURCE, not a store ("from my checking
+  // account" minted the merchant "checking account" — TASKS 2.7 critic N-1,
+  // the #168 class). Costs "at Bank of America" the merchant reading (an
+  // honest redirect); a fee question about a bank is far rarer than an
+  // account-phrased spend question.
+  'checking', 'savings', 'bank', 'account', 'accounts',
 ]);
 
 /** Leading articles/possessives to skip before a merchant name ("at THE apple store"). */
@@ -647,6 +857,12 @@ export function extractMerchantPhrase(after: string): string | null {
       break;
     }
     if (TOTAL_SPEND_OBJECTS.has(word) || MERCHANT_STOP_WORDS.has(word)) break;
+    // A date-SHAPED token ends the phrase like a timeframe cue does (TASKS
+    // 2.7): "at costco 2025" is the store costco in the 2025 window, not a
+    // store named "costco 2025". Shape-level on the RAW token (stripToken
+    // deletes "/" — "3/5" would strip to a lying "35"), so an unresolvable
+    // date can't join a store name either. "at 76" survives: not a date shape.
+    if (DATE_SHAPED_TOKEN_RE.test(raw.replace(/^[^0-9a-z$]+|[^0-9a-z]+$/g, ''))) break;
     out.push(word);
     if (out.length >= 4) break;
   }
@@ -772,7 +988,7 @@ const OBJECT_TERMINATOR_RE = /[,.;:?!…]\s*$/;
  * the conversation frame, and `intentFromKind`, so no route can re-answer what
  * another abstained on.
  */
-export function unconsumedSpendObject(question: string): string | null {
+export function unconsumedSpendObject(question: string, today: ISODate): string | null {
   // "@" is "at" typed faster; the scanner must read it or "spend @ costco"
   // keeps the total (critic cycle 1, F5).
   const q = question.normalize('NFC').toLowerCase().replace(/@/g, ' at ');
@@ -830,7 +1046,16 @@ export function unconsumedSpendObject(question: string): string | null {
         OBJECT_PREPOSITIONS.has(t) || // "going on WITH …" — scanned on its own turn
         QUESTION_MACHINERY.has(t) || // "…at the very least HOW MUCH…"
         auxConsumed || // "…DID I spend", never "at DO it best"
-        (prevWasMonth && DAY_OR_YEAR_RE.test(t)); // "on march 5", "in may 2026"
+        (prevWasMonth && DAY_OR_YEAR_RE.test(t)) || // "on march 5", "in may 2026"
+        // A date token the timeframe parser can WINDOW is consumed — and only
+        // those (TASKS 2.7): "in 2025", "on 3/5", "in 3/2025", "2024-2025".
+        // A future year or an invalid date ("in 2027", "on 13/5") is NOT — the
+        // parser cannot window it, so the total must not answer it. The same
+        // recognizers feed parseExplicitTimeframe, so the licence consumes
+        // exactly what the parser reads, never an approximation of it.
+        bareYearValue(t, today) !== null ||
+        numericDateYm(t, today) !== null ||
+        yearRangeToken(t, today) !== null;
       if (!consumed) return t; // an object word the total does not answer
       sawWord = true;
       prevWasMonth = MONTH_TOKENS.has(t);
@@ -952,6 +1177,113 @@ export function spendObjectUnreadable(after: string): boolean {
  */
 export function isNonMerchantObject(word: string): boolean {
   return NON_MERCHANT_SPEND_OBJECTS.has(word);
+}
+
+// ─── largest_purchases scope (TASKS 2.7) ────────────────────────────────────
+
+/** The nouns the largest-purchases route recognizes (also its scope anchor). */
+const LARGEST_NOUNS = 'purchases?|transactions?|buy|bought|expenses?|charges?|payments?|things?|items?';
+
+/**
+ * How a largest-purchases question is SCOPED (TASKS 2.7): `{merchant}` for
+ * "biggest purchase at costco", `{}` for the global ranking, and `null` when
+ * the question names a scope the ranking cannot represent — a fronted store,
+ * a payment method (#168), an unreadable name, a category modifier ("biggest
+ * GROCERY purchase"), or any unconsumed object. Before this, every one of
+ * those answered the GLOBAL biggest purchase, the merchant/category silently
+ * dropped — a true figure under a false question. Shared by the parser's
+ * route and `intentFromKind` (LLM + vocab), so no route re-answers a scope
+ * another refused. Self-normalizing, so both callers read identical bytes.
+ */
+export function largestScope(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): { merchant?: string } | null {
+  const q = question.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+  // "…purchase(s) at/with/from X" — the merchant construction, anchored like
+  // the spend family's ("spend … at X"); a FRONTED object never anchors and
+  // falls to the licence check below, which abstains it (the honest redirect).
+  const led = new RegExp(
+    `\\b(?:${LARGEST_NOUNS}|spent on)\\b[^.?!]*?\\b(?:at|with|from)\\b[\\s.…,:;!—–-]*(.+)$`,
+  ).exec(q);
+  if (led) {
+    if (spendObjectUnreadable(led[1])) return null;
+    const merchant = extractMerchantPhrase(led[1]);
+    // A licensed idiom is not a store (critic F1: "biggest purchase at the
+    // moment" answered "No purchases at Moment"); no phrase at all ("from last
+    // month") names no store either. Both fall THROUGH to the global checks —
+    // the ranking may still answer, or the licence below may abstain it.
+    if (merchant && !isLicensedIdiomPhrase(merchant)) {
+      if (merchant.split(' ').some((w) => NON_MERCHANT_SPEND_OBJECTS.has(w))) return null;
+      return { merchant };
+    }
+  }
+  // No anchored store: any remaining unconsumed at/with/on/in object, or name
+  // content we cannot read, is a scope the global ranking does not answer.
+  if (unconsumedSpendObject(q, today) !== null) return null;
+  if (containsUnreadableName(q)) return null;
+  // Words between the superlative and the noun scope the ranking somehow —
+  // and the only scope the engine computes is the merchant one above. A
+  // category ("biggest GROCERY purchase") or an arbitrary word ("biggest
+  // COSTCO/WALMART/BANK purchase" — critic F2: all answered the GLOBAL
+  // ranking, unhedged) abstains; only known benign intensifiers keep the
+  // global answer. Scanning ONLY the intervening words keeps the nouns
+  // themselves out of the synonym table ("biggest CHARGES" is the fees
+  // synonym's word, and must stay a global ranking); an intervening word that
+  // IS a largest-noun ("most expensive THING i bought") means the real noun
+  // sat adjacent, so there is no modifier at all.
+  const mod = new RegExp(
+    `\\b(?:single largest|most expensive|biggest|largest|priciest|highest)\\s+((?:[\\w'&-]+\\s+){1,3}?)(?:${LARGEST_NOUNS})\\b`,
+  ).exec(q);
+  if (mod) {
+    const words = mod[1].trim().split(/\s+/);
+    const nounWordRe = new RegExp(`^(?:${LARGEST_NOUNS})$`);
+    if (!words.some((w) => nounWordRe.test(w))) {
+      if (resolveSpendTarget(mod[1], custom)) return null; // a category scope: no engine
+      if (!words.every((w) => BENIGN_LARGEST_MODIFIERS.has(w))) return null; // an unknown scope
+    }
+  }
+  return {};
+}
+
+/** Intensifiers between the superlative and the noun that do NOT scope the
+ *  ranking ("my single biggest purchase", "the largest one-time expense").
+ *  Anything else there is a scope we cannot represent — abstain, don't rank
+ *  everything (critic F2). Conservative by design: a missing word here costs
+ *  an honest redirect; a wrong word costs the global figure under a scoped
+ *  question. */
+const BENIGN_LARGEST_MODIFIERS = new Set([
+  'single', 'one', 'one-time', 'individual', 'overall', 'ever', 'very',
+  'actual', 'real', 'true', 'recent', 'new', 'own', 'my', 'the', 'a', 'an',
+]);
+
+/**
+ * True when an extracted merchant PHRASE is really a licensed idiom or question
+ * machinery, not a store name (TASKS 2.7 critic F1/F7): "at the moment" →
+ * phrase "moment", "at the end of last month" → "end of", "at least $100" →
+ * "least 100", "at what point did i…" → "what point did i". Every one of these
+ * used to become a merchant and answer a confident-wrong "No purchases at
+ * Moment…". The head word must be idiom/question vocabulary and every later
+ * word idiom-class or numeric — so "best buy" (head licensed, "buy" is a real
+ * word) and "do it best" (head is an auxiliary, not idiom vocabulary) stay
+ * stores. Shared by the spend family, largestScope, and the conversation
+ * frame, so no extractor mints a merchant another route knows is an idiom.
+ */
+export function isLicensedIdiomPhrase(phrase: string): boolean {
+  const words = phrase.split(' ');
+  if (!(LICENSED_SPEND_OBJECTS.has(words[0]) || QUESTION_MACHINERY.has(words[0]))) return false;
+  return words
+    .slice(1)
+    .every(
+      (w) =>
+        LICENSED_SPEND_OBJECTS.has(w) ||
+        QUESTION_MACHINERY.has(w) ||
+        QUESTION_AUXILIARIES.has(w) ||
+        OBJECT_PREPOSITIONS.has(w) ||
+        MERCHANT_LEADING_SKIP.has(w) ||
+        /^\d[\d.,]*$/.test(w),
+    );
 }
 
 function statedAmountIsPerPeriodRate(q: string): boolean {
@@ -1130,23 +1462,45 @@ export function parseAssistantQuery(
   }
 
   // Largest purchases (single biggest buy) — before top-categories so
-  // "biggest purchase" isn't read as a category ranking.
+  // "biggest purchase" isn't read as a category ranking. The route reads its
+  // OBJECT like the spend family does (TASKS 2.7): "at costco" scopes the
+  // ranking to that merchant; a scope it cannot represent (a fronted store, a
+  // payment method, a category modifier, an unreadable name, an unresolvable
+  // date) abstains instead of answering the GLOBAL biggest purchase — which
+  // was a true figure under a false question.
   if (
     /\b(biggest|largest|most expensive|priciest|highest|single largest)\b/.test(q) &&
-    /\b(purchases?|transactions?|buy|bought|expenses?|charges?|payments?|spent on|things?)\b/.test(q) &&
+    /\b(purchases?|transactions?|buy|bought|expenses?|charges?|payments?|spent on|things?|items?)\b/.test(q) &&
     !/categor/.test(q)
   ) {
-    return { kind: 'largest_purchases', timeframe: parseTimeframe(q, today), limit: DEFAULT_LARGEST_LIMIT };
+    const scope = largestScope(q, today, custom);
+    if (scope === null || unresolvedDateShape(q, today)) return { kind: 'unknown', question };
+    return {
+      kind: 'largest_purchases',
+      timeframe: parseTimeframe(q, today),
+      limit: DEFAULT_LARGEST_LIMIT,
+      ...(scope.merchant ? { merchant: scope.merchant } : {}),
+    };
   }
 
   // Income
   if (/\bhow much .*(make|made|earn|earned|brought in|get paid|got paid|income)\b/.test(q) || /\bmy income\b/.test(q)) {
+    // A date shape the parser could not window ("in 2027") must abstain, not
+    // silently answer the default this-month window (TASKS 2.7).
+    if (unresolvedDateShape(q, today)) return { kind: 'unknown', question };
     return { kind: 'income', timeframe: parseTimeframe(q, today) };
   }
 
   // Spending family
   const mentionsSpend = /\b(spend|spent|spending)\b/.test(q) || /\bhow much .*\bon\b/.test(q) || /\bmoney go\b/.test(q);
   if (mentionsSpend) {
+    // A date shape the parser could not resolve into a window — a future year
+    // ("in 2027"), an invalid numeric date ("on 13/5"), a two-digit year —
+    // abstains the WHOLE family (TASKS 2.7). Before this, only the
+    // spend_total sink was protected (by the #229 licence), so "groceries in
+    // 2025" answered the unhedged THIS-MONTH Groceries figure and "since
+    // 2024" the this-month total: a true figure under a different window.
+    if (unresolvedDateShape(q, today)) return { kind: 'unknown', question };
     // BEFORE any object is resolved (#226 cycle 4): an unreadable object must not reach
     // the CATEGORY route either. It did — decomposed "café zurich" matched the `cafe`
     // synonym and answered ALL coffee-shop spending for a question about one store,
@@ -1179,7 +1533,14 @@ export function parseAssistantQuery(
     // own canonical merchant names. A statistical qualifier ("at/with average")
     // still isn't a merchant and abstains.
     const merchant = extractSpendMerchant(q);
-    if (merchant) {
+    // A licensed idiom is not a store (TASKS 2.7 critic F1/F7): "spend at the
+    // moment" / "at the end of last month" extracted merchants "moment" and
+    // "end of" and answered a confident-wrong "No spending at Moment…". Such
+    // an object falls through to the SINK, whose licence consumes the idiom
+    // and keeps the honest total ("at the end of last month" now answers last
+    // month's total) — or withholds it ("at least $500": the figure is an
+    // unconsumed object, so the honest redirect stands).
+    if (merchant && !isLicensedIdiomPhrase(merchant)) {
       const first = merchant.split(' ')[0];
       if (NON_MERCHANT_SPEND_OBJECTS.has(first)) return { kind: 'unknown', question };
       return { kind: 'merchant_spend', timeframe, merchant };
@@ -1195,7 +1556,7 @@ export function parseAssistantQuery(
     // #166 guard), and no name content we cannot read. Objects that ARE the total ("on
     // everything"), a timeframe ("on March 5"), or a licensed idiom ("at least", "at
     // the end of last month") keep the total answer.
-    if (unconsumedSpendObject(q) !== null) return { kind: 'unknown', question };
+    if (unconsumedSpendObject(q, today) !== null) return { kind: 'unknown', question };
     if (containsUnreadableName(q)) return { kind: 'unknown', question };
     return { kind: 'spend_total', timeframe };
   }
@@ -1378,10 +1739,20 @@ export function validateIntent(
       return isTimeframe(o.timeframe) && typeof o.limit === 'number' && o.limit > 0
         ? { kind: 'top_categories', timeframe: o.timeframe, limit: Math.min(20, Math.floor(o.limit)) }
         : null;
-    case 'largest_purchases':
-      return isTimeframe(o.timeframe) && typeof o.limit === 'number' && o.limit > 0
-        ? { kind: 'largest_purchases', timeframe: o.timeframe, limit: Math.min(20, Math.floor(o.limit)) }
+    case 'largest_purchases': {
+      if (!(isTimeframe(o.timeframe) && typeof o.limit === 'number' && o.limit > 0)) return null;
+      const base = {
+        kind: 'largest_purchases' as const,
+        timeframe: o.timeframe,
+        limit: Math.min(20, Math.floor(o.limit)),
+      };
+      if (o.merchant === undefined) return base;
+      // The optional merchant scope (TASKS 2.7) round-trips through the client
+      // (the conversation frame), so it is bounded exactly like merchant_spend's.
+      return typeof o.merchant === 'string' && o.merchant.trim().length > 0 && o.merchant.length <= MAX_MERCHANT_LEN
+        ? { ...base, merchant: o.merchant }
         : null;
+    }
     case 'unknown':
       return typeof o.question === 'string' ? { kind: 'unknown', question: o.question } : null;
     default:

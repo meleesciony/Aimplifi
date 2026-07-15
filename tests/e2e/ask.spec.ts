@@ -80,6 +80,29 @@ test('answers typed questions grounded in the seed', async ({ page }) => {
   await expect(page.getByTestId('ask-headline')).toContainText(/savings rate was .*%|full month of income/);
 });
 
+test('year windows and merchant-scoped largest answer honestly (TASKS 2.7)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/ask');
+
+  // A bare-year window is that calendar year, not a silent this-month figure.
+  await ask(page, 'How much did I spend in 2025?');
+  await expect(page.getByTestId('ask-headline')).toContainText(/(You spent \$[\d,]+\.\d{2} in 2025\.|No spending recorded in 2025\.)/);
+
+  // Merchant-scoped largest: the seed's biggest June purchase IS Costco $158.44,
+  // so the scoped answer must find the same row the global ranking pins.
+  await ask(page, 'What was my biggest purchase at Costco this month?');
+  await expect(page.getByTestId('ask-headline')).toContainText('Your biggest purchase at Costco this month was $158.44.');
+
+  // The follow-up window swap CARRIES the merchant scope — never the global biggest.
+  await ask(page, 'what about last month?');
+  await expect(page.getByTestId('ask-headline')).toContainText(/at Costco last month/);
+
+  // A window the parser cannot represent gets the honest redirect, never a
+  // different-window figure (pre-2.7 this answered the THIS-MONTH groceries total).
+  await ask(page, 'How much did I spend on groceries in 2027?');
+  await expect(page.getByTestId('ask-headline')).not.toContainText('You spent');
+});
+
 test('plans debt-free BY A DATE (inverse planning) and offers to save it as a goal', async ({ page }) => {
   // DECISIONS #125 — "Plan in Words" debt slice: a stated date is solved for the
   // required extra payment, grounded in the same debt read-path as /goals.

@@ -17,12 +17,14 @@ import {
   type AssistantIntent,
   ASSISTANT_INTENT_KINDS,
   containsUnreadableName,
+  largestScope,
   parseTargetAge,
   parseTargetAmount,
   parseTargetDate,
   parseTimeframe,
   resolveSpendTarget,
   unconsumedSpendObject,
+  unresolvedDateShape,
 } from './intent';
 
 /** The kinds the model is allowed to choose (everything except the fallback). */
@@ -69,7 +71,12 @@ export function parseIntentKind(raw: unknown): string | null {
  * kind is invalid or a category-scoped route has no resolvable target (the caller
  * then keeps the honest `unknown` answer rather than guessing).
  */
-export function intentFromKind(kindRaw: string | null, question: string, today: ISODate): AssistantIntent | null {
+export function intentFromKind(
+  kindRaw: string | null,
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): AssistantIntent | null {
   if (!kindRaw || !(LLM_ROUTABLE_KINDS as readonly string[]).includes(kindRaw)) return null;
   // The parser abstains on a question naming an object it cannot read ("how much did I
   // spend at 星巴克") specifically to hand it to the model — but the model's only
@@ -82,6 +89,14 @@ export function intentFromKind(kindRaw: string | null, question: string, today: 
   if (containsUnreadableName(question)) return null;
   const kind = kindRaw as (typeof LLM_ROUTABLE_KINDS)[number];
   const timeframe = parseTimeframe(question, today);
+  // A date SHAPE the parser could not window ("in 2027", "on 13/5") abstains
+  // every timeframe-carrying kind here exactly as it does in the parser
+  // (TASKS 2.7) — otherwise `parseTimeframe`'s this-month default would answer
+  // a window the user never named, through the very route that exists to
+  // rescue what the parser abstained on. The goal kinds (debt_free_by_date,
+  // savings_goal_by_date) are exempt: "by 2028" is a legitimate FUTURE
+  // deadline, re-derived by their own parseTargetDate.
+  const badDateShape = unresolvedDateShape(question, today);
   switch (kind) {
     case 'net_worth':
     case 'safe_to_spend':
@@ -101,15 +116,25 @@ export function intentFromKind(kindRaw: string | null, question: string, today: 
       // question IS the total. A kind is a hint, never a licence to answer a
       // different question (the F6 precedent): an unconsumed at/with/on object
       // anywhere in the question keeps the honest unknown.
-      return unconsumedSpendObject(question) ? null : { kind, timeframe };
+      return badDateShape || unconsumedSpendObject(question, today) ? null : { kind, timeframe };
     case 'income':
-      return { kind, timeframe };
+      return badDateShape ? null : { kind, timeframe };
     case 'top_categories':
-      return { kind, timeframe, limit: 5 };
-    case 'largest_purchases':
-      return { kind, timeframe, limit: 5 };
+      return badDateShape ? null : { kind, timeframe, limit: 5 };
+    case 'largest_purchases': {
+      // The same scope discipline as the parser's route (TASKS 2.7): the
+      // merchant is re-derived from the user's own words; a scope the ranking
+      // cannot represent abstains — the model's kind is a hint, never a
+      // licence to answer the GLOBAL ranking for a scoped question.
+      if (badDateShape) return null;
+      const scope = largestScope(question, today, custom);
+      return scope
+        ? { kind, timeframe, limit: 5, ...(scope.merchant ? { merchant: scope.merchant } : {}) }
+        : null;
+    }
     case 'spend_by_category': {
-      const target = resolveSpendTarget(question.toLowerCase());
+      if (badDateShape) return null;
+      const target = resolveSpendTarget(question.toLowerCase(), custom);
       // #166 (critic F6): when the model says "category spend" but the category
       // can't be re-derived from the user's own words, the old spend_total
       // fallback re-created the exact hijack the deterministic parser now

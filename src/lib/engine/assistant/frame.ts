@@ -25,12 +25,14 @@ import {
   containsUnreadableName,
   customCategoryForObject,
   extractMerchantPhrase,
+  isLicensedIdiomPhrase,
   isNonMerchantObject,
   spendObjectUnreadable,
   MONTH_TITLE,
   parseExplicitTimeframe,
   parseTimeframe,
   resolveSpendTarget,
+  unresolvedDateShape,
   type AssistantIntent,
   type AssistantIntentKind,
   type SpendTarget,
@@ -100,8 +102,17 @@ export function frameFromIntent(intent: AssistantIntent): AskFrame | null {
         merchant: intent.merchant.slice(0, MAX_MERCHANT_LEN),
       };
     case 'top_categories':
-    case 'largest_purchases':
       return { kind: intent.kind, timeframe: intent.timeframe, limit: intent.limit };
+    case 'largest_purchases':
+      // The merchant scope (TASKS 2.7) is carried like merchant_spend's, so a
+      // window swap can never silently widen "biggest purchase at Costco" back
+      // to the global biggest.
+      return {
+        kind: intent.kind,
+        timeframe: intent.timeframe,
+        limit: intent.limit,
+        ...(intent.merchant ? { merchant: intent.merchant.slice(0, MAX_MERCHANT_LEN) } : {}),
+      };
     default:
       return { kind: intent.kind };
   }
@@ -196,6 +207,12 @@ export function resolveEllipsis(
   // satisfied a q-anchored scan before the real preposition could.
   const objectHere = /\b(?:at|with|for|on|in|about)\b[\s.…,:;!—–-]*(.+)$/.exec(rest);
   if (objectHere && spendObjectUnreadable(objectHere[1]) && !ownCategory) return null;
+  // A date SHAPE the parser cannot window ("in 2027", "on 13/5") is not a slot
+  // swap — and must not be silently DROPPED with the carried window answering
+  // in its place ("what about groceries in 2027?" answered LAST MONTH's
+  // groceries — TASKS 2.7 critic F4, the 2.6 refused-object rule applied to
+  // dates). The parser abstains on these shapes; the frame must too.
+  if (unresolvedDateShape(rest, today)) return null;
   const words = rest.split(' ');
   if (words.length > MAX_FRAGMENT_TOKENS) return null;
   // A sentence, a comparison, or an exclusion — none of which is a slot swap.
@@ -216,8 +233,11 @@ export function resolveEllipsis(
   const merchant = candidate.merchant;
   if (!timeframe && !target && !merchant) return null;
 
-  // A category/merchant swap only makes sense against a spending question.
-  if ((target || merchant) && !SPEND_FAMILY.has(frame.kind)) return null;
+  // A category swap only makes sense against a spending question; a merchant
+  // swap also works after largest_purchases now that the engine computes a
+  // merchant-scoped ranking (TASKS 2.7, superseding the #223 P2-5 abstain).
+  if (target && !SPEND_FAMILY.has(frame.kind)) return null;
+  if (merchant && !SPEND_FAMILY.has(frame.kind) && frame.kind !== 'largest_purchases') return null;
   // A bare timeframe swap needs an intent that HAS a timeframe.
   if (!target && !merchant && !TIMEFRAME_KINDS.has(frame.kind)) return null;
 
@@ -227,7 +247,15 @@ export function resolveEllipsis(
   const when = timeframe ?? (frame.timeframe ? relabelForToday(frame.timeframe, today) : parseTimeframe('', today));
 
   if (target) return { kind: 'spend_by_category', timeframe: when, target };
-  if (merchant) return { kind: 'merchant_spend', timeframe: when, merchant };
+  if (merchant) {
+    // After a largest-purchases answer, "what about at Costco?" means the
+    // biggest purchase AT Costco — the same intent re-scoped, never a merchant
+    // TOTAL that silently changes the question under the user.
+    if (frame.kind === 'largest_purchases') {
+      return frame.limit ? { kind: 'largest_purchases', timeframe: when, merchant, limit: frame.limit } : null;
+    }
+    return { kind: 'merchant_spend', timeframe: when, merchant };
+  }
 
   // Timeframe-only: the same question, a different window. Every other slot is
   // carried verbatim from the frame.
@@ -244,9 +272,19 @@ export function resolveEllipsis(
         ? { kind: 'merchant_spend', timeframe: when, merchant: frame.merchant }
         : null;
     case 'top_categories':
-    case 'largest_purchases':
       return frame.limit
         ? { kind: frame.kind, timeframe: when, limit: frame.limit }
+        : null;
+    case 'largest_purchases':
+      // The carried merchant scope rides along (TASKS 2.7): "biggest purchase
+      // at costco" → "what about last month?" stays Costco's biggest.
+      return frame.limit
+        ? {
+            kind: frame.kind,
+            timeframe: when,
+            limit: frame.limit,
+            ...(frame.merchant ? { merchant: frame.merchant } : {}),
+          }
         : null;
     default:
       return null;
@@ -338,6 +376,11 @@ function cleanMerchant(after: string, bare: boolean): MerchantCandidate {
   // belt-and-braces BLOCK, so a co-present timeframe can never answer the
   // carried question in the unreadable object's place (critic cycle 1, F3).
   if (!phrase) return spendObjectUnreadable(after) ? BLOCKED : NO_CANDIDATE;
+  // A licensed idiom is not a store, in a fragment either ("what about at the
+  // moment?" must not become the merchant "moment" — TASKS 2.7 critic F1's
+  // disease, shared machinery). No candidate, not blocked: the fragment named
+  // no real object, so nothing is being silently dropped.
+  if (isLicensedIdiomPhrase(phrase)) return NO_CANDIDATE;
   const words = phrase.split(' ');
   if (words.some((w) => isNonMerchantObject(w) || INTENT_NOUNS.has(w))) return BLOCKED;
   if (words.some((w) => PRONOUNS.has(w))) return NO_CANDIDATE;
@@ -358,6 +401,20 @@ function strip(w: string): string {
  */
 function relabelForToday(tf: Timeframe, today: ISODate): Timeframe {
   const todayYm = today.slice(0, 7);
+
+  // A "since …" / "… so far" label IMPLIES through-today (TASKS 2.7). Once
+  // today leaves the window's end, the name is a lie even though the window is
+  // right — name the months instead. Same rule as the trailing "last N months"
+  // fix below (critic P3-D).
+  if (/\bsince\b|\bso far\b/.test(tf.label) && tf.toYm !== todayYm) {
+    return {
+      ...tf,
+      label:
+        tf.fromYm === tf.toYm
+          ? monthName(tf.fromYm)
+          : `${monthName(tf.fromYm)} – ${monthName(tf.toYm)}`,
+    };
+  }
 
   // A trailing window ("the last 3 months") is relative to when it was ASKED.
   // Once today leaves it, the name is a lie even though the window is right —

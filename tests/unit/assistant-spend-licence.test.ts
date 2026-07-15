@@ -62,16 +62,18 @@ describe('test_regression__fronted_ascii_object_reaches_spend_total (TASKS 2.6 i
   });
 
   it('unconsumedSpendObject — the licence primitive', () => {
-    expect(unconsumedSpendObject('at costco, how much did i spend')).toBe('costco');
-    expect(unconsumedSpendObject('how much did i spend on everything')).toBeNull();
-    expect(unconsumedSpendObject('at the end of last month, how much did i spend')).toBeNull();
+    expect(unconsumedSpendObject('at costco, how much did i spend', TODAY)).toBe('costco');
+    expect(unconsumedSpendObject('how much did i spend on everything', TODAY)).toBeNull();
+    expect(unconsumedSpendObject('at the end of last month, how much did i spend', TODAY)).toBeNull();
     // "on march 5" is a DATE (day digit right after a month); a bare number is
-    // not ("at 76" is a gas station, "on 3/5" is a window no engine parses —
-    // the pre-slice parser abstained on it too, via the verb-anchored guard).
-    expect(unconsumedSpendObject('how much did i spend on march 5')).toBeNull();
-    expect(unconsumedSpendObject('how much did i spend on 3/5')).toBe('3/5');
-    expect(unconsumedSpendObject('on average, how much per month')).toBe('average');
-    expect(unconsumedSpendObject('how much did i spend')).toBeNull();
+    // not ("at 76" is a gas station). "on 3/5" FLIPPED in TASKS 2.7: the
+    // timeframe parser now windows it (the containing month, like the worded
+    // form), so the licence consumes it — invalid shapes ("on 13/5") do not.
+    expect(unconsumedSpendObject('how much did i spend on march 5', TODAY)).toBeNull();
+    expect(unconsumedSpendObject('how much did i spend on 3/5', TODAY)).toBeNull();
+    expect(unconsumedSpendObject('how much did i spend on 13/5', TODAY)).toBe('13/5');
+    expect(unconsumedSpendObject('on average, how much per month', TODAY)).toBe('average');
+    expect(unconsumedSpendObject('how much did i spend', TODAY)).toBeNull();
   });
 
   it('test_regression__one_licensed_word_is_not_a_licence (critic cycle 1, F1/F2 — P0)', () => {
@@ -95,7 +97,33 @@ describe('test_regression__fronted_ascii_object_reaches_spend_total (TASKS 2.6 i
     // …while the licensed idioms those words came from keep their totals.
     expect(parseAssistantQuery('at the end of last month, how much did i spend?', TODAY).kind).toBe('spend_total');
     expect(parseAssistantQuery('at the very least how much did i spend', TODAY).kind).toBe('spend_total');
-    expect(unconsumedSpendObject('at best buy, how much did i spend?')).toBe('buy');
+    expect(unconsumedSpendObject('at best buy, how much did i spend?', TODAY)).toBe('buy');
+  });
+
+  it('test_regression__licensed_idioms_became_merchants_in_verb_order (TASKS 2.7 critic, F7)', () => {
+    // Fronted idioms were licence-protected, but verb-then-at order ran the
+    // merchant extractor FIRST: "spend at the moment" → merchant "moment" →
+    // "No spending at Moment this month.", a factually false money claim.
+    expect(parseAssistantQuery('how much did i spend at the moment', TODAY)).toMatchObject({
+      kind: 'spend_total',
+    });
+    // The idiom-skip hands "at the end of last month" to the sink, which now
+    // answers LAST MONTH's real total (the licence consumes the idiom and the
+    // timeframe parser reads the window).
+    expect(parseAssistantQuery('how much did i spend at the end of last month', TODAY)).toMatchObject({
+      kind: 'spend_total',
+      timeframe: { fromYm: '2026-05', toYm: '2026-05' },
+    });
+    // A threshold is not a merchant and not the total — honest redirect.
+    expect(parseAssistantQuery('did i spend at least $500 this month', TODAY).kind).toBe('unknown');
+    // Stores whose head word is idiom vocabulary keep their merchant answers.
+    // (Verb-order "at do it best" truncates to merchant "do" because 'it' is a
+    // phrase-ending total word — PRE-EXISTING, unchanged by this slice, and
+    // recorded in STATUS §OPEN rather than locked here as if it were right.)
+    expect(parseAssistantQuery('how much did i spend at best buy', TODAY)).toMatchObject({
+      kind: 'merchant_spend',
+      merchant: 'best buy',
+    });
   });
 
   it('test_regression__in_and_atsign_join_the_licence (critic cycle 1, F5)', () => {
@@ -227,7 +255,7 @@ describe('test_regression__non_ascii_custom_category_unreachable (TASKS 2.6 item
     expect(parseAssistantQuery('at do it best, how much did i spend?', TODAY).kind).toBe('unknown');
     expect(parseAssistantQuery('at do it best, how much did i spend last month?', TODAY).kind).toBe('unknown');
     expect(intentFromKind('spend_total', 'at do it best, how much did i spend?', TODAY)).toBeNull();
-    expect(unconsumedSpendObject('at do it best, how much did i spend?')).toBe('do');
+    expect(unconsumedSpendObject('at do it best, how much did i spend?', TODAY)).toBe('do');
     // …while the auxiliaries keep licensing genuine question tails.
     expect(parseAssistantQuery('at the very least how much did i spend', TODAY).kind).toBe('spend_total');
     expect(parseAssistantQuery('at the end of last month, how much did i spend?', TODAY).kind).toBe('spend_total');

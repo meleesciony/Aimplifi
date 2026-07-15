@@ -132,7 +132,7 @@ async function resolveIntent(
 
   const learned = await lookupVocab(userId, question);
   if (learned) {
-    const proposed = intentFromKind(learned.kind, question, today as Parameters<typeof intentFromKind>[2]);
+    const proposed = intentFromKind(learned.kind, question, today as Parameters<typeof intentFromKind>[2], custom);
     const valid = proposed ? validateIntent(proposed, custom) : null;
     // The learned kind must ROUND-TRIP. The phrase key masks digits, so one key spans
     // "can I pay off my car by 2027" (a date) and "…by 65" (an age); `intentFromKind`
@@ -158,7 +158,7 @@ async function resolveIntent(
   }
 
   const kind = await classifyIntentViaLLM(question);
-  const proposed = intentFromKind(kind, question, today as Parameters<typeof intentFromKind>[2]);
+  const proposed = intentFromKind(kind, question, today as Parameters<typeof intentFromKind>[2], custom);
   const valid = proposed ? validateIntent(proposed, custom) : null;
   return valid
     ? { intent: valid, viaLlm: true, viaFrame: false, vocab: null, parserUnknown: true, llmGuessKind: kind }
@@ -288,7 +288,12 @@ async function buildAnswer(
       return answerTopCategories(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.timeframe, intent.limit);
     case 'largest_purchases':
       // POSTED-only, mirroring /trends exactly (pending charges aren't "purchases").
-      return answerLargest(largestPurchases(toPurchaseRows(snap), intent.timeframe, intent.limit, today, meta), intent.timeframe);
+      // The optional merchant scope (TASKS 2.7) threads through verbatim.
+      return answerLargest(
+        largestPurchases(toPurchaseRows(snap), intent.timeframe, intent.limit, today, meta, intent.merchant),
+        intent.timeframe,
+        intent.merchant,
+      );
     case 'merchant_spend':
       // Same POSTED-only purchase rows as largest_purchases (shared builder so the
       // two merchant surfaces can't drift), summed for the one queried merchant.

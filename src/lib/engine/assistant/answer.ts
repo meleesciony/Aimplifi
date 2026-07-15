@@ -290,11 +290,23 @@ export function largestPurchases(
   limit: number,
   today: string,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+  // Optional merchant scope (TASKS 2.7): same matching semantics as
+  // merchantSpend (`merchantMatches` — punctuation-folded, whole-word prefix),
+  // so "biggest purchase at costco" and "spend at costco" can never disagree
+  // about which rows are Costco's. Absent → the global ranking, byte-identical
+  // to before.
+  merchant?: string,
 ): LargestTxn[] {
   return rows
     .filter((t) => {
       const ym = t.date.slice(0, 7);
-      return ym >= tf.fromYm && ym <= tf.toYm && t.date <= today && isPurchaseRow(t, meta);
+      return (
+        ym >= tf.fromYm &&
+        ym <= tf.toYm &&
+        t.date <= today &&
+        isPurchaseRow(t, meta) &&
+        (!merchant || merchantMatches(t.merchant, merchant))
+      );
     })
     .map((t) => ({
       date: t.date,
@@ -311,14 +323,26 @@ export function largestPurchases(
     .slice(0, limit);
 }
 
-export function answerLargest(largest: readonly LargestTxn[], tf: Timeframe): AssistantAnswer {
+export function answerLargest(largest: readonly LargestTxn[], tf: Timeframe, merchant?: string): AssistantAnswer {
   if (largest.length === 0) {
-    return { kind: 'largest_purchases', headline: `No purchases recorded ${tf.label}.`, facts: [], source: { label: 'See activity', href: '/transactions' } };
+    return {
+      kind: 'largest_purchases',
+      // Scoped empty case mirrors answerMerchantSpend's ("No spending at X"):
+      // the query term title-cased, since no matched row can supply a name.
+      headline: merchant ? `No purchases at ${titleCaseTerm(merchant)} ${tf.label}.` : `No purchases recorded ${tf.label}.`,
+      facts: [],
+      source: { label: 'See activity', href: '/transactions' },
+    };
   }
   const top = largest[0];
   return {
     kind: 'largest_purchases',
-    headline: `Your biggest purchase ${tf.label} was ${fmt(top.amountCents)} at ${top.merchant}.`,
+    // Scoped: the store is the question's subject, so it leads — and it is the
+    // TOP MATCH's canonical name (the row the figure comes from), never the
+    // raw query term ("costco gas" rows under a "costco" query stay honest).
+    headline: merchant
+      ? `Your biggest purchase at ${top.merchant} ${tf.label} was ${fmt(top.amountCents)}.`
+      : `Your biggest purchase ${tf.label} was ${fmt(top.amountCents)} at ${top.merchant}.`,
     facts: largest.map((t) => ({ label: `${t.merchant} · ${humanDate(t.date)}`, value: fmt(t.amountCents) })),
     source: { label: 'See activity', href: '/transactions' },
   };

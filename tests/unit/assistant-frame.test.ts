@@ -281,11 +281,18 @@ describe('regression — hostile critic cycle 1', () => {
     }
   });
 
-  it('P2-5: a merchant fragment after "biggest purchase" abstains (no engine answers it)', () => {
+  it('P2-5 (superseded by TASKS 2.7): a merchant fragment after "biggest purchase" re-scopes it', () => {
+    // #223 abstained here because no engine computed a merchant-scoped ranking.
+    // TASKS 2.7 ships that engine, so the fragment now resolves — to the SAME
+    // intent re-scoped, never to a merchant TOTAL that changes the question.
+    // (assistant-largest-scope.test.ts locks the full matrix.)
     const frame = frameAfter('what was my biggest purchase this month?');
     expect(frame?.kind).toBe('largest_purchases');
-    expect(resolveEllipsis('what about at costco?', TODAY, frame)).toBeNull();
-    // The timeframe swap — which IS answerable — still works.
+    expect(resolveEllipsis('what about at costco?', TODAY, frame)).toMatchObject({
+      kind: 'largest_purchases',
+      merchant: 'costco',
+    });
+    // The timeframe swap still works.
     expect(resolveEllipsis('what about last month?', TODAY, frame)).toMatchObject({
       kind: 'largest_purchases',
       timeframe: LAST_MONTH,
