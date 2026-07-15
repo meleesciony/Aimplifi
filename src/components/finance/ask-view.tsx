@@ -9,11 +9,23 @@
  */
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { ArrowRight, CornerDownLeft, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, CornerDownLeft, Sparkles } from 'lucide-react';
 import { askAssistant } from '@/server/assistant';
 import { saveDebtFreeGoal, saveRetirementAge, saveSavingsGoal } from '@/server/goal-actions';
 import { forgetLearnedPhrase } from '@/server/vocab-actions';
-import { ASSISTANT_SUGGESTIONS, type AssistantAnswer, type AssistantGoalAction } from '@/lib/engine/assistant/answer';
+import {
+  ASSISTANT_SUGGESTIONS,
+  type AssistantAnswer,
+  type AssistantGoalAction,
+  type AssistantSource,
+} from '@/lib/engine/assistant/answer';
+// Type-only (erased): the trace object arrives already serialized on the answer
+// payload; importing the shape doesn't pull the engine into the client bundle.
+import type { RowSumTrace, TraceRow } from '@/lib/engine/assistant/trace';
+// Pure, dependency-light (type-only imports) — safe to bundle client-side; keeps
+// the "what reconciles the headline" decision one tested function, not inline logic.
+import { reconciledView } from '@/lib/engine/assistant/trace-view';
+import { formatCents, type Cents } from '@/lib/money';
 
 export function AskView({
   suggestions = ASSISTANT_SUGGESTIONS,
@@ -30,6 +42,7 @@ export function AskView({
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saved' | 'error'>('idle');
   const [forgotten, setForgotten] = useState(false);
+  const [traceOpen, setTraceOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [saving, startSaving] = useTransition();
   const [forgetting, startForgetting] = useTransition();
@@ -42,6 +55,7 @@ export function AskView({
     setError(null);
     setSaveState('idle');
     setForgotten(false);
+    setTraceOpen(false); // a new answer starts with its trace panel collapsed
     // The previous answer's intent is the conversation frame (TASKS 2.1): it lets
     // the server resolve a follow-up fragment ("what about last month?") against
     // the question it follows. The server re-validates it; a self-sufficient
@@ -165,10 +179,45 @@ export function AskView({
                 I interpreted your question — double-check this is what you meant.
               </p>
             )}
-            <p data-testid="ask-headline" className="text-base font-semibold tabular-nums">
-              {answer.headline}
-            </p>
+            {/* Glass-Box (GLASSBOX_PLAN slice 2): a row-sum figure is tappable —
+                it opens the reconciliation panel showing the exact rows behind it.
+                Derivation figures carry no trace and stay a plain, untappable <p>. */}
+            {answer.trace?.kind === 'row_sum' ? (
+              <>
+                <button
+                  type="button"
+                  data-testid="ask-headline"
+                  onClick={() => setTraceOpen((o) => !o)}
+                  aria-expanded={traceOpen}
+                  // Only reference the panel while it exists in the DOM (open) — a
+                  // collapsed disclosure carries no dangling IDREF.
+                  aria-controls={traceOpen ? 'ask-trace-panel' : undefined}
+                  className="flex w-full items-start justify-between gap-2 rounded-sm text-left text-base font-semibold tabular-nums decoration-dotted underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                >
+                  <span>{answer.headline}</span>
+                  <ChevronDown
+                    className={`mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform ${traceOpen ? 'rotate-180' : ''}`}
+                    aria-hidden
+                  />
+                </button>
+                {!traceOpen && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {answer.trace.reconciled
+                      ? 'Tap to see the transactions behind this number.'
+                      : 'Tap for details on this number.'}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p data-testid="ask-headline" className="text-base font-semibold tabular-nums">
+                {answer.headline}
+              </p>
+            )}
             {answer.detail && <p className="mt-1 text-sm text-muted-foreground">{answer.detail}</p>}
+
+            {answer.trace?.kind === 'row_sum' && traceOpen && (
+              <TracePanel trace={answer.trace} source={answer.source} />
+            )}
 
             {answer.facts.length > 0 && (
               <dl className="mt-3 space-y-1.5 border-t pt-3">
@@ -292,6 +341,119 @@ export function AskView({
           Answers come from your own data. Unrecognized questions may be interpreted by an AI model to
           route them; your account data is never sent to it.
         </p>
+      )}
+    </div>
+  );
+}
+
+const fmtCents = (c: number) => formatCents(c as Cents);
+
+/** The cited rows behind a trace figure — date · merchant … contribution. Money is
+ *  formatted here (the one UI boundary); the cents come straight from the engine. */
+function TraceRows({ rows }: { rows: readonly TraceRow[] }) {
+  return (
+    <dl className="space-y-1.5">
+      {rows.map((r, i) => (
+        <div
+          key={`${r.date}-${r.merchant}-${i}`}
+          data-testid="ask-trace-row"
+          className="flex items-baseline justify-between gap-3 text-sm"
+        >
+          <dt className="min-w-0 truncate text-muted-foreground">
+            <span className="tabular-nums">{r.date}</span> · {r.merchant}
+          </dt>
+          <dd className="shrink-0 font-medium tabular-nums">{fmtCents(r.contributionCents)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/**
+ * Glass-Box reconciliation panel (GLASSBOX_PLAN slice 2): the exact transaction
+ * rows behind a tapped figure, reconciled to the penny. When the trace can't be
+ * reconciled (answer→data drift), it says so honestly and points to the full view
+ * — it NEVER shows a green check next to a number it can't stand behind.
+ */
+function TracePanel({ trace, source }: { trace: RowSumTrace; source?: AssistantSource }) {
+  if (!trace.reconciled) {
+    return (
+      <div
+        id="ask-trace-panel"
+        data-testid="ask-trace"
+        role="region"
+        aria-label="Reconciliation"
+        className="mt-3 rounded-xl border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground"
+      >
+        <p data-testid="ask-trace-unreconciled">
+          I can’t fully reconcile this number right now — the underlying transactions may have changed
+          since this answer.
+          {source && (
+            <>
+              {' '}
+              Open{' '}
+              <Link
+                href={source.href}
+                className="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+              >
+                {source.label.toLowerCase()}
+              </Link>{' '}
+              for the full breakdown.
+            </>
+          )}
+        </p>
+      </div>
+    );
+  }
+
+  // Everything shown under the ✓ must sum to the headline: `reconciledView` returns
+  // the group breakdown ONLY when the groups sum to it (spend_total, umbrella), else
+  // the flat reconciled rows (top_categories' non-top groups are NOT the headline).
+  const { rows, groups } = reconciledView(trace);
+  const rowCount = groups ? groups.reduce((n, g) => n + g.rows.length, 0) : rows.length;
+
+  return (
+    <div
+      id="ask-trace-panel"
+      data-testid="ask-trace"
+      role="region"
+      aria-label="Reconciliation"
+      className="mt-3 space-y-3 rounded-xl border bg-muted/30 p-3"
+    >
+      <p className="flex items-center gap-1.5 text-sm font-medium">
+        <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+        <span data-testid="ask-trace-reconciled">
+          {rowCount === 1 ? '1 transaction adds' : `${rowCount} transactions add`} up to{' '}
+          {fmtCents(trace.sumCents)}
+        </span>
+      </p>
+
+      {groups ? (
+        <div className="space-y-3">
+          {groups.map((g) => (
+            <div key={g.key} data-testid="ask-trace-group">
+              <div className="flex items-baseline justify-between gap-3 border-b pb-1 text-sm font-semibold">
+                <span className="min-w-0 truncate">{g.label}</span>
+                <span className="shrink-0 tabular-nums">{fmtCents(g.amountCents)}</span>
+              </div>
+              <div className="mt-1.5">
+                <TraceRows rows={g.rows} />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <TraceRows rows={rows} />
+      )}
+
+      {trace.basis.length > 0 && (
+        <ul className="space-y-1 border-t pt-2">
+          {trace.basis.map((b, i) => (
+            <li key={i} className="text-xs text-muted-foreground">
+              {b}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

@@ -89,16 +89,32 @@ honest fallback, never a wrong number.
 - **Slice 1 (engine):** `isSpendRow`/`spendContributionCents` extraction + `trace.ts` for the
   row-sum family + tests (criteria 1–6). Engine before UI. Two fresh-context Fable critic cycles
   (money grounding — the reconciliation must not lie in either direction).
-- **Slice 2 (UI):** make row-sum headline/facts tappable in `ask-view.tsx` (plain `<p>`/`<dd>`
-  today), a trace drawer, and the one-tap correction chip; derivation numbers stay non-tappable.
-  **Binding constraints from critic cycle 1 (2026-07-15, P3s F4/F5):** (a) tappability is
-  PER-FIGURE, not per-intent-kind — `answerTopCategories.detail` embeds the period total and
-  `answerSpendByCategory.detail` embeds a share-%, neither of which the trace reconciles; detail
-  sentences stay non-tappable. (b) `largest_purchases` traces only the headline row; the runner-up
-  facts are NOT in the trace — pin them non-tappable (or extend the trace first). (c) The server
-  must pass `mergeCategoryMeta(custom)` and the tapped figure's cents (`expectedHeadlineCents`,
-  from the answer payload) into `traceAnswer` — both are load-bearing (critic P1s F1/F2, fixed in
-  the slice-1 engine API).
+- **Slice 2 — split into 2a (shipped) + 2b (deferred)** once building it made clear the read
+  panel and the write-path correction chip are different risk classes.
+  - **Slice 2a (UI, read) — SHIPPED #233 (2026-07-15):** the row-sum HEADLINE is tappable in
+    `ask-view.tsx` → an inline, non-modal reconciliation panel (rows/groups + a penny-reconciled
+    "✓ … add up to $X" line + basis); derivation numbers stay non-tappable. Server attaches
+    `trace` + `headlineCents` to the answer eagerly (same snapshot+meta), so the drift guard is a
+    real equality gate. Presentation honesty via pure `reconciledView` (trace-view.ts): groups are
+    shown ONLY when they sum to the tapped figure. Chosen an inline disclosure over a drawer (no
+    dialog primitive in deps; AA-cleaner). Constraints (a)/(b)/(c) below all honored — detail
+    sentences and `largest` runner-up facts stay non-tappable; `mergeCategoryMeta` +
+    `expectedHeadlineCents` are threaded. Two Fable critic cycles: cycle 1 FAIL (P1-1:
+    top_categories green-checked a count/sum across ALL listed categories → fixed by
+    `reconciledView`), cycle 2 PASS. verify 2650/190, ask e2e 15/15.
+  - **Slice 2b (UI, next):** per-FACT tappability (each listed category/runner-up its own tap) —
+    needs the answer builders to TAG facts with their trace key (categoryId), since string-matching
+    a fact's display label back to a group is the fragility the slice-1 critic flagged; and the
+    one-tap correction chip ("this should be `<category>`") — a money-adjacent WRITE path
+    (persists a category override, re-dispatches the resolved intent bypassing the LLM) with the
+    shared-demo-account learning fence, so it gets its own Maker/Checker slice.
+  - **Binding constraints from slice-1 critic cycle 1 (2026-07-15, P3s F4/F5)** — still govern 2b:
+    (a) tappability is PER-FIGURE, not per-intent-kind — `answerTopCategories.detail` embeds the
+    period total and `answerSpendByCategory.detail` embeds a share-%, neither of which the trace
+    reconciles; detail sentences stay non-tappable. (b) `largest_purchases` traces only the
+    headline row; the runner-up facts are NOT in the trace — pin them non-tappable (or extend the
+    trace first). (c) The server must pass `mergeCategoryMeta(custom)` and the tapped figure's
+    cents (`expectedHeadlineCents`) into `traceAnswer` — both load-bearing (critic P1s F1/F2).
 - **Slice 3:** derivation-chain "show the formula + inputs" view for `cash_needed` / `net_worth` /
   `savings_rate` (no fake row-sum).
 

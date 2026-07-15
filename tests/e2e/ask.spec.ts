@@ -103,6 +103,74 @@ test('year windows and merchant-scoped largest answer honestly (TASKS 2.7)', asy
   await expect(page.getByTestId('ask-headline')).not.toContainText('You spent');
 });
 
+test('Glass-Box: a row-sum figure is tappable and reconciles to its rows (slice 2)', async ({ page }) => {
+  // GLASSBOX_PLAN slice 2: tap the number in an Ask answer → the exact transaction
+  // rows behind it, reconciled to the penny. spend_total is the richest case — a
+  // guaranteed-non-zero June total that reconciles hierarchically (total → per-
+  // category groups → rows), so it exercises the grouped panel end-to-end.
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'How much did I spend this month?');
+
+  const headline = page.getByTestId('ask-headline');
+  // A row-sum headline is a disclosure control, collapsed by default — the panel
+  // is not in the DOM until the user taps.
+  await expect(headline).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByTestId('ask-trace')).toHaveCount(0);
+
+  // The exact figure the answer shows; the panel must reconcile to THIS number.
+  const amount = ((await headline.textContent()) ?? '').match(/\$[\d,]+\.\d{2}/)?.[0];
+  expect(amount).toBeTruthy();
+
+  await headline.click();
+  await expect(headline).toHaveAttribute('aria-expanded', 'true');
+  const trace = page.getByTestId('ask-trace');
+  await expect(trace).toBeVisible();
+  // The reconciliation line states the rows' sum — and it equals the headline figure.
+  await expect(page.getByTestId('ask-trace-reconciled')).toContainText(amount!);
+  // Hierarchical: at least one per-category group, each with its cited rows.
+  await expect(page.getByTestId('ask-trace-group').first()).toBeVisible();
+  await expect(page.getByTestId('ask-trace-row').first()).toBeVisible();
+
+  // The answered page — trace panel OPEN — still passes WCAG 2.1 AA.
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
+});
+
+test('Glass-Box: top-categories traces ONLY the top category, not the whole period (slice-2 P1-1)', async ({ page }) => {
+  // The headline figure is the TOP category's amount; the panel must reconcile to
+  // THAT — never green-check a count/sum folded across the other listed categories.
+  // Post-fix that means the panel shows the flat top-category rows with NO group
+  // sub-headers (groups are only shown when they sum to the tapped figure).
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'What are my top spending categories this month?');
+
+  const headline = page.getByTestId('ask-headline');
+  await expect(headline).toHaveAttribute('aria-expanded', 'false');
+  const amount = ((await headline.textContent()) ?? '').match(/\$[\d,]+\.\d{2}/)?.[0];
+  expect(amount).toBeTruthy();
+
+  await headline.click();
+  await expect(page.getByTestId('ask-trace')).toBeVisible();
+  // Reconciles to the headline (top category), and shows no cross-category groups.
+  await expect(page.getByTestId('ask-trace-reconciled')).toContainText(amount!);
+  await expect(page.getByTestId('ask-trace-group')).toHaveCount(0);
+  await expect(page.getByTestId('ask-trace-row').first()).toBeVisible();
+});
+
+test('Glass-Box: a derivation figure (net worth) is NOT tappable — no reconciliation offered', async ({ page }) => {
+  // Derivation-chain intents (net_worth = assets − liabilities) are not row sums;
+  // offering a row-sum trace would be dishonest, so the figure stays a plain <p>.
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'What is my net worth?');
+  const headline = page.getByTestId('ask-headline');
+  await expect(headline).toContainText('$144,804.74');
+  await expect(headline).toHaveJSProperty('tagName', 'P'); // a paragraph, not a button
+  await expect(page.getByTestId('ask-trace')).toHaveCount(0);
+});
+
 test('plans debt-free BY A DATE (inverse planning) and offers to save it as a goal', async ({ page }) => {
   // DECISIONS #125 — "Plan in Words" debt slice: a stated date is solved for the
   // required extra payment, grounded in the same debt read-path as /goals.

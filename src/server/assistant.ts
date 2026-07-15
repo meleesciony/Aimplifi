@@ -62,6 +62,7 @@ import {
   type AssistantAnswer,
   type PurchaseRow,
 } from '@/lib/engine/assistant/answer';
+import { ROW_SUM_KINDS, traceAnswer, type TraceTxn } from '@/lib/engine/assistant/trace';
 
 const MONTH_TITLE = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const ymLabel = (ym: string) => `${MONTH_TITLE[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
@@ -221,11 +222,32 @@ export async function askAssistant(
   const snap = await provider.getFinanceSnapshot(userId);
 
   const answer = await buildAnswer(intent, snap, userId, today, meta);
+  // Glass-Box trace (GLASSBOX_PLAN slice 2): for a row-sum answer carrying a real
+  // headline figure, re-select the exact transaction rows behind it — reconciled to
+  // the penny by the SAME pure engines buildAnswer used, on the SAME snapshot + meta
+  // — and attach it so the client can render the inline reconciliation panel.
+  // `expectedHeadlineCents` is the builder's OWN figure (not the trace's), so a
+  // builder/trace divergence is reported honestly (reconciled:false) rather than
+  // green-checked next to a different number (critic 2026-07-15 F2). Derivation-chain
+  // intents and empty results have no `headlineCents` → no trace → the figure stays
+  // non-tappable (never offer a reconciliation we can't honor).
+  const withTrace: AssistantAnswer =
+    answer.headlineCents !== undefined && ROW_SUM_KINDS.has(intent.kind)
+      ? {
+          ...answer,
+          trace: traceAnswer(intent, {
+            transactions: snap.transactions as TraceTxn[],
+            today,
+            meta,
+            expectedHeadlineCents: answer.headlineCents,
+          }),
+        }
+      : answer;
   // Contextual follow-up chips (TASKS 1.2 / #197): static intent→question map.
   // unknown already carries ASSISTANT_SUGGESTIONS from answerUnknown().
   const followUps = followUpQuestions(intent);
   const withChips =
-    followUps.length > 0 ? { ...answer, suggestions: [...followUps] } : answer;
+    followUps.length > 0 ? { ...withTrace, suggestions: [...followUps] } : withTrace;
   // Echo the resolved intent so the next turn can swap one slot of it (TASKS 2.1).
   // `unknown` carries nothing — there is no frame to follow up on.
   const withFrame: AssistantAnswer =

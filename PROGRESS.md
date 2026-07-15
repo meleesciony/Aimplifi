@@ -1,5 +1,33 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-15 — Glass-Box slice 2a (GLASSBOX_PLAN, trace UI) — SHIPPED, verify green, critic cycle 2 PASS
+
+**Done (committed as #233):** the slice-1 trace engine is now wired into Ask. A row-sum answer's
+headline number is tappable → an inline reconciliation panel (the exact rows behind it, penny-
+reconciled + basis lines). Derivation figures stay a plain untappable `<p>`.
+- `answer.ts`: `AssistantAnswer` gains `headlineCents?` (each row-sum builder sets it from its OWN
+  figure) + `trace?: AnswerTrace` (type-only import of AnswerTrace — erased, no runtime cycle).
+- `server/assistant.ts`: after `buildAnswer`, for a row-sum kind with `headlineCents`, attaches
+  `traceAnswer(intent, { transactions, today, meta, expectedHeadlineCents: headlineCents })` —
+  same snapshot+meta, so the drift guard is a real (non-vacuous) equality gate.
+- `ask-view.tsx`: headline is a `<button aria-expanded>` disclosure when `trace.kind==='row_sum'`;
+  `TracePanel` renders rows/groups + a "✓ … add up to $X" line (or an honest "can't reconcile"
+  fallback, no ✓); `traceOpen` resets per answer.
+- NEW `trace-view.ts`: pure `reconciledView(trace)` — shows the group breakdown ONLY when groups
+  sum to the tapped figure (fixes the top_categories false green-check). Client-safe (type-only
+  deps → no engine in the bundle).
+- Tests: `assistant-headline-cents.test.ts` (headline string contains `formatCents(headlineCents)`;
+  empty/derivation omit it), `assistant-trace-view.test.ts` (real-engine top vs total), e2e:
+  3 new Ask cases (tappable reconciles; top_categories groups-count 0; net worth not tappable).
+
+**Critic:** cycle 1 FAIL (P1-1: top_categories green-checked a count/sum across all listed
+categories) → fixed with reconciledView → cycle 2 PASS 0 P0/P1. Gate: verify GREEN 2650/190,
+ask e2e 15/15.
+
+**Next: slice 2b** — per-fact tappability (builder-tagged trace keys) + the one-tap correction
+chip (a WRITE path; shared-demo-account fence; own Maker/Checker slice). Then slice 3 (derivation
+"formula + inputs" view). Owner-gated items unchanged (the push; #171+ ride together).
+
 ## 2026-07-15 — Glass-Box slice 1 (GLASSBOX_PLAN, engine) — code done, verify green, critic cycle 1 IN FLIGHT
 
 **Done:** the ROW-SUM trace engine per docs/GLASSBOX_PLAN.md. (a) reports.ts: `isSpendRow` /

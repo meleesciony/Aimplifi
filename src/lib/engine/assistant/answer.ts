@@ -27,6 +27,10 @@ import type { DebtFreeByDateResult } from '@/lib/engine/solve/debt-free-by-date'
 import type { SavingsGoalByDateResult } from '@/lib/engine/solve/savings-goal-by-date';
 import type { RetireAtAgeResult } from '@/lib/engine/solve/retire-at-age';
 import type { AssistantIntent, SpendTarget, Timeframe } from './intent';
+// Type-only (erased at runtime) — trace.ts imports runtime values FROM this file,
+// so a value import would cycle; a type import does not. The server attaches the
+// trace object; the client reads it to render the reconciliation panel (slice 2).
+import type { AnswerTrace } from './trace';
 
 export interface AssistantFact {
   label: string;
@@ -51,6 +55,18 @@ export interface AssistantAnswer {
   kind: AssistantIntent['kind'];
   /** The direct answer, in plain language with the figure embedded. */
   headline: string;
+  /** The exact integer cents of the figure embedded in `headline`, set ONLY by
+   *  the row-sum builders (Glass-Box slice 2) from their OWN computed figure —
+   *  independent of the trace, so the trace's drift check (`expectedHeadlineCents`)
+   *  is a real equality gate, not a self-comparison. Absent for derivation-chain
+   *  intents and empty results (no number to reconcile → the UI keeps them
+   *  non-tappable). */
+  headlineCents?: number;
+  /** The row-sum reconciliation for `headlineCents`, computed by the server after
+   *  the answer is built (slice 2). The client renders it in the inline trace
+   *  panel when `kind === 'row_sum'`; a `not_row_sum` / absent trace stays
+   *  non-tappable. Never offered for a figure the trace can't honor. */
+  trace?: AnswerTrace;
   /** One supporting sentence — assumptions or context (never a new number). */
   detail?: string;
   facts: AssistantFact[];
@@ -190,6 +206,7 @@ export function answerSpendTotal(breakdown: SpendingBreakdown, tf: Timeframe): A
   return {
     kind: 'spend_total',
     headline: `You spent ${fmt(breakdown.totalCents)} ${tf.label}.`,
+    headlineCents: breakdown.totalCents,
     detail: 'Purchases only — transfers, credit-card payments, and income are excluded.',
     facts: breakdown.byCategory.slice(0, 3).map((c) => ({ label: c.name, value: fmt(c.amountCents) })),
     source: REPORTS_SOURCE,
@@ -226,6 +243,7 @@ export function answerSpendByCategory(breakdown: SpendingBreakdown, target: Spen
   return {
     kind: 'spend_by_category',
     headline: `You spent ${fmt(amount)} on ${target.label} ${tf.label}.`,
+    headlineCents: amount,
     detail: share ? `That's ${share} of your ${tf.label} spending.` : undefined,
     facts,
     source: REPORTS_SOURCE,
@@ -240,6 +258,9 @@ export function answerTopCategories(breakdown: SpendingBreakdown, tf: Timeframe,
   return {
     kind: 'top_categories',
     headline: `Your top spending ${tf.label}: ${top[0].name} at ${fmt(top[0].amountCents)}.`,
+    // The headline figure is the TOP category's amount — exactly what the trace
+    // reconciles (the period total in `detail` is NOT traced, so it stays untapped).
+    headlineCents: top[0].amountCents,
     detail: `Total ${tf.label}: ${fmt(breakdown.totalCents)}.`,
     facts: top.map((c) => ({ label: c.name, value: fmt(c.amountCents) })),
     source: REPORTS_SOURCE,
@@ -377,6 +398,9 @@ export function answerLargest(largest: readonly LargestTxn[], tf: Timeframe, mer
     headline: merchant
       ? `Your biggest purchase at ${top.merchant} ${tf.label} was ${fmt(top.amountCents)}.`
       : `Your biggest purchase ${tf.label} was ${fmt(top.amountCents)} at ${top.merchant}.`,
+    // Only the single cited top row is traced (the runner-up facts are NOT in the
+    // trace — GLASSBOX_PLAN slice-2 constraint (b), so they stay non-tappable).
+    headlineCents: top.amountCents,
     facts: largest.map((t) => ({ label: `${t.merchant} · ${humanDate(t.date)}`, value: fmt(t.amountCents) })),
     source: { label: 'See activity', href: '/transactions' },
   };
@@ -487,6 +511,7 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
   return {
     kind: 'merchant_spend',
     headline: `You spent ${fmt(res.totalCents)} at ${res.merchant} ${tf.label}.`,
+    headlineCents: res.totalCents,
     detail: `Across ${res.count} ${noun}.`,
     facts: res.items.slice(0, 5).map((i) => ({ label: `${i.merchant} · ${humanDate(i.date)}`, value: fmt(i.amountCents) })),
     source: ACTIVITY_SOURCE,
@@ -502,6 +527,7 @@ export function answerIncome(incomeCents: number, tf: Timeframe): AssistantAnswe
   return {
     kind: 'income',
     headline: `You brought in ${fmt(incomeCents)} ${tf.label}.`,
+    headlineCents: incomeCents,
     detail: 'Income only — transfers between your own accounts are excluded.',
     facts: [],
     source: REPORTS_SOURCE,

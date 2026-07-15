@@ -54,6 +54,44 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Glass-Box slice 2a: the trace UI — tappable numbers + reconciliation panel (#233, 2026-07-15)
+
+Slice 2a wires the slice-1 engine into Ask (GLASSBOX_PLAN §Sequencing): a row-sum answer's
+headline number is now tappable → an inline, non-modal disclosure panel shows the exact
+transaction rows behind it, reconciled to the penny, with the engine's basis lines (what's
+included/excluded). Derivation figures (net worth, forecast, safe-to-spend, …) carry no trace
+and stay a plain, untappable `<p>` — the UI never offers a reconciliation it can't honor.
+
+Wiring: the server computes `traceAnswer` immediately after `buildAnswer` on the SAME snapshot +
+meta and attaches `trace` + `headlineCents` to the answer payload (eager — the panel always
+reconciles the number on screen, and no client holds raw transactions). `headlineCents` is set by
+each row-sum builder from its OWN figure and passed as `expectedHeadlineCents`, so the trace's
+drift check is a real equality gate, not a self-comparison. Presentation honesty is enforced by a
+pure `reconciledView` (trace-view.ts): the panel shows the per-category group breakdown ONLY when
+the groups sum to the tapped figure — `spend_total` / umbrella `spend_by_category` (groups ARE the
+headline's breakdown) render hierarchically; `top_categories` (headline = top category, groups =
+all top-N) renders the flat top-category rows.
+
+Two fresh-context Fable critic cycles. **Cycle 1 FAIL — 1 P1**: the top_categories panel
+green-checked "N transactions add up to $X" folding the row count across ALL listed categories
+while $X was the top category only, and rendered non-top rows under the ✓ — a reconciliation
+endorsing a number it couldn't stand behind, the exact trust-primitive failure this feature exists
+to prevent. Fixed via `reconciledView`; regression-locked (unit: real-engine top vs total; e2e:
+`ask-trace-group` count 0 for top_categories). **Cycle 2 PASS — 0 P0/P1** (critic independently
+re-ran tsc/eslint/vitest; confirmed no client-bundle engine leak, drift-guard + rowCount honesty,
+and that reports.ts dropping ≤0 categories makes the groups-sum equality airtight). Gate:
+`bash scripts/verify.sh` → **VERIFY GREEN — 2650 unit / 190 files** (+15: the headlineCents
+contract + the reconciledView presentation guard), tsc/eslint/build clean; ask e2e 15/15 (2 new
+Glass-Box cases + the top_categories regression, all axe WCAG-AA clean with the panel open).
+REGRESSION_LEDGER entry, DECISIONS #233.
+
+**SCOPE SPLIT (honest).** 2a = headline tap + read-only panel (shipped). **2b (next):** per-FACT
+tappability — needs builder-tagged trace keys, since matching a fact's display string back to a
+trace group is the fragility the slice-1 critic flagged — and the one-tap correction chip ("this
+should be <category>"), a money-adjacent WRITE path with the shared-demo-account learning fence,
+which deserves its own Maker/Checker slice. **Next: slice 2b**, then slice 3 (derivation-chain
+"show the formula + inputs" for cash_needed / net_worth / savings_rate).
+
 ## Glass-Box slice 1: the row-sum trace engine (#232, 2026-07-15)
 
 The Wave-2 lead (AI_DIFFERENTIATION_PLAN §2.1, plan: docs/GLASSBOX_PLAN.md) is engine-complete:
