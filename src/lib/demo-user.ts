@@ -12,3 +12,17 @@
  * of that shape opt the demo user out; read-only demo data does not.
  */
 export const DEMO_USER_ID = 'user-demo';
+
+export function isDemoUser(userId: string): boolean {
+  return userId === DEMO_USER_ID;
+}
+
+/**
+ * Refusal shown when the shared demo account tries to connect/ingest a real bank
+ * (#242 follow-up). Connecting a bank to `user-demo` would land ONE visitor's real
+ * financial data in the row every other anonymous visitor sees — the same
+ * shared-account leak class as the household seat (#210) and learned vocabulary
+ * (#226). No-shame, states the why, points at the real fix (a free account).
+ */
+export const DEMO_CONNECT_BLOCKED =
+  'The demo is a shared account, so it can’t connect a real bank — create your own free account to link securely.';

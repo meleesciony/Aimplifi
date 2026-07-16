@@ -54,6 +54,31 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Demo bank-connect fence (2026-07-16) — #242 owner follow-up, privacy hole closed
+
+The shared demo account (`user-demo`) could link a real bank (Plaid/SimpleFIN) into the one row
+every anonymous visitor logs into — one visitor's real financial data would then be visible to the
+next. Now fenced at every ingest entrypoint. Same shared-account leak class as household seat (#210)
+and learned vocabulary (#226); lesson `shared-demo-account-must-not-learn` extended.
+
+- **The fence.** `createPlaidLinkToken`, `linkPlaidAccount`, `connectSimplefin`, `syncSimplefinNow`
+  return `{ok:false, DEMO_CONNECT_BLOCKED}` for the demo user immediately after `requireUserId()` —
+  BEFORE any provider call. The two CONNECT actions are load-bearing: no connection row can be
+  created for demo, so cron/webhook/sync have nothing to act on by construction. `isDemoUser` +
+  `DEMO_CONNECT_BLOCKED` live in the auth-free `@/lib/demo-user` (the #220-safe home).
+- **Residual/remediation paths.** A connection created BEFORE this fix is the bug's residual: the
+  cron sweep now excludes demo at the query (no sync, no `sync.cron` audit row) and the Plaid webhook
+  skips a demo-owned item. `disconnectSimplefin` is intentionally left open (removes data, never
+  ingests) so a visitor can clean up any pre-fence breach.
+- **Gate (real output 2026-07-16):** `bash scripts/verify.sh` → **✅ VERIFY GREEN — 2904 unit /
+  208 files**, tsc/eslint/next build clean. New locks: `connect-demo-fence.test.ts` (4 ingest actions
+  refuse demo, zero provider calls, keyed deployment; real user passes) + `cron-sync-demo-skip.test.ts`.
+  EDGE_CASES §Demo bank-connect fence; REGRESSION_LEDGER 2 rows; DECISIONS #243.
+- **Note (out of scope, recorded):** the same shared-demo leak shape applies to manual CSV import
+  (a demo visitor's uploaded transactions land under `user-demo`). Not the flagged hole and not
+  fixed here; a candidate for a future narrow slice if the owner wants demo made read-only for all
+  input, not just bank connections.
+
 ## AI Trust Center & Audit Ledger (#242, 2026-07-16) — AI plan §3.2 complete
 
 The new /trust page (linked from the Settings AI-trust card, no new nav icon) states the
@@ -88,10 +113,10 @@ the guardrail discarded (rejection logging is itself the trust signal).
 - **Open P2s (recorded, accepted):** vocab-recheck rows can dominate the 50-row ledger window
   (copy claims only "Last N events" — honest; per-touchpoint filter later); the populated ledger
   state is never axe-scanned (demo is empty by construction; same Card components). **Owner
-  follow-up (its own small slice):** demo visitors can still CONNECT a real bank into the shared
-  demo account — no longer falsifies any /trust claim, but one visitor's real bank data landing in
-  the all-visitors demo row is a pre-existing privacy hole; recommend fencing the connect actions
-  for `DEMO_USER_ID`. **Next (owner-gated): §3.3 Doc Extractor v1 / §3.4 Subscription Radar /
+  follow-up (its own small slice) — RESOLVED 2026-07-16 (Demo bank-connect fence section below):**
+  demo visitors could CONNECT a real bank into the shared demo account, landing one visitor's real
+  bank data in the all-visitors demo row; the connect/ingest actions are now fenced for
+  `DEMO_USER_ID`. **Next (owner-gated): §3.3 Doc Extractor v1 / §3.4 Subscription Radar /
   §3.5 Receipt Splitter, or the plan's "Later" section.**
 
 ## Monthly Money Review (#241, 2026-07-16) — AI plan §2.4 complete (Wave 2 done)

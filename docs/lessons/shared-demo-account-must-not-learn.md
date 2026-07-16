@@ -14,8 +14,18 @@ showing one stranger's words to the next. Read-only demo *data* is safe to share
   Settings → AI trust panel, under copy that says "Nothing here is shared with anyone else." Caught by a
   fresh-context critic, not by any test: every unit test used a synthetic user, and the demo path only
   differs by *who* the row belongs to.
+- **#242 follow-up (bank connect):** the widest instance yet — the demo could LINK A REAL BANK
+  (Plaid/SimpleFIN), so one visitor's real transactions, balances, and holdings would ingest into the
+  shared row the next visitor sees. Note the shape: the "input" here isn't typed text, it's *connecting an
+  external data source* — the rule is about any user-originated data, not just keystrokes. Fenced at all
+  four ingest actions; the two CONNECT actions are load-bearing (no connection row ⇒ cron/webhook/sync
+  are inert by construction), and the bug's residual (a connection made before the fence) is closed by
+  excluding demo from the cron sweep and skipping demo-owned items in the webhook. `disconnect` stays
+  open on purpose — removing data is the remediation path, not a leak. Still-open cousin: manual CSV
+  import has the identical shape and is *not* yet fenced (recorded in STATUS).
 
-Two instances make a rule. Expect a third.
+Three instances make a rule with a clear edge. The trigger is "does the demo row accumulate anything a
+visitor brought with them?" — typed OR connected OR uploaded.
 
 ## The test that catches it
 

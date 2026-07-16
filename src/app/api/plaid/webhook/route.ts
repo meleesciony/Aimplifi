@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { isDemoUser } from '@/lib/demo-user';
 import { getProvider } from '@/lib/providers/demo';
 import { verifyPlaidWebhook } from '@/lib/plaid-webhook';
 
@@ -58,6 +59,9 @@ export async function POST(request: NextRequest) {
   });
   // Unknown item: acknowledge so Plaid stops retrying, but take no action.
   if (!item) return NextResponse.json({ received: true });
+  // A demo-owned item can only exist as a pre-fence (#242 follow-up) breach
+  // residual; never sync it, so no more real bank data flows into the shared row.
+  if (isDemoUser(item.userId)) return NextResponse.json({ received: true });
 
   if (body.webhook_type === 'TRANSACTIONS') {
     try {

@@ -10,6 +10,7 @@
 import { revalidatePath } from 'next/cache';
 import { businessToday } from '@/lib/business-today';
 import { encryptToken } from '@/lib/crypto';
+import { DEMO_CONNECT_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { prisma } from '@/lib/db';
 import { auditLog, requireUserId } from '@/server/authz';
 import { claimAccessUrl, syncFromSimplefin } from '@/lib/providers/simplefin';
@@ -32,6 +33,7 @@ function revalidateAll() {
 
 export async function connectSimplefin(setupToken: string): Promise<SimplefinResult> {
   const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
   if (!setupToken.trim()) return { ok: false, error: 'Paste your SimpleFIN setup token.' };
   if (!process.env.DATA_ENCRYPTION_KEY) {
     return { ok: false, error: 'Connecting a bank needs DATA_ENCRYPTION_KEY set on the server.' };
@@ -68,6 +70,7 @@ export async function connectSimplefin(setupToken: string): Promise<SimplefinRes
 
 export async function syncSimplefinNow(): Promise<SimplefinResult> {
   const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
   try {
     const r = await syncFromSimplefin(userId, businessToday(userId));
     revalidateAll();

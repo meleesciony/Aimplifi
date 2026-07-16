@@ -7,6 +7,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { DEMO_USER_ID } from '@/lib/demo-user';
 import { getProvider } from '@/lib/providers/demo';
 import { checkCronBearer } from '@/lib/cron-auth';
 
@@ -16,7 +17,15 @@ export async function GET(request: NextRequest) {
   }
 
   const provider = getProvider();
-  const users = await prisma.user.findMany({ select: { id: true } });
+  // Never provider-sync the shared demo account: its data is seeded, and a
+  // connection created against it before the connect-fence (#242 follow-up)
+  // shipped must not keep ingesting one visitor's real bank into every visitor's
+  // row. In demo mode this is a no-op anyway; excluding it also drops a pointless
+  // per-run audit row.
+  const users = await prisma.user.findMany({
+    where: { id: { not: DEMO_USER_ID } },
+    select: { id: true },
+  });
   const results = [];
   for (const user of users) {
     try {

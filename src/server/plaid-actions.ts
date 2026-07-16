@@ -8,6 +8,7 @@
  * preserving the zero-credential demo.
  */
 import { revalidatePath } from 'next/cache';
+import { DEMO_CONNECT_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { PlaidProvider } from '@/lib/providers/plaid';
 import { requireUserId } from '@/server/authz';
 
@@ -35,6 +36,7 @@ export async function createPlaidLinkToken(): Promise<LinkTokenResult> {
   // (the documented contract) instead of rejecting the server action.
   try {
     const userId = await requireUserId();
+    if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
     if (!plaidConfigured()) {
       return { ok: false, error: 'Bank linking isn’t configured yet (Plaid keys not set).' };
     }
@@ -52,6 +54,7 @@ export async function createPlaidLinkToken(): Promise<LinkTokenResult> {
 export async function linkPlaidAccount(publicToken: string): Promise<LinkResult> {
   try {
     const userId = await requireUserId();
+    if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
     if (!plaidConfigured()) return { ok: false, error: 'Bank linking isn’t configured yet.' };
     if (!publicToken) return { ok: false, error: 'Missing public token.' };
     const provider = new PlaidProvider();
