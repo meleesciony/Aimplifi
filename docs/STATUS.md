@@ -54,6 +54,34 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Balance-Move Explainer (#240, 2026-07-16) — AI plan §2.3 complete
+
+The `/trends` "What changed" section now leads with a grounded, descriptive one-liner. This is the
+codebase's FIRST surface where an LLM generates user-facing PROSE, so the whole slice is the
+hardening of that boundary.
+
+- **The LLM authors STRUCTURE, never a fact.** It returns `{primaryDriverId, template}` where the
+  template is ATOMIC placeholders — `{primary}`/`{second}` each substitute "Label, up $240.00
+  (+40%)" (label fused to its own figure) and `{window}` substitutes "compared with your 3-month
+  average" — joined only by purely-ADDITIVE connectives. The engine substitutes every figure and
+  label, so a number cannot be fabricated, swapped between categories, or flipped. Deterministic
+  template is the floor (and always in demo / zero-key); the LLM path is a bounded, key-gated polish.
+- **Four Fable hostile-critic cycles on the prose surface.** cycle 1 FAIL (3 P0/3 P1 — a
+  fresh-context critic defeated the initial free-prose validator with 20/20 attack strings) → cycle 2
+  FAIL (1 P0: placeholder-reorder = figure swap; 2 P1) → cycle 3 FAIL (0 P0; 2 P1: relational
+  connectives asserting a false flow, foreign-category scan false-suppressing benign labels) → cycle
+  4 **PASS (0 P0/P1)**. The design moved free-prose → placeholder → ATOMIC placeholder + additive
+  grammar; the vestigial foreign-category scan was removed (the atomic grammar makes model
+  category-injection impossible). 5 P2s recorded (DECISIONS #240 / cycle-4 report); the one that
+  false-suppressed common digit labels ("401k") was fixed (label tokens masked before stray-number).
+- **Gate (real output 2026-07-16):** `bash scripts/verify.sh` → **✅ VERIFY GREEN — 2833 unit / 201
+  files**, tsc/eslint/next build clean; `balance-move.spec.ts` 2/2 (demo shows the deterministic
+  template with no "AI-worded" badge; the explainer's money figure appears in the movers list —
+  grounding; axe WCAG-AA) + trends specs unregressed. REGRESSION_LEDGER 5 entries; EDGE_CASES
+  §Balance-Move. The mobile-380 flake still blocks a full local `VERIFY_E2E` exit-0 (unchanged since
+  #175). **Next AI-plan slice (owner-gated): §2.4 Monthly Money Review reuses this validator, or the
+  next owner pick.**
+
 ## Why-This-Category slice 2: register badge + AI-guess confirm (#239, 2026-07-16) — §3.1 complete
 
 Slice 2 ships the UI (WHY_THIS_CATEGORY_PLAN.md criteria 6–9): every register row now

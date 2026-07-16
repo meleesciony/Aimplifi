@@ -3843,3 +3843,88 @@ cardinal-sin parser bug ("spend at 星巴克" → the ALL-spending total, unhedg
 Ledgers: DECISIONS #225 (+#226 critic), STATUS §Wave 2.3, TASKS 2.3 → [x], PRIVACY (store + deletion
 cascade), REGRESSION_LEDGER ×7, two new lessons (`shared-demo-account-must-not-learn.md`,
 `self-improving-loops-leak-in-the-back-half.md`) + INDEX.
+
+---
+
+# PROGRESS — §2.3 Balance-Move Explainer (AI plan §2.3, rank #9) — started 2026-07-16
+
+Owner picked this as the next AI-plan slice after §3.1 (Why-This-Category) completed at #239.
+Next DECISIONS number: **#240**. Tree clean at b988dce.
+
+## Goal (testable "done")
+Deterministic engine computes a typed list of contributing spending-change factors
+(label + already-formatted signed cents) and trips a deviation threshold. The LLM ONLY
+(a) picks the single primary-driver id and (b) writes ONE connective sentence — zero
+arithmetic. validateNarrative rejects any prose whose number/percent/merchant tokens
+aren't already in the payload, plus shame words AND comparative-magnitude words
+("nearly doubled", "tripled", "most of the drop"). Reject -> deterministic template
+(never a guess). Framing descriptive, not causal.
+
+## Rework rails (from AI_DIFFERENTIATION_PLAN §2.3 — MUST honor)
+1. Force primaryDriver = movers[0] deterministically, or reject any LLM pick != top mover.
+2. Banned comparative-magnitude lexicon (no numeral) OR fixed connective template.
+3. Keep framing descriptive, not causal.
+Honest caveat from the plan: deterministic template already delivers ~80% of value.
+
+## Steps
+- [ ] 1. Explorer maps reused engine signatures. IN FLIGHT.
+- [ ] 2. Pure engine balance-move.ts + known-answer tests + EDGE_CASES (engine-first).
+- [ ] 3. validateNarrative guard + adversarial tests (majority).
+- [ ] 4. LLM boundary (id pick + one sentence), key-gated/timeout/abstain.
+- [ ] 5. Server read-path + UI + e2e/axe.
+- [ ] 6. verify.sh green + Fable hostile critic to 0 P0/P1; docs + commit.
+
+## Notes
+- Model: Fable 5 (this session) — correct per model-routing for prose-safety critic.
+- Blocked on explorer engine-map before writing the pure module (avoid guessing signatures).
+
+## Update 2026-07-16 (build complete, verify green, critic in flight)
+- Engine `src/lib/engine/trends/balance-move.ts`: explainBalanceMove, validateNarrative,
+  resolveMoveSentence, buildMovePrompt, categoryNameTokens + banned lexicons. 67 unit tests.
+- LLM boundary `src/server/balance-move-llm.ts` (key-gated, 7s timeout, null-degrade).
+- Read-path `src/server/balance-move.ts` (getBalanceMove; read-only/stateless — no demo fence needed).
+- UI: trends-view.tsx renders `balance-move-explainer` line + "AI-worded" hedge only when interpreted;
+  wired via trends/page.tsx.
+- e2e `tests/e2e/balance-move.spec.ts` 2/2: demo shows deterministic template (no AI badge),
+  explainer figure appears in movers list (grounding), WCAG AA clean.
+- GATE: bash scripts/verify.sh -> ✅ VERIFY GREEN; vitest 2868 passed / 201 files; tsc+eslint+build clean.
+- Fable fresh-context hostile critic (prose-safety) RUNNING. Then fix P0/P1, docs, commit as #240.
+- Known likely critic hits to consider: word-form numbers ("forty percent"), bare numbers w/o $,
+  sentence-initial invented proper noun (MIDSENTENCE_CAPS_RE exempts word 0), magnitude synonyms
+  (outpaced/eclipsed). Fix reject-biased. Design accepts high fallback (template = ~80% value).
+
+## Cycle 1 critic: FAIL (3 P0, 3 P1) -> reworked to SLOT-FILL. 2026-07-16
+Fresh-context Fable critic empirically broke the free-prose validator (20/20 attack strings):
+bare/word-form numbers, swapped/flipped figures, invented merchants (sentence-initial/lowercase/
+parenthesized), fabricated windows, unenforced advice/magnitude. Root cause: validating free LLM
+prose for money-truth is unwinnable.
+FIX (architectural): LLM now returns a TEMPLATE of placeholders {primary}{primary_delta}{second}
+{window}... + whitelisted neutral connectives ONLY. Engine substitutes every figure/label, so
+figures can't be fabricated/swapped/flipped. validateTemplate (closed grammar) + validateSentence
+(final scan: non-ASCII/emoji reject, ws-normalized banned lexicon incl. number-words/advice/magnitude,
+stray-number-after-masking, all-caps proper-noun incl. pos 0, foreign-category). Plus: demo fence
+(never LLM), bounded per-instance cache (P1-5 cost+nondeterminism), dropped 'use server' (P2-7).
+34 unit tests (adversarial majority = cycle-1 attack classes). e2e 5/5. tsc/eslint/build clean.
+NEXT: full verify + critic cycle 2; then EDGE_CASES/DECISIONS/STATUS/REGRESSION_LEDGER + commit #240.
+
+## Cycle 2 critic: FAIL (1 P0, 2 P1) -> ATOMIC placeholders. 2026-07-16
+P0-1: model could REORDER placeholders; adjacency=binding, so {second},{primary_delta} swapped
+figures (badged AI). P1-2: connective whitelist had claim words (new/biggest/...). P1-3: hostile
+custom-category NAME (user free-text) reached screen via UNVALIDATED deterministic fallback (shame/
+causal/$-lookalike). FIX: atomic {primary}="Dining, up $240.00 (+40%)" fuses label+figure (no
+rebind); fixed order primary->second->window, {window} required; pruned ranking words from
+connectives; deterministic fallback now re-scanned -> suppress surface (empty) on hostile label;
+cache key includes label (P2-4). 39 unit tests. e2e 2/2 (demo deterministic still renders).
+tsc/eslint/build clean. NEXT: full verify + critic cycle 3 (of 4-cap).
+
+## Cycle 3 critic: FAIL (0 P0, 2 P1) -> connective prune + drop foreign-category. 2026-07-16
+Money-integrity core CONFIRMED sound (no fabricate/swap/rebind possible). Two P1s:
+P1-1 relational connectives (from/to/shifted/compared-before-{second}) asserted false inter-category
+FLOW. P1-2 foreign-category scan silently suppressed the whole surface forever for common custom
+names ("Spare Change" -> word "change"). FIX: (a) bake "compared with" into {window} atom + prune
+ALLOWED_CONNECTIVES to purely ADDITIVE/neutral (removed from/to/over/shifted/moved/vs/compared/
+than/while/as/...); (b) REMOVE foreign-category scan (vestigial: atomic grammar makes model
+category-injection impossible; only false-positived on benign labels). Plus P2-7 pct ±0 omit, P2-5
+cache key includes window+pct. 32 unit tests. e2e 2/2. tsc/eslint/build clean.
+NEXT: full verify + critic cycle 4 (LAST of 4-cap). If PASS -> docs (EDGE_CASES/DECISIONS/STATUS/
+REGRESSION_LEDGER) + commit #240. If FAIL -> STOP, write open findings, ask human.

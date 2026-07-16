@@ -11,6 +11,7 @@ import { formatISODate, formatMonth, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { CategoryMover, SpendingTrends } from '@/lib/engine/trends/trends';
+import type { BalanceMoveView } from '@/server/balance-move';
 
 const money = (n: number, signed = false) =>
   formatCents(cents(n), signed ? { signDisplay: 'always' } : undefined);
@@ -67,7 +68,15 @@ function MoverRow({ m, isDial = false }: { m: CategoryMover; isDial?: boolean })
   );
 }
 
-export function TrendsView({ trends, dials = [] }: { trends: SpendingTrends; dials?: string[] }) {
+export function TrendsView({
+  trends,
+  dials = [],
+  balanceMove = null,
+}: {
+  trends: SpendingTrends;
+  dials?: string[];
+  balanceMove?: BalanceMoveView | null;
+}) {
   const { pace, movers, largest, newMerchants, comparedYm, baselineMonths } = trends;
   const paceUp = pace ? pace.deltaVsPriorCents > 0 : false;
   // money dials are user-configured category labels; tag a mover when its category is one
@@ -120,6 +129,20 @@ export function TrendsView({ trends, dials = [] }: { trends: SpendingTrends; dia
             </span>
           )}
         </div>
+        {balanceMove?.sentence && (
+          <p className="mb-2 text-sm text-muted-foreground" data-testid="balance-move-explainer">
+            {balanceMove.sentence}
+            {balanceMove.interpreted && (
+              <span
+                className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 align-middle text-[10px] font-medium text-muted-foreground"
+                title="Worded by AI from your own figures — every amount is computed by Aimplifi, never by the model."
+                data-testid="balance-move-interpreted"
+              >
+                <Sparkles className="size-2.5" aria-hidden /> AI-worded
+              </span>
+            )}
+          </p>
+        )}
         {movers.length === 0 ? (
           <p className="py-5 text-center text-sm text-muted-foreground">
             {comparedYm

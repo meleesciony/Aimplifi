@@ -112,7 +112,17 @@ These are **build-later** (or rework-then-build) concepts that need only small n
 
 **Adversarial verdict: build-later.** The load-bearing safety claim holds: `forecast.firstNegativeDate` and the cash-needed shortfall engine deterministically identify "material," so the always-escalate floor is unit-testable and the suppression provably never buries a material warning. The de-dup-against-autopay capability is real and incumbents lack it. Reasons it's later, not now: (1) the marquee responsiveness-learning loop cold-starts to a deterministic default and needs weeks of behavioral data — invisible at launch; (2) the headline "push the ONE thing" rides a push/email channel dormant in demo, so out-of-the-box value is in-app feed ranking only; (3) cross-kind severity calibration is genuine judgment work, better sequenced once the proposal-source set is stable; (4) **cut or harden the "compress same-day proposals into one digest title"** — it is LLM text generation guarded only by a digit-allowlist (a materially softer boundary than the route-only classifier); a deterministic template removes the risk. Note: "life-event" is named as a proposal source but no life-event detector exists yet (see #20) — it's an optional input, not a blocker.
 
-#### 2.3 Balance-Move Explainer — grounded "what changed and why" in one line *(rank #9)*
+#### 2.3 Balance-Move Explainer — grounded "what changed and why" in one line *(rank #9)* — ✅ BUILT (DECISIONS #240)
+
+*Shipped 2026-07-16 on `/trends`. The needs-rework verdict's two holes (word-form magnitude claims;
+un-re-validated causal primary-driver) were resolved by a stronger design than the writeup proposed:
+the LLM authors a TEMPLATE of ATOMIC placeholders + additive-only connectives and the engine
+substitutes every figure/label, so fabrication/swap/flip are structurally impossible — not merely
+detected by a `validateNarrative` allowlist. `primaryDriver` is forced to `movers[0]` (never a model
+pick). Four Fable hostile-critic cycles (FAIL/FAIL/FAIL/PASS) hardened the prose boundary; see
+STATUS / EDGE_CASES §Balance-Move. The honest caveat held: the deterministic template carries the
+surface and is the zero-key/demo floor; the LLM is bounded polish. This validator is the reusable
+substrate the writeup anticipated for §2.4 Monthly Money Review.*
 
 **Job-to-be-done.** When my spending or balance jumps — or my savings rate drops to 9% — tell me why in plain English using my actual numbers, not a generic tip and not a category table I have to scan.
 
