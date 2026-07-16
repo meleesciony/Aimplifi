@@ -54,6 +54,40 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Why-This-Category slice 1: provenance engine + persistence (#238, 2026-07-16)
+
+AI plan §3.1 (rank #3, Wave 3 lead) build-loop step 1 (WHY_THIS_CATEGORY_PLAN.md) → slice 1
+shipped: the ENGINE + PERSISTENCE that make category origin (deterministic rule / merchant /
+provider / LLM guess / user) a durable, honestly-classifiable fact. **No UI yet** (slice 2).
+
+Pure `categorize/provenance.ts` `describeProvenance` maps stored facts to a display kind over a
+total exhaustive switch; `ai-guess` (the only `needsConfirm`) is reachable ONLY from a persisted
+`source:'llm'` on a non-drifted, unlabeled row — origin is never inferred from confidence or
+category. Additive nullable `CategoryPrediction.source` (db push; forward-only, NULL →
+`not-recorded`) threaded through the `logCategoryPredictions` choke point + all four live
+write paths (plaid, simplefin, transaction-actions manual+CSV) + the `assistUnsureRows` overlay
+(stamps `'llm'`) + seed. Demo golden-safe (every demo prediction carries a real source, none
+`'llm'`/`not-recorded`; accuracy/tuning goldens byte-identical).
+
+**Two Fable hostile critic cycles** (trust/data-integrity surface): cycle 1 FAIL (1 P0, 2 P1) →
+cycle 2 PASS (0 P0/P1, all fixes re-traced closed). **P0-1** LLM conf 1.0 → 10000 collided with
+the user-dictated sentinel → dropped from the log and shown as "You set this" (a model guess as
+a human fact) — fixed by capping LLM confidence at 9900. **P1-3** the create-only prediction is
+the FIRST verdict but the category moves (backfill/sync/partner) → a stale source would name a
+false origin — fixed by a predicted-vs-current divergence guard → `not-recorded`. **P1-2** CSV
+correlated provenance by `createManyAndReturn` index (no ordering contract) — fixed by
+pre-assigned `randomUUID()` ids. Accepted/deferred (each honest, never a false origin):
+EDGE_CASES §Why-This-Category lists P2-4/5/7 + cycle-2 P2-1 (backfill LLM re-file → not-recorded)
+and P2-2 (partner same-category re-confirm).
+
+Gate (real output 2026-07-16): `bash scripts/verify.sh` → **✅ VERIFY GREEN — 2790 unit / 199
+files**, tsc/eslint/next build clean; no e2e (no UI in slice 1). DECISIONS #238; REGRESSION_LEDGER
+3 entries. **Next: slice 2 (= UI) — join `source` into `TxnView`, render the provenance badge on
+register + triage rows, the "AI guessed — confirm?" affordance reusing the correction path, seed
+one `ai-guess` demo row so the flow is demonstrable with zero credentials; e2e + axe. Per the
+plan and the project model-routing, slice 2 is an Opus 4.8 build (UI), Fable critic on the
+copy-truthfulness surface.**
+
 ## Nudge slice 2: dashboard "Today" feed + dismissal store (#237, 2026-07-15)
 
 Slice 2 wires the slice-1 engine into the UI (NUDGE_PLAN.md). The dashboard RSC builds
