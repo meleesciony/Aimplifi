@@ -85,8 +85,11 @@ deliberately stronger boundary than the §2.4 writeup's number-allowlist idea).
   the deterministic role lines; no "Personalized" badge in demo). REGRESSION_LEDGER 2 entries;
   EDGE_CASES §Monthly Money Review; deferred: cross-month lead-dedup + per-month caching (needs
   net-new persistence — MONEY_REVIEW_PLAN.md). Vitest now stubs `server-only` (the real
-  client-leak guard is `next build`). **Wave 2 of the AI plan is complete (§2.1–§2.4). Next
-  (owner-gated): Wave 1 leftovers (§1.1 remaining goal types, §1.2 Cash Flow Radar) or Wave 3.**
+  client-leak guard is `next build`). **Wave 2 of the AI plan is complete (§2.1–§2.4). Wave 1 was
+  already complete — §1.1's owner-set goal-type sequence (debt #125 / savings #126 / retire-at-age
+  #131) and §1.2 Cash Flow Radar (#172) — and §3.1 shipped as #238/#239. Next (owner-gated): the
+  Wave 3 remainder (§3.2 Trust Center, §3.3 Document Extractor, §3.4 Subscription Radar,
+  §3.5 Receipt Splitter) or the plan's "Later" section.**
 
 ## Balance-Move Explainer (#240, 2026-07-16) — AI plan §2.3 complete
 
