@@ -102,6 +102,11 @@ export const COACH_COPY = {
 
   reviewNextAction: (action: string) => `One next action: ${action}.`,
 
+  // §2.4: shown only when the optional LLM reordered the recap (key-gated). Every recap LINE
+  // is still a verbatim COACH_COPY string; this badge just discloses that the order was
+  // AI-personalized this render — it asserts no fact about the user's money.
+  reviewPersonalizedBadge: () => `Personalized`,
+
   nextActionCancelSub: (merchant: string, monthly: Cents) =>
     `decide on ${merchant} — if it's not earning its ${formatCents(monthly)}/mo, one cancellation beats a month of small sacrifices`,
 

@@ -23,6 +23,8 @@ import {
   type Opportunity,
 } from '@/lib/engine/fi/insights';
 import { generateMoneyReview, type MoneyReview } from '@/lib/engine/fi/coach-copy';
+import { buildReviewCandidates, selectReview, type ReviewRole } from '@/lib/engine/fi/money-review';
+import { orderReviewViaLLM } from './money-review-llm';
 import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { formatISODate } from '@/lib/dates';
@@ -54,12 +56,19 @@ export interface CoachData {
   hourlyWageCents: number;
   moneyDials: string[];
   review: MoneyReview;
+  /** §2.4 candidate-set recap shown on /coach — each line a verbatim COACH_COPY string. */
+  reviewLines: { id: string; role: ReviewRole; line: string }[];
+  /** True iff the LLM ordered the recap this render; false on the deterministic floor (demo/zero-key). */
+  reviewPersonalized: boolean;
   blueprint: BlueprintStep[];
 }
 
 const COAST_TARGET_YEARS = 25;
 
-export async function getCoachData(userId: string): Promise<CoachData> {
+export async function getCoachData(
+  userId: string,
+  opts?: { orderReview?: boolean },
+): Promise<CoachData> {
   const provider = getProvider();
   const today = provider.today(userId);
   const snap = await provider.getFinanceSnapshot(userId);
@@ -168,18 +177,31 @@ export async function getCoachData(userId: string): Promise<CoachData> {
     })),
   });
 
-  const review = generateMoneyReview({
-    flows,
-    creep,
-    opportunities,
-    runwayMonths: runway,
-    pendingTransfer: cash.headline.recommendation
-      ? {
-          amountCents: cash.headline.recommendation.amountCents,
-          byDate: formatISODate(isoDate(cash.headline.recommendation.byDate)),
-        }
-      : null,
-  });
+  const pendingTransfer = cash.headline.recommendation
+    ? {
+        amountCents: cash.headline.recommendation.amountCents,
+        byDate: formatISODate(isoDate(cash.headline.recommendation.byDate)),
+      }
+    : null;
+  // The 3-field object stays UNCHANGED — dashboard, return-moment, and the digest email
+  // all consume it (AI plan §2.4: keep the incumbent surfaces untouched, blast-radius).
+  const review = generateMoneyReview({ flows, creep, opportunities, runwayMonths: runway, pendingTransfer });
+
+  // §2.4 candidate-set recap for the /coach card: the optional key-gated LLM only ORDERS a
+  // closed set of ids; `selectReview` re-validates in-set, pins the material action, backfills
+  // the deterministic floor, and the lines are rendered verbatim. The LLM ordering call is
+  // gated to the /coach path (`opts.orderReview`) — every OTHER `getCoachData` caller (dashboard,
+  // goals, investments, assistant, the per-user digest cron) gets the deterministic floor with
+  // NO model call and no data egress (critic P1-1). No key / any failure → the floor (== `review`).
+  const reviewCandidates = buildReviewCandidates({ flows, creep, opportunities, runwayMonths: runway, pendingTransfer });
+  const reviewOrder = opts?.orderReview ? await orderReviewViaLLM(reviewCandidates) : null;
+  const reviewSelected = selectReview(reviewCandidates, reviewOrder);
+  const reviewLines = reviewSelected.map((c) => ({ id: c.id, role: c.role, line: c.line }));
+  // Honest badge: "Personalized" only when the LLM path actually CHANGED the recap vs the floor.
+  const floorLines = selectReview(reviewCandidates, null);
+  const reviewPersonalized =
+    reviewOrder !== null &&
+    reviewSelected.map((c) => c.line).join('') !== floorLines.map((c) => c.line).join('');
 
   return {
     today,
@@ -205,6 +227,8 @@ export async function getCoachData(userId: string): Promise<CoachData> {
     hourlyWageCents: wage,
     moneyDials: parseStoredDials(user.moneyDials),
     review,
+    reviewLines,
+    reviewPersonalized,
     blueprint,
   };
 }

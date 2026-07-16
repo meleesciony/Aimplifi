@@ -54,6 +54,40 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Monthly Money Review (#241, 2026-07-16) — AI plan §2.4 complete (Wave 2 done)
+
+The /coach Monthly Money Review is now a closed candidate-insight set with an optional key-gated
+LLM that only SELECTS and ORDERS candidate ids — it cannot author a line, a number, or an id
+outside the frozen set. Every rendered line is a verbatim, already-guardrail-scanned COACH_COPY
+string with engine cents substituted in code, so this surface adds ZERO generated prose (a
+deliberately stronger boundary than the §2.4 writeup's number-allowlist idea).
+
+- **Deterministic floor = today's recap, byte-for-byte.** `selectReview(candidates, null)`
+  reproduces `generateMoneyReview` exactly (locked by test), so demo/zero-key is unchanged.
+  `generateMoneyReview` and the 3-field `MoneyReview` object are untouched — the digest email,
+  dashboard, and return-moment keep their consumer contract (#221 fence).
+- **The LLM can reorder, never delete.** One line per role (improvement/watch/action); the
+  material cash-needed action is pinned (overrides any non-material pick, survives truncation);
+  every role the floor shows is backfilled, so a hostile/vacuous reply can never shrink the recap
+  below the zero-key baseline. The ordering call is gated to /coach (`{orderReview: true}`) —
+  dashboard, goals, investments, assistant, and the per-user digest cron get the floor with no
+  model call and no data egress.
+- **Two Fable hostile-critic cycles.** Cycle 1 FAIL (0 P0, 2 P1: the unconditional LLM await
+  fanned out to all six `getCoachData` callers; a valid-vocabulary reply naming an absent id
+  produced an EMPTY recap under a "Personalized" badge) → cycle 2 **PASS (0 P0/P1)**, both fixes
+  re-verified closed. Open P2s (recorded, accepted): P2-A — a fully-inapplicable in-vocab reply
+  still reorders the floor and lights the badge (content safe; fix sketched in the cycle-2 report);
+  wrapper fetch-plumbing untested (every failure mode → null → floor); the e2e badge-absent
+  assertion assumes a keyless environment; with a key set, /coach TTFB can absorb up to the 7s
+  provider timeout before falling back.
+- **Gate (real output 2026-07-16):** `bash scripts/verify.sh` → **✅ VERIFY GREEN — 2854 unit /
+  202 files**, tsc/eslint/next build clean; `phase3-coach.spec.ts` 1/1 on mobile-380 (recap renders
+  the deterministic role lines; no "Personalized" badge in demo). REGRESSION_LEDGER 2 entries;
+  EDGE_CASES §Monthly Money Review; deferred: cross-month lead-dedup + per-month caching (needs
+  net-new persistence — MONEY_REVIEW_PLAN.md). Vitest now stubs `server-only` (the real
+  client-leak guard is `next build`). **Wave 2 of the AI plan is complete (§2.1–§2.4). Next
+  (owner-gated): Wave 1 leftovers (§1.1 remaining goal types, §1.2 Cash Flow Radar) or Wave 3.**
+
 ## Balance-Move Explainer (#240, 2026-07-16) — AI plan §2.3 complete
 
 The `/trends` "What changed" section now leads with a grounded, descriptive one-liner. This is the

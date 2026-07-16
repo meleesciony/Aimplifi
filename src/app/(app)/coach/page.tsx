@@ -33,7 +33,7 @@ export default async function CoachPage() {
   // No accounts yet → route-framed onboarding (the FI/cash engine needs accounts).
   if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyCoach />;
   const [data, withheld] = await Promise.all([
-    getCoachData(session.user.id),
+    getCoachData(session.user.id, { orderReview: true }),
     getWithheldAccountSummary(session.user.id),
   ]);
   // Value receipts (TASKS 1.3): /coach is where price-increase flags are surfaced, so
@@ -203,22 +203,34 @@ export default async function CoachPage() {
 
       <Card data-testid="money-review-card">
         <CardHeader className="pb-2">
-          <CardDescription>Monthly Money Review</CardDescription>
+          <div className="flex items-center justify-between gap-2">
+            <CardDescription>Monthly Money Review</CardDescription>
+            {data.reviewPersonalized && (
+              <span
+                className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                data-testid="review-personalized-badge"
+              >
+                {COACH_COPY.reviewPersonalizedBadge()}
+              </span>
+            )}
+          </div>
           <CardTitle className="text-base">{formatMonth(data.review.month)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <p className="flex items-start gap-2" data-testid="review-improvement">
-            <TrendingUp className="mt-0.5 size-4 shrink-0 text-emerald-500" aria-hidden />
-            <span>{data.review.improvement}</span>
-          </p>
-          <p className="flex items-start gap-2" data-testid="review-creep">
-            <Eye className="mt-0.5 size-4 shrink-0 text-amber-500" aria-hidden />
-            <span>{data.review.creep}</span>
-          </p>
-          <p className="flex items-start gap-2" data-testid="review-next-action">
-            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" aria-hidden />
-            <span>{data.review.nextAction}</span>
-          </p>
+          {data.reviewLines.map((r) => {
+            // Legacy per-role test ids (improvement/watch/action → improvement/creep/next-action)
+            // keep the shipped /coach e2e green; the deterministic floor renders exactly these three.
+            const testId =
+              r.role === 'watch' ? 'review-creep' : r.role === 'action' ? 'review-next-action' : 'review-improvement';
+            const Icon = r.role === 'watch' ? Eye : r.role === 'action' ? CheckCircle2 : TrendingUp;
+            const tone = r.role === 'watch' ? 'text-amber-500' : 'text-emerald-500';
+            return (
+              <p key={r.id} className="flex items-start gap-2" data-testid={testId}>
+                <Icon className={`mt-0.5 size-4 shrink-0 ${tone}`} aria-hidden />
+                <span>{r.line}</span>
+              </p>
+            );
+          })}
         </CardContent>
       </Card>
 

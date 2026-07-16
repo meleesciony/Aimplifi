@@ -47,10 +47,13 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await page.getByTestId('life-energy-toggle').click();
   await expect(firstRow).toContainText('hrs');
 
-  // Money Review: one improvement, one creep, one concrete next action
+  // Money Review: one improvement, one creep, one concrete next action.
+  // In demo (no AI key) the §2.4 recap is the DETERMINISTIC floor — same three role lines,
+  // and NO "Personalized" badge (the LLM ordering path only runs with a key).
   await expect(page.getByTestId('review-improvement')).not.toBeEmpty();
   await expect(page.getByTestId('review-creep')).not.toBeEmpty();
   await expect(page.getByTestId('review-next-action')).toContainText('One next action');
+  await expect(page.getByTestId('review-personalized-badge')).toHaveCount(0);
 
   // Wave 1.3 value receipts: visiting /coach mints the seed's single price-increase
   // catch (Netflix $15.49 → $17.99 = $2.50/mo, keyed on its change date), so the

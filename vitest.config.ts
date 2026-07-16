@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import { UNIT_DB_URL } from './tests/setup/test-db';
 
@@ -12,6 +13,11 @@ process.env.DATABASE_URL = UNIT_DB_URL;
 export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
+    // `server-only` is a client-bundle guard with no meaning under the node test env; stub it
+    // to a no-op so server modules that import it can be exercised transitively (e.g. coach.ts
+    // → money-review-llm.ts). Without this, any tested module reaching a 'server-only' import
+    // fails to load with "Cannot find package 'server-only'".
+    alias: { 'server-only': fileURLToPath(new URL('./tests/setup/server-only-stub.ts', import.meta.url)) },
     // Injected into the test runtime (workers) — belt-and-suspenders with the
     // process.env assignment above.
     env: { DATABASE_URL: UNIT_DB_URL },
