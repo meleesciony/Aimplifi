@@ -14,6 +14,7 @@ import {
   type BalanceMoveExplanation,
 } from '@/lib/engine/trends/balance-move';
 import type { SpendingTrends } from '@/lib/engine/trends/trends';
+import { aiAuditSink } from '@/server/ai-audit';
 import { draftMoveSentenceViaLLM } from '@/server/balance-move-llm';
 import { DEMO_USER_ID } from '@/lib/demo-user';
 
@@ -60,7 +61,10 @@ export async function getBalanceMove(userId: string, trends: SpendingTrends): Pr
   // The demo account is deterministic by CONSTRUCTION, never by env: even if a
   // deployment sets an API key, demo visitors get the stable template, never a
   // model rewording (matches the shared-demo discipline; here purely for stability).
-  const llm = userId === DEMO_USER_ID ? null : await draftMoveSentenceViaLLM(explanation);
+  const llm =
+    userId === DEMO_USER_ID
+      ? null
+      : await draftMoveSentenceViaLLM(explanation, aiAuditSink(userId, 'move_draft')); // §3.2 trail
   const resolved = resolveMoveSentence(explanation, llm);
 
   if (!resolved.sentence) return null;

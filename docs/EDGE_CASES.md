@@ -1332,3 +1332,38 @@ Pinned 3-branch matrix (hand-verified in `money-review.test.ts`):
   (reorder counts; identical output → no badge), and only the /coach path
   (`getCoachData(userId, {orderReview: true})`) ever makes the model call — dashboard, goals,
   investments, assistant, and the digest cron always get the floor with no egress.
+
+## §AI Trust Center audit trail (AI plan §3.2 — `parseAiAuditRow` / `describeAiEntry`, DECISIONS #242)
+
+Pure formatter over persisted `ai.<touchpoint>.<outcome>` AuditLog rows
+(`src/lib/engine/ai-audit/describe.ts`; tests `ai-audit-describe.test.ts`,
+`ai-audit-sink.test.ts`, `ai-audit-recorder.test.ts`).
+
+### Sink contract (all four `*ViaLLM` modules)
+- Exactly ONE sink call per ATTEMPTED provider call; no key → no call → NO sink report (a trail
+  row must mean a model was actually consulted).
+- Outcomes: `replied` (passed the closed-set validator), `rejected` (validator discarded the
+  reply — the guardrail firing IS the trust signal), `unavailable` (non-OK status / network
+  throw / 7s timeout abort / malformed body).
+- Meta is closed-set only: categorize `{categoryId, confidenceBps}` (both pinned by
+  `parseLlmCategory`), intent `{kind}` (pinned to `LLM_ROUTABLE_KINDS`), review_order `{count}`,
+  move_draft `{}` — the draft is only SHAPE-checked at that point, so its strings are still
+  model-authored text and must never persist.
+- A THROWING sink never changes the returned value (fire-walled both inside the module and inside
+  `aiAuditSink`); recording is subordinate to answering.
+- `orderReviewViaLLM([])` and an untriggered balance-move make NO call and NO report.
+
+### Recorder / demo fence
+- `aiAuditSink(DEMO_USER_ID, …)` writes NOTHING — the shared demo row records no trail, and the
+  seed plants none, so the demo Trust Center ledger is honestly empty by construction.
+- A DB fault in the recorder is swallowed (the user's action still completes unrecorded).
+
+### Formatter honesty (hand-verified)
+- `parseAiAuditRow` returns null for any non-`ai.*` action, unknown touchpoint/outcome
+  (`ai.telepathy.replied`), wrong segment count, or a non-timestamp createdAt — unknown rows are
+  DROPPED, never guessed at.
+- Malformed meta JSON → empty meta → generic line; non-closed-set meta values are dropped
+  field-by-field (categoryId 42, confidenceBps "high", count −3 → all gone).
+- Confidence renders as whole % clamped to [0,100]: 7250 bps → 73%, 99999 → 100%, −5 → 0%.
+- An unknown categoryId in meta renders "a category", never the raw id string.
+- Every touchpoint × outcome is a total function (a non-empty line, no throw).

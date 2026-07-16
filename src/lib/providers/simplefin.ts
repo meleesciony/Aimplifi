@@ -19,7 +19,7 @@ import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
 import { safeSyncErrorReason } from '@/lib/providers/sync-status';
 import { assistUnsureRows } from '@/server/categorize-assist';
 import { ensureCategories } from '@/server/ensure-categories';
-import { suggestCategoryViaLLM } from '@/server/llm-categorize';
+import { categorizeSuggestFor } from '@/server/categorize-suggest';
 import { loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { logCategoryPredictions } from '@/server/predictions';
@@ -551,7 +551,9 @@ async function runSimplefinSync(
   // LLM-assist the rows the deterministic pipeline was unsure about — deduped per
   // descriptor, only the unknown long tail (DECISIONS #64). Provider is xAI/Grok
   // when XAI_API_KEY is set (cheaper), else Anthropic, else no-op → rows unchanged.
-  const assisted = await assistUnsureRows(prepared, suggestCategoryViaLLM);
+  // categorizeSuggestFor: demo fence (#242 F1 — a bank connected to the shared
+  // demo account must not start egressing descriptors) + §3.2 audit sink.
+  const assisted = await assistUnsureRows(prepared, categorizeSuggestFor(userId));
 
   // Pass 2: upsert transactions (idempotent on @@unique([accountId, providerRef])).
   for (const row of assisted) {

@@ -1,5 +1,60 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-16 — AI plan §3.2 Trust Center & Audit Ledger (#242) — SHIPPED, verify green, critic cycle 3 PASS
+
+**Final:** 3 Fable critic cycles FAIL (P1: demo copy falsifiable on keyed deployments — demo Ask
+egressed invisibly) / FAIL (P1: per-site fences missed both INGEST sites; fixed with the single
+`categorizeSuggestFor(userId)` constructor) / PASS (0 P0/P1, exhaustive call-path audit, no
+bypass). Gate: ✅ VERIFY GREEN 2898/206; trust.spec 1/1 + ask.spec 20/20 (the server-only
+conversion briefly broke the tsx vocab fixture — assistant-llm/ai-audit are plain modules now,
+llm-categorize keeps server-only) + phase3-coach 1/1. Docs: DECISIONS #242, STATUS §Trust Center,
+EDGE_CASES §AI Trust Center, 3 regression rows. Owner follow-up recorded: fence demo out of the
+bank-connect actions (pre-existing shared-account privacy hole, now the only residual).
+
+## 2026-07-16 — AI plan §3.2 Trust Center & Audit Ledger (#242) — original plan (superseded by the SHIPPED entry above)
+
+**Owner pick** after the stale STATUS pointer was corrected (790e895): §1.1 had NO remaining
+goal-type solvers (trilogy #125/#126/#131 complete; §1.2 = #172; §3.1 = #238/#239). Owner chose
+§3.2 from the Wave 3 remainder.
+
+**Adjudication reworks, re-scoped against current tree:** (b) `CategoryPrediction.source` +
+live-ingest persistence ALREADY SHIPPED via #238 (plaid.ts:629, simplefin.ts:645,
+predictions.ts:40 — no schema work needed). Remaining: (a) narrowed headline ("AI-originated
+dollar figures / financial facts: 0"; LLM confidence disclosed as surfaced uncertainty), (c)
+AuditLog LLM-touchpoint logging incl. rejections, + pure formatter + surface.
+
+**Design (settled):**
+- 4 LLM touchpoint modules (llm-categorize, assistant-llm, money-review-llm, balance-move-llm)
+  gain an optional `onOutcome?` sink param, called EXACTLY ONCE per attempted provider call with
+  `replied | rejected | unavailable` + closed-set meta (categorize {categoryId, confidenceBps};
+  intent {kind}; review_order {count}; move_draft {} — model-authored template text is never
+  persisted). No key → sink NOT called (no call happened). Sink await'ed, wrapped so it can never
+  break the answer path. Existing null-fallback tests untouched.
+- Convert llm-categorize.ts + assistant-llm.ts from 'use server' → `import 'server-only'`
+  (all callers are server-side; closes a pre-existing exposed-endpoint hole; matches the two
+  newer LLM modules). DECISIONS note.
+- New `src/server/ai-audit.ts`: `aiAuditSink(userId, touchpoint)` → writes
+  `ai.<touchpoint>.<outcome>` AuditLog rows; DEMO_USER_ID → no-op (shared-demo lesson); write
+  failure swallowed. Touchpoints: categorize | intent | vocab_recheck | review_order | move_draft.
+- 9 call sites wired: transaction-actions (manual + CSV), plaid, simplefin, backfill-actions,
+  assistant.ts, vocab.ts, coach.ts, balance-move.ts.
+- New pure `src/lib/engine/ai-audit/describe.ts`: parse/describe/summarize AuditLog `ai.*` rows →
+  human lines (closed-set values only; category label via CATEGORY_BY_ID; unknown → honest
+  generic). Reuse `accuracy/score.ts` UNCHANGED for the Brier scorecard.
+- Surface: new `/(app)/trust` page (linked from /settings, NOT a new nav icon): narrowed headline
+  invariant, scorecard with inline sample size + honest small-n copy, static touchpoint table,
+  recent-AI-events ledger, honestly-empty demo state. e2e trust.spec.ts + axe AA.
+
+**Steps:** [1] engine describe.ts + tests → [2] sink params in 4 modules + tests → [3) recorder +
+9 call sites → [4] read path + page + e2e → [5] verify green → [6] Fable hostile critic (cap 4)
+→ [7] docs (STATUS/DECISIONS/EDGE_CASES/REGRESSION_LEDGER) + commit.
+**Now at:** step 6, critic cycle 1 dispatched. Steps 1–5 done: `bash scripts/verify.sh` →
+✅ VERIFY GREEN (exit 0); full vitest 2892 passed / 205 files (+38 vs #241); trust.spec.ts e2e
+1/1 mobile-380 incl. axe AA; EDGE_CASES §AI Trust Center + 3 REGRESSION_LEDGER rows written.
+Route /trust builds (in next build route table). Design deltas vs plan: adjudication rework (b)
+was already shipped by #238 (no schema change in this slice); 'use server'→server-only conversion
+on llm-categorize.ts + assistant-llm.ts (closed a pre-existing exposed-endpoint hole).
+
 ## 2026-07-15 — Glass-Box slice 2a (GLASSBOX_PLAN, trace UI) — SHIPPED, verify green, critic cycle 2 PASS
 
 **Done (committed as #233):** the slice-1 trace engine is now wired into Ask. A row-sum answer's

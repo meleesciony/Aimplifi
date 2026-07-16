@@ -24,6 +24,8 @@ import {
 } from '@/lib/engine/fi/insights';
 import { generateMoneyReview, type MoneyReview } from '@/lib/engine/fi/coach-copy';
 import { buildReviewCandidates, selectReview, type ReviewRole } from '@/lib/engine/fi/money-review';
+import { DEMO_USER_ID } from '@/lib/demo-user';
+import { aiAuditSink } from '@/server/ai-audit';
 import { orderReviewViaLLM } from './money-review-llm';
 import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
@@ -194,7 +196,14 @@ export async function getCoachData(
   // goals, investments, assistant, the per-user digest cron) gets the deterministic floor with
   // NO model call and no data egress (critic P1-1). No key / any failure → the floor (== `review`).
   const reviewCandidates = buildReviewCandidates({ flows, creep, opportunities, runwayMonths: runway, pendingTransfer });
-  const reviewOrder = opts?.orderReview ? await orderReviewViaLLM(reviewCandidates) : null;
+  // Demo fence (#242 critic P1-1, balance-move.ts precedent): the shared demo account
+  // never consults a model — its recap is the deterministic floor by CONSTRUCTION,
+  // never by env (this also removes the #241 P2 where the badge-absent e2e assumed a
+  // keyless environment: demo is now floor-stable on ANY deployment).
+  const reviewOrder =
+    opts?.orderReview && userId !== DEMO_USER_ID
+      ? await orderReviewViaLLM(reviewCandidates, aiAuditSink(userId, 'review_order')) // §3.2 trail
+      : null;
   const reviewSelected = selectReview(reviewCandidates, reviewOrder);
   const reviewLines = reviewSelected.map((c) => ({ id: c.id, role: c.role, line: c.line }));
   // Honest badge: "Personalized" only when the LLM path actually CHANGED the recap vs the floor.

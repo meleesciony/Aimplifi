@@ -54,6 +54,46 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## AI Trust Center & Audit Ledger (#242, 2026-07-16) — AI plan §3.2 complete
+
+The new /trust page (linked from the Settings AI-trust card, no new nav icon) states the
+adjudication-narrowed invariant — **"Dollar figures the AI has authored: 0"** with the model's
+confidence disclosed as the one AI-originated number — over three grounded panels: the reused
+accuracy/Brier scorecard (sample size inline), a static code-authored table of every place a model
+runs and its may/never limits, and an audit ledger of model calls INCLUDING the ones whose reply
+the guardrail discarded (rejection logging is itself the trust signal).
+
+- **The sink contract.** All four `*ViaLLM` modules report exactly once per ATTEMPTED provider
+  call — replied / rejected / unavailable — with closed-set meta only (a pinned categoryId+bps, a
+  pinned intent kind, a count; the balance-move draft persists NOTHING because its strings are
+  still model-authored at that point). No key → no call → no row; a sink/DB fault never breaks the
+  answer path (fire-walled twice, regression-locked). `parseAiAuditRow` re-pins everything at
+  render, so an unknown row drops rather than guesses.
+- **The demo fence is now by construction.** Three Fable critic cycles (FAIL/FAIL/PASS 0 P0/P1):
+  cycle 1 caught the demo /trust copy claiming keylessness a keyed deployment falsifies (demo Ask
+  questions actually egressed, invisibly); cycle 2 caught the per-call-site fence pattern missing
+  the two INGEST sites (a demo-connected bank would egress descriptors forever). Fix: ONE
+  constructor — `categorizeSuggestFor(userId)` — is the only way any of the five categorize paths
+  obtains a suggest function (demo → null no-op ≡ keyless), plus fences at assistant/coach; cycle
+  3's exhaustive call-path audit found no bypass. Demo copy now states an ENFORCED invariant.
+  Side effect: #241's "badge-absent e2e assumes a keyless environment" P2 is retired — the demo
+  recap is floor-stable on any deployment.
+- **'use server' removed from llm-categorize/assistant-llm** (pre-existing exposed-action-endpoint
+  hole: any client could invoke them and burn provider credits). `AuditLog` gained
+  `@@index([userId, createdAt])` for the ledger read.
+- **Gate (real output 2026-07-16):** `bash scripts/verify.sh` → **✅ VERIFY GREEN — 2898 unit /
+  206 files**, tsc/eslint/next build clean; e2e trust.spec 1/1 mobile-380 (headline, scorecard,
+  5 touchpoints, honestly-empty demo ledger, axe AA), ask.spec 20/20, phase3-coach 1/1.
+  EDGE_CASES §AI Trust Center; REGRESSION_LEDGER 3 rows; DECISIONS #242.
+- **Open P2s (recorded, accepted):** vocab-recheck rows can dominate the 50-row ledger window
+  (copy claims only "Last N events" — honest; per-touchpoint filter later); the populated ledger
+  state is never axe-scanned (demo is empty by construction; same Card components). **Owner
+  follow-up (its own small slice):** demo visitors can still CONNECT a real bank into the shared
+  demo account — no longer falsifies any /trust claim, but one visitor's real bank data landing in
+  the all-visitors demo row is a pre-existing privacy hole; recommend fencing the connect actions
+  for `DEMO_USER_ID`. **Next (owner-gated): §3.3 Doc Extractor v1 / §3.4 Subscription Radar /
+  §3.5 Receipt Splitter, or the plan's "Later" section.**
+
 ## Monthly Money Review (#241, 2026-07-16) — AI plan §2.4 complete (Wave 2 done)
 
 The /coach Monthly Money Review is now a closed candidate-insight set with an optional key-gated

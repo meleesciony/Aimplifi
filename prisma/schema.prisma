@@ -476,6 +476,11 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // The Trust Center ledger reads (userId, newest-first) on every /trust load,
+  // and #242's per-LLM-call rows accelerate this table's growth — without an
+  // index that read is a full scan (#242 critic cycle-2 F4).
+  @@index([userId, createdAt])
 }
 
 // Durable, multi-instance rate-limit buckets (ROADMAP #8). The in-memory limiter

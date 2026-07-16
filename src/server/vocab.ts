@@ -10,6 +10,7 @@
  */
 import { prisma } from '@/lib/db';
 import { DEMO_USER_ID } from '@/lib/demo-user';
+import { aiAuditSink } from '@/server/ai-audit';
 import { classifyIntentViaLLM } from '@/server/assistant-llm';
 import {
   MAX_ENTRIES_PER_USER,
@@ -117,7 +118,7 @@ async function auditServableEntries(userId: string): Promise<number> {
   for (const entry of served) {
     let verdict: string | null = null;
     try {
-      verdict = await classifyIntentViaLLM(entry.phrase);
+      verdict = await classifyIntentViaLLM(entry.phrase, aiAuditSink(userId, 'vocab_recheck')); // §3.2 trail
     } catch {
       continue; // no opinion → no change
     }

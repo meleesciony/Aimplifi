@@ -46,7 +46,7 @@ import {
   prepareIngestedTransaction,
 } from './plaid-map';
 import { assistUnsureRows } from '@/server/categorize-assist';
-import { suggestCategoryViaLLM } from '@/server/llm-categorize';
+import { categorizeSuggestFor } from '@/server/categorize-suggest';
 import { DemoProvider } from './demo';
 import type { DataProvider, FinanceSnapshot, SyncResult } from './types';
 
@@ -364,7 +364,9 @@ export class PlaidProvider implements DataProvider {
           const preparedRows = pageTxns.map((p) =>
             prepareIngestedTransaction(p.txn, p.accountId, rules, tuning.flaggedBps),
           );
-          const assistedRows = await assistUnsureRows(preparedRows, suggestCategoryViaLLM);
+          // categorizeSuggestFor: demo fence (#242 F1 — a bank connected to the
+          // shared demo account must not start egressing descriptors) + §3.2 sink.
+          const assistedRows = await assistUnsureRows(preparedRows, categorizeSuggestFor(userId));
 
           for (let i = 0; i < pageTxns.length; i++) {
             const { txn, accountId } = pageTxns[i];

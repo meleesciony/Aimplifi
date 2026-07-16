@@ -17,7 +17,7 @@ import {
 import { pickAssistedCategory } from '@/lib/engine/categorize/llm';
 import { auditLog, requireUserId } from '@/server/authz';
 import { assistUnsureRows } from '@/server/categorize-assist';
-import { suggestCategoryViaLLM } from '@/server/llm-categorize';
+import { categorizeSuggestFor } from '@/server/categorize-suggest';
 import { loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { logCategoryPredictions } from '@/server/predictions';
@@ -109,7 +109,10 @@ export async function createManualTransaction(
   // category (confidence 10000 → never logged as a prediction).
   let source = prepared.source;
   if (!categoryRaw) {
-    const llm = await suggestCategoryViaLLM({
+    // categorizeSuggestFor carries BOTH the demo fence (#242 P1-1/F1: a demo
+    // visitor's typed descriptor never egresses, on any deployment) and the
+    // Trust Center audit sink (§3.2).
+    const llm = await categorizeSuggestFor(userId)({
       rawDescriptor: prepared.rawDescriptor,
       amountCents: prepared.amountCents,
     });
@@ -223,7 +226,8 @@ export async function importTransactionsCsv(
   // LLM-assist unsure rows at ingest (DECISIONS #42): a confident suggestion
   // auto-files instead of landing in review. No ANTHROPIC_API_KEY → suggest
   // returns null → rows unchanged (demo stays deterministic + credential-free).
-  const data = await assistUnsureRows(prepared, suggestCategoryViaLLM);
+  // categorizeSuggestFor: demo fence (rows stand unchanged, no egress) + §3.2 audit sink.
+  const data = await assistUnsureRows(prepared, categorizeSuggestFor(userId));
 
   if (data.length > 0) {
     // Project to Transaction columns only (`source` is NOT one) before the DB

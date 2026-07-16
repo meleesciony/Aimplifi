@@ -12,6 +12,7 @@ import 'server-only';
  *   - else ANTHROPIC_API_KEY → Anthropic Messages API.
  *   - neither / any failure  → null (the deterministic template stands; demo needs no key).
  */
+import type { AiOutcomeSink } from '@/lib/engine/ai-audit/describe';
 import { buildMovePrompt, type BalanceMoveExplanation, type LlmMoveDraft } from '@/lib/engine/trends/balance-move';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
@@ -38,7 +39,10 @@ function draftFromText(text: string): LlmMoveDraft | null {
   }
 }
 
-export async function draftMoveSentenceViaLLM(e: BalanceMoveExplanation): Promise<LlmMoveDraft | null> {
+export async function draftMoveSentenceViaLLM(
+  e: BalanceMoveExplanation,
+  onOutcome?: AiOutcomeSink,
+): Promise<LlmMoveDraft | null> {
   if (!e.triggered || e.primaryDriverId === null) return null;
   const xaiKey = process.env.XAI_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -47,6 +51,10 @@ export async function draftMoveSentenceViaLLM(e: BalanceMoveExplanation): Promis
   const prompt = buildMovePrompt(e);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  // null until the provider yields a usable text body (non-OK / network error /
+  // timeout / malformed body → 'unavailable'). §3.2: the sink is told exactly
+  // once what happened; no key → not invoked; a sink fault never breaks the template.
+  let text: string | null = null;
   try {
     if (xaiKey) {
       const res = await fetch(XAI_URL, {
@@ -59,28 +67,40 @@ export async function draftMoveSentenceViaLLM(e: BalanceMoveExplanation): Promis
         }),
         signal: controller.signal,
       });
-      if (!res.ok) return null;
-      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-      return draftFromText(data?.choices?.[0]?.message?.content ?? '');
+      if (res.ok) {
+        const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+        text = data?.choices?.[0]?.message?.content ?? '';
+      }
+    } else {
+      const res = await fetch(ANTHROPIC_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': anthropicKey!, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: process.env.ANTHROPIC_MODEL ?? ANTHROPIC_DEFAULT_MODEL,
+          max_tokens: 120,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+        signal: controller.signal,
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { content?: { text?: string }[] };
+        text = Array.isArray(data?.content) ? data.content.map((b) => b?.text ?? '').join('') : '';
+      }
     }
-
-    const res = await fetch(ANTHROPIC_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': anthropicKey!, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL ?? ANTHROPIC_DEFAULT_MODEL,
-        max_tokens: 120,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-      signal: controller.signal,
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { content?: { text?: string }[] };
-    const text = Array.isArray(data?.content) ? data.content.map((b) => b?.text ?? '').join('') : '';
-    return draftFromText(text);
   } catch {
-    return null; // network error / abort / bad JSON → deterministic template only
+    text = null; // network error / abort / bad body JSON → unavailable
   } finally {
     clearTimeout(timer);
   }
+
+  const draft = text === null ? null : draftFromText(text);
+  try {
+    // EMPTY meta by design: the draft is only shape-checked here (resolveMoveSentence
+    // does the real validation later), so its strings are still MODEL-AUTHORED TEXT —
+    // persisting them would let model prose reach the ledger renderer (§3.2).
+    await onOutcome?.(text === null ? 'unavailable' : draft ? 'replied' : 'rejected', {});
+  } catch {
+    // an audit fault must never break the deterministic template
+  }
+  return draft;
 }

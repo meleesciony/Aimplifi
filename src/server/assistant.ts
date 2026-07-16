@@ -32,6 +32,8 @@ import { parseAssistantQuery, validateIntent, type AssistantIntent } from '@/lib
 import { frameFromIntent, resolveEllipsis, type AskFrame } from '@/lib/engine/assistant/frame';
 import { followUpQuestions } from '@/lib/engine/assistant/follow-ups';
 import { intentFromKind } from '@/lib/engine/assistant/llm';
+import { DEMO_USER_ID } from '@/lib/demo-user';
+import { aiAuditSink } from '@/server/ai-audit';
 import { classifyIntentViaLLM } from '@/server/assistant-llm';
 import { recordUnknownQuestion } from '@/server/unknown-questions';
 import { lookupVocab } from '@/server/vocab';
@@ -158,6 +160,13 @@ async function resolveIntent(
     }
   }
 
+  // Demo fence (#242 critic P1-1, the balance-move.ts precedent): the demo account
+  // is one SHARED row, so a demo visitor's typed question must never egress to a
+  // provider — even on a keyed deployment. Demo Ask is deterministic by
+  // construction: parser + frame + (empty-for-demo) vocab, then an honest unknown.
+  if (userId === DEMO_USER_ID) {
+    return { intent: parsed, ...NO_ROUTE, llmGuessKind: null };
+  }
   if (!process.env.XAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
     return { intent: parsed, ...NO_ROUTE, llmGuessKind: null };
   }
@@ -165,7 +174,7 @@ async function resolveIntent(
     return { intent: parsed, ...NO_ROUTE, llmGuessKind: null };
   }
 
-  const kind = await classifyIntentViaLLM(question);
+  const kind = await classifyIntentViaLLM(question, aiAuditSink(userId, 'intent')); // Trust Center trail (§3.2, #242)
   const proposed = intentFromKind(kind, question, today as Parameters<typeof intentFromKind>[2], custom);
   const valid = proposed ? validateIntent(proposed, custom) : null;
   return valid

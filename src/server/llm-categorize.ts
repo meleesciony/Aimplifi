@@ -1,4 +1,4 @@
-'use server';
+import 'server-only';
 
 /**
  * LLM categorization client (DECISIONS #38, #64). Proposes a category for an
@@ -10,7 +10,19 @@
  *     never hangs — an unbounded fetch would stall the calling server action).
  * The result is always validated by parseLlmCategory before use, so a malformed
  * or hallucinated category can't reach the ledger.
+ *
+ * `import 'server-only'` (was 'use server' before #242): every caller is
+ * server-side, and the 'use server' directive needlessly exposed this as an
+ * invokable action endpoint — a client could burn provider credits. Now the
+ * bundler refuses any client import outright.
+ *
+ * `onOutcome` (AI plan §3.2, DECISIONS #242): when a provider call is ATTEMPTED
+ * (a key exists), the sink is told exactly once what happened — 'replied' (valid
+ * category), 'rejected' (the validator discarded the reply), or 'unavailable'
+ * (provider error/timeout). No key → no call → the sink is NOT invoked. The
+ * sink is awaited but fire-walled: a sink fault can never break categorization.
  */
+import type { AiOutcomeSink } from '@/lib/engine/ai-audit/describe';
 import { buildCategorizePrompt, type LlmCategory, parseLlmCategory } from '@/lib/engine/categorize/llm';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
@@ -36,10 +48,13 @@ function parseFromText(text: string): LlmCategory | null {
   }
 }
 
-export async function suggestCategoryViaLLM(input: {
-  rawDescriptor: string;
-  amountCents: number;
-}): Promise<LlmCategory | null> {
+export async function suggestCategoryViaLLM(
+  input: {
+    rawDescriptor: string;
+    amountCents: number;
+  },
+  onOutcome?: AiOutcomeSink,
+): Promise<LlmCategory | null> {
   const prompt = buildCategorizePrompt(input);
   const xaiKey = process.env.XAI_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -47,6 +62,9 @@ export async function suggestCategoryViaLLM(input: {
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  // null until the provider yields a usable text body — anything short of that
+  // (non-OK status, network error, timeout abort, malformed body) is 'unavailable'.
+  let text: string | null = null;
   try {
     if (xaiKey) {
       // xAI Grok — OpenAI-compatible /chat/completions (cheaper than Anthropic).
@@ -60,12 +78,11 @@ export async function suggestCategoryViaLLM(input: {
         }),
         signal: controller.signal,
       });
-      if (!res.ok) return null;
-      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-      return parseFromText(data?.choices?.[0]?.message?.content ?? '');
-    }
-
-    if (anthropicKey) {
+      if (res.ok) {
+        const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+        text = data?.choices?.[0]?.message?.content ?? '';
+      }
+    } else if (anthropicKey) {
       const res = await fetch(ANTHROPIC_URL, {
         method: 'POST',
         headers: {
@@ -80,16 +97,27 @@ export async function suggestCategoryViaLLM(input: {
         }),
         signal: controller.signal,
       });
-      if (!res.ok) return null;
-      const data = (await res.json()) as { content?: { text?: string }[] };
-      const text = Array.isArray(data?.content) ? data.content.map((b) => b?.text ?? '').join('') : '';
-      return parseFromText(text);
+      if (res.ok) {
+        const data = (await res.json()) as { content?: { text?: string }[] };
+        text = Array.isArray(data?.content) ? data.content.map((b) => b?.text ?? '').join('') : '';
+      }
     }
-
-    return null; // unreachable (guarded above), kept for exhaustiveness
   } catch {
-    return null; // network error, timeout abort, bad JSON, etc. → fall back deterministically
+    text = null; // network error, timeout abort, bad body JSON → unavailable
   } finally {
     clearTimeout(timer);
   }
+
+  const value = text === null ? null : parseFromText(text);
+  try {
+    // Meta is closed-set only: parseLlmCategory already pinned categoryId to the
+    // fixed list and capped confidenceBps — safe to persist and render (§3.2).
+    await onOutcome?.(
+      text === null ? 'unavailable' : value ? 'replied' : 'rejected',
+      value ? { categoryId: value.categoryId, confidenceBps: value.confidenceBps } : {},
+    );
+  } catch {
+    // an audit fault must never break categorization
+  }
+  return value;
 }

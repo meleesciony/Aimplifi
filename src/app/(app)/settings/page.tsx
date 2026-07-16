@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -222,6 +223,14 @@ export default async function SettingsPage() {
             We also keep a first-party log of which dashboard cards you open, expand, or skip —
             only to personalize layout and quiet ignored tips later. Nothing is sent to third-party
             analytics; delete your account and the log goes with it.
+          </p>
+          <p className="text-xs" data-testid="trust-center-link">
+            <Link href="/trust" className="underline underline-offset-2">
+              Open the AI Trust Center
+            </Link>{' '}
+            <span className="text-muted-foreground">
+              — where AI runs, its hard limits, and a ledger of model calls on your data.
+            </span>
           </p>
         </CardContent>
       </Card>

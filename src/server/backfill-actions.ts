@@ -10,9 +10,11 @@
  */
 import { requireUserId } from '@/server/authz';
 import { runBackfillForUser, type BackfillResult } from '@/server/backfill';
-import { suggestCategoryViaLLM } from '@/server/llm-categorize';
+import { categorizeSuggestFor } from '@/server/categorize-suggest';
 
 export async function backfillCategorization(): Promise<BackfillResult> {
   const userId = await requireUserId();
-  return runBackfillForUser(userId, suggestCategoryViaLLM);
+  // categorizeSuggestFor: demo fence (#242 P1-1/F1 — demo backfill runs the
+  // deterministic pass only, on any deployment) + Trust Center audit sink (§3.2).
+  return runBackfillForUser(userId, categorizeSuggestFor(userId));
 }
