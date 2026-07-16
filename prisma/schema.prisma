@@ -369,6 +369,13 @@ model CategoryPrediction {
   transactionId       String    @unique
   predictedCategoryId String
   confidenceBps       Int
+  // Provenance of the predicted category (Why-This-Category §3.1): the pipeline's
+  // CategorySource, or 'llm' when the assist overlay won an unsure row. Nullable:
+  // NULL means the row predates this column (forward-only — the resolver reads
+  // NULL as an honest 'not-recorded', never a guessed origin). A user-dictated
+  // category (confidence 10000) is never logged here, so it has no source by
+  // construction. See categorize/provenance.ts, WHY_THIS_CATEGORY_PLAN.md.
+  source              String? // PredictionSource | null
   actualCategoryId    String? // null until confirmed/known
   // When a USER set actualCategoryId (filing/correcting in triage or the
   // register). Stays null for seed-time labels: per-user threshold tuning

@@ -19,6 +19,7 @@ import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
 import { estimateMinimumPayment } from '@/lib/engine/cash-needed/engine';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type CategorizedTxn, type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
+import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 import { resolvePlaidCurrency } from './currency';
 
 export type PulseAccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT' | 'INVESTMENT' | 'LOAN' | 'MORTGAGE';
@@ -549,6 +550,10 @@ export interface IngestedTransaction {
   needsReview: boolean;
   isTransfer: boolean;
   status: 'PENDING' | 'POSTED';
+  /** Provenance of the categorized category (Why-This-Category §3.1). Plaid never
+   * user-dictates, so this is always the pipeline's CategorySource here; the LLM
+   * assist overlay may later stamp it 'llm' via assistUnsureRows. */
+  source: PredictionSource;
 }
 
 /**
@@ -596,5 +601,6 @@ export function prepareIngestedTransaction(
     needsReview: result.needsReview,
     isTransfer: result.source === 'transfer',
     status: txn.pending ? 'PENDING' : 'POSTED',
+    source: result.source,
   };
 }

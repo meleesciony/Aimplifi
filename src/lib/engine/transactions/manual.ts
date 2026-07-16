@@ -11,6 +11,7 @@ import { isoDate } from '@/lib/dates';
 import { centsFromDollarString } from '@/lib/money';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
+import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 
 export interface ManualTxnInput {
   descriptor: string;
@@ -33,6 +34,12 @@ export interface PreparedTxn {
   needsReview: boolean;
   isTransfer: boolean;
   status: 'POSTED';
+  /**
+   * Provenance of the auto-categorized category (Why-This-Category §3.1).
+   * Absent for a user-DICTATED category — that carries confidence 10000 and is
+   * never logged as a prediction, so it has no source by construction.
+   */
+  source?: PredictionSource;
 }
 
 const NO_EXTRA_IDS: ReadonlySet<string> = new Set();
@@ -103,5 +110,6 @@ export function prepareManualTransaction(
     needsReview: result.needsReview,
     isTransfer: result.source === 'transfer',
     status: 'POSTED',
+    source: result.source,
   };
 }

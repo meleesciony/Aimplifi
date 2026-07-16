@@ -13,7 +13,7 @@
  */
 import { ASSIGNABLE_CATEGORIES } from './assign';
 import { CATEGORY_BY_ID } from './categories';
-import { AUTO_SILENT_BPS } from './pipeline';
+import { AUTO_SILENT_BPS, RULE_CONFIDENCE_BPS } from './pipeline';
 
 export interface LlmCategory {
   categoryId: string;
@@ -33,7 +33,15 @@ export function parseLlmCategory(raw: unknown): LlmCategory | null {
   if (typeof id !== 'string' || !CATEGORY_BY_ID.has(id) || id === 'uncategorized') return null;
   const conf = obj.confidence;
   if (typeof conf !== 'number' || !Number.isFinite(conf) || conf < 0 || conf > 1) return null;
-  return { categoryId: id, confidenceBps: Math.round(conf * 10000) };
+  // 10000 bps is RESERVED for a USER-dictated category (server/predictions.ts skips
+  // it; Why-This-Category §3.1 reads "no prediction row + confidence 10000" as
+  // "you set this"). An LLM confidence of 1.0 rounds to 10000 and would then be
+  // (a) dropped from the prediction/Brier log and (b) later shown as a HUMAN fact —
+  // a fabricated origin, the exact cardinal-rule violation. Cap the model at the
+  // user-rule ceiling (9900) so its most confident guesses stay logged, auto-filed
+  // (≥ AUTO_SILENT 9000), and honestly labeled 'llm'. (Hostile critic P0-1.)
+  const confidenceBps = Math.min(Math.round(conf * 10000), RULE_CONFIDENCE_BPS);
+  return { categoryId: id, confidenceBps };
 }
 
 /** Build the (deterministic) classification prompt for one transaction. */

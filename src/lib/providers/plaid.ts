@@ -627,7 +627,12 @@ export class PlaidProvider implements DataProvider {
                   // tuning (DECISIONS #190): the live-path counterpart of the seed's
                   // prediction log. After the create — a raced loser never logs.
                   await logCategoryPredictions(userId, [
-                    { transactionId: createdRow.id, categoryId: row.categoryId, confidenceBps: row.confidenceBps },
+                    {
+                      transactionId: createdRow.id,
+                      categoryId: row.categoryId,
+                      confidenceBps: row.confidenceBps,
+                      source: row.source,
+                    },
                   ]);
                   added++;
                 } catch (e) {

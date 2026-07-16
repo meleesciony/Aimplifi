@@ -11,6 +11,7 @@
  */
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { type LlmCategory, pickAssistedCategory } from '@/lib/engine/categorize/llm';
+import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 
 export interface AssistableRow {
   rawDescriptor: string;
@@ -18,6 +19,14 @@ export interface AssistableRow {
   categoryId: string | null;
   confidenceBps: number | null;
   needsReview: boolean;
+  /**
+   * Provenance of the row's category (Why-This-Category §3.1). Carried in by the
+   * ingest prepare step (the pipeline's CategorySource); this overlay STAMPS it
+   * 'llm' on any row it auto-files from the model, so the persisted source is the
+   * true composition. Optional so non-provenance assist callers (backfill) are
+   * unaffected.
+   */
+  source?: PredictionSource;
 }
 
 function isUnsure(r: AssistableRow): boolean {
@@ -61,6 +70,14 @@ export async function assistUnsureRows<T extends AssistableRow>(
     const isIncomeGroup = CATEGORY_BY_ID.get(picked.categoryId)?.group === 'Income';
     if (r.amountCents > 0 && !isIncomeGroup) return r;
     if (r.amountCents < 0 && isIncomeGroup) return r;
-    return { ...r, categoryId: picked.categoryId, confidenceBps: picked.confidenceBps, needsReview: false };
+    // The overlay won this unsure row — record 'llm' as its provenance so the
+    // prediction log persists the true source (Why-This-Category §3.1).
+    return {
+      ...r,
+      categoryId: picked.categoryId,
+      confidenceBps: picked.confidenceBps,
+      needsReview: false,
+      source: 'llm',
+    };
   });
 }

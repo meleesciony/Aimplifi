@@ -138,6 +138,11 @@ async function main() {
       transactionId: txn.id,
       predictedCategoryId: out.categoryId,
       confidenceBps: out.confidenceBps,
+      // Provenance (Why-This-Category §3.1): the pipeline's CategorySource. Seed
+      // runs with no LLM, so no demo prediction is ever 'llm' — the demo shows no
+      // 'ai-guess' badge until slice 2 seeds one deliberately. No 'not-recorded'
+      // on the seed set (every row carries a real source).
+      source: out.source,
       actualCategoryId: knownByCanonical.get(out.merchantCanonical)?.categoryId ?? null,
     })),
   });

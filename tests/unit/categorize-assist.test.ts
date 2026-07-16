@@ -47,6 +47,23 @@ describe('assistUnsureRows — LLM auto-apply at ingest (DECISIONS #42)', () => 
     expect(out).toEqual([confident]);
   });
 
+  it('stamps source "llm" on an overlaid row, and never on an untouched one (Why-This-Category §3.1)', async () => {
+    const seeded: AssistableRow = { ...unsure('FIGMA MONTHLY'), source: 'fallback' };
+    const confidentWithSource: AssistableRow = { ...confident, source: 'merchant-default' };
+    const suggest = vi.fn(async (): Promise<LlmCategory> => ({ categoryId: 'software', confidenceBps: 9000 }));
+    const out = await assistUnsureRows([confidentWithSource, seeded], suggest);
+    // The pipeline-confident row keeps its incoming provenance verbatim.
+    expect(out[0].source).toBe('merchant-default');
+    // The overlaid row's provenance becomes 'llm' — the true persisted source.
+    expect(out[1].source).toBe('llm');
+  });
+
+  it('does NOT stamp "llm" when the row is left in review (no key / low confidence / sign guard)', async () => {
+    const seeded: AssistableRow = { ...unsure('X'), source: 'fallback' };
+    const noKey = await assistUnsureRows([seeded], async () => null);
+    expect(noKey[0].source).toBe('fallback'); // unchanged — no fabricated 'llm'
+  });
+
   it('does NOT auto-file an INFLOW as a spend category (sign guard, #44)', async () => {
     const inflow: AssistableRow = {
       rawDescriptor: 'ACME REFUND',

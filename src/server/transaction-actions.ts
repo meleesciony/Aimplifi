@@ -6,6 +6,7 @@
  * as ingested rows; audit-logged. Balances are provider-authoritative and are
  * NOT mutated here (docs/DECISIONS.md).
  */
+import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { type PreparedTxn, prepareManualTransaction } from '@/lib/engine/transactions/manual';
@@ -103,6 +104,10 @@ export async function createManualTransaction(
   let categoryId = prepared.categoryId;
   let confidenceBps = prepared.confidenceBps;
   let needsReview = prepared.needsReview;
+  // Provenance to log (Why-This-Category §3.1): the pipeline's source, stamped
+  // 'llm' when the assist overlay auto-files. Undefined when the user dictated a
+  // category (confidence 10000 → never logged as a prediction).
+  let source = prepared.source;
   if (!categoryRaw) {
     const llm = await suggestCategoryViaLLM({
       rawDescriptor: prepared.rawDescriptor,
@@ -118,7 +123,10 @@ export async function createManualTransaction(
     );
     categoryId = picked.categoryId;
     confidenceBps = picked.confidenceBps;
-    if (picked.source === 'llm') needsReview = false; // a confident LLM pick auto-files
+    if (picked.source === 'llm') {
+      needsReview = false; // a confident LLM pick auto-files
+      source = 'llm';
+    }
   }
 
   const createdRow = await prisma.transaction.create({
@@ -138,7 +146,7 @@ export async function createManualTransaction(
   // (DECISIONS #190). An EXPLICIT user category carries confidence 10000 and is
   // skipped inside the helper — the user dictating a category is not a prediction.
   await logCategoryPredictions(userId, [
-    { transactionId: createdRow.id, categoryId, confidenceBps },
+    { transactionId: createdRow.id, categoryId, confidenceBps, source },
   ]);
 
   await auditLog(userId, 'transaction.create.manual', {
@@ -192,6 +200,10 @@ export async function importTransactionsCsv(
   const prepared = rows.map((row) => {
     const p = prepareImportedTransaction(row, accountId, rules, tuning.flaggedBps);
     return {
+      // Pre-assigned id so the prediction log correlates provenance by KEY, not by
+      // createManyAndReturn row order (which SQLite/Prisma do not contractually
+      // guarantee) — critic P1-2. Survives the assistUnsureRows spread.
+      id: randomUUID(),
       accountId,
       date: p.date,
       amountCents: p.amountCents,
@@ -201,6 +213,10 @@ export async function importTransactionsCsv(
       status: p.status,
       needsReview: p.needsReview,
       isTransfer: p.isTransfer,
+      // Provenance for the prediction log (Why-This-Category §3.1). NOT a
+      // Transaction column — stripped before the DB write below, carried only to
+      // logCategoryPredictions. assistUnsureRows may stamp it 'llm'.
+      source: p.source,
     };
   });
 
@@ -210,16 +226,34 @@ export async function importTransactionsCsv(
   const data = await assistUnsureRows(prepared, suggestCategoryViaLLM);
 
   if (data.length > 0) {
-    const createdRows = await prisma.transaction.createManyAndReturn({
-      data,
-      select: { id: true, categoryId: true, confidenceBps: true },
+    // Project to Transaction columns only (`source` is NOT one) before the DB
+    // write; each row carries its pre-assigned id, so the prediction log below
+    // reads straight off `data` — no reliance on returned-row order (critic P1-2).
+    await prisma.transaction.createMany({
+      data: data.map((r) => ({
+        id: r.id,
+        accountId: r.accountId,
+        date: r.date,
+        amountCents: r.amountCents,
+        rawDescriptor: r.rawDescriptor,
+        categoryId: r.categoryId,
+        confidenceBps: r.confidenceBps,
+        status: r.status,
+        needsReview: r.needsReview,
+        isTransfer: r.isTransfer,
+      })),
     });
-    // Log each pipeline/LLM verdict for the accuracy metric + threshold tuning
-    // (DECISIONS #190). Rows whose category the CSV dictated carry confidence
-    // 10000 and are skipped inside the helper.
+    // Log each pipeline/LLM verdict + its provenance for the accuracy metric +
+    // threshold tuning (DECISIONS #190) and Why-This-Category (§3.1). Rows whose
+    // category the CSV dictated carry confidence 10000 and are skipped in the helper.
     await logCategoryPredictions(
       userId,
-      createdRows.map((r) => ({ transactionId: r.id, categoryId: r.categoryId, confidenceBps: r.confidenceBps })),
+      data.map((r) => ({
+        transactionId: r.id,
+        categoryId: r.categoryId,
+        confidenceBps: r.confidenceBps,
+        source: r.source,
+      })),
     );
   }
 

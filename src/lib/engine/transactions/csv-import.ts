@@ -22,6 +22,7 @@ import { centsFromDollarString } from '@/lib/money';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
+import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 
 const DESCRIPTION_ALIASES = ['description', 'payee', 'memo', 'name'];
 const DATE_ALIASES = ['date', 'transaction date', 'posted date'];
@@ -163,6 +164,12 @@ export interface PreparedImportRow {
   needsReview: boolean;
   isTransfer: boolean;
   status: 'POSTED';
+  /**
+   * Provenance of the auto-categorized category (Why-This-Category §3.1). Absent
+   * when the CSV DICTATED a category — that carries confidence 10000 and is never
+   * logged as a prediction, so it has no source by construction.
+   */
+  source?: PredictionSource;
 }
 
 /**
@@ -208,5 +215,6 @@ export function prepareImportedTransaction(
     needsReview: result.needsReview,
     isTransfer: result.source === 'transfer',
     status: 'POSTED',
+    source: result.source,
   };
 }

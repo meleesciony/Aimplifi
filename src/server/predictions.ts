@@ -22,11 +22,19 @@
  *    labeled.
  */
 import { prisma } from '@/lib/db';
+import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 
 export interface PredictionLogRow {
   transactionId: string;
   categoryId: string | null;
   confidenceBps: number | null;
+  /**
+   * Provenance of the predicted category (Why-This-Category §3.1). Optional/
+   * nullable: absent for a user-dictated row (filtered out below anyway), null
+   * for a caller that hasn't been threaded. Persisted verbatim to
+   * CategoryPrediction.source.
+   */
+  source?: PredictionSource | null;
 }
 
 export async function logCategoryPredictions(
@@ -35,7 +43,7 @@ export async function logCategoryPredictions(
 ): Promise<void> {
   const data = rows
     .filter(
-      (r): r is { transactionId: string; categoryId: string; confidenceBps: number } =>
+      (r): r is PredictionLogRow & { categoryId: string; confidenceBps: number } =>
         r.categoryId != null && r.confidenceBps != null && r.confidenceBps < 10000,
     )
     .map((r) => ({
@@ -43,6 +51,7 @@ export async function logCategoryPredictions(
       transactionId: r.transactionId,
       predictedCategoryId: r.categoryId,
       confidenceBps: r.confidenceBps,
+      source: r.source ?? null,
     }));
   if (data.length === 0) return;
   await prisma.categoryPrediction.createMany({ data });

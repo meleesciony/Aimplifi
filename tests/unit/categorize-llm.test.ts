@@ -18,6 +18,18 @@ describe('parseLlmCategory — schema validation (DECISIONS #38)', () => {
     expect(parseLlmCategory({ categoryId: 'uncategorized', confidence: 0.9 })).toBeNull();
   });
 
+  it('caps confidence at the user-rule ceiling (9900) — 10000 is reserved for user-dictated (critic P0-1)', () => {
+    // An LLM confidence of 1.0 would round to 10000 and collide with the
+    // "you set this" sentinel — dropped from the prediction log and shown as a
+    // human fact. It must cap at 9900 so it stays logged and labeled 'llm'.
+    expect(parseLlmCategory({ categoryId: 'dining', confidence: 1 })).toEqual({
+      categoryId: 'dining',
+      confidenceBps: 9900,
+    });
+    // 0.99996 also rounds to 10000 without the cap.
+    expect(parseLlmCategory({ categoryId: 'dining', confidence: 0.99996 })?.confidenceBps).toBe(9900);
+  });
+
   it('rejects missing or out-of-range confidence, and non-objects', () => {
     expect(parseLlmCategory({ categoryId: 'dining' })).toBeNull();
     expect(parseLlmCategory({ categoryId: 'dining', confidence: 1.5 })).toBeNull();

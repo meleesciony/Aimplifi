@@ -107,6 +107,16 @@ unit-pinned):
 `ai-guess` is the ONLY `needsConfirm: true` kind. `not-recorded` is unreachable in demo mode (all
 seed rows carry a real source), and the resolver proves this with a demo-fixture test.
 
+**Critic-hardened contract (cycle 1 → 2, DECISIONS #238).** Two inputs were added after the
+first hostile-critic pass — slice 2 MUST supply them:
+- `predictedCategoryId` + `currentCategoryId`: the prediction row is the FIRST verdict, but the
+  current category moves (backfill LLM re-file, sync verdict refresh, household-partner
+  correction at 9900 without `labeledAt`). When predicted ≠ current the stored source is stale →
+  `not-recorded`, never a false origin (critic P1-3). Slice 2 passes the transaction's live
+  `categoryId` as `currentCategoryId`.
+- The 10000-sentinel invariant is enforced at its source: `parseLlmCategory` caps LLM confidence
+  at 9900, so an LLM pick can never masquerade as a user-dictated 10000 (critic P0-1).
+
 ### Grounding invariants (the tests are the spec)
 - **No fabricated origin:** the resolver emits `llm`/`ai-guess` *only* when `source === 'llm'` was
   actually persisted — never inferred from confidence or category. A property test over all

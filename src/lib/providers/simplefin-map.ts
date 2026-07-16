@@ -23,6 +23,7 @@ import { type ISODate, fromEpochDays } from '@/lib/dates';
 import { type Cents, cents } from '@/lib/money';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
+import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 import { canonicalizeCurrency } from './currency';
 
 export type PulseAccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT' | 'INVESTMENT' | 'LOAN';
@@ -206,6 +207,10 @@ export interface IngestedSfTransaction {
   needsReview: boolean;
   isTransfer: boolean;
   status: 'PENDING' | 'POSTED';
+  /** Provenance of the categorized category (Why-This-Category §3.1). SimpleFIN
+   * never user-dictates, so this is the pipeline's CategorySource; the LLM assist
+   * overlay may stamp it 'llm' via assistUnsureRows. */
+  source: PredictionSource;
 }
 
 /**
@@ -247,5 +252,6 @@ export function prepareSimplefinTransaction(
     needsReview: result.needsReview,
     isTransfer: result.source === 'transfer',
     status: txn.pending ? 'PENDING' : 'POSTED',
+    source: result.source,
   };
 }
