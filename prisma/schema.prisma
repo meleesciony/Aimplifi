@@ -67,6 +67,7 @@ model User {
   unknownQuestions    UnknownQuestion[]
   vocabEntries        VocabEntry[]
   engagementEvents    EngagementEvent[]
+  nudgeDismissals     NudgeDismissal[]
   selfAuditSnapshots  SelfAuditSnapshot[]
   householdMembership HouseholdMember? // v1: at most one household per user (HOUSEHOLD_ARCHITECTURE §4.1)
 }
@@ -630,6 +631,27 @@ model EngagementEvent {
   @@index([userId])
   @@index([createdAt])
   @@index([userId, subjectKey])
+}
+
+// Nudge-feed suppression store (NUDGE_PLAN slice 2, DECISIONS #237). A DEDICATED
+// dismissed-key store — deliberately SEPARATE from EngagementEvent. Its keys are the
+// engine-minted `dismissKey`s, which embed a merchant and cents (e.g.
+// `price-increase:Netflix:1999->2499`); EngagementEvent's closed-set, no-money
+// subjectKey contract forbids storing those, so the two stores cannot be merged.
+// Read into NudgeInput.dismissedKeys at feed-build time. NEVER routed into
+// selectPaymentReminders' own upstream `dismissedKeys` filter — doing so would drop a
+// reminder from the feed's INPUT before the engine's CRITICAL exemption can act while
+// the push cron still pushed it (push-but-absent-from-feed, the bury failure). The
+// shared demo user never writes here (session-only dismissal — see server/nudge.ts).
+model NudgeDismissal {
+  id         String   @id @default(cuid())
+  userId     String
+  dismissKey String // engine-minted Proposal.dismissKey (opaque to storage)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dismissKey])
+  @@index([userId])
 }
 
 // Weekly self-audit Critic (TASKS 3.2, DECISIONS #211): one row per user×ISO-week

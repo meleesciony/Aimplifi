@@ -27,6 +27,9 @@ import { getCashFlowRadar } from '@/server/radar';
 import { getRecurring } from '@/server/recurring';
 import { getReturnMoment } from '@/server/return-moment';
 import { ReturnMomentCard } from '@/components/dashboard/return-moment-card';
+import { TodayFeedCard } from '@/components/dashboard/today-feed-card';
+import { getNudgeDismissedKeys } from '@/server/nudge';
+import { buildNudgeFeed } from '@/lib/engine/nudge/select';
 import { getReports } from '@/server/reports';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { getSpendingTrends } from '@/server/trends';
@@ -52,7 +55,7 @@ export default async function DashboardPage({
   // `?scope=household` link never errors, just silently degenerates.
   const requestedScope = (await searchParams).scope === 'household' ? 'household' : 'mine';
 
-  const [data, coach, plan, reports, recurring, trends, withheld, freshness, connectionAlerts, radar] = await Promise.all([
+  const [data, coach, plan, reports, recurring, trends, withheld, freshness, connectionAlerts, radar, nudgeDismissedKeys] = await Promise.all([
     getDashboardData(session.user.id, requestedScope),
     getCoachData(session.user.id),
     getSpendingPlan(session.user.id),
@@ -63,7 +66,25 @@ export default async function DashboardPage({
     getDataFreshness(session.user.id),
     getConnectionAlerts(session.user.id),
     getCashFlowRadar(session.user.id),
+    getNudgeDismissedKeys(session.user.id),
   ]);
+
+  // "Today" nudge feed (NUDGE_PLAN slice 2): a ranked digest built by the pure
+  // buildNudgeFeed engine over the SAME source rows the cards below already show —
+  // no re-fetch, no new money math. `feed` applies the user's persisted dismissals;
+  // `feedAll` (empty dismissedKeys) is what the card's "show everything" reveals. The
+  // dismissed set feeds ONLY buildNudgeFeed — never selectPaymentReminders' upstream
+  // filter (which the dashboard/cron call with no dismissedKeys), so a push candidate
+  // can never be dropped from the feed's input (NUDGE_PLAN slice-2 guardrail).
+  const nudgeInput = {
+    today: radar.radar.today,
+    reminders: data.reminders,
+    radar: radar.radar,
+    cashNeeded: data.payInFull,
+    opportunities: coach.opportunities,
+  } as const;
+  const nudgeFeed = buildNudgeFeed({ ...nudgeInput, dismissedKeys: nudgeDismissedKeys });
+  const nudgeFeedAll = buildNudgeFeed({ ...nudgeInput, dismissedKeys: new Set<string>() });
 
   // Return moment (TASKS 1.1): "since you were away" greeting for a user back after
   // a >7-day gap. Composes ALREADY-fetched pieces (coach review + opportunities,
@@ -131,6 +152,11 @@ export default async function DashboardPage({
         transferSource={transferSource}
         householdName={data.scope === 'household' ? data.household?.name ?? null : null}
       />
+
+      {/* "Today" nudge feed (NUDGE_PLAN slice 2) — the one thing that needs you now,
+          ranked, with a collapsed rest and everything autopay handles kept quiet. A
+          reshape of the cards below; detail still lives in each source card. */}
+      <TodayFeedCard feed={nudgeFeed} feedAll={nudgeFeedAll} />
 
       {/* "Since you were away" greeting (TASKS 1.1) — sits right under THE answer.
           Present only for a genuine return (>7-day gap); silent otherwise. */}

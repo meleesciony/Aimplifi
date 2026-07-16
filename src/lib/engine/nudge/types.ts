@@ -9,6 +9,7 @@
  */
 import type { Cents } from '@/lib/money';
 import type { ISODate } from '@/lib/dates';
+import type { EngagementSubjectKey } from '@/lib/engine/engagement/event';
 import type { PaymentReminder } from '@/lib/engine/reminders/select';
 import type { RadarResult } from '@/lib/engine/radar/radar';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
@@ -48,10 +49,13 @@ export interface Proposal {
    * dismissed/acted — deliberately no money, no merchant — so it stays inside
    * EngagementEvent's closed-set, no-money contract. It is NOT the dismissal key.
    *
-   * NOTE (slice-2 wiring): `nudge:<kind>` is not yet in ENGAGEMENT_SUBJECT_KEYS; slice 2
-   * must extend that closed set (or map to a single `nudge-feed` subject) before logging.
+   * Typed `EngagementSubjectKey` (not string) so a consumer can pass it straight into
+   * `logEngagement` with no cast: the closed-set membership is a compile-time fact, and
+   * `select.ts`'s `subjectKey()` is the sole producer (its return is checked against the
+   * same type). Extending ProposalKind without extending ENGAGEMENT_SUBJECT_KEYS fails
+   * the build here, never silently at the runtime validator.
    */
-  subjectKey: string;
+  subjectKey: EngagementSubjectKey;
   /**
    * The date that orders this proposal within its tier (verbatim copy of a source
    * date; null = undated, sorts last within the tier).
@@ -61,6 +65,16 @@ export interface Proposal {
   daysUntil: number | null;
   /** Verbatim money-at-stake, for within-tier ordering and display. Never computed. */
   centsAtStake: Cents;
+  /**
+   * Verbatim autopay portion for a payment_due proposal (`PaymentReminder.autopayCents`);
+   * ZERO for every other kind. Display context ONLY — it lets the card disclose the
+   * autopay split so the feed's "to pay" figure (centsAtStake = userActionCents, the
+   * REMAINDER after autopay) can never be misread as the whole statement, keeping the
+   * feed in lockstep with the reminders card ("$600 due · autopay covers $100 · $500 to
+   * pay"). Never summed here — the two verbatim parts are shown, the total is not
+   * recomputed.
+   */
+  autopayCents: Cents;
   isEstimated: boolean;
   /** True iff the user has dismissed this proposal's dismissKey (UI collapse hint). */
   dismissed: boolean;

@@ -21,6 +21,7 @@ import {
   paymentNotificationKey,
   radarNotificationKey,
 } from '@/lib/engine/notify/select';
+import type { EngagementSubjectKey } from '@/lib/engine/engagement/event';
 import type { NudgeFeed, NudgeInput, Proposal, ProposalKind, ProposalTier } from './types';
 
 const TIER_RANK: Record<ProposalTier, number> = {
@@ -30,7 +31,14 @@ const TIER_RANK: Record<ProposalTier, number> = {
   handled: 3,
 };
 
-function subjectKey(kind: ProposalKind): string {
+/**
+ * The behavioral-log subject for a proposal — `nudge:<kind>`. The return type is
+ * `EngagementSubjectKey` on purpose: it makes the closed-set extension in
+ * engagement/event.ts a COMPILE-TIME lockstep. Add a ProposalKind without its
+ * `nudge:<kind>` entry there and this annotation fails tsc, rather than the log
+ * silently no-op'ing at runtime (isValidEngagementEvent would reject it).
+ */
+function subjectKey(kind: ProposalKind): EngagementSubjectKey {
   return `nudge:${kind}`;
 }
 
@@ -70,6 +78,7 @@ function paymentProposal(r: PaymentReminder, today: ISODate, dismissed: Readonly
     sortDate: r.dueDate, // verbatim
     daysUntil: r.daysUntil, // verbatim
     centsAtStake,
+    autopayCents: r.autopayCents, // verbatim — display context for the autopay split
     isEstimated: r.isEstimated,
     dismissed: dismissed.has(dismissKey),
   };
@@ -95,6 +104,7 @@ function dipProposal(
     sortDate: radar.committed.firstNegativeDate, // verbatim
     daysUntil: radar.daysUntilFirstNegative, // verbatim (nullable)
     centsAtStake: radar.coverTransfer?.amountCents ?? ZERO, // verbatim (mirrors notify/select)
+    autopayCents: ZERO, // not a payment_due proposal
     isEstimated: radar.includesEstimatedDues,
     dismissed: dismissed.has(dismissKey),
   };
@@ -110,6 +120,13 @@ function shortfallProposal(
   const date = cn.headline.shortfallDate ?? cn.headline.byDate; // verbatim (either source date)
   const key = `cash_needed_shortfall:${date ?? 'undated'}`;
   const dismissKey = dismissKeyFor(tier, key, today);
+  // The shortfall is a projection over the cycle's obligations; when any of those
+  // obligations is an ESTIMATE (statement not yet generated), the figure rests partly
+  // on estimates and must disclose it — mirroring the per-card "(estimated statement)"
+  // and dip's `includesEstimatedDues`. A boolean reshape of the engine's own per-card
+  // flags (no money arithmetic); the conservative direction (discloses whenever any
+  // estimate is in play) never presents an estimate as a settled figure.
+  const isEstimated = cn.perDueDate.some((p) => p.cards.some((c) => c.isEstimated));
   return {
     kind: 'cash_needed_shortfall',
     tier,
@@ -119,7 +136,8 @@ function shortfallProposal(
     sortDate: date, // verbatim (nullable)
     daysUntil: null,
     centsAtStake: cn.headline.shortfallCents, // verbatim
-    isEstimated: false,
+    autopayCents: ZERO, // not a payment_due proposal
+    isEstimated,
     dismissed: dismissed.has(dismissKey),
   };
 }
@@ -160,6 +178,7 @@ function opportunityProposal(o: Opportunity, today: ISODate, dismissed: Readonly
     sortDate: null,
     daysUntil: null,
     centsAtStake: o.monthlyCents, // verbatim
+    autopayCents: ZERO, // not a payment_due proposal
     isEstimated: o.isEstimate,
     dismissed: dismissed.has(dismissKey),
   };

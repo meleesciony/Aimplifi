@@ -22,6 +22,19 @@ export const ENGAGEMENT_SUBJECT_KEYS = [
   'spending-insights',
   'recurring-summary',
   'onboarding-nudge',
+  // Nudge "Today" feed proposals (NUDGE_PLAN slice 2). One stable subject per
+  // ProposalKind — `nudge:<kind>` — matching engine/nudge/select.ts `subjectKey()`
+  // verbatim. Deliberately the KIND only: no money, no merchant (those live in the
+  // proposal's own dismissKey/suppression store, never in the behavioral log). Slice 3
+  // reads these rows for cadence learning. Keep in lockstep with ProposalKind: a new
+  // OpportunityKind needs its `nudge:<kind>` added here or its logging silently no-ops.
+  'nudge:payment_due',
+  'nudge:cash_flow_dip',
+  'nudge:cash_needed_shortfall',
+  'nudge:price-increase',
+  'nudge:unused-subscription',
+  'nudge:insurance-reshop',
+  'nudge:negotiable-bill',
 ] as const;
 export type EngagementSubjectKey = (typeof ENGAGEMENT_SUBJECT_KEYS)[number];
 

@@ -20,6 +20,25 @@ describe('isValidEngagementEvent', () => {
     }
   });
 
+  it('accepts every nudge:<kind> subject the feed engine can emit (NUDGE_PLAN slice 2)', () => {
+    // Runtime confirmation of the compile-time lockstep in engine/nudge/select.ts
+    // (subjectKey returns EngagementSubjectKey). If a ProposalKind is added, add its
+    // `nudge:<kind>` here AND to ENGAGEMENT_SUBJECT_KEYS, or logging silently no-ops.
+    const NUDGE_SUBJECTS = [
+      'nudge:payment_due',
+      'nudge:cash_flow_dip',
+      'nudge:cash_needed_shortfall',
+      'nudge:price-increase',
+      'nudge:unused-subscription',
+      'nudge:insurance-reshop',
+      'nudge:negotiable-bill',
+    ] as const;
+    for (const subjectKey of NUDGE_SUBJECTS) {
+      expect(ENGAGEMENT_SUBJECT_KEYS as readonly string[]).toContain(subjectKey);
+      expect(isValidEngagementEvent({ surface: 'dashboard', verb: 'dismissed', subjectKey })).toBe(true);
+    }
+  });
+
   it('rejects unknown surface, verb, or subjectKey (incl. PII-shaped keys)', () => {
     expect(
       isValidEngagementEvent({ surface: 'dashboard', verb: 'viewed', subjectKey: 'return-moment' }),

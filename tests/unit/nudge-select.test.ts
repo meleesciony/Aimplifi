@@ -99,7 +99,26 @@ function cashNeededOf(o: {
   shortfallDate?: string | null;
   byDate?: string | null;
   requiredCents?: number;
+  /** isEstimated flag per synthesized perDueDate point (default: one real point). */
+  cycleEstimatedFlags?: boolean[];
 }): CashNeededResult {
+  const flags = o.cycleEstimatedFlags ?? [false];
+  const perDueDate = flags.map((est, i) => ({
+    date: isoDate(addDays(TODAY, i + 1)),
+    cards: [
+      {
+        cardId: `c${i}`,
+        cardName: `Card ${i}`,
+        amountCents: cents(10000),
+        autopayCents: cents(0),
+        isEstimated: est,
+      },
+    ],
+    dayTotalCents: cents(10000),
+    cumulativeNeedCents: cents(10000 * (i + 1)),
+    projectedBalanceAfterCents: cents(-5000),
+    shortfallCents: cents(5000),
+  }));
   return {
     scenario: 'PAY_IN_FULL',
     headline: {
@@ -115,7 +134,7 @@ function cashNeededOf(o: {
             : null,
       recommendation: null,
     },
-    perDueDate: [],
+    perDueDate,
     cards: [],
     upcoming: [],
     intraPeriodMinimum: null,
@@ -505,5 +524,50 @@ describe('nudge · guards · emit only when material', () => {
     expect(feed.ordered.map((p) => p.kind)).toEqual(['payment_due', 'cash_needed_shortfall']);
     expect(feed.ordered[0].tier).toBe('critical');
     expect(feed.ordered[1].sortDate).toBeNull();
+  });
+});
+
+// ---- Slice 2, cycle-2 critic fixes (verbatim display context, honest estimate flag) ----
+describe('nudge · slice-2 cycle-2 · money-honesty passthroughs', () => {
+  it('N1: payment_due carries autopayCents VERBATIM (the card discloses the split, not a false total)', () => {
+    // Partial autopay: statement $600, autopay minimum $100 → userActionCents $500.
+    // centsAtStake is the $500 to pay; autopayCents must carry the $100 so the card can
+    // show "autopay covers $100" and never present $500 as the whole statement.
+    const r = reminder({ dueDate: '2026-06-12', daysUntil: 2, userActionCents: 50000, autopayCents: 10000 });
+    const feed = buildNudgeFeed(input({ reminders: [r] }));
+    const p = feed.ordered.find((x) => x.kind === 'payment_due')!;
+    expect(p.tier).toBe('critical');
+    expect(p.centsAtStake).toBe(r.userActionCents); // $500 to pay (verbatim)
+    expect(p.autopayCents).toBe(r.autopayCents); // $100 covered (verbatim) — never summed
+    // A no-autopay due carries autopayCents = 0 (the card then shows no split).
+    const noAuto = reminder({ accountId: 'x', dueDate: '2026-06-12', daysUntil: 2, userActionCents: 60000 });
+    expect(buildNudgeFeed(input({ reminders: [noAuto] })).ordered[0].autopayCents).toBe(0);
+  });
+
+  it('N1b: non-payment proposals carry autopayCents = 0', () => {
+    const feed = buildNudgeFeed(
+      input({
+        cashNeeded: cashNeededOf({ shortfallCents: 1000 }),
+        radar: radarOf({ coverCents: 5000 }),
+        opportunities: [oppOf({ kind: 'unused-subscription', merchant: 'Gym', monthlyCents: 4000 })],
+      }),
+    );
+    for (const p of feed.ordered.filter((x) => x.kind !== 'payment_due')) {
+      expect(p.autopayCents).toBe(0);
+    }
+  });
+
+  it('N2: cash_needed_shortfall.isEstimated reflects whether any cycle obligation is an estimate', () => {
+    // NOTE: the real cash-needed engine makes perDueDate HOMOGENEOUS (all-real when any
+    // statement exists, else all-estimated — estimated dues otherwise go to `upcoming`
+    // and never feed the projection). The mixed [false,true] fixture below is synthetic;
+    // `.some()` is robust either way, and this pins the honest-disclosure contract.
+    // All-real cycle → not estimated.
+    const real = buildNudgeFeed(input({ cashNeeded: cashNeededOf({ shortfallCents: 200000, cycleEstimatedFlags: [false, false] }) }));
+    expect(real.headline!.kind).toBe('cash_needed_shortfall');
+    expect(real.headline!.isEstimated).toBe(false);
+    // Any estimated obligation in the cycle → the shortfall discloses "estimated".
+    const est = buildNudgeFeed(input({ cashNeeded: cashNeededOf({ shortfallCents: 200000, cycleEstimatedFlags: [false, true] }) }));
+    expect(est.headline!.isEstimated).toBe(true);
   });
 });

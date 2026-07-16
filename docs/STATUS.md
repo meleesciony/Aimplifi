@@ -54,6 +54,39 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Nudge slice 2: dashboard "Today" feed + dismissal store (#237, 2026-07-15)
+
+Slice 2 wires the slice-1 engine into the UI (NUDGE_PLAN.md). The dashboard RSC builds
+`buildNudgeFeed` from the SAME source rows the cards below already show and renders a
+`TodayFeedCard` under the cash-needed headline: the top proposal + a collapsed rest,
+a "why am I seeing this" disclosure (tier rule + verbatim inputs), a "show everything"
+control (re-invokes the engine with an empty dismissedKeys set), and a Dismiss control on
+ACTION/OPPORTUNITY only — a CRITICAL warning is never given a hide button and is never
+suppressed by the engine (never buried). Copy is owner-neutral and per-kind-correct.
+
+**Store (schema change, reconciled):** the plan's slice-2 "no schema change" bullet was
+written before #236's P1-1 finding forced a DEDICATED suppression store (dismiss-keys
+embed merchant+cents, which EngagementEvent's closed-set no-money contract can't hold,
+and no generic dismissal table existed). Resolved with an additive `NudgeDismissal`
+model (portable, reversible). The shared demo user never writes AND never reads it
+(double fence, independently tested) — dismissal is session-only for `user-demo`.
+
+**Three Fable critic cycles** (money/data-integrity surface): cycle 1 FAIL (3 P1) → cycle
+2 FAIL (2 P1) → cycle 3 PASS (0 P0/P1). All five P1s were false-money-copy or write-path
+hygiene; all fixed and locked. Accepted-and-recorded residuals: EngagementEvent writes
+for the demo user stay unfenced in v1 (pre-existing 3.1 behavior; slice 3 enforces the
+read-side learning fence per NUDGE_PLAN criterion 8); the payment_due dismiss key carries
+no amount (a dismissed estimated due survives a large revision until it resurfaces
+CRITICAL at ≤3 days — bounded, reminders card never hides it); `NudgeDismissal.createdAt`
+doubles as last-dismissed-at.
+
+Gate (real output 2026-07-15): `bash scripts/verify.sh` → **✅ VERIFY GREEN — 2763 unit /
+197 files** (full e2e suite 120/120), tsc/eslint/build clean; today-feed e2e **5/5** (headline present, critical
+never dismissable, dismiss→show-everything round trip, honest "Up $2.50/mo" + "Payment
+due" copy, axe WCAG-AA with the disclosure open). **Next: NUDGE slice 3 (= TASKS 3.5) —
+cadence adaptation, deferred until real `EngagementEvent` behavioral data exists (audit §4
+constitution + demo read-fence).**
+
 ## Glass-Box slice 3: derivation "formula + inputs" panels (#235, 2026-07-15) — GLASSBOX_PLAN complete
 
 Slice 3 closes GLASSBOX_PLAN (AI plan §2.1): the three derivation figures Ask can honestly explain —

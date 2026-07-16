@@ -1120,3 +1120,33 @@ CRITICAL. payment_due reuses `paymentNotificationKey`, cash_flow_dip reuses
 `radarNotificationKey` — keys are reused from notify/select, not re-minted, and the
 CRITICAL window is the shared `NOTIFY_DUE_WINDOW_DAYS` constant. A feed that buries a
 push candidate, or a push the feed can't resolve, fails the lockstep test in both drifts.
+
+### Slice-2 display copy — `centsAtStake` means a DIFFERENT thing per kind
+The feed engine copies `centsAtStake` verbatim, but its SEMANTIC is not uniform, so the
+`TodayFeedCard` copy (today-feed-copy.ts) labels each kind correctly — copying a value is
+not copying its meaning (critic cycle-1 P1-1):
+- **payment_due:** `userActionCents` — the amount to pay AFTER autopay, NOT the statement
+  total. When autopay covers part, the card shows the split "$500 to pay · (autopay covers
+  $100)" from the verbatim `Proposal.autopayCents` — the two parts are shown, never summed,
+  so it agrees with the reminders card and never presents the remainder as the total.
+- **cash_flow_dip:** `coverTransfer.amountCents` — the recommended cover transfer.
+- **cash_needed_shortfall:** `shortfallCents` — the projected dip. `isEstimated` is derived
+  `perDueDate.some(cards estimated)` (the engine makes the cycle homogeneous), disclosed
+  INLINE "(estimated)".
+- **price-increase:** the monthly INCREASE (delta) — "Up $X/mo", never "Now $X".
+- **unused-subscription:** the actual monthly cost.
+- **insurance-reshop / negotiable-bill:** an ESTIMATED monthly SAVING (~15% / flat $20),
+  labeled "could save around $X/mo (estimated)".
+Titles are obligation-neutral ("Payment due" covers cards AND loans — the proposal drops
+the discriminant), and no copy addresses the reader as the payer (a partner's row can flow
+in at household scope — the #221 lesson).
+
+### Slice-2 dismissal store + demo fence
+Nudge dismissals persist to a DEDICATED `NudgeDismissal` store (keys embed merchant+cents,
+so EngagementEvent's closed-set no-money contract can't hold them — #236 P1-1), read into
+`NudgeInput.dismissedKeys` and fed ONLY to `buildNudgeFeed` (never `selectPaymentReminders`
+— the push-but-absent-from-feed bury failure). The shared demo user never WRITES and never
+READS the store (double fence, independently tested) — dismissal is session-only for
+`user-demo`, so one visitor's "hide this" never leaks to the next. The write path is
+rate-limited (40/60s/user), key-length-capped (≤200), and read-bounded (newest 500;
+re-dismiss bumps recency). CRITICAL is exempt from all suppression regardless of the store.

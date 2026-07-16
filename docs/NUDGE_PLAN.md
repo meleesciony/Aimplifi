@@ -103,10 +103,15 @@ same lockstep discipline as glass-box `trace.ts`.
 - **Slice 1 (engine):** `Proposal` union + tiering + ordering + dismissal-key semantics +
   tests (criteria 1–7). Opus 4.8 build; **Fable hostile critic** — ranking is
   suppression-adjacent (a mis-tier buries a material warning), the same safety class as 3.5.
-- **Slice 2 (UI):** dashboard "Today" feed card — headline + collapsed rest, why-this
-  disclosure, show-everything, dismiss wiring via existing patterns (`EngagementEvent`
-  logging from 3.1; the dismissed-key idiom). e2e: headline present, autopay quiet, dismissal
-  honesty, axe. No schema change.
+- **Slice 2 (UI):** **SHIPPED #237 (2026-07-15).** dashboard "Today" feed card — headline +
+  collapsed rest, why-this disclosure, show-everything, dismiss wiring via existing patterns
+  (`EngagementEvent` logging from 3.1; the dismissed-key idiom). e2e: headline present, autopay
+  quiet, dismissal honesty, axe. ~~No schema change.~~ **CORRECTED:** "no schema change" was
+  superseded by #236's P1-1 dedicated-store finding — dismiss-keys embed merchant+cents, so
+  EngagementEvent can't hold them and no generic dismissal table existed. Shipped an additive,
+  portable `NudgeDismissal` model (reversible; not a scope change — it IS the store #236 said
+  slice 2 must wire). Three Fable critic cycles (FAIL/FAIL/PASS); all P1s were false-money-copy
+  or write-path hygiene. See DECISIONS #237.
   **Dismissal-wiring guardrail (do NOT misread "reminder dismissedKeys"):** nudge dismissals
   write ONLY the dedicated nudge suppression store that feeds `NudgeInput.dismissedKeys`.
   They must NEVER be routed into `selectPaymentReminders`' own upstream `dismissedKeys`
