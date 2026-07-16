@@ -74,10 +74,26 @@ and learned vocabulary (#226); lesson `shared-demo-account-must-not-learn` exten
   208 files**, tsc/eslint/next build clean. New locks: `connect-demo-fence.test.ts` (4 ingest actions
   refuse demo, zero provider calls, keyed deployment; real user passes) + `cron-sync-demo-skip.test.ts`.
   EDGE_CASES §Demo bank-connect fence; REGRESSION_LEDGER 2 rows; DECISIONS #243.
-- **Note (out of scope, recorded):** the same shared-demo leak shape applies to manual CSV import
-  (a demo visitor's uploaded transactions land under `user-demo`). Not the flagged hole and not
-  fixed here; a candidate for a future narrow slice if the owner wants demo made read-only for all
-  input, not just bank connections.
+- **Hostile critic (1 fresh-context Fable cycle):** the bank-connect fence itself is CLEAN — zero
+  P0/P1 bypass (all four ingest actions, cron exclusion, webhook skip verified complete; demo id can't
+  differ by env; no ordering bug; no fifth automated ingest path). The one P1 was a **docs-accuracy**
+  gap in the first commit — the claim was worded too broadly and the residual list named only "CSV
+  import" when four typed/uploaded paths are open — **corrected in the follow-up docs commit** (narrowed
+  claim + full four-path residual above). Under the narrowed reading the critic reports zero P0/P1.
+- **Open follow-up (owner-gated) — the TYPED/UPLOADED leg of the same rule, flagged by the #243
+  hostile critic.** This slice fenced only the *connected* leg. Four manual-entry actions still let a
+  demo visitor write their REAL figures into the shared `user-demo` row, where the next visitor sees
+  them — the identical leak class, unfenced: `addManualAccount` (real balance/net-worth),
+  `createManualTransaction` (real amount + raw descriptor + date), `importTransactionsCsv` (bulk real
+  statement rows), `addHolding` (real ticker/quantity/cost basis; the demo seeds a brokerage account,
+  so it's reachable). The critic found the bank-connect fence itself CLEAN (zero P0/P1 bypass) but
+  correctly falsified any BROAD "no real data can land in the demo row" claim — hence the narrowed
+  wording throughout this section ("a real *bank's* data via a *connection*"). Not fixed here because
+  it is a larger slice ("make the demo read-only for ALL visitor-brought input") that also carries a
+  demo-UX product question: is hands-on manual entry an INTENDED demo affordance (the seed is complete
+  without it), or an oversight? **Recommended smallest close (owner to confirm scope): one shared
+  early-return applied to all four actions + a test that each refuses demo, mirroring
+  `connect-demo-fence.test.ts`.**
 
 ## AI Trust Center & Audit Ledger (#242, 2026-07-16) — AI plan §3.2 complete
 

@@ -14,18 +14,27 @@ showing one stranger's words to the next. Read-only demo *data* is safe to share
   Settings → AI trust panel, under copy that says "Nothing here is shared with anyone else." Caught by a
   fresh-context critic, not by any test: every unit test used a synthetic user, and the demo path only
   differs by *who* the row belongs to.
-- **#242 follow-up (bank connect):** the widest instance yet — the demo could LINK A REAL BANK
-  (Plaid/SimpleFIN), so one visitor's real transactions, balances, and holdings would ingest into the
-  shared row the next visitor sees. Note the shape: the "input" here isn't typed text, it's *connecting an
-  external data source* — the rule is about any user-originated data, not just keystrokes. Fenced at all
-  four ingest actions; the two CONNECT actions are load-bearing (no connection row ⇒ cron/webhook/sync
-  are inert by construction), and the bug's residual (a connection made before the fence) is closed by
-  excluding demo from the cron sweep and skipping demo-owned items in the webhook. `disconnect` stays
-  open on purpose — removing data is the remediation path, not a leak. Still-open cousin: manual CSV
-  import has the identical shape and is *not* yet fenced (recorded in STATUS).
+- **#242 follow-up (bank connect):** the demo could LINK A REAL BANK (Plaid/SimpleFIN), so one
+  visitor's real transactions, balances, and holdings would ingest into the shared row the next visitor
+  sees. Note the shape: the "input" here isn't typed text, it's *connecting an external data source* — the
+  rule is about any user-originated data, not just keystrokes. Fenced at all four bank-ingest actions;
+  the two CONNECT actions are load-bearing (no connection row ⇒ cron/webhook/sync are inert by
+  construction), and the bug's residual (a connection made before the fence) is closed by excluding demo
+  from the cron sweep and skipping demo-owned items in the webhook. `disconnect` stays open on purpose —
+  removing data is the remediation path, not a leak.
+  - **This closed only the CONNECTED leg.** A fresh-context critic on the fix commit (#243) flagged that
+    the TYPED/UPLOADED legs of the very same rule are still wide open: `addManualAccount`,
+    `createManualTransaction`, `importTransactionsCsv`, and `addHolding` all write a demo visitor's real
+    figures into `user-demo` with no fence. They are the "demo is read-only for ALL visitor-brought
+    input" slice — deferred to the owner because it also carries a demo-UX question (is hands-on manual
+    entry an intended demo affordance?), NOT because the leak isn't real. Recorded in STATUS with all
+    four paths named. **Lesson within the lesson: when you fence one leg of a multi-leg rule, name the
+    unfenced legs precisely — a residual list that says "CSV import" when four paths are open is itself
+    the #221 false-reassurance class, and the critic caught exactly that in the first draft of these docs.**
 
 Three instances make a rule with a clear edge. The trigger is "does the demo row accumulate anything a
-visitor brought with them?" — typed OR connected OR uploaded.
+visitor brought with them?" — typed OR connected OR uploaded. As of #243 only the *connected* leg is
+enforced; the *typed* and *uploaded* legs are known-open and owner-gated.
 
 ## The test that catches it
 

@@ -1387,3 +1387,7 @@ possible refusal):
   fence shipped stops ingesting.
 - No-shame copy: "The demo is a shared account, so it can't connect a real bank — create your
   own free account to link securely."
+- **Scope:** this covers the CONNECTED leg only. The typed/uploaded leg of the same rule
+  (`addManualAccount`, `createManualTransaction`, `importTransactionsCsv`, `addHolding`) is
+  known-open and owner-gated — see STATUS "Open follow-up (owner-gated)". Don't read this section
+  as "the demo is fully read-only."
