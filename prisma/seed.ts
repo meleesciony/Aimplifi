@@ -115,14 +115,54 @@ async function main() {
     })),
   });
 
+  // ── Why-This-Category §3.1 slice 2: ONE demonstrable AI-guess row ──────────
+  // The confirm flow must be exercisable with zero credentials, so the demo needs
+  // exactly one row whose category origin is a genuine AI guess. The AUTHENTIC
+  // (and only honest) scenario is what the LLM overlay actually does in production:
+  // take an UNSURE, uncategorized, unknown-merchant row the deterministic pipeline
+  // could not place, and confidently assign a real category with source 'llm'.
+  //
+  // We cannot instead just relabel an existing real-category row's source: every
+  // real-category demo row is a KNOWN merchant, and merchant-default always beats
+  // the LLM — calling that an "AI guess" would FABRICATE a provenance the pipeline
+  // can't produce, the exact dishonesty this feature exists to prevent (Fable
+  // critic slice-2 P2-1; the demo has no auto-filed unknown-merchant row). So we
+  // promote one uncategorized review row to an llm-resolved row. This is the seed's
+  // ONE deliberate golden change for this slice: a single row moves out of
+  // "uncategorized" into a category and out of the review queue — see SEED_SPEC and
+  // the re-baselined goldens (spending-by-category, review count, accuracy).
+  const AI_GUESS_CATEGORY_ID = 'shopping'; // a plausible generic guess for an unknown expense
+  const AI_GUESS_CONF = 9500; // in the LLM auto-file band (≥ AUTO_SILENT_BPS)
+  const aiGuessTxnId = (() => {
+    const eligible = categorized.filter(
+      ({ txn, out }) => out.needsReview && out.categoryId === 'uncategorized' && !txn.isTransfer,
+    );
+    const ranked = [...eligible].sort((a, b) =>
+      a.txn.date < b.txn.date ? 1 : a.txn.date > b.txn.date ? -1 : a.txn.id < b.txn.id ? 1 : -1,
+    );
+    return ranked[0]?.txn.id ?? null;
+  })();
+  // Fail loudly, not silently (rule 6): the demo MUST carry an AI-guess fixture
+  // (criterion 8). If seed data ever drifts so no uncategorized review row exists,
+  // the seed breaks visibly here rather than quietly shipping a demo with no
+  // confirmable guess.
+  if (!aiGuessTxnId) {
+    throw new Error(
+      'seed: no uncategorized review row to promote to an AI guess (Why-This-Category §3.1 criterion 8)',
+    );
+  }
+
   await prisma.transaction.createMany({
-    data: categorized.map(({ txn, out }) => ({
-      ...txn,
-      merchantId: merchantIds.get(out.merchantCanonical) ?? null,
-      categoryId: out.categoryId,
-      confidenceBps: out.confidenceBps,
-      needsReview: out.needsReview,
-    })),
+    data: categorized.map(({ txn, out }) => {
+      const isGuess = txn.id === aiGuessTxnId;
+      return {
+        ...txn,
+        merchantId: merchantIds.get(out.merchantCanonical) ?? null,
+        categoryId: isGuess ? AI_GUESS_CATEGORY_ID : out.categoryId,
+        confidenceBps: isGuess ? AI_GUESS_CONF : out.confidenceBps,
+        needsReview: isGuess ? false : out.needsReview,
+      };
+    }),
   });
 
   // ── Prediction log for the accuracy/calibration metric (DECISIONS #37) ──
@@ -133,18 +173,26 @@ async function main() {
   // as not-yet-correct with low confidence (good calibration). Unknown/ambiguous
   // rows stay unlabeled until the user reviews them.
   await prisma.categoryPrediction.createMany({
-    data: categorized.map(({ txn, out }) => ({
-      userId: data.user.id,
-      transactionId: txn.id,
-      predictedCategoryId: out.categoryId,
-      confidenceBps: out.confidenceBps,
-      // Provenance (Why-This-Category §3.1): the pipeline's CategorySource. Seed
-      // runs with no LLM, so no demo prediction is ever 'llm' — the demo shows no
-      // 'ai-guess' badge until slice 2 seeds one deliberately. No 'not-recorded'
-      // on the seed set (every row carries a real source).
-      source: out.source,
-      actualCategoryId: knownByCanonical.get(out.merchantCanonical)?.categoryId ?? null,
-    })),
+    data: categorized.map(({ txn, out }) => {
+      const isGuess = txn.id === aiGuessTxnId;
+      return {
+        userId: data.user.id,
+        transactionId: txn.id,
+        // The promoted AI-guess row predicts its llm-assigned category (== its
+        // current category, so the resolver's divergence guard passes and it reads
+        // 'ai-guess'); every other row records the pipeline's own verdict.
+        predictedCategoryId: isGuess ? AI_GUESS_CATEGORY_ID : out.categoryId,
+        confidenceBps: isGuess ? AI_GUESS_CONF : out.confidenceBps,
+        // Provenance (Why-This-Category §3.1): the pipeline's CategorySource for
+        // every row, EXCEPT the one deliberately-seeded AI-guess row (slice 2),
+        // which carries 'llm' so the demo can show and confirm an AI guess with zero
+        // credentials. No 'not-recorded' on the seed set (every row has a source).
+        source: isGuess ? 'llm' : out.source,
+        // Unlabeled by construction (the guess row is an unknown merchant, so it has
+        // no known ground truth) — the confirm flow needs an unlabeled ai-guess.
+        actualCategoryId: knownByCanonical.get(out.merchantCanonical)?.categoryId ?? null,
+      };
+    }),
   });
 
   // ── Phase 2: detected recurring series ──

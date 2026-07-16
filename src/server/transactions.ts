@@ -7,6 +7,7 @@
 import { prisma } from '@/lib/db';
 import { isRuleEligibleMerchant } from '@/lib/engine/categorize/assign';
 import { categoryName } from '@/lib/engine/categorize/categories';
+import { type PredictionSource, describeProvenance } from '@/lib/engine/categorize/provenance';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type NetWorthSeriesPoint, netWorthSeries } from '@/lib/engine/networth/series';
 import { type SuspectedDuplicatePair, detectDuplicateAccounts } from '@/lib/engine/account/duplicates';
@@ -77,6 +78,16 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     if (t.merchantId) merchantCounts.set(t.merchantId, (merchantCounts.get(t.merchantId) ?? 0) + 1);
   }
 
+  // Category provenance (Why-This-Category §3.1): the persisted prediction row is
+  // the 1:1 record of HOW each category was decided. One query, keyed by
+  // transactionId; a row with no prediction (user-dictated / pre-#190 history)
+  // resolves to an honest 'user-set' / 'not-recorded' — never a guessed origin.
+  const predictions = await prisma.categoryPrediction.findMany({
+    where: { userId },
+    select: { transactionId: true, source: true, predictedCategoryId: true, labeledAt: true },
+  });
+  const predByTxn = new Map(predictions.map((p) => [p.transactionId, p]));
+
   const rows: TxnView[] = txns.map((t) => ({
     id: t.id,
     date: t.date,
@@ -92,6 +103,19 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     merchantId: t.merchantId,
     ruleEligible: isRuleEligibleMerchant(t.rawDescriptor),
     merchantCount: t.merchantId ? merchantCounts.get(t.merchantId) : undefined,
+    // Resolve from the RAW stored facts (not the 'uncategorized' display
+    // fallback above): the P1-3 divergence guard compares the prediction's
+    // predictedCategoryId against the transaction's live categoryId, so both
+    // must be the true DB values. `source` is a free String? in the DB; the
+    // resolver is total over unknown strings (→ not-recorded), so the cast is safe.
+    provenance: describeProvenance({
+      source: (predByTxn.get(t.id)?.source ?? null) as PredictionSource | null,
+      hasPredictionRow: predByTxn.has(t.id),
+      txnConfidenceBps: t.confidenceBps ?? 0,
+      userLabeled: predByTxn.get(t.id)?.labeledAt != null,
+      predictedCategoryId: predByTxn.get(t.id)?.predictedCategoryId ?? null,
+      currentCategoryId: t.categoryId ?? null,
+    }),
   }));
 
   const filtered = sortByDateDesc(filterTransactions(rows, filter));

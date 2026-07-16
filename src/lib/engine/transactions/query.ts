@@ -13,6 +13,7 @@
 import { type Cents, cents } from '@/lib/money';
 import { compareDates, isoDate } from '@/lib/dates';
 import type { FreshnessResult } from '@/lib/engine/sync/health';
+import type { ProvenanceVerdict } from '@/lib/engine/categorize/provenance';
 
 export interface TxnView {
   id: string;
@@ -33,6 +34,14 @@ export interface TxnView {
   ruleEligible?: boolean;
   /** How many of the user's transactions share this merchant (for the "apply to N" bar). */
   merchantCount?: number;
+  /**
+   * How this row's category was decided (Why-This-Category §3.1). The server
+   * computes it once from the persisted CategoryPrediction via
+   * `describeProvenance`; the UI renders `provenance.label` VERBATIM and never
+   * re-derives an origin. An `ai-guess` verdict (`needsConfirm: true`) is the
+   * only kind routed to a visible confirm affordance.
+   */
+  provenance: ProvenanceVerdict;
 }
 
 export type FlowType = 'all' | 'income' | 'expense' | 'transfer';

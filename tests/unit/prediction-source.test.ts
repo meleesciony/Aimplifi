@@ -146,32 +146,62 @@ describe('logCategoryPredictions persists provenance (Why-This-Category §3.1)',
   });
 });
 
-describe('criterion 5 — the seeded demo dataset carries real provenance (golden-safe)', () => {
-  it('every demo prediction has a source; none is not-recorded or ai-guess (seed runs with no LLM)', async () => {
+describe('the seeded demo dataset carries real provenance (slice-2 demo contract)', () => {
+  it('every demo prediction has a source; EXACTLY ONE is ai-guess; none is not-recorded', async () => {
     const preds = await prisma.categoryPrediction.findMany({ where: { userId: 'user-demo' } });
     expect(preds.length).toBeGreaterThan(0);
     // Join the real transaction category so the P1-3 divergence guard is genuinely
     // exercised — a demo row whose current category had moved would surface here.
     const txns = await prisma.transaction.findMany({
       where: { id: { in: preds.map((p) => p.transactionId) } },
-      select: { id: true, categoryId: true, confidenceBps: true },
+      select: { id: true, categoryId: true, confidenceBps: true, needsReview: true, isTransfer: true },
     });
     const txnById = new Map(txns.map((t) => [t.id, t]));
-    for (const p of preds) {
-      expect(p.source).not.toBeNull();
+    const kinds = preds.map((p) => {
       const txn = txnById.get(p.transactionId);
-      const kind = describeProvenance({
-        source: p.source as PredictionSource,
-        hasPredictionRow: true,
-        txnConfidenceBps: txn?.confidenceBps ?? p.confidenceBps,
-        userLabeled: p.labeledAt != null,
-        predictedCategoryId: p.predictedCategoryId,
-        currentCategoryId: txn?.categoryId ?? null,
-      }).kind;
-      // The demo has no LLM at seed time and no category drift, so no row is an AI
-      // guess or unrecorded — every badge names a real deterministic origin.
-      expect(kind).not.toBe('ai-guess');
+      return {
+        p,
+        txn,
+        kind: describeProvenance({
+          source: p.source as PredictionSource,
+          hasPredictionRow: true,
+          txnConfidenceBps: txn?.confidenceBps ?? p.confidenceBps,
+          userLabeled: p.labeledAt != null,
+          predictedCategoryId: p.predictedCategoryId,
+          currentCategoryId: txn?.categoryId ?? null,
+        }).kind,
+      };
+    });
+    for (const { p, kind } of kinds) {
+      expect(p.source).not.toBeNull();
+      // No pre-feature history and no category drift on the demo → nothing unrecorded.
       expect(kind).not.toBe('not-recorded');
     }
+    // Slice 2 seeds ONE demonstrable AI guess so the confirm flow works with zero
+    // credentials (criterion 8) — no more, no fewer.
+    const guesses = kinds.filter((k) => k.kind === 'ai-guess');
+    expect(guesses).toHaveLength(1);
+    const guess = guesses[0]!;
+    // The seeded guess must be genuinely confirmable: source 'llm', not yet labeled,
+    // predicted === current (else the resolver would floor it to not-recorded), a
+    // real (non-transfer) category, and shown on the register.
+    expect(guess.p.source).toBe('llm');
+    expect(guess.p.labeledAt).toBeNull();
+    expect(guess.p.predictedCategoryId).toBe(guess.txn?.categoryId);
+    expect(guess.txn?.isTransfer).toBe(false);
+    // Honesty constraint (Fable critic slice-2 P2-1): the fixture must be an
+    // AMBIGUOUS merchant with no REAL known category, never a known brand —
+    // relabeling a name-brand's deterministic category as an AI guess would
+    // fabricate an impossible origin (merchant-default always beats the LLM). Such a
+    // merchant has no meaningful default (null or the 'uncategorized' sentinel),
+    // which is exactly why the pipeline left the row uncategorized for the overlay.
+    const gtxn = await prisma.transaction.findUnique({
+      where: { id: guess.p.transactionId },
+      select: { merchantId: true },
+    });
+    const merchant = gtxn?.merchantId
+      ? await prisma.merchant.findUnique({ where: { id: gtxn.merchantId }, select: { defaultCategoryId: true } })
+      : null;
+    expect([null, 'uncategorized']).toContain(merchant?.defaultCategoryId ?? null);
   });
 });

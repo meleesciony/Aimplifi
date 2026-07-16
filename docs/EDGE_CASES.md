@@ -1206,3 +1206,36 @@ Accepted / deferred (each honest — never a false origin, never a wrong $):
   already-predicted category, predicted===current so the guard doesn't fire and an `ai-guess`
   keeps asking for an OK. Honest direction (over-asks, never under-asks); slice-2 copy note.
   (Cycle-2 critic P2-2.)
+
+### Slice 2 — the register surface + the demo AI-guess fixture (#239)
+
+The register renders one provenance badge per row (the resolver's own label, verbatim) and, for
+the single `ai-guess` kind, a one-tap **Confirm**. Behaviors worth pinning:
+- **Badge == verdict, always.** The badge label is `describeProvenance(...).label` copied
+  verbatim by `provenanceBadgeView`; tone (attention vs muted) and the confirm control are a
+  function of `needsConfirm` alone. There is no display-only re-derivation, so a row can never
+  show an origin that disagrees with the resolver. The e2e asserts the rendered kind on real demo
+  rows; the render unit test pins label + tone + confirm per kind.
+- **Confirm files the CURRENT category.** For an `ai-guess` the current category equals the
+  predicted one by construction (the resolver returns `ai-guess` only when predicted===current),
+  so `confirmGuess` files `t.categoryId` through `recategorize({scope:'one'})` — a same-category
+  Correction that stamps `labeledAt`, flipping the row to `user-set` on reload. No rule is minted
+  (confirming one charge is not "always for this merchant"). This same-value Correction is
+  identical to re-picking the current category on the register today (accepted, Fable P2-2).
+- **No fabricated confidence.** No badge renders a percentage or any digit — only the qualitative
+  band copy from `LABELS` (swept by the render test over every kind × confidence).
+- **Demo AI-guess fixture is an AMBIGUOUS merchant, never a name brand.** The demo has no
+  auto-filed unknown-merchant row (every real-category row is a known merchant → merchant-default,
+  which beats the LLM overlay), so an `ai-guess` badge on a known brand would fabricate an
+  impossible origin (Fable P2-1). The seed instead PROMOTES one uncategorized, unknown-merchant
+  review row to an llm-resolved row (real category, source 'llm', auto-filed) — the authentic
+  overlay path. The seed-contract test pins: exactly one demo `ai-guess`, unlabeled,
+  predicted===current, on a merchant with no real default (null or 'uncategorized'). Moving that
+  one row out of uncategorized/review is the slice's only deliberate golden change and broke no
+  money/accuracy/e2e golden.
+- **Register-only scope.** `ai-guess` rows are auto-filed (LLM overlay files ≥ `AUTO_SILENT_BPS`),
+  so they surface in the register, not the triage review queue; triage suggestions derive from the
+  LIVE pipeline (a different provenance path than the persisted prediction). Provenance is not
+  threaded into the partner `SharedTxnRow` — "You set this"/"Your rule" must never render on
+  someone else's data (the #221 second-person-copy fence). A triage provenance badge is a noted
+  follow-up, not this slice.

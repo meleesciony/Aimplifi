@@ -28,6 +28,11 @@ import { createCustomCategory } from '@/server/custom-category-actions';
 import { recategorize } from '@/server/triage-actions';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import {
+  PROVENANCE_BADGE_TESTID,
+  PROVENANCE_CONFIRM_TESTID,
+  provenanceBadgeView,
+} from '@/components/finance/provenance-badge';
 import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
 
 function amountClass(t: TxnView): string {
@@ -84,6 +89,9 @@ export function TransactionList({
   // pacing (scripts/audit-probes/recategorize-mutation.ts: 0/2 rounds landed
   // pre-#167; also the transactions.spec.ts:145 e2e flake).
   const [pending, setPending] = useState(false);
+  // A confirm-an-AI-guess failure is bound to its row (the confirm control lives
+  // outside the category menu that owns `error`, so it needs its own surface).
+  const [confirmError, setConfirmError] = useState<{ id: string; msg: string } | null>(null);
   // Write-in "+ New category" inside the picker (#136 increment 3). One
   // controller like the rest of the menu state — never per row.
   const [newCatOpen, setNewCatOpen] = useState(false);
@@ -196,6 +204,36 @@ export function TransactionList({
     }
   }
 
+  /**
+   * Confirm an AI guess (Why-This-Category §3.1): the user OKs the category the
+   * model proposed. Files the row's CURRENT category — which, for an `ai-guess`
+   * verdict, equals the predicted one by construction (the resolver returns
+   * `ai-guess` only when predicted === current) — through the SAME correction
+   * path every other recategorization uses. `scope: 'one'` records a Correction
+   * and stamps the prediction's `labeledAt`, so on reload the row reads
+   * `user-set` (a human confirmed it) and the confirm control is gone. No rule is
+   * minted: confirming one charge is not "always for this merchant".
+   */
+  async function confirmGuess(t: TxnView) {
+    if (pending) return;
+    setConfirmError(null);
+    setPending(true);
+    try {
+      await withDeadline(
+        recategorize({ transactionId: t.id, categoryId: t.categoryId, scope: 'one' }),
+        FORM_ACTION_DEADLINE_MS,
+      );
+      window.location.reload();
+    } catch (e) {
+      if (e instanceof ActionDeadline) {
+        window.location.reload(); // write usually committed — re-sync (#164 rule)
+        return;
+      }
+      setConfirmError({ id: t.id, msg: e instanceof Error ? e.message : 'Could not confirm — nothing was changed.' });
+      setPending(false);
+    }
+  }
+
   // Shared group-label-aware search (#137): "bills" must find the visible
   // "Bills & Utilities" group — the previous name-only inline filter had the
   // same duplicate-manufacturing false-negative the triage picker was fixed for.
@@ -268,6 +306,7 @@ export function TransactionList({
               {g.items.map((t) => {
                 const canAlways = Boolean(t.ruleEligible && t.merchantId);
                 const open = openId === t.id;
+                const pv = provenanceBadgeView(t.provenance);
                 return (
                   <li
                     key={t.id}
@@ -275,14 +314,51 @@ export function TransactionList({
                     data-testid="txn-row"
                   >
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span className="truncate font-medium">{t.merchantName}</span>
                         {t.status === 'PENDING' && (
                           <Badge variant="outline" className="shrink-0 text-[10px]">
                             Pending
                           </Badge>
                         )}
+                        {/* Why-This-Category (§3.1): who decided this category. The
+                            label is the resolver's verdict, rendered verbatim — an
+                            AI guess is the ONLY kind that asks for the user's OK. */}
+                        <Badge
+                          variant="outline"
+                          data-testid={PROVENANCE_BADGE_TESTID}
+                          data-kind={pv.kind}
+                          title="Why this category"
+                          className={`shrink-0 text-[10px] ${
+                            pv.tone === 'attention'
+                              ? 'border-amber-500/60 text-amber-700 dark:text-amber-300'
+                              : 'text-muted-foreground'
+                          }`}
+                        >
+                          {pv.label}
+                        </Badge>
+                        {pv.showConfirm && (
+                          <button
+                            type="button"
+                            data-testid={PROVENANCE_CONFIRM_TESTID}
+                            disabled={pending}
+                            onClick={() => confirmGuess(t)}
+                            aria-label={`Confirm the AI-suggested category ${t.categoryName} for ${t.merchantName}`}
+                            className="shrink-0 rounded border border-amber-500/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-500/10 disabled:opacity-50 dark:text-amber-300"
+                          >
+                            Confirm
+                          </button>
+                        )}
                       </div>
+                      {confirmError?.id === t.id && (
+                        <p
+                          role="alert"
+                          className="mt-0.5 text-[11px] text-red-400"
+                          data-testid="provenance-confirm-error"
+                        >
+                          {confirmError.msg}
+                        </p>
+                      )}
                       <div
                         ref={open ? menuRef : undefined}
                         className="relative text-xs text-muted-foreground"

@@ -59,6 +59,7 @@ function txn(over: Partial<TxnView> & Pick<TxnView, 'id' | 'date' | 'amountCents
     categoryName: 'Shopping',
     status: 'POSTED',
     isTransfer: false,
+    provenance: { kind: 'merchant-default', label: 'Known merchant', needsConfirm: false },
     ...over,
   };
 }

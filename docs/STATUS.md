@@ -54,6 +54,50 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Why-This-Category slice 2: register badge + AI-guess confirm (#239, 2026-07-16) — §3.1 complete
+
+Slice 2 ships the UI (WHY_THIS_CATEGORY_PLAN.md criteria 6–9): every register row now
+carries a provenance badge naming who decided its category, and an `ai-guess` row shows a
+one-tap **Confirm** that reuses the correction path and flips it to "You set this".
+
+- **Server-computed, rendered verbatim.** `getTransactions` computes each row's
+  `ProvenanceVerdict` once (one extra `CategoryPrediction` findMany, Map-joined) from the RAW
+  stored facts, so slice-1's P1-3 divergence guard fires on true DB values; the pure
+  `provenanceBadgeView` copies the label verbatim and derives tone/confirm from `needsConfirm`
+  alone — the badge can never disagree with the resolver (no display-only re-derivation).
+- **Confirm = the existing correction path.** `confirmGuess` files the row's current category
+  (== predicted for an ai-guess) via `recategorize({scope:'one'})` → `applyCategory`, which
+  stamps `labeledAt` → the row reads `user-set` on reload. No rule minted (confirming one charge
+  is not "always"). Deterministic rows show no confirm control.
+- **Scope = register only** (recorded, DECISIONS #239): ai-guess rows are auto-filed (LLM overlay
+  files ≥ AUTO_SILENT_BPS) so they live in the register, not the review queue; triage suggestions
+  are a different (live-pipeline) provenance path; and provenance never enters the partner
+  `SharedTxnRow` (the #221 second-person-copy fence). Triage-badge enrichment is the noted next
+  increment, not this slice.
+- **Demo fixture — the notable decision.** Criterion 8 needs one demonstrable ai-guess row. The
+  demo has NO auto-filed unknown-merchant row (every real-category row is a KNOWN merchant →
+  merchant-default, which beats the LLM), so relabeling one's `source` to 'llm' would FABRICATE an
+  impossible origin — the exact dishonesty this feature prevents (Fable critic P2-1 caught this as
+  a real fall-through in the first draft). The seed instead PROMOTES one uncategorized,
+  unknown-merchant review row to an llm-resolved row (the authentic overlay path). This moves ONE
+  row out of uncategorized/review — the slice's one deliberate golden change — and it broke ZERO
+  money/accuracy/e2e goldens.
+
+**Fresh-context Fable hostile critic: cycle 1 PASS, 0 P0/P1** (cardinal rule upheld — no AI guess
+shown as fact, no fabricated origin/confidence, partner path clean). P2-1 (demo honesty) FIXED
+(row-promotion + a seed-contract test pinning the fixture to an ambiguous merchant); P2-4 (Confirm
+a11y name) FIXED; P2-3 (e2e retry-idempotency on the shared demo DB) mitigated (skip-when-consumed);
+P2-2 (confirm records a same-category Correction) ACCEPTED — identical to existing register
+recategorization.
+
+Gate (real output 2026-07-16): `bash scripts/verify.sh` → **✅ VERIFY GREEN — 2801 unit / 200
+files**, tsc/eslint/next build clean; `why-this-category.spec.ts` 2/2 (badge truthfulness, exactly
+one confirmable ai-guess, axe WCAG-AA, confirm→"You set this" flip) run directly, plus 23/23 on the
+register + triage specs unregressed (the mobile-380 flake still blocks a full local `VERIFY_E2E`
+exit-0, unchanged since #175). REGRESSION_LEDGER 1 entry; EDGE_CASES §Why-This-Category slice-2
+note. **Next: AI plan §3.1 is complete; the triage provenance badge is a documented follow-up. Per
+COMPETITIVE_GAP_PLAN model-routing, the next AI-plan slice picks up on a fresh session.**
+
 ## Why-This-Category slice 1: provenance engine + persistence (#238, 2026-07-16)
 
 AI plan §3.1 (rank #3, Wave 3 lead) build-loop step 1 (WHY_THIS_CATEGORY_PLAN.md) → slice 1
