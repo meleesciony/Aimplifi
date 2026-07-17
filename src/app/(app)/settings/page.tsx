@@ -28,6 +28,7 @@ import { getLatestSelfAuditSnapshot } from '@/server/self-audit';
 import { listLearnedPhrases } from '@/server/vocab';
 import { LearnedPhrases } from '@/components/settings/learned-phrases';
 import { prisma } from '@/lib/db';
+import { isDemoUser } from '@/lib/demo-user';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 
 export const metadata = { title: "Settings" };
@@ -298,7 +299,17 @@ export default async function SettingsPage() {
           <CardTitle className="text-base">Sessions</CardTitle>
         </CardHeader>
         <CardContent>
-          <SignOutEverywhere />
+          {/* Demo destroy fence (#244 critic P1-3): an epoch bump would sign out
+              every concurrent demo visitor; deletion would wipe the shared demo
+              for everyone. Honest note instead; the actions refuse demo server-side too. */}
+          {isDemoUser(userId) ? (
+            <p className="text-sm text-muted-foreground" data-testid="demo-sessions-note">
+              The demo is a shared account, so session controls are off here — in your own
+              free account you can sign out of all devices anytime.
+            </p>
+          ) : (
+            <SignOutEverywhere />
+          )}
         </CardContent>
       </Card>
 
@@ -308,7 +319,14 @@ export default async function SettingsPage() {
           <CardTitle className="text-base">Delete my data</CardTitle>
         </CardHeader>
         <CardContent>
-          <DeleteMyDataForm summary={deletion} />
+          {isDemoUser(userId) ? (
+            <p className="text-sm text-muted-foreground" data-testid="demo-delete-note">
+              The demo is a shared account, so it can’t be deleted — in your own free
+              account, everything you store is yours to erase, permanently, anytime.
+            </p>
+          ) : (
+            <DeleteMyDataForm summary={deletion} />
+          )}
         </CardContent>
       </Card>
     </div>

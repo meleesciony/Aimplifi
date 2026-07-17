@@ -15,6 +15,7 @@ import {
   prepareImportedTransaction,
 } from '@/lib/engine/transactions/csv-import';
 import { pickAssistedCategory } from '@/lib/engine/categorize/llm';
+import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { auditLog, requireUserId } from '@/server/authz';
 import { assistUnsureRows } from '@/server/categorize-assist';
 import { categorizeSuggestFor } from '@/server/categorize-suggest';
@@ -34,6 +35,10 @@ export async function createManualTransaction(
   formData: FormData,
 ): Promise<AddTxnResult> {
   const userId = await requireUserId();
+  // Demo manual-entry fence (#243 follow-up): a typed real amount + raw
+  // descriptor + date must never persist to the shared demo row (and the
+  // descriptor must never reach the categorize pipeline's optional LLM).
+  if (isDemoUser(userId)) return { ok: false, errors: [DEMO_ENTRY_BLOCKED] };
 
   const accountId = String(formData.get('accountId') ?? '');
   const categoryRaw = String(formData.get('categoryId') ?? '').trim();
@@ -184,6 +189,9 @@ export async function importTransactionsCsv(
   formData: FormData,
 ): Promise<ImportResult> {
   const userId = await requireUserId();
+  // Demo manual-entry fence (#243 follow-up): a pasted CSV is bulk REAL
+  // statement rows — the highest-volume leak of the four typed/uploaded paths.
+  if (isDemoUser(userId)) return { ok: false, imported: 0, skipped: 0, errors: [DEMO_ENTRY_BLOCKED] };
 
   const accountId = String(formData.get('accountId') ?? '');
   const account = await prisma.account.findFirst({ where: { id: accountId, userId } });

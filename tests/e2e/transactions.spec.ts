@@ -3,9 +3,16 @@
  *
  * Net worth on the accounts page must equal the dashboard's golden value
  * ($144,804.74 — docs/EDGE_CASES.md §Seed-headline) since both derive from the
- * same account balances. Manual entry adds a POSTED, explicitly-categorized row
- * (so it never enters triage) and does NOT move balances (DECISIONS #24), which
- * is why it cannot disturb the other golden specs on the shared seed DB.
+ * same account balances.
+ *
+ * READ-ONLY register/accounts specs run as the shared demo user. Every spec
+ * that CREATES data through the manual-entry actions runs as a THROWAWAY
+ * signup user (the manual-card-statement.spec pattern): since #244 the demo is
+ * read-only for visitor-brought data (`addManualAccount`,
+ * `createManualTransaction`, `importTransactionsCsv`, `addHolding` refuse
+ * `user-demo` — the shared-account privacy fence), so demo-driven entry specs
+ * would only ever see the fence message. Isolation also keeps the demo goldens
+ * undisturbed (the #166/#39 lesson). The fence itself has its own spec below.
  */
 import AxeBuilder from '@axe-core/playwright';
 import { type Page, expect, test } from '@playwright/test';
@@ -14,6 +21,35 @@ async function signIn(page: Page) {
   await page.goto('/');
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
+}
+
+/** Throwaway signup user — full isolation from the demo goldens (+ the #244 fence). */
+async function signUpThrowaway(page: Page) {
+  const email = `e2e-txn-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+}
+
+/** Add a manual asset on /accounts and wait for its row (reload-confirmed write). */
+async function addManualAsset(page: Page, name: string, type: string, value: string) {
+  await page.goto('/accounts');
+  // First click after a load can land pre-hydration (dropped silently) — the
+  // click-and-verify retry is the hydration barrier (#167 critic P1 idiom).
+  await expect(async () => {
+    await page.getByTestId('add-asset-btn').click({ timeout: 2000 });
+    await expect(page.getByTestId('manual-name')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await page.getByTestId('manual-name').fill(name);
+  await page.getByTestId('manual-type').selectOption(type);
+  await page.getByTestId('manual-value').fill(value);
+  await page.getByTestId('manual-submit').click();
+  await expect(page.getByTestId('manual-account-row').filter({ hasText: name })).toBeVisible({
+    timeout: 20000,
+  });
 }
 
 async function expectNoViolations(page: Page, label: string) {
@@ -45,32 +81,29 @@ test('accounts page groups assets/liabilities and matches dashboard net worth', 
 });
 
 test('manual net-worth items: add a home asset (net worth updates), then delete it (DECISIONS #39)', async ({ page }) => {
-  await signIn(page);
-  await page.goto('/accounts');
-
-  // Add a $100,000 home → net worth goes from the seed golden value to +100k.
-  // Add-then-delete keeps the shared seed net worth intact for the golden specs
-  // (Playwright's toHaveText retries through the brief window).
-  await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$144,804.74');
-  await page.getByTestId('add-asset-btn').click();
-  await page.getByTestId('manual-name').fill('E2E Test Home');
-  await page.getByTestId('manual-type').selectOption('REAL_ESTATE');
-  await page.getByTestId('manual-value').fill('100000');
-  await page.getByTestId('manual-submit').click();
+  // Throwaway user (#244: demo refuses manual entry) — its whole balance sheet
+  // is the one asset we add, so the math is exact and golden-free.
+  await signUpThrowaway(page);
+  await addManualAsset(page, 'E2E Test Home', 'REAL_ESTATE', '100000');
 
   const row = page.getByTestId('manual-account-row').filter({ hasText: 'E2E Test Home' });
-  await expect(row).toBeVisible({ timeout: 20000 });
   // it lands in the ASSETS group and net worth reflects it
   await expect(page.getByTestId('account-group-asset')).toContainText('E2E Test Home');
-  await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$244,804.74');
+  await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$100,000.00');
 
-  // delete (two-step confirm) → reverts (so the golden value is restored for parallel specs)
-  await row.getByTestId('manual-delete').click();
+  // delete (two-step confirm) → back to the empty state. Post-reload clicks use
+  // the click-and-verify retry (hydration barrier, #167 idiom).
+  await expect(async () => {
+    await row.getByTestId('manual-delete').click({ timeout: 2000 });
+    await expect(row.getByTestId('manual-delete-confirm')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
   await row.getByTestId('manual-delete-confirm').click();
   await expect(page.getByTestId('manual-account-row').filter({ hasText: 'E2E Test Home' })).toHaveCount(0, {
     timeout: 20000,
   });
-  await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$144,804.74');
+  // Zero accounts remain → the whole page (incl. the net-worth header) must
+  // reflect the deletion, not just the list (cycle-2 critic P2-1).
+  await expect(page.getByTestId('accounts-empty')).toBeVisible({ timeout: 20000 });
 });
 
 /**
@@ -155,7 +188,9 @@ test('transaction register paginates: Next advances to page 2 (ROADMAP #8)', asy
 });
 
 test('manual entry: add a cash transaction and see it in the register', async ({ page }) => {
-  await signIn(page);
+  // Throwaway user (#244) with one manual checking account to file against.
+  await signUpThrowaway(page);
+  await addManualAsset(page, 'E2E Wallet', 'CHECKING', '1000');
   await page.goto('/transactions/new');
 
   const label = 'E2E Cash Coffee';
@@ -175,7 +210,11 @@ test('manual entry: add a cash transaction and see it in the register', async ({
 });
 
 test('manual entry: an invalid amount shows an inline error and preserves the entries (#170)', async ({ page }) => {
-  await signIn(page);
+  // Throwaway user (#244) — as demo, the fence message would mask the amount
+  // validation this spec exists to prove. Two accounts so a NON-default choice exists.
+  await signUpThrowaway(page);
+  await addManualAsset(page, 'E2E Checking A', 'CHECKING', '500');
+  await addManualAsset(page, 'E2E Savings B', 'SAVINGS', '500');
   await page.goto('/transactions/new');
 
   // A non-numeric amount used to throw to the app error boundary; now it returns
@@ -202,12 +241,11 @@ test('manual entry: an invalid amount shows an inline error and preserves the en
 });
 
 test('inline recategorization on the register refiles a transaction (DECISIONS #36)', async ({ page }) => {
-  await signIn(page);
-
-  // Operate on our OWN manual row — manual entry never moves balances
-  // (DECISIONS #24), so recategorizing it can't disturb the golden specs on the
-  // shared seed DB. This also exercises the gap the feature closes: the row is
-  // POSTED/auto-filed (never enters triage), yet must still be correctable.
+  // Throwaway user (#244) operating on its OWN manual row. This also exercises
+  // the gap the feature closes: the row is POSTED/auto-filed (never enters
+  // triage), yet must still be correctable.
+  await signUpThrowaway(page);
+  await addManualAsset(page, 'E2E Recat Wallet', 'CHECKING', '1000');
   await page.goto('/transactions/new');
   const label = 'E2E Recat Row';
   await page.getByTestId('txn-descriptor').fill(label);
@@ -248,9 +286,9 @@ test('inline recategorization on the register refiles a transaction (DECISIONS #
 });
 
 test('register write-in: create a category inside the picker and refile with it (#136)', async ({ page }) => {
-  await signIn(page);
-
-  // Own manual row — golden-safe (DECISIONS #24), same idiom as the recat spec.
+  // Throwaway user (#244) — own manual row, same idiom as the recat spec.
+  await signUpThrowaway(page);
+  await addManualAsset(page, 'E2E Write-in Wallet', 'CHECKING', '1000');
   await page.goto('/transactions/new');
   const label = 'E2E Register Write-in';
   await page.getByTestId('txn-descriptor').fill(label);
@@ -344,7 +382,9 @@ test('register write-in: a create resolving after a row switch never puts the co
 });
 
 test('CSV import: valid rows imported, bad rows skipped with line errors', async ({ page }) => {
-  await signIn(page);
+  // Throwaway user (#244) with one manual checking account to import into.
+  await signUpThrowaway(page);
+  await addManualAsset(page, 'E2E Import Wallet', 'CHECKING', '1000');
   await page.goto('/transactions/import');
 
   const csv = [
@@ -367,6 +407,43 @@ test('CSV import: valid rows imported, bad rows skipped with line errors', async
   const row = page.getByTestId('txn-row').filter({ hasText: 'E2E Import Bookstore' });
   await expect(row).toBeVisible();
   await expect(row).toContainText('-$18.75');
+});
+
+test('demo manual-entry fence (#244): the shared demo account gets an honest inline refusal, and no row lands', async ({ page }) => {
+  // The demo is read-only for visitor-BROUGHT data: a typed transaction and a
+  // manual account both refuse with the no-shame shared-account message, inline
+  // (never the app error boundary), and nothing appears in the register/accounts.
+  await signIn(page);
+
+  const label = `E2E Fence ${Date.now().toString().slice(-6)}`;
+  await page.goto('/transactions/new');
+  await page.getByTestId('txn-descriptor').fill(label);
+  await page.getByTestId('txn-amount').fill('42.42');
+  await page.getByTestId('txn-category').selectOption('dining');
+  await page.getByTestId('txn-submit').click();
+
+  await expect(page.getByTestId('add-txn-error')).toContainText(/shared/i, { timeout: 20000 });
+  await expect(page).toHaveURL(/\/transactions\/new$/); // inline, no navigation
+  // The typed row never lands in the shared register.
+  await page.goto('/transactions');
+  await page.getByTestId('txn-search').fill(label);
+  await page.getByTestId('txn-search').press('Enter');
+  await expect(page.getByTestId('txn-empty')).toBeVisible({ timeout: 20000 });
+
+  // Manual account entry refuses the same way on /accounts.
+  await page.goto('/accounts');
+  await expect(async () => {
+    await page.getByTestId('add-asset-btn').click({ timeout: 2000 });
+    await expect(page.getByTestId('manual-name')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await page.getByTestId('manual-name').fill('E2E Fence House');
+  await page.getByTestId('manual-type').selectOption('REAL_ESTATE');
+  await page.getByTestId('manual-value').fill('650000');
+  await page.getByTestId('manual-submit').click();
+  await expect(page.getByTestId('manual-error')).toContainText(/shared/i, { timeout: 20000 });
+  await expect(page.getByTestId('manual-account-row').filter({ hasText: 'E2E Fence House' })).toHaveCount(0);
+  // The demo golden is untouched — the next visitor sees the seed, not our input.
+  await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText('$144,804.74');
 });
 
 test('accounts, register, add, and import pages pass WCAG AA (380×800)', async ({ page }) => {

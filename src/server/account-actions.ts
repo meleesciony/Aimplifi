@@ -11,6 +11,7 @@
  */
 import { signOut } from '@/auth';
 import { prisma } from '@/lib/db';
+import { DEMO_DESTROY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { confirmationMatches } from '@/lib/engine/account/deletion';
 import { hashUserRef } from '@/lib/engine/auth/session';
 import { getProvider } from '@/lib/providers/demo';
@@ -25,6 +26,10 @@ const deletionRefSalt = process.env.DELETION_REF_SALT ?? process.env.AUTH_SECRET
 
 export async function deleteMyData(formData: FormData): Promise<void> {
   const userId = await requireUserId();
+  // Demo destroy fence (#244 critic P1-3): one visitor must not wipe the shared
+  // demo for everyone (the settings UI hides the form for demo; this is the
+  // server-side guard on the exposed action endpoint).
+  if (isDemoUser(userId)) throw new Error(DEMO_DESTROY_BLOCKED);
   if (!confirmationMatches(String(formData.get('confirm') ?? ''))) {
     throw new Error('Type the confirmation phrase exactly to delete your data');
   }
@@ -107,6 +112,9 @@ export async function deleteMyData(formData: FormData): Promise<void> {
  */
 export async function revokeOtherSessions(): Promise<void> {
   const userId = await requireUserId();
+  // Demo destroy fence (#244 critic P1-3): an epoch bump would sign out every
+  // concurrent demo visitor at once. UI hidden for demo; server guard here.
+  if (isDemoUser(userId)) throw new Error(DEMO_DESTROY_BLOCKED);
   await prisma.user.update({
     where: { id: userId },
     data: { sessionEpoch: { increment: 1 } },

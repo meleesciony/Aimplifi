@@ -9,6 +9,7 @@
  */
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
+import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { parseManualAccount, parseManualValueCents } from '@/lib/engine/networth/manual';
 import { auditLog, requireUserId } from '@/server/authz';
 
@@ -27,6 +28,11 @@ async function ownedManualAccount(userId: string, accountId: string) {
 
 export async function addManualAccount(input: { name: string; type: string; value: string }): Promise<ManualResult> {
   const userId = await requireUserId();
+  // Demo manual-entry fence (#243 follow-up): a visitor's real name/balance must
+  // never land in the shared demo row. Load-bearing for the update/delete paths
+  // too — the seed creates no provider='manual' accounts, so with `add` fenced,
+  // `ownedManualAccount` can never match a demo-owned manual row.
+  if (isDemoUser(userId)) return { ok: false, errors: [DEMO_ENTRY_BLOCKED] };
   const parsed = parseManualAccount(input);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
   const acct = await prisma.account.create({

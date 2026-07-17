@@ -54,6 +54,55 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Demo manual-entry fence (2026-07-16) — #243 owner follow-up, typed/uploaded leg closed
+
+The owner confirmed the scope (demo is read-only for visitor-BROUGHT data; playing with the
+seeded fake data stays open), closing the open follow-up below. The four manual-entry actions —
+`addManualAccount`, `createManualTransaction`, `importTransactionsCsv`, `addHolding` — now
+return their typed failure shape with `DEMO_ENTRY_BLOCKED` for `user-demo` immediately after
+`requireUserId()`, before any DB lookup/write or provider call. With `addManualAccount` fenced,
+the manual update/delete paths are unreachable for demo by construction (the seed creates no
+`provider='manual'` accounts and `ownedManualAccount` requires one). `removeHolding` and the
+delete paths stay open (remove data, never ingest — remediation, like `disconnectSimplefin`).
+
+- **Hostile critic (2 fresh-context Fable cycles: FAIL → fixes → PASS 0 P0/P1).** Cycle 2
+  re-verified every cycle-1 finding genuinely fixed (e2e migrations preserve each spec's
+  original regression intent — #170 is now *stronger*; the destroy fence is correctly ordered
+  and caught-by-executed-test; docs state exactly the invariant that holds; the fence test's
+  zero-row deltas are load-bearing against the real seed). Cycle-2 P2-1 (delete-side
+  `accounts-empty` assertion) fixed and re-run green; P2-2 (DEMO_DESTROY_BLOCKED string
+  unreachable in prod — UI hides the forms, direct POST sees Next's redacted error) accepted
+  as documented. Cycle 1
+  verified the four fences themselves clean (correct order, key-independent, inline error
+  rendering; the by-construction closure of update/delete manual paths confirmed — bonus: the
+  same construction closes `setManualCardStatement` too) but returned FAIL: (P1-1) five
+  transactions.spec e2e tests drove the fenced actions as demo and broke — migrated to
+  throwaway signup users (the manual-card-statement.spec isolation pattern), plus a new
+  demo-refusal e2e; (P1-2) the first draft of this section claimed "remaining demo writes are
+  edits to seeded rows", which `createGoal` (free-text name + real target figures) and
+  `createCustomCategory`/`rename` (visitor-typed names in every later visitor's pickers)
+  falsify — see the accepted-residual bullet below; (P1-3, pre-existing) `deleteMyData` let one
+  visitor irreversibly wipe the shared demo for everyone (and `revokeOtherSessions` sign every
+  concurrent visitor out) — owner chose to fence: both actions now throw `DEMO_DESTROY_BLOCKED`
+  for demo, the settings UI renders honest shared-account notes instead of the controls, and
+  `demo-destroy-fence.test.ts` + a reworked `account-deletion.spec.ts` lock it.
+- **Owner-accepted residual (2026-07-16, explicit):** demo visitors can still bring their own
+  text/figures via `createGoal` (goal name + target/monthly cents), custom category
+  names, money dials (including a real hourly wage rendered by the life-energy view), budget
+  amounts, and Ask questions (persisted scrubbed, never rendered/mined). Accepted to keep the
+  demo explorable — trying goals/categories IS the demo. Recorded here so no future claim
+  reads "the demo row can hold no visitor input"; the honest claim is: **bank connections,
+  manual/CSV/holding entry, and account destruction are fenced; playful feature input is not.**
+- **Gate (real output 2026-07-16):** `bash scripts/verify.sh` → ✅ VERIFY GREEN (unit counts in
+  the PASS/FAIL contract); e2e transactions.spec + account-deletion.spec pass with the
+  migrated throwaway-user specs + the two new fence specs. New locks:
+  `manual-entry-demo-fence.test.ts` (all four actions refuse demo with zero DB row-count delta
+  — real seed ids, so the deltas are load-bearing — and zero fetch on a KEYED deployment; real
+  user passes), `demo-destroy-fence.test.ts`. EDGE_CASES §Demo manual-entry fence;
+  REGRESSION_LEDGER 2 rows; DECISIONS #244/#245.
+- **Next (owner-gated): §3.3 Doc Extractor v1 / §3.4 Subscription Radar / §3.5 Receipt
+  Splitter, or the plan's "Later" section.**
+
 ## Demo bank-connect fence (2026-07-16) — #242 owner follow-up, privacy hole closed
 
 The shared demo account (`user-demo`) could link a real bank (Plaid/SimpleFIN) into the one row
@@ -80,7 +129,8 @@ and learned vocabulary (#226); lesson `shared-demo-account-must-not-learn` exten
   gap in the first commit — the claim was worded too broadly and the residual list named only "CSV
   import" when four typed/uploaded paths are open — **corrected in the follow-up docs commit** (narrowed
   claim + full four-path residual above). Under the narrowed reading the critic reports zero P0/P1.
-- **Open follow-up (owner-gated) — the TYPED/UPLOADED leg of the same rule, flagged by the #243
+- **Open follow-up (owner-gated) — RESOLVED 2026-07-16 (Demo manual-entry fence section above,
+  DECISIONS #244) — the TYPED/UPLOADED leg of the same rule, flagged by the #243
   hostile critic.** This slice fenced only the *connected* leg. Four manual-entry actions still let a
   demo visitor write their REAL figures into the shared `user-demo` row, where the next visitor sees
   them — the identical leak class, unfenced: `addManualAccount` (real balance/net-worth),

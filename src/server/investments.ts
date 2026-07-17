@@ -9,6 +9,7 @@
  */
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
+import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { cents } from '@/lib/money';
 import { type Holding, type Portfolio, summarizePortfolio } from '@/lib/engine/investments/portfolio';
 import { parseTicker } from '@/lib/engine/investments/ticker';
@@ -185,6 +186,11 @@ export async function getRetirementOutlook(): Promise<RetirementOutlook> {
 /** Add or update (by ticker) a holding on one of the user's INVESTMENT accounts. */
 export async function addHolding(input: HoldingInput): Promise<{ ok: boolean; error?: string }> {
   const userId = await requireUserId();
+  // Demo manual-entry fence (#243 follow-up): the demo seeds a brokerage
+  // account, so this upsert is reachable — a visitor's real ticker/quantity/cost
+  // basis must never land in the shared demo row. `removeHolding` stays open
+  // (removes data, never ingests — the remediation path, like disconnectSimplefin).
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
   const symbol = parseTicker(input.symbol);
   const name = input.name?.trim() || null;
   if (symbol == null) {

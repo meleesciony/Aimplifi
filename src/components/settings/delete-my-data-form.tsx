@@ -71,10 +71,10 @@ export function DeleteMyDataForm({ summary }: { summary: DeletionSummaryRow[] })
       </div>
 
       {/* Warning precedes the control and is announced with it (aria-describedby). */}
+      {/* The shared demo never renders this form (#244 critic P1-3), so the old
+          "in demo mode you can reseed" aside is gone — this copy is real-account only. */}
       <p id="delete-warning" className="text-xs text-muted-foreground">
-        This is permanent and can&apos;t be undone — and any bank connection is revoked. In
-        demo mode you can restore the sample data anytime with{' '}
-        <code className="rounded bg-accent px-1">npx prisma db seed</code>.
+        This is permanent and can&apos;t be undone — and any bank connection is revoked.
       </p>
 
       <form action={deleteMyData} className="space-y-2" data-testid="delete-form">
