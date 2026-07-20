@@ -5,7 +5,7 @@
  * increases and possibly-unused memberships surfaced as gentle flags (coach
  * guardrails: a question, never a scold).
  */
-import { Repeat, TrendingUp } from 'lucide-react';
+import { CalendarClock, Repeat, TrendingUp } from 'lucide-react';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
@@ -14,6 +14,7 @@ import type { Cadence } from '@/lib/engine/recurring/detect';
 import type { WithheldAccountSummary } from '@/lib/providers/currency';
 import type { RecurringData } from '@/server/recurring';
 import { priceChangeBadge, type RecurringItem } from '@/lib/engine/recurring/summary';
+import { renewalsWithin } from '@/lib/engine/recurring/renewals';
 
 const CADENCE_SUFFIX: Record<Cadence, string> = {
   WEEKLY: '/wk',
@@ -170,6 +171,63 @@ export function RecurringView({
           </p>
         )}
       </section>
+
+      {/* Coming up (#246): the forward renewal schedule — expected charges over the
+          next 7/30/90 days, expanded from each active series' usual timing. Every
+          amount is the series' most recent real charge copied verbatim; the copy
+          below labels the whole section an estimate (assumptions stated inline per
+          the coaching guardrails — these are expectations, not bills). */}
+      {data.renewals.occurrences.length > 0 && (
+        <section
+          data-testid="coming-up"
+          className="overflow-hidden rounded-2xl border bg-card shadow-sm"
+        >
+          <div className="flex items-baseline justify-between px-4 pt-4">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+              <CalendarClock className="size-3.5" aria-hidden /> Coming up
+            </h2>
+            <span className="text-xs text-muted-foreground">expected charges</span>
+          </div>
+          <div className="mt-3 grid grid-cols-3 divide-x border-t">
+            {data.renewals.horizons.map((h) => (
+              <div key={h.days} data-testid={`coming-up-${h.days}d`} className="px-3 py-2.5 text-center">
+                <div className="text-xs text-muted-foreground">next {h.days} days</div>
+                <div className="font-semibold tabular-nums">{formatCents(cents(h.totalCents))}</div>
+                <div className="text-[10px] text-muted-foreground">{plural(h.count, 'charge')}</div>
+              </div>
+            ))}
+          </div>
+          <ul className="divide-y border-t" data-testid="coming-up-list">
+            {renewalsWithin(data.renewals.occurrences, 30).map((o) => (
+                <li
+                  key={`${o.date}:${o.merchantCanonical}:${o.accountId}`}
+                  data-testid="coming-up-row"
+                  data-merchant={o.merchantCanonical}
+                  className="flex items-center justify-between gap-3 px-4 py-2"
+                >
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <span className="truncate font-medium">{o.merchantCanonical}</span>
+                    {o.increasedFromCents !== null && (
+                      <span className="shrink-0 rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-600 dark:text-rose-400">
+                        ↑ was {formatCents(cents(o.increasedFromCents))}
+                      </span>
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="font-medium tabular-nums">{formatCents(cents(o.amountCents))}</span>
+                    <div className="text-xs text-muted-foreground">
+                      {o.daysOut === 0 ? 'expected today' : <>~ {formatISODate(isoDate(o.date))}</>}
+                    </div>
+                  </div>
+                </li>
+              ))}
+          </ul>
+          <p className="px-4 pb-3 pt-2 text-xs text-muted-foreground">
+            Expected from each one&apos;s usual timing and most recent amount — estimates, not
+            bills. The list shows the next 30 days.
+          </p>
+        </section>
+      )}
 
       {!hasAny ? (
         <p className="rounded-2xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground shadow-sm">

@@ -1,5 +1,13 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-20 — AI plan §3.4 Subscription Radar — COMPLETE (#246, verify green, critic PASS)
+
+All 5 steps done. Engine engine/recurring/renewals.ts (upcomingRenewals + renewalsWithin; 21 unit tests incl. seed-grounded block) + RecurringData.renewals + 'Coming up' section on /recurring + recurring.spec e2e 3/3 (fresh build) + EDGE_CASES §Upcoming renewals. Fable fresh-context critic: PASS 0 P0/P1; P2-1/2/3 fixed same session (honest 'was $X' badge, IRREGULAR skip locked, shared bucket predicate), P2-4 resolved by P2-1 rewrite. Gate: bash scripts/verify.sh -> VERIFY GREEN, 2934 unit / 211 files, tsc+eslint+build clean. Residuals recorded in STATUS (calendar gap, nudge kinds, drafter deferred). DECISIONS #246; STATUS section added; next owner-gated pick: AI plan §3.3 / §3.5 / Later.
+
+## 2026-07-20 — AI plan §3.4 Subscription Radar — deterministic slice (session start)
+
+Owner picked §3.4 (Subscription Radar, deterministic slice only) as the next AI-plan slice after #244/#245; tree clean at 6f23280. Next DECISIONS number: **#246**.
+
 ## 2026-07-16 — AI plan §3.2 Trust Center & Audit Ledger (#242) — SHIPPED, verify green, critic cycle 3 PASS
 
 **Final:** 3 Fable critic cycles FAIL (P1: demo copy falsifiable on keyed deployments — demo Ask

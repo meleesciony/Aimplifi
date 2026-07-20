@@ -14,6 +14,7 @@ import {
   toScheduledTransactions,
 } from '@/lib/engine/recurring/detect';
 import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurring/summary';
+import { upcomingRenewals, type UpcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getProvider } from '@/lib/providers/demo';
@@ -22,6 +23,8 @@ import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
 
 export interface RecurringData {
   summary: RecurringSummary;
+  /** Forward renewal schedule — expected charges over the next 90 days (#246). */
+  renewals: UpcomingRenewals;
   accountNames: Record<string, string>;
   /**
    * Display name per category id appearing in the summary — resolved server-side
@@ -60,6 +63,7 @@ export async function getRecurring(userId: string): Promise<RecurringData> {
 
   const series = detectRecurring(txns, isoDate(today));
   const summary = summarizeRecurring(series, today);
+  const renewals = upcomingRenewals(summary.items, today);
 
   const accountNames: Record<string, string> = {};
   for (const a of snap.accounts) accountNames[a.id] = a.name;
@@ -71,7 +75,7 @@ export async function getRecurring(userId: string): Promise<RecurringData> {
   for (const it of summary.items) {
     if (!(it.categoryId in categoryNames)) categoryNames[it.categoryId] = categoryName(it.categoryId, meta);
   }
-  return { summary, accountNames, categoryNames };
+  return { summary, renewals, accountNames, categoryNames };
 }
 
 /** Scheduled-row sources that are DERIVED from detection (and so safe to replace). */

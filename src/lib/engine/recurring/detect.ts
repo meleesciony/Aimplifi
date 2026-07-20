@@ -53,7 +53,12 @@ function cadenceFromGap(gapDays: number): Cadence {
   return 'IRREGULAR';
 }
 
-function nextDate(last: ISODate, cadence: Cadence): ISODate {
+/**
+ * The next expected occurrence after `last` for a cadence. Exported so the
+ * forward renewal schedule (renewals.ts, #246) steps by the SAME rule this
+ * detector used to compute `nextExpectedAt` — one source of cadence arithmetic.
+ */
+export function nextDate(last: ISODate, cadence: Cadence): ISODate {
   switch (cadence) {
     case 'WEEKLY':
       return addDays(last, 7);

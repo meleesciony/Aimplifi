@@ -54,6 +54,45 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Subscription Radar — upcoming renewals (2026-07-20) — #246, AI plan §3.4 deterministic slice
+
+Owner picked §3.4. The explorer map showed the radar ~70% shipped (two-plateau price-hike
+detection + 5 surfaces, fitness-scoped possiblyUnused, per-row next-date), so the slice built
+exactly the missing differentiator: a **forward renewal schedule** — every ACTIVE expense
+series expanded from `nextExpectedAt` by cadence over a 90-day inclusive window, predicted
+amount = the magnitude of the last REAL charge copied verbatim (post-increase = the NEW
+price), nested 7/30/90-day horizon buckets, surfaced as a "Coming up" section on /recurring
+(tiles + next-30-days list + inline "estimates, not bills" disclosure). 100% deterministic —
+no LLM, no persistence, read-only (no demo fence needed).
+
+- **Engine.** `engine/recurring/renewals.ts` (`upcomingRenewals`, `renewalsWithin`) reuses
+  upstream truth by construction: `active` from `summarizeRecurring`, cadence stepping is
+  detect.ts's own `nextDate` (export-only change), the increase badge carries
+  `increasedFromCents` via `priceChangeBadge`. ANNUAL appears only when genuinely detected
+  (≥3 occurrences ⇒ ~3yr history — the plan's ≥2yr caveat holds by construction). Income,
+  lapsed, and IRREGULAR series never emit. EDGE_CASES §Upcoming renewals (hand-verified).
+- **Hostile critic (1 fresh-context Fable cycle): PASS — 0 P0/P1, 4 P2, 3 fixed same
+  session:** P2-1 "recently went up" was a time claim the detector doesn't record → now
+  "↑ was $15.49" (the row badge's honest form, magnitude carried through the engine);
+  P2-2 the engine invented a monthly schedule for IRREGULAR input → explicit skip, locked;
+  P2-3 tile-count vs list-rows were parallel predicates → one shared `renewalsWithin`.
+  P2-4 (a redundant not-assertion in the e2e) resolved by the P2-1 rewrite. Critic verified
+  cross-surface date honesty (row "next ~" vs schedule: zero mismatches on seed), clamp-drift
+  chain, leap-Feb stepping, 380px overflow 0px, axe WCAG AA clean, dashboard/assistant
+  consumers byte-identical (29/29 assistant goldens re-run).
+- **Gate (real output 2026-07-20):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — 2934 unit /
+  211 files, tsc+eslint+build clean; recurring.spec e2e 3/3 (incl. the new #246 test:
+  horizon tiles, Netflix predicted at $17.99 with "↑ was $15.49", disclosure, axe) against a
+  fresh production build. New locks: `tests/unit/recurring-renewals.test.ts` (21 tests,
+  hand-verified boundaries + seed-grounded block).
+- **Recorded residuals (not built, deliberate):** live-detected series still never reach
+  /calendar for demo/SimpleFIN-less users (pre-existing; the schedule now covers the JTBD on
+  /recurring); renewal-based nudge kinds deferred (alert surface = its own Fable-gated
+  slice); negotiation drafter deferred (free-form LLM prose over money facts — unsafe per
+  plan verdict + the #240 finding). DECISIONS #246.
+- **Next (owner-gated): §3.3 Doc Extractor v1 / §3.5 Receipt Splitter, or the plan's
+  "Later" section.**
+
 ## Demo manual-entry fence (2026-07-16) — #243 owner follow-up, typed/uploaded leg closed
 
 The owner confirmed the scope (demo is read-only for visitor-BROUGHT data; playing with the
