@@ -28,6 +28,7 @@ describe('isValidEngagementEvent', () => {
       'nudge:payment_due',
       'nudge:cash_flow_dip',
       'nudge:cash_needed_shortfall',
+      'nudge:unusual_charge',
       'nudge:price-increase',
       'nudge:unused-subscription',
       'nudge:insurance-reshop',

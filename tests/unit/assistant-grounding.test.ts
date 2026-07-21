@@ -128,15 +128,18 @@ describe('largest purchases == /trends computeLargest (POSTED only), pinned', ()
     const mine = largestPurchases(purchaseRows, THIS_MONTH, trendsLargest.length || 5, '2026-06-10');
     expect(mine).toEqual(trendsLargest); // byte-for-byte parity with /trends (same window, <= today, tie-break)
 
-    // Pinned full top-5 (pending Amazon -$43.18 correctly EXCLUDED; Publix is #5).
+    // Pinned full top-5 (pending Amazon -$43.18 correctly EXCLUDED). #249: the
+    // engineered Blue Bottle anomaly ($214.36 on 2026-06-02) is now #1 — the SAME
+    // charge the Unusual Charge Radar flags, so Ask and the radar agree by
+    // construction; Publix ($42.58) dropped to #6.
     expect(mine.slice(0, 5).map((t) => [t.merchant, t.amountCents])).toEqual([
+      ['Blue Bottle Coffee', 21436],
       ['Costco', 15844],
       ["Lowe's", 15658],
       ["Trader Joe's", 5180],
       ['Store Card Purchase', 4350],
-      ['Publix', 4258],
     ]);
-    expect(answerLargest(mine, THIS_MONTH).headline).toBe('Your biggest purchase this month was $158.44 at Costco.');
+    expect(answerLargest(mine, THIS_MONTH).headline).toBe('Your biggest purchase this month was $214.36 at Blue Bottle Coffee.');
   });
 });
 

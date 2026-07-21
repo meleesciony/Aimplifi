@@ -54,6 +54,60 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Unusual Charge Radar v1 (2026-07-20) — #249, AI plan §3-Later #12 outlier half
+
+Owner's "continue" at the #248 owner-gated fork. Pick per the plan's own reshape verdict:
+"ship the per-merchant outlier detector after seeding 1-2 engineered anomalies; defer the
+duplicate detector until timestamps are captured." (Income-pause/runway deferred: FI-mutation
+plumbing + a seeded income pause that ripples the whole demo narrative. Reconciliation note per
+the plan-verdicts lesson: #248's menu line listed "streaks" as buildable, but the groundable
+streaks core shipped at #205 — only the drift loop remains, still transfer-pair-blocked.)
+
+- **Engine.** `engine/anomaly/detect.ts` (pure, NO LLM anywhere): per-merchant median+MAD over
+  the user's own charge history — POSTED/non-transfer/non-split outflows grouped by
+  `normalizeMerchant().canonical`, aggregate pseudo-merchants (ATM/checks/Zelle) excluded.
+  Integer-cent conventions documented + hand-verified (EDGE_CASES §Unusual Charge Radar).
+  Flag rule tuned for precision (the #231 failure-direction lesson: a false positive shouts,
+  a false negative stays quiet): baseline ≥6 charges, flag window 45 days, deviation
+  (above-median only) strictly > 4·MAD + $40 floor (so MAD=0 subscriptions need a real spike —
+  a $2.50 Netflix bump never flags), ≤1/merchant, ≤3 overall, deterministic total order.
+- **Seed (demo-first).** Exactly ONE engineered anomaly — the plan's marketed "$214 coffee":
+  −$214.36 `SQ *BLUE BOTTLE 0042 OAK` on Sapphire, asOf−8d (2026-06-02). Current PARTIAL month
+  (coach full-month aggregates untouched), fixed amount (RNG stream byte-identical). Seed lock
+  asserts it is the demo's only flag. Three seed-pinned tests re-verified by hand (trends pace
+  73929+21436=95365 / round→286095; largest lists; Ask's biggest-purchase headline now cites
+  the same charge the radar flags — Ask and radar agree by construction).
+- **Feed.** New fixed ProposalKind `unusual_charge`, ACTION tier (decision, no deadline; never
+  competes with CRITICAL; dismissable), dismissal fact-keyed to the transaction
+  (`unusual_charge:<txnId>`), `nudge:unusual_charge` in ENGAGEMENT_SUBJECT_KEYS, three verbatim
+  display-context fields on Proposal (merchant/typicalCents/typicalCount, null elsewhere), copy
+  disclosing the basis inline ("larger than the typical $7.50 there (median of N charges)"),
+  no-shame dismiss-if-expected framing. Deliberately NOT pushed (notify/select untouched).
+- **Deferred (unchanged blockers):** double-bill detection (date-only `Transaction.date`);
+  income-pause/runway radar; the streaks drift loop (transfer-pair engine).
+- **Gate (real output 2026-07-20/21):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — 3035 unit /
+  214 files, tsc+eslint+build clean; today-feed.spec e2e 6/6 green against the fresh build
+  (incl. the new #249 case: $214.36 at ACTION tier with median basis + axe WCAG-AA).
+  New locks: `anomaly-detect.test.ts` (20 incl. the exactly-one seed lock), nudge-select
+  unusual_charge block, nudge-feed-copy cases, engagement vocab.
+- **Hostile critic (1 fresh-context Fable cycle: FAIL 1 P1 / 5 P2 → fixed → re-verified).**
+  The engine survived every math/precision/determinism attack (critic independently
+  recomputed the EDGE_CASES hand math and swept 42 seed asOf dates: 0 organic false
+  positives). P1-1: the seed change left `ask.spec.ts` stale-red (2 tests still pinned
+  Costco $158.44 as June's biggest purchase; verify.sh skips Playwright, and only
+  today-feed.spec was run — the exact fencing-a-write-path lesson class again) — fixed
+  to the new seed truth and re-run green. P2 fixes: window-boundary docstring corrected
+  (age 0–44); `whyInputs` now says "a $214.36 charge", never "at stake", for an
+  already-spent charge; SEED_SPEC documents the default-asOf dependency of the anomaly's
+  organic baseline (critic counterexample: asOf 2026-06-20 → 5 samples → no flag).
+- **Recorded residuals (#249 critic P2-3/P2-5, correct-direction, not fixed here):**
+  (a) the dismissal fact-key uses coach.ts's txn id with an array-index FALLBACK for
+  id-less provider rows — both live providers return Prisma ids so the fallback is
+  unreachable today, but adding `id` to the provider transaction contract is the durable
+  fix before this persisted key class hardens; (b) at `?scope=household` the feed mixes
+  household reminders with viewer-only unusualCharges (same asymmetry opportunities
+  already have) — a partner's anomaly is quietly absent, never a false claim.
+
 ## AI Trust Center per-touchpoint track record (2026-07-20) — #248, AI plan §3.2 completion
 
 Owner's "continue" at the #247 owner-gated fork. **A code-vs-plan reconciliation is the headline

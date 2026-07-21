@@ -29,6 +29,7 @@ import {
 } from '@/lib/engine/notify/select';
 import { buildNudgeFeed } from '@/lib/engine/nudge/select';
 import type { NudgeInput, ProposalTier } from '@/lib/engine/nudge/types';
+import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
 
 const TODAY = isoDate('2026-06-10');
 
@@ -175,11 +176,34 @@ function input(over: Partial<NudgeInput> = {}): NudgeInput {
   };
 }
 
+function chargeOf(o: {
+  txnId?: string;
+  merchant?: string;
+  date?: string;
+  amountCents?: number;
+  typicalCents?: number;
+  madCents?: number;
+  sampleCount?: number;
+  deviationCents?: number;
+}): UnusualCharge {
+  return {
+    txnId: o.txnId ?? 'txn-anom-1',
+    merchantCanonical: o.merchant ?? 'Blue Bottle Coffee',
+    date: isoDate(o.date ?? '2026-06-02'),
+    amountCents: cents(o.amountCents ?? 21436),
+    typicalCents: cents(o.typicalCents ?? 750),
+    madCents: cents(o.madCents ?? 150),
+    sampleCount: o.sampleCount ?? 14,
+    deviationCents: cents(o.deviationCents ?? 20686),
+  };
+}
+
 const KNOWN_TIERS: ReadonlySet<ProposalTier> = new Set(['critical', 'action', 'opportunity', 'handled']);
 const KNOWN_KINDS: ReadonlySet<string> = new Set([
   'payment_due',
   'cash_flow_dip',
   'cash_needed_shortfall',
+  'unusual_charge',
   'unused-subscription',
   'price-increase',
   'insurance-reshop',
@@ -256,10 +280,11 @@ describe('nudge · criterion 2 · total tier mapping', () => {
         opportunities,
         radar: radarOf({ firstNegativeDate: '2026-06-14' }),
         cashNeeded: cashNeededOf({ shortfallCents: 100000 }),
+        unusualCharges: [chargeOf({})],
       }),
     );
-    // 3 reminders + 4 opps + 1 dip + 1 shortfall = 9 proposals, all valid.
-    expect(feed.ordered).toHaveLength(9);
+    // 3 reminders + 4 opps + 1 dip + 1 shortfall + 1 unusual charge = 10 proposals, all valid.
+    expect(feed.ordered).toHaveLength(10);
     for (const p of feed.ordered) {
       expect(KNOWN_TIERS.has(p.tier)).toBe(true);
       expect(KNOWN_KINDS.has(p.kind)).toBe(true);
@@ -267,9 +292,79 @@ describe('nudge · criterion 2 · total tier mapping', () => {
     }
     const tiers = feed.ordered.map((p) => p.tier);
     expect(tiers.filter((t) => t === 'critical')).toHaveLength(3); // due-in-window + dip + shortfall
-    expect(tiers.filter((t) => t === 'action')).toHaveLength(1); // due out of window
+    expect(tiers.filter((t) => t === 'action')).toHaveLength(2); // due out of window + unusual charge
     expect(tiers.filter((t) => t === 'opportunity')).toHaveLength(4);
     expect(tiers.filter((t) => t === 'handled')).toHaveLength(1);
+  });
+});
+
+// ================================================================================
+// Unusual Charge Radar (#249) — ACTION tier, verbatim passthrough, per-txn dismissal
+// ================================================================================
+describe('nudge · unusual_charge (#249)', () => {
+  it('carries every detector field VERBATIM: charge, date, merchant, typical, count', () => {
+    const u = chargeOf({ txnId: 'txn-9', amountCents: 21436, typicalCents: 750, sampleCount: 14, date: '2026-06-02' });
+    const feed = buildNudgeFeed(input({ unusualCharges: [u] }));
+    expect(feed.ordered).toHaveLength(1);
+    const p = feed.ordered[0];
+    expect(p.kind).toBe('unusual_charge');
+    expect(p.tier).toBe('action'); // a decision, no deadline — never competes with CRITICAL
+    expect(p.key).toBe('unusual_charge:txn-9');
+    expect(p.centsAtStake).toBe(u.amountCents);
+    expect(p.sortDate).toBe(u.date);
+    expect(p.merchant).toBe(u.merchantCanonical);
+    expect(p.typicalCents).toBe(u.typicalCents);
+    expect(p.typicalCount).toBe(u.sampleCount);
+    expect(p.autopayCents).toBe(0);
+    expect(p.isEstimated).toBe(false); // a posted charge is a fact, not an estimate
+  });
+
+  it('every OTHER kind carries null display context (merchant/typicalCents/typicalCount)', () => {
+    const feed = buildNudgeFeed(
+      input({
+        reminders: [reminder({ dueDate: '2026-06-12', daysUntil: 2, userActionCents: 50000 })],
+        radar: radarOf({ firstNegativeDate: '2026-06-14' }),
+        cashNeeded: cashNeededOf({ shortfallCents: 100000 }),
+        opportunities: [oppOf({ kind: 'unused-subscription', merchant: 'GymPass', monthlyCents: 4000 })],
+      }),
+    );
+    for (const p of feed.ordered) {
+      expect(p.merchant, p.kind).toBeNull();
+      expect(p.typicalCents, p.kind).toBeNull();
+      expect(p.typicalCount, p.kind).toBeNull();
+    }
+  });
+
+  it('dismissal keys to the TRANSACTION: the same txn stays hidden, a new anomaly reappears', () => {
+    const u = chargeOf({ txnId: 'txn-9' });
+    const dismissedKeys = new Set(['unusual_charge:txn-9']);
+    const hidden = buildNudgeFeed(input({ unusualCharges: [u], dismissedKeys }));
+    expect(hidden.ordered).toHaveLength(0);
+    // A NEW anomaly (different transaction) is a new fact — it is not suppressed.
+    const fresh = buildNudgeFeed(input({ unusualCharges: [chargeOf({ txnId: 'txn-10' })], dismissedKeys }));
+    expect(fresh.ordered).toHaveLength(1);
+    expect(fresh.headline?.key).toBe('unusual_charge:txn-10');
+  });
+
+  it('ranks below a CRITICAL due but above opportunities; absent input means no proposal', () => {
+    const feed = buildNudgeFeed(
+      input({
+        reminders: [reminder({ dueDate: '2026-06-12', daysUntil: 2, userActionCents: 50000 })],
+        opportunities: [oppOf({ kind: 'unused-subscription', merchant: 'GymPass', monthlyCents: 4000 })],
+        unusualCharges: [chargeOf({})],
+      }),
+    );
+    expect(feed.ordered.map((p) => p.kind)).toEqual(['payment_due', 'unusual_charge', 'unused-subscription']);
+    // Backward-compat: NudgeInput without the field behaves as before.
+    expect(buildNudgeFeed(input({})).ordered).toHaveLength(0);
+  });
+
+  it('never pushes: selectNotifications is blind to unusual charges by construction', () => {
+    // The push selector's input shape has no unusual-charge channel at all — the
+    // lockstep concern (criterion 5) cannot arise for this kind. Assert the feed's
+    // unusual_charge proposal is NOT critical (the only tier push escalates).
+    const feed = buildNudgeFeed(input({ unusualCharges: [chargeOf({})] }));
+    expect(feed.ordered[0].tier).not.toBe('critical');
   });
 });
 

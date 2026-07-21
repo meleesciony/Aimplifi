@@ -29,7 +29,10 @@ export function whenPhrase(daysUntil: number | null): string {
 
 /** The raw, verbatim fields behind a proposal — shown in the "why" disclosure. */
 export function whyInputs(p: Proposal): string {
-  const parts = [`${formatCents(p.centsAtStake as Cents)} at stake`];
+  // Per-kind money semantics (#249 critic P2-4): an unusual charge is already SPENT —
+  // "at stake" would misstate a completed transaction as money still in play.
+  const money = formatCents(p.centsAtStake as Cents);
+  const parts = [p.kind === 'unusual_charge' ? `a ${money} charge` : `${money} at stake`];
   if (p.sortDate) parts.push(`dated ${formatISODate(p.sortDate as ISODate)}`);
   if (p.daysUntil !== null) parts.push(`${p.daysUntil} day${p.daysUntil === 1 ? '' : 's'} out`);
   if (p.isEstimated) parts.push('based on an estimate');
@@ -78,6 +81,23 @@ export function proposalCopy(p: Proposal): { title: string; detail: string } {
         title: 'Short on cash for upcoming bills',
         detail: `About ${money} short${date ? ` by ${date}` : ''}${estMark}. See what’s due above.`,
       };
+    case 'unusual_charge': {
+      // centsAtStake = the flagged charge's magnitude (verbatim from the detector).
+      // The typical figure is the detector's MEDIAN at this merchant — its basis
+      // ("median of N charges") is disclosed INLINE next to the number (coaching
+      // guardrail), so the comparison can never read as a guess or a judgment.
+      // Owner-neutral and no-shame by design: the charge is stated as a fact worth a
+      // look, never as overspending — it may be legitimate (a group order, a gift),
+      // and dismissing it is offered as the expected outcome.
+      const typical =
+        p.typicalCents !== null && p.typicalCount !== null
+          ? ` — larger than the typical ${formatCents(p.typicalCents as Cents)} there (median of ${p.typicalCount} charges)`
+          : '';
+      return {
+        title: 'Unusual charge worth a look',
+        detail: `${money}${p.merchant ? ` at ${p.merchant}` : ''}${date ? ` on ${date}` : ''}${typical}. If it’s expected, dismiss this.`,
+      };
+    }
     case 'price-increase':
       // centsAtStake = the monthly INCREASE (delta), not the new price.
       return {

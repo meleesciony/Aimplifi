@@ -226,8 +226,10 @@ describe('computeSpendingTrends on the seed (real-volume, default normalization)
     expect(r.pace).toMatchObject({
       daysElapsed: 10,
       daysInMonth: 30,
-      spentSoFarCents: 73929,
-      projectedCents: 221787, // round(73929 / 10 * 30)
+      // #249: the engineered Blue Bottle anomaly (−$214.36 on 2026-06-02) joined the
+      // current partial month: 73929 + 21436 = 95365; projection re-verified by hand.
+      spentSoFarCents: 95365,
+      projectedCents: 286095, // round(95365 / 10 * 30)
       priorMonthCents: 458700,
     });
     expect(r.pace!.projectedCents).toBe(
@@ -267,7 +269,8 @@ describe('computeSpendingTrends on the seed (real-volume, default normalization)
 
   it('lists the largest real purchases (no cash/transfers), sorted descending', () => {
     expect(r.largest.length).toBeGreaterThan(0);
-    expect(r.largest.slice(0, 3).map((l) => l.merchant)).toEqual(['Costco', "Lowe's", "Trader Joe's"]);
+    // #249: the engineered $214.36 Blue Bottle anomaly now tops the window's purchases.
+    expect(r.largest.slice(0, 3).map((l) => l.merchant)).toEqual(['Blue Bottle Coffee', 'Costco', "Lowe's"]);
     for (const l of r.largest) expect(l.amountCents).toBeGreaterThan(0);
     for (let i = 1; i < r.largest.length; i++) {
       expect(r.largest[i - 1].amountCents).toBeGreaterThanOrEqual(r.largest[i].amountCents);

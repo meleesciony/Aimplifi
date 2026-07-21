@@ -22,6 +22,7 @@ import {
   type MonthlyFlow,
   type Opportunity,
 } from '@/lib/engine/fi/insights';
+import { detectUnusualCharges, type UnusualCharge } from '@/lib/engine/anomaly/detect';
 import { generateMoneyReview, type MoneyReview } from '@/lib/engine/fi/coach-copy';
 import { buildReviewCandidates, selectReview, type ReviewRole } from '@/lib/engine/fi/money-review';
 import { DEMO_USER_ID } from '@/lib/demo-user';
@@ -52,6 +53,8 @@ export interface CoachData {
     coastTargetYears: number;
   };
   opportunities: Opportunity[];
+  /** Per-merchant median+MAD outliers (#249) — pure recompute, feeds the nudge feed. */
+  unusualCharges: UnusualCharge[];
   creep: CreepResult;
   runwayMonths: number;
   lifeEnergy: { merchant: string; amountCents: number; hours: number; date: string }[];
@@ -122,6 +125,9 @@ export async function getCoachData(
     today,
   );
   const opportunities = findOpportunities(series, user.expectedReturnBps);
+  // Unusual Charge Radar (#249): pure detection over the SAME already-fetched rows —
+  // no re-fetch, no model call, deterministic.
+  const unusualCharges = detectUnusualCharges(txns, today);
   const creep = detectLifestyleCreep(txns, today, 6, meta);
   // documented rounding rule, not Math.round (consistency with monthlySavings above)
   const avgMonthlyExpenses = cents(roundHalfAwayFromZero(expenses6 / Math.max(1, last6.length)));
@@ -230,6 +236,7 @@ export async function getCoachData(
       coastTargetYears: COAST_TARGET_YEARS,
     },
     opportunities,
+    unusualCharges,
     creep,
     runwayMonths: runway,
     lifeEnergy,

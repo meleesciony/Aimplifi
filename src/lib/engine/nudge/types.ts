@@ -14,12 +14,13 @@ import type { PaymentReminder } from '@/lib/engine/reminders/select';
 import type { RadarResult } from '@/lib/engine/radar/radar';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { Opportunity, OpportunityKind } from '@/lib/engine/fi/insights';
+import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
 
 /** Suppression tiers, most urgent first. HANDLED is quiet autopay reassurance. */
 export type ProposalTier = 'critical' | 'action' | 'opportunity' | 'handled';
 
 /**
- * Closed union of nudge sources: three fixed kinds plus the four OpportunityKind
+ * Closed union of nudge sources: four fixed kinds plus the four OpportunityKind
  * members. Adding an OpportunityKind breaks the exhaustive switch in select.ts at
  * compile time — an unknown kind is unrepresentable.
  */
@@ -27,6 +28,7 @@ export type ProposalKind =
   | 'payment_due'
   | 'cash_flow_dip'
   | 'cash_needed_shortfall'
+  | 'unusual_charge'
   | OpportunityKind;
 
 export interface Proposal {
@@ -75,6 +77,16 @@ export interface Proposal {
    * recomputed.
    */
   autopayCents: Cents;
+  /**
+   * Verbatim display context for an unusual_charge proposal; null for every other
+   * kind (the autopayCents precedent — context fields, never recomputed). `merchant`
+   * is the detector's canonical merchant; `typicalCents` its median charge there;
+   * `typicalCount` the baseline size — carried so the copy can disclose the basis
+   * ("median of N charges") next to the figure, per the coaching guardrails.
+   */
+  merchant: string | null;
+  typicalCents: Cents | null;
+  typicalCount: number | null;
   isEstimated: boolean;
   /** True iff the user has dismissed this proposal's dismissKey (UI collapse hint). */
   dismissed: boolean;
@@ -86,6 +98,12 @@ export interface NudgeInput {
   radar: RadarResult | null;
   cashNeeded: CashNeededResult | null;
   opportunities: readonly Opportunity[];
+  /**
+   * Per-merchant median+MAD outliers from `detectUnusualCharges` (#249). Optional so
+   * pre-existing callers (and tests) that don't surface the radar stay valid; absent
+   * means "no unusual charges", identical to [].
+   */
+  unusualCharges?: readonly UnusualCharge[];
   /**
    * The set of `dismissKey`s the user has dismissed — the SUPPRESSION store, distinct
    * from the EngagementEvent behavioral log. These are fact-keys (e.g.

@@ -45,13 +45,15 @@ test('shows contextual follow-up chips after a spend answer and re-asks on click
 }) => {
   await signIn(page);
   await page.goto('/ask');
-  // "this month" = June 2026 on the demo clock — biggest purchase is Costco $158.44.
+  // "this month" = June 2026 on the demo clock — biggest purchase is the #249
+  // engineered Blue Bottle anomaly ($214.36), the same charge the Unusual Charge
+  // Radar flags (Ask and the radar agree by construction).
   await ask(page, 'How much did I spend on groceries this month?');
   const chips = page.getByTestId('ask-follow-up');
   await expect(chips).toHaveCount(3);
   await chips.filter({ hasText: /biggest purchase/i }).click();
   await expect(page.getByTestId('ask-answer')).toBeVisible();
-  await expect(page.getByTestId('ask-headline')).toContainText('Costco');
+  await expect(page.getByTestId('ask-headline')).toContainText('Blue Bottle Coffee');
 });
 
 test('answers typed questions grounded in the seed', async ({ page }) => {
@@ -62,8 +64,9 @@ test('answers typed questions grounded in the seed', async ({ page }) => {
   await expect(page.getByTestId('ask-headline')).toContainText('Your net worth is $144,804.74.');
 
   await ask(page, 'What was my biggest purchase this month?');
-  await expect(page.getByTestId('ask-headline')).toContainText('Costco');
-  await expect(page.getByTestId('ask-headline')).toContainText('$158.44');
+  // #249: the engineered Blue Bottle anomaly ($214.36 on 2026-06-02) is June's biggest.
+  await expect(page.getByTestId('ask-headline')).toContainText('Blue Bottle Coffee');
+  await expect(page.getByTestId('ask-headline')).toContainText('$214.36');
 
   // #168 per-merchant spend: "at Costco" sums that merchant's purchases (the seed
   // has June Costco spend, so a real figure — grounded to /transactions activity).

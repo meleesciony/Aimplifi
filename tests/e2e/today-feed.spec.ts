@@ -46,6 +46,21 @@ test('feed renders a headline (not the empty state) with a why-this disclosure',
   await expect(page.getByTestId('nudge-why-inputs').first()).toContainText('at stake');
 });
 
+test('#249: the engineered $214.36 unusual charge surfaces as a dismissable ACTION row with its median basis', async ({ page }) => {
+  await signIn(page);
+  // Demo-first: the seed's engineered Blue Bottle anomaly (EDGE_CASES §Unusual Charge
+  // Radar seed lock) must be visible on the demo dashboard, at ACTION tier (a decision,
+  // never competing with CRITICAL warnings), with the comparison basis disclosed.
+  const row = page.getByTestId('nudge-unusual_charge');
+  await expect(row).toBeVisible();
+  await expect(row).toHaveAttribute('data-tier', 'action');
+  await expect(row).toContainText('Unusual charge worth a look');
+  await expect(row).toContainText('$214.36 at Blue Bottle Coffee');
+  await expect(row).toContainText('median of'); // the basis, inline next to the figure
+  // ACTION tier is dismissable (session-only for the fenced demo user).
+  await expect(row.getByTestId('nudge-dismiss-unusual_charge')).toBeVisible();
+});
+
 test('P1-2: obligations are labeled "Payment due", never "Card payment due" (loans included)', async ({ page }) => {
   await signIn(page);
   // The feed drops the card/loan discriminant, so it must not assert "card" — a

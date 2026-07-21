@@ -44,6 +44,19 @@ exercises same-day aggregation; one due date in history falls on a weekend ✔).
 - **Lifestyle creep ✔:** discretionary spend (dining, shopping) rises ~4%/mo over the
   final 6 months while income is flat — detectable by the Phase 3 creep engine.
 - **Refund:** one $50.00 credit posting 2 days after a statement close on Sapphire ✔.
+- **Engineered unusual charge ✔ (#249):** one −$214.36 `SQ *BLUE BOTTLE 0042 OAK`
+  charge on the Sapphire card 8 days before asOf (2026-06-02 at the default) — the
+  Unusual Charge Radar's demo-first anomaly (the plan's marketed "$214 coffee"). Placed
+  in the current PARTIAL month (coach full-month aggregates untouched), with a fixed
+  amount after every RNG-consuming block (byte-identical stream for all other values).
+  The detector's seed lock (anomaly-detect.test.ts) asserts this is the demo's ONLY
+  flagged charge; hand math in EDGE_CASES §Unusual Charge Radar. **Default-asOf
+  dependency (#249 critic P2-2):** the anomaly's ≥6-charge Blue Bottle baseline comes
+  from ORGANIC random draws, so at a non-default `--asOf` the merchant can fall below
+  the minimum sample and the engineered charge silently stops flagging (verified
+  counterexample: asOf 2026-06-20 → 5 samples → no flag). The demo clock is hard-pinned
+  to the default asOf, so the shipped demo always flags; if you reseed with a custom
+  asOf for local work, don't expect the radar nudge to survive it.
 - **Engineered intra-period dip ✔:** rent −$1,800 lands 2 days before a payroll Friday
   each month so that, in the current cycle, the projected checking balance dips below
   the amount needed for the earliest card due date even though it recovers by the

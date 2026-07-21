@@ -500,6 +500,15 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
     addTxn('acct-store', isoDate('2026-06-02'), -4350, 'STORE CARD PURCHASE 0064 ATL');
   }
 
+  // ── engineered unusual charge (Unusual Charge Radar, DECISIONS #249) ──
+  // The plan's marketed "$214 coffee": one $214.36 Blue Bottle charge 8 days before
+  // asOf (2026-06-02 at the default), on the Sapphire card. Placed in the CURRENT
+  // partial month so coach full-month aggregates (expenses6, FI, savings streak) are
+  // untouched, and after every randInt-consuming block with a FIXED amount so the
+  // RNG stream — and therefore every other seeded value — is byte-identical.
+  // anomaly-detect's seed lock asserts this is the demo's ONLY flagged charge.
+  addTxn('acct-sapphire', addDays(asOf, -8), -21436, 'SQ *BLUE BOTTLE 0042 OAK');
+
   // ── pending transactions at asOf (≥3, incl. −$250.00 on the payment account) ──
   addTxn('acct-checking', asOf, -25000, 'ZELLE PAYMENT TO GREENLEAF LAWN CARE', { status: 'PENDING' });
   addTxn('acct-sapphire', asOf, -675, 'SQ *BLUE BOTTLE 0042 OAK', { status: 'PENDING' });

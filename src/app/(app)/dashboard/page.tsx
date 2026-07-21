@@ -82,6 +82,9 @@ export default async function DashboardPage({
     radar: radar.radar,
     cashNeeded: data.payInFull,
     opportunities: coach.opportunities,
+    // Unusual Charge Radar (#249): per-merchant median+MAD flags computed inside
+    // getCoachData over the same fetched rows — verbatim into the feed.
+    unusualCharges: coach.unusualCharges,
   } as const;
   const nudgeFeed = buildNudgeFeed({ ...nudgeInput, dismissedKeys: nudgeDismissedKeys });
   const nudgeFeedAll = buildNudgeFeed({ ...nudgeInput, dismissedKeys: new Set<string>() });

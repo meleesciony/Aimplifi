@@ -1,5 +1,64 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-21 — Unusual Charge Radar v1 (#249) — COMPLETE (verify green, critic cycle closed)
+
+All 11 steps done. Fresh-context Fable critic: FAIL (1 P1: seed change left ask.spec stale-red —
+2 tests pinned Costco $158.44 as June's biggest purchase; lesson-#25 class, only today-feed.spec
+had been run / 5 P2) → P1 + 3 P2s fixed (ask.spec re-pinned to Blue Bottle $214.36; window
+docstring age 0–44; whyInputs "a $X charge" never "at stake" for a spent charge; SEED_SPEC
+default-asOf dependency documented with the critic's 2026-06-20 counterexample), 2 P2 residuals
+recorded in STATUS (txn-id index fallback under the persisted dismissal key; household-scope
+viewer-only unusualCharges asymmetry). Critic independently recomputed EDGE_CASES hand math and
+swept 42 asOf dates: 0 organic false positives. Final gate: bash scripts/verify.sh → ✅ VERIFY
+GREEN 3036 unit / 214 files, tsc+eslint+build clean; ask.spec + today-feed.spec 26/26 against the
+fresh build. Docs: DECISIONS #249 + index, STATUS §Unusual Charge Radar, EDGE_CASES §Unusual
+Charge Radar, SEED_SPEC, AI plan §Later #12 un-staled. Next owner-gated menu: income-pause/runway
+radar (Fable; needs FI-mutation plumbing + seed design), streaks drift loop (transfer-pair
+blocked), double-bill (timestamp-blocked), or non-AI-plan work.
+
+## 2026-07-20 — Unusual Charge Radar v1 (#249, AI plan §3-Later #12 reshaped) — IN PROGRESS (superseded by the COMPLETE entry above)
+
+Owner "continue" at the #248 owner-gated fork. Pick: per-merchant median+MAD outlier detector —
+the plan's own reshape verdict ("ship the per-merchant outlier detector after seeding 1-2
+engineered anomalies; defer the duplicate detector until timestamps are captured",
+AI_DIFFERENTIATION_PLAN.md:247). Income-pause/runway deferred (needs FI-mutation plumbing plus a
+seeded income pause that ripples the whole 18-month demo narrative). Reconciled per lesson #26:
+streaks' groundable core already shipped #205 — STATUS #248's menu line was partially stale.
+Next DECISIONS number: **#249**. Tree clean at 9c835ae.
+
+**Design (settled, step 1 done):**
+- Engine `src/lib/engine/anomaly/detect.ts` (pure, NO LLM anywhere): group POSTED, non-transfer,
+  non-split-parent, negative txns by `normalizeMerchant().canonical`; magnitudes in integer cents.
+  Median/MAD convention: sort asc; even n → floor of midpair mean. Flag iff merchant has
+  ≥ MIN_SAMPLE=6 qualifying charges (baseline = all history ≤ today), the charge is within
+  RECENT_WINDOW_DAYS=45 of `today`, and deviation = magnitude − median **strictly >**
+  K_MAD=4 × MAD + FLOOR=4000¢ (additive floor handles MAD=0 subscriptions: a $2.50 Netflix bump
+  never flags; a $200 spike does). Above-median only. ≤1 flag per merchant (max deviation; tie →
+  later date → txnId); overall top-3 by deviation desc (tie → merchant asc).
+- Seed ONE engineered anomaly: `SQ *BLUE BOTTLE 0042 OAK` −21436 ($214.36 — the plan's marketed
+  "$214 coffee") on 2026-06-02, acct-sapphire. Current PARTIAL month → coach full-month aggregates
+  (expenses6, FI, streak) untouched; statements are pinned constants → cash-needed untouched.
+  Uniform seed draws can't flag under K=4+floor (deviation ≤ half-range < 4×quarter-range) — a
+  lock test asserts EXACTLY one flag over buildSeedData.
+- Feed: new fixed ProposalKind `'unusual_charge'`, tier `'action'`, key/dismissKey
+  `unusual_charge:<txnId>`, subjectKey `nudge:unusual_charge` (ENGAGEMENT_SUBJECT_KEYS compile-time
+  lockstep). centsAtStake = charge magnitude verbatim; new verbatim display-context fields on
+  Proposal (autopayCents precedent): `merchant`, `typicalCents`, `typicalCount` — null for every
+  other kind. No push (notify/select untouched). Copy in today-feed-copy.ts: figure labeled as the
+  charge, median disclosed with sample count, owner-neutral, no summing.
+- Server/UI: coach.ts runs detector on already-fetched txns → CoachData.unusualCharges; dashboard
+  page adds to nudgeInput. Demo dashboard must show the $214.36 nudge (demo-first).
+
+**Steps 1–9 DONE (real output):** engine + 20 unit tests incl. exactly-one seed lock; EDGE_CASES
+§Unusual Charge Radar (F1–F12 hand math); seed anomaly (−21436 Blue Bottle 2026-06-02, RNG stream
+untouched); feed integration (types/select/event/copy) + extended nudge-select / nudge-feed-copy /
+engagement tests; coach+dashboard wiring; 3 seed-pinned tests re-verified by hand (trends pace
+95365/286095, largest lists, Ask headline $214.36 Blue Bottle); `bash scripts/verify.sh` →
+✅ VERIFY GREEN 3035 unit / 214 files, tsc+eslint+build clean; today-feed.spec 6/6 green (fresh
+build) incl. new #249 case; docs done (DECISIONS #249 + index, STATUS §Unusual Charge Radar,
+SEED_SPEC, AI plan §Later #12 un-staled). **Pending:** 10 fresh-context Fable hostile critic →
+fix → re-verify · 11 commit #249.
+
 ## 2026-07-20 — AI plan §3.4 Subscription Radar — COMPLETE (#246, verify green, critic PASS)
 
 All 5 steps done. Engine engine/recurring/renewals.ts (upcomingRenewals + renewalsWithin; 21 unit tests incl. seed-grounded block) + RecurringData.renewals + 'Coming up' section on /recurring + recurring.spec e2e 3/3 (fresh build) + EDGE_CASES §Upcoming renewals. Fable fresh-context critic: PASS 0 P0/P1; P2-1/2/3 fixed same session (honest 'was $X' badge, IRREGULAR skip locked, shared bucket predicate), P2-4 resolved by P2-1 rewrite. Gate: bash scripts/verify.sh -> VERIFY GREEN, 2934 unit / 211 files, tsc+eslint+build clean. Residuals recorded in STATUS (calendar gap, nudge kinds, drafter deferred). DECISIONS #246; STATUS section added; next owner-gated pick: AI plan §3.3 / §3.5 / Later.

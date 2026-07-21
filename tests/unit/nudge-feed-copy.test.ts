@@ -20,6 +20,9 @@ function prop(o: Partial<Proposal> & { kind: ProposalKind; tier: ProposalTier })
     daysUntil: null,
     centsAtStake: cents(0) as Cents,
     autopayCents: cents(0) as Cents,
+    merchant: null,
+    typicalCents: null,
+    typicalCount: null,
     isEstimated: false,
     dismissed: false,
     ...o,
@@ -87,12 +90,41 @@ describe('proposalCopy — money-honesty per kind', () => {
     expect(neg.detail).toContain('could save around $20.00/mo (estimated)');
   });
 
+  it('unusual_charge: the figure is the CHARGE; the median comparison discloses its basis inline', () => {
+    const c = proposalCopy(
+      prop({
+        kind: 'unusual_charge',
+        tier: 'action',
+        centsAtStake: cents(21436) as Cents,
+        merchant: 'Blue Bottle Coffee',
+        typicalCents: cents(750) as Cents,
+        typicalCount: 14,
+        sortDate: isoDate('2026-06-02'),
+      }),
+    );
+    expect(c.title).toBe('Unusual charge worth a look');
+    expect(c.detail).toContain('$214.36 at Blue Bottle Coffee');
+    // The comparison figure is labeled with its basis (median of N) — never a bare claim.
+    expect(c.detail).toContain('typical $7.50 there (median of 14 charges)');
+    // No-shame guardrail: legitimate outcome is offered, no spending judgment.
+    expect(c.detail).toContain('If it’s expected, dismiss this.');
+    expect(c.detail).not.toMatch(/overspen|too much|shouldn/i);
+  });
+
+  it('unusual_charge: degrades gracefully when display context is absent (no dangling comparison)', () => {
+    const c = proposalCopy(prop({ kind: 'unusual_charge', tier: 'action', centsAtStake: cents(21436) as Cents }));
+    expect(c.detail).toContain('$214.36');
+    expect(c.detail).not.toContain('median');
+    expect(c.detail).not.toContain(' at ');
+  });
+
   it('no branch addresses the reader as the payer ("you pay"/"your payment")', () => {
     const kinds: Array<{ kind: ProposalKind; tier: ProposalTier }> = [
       { kind: 'payment_due', tier: 'critical' },
       { kind: 'payment_due', tier: 'handled' },
       { kind: 'cash_needed_shortfall', tier: 'critical' },
       { kind: 'cash_flow_dip', tier: 'critical' },
+      { kind: 'unusual_charge', tier: 'action' },
       { kind: 'price-increase', tier: 'opportunity' },
       { kind: 'unused-subscription', tier: 'opportunity' },
       { kind: 'insurance-reshop', tier: 'opportunity' },
@@ -106,6 +138,12 @@ describe('proposalCopy — money-honesty per kind', () => {
 });
 
 describe('whyInputs — verbatim inputs, honest estimate wording', () => {
+  it('unusual_charge: the disclosure says "a $X charge", never "$X at stake" (already spent)', () => {
+    const w = whyInputs(prop({ kind: 'unusual_charge', tier: 'action', centsAtStake: cents(21436) as Cents, sortDate: isoDate('2026-06-02') }));
+    expect(w).toContain('a $214.36 charge');
+    expect(w).not.toContain('at stake');
+  });
+
   it('lists the stake, date, days-out, and an honest estimate qualifier', () => {
     const w = whyInputs(prop({ kind: 'payment_due', tier: 'action', centsAtStake: cents(50000) as Cents, sortDate: isoDate('2026-06-20'), daysUntil: 10, isEstimated: true }));
     expect(w).toContain('$500.00 at stake');

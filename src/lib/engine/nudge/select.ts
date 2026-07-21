@@ -16,6 +16,7 @@ import type { PaymentReminder } from '@/lib/engine/reminders/select';
 import type { RadarResult } from '@/lib/engine/radar/radar';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { Opportunity } from '@/lib/engine/fi/insights';
+import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
 import {
   NOTIFY_DUE_WINDOW_DAYS,
   paymentNotificationKey,
@@ -79,6 +80,9 @@ function paymentProposal(r: PaymentReminder, today: ISODate, dismissed: Readonly
     daysUntil: r.daysUntil, // verbatim
     centsAtStake,
     autopayCents: r.autopayCents, // verbatim — display context for the autopay split
+    merchant: null,
+    typicalCents: null,
+    typicalCount: null,
     isEstimated: r.isEstimated,
     dismissed: dismissed.has(dismissKey),
   };
@@ -105,6 +109,9 @@ function dipProposal(
     daysUntil: radar.daysUntilFirstNegative, // verbatim (nullable)
     centsAtStake: radar.coverTransfer?.amountCents ?? ZERO, // verbatim (mirrors notify/select)
     autopayCents: ZERO, // not a payment_due proposal
+    merchant: null,
+    typicalCents: null,
+    typicalCount: null,
     isEstimated: radar.includesEstimatedDues,
     dismissed: dismissed.has(dismissKey),
   };
@@ -137,6 +144,9 @@ function shortfallProposal(
     daysUntil: null,
     centsAtStake: cn.headline.shortfallCents, // verbatim
     autopayCents: ZERO, // not a payment_due proposal
+    merchant: null,
+    typicalCents: null,
+    typicalCount: null,
     isEstimated,
     dismissed: dismissed.has(dismissKey),
   };
@@ -179,7 +189,42 @@ function opportunityProposal(o: Opportunity, today: ISODate, dismissed: Readonly
     daysUntil: null,
     centsAtStake: o.monthlyCents, // verbatim
     autopayCents: ZERO, // not a payment_due proposal
+    merchant: null,
+    typicalCents: null,
+    typicalCount: null,
     isEstimated: o.isEstimate,
+    dismissed: dismissed.has(dismissKey),
+  };
+}
+
+/**
+ * Unusual-charge proposal (#249): the per-merchant median+MAD detector's flag as an
+ * ACTION-tier row — it asks for a decision ("was this expected?") with no deadline, so
+ * it never competes with CRITICAL warnings and is dismissable. The dismissal fact is
+ * the flagged TRANSACTION (`unusual_charge:<txnId>`): dismissing one charge never
+ * suppresses a future anomaly, which arrives with a new txn id. Every money value is
+ * verbatim from the detector; the typical/median context rides in the display-context
+ * fields so the copy can disclose its basis. Deliberately NOT pushed (notify/select is
+ * untouched): a statistical "worth a look" is not a payment obligation.
+ */
+function unusualProposal(u: UnusualCharge, today: ISODate, dismissed: ReadonlySet<string>): Proposal {
+  const tier: ProposalTier = 'action';
+  const key = `unusual_charge:${u.txnId}`;
+  const dismissKey = dismissKeyFor(tier, key, today);
+  return {
+    kind: 'unusual_charge',
+    tier,
+    key,
+    dismissKey,
+    subjectKey: subjectKey('unusual_charge'),
+    sortDate: u.date, // verbatim — the charge date orders it within ACTION
+    daysUntil: null,
+    centsAtStake: u.amountCents, // verbatim — the flagged charge's magnitude
+    autopayCents: ZERO, // not a payment_due proposal
+    merchant: u.merchantCanonical, // verbatim display context
+    typicalCents: u.typicalCents, // verbatim display context
+    typicalCount: u.sampleCount, // verbatim display context
+    isEstimated: false, // a real posted charge, never an estimate
     dismissed: dismissed.has(dismissKey),
   };
 }
@@ -243,6 +288,7 @@ export function buildNudgeFeed(input: NudgeInput): NudgeFeed {
   const proposals: Proposal[] = [
     ...reminders.map((r) => paymentProposal(r, today, dismissed)),
     ...opportunities.map((o) => opportunityProposal(o, today, dismissed)),
+    ...(input.unusualCharges ?? []).map((u) => unusualProposal(u, today, dismissed)),
   ];
   const dip = dipProposal(radar, today, dismissed);
   if (dip) proposals.push(dip);
