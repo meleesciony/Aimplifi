@@ -54,6 +54,25 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Scenario Coherence Engine (2026-07-21) — #255, AI plan §Later #13 slice 1
+
+Owner-chosen at the #252 fork (preempted twice by #253/#254 interjects, resumed on
+"continue"). The pure snapshot-coherence engine `engine/scenario/scenario.ts` — one
+canonical state + knob deltas (income/expense percent+absolute, extra debt) applied to
+BOTH representations (coach aggregates AND scheduled flows) or not at all with a
+disclosed note; net-vs-investible split resolves the ratio-vs-cents hazard; adapters
+preserve each downstream engine's conventions verbatim. Decision-comparison half
+permanently dropped (plan §4). Engine only — the what-if UI + sensitivity band are
+later slices. Hostile critic cycle 1 FAIL (1 P1 / 2 P2) → all fixed in-cycle →
+critic re-verified by executed re-repro → PASS 0 P0/P1. Detail: DECISIONS #255,
+EDGE_CASES §Scenario Coherence (S1–S16).
+
+**Recorded residuals (#255, both critic-accepted P3):**
+1. Adapter overflow guard relies on coach-shaped bases: `toFIInputs`/`scaleRowAmount`
+   could throw only at ~$900B-scale inputs no coach derivation can produce.
+2. `state.debts`/`state.dials` share references with the base (rows are copied);
+   no mutation path exists today — posture inconsistency only.
+
 ## Habit Streaks (2026-07-21) — #254, AI plan §Later #17 streaks half
 
 Owner's "continue" at the #253 fork. Board reconciliation (lesson #26 applied): the plan's
