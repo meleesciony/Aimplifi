@@ -114,3 +114,63 @@ test('attach a statement to a manual credit card, then clear + delete (extends #
   });
   await expect(page.getByTestId('accounts-empty')).toBeVisible({ timeout: 20000 });
 });
+
+test('Doc Extractor v1 (#247): the paste panel discloses, fails honestly keyless, and never blocks manual entry', async ({
+  page,
+}) => {
+  // E2E is hermetic — provider keys are blanked in playwright.config.ts — so
+  // the extract action DETERMINISTICALLY returns the honest-unavailable copy.
+  // The prefill happy path is locked deterministically in
+  // tests/unit/statement-extract-server.test.ts with a mocked provider; what
+  // only e2e can prove is the real panel in the real form: disclosure before
+  // egress, an honest failure, and a manual save that still works after it.
+  const email = `e2e-extract-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+
+  await page.goto('/accounts');
+  await page.getByTestId('add-liability-btn').click();
+  await page.getByTestId('manual-name').fill('E2E Extract Card');
+  await page.getByTestId('manual-type').selectOption('CREDIT');
+  await page.getByTestId('manual-value').fill('300');
+  await page.getByTestId('manual-submit').click();
+
+  const row = () => page.getByTestId('manual-account-row').filter({ hasText: 'E2E Extract Card' });
+  await expect(row()).toBeVisible({ timeout: 20000 });
+
+  // Open the statement form (hydration-barrier retry, see header).
+  await expect(async () => {
+    await row().getByTestId('card-statement-add').click({ timeout: 2000 });
+    await expect(row().getByTestId('card-statement-form')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+
+  // Open the paste panel: the privacy disclosure must be visible BEFORE any
+  // text can be sent, and it must state the pointer-only contract.
+  await row().getByTestId('cs-extract-toggle').click();
+  const disclosure = row().getByTestId('cs-extract-disclosure');
+  await expect(disclosure).toBeVisible();
+  await expect(disclosure).toContainText('sent to an AI model');
+  await expect(disclosure).toContainText('nothing is saved until you press Save');
+
+  // Keyless extract → the honest manual-entry message, no stall, no prefill.
+  await row().getByTestId('cs-extract-text').fill('New balance $1,234.56\nPayment due date 08/10/2026');
+  await row().getByTestId('cs-extract-run').click();
+  await expect(row().getByTestId('cs-extract-error')).toContainText('enter the fields manually', {
+    timeout: 20000,
+  });
+  await expect(row().getByTestId('cs-balance')).toHaveValue('');
+
+  // The failure leaves the manual path fully working: type + save + summary.
+  await row().getByTestId('cs-balance').fill('250');
+  await row().getByTestId('cs-min').fill('25');
+  await row().getByTestId('cs-close').fill('2026-06-15');
+  await row().getByTestId('cs-due').fill('2026-07-10');
+  await row().getByTestId('cs-save').click();
+  const summary = row().getByTestId('card-statement-summary');
+  await expect(summary).toBeVisible({ timeout: 20000 });
+  await expect(summary).toContainText('Statement $250.00');
+});

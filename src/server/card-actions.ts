@@ -12,7 +12,14 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { parseManualStatement, type ManualStatementInput } from '@/lib/engine/cards/manual-statement';
-import { auditLog, requireUserId } from '@/server/authz';
+import {
+  type ExtractFieldId,
+  type GroundedField,
+  groundStatementExtract,
+  scrubAccountNumbers,
+} from '@/lib/engine/doc-extract/statement';
+import { auditLog, rateLimitDurable, requireUserId } from '@/server/authz';
+import { statementExtractFor } from '@/server/statement-extract';
 
 export interface CardStatementResult {
   ok: boolean;
@@ -101,6 +108,61 @@ export async function setManualCardStatement(
   });
   revalidateCashNeeded();
   return { ok: true };
+}
+
+/** Result of one extract attempt. Reads only; never writes anything. */
+export interface ExtractDraftResult {
+  ok: boolean;
+  /** Grounded prefill values + their quoted source spans (when ok). */
+  fields?: GroundedField[];
+  /** Fields the model claimed but code couldn't ground/derive — enter by hand. */
+  abstained?: ExtractFieldId[];
+  /** Honest failure copy (when !ok). */
+  error?: string;
+}
+
+/**
+ * Doc Extractor v1 (AI plan §3.3 reshaped, DECISIONS #247): turn pasted card-
+ * statement TEXT into a prefill draft for the manual-statement form. Read-only
+ * by construction — the only write path remains setManualCardStatement, behind
+ * the human's review of every prefilled value next to its quoted source span.
+ * Account-number-like digit runs are scrubbed BEFORE the text leaves the
+ * machine; the LLM capability comes only from statementExtractFor (demo →
+ * null, audit-sunk); every span is grounded against the exact text the model
+ * saw and every value derived from the span by code.
+ */
+export async function extractStatementDraft(input: { text: string }): Promise<ExtractDraftResult> {
+  const userId = await requireUserId();
+
+  const text = (input.text ?? '').trim();
+  if (text === '') return { ok: false, error: 'Paste your statement text first.' };
+  if (text.length > 16_000) {
+    return {
+      ok: false,
+      error: 'That’s a lot of text — paste just the statement summary section.',
+    };
+  }
+
+  // The most expensive request path in the app (a 16KB paste ≈ 4K prompt
+  // tokens) — same per-user durable limit family as the assistant's LLM route
+  // (critic #247 cycle-1 P1-4). 10/min is generous for a human re-pasting.
+  if (!(await rateLimitDurable(`statement-extract:${userId}`, 10, 60_000))) {
+    return {
+      ok: false,
+      error: 'A lot of extractions just ran — wait a minute and try again, or enter the fields manually.',
+    };
+  }
+
+  const scrubbedText = scrubAccountNumbers(text);
+  const spans = await statementExtractFor(userId)({ scrubbedText });
+  if (spans === null) {
+    return {
+      ok: false,
+      error: 'AI extraction isn’t available right now — you can enter the fields manually.',
+    };
+  }
+  const grounded = groundStatementExtract(scrubbedText, spans);
+  return { ok: true, fields: grounded.fields, abstained: grounded.abstained };
 }
 
 export async function clearManualCardStatement(accountId: string): Promise<CardStatementResult> {

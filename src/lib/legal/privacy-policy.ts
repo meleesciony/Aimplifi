@@ -12,6 +12,9 @@
  *   - "AI sends only descriptor+amount / question, only with a key" ->
  *                                                  src/server/llm-categorize.ts,
  *                                                  src/server/assistant-llm.ts
+ *   - "pasted statement text sent only on explicit use, digit runs removed" ->
+ *                                                  src/server/llm-statement-extract.ts,
+ *                                                  scrubAccountNumbers (engine/doc-extract)
  *
  * Keep in sync with docs/PRIVACY.md (engineering note) and
  * docs/DATA_RETENTION_AND_DISPOSAL.md (the Plaid compliance deliverable).
@@ -104,7 +107,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
         {
           list: [
             'Plaid or SimpleFIN — to securely connect your accounts and retrieve balances, transactions, and liabilities. You authorize the connection yourself, and you can revoke it at any time.',
-            'Optional AI categorization (off unless an AI key is configured): to label an unrecognized transaction, only that transaction’s descriptor and amount are sent to the configured model provider — never your name, email, account numbers, or balances. For typed questions, only your question text is sent, to route it to a feature. With no AI key, nothing leaves the app and a deterministic fallback is used instead.',
+            'Optional AI features (off unless an AI key is configured): to label an unrecognized transaction, only that transaction’s descriptor and amount are sent to the configured model provider — never your name, email, account numbers, or balances. For typed questions, only your question text is sent, to route it to a feature. If you choose to use the statement extractor, the statement text you explicitly paste is sent to the same provider after recognizable long digit runs (like card and account numbers) are removed — removal is best-effort and can miss unusual formats — that pasted text can include balances and whatever else you paste, so paste only the statement’s summary section; this never happens automatically. With no AI key, nothing leaves the app and a deterministic fallback is used instead.',
             'Hosting (e.g., Vercel) — the infrastructure the app runs on.',
           ],
         },

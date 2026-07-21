@@ -72,6 +72,9 @@ describe('privacy policy — discloses exactly what the code enforces', () => {
     ['cascade incl. audit log', 'audit log itself'],
     ['AI sends only descriptor+amount', 'descriptor and amount'],
     ['AI is key-gated / off without a key', 'with no ai key'],
+    ['statement extractor: explicit paste egress disclosed (#247)', 'statement text you explicitly paste'],
+    ['statement extractor: digit-run scrub disclosed (#247)', 'long digit runs'],
+    ['statement extractor: never automatic (#247)', 'never happens automatically'],
     ['no data sale / no ad trackers', 'do not sell your data'],
     ['contact provided', PRIVACY_CONTACT_EMAIL.toLowerCase()],
   ];

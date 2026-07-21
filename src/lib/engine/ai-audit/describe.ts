@@ -30,6 +30,7 @@ export const AI_TOUCHPOINT_IDS = [
   'vocab_recheck',
   'review_order',
   'move_draft',
+  'extract',
 ] as const;
 export type AiTouchpointId = (typeof AI_TOUCHPOINT_IDS)[number];
 
@@ -111,6 +112,12 @@ export const AI_TOUCHPOINTS: readonly {
     title: 'Balance-move wording',
     may: 'Propose a sentence template with placeholders.',
     never: 'Fill in a figure — the engine substitutes every number and label itself.',
+  },
+  {
+    id: 'extract',
+    title: 'Statement text extraction',
+    may: 'Point at where each statement field appears in text you pasted, with a stated confidence.',
+    never: 'Author a number or date — every value is copied out of your own text by code, checked to exist verbatim, and saved only after you confirm it.',
   },
 ];
 
@@ -230,6 +237,14 @@ export function describeAiEntry(e: AiAuditEntry): string {
       }
       if (e.outcome === 'rejected') return `The AI’s wording template was invalid${REJECTED_TAIL}`;
       return `The AI was asked to word a balance change${UNAVAILABLE_TAIL}`;
+    }
+    case 'extract': {
+      if (e.outcome === 'replied') {
+        const n = e.meta.count;
+        return `The AI pointed at${n !== undefined ? ` ${n}` : ''} field location${n === 1 ? '' : 's'} in statement text you pasted; the app copied each value out of your text itself, for you to review.`;
+      }
+      if (e.outcome === 'rejected') return `The AI’s statement field locations were invalid${REJECTED_TAIL}`;
+      return `The AI was asked to locate fields in pasted statement text${UNAVAILABLE_TAIL}`;
     }
   }
 }

@@ -54,6 +54,55 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Doc Extractor v1 — text-only card-statement extractor (2026-07-20) — #247, AI plan §3.3 reshaped
+
+Owner said "continue" at the #246 owner-gated fork; §3.3-reshaped was the determined pick
+(§3.5 needs a vision pipeline that doesn't exist; every "Later" item carries a named
+blocker; the reshape — text-only card statement, no schema change, worst PII avoided — is
+written into the plan's own adversarial verdict). The user pastes statement text into the
+existing manual-card-statement form; the LLM is a **span-pointer with no value channel**
+({field, sourceSpan, confidence} over a closed 5-field set); code verifies each span exists
+verbatim in the scrubbed text the model saw, derives every value from the span
+deterministically, and prefills the form — the only write path remains human-confirmed
+`setManualCardStatement` through the byte-identical `parseManualStatement` gate, so
+"AI-originated dollar figures: 0" holds **by construction**.
+
+- **Engine.** `engine/doc-extract/statement.ts` (pure): validator (closed field set,
+  label-required spans, confidence capped 9900 bps, duplicate claims dropped entirely),
+  `scrubAccountNumbers` (digit runs ≥9, up-to-2 whitespace/dash separators — masked before
+  any egress), grounding + exactly-one-candidate derivation (cross-tier money ambiguity,
+  recognized negative forms, malformed money, 2-digit years, non-calendar dates, multi-date
+  spans all → abstain; cycleEnd-only range rule). EDGE_CASES §Doc Extractor v1
+  (hand-verified, abstention tests the majority).
+- **Server.** `llm-statement-extract.ts` (7s abort, null-on-failure, outcome sink);
+  `statementExtractFor` fencing constructor — the ONE way to the LLM (demo → null no-op,
+  zero egress, executed lock); new `extract` Trust Center touchpoint (count-only meta);
+  `extractStatementDraft` read-only action, 16KB cap, `statement-extract:{userId}` 10/min
+  durable rate limit before any egress.
+- **UI.** Paste panel in the statement form: disclosure BEFORE egress (best-effort scrub
+  named), per-field quoted-span + confidence receipts, "Enter by hand" gap list, inputs +
+  Save disabled while extracting, `role="status"`/`role="alert"` states.
+- **Hostile critic (2 fresh-context Fable cycles: FAIL → all 8 fixed → PASS 0 P0/P1).**
+  Cycle-1 P1s: privacy policy falsified by the new egress (policy + ask-view re-scoped,
+  3 substring locks added); scrubber weaker than its UI promise (double-space/newline PANs
+  leaked — regex widened, copy softened to name the residual); credit-sign loss on
+  `($45.00)`/`$45.00 CR`/unicode-minus (all recognized forms now abstain); no rate limit.
+  Cycle-2 verified every fix genuinely fixed by executing the shipped code; its 2 new P2s
+  (trailing-minus/CR-prefix sign forms; policy best-effort qualifier) fixed same session.
+- **Gate (real output 2026-07-20):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — 2999 unit
+  / 213 files, tsc+eslint+build clean (final re-verify after the P2 fixes below); e2e
+  manual-card-statement.spec 2/2 green incl. the new #247 test (disclosure, keyless
+  honest-failure, manual path survives) against a fresh production build. New locks: `doc-extract-statement.test.ts` (48),
+  `statement-extract-server.test.ts` (14), 3 privacy-policy substring locks.
+- **Recorded residuals (deliberate):** scrub is best-effort and disclosed as such (3+
+  space separators pass; the disclosure tells users to paste only the summary section);
+  textual sign prefixes ("Credit balance: $45.00") not recognized — the quoted span
+  carries the words for the confirming human; live prefill happy-path is locked in unit
+  (mocked provider) not e2e (e2e is hermetic/keyless by design). Deferred per plan
+  verdict: paystub, 401k, vision/photos, fee watchdog. DECISIONS #247.
+- **Next (owner-gated): §3.5 remains vision-blocked; the plan's "Later" section, or
+  non-AI-plan work.**
+
 ## Subscription Radar — upcoming renewals (2026-07-20) — #246, AI plan §3.4 deterministic slice
 
 Owner picked §3.4. The explorer map showed the radar ~70% shipped (two-plateau price-hike

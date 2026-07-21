@@ -555,7 +555,7 @@ export function AskView({
       {assistEnabled && (
         <p className="text-xs text-muted-foreground">
           Answers come from your own data. Unrecognized questions may be interpreted by an AI model to
-          route them; your account data is never sent to it.
+          route them; it sees only the question text, never your account data.
         </p>
       )}
     </div>
