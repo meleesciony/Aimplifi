@@ -7,17 +7,24 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '@/lib/db';
 import { DEMO_USER_ID } from '@/lib/demo-user';
-import { aiAuditSink, getAiTrail } from '@/server/ai-audit';
+import { describeTouchpointStats, tallyTouchpoints } from '@/lib/engine/ai-audit/describe';
+import { aiAuditSink, getAiTouchpointCounts, getAiTrail } from '@/server/ai-audit';
 
 const USER = 'user-ai-audit-test';
+const COUNTS_USER = 'user-ai-audit-counts-test';
 
 beforeAll(async () => {
-  await prisma.user.create({ data: { id: USER, email: `${USER}@test.local` } });
+  await prisma.user.createMany({
+    data: [
+      { id: USER, email: `${USER}@test.local` },
+      { id: COUNTS_USER, email: `${COUNTS_USER}@test.local` },
+    ],
+  });
 });
 
 afterAll(async () => {
-  await prisma.auditLog.deleteMany({ where: { userId: USER } });
-  await prisma.user.delete({ where: { id: USER } });
+  await prisma.auditLog.deleteMany({ where: { userId: { in: [USER, COUNTS_USER] } } });
+  await prisma.user.deleteMany({ where: { id: { in: [USER, COUNTS_USER] } } });
 });
 
 describe('aiAuditSink', () => {
@@ -59,5 +66,37 @@ describe('getAiTrail', () => {
 
   it('another user’s rows are invisible (ownership-scoped)', async () => {
     expect(await getAiTrail('user-someone-else')).toEqual([]);
+  });
+});
+
+describe('getAiTouchpointCounts', () => {
+  it('groups this user’s ai.* rows by action into verbatim COUNTs (portable groupBy)', async () => {
+    // 3 categorize.replied, 1 categorize.rejected, 2 extract.replied for COUNTS_USER.
+    for (let i = 0; i < 3; i += 1) await aiAuditSink(COUNTS_USER, 'categorize')('replied', {});
+    await aiAuditSink(COUNTS_USER, 'categorize')('rejected', {});
+    for (let i = 0; i < 2; i += 1) await aiAuditSink(COUNTS_USER, 'extract')('replied', {});
+
+    const counts = await getAiTouchpointCounts(COUNTS_USER);
+    const byAction = Object.fromEntries(counts.map((c) => [c.action, c.count]));
+    expect(byAction['ai.categorize.replied']).toBe(3);
+    expect(byAction['ai.categorize.rejected']).toBe(1);
+    expect(byAction['ai.extract.replied']).toBe(2);
+
+    // End-to-end through the pure tally: the track record the page renders.
+    const stats = tallyTouchpoints(counts);
+    const categorize = stats.find((s) => s.touchpoint === 'categorize')!;
+    expect(categorize).toMatchObject({ total: 4, replied: 3, rejected: 1 });
+    expect(stats.find((s) => s.touchpoint === 'extract')).toMatchObject({ total: 2, replied: 2 });
+
+    // The populated line the page renders, driven end-to-end from real persisted
+    // rows (unit tests otherwise only cover synthetic stats — Fable critic P2-3).
+    expect(describeTouchpointStats(categorize)).toBe('Asked 4 times · 1 discarded by the guardrail.');
+    expect(describeTouchpointStats(stats.find((s) => s.touchpoint === 'intent')!)).toBe(
+      'Not asked about your data yet.',
+    );
+  });
+
+  it('another user’s counts are invisible (ownership-scoped)', async () => {
+    expect(await getAiTouchpointCounts('user-someone-else')).toEqual([]);
   });
 });

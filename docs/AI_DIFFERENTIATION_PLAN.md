@@ -166,6 +166,8 @@ These are real and differentiating, but each requires net-new storage, write-pat
 
 #### 3.1 Why-This-Category — every label shows its source; AI guesses are flagged, not silent *(rank #3 — Wave 3 lead)*
 
+> **✅ SHIPPED (#238 slice 1 engine+persistence, #239 slice 2 UI+confirm).** The "build-later" verdict below is the AUTHORING-TIME assessment; it was built *with* the live-ingest prediction-logging work it asked for. Do not re-scope from the verdict — see STATUS and DECISIONS #238/#239 for the shipped state.
+
 **JTBD.** When a charge lands in "Dining," tell me *who* decided that and how sure it was, so I can trust the auto-categorization and catch the AI's mistakes before they pollute my budget.
 
 **Why it beats incumbents.** Mint/Simplifi/Monarch silently auto-categorize; Copilot uses AI categorization but presents it as fact. We already compute a `'deterministic'|'llm'` provenance tag and `confidenceBps` — surfacing it turns the anti-hallucination boundary into a visible, correctable trust surface, and tightens today's silent `AUTO_SILENT` auto-file toward disclosure.
@@ -179,6 +181,8 @@ These are real and differentiating, but each requires net-new storage, write-pat
 **Adversarial verdict: build-later.** The constitution fit is near-poster-child, but the "small migration" claim is false and *understated*: `source`/`matchedRuleId` are computed transiently and **discarded at every write path** (`Transaction` and `CategoryPrediction` have no `source` column; Plaid/SimpleFIN ingest persist only `categoryId`/`confidenceBps`/`needsReview`; `assistUnsureRows` explicitly strips `source:'llm'`). New finding: `CategoryPrediction` rows are written *only* in `seed.ts` — live ingest writes no prediction rows at all, so the render data is demo-only today. Sharpest gotcha: historical LLM-filed rows are **unrecoverable** (a confident LLM auto-file is byte-identical to a merchant default after write), so this is forward-only — "older rows show source unknown" masks exactly the LLM rows the feature exists to flag. Build it *with* the work to log predictions at live ingest, reframe effort to M/L, and accept the forward-only limit.
 
 #### 3.2 AI Trust Center & Audit Ledger — a live track record and an auditable log of every value AI touched *(rank #6)*
+
+> **✅ SHIPPED (#242 feature; #248 per-touchpoint track record).** All three reworks the "needs-rework" verdict below asked for are done: (a) headline narrowed to "AI-originated dollar figures / financial facts: 0"; (b) `CategoryPrediction.source` + live-ingest prediction logging (via #238); (c) `AuditLog` LLM-touchpoint logging + Trust Center page. #248 added the per-touchpoint track record. Do not re-scope from the verdict — see STATUS and DECISIONS #242/#248.
 
 **JTBD.** Before I rely on this app's AI, prove it's accurate on *my* data, that "90% sure" really means 90%, that it never invents dollar figures, and give me one place to audit every time AI touched my data.
 
@@ -194,6 +198,8 @@ These are real and differentiating, but each requires net-new storage, write-pat
 
 #### 3.3 Document Onboarding Extractor — snap a statement, paystub, or 401k page into the engines *(rank #4)*
 
+> **✅ SHIPPED as v1 (#247), reshaped exactly per the verdict below** — text-only card statement, span-pointer LLM, reuses `parseManualStatement`. Paystub, 401k, vision/photos, fee watchdog deferred to later slices as the verdict recommended. See STATUS and DECISIONS #247.
+
 **JTBD.** My credit-union card, my employer's 401k, and my pre-tax 401k+match won't link to anything — let me snap the statement/paystub/page and have the app onboard the numbers without typing six fields, and tell me if a fee or APR quietly changed.
 
 **Why it beats incumbents.** Pre-tax 401k contribution+match and disclosure-box APR/fee changes (non-transaction events) are **structurally invisible** to every aggregator; YNAB makes you hand-type. Extracting them from the document, then re-validating against the engines, reaches a depth no aggregator can.
@@ -207,6 +213,8 @@ These are real and differentiating, but each requires net-new storage, write-pat
 **Adversarial verdict: build-later, bordering needs-rework on scope.** The grounding pattern is real and exact, but: (1) the reconciliation gates are strong for paystub/portfolio yet **absent for single-number statement fields** like `statementBalance` — a transposed digit passes every gate, leaning entirely on human-confirm + the source span; (2) no vision/OCR path exists in `src/` today; (3) the 401k contribution+match has no home in the schema; (4) sending paystub PII to a model **directly contradicts** the live `ask-view.tsx` promise "your account data is never sent to it." Recommended reshape: ship a **single text-PDF doc type as v1 — the card statement** (reuses `parseManualStatement` verbatim, needs no new schema, adds a code check that the model's returned substring literally exists in the source text, avoids the worst PII). Defer paystub, 401k holdings, vision/photos, and the fee watchdog to later slices.
 
 #### 3.4 Subscription Radar & Negotiation Drafter — catch the quiet hike, forecast the renewal, draft the pushback *(rank #8)*
+
+> **✅ SHIPPED — deterministic radar slice (#246):** two-plateau price-hike detection + 5 surfaces, dormant-sub flag, and the forward 7/30/90-day renewal schedule. The negotiation drafter is DEFERRED per the verdict (free-form LLM prose over money facts is unsafe). See STATUS and DECISIONS #246.
 
 **JTBD.** Tell me the moment a subscription crept up or one I stopped using is still charging me, warn me before the annual hit ambushes my statement, and hand me the exact pushback script with my real numbers in it.
 

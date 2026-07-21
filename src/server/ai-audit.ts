@@ -24,6 +24,7 @@
 import { prisma } from '@/lib/db';
 import { DEMO_USER_ID } from '@/lib/demo-user';
 import {
+  type AiActionCount,
   type AiAuditEntry,
   type AiOutcomeSink,
   type AiTouchpointId,
@@ -58,4 +59,20 @@ export async function getAiTrail(userId: string, take = 50): Promise<AiAuditEntr
   return rows
     .map((r) => parseAiAuditRow({ action: r.action, meta: r.meta, createdAt: r.createdAt.toISOString() }))
     .filter((e): e is AiAuditEntry => e !== null);
+}
+
+/**
+ * All-time COUNT of this user's `ai.*` AuditLog rows, grouped by action, for the
+ * Trust Center's per-touchpoint track record (tallyTouchpoints turns it into
+ * per-touchpoint stats). A COUNT of persisted rows — no model, and no windowing:
+ * distinct from getAiTrail's most-recent-50 ledger, this is the lifetime tally.
+ * The demo account persists no trail (aiAuditSink fences it), so this returns [].
+ */
+export async function getAiTouchpointCounts(userId: string): Promise<AiActionCount[]> {
+  const groups = await prisma.auditLog.groupBy({
+    by: ['action'],
+    where: { userId, action: { startsWith: 'ai.' } },
+    _count: { _all: true },
+  });
+  return groups.map((g) => ({ action: g.action, count: g._count._all }));
 }

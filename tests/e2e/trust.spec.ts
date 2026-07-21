@@ -11,6 +11,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+import { AI_TOUCHPOINTS } from '@/lib/engine/ai-audit/describe';
+
 test('demo Trust Center: headline invariant, scorecard, touchpoints, honestly-empty ledger', async ({
   page,
 }) => {
@@ -35,11 +37,17 @@ test('demo Trust Center: headline invariant, scorecard, touchpoints, honestly-em
   const scorecard = page.getByTestId('trust-scorecard');
   await expect(scorecard.getByTestId('accuracy-value')).toBeVisible();
 
-  // (3) All five touchpoints render, each with its May/Never limits.
+  // (3) Every touchpoint renders, each with its May/Never limits and its measured
+  // all-time count — which in the trail-less demo is honestly "not asked". Count
+  // is derived from the source-of-truth array so a new touchpoint can't leave this
+  // assertion stale (Fable critic P2-1 — the literal was already stale-red at HEAD).
   const touchpoints = page.getByTestId('trust-touchpoints');
-  await expect(touchpoints.getByRole('listitem')).toHaveCount(5);
+  await expect(touchpoints.getByRole('listitem')).toHaveCount(AI_TOUCHPOINTS.length);
   await expect(touchpoints).toContainText('Transaction categorization');
   await expect(touchpoints).toContainText('Never:');
+  await expect(page.getByTestId('trust-touchpoint-count-categorize')).toContainText(
+    'Not asked about your data yet.',
+  );
 
   // (4) Demo ledger is honestly empty with the shared-account disclosure —
   // and no summary chips pretend there were events.

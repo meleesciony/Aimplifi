@@ -12,8 +12,10 @@ import {
   type AiAuditEntry,
   describeAiEntry,
   describeAiTrailSummary,
+  describeTouchpointStats,
   parseAiAuditRow,
   summarizeAiTrail,
+  tallyTouchpoints,
 } from '@/lib/engine/ai-audit/describe';
 
 const row = (action: string, meta: unknown = {}, createdAt = '2026-07-16T12:34:56.000Z') => ({
@@ -174,5 +176,97 @@ describe('summarizeAiTrail', () => {
 describe('AI_TOUCHPOINTS static table', () => {
   it('covers every touchpoint id exactly once (the page contract copy is total)', () => {
     expect(AI_TOUCHPOINTS.map((t) => t.id).sort()).toEqual([...AI_TOUCHPOINT_IDS].sort());
+  });
+});
+
+describe('tallyTouchpoints — per-touchpoint all-time counts (COUNT of persisted rows)', () => {
+  it('empty input → one all-zero entry per touchpoint, in AI_TOUCHPOINTS order (honest demo state)', () => {
+    const stats = tallyTouchpoints([]);
+    expect(stats.map((s) => s.touchpoint)).toEqual(AI_TOUCHPOINTS.map((t) => t.id));
+    for (const s of stats) {
+      expect(s).toMatchObject({ total: 0, replied: 0, rejected: 0, unavailable: 0 });
+    }
+  });
+
+  it('sums counts per outcome and rolls them into total (hand-verified)', () => {
+    const stats = tallyTouchpoints([
+      { action: 'ai.categorize.replied', count: 10 },
+      { action: 'ai.categorize.rejected', count: 2 },
+      { action: 'ai.categorize.unavailable', count: 3 },
+      { action: 'ai.extract.replied', count: 1 },
+    ]);
+    const categorize = stats.find((s) => s.touchpoint === 'categorize')!;
+    expect(categorize).toEqual({
+      touchpoint: 'categorize',
+      total: 15,
+      replied: 10,
+      rejected: 2,
+      unavailable: 3,
+    });
+    const extract = stats.find((s) => s.touchpoint === 'extract')!;
+    expect(extract).toMatchObject({ total: 1, replied: 1, rejected: 0, unavailable: 0 });
+    // A touchpoint with no rows stays honestly zero.
+    expect(stats.find((s) => s.touchpoint === 'intent')).toMatchObject({ total: 0 });
+  });
+
+  it('ignores non-ai, unknown-touchpoint, and unknown-outcome actions (never guessed into a count)', () => {
+    const stats = tallyTouchpoints([
+      { action: 'transaction.create.manual', count: 99 }, // not an ai.* action
+      { action: 'ai.telepathy.replied', count: 99 }, // unknown touchpoint
+      { action: 'ai.categorize.exploded', count: 99 }, // unknown outcome
+      { action: 'ai.categorize', count: 99 }, // malformed (2 parts)
+      { action: 'ai.categorize.replied.extra', count: 99 }, // malformed (4 parts)
+      { action: 'ai.categorize.replied', count: 4 }, // the only valid row
+    ]);
+    expect(stats.find((s) => s.touchpoint === 'categorize')).toMatchObject({ total: 4, replied: 4 });
+    // Nothing leaked into any other touchpoint.
+    const others = stats.filter((s) => s.touchpoint !== 'categorize');
+    expect(others.every((s) => s.total === 0)).toBe(true);
+  });
+
+  it('drops negative or fractional counts, never sums them (a corrupt count cannot inflate the tally)', () => {
+    const stats = tallyTouchpoints([
+      { action: 'ai.intent.replied', count: -5 },
+      { action: 'ai.intent.rejected', count: 1.5 },
+      { action: 'ai.intent.unavailable', count: 2 },
+    ]);
+    expect(stats.find((s) => s.touchpoint === 'intent')).toMatchObject({
+      total: 2,
+      replied: 0,
+      rejected: 0,
+      unavailable: 2,
+    });
+  });
+});
+
+describe('describeTouchpointStats — the measured line under each may/never contract', () => {
+  const stat = (over: Partial<ReturnType<typeof tallyTouchpoints>[number]>) => ({
+    touchpoint: 'categorize' as const,
+    total: 0,
+    replied: 0,
+    rejected: 0,
+    unavailable: 0,
+    ...over,
+  });
+
+  it('never-asked reads honestly, not "0 times"', () => {
+    expect(describeTouchpointStats(stat({ total: 0 }))).toBe('Not asked about your data yet.');
+  });
+
+  it('singular ask, no rejections, no no-reply clause when unavailable is 0 (hand-verified)', () => {
+    expect(describeTouchpointStats(stat({ total: 1, replied: 1 }))).toBe(
+      'Asked 1 time · 0 discarded by the guardrail.',
+    );
+  });
+
+  it('surfaces the no-reply bucket only when unavailable > 0, so "Asked" never brands a no-reply as a success (Fable critic P1-1)', () => {
+    // 12 asked = 9 replied + 2 discarded + 1 no-reply. Hiding the 1 would read as 10 answered.
+    expect(describeTouchpointStats(stat({ total: 12, replied: 9, rejected: 2, unavailable: 1 }))).toBe(
+      'Asked 12 times · 2 discarded by the guardrail · 1 got no reply.',
+    );
+    // A pure outage renders honestly, not "Ran 40 times · 0 discarded" (the exact P1-1 scenario).
+    expect(describeTouchpointStats(stat({ total: 40, unavailable: 40 }))).toBe(
+      'Asked 40 times · 0 discarded by the guardrail · 40 got no reply.',
+    );
   });
 });

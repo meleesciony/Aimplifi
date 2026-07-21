@@ -131,16 +131,29 @@ export interface RawAuditRow {
 }
 
 /**
+ * The `ai.<touchpoint>.<outcome>` action grammar, both parts closed-set. Shared
+ * by the ledger parser (`parseAiAuditRow`) and the per-touchpoint tally
+ * (`tallyTouchpoints`) so both read origin the exact same way — a future or
+ * corrupt action is rejected identically by both, never guessed by one.
+ */
+function parseAiAction(action: string): { touchpoint: AiTouchpointId; outcome: AiOutcome } | null {
+  const parts = action.split('.');
+  if (parts.length !== 3 || parts[0] !== 'ai') return null;
+  const [, touchpoint, outcome] = parts;
+  if (!TOUCHPOINT_SET.has(touchpoint) || !OUTCOME_SET.has(outcome)) return null;
+  return { touchpoint: touchpoint as AiTouchpointId, outcome: outcome as AiOutcome };
+}
+
+/**
  * Parse one AuditLog row into a ledger entry. Returns null for anything that is
  * not a well-formed `ai.<touchpoint>.<outcome>` action — including rows from a
  * future version this build doesn't know — so the ledger never renders a row it
  * can't honestly describe.
  */
 export function parseAiAuditRow(row: RawAuditRow): AiAuditEntry | null {
-  const parts = row.action.split('.');
-  if (parts.length !== 3 || parts[0] !== 'ai') return null;
-  const [, touchpoint, outcome] = parts;
-  if (!TOUCHPOINT_SET.has(touchpoint) || !OUTCOME_SET.has(outcome)) return null;
+  const parsed = parseAiAction(row.action);
+  if (!parsed) return null;
+  const { touchpoint, outcome } = parsed;
 
   const date = row.createdAt.slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
@@ -167,7 +180,7 @@ export function parseAiAuditRow(row: RawAuditRow): AiAuditEntry | null {
     meta.count = obj.count;
   }
 
-  return { touchpoint: touchpoint as AiTouchpointId, outcome: outcome as AiOutcome, date, meta };
+  return { touchpoint, outcome, date, meta };
 }
 
 /** Confidence bps → whole-percent string ("72%"). Clamped to [0, 100]. */
@@ -266,4 +279,74 @@ export function summarizeAiTrail(entries: readonly AiAuditEntry[]): AiTrailSumma
 /** The ledger's roll-up sentence — pure so the populated state is unit-testable (#242 critic P2-6). */
 export function describeAiTrailSummary(s: AiTrailSummary): string {
   return `Last ${s.total} event${s.total === 1 ? '' : 's'}: ${s.replied} answered · ${s.rejected} discarded by the guardrail · ${s.unavailable} provider unavailable.`;
+}
+
+/**
+ * All-time per-touchpoint activity — the measured track record behind each
+ * touchpoint's static may/never contract on the Trust Center. Every field is a
+ * COUNT of persisted `ai.*` rows (see server/ai-audit.getAiTouchpointCounts), so
+ * this surface authors no number; it is deliberately distinct from the ledger's
+ * `AiTrailSummary`, which is a global window over the most recent 50 events.
+ */
+export interface AiTouchpointStats {
+  touchpoint: AiTouchpointId;
+  /** replied + rejected + unavailable — every ATTEMPTED call for this touchpoint. */
+  total: number;
+  replied: number;
+  rejected: number;
+  unavailable: number;
+}
+
+/**
+ * A COUNT of persisted AuditLog rows grouped by `action`, as the server's
+ * `groupBy` read hands it over. `count` is a plain non-negative integer.
+ */
+export interface AiActionCount {
+  action: string;
+  count: number;
+}
+
+/**
+ * Roll per-action AuditLog counts into one `AiTouchpointStats` per touchpoint, in
+ * `AI_TOUCHPOINTS` order, INCLUDING an all-zero entry for every touchpoint never
+ * run (so the page always renders the full contract table). Reuses `parseAiAction`
+ * — the exact ACTION grammar the ledger uses — so an action that doesn't name a
+ * known touchpoint+outcome is ignored, never guessed into a count and never a
+ * throw. (The ledger parser additionally requires a well-formed date; a count
+ * needs none, so the two surfaces can differ only on that axis, never on which
+ * actions they accept.) A negative or fractional count (unrepresentable) is dropped, never
+ * summed. Counts are copied verbatim; this function authors no number.
+ */
+export function tallyTouchpoints(counts: readonly AiActionCount[]): AiTouchpointStats[] {
+  const stats = new Map<AiTouchpointId, AiTouchpointStats>(
+    AI_TOUCHPOINT_IDS.map((id) => [id, { touchpoint: id, total: 0, replied: 0, rejected: 0, unavailable: 0 }]),
+  );
+  for (const { action, count } of counts) {
+    if (!Number.isInteger(count) || count < 0) continue;
+    const parsed = parseAiAction(action);
+    if (!parsed) continue;
+    const s = stats.get(parsed.touchpoint)!;
+    s[parsed.outcome] += count;
+    s.total += count;
+  }
+  return AI_TOUCHPOINTS.map((t) => stats.get(t.id)!);
+}
+
+/**
+ * The measured one-liner under a touchpoint's may/never contract: how often this
+ * surface was ASKED about the user's data, how many replies its guardrail
+ * discarded (the trust signal §3.2 exists to show), and — only when it happened —
+ * how many attempts got no usable reply at all. "Asked", not "Ran": `total`
+ * counts every ATTEMPTED call including the `unavailable` ones where the provider
+ * returned nothing and the deterministic path stood, so calling those "runs"
+ * would overclaim (and collapse the three-way split the ledger keeps). The
+ * no-reply clause is shown only when `unavailable > 0` so the common case stays
+ * clean while the arithmetic stays honest (replied = total − rejected − no-reply).
+ * All-time counts; a never-asked touchpoint reads honestly. Authors no number —
+ * every value is a copied count.
+ */
+export function describeTouchpointStats(s: AiTouchpointStats): string {
+  if (s.total === 0) return 'Not asked about your data yet.';
+  const noReply = s.unavailable > 0 ? ` · ${s.unavailable} got no reply` : '';
+  return `Asked ${s.total} time${s.total === 1 ? '' : 's'} · ${s.rejected} discarded by the guardrail${noReply}.`;
 }

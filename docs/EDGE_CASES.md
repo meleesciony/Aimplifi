@@ -1406,6 +1406,28 @@ Pure formatter over persisted `ai.<touchpoint>.<outcome>` AuditLog rows
 - An unknown categoryId in meta renders "a category", never the raw id string.
 - Every touchpoint × outcome is a total function (a non-empty line, no throw).
 
+### Per-touchpoint track record (`tallyTouchpoints` / `describeTouchpointStats` / `getAiTouchpointCounts`)
+All-time COUNT of `ai.*` rows grouped by action (server `groupBy`, ownership-scoped), rolled up
+per touchpoint for the "Where AI runs" table — distinct from the ledger's most-recent-50 window.
+- `tallyTouchpoints([])` → one all-zero entry per touchpoint, in `AI_TOUCHPOINTS` order (the
+  honest demo/never-run state; demo persists no trail so its counts are all zero).
+- Counts sum per outcome into `total` (replied+rejected+unavailable): e.g. categorize
+  {replied 10, rejected 2, unavailable 3} → total 15 (hand-verified).
+- Actions that don't parse as a known `ai.<touchpoint>.<outcome>` (non-ai, `ai.telepathy.replied`,
+  `ai.categorize.exploded`, wrong segment count) are IGNORED — never guessed into a count. Uses the
+  same `parseAiAction` ACTION grammar as the ledger, so both accept/reject the same actions; the
+  ledger additionally requires a well-formed date, so the two can differ only on that axis.
+- A negative or fractional `count` is dropped, never summed (a corrupt row can't inflate the tally).
+- Copy says "Asked", never "Ran": `total` counts every ATTEMPTED call including `unavailable`
+  (provider returned nothing), so "Ran" would brand a no-reply as a success — the exact overclaim
+  this page exists to prevent (Fable critic P1-1). The `unavailable` clause shows only when > 0 so
+  the common case stays clean and the arithmetic stays honest (replied = total − rejected − noReply):
+  - total 0 → "Not asked about your data yet."
+  - total 1 (replied 1) → "Asked 1 time · 0 discarded by the guardrail."
+  - total 12 {replied 9, rejected 2, unavailable 1} → "Asked 12 times · 2 discarded by the guardrail · 1 got no reply."
+  - total 40 all unavailable → "Asked 40 times · 0 discarded by the guardrail · 40 got no reply."
+  The guardrail-discard count is the §3.2 trust signal. Authors no number — every value is a copied count.
+
 ## §Demo bank-connect fence (#242 follow-up — `isDemoUser`/`DEMO_CONNECT_BLOCKED`, `connect-demo-fence.test.ts`)
 
 The shared demo account is ONE row every anonymous visitor logs into, so it must never

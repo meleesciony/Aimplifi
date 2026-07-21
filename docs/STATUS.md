@@ -54,6 +54,48 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## AI Trust Center per-touchpoint track record (2026-07-20) — #248, AI plan §3.2 completion
+
+Owner's "continue" at the #247 owner-gated fork. **A code-vs-plan reconciliation is the headline
+finding: the AI differentiation plan §3.1–§3.4 are ALL shipped** (§3.1 Why-This-Category #238/#239,
+§3.2 Trust Center #242, §3.3 Doc Extractor #247, §3.4 Subscription Radar #246); §3.5 Receipt
+Splitter stays vision-blocked (no OCR pipeline exists). The plan doc's per-section adversarial
+verdicts still read "build-later"/"needs-rework" and were never updated post-ship — that stale text
+misread §3.1/§3.2 as unbuilt during scoping. The plan doc is now un-staled (each shipped section
+tagged), and STATUS remains the source of truth for what's shipped.
+
+The one genuine remaining §3.2 gap: the "Where AI runs" table listed the six touchpoints with
+static May/Never contract copy but **no measured counts**. This slice adds a per-touchpoint,
+all-time track record — how often each surface was asked about your data and how often its guardrail
+discarded the reply (§3.2's own trust signal) — 100% count-of-persisted-rows, no model, demo-safe.
+
+- **Engine.** `engine/ai-audit/describe.ts`: new pure `tallyTouchpoints(AiActionCount[]) →
+  AiTouchpointStats[]` (one entry per touchpoint incl. zeros, in `AI_TOUCHPOINTS` order; unparseable,
+  negative, and fractional counts dropped — never guessed into a count); new `describeTouchpointStats`
+  copy; new shared `parseAiAction` action-grammar helper that `parseAiAuditRow` was refactored onto
+  (anti-drift: ledger and tally accept the exact same actions).
+- **Server.** `getAiTouchpointCounts` (prisma `groupBy` by action, `userId`-scoped) — all-time,
+  distinct from `getAiTrail`'s most-recent-50 window; demo persists no trail so it returns [].
+- **UI.** `/trust` renders the measured count line under each touchpoint's May/Never.
+- **Hostile critic (1 fresh-context Fable cycle: FAIL → all fixed → PASS 0 P0/P1).** P1-1: the first
+  copy ("Ran N times") folded provider-`unavailable` (no-reply) attempts into "runs", collapsing the
+  three-way split the rest of the page keeps — a 40-call outage read "Ran 40 times · 0 discarded".
+  Fixed exactly as prescribed: "Asked N times · M discarded by the guardrail · K got no reply" (the
+  no-reply clause only when unavailable>0, so replied = total − rejected − noReply stays honest).
+  P2s: stale-red trust.spec touchpoint count (asserted 5 while #247 made 6 — verify.sh skips
+  Playwright so it went unseen) now derived from `AI_TOUCHPOINTS.length`; over-broad "identical
+  grammar" claim scoped to the action axis; populated-state copy now exercised end-to-end through the
+  real-DB recorder test.
+- **Gate (real output 2026-07-20):** `bash scripts/verify.sh` → ✅ VERIFY GREEN — 3008 unit / 213
+  files, tsc+eslint+build clean (rebuilt after the P1 copy fix); trust.spec e2e 1/1 green against the
+  fresh build (6 touchpoints, per-touchpoint count line, axe WCAG-AA). New locks in
+  `ai-audit-describe.test.ts` (tally totality + copy) and `ai-audit-recorder.test.ts` (groupBy read +
+  populated-line end-to-end). EDGE_CASES §AI Trust Center audit trail extended.
+- **Next (owner-gated): the AI plan is complete bar §3.5 (vision-blocked). Remaining menu is the
+  plan's "Later"/Wave-4 items (each carries a named blocker; groundable build-now sub-slices exist:
+  streaks, income-pause/runway radar, per-merchant outlier detector — these are new money/safety
+  engines the model routing sends to Fable), or non-AI-plan competitive-gap work.**
+
 ## Doc Extractor v1 — text-only card-statement extractor (2026-07-20) — #247, AI plan §3.3 reshaped
 
 Owner said "continue" at the #246 owner-gated fork; §3.3-reshaped was the determined pick

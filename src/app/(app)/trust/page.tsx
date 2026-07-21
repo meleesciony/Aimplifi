@@ -25,9 +25,11 @@ import {
   AI_TOUCHPOINTS,
   describeAiEntry,
   describeAiTrailSummary,
+  describeTouchpointStats,
   summarizeAiTrail,
+  tallyTouchpoints,
 } from '@/lib/engine/ai-audit/describe';
-import { getAiTrail } from '@/server/ai-audit';
+import { getAiTouchpointCounts, getAiTrail } from '@/server/ai-audit';
 import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getThresholdTuning } from '@/server/tuning';
 
@@ -39,12 +41,16 @@ export default async function TrustPage() {
   const userId = session.user.id;
   const isDemo = userId === DEMO_USER_ID;
 
-  const [accuracy, tuning, trail] = await Promise.all([
+  const [accuracy, tuning, trail, touchpointCounts] = await Promise.all([
     getCategorizationAccuracy(userId),
     getThresholdTuning(userId),
     getAiTrail(userId),
+    getAiTouchpointCounts(userId),
   ]);
   const summary = summarizeAiTrail(trail);
+  // Per-touchpoint all-time stats keyed by id (tallyTouchpoints returns one entry
+  // per touchpoint, incl. zeros, so every row in the static table has a match).
+  const statsById = new Map(tallyTouchpoints(touchpointCounts).map((s) => [s.touchpoint, s]));
   // Env PRESENCE only (same posture as the Settings activation checklist): a
   // boolean is derived server-side; no key material approaches the client.
   const aiConfigured = !!(process.env.XAI_API_KEY || process.env.ANTHROPIC_API_KEY);
@@ -87,7 +93,7 @@ export default async function TrustPage() {
 
       <Card data-testid="trust-touchpoints">
         <CardHeader className="pb-2">
-          <CardDescription>Every place a model runs — and its hard limits</CardDescription>
+          <CardDescription>Every place a model runs, its hard limits, and how often it has been asked about your data</CardDescription>
           <CardTitle className="text-base">Where AI runs</CardTitle>
         </CardHeader>
         <CardContent>
@@ -100,6 +106,13 @@ export default async function TrustPage() {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">Never:</span> {t.never}
+                </p>
+                <p
+                  className="text-xs text-muted-foreground"
+                  data-testid={`trust-touchpoint-count-${t.id}`}
+                >
+                  <span className="font-medium text-foreground">On your data:</span>{' '}
+                  {describeTouchpointStats(statsById.get(t.id)!)}
                 </p>
               </li>
             ))}
