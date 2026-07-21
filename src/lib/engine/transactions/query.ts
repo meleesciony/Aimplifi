@@ -197,6 +197,10 @@ export interface AccountView {
   currentBalanceCents: number; // stored positive
   /** True for user-added manual assets/liabilities (editable; no transactions). */
   manual?: boolean;
+  /** Data source: 'demo' | 'plaid' | 'simplefin' | 'manual' (#253). Drives the
+   *  disconnected-SimpleFIN delete affordance on /accounts; absent on surfaces
+   *  that don't set it. */
+  provider?: string;
   /** Per-account connection freshness (Gap 1 §3 follow-up). Null when the account has no
    *  sync feed (manual/demo) or is holdings-valued (INVESTMENT); set for SimpleFIN/Plaid
    *  rows so /accounts can show a "synced N days ago" / reconnect line per account. */

@@ -54,6 +54,54 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Synced-Account Deletion (2026-07-21) — #253, owner request
+
+Owner hit the gap live ("i'm trying to delete the simplefin accounts"): the SimpleFIN
+disconnect message told users to "delete any you don't want counted from the lists
+above," but the Delete control was manual-only — a #221-class live claim promising a
+control that didn't exist. Shipped: SimpleFIN-synced accounts are deletable on
+/accounts once the bank is disconnected (two-tap confirm; cascade removes the
+account's transactions/statements/snapshots/holdings/scheduled; `paymentAccountId`
+cleared in the same transaction when it pointed at the deleted row). Deletion is
+REFUSED while the connection is live — sync pass 1 re-creates any feed account it
+doesn't find by providerRef, so a connected "delete" would silently resurrect.
+Guarded core in authz-free `server/account-delete.ts` (demo fence in the core, by
+construction); action wrapper carries audit + revalidates. Integration-locked 6/6
+(`account-delete-server.test.ts`), e2e demo-absence lock, accounts sweep 51/51 incl.
+WCAG AA (the sweep exercises the NO-affordance state only — e2e cannot mint a
+SimpleFIN account, so the two-tap cluster itself is locked by the integration test
+plus code-reviewed aria-labels, not by axe). Full detail: DECISIONS #253.
+
+**Hostile critic (1 fresh-context cycle, executed repros: PASS 0 P0/0 P1, 6 P2 —
+3 fixed in-cycle):** F2 TOCTOU (conn check now INSIDE the delete transaction — a
+reconnect landing mid-gap can no longer delete-then-resurrect); F3 stale recurring
+series (core now runs `refreshRecurringForUser` post-delete — with the connection
+disconnected no sync remained to ever recompute; pruning locked in test 2+3); F6
+cascade breadth (statement + snapshot cascade now asserted, not schema-trusted).
+F5's actionable half fixed (per-account aria-labels; STATUS wording above made
+honest).
+
+**Recorded limitations & residuals (#253):**
+1. **Plaid accounts still have no delete path** — Plaid has no disconnect flow at
+   all, so the "disconnected" precondition is unreachable; extending deletion there
+   without one would ship the resurrection lie. Unblocks when a Plaid
+   item-disconnect action exists.
+2. **Reconnecting the same bank re-syncs a deleted account** (by design — the feed
+   is authoritative while connected; deletion is honest only for disconnected
+   history).
+3. **(critic F1, P2)** Ghost analytics rows survive by design: `CategoryPrediction`
+   / `Correction` keep dangling `transactionId` strings (matches the Plaid
+   removed-path precedent) and an account-scoped `CategorizationRule` can outlive
+   its account. No money surface reads them; `getReturnMoment`'s auto-filed count
+   can overcount after a delete (pre-existing class).
+4. **(critic F4, P2)** A withheld non-USD SimpleFIN account never renders on
+   /accounts (currency guard), so it is undeletable through the UI even when
+   disconnected — needs its own disclosure-surface decision.
+5. **(critic F2 residue)** A sync already in flight at disconnect time can still
+   re-create the row post-delete (self-healing: the affordance re-renders and a
+   second delete sticks); serializing refreshes per user is the #251-recorded
+   infrastructure fix.
+
 ## Money Signature (2026-07-21) — #252, AI plan §Later #11 shipped per its rework verdict
 
 Owner's "continue" at the #251 fork. Board reconciliation (lesson #26 applied): Threaded Ask

@@ -4231,3 +4231,30 @@ category-injection impossible; only false-positived on benign labels). Plus P2-7
 cache key includes window+pct. 32 unit tests. e2e 2/2. tsc/eslint/build clean.
 NEXT: full verify + critic cycle 4 (LAST of 4-cap). If PASS -> docs (EDGE_CASES/DECISIONS/STATUS/
 REGRESSION_LEDGER) + commit #240. If FAIL -> STOP, write open findings, ask human.
+
+## #253 interject + Scenario Studio slice-1 checkpoint. 2026-07-21
+Post-#252 board survey (fresh explorer, git-reconciled per the stale-verdict lesson): groundable
+backlog EXHAUSTED — every remaining AI-plan item is hard-blocked (vision/OCR, intraday timestamps,
+merchant DB, no ground truth) or needs a net-new engine. Owner CHOSE (AskUserQuestion): Scenario
+Studio slice 1 = pure snapshot-coherence engine (plan §Later #13; advisory comparison half stays
+dropped). PREEMPTED mid-plan by owner's live gap report -> #253 synced-account deletion (shipped
+this session; see DECISIONS #253 / STATUS).
+SCENARIO STUDIO RESEARCH (architecture map, key conclusions — full detail re-derivable from these
+pointers): NO canonical assembler exists; the 5 engines get inputs from 3 independent derivations:
+getCoachData (server/coach.ts:91, aggregate: monthlyFlows -> 6-mo avg income/savings, annualExp =
+expenses6*2) feeds FI+savings-rate+retirement (investments.ts:135 reuses coach figures verbatim);
+cash-needed (assemble.ts:80) + forecast (server/forecast.ts:26) read per-flow snap.scheduled
+instead. The coherence engine must DEFINE the canonical derived-state object and map each knob
+delta onto BOTH representations (aggregate AND per-flow) or one engine won't see the change.
+Top hazards (10 catalogued): savings = ratio (fi.ts:108 savingsRateBps) vs cents amount
+(coach.ts:125), different windows; annualExpenses x2 factor (coach.ts:123); FI fed NOMINAL
+expectedReturnBps while retirement fed realReturnBps(nominal - inflation) — same user, two rates;
+geometric (fi.ts:21) vs nominal r/12 (fi.ts:96 opportunityFV) compounding in one file; forecast
+uses plain number cents (unbranded) vs branded Cents in cash-needed; ScheduledFlow vs
+ScheduledItem near-dupe types; extra-debt-payment has NO first-class input anywhere (decide
+mapping or scope out); retirement floors negatives at 0 + throws on bad ages, FI accepts negative
+savings silently -> null; per-user dials (User row: swrBps/expectedReturnBps/ages/inflation)
+live OUTSIDE FinanceSnapshot; DIAL_LIMITS (settings/dials.ts:38) are the clamp bounds,
+retirement-whatif.ts is the clamp-reducer template. Conventions: engine in src/lib/engine/,
+tests in tests/unit/, EDGE_CASES section required, injected today, no Date.now().
+NEXT (Scenario Studio): design canonical ScenarioState + knob-delta type; slice 1 = engine only.

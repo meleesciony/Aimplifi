@@ -25,6 +25,7 @@ import type { SuspectedDuplicatePair } from '@/lib/engine/account/duplicates';
 import { freshnessMessage } from '@/lib/engine/sync/health';
 import {
   addManualAccount,
+  deleteDisconnectedSimplefinAccount,
   deleteManualAccount,
   updateManualAccountValue,
 } from '@/server/networth-actions';
@@ -257,6 +258,8 @@ export function AccountsList({ data }: { data: AccountsView }) {
         onEdit={setEditingId}
         onSaveValue={(accountId, value) => refreshAfter(() => updateManualAccountValue({ accountId, value }))}
         onDelete={(accountId) => refreshAfter(() => deleteManualAccount(accountId))}
+        onDeleteSynced={(accountId) => refreshAfter(() => deleteDisconnectedSimplefinAccount(accountId))}
+        simplefinConnected={data.simplefin.connected}
         onCancelEdit={() => setEditingId(null)}
         onEditStatement={(id) => { setStatementCardId(id); setError(null); setSuccess(null); }}
         onSaveStatement={(accountId, values) => refreshAfter(() => setManualCardStatement({ accountId, ...values }), 'Statement saved — this card is now in your “how much & when” answer.')}
@@ -274,6 +277,8 @@ export function AccountsList({ data }: { data: AccountsView }) {
         onEdit={setEditingId}
         onSaveValue={(accountId, value) => refreshAfter(() => updateManualAccountValue({ accountId, value }))}
         onDelete={(accountId) => refreshAfter(() => deleteManualAccount(accountId))}
+        onDeleteSynced={(accountId) => refreshAfter(() => deleteDisconnectedSimplefinAccount(accountId))}
+        simplefinConnected={data.simplefin.connected}
         onCancelEdit={() => setEditingId(null)}
         onEditStatement={(id) => { setStatementCardId(id); setError(null); setSuccess(null); }}
         onSaveStatement={(accountId, values) => refreshAfter(() => setManualCardStatement({ accountId, ...values }), 'Statement saved — this card is now in your “how much & when” answer.')}
@@ -396,9 +401,11 @@ function Group({
   editingId,
   statementCardId,
   pending,
+  simplefinConnected,
   onEdit,
   onSaveValue,
   onDelete,
+  onDeleteSynced,
   onCancelEdit,
   onEditStatement,
   onSaveStatement,
@@ -412,9 +419,11 @@ function Group({
   editingId: string | null;
   statementCardId: string | null;
   pending: boolean;
+  simplefinConnected: boolean;
   onEdit: (id: string) => void;
   onSaveValue: (id: string, value: string) => void;
   onDelete: (id: string) => void;
+  onDeleteSynced: (id: string) => void;
   onCancelEdit: () => void;
   onEditStatement: (id: string) => void;
   onSaveStatement: (id: string, values: ManualStatementFormValues) => void;
@@ -459,6 +468,11 @@ function Group({
                 account={a}
                 isLiability={isLiability}
                 isPaymentAccount={a.id === paymentAccountId}
+                // Deletable ONLY once the bank is disconnected — while connected,
+                // the next sync would re-create the row (see account-delete.ts).
+                deletable={a.provider === 'simplefin' && !simplefinConnected}
+                pending={pending}
+                onDelete={() => onDeleteSynced(a.id)}
               />
             ),
           )}
@@ -472,11 +486,21 @@ function LinkedRow({
   account,
   isLiability,
   isPaymentAccount,
+  deletable,
+  pending,
+  onDelete,
 }: {
   account: AccountView;
   isLiability: boolean;
   isPaymentAccount: boolean;
+  deletable: boolean;
+  pending: boolean;
+  onDelete: () => void;
 }) {
+  // #253: two-tap confirm, same pattern as ManualRow. The cluster is a SIBLING of
+  // the row Link (never nested inside it — interactive-in-interactive is invalid
+  // and this file already avoids it for ManualRow).
+  const [confirmDelete, setConfirmDelete] = useState(false);
   // #159: a linked brokerage (INVESTMENT) has holdings / performance / a retirement
   // projection on /investments — a far more useful destination than its transaction
   // ledger — so its row navigates there. Every other linked account still opens its
@@ -488,11 +512,11 @@ function LinkedRow({
   // multi-brokerage user (inert with one account — the demo lands on the full portfolio).
   const href = isInvestment ? `/investments?account=${account.id}` : `/transactions?account=${account.id}`;
   return (
-    <li>
+    <li className="flex items-center">
       <Link
         href={href}
         data-testid="account-row"
-        className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-accent"
+        className="flex flex-1 items-center justify-between gap-3 px-3 py-2 hover:bg-accent"
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -520,6 +544,25 @@ function LinkedRow({
           {formatCents(cents(account.currentBalanceCents))}
         </div>
       </Link>
+      {deletable &&
+        (!confirmDelete ? (
+          <button
+            type="button"
+            data-testid="synced-delete"
+            aria-label={`Delete ${account.name}`}
+            disabled={pending}
+            onClick={() => setConfirmDelete(true)}
+            className="mr-3 shrink-0 rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50"
+          >
+            Delete
+          </button>
+        ) : (
+          <span className="mr-3 flex shrink-0 items-center gap-1 text-xs" data-testid="synced-delete-confirm-row">
+            <span className="text-muted-foreground">Delete, with its history?</span>
+            <button type="button" data-testid="synced-delete-confirm" aria-label={`Yes, delete ${account.name} and its history`} disabled={pending} onClick={onDelete} className="rounded px-1.5 py-0.5 text-red-400 hover:bg-accent disabled:opacity-50">Yes</button>
+            <button type="button" disabled={pending} onClick={() => setConfirmDelete(false)} className="rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent disabled:opacity-50">Cancel</button>
+          </span>
+        ))}
     </li>
   );
 }

@@ -94,3 +94,18 @@ test('demo destroy fence (#244): the shared demo sees honest notes, never the de
   await expect(page.getByTestId('delete-form')).toHaveCount(0);
   await expect(page.getByTestId('delete-submit')).toHaveCount(0);
 });
+
+test('synced-account delete (#253): the demo’s linked rows never render the delete control', async ({
+  page,
+}) => {
+  // The affordance is SimpleFIN-only AND disconnected-only; demo rows are
+  // provider 'demo', so /accounts must render its linked rows with no
+  // synced-delete anywhere. (The real delete path is integration-locked in
+  // tests/unit/account-delete-server.test.ts — e2e cannot mint a SimpleFIN
+  // account. The demo fence itself is also locked there.)
+  await signInDemo(page);
+  await page.goto('/accounts');
+  await expect(page.getByTestId('account-row').first()).toBeVisible();
+  await expect(page.getByTestId('synced-delete')).toHaveCount(0);
+  await expect(page.getByTestId('synced-delete-confirm')).toHaveCount(0);
+});

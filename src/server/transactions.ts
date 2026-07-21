@@ -282,6 +282,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     mask: a.mask,
     currentBalanceCents: a.currentBalanceCents,
     manual: a.provider === 'manual',
+    provider: a.provider,
   }));
 
   // Newest statement per account (orderBy cycleEnd desc → first seen wins).

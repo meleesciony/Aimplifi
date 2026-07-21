@@ -6,11 +6,18 @@
  * mutation is ownership-scoped and guarded to manual rows only — a user can never
  * edit or delete a LINKED (seed/Plaid) account through these. Audit-logged;
  * revalidates the accounts + dashboard net worth.
+ *
+ * Plus one non-manual deletion (#253): `deleteDisconnectedSimplefinAccount`, a
+ * thin wrapper over the guarded core in account-delete.ts (SimpleFIN rows only,
+ * refused while the connection is live — see that module's docstring).
  */
 import { revalidatePath } from 'next/cache';
+import { isoDate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { parseManualAccount, parseManualValueCents } from '@/lib/engine/networth/manual';
+import { getProvider } from '@/lib/providers/demo';
+import { deleteDisconnectedSimplefinAccountFor } from '@/server/account-delete';
 import { auditLog, requireUserId } from '@/server/authz';
 
 export interface ManualResult {
@@ -75,4 +82,21 @@ export async function deleteManualAccount(accountId: string): Promise<ManualResu
   revalidatePath('/accounts');
   revalidatePath('/dashboard');
   return { ok: true };
+}
+
+/** Delete a SimpleFIN-synced account after the bank is disconnected (#253).
+ *  All guards (ownership, provider, live-connection refusal, demo fence) live in
+ *  the core so tests and any future caller inherit them. Revalidates the pages
+ *  whose numbers the cascade changes — /transactions too, since the account's
+ *  transaction history goes with it. */
+export async function deleteDisconnectedSimplefinAccount(accountId: string): Promise<ManualResult> {
+  const userId = await requireUserId();
+  const res = await deleteDisconnectedSimplefinAccountFor(userId, accountId, isoDate(getProvider().today(userId)));
+  if (res.ok) {
+    await auditLog(userId, 'account.simplefin.delete', { id: accountId });
+    revalidatePath('/accounts');
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+  }
+  return res;
 }
