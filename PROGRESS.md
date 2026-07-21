@@ -1,6 +1,6 @@
 # PROGRESS.md — session resume log
 
-## 2026-07-21 — #251 Income-Pause / Runway Radar (AI plan §Later #20, groundable half) — IN FLIGHT
+## 2026-07-21 — #251 Income-Pause / Runway Radar (AI plan §Later #20, groundable half) — COMPLETE (committed 67eda28; verify green 3104/220, critic cycle closed 0 P0/P1)
 
 Owner's "continue" at the #250 fork. Last unblocked groundable §Later sub-slice per STATUS #248
 menu (streaks #205 and outlier radar #249 both shipped). §20 verdict: exactly ONE groundable
@@ -79,7 +79,9 @@ non-positive runway nulled (F6), month-end `missedSinceOf` (F7, P13), undo input
 Locks: P13, P14a–d, server 2b (row-removal regression), select F5/F6, copy F2 — 92/92 across
 the 5 touched suites; 2 REGRESSION_LEDGER rows; back-half lesson extended (#251); EDGE_CASES/
 STATUS/DECISIONS updated; residual recorded (sync-vs-confirm refresh race, self-healing).
-NOW: full re-verify + e2e re-run in flight, then commit.
+FINAL GATES (real output): `bash scripts/verify.sh` → ✅ VERIFY GREEN, 220 files / 3104 tests
+passed; post-fix e2e today-feed+recurring+phase3-coach+ask+return-moment+trends → 36/36.
+Committed as #251 (67eda28).
 
 ## 2026-07-21 — Merchant Pattern Lens (#250) — COMPLETE (verify green, critic cycle closed)
 
