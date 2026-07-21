@@ -54,6 +54,17 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(page.getByTestId('signature-steadiness')).toContainText('median');
   await expect(page.getByTestId('money-signature-card')).toContainText('3 months in a row');
 
+  // #254 Habit streaks: demo pinned copy (default-asOf narrative — see the
+  // cleared-streak / creep-streak seed locks for the hand math). Cleared-in-full
+  // 17 months across 4 cards through May 2026; no-creep 3 full months with the
+  // Netflix $15.49 → $17.99 (Feb 2026) increase as the last break, facts inline.
+  await expect(page.getByTestId('habit-streaks-card')).toBeVisible();
+  await expect(page.getByTestId('card-cleared-streak')).toContainText('17 months in a row');
+  await expect(page.getByTestId('card-cleared-streak')).toContainText('paid in full by its due date');
+  await expect(page.getByTestId('card-cleared-streak')).toContainText('(4 cards, 59 statements)');
+  await expect(page.getByTestId('no-creep-streak')).toContainText('3 full months');
+  await expect(page.getByTestId('no-creep-last-increase')).toContainText('Netflix, $15.49 → $17.99 in Feb 2026');
+
   // life-energy toggle flips $ → hours
   const firstRow = page.getByTestId('life-energy-list').locator('li').first();
   await expect(firstRow).toContainText('$');

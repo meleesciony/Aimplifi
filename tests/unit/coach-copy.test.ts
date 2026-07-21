@@ -150,6 +150,20 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'signatureSteadinessShiftingFromSteady', text: COACH_COPY.signatureSteadinessShiftingFromSteady(5000), isProjection: false },
   { label: 'signatureSteadinessShiftingFromVariable', text: COACH_COPY.signatureSteadinessShiftingFromVariable(800), isProjection: false },
   { label: 'signatureSteadinessUnreadable', text: COACH_COPY.signatureSteadinessUnreadable(6), isProjection: false },
+  // #254 Habit streaks — every state variant scans through the guardrails.
+  { label: 'streaksTitle', text: COACH_COPY.streaksTitle(), isProjection: false },
+  { label: 'streaksBasis', text: COACH_COPY.streaksBasis(), isProjection: false },
+  { label: 'cardClearedStreak:17', text: COACH_COPY.cardClearedStreak(17, 4, 59, 'May 2026'), isProjection: false },
+  { label: 'cardClearedStreak:1', text: COACH_COPY.cardClearedStreak(1, 1, 1, 'May 2026'), isProjection: false },
+  { label: 'cardClearedBroken', text: COACH_COPY.cardClearedBroken('May 2026'), isProjection: false },
+  { label: 'cardClearedNoHistory', text: COACH_COPY.cardClearedNoHistory(), isProjection: false },
+  { label: 'cardClearedForming', text: COACH_COPY.cardClearedForming(), isProjection: false },
+  { label: 'noCreepStreak:3', text: COACH_COPY.noCreepStreak(3, 12, 8), isProjection: false },
+  { label: 'noCreepStreak:1sub', text: COACH_COPY.noCreepStreak(1, 12, 1), isProjection: false },
+  { label: 'noCreepStreak:capped', text: COACH_COPY.noCreepStreak(12, 12, 8), isProjection: false },
+  { label: 'noCreepLastIncrease', text: COACH_COPY.noCreepLastIncrease('Netflix', cents(1549), cents(1799), 'Feb 2026'), isProjection: false },
+  { label: 'noCreepBrokenNow', text: COACH_COPY.noCreepBrokenNow('Netflix', cents(1549), cents(1799), 'May 2026'), isProjection: false },
+  { label: 'noCreepNoSubs', text: COACH_COPY.noCreepNoSubs(), isProjection: false },
   { label: 'reviewImprovementRunway:noExpenses', text: COACH_COPY.reviewImprovementRunway(Infinity), isProjection: false },
   // The shared reminder line renders inside the digest body — scan its variants too.
   { label: 'reminderLine:selfPay', text: reminderLine(sampleReminder()), isProjection: false },
@@ -225,5 +239,38 @@ describe('coach copy guardrails — zero shame, assumptions everywhere, no ticke
     const review = generateMoneyReview({ flows: [], creep: creepClear, opportunities: [], runwayMonths: Infinity });
     expect(review.improvement).not.toMatch(/infinity/i);
     expect(review.improvement.length).toBeGreaterThan(0);
+  });
+});
+
+// #254 Habit streaks — exact rendered locks for the money-bearing lines (the
+// verbatim-value lesson: a template that carries cents must be locked as the
+// user reads it, not just scanned for tone).
+describe('habit-streaks copy — exact rendered locks (#254)', () => {
+  it('noCreepLastIncrease renders both prices and the month verbatim', () => {
+    expect(COACH_COPY.noCreepLastIncrease('Netflix', cents(1549), cents(1799), 'Feb 2026')).toBe(
+      'The last increase: Netflix, $15.49 → $17.99 in Feb 2026.',
+    );
+  });
+
+  it('noCreepBrokenNow renders the increase and a shame-free restart line', () => {
+    expect(COACH_COPY.noCreepBrokenNow('Netflix', cents(1549), cents(1799), 'May 2026')).toBe(
+      'Netflix went $15.49 → $17.99 in May 2026. The count restarts with the next full month at steady prices.',
+    );
+  });
+
+  it('cardClearedStreak states the by-due-date basis inline, pluralizes, and discloses the statement count (critic F1)', () => {
+    const many = COACH_COPY.cardClearedStreak(17, 4, 59, 'May 2026');
+    expect(many).toContain('17 months in a row');
+    expect(many).toContain('paid in full by its due date');
+    expect(many).toContain('(4 cards, 59 statements)');
+    const one = COACH_COPY.cardClearedStreak(1, 1, 1, 'May 2026');
+    expect(one).toContain('1 month in a row');
+    expect(one).toContain('(1 card, 1 statement)');
+  });
+
+  it('noCreepStreak pluralizes and the capped variant discloses the horizon', () => {
+    expect(COACH_COPY.noCreepStreak(1, 12, 1)).toContain('1 full month with');
+    expect(COACH_COPY.noCreepStreak(1, 12, 1)).toContain('1 tracked subscription.');
+    expect(COACH_COPY.noCreepStreak(12, 12, 8)).toContain('as far back as this check looks');
   });
 });

@@ -54,6 +54,50 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Habit Streaks (2026-07-21) — #254, AI plan §Later #17 streaks half
+
+Owner's "continue" at the #253 fork. Board reconciliation (lesson #26 applied): the plan's
+lone "build-now" §1.2 Cash Flow Radar was already shipped at #172 (stale authoring-time
+verdict); §Later's remainder is blocked (#13 XL behind a snapshot-coherence engine, #15
+vision-blocked, #21 superseded by #222/#230) except #17's streaks half, whose split verdict
+says the groundable streaks ship build-now. Shipped: two pure engines (NO LLM, NO
+persistence, no schema change) + one /coach Habit Streaks card.
+
+- **Card cleared-in-full streak** (`engine/cards/cleared-streak.ts`): resolved = due date
+  strictly past + not estimated; cleared = balance ≤ 0 or payments dated ≤ dueDate cover
+  it (the interest boundary, stated inline); month qualifies when every resolved statement
+  cleared; walk covers FULL months only (critic F2) descending from the latest full signal
+  month; `formingThisMonth` covers the only-partial-month-history user. Demo: 17 months
+  across 4 cards / 59 statements through May 2026 (seed-locked; June dues unresolved at
+  the pinned demo today 2026-06-10).
+- **No-subscription-creep streak** (`engine/recurring/creep-streak.ts`): universe =
+  detected `isSubscription` series; creep = a price INCREASE at ym(priceChangedAt)
+  (decreases never break); full-month walk capped at a disclosed 12; abstains (null) with
+  zero subscriptions. Demo: 3 full months, brokeOn Netflix $15.49 → $17.99 in Feb 2026
+  (facts inline via an exact-locked rendered string).
+- The savings-rate streak (#205) stays on the SavingsRateCard — one surface per fact. The
+  drift-loop half of #17 stays gated on the transfer-pair engine (unchanged verdict).
+
+**Hostile critic (fresh-context, 14 adversarial executions + independent hand math): PASS
+0 P0/0 P1, 4 P2 — ALL fixed in-cycle** (F1 copy now discloses the statement count so a
+gap-heavy span reads honestly; F2 partial-month statements excluded from the walk + forming
+state, locked C10–C12; F3 the demo snapshot now currency-filters statements/cardPayments at
+the source — the streak engine was the first join-free statements consumer; F4 the creep
+seed-lock predicate aligned with the real coach predicate).
+
+**Recorded limitations (#254):**
+1. **The creep streak sees only what the detector retains**: a series with two price
+   increases (3 plateaus) drops out of detection entirely, and a cancel-then-resubscribe-
+   higher pattern reads as a new series, not an increase. The copy scopes the claim to
+   "tracked subscriptions" with the steady-amount basis line — honest, but the horizon is
+   the detector's, not the user's billing history.
+2. **New subscriptions don't break the no-creep streak** (adding a service isn't a price
+   increase; series first-seen dates aren't in the detector's output). A future slice could
+   widen "creep" to subscription-count growth if the first-seen date is surfaced.
+3. **A user who habitually pays a few days late sees a 0 streak** — by design (the by-due-
+   date basis is the interest boundary and is stated inline), but it reads strict; the
+   month self-heals only if a covering payment lands by the due date, never retroactively.
+
 ## Synced-Account Deletion (2026-07-21) — #253, owner request
 
 Owner hit the gap live ("i'm trying to delete the simplefin accounts"): the SimpleFIN

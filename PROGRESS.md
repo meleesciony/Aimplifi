@@ -1,5 +1,64 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-21 — #254 Habit Streaks (AI plan §Later #17 streaks half: card-cleared + no-subscription-creep) — COMPLETE (verify green 3273/225, critic PASS 0 P0/P1, all 4 P2 fixed + critic-re-verified)
+
+Owner's "continue" at the #253 fork. Board reconciliation (explorer + git, lesson #26): Cash Flow
+Radar already shipped (#172 — the plan's "build-now" verdict is authoring-time stale); §Later
+remaining = #13 XL (snapshot-coherence engine), #15 vision-blocked, #21 superseded, #17 split.
+#17's rework verdict: streaks half (card cleared in full, no subscription creep) is build-now with
+NO blockers — savings-rate streak (#205) already exists; the drift-loop half stays gated on the
+transfer-pair engine (NOT this slice). Next DECISIONS number: **#254**. Tree clean at 6bcbd7c.
+
+DESIGN (settled):
+- Two pure engines, NO LLM, NO persistence, NO schema change:
+  1. `engine/cards/cleared-streak.ts` — computeCardClearedStreak(statements, payments, today).
+     Resolved = !isEstimated && dueDate < today (strict). Cleared = balance ≤ 0 OR Σ payments
+     (dated ≤ dueDate) ≥ balance — "by due date" is the basis, stated inline in copy. Group
+     resolved by ym(dueDate); walk calendar months back from latest signal month down to earliest
+     signal month; a month with no due statements qualifies (nothing due = nothing missed); a
+     month with ANY resolved uncleared statement stops the walk. Late/partial payment breaks.
+  2. `engine/recurring/creep-streak.ts` — computeNoCreepStreak(series, today, window=12).
+     Subs = isSubscription series. Creep event = priceChangedAt set ∧ |typical| > |previous|
+     (decreases never break) at month ym(priceChangedAt). Walk full months from ym(today)−1, cap
+     12 (disclosed); brokeOn carries {merchant, fromCents, toCents, month} — facts inline.
+     Abstain (null) when no subscription series. Current-partial-month increase is invisible to
+     the walk by construction — copy says "full months" (lag-honest, #252 precedent).
+- Seed hand math (asOf 2026-06-10, pinned demo today): cleared streak **17 months** (dues
+  2025-01..2026-05 all seed-paid on due date across sapphire/platinum/freedom/store; store $0
+  cycles cleared by construction; June dues unresolved), 4 cards, latestMonth 2026-05, brokeAt
+  null. No-creep streak **3** (Netflix 1549→1799 first new-price charge 2026-02-03 → Feb breaks;
+  Mar/Apr/May qualify; only seeded increase). Both locked by buildSeedData seed-lock tests.
+- Server: getCoachData grows `streaks: { cardCleared, noCreep }` from snap.statements +
+  snap.cardPayments + the SAME `series` (predicates already shared). No new queries.
+- UI: habit-streaks-card.tsx on /coach (after MoneySignatureCard); savings streak stays on
+  SavingsRateCard (#205) — no duplicate surface. Copy in COACH_COPY (no-shame scan +
+  assumptions-inline; plural handling; broken-state copy shame-free).
+- Tests: unit hand-verified suites for both engines + seed locks; ALL_STRINGS additions +
+  one exact rendered-copy lock for the money-bearing broken-creep line (verbatim-value lesson);
+  e2e phase3-coach extension (17 months / 3 full months / Netflix fact) + existing axe AA.
+- Docs: EDGE_CASES §Streaks hand math; DECISIONS #254; STATUS section; AI plan #17 updated to
+  "streaks half shipped, drift loop still gated"; this file.
+
+STEPS: 1.[x] EDGE_CASES §Habit Streaks hand math (C1–C9, N1–N9, seed locks) → 2.[x] engines +
+unit tests green (cleared-streak 12/12 + creep-streak 12/12 incl. both seed locks, first run;
+seed lock EXECUTED: 17/59 statements/4 cards + creep 3/Netflix 1549→1799/2026-02) → 3.[x]
+server (`streaks` on CoachData, same snapshot+series inputs) + habit-streaks-card on /coach +
+COACH_COPY block (245/245 copy suite incl. new exact rendered locks) → 4.[x] full verify
+GREEN (✅ exit 0; full unit suite 3268 passed) + phase3-coach e2e 1/1 at mobile-380 with the
+new assertions → 5.[x] hostile critic (fresh-context Fable, 14 adversarial executions +
+independent hand math): PASS 0 P0/P1, 4 P2 (F1 gap-month count opacity, F2 partial-month walk
+inconsistency, F3 snapshot statements unfiltered by the currency guard, F4 seed-lock predicate
+drift) → 6.[~] ALL 4 P2s fixed (F1 copy discloses the statement count; F2 full-months-only
+walk + formingThisMonth state + C10–C12 locks; F3 demo.ts filters statements/cardPayments at
+the source; F4 predicate aligned); affected suites green + tsc clean; critic RE-VERIFIED all
+four fixes by executed re-repro (PASS ×4, no new defects; its sub-threshold forming-copy nit
+also taken — outcome-neutral wording, copy suite 247/247) → 7.[x] settled final gate ✅ VERIFY
+GREEN 3273/225 (a 1-failure count run mid-edit did not reproduce on the settled rerun —
+edit-race, the recorded flake class) + phase3-coach e2e 1/1 at mobile-380 with the
+"(4 cards, 59 statements)" literal + docs (DECISIONS #254 + index, STATUS §Habit Streaks with
+3 recorded limitations, EDGE_CASES §Habit Streaks incl. C10–C12, AI plan #17 marked
+streaks-half-shipped) + committed.
+
 ## 2026-07-21 — #252 Adaptive Coaching Profile / Money Signature (AI plan §Later #11, rework baked in) — COMPLETE (verify green 3210/222, critic cycle closed PASS 0 P0/P1)
 
 Owner's "continue" at the #251 fork. Board reconciliation (explorer + git, lesson #26): Threaded

@@ -59,12 +59,19 @@ export class DemoProvider implements DataProvider {
     // Demo / manual rows are null-currency = assumed USD, so this is a no-op for the golden dataset.
     const supportedAccounts = accounts.filter((a) => isSupportedCurrency(a.currency));
     const supportedIds = new Set(supportedAccounts.map((a) => a.id));
+    // #254 critic F3: statements/cardPayments were returned unfiltered — safe
+    // while every consumer joined them through the filtered accounts list, but
+    // the cleared-streak engine reads statements join-free, so a withheld
+    // account's statements would count in a streak. Filter them at the source
+    // like every other child row (autopays stay as-is: no join-free consumer).
+    const supportedStatements = statements.filter((s) => supportedIds.has(s.accountId));
+    const supportedStatementIds = new Set(supportedStatements.map((s) => s.id));
     return {
       paymentAccountId: user?.paymentAccountId ?? null,
       accounts: supportedAccounts,
       autopays,
-      statements,
-      cardPayments,
+      statements: supportedStatements,
+      cardPayments: cardPayments.filter((cp) => supportedStatementIds.has(cp.statementId)),
       transactions: transactions.filter((t) => supportedIds.has(t.accountId)),
       scheduled: scheduled.filter((s) => supportedIds.has(s.accountId)),
       balanceSnapshots: balanceSnapshots.filter((b) => supportedIds.has(b.accountId)),

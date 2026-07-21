@@ -7,6 +7,7 @@ import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion
 import { withheldInlineNote } from '@/lib/providers/currency';
 import { LifeEnergyCard } from '@/components/coach/life-energy-card';
 import { MoneySignatureCard } from '@/components/coach/money-signature-card';
+import { HabitStreaksCard } from '@/components/coach/habit-streaks-card';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -76,6 +77,9 @@ export default async function CoachPage() {
 
       {/* #252 Money Signature — habit patterns + this-month weather, facts inline */}
       <MoneySignatureCard signature={data.signature} />
+
+      {/* #254 Habit streaks — cleared-in-full + no-subscription-creep, basis inline */}
+      <HabitStreaksCard cardCleared={data.streaks.cardCleared} noCreep={data.streaks.noCreep} />
 
       {/* Big wins, never latte shame */}
       <Card data-testid="opportunities-card">

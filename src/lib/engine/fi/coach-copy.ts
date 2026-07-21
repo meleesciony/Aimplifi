@@ -159,6 +159,33 @@ export const COACH_COPY = {
   savingsPersonalBest: (rateBps: number, monthLabel: string) =>
     `${monthLabel} is a personal best so far at ${pct1(rateBps)} — worth noticing, not a grade.`,
 
+  // ── #254: Habit streaks (AI plan §Later #17 streaks half) ───────────────────
+  // Basis inline everywhere: "cleared" means paid in full BY the due date (read
+  // from statement + payment history); the creep walk covers FULL months only
+  // and its window cap is disclosed. Broken-state copy is shame-free by the
+  // standing scan; the money-bearing increase line has an exact rendered lock.
+  streaksTitle: () => `Habit streaks`,
+  streaksBasis: () =>
+    `Cleared means the statement balance was fully paid by its due date, read from your statement and payment history. Subscription prices are watched on recurring charges with a steady amount, over full months only.`,
+  cardClearedStreak: (months: number, cards: number, statements: number, throughMonthLabel: string) =>
+    `${months} month${months === 1 ? '' : 's'} in a row with every card statement paid in full by its due date, through ${throughMonthLabel} (${cards} card${cards === 1 ? '' : 's'}, ${statements} statement${statements === 1 ? '' : 's'}). Paying in full by the due date is the habit that keeps purchase interest off your statements.`,
+  cardClearedBroken: (monthLabel: string) =>
+    `A statement due in ${monthLabel} wasn't fully paid by its due date, so this streak is starting over — one cleared cycle begins a new one.`,
+  cardClearedNoHistory: () =>
+    `No card statement has come due yet — this streak starts with your first due date.`,
+  cardClearedForming: () =>
+    `Your first statement cycle resolved this month — streaks count full months, so this month shows once it completes.`,
+  noCreepStreak: (months: number, windowMonths: number, subCount: number) =>
+    months >= windowMonths
+      ? `No subscription price increases in the last ${windowMonths} full months — as far back as this check looks — across your ${subCount} tracked subscription${subCount === 1 ? '' : 's'}.`
+      : `${months} full month${months === 1 ? '' : 's'} with no subscription price increases across your ${subCount} tracked subscription${subCount === 1 ? '' : 's'}.`,
+  noCreepLastIncrease: (merchant: string, fromCents: Cents, toCents: Cents, monthLabel: string) =>
+    `The last increase: ${merchant}, ${formatCents(fromCents)} → ${formatCents(toCents)} in ${monthLabel}.`,
+  noCreepBrokenNow: (merchant: string, fromCents: Cents, toCents: Cents, monthLabel: string) =>
+    `${merchant} went ${formatCents(fromCents)} → ${formatCents(toCents)} in ${monthLabel}. The count restarts with the next full month at steady prices.`,
+  noCreepNoSubs: () =>
+    `No steady-amount subscriptions detected yet, so there's no price creep to track.`,
+
   // C2 · Housel — saving for its own sake is a goal; the cushion is room for error
   cushionIsAGoal: () =>
     `Saving with no specific goal is still a goal — an unallocated cushion is room for error, and room for error is wealth working quietly.`,

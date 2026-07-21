@@ -25,6 +25,8 @@ import {
 import { detectUnusualCharges, type UnusualCharge } from '@/lib/engine/anomaly/detect';
 import { incomePausesForFeed, type IncomePauseState } from '@/lib/engine/income/pause';
 import { computeMoneySignature, type MoneySignature } from '@/lib/engine/fi/signature';
+import { computeCardClearedStreak, type CardClearedStreakResult } from '@/lib/engine/cards/cleared-streak';
+import { computeNoCreepStreak, type NoCreepStreakResult } from '@/lib/engine/recurring/creep-streak';
 import { getConfirmedIncomePauses } from '@/server/income-pause';
 import { generateMoneyReview, type MoneyReview } from '@/lib/engine/fi/coach-copy';
 import { buildReviewCandidates, selectReview, type ReviewRole } from '@/lib/engine/fi/money-review';
@@ -73,6 +75,13 @@ export interface CoachData {
    * history, never stored.
    */
   signature: MoneySignature;
+  /**
+   * Habit streaks (#254, AI plan §Later #17 streaks half): pure retrospective
+   * walks — card statements cleared in full by their due date, and full months
+   * without a subscription price increase. No persistence; recomputed from the
+   * same snapshot statements/payments and the same detected `series`.
+   */
+  streaks: { cardCleared: CardClearedStreakResult; noCreep: NoCreepStreakResult };
   creep: CreepResult;
   runwayMonths: number;
   lifeEnergy: { merchant: string; amountCents: number; hours: number; date: string }[];
@@ -174,6 +183,12 @@ export async function getCoachData(
   // month itself and materializes calendar gaps) so the trailing-12-eligible
   // habit window sees the full history, not the 12-month display slice.
   const signature = computeMoneySignature(allFlows, { runwayMonths: runway, today });
+  // Habit streaks (#254): pure walks over the SAME snapshot statements/payments
+  // and the SAME detected series — no new queries, no persistence.
+  const streaks = {
+    cardCleared: computeCardClearedStreak(snap.statements, snap.cardPayments, today),
+    noCreep: computeNoCreepStreak(series, today),
+  };
 
   // life-energy view: 5 largest non-transfer purchases in the last 90 days
   const cutoff = addMonthsClamped(today, -3);
@@ -290,6 +305,7 @@ export async function getCoachData(
     unusualCharges,
     incomePauses,
     signature,
+    streaks,
     creep,
     runwayMonths: runway,
     lifeEnergy,
