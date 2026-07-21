@@ -1,5 +1,73 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-21 — #252 Adaptive Coaching Profile / Money Signature (AI plan §Later #11, rework baked in) — COMPLETE (verify green 3210/222, critic cycle closed PASS 0 P0/P1)
+
+Owner's "continue" at the #251 fork. Board reconciliation (explorer + git, lesson #26): Threaded
+Ask #21 superseded by #222/#230; double-bill timestamp-blocked; #17 drift needs the transfer-pair
+engine (riskier, larger); #13 Scenario Studio is XL behind a snapshot-coherence engine; PROGRESS
+backfill #173–176 already done (entries at PROGRESS:3617–3660 — the STATUS "outstanding" flags are
+inside dated 2026-07-08 historical entries, not current state). #11 is the last M-size groundable
+item and its "needs-rework" verdict IS the resolved design decision (plan:241): hysteresis before
+any axis label change, stable axes decoupled from responsive weather, habit framing not
+personality. Next DECISIONS number: **#252**. Tree clean at c71cccc, 7 ahead of origin (push
+owner-gated).
+
+DESIGN (settled):
+- Pure engine `src/lib/engine/fi/signature.ts`, NO LLM, NO persistence: hysteresis is a
+  retrospective walk over the monthly series (a label flips only after 3 consecutive months of
+  contrary banded signal), so labels are deterministic from history — no schema change, no
+  demo-fence, no consent state. Input: full-calendar-month MonthlyFlow[] (+ runwayMonths + today);
+  engine excludes ym(today) itself so a partial month never feeds an axis.
+- Axis 1 — saving habit: over trailing ≤12 eligible months (rate ≠ null), shareBps =
+  floor(saved×10000/eligible), saved = rate ≥ 0 (streak-engine convention). Banded: steady ≥ 7500,
+  variable ≤ 5000, dead zone between (no signal). ≥6 eligible months required, else 'forming'.
+- Axis 2 — spending steadiness: trailing 6 full months' expensesCents; med + MAD via the
+  documented radar integer convention (private medianOfSorted copy — the anomaly/merchant
+  precedent); spreadBps = floor(mad×10000/med); steady ≤ 1000, variable ≥ 2500, dead zone between;
+  guard med > 0.
+- Hysteresis walk (shared by both axes): confirmed starts null ('forming'); first non-dead-zone
+  raw initializes (sinceMonth = that month); thereafter flip only on 3 CONSECUTIVE identical
+  contrary raws (dead-zone months reset the run — conservative, fewer flips).
+- Weather (responsive by design, "this month", flips expected): strained if runway < 1; else
+  tight if runway < 3 or latest full-month rate < 0; else bright if computeSavingsStreak
+  isPersonalBest ∧ latest rate ≥ 0 ∧ ≥6 eligible months; else calm.
+- Copy: coach-copy.ts templates — facts-first habit lines ("saved in N of the last 12 months"),
+  weather greeting variants re-toning the SAME facts; banned identity-framing lexicon test
+  ("personality", "you are a", archetype nouns); no-shame scan covers new keys automatically.
+- UI: money-signature-card on /coach (weather line + 2 axis lines, thresholds/assumptions
+  inline). getCoachData grows a `signature` field. No writes anywhere.
+
+STEPS: 1.[x] EDGE_CASES §Money Signature hand math (S1–S5, H1–H5, D1–D6, W1–W10) →
+2.[x] engine + unit tests (money-signature.test.ts 29/29 incl. seed lock: steady/steady/calm,
+spreadBps 296 hand-verified med 390166/mad 11550 + independent re-aggregation cross-check;
+probe test used then DELETED) → 3.[x] coach-copy templates (weather×4 + tight-negative +
+infinite-runway, saving steady/variable/forming/MIXED, steadiness ×4 — mixed = dead-zone-
+before-init state the forming copy would lie about) + ALL_STRINGS entries + identity-lexicon
+ban (money-signature-copy.test.ts; 229/229 with coach-copy suite) → 4.[x] coach.ts wiring
+(signature from ALL flows, not the 12-mo slice) + money-signature-card + page insert →
+5.[x] seed lock (in step 2; seed UNTOUCHED — zero ripple) → 6.[x] e2e phase3-coach.spec
+pinned demo copy (calm / 12 of last 12 / May 2025 / 3.0% / median / 3-month rule) →
+7.[x] docs (DECISIONS #252 + index, STATUS §Money Signature, plan §11 un-staled) →
+8.[x] verify.sh GREEN (pre-critic: 3187/222; e2e phase3-coach 1/1 + a11y 7/7) →
+9.[x] fresh-context Fable critic (empirical): FAIL 2 P1 / 4 P2 — engine mechanics survived
+both rounds (prefix-stable hysteresis 55-recompute sweep, integer math, weather table,
+purity); ALL findings were copy/branch honesty defects. P1-1 lag-divergent label copy
+("steady habit … has held" beside 5/12 saved) → engine `latestContrary` + 4 lag-honest
+"had been…" copy variants; P1-2 "your last N full months" false across skipped no-income
+months → "full months with income" on every count line; P2: `hasFullWindow`
+unreadable-vs-forming split, trailing-gap materialization anchored to ym(today)−1 (creep's
+grid), licensed seed-lock cross-check precondition, "1 months" plural. Locks mirror the
+executed repros (test_regression__signature-lag-contrary ×2, -with-income-qualifier,
+-shifting-copy, -unreadable-window, -trailing-gap-weather); 2 REGRESSION_LEDGER rows.
+Critic re-verified EVERY fix by executed re-repro → **PASS 0 P0/P1**; 1 P2-grade residual
+recorded in STATUS (contrary run can complete across trailing no-income months; copy stays
+true, steadiness structurally protected). →
+10.[x] FINAL GATES (real output): `bash scripts/verify.sh` → ✅ VERIFY GREEN exit 0,
+**222 files / 3210 tests passed**; post-fix e2e phase3-coach + phase5-a11y → **8/8**
+(coach WCAG AA incl. the new card). Committed as #252.
+Design note (settled): commitment-load REJECTED as axis 2 (applies today's series
+membership backward = dishonest history); hysteresis has NO stored state by design.
+
 ## 2026-07-21 — #251 Income-Pause / Runway Radar (AI plan §Later #20, groundable half) — COMPLETE (committed 67eda28; verify green 3104/220, critic cycle closed 0 P0/P1)
 
 Owner's "continue" at the #250 fork. Last unblocked groundable §Later sub-slice per STATUS #248

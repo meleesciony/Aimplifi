@@ -24,6 +24,7 @@ import {
 } from '@/lib/engine/fi/insights';
 import { detectUnusualCharges, type UnusualCharge } from '@/lib/engine/anomaly/detect';
 import { incomePausesForFeed, type IncomePauseState } from '@/lib/engine/income/pause';
+import { computeMoneySignature, type MoneySignature } from '@/lib/engine/fi/signature';
 import { getConfirmedIncomePauses } from '@/server/income-pause';
 import { generateMoneyReview, type MoneyReview } from '@/lib/engine/fi/coach-copy';
 import { buildReviewCandidates, selectReview, type ReviewRole } from '@/lib/engine/fi/money-review';
@@ -65,6 +66,13 @@ export interface CoachData {
    * force, so the mutation is always visible and undoable.
    */
   incomePauses: IncomePauseState[];
+  /**
+   * Money Signature (#252): two habit axes with retrospective hysteresis + a
+   * responsive "this month" weather state. Pure recompute over the FULL flow
+   * history (not the 12-month display slice) — labels are a function of
+   * history, never stored.
+   */
+  signature: MoneySignature;
   creep: CreepResult;
   runwayMonths: number;
   lifeEnergy: { merchant: string; amountCents: number; hours: number; date: string }[];
@@ -162,6 +170,10 @@ export async function getCoachData(
   // documented rounding rule, not Math.round (consistency with monthlySavings above)
   const avgMonthlyExpenses = cents(roundHalfAwayFromZero(expenses6 / Math.max(1, last6.length)));
   const runway = monthsOfRunway(liquid, avgMonthlyExpenses);
+  // Money Signature (#252) reads ALL flows (the engine drops the partial current
+  // month itself and materializes calendar gaps) so the trailing-12-eligible
+  // habit window sees the full history, not the 12-month display slice.
+  const signature = computeMoneySignature(allFlows, { runwayMonths: runway, today });
 
   // life-energy view: 5 largest non-transfer purchases in the last 90 days
   const cutoff = addMonthsClamped(today, -3);
@@ -277,6 +289,7 @@ export async function getCoachData(
     opportunities,
     unusualCharges,
     incomePauses,
+    signature,
     creep,
     runwayMonths: runway,
     lifeEnergy,

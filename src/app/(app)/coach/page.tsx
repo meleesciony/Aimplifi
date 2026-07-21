@@ -6,6 +6,7 @@ import { FICard } from '@/components/coach/fi-card';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { withheldInlineNote } from '@/lib/providers/currency';
 import { LifeEnergyCard } from '@/components/coach/life-energy-card';
+import { MoneySignatureCard } from '@/components/coach/money-signature-card';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -72,6 +73,9 @@ export default async function CoachPage() {
           currencyNote={withheldInlineNote(withheld)}
         />
       </div>
+
+      {/* #252 Money Signature — habit patterns + this-month weather, facts inline */}
+      <MoneySignatureCard signature={data.signature} />
 
       {/* Big wins, never latte shame */}
       <Card data-testid="opportunities-card">

@@ -232,6 +232,76 @@ export const COACH_COPY = {
   digestPaymentsHeader: () => `Coming up in the next 7 days:`,
   digestNothingDue: () => `Nothing due in the next 7 days — a clear week ahead.`,
   digestOutro: () => `That's your week. Aimplifi reminds you; it never moves your money.`,
+
+  // ── #252: Money Signature (AI plan §Later #11 reworked) ─────────────────────
+  // HABIT framing, never identity: every label ships with the fact it's read
+  // from, and the basis line discloses the 3-month persistence rule. The
+  // weather line is explicitly "this month" — a flip there is information,
+  // not an identity change. Signature-copy locks live in
+  // tests/unit/money-signature-copy.test.ts (identity-lexicon ban included).
+  signatureTitle: () => `Your money habits`,
+  signatureBasis: () =>
+    `Habit lines move only after a new pattern holds for 3 months in a row — one unusual month never rewrites them. The weather line is only about this month.`,
+
+  signatureWeather: (
+    state: 'strained' | 'tight' | 'calm' | 'bright',
+    runwayMonths: number,
+    latestRateBps: number | null,
+    monthLabel: string | null,
+  ) => {
+    const cushion = Number.isFinite(runwayMonths)
+      ? `about ${runwayMonths} month${runwayMonths === 1 ? '' : 's'} of typical spending on hand (cash ÷ your 6-month average expenses)`
+      : `cash on hand and no recorded average expenses yet`;
+    switch (state) {
+      case 'strained':
+        return `This month's money weather: strained — ${cushion}. Tight stretches happen; the habits below are the long game, and one hard month doesn't reset them.`;
+      case 'tight':
+        return latestRateBps !== null && latestRateBps < 0
+          ? `This month's money weather: tight — spending outpaced income in ${monthLabel ?? 'the latest full month'}, with ${cushion}. One month is weather, not climate.`
+          : `This month's money weather: tight — ${cushion}. One month is weather, not climate.`;
+      case 'bright':
+        return `This month's money weather: bright — ${monthLabel ?? 'the latest full month'} was your best savings rate on record (${pct1(latestRateBps ?? 0)}), with ${cushion}. Worth noticing.`;
+      case 'calm':
+        return `This month's money weather: calm — ${cushion}.`;
+    }
+  },
+
+  // "full months with income" everywhere the count renders (#252 critic P1-2):
+  // the eligible window SKIPS no-income months, so "your last N full months"
+  // without the qualifier is false whenever such months sit inside the span.
+  signatureSavingSteady: (savedMonths: number, eligibleMonths: number, sinceLabel: string) =>
+    `Saving is a steady habit here: a positive savings rate in ${savedMonths} of your last ${eligibleMonths} full months with income (a pattern that's held since ${sinceLabel}).`,
+  signatureSavingVariable: (savedMonths: number, eligibleMonths: number) =>
+    `Saving comes and goes right now: a positive savings rate in ${savedMonths} of your last ${eligibleMonths} full months with income. That's a pattern, not a verdict — patterns move.`,
+  signatureSavingForming: (eligibleMonths: number, neededMonths: number) =>
+    `Your saving pattern is still taking shape — ${eligibleMonths} of the ${neededMonths} full months with income needed to read it.`,
+  signatureSavingMixed: (savedMonths: number, eligibleMonths: number) =>
+    `A positive savings rate in ${savedMonths} of your last ${eligibleMonths} full months with income — a mixed pattern so far, and that's all it is.`,
+  // Lag-honest variants (#252 critic P1-1): rendered when the latest month's
+  // banded signal is the OPPOSITE of the confirmed label — the unqualified
+  // label copy would assert a falsehood against its own inline facts.
+  signatureSavingShiftingFromSteady: (savedMonths: number, eligibleMonths: number, sinceLabel: string) =>
+    `Saving had been a steady habit since ${sinceLabel}, but recent months look different: a positive savings rate in ${savedMonths} of your last ${eligibleMonths} full months with income. If the new pattern holds for 3 months in a row, this line will move with it.`,
+  signatureSavingShiftingFromVariable: (savedMonths: number, eligibleMonths: number) =>
+    `Saving has been picking up lately: a positive savings rate in ${savedMonths} of your last ${eligibleMonths} full months with income. If that holds for 3 months in a row, this line will move with it.`,
+
+  signatureSteadinessSteady: (spreadBps: number) =>
+    `Month-to-month spending runs steady: typical variation about ${pct1(spreadBps)} of a typical month, measured on the median so one big month doesn't skew it.`,
+  signatureSteadinessVariable: (spreadBps: number) =>
+    `Month-to-month spending swings: typical variation about ${pct1(spreadBps)} of a typical month, measured on the median. Swings aren't a problem by themselves — lumpy months (travel, annual bills) are often the plan working.`,
+  signatureSteadinessForming: (neededMonths: number) =>
+    `Spending steadiness needs ${neededMonths} full months of history to read.`,
+  signatureSteadinessMixed: (spreadBps: number) =>
+    `Typical month-to-month variation is about ${pct1(spreadBps)} of a typical month right now — in-between territory, so there's no label to pin on it.`,
+  signatureSteadinessShiftingFromSteady: (spreadBps: number) =>
+    `Spending had been running steady, but recent months vary more: typical variation about ${pct1(spreadBps)} of a typical month, measured on the median. If the new pattern holds for 3 months in a row, this line will move with it.`,
+  signatureSteadinessShiftingFromVariable: (spreadBps: number) =>
+    `Spending swings have been settling down: typical variation about ${pct1(spreadBps)} of a typical month, measured on the median. If that holds for 3 months in a row, this line will move with it.`,
+  // #252 critic P2-1: spreadBps can be null with ABUNDANT history (the recent
+  // 6-month window has a zero median — no readable spending); saying "needs 6
+  // full months of history" there would be false.
+  signatureSteadinessUnreadable: (windowMonths: number) =>
+    `Most of the last ${windowMonths} full months show no recorded spending, so there's no steadiness reading right now.`,
 } as const;
 
 // ── Monthly Money Review (generated from real data) ──────────────────────────

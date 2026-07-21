@@ -41,6 +41,19 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   // runway card
   await expect(page.getByTestId('runway-months')).toContainText('months');
 
+  // #252 Money Signature: demo pinned copy (default-asOf narrative — see the
+  // money-signature.test.ts seed lock for the hand math behind these literals).
+  // Weather calm; saving habit steady 12/12 held since May 2025; spending
+  // steadiness steady at 3.0% typical variation (spreadBps 296).
+  await expect(page.getByTestId('money-signature-card')).toBeVisible();
+  await expect(page.getByTestId('signature-weather')).toContainText('calm');
+  await expect(page.getByTestId('signature-weather')).toContainText('cash ÷ your 6-month average expenses');
+  await expect(page.getByTestId('signature-saving')).toContainText('12 of your last 12 full months with income');
+  await expect(page.getByTestId('signature-saving')).toContainText('May 2025');
+  await expect(page.getByTestId('signature-steadiness')).toContainText('3.0%');
+  await expect(page.getByTestId('signature-steadiness')).toContainText('median');
+  await expect(page.getByTestId('money-signature-card')).toContainText('3 months in a row');
+
   // life-energy toggle flips $ → hours
   const firstRow = page.getByTestId('life-energy-list').locator('li').first();
   await expect(firstRow).toContainText('$');

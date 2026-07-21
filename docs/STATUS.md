@@ -54,6 +54,66 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Money Signature (2026-07-21) — #252, AI plan §Later #11 shipped per its rework verdict
+
+Owner's "continue" at the #251 fork. Board reconciliation (lesson #26 applied): Threaded Ask
+#21 was superseded by #222/#230; double-bill stays timestamp-blocked; #17's drift loop needs
+the net-new transfer-pair engine; #13 Scenario Studio is XL behind a snapshot-coherence
+engine; the PROGRESS #173–176 backfill flagged "outstanding" in old entries was already done
+(PROGRESS:3617–3660). #11 was the last M-size groundable item, and its "needs-rework" verdict
+IS the resolved design decision — hysteresis before any axis label change, stable axes
+decoupled from responsive weather, habits not personality.
+
+- **Engine.** `engine/fi/signature.ts` (pure, NO LLM, NO persistence): hysteresis is a
+  retrospective walk (`resolveConfirmedLabel`) over the monthly series — dead-zone bands
+  plus a 3-consecutive-month persistence gate on flips (no-signal months reset the run;
+  first banded signal initializes immediately), so labels are a deterministic function of
+  history with no stored state to leak, race, or migrate. Axis 1 saving habit: share of
+  trailing ≤12 eligible months saved (steady ≥ 75%, variable ≤ 50%, ≥6 eligible else
+  forming). Axis 2 spending steadiness: MAD/median spread over exactly the trailing 6 full
+  months' expenses (steady ≤ 10%, variable ≥ 25%; radar integer median convention).
+  Commitment-load was REJECTED as an axis: it would apply today's recurring-series
+  membership backward onto historical months. Gap months materialize as $0/null-rate
+  (creep's convention); the partial current month is dropped inside the engine. Weather
+  (responsive by design, "this month"): strained (runway < 1) / tight (runway < 3 or a
+  negative latest month) / bright (personal-best via computeSavingsStreak, reused) / calm.
+  Hand-verified EDGE_CASES §Money Signature (S1–S5, H1–H5, D1–D6, W1–W10).
+- **Copy.** COACH_COPY templates only (the guardrail scan covers every variant): facts-first
+  habit lines, the persistence rule disclosed inline, weather cushion basis inline
+  ("cash ÷ your 6-month average expenses"), and an identity-framing lexicon BAN locked by
+  money-signature-copy.test.ts (#250 precedent) — "you are a", personality/archetype nouns,
+  saver/spender-as-noun all banned; forming and mixed (dead-zone) states get their own
+  honest lines rather than a mislabel.
+- **UI.** One server-component card on /coach (weather + two habit lines + basis);
+  getCoachData grows `signature`, computed from ALL flows so the habit window sees full
+  history, not the 12-month display slice. No writes, so no demo fence needed.
+- **Seed.** Untouched — zero ripple. Seed lock pins steady/steady/calm with hand math
+  (12/12 months saved; steadiness window med 390166¢, mad 11550¢ → spread 296 bps = 3.0%)
+  plus an independent no-engine-code re-aggregation cross-check inside the test.
+- **Hostile critic (1 fresh-context Fable cycle, empirical mandate: FAIL 2 P1 / 4 P2 →
+  ALL fixed → critic re-verified each fix by executed re-repro → PASS 0 P0/P1).** The
+  engine mechanics survived both rounds untouched (prefix-stable hysteresis, integer math,
+  weather table, purity all held); every finding was a copy/branch honesty defect. F1 (P1):
+  the card rendered the hysteresis-lagged label as a present-tense claim contradicted by its
+  own inline facts ("steady habit … has held" beside 5/12 saved) — fixed with engine
+  `latestContrary` (latest banded raw opposite the confirmed label; dead-zone never flags)
+  driving lag-honest "had been … recent months look different" copy variants, both axes,
+  both directions. F2 (P1): "your last N full months" was false across no-income months the
+  eligible window skips — every month-count line now reads "full months with income". P2
+  fixes: null-spread with abundant history now says "no recorded spending", never "needs 6
+  months of history" (`hasFullWindow`); trailing gap months now materialize to ym(today)−1
+  (creep's anchor) so the weather never cites a stale month as "this month"; the seed-lock
+  cross-check's naive negative-sum is now licensed by an explicit no-refund-rows
+  precondition; "1 months" pluralization. 2 REGRESSION_LEDGER rows; locks mirror the
+  critic's executed repros.
+- **Recorded residual (#252 critic, P2-grade, by design):** during a trailing no-income gap
+  the saving axis re-emits its frozen window's banded signal each empty month, so a contrary
+  persistence run can complete across months that carry no new income evidence (steadiness
+  is structurally protected — its zero-median months emit null raws and reset runs). The
+  rendered copy stays true (counts are qualified "full months with income") and the
+  income-pause radar owns lapsed-income news; a future slice could require an eligible month
+  to advance a contrary run.
+
 ## Income-Pause Radar (2026-07-21) — #251, AI plan §Later #20's one groundable signature
 
 Owner's "continue" at the #250 fork. Picked per STATUS #248's own menu: the last
