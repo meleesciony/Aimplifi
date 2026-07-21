@@ -54,6 +54,27 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Forgot Password / Reset Flow (2026-07-21) — #257, owner request
+
+Owner locked out of the deployed app. Full reset flow shipped engine-first: pure
+`engine/auth/reset.ts` (32-byte tokens, sha256-at-rest, lazy live/used/expired) +
+guarded core `server/password-reset.ts` (atomic single-use claim + password rewrite +
+sessionEpoch bump in ONE transaction; demo fence; enumeration-neutral; fail-closed
+origin — no AUTH_URL off-Vercel means NO email, never a poisonable link) + rate-limited
+actions + /forgot-password + /reset-password + the sign-in link. Security critic cycle 1
+PASS 0 P0/P1 (2 P2 hardening: timing-oracle floor 750ms, CWE-640 fail-closed origin —
+both fixed + critic-re-verified by executed re-repro). Recorded policy: a Google-only
+user can reset and gains a password credential (mailbox owns the account). Detail:
+DECISIONS #257.
+
+**Recorded residuals (#257):**
+1. An email send slower than the 750ms response floor still leaks a timing signal on
+   the request action (message/shape are neutral regardless).
+2. The per-email limiter counting unknown emails (the anti-counting-oracle property)
+   is code-true but unlockable in vitest (action layer requires request headers);
+   e2e-coverable later with a seeded known user.
+3. Reset emails are plain text (the repo has no HTML template pattern yet).
+
 ## Plaid Disconnect & Account Deletion + Sandbox Disclosure (2026-07-21) — #256, owner request
 
 Owner hit both live: Plaid Link rejected their real phone number, and /accounts had

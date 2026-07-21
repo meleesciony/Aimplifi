@@ -51,14 +51,25 @@ export function EmailPasswordForm() {
           {state.error}
         </p>
       )}
-      <button
-        type="button"
-        data-testid="auth-toggle"
-        onClick={() => setMode((m) => (m === 'signin' ? 'signup' : 'signin'))}
-        className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-      >
-        {mode === 'signin' ? 'New here? Create an account' : 'Have an account? Sign in'}
-      </button>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          data-testid="auth-toggle"
+          onClick={() => setMode((m) => (m === 'signin' ? 'signup' : 'signin'))}
+          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+        >
+          {mode === 'signin' ? 'New here? Create an account' : 'Have an account? Sign in'}
+        </button>
+        {mode === 'signin' && (
+          <a
+            href="/forgot-password"
+            data-testid="forgot-password-link"
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+          >
+            Forgot password?
+          </a>
+        )}
+      </div>
     </form>
   );
 }

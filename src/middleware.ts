@@ -30,6 +30,9 @@ export const config = {
     // /privacy/) while the `$` still blocks prefix collisions: /privacy-secret,
     // /privacyx and /privacy/anything all stay behind auth. /swXjs likewise can't
     // skip auth (the dot is escaped).
-    '/((?!api/auth|api/cron|api/plaid/webhook|sign-in|privacy/?$|offline$|sw\\.js$|_next/static|_next/image|favicon.ico|manifest|icon).*)',
+    // /forgot-password and /reset-password (#257) are necessarily public — a
+    // locked-out user has no session. Same `/?$` trailing-slash tolerance +
+    // prefix-collision block as /privacy.
+    '/((?!api/auth|api/cron|api/plaid/webhook|sign-in|forgot-password/?$|reset-password/?$|privacy/?$|offline$|sw\\.js$|_next/static|_next/image|favicon.ico|manifest|icon).*)',
   ],
 };

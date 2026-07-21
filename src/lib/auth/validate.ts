@@ -13,7 +13,8 @@ export interface SignupErr {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const MIN_PASSWORD_LENGTH = 8;
-const MAX_PASSWORD_LENGTH = 200;
+/** Exported (#257 critic P3-2) so the reset flow shares signup's exact bound. */
+export const MAX_PASSWORD_LENGTH = 200;
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();

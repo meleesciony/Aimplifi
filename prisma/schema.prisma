@@ -70,6 +70,7 @@ model User {
   nudgeDismissals     NudgeDismissal[]
   incomePauseConfirmations IncomePauseConfirmation[]
   selfAuditSnapshots  SelfAuditSnapshot[]
+  passwordResetTokens PasswordResetToken[]
   householdMembership HouseholdMember? // v1: at most one household per user (HOUSEHOLD_ARCHITECTURE §4.1)
 }
 
@@ -483,6 +484,25 @@ model AuditLog {
   // and #242's per-LLM-call rows accelerate this table's growth — without an
   // index that read is a full scan (#242 critic cycle-2 F4).
   @@index([userId, createdAt])
+}
+
+// Single-use password-reset tokens (#257). ONLY the sha256(salt:token) hash is
+// stored — the plaintext token exists in the reset email and nowhere else, so a
+// DB read can never mint a working reset link (the household-invite at-rest
+// idiom). Lazy expiry: state is derived from (usedAt, expiresAt) by the pure
+// predicate in src/lib/engine/auth/reset.ts; consumed tokens keep their row
+// (usedAt set) as an audit trail until the user row cascades.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // Durable, multi-instance rate-limit buckets (ROADMAP #8). The in-memory limiter
