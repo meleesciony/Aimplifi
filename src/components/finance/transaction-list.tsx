@@ -315,7 +315,15 @@ export function TransactionList({
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="truncate font-medium">{t.merchantName}</span>
+                        {/* Merchant Pattern Lens entry (DECISIONS #250): the name
+                            links to the merchant-filtered register + lens card. */}
+                        <Link
+                          href={`/transactions?merchant=${encodeURIComponent(t.merchantName)}`}
+                          data-testid="txn-merchant-link"
+                          className="truncate font-medium underline-offset-2 hover:underline"
+                        >
+                          {t.merchantName}
+                        </Link>
                         {t.status === 'PENDING' && (
                           <Badge variant="outline" className="shrink-0 text-[10px]">
                             Pending

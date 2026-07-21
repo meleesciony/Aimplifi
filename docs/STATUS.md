@@ -54,7 +54,53 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
-## Unusual Charge Radar v1 (2026-07-20) — #249, AI plan §3-Later #12 outlier half
+## Merchant Pattern Lens (2026-07-21) — #250, AI plan §Later #19
+
+Owner's "continue" at the #249 fork. Shipped per the plan's own reshape verdict —
+deterministic profile + templated narration, generative-LLM framing dropped. Chosen as
+the last unblocked §Later item (§3.1–3.4 shipped; double-bill, streaks drift, income-pause,
+and Scenario Studio all remain on their recorded blockers; Threaded Ask superseded by
+#222/#230).
+
+- **Engine.** `engine/merchant/profile.ts` (pure, NO LLM): per-merchant profile over
+  qualifying charges (the exact anomaly-engine inclusion rule) — count, total, first/last
+  seen, median typical (shared §Unusual Charge Radar convention; a seed lock asserts the
+  lens and the radar report the SAME typical/count for demo Blue Bottle: 1156¢ / 19), and
+  a 3-full-months recent-vs-prior trend (partial month never averaged; windows render only
+  when the relationship spans them; hand-verified EDGE_CASES §Merchant Pattern Lens).
+  Abstentions: aggregate pseudo-merchants → no lens; <3 charges → facts only.
+- **Narration.** Pure template `lens-copy.ts` — descriptive never advisory, "about" on
+  divided figures, basis disclosed inline, guardrail test bans time-of-day/day-of-week
+  pattern vocabulary (date-only data cannot ground them — the §19 verdict's flagship hole).
+  Cadence line only from an ACTIVE non-IRREGULAR detectRecurring series.
+- **Surface.** Register merchant names link to a new exact-match `?merchant=` filter
+  (never substring); lens card renders above the filtered rows; viewer-only (household
+  shared list untouched — "Your pattern" is always the true subject). No nav icon, no
+  schema change, read-only (no demo fence needed).
+- **Gate (real output 2026-07-21, pre-critic):** `bash scripts/verify.sh` → ✅ VERIFY
+  GREEN — 3059 unit / 216 files, tsc+eslint+build clean; merchant-lens.spec +
+  transactions.spec e2e 22/22 green (pinned demo copy incl. axe WCAG-AA on the lens page).
+- **Hostile critic (1 fresh-context Fable cycle: FAIL 2 P1 / 3 P2 → all fixed →
+  re-verified).** The engine math survived (critic independently recomputed every
+  EDGE_CASES L-case, boundary dates, unicode/metacharacter names, locale casing, float
+  discipline — none landed). Both P1s were in the COMPOSED cadence line: F1 rendered the
+  SIGNED recurring amount ("typically −$1,800.00" contradicting the typical line on the
+  same card — masked by a positive-only unit fixture); F2 fed PENDING rows into
+  detectRecurring while /recurring is POSTED-only (a pending charge moved "typically" and
+  manufactured a phantom price change). Fixed: copy renders magnitude (sign-independent,
+  locked with the production negative fixture), server filters POSTED + skips income
+  series, and a new integration lock (`merchant-lens-server.test.ts`) drives the real
+  getTransactions with 6 posted + 1 larger pending charge. P2 fixes: aggregate guard now
+  case-insensitive for ALL callers (rules/radar/lens — F3); always-on card scope note
+  ("covers every posted charge … not only the rows listed below" — F5, the card renders
+  above filtered/paginated lists by design); the "can never disagree" wording scoped (F4).
+- **Recorded residual (#250 critic F4, correct-direction, not fixed here):** the lens
+  groups by the row's STORED merchant canonical (what the register shows) while the
+  radar re-normalizes rawDescriptor — identical universes today, but a stored canonical
+  minted before a KNOWN_MERCHANTS edit is never re-normalized (`merchant.upsert` with
+  empty update), so the two can drift apart after a table edit until a re-sync remints
+  rows. Durable fix: re-normalize stored merchant canonicals on KNOWN_MERCHANTS
+  migrations (a data-migration class, out of this slice's scope).
 
 Owner's "continue" at the #248 owner-gated fork. Pick per the plan's own reshape verdict:
 "ship the per-merchant outlier detector after seeding 1-2 engineered anomalies; defer the

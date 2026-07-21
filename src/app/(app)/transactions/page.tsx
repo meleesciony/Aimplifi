@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Plus, Upload } from 'lucide-react';
 import { auth } from '@/auth';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { MerchantLensCard } from '@/components/finance/merchant-lens-card';
 import { TransactionFilters } from '@/components/finance/transaction-filters';
 import { TransactionList } from '@/components/finance/transaction-list';
 import { buttonVariants } from '@/components/ui/button';
@@ -32,6 +33,7 @@ export default async function TransactionsPage({
   const search = str(sp.q);
   const account = str(sp.account);
   const category = str(sp.category);
+  const merchant = str(sp.merchant);
   const typeRaw = str(sp.type);
   const type = (VALID_TYPES as string[]).includes(typeRaw) ? (typeRaw as FlowType) : 'all';
   const from = str(sp.from);
@@ -42,6 +44,7 @@ export default async function TransactionsPage({
     search,
     accountId: account || null,
     categoryId: category || null,
+    merchant: merchant || null,
     type,
     from: from || null,
     to: to || null,
@@ -49,9 +52,9 @@ export default async function TransactionsPage({
   // Same predicate as TransactionFilters.hasFilters — empty-register copy
   // branches on it (ROADMAP ALSO CONSIDER / #186).
   const hasFilters =
-    !!(search || account || category || from || to) || type !== 'all';
+    !!(search || account || category || merchant || from || to) || type !== 'all';
 
-  const [{ rows, summary, accountOptions, pageInfo }, categoryGroups, withheld, shared] =
+  const [{ rows, summary, accountOptions, pageInfo, lens }, categoryGroups, withheld, shared] =
     await Promise.all([
       getTransactions(session.user.id, filter, page),
       getVisibleGroups(session.user.id),
@@ -95,8 +98,12 @@ export default async function TransactionsPage({
       <TransactionFilters
         accountOptions={accountOptions}
         categoryOptions={categoryGroups.flatMap((g) => g.categories)}
-        current={{ search, account, category, type, from, to }}
+        current={{ search, account, category, merchant, type, from, to }}
       />
+
+      {/* Merchant Pattern Lens (§Later #19, DECISIONS #250): deterministic
+          profile of the filtered merchant; absent when the engine abstains. */}
+      {lens && <MerchantLensCard lens={lens} />}
       <TransactionList
         rows={rows}
         summary={summary}

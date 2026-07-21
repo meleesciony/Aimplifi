@@ -51,6 +51,9 @@ export interface TxnFilter {
   search?: string | null;
   accountId?: string | null;
   categoryId?: string | null;
+  /** Case-insensitive EXACT match on merchantName (Merchant Pattern Lens,
+   *  DECISIONS #250) — never substring: "Costco" must not match "Costco Gas". */
+  merchant?: string | null;
   type?: FlowType;
   from?: string | null; // inclusive YYYY-MM-DD lower bound
   to?: string | null; // inclusive YYYY-MM-DD upper bound
@@ -91,6 +94,7 @@ function matchesType(t: TxnView, type: FlowType): boolean {
 
 export function filterTransactions(rows: readonly TxnView[], filter: TxnFilter = {}): TxnView[] {
   const needle = filter.search?.trim().toLowerCase() ?? '';
+  const merchant = filter.merchant?.trim().toLowerCase() ?? '';
   const from = filter.from ? isoDate(filter.from) : null;
   const to = filter.to ? isoDate(filter.to) : null;
   const type = filter.type ?? 'all';
@@ -99,6 +103,7 @@ export function filterTransactions(rows: readonly TxnView[], filter: TxnFilter =
     if (!matchesType(t, type)) return false;
     if (filter.accountId && t.accountId !== filter.accountId) return false;
     if (filter.categoryId && t.categoryId !== filter.categoryId) return false;
+    if (merchant && t.merchantName.toLowerCase() !== merchant) return false;
     if (from && compareDates(isoDate(t.date), from) < 0) return false;
     if (to && compareDates(isoDate(t.date), to) > 0) return false;
     if (needle) {

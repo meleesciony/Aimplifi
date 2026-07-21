@@ -27,7 +27,7 @@ export function TransactionFilters({
   /** Category dropdown options — the user's visible assignable set incl. customs
    *  (DECISIONS #111). Hidden categories are still findable via the search box. */
   categoryOptions: { id: string; name: string }[];
-  current: { search: string; account: string; category: string; type: string; from: string; to: string };
+  current: { search: string; account: string; category: string; merchant: string; type: string; from: string; to: string };
 }) {
   const router = useRouter();
 
@@ -37,6 +37,9 @@ export function TransactionFilters({
     if (merged.search.trim()) q.set('q', merged.search.trim());
     if (merged.account) q.set('account', merged.account);
     if (merged.category) q.set('category', merged.category);
+    // Merchant lens filter (DECISIONS #250) — set by tapping a merchant name,
+    // preserved across form commits, cleared by Clear / the lens card's link.
+    if (merged.merchant) q.set('merchant', merged.merchant);
     if (merged.type && merged.type !== 'all') q.set('type', merged.type);
     if (merged.from) q.set('from', merged.from);
     if (merged.to) q.set('to', merged.to);
@@ -45,7 +48,7 @@ export function TransactionFilters({
   }
 
   const hasFilters =
-    !!(current.search || current.account || current.category || current.from || current.to) ||
+    !!(current.search || current.account || current.category || current.merchant || current.from || current.to) ||
     current.type !== 'all';
 
   return (

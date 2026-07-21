@@ -680,8 +680,16 @@ const AGGREGATE_CANONICALS = new Set(['ATM Withdrawal', 'Account Transfer', 'Car
  * creation-time guard existed must never steer suggestions for an aggregate.
  */
 export function isAggregateCanonical(canonical: string): boolean {
+  // Case-insensitive (#250 critic F3): this is defense in depth on every path
+  // that consults it (rule reads, anomaly radar, merchant lens), and a stale or
+  // case-variant row must not slip past the guard on a casing technicality.
+  // Pipeline-minted canonicals are exact-case, so this only widens the net.
   if (AGGREGATE_CANONICALS.has(canonical)) return true;
-  return KNOWN_MERCHANTS.some((m) => m.aggregate && m.canonical === canonical);
+  const lower = canonical.toLowerCase();
+  return (
+    KNOWN_MERCHANTS.some((m) => m.aggregate && m.canonical.toLowerCase() === lower) ||
+    [...AGGREGATE_CANONICALS].some((c) => c.toLowerCase() === lower)
+  );
 }
 
 const DEFAULT_KNOWN_CONFIDENCE = 9600;

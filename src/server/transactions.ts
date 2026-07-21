@@ -6,6 +6,10 @@
  */
 import { prisma } from '@/lib/db';
 import { isRuleEligibleMerchant } from '@/lib/engine/categorize/assign';
+import { buildMerchantProfile } from '@/lib/engine/merchant/profile';
+import { type MerchantLensCopy, merchantLensCopy, thinHistoryNote } from '@/lib/engine/merchant/lens-copy';
+import { detectRecurring } from '@/lib/engine/recurring/detect';
+import { summarizeRecurring } from '@/lib/engine/recurring/summary';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { type PredictionSource, describeProvenance } from '@/lib/engine/categorize/provenance';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
@@ -34,6 +38,17 @@ import {
   summarizeTransactions,
 } from '@/lib/engine/transactions/query';
 
+/** Merchant Pattern Lens view (AI plan §Later #19, DECISIONS #250): rendered
+ *  narration for the merchant the register is filtered to. Null when the
+ *  engine honestly abstains (aggregate pseudo-merchant, no qualifying charges). */
+export interface MerchantLensView {
+  /** Canonical display name (row casing, never the URL param's). */
+  merchant: string;
+  copy: MerchantLensCopy;
+  /** Present below the pattern floor — replaces the pattern lines. */
+  thinNote: string | null;
+}
+
 export interface TransactionsResult {
   rows: TxnView[];
   summary: TxnSummary;
@@ -41,6 +56,9 @@ export interface TransactionsResult {
   accountOptions: { id: string; name: string }[];
   /** Pagination state for the current (filtered) page (ROADMAP #8). */
   pageInfo: PageInfo;
+  /** Set only when the filter names a merchant AND the profile has something
+   *  honest to say (viewer-only: computed from the viewer's own rows). */
+  lens: MerchantLensView | null;
 }
 
 /** Rows per register page. */
@@ -118,6 +136,67 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     }),
   }));
 
+  // Merchant Pattern Lens (DECISIONS #250): computed from the viewer's FULL row
+  // set (pre-filter — the profile is all-history by design), only when the
+  // filter names a merchant. The recurring engine supplies the cadence line,
+  // fed POSTED-only rows — the exact getRecurring predicate — so the lens and
+  // /recurring read the same series (#250 critic F2: a PENDING charge must
+  // never move "typically" or manufacture a phantom price change). Note the
+  // lens groups by the row's stored merchant canonical (what the register
+  // shows); the radar re-normalizes rawDescriptor — identical unless a stored
+  // canonical predates a KNOWN_MERCHANTS edit (recorded residual, STATUS).
+  let lens: MerchantLensView | null = null;
+  if (filter.merchant?.trim()) {
+    const today = businessToday(userId);
+    const profile = buildMerchantProfile(
+      rows.map((r) => ({
+        date: r.date,
+        amountCents: r.amountCents,
+        merchant: r.merchantName,
+        status: r.status,
+        isTransfer: r.isTransfer,
+      })),
+      filter.merchant,
+      today,
+    );
+    if (profile) {
+      const series = detectRecurring(
+        txns
+          .filter((t) => t.status === 'POSTED')
+          .map((t) => ({
+            id: t.id,
+            accountId: t.accountId,
+            date: t.date,
+            amountCents: t.amountCents,
+            rawDescriptor: t.rawDescriptor,
+            isTransfer: t.isTransfer,
+          })),
+        today,
+      );
+      // Expense series only: the profile describes CHARGES, so an income
+      // series' cadence (a deposit schedule) must never caption it.
+      const item =
+        summarizeRecurring(series, today).items.find(
+          (s) => !s.isIncome && s.merchantCanonical.toLowerCase() === profile.merchant.toLowerCase(),
+        ) ?? null;
+      lens = {
+        merchant: profile.merchant,
+        copy: merchantLensCopy(
+          profile,
+          item
+            ? {
+                cadence: item.cadence,
+                typicalAmountCents: item.typicalAmountCents,
+                nextExpectedAt: item.nextExpectedAt,
+                active: item.active,
+              }
+            : null,
+        ),
+        thinNote: thinHistoryNote(profile.chargeCount),
+      };
+    }
+  }
+
   const filtered = sortByDateDesc(filterTransactions(rows, filter));
 
   // Summary totals are over the FULL filtered set (accurate); the page slice keeps
@@ -132,7 +211,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   for (const r of rows) if (!seen.has(r.accountId)) seen.set(r.accountId, r.accountName);
   const accountOptions = [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => (a.name < b.name ? -1 : 1));
 
-  return { rows: items, summary, accountOptions, pageInfo: info };
+  return { rows: items, summary, accountOptions, pageInfo: info, lens };
 }
 
 /**

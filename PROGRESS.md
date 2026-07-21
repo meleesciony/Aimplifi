@@ -1,5 +1,35 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-21 — Merchant Pattern Lens (#250) — COMPLETE (verify green, critic cycle closed)
+
+Critic cycle 1 (fresh-context Fable, empirical repros): FAIL — 2 P1 (F1 cadence line rendered
+SIGNED typicalAmountCents → "typically −$1,800.00" contradicting the same card; F2 lens fed
+PENDING rows to detectRecurring while /recurring is POSTED-only → surfaces disagreed + phantom
+price change) + 3 P2 (F3 case-sensitive aggregate guard; F4 overbroad never-disagree claim +
+seed lock testing the radar's own mapping; F5 full-history card above a filtered/empty list).
+ALL fixed: copy renders magnitude (production-negative fixture locked); server POSTED-only +
+income-series skip + new integration lock merchant-lens-server.test.ts; isAggregateCanonical
+case-insensitive for all callers; claims scoped in code+STATUS with the stored-canonical drift
+residual recorded; always-on card scope note. Ledger: 3 rows. Lesson: verbatim-value extended
+(#250 intake side). FINAL GATES: bash scripts/verify.sh → ✅ VERIFY GREEN 3061 unit / 217 files;
+merchant-lens.spec + transactions.spec 22/22 green post-fix. Committed as #250.
+
+## 2026-07-21 — Merchant Pattern Lens (#250, AI plan §Later #19 reshaped) — superseded by the COMPLETE entry above
+
+Owner "continue" at the #249 fork → picked §Later #19 (last unblocked M item; rationale in
+DECISIONS #250). DONE: EDGE_CASES §Merchant Pattern Lens hand math; pure engine
+`engine/merchant/profile.ts` (qualifying-charge rule shared with anomaly engine; median = radar
+convention; 3-full-month recent-vs-prior windows gated on firstYm ≤ window start; aggregate →
+null; <3 charges → facts only); pure `lens-copy.ts` templates (+ banned time-of-day/day-of-week
+lexicon test); TxnFilter.merchant exact case-insensitive predicate; getTransactions lens
+composition (recurring cadence via detectRecurring); UI (merchant-name links on register rows,
+lens card, filter preservation, hasFilters mirror both sides); seed lock: lens typical/count ===
+radar baseline (1156¢/19, demo Blue Bottle). GATES RUN: bash scripts/verify.sh → ✅ VERIFY GREEN
+3059 unit / 216 files, tsc+eslint+build clean; merchant-lens.spec + transactions.spec e2e 22/22
+(incl. axe AA). Docs: DECISIONS #250 + reindex, STATUS §Merchant Pattern Lens, plan §Later #19
+un-staled. NOW: fresh-context Fable hostile critic cycle 1 in flight (empirical repro mandate).
+NEXT: fix any P0/P1, re-verify, commit `feat(merchant-lens): #250 …`.
+
 ## 2026-07-21 — Unusual Charge Radar v1 (#249) — COMPLETE (verify green, critic cycle closed)
 
 All 11 steps done. Fresh-context Fable critic: FAIL (1 P1: seed change left ask.spec stale-red —

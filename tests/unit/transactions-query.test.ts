@@ -143,6 +143,24 @@ describe('filterTransactions', () => {
   it('empty/whitespace search is a no-op', () => {
     expect(filterTransactions(ROWS, { search: '   ' })).toHaveLength(6);
   });
+
+  // Merchant Pattern Lens filter (DECISIONS #250): EXACT case-insensitive match.
+  it('merchant filter matches the canonical name exactly, case-insensitively', () => {
+    expect(filterTransactions(ROWS, { merchant: 'blue bottle coffee' }).map((t) => t.id)).toEqual(['t2']);
+    expect(filterTransactions(ROWS, { merchant: 'Blue Bottle Coffee' }).map((t) => t.id)).toEqual(['t2']);
+  });
+
+  it('merchant filter is never a substring match', () => {
+    expect(filterTransactions(ROWS, { merchant: 'Blue Bottle' })).toHaveLength(0);
+    expect(filterTransactions(ROWS, { merchant: 'Amazon Fresh' })).toHaveLength(0);
+  });
+
+  it('merchant filter composes with other filters; empty/whitespace is a no-op', () => {
+    expect(
+      filterTransactions(ROWS, { merchant: 'Blue Bottle Coffee', type: 'income' }),
+    ).toHaveLength(0);
+    expect(filterTransactions(ROWS, { merchant: '  ' })).toHaveLength(6);
+  });
 });
 
 describe('sortByDateDesc', () => {

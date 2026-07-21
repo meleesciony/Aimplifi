@@ -35,3 +35,15 @@ a false PREDICATE (what the number is).
    other surface that shows the same fact.
 4. Lock it with a direct copy test, not only an engine field test — a rendered-output test that
    fails if a branch regresses to summing or relabeling (tests/unit/nudge-feed-copy.test.ts).
+
+**Extended #250 (merchant lens critic F1/F2 — the intake side of the same disease):** reusing an
+ENGINE'S OUTPUT in a new surface carries that engine's conventions with it, and both bit in one
+cycle: `RecurringItem.typicalAmountCents` is SIGNED (negative for expenses) so the lens printed
+"typically −$1,800.00" under a positive typical line; and the lens fed the engine PENDING rows
+where every sibling caller (`getRecurring`) is POSTED-only, so a pending charge moved "typically"
+and minted a phantom price change. Neither was caught by unit tests because the fixtures were
+hand-shaped (positive amount, posted-only rows) rather than PRODUCTION-shaped. So: (5) when a new
+consumer adopts an engine, re-read the producer's field docs for sign/status/scope conventions
+AND copy the sibling callers' input predicates — then (6) shape at least one locking fixture
+exactly like production emits it (signed value, a pending row present), not like the happy path
+you designed. A fresh-context critic found in minutes what three green suites had masked.
