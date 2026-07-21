@@ -1,5 +1,86 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-21 — #251 Income-Pause / Runway Radar (AI plan §Later #20, groundable half) — IN FLIGHT
+
+Owner's "continue" at the #250 fork. Last unblocked groundable §Later sub-slice per STATUS #248
+menu (streaks #205 and outlier radar #249 both shipped). §20 verdict: exactly ONE groundable
+signature — a lapsed `isIncome` series + thin runway; plan mutation (`projectedIncome = 0`) is
+confirmation-gated; the rest of Life-Event Radar stays hard-gated.
+
+DESIGN (settled):
+- Engine `src/lib/engine/income/pause.ts` (pure, NO LLM) over `detectRecurring` output.
+  Gates: isIncome, cadence ∈ {W, BW, M} (ANNUAL excluded), occurrences ≥ 4, typicalAmountCents
+  ≥ 10000 ($100 floor), aggregate pseudo-merchants excluded (shared isAggregateCanonical,
+  #250 F3). Lapse: missedSince = nextDate(lastSeenAt, cadence) — NOT the forward-stepped
+  nextExpectedAt, which HIDES lapses; daysLate = daysBetween(missedSince, today); flag iff
+  daysLate ≥ grace {W:5, BW:7, M:10}. TWO predicates, one lapse computation:
+  `lapsedIncomeSeries` (no staleness cap — feeds projection EXCLUSION; a confirmed pause must
+  never silently re-enter projections after 61 days) and `detectIncomePauses` (lapsed ∧
+  daysLate ≤ 60 — nudge-worthiness: news, not history). Order typicalAmountCents desc then
+  merchant asc (locale-free). No count cap.
+- Nudge: kind `income_pause`, ACTION tier (precision-first like #249 — a late paycheck may be
+  a payroll hiccup; never CRITICAL, never pushed). dismissKey income_pause:<merchant>:<missedSince>.
+  Verbatim: centsAtStake = typicalAmountCents, sortDate = missedSince, merchant, typicalCount =
+  occurrences; NEW display-context fields cadence + runwayMonths (verbatim from coach
+  monthsOfRunway; null for other kinds). Extend ENGAGEMENT_SUBJECT_KEYS `nudge:income_pause`.
+- Copy: per-kind semantic = "the expected deposit that hasn't arrived" (never "at stake");
+  basis "based on N deposits" inline; runway line "about X months of typical spending (cash on
+  hand ÷ your 6-month average expenses)", omitted when null/Infinity; dismiss offered as the
+  expected outcome ("a job change, a pause you planned"); no-shame, non-advisory.
+- Mutation (confirmation-gated): new IncomePauseConfirmation model (@@unique userId+merchant).
+  Confirm/undo server action, demo-fenced (DEMO_USER_ID no-op — nudge-dismissal precedent) →
+  triggers refreshRecurringForUser. refreshRecurringForUser excludes a series from
+  ScheduledTransaction rows iff confirmed AND still in lapsedIncomeSeries; resumed series ⇒
+  confirmation inert + stale row deleted on refresh. coach.ts blueprint paycheck gets the same
+  filter.
+- Seed (demo-first): 'STRIPE PAYOUT ETSY SHOP' → canonical "Stripe Payout" (side-income,
+  known, non-aggregate; probed). +38000¢ × 4 monthly on acct-savings (NOT the payment account
+  → cash-needed/seed-headline untouched by construction), dates addMonthsClamped(asOf, -5..-2)
+  → default-asOf 2026-01-10..04-10, missedSince 2026-05-10, daysLate 31. Exactly-one seed lock
+  (#249 pattern). KNOWN ripple: income6 += 4×38000 across Jan–Apr → savings-rate/FI/review/
+  streak/trend locks need re-hand-verified expected values (the recorded "ripples the demo
+  narrative" cost — accepted).
+
+STEPS: 1.[x] engine+unit tests (17, incl. seed lock + production-shaped fixture) → 2.[x] nudge
+types/select/copy+engagement key+tests (select 6 new, copy 6 new; CONFIRMED→HANDLED rework: a
+confirmed pause stays in the feed as quiet state carrying the Undo — a money mutation may never
+outlive its own visibility) → 3.[x] coach.ts+dashboard wiring (incomePausesForFeed; blueprint
+topIncome skips confirmed-paused) → 4.[x] seed (+$380×4 Stripe Payout on acct-savings,
+2026-01-10..04-10; ripple = EXACTLY 3 insights.test.ts income locks, re-hand-verified 528000 =
+2×245000+38000) → 5.[x] IncomePauseConfirmation schema + fenced store/actions +
+refreshRecurringForUser exclusion + resumed-cleanup + income-pause-server.test.ts 5/5 →
+6.[x] UI confirm/undo on today-feed-card (canManageIncomePause=false for demo) → 7.[x] e2e:
+today-feed.spec 8/8 (demo pinned copy incl. both fences; throwaway signup manual-entry confirm→
+HANDLED→undo loop; TWO real fixes en route: dir-in pre-hydration click-and-verify (#167 idiom),
+and spec dates must follow the DEMO_TODAY pin (businessToday precedence 1 pins EVERY user in
+e2e — the phase2-triage precedent)); recurring.spec unmasked a LATENT a11y bug: "No longer
+charging" opacity-70 × muted-foreground < 4.5:1 AA — section was always empty on demo until
+#251's inactive row; fixed in recurring-view (muted title only), recurring.spec 3/3 →
+8.[x] docs: EDGE_CASES §Income-Pause Radar, SEED_SPEC, STATUS §Income-Pause Radar, DECISIONS
+#251 + index, AI plan §20 un-staled → 9.[~] GATES RUN (real output): `bash scripts/verify.sh`
+→ ✅ VERIFY GREEN (exit 0); direct `npx vitest run` → **219 files / 3094 tests, all passed**;
+full e2e sweep 135/136 passed with the 1 failure (phase4 goals) passing 6/6 in isolation — the
+documented local 4-worker contention flake class. POST-VERIFY ADDITION (self-caught coherence
+gap before the critic): manual entry/CSV now run refreshRecurringBestEffort (the plaid
+post-ingest precedent) — without it a manual-entry user's resumed deposit never retired the
+confirmation/exclusion, falsifying the HANDLED copy's "returns automatically" claim; locked by
+income-pause-manual-entry.test.ts (drives the REAL createManualTransaction, 1/1 green; +21/21
+around the hook).
+
+CRITIC CYCLE 1 (fresh-context Fable, empirical): FAIL — 2 P1 + 6 P2, all with executed evidence.
+F1 (P1): "resumed" = ¬lapsed inherited the ALARM gates, so a provider row-removal (occ 4→3)
+deleted the consent row and re-projected phantom income with no feed row (critic reproduced it
+against the real refreshRecurringForUser). F2 (P1): confirmed row's "why" said "Autopay covers
+this". ALL 8 FIXED: `confirmedPauseState` consent machine (paused/resumed/inert; only date-fresh
+deposits retire consent; exclusion + HANDLED row + cleanup all ride it — one predicate),
+`tierRule` per-kind override in the copy module, dev db:push (F3), coach detection universe
+aligned to spending-only (F4), `income_pause_confirmed:<merchant>` key namespace (F5),
+non-positive runway nulled (F6), month-end `missedSinceOf` (F7, P13), undo input cap (F8).
+Locks: P13, P14a–d, server 2b (row-removal regression), select F5/F6, copy F2 — 92/92 across
+the 5 touched suites; 2 REGRESSION_LEDGER rows; back-half lesson extended (#251); EDGE_CASES/
+STATUS/DECISIONS updated; residual recorded (sync-vs-confirm refresh race, self-healing).
+NOW: full re-verify + e2e re-run in flight, then commit.
+
 ## 2026-07-21 — Merchant Pattern Lens (#250) — COMPLETE (verify green, critic cycle closed)
 
 Critic cycle 1 (fresh-context Fable, empirical repros): FAIL — 2 P1 (F1 cadence line rendered

@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { NudgeFeed, Proposal } from '@/lib/engine/nudge/types';
-import { proposalCopy, whyInputs } from '@/components/dashboard/today-feed-copy';
+import { proposalCopy, tierRule, whyInputs } from '@/components/dashboard/today-feed-copy';
 import { logEngagement } from '@/server/engagement-actions';
 import { dismissNudge } from '@/server/nudge-actions';
+import { confirmIncomePauseAction, undoIncomePauseAction } from '@/server/income-pause-actions';
 
 /**
  * The "Today" nudge feed (NUDGE_PLAN slice 2). A ranked digest over the SAME engine
@@ -32,12 +34,44 @@ import { dismissNudge } from '@/server/nudge-actions';
 export function TodayFeedCard({
   feed,
   feedAll,
+  canManageIncomePause = false,
 }: {
   feed: NudgeFeed;
   feedAll: NudgeFeed;
+  /**
+   * Whether income-pause confirm/undo controls render (#251). False for the shared
+   * demo account — one visitor's "my income stopped" must never mutate the
+   * projections every other visitor sees, so demo keeps the nudge read-only (the
+   * server actions are fenced regardless; this just avoids offering a dead button).
+   */
+  canManageIncomePause?: boolean;
 }) {
+  const router = useRouter();
   const [showAll, setShowAll] = useState(false);
   const [sessionDismissed, setSessionDismissed] = useState<ReadonlySet<string>>(new Set());
+  // Income-pause confirm/undo (#251): the mutation-form recipe — own busy state,
+  // refresh-on-success (the server re-renders the feed AND the projections from the
+  // new state), inline error on failure. Never optimistic: a projection mutation
+  // must not appear applied until it is.
+  const [pauseBusyKey, setPauseBusyKey] = useState<string | null>(null);
+  const [pauseErrorKey, setPauseErrorKey] = useState<string | null>(null);
+
+  async function managePause(p: Proposal, action: 'confirm' | 'undo') {
+    if (!p.merchant || pauseBusyKey !== null) return;
+    setPauseBusyKey(p.key);
+    setPauseErrorKey(null);
+    const ok =
+      action === 'confirm'
+        ? await confirmIncomePauseAction(p.merchant)
+        : await undoIncomePauseAction(p.merchant);
+    setPauseBusyKey(null);
+    if (ok) {
+      void logEngagement({ surface: 'dashboard', verb: 'acted', subjectKey: p.subjectKey });
+      router.refresh();
+    } else {
+      setPauseErrorKey(p.key);
+    }
+  }
 
   const headlineSubject = feed.headline?.subjectKey ?? null;
   useEffect(() => {
@@ -73,7 +107,15 @@ export function TodayFeedCard({
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         {headline ? (
-          <ProposalRow proposal={headline} headline onDismiss={dismiss} />
+          <ProposalRow
+            proposal={headline}
+            headline
+            onDismiss={dismiss}
+            canManageIncomePause={canManageIncomePause}
+            onPauseAction={managePause}
+            pauseBusy={pauseBusyKey === headline.key}
+            pauseError={pauseErrorKey === headline.key}
+          />
         ) : (
           <p data-testid="today-feed-empty" className="text-muted-foreground">
             {feed.emptyReason ?? 'Nothing needs you today.'}
@@ -89,7 +131,14 @@ export function TodayFeedCard({
               // rows. (Dismissing one still suppresses both — they share a dismissKey by
               // construction; that is an engine-level identity, acknowledged, not a UI bug.)
               <li key={`${p.key}::${i}`}>
-                <ProposalRow proposal={p} onDismiss={dismiss} />
+                <ProposalRow
+                  proposal={p}
+                  onDismiss={dismiss}
+                  canManageIncomePause={canManageIncomePause}
+                  onPauseAction={managePause}
+                  pauseBusy={pauseBusyKey === p.key}
+                  pauseError={pauseErrorKey === p.key}
+                />
               </li>
             ))}
           </ul>
@@ -112,24 +161,34 @@ export function TodayFeedCard({
   );
 }
 
-const TIER_RULE: Record<Proposal['tier'], string> = {
-  critical: 'It needs attention soon, so it is ranked at the top and never hidden.',
-  action: 'It needs a decision, but there is no deadline pressure yet.',
-  opportunity: 'A possible saving — no deadline. Dismiss it and it stays gone until the underlying figure changes.',
-  handled: 'Autopay covers this — nothing to do. Shown only so you know it is handled.',
-};
-
 function ProposalRow({
   proposal,
   headline = false,
   onDismiss,
+  canManageIncomePause = false,
+  onPauseAction,
+  pauseBusy = false,
+  pauseError = false,
 }: {
   proposal: Proposal;
   headline?: boolean;
   onDismiss: (p: Proposal) => void;
+  canManageIncomePause?: boolean;
+  onPauseAction?: (p: Proposal, action: 'confirm' | 'undo') => void;
+  pauseBusy?: boolean;
+  pauseError?: boolean;
 }) {
   const { title, detail } = proposalCopy(proposal);
   const dismissable = proposal.tier === 'action' || proposal.tier === 'opportunity';
+  // Income-pause management (#251): an unconfirmed pause offers "Yes, it's paused"
+  // (gates the projection exclusion); a confirmed one (HANDLED) offers Undo. Both
+  // hidden for the demo (canManageIncomePause) — the fenced action would no-op.
+  const pauseAction =
+    proposal.kind === 'income_pause' && canManageIncomePause && onPauseAction && proposal.merchant
+      ? proposal.tier === 'handled'
+        ? ('undo' as const)
+        : ('confirm' as const)
+      : null;
 
   return (
     <div data-testid={`nudge-${proposal.kind}`} data-tier={proposal.tier}>
@@ -137,26 +196,50 @@ function ProposalRow({
         <div>
           <p className={headline ? 'font-semibold' : 'font-medium'}>{title}</p>
           <p className="text-muted-foreground">{detail}</p>
+          {pauseError && (
+            <p className="text-destructive" data-testid="nudge-income-pause-error" role="alert">
+              Couldn’t save that — try again.
+            </p>
+          )}
         </div>
-        {dismissable && (
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label={`Dismiss: ${title}`}
-            data-testid={`nudge-dismiss-${proposal.kind}`}
-            onClick={() => onDismiss(proposal)}
-          >
-            Dismiss
-          </Button>
-        )}
+        <div className="flex shrink-0 items-start gap-1">
+          {pauseAction && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pauseBusy}
+              aria-label={
+                pauseAction === 'confirm'
+                  ? `Confirm income paused: ${proposal.merchant}`
+                  : `Undo income paused: ${proposal.merchant}`
+              }
+              data-testid={`nudge-income-pause-${pauseAction}`}
+              onClick={() => onPauseAction!(proposal, pauseAction)}
+            >
+              {pauseBusy ? 'Saving…' : pauseAction === 'confirm' ? 'Yes, it’s paused' : 'Undo'}
+            </Button>
+          )}
+          {dismissable && (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={`Dismiss: ${title}`}
+              data-testid={`nudge-dismiss-${proposal.kind}`}
+              onClick={() => onDismiss(proposal)}
+            >
+              Dismiss
+            </Button>
+          )}
+        </div>
       </div>
       <details className="mt-1">
         <summary className="cursor-pointer text-xs text-muted-foreground">
           Why am I seeing this?
         </summary>
         {/* The tier RULE plus the verbatim inputs that triggered it (NUDGE_PLAN:80-81).
-            Every value here is copied from the proposal, not recomputed. */}
-        <p className="mt-1 text-xs text-muted-foreground">{TIER_RULE[proposal.tier]}</p>
+            Every value here is copied from the proposal, not recomputed. Rule line
+            comes from the copy module (per-kind honest override — #251 critic F2). */}
+        <p className="mt-1 text-xs text-muted-foreground">{tierRule(proposal)}</p>
         <p className="mt-1 text-xs text-muted-foreground" data-testid="nudge-why-inputs">
           Based on: {whyInputs(proposal)}
         </p>

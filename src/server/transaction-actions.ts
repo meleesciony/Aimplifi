@@ -23,6 +23,26 @@ import { loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { logCategoryPredictions } from '@/server/predictions';
 import { assertOwnedCategory, getCustomCategories } from '@/server/category-meta';
+import { refreshRecurringForUser } from '@/server/recurring';
+import { getProvider } from '@/lib/providers/demo';
+import { isoDate } from '@/lib/dates';
+
+/**
+ * Best-effort recurring re-detection after a manual write (#251) — the same
+ * post-ingest hook Plaid/SimpleFIN run. Without it, a manual-entry user's detected
+ * ScheduledTransaction rows (and any income-pause confirmation lifecycle: the
+ * projection exclusion, stale-confirmation cleanup on a resumed deposit) would only
+ * update on the NEXT provider sync that never comes — the "returns automatically
+ * when a new deposit arrives" copy claim depends on this hook. Failures are
+ * swallowed: the entry itself must never fail because re-detection did.
+ */
+async function refreshRecurringBestEffort(userId: string): Promise<void> {
+  try {
+    await refreshRecurringForUser(userId, isoDate(getProvider().today(userId)));
+  } catch {
+    // best-effort (the plaid.ts precedent) — the write already succeeded.
+  }
+}
 
 export interface AddTxnResult {
   ok: boolean;
@@ -163,6 +183,8 @@ export async function createManualTransaction(
     needsReview: prepared.needsReview,
   });
 
+  await refreshRecurringBestEffort(userId);
+
   revalidatePath('/transactions');
   revalidatePath('/triage');
   // Return success; the client navigates to /transactions (a full navigation, so
@@ -274,6 +296,7 @@ export async function importTransactionsCsv(
     imported: data.length,
     skipped: errors.length,
   });
+  if (data.length > 0) await refreshRecurringBestEffort(userId);
   revalidatePath('/transactions');
   revalidatePath('/triage');
 

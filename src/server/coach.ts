@@ -23,6 +23,8 @@ import {
   type Opportunity,
 } from '@/lib/engine/fi/insights';
 import { detectUnusualCharges, type UnusualCharge } from '@/lib/engine/anomaly/detect';
+import { incomePausesForFeed, type IncomePauseState } from '@/lib/engine/income/pause';
+import { getConfirmedIncomePauses } from '@/server/income-pause';
 import { generateMoneyReview, type MoneyReview } from '@/lib/engine/fi/coach-copy';
 import { buildReviewCandidates, selectReview, type ReviewRole } from '@/lib/engine/fi/money-review';
 import { DEMO_USER_ID } from '@/lib/demo-user';
@@ -30,6 +32,7 @@ import { aiAuditSink } from '@/server/ai-audit';
 import { orderReviewViaLLM } from './money-review-llm';
 import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { formatISODate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
@@ -55,6 +58,13 @@ export interface CoachData {
   opportunities: Opportunity[];
   /** Per-merchant median+MAD outliers (#249) — pure recompute, feeds the nudge feed. */
   unusualCharges: UnusualCharge[];
+  /**
+   * Lapsed recurring income series (#251) — pure recompute over the same detected
+   * series, feeds the nudge feed. Unconfirmed lapses are news (recent only);
+   * CONFIRMED pauses stay listed for as long as their projection exclusion is in
+   * force, so the mutation is always visible and undoable.
+   */
+  incomePauses: IncomePauseState[];
   creep: CreepResult;
   runwayMonths: number;
   lifeEnergy: { merchant: string; amountCents: number; hours: number; date: string }[];
@@ -120,14 +130,34 @@ export async function getCoachData(
   const months = monthsToFI(portfolio, monthlySavings, user.expectedReturnBps, fiTarget);
   const coast = coastFI(portfolio, fiTarget, user.expectedReturnBps, COAST_TARGET_YEARS * 12);
 
+  // Recurring detection universe = SPENDING accounts (checking/savings/credit), the
+  // same universe getRecurring (#62) and refreshRecurringForUser read (#251 critic
+  // F4: the feed's detector and the projection exclusion must read the SAME series —
+  // a guard must read what it guards; previously this call alone detected over ALL
+  // account types, so brokerage/loan-side rows could mint series the other two
+  // consumers never see). Non-USD accounts are already withheld by the snapshot
+  // itself (currency guard #135).
+  const spendingIds = new Set(
+    snap.accounts
+      .filter((a) => (SPENDING_ACCOUNT_TYPES as readonly string[]).includes(a.type))
+      .map((a) => a.id),
+  );
   const series = detectRecurring(
-    txns.filter((t) => t.status === 'POSTED' && !t.isSplitParent),
+    txns.filter((t) => t.status === 'POSTED' && !t.isSplitParent && spendingIds.has(t.accountId)),
     today,
   );
   const opportunities = findOpportunities(series, user.expectedReturnBps);
   // Unusual Charge Radar (#249): pure detection over the SAME already-fetched rows —
   // no re-fetch, no model call, deterministic.
   const unusualCharges = detectUnusualCharges(txns, today);
+  // Income-Pause Radar (#251): pure detection over the SAME detected series (POSTED,
+  // non-split input — the sibling predicate), composed with the user's confirmations.
+  // Unconfirmed lapses surface as news; a CONFIRMED pause stays listed (quietly) for
+  // as long as its projection exclusion (server/recurring.ts) is in force, so the
+  // mutation is always visible and undoable. Demo reads an empty confirmation set by
+  // construction (the fence), so demo always sees the unconfirmed nudge.
+  const confirmedPauses = await getConfirmedIncomePauses(userId);
+  const incomePauses = incomePausesForFeed(series, today, confirmedPauses);
   const creep = detectLifestyleCreep(txns, today, 6, meta);
   // documented rounding rule, not Math.round (consistency with monthlySavings above)
   const avgMonthlyExpenses = cents(roundHalfAwayFromZero(expenses6 / Math.max(1, last6.length)));
@@ -161,8 +191,17 @@ export async function getCoachData(
     where: { userId },
     select: { name: true, monthlyContributionCents: true },
   });
+  // A CONFIRMED-paused income never anchors the blueprint (#251): telling the user to
+  // automate savings around a paycheck the app itself agrees has stopped would be a
+  // false plan. Unconfirmed lapses keep anchoring (the radar alone never mutates).
+  // `incomePauses` already encodes confirmed ∧ lapsed (incomePausesForFeed keeps every
+  // confirmed row exactly while its lapse — and so its exclusion — is in force).
+  const confirmedPausedMerchants = new Set(
+    incomePauses.filter((p) => p.confirmed).map((p) => p.merchantCanonical),
+  );
   const topIncome = series
     .filter((s) => s.isIncome)
+    .filter((s) => !confirmedPausedMerchants.has(s.merchantCanonical))
     .sort((a, b) => b.typicalAmountCents - a.typicalAmountCents)[0];
   const payCadence: PayCadence =
     topIncome &&
@@ -237,6 +276,7 @@ export async function getCoachData(
     },
     opportunities,
     unusualCharges,
+    incomePauses,
     creep,
     runwayMonths: runway,
     lifeEnergy,

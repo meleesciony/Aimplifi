@@ -32,6 +32,7 @@ export const ENGAGEMENT_SUBJECT_KEYS = [
   'nudge:cash_flow_dip',
   'nudge:cash_needed_shortfall',
   'nudge:unusual_charge',
+  'nudge:income_pause',
   'nudge:price-increase',
   'nudge:unused-subscription',
   'nudge:insurance-reshop',

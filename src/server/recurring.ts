@@ -13,6 +13,7 @@ import {
   detectRecurring,
   toScheduledTransactions,
 } from '@/lib/engine/recurring/detect';
+import { confirmedPauseState } from '@/lib/engine/income/pause';
 import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurring/summary';
 import { upcomingRenewals, type UpcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { categoryName } from '@/lib/engine/categorize/categories';
@@ -133,7 +134,47 @@ export async function refreshRecurringForUser(
     accounts.find((a) => a.id === user?.paymentAccountId)?.id ??
     accounts.find((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))?.id ??
     null;
-  const scheduledRows = paymentAccountId ? toScheduledTransactions(series, paymentAccountId) : [];
+  // Income-Pause confirmations (#251, AI plan §Later #20): a pause the user has
+  // CONFIRMED excludes its income series from the detected projections — this is the
+  // confirmation-gated `projectedIncome = 0` mutation. `confirmedPauseState` is the
+  // ONE predicate (shared with the feed's HANDLED state row) deciding what consent
+  // means right now, recomputed from the series itself each refresh — the
+  // confirmation row is never trusted as evidence:
+  //   'paused'  → exclude from projections (regardless of the ALARM gates — #251
+  //               critic F1: a provider row-removal that drops occurrences below the
+  //               alarm floor must not silently re-project income no deposit revived);
+  //   'resumed' → a DATE-FRESH deposit arrived: project normally and delete the
+  //               stale confirmation, so a future pause re-asks — fresh evidence,
+  //               and only fresh evidence, retires consent;
+  //   'inert'   → no projectable income series under this canonical: nothing to
+  //               exclude, confirmation kept (absence of evidence is not resumption).
+  // Unconfirmed lapses project as before: the radar alone never mutates a projection
+  // (a merely-late paycheck must not flip cash-needed into a false alarm). The
+  // RecurringSeries table and the /recurring page keep showing the series either
+  // way — only the forward projection stops counting money that stopped arriving.
+  const confirmations = await prisma.incomePauseConfirmation.findMany({
+    where: { userId },
+    select: { merchantCanonical: true },
+  });
+  let projectable = series;
+  if (confirmations.length > 0) {
+    const excluded = new Set<string>();
+    const resumed: string[] = [];
+    for (const c of confirmations) {
+      const state = confirmedPauseState(series, today, c.merchantCanonical);
+      if (state.status === 'paused') excluded.add(c.merchantCanonical);
+      else if (state.status === 'resumed') resumed.push(c.merchantCanonical);
+    }
+    if (excluded.size > 0) {
+      projectable = series.filter((s) => !(s.isIncome && excluded.has(s.merchantCanonical)));
+    }
+    if (resumed.length > 0) {
+      await prisma.incomePauseConfirmation.deleteMany({
+        where: { userId, merchantCanonical: { in: resumed } },
+      });
+    }
+  }
+  const scheduledRows = paymentAccountId ? toScheduledTransactions(projectable, paymentAccountId) : [];
 
   // Full replace, atomically. Only the DETECTED scheduled rows are swapped — the
   // user's own / autopay / seed scheduled rows are left intact.

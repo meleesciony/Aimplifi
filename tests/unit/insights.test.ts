@@ -26,13 +26,17 @@ const series = detectRecurring(
 );
 
 describe('monthly savings rate from seed data (3 hand-verified months)', () => {
-  // Hand math: payroll is the ONLY income (+$2,450 biweekly Fridays anchored
-  // 2026-06-12). Months with exactly two paydays → income = $4,900.00:
-  //   2026-01 (Fri 01-09, 01-23), 2026-03 (03-06, 03-20), 2026-04 (04-03, 04-17).
+  // Hand math: income is payroll (+$2,450 biweekly Fridays anchored 2026-06-12)
+  // plus, since #251, the engineered side-gig payout (+$380.00 monthly on the 10th,
+  // 2026-01-10..2026-04-10 — the Income-Pause Radar seed). Months with exactly two
+  // paydays AND one payout → income = 2×245000 + 38000 = 528000 = $5,280.00:
+  //   2026-01 (Fri 01-09, 01-23 + payout 01-10),
+  //   2026-03 (03-06, 03-20 + payout 03-10),
+  //   2026-04 (04-03, 04-17 + payout 04-10).
   // Transfers (savings, card payments, loan ACH) are excluded from both sides.
-  it.each(['2026-01', '2026-03', '2026-04'])('%s: income is exactly $4,900.00', (month) => {
+  it.each(['2026-01', '2026-03', '2026-04'])('%s: income is exactly $5,280.00', (month) => {
     const m = flows.find((f) => f.month === month)!;
-    expect(m.incomeCents).toBe(490_000);
+    expect(m.incomeCents).toBe(528_000);
   });
 
   it('rate = (income − expenses)/income, cross-checked by independent re-aggregation', () => {

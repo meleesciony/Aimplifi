@@ -57,6 +57,22 @@ exercises same-day aggregation; one due date in history falls on a weekend ✔).
   counterexample: asOf 2026-06-20 → 5 samples → no flag). The demo clock is hard-pinned
   to the default asOf, so the shipped demo always flags; if you reseed with a custom
   asOf for local work, don't expect the radar nudge to survive it.
+- **Engineered income pause ✔ (#251):** a monthly side-gig payout — `STRIPE PAYOUT
+  ETSY SHOP` → "Stripe Payout" (side-income, known merchant) — +$380.00 × 4 into
+  High-Yield Savings, months asOf−5..asOf−2 (2026-01-10..2026-04-10 at the default),
+  then silence: missedSince asOf−1mo, 31 days late at asOf (≥ the MONTHLY grace of
+  10, ≤ the 60-day news cap) — the Income-Pause Radar's demo-first pause. On
+  acct-savings DELIBERATELY: SAVINGS is a spending-type account (the radar and
+  /recurring see the series) but not the demo payment account, so
+  `toScheduledTransactions` never projects it and the cash-needed/§Seed-headline
+  arithmetic is untouched by construction. Fixed amounts after every RNG-consuming
+  block (byte-identical stream); the known ripple is monthlyFlows income for
+  2026-01..04 (two-payday months now 2×245000 + 38000 = $5,280.00 —
+  insights.test.ts re-hand-verified). The engine's seed lock
+  (income-pause.test.ts) asserts this is the demo's ONLY detected pause; hand math
+  in EDGE_CASES §Income-Pause Radar. Payroll (biweekly, current at asOf) never
+  flags, and the demo (fenced from confirmations) always sees the unconfirmed
+  ACTION nudge with no confirm control.
 - **Engineered intra-period dip ✔:** rent −$1,800 lands 2 days before a payroll Friday
   each month so that, in the current cycle, the projected checking balance dips below
   the amount needed for the earliest card due date even though it recovers by the

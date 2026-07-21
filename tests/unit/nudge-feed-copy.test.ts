@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { cents, type Cents } from '@/lib/money';
 import { isoDate } from '@/lib/dates';
 import type { Proposal, ProposalKind, ProposalTier } from '@/lib/engine/nudge/types';
-import { proposalCopy, whyInputs } from '@/components/dashboard/today-feed-copy';
+import { proposalCopy, tierRule, whyInputs } from '@/components/dashboard/today-feed-copy';
 
 function prop(o: Partial<Proposal> & { kind: ProposalKind; tier: ProposalTier }): Proposal {
   return {
@@ -23,6 +23,8 @@ function prop(o: Partial<Proposal> & { kind: ProposalKind; tier: ProposalTier })
     merchant: null,
     typicalCents: null,
     typicalCount: null,
+    cadence: null,
+    runwayMonths: null,
     isEstimated: false,
     dismissed: false,
     ...o,
@@ -118,6 +120,74 @@ describe('proposalCopy — money-honesty per kind', () => {
     expect(c.detail).not.toContain(' at ');
   });
 
+  it('income_pause: the figure is the deposit that DIDN’T arrive; both bases disclosed inline', () => {
+    const c = proposalCopy(
+      prop({
+        kind: 'income_pause',
+        tier: 'action',
+        centsAtStake: cents(38000) as Cents,
+        merchant: 'Stripe Payout',
+        typicalCount: 4,
+        cadence: 'MONTHLY',
+        runwayMonths: 4.4,
+        sortDate: isoDate('2026-05-10'),
+      }),
+    );
+    expect(c.title).toBe('A regular deposit seems paused');
+    expect(c.detail).toContain('$380.00 from Stripe Payout usually arrives monthly');
+    expect(c.detail).toContain('expected around Sun, May 10');
+    // The cadence claim is labeled with its basis — never a bare pattern claim.
+    expect(c.detail).toContain('(based on 4 deposits)');
+    // The runway figure is "about" + names its own formula inline (coaching guardrail).
+    expect(c.detail).toContain('covers about 4.4 months of typical spending (cash ÷ your 6-month average expenses)');
+    // No-shame: a planned pause is the offered outcome, no judgment or alarm words.
+    expect(c.detail).toContain('If this is a pause you expected, dismiss this.');
+    expect(c.detail).not.toMatch(/lost your|fired|emergency|crisis|behind/i);
+    // Never "at stake" / "spent" — the money did not move.
+    expect(c.detail).not.toMatch(/at stake|spent/i);
+  });
+
+  it('income_pause: cadence words cover all three cadences', () => {
+    const base = { kind: 'income_pause' as ProposalKind, tier: 'action' as ProposalTier, centsAtStake: cents(38000) as Cents, merchant: 'M' };
+    expect(proposalCopy(prop({ ...base, cadence: 'WEEKLY' })).detail).toContain('usually arrives weekly');
+    expect(proposalCopy(prop({ ...base, cadence: 'BIWEEKLY' })).detail).toContain('usually arrives every two weeks');
+    expect(proposalCopy(prop({ ...base, cadence: 'MONTHLY' })).detail).toContain('usually arrives monthly');
+  });
+
+  it('income_pause (confirmed/handled): discloses the exclusion, the auto-return rule, and the undo', () => {
+    const c = proposalCopy(
+      prop({ kind: 'income_pause', tier: 'handled', centsAtStake: cents(38000) as Cents, merchant: 'Stripe Payout', cadence: 'MONTHLY', sortDate: isoDate('2026-05-10') }),
+    );
+    expect(c.title).toBe('Income marked paused');
+    expect(c.detail).toContain('$380.00 from Stripe Payout');
+    // The mutation is stated plainly: projections stop counting it…
+    expect(c.detail).toContain('cash projections don’t count it');
+    // …the exit is automatic and disclosed…
+    expect(c.detail).toContain('returns automatically when a new deposit arrives');
+    // …and the undo is offered.
+    expect(c.detail).toContain('Undo');
+  });
+
+  it('#251 critic F2: the HANDLED income_pause rule line never claims autopay; real autopay rows keep theirs', () => {
+    const pauseRule = tierRule(prop({ kind: 'income_pause', tier: 'handled', centsAtStake: cents(38000) as Cents }));
+    expect(pauseRule).not.toMatch(/autopay/i);
+    expect(pauseRule).toContain('You confirmed this income is paused');
+    expect(pauseRule).toContain('Undo');
+    // The generic HANDLED rule (true for autopay payment rows) is unchanged.
+    const autopayRule = tierRule(prop({ kind: 'payment_due', tier: 'handled', centsAtStake: cents(90000) as Cents }));
+    expect(autopayRule).toContain('Autopay covers this');
+    // ACTION income_pause keeps the generic decision rule.
+    expect(tierRule(prop({ kind: 'income_pause', tier: 'action', centsAtStake: cents(38000) as Cents }))).toContain('needs a decision');
+  });
+
+  it('income_pause: no runway figure → no runway sentence (never a dangling or ∞ claim)', () => {
+    const c = proposalCopy(
+      prop({ kind: 'income_pause', tier: 'action', centsAtStake: cents(38000) as Cents, merchant: 'Stripe Payout', cadence: 'MONTHLY', typicalCount: 4, sortDate: isoDate('2026-05-10') }),
+    );
+    expect(c.detail).not.toContain('cash on hand');
+    expect(c.detail).not.toContain('Infinity');
+  });
+
   it('no branch addresses the reader as the payer ("you pay"/"your payment")', () => {
     const kinds: Array<{ kind: ProposalKind; tier: ProposalTier }> = [
       { kind: 'payment_due', tier: 'critical' },
@@ -125,6 +195,7 @@ describe('proposalCopy — money-honesty per kind', () => {
       { kind: 'cash_needed_shortfall', tier: 'critical' },
       { kind: 'cash_flow_dip', tier: 'critical' },
       { kind: 'unusual_charge', tier: 'action' },
+      { kind: 'income_pause', tier: 'action' },
       { kind: 'price-increase', tier: 'opportunity' },
       { kind: 'unused-subscription', tier: 'opportunity' },
       { kind: 'insurance-reshop', tier: 'opportunity' },
@@ -141,6 +212,13 @@ describe('whyInputs — verbatim inputs, honest estimate wording', () => {
   it('unusual_charge: the disclosure says "a $X charge", never "$X at stake" (already spent)', () => {
     const w = whyInputs(prop({ kind: 'unusual_charge', tier: 'action', centsAtStake: cents(21436) as Cents, sortDate: isoDate('2026-06-02') }));
     expect(w).toContain('a $214.36 charge');
+    expect(w).not.toContain('at stake');
+  });
+
+  it('income_pause: the disclosure says "an expected $X deposit", never "$X at stake" (money that didn’t arrive)', () => {
+    const w = whyInputs(prop({ kind: 'income_pause', tier: 'action', centsAtStake: cents(38000) as Cents, sortDate: isoDate('2026-05-10') }));
+    expect(w).toContain('an expected $380.00 deposit');
+    expect(w).toContain('dated Sun, May 10');
     expect(w).not.toContain('at stake');
   });
 

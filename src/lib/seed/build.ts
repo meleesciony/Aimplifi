@@ -509,6 +509,27 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
   // anomaly-detect's seed lock asserts this is the demo's ONLY flagged charge.
   addTxn('acct-sapphire', addDays(asOf, -8), -21436, 'SQ *BLUE BOTTLE 0042 OAK');
 
+  // ── engineered income pause (Income-Pause Radar, DECISIONS #251) ──
+  // A monthly side-gig payout — "Stripe Payout" (side-income, known merchant) —
+  // +$380.00 on the savings account for 4 months ending 2 months before asOf
+  // (2026-01-10..2026-04-10 at the default), then silence: missedSince asOf−1mo
+  // (2026-05-10), daysLate 31 ≥ the MONTHLY grace of 10 and ≤ the 60-day news cap.
+  // On acct-savings DELIBERATELY: SAVINGS is a spending-type account (so /recurring
+  // and the radar see the series) but NOT the demo payment account (acct-checking),
+  // so toScheduledTransactions never projects it — the cash-needed/seed-headline
+  // arithmetic is untouched by construction. Fixed amounts placed after every
+  // randInt-consuming block (the #249 precedent), so the RNG stream — and every
+  // other seeded value — is byte-identical; only income-derived aggregates
+  // (monthlyFlows income for Jan–Apr, savings rate, FI) shift, re-hand-verified in
+  // EDGE_CASES §Income-Pause Radar. income-pause's seed lock asserts this is the
+  // demo's ONLY detected pause.
+  for (let back = 5; back >= 2; back--) {
+    const payout = addMonthsClamped(asOf, -back);
+    if (compareDates(payout, historyStart) >= 0) {
+      addTxn('acct-savings', payout, 38000, 'STRIPE PAYOUT ETSY SHOP');
+    }
+  }
+
   // ── pending transactions at asOf (≥3, incl. −$250.00 on the payment account) ──
   addTxn('acct-checking', asOf, -25000, 'ZELLE PAYMENT TO GREENLEAF LAWN CARE', { status: 'PENDING' });
   addTxn('acct-sapphire', asOf, -675, 'SQ *BLUE BOTTLE 0042 OAK', { status: 'PENDING' });

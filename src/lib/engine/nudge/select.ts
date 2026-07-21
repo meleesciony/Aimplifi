@@ -17,6 +17,7 @@ import type { RadarResult } from '@/lib/engine/radar/radar';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { Opportunity } from '@/lib/engine/fi/insights';
 import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
+import type { IncomePauseState } from '@/lib/engine/income/pause';
 import {
   NOTIFY_DUE_WINDOW_DAYS,
   paymentNotificationKey,
@@ -83,6 +84,8 @@ function paymentProposal(r: PaymentReminder, today: ISODate, dismissed: Readonly
     merchant: null,
     typicalCents: null,
     typicalCount: null,
+    cadence: null,
+    runwayMonths: null,
     isEstimated: r.isEstimated,
     dismissed: dismissed.has(dismissKey),
   };
@@ -112,6 +115,8 @@ function dipProposal(
     merchant: null,
     typicalCents: null,
     typicalCount: null,
+    cadence: null,
+    runwayMonths: null,
     isEstimated: radar.includesEstimatedDues,
     dismissed: dismissed.has(dismissKey),
   };
@@ -147,6 +152,8 @@ function shortfallProposal(
     merchant: null,
     typicalCents: null,
     typicalCount: null,
+    cadence: null,
+    runwayMonths: null,
     isEstimated,
     dismissed: dismissed.has(dismissKey),
   };
@@ -192,6 +199,8 @@ function opportunityProposal(o: Opportunity, today: ISODate, dismissed: Readonly
     merchant: null,
     typicalCents: null,
     typicalCount: null,
+    cadence: null,
+    runwayMonths: null,
     isEstimated: o.isEstimate,
     dismissed: dismissed.has(dismissKey),
   };
@@ -224,7 +233,68 @@ function unusualProposal(u: UnusualCharge, today: ISODate, dismissed: ReadonlySe
     merchant: u.merchantCanonical, // verbatim display context
     typicalCents: u.typicalCents, // verbatim display context
     typicalCount: u.sampleCount, // verbatim display context
+    cadence: null,
+    runwayMonths: null,
     isEstimated: false, // a real posted charge, never an estimate
+    dismissed: dismissed.has(dismissKey),
+  };
+}
+
+/**
+ * Income-pause proposal (#251): a lapsed recurring income series. UNCONFIRMED, it is
+ * an ACTION-tier row — an acknowledgment ("has this income stopped?") with no payment
+ * deadline, so it never competes with CRITICAL warnings and is dismissable. Same
+ * precision-first stance as unusual_charge: a late paycheck may be a payroll hiccup,
+ * so this is never pushed (notify/select is untouched) and never CRITICAL.
+ * CONFIRMED, it becomes a HANDLED-tier row — quiet state disclosure ("projections
+ * don't count this while it stays paused") that remains in the feed for as long as
+ * the exclusion is in force, carrying the undo affordance: a money mutation may
+ * never outlive its own visibility.
+ *
+ * The unconfirmed dismissal fact is the MISSED OCCURRENCE
+ * (`income_pause:<merchant>:<missedSince>`): dismissing one missed date never
+ * suppresses a future pause, which arrives with a new missedSince. The CONFIRMED
+ * state row keys to its OWN namespace (`income_pause_confirmed:<merchant>`) — a
+ * different fact entirely, so a dismissal of the earlier ACTION nudge can never
+ * hide the state disclosure carrying the Undo (#251 critic F5; missedSince is
+ * deliberately absent — the state is per-merchant and row churn may shift the
+ * computed missed date while the same exclusion stays in force). Every money value
+ * is verbatim from the detector; centsAtStake is the expected deposit that has not
+ * arrived (per-kind semantic, labeled at the copy boundary). `runwayMonths` rides
+ * through verbatim from the caller's monthsOfRunway (display context; non-finite
+ * or non-positive → null — "∞ months" and "covers about -0.5 months" are
+ * unrepresentable downstream, #251 critic F6).
+ */
+function incomePauseProposal(
+  p: IncomePauseState,
+  runwayMonths: number | undefined,
+  today: ISODate,
+  dismissed: ReadonlySet<string>,
+): Proposal {
+  const tier: ProposalTier = p.confirmed ? 'handled' : 'action';
+  const key = p.confirmed
+    ? `income_pause_confirmed:${p.merchantCanonical}`
+    : `income_pause:${p.merchantCanonical}:${p.missedSince}`;
+  const dismissKey = dismissKeyFor(tier, key, today);
+  return {
+    kind: 'income_pause',
+    tier,
+    key,
+    dismissKey,
+    subjectKey: subjectKey('income_pause'),
+    sortDate: p.missedSince, // verbatim — the missed expected date orders it within ACTION
+    daysUntil: null,
+    centsAtStake: p.typicalAmountCents as Cents, // verbatim — the deposit that hasn't arrived
+    autopayCents: ZERO, // not a payment_due proposal
+    merchant: p.merchantCanonical, // verbatim display context
+    typicalCents: null,
+    typicalCount: p.occurrences, // verbatim display context — the disclosed basis
+    cadence: p.cadence, // verbatim display context
+    runwayMonths:
+      runwayMonths !== undefined && Number.isFinite(runwayMonths) && runwayMonths > 0
+        ? runwayMonths
+        : null,
+    isEstimated: false, // the missed deposit is a fact; the runway figure discloses its own basis
     dismissed: dismissed.has(dismissKey),
   };
 }
@@ -289,6 +359,9 @@ export function buildNudgeFeed(input: NudgeInput): NudgeFeed {
     ...reminders.map((r) => paymentProposal(r, today, dismissed)),
     ...opportunities.map((o) => opportunityProposal(o, today, dismissed)),
     ...(input.unusualCharges ?? []).map((u) => unusualProposal(u, today, dismissed)),
+    ...(input.incomePauses ?? []).map((p) =>
+      incomePauseProposal(p, input.runwayMonths, today, dismissed),
+    ),
   ];
   const dip = dipProposal(radar, today, dismissed);
   if (dip) proposals.push(dip);

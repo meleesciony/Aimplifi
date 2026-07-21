@@ -15,6 +15,7 @@ import type { RadarResult } from '@/lib/engine/radar/radar';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { Opportunity, OpportunityKind } from '@/lib/engine/fi/insights';
 import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
+import type { IncomePauseState, PauseCadence } from '@/lib/engine/income/pause';
 
 /** Suppression tiers, most urgent first. HANDLED is quiet autopay reassurance. */
 export type ProposalTier = 'critical' | 'action' | 'opportunity' | 'handled';
@@ -29,6 +30,7 @@ export type ProposalKind =
   | 'cash_flow_dip'
   | 'cash_needed_shortfall'
   | 'unusual_charge'
+  | 'income_pause'
   | OpportunityKind;
 
 export interface Proposal {
@@ -87,6 +89,18 @@ export interface Proposal {
   merchant: string | null;
   typicalCents: Cents | null;
   typicalCount: number | null;
+  /**
+   * Verbatim display context for an income_pause proposal (#251); null for every
+   * other kind. `cadence` is the paused series' cadence (so the copy can say
+   * "usually arrives monthly"); `runwayMonths` is the coach's own
+   * `monthsOfRunway` figure copied verbatim (liquid ÷ 6-month average expenses,
+   * already rounded to 0.1 by its producer) — carried so the copy can quantify
+   * "if it stays paused" next to the fact, with the basis disclosed inline. Never
+   * recomputed here; null also when the producer's figure is non-finite (no
+   * expense history yet).
+   */
+  cadence: PauseCadence | null;
+  runwayMonths: number | null;
   isEstimated: boolean;
   /** True iff the user has dismissed this proposal's dismissKey (UI collapse hint). */
   dismissed: boolean;
@@ -104,6 +118,20 @@ export interface NudgeInput {
    * means "no unusual charges", identical to [].
    */
   unusualCharges?: readonly UnusualCharge[];
+  /**
+   * Lapsed recurring income series from `incomePausesForFeed` (#251). Optional so
+   * pre-existing callers and tests stay valid; absent means "no paused income",
+   * identical to []. An UNCONFIRMED row is news (ACTION); a CONFIRMED row is quiet
+   * state (HANDLED) — it stays in the feed for as long as its projection exclusion
+   * is in force, so the mutation is always visible and undoable.
+   */
+  incomePauses?: readonly IncomePauseState[];
+  /**
+   * The coach's `monthsOfRunway` figure, passed through verbatim for income_pause
+   * display context only (see Proposal.runwayMonths). Optional; omitted or a
+   * non-finite value renders no runway line.
+   */
+  runwayMonths?: number;
   /**
    * The set of `dismissKey`s the user has dismissed — the SUPPRESSION store, distinct
    * from the EngagementEvent behavioral log. These are fact-keys (e.g.

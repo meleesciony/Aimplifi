@@ -54,6 +54,87 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Income-Pause Radar (2026-07-21) — #251, AI plan §Later #20's one groundable signature
+
+Owner's "continue" at the #250 fork. Picked per STATUS #248's own menu: the last
+unblocked groundable §Later sub-slice (streaks core #205 and the outlier radar #249
+both shipped; its #249-recorded deferral — "FI-mutation plumbing + a seeded income
+pause that ripples the demo narrative" — was scope, not a blocker). §20's verdict
+implemented in full: the lapsed-`isIncome` signature as its own narrow engine, the
+`projectedIncome = 0` mutation confirmation-gated, the other signatures (new
+dependent, relocation) still hard-gated on no-ground-truth.
+
+- **Engine.** `engine/income/pause.ts` (pure, NO LLM): lapse = `nextDate(lastSeenAt,
+  cadence)` vs today — deliberately NOT `nextExpectedAt`, which detect.ts
+  forward-steps past missed occurrences (it structurally hides lapses). Precision-
+  first gates (the #231 failure-direction lesson): income series, cadence W/BW/M
+  (ANNUAL excluded), occurrences ≥4, ≥$100 typical, aggregates excluded (shared
+  case-insensitive guard), grace {W:5, BW:7, M:10} days late. TWO predicates share
+  the one lapse computation: `lapsedIncomeSeries` (no staleness cap — drives the
+  projection exclusion) and `detectIncomePauses` (+60-day news cap — drives the
+  nudge); `incomePausesForFeed` composes confirmations (a CONFIRMED row ignores the
+  news cap: the feed discloses the exclusion for as long as it is in force).
+  Hand-verified EDGE_CASES §Income-Pause Radar (P1–P12).
+- **Nudge.** New kind `income_pause`, ACTION tier, never pushed, never CRITICAL (a
+  late paycheck may be a payroll hiccup). Dismissal keys to the missed occurrence
+  (`income_pause:<merchant>:<missedSince>` — a new miss is a new fact). Verbatim
+  context (merchant, occurrences basis, cadence) + `runwayMonths` passthrough
+  (non-finite → null, ∞ unrepresentable). Copy: "the expected deposit that hasn't
+  arrived" (never "at stake"), cadence basis inline ("based on N deposits"), runway
+  "about" + formula inline; no-shame (a planned pause is the offered outcome).
+- **Mutation (confirmation-gated).** `IncomePauseConfirmation` (unique
+  user+merchant, demo-fenced like nudge dismissal). Confirm → the series is excluded
+  from `toScheduledTransactions` projections and the blueprint's paycheck anchor
+  WHILE still lapsed (lapse recomputed each refresh — the row is consent, not
+  evidence); the feed row flips to quiet HANDLED state carrying the Undo. A resumed
+  deposit auto-restores projections and deletes the stale confirmation (future
+  pauses re-ask). Integration-locked (`income-pause-server.test.ts`, 5/5 against the
+  real refreshRecurringForUser).
+- **Seed (demo-first).** Engineered pause: `STRIPE PAYOUT ETSY SHOP` ("Stripe
+  Payout", side-income) +$380×4 monthly on acct-savings, silent since asOf−2mo —
+  deliberately NOT the payment account, so cash-needed/§Seed-headline arithmetic is
+  untouched by construction. Exactly-one seed lock. Recorded ripple: exactly 3
+  insights.test.ts income locks re-hand-verified (two-payday months 2×245000+38000
+  = 528000). Demo sees the ACTION nudge but no confirm control (fence).
+- **Latent a11y bug fixed en route.** /recurring's "No longer charging" section
+  (`opacity-70` over muted-foreground → 4.0:1 < AA 4.5:1) had never rendered on the
+  demo until this slice's inactive row; fixed in recurring-view (muted title only),
+  caught by recurring.spec's axe gate.
+- **Gate (real output 2026-07-21, pre-critic):** unit suite green post-slice
+  (income-pause 17, income-pause-server 5, nudge-select/copy extended, insights
+  re-verified); `today-feed.spec` 8/8 (demo pinned copy + axe AA + throwaway
+  confirm→HANDLED→undo loop), `recurring/phase3-coach/ask/return-moment/trends`
+  green. `bash scripts/verify.sh` → ✅ VERIFY GREEN.
+- **Hostile critic (1 fresh-context Fable cycle, empirical mandate: FAIL 2 P1 /
+  6 P2 → ALL fixed → re-verified).** The engine math survived (critic
+  independently recomputed every EDGE_CASES P-case, reproduced the seed lock, and
+  swept 45 asOf dates: 0 organic false positives). **F1 (P1, executed repro):**
+  "resumption" was inferred from ¬lapsed, so a routine provider row-removal
+  (occurrences 4→3, below the ALARM floor) deleted the user's consent row and
+  re-projected phantom income with no feed row — fixed with
+  `confirmedPauseState` (paused/resumed/inert): only a DATE-FRESH deposit
+  retires consent, gates govern the alarm only, and the exclusion + the HANDLED
+  disclosure ride the same predicate; regression-locked (P14a–d + server 2b) and
+  ledgered. **F2 (P1):** the confirmed row's "Why am I seeing this?" said
+  "Autopay covers this" — per-kind `tierRule` override in the copy module,
+  unit-locked, ledgered. P2 fixes: F3 dev.db lacked the new table (db:push run);
+  F4 coach detected recurring over ALL account types while the exclusion reads
+  spending-only — universes aligned; F5 dismiss-then-confirm hid the undo home —
+  confirmed rows key to their own `income_pause_confirmed:` namespace; F6
+  negative runway rendered "covers about −0.5 months" — non-positive figures
+  nulled; F7 month-end clamp shrank the MONTHLY grace to 7 for 31st paydays —
+  `missedSinceOf` expects the END of the next month for month-end series
+  (precision-safe direction, P13); F8 undo now enforces the same input cap as
+  confirm.
+- **Recorded residual (#251 critic, correct-direction, not fixed here):** a
+  concurrent provider sync's `refreshRecurringForUser` can race the confirm
+  action's refresh (last-writer-wins between two full-replace transactions), so
+  a just-confirmed pause can transiently re-project until the next refresh;
+  self-healing, conservative-adjacent (a later refresh re-applies the
+  exclusion), and bounded by the sync cadence. Durable fix: serialize refreshes
+  per user (advisory lock or queued job) — an infrastructure class, out of this
+  slice's scope.
+
 ## Merchant Pattern Lens (2026-07-21) — #250, AI plan §Later #19
 
 Owner's "continue" at the #249 fork. Shipped per the plan's own reshape verdict —

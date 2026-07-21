@@ -19,6 +19,27 @@ import { type ISODate, formatISODate } from '@/lib/dates';
 import { type Cents, formatCents } from '@/lib/money';
 import type { Proposal } from '@/lib/engine/nudge/types';
 
+/**
+ * The tier's "why am I seeing this" rule line. Tier-generic, EXCEPT where a kind
+ * gives the tier a different meaning: a confirmed income pause sits at HANDLED,
+ * but "Autopay covers this — nothing to do" would be a false claim there (#251
+ * critic F2 — nothing is on autopay, and there IS something to do: Undo). Exported
+ * from the copy module (not the card) so the honesty is directly unit-testable.
+ */
+export function tierRule(p: Proposal): string {
+  if (p.kind === 'income_pause' && p.tier === 'handled') {
+    return 'You confirmed this income is paused — kept visible, with Undo, for as long as cash projections exclude it.';
+  }
+  return TIER_RULE_GENERIC[p.tier];
+}
+
+const TIER_RULE_GENERIC: Record<Proposal['tier'], string> = {
+  critical: 'It needs attention soon, so it is ranked at the top and never hidden.',
+  action: 'It needs a decision, but there is no deadline pressure yet.',
+  opportunity: 'A possible saving — no deadline. Dismiss it and it stays gone until the underlying figure changes.',
+  handled: 'Autopay covers this — nothing to do. Shown only so you know it is handled.',
+};
+
 /** Days-until phrasing from the verbatim `daysUntil` passthrough (never recomputed). */
 export function whenPhrase(daysUntil: number | null): string {
   if (daysUntil === null) return '';
@@ -29,10 +50,17 @@ export function whenPhrase(daysUntil: number | null): string {
 
 /** The raw, verbatim fields behind a proposal — shown in the "why" disclosure. */
 export function whyInputs(p: Proposal): string {
-  // Per-kind money semantics (#249 critic P2-4): an unusual charge is already SPENT —
-  // "at stake" would misstate a completed transaction as money still in play.
   const money = formatCents(p.centsAtStake as Cents);
-  const parts = [p.kind === 'unusual_charge' ? `a ${money} charge` : `${money} at stake`];
+  // Per-kind money semantics (#249 critic P2-4 / #251): an unusual charge is already
+  // SPENT and a paused income's figure is money that DIDN'T arrive — "at stake"
+  // would misstate either.
+  const parts = [
+    p.kind === 'unusual_charge'
+      ? `a ${money} charge`
+      : p.kind === 'income_pause'
+        ? `an expected ${money} deposit`
+        : `${money} at stake`,
+  ];
   if (p.sortDate) parts.push(`dated ${formatISODate(p.sortDate as ISODate)}`);
   if (p.daysUntil !== null) parts.push(`${p.daysUntil} day${p.daysUntil === 1 ? '' : 's'} out`);
   if (p.isEstimated) parts.push('based on an estimate');
@@ -96,6 +124,46 @@ export function proposalCopy(p: Proposal): { title: string; detail: string } {
       return {
         title: 'Unusual charge worth a look',
         detail: `${money}${p.merchant ? ` at ${p.merchant}` : ''}${date ? ` on ${date}` : ''}${typical}. If it’s expected, dismiss this.`,
+      };
+    }
+    case 'income_pause': {
+      // centsAtStake = the paused series' typical deposit (verbatim from the
+      // detector) — money that DIDN'T arrive, never "at stake" or "spent". The
+      // basis is disclosed inline twice (coaching guardrail): the cadence claim
+      // rests on "based on N deposits", and the runway figure names its own
+      // formula (cash on hand ÷ 6-month average expenses) right next to the
+      // number. Copy-subject audit (second-person lesson): income pauses are
+      // computed from the VIEWER's own coach data (viewer-only, like
+      // unusual_charge — the #249 household asymmetry), so "your cash on hand"
+      // always addresses the true owner of both the income and the cash.
+      // No-shame and non-advisory: a paused income is stated as a fact worth
+      // confirming — it may be planned (a sabbatical, a job change, seasonal
+      // work) — and dismissing is offered as an expected outcome.
+      const cadenceWord =
+        p.cadence === 'WEEKLY' ? 'weekly' : p.cadence === 'BIWEEKLY' ? 'every two weeks' : 'monthly';
+      if (p.tier === 'handled') {
+        // CONFIRMED state (quiet): the projection exclusion is in force. This row
+        // stays for as long as it is — the mutation is always visible, and the UI
+        // hangs the Undo on it. Descriptive, not celebratory or alarmed.
+        return {
+          title: 'Income marked paused',
+          detail:
+            `${money} from ${p.merchant ?? 'this source'} — you confirmed this income is paused, ` +
+            `so cash projections don’t count it. It returns automatically when a new deposit arrives, ` +
+            `or use Undo if this was a mistake.`,
+        };
+      }
+      const basis = p.typicalCount !== null ? ` (based on ${p.typicalCount} deposits)` : '';
+      const runway =
+        p.runwayMonths !== null
+          ? ` If it stays paused, your cash on hand covers about ${p.runwayMonths} months of typical spending (cash ÷ your 6-month average expenses).`
+          : '';
+      return {
+        title: 'A regular deposit seems paused',
+        detail:
+          `${money} from ${p.merchant ?? 'this source'} usually arrives ${cadenceWord}; ` +
+          `the deposit expected around ${date ?? 'its usual date'} hasn’t appeared${basis}.` +
+          `${runway} If this is a pause you expected, dismiss this.`,
       };
     }
     case 'price-increase':

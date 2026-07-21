@@ -61,6 +61,105 @@ test('#249: the engineered $214.36 unusual charge surfaces as a dismissable ACTI
   await expect(row.getByTestId('nudge-dismiss-unusual_charge')).toBeVisible();
 });
 
+test('#251: the engineered income pause surfaces on demo as ACTION with both bases inline — and NO confirm control (fence)', async ({ page }) => {
+  await signIn(page);
+  // Demo-first: the seed's engineered Stripe Payout pause (EDGE_CASES §Income-Pause
+  // Radar seed lock: 4 × +$380.00 monthly, silent since 2026-04-10) must be visible
+  // at ACTION tier — an acknowledgment, never competing with CRITICAL warnings.
+  const row = page.getByTestId('nudge-income_pause');
+  await expect(row).toBeVisible();
+  await expect(row).toHaveAttribute('data-tier', 'action');
+  await expect(row).toContainText('A regular deposit seems paused');
+  await expect(row).toContainText('$380.00 from Stripe Payout usually arrives monthly');
+  await expect(row).toContainText('based on 4 deposits'); // the cadence claim's basis, inline
+  // The runway figure states its own formula next to the number (coaching guardrail).
+  await expect(row).toContainText('covers about');
+  await expect(row).toContainText('(cash ÷ your 6-month average expenses)');
+  // Dismissable (ACTION), but the demo NEVER gets the confirm control: one visitor's
+  // "my income stopped" must not mutate the shared account's projections (#243 fence
+  // family) — the affordance is absent, not just a dead button.
+  await expect(row.getByTestId('nudge-dismiss-income_pause')).toBeVisible();
+  await expect(row.getByTestId('nudge-income-pause-confirm')).toHaveCount(0);
+});
+
+test('#251: throwaway user — confirm marks the pause HANDLED (projections excluded), Undo restores it', async ({ page }) => {
+  // Full confirm/undo loop on an isolated signup user (the #244 throwaway pattern —
+  // confirm WRITES, so it can never run as demo). Dates are relative to the SERVER'S
+  // clock: e2e runs with DEMO_TODAY=2026-06-10 pinned (.env; businessToday precedence
+  // 1 pins EVERY user, not only demo — the phase2-triage SEED_AS_OF precedent), so
+  // four monthly deposits ending two months before the PIN → lapsed 31 days (inside
+  // grace 10 ≤ daysLate ≤ 60).
+  const email = `e2e-pause-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+
+  // One checking account to file deposits against.
+  await page.goto('/accounts');
+  await expect(async () => {
+    await page.getByTestId('add-asset-btn').click({ timeout: 2000 });
+    await expect(page.getByTestId('manual-name')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await page.getByTestId('manual-name').fill('E2E Pause Checking');
+  await page.getByTestId('manual-type').selectOption('CHECKING');
+  await page.getByTestId('manual-value').fill('5000');
+  await page.getByTestId('manual-submit').click();
+  await expect(page.getByTestId('manual-account-row').filter({ hasText: 'E2E Pause Checking' })).toBeVisible({ timeout: 20000 });
+
+  // Four monthly +$380.00 deposits, months -5..-2 relative to the pinned server
+  // clock — detectRecurring sees MONTHLY ×4, lapsed 31 days at DEMO_TODAY.
+  const PINNED_TODAY = new Date(Date.UTC(2026, 5, 10)); // DEMO_TODAY 2026-06-10 (.env)
+  for (let back = 5; back >= 2; back--) {
+    const d = new Date(PINNED_TODAY);
+    d.setUTCMonth(d.getUTCMonth() - back);
+    const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+    await page.goto('/transactions/new');
+    // Money-in toggle is React state: a pre-hydration click drops silently and the
+    // deposit would file as money-OUT (splitting the sign group below 4 occurrences).
+    // Click-and-verify against the React-controlled aria-pressed (#167 idiom).
+    await expect(async () => {
+      await page.getByTestId('dir-in').click({ timeout: 2000 });
+      await expect(page.getByTestId('dir-in')).toHaveAttribute('aria-pressed', 'true', { timeout: 2000 });
+    }).toPass({ timeout: 20000 });
+    await page.getByTestId('txn-descriptor').fill('STRIPE PAYOUT ETSY SHOP');
+    await page.getByTestId('txn-amount').fill('380.00');
+    await page.getByTestId('txn-date').fill(dateStr);
+    await page.getByTestId('txn-submit').click();
+    await page.waitForURL('**/transactions', { timeout: 20000 });
+  }
+
+  // The pause surfaces with the confirm control (a real user, not demo).
+  await page.goto('/dashboard');
+  const row = page.getByTestId('nudge-income_pause');
+  await expect(row).toBeVisible({ timeout: 20000 });
+  await expect(row).toHaveAttribute('data-tier', 'action');
+  const confirm = row.getByTestId('nudge-income-pause-confirm');
+  await expect(confirm).toBeVisible();
+
+  // Confirm → the row flips to quiet HANDLED state ("projections don't count it")
+  // carrying the Undo — the mutation stays visible for as long as it is in force.
+  // First click after load can land pre-hydration; click-and-verify (#167 idiom).
+  await expect(async () => {
+    await confirm.click({ timeout: 2000 });
+    await expect(page.locator('[data-testid="nudge-income_pause"][data-tier="handled"]')).toBeVisible({ timeout: 5000 });
+  }).toPass({ timeout: 30000 });
+  const handled = page.locator('[data-testid="nudge-income_pause"][data-tier="handled"]');
+  await expect(handled).toContainText('Income marked paused');
+  await expect(handled).toContainText('cash projections don’t count it');
+  const undo = handled.getByTestId('nudge-income-pause-undo');
+  await expect(undo).toBeVisible();
+
+  // Undo → back to the unconfirmed ACTION nudge (the mutation is reversible).
+  await expect(async () => {
+    await undo.click({ timeout: 2000 });
+    await expect(page.locator('[data-testid="nudge-income_pause"][data-tier="action"]')).toBeVisible({ timeout: 5000 });
+  }).toPass({ timeout: 30000 });
+  await expect(page.getByTestId('nudge-income-pause-confirm')).toBeVisible();
+});
+
 test('P1-2: obligations are labeled "Payment due", never "Card payment due" (loans included)', async ({ page }) => {
   await signIn(page);
   // The feed drops the card/loan discriminant, so it must not assert "card" — a

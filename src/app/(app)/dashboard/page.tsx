@@ -19,6 +19,7 @@ import { StepIndicator } from '@/components/onboarding/step-indicator';
 import { OnboardingNudge } from '@/components/settings/onboarding-nudge';
 import { PAYMENT_ACCOUNT_TYPES, needsOnboarding } from '@/lib/engine/settings/dials';
 import { prisma } from '@/lib/db';
+import { DEMO_USER_ID } from '@/lib/demo-user';
 import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
 import { getWithheldAccountSummary } from '@/server/transactions';
@@ -85,6 +86,11 @@ export default async function DashboardPage({
     // Unusual Charge Radar (#249): per-merchant median+MAD flags computed inside
     // getCoachData over the same fetched rows — verbatim into the feed.
     unusualCharges: coach.unusualCharges,
+    // Income-Pause Radar (#251): lapsed income series (confirmed pauses already
+    // filtered inside getCoachData) + the coach's own runway figure, both verbatim —
+    // the runway rides along as display context for the income_pause copy only.
+    incomePauses: coach.incomePauses,
+    runwayMonths: coach.runwayMonths,
   } as const;
   const nudgeFeed = buildNudgeFeed({ ...nudgeInput, dismissedKeys: nudgeDismissedKeys });
   const nudgeFeedAll = buildNudgeFeed({ ...nudgeInput, dismissedKeys: new Set<string>() });
@@ -159,7 +165,11 @@ export default async function DashboardPage({
       {/* "Today" nudge feed (NUDGE_PLAN slice 2) — the one thing that needs you now,
           ranked, with a collapsed rest and everything autopay handles kept quiet. A
           reshape of the cards below; detail still lives in each source card. */}
-      <TodayFeedCard feed={nudgeFeed} feedAll={nudgeFeedAll} />
+      <TodayFeedCard
+        feed={nudgeFeed}
+        feedAll={nudgeFeedAll}
+        canManageIncomePause={session.user.id !== DEMO_USER_ID}
+      />
 
       {/* "Since you were away" greeting (TASKS 1.1) — sits right under THE answer.
           Present only for a genuine return (>7-day gap); silent otherwise. */}

@@ -115,7 +115,11 @@ function Section({
         <h2 className={`text-sm font-semibold ${muted ? 'text-muted-foreground' : ''}`}>{title}</h2>
         {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
       </div>
-      <ul className={`mt-2 divide-y ${muted ? 'opacity-70' : ''}`} data-testid={testid}>
+      {/* NOTE: the muted section must NOT dim its rows (the old `opacity-70` here
+          multiplied text-muted-foreground below the WCAG AA 4.5:1 contrast floor —
+          latent until #251 put the first inactive row on the demo). The quieter
+          look comes from the muted TITLE only; row text keeps full contrast. */}
+      <ul className="mt-2 divide-y" data-testid={testid}>
         {items.map((i) => (
           <Row
             key={`${i.merchantCanonical}:${i.accountId}`}

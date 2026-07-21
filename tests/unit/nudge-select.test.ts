@@ -30,6 +30,7 @@ import {
 import { buildNudgeFeed } from '@/lib/engine/nudge/select';
 import type { NudgeInput, ProposalTier } from '@/lib/engine/nudge/types';
 import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
+import type { IncomePauseState } from '@/lib/engine/income/pause';
 
 const TODAY = isoDate('2026-06-10');
 
@@ -198,12 +199,38 @@ function chargeOf(o: {
   };
 }
 
+/** A lapsed income series (#251) — defaults mirror the seed side-gig (EDGE_CASES P1). */
+function pauseOf(o: {
+  merchant?: string;
+  accountId?: string;
+  cadence?: IncomePauseState['cadence'];
+  typicalAmountCents?: number;
+  lastSeenAt?: string;
+  missedSince?: string;
+  daysLate?: number;
+  occurrences?: number;
+  confirmed?: boolean;
+}): IncomePauseState {
+  return {
+    merchantCanonical: o.merchant ?? 'Stripe Payout',
+    accountId: o.accountId ?? 'acct-savings',
+    cadence: o.cadence ?? 'MONTHLY',
+    typicalAmountCents: o.typicalAmountCents ?? 38000,
+    lastSeenAt: isoDate(o.lastSeenAt ?? '2026-04-10'),
+    missedSince: isoDate(o.missedSince ?? '2026-05-10'),
+    daysLate: o.daysLate ?? 31,
+    occurrences: o.occurrences ?? 4,
+    confirmed: o.confirmed ?? false,
+  };
+}
+
 const KNOWN_TIERS: ReadonlySet<ProposalTier> = new Set(['critical', 'action', 'opportunity', 'handled']);
 const KNOWN_KINDS: ReadonlySet<string> = new Set([
   'payment_due',
   'cash_flow_dip',
   'cash_needed_shortfall',
   'unusual_charge',
+  'income_pause',
   'unused-subscription',
   'price-increase',
   'insurance-reshop',
@@ -332,6 +359,8 @@ describe('nudge · unusual_charge (#249)', () => {
       expect(p.merchant, p.kind).toBeNull();
       expect(p.typicalCents, p.kind).toBeNull();
       expect(p.typicalCount, p.kind).toBeNull();
+      expect(p.cadence, p.kind).toBeNull();
+      expect(p.runwayMonths, p.kind).toBeNull();
     }
   });
 
@@ -365,6 +394,100 @@ describe('nudge · unusual_charge (#249)', () => {
     // unusual_charge proposal is NOT critical (the only tier push escalates).
     const feed = buildNudgeFeed(input({ unusualCharges: [chargeOf({})] }));
     expect(feed.ordered[0].tier).not.toBe('critical');
+  });
+});
+
+// ================================================================================
+// Income-Pause Radar (#251) — ACTION tier, verbatim passthrough, per-miss dismissal
+// ================================================================================
+describe('nudge · income_pause (#251)', () => {
+  it('carries every detector field VERBATIM: deposit, missed date, merchant, cadence, occurrence basis', () => {
+    const p0 = pauseOf({});
+    const feed = buildNudgeFeed(input({ incomePauses: [p0], runwayMonths: 4.4 }));
+    expect(feed.ordered).toHaveLength(1);
+    const p = feed.ordered[0];
+    expect(p.kind).toBe('income_pause');
+    expect(p.tier).toBe('action'); // an acknowledgment, no deadline — never competes with CRITICAL
+    expect(p.key).toBe('income_pause:Stripe Payout:2026-05-10');
+    expect(p.centsAtStake).toBe(p0.typicalAmountCents); // the deposit that hasn't arrived
+    expect(p.sortDate).toBe(p0.missedSince);
+    expect(p.daysUntil).toBeNull();
+    expect(p.merchant).toBe(p0.merchantCanonical);
+    expect(p.typicalCents).toBeNull();
+    expect(p.typicalCount).toBe(p0.occurrences); // the disclosed basis
+    expect(p.cadence).toBe(p0.cadence);
+    expect(p.runwayMonths).toBe(4.4); // verbatim passthrough from the caller's monthsOfRunway
+    expect(p.autopayCents).toBe(0);
+    expect(p.isEstimated).toBe(false);
+  });
+
+  it('runway passthrough is honest: absent or non-finite (no expense history) → null, never ∞', () => {
+    const absent = buildNudgeFeed(input({ incomePauses: [pauseOf({})] }));
+    expect(absent.ordered[0].runwayMonths).toBeNull();
+    const infinite = buildNudgeFeed(input({ incomePauses: [pauseOf({})], runwayMonths: Infinity }));
+    expect(infinite.ordered[0].runwayMonths).toBeNull();
+  });
+
+  it('dismissal keys to the MISSED OCCURRENCE: the same miss stays hidden, a new one reappears', () => {
+    const dismissedKeys = new Set(['income_pause:Stripe Payout:2026-05-10']);
+    const hidden = buildNudgeFeed(input({ incomePauses: [pauseOf({})], dismissedKeys }));
+    expect(hidden.ordered).toHaveLength(0);
+    // The NEXT missed occurrence is a new fact — it is not suppressed.
+    const fresh = buildNudgeFeed(
+      input({ incomePauses: [pauseOf({ missedSince: '2026-06-10' })], dismissedKeys }),
+    );
+    expect(fresh.ordered).toHaveLength(1);
+    expect(fresh.headline?.key).toBe('income_pause:Stripe Payout:2026-06-10');
+  });
+
+  it('ranks below a CRITICAL due but above opportunities; absent input means no proposal', () => {
+    const feed = buildNudgeFeed(
+      input({
+        reminders: [reminder({ dueDate: '2026-06-12', daysUntil: 2, userActionCents: 50000 })],
+        opportunities: [oppOf({ kind: 'unused-subscription', merchant: 'GymPass', monthlyCents: 4000 })],
+        incomePauses: [pauseOf({})],
+      }),
+    );
+    expect(feed.ordered.map((p) => p.kind)).toEqual(['payment_due', 'income_pause', 'unused-subscription']);
+    // Backward-compat: NudgeInput without the field behaves as before.
+    expect(buildNudgeFeed(input({})).ordered).toHaveLength(0);
+  });
+
+  it('never pushes: the push selector has no income-pause channel; the tier is never critical', () => {
+    const feed = buildNudgeFeed(input({ incomePauses: [pauseOf({})] }));
+    expect(feed.ordered[0].tier).not.toBe('critical');
+  });
+
+  it('a CONFIRMED pause is quiet HANDLED state — never headlines, still visible (the undo home)', () => {
+    const feed = buildNudgeFeed(input({ incomePauses: [pauseOf({ confirmed: true })] }));
+    expect(feed.ordered).toHaveLength(1);
+    expect(feed.ordered[0].tier).toBe('handled');
+    // HANDLED never headlines (criterion 4): the feed reports an honest empty day.
+    expect(feed.headline).toBeNull();
+    // The row itself remains — the projection mutation stays visible in the feed.
+    expect(feed.ordered[0].kind).toBe('income_pause');
+    // Its identity is its OWN namespace (state, not the news fact).
+    expect(feed.ordered[0].key).toBe('income_pause_confirmed:Stripe Payout');
+  });
+
+  it('#251 critic F5: dismissing the ACTION nudge can never hide the later CONFIRMED state row', () => {
+    // User dismissed the news row, then confirmed via Show-everything. The state
+    // disclosure (carrying the Undo) must survive that earlier dismissal — the two
+    // rows are different facts with different keys.
+    const dismissedKeys = new Set(['income_pause:Stripe Payout:2026-05-10']);
+    const feed = buildNudgeFeed(input({ incomePauses: [pauseOf({ confirmed: true })], dismissedKeys }));
+    expect(feed.ordered).toHaveLength(1);
+    expect(feed.ordered[0].tier).toBe('handled');
+    expect(feed.ordered[0].dismissed).toBe(false);
+  });
+
+  it('#251 critic F6: a zero or negative runway (overdrawn cash) is never carried — null, no nonsense copy', () => {
+    for (const runwayMonths of [0, -0.5]) {
+      const feed = buildNudgeFeed(input({ incomePauses: [pauseOf({})], runwayMonths }));
+      expect(feed.ordered[0].runwayMonths, String(runwayMonths)).toBeNull();
+    }
+    // A real positive figure still rides through verbatim.
+    expect(buildNudgeFeed(input({ incomePauses: [pauseOf({})], runwayMonths: 0.4 })).ordered[0].runwayMonths).toBe(0.4);
   });
 });
 

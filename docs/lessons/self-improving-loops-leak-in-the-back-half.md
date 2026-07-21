@@ -48,3 +48,17 @@ ordering the evidence itself carries.
 - A false *retire* costs the user nothing (the question returns to the route it had before it was ever
   learned); a false *promote* puts a true figure under a false question. That asymmetry is what licenses
   zero-tolerance reversion: one disagreement is enough.
+
+## Extended #251 — a consent-retirement rule inferred from ¬condition inherits every gate of the condition
+
+The income-pause radar's whole design budget went to the alarm's precision gates — and they survived the
+critic untouched. The P1 was in the back half again: "resumed" (which both *deleted the user's consent
+row* and *re-projected the income*) was implemented as ¬lapsed, and `lapsed` carried the ALARM's gates
+(occurrence floor, amount floor, aggregate exclusion). So a provider deleting one historical row — a
+routine sync event — dropped the series below the occurrence floor and read as "resumption": consent
+deleted, phantom income projected, no feed row left to disclose either. **Generalize:** alarm gates and
+standing consent answer different questions; a rule that RETIRES a user's explicit state may only fire on
+positive, date-fresh evidence of the thing it claims happened (here: an actual new deposit), never on the
+negation of a compound predicate. And the disclosure row must ride the SAME predicate as the mutation it
+discloses, or a gate flicker hides an active money mutation (#251 F1/F4; fixed via one shared
+`confirmedPauseState`).

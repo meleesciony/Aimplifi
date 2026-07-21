@@ -68,6 +68,7 @@ model User {
   vocabEntries        VocabEntry[]
   engagementEvents    EngagementEvent[]
   nudgeDismissals     NudgeDismissal[]
+  incomePauseConfirmations IncomePauseConfirmation[]
   selfAuditSnapshots  SelfAuditSnapshot[]
   householdMembership HouseholdMember? // v1: at most one household per user (HOUSEHOLD_ARCHITECTURE §4.1)
 }
@@ -663,6 +664,26 @@ model NudgeDismissal {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, dismissKey])
+  @@index([userId])
+}
+
+// Income-Pause Radar (#251, AI plan §Later #20): the user's explicit confirmation
+// that a detected recurring income series has genuinely paused. This is the
+// confirmation GATE for plan mutation: only a confirmed pause is excluded from the
+// detected ScheduledTransaction projections (server/recurring.ts) — the radar alone
+// never mutates a projection (a merely-late paycheck must not flip cash-needed into
+// a false alarm). A confirmation is INERT the moment the series stops being lapsed
+// (income resumed — lapse is recomputed from the series itself, never trusted from
+// this row), and refreshRecurringForUser deletes the stale row then. The shared demo
+// user never writes here (same fence as NudgeDismissal — see server/income-pause.ts).
+model IncomePauseConfirmation {
+  id                String   @id @default(cuid())
+  userId            String
+  merchantCanonical String // the paused series' canonical merchant (engine-minted)
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, merchantCanonical])
   @@index([userId])
 }
 
