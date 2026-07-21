@@ -1,0 +1,111 @@
+'use client';
+
+/**
+ * Plaid connections manager (#256) — one row per linked bank (Plaid item) with a
+ * two-tap Disconnect. Complements ConnectAccountsButton (the link front door):
+ * before this, `/item/remove` existed in the provider but had NO surface, so a
+ * user could connect a bank and never sever it (the gap #253 recorded as
+ * "unblocks when a Plaid item-disconnect action exists").
+ *
+ * Disconnect keeps already-synced accounts and history (the SimpleFIN
+ * precedent); the success message says so and points at the now-available
+ * per-account Delete controls. Reliable-mutation recipe: success confirms with a
+ * FULL reload, and the confirmation text rides flash('accounts') across it.
+ */
+import { useState } from 'react';
+import { setFlash } from '@/components/finance/flash';
+import { disconnectPlaidItem } from '@/server/plaid-actions';
+
+export interface PlaidItemView {
+  itemId: string;
+  institution: string | null;
+  lastSyncedAt: string | null;
+}
+
+export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (items.length === 0) return null;
+
+  function disconnect(itemId: string) {
+    if (pending) return;
+    setError(null);
+    setPending(true);
+    void (async () => {
+      try {
+        const r = await disconnectPlaidItem(itemId);
+        if (!r.ok) {
+          setError(r.error ?? 'Something went wrong.');
+          setPending(false);
+          setConfirmId(null);
+          return;
+        }
+        setFlash('accounts', r.message ?? 'Bank disconnected.');
+        // Reload, not router.refresh() — the re-rendered page can't lie (the
+        // Delete controls this disconnect unlocks must appear). `pending` stays
+        // true so the controls remain disabled until the new page paints.
+        window.location.reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Something went wrong.');
+        setPending(false);
+        setConfirmId(null);
+      }
+    })();
+  }
+
+  return (
+    <div className="space-y-1" data-testid="plaid-connections">
+      {items.map((item) => (
+        <div key={item.itemId} className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground" data-testid="plaid-item-status">
+            Plaid: {item.institution ?? 'Connected bank'} ·{' '}
+            {item.lastSyncedAt ? `last synced ${item.lastSyncedAt}` : 'not synced yet'}
+          </span>
+          {confirmId !== item.itemId ? (
+            <button
+              type="button"
+              data-testid="plaid-disconnect"
+              aria-label={`Disconnect ${item.institution ?? 'this bank'} (Plaid)`}
+              disabled={pending}
+              onClick={() => setConfirmId(item.itemId)}
+              className="rounded-md border px-2 py-1 text-xs text-red-400 hover:bg-accent disabled:opacity-50"
+            >
+              Disconnect
+            </button>
+          ) : (
+            <span className="flex items-center gap-1 text-xs" data-testid="plaid-disconnect-confirm-row">
+              <span className="text-muted-foreground">
+                Disconnect? Synced accounts and history are kept.
+              </span>
+              <button
+                type="button"
+                data-testid="plaid-disconnect-confirm"
+                aria-label={`Yes, disconnect ${item.institution ?? 'this bank'}`}
+                disabled={pending}
+                onClick={() => disconnect(item.itemId)}
+                className="rounded px-1.5 py-0.5 text-red-400 hover:bg-accent disabled:opacity-50"
+              >
+                {pending ? 'Disconnecting…' : 'Yes'}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setConfirmId(null)}
+                className="rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </span>
+          )}
+        </div>
+      ))}
+      {error && (
+        <p role="alert" className="text-xs text-red-400" data-testid="plaid-disconnect-error">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}

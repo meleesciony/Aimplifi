@@ -24,6 +24,7 @@ import type { JWK } from 'jose';
 import type { ISODate } from '@/lib/dates';
 import { businessToday } from '@/lib/business-today';
 import { decryptToken, encryptToken } from '@/lib/crypto';
+import { isDemoUser } from '@/lib/demo-user';
 import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
 import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
 import { safeSyncErrorReason } from '@/lib/providers/sync-status';
@@ -204,7 +205,7 @@ export class PlaidProvider implements DataProvider {
     const { accounts } = await plaidPost<{ accounts: PlaidAccount[] }>('/accounts/get', {
       access_token: token,
     });
-    await this.upsertPlaidAccounts(userId, accounts);
+    await this.upsertPlaidAccounts(userId, accounts, itemId);
   }
 
   /**
@@ -213,7 +214,12 @@ export class PlaidProvider implements DataProvider {
    * (e.g. the documented `other`) is skipped + audited rather than aborting the
    * whole item link/sync — a single odd account must never block every other one.
    */
-  private async upsertPlaidAccounts(userId: string, accounts: readonly PlaidAccount[]): Promise<void> {
+  private async upsertPlaidAccounts(
+    userId: string,
+    accounts: readonly PlaidAccount[],
+    /** The owning Plaid item — stamped so the delete guard can tell whose sync would resurrect a row (#256). */
+    itemId: string,
+  ): Promise<void> {
     for (const a of accounts) {
       let m: ReturnType<typeof mapPlaidAccount>;
       try {
@@ -247,6 +253,9 @@ export class PlaidProvider implements DataProvider {
         currency: m.currency,
         availableBalanceCents: m.availableBalanceCents,
         creditLimitCents: m.creditLimitCents,
+        // Written on update too, so rows created before #256 back-fill their item
+        // linkage on the first sync after deploy.
+        plaidItemId: itemId,
       };
       const existing = await prisma.account.findFirst({
         where: { userId, provider: 'plaid', providerRef: m.providerRef },
@@ -347,7 +356,7 @@ export class PlaidProvider implements DataProvider {
           // transaction for an account added to the item AFTER link is never silently
           // dropped while the cursor advances past it (a permanent ledger gap).
           if (page.accounts && page.accounts.length > 0) {
-            await this.upsertPlaidAccounts(userId, page.accounts);
+            await this.upsertPlaidAccounts(userId, page.accounts, item.itemId);
             idByPlaidId = await this.plaidAccountIdMap(userId);
           }
 
@@ -856,8 +865,30 @@ export class PlaidProvider implements DataProvider {
 
   /** Data deletion (docs/PRIVACY.md): revoke each item at Plaid, then cascade. */
   async removeItem(userId: string, itemId: string): Promise<void> {
+    // Demo fence in the CORE (fence-by-construction; #256 critic P2-3): the shared
+    // demo row owns no PlaidItem today, but a mutation this destructive must be
+    // safe by construction, not by data — every current and future caller inherits it.
+    if (isDemoUser(userId)) return;
     const items = await prisma.plaidItem.findMany({ where: { userId, itemId } });
     for (const item of items) {
+      // Best-effort item→account stamping BEFORE the token is revoked (#256): rows
+      // created before plaidItemId existed may not have re-synced yet, and after
+      // /item/remove the linkage is unrecoverable. A failed /accounts/get (e.g. a
+      // long-broken login) is non-fatal — unstamped rows just stay on the
+      // conservative zero-items delete rule.
+      try {
+        const token = decryptToken(item.accessToken);
+        const { accounts } = await plaidPost<{ accounts: { account_id: string }[] }>(
+          '/accounts/get',
+          { access_token: token },
+        );
+        await prisma.account.updateMany({
+          where: { userId, provider: 'plaid', providerRef: { in: accounts.map((a) => a.account_id) } },
+          data: { plaidItemId: itemId },
+        });
+      } catch {
+        // stamping is an optimization for delete-precision, never a blocker for revocation
+      }
       await plaidPost('/item/remove', { access_token: decryptToken(item.accessToken) });
     }
     await prisma.plaidItem.deleteMany({ where: { userId, itemId } });

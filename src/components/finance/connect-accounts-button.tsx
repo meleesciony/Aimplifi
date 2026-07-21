@@ -29,6 +29,10 @@ export function ConnectAccountsButton() {
   const [wantOpen, setWantOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // #256: Plaid's SANDBOX rejects real-world input inside its own Link UI (real
+  // bank logins, real phone numbers) — without this disclosure that reads as a
+  // broken app rather than test mode.
+  const [sandbox, setSandbox] = useState(false);
 
   const onSuccess = useCallback(
     (publicToken: string) => {
@@ -89,6 +93,7 @@ export function ConnectAccountsButton() {
         setError(r.error ?? 'Could not start bank linking.');
         return;
       }
+      setSandbox(r.sandbox === true);
       setToken(r.linkToken);
       // Persist for a possible OAuth round-trip: an OAuth bank navigates the
       // browser away (destroying this component's state), and /plaid-oauth needs
@@ -116,6 +121,16 @@ export function ConnectAccountsButton() {
       >
         {busy ? 'Connecting…' : '+ Connect a bank or brokerage (Plaid)'}
       </button>
+      {sandbox && (
+        <p data-testid="plaid-sandbox-notice" className="text-[11px] text-amber-300/80">
+          Plaid is running in <b>sandbox (test) mode</b>: real banks, real logins, and real phone
+          numbers won’t work inside the Plaid window — its own screens reject them. Use Plaid’s
+          documented sandbox test credentials (e.g. user <span className="font-mono">user_good</span> /
+          password <span className="font-mono">pass_good</span>) and its sandbox test phone number for
+          any SMS step. To link a real bank, the operator must set production Plaid keys
+          (<span className="font-mono">PLAID_ENV=production</span>).
+        </p>
+      )}
       {error && (
         <p role="alert" data-testid="connect-error" className="text-xs text-red-400">
           {error}

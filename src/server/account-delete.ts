@@ -1,23 +1,27 @@
 /**
- * Synced-account deletion (#253). SimpleFIN keeps already-synced accounts after a
- * disconnect (deliberately — the history is the user's), but until this slice
- * nothing could remove them: the Delete control was manual-only
- * (`ownedManualAccount`), while the disconnect message told the user to "delete
- * any you don't want counted from the lists above" — a control that did not
- * exist (the #221 live-claim class). This module is the missing capability.
+ * Synced-account deletion (#253 SimpleFIN, #256 extended to Plaid). Both
+ * providers keep already-synced accounts after a disconnect (deliberately — the
+ * history is the user's); this module is the capability that removes the ones
+ * the user doesn't want counted.
  *
  * Rules:
  *  - Owner-scoped; the shared demo row can never delete. The fence lives HERE in
  *    the core, not the action wrapper, so every caller inherits it
  *    (fence-by-construction lesson).
- *  - SimpleFIN provider rows only. Manual rows have their own delete path;
- *    Plaid has no disconnect flow yet, so its "disconnected" precondition is
- *    unreachable (recorded limitation, STATUS #253); demo/seed rows are never
- *    user-deletable.
- *  - REFUSED while the SimpleFIN connection is live: sync pass 1
- *    (providers/simplefin.ts) re-creates any feed account it doesn't find by
- *    providerRef, so a "deleted" row would silently resurrect on the next sync.
- *    Requiring disconnect-first makes the deletion real instead of a lie.
+ *  - Synced provider rows only ('simplefin' | 'plaid'). Manual rows have their
+ *    own delete path; demo/seed rows are never user-deletable.
+ *  - REFUSED while a sync could resurrect the row: sync pass 1 re-creates any
+ *    feed account it doesn't find by providerRef, so a "delete" under a live
+ *    connection would silently come back. The refusal rule is the shared
+ *    `syncedDeleteBlockReason` predicate — the SAME function the /accounts view
+ *    uses to decide whether to show the Delete control, so the guard reads
+ *    exactly what it guards:
+ *      · simplefin: the (single) SimpleFinConnection row must be gone.
+ *      · plaid, with item linkage (plaidItemId): THAT item must be gone — other
+ *        banks' live connections don't block, they can't resurrect this row.
+ *      · plaid, without linkage (row not re-synced since #256 shipped): the
+ *        conservative rule — every Plaid item must be gone, because we cannot
+ *        prove which one owns the row.
  *  - Deleting cascades the account's transactions / statements / snapshots /
  *    holdings / scheduled rows (schema `onDelete: Cascade`). If the deleted row
  *    was the designated payment account, that dial is cleared in the same
@@ -37,7 +41,31 @@ export interface DeleteSyncedAccountResult {
 const DISCONNECT_FIRST =
   'Disconnect the bank first (Bank sync, below) — while it’s connected, the next sync would just bring this account back.';
 
-export async function deleteDisconnectedSimplefinAccountFor(
+/**
+ * The single deletable/refused rule, shared by the /accounts view (whether to
+ * render the Delete control) and the transaction guard below (whether to commit).
+ * Returns null when deletable, else the user-facing refusal reason.
+ * Pure — callers supply the connection state they read.
+ */
+export function syncedDeleteBlockReason(
+  account: { provider: string; plaidItemId: string | null },
+  ctx: { simplefinConnected: boolean; plaidItemIds: readonly string[] },
+): string | null {
+  if (account.provider === 'simplefin') {
+    return ctx.simplefinConnected ? DISCONNECT_FIRST : null;
+  }
+  if (account.provider === 'plaid') {
+    if (account.plaidItemId !== null) {
+      return ctx.plaidItemIds.includes(account.plaidItemId) ? DISCONNECT_FIRST : null;
+    }
+    // No item linkage recorded — refuse while ANY item remains (conservative:
+    // one of them may own this row and would resurrect it on its next sync).
+    return ctx.plaidItemIds.length > 0 ? DISCONNECT_FIRST : null;
+  }
+  return 'Only bank-synced accounts can be deleted here.';
+}
+
+export async function deleteDisconnectedSyncedAccountFor(
   userId: string,
   accountId: string,
   today: ISODate,
@@ -45,27 +73,41 @@ export async function deleteDisconnectedSimplefinAccountFor(
   if (isDemoUser(userId)) return { ok: false, errors: [DEMO_ENTRY_BLOCKED] };
   const a = await prisma.account.findFirst({
     where: { id: accountId, userId },
-    select: { id: true, provider: true },
+    select: { id: true, provider: true, plaidItemId: true },
   });
   if (!a) return { ok: false, errors: ['Account not found.'] };
-  if (a.provider !== 'simplefin') {
-    return { ok: false, errors: ['Only SimpleFIN-synced accounts can be deleted here.'] };
+  if (a.provider !== 'simplefin' && a.provider !== 'plaid') {
+    return { ok: false, errors: ['Only bank-synced accounts can be deleted here.'] };
   }
-  // The connection check lives INSIDE the transaction (#253 critic F2): checked
-  // before it, a reconnect landing in the gap would delete-then-resurrect — the
-  // exact lie the guard exists to prevent. Inside, the check and the delete
-  // commit or refuse together.
-  const refused = await prisma.$transaction(async (tx) => {
-    const conn = await tx.simpleFinConnection.findUnique({ where: { userId } });
-    if (conn) return true;
+  // EVERY input the predicate judges is re-read INSIDE the transaction (#253
+  // critic F2, re-found as #256 critic P1-1): the connection state AND the
+  // account's own linkage row. Judged from a pre-transaction snapshot, a
+  // concurrent re-link/sync stamping `plaidItemId` to a live item in the gap
+  // would delete-then-resurrect — the exact lie the guard exists to prevent.
+  // Inside, the check and the delete commit or refuse together.
+  const blockReason = await prisma.$transaction(async (tx) => {
+    const [fresh, conn, items] = await Promise.all([
+      tx.account.findFirst({
+        where: { id: accountId, userId },
+        select: { provider: true, plaidItemId: true },
+      }),
+      tx.simpleFinConnection.findUnique({ where: { userId } }),
+      tx.plaidItem.findMany({ where: { userId }, select: { itemId: true } }),
+    ]);
+    if (!fresh) return 'Account not found.';
+    const reason = syncedDeleteBlockReason(fresh, {
+      simplefinConnected: conn !== null,
+      plaidItemIds: items.map((i) => i.itemId),
+    });
+    if (reason) return reason;
     await tx.account.delete({ where: { id: accountId } });
     await tx.user.updateMany({
       where: { id: userId, paymentAccountId: accountId },
       data: { paymentAccountId: null },
     });
-    return false;
+    return null;
   });
-  if (refused) return { ok: false, errors: [DISCONNECT_FIRST] };
+  if (blockReason) return { ok: false, errors: [blockReason] };
   // Recompute recurring series + scheduled projections now that the account's
   // history is gone (#253 critic F3): with the connection disconnected, no sync
   // remains to trigger this — without it, stale RecurringSeries rows for the

@@ -54,6 +54,37 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Plaid Disconnect & Account Deletion + Sandbox Disclosure (2026-07-21) — #256, owner request
+
+Owner hit both live: Plaid Link rejected their real phone number, and /accounts had
+no way to disconnect specific accounts. (1) The phone rejection is Plaid's own
+sandbox Link UI — we pass no phone/identity config at all (`linkTokenParams`); with
+sandbox keys, Link accepts only Plaid test input. The connect button now shows an
+inline sandbox notice (`plaid-sandbox-notice`) whenever the minted token came from a
+non-production `PLAID_ENV`, naming test credentials and the production-keys
+requirement for real banks. (2) Shipped the per-bank Plaid **Disconnect**
+(`disconnectPlaidItem` → provider `removeItem`: best-effort account→item stamping,
+revoke at Plaid, delete `PlaidItem`, audit) + per-account **Delete** for Plaid rows
+once their owning connection is gone — closing #253's recorded limitation 1. The
+refusal/affordance rule is ONE shared predicate (`syncedDeleteBlockReason`, read by
+both `getAccountsView` and inside the delete transaction): simplefin = connection
+gone; plaid with `Account.plaidItemId` linkage (additive column, stamped on every
+sync) = THAT item gone; plaid without linkage = conservative all-items-gone.
+Integration-locked 14/14 (`account-delete-server.test.ts` — old 6 + P1–P4 Plaid
+contract + predicate matrix); account-deletion e2e 4/4; connection-health e2e 3/3.
+Detail: DECISIONS #256.
+
+**Recorded limitations (#256):**
+1. Disconnect granularity is per-BANK (Plaid item), not per-account — Plaid revokes
+   at item level; a per-account "stop syncing" flag would need schema + sync-filter
+   work and was not requested.
+2. The sandbox notice names `user_good`/`pass_good` but deliberately not a sandbox
+   test PHONE number — Plaid's test values are theirs to document, and pinning one
+   we cannot verify risks shipping a wrong "fact" (no-fabrication rule); the notice
+   points at Plaid's Sandbox docs.
+3. Unstamped legacy rows (never re-synced since `plaidItemId` shipped) use the
+   conservative all-items-gone rule; one successful sync or a disconnect back-fills.
+
 ## Scenario Coherence Engine (2026-07-21) — #255, AI plan §Later #13 slice 1
 
 Owner-chosen at the #252 fork (preempted twice by #253/#254 interjects, resumed on
@@ -145,10 +176,9 @@ F5's actionable half fixed (per-account aria-labels; STATUS wording above made
 honest).
 
 **Recorded limitations & residuals (#253):**
-1. **Plaid accounts still have no delete path** — Plaid has no disconnect flow at
-   all, so the "disconnected" precondition is unreachable; extending deletion there
-   without one would ship the resurrection lie. Unblocks when a Plaid
-   item-disconnect action exists.
+1. ~~**Plaid accounts still have no delete path**~~ — **CLOSED by #256** (the Plaid
+   item-disconnect action this limitation named now exists; see §Plaid Disconnect &
+   Account Deletion above).
 2. **Reconnecting the same bank re-syncs a deleted account** (by design — the feed
    is authoritative while connected; deletion is honest only for disconnected
    history).

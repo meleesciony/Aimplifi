@@ -51,6 +51,33 @@ statement, so the cash-needed assembler uses its estimate path (same as a card
 whose statement hasn't closed). Demo mode is entirely unaffected by all of the
 above. Run §5 to validate before trusting this with real money.
 
+## Sandbox rejects REAL input inside Link (#256 — owner hit this live)
+
+With `PLAID_ENV=sandbox` (the default), Plaid's hosted Link UI only accepts
+Plaid's own **test** input. A real bank search may work, but real credentials are
+rejected, and a **real phone number on Link's SMS step is rejected by Plaid
+itself** ("phone number is invalid") — nothing in our code sees or validates the
+phone number (we send no `user.phone_number` and no identity-verification config
+in `/link/token/create`; see `linkTokenParams` in `src/lib/providers/plaid.ts`).
+Use Plaid's documented sandbox test credentials (`user_good` / `pass_good`) and
+Plaid's documented sandbox test phone number / OTP for any SMS step (see Plaid's
+Sandbox docs — the values are Plaid's, not ours, so they are not pinned here).
+Linking a REAL bank requires production keys (`PLAID_ENV=production`). The
+connect button now shows this notice inline whenever the minted link token came
+from a non-production environment (`plaid-sandbox-notice`).
+
+## Disconnecting a bank (#256)
+
+Each linked Plaid item renders a row on /accounts ("Plaid: <institution> · last
+synced …") with a two-tap **Disconnect** — `disconnectPlaidItem` revokes the
+access token at Plaid (`/item/remove`), deletes the local `PlaidItem`, and keeps
+already-synced accounts + history (the SimpleFIN precedent). Once an item is
+gone, its accounts grow the per-account **Delete** control (#253's guard, now
+reachable for Plaid): a row deletes only when the connection that could
+resurrect it is gone — per-item precision via `Account.plaidItemId` (stamped on
+every sync and best-effort at disconnect), with a conservative all-items-gone
+rule for legacy rows that never re-synced after the column shipped.
+
 ## 1. Credentials
 
 1. Create a free account at <https://dashboard.plaid.com> → get the sandbox

@@ -22,6 +22,7 @@ import {
 } from '@/lib/providers/currency';
 import { businessToday } from '@/lib/business-today';
 import { isoDate } from '@/lib/dates';
+import { syncedDeleteBlockReason } from '@/server/account-delete';
 import { type FreshnessResult, classifyFreshness, perAccountFreshness } from '@/lib/engine/sync/health';
 import {
   type AccountView,
@@ -240,6 +241,9 @@ export interface AccountsView extends AccountsSummary {
   /** SimpleFIN bank-sync connection status (ROADMAP: cheaper Plaid alternative).
    *  `health` grades how recently the connection last synced (Gap 1 §3). */
   simplefin: { connected: boolean; lastSyncedAt: string | null; health: FreshnessResult };
+  /** Plaid bank connections (#256) — one row per linked item, for the per-bank
+   *  Disconnect control. Empty for users with no Plaid links. */
+  plaid: { items: { itemId: string; institution: string | null; lastSyncedAt: string | null }[] };
   /** What the currency guard withheld — drives the disclosure banner (#135 residual). */
   withheld: WithheldAccountSummary;
   /** Suspected same-account-via-two-providers pairs (DECISIONS #192). Advisory only — the
@@ -249,7 +253,7 @@ export interface AccountsView extends AccountsSummary {
 
 /** Every account, grouped into assets vs liabilities with net worth + trend. */
 export async function getAccountsView(userId: string): Promise<AccountsView> {
-  const [user, accounts, snapshots, statements, autopays, sfConn, newestByAccount] = await Promise.all([
+  const [user, accounts, snapshots, statements, autopays, sfConn, plaidItems, newestByAccount] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
     prisma.balanceSnapshot.findMany({
@@ -266,6 +270,11 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       select: { accountId: true, mode: true, fixedAmountCents: true },
     }),
     prisma.simpleFinConnection.findUnique({ where: { userId }, select: { lastSyncedAt: true } }),
+    prisma.plaidItem.findMany({
+      where: { userId },
+      select: { itemId: true, institution: true, lastSyncedAt: true },
+      orderBy: { createdAt: 'asc' },
+    }),
     // Newest transaction date per account — the per-row freshness reference (Gap 1 §3
     // follow-up). One grouped query rather than N per-account reads.
     prisma.transaction.groupBy({ by: ['accountId'], where: { account: { userId } }, _max: { date: true } }),
@@ -275,6 +284,13 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   // subtotals and net-worth trend match the dashboard headline, which excludes them (no FX).
   // Null-currency (demo / manual / legacy) is assumed USD → golden-safe no-op.
   const supported = accounts.filter((a) => isSupportedCurrency(a.currency));
+  // Delete affordance (#253/#256): computed with the SAME predicate the delete
+  // action enforces inside its transaction, so the UI never promises a delete
+  // the guard would refuse (a guard must read what it guards).
+  const deleteCtx = {
+    simplefinConnected: sfConn !== null,
+    plaidItemIds: plaidItems.map((i) => i.itemId),
+  };
   const views: AccountView[] = supported.map((a) => ({
     id: a.id,
     name: a.name,
@@ -283,6 +299,9 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     currentBalanceCents: a.currentBalanceCents,
     manual: a.provider === 'manual',
     provider: a.provider,
+    deletable:
+      (a.provider === 'simplefin' || a.provider === 'plaid') &&
+      syncedDeleteBlockReason({ provider: a.provider, plaidItemId: a.plaidItemId }, deleteCtx) === null,
   }));
 
   // Newest statement per account (orderBy cycleEnd desc → first seen wins).
@@ -344,6 +363,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       lastSyncedAt: sfConn?.lastSyncedAt ?? null,
       health: classifyFreshness(sfConn?.lastSyncedAt ? isoDate(sfConn.lastSyncedAt) : null, today),
     },
+    plaid: { items: plaidItems },
     // The unfiltered rows are already in hand, so the disclosure costs no extra query.
     withheld: summarizeWithheldAccounts(accounts),
     // Computed over the accounts actually shown (same currency guard as the page), so the

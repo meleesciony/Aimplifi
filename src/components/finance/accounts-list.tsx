@@ -13,6 +13,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { ConnectSimplefin } from '@/components/finance/connect-simplefin';
+import { PlaidConnections } from '@/components/finance/plaid-connections';
 import {
   ManualCardStatementForm,
   type ManualStatementFormValues,
@@ -25,7 +26,7 @@ import type { SuspectedDuplicatePair } from '@/lib/engine/account/duplicates';
 import { freshnessMessage } from '@/lib/engine/sync/health';
 import {
   addManualAccount,
-  deleteDisconnectedSimplefinAccount,
+  deleteDisconnectedSyncedAccount,
   deleteManualAccount,
   updateManualAccountValue,
 } from '@/server/networth-actions';
@@ -258,8 +259,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
         onEdit={setEditingId}
         onSaveValue={(accountId, value) => refreshAfter(() => updateManualAccountValue({ accountId, value }))}
         onDelete={(accountId) => refreshAfter(() => deleteManualAccount(accountId))}
-        onDeleteSynced={(accountId) => refreshAfter(() => deleteDisconnectedSimplefinAccount(accountId))}
-        simplefinConnected={data.simplefin.connected}
+        onDeleteSynced={(accountId) => refreshAfter(() => deleteDisconnectedSyncedAccount(accountId))}
         onCancelEdit={() => setEditingId(null)}
         onEditStatement={(id) => { setStatementCardId(id); setError(null); setSuccess(null); }}
         onSaveStatement={(accountId, values) => refreshAfter(() => setManualCardStatement({ accountId, ...values }), 'Statement saved — this card is now in your “how much & when” answer.')}
@@ -277,8 +277,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
         onEdit={setEditingId}
         onSaveValue={(accountId, value) => refreshAfter(() => updateManualAccountValue({ accountId, value }))}
         onDelete={(accountId) => refreshAfter(() => deleteManualAccount(accountId))}
-        onDeleteSynced={(accountId) => refreshAfter(() => deleteDisconnectedSimplefinAccount(accountId))}
-        simplefinConnected={data.simplefin.connected}
+        onDeleteSynced={(accountId) => refreshAfter(() => deleteDisconnectedSyncedAccount(accountId))}
         onCancelEdit={() => setEditingId(null)}
         onEditStatement={(id) => { setStatementCardId(id); setError(null); setSuccess(null); }}
         onSaveStatement={(accountId, values) => refreshAfter(() => setManualCardStatement({ accountId, ...values }), 'Statement saved — this card is now in your “how much & when” answer.')}
@@ -288,6 +287,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
 
       {/* Link real accounts: SimpleFIN (cheaper, no Plaid gatekeeping) or Plaid */}
       <ConnectSimplefin connected={data.simplefin.connected} health={data.simplefin.health} />
+      <PlaidConnections items={data.plaid.items} />
       <ConnectAccountsButton />
 
       {/* Add manual items */}
@@ -401,7 +401,6 @@ function Group({
   editingId,
   statementCardId,
   pending,
-  simplefinConnected,
   onEdit,
   onSaveValue,
   onDelete,
@@ -419,7 +418,6 @@ function Group({
   editingId: string | null;
   statementCardId: string | null;
   pending: boolean;
-  simplefinConnected: boolean;
   onEdit: (id: string) => void;
   onSaveValue: (id: string, value: string) => void;
   onDelete: (id: string) => void;
@@ -468,9 +466,11 @@ function Group({
                 account={a}
                 isLiability={isLiability}
                 isPaymentAccount={a.id === paymentAccountId}
-                // Deletable ONLY once the bank is disconnected — while connected,
-                // the next sync would re-create the row (see account-delete.ts).
-                deletable={a.provider === 'simplefin' && !simplefinConnected}
+                // Deletable ONLY once its bank connection is disconnected — while
+                // connected, the next sync would re-create the row. Computed
+                // SERVER-side with the same predicate the delete action enforces
+                // (#253/#256, account-delete.ts syncedDeleteBlockReason).
+                deletable={a.deletable ?? false}
                 pending={pending}
                 onDelete={() => onDeleteSynced(a.id)}
               />

@@ -7,7 +7,7 @@
  * edit or delete a LINKED (seed/Plaid) account through these. Audit-logged;
  * revalidates the accounts + dashboard net worth.
  *
- * Plus one non-manual deletion (#253): `deleteDisconnectedSimplefinAccount`, a
+ * Plus one non-manual deletion (#253/#256): `deleteDisconnectedSyncedAccount`, a
  * thin wrapper over the guarded core in account-delete.ts (SimpleFIN rows only,
  * refused while the connection is live — see that module's docstring).
  */
@@ -17,7 +17,7 @@ import { prisma } from '@/lib/db';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { parseManualAccount, parseManualValueCents } from '@/lib/engine/networth/manual';
 import { getProvider } from '@/lib/providers/demo';
-import { deleteDisconnectedSimplefinAccountFor } from '@/server/account-delete';
+import { deleteDisconnectedSyncedAccountFor } from '@/server/account-delete';
 import { auditLog, requireUserId } from '@/server/authz';
 
 export interface ManualResult {
@@ -84,16 +84,17 @@ export async function deleteManualAccount(accountId: string): Promise<ManualResu
   return { ok: true };
 }
 
-/** Delete a SimpleFIN-synced account after the bank is disconnected (#253).
- *  All guards (ownership, provider, live-connection refusal, demo fence) live in
- *  the core so tests and any future caller inherit them. Revalidates the pages
- *  whose numbers the cascade changes — /transactions too, since the account's
- *  transaction history goes with it. */
-export async function deleteDisconnectedSimplefinAccount(accountId: string): Promise<ManualResult> {
+/** Delete a bank-synced (SimpleFIN or Plaid) account after its connection is
+ *  disconnected (#253, extended to Plaid in #256). All guards (ownership,
+ *  provider, resurrection refusal, demo fence) live in the core so tests and any
+ *  future caller inherit them. Revalidates the pages whose numbers the cascade
+ *  changes — /transactions too, since the account's transaction history goes
+ *  with it. */
+export async function deleteDisconnectedSyncedAccount(accountId: string): Promise<ManualResult> {
   const userId = await requireUserId();
-  const res = await deleteDisconnectedSimplefinAccountFor(userId, accountId, isoDate(getProvider().today(userId)));
+  const res = await deleteDisconnectedSyncedAccountFor(userId, accountId, isoDate(getProvider().today(userId)));
   if (res.ok) {
-    await auditLog(userId, 'account.simplefin.delete', { id: accountId });
+    await auditLog(userId, 'account.synced.delete', { id: accountId });
     revalidatePath('/accounts');
     revalidatePath('/dashboard');
     revalidatePath('/transactions');

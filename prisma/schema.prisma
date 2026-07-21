@@ -158,6 +158,7 @@ model Account {
   minimumPaymentCents   Int? // non-card LOAN/MORTGAGE: fixed monthly payment (cards use Statement.minimumPaymentCents)
   dueDayOfMonth         Int? // credit cards: issuer due day (e.g. 15, 28)
   cycleCloseDayOfMonth  Int? // credit cards: statement close day
+  plaidItemId           String? // #256: the Plaid item (bank connection) this account belongs to. Stamped on every Plaid account upsert AND best-effort at item disconnect; null on non-Plaid rows and on rows not yet re-synced since this column shipped. Read by the synced-account delete guard: a null linkage falls back to the conservative zero-items rule (see server/account-delete.ts).
   sharedToHousehold     Boolean @default(false) // owner-consented read-only share into the owner's CURRENT household (HOUSEHOLD_ARCHITECTURE §4.1). Deliberately names no household: visibility requires BOTH this flag AND live membership, so departure ends visibility instantly. Read via `partnerSharedAccountsWhere`/`visibleAccountsWhere` (src/server/authz.ts) ONLY (4.2 slice 2).
 
   autopay      AutopayConfig?

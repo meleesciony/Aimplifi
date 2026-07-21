@@ -205,6 +205,11 @@ export interface AccountView {
    *  sync feed (manual/demo) or is holdings-valued (INVESTMENT); set for SimpleFIN/Plaid
    *  rows so /accounts can show a "synced N days ago" / reconnect line per account. */
   freshness?: FreshnessResult | null;
+  /** Synced rows only (#253/#256): true when the Delete control may render — the
+   *  server computes it with the SAME predicate the delete guard enforces
+   *  (syncedDeleteBlockReason), so the UI can never promise a delete the action
+   *  would refuse. Absent on surfaces that don't set it. */
+  deletable?: boolean;
 }
 
 export interface AccountGroup {

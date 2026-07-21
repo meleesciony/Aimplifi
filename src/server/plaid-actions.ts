@@ -8,6 +8,7 @@
  * preserving the zero-credential demo.
  */
 import { revalidatePath } from 'next/cache';
+import { prisma } from '@/lib/db';
 import { DEMO_CONNECT_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { PlaidProvider } from '@/lib/providers/plaid';
 import { requireUserId } from '@/server/authz';
@@ -15,6 +16,13 @@ import { requireUserId } from '@/server/authz';
 export interface LinkTokenResult {
   ok: boolean;
   linkToken?: string;
+  /**
+   * True when PLAID_ENV is Plaid's sandbox (#256): the hosted Link UI then only
+   * accepts Plaid's documented TEST credentials — a real bank login or a real
+   * phone number is rejected by Plaid itself, which reads as a broken app unless
+   * the UI says so up front.
+   */
+  sandbox?: boolean;
   error?: string;
 }
 
@@ -41,7 +49,7 @@ export async function createPlaidLinkToken(): Promise<LinkTokenResult> {
       return { ok: false, error: 'Bank linking isn’t configured yet (Plaid keys not set).' };
     }
     const linkToken = await new PlaidProvider().createLinkToken(userId);
-    return { ok: true, linkToken };
+    return { ok: true, linkToken, sandbox: (process.env.PLAID_ENV ?? 'sandbox') !== 'production' };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Could not start bank linking.' };
   }
@@ -83,5 +91,44 @@ export async function linkPlaidAccount(publicToken: string): Promise<LinkResult>
     return { ok: true, added };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Could not link your accounts.' };
+  }
+}
+
+export interface DisconnectItemResult {
+  ok: boolean;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * Disconnect one Plaid bank connection (#256): revoke the item's access token at
+ * Plaid and delete the local PlaidItem row. Already-synced accounts and their
+ * history are KEPT (the SimpleFIN disconnect precedent — the history is the
+ * user's); once the item is gone, those accounts become deletable on /accounts
+ * (the #253 guard's precondition, previously unreachable for Plaid).
+ *
+ * The provider's removeItem stamps account→item linkage best-effort BEFORE
+ * revoking, revokes at Plaid, deletes the row, and writes its own audit entry.
+ * Ownership is enforced by removeItem's user-scoped query: someone else's itemId
+ * simply matches nothing.
+ */
+export async function disconnectPlaidItem(itemId: string): Promise<DisconnectItemResult> {
+  try {
+    const userId = await requireUserId();
+    if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
+    if (!plaidConfigured()) return { ok: false, error: 'Bank linking isn’t configured yet.' };
+    if (!itemId || typeof itemId !== 'string') return { ok: false, error: 'Missing connection id.' };
+    const item = await prisma.plaidItem.findFirst({ where: { userId, itemId }, select: { id: true } });
+    if (!item) return { ok: false, error: 'Connection not found.' };
+    await new PlaidProvider().removeItem(userId, itemId);
+    revalidatePath('/accounts');
+    revalidatePath('/dashboard');
+    return {
+      ok: true,
+      message:
+        'Bank disconnected. Your already-synced accounts and history are kept (they just won’t update). A Delete control appears next to each account no connected bank could bring back — remove any you don’t want counted.',
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Could not disconnect this bank.' };
   }
 }
