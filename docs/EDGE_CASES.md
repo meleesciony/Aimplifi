@@ -1059,6 +1059,67 @@ FK to `Account` is declared, so deleting an underlying account leaves the link r
 ignores the dangling ref (proven in slice 3). The demo user is fenced in the core (defense in depth; demo
 rows are never proposed anyway).
 
+## §Reconciliation boundary (TASKS 4.6 slice 3 — `engine/account/reconcile-boundary.ts`, R1/R2/R7/R8)
+
+The money core: applied ONCE in `getFinanceSnapshot` (after the currency guard), so every
+downstream engine inherits it. Hand-verified fixture (locked in `tests/unit/reconcile-boundary.test.ts`
+and re-proven through the real assembler in `reconcile-boundary-assembler.test.ts`). Rules as REWORKED
+by critic cycle 1 (F1–F4 — the first draft's "successor keeps only date > cutover" dropped real money):
+
+Accounts: PRED (CHECKING, stale SimpleFIN, cur 240 000¢ / avail 239 000¢), SUCC (CHECKING, live Plaid,
+cur 250 000¢ / avail 251 000¢), OTHER (SAVINGS, 100 000¢). One active link PRED→SUCC, cutover 2026-06-30.
+
+**R1 — transactions: the predecessor is authoritative exactly over its own covered span.** PRED keeps
+`date ≤ cutover`; SUCC keeps dates OUTSIDE PRED's claim `[PRED's first txn, min(cutover, PRED's last
+txn)]`. Fixture (PRED txns span 06-29…07-01 ⇒ claim [06-29, 06-30]): PRED 06-29 (−1000) kept ·
+PRED 06-30 (−2000) **kept — the cutover day belongs to the predecessor** · PRED 07-01 (−3000) dropped ·
+SUCC 06-30 (−4000) **dropped — inside the claim** · SUCC 07-01 (−5000) kept. Pair total −8000¢; every
+claimed date owned exactly once. **F2:** SUCC's deeper backfill (2024-11-05 −120 000¢, 2026-03-15
+−80 000¢ — before PRED's first row) is KEPT — Plaid's 24-month backfill must never be dropped against a
+90-day SimpleFIN window. **F4 by construction:** a user-set cutover past PRED's last data claims nothing
+extra (claim end = min(cutover, last txn)), so the empty tail can't swallow successor rows.
+
+**Balance snapshots are STOCKS, not flows (F3).** A lone observation is a correct single contribution —
+dropped ONLY on an exact-date collision with the linked counterpart, where the cutover picks the winner
+(PRED on/before, SUCC after). Collision fixture: both at 06-30 → PRED's 240 000 wins (≤ cutover), SUCC's
+241 000 dropped; both at 07-31 → SUCC's 252 000 wins. No-collision fixture (cutover 06-25): PRED's real
+observed 06-30 snapshot (account live until disconnect) is KEPT → series point 240 000¢, where the first
+draft fabricated a dip to 0 for the pair.
+
+**R2 — single balance.** PRED contributes 0 (currentBalanceCents AND availableBalanceCents zeroed on a
+copy; the ROW stays — removing it would orphan its snapshot history and its account-id joins). Net worth
+= 0 + 250 000 + 100 000 = **350 000¢** (pre-fix double-count: 590 000¢). **F1 — funding account:** a
+stored `paymentAccountId` pointing at PRED remaps to SUCC (chains follow to the terminal live side), and
+the snapshot's `supersededAccountIds` makes every FALLBACK tier (`resolvePaymentAccount`, the forecast
+anchor — the stale row sorts first by creation order) skip PRED — pre-fix, an undesignated user's
+cash-needed anchored on the $0 predecessor and fabricated an 80 000¢ shortfall (executed critic repro).
+
+**Inertness (R7/R8) — a bad link changes NOTHING (today's behavior, never a dropped figure).** Inert:
+either side missing from the account list (deleted or currency-withheld), self-link, cross-type link
+(would sign-flip series history — also REFUSED at confirm), and a direction cycle including links
+leading INTO one (A→B + B→A active would zero BOTH sides; the confirm action also auto-undoes the
+reverse link when it re-proves the successor live, while legitimate chains Q→P survive a P→S confirm —
+both locked). Zero effective links ⇒ the exact input references — demo/golden byte-identity is
+structural. Chain A→B→C: B owns exactly (claim end of A, cutover B→C]. Two predecessors → one
+successor: each claims only its own span; dates neither covers stay with the successor.
+
+**Documented residuals (deliberate, no fuzzy matching — §3/§6):** (a) inside the predecessor's covered
+span, the predecessor is authoritative — a successor row on a mid-span date a SPARSE (e.g. manual)
+predecessor never recorded is dropped (pinned test; mitigation: choose an early cutover); (b) the ≤1-day
+pending/posted straddle at the boundary (§6); (c) two stale predecessors of the same successor can still
+overlap EACH OTHER (a pre-existing duplicate the links cannot express — advisory warning still covers
+it); (d) racing opposite-direction confirms can leave both directions active on Postgres — money-safe
+(the read-time cycle guard renders both inert; the user's confirm reads as a no-op); (e) the engine
+composes DIRECT links only (no transitive claims), so a chain with a downstream cutover EARLIER than an
+upstream one would double-count the window between them — that shape is REFUSED at confirm (chain
+monotonicity guard, cycle-2 critic F9: downstream cutover must be ≥ every upstream cutover), and the
+table was empty before the guard shipped, so it is unreachable except by direct DB manipulation.
+
+**Deliberately untouched until slice 4:** statements / cardPayments / scheduled / autopays (R4 cards,
+R5 household — scheduled follow-through explicitly assigned to slice 4 per critic F6), and the
+`/accounts` page + `getAccountsView` net-worth trend, which read Prisma directly rather than the
+snapshot (slice 5 display surface, same-deploy rule per critic F5 — see spec §10).
+
 ## §Household Duplicate Detection (TASKS 4.2 slice 8 — critic F-5 / T9(b), `detectHouseholdDuplicateAccounts`)
 
 Not money arithmetic — set logic over the household's visible accounts (viewer's own +

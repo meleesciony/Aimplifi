@@ -38,7 +38,9 @@ export interface DashboardData {
   paymentAccountName: string;
   /** The user's stored choice (may be null/unset) — distinct from the resolved
    *  paymentAccountName, which always falls back to a real account. Used to
-   *  decide the onboarding nudge without a second user read. */
+   *  decide the onboarding nudge without a second user read. When the stored
+   *  choice is a reconciliation predecessor, the assembler has remapped this to
+   *  the successor (same real account, live side — Wave 4.6 slice 3). */
   paymentAccountId: string | null;
   payInFull: CashNeededResult;
   minimum: CashNeededResult;
@@ -116,9 +118,15 @@ async function householdExtras(
  * is computed against).
  */
 export function resolvePaymentAccount(snap: FinanceSnapshot) {
+  // Reconciliation (Wave 4.6 slice 3, critic F1): a superseded predecessor's balance
+  // reads 0 — anchoring on it would fabricate a shortfall. The stored id is already
+  // remapped by the assembler; the FALLBACK tiers must skip superseded rows too,
+  // since the stale row sorts first by creation order and would otherwise win.
+  const superseded = new Set(snap.supersededAccountIds ?? []);
   const paymentAccount =
-    snap.accounts.find((a) => a.id === snap.paymentAccountId) ??
-    snap.accounts.find((a) => a.type === 'CHECKING') ??
+    snap.accounts.find((a) => a.id === snap.paymentAccountId && !superseded.has(a.id)) ??
+    snap.accounts.find((a) => a.type === 'CHECKING' && !superseded.has(a.id)) ??
+    snap.accounts.find((a) => !superseded.has(a.id)) ??
     snap.accounts[0];
   if (!paymentAccount) throw new Error('No accounts found — run `npx prisma db seed`.');
   return paymentAccount;

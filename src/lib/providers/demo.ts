@@ -9,6 +9,7 @@
 import { prisma } from '@/lib/db';
 import type { ISODate } from '@/lib/dates';
 import { businessToday } from '@/lib/business-today';
+import { applyReconciliationBoundary } from '@/lib/engine/account/reconcile-boundary';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { isSupportedCurrency } from './currency';
 import type { DataProvider, FinanceSnapshot, SyncResult } from './types';
@@ -36,7 +37,7 @@ export class DemoProvider implements DataProvider {
 
   async getFinanceSnapshot(userId: string): Promise<FinanceSnapshot> {
     const ownedByUser = { account: { userId } } as const;
-    const [user, accounts, autopays, statements, cardPayments, transactions, scheduled, balanceSnapshots] =
+    const [user, accounts, autopays, statements, cardPayments, transactions, scheduled, balanceSnapshots, reconciliations] =
       await Promise.all([
         prisma.user.findUnique({ where: { id: userId } }),
         prisma.account.findMany({ where: { userId }, orderBy: { id: 'asc' } }),
@@ -50,6 +51,13 @@ export class DemoProvider implements DataProvider {
         }),
         prisma.scheduledTransaction.findMany({ where: ownedByUser }),
         prisma.balanceSnapshot.findMany({ where: ownedByUser, orderBy: { date: 'asc' } }),
+        // Active reconciliation links (Wave 4.6 slice 3) — same predicate as
+        // server/reconciliation.ts getActiveReconciliations (undoneAt: null).
+        prisma.accountReconciliation.findMany({
+          where: { userId, undoneAt: null },
+          select: { predecessorAccountId: true, successorAccountId: true, cutoverDate: true },
+          orderBy: { confirmedByUserAt: 'asc' },
+        }),
       ]);
     // Currency guard (DECISIONS #135): the app does no FX, so a non-USD account — and ALL its
     // child rows — must be withheld from EVERY engine that reads the snapshot (net worth,
@@ -66,15 +74,31 @@ export class DemoProvider implements DataProvider {
     // like every other child row (autopays stay as-is: no join-free consumer).
     const supportedStatements = statements.filter((s) => supportedIds.has(s.accountId));
     const supportedStatementIds = new Set(supportedStatements.map((s) => s.id));
-    return {
+    // Reconciliation boundary (Wave 4.6 slice 3, PROVIDER_RECONCILIATION_ARCHITECTURE §5):
+    // applied ONCE here, after the currency guard, so every downstream engine inherits
+    // it. A linked predecessor contributes 0 balance and only its date<=cutover rows;
+    // the successor contributes its live balance and only date>cutover rows (R1/R2);
+    // a superseded funding account is remapped to its successor. With no active links
+    // this is the exact-reference fast path — demo/golden byte-identical (R8).
+    // Statements/cardPayments/scheduled/autopays are deliberately untouched until
+    // slice 4 (R4 cards / R5 household).
+    const boundary = applyReconciliationBoundary({
       paymentAccountId: user?.paymentAccountId ?? null,
       accounts: supportedAccounts,
+      transactions: transactions.filter((t) => supportedIds.has(t.accountId)),
+      balanceSnapshots: balanceSnapshots.filter((b) => supportedIds.has(b.accountId)),
+      links: reconciliations,
+    });
+    return {
+      paymentAccountId: boundary.paymentAccountId,
+      supersededAccountIds: boundary.supersededAccountIds,
+      accounts: [...boundary.accounts],
       autopays,
       statements: supportedStatements,
       cardPayments: cardPayments.filter((cp) => supportedStatementIds.has(cp.statementId)),
-      transactions: transactions.filter((t) => supportedIds.has(t.accountId)),
+      transactions: [...boundary.transactions],
       scheduled: scheduled.filter((s) => supportedIds.has(s.accountId)),
-      balanceSnapshots: balanceSnapshots.filter((b) => supportedIds.has(b.accountId)),
+      balanceSnapshots: [...boundary.balanceSnapshots],
     };
   }
 }

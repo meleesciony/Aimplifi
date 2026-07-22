@@ -32,10 +32,14 @@ export async function getCashFlowForecast(
   const snap = await provider.getFinanceSnapshot(userId);
 
   // Anchor on the designated payment account; fall back to a checking/savings.
+  // Reconciliation (Wave 4.6 slice 3, critic F1): never anchor on a superseded
+  // predecessor — its balance reads 0 and would fabricate a negative projection.
+  const superseded = new Set(snap.supersededAccountIds ?? []);
   const payment =
-    snap.accounts.find((a) => a.id === snap.paymentAccountId) ??
-    snap.accounts.find((a) => a.type === 'CHECKING') ??
-    snap.accounts.find((a) => a.type === 'SAVINGS') ??
+    snap.accounts.find((a) => a.id === snap.paymentAccountId && !superseded.has(a.id)) ??
+    snap.accounts.find((a) => a.type === 'CHECKING' && !superseded.has(a.id)) ??
+    snap.accounts.find((a) => a.type === 'SAVINGS' && !superseded.has(a.id)) ??
+    snap.accounts.find((a) => !superseded.has(a.id)) ??
     snap.accounts[0];
 
   const flows: ScheduledFlow[] = snap.scheduled

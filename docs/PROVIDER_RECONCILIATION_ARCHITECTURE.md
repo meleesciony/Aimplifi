@@ -173,14 +173,27 @@ net-worth series all inherit it with no per-engine change:
 2. **Balance / net worth:** a predecessor in an active reconciliation contributes
    **0**. The successor contributes its full live balance. Every other account is
    unchanged. ⇒ exactly one balance per real account.
-3. **Transactions:** for a predecessor, keep only rows with `date <= cutoverDate`; for
-   a successor, keep only rows with `date > cutoverDate`. All other accounts unchanged.
-   ⇒ exactly one side owns each date; no overlap, no double-count.
+3. **Transactions:** the predecessor is authoritative exactly over its own covered
+   span. It keeps rows with `date <= cutoverDate`; the successor keeps rows OUTSIDE
+   the predecessor's claim `[predecessor's first txn date, min(cutoverDate,
+   predecessor's last txn date)]`. All other accounts unchanged. ⇒ inside the claim
+   exactly one side owns each date (no overlap); outside it the successor's deeper
+   backfill (Plaid reaches years further back than a 90-day SimpleFIN window) is
+   never dropped, and a cutover past the predecessor's last data claims nothing
+   extra. *(As built — the original "successor keeps only `date > cutover`" draft
+   dropped the successor's pre-predecessor backfill; slice-3 critic cycle 1, F2/F4.)*
+4. **Balance snapshots:** snapshots are STOCKS, not flows — a lone observation is a
+   correct single contribution. A row is dropped only on an EXACT-date collision
+   with the linked counterpart; the cutover picks the winner (predecessor on/before,
+   successor after). Never a fabricated dip where only one side has data (F3).
+5. **Funding account:** a `paymentAccountId` pointing at a predecessor is remapped to
+   its successor (chains follow to the terminal live side), and the snapshot carries
+   `supersededAccountIds` so FALLBACK funding resolution (`resolvePaymentAccount`,
+   the forecast anchor) never picks a zeroed predecessor (F1).
 
-**The boundary rule is `predecessor: date <= cutover`, `successor: date > cutover`** —
-half-open, so the cutover date itself belongs to the predecessor and is never
-double-owned. This is the single most important line to test at the exact boundary
-date (R1).
+**The boundary rule at the cutover is half-open** — the cutover date itself belongs
+to the predecessor and is never double-owned. This is the single most important line
+to test at the exact boundary date (R1).
 
 ---
 
@@ -285,11 +298,25 @@ Every invariant below ships with a named test in its build slice (fail-old prove
 3. **The assembler boundary** — balance exclusion + transaction date split in
    `getFinanceSnapshot`. The money core. Tests R1, R2, R8. — **Fable build + hostile
    critic.**
-4. **Cash-needed cards + household follow-through.** Tests R4, R5. — **Fable critic**
-   (cash-needed is money; household is a visibility boundary).
+4. **Cash-needed cards + household follow-through + scheduled rows.** Tests R4, R5.
+   Scheduled rows explicitly belong here (slice-3 critic F6): once the funding
+   account remaps to the successor, the predecessor's `ScheduledTransaction` rows
+   fall out of the forecast/radar account filters — decide re-key vs re-detect with
+   the cash-needed critic, in the same slice as the statement/autopay boundary. —
+   **Fable critic** (cash-needed is money; household is a visibility boundary).
 5. **UI: continue-flow + one-logical-account rendering + advisory suppression + undo.**
    Tests R6 + an e2e that seeds a SimpleFIN account, disconnects, "connects" a Plaid
-   twin, links them, and asserts net worth stops doubling. — Opus (+ Cursor/Grok polish).
+   twin, links them, and asserts net worth stops doubling. **Scope is EVERY
+   per-account money surface, in the SAME deploy as the link-creation UI** (slice-3
+   critic F5): once a link exists, the dashboard accounts list and the assistant's
+   account-balance answer show the predecessor at $0.00, and `/accounts` +
+   `getAccountsView` (Prisma-direct, NOT snapshot-fed) still show the stale balance
+   and a contradicting net-worth trend. Safe today ONLY because no UI can create a
+   link yet — that invariant must hold until this slice closes all four surfaces.
+   For a MANUAL/sparse predecessor, the confirm step must disclose inline what the
+   claim span will supersede (slice-3 critic F10): inside `[first txn, cutover]`
+   the old account's records replace the new provider's backfill.
+   — Opus (+ Cursor/Grok polish).
 6. **Full-surface hostile critic** over R1–R10 with the residual §6 boundary-straddle as
    the lead adversarial target. — **Fable.**
 

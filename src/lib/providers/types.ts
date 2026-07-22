@@ -21,8 +21,15 @@ export interface BalanceSnapshotLike {
 
 /** Everything the engines need, in one consistent read. */
 export interface FinanceSnapshot {
-  /** The user's designated card-payment (checking) account, if set. */
+  /** The user's designated card-payment (checking) account, if set. When that
+   *  account is the PREDECESSOR of an active reconciliation (Wave 4.6), the
+   *  assembler remaps this to the successor — the same real account's live side. */
   paymentAccountId: string | null;
+  /** Accounts superseded by an active reconciliation (predecessor side; balance
+   *  contributes 0). Funding-account FALLBACKS must never pick one of these —
+   *  it would anchor cash-needed/forecast on a zeroed balance. Absent/empty when
+   *  no reconciliation is active (the demo/golden path). */
+  supersededAccountIds?: readonly string[];
   accounts: AccountLike[];
   autopays: AutopayLike[];
   statements: StatementLike[];

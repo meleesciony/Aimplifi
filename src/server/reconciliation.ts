@@ -120,15 +120,24 @@ export async function confirmReconciliationFor(
     const [pred, succ] = await Promise.all([
       tx.account.findFirst({
         where: { id: predecessorAccountId, userId },
-        select: { id: true, provider: true, plaidItemId: true },
+        select: { id: true, provider: true, plaidItemId: true, type: true },
       }),
       tx.account.findFirst({
         where: { id: successorAccountId, userId },
-        select: { id: true, provider: true, plaidItemId: true },
+        select: { id: true, provider: true, plaidItemId: true, type: true },
       }),
     ]);
     // Either id not owned by this user → generic not-found (R10: no cross-user oracle).
     if (!pred || !succ) return { ok: false, error: NOT_FOUND };
+
+    // Same-type only (slice 3): the boundary engine signs balance-snapshot history by
+    // account TYPE, so a cross-type link (e.g. CHECKING→CREDIT) would sign-flip the
+    // predecessor's contribution in the net-worth series. The #192 detector never
+    // proposes cross-type pairs; a crafted request is refused here, and the read-time
+    // engine additionally treats any such stored link as inert.
+    if (pred.type !== succ.type) {
+      return { ok: false, error: 'Those accounts aren’t the same kind, so they can’t be the same account.' };
+    }
 
     const [sfConn, plaidItems, firstTxn] = await Promise.all([
       tx.simpleFinConnection.findUnique({ where: { userId }, select: { id: true } }),
@@ -166,6 +175,36 @@ export async function confirmReconciliationFor(
     if (firstTxn && compareDates(cutover, isoDate(firstTxn.date)) < 0) {
       return { ok: false, error: 'The cutover date can’t be before the old account’s first transaction.' };
     }
+
+    // Chain monotonicity (slice-3 critic F9): in a chain Q→P→S each generation's window starts
+    // where the previous ended, so the downstream cutover must be ≥ every upstream one. A new
+    // downstream link with an EARLIER cutover would open a window ((new cutover, upstream cutover])
+    // that both the oldest and newest generation keep — a silent double-count behind a "reconciled"
+    // label. The engine composes DIRECT links only (deliberately — transitive claims would turn the
+    // read path into graph analysis), so the misordered shape is refused at the only place it can
+    // be created. Upstream links = active links whose successor is THIS predecessor.
+    const upstream = await tx.accountReconciliation.findFirst({
+      where: { userId, successorAccountId: predecessorAccountId, undoneAt: null },
+      orderBy: { cutoverDate: 'desc' },
+      select: { cutoverDate: true },
+    });
+    if (upstream && compareDates(cutover, isoDate(upstream.cutoverDate)) < 0) {
+      return {
+        ok: false,
+        error: 'The cutover date can’t be earlier than this account’s previous reconciliation.',
+      };
+    }
+
+    // Direction-conflict auto-undo (slice 3): an ACTIVE link claiming THIS successor is
+    // someone's stale predecessor (X→S) is provably wrong now — we just re-derived S as
+    // LIVE inside this transaction. Left in place, A→B + B→A active together would zero
+    // BOTH balances and drop a real account from net worth entirely. Undo the reverse
+    // link (reversible, ordinary undoneAt), never delete it. Chains (Q→P→S) are NOT
+    // conflicts: a link whose SUCCESSOR is our predecessor stays.
+    await tx.accountReconciliation.updateMany({
+      where: { userId, predecessorAccountId: successorAccountId, undoneAt: null },
+      data: { undoneAt: new Date() },
+    });
 
     const row = await tx.accountReconciliation.upsert({
       where: { predecessorAccountId },

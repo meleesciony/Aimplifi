@@ -4439,3 +4439,26 @@ zoom NOT disabled), safe-area env() helpers + bottom-nav padding, 16px touch inp
 ALSO CLOSED: TASKS S.9 — the Vercel team-name "discrepancy" was a false dichotomy; the API
 returns one team, name "Mike's projects" / slug "reiforge". Both docs were right.
 NEXT: owner screenshot -> M.1 (widen the net, unblocked today) -> M.2/M.3 -> M.4 slices.
+
+## #272 Wave 4.6 slice 3: the assembler money boundary (R1/R2/R8). 2026-07-22
+Built + hostile-criticized on Fable, 2 critic cycles (cap 4).
+SHIPPED: pure engine/account/reconcile-boundary.ts applied ONCE in getFinanceSnapshot (after the
+currency guard): pred balance -> 0 (row kept); txns: pred owns [first txn, min(cutover, last txn)],
+succ keeps everything outside; balanceSnapshots: exact-date collision dedup only (stocks, not flows);
+paymentAccountId remap + supersededAccountIds consumed by resolvePaymentAccount/forecast fallbacks;
+inertness = missing-side/self/cross-type/cycles (today's behavior, never a dropped figure); zero
+links = exact input references (R8 structural). Confirm hardening: cross-type refusal, reverse-link
+auto-undo (chains survive), chain cutover monotonicity (cycle-2 F9).
+CRITIC: cycle 1 FAIL — F1 P0 (no designated payment account -> fallback anchored cash-needed on the
+zeroed pred, fabricated 80000c shortfall, executed repro), F2 P0 (succ 24-mo backfill before pred's
+first row dropped — real money removed), F3 P1 (pred post-cutover lone snapshots dropped -> fabricated
+~70% trend dip), F4-F8 P2/P3. ALL fixed; rules re-derived (claim-span; stock-vs-flow). Cycle 2 PASS —
+F1/F2/F3 CLOSED by re-executed repros; new F9 P2 (misordered chain cutovers double-count a window)
+fixed same session (write-time monotonicity guard + test); F10 P3 -> spec §10 slice-5 disclosure line.
+LEDGERS: DECISIONS #272 (+reindex), 4 REGRESSION_LEDGER entries, EDGE_CASES §Reconciliation boundary
+(hand-verified figures, residuals a-e), spec §5/§10 rewritten to as-built, TASKS 4.6 row updated.
+DEFERRED (spec-pinned): scheduled follow-through -> slice 4 (F6); ALL four per-account display
+surfaces in the SAME deploy as link UI -> slice 5 (F5); /accounts+getAccountsView are Prisma-direct.
+GATE: VERIFY_E2E=1 bash scripts/verify.sh -> VERIFY GREEN, 3417 unit / 235 files, 157 e2e, exit 0
+(run includes the F9 guard; 52/52 across all three reconciliation suites).
+NEXT: slice 4 (R4/R5 + scheduled) — Fable critic.
