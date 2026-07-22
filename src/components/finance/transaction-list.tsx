@@ -352,7 +352,7 @@ export function TransactionList({
                             disabled={pending}
                             onClick={() => confirmGuess(t)}
                             aria-label={`Confirm the AI-suggested category ${t.categoryName} for ${t.merchantName}`}
-                            className="shrink-0 rounded border border-amber-500/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-500/10 disabled:opacity-50 dark:text-amber-300"
+                            className="tap-target inline-flex shrink-0 items-center justify-center rounded border border-amber-500/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-500/10 disabled:opacity-50 dark:text-amber-300"
                           >
                             Confirm
                           </button>
@@ -440,7 +440,7 @@ export function TransactionList({
                                         data-testid="cat-option"
                                         data-cat={c.id}
                                         disabled={pending}
-                                        className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                                        className="tap-target flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
                                         onClick={() =>
                                           c.id === t.categoryId
                                             ? close()
@@ -470,7 +470,7 @@ export function TransactionList({
                                     type="button"
                                     data-testid="register-add-category"
                                     disabled={pending}
-                                    className="mt-1 w-full rounded border border-dashed px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                                    className="tap-target mt-1 flex w-full items-center rounded border border-dashed px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
                                     onClick={() => openNewCat(t)}
                                   >
                                     + New category
@@ -539,14 +539,14 @@ export function TransactionList({
                                         type="button"
                                         data-testid="register-new-category-submit"
                                         disabled={pending || !newCatName.trim()}
-                                        className="rounded bg-primary px-2 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
+                                        className="tap-target inline-flex items-center justify-center rounded bg-primary px-2 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
                                         onClick={() => createAndChoose(t)}
                                       >
                                         Create
                                       </button>
                                       <button
                                         type="button"
-                                        className="rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent"
+                                        className="tap-target inline-flex items-center justify-center rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent"
                                         onClick={() => {
                                           setNewCatOpen(false);
                                           setNewCatError(null);
@@ -568,7 +568,7 @@ export function TransactionList({
                                     type="button"
                                     data-testid="recat-once"
                                     disabled={pending}
-                                    className="rounded bg-primary px-2 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
+                                    className="tap-target inline-flex items-center justify-center rounded bg-primary px-2 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
                                     onClick={() => commit(t, 'one')}
                                   >
                                     Just this once
@@ -578,7 +578,7 @@ export function TransactionList({
                                       type="button"
                                       data-testid="recat-always"
                                       disabled={pending}
-                                      className="rounded border px-2 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                                      className="tap-target inline-flex items-center justify-center rounded border px-2 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
                                       onClick={() => commit(t, 'merchant')}
                                     >
                                       Always — re-file all {t.merchantCount ?? ''} {t.merchantName}
@@ -588,7 +588,7 @@ export function TransactionList({
                                     type="button"
                                     data-testid="recat-cancel"
                                     disabled={pending}
-                                    className="rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
+                                    className="tap-target inline-flex items-center justify-center rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
                                     onClick={() => setChosen(null)}
                                   >
                                     Cancel
@@ -629,7 +629,7 @@ export function TransactionList({
           data-testid="txn-pagination"
         >
           {pageInfo.page > 1 ? (
-            <Link href={pageHref(pageInfo.page - 1)} data-testid="txn-prev-page" className="rounded-md border px-3 py-1.5 hover:bg-accent">
+            <Link href={pageHref(pageInfo.page - 1)} data-testid="txn-prev-page" className="tap-target inline-flex items-center justify-center rounded-md border px-3 py-1.5 hover:bg-accent">
               ← Prev
             </Link>
           ) : (
@@ -639,7 +639,7 @@ export function TransactionList({
             Page {pageInfo.page} of {pageInfo.pageCount}
           </span>
           {pageInfo.page < pageInfo.pageCount ? (
-            <Link href={pageHref(pageInfo.page + 1)} data-testid="txn-next-page" className="rounded-md border px-3 py-1.5 hover:bg-accent">
+            <Link href={pageHref(pageInfo.page + 1)} data-testid="txn-next-page" className="tap-target inline-flex items-center justify-center rounded-md border px-3 py-1.5 hover:bg-accent">
               Next →
             </Link>
           ) : (

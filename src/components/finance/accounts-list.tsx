@@ -300,7 +300,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
           data-testid="add-asset-btn"
           disabled={pending}
           onClick={() => { setAdding(adding === 'asset' ? null : 'asset'); setError(null); }}
-          className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+          className="tap-target inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
         >
           + Add asset
         </button>
@@ -309,7 +309,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
           data-testid="add-liability-btn"
           disabled={pending}
           onClick={() => { setAdding(adding === 'liability' ? null : 'liability'); setError(null); }}
-          className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+          className="tap-target inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
         >
           + Add liability
         </button>
@@ -561,7 +561,7 @@ function LinkedRow({
             aria-label={`Delete ${account.name}`}
             disabled={pending}
             onClick={() => confirm.arm('delete')}
-            className="mr-3 shrink-0 rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50"
+            className="tap-target mr-3 inline-flex shrink-0 items-center justify-center rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50"
           >
             Delete
           </button>
@@ -628,9 +628,9 @@ function ManualRow({
               {isLiability ? '−' : ''}
               {formatCents(cents(account.currentBalanceCents))}
             </span>
-            <button type="button" data-testid="manual-edit" disabled={pending} onClick={onEdit} className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50">Edit</button>
+            <button type="button" data-testid="manual-edit" disabled={pending} onClick={onEdit} className="tap-target inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50">Edit</button>
             {!confirm.isArmed('delete') ? (
-              <button type="button" data-testid="manual-delete" disabled={pending} onClick={() => confirm.arm('delete')} className="rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50">Delete</button>
+              <button type="button" data-testid="manual-delete" disabled={pending} onClick={() => confirm.arm('delete')} className="tap-target inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50">Delete</button>
             ) : (
               <ConfirmPrompt
                 rowTestId="manual-delete-confirm-row"
@@ -653,8 +653,8 @@ function ManualRow({
               data-testid="manual-value-input"
               className="w-24 rounded-md border bg-background px-2 py-1 text-sm"
             />
-            <button type="button" data-testid="manual-value-save" disabled={pending} onClick={() => onSave(value)} className="rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50">Save</button>
-            <button type="button" disabled={pending} onClick={onCancel} className="rounded px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50">Cancel</button>
+            <button type="button" data-testid="manual-value-save" disabled={pending} onClick={() => onSave(value)} className="tap-target inline-flex items-center justify-center rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50">Save</button>
+            <button type="button" disabled={pending} onClick={onCancel} className="tap-target inline-flex items-center justify-center rounded px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50">Cancel</button>
           </div>
         )}
       </div>
@@ -668,11 +668,11 @@ function ManualRow({
                 {billing!.dueDate ? formatISODate(isoDate(billing!.dueDate)) : '—'} · min{' '}
                 {formatCents(cents(billing!.minimumPaymentCents ?? 0))}
               </span>
-              <button type="button" data-testid="card-statement-edit" disabled={pending} onClick={onEditStatement} className="rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent disabled:opacity-50">Edit</button>
-              <button type="button" data-testid="card-statement-clear" disabled={pending} onClick={onClearStatement} className="rounded px-1.5 py-0.5 text-red-400 hover:bg-accent disabled:opacity-50">Clear</button>
+              <button type="button" data-testid="card-statement-edit" disabled={pending} onClick={onEditStatement} className="tap-target inline-flex items-center justify-center rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent disabled:opacity-50">Edit</button>
+              <button type="button" data-testid="card-statement-clear" disabled={pending} onClick={onClearStatement} className="tap-target inline-flex items-center justify-center rounded px-1.5 py-0.5 text-red-400 hover:bg-accent disabled:opacity-50">Clear</button>
             </div>
           ) : (
-            <button type="button" data-testid="card-statement-add" disabled={pending} onClick={onEditStatement} className="rounded border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50">
+            <button type="button" data-testid="card-statement-add" disabled={pending} onClick={onEditStatement} className="tap-target inline-flex items-center justify-center rounded border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50">
               + Add statement — get “how much &amp; when” for this card
             </button>
           )}
@@ -741,10 +741,10 @@ function AddForm({
         </div>
       </div>
       <div className="flex gap-2">
-        <button type="button" data-testid="manual-submit" disabled={pending} onClick={() => onSubmit(name, type, value)} className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50">
+        <button type="button" data-testid="manual-submit" disabled={pending} onClick={() => onSubmit(name, type, value)} className="tap-target inline-flex items-center justify-center rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50">
           Add
         </button>
-        <button type="button" disabled={pending} onClick={onCancel} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent disabled:opacity-50">
+        <button type="button" disabled={pending} onClick={onCancel} className="tap-target inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent disabled:opacity-50">
           Cancel
         </button>
       </div>

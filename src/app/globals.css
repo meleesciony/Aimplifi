@@ -65,6 +65,37 @@ html {
   }
 }
 
+/* Wave M.2 — the tap-target floor (docs/MOBILE_UI_BRIEF.md). The finance list
+   controls (accounts-list, transaction-list, shared-transaction-list, the shared
+   ConfirmPrompt) render ~20px tall (px-1.5 py-0.5 text-xs), and even the shadcn
+   Button primitive tops out at h-8/32px — all under the 44×44pt iOS / 48dp Android
+   minimum. The single shared primitive is this token, added to the Button base and
+   to every hand-rolled control: ON TOUCH-PRIMARY DEVICES ONLY, the control's hit
+   box grows to a 44px floor. Scoped to `pointer: coarse` for the same reason the
+   font-size floor above is — desktop (fine pointer) keeps the compact height; the
+   floor is inert where a finger never lands.
+
+   DELIBERATELY MIN-HEIGHT ONLY, nothing else:
+   • HEIGHT is the axis these controls fail; forcing a 44px WIDTH would widen rows
+     into the horizontal overflow Wave M's other half is fixing (a control wider
+     than its content pushes a money figure off the edge). Width stays content-
+     driven; an icon-only control that needs width gets an explicit min-w at its
+     own site.
+   • It must NOT set display/justify/align — several controls are already
+     `flex w-full justify-between` (the category-picker option rows) and forcing
+     inline-flex + center would collapse their layout. min-height coexists with any
+     display. Short-label buttons that need vertical centering add
+     `inline-flex items-center justify-center` at their own site.
+   Unlayered so it beats Tailwind's layered `h-8` (different property — used height
+   is max(height, min-height) = 44). box-sizing:border-box (preflight) makes this
+   the border-box height, so tap-targets.spec.ts can read it via boundingBox().height
+   under the coarse-pointer e2e devices (Pixel 5 / iPhone 13). */
+@media (pointer: coarse) {
+  .tap-target {
+    min-height: 2.75rem; /* 44px */
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

@@ -626,7 +626,7 @@ export function TriageInbox({
                     data-testid="triage-cat-option"
                     data-cat={c.id}
                     disabled={pending}
-                    className="flex w-full items-center rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                    className="tap-target flex w-full items-center rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
                     onClick={() => onPick(c.id)}
                   >
                     {c.name}

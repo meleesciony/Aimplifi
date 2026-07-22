@@ -167,6 +167,29 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Wave M.2 — mobile tap-target floor (2026-07-22) — #264
+
+Shipped the app-wide 44px tap-target floor. ONE shared primitive — `.tap-target` in
+`globals.css` (min-height 44px under `@media (pointer: coarse)`, mirroring the line-60
+font-size floor so desktop stays compact). Added to the shadcn Button base
+(`button.tsx` — covers triage-inbox's ~18 Buttons and every Button app-wide) and swept
+onto every hand-rolled control: accounts-list ×12 (the owner's worst-offender file),
+the shared `ConfirmPrompt` (all 6 destructive-confirm surfaces at once),
+transaction-list ×10, shared-transaction-list ×3, triage-inbox's 1 plain `<button>`.
+Min-height only — never display/justify (the `flex w-full justify-between` option rows
+would collapse) and never width (a 44px width would widen rows into M.3's horizontal
+overflow). Validated the coarse-pointer scoping empirically before the full gate: the
+shadcn Button (demo-sign-in, 32px base) and hand-rolled /accounts add buttons both
+measure ≥44px in the Pixel-5 emulator. Gate: `VERIFY_E2E=1 bash scripts/verify.sh` →
+VERIFY GREEN, 3352 unit / 230 files, 152 e2e (+2, `tests/e2e/tap-targets.spec.ts`).
+
+Corrections/deferrals recorded (DECISIONS #264): MOBILE_UI_BRIEF over-counted —
+`recurring-view.tsx` and `payment-reminders-card.tsx` have ZERO interactive controls
+(their tiny elements are display badges), left untouched. Deferred to M.3: the 2 inline
+category-chips (transaction-list:374, shared:154) — a 44px floor distorts the dense
+register row baseline, so they need the row restructured into flex first. Layout-only:
+no money/copy/authz/routing touched, so no Fable critic.
+
 ## Agent-Review Follow-up Slice 2 (2026-07-21) — #260: redundancy wave B + UX A5–A6
 
 Closed every remaining non-owner-gated candidate from the same-day agent review

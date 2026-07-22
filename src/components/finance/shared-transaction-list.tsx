@@ -208,7 +208,7 @@ export function SharedTransactionList({
                                       data-testid="shared-cat-option"
                                       data-cat={c.id}
                                       disabled={pending}
-                                      className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                                      className="tap-target flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
                                       onClick={() =>
                                         c.id === t.categoryId
                                           ? close()
@@ -242,7 +242,7 @@ export function SharedTransactionList({
                                   type="button"
                                   data-testid="shared-recat-once"
                                   disabled={pending}
-                                  className="rounded bg-primary px-2 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
+                                  className="tap-target inline-flex items-center justify-center rounded bg-primary px-2 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
                                   onClick={() => commit(t)}
                                 >
                                   Just this once
@@ -251,7 +251,7 @@ export function SharedTransactionList({
                                   type="button"
                                   data-testid="shared-recat-cancel"
                                   disabled={pending}
-                                  className="rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
+                                  className="tap-target inline-flex items-center justify-center rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
                                   onClick={() => setChosen(null)}
                                 >
                                   Cancel
