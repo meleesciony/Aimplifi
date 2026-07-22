@@ -54,6 +54,77 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Agent-Review Follow-up Slice 2 (2026-07-21) — #260: redundancy wave B + UX A5–A6
+
+Closed every remaining non-owner-gated candidate from the same-day agent review
+(§2026-07-21 below). No behaviour changes except the two named at the end.
+
+**Extractions (B).** Five LLM modules had copied the same provider selection and
+round-trip — key precedence, both request shapes, the 7s abort, text extraction —
+differing only in `max_tokens` and the prompt; they now share
+`src/server/llm-provider.ts`, which also drops the non-null-asserted Anthropic key
+three of the five had drifted into (B2). The three at-rest hash salts (reset token,
+invite code, deletion ref) share `src/lib/auth/token-salt.ts` (B3). Six local
+month-key slices and five prev/next-month wrappers became `monthKey` +
+`addMonthsToMonthKey` in `dates.ts`, and five median copies became
+`src/lib/stats.ts` (B4). `household-actions.ts` uses the shared `isDemoUser` (B6).
+The two-tap confirm on six surfaces now shares one state machine, `useConfirmArm`,
+plus `ConfirmPrompt` for the three plain-button rows (B1). The auth-form field
+class is one constant across sign-in / forgot / reset (B5, partial).
+
+**The median rounding, on the record.** The five copies had DRIFTED: three floored
+the even-count case, one rounded, one returned the raw average. The shared
+`medianOfSorted` returns the EXACT median and each engine states its rounding at
+its own call site, so every figure is byte-identical to before (full unit suite,
+unchanged counts). Whether those three conventions SHOULD converge is an open
+money-math question with a 1-cent blast radius per engine — a redundancy cleanup
+was the wrong place to decide it silently.
+
+**Two behaviour changes, both deliberate.** Escape now disarms an armed
+destructive control on all six confirm surfaces (before, nothing did — the only
+exit was finding Cancel); locked in `transactions.spec.ts`. And `/trust` joins the
+nav's Discover group (A6), having been reachable only from a card inside
+`/settings`; locked in `mobile-nav.spec.ts`. A5 (380px) shipped as one bordered
+card per bank in `PlaidConnections`, and the shared `ConfirmPrompt` carries
+`flex-wrap`, which fixes the same narrow-viewport overflow on the account-delete
+rows too.
+
+**Declined on evidence, not skipped.**
+1. A6 "onboarding time promises drift" does not reproduce. "(30 seconds)" and
+   "Make this yours in 30 seconds" both describe naming the card-funding account;
+   "takes about a minute" describes connecting a bank; "a few weeks of spending"
+   is EmptyCoach describing how much history Coach needs. Four claims about four
+   different things.
+2. B5's "provider-configured checks scattered" is not harmful duplication:
+   `plaid-actions.ts` additionally requires `DATA_ENCRYPTION_KEY` because it
+   stores tokens, while `providers/demo.ts` and `providers/plaid.ts` throw with
+   their own operator-facing messages. The checks differ on purpose.
+3. B5's remaining sub-items (error/success `<p>` styling → shadcn `Alert`,
+   `revalidatePath` path-list drift) are cosmetic churn across many action files
+   with no drift risk; left alone.
+
+**A real regression found and fixed on the way (not from this slice).** The first
+FULL e2e run since #259 caught that its A3 gate — the zero-account first-run empty
+on /triage — replaces the whole page including the toolbar, so the Backfill
+("Re-run categorizer") button was unreachable for every brand-new signup;
+`backfill.spec` had been timing out on it. The spec now provisions one manual
+asset past the gate (its review pile is still empty, so the assertion is
+unchanged) and asserts `triage-first-run-empty` is absent BEFORE clicking, so a
+future gate move fails with its cause instead of a button timeout. Ledger entry
+filed. Worth noting for the next slice: #259 ran targeted specs, not the full
+suite — a route-level gate is a fence, and fences need the whole suite.
+
+**Open for the owner (from A6, re-filed as a product question).** "Safe to spend"
+(the /spending-plan hero and a dashboard card) and "Cash needed" (cards) are two
+different numbers shown on the same dashboard, and — verified in
+`src/server/spending-plan.ts` — safe-to-spend subtracts `snap.scheduled` bills but
+NOT card statement dues, so a card payment that isn't a scheduled flow is absent
+from it. Any sentence reconciling the two would be a money claim the code does not
+currently support (the #221 false-copy class), and renaming either is a product
+decision. Recorded, not guessed at.
+
+Detail: DECISIONS #260.
+
 ## Agent-Review Follow-up Slice 1 (2026-07-21) — #259: docs C1–C5 + UX A1–A3
 
 Applied the top candidates from the same-day agent review (§2026-07-21 below), in the
@@ -76,10 +147,10 @@ can't honestly supply; /accounts renders real state). Locks: auth.spec route-emp
 sweep + new `connect-affordances.spec.ts` on the guarded `--usd-only` fixture.
 Detail: DECISIONS #259.
 
-**Still-open review candidates (owner prioritization):** A5 (PlaidConnections 380px
-card-per-item layout), A6 (onboarding copy drift / "Safe to Spend" naming), B1–B6
-(redundancy cleanup slice, no behavior change), D (Plaid merge-into-existing-account —
-**awaits explicit owner approval**: the cutover deletes transaction rows).
+**Still-open review candidates (owner prioritization):** ~~A5, A6, B1–B6~~ — all
+closed by slice 2 (#260, section above), some applied and some declined on
+evidence. The ONLY remaining item is D (Plaid merge-into-existing-account), which
+**awaits explicit owner approval**: the cutover deletes transaction rows.
 
 ## Forgot Password / Reset Flow (2026-07-21) — #257, owner request
 
@@ -4960,6 +5031,12 @@ each fix slice re-verifies its claim before changing code. Same session shipped 
 **Resolution (2026-07-21, #259 — see §Agent-Review Follow-up Slice 1 near the top):**
 C1–C5 and A1–A3 shipped; A4 declined (the numbering is a recorded critic decision);
 A5–A6, all of B, and D remain open — D gated on explicit owner approval.
+
+**Resolution 2 (2026-07-21, #260 — see §Agent-Review Follow-up Slice 2 near the
+top):** A5, A6 and B1–B6 all closed — B1/B2/B3/B4/B6 and B5-in-part extracted, A5
+and A6 applied; A6's "time promise drift", A6's "Safe to Spend" rename and B5's
+"provider-configured checks" declined with the evidence that they don't reproduce
+(or are the owner's product call). D is the only item still open.
 
 ### A. Product flow / UX (highest user impact first)
 1. **/cards empty state dead-ends** — tells the user to go to /accounts but offers no inline

@@ -13,16 +13,19 @@ import { signOut } from '@/auth';
 import { prisma } from '@/lib/db';
 import { DEMO_DESTROY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { confirmationMatches } from '@/lib/engine/account/deletion';
-import { hashUserRef } from '@/lib/engine/auth/session';
+import { DEFAULT_DELETION_REF_SALT, hashUserRef } from '@/lib/engine/auth/session';
+import { tokenSalt } from '@/lib/auth/token-salt';
 import { getProvider } from '@/lib/providers/demo';
 import { auditLog, requireUserId } from '@/server/authz';
 
-// Salt for the PII-free deletion-record hash. Prefer a SECRET salt so the hash of a
-// low-entropy id (a Google user's id is `google:<email>`) can't be dictionary-tested
-// by anyone who reads the records: DELETION_REF_SALT if set, else AUTH_SECRET (always
-// present — NextAuth requires it), falling back to the engine's public default only
-// in a degenerate no-secret dev env (Critic P2-1).
-const deletionRefSalt = process.env.DELETION_REF_SALT ?? process.env.AUTH_SECRET;
+// Salt for the PII-free deletion-record hash, via the shared `tokenSalt` idiom
+// (src/lib/auth/token-salt.ts). Prefer a SECRET salt so the hash of a low-entropy
+// id (a Google user's id is `google:<email>`) can't be dictionary-tested by anyone
+// who reads the records: DELETION_REF_SALT if set, else AUTH_SECRET (always present
+// — NextAuth requires it), falling back to the engine's public default only in a
+// degenerate no-secret dev env (Critic P2-1). Passing that default explicitly is
+// the same value `hashUserRef` would have defaulted to on `undefined`.
+const deletionRefSalt = tokenSalt('DELETION_REF_SALT', DEFAULT_DELETION_REF_SALT);
 
 export async function deleteMyData(formData: FormData): Promise<void> {
   const userId = await requireUserId();

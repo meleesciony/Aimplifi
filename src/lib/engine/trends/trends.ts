@@ -18,7 +18,7 @@
  *  - largest   : the biggest single purchases so far this month.
  *  - newMerchants: merchants you spent at this month but not in the prior 6.
  */
-import { addMonthsClamped, daysInMonth, isoDate } from '@/lib/dates';
+import { addMonthsToMonthKey, daysInMonth, monthKey } from '@/lib/dates';
 import { roundHalfAwayFromZero } from '@/lib/money';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
@@ -112,8 +112,6 @@ export interface TrendsInput {
   today: string; // YYYY-MM-DD anchor
 }
 
-const ymOf = (date: string) => date.slice(0, 7);
-const priorYm = (ym: string, n: number) => addMonthsClamped(isoDate(`${ym}-01`), -n).slice(0, 7);
 const groupOf = (id: string | null | undefined, meta: ReadonlyMap<string, CategoryMeta>) =>
   meta.get(id ?? 'uncategorized')?.group;
 const catName = (id: string | null | undefined, meta: ReadonlyMap<string, CategoryMeta>) =>
@@ -149,11 +147,11 @@ function computePace(
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
 ): SpendingPace | null {
-  const ym = ymOf(today);
+  const ym = monthKey(today);
   // Only money already spent counts toward "so far": ignore any future-dated rows.
   const soFar = txns.filter((t) => t.date <= today);
   const spentSoFarCents = spendingByCategory(soFar, { fromYm: ym, toYm: ym }, meta).totalCents;
-  const prior = priorYm(ym, 1);
+  const prior = addMonthsToMonthKey(ym, -(1));
   const priorMonthCents = spendingByCategory(txns, { fromYm: prior, toYm: prior }, meta).totalCents;
   if (spentSoFarCents === 0 && priorMonthCents === 0) return null; // nothing to say yet
 
@@ -177,14 +175,14 @@ function computeMovers(
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
 ): { comparedYm: string | null; baselineMonths: string[]; movers: CategoryMover[] } {
-  const current = priorYm(ymOf(today), 1); // last completed month
+  const current = addMonthsToMonthKey(monthKey(today), -(1)); // last completed month
   const currentMap = categorySpendMap(txns, current, meta);
 
   // Baseline = the up-to-3 completed months before `current` that actually have
   // spend (never average in pre-history zero months — it would understate the norm).
   const baselineMaps: { ym: string; map: Map<string, number> }[] = [];
   for (let i = 1; i <= BASELINE_MONTHS; i++) {
-    const ym = priorYm(current, i);
+    const ym = addMonthsToMonthKey(current, -(i));
     const map = categorySpendMap(txns, ym, meta);
     let total = 0;
     for (const v of map.values()) total += v;
@@ -250,9 +248,9 @@ function computeLargest(
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
 ): LargestTxn[] {
-  const ym = ymOf(today);
+  const ym = monthKey(today);
   return txns
-    .filter((t) => t.date <= today && ymOf(t.date) === ym && isPurchaseRow(t, meta))
+    .filter((t) => t.date <= today && monthKey(t.date) === ym && isPurchaseRow(t, meta))
     .map((t) => ({
       date: t.date,
       merchant: t.merchant?.trim() || 'Unknown merchant',
@@ -274,15 +272,15 @@ function computeNewMerchants(
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
 ): NewMerchant[] {
-  const ym = ymOf(today);
-  const earliestPrior = priorYm(ym, NEW_MERCHANT_LOOKBACK_MONTHS); // inclusive lower bound
+  const ym = monthKey(today);
+  const earliestPrior = addMonthsToMonthKey(ym, -(NEW_MERCHANT_LOOKBACK_MONTHS)); // inclusive lower bound
 
   // Merchants seen in the lookback window [earliestPrior, prior month].
   // Aggregate pseudo-merchants are skipped entirely — "new" is meaningless for them.
   const seenBefore = new Set<string>();
   for (const t of txns) {
     if (!isPurchaseRow(t, meta) || t.aggregateMerchant || !t.merchant) continue;
-    const m = ymOf(t.date);
+    const m = monthKey(t.date);
     if (m >= earliestPrior && m < ym) seenBefore.add(t.merchant.trim().toLowerCase());
   }
 
@@ -291,7 +289,7 @@ function computeNewMerchants(
     { merchant: string; categoryName: string; amountCents: number; firstDate: string }
   >();
   for (const t of txns) {
-    if (t.date > today || ymOf(t.date) !== ym || !isPurchaseRow(t, meta) || t.aggregateMerchant || !t.merchant)
+    if (t.date > today || monthKey(t.date) !== ym || !isPurchaseRow(t, meta) || t.aggregateMerchant || !t.merchant)
       continue;
     const key = t.merchant.trim().toLowerCase();
     if (seenBefore.has(key)) continue;
@@ -321,7 +319,7 @@ export function computeSpendingTrends(
 ): SpendingTrends {
   const { comparedYm, baselineMonths, movers } = computeMovers(txns, today, meta);
   return {
-    asOfYm: ymOf(today),
+    asOfYm: monthKey(today),
     comparedYm,
     baselineMonths,
     pace: computePace(txns, today, meta),

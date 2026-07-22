@@ -9,17 +9,17 @@
  *    non-subscription bills excluded); zero subscriptions → abstain (null) — a
  *    vacuous "no creep" over nothing tracked is not an achievement;
  *  - a CREEP EVENT is a detected price INCREASE (`priceChangedAt` set and
- *    |typical| > |previous|; decreases never break) at month ym(priceChangedAt).
+ *    |typical| > |previous|; decreases never break) at month monthKey(priceChangedAt).
  *    The detector keeps at most one price change per series (two-plateau rule)
  *    and drops noisier series entirely, so within its history window every
  *    knowable increase is visible;
- *  - the walk runs FULL months descending from ym(today)−1, capped at
+ *  - the walk runs FULL months descending from monthKey(today)−1, capped at
  *    `windowMonths` (disclosed in copy); an increase inside the current partial
  *    month is invisible by construction — the copy says "full months"
  *    (lag-honest, #252 precedent); same-month news belongs to the
  *    price-increase opportunity surface, not this streak.
  */
-import { addMonthsClamped, isoDate, type ISODate } from '@/lib/dates';
+import { addMonthsToMonthKey, monthKey, type ISODate } from '@/lib/dates';
 import type { RecurringSeriesResult } from './detect';
 
 export interface CreepEvent {
@@ -43,8 +43,7 @@ export interface NoCreepStreakResult {
   brokeOn: CreepEvent | null;
 }
 
-const ym = (date: string) => date.slice(0, 7);
-const prevYm = (month: string) => ym(addMonthsClamped(isoDate(`${month}-01`), -1));
+const prevYm = (month: string) => addMonthsToMonthKey(month, -1);
 
 export function computeNoCreepStreak(
   series: readonly RecurringSeriesResult[],
@@ -62,7 +61,7 @@ export function computeNoCreepStreak(
     const from = Math.abs(s.previousAmountCents);
     const to = Math.abs(s.typicalAmountCents);
     if (to <= from) continue; // decrease (or no-op): never creep
-    const month = ym(s.priceChangedAt);
+    const month = monthKey(s.priceChangedAt);
     const list = eventsByMonth.get(month) ?? [];
     list.push({ merchantCanonical: s.merchantCanonical, fromCents: from, toCents: to, month });
     eventsByMonth.set(month, list);
@@ -70,7 +69,7 @@ export function computeNoCreepStreak(
 
   let streakMonths = 0;
   let brokeOn: CreepEvent | null = null;
-  let m = prevYm(ym(today)); // latest FULL month
+  let m = prevYm(monthKey(today)); // latest FULL month
   for (let i = 0; i < windowMonths; i++, m = prevYm(m)) {
     const events = eventsByMonth.get(m);
     if (events !== undefined) {

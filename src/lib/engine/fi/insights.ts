@@ -7,7 +7,8 @@
  */
 
 import { type Cents, cents } from '@/lib/money';
-import { type ISODate, addMonthsClamped, isoDate } from '@/lib/dates';
+import { type ISODate, addMonthsClamped, isoDate, monthKey } from '@/lib/dates';
+import { median } from '@/lib/stats';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId } from '@/lib/engine/categorize/categories';
 import type { RecurringSeriesResult } from '@/lib/engine/recurring/detect';
@@ -44,9 +45,6 @@ export function isIncomeFlowRow(t: TxnLike): boolean {
   return !t.categoryId || (t.categoryId !== 'refund' && isIncomeCategoryId(t.categoryId));
 }
 
-/** Month key 'YYYY-MM'. */
-const ym = (date: string) => date.slice(0, 7);
-
 export interface MonthlyFlow {
   month: string; // YYYY-MM
   incomeCents: Cents;
@@ -76,11 +74,11 @@ export function monthlyFlows(transactions: readonly TxnLike[]): MonthlyFlow[] {
   const byMonth = new Map<string, { income: number; expenses: number }>();
   for (const t of transactions) {
     if (!countsInFlows(t)) continue;
-    const slot = byMonth.get(ym(t.date)) ?? { income: 0, expenses: 0 };
+    const slot = byMonth.get(monthKey(t.date)) ?? { income: 0, expenses: 0 };
     if (isIncomeFlowRow(t)) slot.income += t.amountCents;
     else if (t.amountCents > 0) slot.expenses -= t.amountCents; // refund nets spend down
     else slot.expenses += -t.amountCents;
-    byMonth.set(ym(t.date), slot);
+    byMonth.set(monthKey(t.date), slot);
   }
   return [...byMonth.entries()]
     .map(([month, { income, expenses }]) => {
@@ -215,17 +213,17 @@ export function detectLifestyleCreep(
   // count toward lifestyle creep. Defaults to the static map (no-custom = identical).
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): CreepResult {
-  const lastFullMonthStart = addMonthsClamped(isoDate(`${ym(today)}-01`), 0);
+  const lastFullMonthStart = addMonthsClamped(isoDate(`${monthKey(today)}-01`), 0);
   const months: string[] = [];
   for (let k = windowMonths; k >= 1; k--) {
-    months.push(ym(addMonthsClamped(lastFullMonthStart, -k)));
+    months.push(monthKey(addMonthsClamped(lastFullMonthStart, -k)));
   }
 
   const discSpend = new Map<string, number>(months.map((m) => [m, 0]));
   const income = new Map<string, number>(months.map((m) => [m, 0]));
   for (const t of transactions) {
     if (!countsInFlows(t)) continue;
-    const month = ym(t.date);
+    const month = monthKey(t.date);
     if (!discSpend.has(month)) continue;
     if (t.amountCents > 0) {
       income.set(month, income.get(month)! + t.amountCents);
@@ -251,11 +249,6 @@ export function detectLifestyleCreep(
   // Median of first-half months vs median of second-half months. Median (not
   // mean) so a calendar month with 3 biweekly paydays doesn't read as an
   // "income raise", and one big restaurant night doesn't read as creep.
-  const median = (xs: number[]): number => {
-    const s = [...xs].sort((a, b) => a - b);
-    const mid = Math.floor(s.length / 2);
-    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-  };
   const halfGrowthBps = (series: number[]): number => {
     const half = Math.floor(series.length / 2);
     const first = median(series.slice(0, half));

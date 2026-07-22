@@ -97,6 +97,19 @@ test('manual net-worth items: add a home asset (net worth updates), then delete 
     await row.getByTestId('manual-delete').click({ timeout: 2000 });
     await expect(row.getByTestId('manual-delete-confirm')).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: 20000 });
+
+  // Escape disarms an armed destructive control (2026-07-21 review B1: the six
+  // hand-rolled confirms had no keyboard way out — now one shared state machine
+  // gives every one of them the same escape hatch). Nothing is deleted here.
+  await page.keyboard.press('Escape');
+  await expect(row.getByTestId('manual-delete-confirm')).toHaveCount(0);
+  await expect(row.getByTestId('manual-delete')).toBeVisible();
+  await expect(page.getByTestId('manual-account-row').filter({ hasText: 'E2E Test Home' })).toHaveCount(1);
+
+  await expect(async () => {
+    await row.getByTestId('manual-delete').click({ timeout: 2000 });
+    await expect(row.getByTestId('manual-delete-confirm')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
   await row.getByTestId('manual-delete-confirm').click();
   await expect(page.getByTestId('manual-account-row').filter({ hasText: 'E2E Test Home' })).toHaveCount(0, {
     timeout: 20000,

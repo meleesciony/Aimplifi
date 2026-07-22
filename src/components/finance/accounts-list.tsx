@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmPrompt, useConfirmArm } from '@/components/ui/confirm-action';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { ConnectSimplefin } from '@/components/finance/connect-simplefin';
 import { PlaidConnections } from '@/components/finance/plaid-connections';
@@ -500,7 +501,7 @@ function LinkedRow({
   // #253: two-tap confirm, same pattern as ManualRow. The cluster is a SIBLING of
   // the row Link (never nested inside it — interactive-in-interactive is invalid
   // and this file already avoids it for ManualRow).
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const confirm = useConfirmArm();
   // #159: a linked brokerage (INVESTMENT) has holdings / performance / a retirement
   // projection on /investments — a far more useful destination than its transaction
   // ledger — so its row navigates there. Every other linked account still opens its
@@ -545,23 +546,28 @@ function LinkedRow({
         </div>
       </Link>
       {deletable &&
-        (!confirmDelete ? (
+        (!confirm.isArmed('delete') ? (
           <button
             type="button"
             data-testid="synced-delete"
             aria-label={`Delete ${account.name}`}
             disabled={pending}
-            onClick={() => setConfirmDelete(true)}
+            onClick={() => confirm.arm('delete')}
             className="mr-3 shrink-0 rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50"
           >
             Delete
           </button>
         ) : (
-          <span className="mr-3 flex shrink-0 items-center gap-1 text-xs" data-testid="synced-delete-confirm-row">
-            <span className="text-muted-foreground">Delete, with its history?</span>
-            <button type="button" data-testid="synced-delete-confirm" aria-label={`Yes, delete ${account.name} and its history`} disabled={pending} onClick={onDelete} className="rounded px-1.5 py-0.5 text-red-400 hover:bg-accent disabled:opacity-50">Yes</button>
-            <button type="button" disabled={pending} onClick={() => setConfirmDelete(false)} className="rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent disabled:opacity-50">Cancel</button>
-          </span>
+          <ConfirmPrompt
+            className="mr-3 shrink-0"
+            rowTestId="synced-delete-confirm-row"
+            prompt="Delete, with its history?"
+            confirmTestId="synced-delete-confirm"
+            confirmAriaLabel={`Yes, delete ${account.name} and its history`}
+            pending={pending}
+            onConfirm={onDelete}
+            onCancel={confirm.disarm}
+          />
         ))}
     </li>
   );
@@ -599,7 +605,7 @@ function ManualRow({
   onCancelStatement: () => void;
 }) {
   const [value, setValue] = useState((account.currentBalanceCents / 100).toFixed(2));
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const confirm = useConfirmArm();
   const isCard = account.type === 'CREDIT' && billing !== undefined;
   return (
     <li className="px-3 py-2" data-testid="manual-account-row">
@@ -615,14 +621,17 @@ function ManualRow({
               {formatCents(cents(account.currentBalanceCents))}
             </span>
             <button type="button" data-testid="manual-edit" disabled={pending} onClick={onEdit} className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50">Edit</button>
-            {!confirmDelete ? (
-              <button type="button" data-testid="manual-delete" disabled={pending} onClick={() => setConfirmDelete(true)} className="rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50">Delete</button>
+            {!confirm.isArmed('delete') ? (
+              <button type="button" data-testid="manual-delete" disabled={pending} onClick={() => confirm.arm('delete')} className="rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50">Delete</button>
             ) : (
-              <span className="flex items-center gap-1 text-xs" data-testid="manual-delete-confirm-row">
-                <span className="text-muted-foreground">Delete?</span>
-                <button type="button" data-testid="manual-delete-confirm" disabled={pending} onClick={onDelete} className="rounded px-1.5 py-0.5 text-red-400 hover:bg-accent disabled:opacity-50">Yes</button>
-                <button type="button" disabled={pending} onClick={() => setConfirmDelete(false)} className="rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent disabled:opacity-50">Cancel</button>
-              </span>
+              <ConfirmPrompt
+                rowTestId="manual-delete-confirm-row"
+                prompt="Delete?"
+                confirmTestId="manual-delete-confirm"
+                pending={pending}
+                onConfirm={onDelete}
+                onCancel={confirm.disarm}
+              />
             )}
           </div>
         ) : (

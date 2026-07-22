@@ -30,6 +30,7 @@
  * Pattern Lens.)
  */
 import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
+import { medianOfSorted } from '@/lib/stats';
 import { type ISODate, addMonthsClamped, compareDates, isoDate, startOfMonth } from '@/lib/dates';
 import { isAggregateCanonical } from '@/lib/engine/categorize/normalize';
 
@@ -105,11 +106,11 @@ function windowOf(
   };
 }
 
-/** Median with the documented integer convention (sorted ascending input). */
-function medianOfSorted(sorted: readonly number[]): number {
-  const n = sorted.length;
-  const mid = Math.floor(n / 2);
-  return n % 2 === 1 ? sorted[mid] : Math.floor((sorted[mid - 1] + sorted[mid]) / 2);
+/** Median with the documented integer convention: the shared exact median
+ *  (src/lib/stats.ts), floored to whole cents here — the rounding is this
+ *  engine's decision, not the utility's. Sorted ascending input. */
+function medianCents(sorted: readonly number[]): number {
+  return Math.floor(medianOfSorted(sorted));
 }
 
 /**
@@ -150,7 +151,7 @@ export function buildMerchantProfile(
   let priorWindow: LensWindow | null = null;
   if (hasPattern) {
     const magnitudes = charges.map((c) => c.magnitude).sort((a, b) => a - b);
-    typical = cents(medianOfSorted(magnitudes));
+    typical = cents(medianCents(magnitudes));
 
     const som = startOfMonth(today);
     const recentFromYm = addMonthsClamped(som, -LENS_WINDOW_MONTHS).slice(0, 7);

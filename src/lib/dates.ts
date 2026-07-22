@@ -183,6 +183,40 @@ export function startOfMonth(date: ISODate): ISODate {
 }
 
 /**
+ * The calendar month a YYYY-MM-DD date falls in, as a "YYYY-MM" key — the grouping
+ * key every monthly aggregation in the app uses.
+ *
+ * Trivial to inline, and that is exactly why six engines had each inlined their own
+ * `const ym = (d: string) => d.slice(0, 7)` (2026-07-21 review, finding B4). It
+ * belongs here with the rest of the date rules (CLAUDE.md rule 3: no ad-hoc date
+ * math in business logic), so there is ONE place to look when the key format or
+ * the timezone question comes up.
+ *
+ * Deliberately a pure string slice, NOT a Date conversion: business dates in this
+ * app are calendar dates, so the month key must never depend on the runtime's
+ * timezone. Input is a plain `string` rather than the branded `ISODate` because
+ * every caller reads dates off already-validated rows; slicing a malformed string
+ * yields a malformed key rather than throwing, which is the same behaviour the six
+ * local copies had.
+ */
+export function monthKey(date: string): string {
+  return date.slice(0, 7);
+}
+
+/**
+ * Month-key arithmetic: the "YYYY-MM" key `months` after `month` (negative goes
+ * back). Five engines had wrapped `addMonthsClamped` this way under five names
+ * (prevYm / nextMonth / priorYm); this is the shared one.
+ *
+ * Routes through the tested `addMonthsClamped` on the 1st of the month, so year
+ * boundaries and the 12-month wrap are handled by the same code as every other
+ * month step. Throws on a malformed key (via `isoDate`), matching the copies.
+ */
+export function addMonthsToMonthKey(month: string, months: number): string {
+  return monthKey(addMonthsClamped(isoDate(`${month}-01`), months));
+}
+
+/**
  * Next calendar date with the given day-of-month, on/after `from` (clamped to
  * the month's length, so day 31 in a 30-day month lands on the 30th). The single
  * tested home for this rule — shared by the cash-needed assembler (card cycle/due

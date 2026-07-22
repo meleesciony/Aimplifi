@@ -23,3 +23,10 @@ isolation — no demo-golden perturbation), plus a new spec asserting the fence'
    the fences themselves.
 3. If the phase's DoD requires an e2e, "verify green" without `VERIFY_E2E=1` does not prove it —
    run the affected spec files explicitly and paste the output.
+4. **Rebuild before you run them.** `playwright.config.ts` starts the app with `npx next start`
+   and `reuseExistingServer` locally, so a spec run serves the LAST `next build` — your edits are
+   invisible to it. Bit #257 once and #260 again: both times a brand-new assertion failed against
+   a stale bundle and read exactly like a real product bug (a click that "didn't work", an element
+   that "isn't there"). Run `npx next build` first, or just run the whole gate with
+   `VERIFY_E2E=1 bash scripts/verify.sh`, which builds before it tests. A first-run failure on
+   code you JUST wrote is a stale-bundle suspect before it is a bug.

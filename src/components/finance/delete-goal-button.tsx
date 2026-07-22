@@ -8,12 +8,13 @@
  */
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { useConfirmArm } from '@/components/ui/confirm-action';
 import { deleteGoal } from '@/server/goal-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 
 export function DeleteGoalButton({ goalId, goalName }: { goalId: string; goalName: string }) {
-  const [confirming, setConfirming] = useState(false);
+  const confirm = useConfirmArm();
   // #166: explicit useState busy flag + deadline-bounded await + router.refresh,
   // the #164 pattern — useTransition's pending entangles with the router's
   // lanes, so a wedged action application froze this card at "Delete? Yes"
@@ -31,7 +32,7 @@ export function DeleteGoalButton({ goalId, goalName }: { goalId: string; goalNam
     }
   }
 
-  if (!confirming) {
+  if (!confirm.isArmed('delete')) {
     return (
       <Button
         variant="ghost"
@@ -39,7 +40,7 @@ export function DeleteGoalButton({ goalId, goalName }: { goalId: string; goalNam
         type="button"
         aria-label={`Delete ${goalName}`}
         data-testid="goal-delete"
-        onClick={() => setConfirming(true)}
+        onClick={() => confirm.arm('delete')}
       >
         ✕
       </Button>
@@ -66,7 +67,7 @@ export function DeleteGoalButton({ goalId, goalName }: { goalId: string; goalNam
         type="button"
         disabled={pending}
         className="h-auto px-1.5 py-0.5 text-muted-foreground"
-        onClick={() => setConfirming(false)}
+        onClick={confirm.disarm}
       >
         Cancel
       </Button>

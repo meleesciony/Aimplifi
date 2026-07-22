@@ -23,7 +23,7 @@
  *    a resolved statement down to the earliest such month, stopping at the
  *    first month with an uncleared resolved statement.
  */
-import { addMonthsClamped, compareDates, isoDate, type ISODate } from '@/lib/dates';
+import { addMonthsToMonthKey, compareDates, isoDate, monthKey, type ISODate } from '@/lib/dates';
 
 export interface ClearedStreakStatement {
   id: string;
@@ -59,8 +59,7 @@ export interface CardClearedStreakResult {
   brokeAt: string | null;
 }
 
-const ym = (date: string) => date.slice(0, 7);
-const prevYm = (month: string) => ym(addMonthsClamped(isoDate(`${month}-01`), -1));
+const prevYm = (month: string) => addMonthsToMonthKey(month, -1);
 
 export function computeCardClearedStreak(
   statements: readonly ClearedStreakStatement[],
@@ -70,13 +69,13 @@ export function computeCardClearedStreak(
   const paidByDueDate = new Map<string, number>();
   const dueDateById = new Map<string, string>();
 
-  const currentYm = ym(today);
+  const currentYm = monthKey(today);
   const resolvedAny = statements.filter(
     (s) => s.isEstimated !== true && compareDates(isoDate(s.dueDate), today) < 0,
   );
   // Full months only (critic #254 F2): a statement resolving inside the
   // current partial month waits for the month to complete.
-  const resolved = resolvedAny.filter((s) => ym(s.dueDate) < currentYm);
+  const resolved = resolvedAny.filter((s) => monthKey(s.dueDate) < currentYm);
   const formingThisMonth = resolved.length === 0 && resolvedAny.length > 0;
   for (const s of resolved) dueDateById.set(s.id, s.dueDate);
   for (const p of payments) {
@@ -91,7 +90,7 @@ export function computeCardClearedStreak(
 
   const byMonth = new Map<string, ClearedStreakStatement[]>();
   for (const s of resolved) {
-    const m = ym(s.dueDate);
+    const m = monthKey(s.dueDate);
     const list = byMonth.get(m) ?? [];
     list.push(s);
     byMonth.set(m, list);

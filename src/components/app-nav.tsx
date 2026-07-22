@@ -28,6 +28,7 @@ import {
   PiggyBank,
   Receipt,
   Settings,
+  ShieldCheck,
   Sprout,
   TrendingUp,
   Wallet,
@@ -63,6 +64,11 @@ const DISCOVER = [
   { href: '/trends', label: 'Trends', icon: TrendingUp, testid: 'nav-trends' },
   { href: '/recurring', label: 'Recurring', icon: Repeat, testid: 'nav-recurring' },
   { href: '/forecast', label: 'Forecast', icon: Waves, testid: 'nav-forecast' },
+  // A6 (2026-07-21 review): the AI Trust Center was reachable ONLY from a card
+  // inside /settings, so the one page that says what the AI touched and how often
+  // it was right was the hardest page to find. It belongs with the other
+  // dashboard-adjacent surfaces; /settings keeps its link too.
+  { href: '/trust', label: 'Trust', icon: ShieldCheck, testid: 'nav-trust' },
 ] as const;
 
 function topLinkClass(active: boolean) {

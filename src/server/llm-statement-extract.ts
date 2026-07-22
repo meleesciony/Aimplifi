@@ -27,14 +27,8 @@ import {
   type LlmFieldSpan,
   parseLlmStatementExtract,
 } from '@/lib/engine/doc-extract/statement';
+import { llmCompleteText, llmProviderConfigured } from '@/server/llm-provider';
 
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const ANTHROPIC_DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
-const XAI_URL = 'https://api.x.ai/v1/chat/completions';
-const XAI_DEFAULT_MODEL = 'grok-3-mini';
-// Same round-trip budget as llm-categorize.ts / assistant-llm.ts — an unbounded
-// fetch stalls the calling server action (the phase2-triage stall signature).
-const TIMEOUT_MS = 7000;
 // Five short span claims ≈ 300 tokens; 600 leaves headroom without inviting
 // the model to dump the statement back.
 const MAX_TOKENS = 600;
@@ -56,54 +50,10 @@ export async function extractStatementViaLLM(
   onOutcome?: AiOutcomeSink,
 ): Promise<LlmFieldSpan[] | null> {
   const prompt = buildStatementExtractPrompt(input.scrubbedText);
-  const xaiKey = process.env.XAI_API_KEY;
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (!xaiKey && !anthropicKey) return null; // no key → no network, form stays manual
+  if (!llmProviderConfigured()) return null; // no key → no network, form stays manual
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let text: string | null = null;
-  try {
-    if (xaiKey) {
-      const res = await fetch(XAI_URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${xaiKey}` },
-        body: JSON.stringify({
-          model: process.env.XAI_MODEL ?? XAI_DEFAULT_MODEL,
-          max_tokens: MAX_TOKENS,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-        signal: controller.signal,
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-        text = data?.choices?.[0]?.message?.content ?? '';
-      }
-    } else if (anthropicKey) {
-      const res = await fetch(ANTHROPIC_URL, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': anthropicKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: process.env.ANTHROPIC_MODEL ?? ANTHROPIC_DEFAULT_MODEL,
-          max_tokens: MAX_TOKENS,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-        signal: controller.signal,
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { content?: { text?: string }[] };
-        text = Array.isArray(data?.content) ? data.content.map((b) => b?.text ?? '').join('') : '';
-      }
-    }
-  } catch {
-    text = null; // network error, timeout abort, bad body JSON → unavailable
-  } finally {
-    clearTimeout(timer);
-  }
+  // null = unavailable: non-OK status, network error, timeout abort, malformed body.
+  const text = await llmCompleteText(prompt, MAX_TOKENS);
 
   const value = text === null ? null : parseFromText(text);
   try {

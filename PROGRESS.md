@@ -1,5 +1,38 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-21 — #260 Agent-review follow-up slice 2 (redundancy wave B + A5/A6) — COMPLETE
+
+Closed every remaining non-owner-gated candidate from the 2026-07-21 agent review; D (Plaid
+merge into an existing account) is the ONLY item left and stays owner-gated because it deletes
+transaction rows. Extractions: src/server/llm-provider.ts (5 LLM modules had copied the same
+~45-line provider selection + round-trip; also removes the `anthropicKey!` non-null assertion 3 of
+the 5 had drifted into — the "no key returns BEFORE onOutcome" contract and the null=unavailable
+vs ''=replied-with-nothing distinction are preserved at every caller); src/lib/auth/token-salt.ts
+(3 at-rest salt chains); dates.ts monthKey + addMonthsToMonthKey (6 ym slices + 5 prev/next
+wrappers); src/lib/stats.ts (5 median copies); shared isDemoUser in household-actions;
+useConfirmArm + ConfirmPrompt for the 6 two-tap confirms; AUTH_INPUT_CLASS for the 3 auth forms.
+MEDIAN DRIFT, the one real find: the 5 copies disagreed on the even-count case (3 floor, 1 round,
+1 raw), so the shared util returns the EXACT median and each engine states its rounding at its own
+call site — all figures byte-identical (unit suite unchanged). 2 deliberate behaviour changes:
+Escape now disarms an armed destructive control on all 6 surfaces, and /trust joins nav DISCOVER
+(it was reachable only from a card inside /settings). DECLINED WITH EVIDENCE (not skipped): A6's
+"time promise drift" (4 claims about 4 different things — verified in the copy), B5's
+"provider-configured checks" (plaid-actions needs DATA_ENCRYPTION_KEY; the others throw operator
+messages — different on purpose), and the "Safe to Spend vs Cash Needed" rename (owner product
+call). RE-FILED FOR THE OWNER: safe-to-spend deducts snap.scheduled bills and NOT card statement
+dues (verified in server/spending-plan.ts), so the dashboard shows two figures that don't
+reconcile — a copy fix here would be a money claim the code doesn't support (#221 class).
+New tests: stats.test.ts, token-salt.test.ts, llm-provider.test.ts, month-key cases in
+dates.test.ts, Escape-disarm step in transactions.spec.ts, nav-trust in mobile-nav.spec.ts.
+REGRESSION FOUND + FIXED (from #259, not this slice): the first FULL e2e run since #259 showed its
+zero-account /triage empty replaces the whole page, so Backfill was unreachable for every new signup —
+backfill.spec repaired (one manual asset past the gate + an explicit assert that the first-run empty is
+gone before clicking) and REGRESSION_LEDGER filed. #259 ran targeted specs only; a route-level gate is a
+fence and needs the full suite.
+E2E LESSON RE-CONFIRMED: `next start` serves the LAST build — my first spec run failed on BOTH new
+assertions purely because the served bundle predated the edits; rebuild before running specs.
+NEXT: owner decision on D (Plaid merge) — or TASKS 2.4 / 3.3 / 3.7 from the open board.
+
 ## 2026-07-21 — #257 Forgot-password / reset flow (owner request, owner locked out) — COMPLETE (verify green 3324/227, security critic PASS 0 P0/P1 both cycles)
 
 Owner locked out of the deployed app -> full reset flow, engine-first on Fable. Pure engine/auth/reset.ts + guarded core server/password-reset.ts (authz-free, real-Prisma-tested: hash-only at rest, single-active mint, ATOMIC single-use claim + passwordHash rewrite + sessionEpoch bump in one transaction — #256 P1-1 lesson applied from the start; demo fence in core; enumeration-neutral request; fail-closed origin refusing CWE-640 reset-link poisoning off-Vercel without AUTH_URL) + rate-limited 'use server' wrappers (750ms timing-oracle floor) + /forgot-password + /reset-password pages + sign-in link + middleware exclusions. PasswordResetToken additive table. password-reset-server.test.ts 13/13 (atomic race, boundary expiry, forged-demo-row refusal, Google-only policy, no-origin); e2e password-reset 3/3 + auth 3/3 post-rebuild (e2e lesson: next start serves the LAST build — rebuild before spec runs). Fresh-context security critic cycle 1 PASS 0P0/0P1 w/ 2P2+3P3 hardening (executed timing measurement 3.14x -> floored; host-poisoning -> fail-closed + .env.example AUTH_URL requirement) -> ALL actionable fixed -> critic re-verified by executed re-repro PASS, 1 negligible new P3 comment-recorded. 3 residuals in STATUS. Docs: DECISIONS #257 + index, STATUS section. Committed + PUSHED (the owner needs this ON VERCEL to get back in; RESEND_API_KEY owner-verified live at #204). OPEN OWNER LOOP: PLAID_ENV value in Vercel still unconfirmed (sandbox phone screen) — owner was mid-check when the lockout interrupted.

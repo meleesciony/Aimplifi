@@ -45,6 +45,9 @@ test('More sheet: opens labelled destinations, navigates, Escape closes', async 
   // Discover section surfaces dashboard-only routes.
   await expect(page.getByTestId('nav-ask')).toBeVisible();
   await expect(page.getByTestId('nav-trends')).toBeVisible();
+  // A6 (2026-07-21 review): the AI Trust Center was reachable only from a card
+  // inside /settings — it now sits with the other dashboard-adjacent surfaces.
+  await expect(page.getByTestId('nav-trust')).toBeVisible();
 
   // WCAG AA on the open sheet.
   const axe = await new AxeBuilder({ page })

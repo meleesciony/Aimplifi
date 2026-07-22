@@ -31,15 +31,17 @@ import {
   resetTokenState,
 } from '@/lib/engine/auth/reset';
 import { hashPassword } from '@/lib/auth/password';
+import { tokenSalt } from '@/lib/auth/token-salt';
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, normalizeEmail } from '@/lib/auth/validate';
 import { isDemoUser } from '@/lib/demo-user';
 import { sendEmail } from '@/lib/email';
 import { prisma } from '@/lib/db';
 
-/** Salt for at-rest token hashing (inviteCodeSalt idiom — env override, then the
- *  auth secret; the dev fallback exists so the zero-credential demo still boots). */
+/** Salt for at-rest token hashing. The resolution order (env override → auth
+ *  secret → public dev fallback, so the zero-credential demo still boots) is the
+ *  shared `tokenSalt` idiom — see src/lib/auth/token-salt.ts. */
 export function resetTokenSalt(): string {
-  return process.env.RESET_TOKEN_SALT ?? process.env.AUTH_SECRET ?? 'aimplifi-reset-dev-v1';
+  return tokenSalt('RESET_TOKEN_SALT', 'aimplifi-reset-dev-v1');
 }
 
 export const RESET_NEUTRAL_MESSAGE =

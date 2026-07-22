@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addDays,
   addMonthsClamped,
+  addMonthsToMonthKey,
   compareDates,
   dayOfWeek,
   daysBetween,
@@ -10,6 +11,7 @@ import {
   fromEpochDays,
   holidayTable,
   isBusinessDay,
+  monthKey,
   isLeapYear,
   isWeekend,
   isoDate,
@@ -197,5 +199,40 @@ describe('nextDayOfMonth (shared by the cash-needed assembler + loan-obligation 
     expect(nextDayOfMonth(31, d('2026-04-10'))).toBe('2026-04-30'); // April has 30
     // already past the clamped day this month → next month, re-clamped
     expect(nextDayOfMonth(31, d('2026-02-28'))).toBe('2026-02-28');
+  });
+});
+
+describe('monthKey / addMonthsToMonthKey (the one month-key home — 2026-07-21 review B4)', () => {
+  it('monthKey takes the calendar month of a date, timezone-free', () => {
+    expect(monthKey('2026-06-15')).toBe('2026-06');
+    // Boundary days: a month key must never shift by a timezone hour.
+    expect(monthKey('2026-01-01')).toBe('2026-01');
+    expect(monthKey('2026-12-31')).toBe('2026-12');
+  });
+
+  it('addMonthsToMonthKey steps forward and back across year boundaries', () => {
+    expect(addMonthsToMonthKey('2026-06', 1)).toBe('2026-07');
+    expect(addMonthsToMonthKey('2026-06', -1)).toBe('2026-05');
+    expect(addMonthsToMonthKey('2026-12', 1)).toBe('2027-01');
+    expect(addMonthsToMonthKey('2026-01', -1)).toBe('2025-12');
+    expect(addMonthsToMonthKey('2026-06', 0)).toBe('2026-06');
+  });
+
+  it('handles multi-year steps and agrees with addMonthsClamped', () => {
+    expect(addMonthsToMonthKey('2026-06', 18)).toBe('2027-12');
+    expect(addMonthsToMonthKey('2026-06', -18)).toBe('2024-12');
+    expect(addMonthsToMonthKey('2026-03', -14)).toBe(
+      monthKey(addMonthsClamped(isoDate('2026-03-01'), -14)),
+    );
+  });
+
+  it('the 31st never leaks into the key (arithmetic runs on the 1st)', () => {
+    // A naive `new Date('2026-01-31') + 1 month` lands in March; the key must not.
+    expect(addMonthsToMonthKey(monthKey('2026-01-31'), 1)).toBe('2026-02');
+  });
+
+  it('rejects a malformed month key rather than inventing one', () => {
+    expect(() => addMonthsToMonthKey('2026-13', 1)).toThrow();
+    expect(() => addMonthsToMonthKey('not-a-month', 1)).toThrow();
   });
 });

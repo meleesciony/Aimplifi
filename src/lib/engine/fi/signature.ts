@@ -35,7 +35,8 @@
  */
 
 import { cents } from '@/lib/money';
-import { type ISODate, addMonthsClamped, isoDate } from '@/lib/dates';
+import { type ISODate, addMonthsToMonthKey, monthKey } from '@/lib/dates';
+import { medianOfSorted } from '@/lib/stats';
 import type { MonthlyFlow } from './insights';
 import { computeSavingsStreak } from './savings-streak';
 
@@ -118,11 +119,11 @@ export interface MoneySignature {
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
-/** Radar integer median convention (see module doc). Input must be sorted. */
-function medianOfSorted(sorted: readonly number[]): number {
-  const n = sorted.length;
-  const mid = Math.floor(n / 2);
-  return n % 2 === 1 ? sorted[mid]! : Math.floor((sorted[mid - 1]! + sorted[mid]!) / 2);
+/** Radar integer median convention (see module doc): the shared exact median,
+ *  floored to whole cents here — the rounding is this engine's decision, not the
+ *  utility's (src/lib/stats.ts). */
+function medianCents(sorted: readonly number[]): number {
+  return Math.floor(medianOfSorted(sorted));
 }
 
 /**
@@ -165,11 +166,9 @@ export function resolveConfirmedLabel(raws: readonly (AxisLabel | null)[]): {
   return { label, sinceIndex };
 }
 
-const ym = (date: string) => date.slice(0, 7);
-
 /** Month key arithmetic via the tested date utilities (no ad-hoc Date math). */
 function nextMonth(month: string): string {
-  return ym(addMonthsClamped(isoDate(`${month}-01`), 1));
+  return addMonthsToMonthKey(month, 1);
 }
 
 interface FullMonth {
@@ -187,13 +186,13 @@ interface FullMonth {
  * always reads the true latest full calendar month, never a stale one.
  */
 function fullCalendarMonths(flows: readonly MonthlyFlow[], today: ISODate): FullMonth[] {
-  const currentYm = ym(today);
+  const currentYm = monthKey(today);
   const kept = flows
     .filter((f) => f.month < currentYm)
     .slice()
     .sort((a, b) => (a.month < b.month ? -1 : 1));
   if (kept.length === 0) return [];
-  const lastFullYm = ym(addMonthsClamped(isoDate(`${currentYm}-01`), -1));
+  const lastFullYm = addMonthsToMonthKey(currentYm, -1);
   const byMonth = new Map(kept.map((f) => [f.month, f]));
   const out: FullMonth[] = [];
   for (let m = kept[0]!.month; m <= lastFullYm; m = nextMonth(m)) {
@@ -250,14 +249,14 @@ function steadinessRaws(months: readonly FullMonth[]): {
     }
     const window = months.slice(i - STEADINESS_WINDOW_MONTHS + 1, i + 1).map((m) => m.expensesCents);
     const sorted = [...window].sort((a, b) => a - b);
-    const med = medianOfSorted(sorted);
+    const med = medianCents(sorted);
     if (med <= 0) {
       raws.push(null);
       latestSpreadBps = null;
       continue;
     }
     const devs = window.map((x) => Math.abs(x - med)).sort((a, b) => a - b);
-    const mad = medianOfSorted(devs);
+    const mad = medianCents(devs);
     const spreadBps = Math.floor((mad * 10000) / med);
     latestSpreadBps = spreadBps;
     if (spreadBps <= STEADINESS_STEADY_MAX_SPREAD_BPS) raws.push('steady');

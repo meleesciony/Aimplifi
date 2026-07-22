@@ -13,6 +13,7 @@
  * was a coin-flip at human pacing, so the pickers could silently stay stale.
  */
 import { useState } from 'react';
+import { useConfirmArm } from '@/components/ui/confirm-action';
 import { Pencil, Plus, Trash2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -46,7 +47,7 @@ export function CustomCategoryManager({
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const confirm = useConfirmArm();
   const [pending, setPending] = useState(false);
 
   /** Shared #167 wrapper: deadline-bounded action → reload on success, inline
@@ -220,7 +221,7 @@ export function CustomCategoryManager({
                     {c.name}
                     <span className="ml-1.5 text-xs text-muted-foreground">· {c.group}</span>
                   </span>
-                  {confirmId === c.id ? (
+                  {confirm.isArmed(c.id) ? (
                     <div className="flex shrink-0 items-center gap-1.5">
                       <span className="text-xs text-muted-foreground">Re-file as Uncategorized?</span>
                       <Button
@@ -239,7 +240,7 @@ export function CustomCategoryManager({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => setConfirmId(null)}
+                        onClick={confirm.disarm}
                         aria-label="Cancel delete"
                         className="h-7 px-1.5 text-xs text-muted-foreground"
                       >
@@ -268,7 +269,7 @@ export function CustomCategoryManager({
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setConfirmId(c.id);
+                          confirm.arm(c.id);
                           setError(null);
                         }}
                         disabled={pending}

@@ -24,17 +24,15 @@ import 'server-only';
  */
 import type { AiOutcomeSink } from '@/lib/engine/ai-audit/describe';
 import { buildCategorizePrompt, type LlmCategory, parseLlmCategory } from '@/lib/engine/categorize/llm';
+import { llmCompleteText, llmProviderConfigured } from '@/server/llm-provider';
 
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const ANTHROPIC_DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
-const XAI_URL = 'https://api.x.ai/v1/chat/completions';
-const XAI_DEFAULT_MODEL = 'grok-3-mini';
-// Bound the provider round-trip (same budget as assistant-llm.ts). Without a
-// signal, a hung fetch never settles and the CALLING SERVER ACTION never returns —
-// no error, no log line, just a button stuck disabled-while-pending (the
-// phase2-triage stall signature, STATUS 2026-07-04). On abort the catch below
-// returns null and the deterministic pipeline stands.
-const TIMEOUT_MS = 7000;
+// Provider selection, the bounded round-trip, and text extraction live in
+// llm-provider.ts. The bound matters here in particular: without a signal, a hung
+// fetch never settles and the CALLING SERVER ACTION never returns — no error, no
+// log line, just a button stuck disabled-while-pending (the phase2-triage stall
+// signature, STATUS 2026-07-04). On abort the helper returns null and the
+// deterministic pipeline stands.
+const MAX_TOKENS = 100;
 
 /** Extract the first JSON object from model text and validate it (→ null if bad). */
 function parseFromText(text: string): LlmCategory | null {
@@ -56,57 +54,10 @@ export async function suggestCategoryViaLLM(
   onOutcome?: AiOutcomeSink,
 ): Promise<LlmCategory | null> {
   const prompt = buildCategorizePrompt(input);
-  const xaiKey = process.env.XAI_API_KEY;
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (!xaiKey && !anthropicKey) return null; // no provider key → no network, deterministic fallback
+  if (!llmProviderConfigured()) return null; // no provider key → no network, deterministic fallback
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  // null until the provider yields a usable text body — anything short of that
-  // (non-OK status, network error, timeout abort, malformed body) is 'unavailable'.
-  let text: string | null = null;
-  try {
-    if (xaiKey) {
-      // xAI Grok — OpenAI-compatible /chat/completions (cheaper than Anthropic).
-      const res = await fetch(XAI_URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${xaiKey}` },
-        body: JSON.stringify({
-          model: process.env.XAI_MODEL ?? XAI_DEFAULT_MODEL,
-          max_tokens: 100,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-        signal: controller.signal,
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-        text = data?.choices?.[0]?.message?.content ?? '';
-      }
-    } else if (anthropicKey) {
-      const res = await fetch(ANTHROPIC_URL, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': anthropicKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: process.env.ANTHROPIC_MODEL ?? ANTHROPIC_DEFAULT_MODEL,
-          max_tokens: 100,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-        signal: controller.signal,
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { content?: { text?: string }[] };
-        text = Array.isArray(data?.content) ? data.content.map((b) => b?.text ?? '').join('') : '';
-      }
-    }
-  } catch {
-    text = null; // network error, timeout abort, bad body JSON → unavailable
-  } finally {
-    clearTimeout(timer);
-  }
+  // null = unavailable: non-OK status, network error, timeout abort, malformed body.
+  const text = await llmCompleteText(prompt, MAX_TOKENS);
 
   const value = text === null ? null : parseFromText(text);
   try {

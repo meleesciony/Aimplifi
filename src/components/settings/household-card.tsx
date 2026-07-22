@@ -16,6 +16,7 @@
  * shared, and no sharing control exists yet in this slice.
  */
 import { useState } from 'react';
+import { useConfirmArm } from '@/components/ui/confirm-action';
 import { Button } from '@/components/ui/button';
 import {
   acceptInvite,
@@ -205,7 +206,7 @@ function MemberView({
 }) {
   const [inviteEmail, setInviteEmail] = useState('');
   const [issuedCode, setIssuedCode] = useState<{ code: string; email: string } | null>(null);
-  const [confirmLeave, setConfirmLeave] = useState(false);
+  const confirm = useConfirmArm();
   const isOwner = view.role === 'owner';
 
   return (
@@ -352,7 +353,7 @@ function MemberView({
       )}
 
       <div className="space-y-2 border-t border-border/60 pt-3">
-        {confirmLeave ? (
+        {confirm.isArmed('leave') ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted-foreground">
               {HOUSEHOLD_COPY.leaveConfirm(view.name)}
@@ -372,7 +373,7 @@ function MemberView({
               size="sm"
               variant="outline"
               disabled={pending}
-              onClick={() => setConfirmLeave(false)}
+              onClick={confirm.disarm}
             >
               Cancel
             </Button>
@@ -384,7 +385,7 @@ function MemberView({
             variant="outline"
             disabled={pending}
             data-testid="household-leave"
-            onClick={() => setConfirmLeave(true)}
+            onClick={() => confirm.arm('leave')}
           >
             Leave household
           </Button>

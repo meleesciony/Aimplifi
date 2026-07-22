@@ -12,7 +12,7 @@
  *
  * Pure: string in, typed object out. No I/O, no `new Date()` — `today` is given.
  */
-import { addMonthsClamped, daysInMonth, isoDate, type ISODate } from '@/lib/dates';
+import { addMonthsClamped, addMonthsToMonthKey, daysInMonth, isoDate, monthKey, type ISODate } from '@/lib/dates';
 import { centsFromDollarString } from '@/lib/money';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 
@@ -130,11 +130,6 @@ function monthIndexOf(word: string): number | null {
   return j >= 0 ? j : null;
 }
 
-const ymOf = (date: string) => date.slice(0, 7);
-/** The month key `n` months before `ym` (clamped month arithmetic, no Date). */
-function priorYm(ym: string, n: number): string {
-  return addMonthsClamped(isoDate(`${ym}-01`), -n).slice(0, 7);
-}
 
 // ─── numeric dates & bare years (TASKS 2.7) ─────────────────────────────────
 
@@ -236,7 +231,7 @@ export function parseTimeframe(qRaw: string, today: ISODate): Timeframe {
 
 /** The current-month window — the timeframe used when a question names none. */
 function thisMonth(today: ISODate): Timeframe {
-  const todayYm = ymOf(today);
+  const todayYm = monthKey(today);
   return { fromYm: todayYm, toYm: todayYm, label: 'this month' };
 }
 
@@ -249,7 +244,7 @@ function thisMonth(today: ISODate): Timeframe {
  */
 export function parseExplicitTimeframe(qRaw: string, today: ISODate): Timeframe | null {
   const q = qRaw.toLowerCase();
-  const todayYm = ymOf(today);
+  const todayYm = monthKey(today);
   const y = Number(today.slice(0, 4));
   const m = Number(today.slice(5, 7));
 
@@ -275,7 +270,7 @@ export function parseExplicitTimeframe(qRaw: string, today: ISODate): Timeframe 
         // from "since 2025", which already did (critic cycle 1, F5).
         return /year/.test(sm[2])
           ? { fromYm: `${y - 1}-01`, toYm: todayYm, label: 'since last year' }
-          : { fromYm: priorYm(todayYm, 1), toYm: todayYm, label: 'since last month' };
+          : { fromYm: addMonthsToMonthKey(todayYm, -(1)), toYm: todayYm, label: 'since last month' };
       } else if (sm[3]) {
         const mi = monthIndexOf(sm[3]);
         if (mi !== null) {
@@ -290,7 +285,7 @@ export function parseExplicitTimeframe(qRaw: string, today: ISODate): Timeframe 
   }
 
   if (/\b(last|previous|prior|past) month\b/.test(q)) {
-    const p = priorYm(todayYm, 1);
+    const p = addMonthsToMonthKey(todayYm, -(1));
     return { fromYm: p, toYm: p, label: 'last month' };
   }
   if (/\b(this year|year to date|year-to-date|ytd)\b/.test(q)) {
@@ -302,7 +297,7 @@ export function parseExplicitTimeframe(qRaw: string, today: ISODate): Timeframe 
   const lastN = q.match(/\b(?:last|past|previous|trailing)\s+(\d{1,2})\s+months?\b/);
   if (lastN) {
     const n = Math.max(1, Math.min(24, Number(lastN[1])));
-    return { fromYm: priorYm(todayYm, n - 1), toYm: todayYm, label: `the last ${n} months` };
+    return { fromYm: addMonthsToMonthKey(todayYm, -(n - 1)), toYm: todayYm, label: `the last ${n} months` };
   }
 
   // Explicit month name (optionally with a 4-digit year). "may" is also a modal

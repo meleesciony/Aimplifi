@@ -26,6 +26,7 @@
  * median (same convention) of absolute deviations from the median.
  */
 import { type Cents, cents } from '@/lib/money';
+import { medianOfSorted } from '@/lib/stats';
 import { type ISODate, compareDates, daysBetween } from '@/lib/dates';
 import { isAggregateCanonical, normalizeMerchant } from '@/lib/engine/categorize/normalize';
 
@@ -73,11 +74,11 @@ function isQualifyingCharge(t: AnomalyTxn): boolean {
   return t.status === 'POSTED' && !t.isTransfer && !(t.isSplitParent ?? false) && t.amountCents < 0;
 }
 
-/** Median with the documented integer convention (sorted ascending input). */
-function medianOfSorted(sorted: readonly number[]): number {
-  const n = sorted.length;
-  const mid = Math.floor(n / 2);
-  return n % 2 === 1 ? sorted[mid] : Math.floor((sorted[mid - 1] + sorted[mid]) / 2);
+/** Median with the documented integer convention: the shared exact median
+ *  (src/lib/stats.ts), floored to whole cents here — the rounding is this
+ *  engine's decision, not the utility's. Sorted ascending input. */
+function medianCents(sorted: readonly number[]): number {
+  return Math.floor(medianOfSorted(sorted));
 }
 
 /**
@@ -109,8 +110,8 @@ export function detectUnusualCharges(
     if (txns.length < ANOMALY_MIN_SAMPLE) continue;
 
     const magnitudes = txns.map((t) => -t.amountCents).sort((a, b) => a - b);
-    const median = medianOfSorted(magnitudes);
-    const mad = medianOfSorted(magnitudes.map((x) => Math.abs(x - median)).sort((a, b) => a - b));
+    const median = medianCents(magnitudes);
+    const mad = medianCents(magnitudes.map((x) => Math.abs(x - median)).sort((a, b) => a - b));
     const threshold = ANOMALY_K_MAD * mad + ANOMALY_FLOOR_CENTS;
 
     // One flag per merchant: the recent charge with the LARGEST deviation

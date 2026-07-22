@@ -9,6 +9,7 @@
  *    ScheduledTransactions for the cash-needed projection.
  */
 import { type ISODate, addDays, addMonthsClamped, compareDates, daysBetween, isoDate } from '@/lib/dates';
+import { median } from '@/lib/stats';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 
 export interface RecurringTxn {
@@ -39,11 +40,6 @@ export interface RecurringSeriesResult {
   accountId: string;
 }
 
-function median(xs: number[]): number {
-  const s = [...xs].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
-}
 
 function cadenceFromGap(gapDays: number): Cadence {
   if (gapDays >= 5 && gapDays <= 9) return 'WEEKLY';
@@ -120,7 +116,7 @@ export function detectRecurring(
     for (let i = 1; i < sorted.length; i++) {
       gaps.push(daysBetween(isoDate(sorted[i - 1].date), isoDate(sorted[i].date)));
     }
-    const cadence = cadenceFromGap(median(gaps));
+    const cadence = cadenceFromGap(Math.round(median(gaps)));
     if (cadence === 'IRREGULAR') continue;
 
     // Amount stability: a series is recurring when amounts cluster tightly.

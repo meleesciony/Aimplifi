@@ -15,9 +15,16 @@
 import { revalidatePath } from 'next/cache';
 import { randomBytes } from 'crypto';
 import { prisma, serializableTx } from '@/lib/db';
-import { DEMO_USER_ID } from '@/auth.config';
+// T6 is a GUARD, not a seed accident (critic #210 F1): the demo user is a shared,
+// credential-free login, so a demo membership would hand every anonymous visitor a
+// seat in a real user's household and perturb the demo dataset for everyone.
+// Blocked at every entry point into membership — creating, accepting, and being
+// invited. This file used to re-implement `isDemoUser` locally over the auth.config
+// re-export; it now uses the one shared definition (2026-07-21 review, B6).
+import { isDemoUser } from '@/lib/demo-user';
 import { auditLog, rateLimitDurable, requireUserId, requireViewer } from '@/server/authz';
 import { isValidEmail, normalizeEmail } from '@/lib/auth/validate';
+import { tokenSalt } from '@/lib/auth/token-salt';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { ensureCategories } from '@/server/ensure-categories';
@@ -51,22 +58,12 @@ class InviteClaimLost extends Error {
 const DEMO_HOUSEHOLD_ERROR =
   'The shared demo account can’t join a household — sign up for your own account first.';
 
-/** Salt for at-rest invite-code hashes (deletionRefSalt idiom). The code itself
- * is the high-entropy secret; the salt only blocks rainbow-table enumeration of
- * a leaked hash dump. The public dev fallback exists because demo mode must run
- * with ZERO env vars (CLAUDE.md rule 4) — in any real deployment AUTH_SECRET is
- * present (NextAuth requires it), so the fallback never engages there. */
+/** Salt for at-rest invite-code hashes, via the shared `tokenSalt` idiom (see
+ * src/lib/auth/token-salt.ts for the resolution order and why a public dev
+ * fallback exists). The code itself is the high-entropy secret; the salt only
+ * blocks rainbow-table enumeration of a leaked hash dump. */
 function inviteCodeSalt(): string {
-  return process.env.INVITE_CODE_SALT ?? process.env.AUTH_SECRET ?? 'aimplifi-invite-dev-v1';
-}
-
-/** T6 is a GUARD, not a seed accident (critic #210 F1): the demo user is a
- * shared, credential-free login, so a demo membership would hand every
- * anonymous visitor a seat in a real user's household and perturb the demo
- * dataset for everyone. Blocked at every entry point into membership —
- * creating, accepting, and being invited. */
-function isDemoUser(userId: string): boolean {
-  return userId === DEMO_USER_ID;
+  return tokenSalt('INVITE_CODE_SALT', 'aimplifi-invite-dev-v1');
 }
 
 export async function createHousehold(rawName: string): Promise<HouseholdActionResult> {
