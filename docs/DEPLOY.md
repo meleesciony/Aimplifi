@@ -51,9 +51,33 @@ deploys to work):
 | Variable | Value | Notes |
 |---|---|---|
 | `DATABASE_URL` | the Neon **direct** string from step 2 | switches the app to Postgres |
-| `AUTH_SECRET` | `W3YWKRtXxKZh9e9B4ZqLOWBguQYVlUkqirDVn0lMPaE=` | session signing — provided for you; or regenerate with `npx auth secret` |
-| `DATA_ENCRYPTION_KEY` | `j79g/xBZ+myb6255ZxlUKZFpxNdNaDdSK9q3lxtsWHY=` | encrypts Plaid/SimpleFIN tokens at rest; set it now so bank-connect works later |
+| `AUTH_SECRET` | generate your own — see below | session signing |
+| `DATA_ENCRYPTION_KEY` | generate your own — see below | encrypts Plaid/SimpleFIN tokens at rest; set it now so bank-connect works later |
 | **`SIGNUP_ALLOWLIST`** | **`you@email.com, wife@email.com, tester1@email.com`** | **⚠️ THE invite-only gate — see below** |
+
+> ### Generating the two secret values
+> Never paste a secret that came from a document, a chat, or this repository —
+> anything written down somewhere is already shared. Make your own, one command
+> each, and paste the output straight into Vercel:
+>
+> 1. Open a terminal in the project folder (the one containing `package.json`).
+> 2. Run `npx auth secret` — it prints a random value and, if you let it, writes it
+>    into your local `.env`. That printed value is your `AUTH_SECRET`.
+> 3. Run `openssl rand -base64 32` — it prints a second random value. That one is
+>    your `DATA_ENCRYPTION_KEY`. (No `openssl` on Windows? Use
+>    `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+>    instead — same result.)
+> 4. In Vercel, go to your project → **Settings** → **Environment Variables**, and
+>    add each one: type the name in the **Key** box, paste the value in the
+>    **Value** box, tick **Production**, then click **Save**.
+> 5. Redeploy — push the new settings live so the running site actually reads them.
+>    Vercel → **Deployments** → the newest one → the **⋯** menu → **Redeploy**.
+>    Environment variables only take effect on a deploy that starts after you saved
+>    them.
+>
+> Keep both values only in Vercel and in your own password manager. If either one
+> ever lands in a file, a commit, or a chat, treat it as burned and generate a new
+> one — see the caveat about rotation costs at the bottom of this page.
 
 > ### ⚠️ The single most important step
 > **If you do not set `SIGNUP_ALLOWLIST`, signup is OPEN — anyone who finds the URL
@@ -130,12 +154,20 @@ changes don't apply until a redeploy.
   activate per their own docs once deployed; the SimpleFIN live network path is
   still UNVERIFIED until run against a real server. CSV import and manual entry
   work immediately with zero setup.
-- **Secrets:** the `AUTH_SECRET` / `DATA_ENCRYPTION_KEY` above were generated for
-  you and are now in this file/your chat — fine to use, but if you want them
-  private to you, regenerate (`npx auth secret`; `openssl rand -base64 32`) and
-  paste your own. **Never commit real secrets to git.** Changing
-  `DATA_ENCRYPTION_KEY` later makes previously-stored bank tokens undecryptable
-  (users just reconnect).
+- **Secrets:** **never commit real secrets to git.** This file used to print a
+  ready-made `AUTH_SECRET` and `DATA_ENCRYPTION_KEY` and tell you they were "fine
+  to use"; they were committed here on 2026-06-21 and are therefore burned —
+  anyone with repository access has had them ever since. They are replaced above
+  with generate-your-own steps. If you ever used those printed values on a real
+  deployment, rotate both, and know what each rotation costs:
+  - **`AUTH_SECRET`** signs the session cookie, so changing it signs every device
+    out at once (everyone signs in again — expected, harmless) and invalidates any
+    outstanding password-reset links, which are salted from it.
+  - **`DATA_ENCRYPTION_KEY`** encrypts stored bank tokens, so changing it makes
+    previously-stored Plaid/SimpleFIN connections undecryptable — every connected
+    bank has to be linked again. Don't change this one casually.
+  - Editing this file does not un-publish anything: the old values stay in git
+    history. Rotation is the only real fix.
 - **Cost:** Vercel Hobby + Neon free tier cover a household + a handful of testers
   at $0. Watch Neon's storage/compute limits only if usage grows.
 - **Free-tier database sleep:** Neon's free compute may cold-start after idle, so
