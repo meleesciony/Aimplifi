@@ -31,7 +31,14 @@ gone before clicking) and REGRESSION_LEDGER filed. #259 ran targeted specs only;
 fence and needs the full suite.
 E2E LESSON RE-CONFIRMED: `next start` serves the LAST build — my first spec run failed on BOTH new
 assertions purely because the served bundle predated the edits; rebuild before running specs.
-NEXT: owner decision on D (Plaid merge) — or TASKS 2.4 / 3.3 / 3.7 from the open board.
+NEXT SESSION STARTS HERE — OWNER-REPORTED, UNDIAGNOSED: "the password isn't being remembered"
+(full framing + verified facts + the questions to ask in docs/STATUS.md, top section). Short form:
+stored passwords CANNOT be broken by an env change (scrypt salt lives inside the stored hash), and
+the only change to the password FIELD today was #258's show/hide viewer, which flips the input's
+type away from `password` — a plausible reason a password MANAGER stops offering to save. Labelled
+hypothesis, not a conclusion: ask for a screenshot + whether the missing prompt is the browser's or
+the app's before touching anything. #258 is a one-component revert if the owner is blocked.
+AFTER THAT: owner decision on D (Plaid merge) — or TASKS 2.4 / 3.3 / 3.7 from the open board.
 
 ## 2026-07-21 — #257 Forgot-password / reset flow (owner request, owner locked out) — COMPLETE (verify green 3324/227, security critic PASS 0 P0/P1 both cycles)
 

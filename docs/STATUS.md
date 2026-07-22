@@ -2,6 +2,49 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## 🔴 OPEN — owner-reported 2026-07-21: "the password isn't being remembered" (START HERE NEXT SESSION)
+
+Owner, verbatim, at the end of the #260 session: *"There's a problem with the
+password saves that we need to fix next session. It used to work. We did lots of
+things in env variables today and now it's just not remembering the password I
+entered earlier."*
+
+**NOT DIAGNOSED — do not act on any theory below before its check.** The symptom
+sentence has at least three readings (the browser isn't saving/filling it; sign-in
+rejects a password that used to work; the session drops and it asks again), and
+they have different fixes.
+
+**Verified facts, read-only, this session (these are evidence, not guesses):**
+1. **No env var can invalidate a stored password.** `src/lib/auth/password.ts`
+   stores `scrypt$<salt>$<key>` with the per-password salt INSIDE the stored
+   string; verification re-derives from that salt alone. Today's env work cannot
+   have made a correct password stop matching. (Env DOES affect reset links: their
+   hashes are salted with `RESET_TOKEN_SALT ?? AUTH_SECRET ?? dev-fallback`, so a
+   changed `AUTH_SECRET` kills outstanding reset links — not stored passwords.)
+2. **Sessions are JWTs** (`src/auth.config.ts`: `session: { strategy: 'jwt' }`)
+   carrying a `sessionEpoch` re-checked server-side; a completed password reset
+   bumps it and signs out every existing session BY DESIGN (#257).
+3. **The one thing that changed about the password FIELD today is #258.** Git
+   confirms the `autoComplete` attributes (`email`, `current-password` /
+   `new-password`) have been there since the original auth commit `c665ae6` and
+   were not touched; `src/components/auth/password-input.tsx` — the show/hide
+   viewer whose `type` attribute flips between `password` and `text` — was created
+   today in `0deda04` (#258) and wired into sign-in, sign-up AND reset-password.
+
+**Leading hypothesis (LABELLED — unconfirmed) + its killing check:** a password
+manager can stop offering to save a credential when the field's `type` flips away
+from `password`, which is exactly what #258 introduced on all three forms. Check
+by temporarily rendering a plain `<input type="password">` in the sign-in form and
+seeing whether the browser offers to save again. #258 is a one-component swap, so
+this is fully reversible — and per CLAUDE.md rule 0, if the owner is blocked,
+revert first and diagnose after.
+
+**Ask the owner FIRST (never describe a screen we haven't seen):**
+(a) a screenshot of where it fails; (b) whether the prompt that's missing is the
+BROWSER's "save password?" or the APP's sign-in rejecting it; (c) the exact
+on-screen message, if any; (d) which browser/device; (e) which env vars were
+changed today (names only, never values).
+
 ## ⚠️ OPEN — Ask parser/vocab, remaining items (post-2.7)
 
 The #226 escalation is fully **RESOLVED**: TASKS 2.6 shipped 2026-07-12 (#229) and TASKS 2.7
