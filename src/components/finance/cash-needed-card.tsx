@@ -147,7 +147,7 @@ export function CashNeededCard({
                 {formatISODate(isoDate(point.date))}
                 <span className="ml-1 text-xs">({formatRelativeDays(today as ISODate, point.date)})</span>
               </span>
-              <span>
+              <span className="min-w-0 break-words">
                 {point.cards
                   .map(
                     (c) =>
@@ -164,7 +164,7 @@ export function CashNeededCard({
               className="grid grid-cols-[auto_1fr_auto] items-baseline gap-x-3 text-sm text-muted-foreground"
             >
               <span className="whitespace-nowrap">{formatISODate(isoDate(u.effectiveDueDate))}</span>
-              <span>
+              <span className="min-w-0 break-words">
                 {u.cardName} {formatCents(u.cashRequiredCents)}{' '}
                 <Badge variant="outline" className="ml-1 align-middle">
                   est.

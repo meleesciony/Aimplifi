@@ -254,22 +254,22 @@ export function TransactionList({
     <div className="space-y-4" data-testid="txn-list">
       {/* summary strip */}
       <div className="grid grid-cols-3 gap-2 text-sm" data-testid="txn-summary">
-        <div className="rounded-md border p-2">
+        <div className="min-w-0 rounded-md border p-2">
           <div className="text-xs text-muted-foreground">Money in</div>
-          <div className="tabular-nums text-emerald-500" data-testid="summary-in">
+          <div className="break-words tabular-nums text-emerald-500" data-testid="summary-in">
             {formatCents(summary.inflowCents)}
           </div>
         </div>
-        <div className="rounded-md border p-2">
+        <div className="min-w-0 rounded-md border p-2">
           <div className="text-xs text-muted-foreground">Money out</div>
-          <div className="tabular-nums" data-testid="summary-out">
+          <div className="break-words tabular-nums" data-testid="summary-out">
             {formatCents(summary.outflowCents)}
           </div>
         </div>
-        <div className="rounded-md border p-2">
+        <div className="min-w-0 rounded-md border p-2">
           <div className="text-xs text-muted-foreground">Net</div>
           <div
-            className={`tabular-nums ${summary.netCents >= 0 ? 'text-emerald-500' : 'text-red-400'}`}
+            className={`break-words tabular-nums ${summary.netCents >= 0 ? 'text-emerald-500' : 'text-red-400'}`}
             data-testid="summary-net"
           >
             {formatCents(summary.netCents, { signDisplay: 'always' })}

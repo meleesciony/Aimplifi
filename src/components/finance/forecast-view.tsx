@@ -69,9 +69,9 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
       {f.milestones.length > 0 && (
         <div data-testid="forecast-milestones" className="grid grid-cols-3 gap-2">
           {f.milestones.map((m) => (
-            <div key={m.dayOffset} className="rounded-2xl border bg-card p-3 text-center shadow-sm">
+            <div key={m.dayOffset} className="min-w-0 rounded-2xl border bg-card p-3 text-center shadow-sm">
               <p className="text-xs text-muted-foreground">{m.dayOffset} days</p>
-              <p className={`mt-0.5 font-semibold tabular-nums ${m.balanceCents < 0 ? 'text-rose-500' : ''}`}>
+              <p className={`mt-0.5 break-words font-semibold tabular-nums ${m.balanceCents < 0 ? 'text-rose-500' : ''}`}>
                 {formatCents(cents(m.balanceCents))}
               </p>
               <p className="text-[10px] text-muted-foreground">{formatISODate(isoDate(m.date))}</p>

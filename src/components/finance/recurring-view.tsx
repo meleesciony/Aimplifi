@@ -194,9 +194,9 @@ export function RecurringView({
           </div>
           <div className="mt-3 grid grid-cols-3 divide-x border-t">
             {data.renewals.horizons.map((h) => (
-              <div key={h.days} data-testid={`coming-up-${h.days}d`} className="px-3 py-2.5 text-center">
+              <div key={h.days} data-testid={`coming-up-${h.days}d`} className="min-w-0 px-3 py-2.5 text-center">
                 <div className="text-xs text-muted-foreground">next {h.days} days</div>
-                <div className="font-semibold tabular-nums">{formatCents(cents(h.totalCents))}</div>
+                <div className="break-words font-semibold tabular-nums">{formatCents(cents(h.totalCents))}</div>
                 <div className="text-[10px] text-muted-foreground">{plural(h.count, 'charge')}</div>
               </div>
             ))}

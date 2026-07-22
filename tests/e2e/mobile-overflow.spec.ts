@@ -90,6 +90,52 @@ function seedSyncedAccount(opts: {
   }
 }
 
+/**
+ * Seed a synced account PLUS one large POSTED inflow for a signed-up user, so a
+ * money-display grid renders a 7-figure figure. M.3: the `grid-cols-3` summary
+ * strips (transaction summary, forecast milestones, recurring "coming up") size
+ * each `1fr` track as `minmax(auto, 1fr)`, whose `auto` minimum is the cell's
+ * min-content — an unbreakable "$9,999,999.00" is wider than a ~100px column at
+ * 360px, so pre-fix it forces the track wide and pushes the page past the
+ * viewport edge. Unlike the Safari-only flex `min-width:auto` quirk (#263), grid
+ * track sizing is identical in Chromium and WebKit, so this DOES fail-old here.
+ */
+function seedTransaction(opts: {
+  email: string;
+  name: string;
+  type: string;
+  balanceCents: number;
+  amountCents: number;
+  date: string;
+}) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(opts.email) as
+      | { id: string }
+      | undefined;
+    if (!user) throw new Error(`seedTransaction: user ${opts.email} not found`);
+    const accountId = `e2e-acct-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, name, type, currentBalanceCents, currency)
+       VALUES (?, ?, 'simplefin', ?, ?, ?, 'USD')`,
+    ).run(accountId, user.id, opts.name, opts.type, opts.balanceCents);
+    // "Transaction" is a SQLite reserved keyword — must be quoted.
+    db.prepare(
+      `INSERT INTO "Transaction" (id, accountId, date, amountCents, rawDescriptor, status)
+       VALUES (?, ?, ?, ?, ?, 'POSTED')`,
+    ).run(
+      `e2e-txn-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+      accountId,
+      opts.date,
+      opts.amountCents,
+      opts.name,
+    );
+  } finally {
+    db.close();
+  }
+}
+
 async function addManual(
   page: Page,
   kind: 'asset' | 'liability',
@@ -167,3 +213,60 @@ test('/accounts with a long SYNCED account name fits every phone width', async (
   ).toBeVisible({ timeout: 20_000 });
   await assertFitsEveryWidth(page, '/accounts (long synced name)');
 });
+
+test('/transactions with a 7-figure summary fits every phone width', async ({ page }) => {
+  // M.3 money-grid fix. The `grid-cols-3` summary strip (Money in / out / Net) put
+  // three `formatCents` figures in ~100px columns at 360px. A seeded 7-figure
+  // inflow renders "$9,999,999.00" — wider than its track — which pre-fix forced
+  // the grid past the viewport edge (a clipped figure is a wrong figure). The fix
+  // is `min-w-0` on each cell + `break-words` on the value, so it wraps in place.
+  const email = await signUpThrowaway(page);
+  seedTransaction({
+    email,
+    name: 'Big Bank Everyday Checking',
+    type: 'CHECKING',
+    balanceCents: 999999900,
+    amountCents: 999999900, // +$9,999,999.00 inflow
+    date: '2026-07-15',
+  });
+  await page.goto('/transactions');
+  await expect(page.getByTestId('summary-in')).toHaveText(/9,999,999/, { timeout: 20_000 });
+  // Tailwind `grid-cols-3` is `repeat(3, minmax(0,1fr))`, so the track shrinks and
+  // the page never scrolls — but pre-fix the unbreakable "$9,999,999.00" overflows
+  // its OWN ~100px cell (overlapping the neighbouring figure: a wrong figure). The
+  // fix (`break-words` + `min-w-0`) wraps it in place, so its own scrollWidth no
+  // longer exceeds its clientWidth. That is the assertion that fails-old here.
+  await assertFitsEveryWidth(page, '/transactions (7-figure summary)');
+  for (const width of WIDTHS) {
+    await page.setViewportSize({ width, height: HEIGHT });
+    await page.waitForTimeout(50);
+    const m = await page.getByTestId('summary-in').evaluate((el) => ({
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }));
+    expect(
+      m.scrollWidth,
+      `summary-in @${width}px: the money figure overflows its own cell (scrollWidth ${m.scrollWidth} > clientWidth ${m.clientWidth}) — it overlaps the neighbouring figure instead of wrapping.`,
+    ).toBeLessThanOrEqual(m.clientWidth + 1);
+  }
+});
+
+// Structural regression lock (Wave M.1's deferred "extend the overflow scan to the
+// other routes"). Demo data is modest, so these do NOT fail-old for the money-scale
+// class — their value is catching any FUTURE unprefixed fixed-width element that
+// overflows even at demo scale, on the routes the axe/overflow net never covered.
+const DEMO_ROUTES: ReadonlyArray<{ path: string; ready: string }> = [
+  { path: '/dashboard', ready: 'cash-needed-card' },
+  { path: '/transactions', ready: 'txn-list' },
+  { path: '/forecast', ready: 'forecast-chart' },
+  { path: '/recurring', ready: 'coming-up' },
+];
+
+for (const { path, ready } of DEMO_ROUTES) {
+  test(`${path} (demo) fits every phone width without horizontal overflow`, async ({ page }) => {
+    await signInDemo(page);
+    await page.goto(path);
+    await expect(page.getByTestId(ready)).toBeVisible({ timeout: 20_000 });
+    await assertFitsEveryWidth(page, `${path} (demo)`);
+  });
+}
