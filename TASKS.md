@@ -99,6 +99,31 @@ Status legend: `[ ]` open · `[~]` in progress · `[x]` done (verify green) · `
 | 4.4 | Crisis-mode coach framing (multi-collision radar state → triage-order copy; guardrails extended, not bypassed). | Opus 4.8 + Sonnet copy | medium | 50k | [ ] |
 | 4.5 | Widen the allowlist deliberately; watch Wave-3.2 metrics as the first real cohort lands. | Human | — | — | [ ] |
 
+## Wave M — Mobile UI (owner request 2026-07-21, START HERE NEXT SESSION)
+
+Owner, verbatim: *"The mobile platform on my phone doesn't format correctly in the
+accounts section and other sections. Please review mobile ui and make it more
+functional and beautiful than simplifi, mint, and the best financial apps."*
+
+**Read `docs/MOBILE_UI_BRIEF.md` before starting** — it holds the verified evidence,
+the coverage gap that let this through, and the one question the owner must answer
+first. Do not begin M.2+ before the screenshot arrives (CLAUDE.md rule 0: never
+redesign a screen you have not seen).
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+| M.0 | **Owner input (blocking for the layout half):** screenshots of /accounts and any other broken section, plus phone model, browser, and whether iOS Larger Text / Display Zoom is on. Named as blocking because "doesn't format correctly" has several readings (overflow, cramping, clipping under the tab bar, text scaling) with different fixes. | Human | — | — | [!] BLOCKED on owner |
+| M.1 | **Widen the test net — do this FIRST, it is unblocked and it is why the bug shipped.** Two holes: (a) playwright.config.ts exercises exactly ONE viewport (`mobile-380`, 380×800) — add 360 (narrowest Android), 393 (iPhone 15/16) and 430 (Pro Max), plus an overflow assertion helper (`scrollingElement.scrollWidth <= clientWidth + 1`) on every route the specs already visit; (b) `phase5-a11y.spec.ts` never scans **/accounts** — the exact reported section — nor /transactions, /reports, /investments, /spending-plan, /ask, /trends, /recurring, /forecast, /trust. Add them. This converts "looks fine" into a gate before any redesign starts. | Opus 4.8 | medium | 60k | [ ] |
+| M.2 | **Tap-target floor across the app.** Verified: `accounts-list.tsx` has 8 controls at `px-1.5 py-0.5 text-xs` / `text-[10px]` — roughly 20px tall against a 44×44pt iOS / 48dp Android minimum, and it is the single worst file in the repo. Same pattern in transaction-list (4), recurring-view (4), shared-transaction-list (3), payment-reminders-card (3), confirm-action, triage-inbox. Establish ONE shared control primitive with a compliant hit area (padding may stay visually tight via a pseudo-element) and sweep every site. Lock with a Playwright assertion on bounding-box height. | Opus 4.8 | medium | 80k | [ ] |
+| M.3 | **Overflow class: unprefixed grids, fixed widths, and the hero card.** (a) `grid-cols-3` with no `sm:`/`md:` prefix puts three money figures side by side at 360px: forecast-view:70, transaction-list:256, retirement-outlook-card:155, recurring-view:195, money-dials-form:233, triage-inbox:570+1073. (b) `cash-needed-card.tsx:144` — the app's primary answer card — is `grid-cols-[auto_1fr_auto]` with card names concatenated by `+` (:154) and no break handling; most likely single source of visible breakage. (c) The 288px `w-72` category dropdown: transaction-list:415 has a `max-w-[calc(100vw-2rem)]` guard, **shared-transaction-list:185 does not** — and the shell only gives phones 12px side padding. (d) Fixed inputs with no responsive variant: triage-inbox w-40/w-44/w-24, accounts-list w-24, custom-category-manager w-40/w-44, household-card max-w-40/max-w-60. Never silently clip a number — a half-visible figure is a wrong figure. | Opus 4.8 | medium | 80k | [ ] |
+| M.4 | **The beauty half — visual direction.** Load the `frontend-design` skill first. There is no `tailwind.config.ts`: this is Tailwind v4 with oklch tokens already in `globals.css:112-181` on the shadcn neutral base, so the gap is a **type scale and spacing rhythm**, not colour infrastructure — extend the token system, don't replace it. Slice 1 also revisits the app shell's 12px mobile side padding (`px-3` in `(app)/layout.tsx:46`), which shifts every route at once and so needs the full suite re-run. Then route by route, starting /dashboard and /accounts. 19 authenticated routes exist, so this is MULTI-SESSION: one or two per slice, never a big-bang restyle. Money copy must not change meaning — any figure or label edit inherits the #221 false-copy rules and the #250 verbatim-meaning rules, and any NEW adjacency of two money figures needs a rendered-copy test. | Opus 4.8 (+ Cursor/Grok for per-route polish) | high | 100k+/slice | [ ] |
+
+**Already verified sound — do not "fix" these:** the viewport meta is correct
+(`width=device-width, initialScale=1, viewportFit=cover`, and zoom is NOT disabled);
+iOS safe-area handling exists (`globals.css` `env(safe-area-inset-bottom)` helpers +
+the fixed bottom nav's own padding); there are zero raw `<table>` elements repo-wide.
+The problem is content-level layout and control sizing, not the shell.
+
 ## Wave S — Skills, scripts & docs hygiene (see docs/SKILLS_PLAN.md for full specs)
 
 Cheap-model wave: removes repeated AI work from every future session. Do S-tasks between
@@ -114,7 +139,7 @@ feature waves; none blocks Wave 0.
 | S.6 | `scripts/scaffold-engine.ts` + skill K2 `new-engine`. | Sonnet | medium | 40k | [ ] |
 | S.7 | Skills K7 `categorization-tuning` + K8 `deploy-runbook`. | Sonnet | low | 30k | [ ] |
 | S.8 | Define `.claude/agents/explorer.md` (haiku, read-only) + `.claude/agents/critic.md` in-repo so the routing policy works on every machine/CI. | Sonnet | low | 20k | [ ] |
-| S.9 | Owner reconciliation D9: Vercel team name ("reiforge" vs "Mike's projects") — confirm and fix the wrong doc. | Human | — | — | [ ] |
+| S.9 | Owner reconciliation D9: Vercel team name ("reiforge" vs "Mike's projects") — confirm and fix the wrong doc. | Human | — | — | [x] done 2026-07-21 (#262). **No doc was wrong — the premise was a false dichotomy.** The Vercel API returns one team: `{"name": "Mike's projects", "slug": "reiforge", "id": "team_pk5Bl46h1HAtdlfO5ASqydxE"}`. "Mike's projects" is the display name (BACKUP_AND_RECOVERY) and "reiforge" is the URL slug (SESSION_CONTEXT/DECISIONS #198); both name the same team, and the dashboard URL is vercel.com/reiforge/aimplifi. Nothing to fix; needed no owner input after all. |
 
 
 ## Standing rules for whoever picks up a task

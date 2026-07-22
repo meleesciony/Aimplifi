@@ -4402,3 +4402,28 @@ aria-label="Show password" + data-testid="auth-password-toggle". No prisma/ diff
 pushed range, so the live database was untouched.
 NEW RULE: CLAUDE.md rule 5 — commit, push, deploy, prove it live, THEN ask the owner.
 NEXT: owner checks saved-passwords list; then TASKS 3.3.
+
+## Wave M notated: mobile UI, owner request. 2026-07-21 (#262)
+Owner: "mobile platform on my phone doesn't format correctly in the accounts section and
+other sections... make it more functional and beautiful than simplifi, mint".
+NOT STARTED — notated only, per the owner's "notate this for next session".
+DELIVERABLE: TASKS.md Wave M (M.0-M.4) + docs/MOBILE_UI_BRIEF.md (evidence, coverage gap,
+what is already sound, the money-copy constraint the restyle inherits).
+BLOCKING (M.0): a screenshot. "Doesn't format correctly" has 4 readings (overflow, cramping,
+clipping under the tab bar, iOS Larger Text) with different fixes — rule 0, do not guess.
+ROOT-CAUSE OF THE MISS (verified): playwright.config.ts:53-56 defines ONE viewport
+(mobile-380, 380x800) and NO test asserts layout at all — axe checks a11y, everything else
+checks existence. Real widths are 360/393/402/430. Second hole: phase5-a11y.spec.ts never
+scans /accounts (the reported section) nor 9 other routes.
+VERIFIED DEFECTS (independent of the screenshot): accounts-list.tsx has 8 controls at
+px-1.5 py-0.5 / text-[10px] ~20px tall vs 44pt iOS / 48dp Android — worst file in the repo,
+and it is the section the owner named; 7 unprefixed grid-cols-3 sites; cash-needed-card:144
+grid-cols-[auto_1fr_auto] concatenates card names with '+' and no break handling (the hero
+card); shared-transaction-list:185 w-72 dropdown with NO max-w guard (transaction-list:415
+has one); 8 fixed-width inputs with no responsive variant.
+VERIFIED SOUND — do not re-do: viewport meta (device-width/initialScale 1/viewportFit cover,
+zoom NOT disabled), safe-area env() helpers + bottom-nav padding, 16px touch input floor
+(prevents iOS focus zoom), zero raw <table>, bottom-nav tap targets ~76px.
+ALSO CLOSED: TASKS S.9 — the Vercel team-name "discrepancy" was a false dichotomy; the API
+returns one team, name "Mike's projects" / slug "reiforge". Both docs were right.
+NEXT: owner screenshot -> M.1 (widen the net, unblocked today) -> M.2/M.3 -> M.4 slices.

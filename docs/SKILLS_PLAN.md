@@ -116,8 +116,11 @@ drift, and **stale entry points**. Findings → actions:
 - **D8 — Index the megafiles.** DECISIONS.md (453KB), STATUS.md (233KB), PROGRESS.md (274KB)
   are token hazards the explorer keeps re-scanning. S2 generates `DECISIONS_INDEX.md`;
   quarterly, rotate closed content to `docs/archive/STATUS-<quarter>.md`.
-- **D9 — Owner reconciliations (5 min):** Vercel team name ("reiforge" in SESSION_CONTEXT
-  vs "Mike's projects" in BACKUP_AND_RECOVERY); confirm which is real, fix the other.
+- **D9 — Owner reconciliations: RESOLVED 2026-07-21 (#262), no change needed.** The
+  premise was a false dichotomy. The Vercel API returns a single team,
+  `{"name": "Mike's projects", "slug": "reiforge"}` — "Mike's projects" is the display
+  name used in BACKUP_AND_RECOVERY and "reiforge" is the URL slug used in
+  SESSION_CONTEXT/DECISIONS #198. Both docs are correct about the same team.
 
 **Intent clarity, net:** after D1–D8 the repo has exactly four kinds of markdown, each with
 one job — **canon** (AGENTS/CLAUDE/LOOP + CRITIC_RUBRIC: how to work), **state** (STATUS,
