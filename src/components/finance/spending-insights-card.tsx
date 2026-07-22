@@ -2,6 +2,7 @@ import { ArrowDownRight, ArrowUpRight, LineChart, Sparkles } from 'lucide-react'
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingTrends } from '@/lib/engine/trends/trends';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
+import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
 const money = (n: number) => formatCents(cents(n));
 
@@ -20,7 +21,7 @@ export function SpendingInsightsCard({ trends }: { trends: SpendingTrends }) {
       href="/trends"
       subjectKey="spending-insights"
       data-testid="dashboard-spending-insights"
-      className="block rounded-2xl border bg-card p-4 shadow-sm transition hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className={SURFACE_LINK_CARD_CLASS}
     >
       <div className="flex items-baseline justify-between">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">

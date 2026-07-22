@@ -1,5 +1,9 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-22 — #269 — M.4 shared dashboard link-card surface token (consistency follow-up)
+
+Extracted the five byte-identical dashboard link-card className strings (safe-to-spend, spending-insights, top-spending, recurring-summary, ask-aimplifi — all whole-card TrackedActedLink affordances) into one shared token `SURFACE_LINK_CARD_CLASS` in src/components/finance/surface-card-styles.ts, mirroring the AUTH_INPUT_CLASS idiom from the same 2026-07-21 B5 review. Confirmed full-string byte-identity across all five before extracting (per the #260 diff-first lesson), and confirmed the other TrackedActedLink consumers (onboarding-nudge uses shadcn Card; connection-alerts-card uses a different inner CTA) are deliberately out of scope — documented in the token's header. Byte-identical => appearance provably unchanged, so no rule-0 hazard on a beauty surface that can't be screenshot post-/clear. Lock: tests/unit/surface-card-styles.test.ts asserts the load-bearing utilities survive any future edit of the token (the surface trio + the keyboard focus-visible ring — the one new risk centralisation introduces that duplication did not have). Route-by-route M.4 restyle stays owner-eyeball-gated and needs screenshots; this is foundation only. Gate: bash scripts/verify.sh -> VERIFY GREEN (tsc 0, eslint 0, next build clean); npx vitest run -> 231 files / 3354 tests passed; npx playwright test mobile-overflow -> 10/10 in both mobile-380 (Chromium) and mobile-webkit (iOS Safari) at 360/393/430, /dashboard surface locked. No money/authz/routing touched -> no Fable critic.
+
 ## 2026-07-21 — #260 Agent-review follow-up slice 2 (redundancy wave B + A5/A6) — COMPLETE
 
 Closed every remaining non-owner-gated candidate from the 2026-07-21 agent review; D (Plaid

@@ -3,6 +3,7 @@ import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
+import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
 /**
  * Dashboard entry point for Recurring & subscriptions (DECISIONS #71): the
@@ -20,7 +21,7 @@ export function RecurringSummaryCard({ summary }: { summary: RecurringSummary })
       href="/recurring"
       subjectKey="recurring-summary"
       data-testid="dashboard-recurring"
-      className="block rounded-2xl border bg-card p-4 shadow-sm transition hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className={SURFACE_LINK_CARD_CLASS}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">

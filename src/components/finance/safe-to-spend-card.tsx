@@ -2,6 +2,7 @@ import { Gauge } from 'lucide-react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
+import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
 /**
  * Dashboard summary of the Spending Plan (DECISIONS #66) — the "safe to spend"
@@ -22,7 +23,7 @@ export function SafeToSpendCard({ plan }: { plan: SpendingPlan }) {
       href="/spending-plan"
       subjectKey="safe-to-spend"
       data-testid="dashboard-safe-to-spend"
-      className="block rounded-2xl border bg-card p-4 shadow-sm transition hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className={SURFACE_LINK_CARD_CLASS}
     >
       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         <Gauge className="size-3.5" aria-hidden />

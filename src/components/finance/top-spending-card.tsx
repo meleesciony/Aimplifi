@@ -2,6 +2,7 @@ import { PieChart } from 'lucide-react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingBreakdown } from '@/lib/engine/reports/reports';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
+import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
 const PALETTE = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa'];
 
@@ -17,7 +18,7 @@ export function TopSpendingCard({ breakdown }: { breakdown: SpendingBreakdown })
       href="/reports"
       subjectKey="top-spending"
       data-testid="dashboard-top-spending"
-      className="block rounded-2xl border bg-card p-4 shadow-sm transition hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className={SURFACE_LINK_CARD_CLASS}
     >
       <div className="flex items-baseline justify-between">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
