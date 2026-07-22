@@ -4919,3 +4919,72 @@ epoch and sign every parallel spec out; the real bump + rejection is proven by t
 test). Full `VERIFY_E2E=1` still cannot exit 0 on this Windows machine (documented mobile-380
 viewport flake, docs/lessons/mobile-380-viewport-scaling-flake.md — unrelated). Committing as
 #182; NOT pushed (push owner-gated, #171–#182 ride together).
+
+---
+
+## 2026-07-21 — Owner-requested agent review: UX/flow, redundancy, docs (ASSESSMENT ONLY — no fixes applied)
+
+Five read-only explorer agents swept the codebase and docs at the owner's request ("study the
+logic, the flow and user experience — can anything be done better?"). Findings below are
+**candidates awaiting owner prioritization**, recorded with the agents' file:line evidence;
+each fix slice re-verifies its claim before changing code. Same session shipped #258
+(password show/hide viewer; see git log) — that is the only code change.
+
+### A. Product flow / UX (highest user impact first)
+1. **/cards empty state dead-ends** — tells the user to go to /accounts but offers no inline
+   connect/add affordance (`src/app/(app)/cards/page.tsx:38-39`). Add the connect button inline.
+2. **Settings "Bank connections" card is decorative** — explains linking happens elsewhere,
+   links nothing (`src/app/(app)/settings/page.tsx:158-169`). Link or embed the real buttons.
+3. **/triage has no first-run empty state** — renders a bare empty inbox for zero-account
+   users while every sibling route has a branded empty (`src/app/(app)/triage/page.tsx:14-44`).
+4. **Dashboard onboarding step numbers read out of visual order** (a previously critic-flagged
+   compromise, `src/app/(app)/dashboard/page.tsx:131-146`) — drop numerals or reorder.
+5. **PlaidConnections row wraps badly at 380px**, confirm state hardest hit
+   (`src/components/finance/plaid-connections.tsx:58-111`) — card-per-item layout.
+6. Onboarding footnote promises drift across surfaces ("30 seconds" vs "a few weeks");
+   /trust is discoverable only via Settings; "Safe to Spend" vs "Cash Needed" naming could
+   confuse revisiting users.
+
+### B. Code redundancy (worth a cleanup slice, no behavior change)
+1. **Two-tap confirm pattern hand-rolled on 5+ surfaces** (accounts-list ×2,
+   plaid-connections, custom-category-manager, household-card) — extract one `<ConfirmAction>`.
+2. **LLM provider-key precedence (xAI→Anthropic) duplicated across ~6 server modules**
+   (assistant-llm, balance-move-llm, llm-categorize, llm-statement-extract, money-review-llm,
+   assistant) — one `provider-select` helper.
+3. **Token-salt idiom duplicated** (password-reset.ts:41-43 vs household-actions.ts:59-61) —
+   the #257 "household-invite idiom" was copy-pasted, not shared; extract.
+4. **Engine micro-utils duplicated:** `ym()` month-key in 4 engines, `medianOfSorted()` in 3,
+   prev/next-month wrappers in 3 — belong in dates.ts / a stats util per CLAUDE.md rule 3.
+5. Input-class Tailwind constants redefined per file under 3 names; error/success `<p>` styling
+   copy-pasted instead of the existing shadcn Alert; revalidatePath path-lists drift per action
+   file; provider-configured checks scattered (plaidConfigured vs inline env reads).
+6. `household-actions.ts:68-70` re-implements `isDemoUser()` locally despite the shared one.
+
+### C. Docs staleness / hygiene
+1. **README.md:80 claims Plaid transaction-sync/liabilities are "not implemented"** — ROADMAP
+   §1 records them VERIFIED 2026-06-17. Actively misleading; fix first.
+2. **.env.example still says "Pulse Finance"** (lines 1, 2, 72) — rename leftovers.
+3. **DEPLOY.md omits AUTH_URL** even though #257 made it required for self-hosted password
+   reset (fail-closed: no email sent without it). Add to the env table as the canonical list.
+4. README hardcodes seed-pinned measurements (3.60% review rate, interaction counts) that the
+   one-status-home rule routes to STATUS/EDGE_CASES; ROADMAP duplicates one of them.
+5. **CLAUDE.md references docs/TASKS.md as the build queue but the file does not exist** —
+   either recreate it or drop the reference (found this session, not by the agents).
+
+### D. Plaid-attach-to-existing-accounts (merge) — assessment for the owner's question
+**Not possible today; buildable.** Evidence: SimpleFIN disconnect deletes only the connection
+row — the accounts and full history remain (`src/server/simplefin-actions.ts:84-94`); Plaid
+sync matches accounts strictly by `{provider:'plaid', providerRef}`
+(`src/lib/providers/plaid.ts:260-262`), so linking Plaid now creates parallel NEW rows and
+never touches the ex-SimpleFIN ones. Transactions dedupe per-provider via
+`@@unique([accountId, providerRef])` — no cross-provider key exists, so Plaid's backfill would
+double-count any overlap with SimpleFIN-era history if naively merged.
+**Recommended design (next slice, if approved):** post-link "merge into existing account"
+action that, in ONE transaction, re-stamps the old Account row to the Plaid identity
+(provider/providerRef/plaidItemId), transplants any post-cutover transactions from the
+freshly-created Plaid twin, deletes the twin, and drops backfill rows dated ≤ the old
+account's last synced transaction date (deterministic date-fence cutover — NO fuzzy
+date+amount+merchant matching, per the precision-fix lesson). Residual: SimpleFIN-era gaps
+stay gaps; balances become Plaid-managed after merge. UNVERIFIED until built: whether the
+merge can run before Plaid's first sync (skipping twin creation entirely) — check the link
+callback ordering in the build slice.
