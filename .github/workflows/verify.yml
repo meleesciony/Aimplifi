@@ -56,10 +56,11 @@ jobs:
       - name: Create build database
         run: npx prisma db push --accept-data-loss
 
-      # Only Chromium is needed: the sole Playwright project (mobile-380) is a
-      # Pixel 5 device (playwright.config.ts).
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+      # Chromium (mobile-380 Pixel 5) + WebKit: the mobile-webkit project runs the
+      # overflow gate on the owner's actual engine, iOS Safari (Wave M.1,
+      # playwright.config.ts). Both must be installed or the e2e job can't launch.
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
 
       # GitHub Actions sets CI=true, so playwright.config's reuseExistingServer is
       # false → it spawns a fresh `next start` against the seeded e2e DB.
