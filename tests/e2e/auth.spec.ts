@@ -131,6 +131,23 @@ test('password viewer toggles visibility without losing typed text', async ({ pa
   await expect(pw).toHaveValue('peekaboo-12345');
 });
 
+test('a visible password is hidden again before the form submits', async ({ page }) => {
+  // The submitted form must carry a real type="password" field even when the
+  // viewer was left open, so a browser password manager sees the same form it saw
+  // before the viewer existed. Driven through the wrong-password path because it
+  // is the one submit that leaves us on /sign-in to inspect the field afterwards.
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-email').fill('nobody-here@aimplifi.test');
+  const pw = page.getByTestId('auth-password');
+  await pw.fill('definitely-wrong');
+  await page.getByTestId('auth-password-toggle').click();
+  await expect(pw).toHaveAttribute('type', 'text');
+  await page.getByTestId('auth-submit').click();
+  await expect(page.getByTestId('auth-error')).toBeVisible({ timeout: 20000 });
+  await expect(pw).toHaveAttribute('type', 'password');
+  await expect(page.getByTestId('auth-password-toggle')).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('wrong password is rejected with a friendly error', async ({ page }) => {
   await page.goto('/sign-in');
   await page.getByTestId('auth-email').fill('nobody-here@aimplifi.test');

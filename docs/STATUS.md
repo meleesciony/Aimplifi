@@ -31,19 +31,58 @@ they have different fixes.
    viewer whose `type` attribute flips between `password` and `text` — was created
    today in `0deda04` (#258) and wired into sign-in, sign-up AND reset-password.
 
-**Leading hypothesis (LABELLED — unconfirmed) + its killing check:** a password
-manager can stop offering to save a credential when the field's `type` flips away
-from `password`, which is exactly what #258 introduced on all three forms. Check
-by temporarily rendering a plain `<input type="password">` in the sign-in form and
-seeing whether the browser offers to save again. #258 is a one-component swap, so
-this is fully reversible — and per CLAUDE.md rule 0, if the owner is blocked,
-revert first and diagnose after.
+**Leading hypothesis (LABELLED — still unconfirmed):** a password manager can stop
+offering to save a credential when the field's `type` flips away from `password`,
+which is exactly what #258 introduced on all three forms.
 
-**Ask the owner FIRST (never describe a screen we haven't seen):**
+**Shipped 2026-07-21 (#261) — a precautionary RESTORATION, not a claimed
+diagnosis.** Per CLAUDE.md rule 0 ("when the app is broken, restore a known-good
+state first"), `PasswordInput` now re-hides itself in a capture-phase `submit`
+listener on its own form, so the form the browser inspects at submission carries a
+real `type="password"` field exactly as it did before the viewer existed — while
+keeping the viewer the owner asked for. Locked by `auth.spec.ts` "a visible
+password is hidden again before the form submits" (toggle to `text` → submit →
+assert `type` is `password` and `aria-pressed` is `false`).
+**What this does and does not establish:** it removes #258 as a *possible* cause
+by construction, and the DOM state is executed-and-verified. Whether the browser
+now offers to save again is **UNVERIFIED** — no password manager runs in this
+environment, and only the owner can confirm it on the real device.
+
+**Still ask the owner (never describe a screen we haven't seen):**
 (a) a screenshot of where it fails; (b) whether the prompt that's missing is the
 BROWSER's "save password?" or the APP's sign-in rejecting it; (c) the exact
 on-screen message, if any; (d) which browser/device; (e) which env vars were
-changed today (names only, never values).
+changed today (names only, never values) — **(e) is now the highest-value
+question**: `AUTH_SECRET` is the JWT signing key, so *rotating it signs every
+device out at once*, which reads exactly like "it stopped remembering me". That
+mechanism is env-caused and entirely separate from the field-`type` one above,
+and the two have different fixes.
+
+## 🔴 OPEN — two real secrets are committed to git (owner: check repo visibility, then rotate)
+
+`docs/DEPLOY.md:54–55` carries literal generated values for `AUTH_SECRET` and
+`DATA_ENCRYPTION_KEY` ("provided for you"), committed in `ca23eac` (2026-06-21)
+and never removed, on a branch pushed to `github.com/meleesciony/Aimplifi`.
+Verified by `git log --all -S`: one commit introduced them, none removed them, so
+they are still in HEAD *and* in history.
+
+**Unknown from here (cannot be verified in this environment):** whether that
+GitHub repo is public, and whether the deployed Vercel project actually uses these
+exact values — DECISIONS #198 records only that Production already had the
+variables set, not what they were set to. Both are one look at a dashboard for the
+owner.
+
+**If the repo is public and the values match production**, anyone can forge a
+signed session JWT for any account. Rotation order matters and each step has a
+visible cost, so it is owner-gated:
+1. Rotating `AUTH_SECRET` signs every device out (expected, harmless) and kills
+   outstanding password-reset links (`RESET_TOKEN_SALT ?? AUTH_SECRET`).
+2. Rotating `DATA_ENCRYPTION_KEY` makes every stored Plaid/SimpleFIN token
+   undecryptable (`src/lib/crypto.ts` AES-256-GCM), so connected banks must be
+   re-linked. Do not rotate this one casually.
+3. Removing the values from `docs/DEPLOY.md` fixes HEAD but not history; the
+   values must be treated as burned regardless.
+
 
 ## ⚠️ OPEN — Ask parser/vocab, remaining items (post-2.7)
 

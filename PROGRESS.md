@@ -4369,3 +4369,18 @@ live OUTSIDE FinanceSnapshot; DIAL_LIMITS (settings/dials.ts:38) are the clamp b
 retirement-whatif.ts is the clamp-reducer template. Conventions: engine in src/lib/engine/,
 tests in tests/unit/, EDGE_CASES section required, injected today, no Date.now().
 NEXT (Scenario Studio): design canonical ScenarioState + knob-delta type; slice 1 = engine only.
+
+## #261 password-field restoration + secrets-in-git finding. 2026-07-21
+Owner's "not remembering the password" is STILL NOT DIAGNOSED (three readings, different fixes).
+DONE: precautionary restoration per rule 0 — PasswordInput registers a capture-phase submit
+listener on el.form, writes el.type='password' imperatively (a state update would not reach the
+DOM before the submit handlers) then setVisible(false). Submitted DOM == pre-#258 DOM; viewer kept.
+E2E lock in auth.spec.ts via the wrong-password path (the one submit that stays on /sign-in).
+UNVERIFIED (honest): whether a browser password manager now offers to save — no manager here.
+FOUND (owner-gated, more serious than the symptom): docs/DEPLOY.md:54-55 commits real AUTH_SECRET
+and DATA_ENCRYPTION_KEY values, ca23eac 2026-06-21, never removed, pushed to GitHub. Repo
+visibility + whether prod uses these values are NOT verifiable from here.
+RECORDED: AUTH_SECRET is the JWT signing key -> rotating it signs every device out, which reads
+exactly like the reported symptom and is env-caused (the previous session's note missed this link).
+GATE: VERIFY_E2E=1 bash scripts/verify.sh -> VERIFY GREEN, 3352 unit / 230 files, 143 e2e (+1).
+NEXT: owner answers (which reading / which env vars / repo visibility); then TASKS 3.3 or 2.4.
