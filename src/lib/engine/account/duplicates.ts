@@ -39,6 +39,9 @@ export interface DuplicateAccountRef {
 
 export type DuplicateConfidence = 'high' | 'medium';
 
+/** The strongest positive signal that fired for a pair (mask > balance > name). */
+export type ReconciliationMatchSignal = 'mask' | 'balance' | 'name';
+
 export interface SuspectedDuplicatePair {
   a: DuplicateAccountRef;
   b: DuplicateAccountRef;
@@ -120,7 +123,7 @@ function toRef(c: DuplicateAccountCandidate): DuplicateAccountRef {
 function duplicateSignals(
   lo: DuplicateAccountCandidate,
   hi: DuplicateAccountCandidate,
-): { confidence: DuplicateConfidence; reasons: string[] } | null {
+): { confidence: DuplicateConfidence; reasons: string[]; signal: ReconciliationMatchSignal } | null {
   if (EXCLUDED_PROVIDERS.has(lo.provider) || EXCLUDED_PROVIDERS.has(hi.provider)) return null;
   // A genuine duplicate is the same account: same type and same currency are hard prerequisites.
   if (lo.type !== hi.type) return null;
@@ -149,7 +152,10 @@ function duplicateSignals(
   }
 
   if (confidence === null) return null;
-  return { confidence, reasons };
+  // Primary signal = the strongest that fired. mask (identity) > balance > name; derived from the
+  // SAME booleans that built `reasons`, never re-parsed (docs/lessons/a-guard-must-read-what-it-guards).
+  const signal: ReconciliationMatchSignal = maskMatch ? 'mask' : balanceMatch ? 'balance' : 'name';
+  return { confidence, reasons, signal };
 }
 
 /**
@@ -164,7 +170,7 @@ function evaluatePair(
   if (lo.provider === hi.provider) return null;
   const signals = duplicateSignals(lo, hi);
   if (!signals) return null;
-  return { a: toRef(lo), b: toRef(hi), ...signals };
+  return { a: toRef(lo), b: toRef(hi), confidence: signals.confidence, reasons: signals.reasons };
 }
 
 /**
@@ -247,7 +253,8 @@ export function detectHouseholdDuplicateAccounts(
       pairs.push({
         a: { ...toRef(lo), ownerId: lo.ownerId },
         b: { ...toRef(hi), ownerId: hi.ownerId },
-        ...signals,
+        confidence: signals.confidence,
+        reasons: signals.reasons,
       });
     }
   }
@@ -257,5 +264,80 @@ export function detectHouseholdDuplicateAccounts(
       rank[p.confidence] - rank[q.confidence] ||
       p.a.name.localeCompare(q.a.name) ||
       p.b.name.localeCompare(q.b.name),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cross-provider reconciliation candidates (TASKS Wave 4.6 slice 1 —
+// docs/PROVIDER_RECONCILIATION_ARCHITECTURE.md §8 direction rule + §10 slice 1).
+// ---------------------------------------------------------------------------
+
+/**
+ * A duplicate candidate annotated with whether the row still has a LIVE provider connection.
+ * Freshness lives on the connection rows, not on `Account` (SimpleFinConnection/PlaidItem —
+ * §1.2), so the caller derives this: a SimpleFIN row whose connection was disconnected, or a
+ * manual row that never synced, is not live. Demo rows are excluded upstream and never reach here.
+ */
+export interface ReconciliationAccountCandidate extends DuplicateAccountCandidate {
+  hasLiveConnection: boolean;
+}
+
+/**
+ * A DIRECTIONAL reconciliation proposal: the stale/disconnected `predecessor` becomes historical
+ * (its balance stops counting; it keeps only transactions on/before the cutover date) and the live
+ * `successor` continues the same real account (its live balance counts; it owns transactions after
+ * the cutover). This slice only PROPOSES — it mutates nothing. `matchSignal`/`confidence` carry the
+ * #192 evidence that suggested the pair (schema `AccountReconciliation.matchSignal`, §4).
+ */
+export interface ReconciliationCandidate {
+  predecessor: DuplicateAccountRef;
+  successor: DuplicateAccountRef;
+  confidence: DuplicateConfidence;
+  matchSignal: ReconciliationMatchSignal;
+  reasons: string[];
+}
+
+/**
+ * Suspected duplicate pairs that have a well-defined predecessor→successor direction, most-confident
+ * first. Advisory only; proposes nothing where direction is ambiguous.
+ *
+ * Direction rule (R3, §8): offer the continue-flow ONLY when exactly one side has a live connection —
+ * that side is the successor, the other the predecessor. When BOTH sides are live the pair is a
+ * genuine active duplicate and is never auto-linked (the advisory #192 warning stays); when NEITHER
+ * is live there is no live row to continue into. Both cases yield no candidate.
+ */
+export function detectReconciliationCandidates(
+  accounts: ReconciliationAccountCandidate[],
+): ReconciliationCandidate[] {
+  const sorted = [...accounts].sort(order);
+  const out: ReconciliationCandidate[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const lo = sorted[i];
+      const hi = sorted[j];
+      // Cross-provider only, exactly as #192: same-provider ingest already dedups.
+      if (lo.provider === hi.provider) continue;
+      const signals = duplicateSignals(lo, hi);
+      if (!signals) continue;
+      // R3: a direction exists only with exactly one live side. Both-live (active duplicate) and
+      // both-dead (no live row) are equal here → skip, proposing nothing.
+      if (lo.hasLiveConnection === hi.hasLiveConnection) continue;
+      const successor = lo.hasLiveConnection ? lo : hi;
+      const predecessor = lo.hasLiveConnection ? hi : lo;
+      out.push({
+        predecessor: toRef(predecessor),
+        successor: toRef(successor),
+        confidence: signals.confidence,
+        matchSignal: signals.signal,
+        reasons: signals.reasons,
+      });
+    }
+  }
+  const rank: Record<DuplicateConfidence, number> = { high: 0, medium: 1 };
+  return out.sort(
+    (p, q) =>
+      rank[p.confidence] - rank[q.confidence] ||
+      p.successor.name.localeCompare(q.successor.name) ||
+      p.predecessor.name.localeCompare(q.predecessor.name),
   );
 }
