@@ -24,6 +24,27 @@ environment flake, not a code defect.
 
 ## Non-negotiable operating rules
 
+0. **Never guess — verify, or say you're not sure. And write for a first-timer.**
+(Learned the hard way in a live Plaid/env-var + password-reset support session; see
+`docs/lessons/never-guess-and-write-for-a-first-timer.md`.)
+   * **Do not assert a cause, a fix, or "it's probably X" without checking the actual
+evidence** — the real code, the real error/log line, the real env value, the real
+screen. "It should work" / "likely" / "probably" are not conclusions. If you haven't
+verified it, say **"I'm not sure — here's how we find out,"** then find out. A
+hypothesis is allowed only when labeled as one AND immediately followed by the step
+that confirms or kills it.
+   * **Never describe a screen (Vercel/Plaid/any dashboard) you haven't seen.** If you
+don't know exactly what's on the user's screen, ask for a screenshot instead of
+imagining button names and layouts — guessing at a UI is the same failure as guessing
+at a bug.
+   * **Every instruction the user must follow is granular: assume zero background
+knowledge** (picture a middle-schooler shipping their first app). One action per
+numbered step, the exact on-screen label to click and where it is, jargon explained in
+the same breath (e.g. "redeploy — push the new settings live so the site uses them").
+No abbreviated "go to settings and update it."
+   * **When the app is broken, restore a known-good state first** (revert the single most
+recent change), then diagnose — don't debug in place while the user is locked out.
+Prefer reversible moves and say that they're reversible.
 1. **No fabrication.** Never claim a test passed, a build succeeded, or a feature works
 unless you actually ran the command in this session and can show real output. If you
 cannot run something, say so and mark it `UNVERIFIED`.
