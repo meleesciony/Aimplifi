@@ -167,6 +167,55 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Wave M.1 — mobile test-net completion (2026-07-22) — #267
+
+Closed the deferred half of M.1: the mobile e2e safety net now covers **every**
+authenticated content route, so the coverage hole that let the owner's /accounts
+overflow ship is gone on all 19 content routes, in both engines.
+
+- **Overflow structural sweep** (`tests/e2e/mobile-overflow.spec.ts`): grew from 4
+  routes to all **17** authenticated content routes (every route except /accounts,
+  which keeps its 3 dedicated content-scaled tests), each asserting
+  `scrollWidth <= clientWidth + 1` at 360/393/430 in BOTH the Chromium `mobile-380`
+  and the iOS-Safari `mobile-webkit` projects.
+- **Axe WCAG-AA scan** (`tests/e2e/phase5-a11y.spec.ts`): grew from 10 to **19**
+  routes, adding the 9 content routes that had no accessibility floor: /transactions,
+  /recurring, /forecast, /reports, /investments, /spending-plan, /ask, /trends, /trust.
+- Each route waits on an **unconditional** demo-rendered anchor testid (`recurring-hero`
+  not the occurrence-gated `coming-up`; `forecast-hero`; `cushion-is-a-goal` because
+  demo seeds no goals; `accuracy-card` because the demo triage inbox is empty), so the
+  ready-wait can't hang on an empty state.
+
+**No route overflowed at demo scale** — none failed-old — exactly as
+`MOBILE_UI_BRIEF` predicted: demo data is modest, so these are regression **locks**
+for future fixed-width/overflow regressions, not fail-old fixes. The known
+M.3-deferred defect classes (the click-only `w-72` category dropdown, the `w-40`/`w-44`
+fixed inputs, the 2 inline category-chips) don't overflow a passively-loaded page at
+demo scale and stay with M.4's per-route pass.
+
+**Two test-infra hardening moves were needed to keep the local full-suite gate green
+(both diagnosed at the boundary, not by correlation):**
+1. **Consolidated** the per-route tests into ONE demo sign-in per sweep. As separate
+   tests, 34 (overflow ×2 projects) + 9 (axe) demo sign-ins on the shared demo User
+   row added enough concurrent SQLite write contention to tip the reload-bearing
+   `pwa-offline` budget-clear mutation spec into the documented load-flake (it passes
+   solo — confirmed by an isolated re-run). Looping keeps full coverage at a fraction
+   of the load; the per-route label preserves failure attribution.
+2. **Rewrote `assertFitsEveryWidth` to poll the SETTLED width** (`toPass`) instead of
+   measuring once after a fixed 50ms. Under full-suite load a Recharts
+   `ResponsiveContainer` reflows its SVG via a ResizeObserver that can lag past 50ms,
+   producing a transient `/reports @360 scrollWidth 397`. A WebKit probe proved this
+   false — a fresh 360px load (what a real user gets) fits at `scrollWidth 360`, and
+   even a 430→360 shrink settles to 360. A real synchronous overflow (the original
+   /accounts clip) persists across every retry and is still caught; persistence is
+   exactly what separates a wrong-width figure from an async reflow.
+
+No `src/` or `prisma/` change — no product code touched, so the deployed app is
+behaviorally identical and there is no regression-ledger entry (nothing failed-old to
+lock). Gate (real output): `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**,
+tsc/eslint clean, **3352 unit / 230 files**, build clean, **157 e2e** (1.5m). Detail:
+DECISIONS #267.
+
 ## Wave M.2 — mobile tap-target floor (2026-07-22) — #264
 
 Shipped the app-wide 44px tap-target floor. ONE shared primitive — `.tap-target` in

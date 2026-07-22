@@ -77,6 +77,37 @@ test('accounts page passes WCAG AA', async ({ page }) => {
   await expectNoViolations(page, 'accounts');
 });
 
+// Wave M.1 (deferred half): the axe scan covered only 10 of 19 authenticated
+// routes. The owner's loudest complaint (/accounts) had none — added above — and
+// nine more content routes still had no accessibility floor at all. Extend WCAG AA
+// to every remaining one, waiting for each page's stable UNCONDITIONAL demo anchor
+// to render first so axe scans the real UI, not a loading skeleton or empty state.
+const AXE_ROUTES: ReadonlyArray<{ path: string; ready: string }> = [
+  { path: '/transactions', ready: 'txn-list' },
+  { path: '/recurring', ready: 'recurring-hero' },
+  { path: '/forecast', ready: 'forecast-hero' },
+  { path: '/reports', ready: 'income-expense-chart' },
+  { path: '/investments', ready: 'investments-summary' },
+  { path: '/spending-plan', ready: 'spending-plan-hero' },
+  { path: '/ask', ready: 'ask-input' },
+  { path: '/trends', ready: 'trends-movers' },
+  { path: '/trust', ready: 'trust-headline' },
+];
+
+// One sign-in that loops every route (matching the existing calendar/goals/budgets/
+// settings batch above), NOT one test per route: nine separate demo sign-ins would
+// add concurrent sessions on the shared demo User row under 4 workers, worsening the
+// SQLite write contention that flakes the reload-bearing mutation specs. The `label`
+// passed to expectNoViolations names the offending route on failure.
+test('remaining content routes pass WCAG AA', async ({ page }) => {
+  await signIn(page);
+  for (const { path, ready } of AXE_ROUTES) {
+    await page.goto(path);
+    await expect(page.getByTestId(ready)).toBeVisible({ timeout: 20_000 });
+    await expectNoViolations(page, path);
+  }
+});
+
 test('keyboard-only: sign in and reach the cash-needed answer', async ({ page }) => {
   await page.goto('/sign-in');
   // The email/password form is now the primary action, so it's first in tab order.

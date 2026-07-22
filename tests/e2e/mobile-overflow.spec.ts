@@ -28,17 +28,26 @@ const HEIGHT = 900;
 async function assertFitsEveryWidth(page: Page, label: string) {
   for (const width of WIDTHS) {
     await page.setViewportSize({ width, height: HEIGHT });
-    // Let flex/grid reflow settle before measuring.
-    await page.waitForTimeout(50);
-    const m = await page.evaluate(() => {
-      const el = document.scrollingElement ?? document.documentElement;
-      return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
-    });
-    // +1 absorbs sub-pixel rounding only. Anything beyond that is real overflow.
-    expect(
-      m.scrollWidth,
-      `${label} @${width}px overflows horizontally: scrollWidth ${m.scrollWidth} > clientWidth ${m.clientWidth}. A money value pushed off the right edge is a wrong value.`,
-    ).toBeLessThanOrEqual(m.clientWidth + 1);
+    // Poll until the layout settles, rather than measuring once after a fixed delay.
+    // A genuine overflow (the synchronous CSS min-width bug this gate exists for —
+    // e.g. the original /accounts clip) persists across every retry and still fails.
+    // But a Recharts ResponsiveContainer reflows its SVG after a viewport change via a
+    // ResizeObserver (async), and under full-suite parallel load that reflow can lag
+    // past a fixed 50ms wait — a transient wide reading that a real user (who loads the
+    // page AT their phone width; probed fresh-360 fits) never sees. Persistence is what
+    // separates a real wrong-width figure from an async reflow, so assert on the
+    // SETTLED width: retry until it fits, or the timeout proves it never will.
+    await expect(async () => {
+      const m = await page.evaluate(() => {
+        const el = document.scrollingElement ?? document.documentElement;
+        return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
+      });
+      // +1 absorbs sub-pixel rounding only. Anything beyond that is real overflow.
+      expect(
+        m.scrollWidth,
+        `${label} @${width}px overflows horizontally: scrollWidth ${m.scrollWidth} > clientWidth ${m.clientWidth}. A money value pushed off the right edge is a wrong value.`,
+      ).toBeLessThanOrEqual(m.clientWidth + 1);
+    }).toPass({ timeout: 4_000, intervals: [50, 100, 200, 400, 800] });
   }
 }
 
@@ -252,21 +261,48 @@ test('/transactions with a 7-figure summary fits every phone width', async ({ pa
 });
 
 // Structural regression lock (Wave M.1's deferred "extend the overflow scan to the
-// other routes"). Demo data is modest, so these do NOT fail-old for the money-scale
-// class — their value is catching any FUTURE unprefixed fixed-width element that
-// overflows even at demo scale, on the routes the axe/overflow net never covered.
+// other routes"). Demo data is modest, so most of these do NOT fail-old for the
+// money-scale class — their value is catching any unprefixed fixed-width element
+// (a w-72 dropdown, a w-40/w-44 input, an unbreakable label) that overflows even at
+// demo scale, on the routes the overflow net never covered. This now spans every
+// authenticated content route except /accounts (which has its own dedicated tests
+// above). Each `ready` testid is an UNCONDITIONAL demo-rendered anchor — chosen over
+// count-gated ones so the wait can't hang on an empty state (/goals seeds no goals,
+// /triage's demo inbox is empty, /recurring's "coming up" is occurrence-gated).
 const DEMO_ROUTES: ReadonlyArray<{ path: string; ready: string }> = [
   { path: '/dashboard', ready: 'cash-needed-card' },
   { path: '/transactions', ready: 'txn-list' },
-  { path: '/forecast', ready: 'forecast-chart' },
-  { path: '/recurring', ready: 'coming-up' },
+  { path: '/forecast', ready: 'forecast-hero' },
+  { path: '/recurring', ready: 'recurring-hero' },
+  { path: '/reports', ready: 'income-expense-chart' },
+  { path: '/investments', ready: 'investments-summary' },
+  { path: '/spending-plan', ready: 'spending-plan-hero' },
+  { path: '/ask', ready: 'ask-input' },
+  { path: '/trends', ready: 'trends-movers' },
+  { path: '/trust', ready: 'trust-headline' },
+  { path: '/coach', ready: 'opportunities-card' },
+  { path: '/goals', ready: 'cushion-is-a-goal' },
+  { path: '/budgets', ready: 'budget-list' },
+  { path: '/calendar', ready: 'cal-month' },
+  { path: '/cards', ready: 'toggle-minimum' },
+  { path: '/triage', ready: 'accuracy-card' },
+  { path: '/settings', ready: 'export-card' },
 ];
 
-for (const { path, ready } of DEMO_ROUTES) {
-  test(`${path} (demo) fits every phone width without horizontal overflow`, async ({ page }) => {
-    await signInDemo(page);
+// One sign-in that loops every route, NOT one test per route. Each demo sign-in
+// touches the shared demo User row (e.g. lastSeenDate stamping), so 17 routes × 2
+// projects as separate tests would add ~34 concurrent demo sessions under 4 workers
+// — enough extra SQLite write contention to tip the borderline reload-bearing
+// mutation specs (pwa-offline's budget-clear round-trip flaked exactly this way when
+// these were separate tests; see playwright.config.ts's worker note + the e2e-flake
+// lessons). Looping keeps full coverage at a fraction of the load; the per-route
+// `label` in assertFitsEveryWidth's message preserves failure attribution.
+test('every authenticated content route (demo) fits every phone width', async ({ page }) => {
+  test.setTimeout(120_000); // 17 routes × 3 widths in one test — legitimately longer.
+  await signInDemo(page);
+  for (const { path, ready } of DEMO_ROUTES) {
     await page.goto(path);
     await expect(page.getByTestId(ready)).toBeVisible({ timeout: 20_000 });
     await assertFitsEveryWidth(page, `${path} (demo)`);
-  });
-}
+  }
+});
