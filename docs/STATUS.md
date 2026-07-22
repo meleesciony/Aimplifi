@@ -31,9 +31,37 @@ they have different fixes.
    viewer whose `type` attribute flips between `password` and `text` — was created
    today in `0deda04` (#258) and wired into sign-in, sign-up AND reset-password.
 
-**Leading hypothesis (LABELLED — still unconfirmed):** a password manager can stop
+**CORRECTION, 2026-07-21 (#261): the #258 hypothesis is DEAD for the deployed
+app.** Production was running commit `9e3e56f` (#257) — verified against the
+Vercel deployment list, `githubCommitSha` on every production deployment — while
+local `main` sat **8 commits ahead, unpushed**. #258 (the show/hide viewer) was
+therefore *never live on www.aimplifi.app*, so a `type`-flip on the deployed site
+cannot have caused anything the owner saw there. It remains a possible cause only
+if the owner was testing against a local dev server. The restoration below is
+still correct and still shipped; it is just no longer the leading explanation.
+(The owner reported the same session that they could not see the reveal at all —
+that observation is fully explained by the same unpushed-branch fact.)
+
+**Also corrected: the repo is PRIVATE** (`githubRepoVisibility: "private"` on
+every production deployment record), which de-escalates the secrets item below
+from "publicly exposed" to "committed where it should not be".
+
+**New leading hypothesis (LABELLED — unconfirmed) + its check.** What WAS newly
+live on the deployed app is #257, the reset flow, and it has two verified
+properties that compose into exactly the reported sentence: a completed reset
+bumps `sessionEpoch` and signs out every session by design, and the reset form
+does *not* sign the user in afterwards — it links them to /sign-in. So after
+resetting, the browser meets a sign-in form and autofills the **old** saved
+password, because nothing ever offered to save the new one. "It's just not
+remembering the password I entered earlier" is a precise description of that.
+**Check:** have the owner open their browser's saved-passwords list and compare
+the stored entry for aimplifi.app against the password they most recently set. If
+the stored one is stale, the fix is on the reset form (make the browser offer to
+update the credential), not on the sign-in field.
+
+**Superseded hypothesis, kept for the record:** a password manager can stop
 offering to save a credential when the field's `type` flips away from `password`,
-which is exactly what #258 introduced on all three forms.
+which is what #258 introduced on all three forms.
 
 **Shipped 2026-07-21 (#261) — a precautionary RESTORATION, not a claimed
 diagnosis.** Per CLAUDE.md rule 0 ("when the app is broken, restore a known-good
@@ -58,7 +86,7 @@ device out at once*, which reads exactly like "it stopped remembering me". That
 mechanism is env-caused and entirely separate from the field-`type` one above,
 and the two have different fixes.
 
-## 🔴 OPEN — two real secrets are committed to git (owner: check repo visibility, then rotate)
+## 🟠 OPEN — two real secrets are committed to git (repo confirmed PRIVATE; owner: decide on rotation)
 
 `docs/DEPLOY.md:54–55` carries literal generated values for `AUTH_SECRET` and
 `DATA_ENCRYPTION_KEY` ("provided for you"), committed in `ca23eac` (2026-06-21)
@@ -66,13 +94,16 @@ and never removed, on a branch pushed to `github.com/meleesciony/Aimplifi`.
 Verified by `git log --all -S`: one commit introduced them, none removed them, so
 they are still in HEAD *and* in history.
 
-**Unknown from here (cannot be verified in this environment):** whether that
-GitHub repo is public, and whether the deployed Vercel project actually uses these
+**RESOLVED, same session:** the repo is **private** — every production deployment
+record carries `githubRepoVisibility: "private"`. So this is not a public
+exposure. It is still a real hygiene failure (a secret in version control is
+readable by every current and future collaborator, every CI integration granted
+repo access, and anyone who ever clones it), and the values should be treated as
+burned. Still unknown from here: whether the deployed project actually uses these
 exact values — DECISIONS #198 records only that Production already had the
-variables set, not what they were set to. Both are one look at a dashboard for the
-owner.
+variables set, not what they were set to.
 
-**If the repo is public and the values match production**, anyone can forge a
+**If the values match production**, anyone with repo access can forge a
 signed session JWT for any account. Rotation order matters and each step has a
 visible cost, so it is owner-gated:
 1. Rotating `AUTH_SECRET` signs every device out (expected, harmless) and kills

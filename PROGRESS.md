@@ -4384,3 +4384,21 @@ RECORDED: AUTH_SECRET is the JWT signing key -> rotating it signs every device o
 exactly like the reported symptom and is env-caused (the previous session's note missed this link).
 GATE: VERIFY_E2E=1 bash scripts/verify.sh -> VERIFY GREEN, 3352 unit / 230 files, 143 e2e (+1).
 NEXT: owner answers (which reading / which env vars / repo visibility); then TASKS 3.3 or 2.4.
+
+## #261 follow-up: the branch was never pushed. 2026-07-21
+Owner asked why they could not see the password reveal. CAUSE (verified, not theorized):
+local main was 8 commits ahead of origin/main (#257..#261 range); production was pinned at
+9e3e56f (#257) per every Vercel deployment's githubCommitSha. #258 was NEVER live.
+CONSEQUENCE: the previous session's leading hypothesis (the #258 type-flip breaking the
+browser save prompt) cannot explain anything seen on www.aimplifi.app. STATUS corrected;
+new labelled hypothesis recorded — #257's reset signs out every session and does NOT sign
+the user back in, so the browser autofills the OLD saved password on the sign-in page it
+lands on. Check = the owner's saved-passwords list vs the password they last set.
+ALSO RESOLVED: repo is PRIVATE (githubRepoVisibility on every deployment record), so the
+committed secrets are a hygiene failure, not a public exposure. Rotation still owner-gated.
+SHIPPED: pushed 9e3e56f..0563e0f; Vercel auto-deployed dpl_58y9k85mpNYJ7kkoTuLxbscBacML ->
+READY on 0563e0f; verified live by fetching https://www.aimplifi.app/sign-in and finding
+aria-label="Show password" + data-testid="auth-password-toggle". No prisma/ diff in the
+pushed range, so the live database was untouched.
+NEW RULE: CLAUDE.md rule 5 — commit, push, deploy, prove it live, THEN ask the owner.
+NEXT: owner checks saved-passwords list; then TASKS 3.3.

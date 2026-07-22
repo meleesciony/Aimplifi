@@ -68,7 +68,24 @@ calculation has unit tests with the hand-verified expected values in
 credentials via the seeded dataset specified in `docs/SEED_SPEC.md`, behind the
 `DataProvider` interface. Plaid is a second provider layered on top, never a
 prerequisite.
-5. **Engine before UI.** Within each phase, build and fully test the pure business-logic
+5. **Ship it: commit, PUSH, and DEPLOY — then prove it's live — before asking the
+owner to look at anything.** (Owner instruction, 2026-07-21: *"Always do all 3 before
+asking me to check."*) A green local verify is not a shipped feature. `main` sat **8
+commits ahead of `origin/main`** for four sessions — #257 through #261 — so the owner
+could not see the password reveal they had asked for, and a whole diagnosis was built
+on a hypothesis about code that was never on the deployed site.
+   * Vercel auto-deploys on push to `main` (project `aimplifi`, team `reiforge`);
+there is no separate deploy step, but there IS a separate **verification** step.
+   * "Deployed" is not the push succeeding. Confirm the deployment reached `READY`
+**and** fetch the live URL and grep for a marker unique to the change
+(`curl -s https://www.aimplifi.app/<route> | grep '<new testid or label>'`). An old
+deployment answers `200` perfectly well, so a status code proves nothing.
+   * Before pushing, check `git diff origin/main..main --stat -- prisma/`: a schema
+change means `prisma db push` runs against the live Neon database on deploy. No schema
+diff = the database is untouched.
+   * If the push carries more than the current slice, say so — the owner is receiving
+everything that accumulated, not just today's work.
+6. **Engine before UI.** Within each phase, build and fully test the pure business-logic
 engine (no React, no DB calls — pure functions on typed inputs) before wiring UI or
 persistence. The Cash-Needed Engine, categorization engine, and FI engine all live in
 `src/lib/engine/` as pure, deterministic, unit-testable modules.
