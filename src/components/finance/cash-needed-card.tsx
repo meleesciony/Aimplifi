@@ -61,7 +61,7 @@ export function CashNeededCard({
         <GlassBoxNumber
           trace={traceCashNeeded(result)}
           amountTestId="cash-needed-amount"
-          amountClassName="text-3xl tabular-nums sm:text-4xl"
+          amountClassName="text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl"
           engagementSubjectKey="cash-needed"
         >
           <p className="text-sm text-muted-foreground" data-testid="cash-needed-headline">

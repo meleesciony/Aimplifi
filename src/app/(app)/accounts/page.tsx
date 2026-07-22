@@ -19,8 +19,8 @@ export default async function AccountsPage() {
   ]);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Accounts</h1>
+    <div className="space-y-5">
+      <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
       <p className="text-sm text-muted-foreground">
         Everything you own and owe, in one place. Tap any account to see its
         transactions.

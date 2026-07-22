@@ -43,11 +43,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="pb-bottom-nav mx-auto max-w-5xl px-3 sm:px-6">
+    <div className="pb-bottom-nav mx-auto max-w-5xl px-4 sm:px-6">
       <AutoSync enabled={hasSimplefin} />
       <a
         href="#content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
       >
         Skip to content
       </a>
@@ -57,7 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* items-center on phones (brand + More + Sign out on one row); items-start
           on sm+ so a wrapped link row doesn't vertically center Sign out into it.
           Sign-out shrink-0: never share width with the 13 desktop text links (#188). */}
-      <header className="-mx-3 flex items-center justify-between gap-3 border-b bg-background px-3 py-3 sm:sticky sm:top-0 sm:z-30 sm:items-start sm:-mx-6 sm:bg-background/80 sm:px-6 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-background/60">
+      <header className="-mx-4 flex items-center justify-between gap-3 border-b bg-background px-4 py-3 sm:sticky sm:top-0 sm:z-30 sm:items-start sm:-mx-6 sm:bg-background/80 sm:px-6 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-background/60">
         <AppNav reviewBadge={<ReviewBadge userId={session.user.id} />} />
         <form action={doSignOut} className="shrink-0 sm:pt-0.5" data-testid="sign-out-form">
           <Button variant="ghost" size="sm" type="submit">

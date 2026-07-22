@@ -167,6 +167,49 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Wave M.4 — mobile visual polish, slice 1 (foundation) (2026-07-22) — #268
+
+First slice of the "beauty half" the owner asked for ("more functional and
+beautiful than Simplifi/Mint"). Deliberately **restrained** — a foundation, not a
+big-bang restyle (the M.4 row forbids big-bang), judged against **real rendered
+before/after mobile screenshots at 393px** rather than imagination (CLAUDE.md rule 0).
+
+Changes (all className-only; no logic, no money text):
+- **Shell mobile gutter 12→16px** — `(app)/layout.tsx` `px-3→px-4`, header `-mx-3→-mx-4`,
+  skip-link `left-3→left-4`. This is the shell padding the M.4 row flagged; it shifts
+  **every** route, so the full suite was re-run. (Bonus: `px-4` = a 16px each-side gutter,
+  which is exactly what the existing `max-w-[calc(100vw-2rem)]` dropdown guards were
+  already sized for — the gutter and that guard are now aligned.)
+- **Vertical rhythm** `space-y-4→space-y-5` on /dashboard + /accounts page roots (and the
+  two dashboard card-pair grids `gap-4→gap-5`, so the mobile single-column stack spacing
+  stays uniform with the page rhythm).
+- **Page-title scale** — /accounts `<h1>` `text-xl→text-2xl font-semibold tracking-tight`.
+  (/dashboard keeps its `sr-only` H1 — answer-first is deliberate; the hero card is the
+  visual anchor.)
+- **Hero numerals** — the two biggest figures (`cash-needed-amount`, `accounts-net-worth-amount`)
+  gain `font-semibold tracking-tight`. `formatCents` output is **byte-identical**; only
+  font weight/letter-spacing changed, so no copy test moves and no new figure adjacency was
+  created (no rendered-copy test required).
+
+Deliberately **did NOT** invent new CSS tokens: "extend the token system" is satisfied by
+applying the existing Tailwind v4 scale + oklch vars consistently; adding a parallel token
+system would violate surgical-changes. The **`frontend-design` skill was not available in
+this environment** (no `.claude/skills/` or `/mnt/skills/`), so the pass leaned on the M.4
+row's own encoded constraints; noted so a future session with the skill can calibrate further.
+
+No money/authz/routing touched → no Fable critic (per the M.4 row). Gate (real output):
+`VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**, tsc/eslint clean,
+**3352 unit / 230 files**, build clean, **157 e2e** (1.4m) — every `mobile-overflow` spec
+green in BOTH the Chromium `mobile-380` and iOS-Safari `mobile-webkit` projects at
+360/393/430, confirming the wider gutter added zero horizontal overflow. Detail: DECISIONS #268.
+
+**Remaining M.4 (multi-session):** the four hand-rolled `TrackedActedLink` "link cards"
+(Ask / SafeToSpend / TopSpending / SpendingInsights / RecurringSummary) hard-code
+`rounded-2xl border bg-card p-4 shadow-sm` and so will DRIFT from any future `Card` retune —
+a candidate for one shared `.surface-card` utility (dedup-lesson: unify by construction).
+Then route-by-route beyond the two done here. The owner should eyeball the before/after
+direction before the remaining routes get the same treatment.
+
 ## Wave M.1 — mobile test-net completion (2026-07-22) — #267
 
 Closed the deferred half of M.1: the mobile e2e safety net now covers **every**

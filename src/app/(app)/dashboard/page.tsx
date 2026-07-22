@@ -126,7 +126,7 @@ export default async function DashboardPage({
       .map((a) => ({ name: a.name, balanceCents: a.currentBalanceCents }))[0] ?? null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <h1 className="sr-only">Dashboard</h1>
       {/* THE answer — first thing on screen, zero navigation required. Step 2 of the
           guided first-run flow (Gap 3 §3) for a user who hasn't confirmed a payment
@@ -201,7 +201,7 @@ export default async function DashboardPage({
 
       {/* at-a-glance summaries: this month's safe-to-spend + savings rate.
           Each links through to its full view (Plan / Coach). */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-5 sm:grid-cols-2">
         <SafeToSpendCard plan={plan} />
         <SavingsRateCard flows={coach.flows} currentRateBps={coach.currentRateBps} />
       </div>
@@ -210,7 +210,7 @@ export default async function DashboardPage({
       <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} runwayMonths={coach.runwayMonths} />
 
       {/* spending analytics: this month's top categories + what changed (Trends) */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-5 sm:grid-cols-2">
         <TopSpendingCard breakdown={reports.breakdown} />
         <SpendingInsightsCard trends={trends} />
       </div>

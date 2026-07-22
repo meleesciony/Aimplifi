@@ -73,7 +73,7 @@ function NetWorthCard({ data }: { data: AccountsView }) {
       <CardHeader className="pb-2">
         <CardDescription>Net worth (assets − liabilities)</CardDescription>
         <CardTitle
-          className={`text-2xl tabular-nums sm:text-3xl ${data.netWorthCents < 0 ? 'text-red-400' : ''}`}
+          className={`text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl ${data.netWorthCents < 0 ? 'text-red-400' : ''}`}
           data-testid="accounts-net-worth-amount"
         >
           {formatCents(data.netWorthCents)}
