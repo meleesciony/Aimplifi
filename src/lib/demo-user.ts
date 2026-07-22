@@ -47,3 +47,14 @@ export const DEMO_ENTRY_BLOCKED =
  */
 export const DEMO_DESTROY_BLOCKED =
   'The demo is a shared account, so it can’t be deleted or signed out everywhere — create your own free account to control your own data.';
+
+/**
+ * Refusal for cross-provider account reconciliation on the shared demo (TASKS 4.6).
+ * Demo accounts are `provider: 'demo'` and are excluded from the #192 duplicate
+ * detector, so a reconciliation candidate is never PROPOSED for the demo — this is
+ * server-side defense in depth against a crafted confirm request, matching the other
+ * demo fences. Reconciling would zero one demo balance and re-window its transactions
+ * for every visitor sharing the row.
+ */
+export const DEMO_RECONCILE_BLOCKED =
+  'The demo is a shared account, so its accounts can’t be linked or reconciled — create your own free account to manage your real accounts.';

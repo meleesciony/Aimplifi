@@ -1,0 +1,214 @@
+/**
+ * Cross-provider account reconciliation — confirm / undo core (TASKS Wave 4.6 slice 2;
+ * docs/PROVIDER_RECONCILIATION_ARCHITECTURE.md §4/§8, invariants R7/R9/R10).
+ *
+ * This module MUTATES the `AccountReconciliation` link table but does NOT itself change
+ * any money figure: it records the user's confirmed decision that two `Account` rows are
+ * the same real account (predecessor = stale/disconnected, successor = live). The assembler
+ * (slice 3) reads active links once and applies the balance-exclusion + date-split there, so
+ * every downstream engine inherits the boundary unchanged. Slice-2 tests therefore prove the
+ * ACTION contract (authz, TOCTOU, direction, reversibility, cutover bounds); the aggregation
+ * invariants R1/R2 land with the assembler.
+ *
+ * Kept NextAuth-free (takes `userId` + an injected `today`) so it runs under vitest against
+ * the real Prisma client, exactly like server/account-delete.ts. The thin `'use server'`
+ * wrapper that pulls the session lives in server/reconciliation-actions.ts.
+ */
+import { prisma } from '@/lib/db';
+import { type ISODate, compareDates, isoDate } from '@/lib/dates';
+import { DEMO_RECONCILE_BLOCKED, isDemoUser } from '@/lib/demo-user';
+import type { DuplicateConfidence, ReconciliationMatchSignal } from '@/lib/engine/account/duplicates';
+
+export interface ConfirmReconciliationInput {
+  predecessorAccountId: string;
+  successorAccountId: string;
+  cutoverDate: string; // YYYY-MM-DD
+  matchSignal: string; // 'mask' | 'balance' | 'name' (validated here)
+  confidence: string; // 'high' | 'medium' (validated here)
+}
+
+export type ConfirmReconciliationResult = { ok: true; id: string } | { ok: false; error: string };
+export type UndoReconciliationResult = { ok: true } | { ok: false; error: string };
+
+/** The shape slice 3's assembler and slice 5's advisory-suppression consume. */
+export interface ActiveReconciliation {
+  id: string;
+  predecessorAccountId: string;
+  successorAccountId: string;
+  cutoverDate: string;
+}
+
+const MATCH_SIGNALS: ReadonlySet<string> = new Set<ReconciliationMatchSignal>(['mask', 'balance', 'name']);
+const CONFIDENCES: ReadonlySet<string> = new Set<DuplicateConfidence>(['high', 'medium']);
+
+// One generic "not found" for every ownership / scalar-shape refusal — no cross-user oracle
+// (a wrong id must be indistinguishable from another user's id), matching account-delete.ts.
+const NOT_FOUND = 'Account not found.';
+
+/**
+ * Whether an account row still has a LIVE provider connection. This is the SAME derivation the
+ * slice-5 caller will use to feed `hasLiveConnection` into the candidate detector, so the
+ * proposal and this confirm-time guard can never disagree
+ * (docs/lessons/a-guard-must-read-what-it-guards). `SimpleFinConnection` is per-USER (one row),
+ * so every SimpleFIN account is live iff that connection exists; a Plaid account is live iff its
+ * stamped `plaidItemId` still resolves to an existing `PlaidItem`; manual / demo / unknown
+ * providers are never a live sync source (a manual row is predecessor-eligible by design, §4).
+ */
+export function isAccountLive(
+  account: { provider: string; plaidItemId: string | null },
+  conns: { simplefinConnected: boolean; plaidItemIds: ReadonlySet<string> },
+): boolean {
+  switch (account.provider) {
+    case 'plaid':
+      return account.plaidItemId != null && conns.plaidItemIds.has(account.plaidItemId);
+    case 'simplefin':
+      return conns.simplefinConnected;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Confirm a reconciliation: link a stale predecessor to a live successor. Never automatic —
+ * only ever called from an explicit user confirm. Idempotent + re-activation-safe via upsert on
+ * the `predecessorAccountId @unique` slot: re-confirming (including after an undo) updates the
+ * one row and clears `undoneAt`, so R9's round-trip and a later re-link both work without a
+ * unique-constraint crash.
+ *
+ * TOCTOU-closed (R10, #219 idiom): both account ids are re-resolved scoped to `userId` INSIDE the
+ * transaction, and liveness is re-derived from the live connection rows in the same transaction —
+ * a pre-check snapshot is never trusted. Refuses unless the direction is exactly
+ * predecessor=stale, successor=live (R3), because zeroing a still-live balance would fabricate a
+ * wrong net worth.
+ */
+export async function confirmReconciliationFor(
+  userId: string,
+  input: ConfirmReconciliationInput,
+  today: ISODate,
+): Promise<ConfirmReconciliationResult> {
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_RECONCILE_BLOCKED };
+
+  const { predecessorAccountId, successorAccountId, matchSignal, confidence } = input;
+  // 'use server' endpoints take attacker-shaped input: refuse non-scalar args before any query.
+  if (
+    typeof predecessorAccountId !== 'string' ||
+    typeof successorAccountId !== 'string' ||
+    typeof input.cutoverDate !== 'string' ||
+    typeof matchSignal !== 'string' ||
+    typeof confidence !== 'string'
+  ) {
+    return { ok: false, error: NOT_FOUND };
+  }
+  if (predecessorAccountId === successorAccountId) {
+    return { ok: false, error: 'An account can’t be reconciled with itself.' };
+  }
+  if (!MATCH_SIGNALS.has(matchSignal) || !CONFIDENCES.has(confidence)) {
+    return { ok: false, error: 'That reconciliation signal isn’t recognized.' };
+  }
+  let cutover: ISODate;
+  try {
+    cutover = isoDate(input.cutoverDate);
+  } catch {
+    return { ok: false, error: 'The cutover date isn’t a valid calendar date.' };
+  }
+  // Cutover ≤ today is date-only and needs no DB read, so check it up front.
+  if (compareDates(cutover, today) > 0) {
+    return { ok: false, error: 'The cutover date can’t be in the future.' };
+  }
+
+  return prisma.$transaction(async (tx): Promise<ConfirmReconciliationResult> => {
+    const [pred, succ] = await Promise.all([
+      tx.account.findFirst({
+        where: { id: predecessorAccountId, userId },
+        select: { id: true, provider: true, plaidItemId: true },
+      }),
+      tx.account.findFirst({
+        where: { id: successorAccountId, userId },
+        select: { id: true, provider: true, plaidItemId: true },
+      }),
+    ]);
+    // Either id not owned by this user → generic not-found (R10: no cross-user oracle).
+    if (!pred || !succ) return { ok: false, error: NOT_FOUND };
+
+    const [sfConn, plaidItems, firstTxn] = await Promise.all([
+      tx.simpleFinConnection.findUnique({ where: { userId }, select: { id: true } }),
+      tx.plaidItem.findMany({ where: { userId }, select: { itemId: true } }),
+      tx.transaction.findFirst({
+        where: { accountId: predecessorAccountId },
+        orderBy: { date: 'asc' },
+        select: { date: true },
+      }),
+    ]);
+    const conns = {
+      simplefinConnected: sfConn !== null,
+      plaidItemIds: new Set(plaidItems.map((i) => i.itemId)),
+    };
+
+    // R3 at the confirm boundary: successor = the LIVE side we continue into; predecessor = the
+    // stale side whose balance stops counting. Any other direction is refused — the detector never
+    // proposes it, and a crafted request that zeroed a still-live balance would be a money-integrity
+    // bug (a fabricated net worth), the exact harm §2 forbids.
+    if (!isAccountLive(succ, conns)) {
+      return {
+        ok: false,
+        error: 'The account you’re continuing into isn’t connected, so there’s nothing live to reconcile to.',
+      };
+    }
+    if (isAccountLive(pred, conns)) {
+      return {
+        ok: false,
+        error: 'Both accounts are still connected — disconnect the old one first, then reconcile.',
+      };
+    }
+
+    // Cutover must sit within the predecessor's real history: never before its first transaction
+    // (would strand pre-cutover rows nothing owns). Stored dates are already validated YYYY-MM-DD.
+    if (firstTxn && compareDates(cutover, isoDate(firstTxn.date)) < 0) {
+      return { ok: false, error: 'The cutover date can’t be before the old account’s first transaction.' };
+    }
+
+    const row = await tx.accountReconciliation.upsert({
+      where: { predecessorAccountId },
+      create: { userId, predecessorAccountId, successorAccountId, cutoverDate: cutover, matchSignal, confidence },
+      update: {
+        successorAccountId,
+        cutoverDate: cutover,
+        matchSignal,
+        confidence,
+        undoneAt: null,
+        confirmedByUserAt: new Date(),
+      },
+    });
+    return { ok: true, id: row.id };
+  });
+}
+
+/**
+ * Undo a reconciliation (R9): sets `undoneAt` so the link is inert and both rows count fully
+ * again. Scoped `where: { id, userId }` is the authz — another user's id matches zero rows and
+ * returns the same generic not-found. Only acts on an ACTIVE link (`undoneAt: null`); undoing an
+ * already-undone one is a no-op reported as not-found (the UI only offers Undo on active links).
+ */
+export async function undoReconciliationFor(
+  userId: string,
+  reconciliationId: string,
+): Promise<UndoReconciliationResult> {
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_RECONCILE_BLOCKED };
+  if (typeof reconciliationId !== 'string') return { ok: false, error: 'Reconciliation not found.' };
+
+  const res = await prisma.accountReconciliation.updateMany({
+    where: { id: reconciliationId, userId, undoneAt: null },
+    data: { undoneAt: new Date() },
+  });
+  if (res.count === 0) return { ok: false, error: 'Reconciliation not found.' };
+  return { ok: true };
+}
+
+/** Active (not-undone) reconciliations for a user — the assembler + advisory-suppression input. */
+export async function getActiveReconciliations(userId: string): Promise<ActiveReconciliation[]> {
+  return prisma.accountReconciliation.findMany({
+    where: { userId, undoneAt: null },
+    select: { id: true, predecessorAccountId: true, successorAccountId: true, cutoverDate: true },
+    orderBy: { confirmedByUserAt: 'asc' },
+  });
+}
