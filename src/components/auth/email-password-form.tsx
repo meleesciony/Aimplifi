@@ -5,6 +5,7 @@
  * hidden field; the `authenticate` action dispatches to sign-in or sign-up.
  */
 import { useActionState, useState } from 'react';
+import { PasswordInput } from '@/components/auth/password-input';
 import { type AuthFormState, authenticate } from '@/server/auth-actions';
 
 const inputClass =
@@ -27,8 +28,7 @@ export function EmailPasswordForm() {
         data-testid="auth-email"
         className={inputClass}
       />
-      <input
-        type="password"
+      <PasswordInput
         name="password"
         required
         minLength={8}

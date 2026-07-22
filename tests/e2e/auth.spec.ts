@@ -114,6 +114,20 @@ test('first manual account → dashboard explains its sparse cards (no bare $0.0
   await expect(page.getByTestId('life-energy-list')).toHaveCount(0);
 });
 
+test('password viewer toggles visibility without losing typed text', async ({ page }) => {
+  await page.goto('/sign-in');
+  const pw = page.getByTestId('auth-password');
+  await pw.fill('peekaboo-12345');
+  await expect(pw).toHaveAttribute('type', 'password');
+  await page.getByTestId('auth-password-toggle').click();
+  await expect(pw).toHaveAttribute('type', 'text');
+  // The typed text survives the toggle (the input is uncontrolled; only `type` flips).
+  await expect(pw).toHaveValue('peekaboo-12345');
+  await page.getByTestId('auth-password-toggle').click();
+  await expect(pw).toHaveAttribute('type', 'password');
+  await expect(pw).toHaveValue('peekaboo-12345');
+});
+
 test('wrong password is rejected with a friendly error', async ({ page }) => {
   await page.goto('/sign-in');
   await page.getByTestId('auth-email').fill('nobody-here@aimplifi.test');

@@ -8,6 +8,7 @@
  */
 import Link from 'next/link';
 import { useActionState } from 'react';
+import { PasswordInput } from '@/components/auth/password-input';
 import { type ResetConfirmState, confirmPasswordReset } from '@/server/password-reset-actions';
 
 const inputClass =
@@ -39,8 +40,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
   return (
     <form action={formAction} className="space-y-2" data-testid="reset-confirm-form">
       <input type="hidden" name="token" value={token} />
-      <input
-        type="password"
+      <PasswordInput
         name="password"
         required
         minLength={8}
