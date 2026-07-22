@@ -54,6 +54,33 @@ unanswered (no wrong number is ever shown):
    widening ripples through `SpendingBreakdown`/trends parity; category-scoped largest
    ("biggest grocery purchase") redirects — no engine computes it.
 
+## Agent-Review Follow-up Slice 1 (2026-07-21) — #259: docs C1–C5 + UX A1–A3
+
+Applied the top candidates from the same-day agent review (§2026-07-21 below), in the
+review's own priority order. Docs: README's Plaid row now states the sandbox-verified
+truth (ROADMAP #1 DONE 2026-06-17) instead of "not implemented"; the seed-pinned
+measurements (3.60% review rate, triage interaction count) are de-hardcoded to
+target + the asserting test — they had NO canonical doc home, and the executable
+assertions (`tests/unit/categorize.test.ts:170`, `tests/e2e/phase2-triage.spec.ts:374`)
+print the live values; .env.example rebranded to Aimplifi; DEPLOY.md env table gained
+`AUTH_URL` (verified fail-closed semantics from `password-reset-actions.ts`); CLAUDE.md's
+build-queue pointer corrected to root `TASKS.md` (never existed at docs/, per git log).
+UX: /cards no-cards empty embeds the real Plaid connect button + manual/CSV button-links
+(A1); the settings Bank-connections card is live, not decorative (A2); /triage gains the
+zero-account gate + `EmptyTriage` route empty, testid `triage-first-run-empty` — NOT
+`triage-empty`, which is TriageInbox's inbox-zero state (A3). **A4 declined:** the
+onboarding step numbering is itself a recorded critic decision (step-indicator.tsx
+header comment) — reopening it is the owner's call. SimpleFIN connect deliberately not
+embedded on /cards or /settings (its UI takes a connected-state prop those surfaces
+can't honestly supply; /accounts renders real state). Locks: auth.spec route-empties
+sweep + new `connect-affordances.spec.ts` on the guarded `--usd-only` fixture.
+Detail: DECISIONS #259.
+
+**Still-open review candidates (owner prioritization):** A5 (PlaidConnections 380px
+card-per-item layout), A6 (onboarding copy drift / "Safe to Spend" naming), B1–B6
+(redundancy cleanup slice, no behavior change), D (Plaid merge-into-existing-account —
+**awaits explicit owner approval**: the cutover deletes transaction rows).
+
 ## Forgot Password / Reset Flow (2026-07-21) — #257, owner request
 
 Owner locked out of the deployed app. Full reset flow shipped engine-first: pure
@@ -4929,6 +4956,10 @@ logic, the flow and user experience — can anything be done better?"). Findings
 **candidates awaiting owner prioritization**, recorded with the agents' file:line evidence;
 each fix slice re-verifies its claim before changing code. Same session shipped #258
 (password show/hide viewer; see git log) — that is the only code change.
+
+**Resolution (2026-07-21, #259 — see §Agent-Review Follow-up Slice 1 near the top):**
+C1–C5 and A1–A3 shipped; A4 declined (the numbering is a recorded critic decision);
+A5–A6, all of B, and D remain open — D gated on explicit owner approval.
 
 ### A. Product flow / UX (highest user impact first)
 1. **/cards empty state dead-ends** — tells the user to go to /accounts but offers no inline

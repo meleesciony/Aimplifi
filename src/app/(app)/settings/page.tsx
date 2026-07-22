@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
+import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { MoneyDialsForm } from '@/components/settings/money-dials-form';
 import { DeleteMyDataForm } from '@/components/settings/delete-my-data-form';
 import { SignOutEverywhere } from '@/components/settings/sign-out-everywhere';
@@ -155,16 +156,31 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* 2026-07-21 agent review A2: not just prose — the real Plaid connect button
+          lives here too (it's self-contained; OAuth round-trips return to this page).
+          SimpleFIN connect + connection management stay on /accounts, where the
+          connection's actual state is known and rendered. */}
       <Card data-testid="connections-card">
         <CardHeader className="pb-2">
           <CardDescription>Bank connections</CardDescription>
           <CardTitle className="text-base">Connect a bank or brokerage</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Link an account from the{' '}
-          <a href="/accounts" className="underline hover:text-foreground">Accounts</a> page —
-          SimpleFIN (a few dollars/year, no business gate) or Plaid. Access tokens are encrypted at
-          rest (AES-256-GCM); only account masks (last 4) are ever stored.
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <p>
+            Connect with Plaid right here, or use the Accounts page for SimpleFIN (a few
+            dollars/year, no business gate) and for managing existing connections. Access tokens
+            are encrypted at rest (AES-256-GCM); only account masks (last 4) are ever stored.
+          </p>
+          <ConnectAccountsButton />
+          <div>
+            <Link
+              href="/accounts"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              data-testid="settings-manage-connections"
+            >
+              Manage connections on Accounts
+            </Link>
+          </div>
         </CardContent>
       </Card>
 

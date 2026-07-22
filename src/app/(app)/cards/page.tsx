@@ -1,6 +1,9 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { CardsBreakdown } from '@/components/finance/cards-breakdown';
+import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
+import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
@@ -32,11 +35,35 @@ export default async function CardsPage({
         {data.household?.hasPartners && (
           <HouseholdScopeToggle scope={data.scope} householdName={data.household.name} basePath="/cards" />
         )}
+        {/* 2026-07-21 agent review A1: don't dead-end to /accounts — offer the real
+            connect/add affordances inline. Plaid's button is self-contained (token
+            minted on click); SimpleFIN connect stays on /accounts, where its
+            connection state is actually known. */}
         <Card className="border-dashed" data-testid="cards-empty">
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No credit cards yet. Add a card or connect a bank from the{' '}
-            <a href="/accounts" className="underline hover:text-foreground">Accounts</a> page to get
-            your “how much &amp; when to pay every card in full” plan here.
+          <CardContent className="space-y-4 py-8 text-sm text-muted-foreground">
+            <p className="text-center">
+              No credit cards yet. Connect the bank that issues your card — or add it
+              manually — to get your “how much &amp; when to pay every card in full” plan here.
+            </p>
+            <div className="mx-auto flex max-w-sm flex-col items-stretch gap-2">
+              <ConnectAccountsButton />
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Link
+                  href="/accounts"
+                  className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  data-testid="cards-empty-manual"
+                >
+                  Add a card manually
+                </Link>
+                <Link
+                  href="/transactions/import"
+                  className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  data-testid="cards-empty-import"
+                >
+                  Import a CSV
+                </Link>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

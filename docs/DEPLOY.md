@@ -72,6 +72,7 @@ Optional, add only if/when you want the feature:
 
 | Variable | Purpose |
 |---|---|
+| `AUTH_URL` | Optional **on Vercel** (the platform's request origin is trusted); set it to your canonical URL (e.g. `https://www.aimplifi.app`) to pin every emailed password-reset link to that domain. **REQUIRED on any non-Vercel / self-hosted deploy** — without it the reset email is silently skipped (fail-closed against reset-link poisoning, DECISIONS #257). |
 | `XAI_API_KEY` (preferred) | LLM-assisted categorization of unknown merchants — xAI Grok, cheaper; optional `XAI_MODEL` (default `grok-3-mini`) |
 | `ANTHROPIC_API_KEY` | Same feature via Anthropic when no `XAI_API_KEY` is set; optional `ANTHROPIC_MODEL` (default `claude-haiku-4-5-20251001`) |
 | `CRON_SECRET` | protects the `/api/cron/*` sweep routes if you wire Vercel Cron |

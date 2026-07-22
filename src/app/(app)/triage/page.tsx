@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { EmptyTriage } from '@/components/onboarding/route-empty';
 import { AccuracyCard } from '@/components/triage/accuracy-card';
 import { BackfillButton } from '@/components/triage/backfill-button';
 import { TriageInbox } from '@/components/triage/triage-inbox';
+import { prisma } from '@/lib/db';
 import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getTriageGroups } from '@/server/triage';
 import { getVisibleCategories } from '@/server/categories';
@@ -14,6 +16,10 @@ export const metadata = { title: "Review" };
 export default async function TriagePage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
+  // Zero-account first-run → the branded connect empty every sibling route has
+  // (2026-07-21 agent review A3): a bare empty inbox reads as "nothing to do",
+  // not "not set up yet". Same USD-or-null gate as cards/coach/goals/calendar.
+  if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyTriage />;
   const [groups, accuracy, categories, withheld] = await Promise.all([
     getTriageGroups(session.user.id), // merchant-group queue (Phase 3c, DECISIONS #143)
     getCategorizationAccuracy(session.user.id),

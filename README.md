@@ -52,14 +52,17 @@ in `tests/unit/critic*-*.test.ts`.
 - **Categorization** (`engine/categorize/`) — merchant normalization (SQ\*,
   TST\*, AMZN Mktp, PAYPAL \*, airport POS…), confidence routing (auto-silent ≥
   90%, AI-badge 70–90%, review < 70%), contextual rules (amount bands, weekend,
-  account scope), **3.60% review rate** on the last 60 seed days (target < 5%) —
+  account scope), review rate under the **5% target** on the last 60 seed days
+  (the exact seed rate is asserted and printed by `tests/unit/categorize.test.ts`) —
   the seed benchmark is intentionally clean; the messy-corpus rate (realistic
   merchant strings) is tracked by `npm run eval:categorize` and reported in its
   own output, not restated here.
 - **Triage inbox** (`/triage`) — swipe right accept, swipe left for 3
   alternatives, long-press split, batch “apply to all N similar”, universal
   undo (inverse corrections), one-tap durable rules with explicit consent.
-  A full seeded review session: **4 interactions (≈16 s at a documented 4 s/interaction budget)** (targets: <15, <60 s).
+  A full seeded weekly review clears in a handful of thumb actions — asserted
+  under the **<15 interactions / <60 s** targets by `tests/e2e/phase2-triage.spec.ts`,
+  which prints the exact count at a documented 4 s/interaction budget.
 - **Recurring detection** (`engine/recurring/`) — cadence, price-change
   tracking, possibly-unused flag, biweekly payroll feeding the cash projection.
 - **FI Coach** (`/coach`) — savings rate with net-worth-parity placement, FI
@@ -71,13 +74,13 @@ in `tests/unit/critic*-*.test.ts`.
 - **Cash-flow calendar** (`/calendar`), **goals with FI-date impact**
   (`/goals`), **budgets** (`/budgets`), **CSV/PDF export** (audit-logged),
   **PWA manifest**, **security headers (CSP)**, **rate limiting**, **cron sync
-  route**, **AES-256-GCM token-encryption helper (used by the dormant Plaid path)**.
+  route**, **AES-256-GCM token encryption for bank tokens (Plaid/SimpleFIN) at rest**.
 
 ## Dormant pending keys
 
 | Feature | Activate by |
 |---|---|
-| Plaid bank connections | `.env.local`: `DATA_PROVIDER=plaid`, `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV=sandbox`, `DATA_ENCRYPTION_KEY` (32-byte base64). **The provider is a partial scaffold**: Link/exchange/remove are written (never run against a live sandbox); transaction-sync persistence and liabilities→statement mapping are **not implemented** and fail loudly (ROADMAP #1). See docs/PLAID_WALKTHROUGH.md. |
+| Plaid bank connections | `.env.local`: `DATA_PROVIDER=plaid`, `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV=sandbox`, `DATA_ENCRYPTION_KEY` (32-byte base64). **Implemented and sandbox-verified** (2026-06-17, `npm run plaid:validate`: link → exchange → account sync → /transactions/sync → liabilities; per-bank disconnect shipped, ROADMAP #1 / DECISIONS #256). Real banks need production Plaid keys — a Plaid business-approval gate, not a code gap. See docs/PLAID_WALKTHROUGH.md. |
 | Real auth (magic link / Google) | `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` + enabling the providers in `src/auth.ts` (demo sign-in is the Phase-1–5 default). |
 | Background sync schedule | `CRON_SECRET` + a Vercel cron hitting `/api/cron/sync`. |
 

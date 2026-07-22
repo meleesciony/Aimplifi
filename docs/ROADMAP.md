@@ -7,7 +7,8 @@
   post-close credits, $0-due, intra-period dips, pending applied once,
   delinquent statements, past-date-proof recommendations).
 - Categorization: normalization table + cleanup fallback, confidence routing,
-  contextual rules, 3.60% review rate on seed; triage inbox with gestures,
+  contextual rules, seed review rate under the 5% target (asserted + printed by
+  `tests/unit/categorize.test.ts`); triage inbox with gestures,
   batch, splits, consented durable rules, universal undo. Register rows are also
   inline-recategorizable — ANY transaction, not just the review queue — with
   just-once / always-for-merchant (durable rule), reusing the triage correction

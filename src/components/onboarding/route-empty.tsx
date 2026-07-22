@@ -64,6 +64,20 @@ export function EmptyGoals() {
   );
 }
 
+export function EmptyTriage() {
+  return (
+    <RouteEmptyShell
+      pageTitle="Inbox"
+      cardTitle="Only genuinely ambiguous transactions will land here"
+      description="Once accounts are connected, Aimplifi files almost everything automatically. This inbox collects the few transactions it isn't sure about, so a quick thumb-through keeps your categories accurate."
+      // NOT "triage-empty" — that testid is the drained-queue "Inbox zero" state
+      // inside TriageInbox (phase2-triage.spec.ts asserts it); this is first-run.
+      testId="triage-first-run-empty"
+      footnote="Your data is private to your account. After you connect, most transactions are categorized silently — you only ever review the genuinely ambiguous few."
+    />
+  );
+}
+
 export function EmptyCalendar() {
   return (
     <RouteEmptyShell
