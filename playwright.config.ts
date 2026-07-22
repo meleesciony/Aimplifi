@@ -56,6 +56,19 @@ export default defineConfig({
         viewport: { width: 380, height: 800 },
       },
     },
+    // Wave M.1: the owner's phone is iOS Safari (WebKit), which the Chromium-based
+    // mobile-380 project never exercised — and WebKit's flexbox `min-width:auto`
+    // behaviour differs from Chromium's, so a truncation-in-flex overflow can pass
+    // in Chromium and break in Safari (exactly the /accounts report, 2026-07-21).
+    // Scoped to the overflow gate for now (a full WebKit suite migration is its own
+    // task); it renders the real Safari engine at the real phone widths.
+    {
+      name: 'mobile-webkit',
+      testMatch: /mobile-overflow\.spec\.ts/,
+      use: {
+        ...devices['iPhone 13'],
+      },
+    },
   ],
   webServer: {
     command: 'npx next start -p 3100',

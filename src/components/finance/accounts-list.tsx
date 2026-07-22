@@ -88,7 +88,9 @@ function NetWorthCard({ data }: { data: AccountsView }) {
         )}
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex gap-6 text-sm text-muted-foreground">
+        {/* flex-wrap so two large figures (e.g. $1.7M assets + $998K liabilities)
+            stack instead of forcing the document wider than a phone. */}
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
           <span>Assets {formatCents(data.assets.subtotalCents)}</span>
           <span>Liabilities {formatCents(data.liabilities.subtotalCents)}</span>
         </div>
@@ -513,14 +515,20 @@ function LinkedRow({
   // multi-brokerage user (inert with one account — the demo lands on the full portfolio).
   const href = isInvestment ? `/investments?account=${account.id}` : `/transactions?account=${account.id}`;
   return (
-    <li className="flex items-center">
+    // min-w-0 down the whole flex chain so a long synced name TRUNCATES instead
+    // of pushing the balance + Delete off the right edge. Chromium shrinks a
+    // min-width:auto flex item on its own, but real iOS Safari does NOT — the
+    // reported /accounts overflow (owner screenshots 2026-07-21, e.g. "Charles
+    // Schwab US Community Property …383"). The number is shrink-0 and never clips
+    // (a half-visible figure is a wrong figure); the NAME yields first.
+    <li className="flex min-w-0 items-center">
       <Link
         href={href}
         data-testid="account-row"
-        className="flex flex-1 items-center justify-between gap-3 px-3 py-2 hover:bg-accent"
+        className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 hover:bg-accent"
       >
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-medium">{account.name}</span>
             {isPaymentAccount && (
               <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground">Pays cards</span>
@@ -615,7 +623,7 @@ function ManualRow({
           <div className="text-xs text-muted-foreground">{typeLabel(account.type)} · manual</div>
         </div>
         {!editing ? (
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <span className={`shrink-0 tabular-nums ${isLiability ? 'text-red-400' : 'text-foreground'}`}>
               {isLiability ? '−' : ''}
               {formatCents(cents(account.currentBalanceCents))}

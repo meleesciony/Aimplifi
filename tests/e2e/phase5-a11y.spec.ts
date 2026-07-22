@@ -68,6 +68,15 @@ test('calendar, goals, budgets, settings pass WCAG AA', async ({ page }) => {
   }
 });
 
+// /accounts is the section the owner reported (Wave M) and had NO axe scan — the
+// loudest complaint sat on the surface with no accessibility floor. Add it.
+test('accounts page passes WCAG AA', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/accounts');
+  await expect(page.getByTestId('accounts-net-worth')).toBeVisible();
+  await expectNoViolations(page, 'accounts');
+});
+
 test('keyboard-only: sign in and reach the cash-needed answer', async ({ page }) => {
   await page.goto('/sign-in');
   // The email/password form is now the primary action, so it's first in tab order.
