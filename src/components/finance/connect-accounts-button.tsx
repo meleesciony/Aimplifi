@@ -66,10 +66,29 @@ export function ConnectAccountsButton() {
     onSuccess,
     // Surface a real Link error (institution/login failure) instead of silent
     // re-enable; a clean user cancel passes err=null, so it stays quiet.
-    onExit: (err) => {
+    onExit: (err, metadata) => {
       clearStoredLinkToken();
       setWantOpen(false);
-      if (err) setError(err.display_message ?? err.error_message ?? 'Bank connection was cancelled.');
+      // TEMP DIAGNOSTIC (#281): a Chase OAuth close was arriving with err=null and
+      // no on-screen reason, so both the page and the console looked empty and we
+      // were left guessing. Plaid reports the real reason in `metadata` (status,
+      // and an error object on an OAuth failure) — surface it on-screen so it's
+      // readable on ANY device. Revert to the plain `if (err)` message once the
+      // cause is identified.
+      const parts = [
+        metadata?.status ? `status=${metadata.status}` : null,
+        err?.error_code ? `code=${err.error_code}` : null,
+        err?.error_type ? `type=${err.error_type}` : null,
+        err?.error_message ?? null,
+        metadata?.institution?.name ? `bank=${metadata.institution.name}` : null,
+        metadata?.request_id ? `req=${metadata.request_id}` : null,
+      ].filter(Boolean);
+      const diag = parts.join(' · ') || 'no reason reported by Plaid';
+      setError(
+        err
+          ? (err.display_message ?? err.error_message ?? `Link ended — ${diag}`)
+          : `Diagnostic — Link closed without connecting: ${diag}`,
+      );
     },
   });
 
