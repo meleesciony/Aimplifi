@@ -43,6 +43,14 @@ Gate: `VERIFY_E2E=1 bash scripts/verify.sh` → **VERIFY GREEN** — 3465 unit /
 **161 e2e** (+2, the new lock in both engines). Layout-only; no money/authz/routing, so no
 Fable critic (same lane as M.1/M.2).
 
+**Shipped and verified live:** pushed as `9c13f57`; Vercel deployment
+`dpl_GzCBKc68LHixjj55Es6wpSiv7igr` reached **READY** with `githubCommitSha 9c13f57` and
+`www.aimplifi.app` in its alias list, and the production alias now serves HTML byte-identical
+(md5 `db1f148907b8`) to that deployment's own URL. No schema diff, so the Neon database was
+untouched. A code-marker grep of the live HTML is not possible here — the changed component is
+behind auth and its chunk is not referenced by any public page (same limitation noted at #271);
+the alias/deployment identity above is the substitute proof.
+
 ## Wave 4.6 slice 6 — full-surface hostile critic (#275, 2026-07-22) — WAVE 4.6 COMPLETE
 
 Three parallel fresh-context critics (money core + §6 straddle lead target / lifecycle-authz /
