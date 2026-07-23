@@ -26,7 +26,11 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { usePlaidLink, type PlaidLinkError } from 'react-plaid-link';
+import {
+  usePlaidLink,
+  type PlaidLinkError,
+  type PlaidLinkOnEventMetadata,
+} from 'react-plaid-link';
 import { createPlaidLinkToken, linkPlaidAccount } from '@/server/plaid-actions';
 import { clearStoredLinkToken, storeLinkToken, storeOriginPath } from '@/lib/plaid-oauth';
 
@@ -39,6 +43,10 @@ export function ConnectAccountsButton() {
   // this disclosure that reads as a broken app rather than test mode.
   const [sandbox, setSandbox] = useState(false);
   const generating = useRef(false);
+  // TEMP DIAGNOSTIC (#285): Plaid Link's own event stream, shown on-page, so we can
+  // read EXACTLY which step the OAuth hand-off dies at (OPEN → SELECT_INSTITUTION →
+  // OPEN_OAUTH → …) and its error code, instead of inferring. Remove once resolved.
+  const [events, setEvents] = useState<string[]>([]);
 
   /**
    * Mint a fresh link token so one is READY before the user taps. `showError` is
@@ -111,7 +119,28 @@ export function ConnectAccountsButton() {
     [generateToken],
   );
 
-  const { open, ready } = usePlaidLink({ token, onSuccess, onExit });
+  // TEMP DIAGNOSTIC (#285): record every Plaid Link event with its view + error.
+  const onEvent = useCallback((eventName: string, metadata: PlaidLinkOnEventMetadata) => {
+    const part = (v: unknown) => (typeof v === 'string' && v ? v : '');
+    setEvents((prev) =>
+      [
+        ...prev,
+        [
+          eventName,
+          part(metadata.view_name) && `view=${part(metadata.view_name)}`,
+          part(metadata.institution_name) && `@${part(metadata.institution_name)}`,
+          part(metadata.error_code) && `ERR:${part(metadata.error_code)}`,
+          part(metadata.error_type) && `(${part(metadata.error_type)})`,
+          part(metadata.error_message),
+          part(metadata.exit_status) && `exit=${part(metadata.exit_status)}`,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      ].slice(-16),
+    );
+  }, []);
+
+  const { open, ready } = usePlaidLink({ token, onSuccess, onExit, onEvent });
 
   function handleClick() {
     setError(null);
@@ -151,6 +180,15 @@ export function ConnectAccountsButton() {
         <p role="alert" data-testid="connect-error" className="text-xs text-red-400">
           {error}
         </p>
+      )}
+      {events.length > 0 && (
+        <ol data-testid="plaid-events" className="mt-1 space-y-0.5 rounded border border-amber-900/40 bg-amber-950/20 p-2 text-[10px] leading-tight text-amber-200/90">
+          {events.map((e, i) => (
+            <li key={i} className="font-mono break-all">
+              {i + 1}. {e}
+            </li>
+          ))}
+        </ol>
       )}
     </div>
   );
