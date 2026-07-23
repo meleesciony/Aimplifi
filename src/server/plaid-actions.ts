@@ -100,6 +100,54 @@ export interface DisconnectItemResult {
   error?: string;
 }
 
+export interface WebhookBackfillResult {
+  ok: boolean;
+  /** How many items needed registering this run (already-registered items are skipped). */
+  attempted?: number;
+  /** How many were successfully registered at Plaid. */
+  updated?: number;
+  /** False when PLAID_WEBHOOK_URL is unset — nothing can be registered until it is. */
+  configured?: boolean;
+  error?: string;
+}
+
+/**
+ * Register the configured webhook on already-linked Plaid items so background
+ * (push) sync starts working. New links carry the webhook automatically via
+ * linkTokenParams; this exists for items linked BEFORE PLAID_WEBHOOK_URL was set,
+ * which receive no TRANSACTIONS pushes and go stale between manual syncs. The same
+ * backfill also runs best-effort at the tail of every syncPlaidNow, so a normal
+ * sync backfills too; this is the direct, user-triggerable path.
+ */
+export async function updatePlaidWebhooksNow(): Promise<WebhookBackfillResult> {
+  try {
+    const userId = await requireUserId();
+    if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
+    if (!plaidConfigured()) return { ok: false, error: 'Bank linking isn’t configured yet.' };
+    if (!process.env.PLAID_WEBHOOK_URL?.trim()) {
+      // Distinct from a failure: there is simply nothing to register yet. Surfaced so
+      // the caller can tell "not set up" from "tried and failed".
+      return {
+        ok: false,
+        configured: false,
+        error: 'Background sync isn’t configured yet (PLAID_WEBHOOK_URL is not set).',
+      };
+    }
+    if (!(await rateLimitDurable(`plaid-webhook-update:${userId}`, 6, 60_000))) {
+      return { ok: false, error: 'Too many requests — give it a minute and try again.' };
+    }
+    const items = await prisma.plaidItem.count({ where: { userId } });
+    if (items === 0) return { ok: false, error: 'No Plaid banks are connected.' };
+
+    const r = await new PlaidProvider().updateWebhooks(userId);
+    revalidatePath('/accounts');
+    return { ok: true, configured: true, attempted: r.attempted, updated: r.updated };
+  } catch {
+    // Fixed string — a Prisma/validation error can embed server paths + the userId.
+    return { ok: false, error: 'Could not update background sync — please try again in a minute.' };
+  }
+}
+
 export interface PlaidSyncNowResult {
   ok: boolean;
   /** Transactions ingested this run. Undefined ONLY when the half never ran. */
@@ -184,6 +232,18 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
       liabilitiesFailed = liab.itemsAttempted > 0 && liab.itemsFailed >= liab.itemsAttempted;
     } catch {
       liabilitiesFailed = true;
+    }
+
+    // Best-effort webhook backfill: an item linked BEFORE PLAID_WEBHOOK_URL was set
+    // carries no webhook and never receives TRANSACTIONS pushes, so it only refreshes
+    // when someone opens the app or the nightly cron runs. Register it now (idempotent
+    // — skips items already registered, no-op when the env is unset) so background sync
+    // starts working. NEVER fatal: a webhook-registration problem must not turn a
+    // successful data pull into a red error.
+    try {
+      await provider.updateWebhooks(userId, { itemId });
+    } catch {
+      /* provider isolates + audits per-item failures; a total failure is non-fatal here */
     }
 
     revalidatePath('/accounts');

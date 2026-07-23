@@ -133,6 +133,7 @@ model PlaidItem {
   itemId            String   @unique
   accessToken       String // AES-256-GCM ciphertext (see src/lib/crypto.ts)
   cursor            String? // /transactions/sync incremental cursor
+  webhookUrl        String? // last webhook URL registered on this item via /item/webhook/update; null = never set (item predates PLAID_WEBHOOK_URL)
   institution       String?
   lastSyncedAt      String? // YYYY-MM-DD — last SUCCESSFUL per-item sync (Gap 1 §4)
   lastSyncAttemptAt String? // YYYY-MM-DD — last attempt (success or failure)

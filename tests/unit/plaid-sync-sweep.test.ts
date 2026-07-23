@@ -206,4 +206,53 @@ describe('sweepPlaidLinkedUsers', () => {
 
     expect(calls.liabilities.filter((u) => u === userId)).toHaveLength(1);
   });
+
+  /**
+   * Webhook backfill on the cron path: a user who never opens the app still gets
+   * the webhook registered on items that predate PLAID_WEBHOOK_URL, so background
+   * push sync becomes hands-free rather than dependent on tapping Sync.
+   */
+  it('backfills webhooks and records the count in the audit when the port supports it', async () => {
+    const userId = await makeUserWithItem('wh');
+    const webhookCalls: string[] = [];
+    const { p } = port({
+      async updateWebhooks(u) {
+        webhookCalls.push(u);
+        return { attempted: 1, updated: 1, failed: 0 };
+      },
+    });
+
+    const row = (await sweepPlaidLinkedUsers(p, { syncTransactions: false })).find(
+      (r) => r.userId === userId,
+    )!;
+
+    expect(webhookCalls).toContain(userId);
+    expect(row.webhooksUpdated).toBe(1);
+    const audit = await prisma.auditLog.findFirst({
+      where: { userId, action: 'sync.cron.plaid' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(JSON.parse(audit!.meta ?? '{}')).toMatchObject({ webhooksUpdated: 1 });
+  });
+
+  it('a webhook-backfill failure never fails the sweep, nor masks a real prior error', async () => {
+    const userId = await makeUserWithItem('whfail');
+    const { p } = port({
+      async syncLiabilities() {
+        return { itemsAttempted: 2, itemsFailed: 2, statementsWritten: 0 };
+      },
+      async updateWebhooks() {
+        throw new Error('webhook boom');
+      },
+    });
+
+    const row = (await sweepPlaidLinkedUsers(p, { syncTransactions: false })).find(
+      (r) => r.userId === userId,
+    )!;
+
+    // The liabilities failure is the meaningful error; the webhook throw must not overwrite it.
+    expect(row.liabilities).toBe('failed');
+    expect(row.error).toContain('all 2 Plaid item(s) failed');
+    expect(row.webhooksUpdated).toBeUndefined();
+  });
 });

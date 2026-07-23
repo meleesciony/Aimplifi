@@ -38,6 +38,15 @@ export interface PlaidSyncPort {
   syncLiabilities(
     userId: string,
   ): Promise<{ itemsAttempted: number; itemsFailed: number; statementsWritten: number }>;
+  /**
+   * Register the configured webhook on items linked before PLAID_WEBHOOK_URL was
+   * set (idempotent, no-op when the env is unset). Optional so a narrower test port
+   * need not provide it; when present, the daily cron backfills webhooks hands-free
+   * for a user who never opens the app — the exact "stale for a week" case.
+   */
+  updateWebhooks?(
+    userId: string,
+  ): Promise<{ attempted: number; updated: number; failed: number }>;
 }
 
 export interface PlaidSweepRow {
@@ -54,6 +63,8 @@ export interface PlaidSweepRow {
   liabilities: 'ran' | 'failed' | 'none';
   /** Statements written this run — 0 with itemsAttempted > 0 is the quiet-failure shape. */
   statementsWritten: number;
+  /** Webhooks registered this run (only set when the port supports the backfill). */
+  webhooksUpdated?: number;
   /** Carried through so a PARTIAL failure (2 of 3 items) isn't audited as a clean run. */
   itemsAttempted: number;
   itemsFailed: number;
@@ -135,6 +146,17 @@ export async function sweepPlaidLinkedUsers(
       row.error = row.error ?? (e instanceof Error ? e.message : 'liability sync failed');
     }
 
+    // Best-effort webhook backfill — hands-free for a user who never taps Sync.
+    // Never overwrites a prior step's error, and a failure here does not fail the
+    // user's sweep (the data pulls above are what matter).
+    if (port.updateWebhooks) {
+      try {
+        row.webhooksUpdated = (await port.updateWebhooks(userId)).updated;
+      } catch (e) {
+        row.error = row.error ?? (e instanceof Error ? e.message : 'webhook update failed');
+      }
+    }
+
     await prisma.auditLog
       .create({
         data: {
@@ -147,6 +169,7 @@ export async function sweepPlaidLinkedUsers(
             statementsWritten: row.statementsWritten,
             itemsAttempted: row.itemsAttempted,
             itemsFailed: row.itemsFailed,
+            ...(row.webhooksUpdated !== undefined ? { webhooksUpdated: row.webhooksUpdated } : {}),
             ...(row.error ? { error: row.error } : {}),
           }),
         },

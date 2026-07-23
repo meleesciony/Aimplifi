@@ -174,6 +174,15 @@ export interface LiabilitySyncResult {
   statementsWritten: number;
 }
 
+export interface WebhookUpdateResult {
+  /** Items that needed the webhook registered (already-current items are skipped, not counted). */
+  attempted: number;
+  /** Items that were successfully updated at Plaid AND recorded locally. */
+  updated: number;
+  /** Items whose /item/webhook/update call failed (audited, isolated — never blocks the rest). */
+  failed: number;
+}
+
 export class PlaidProvider implements DataProvider {
   today(userId?: string): ISODate {
     // Real Plaid users get the real clock; DEMO_TODAY still pins it for tests
@@ -916,6 +925,74 @@ export class PlaidProvider implements DataProvider {
       where: { accountId, account: { userId } },
       orderBy: { cycleEnd: 'desc' },
     });
+  }
+
+  /**
+   * Register the configured webhook (PLAID_WEBHOOK_URL) on the user's already-
+   * linked items via /item/webhook/update. New links carry the webhook from
+   * linkTokenParams at creation time; this backfills items linked BEFORE the
+   * webhook was configured, which otherwise never receive TRANSACTIONS pushes and
+   * drift stale between manual syncs (the #278 "hasn't synced in a week" class,
+   * root-caused to no webhook being registered at all).
+   *
+   * Idempotent + self-healing: each item records the webhook we last set on it
+   * (PlaidItem.webhookUrl), so we spend a (billed) Plaid call ONLY when it differs
+   * from the desired URL — and re-register automatically if PLAID_WEBHOOK_URL later
+   * changes. Returns attempted:0 when the env is unset (nothing to register), so a
+   * caller can run it unconditionally. Per-item fault isolation, matching
+   * syncTransactions: one item's failure is audited and skipped, never blocking the
+   * rest. Always user-scoped, so a foreign itemId simply matches nothing.
+   */
+  async updateWebhooks(userId: string, opts?: { itemId?: string }): Promise<WebhookUpdateResult> {
+    const desired = process.env.PLAID_WEBHOOK_URL?.trim();
+    if (!desired) return { attempted: 0, updated: 0, failed: 0 };
+
+    const items = await prisma.plaidItem.findMany({
+      where: { userId, ...(opts?.itemId ? { itemId: opts.itemId } : {}) },
+    });
+    let attempted = 0;
+    let updated = 0;
+    let failed = 0;
+    for (const item of items) {
+      // Already registered with this exact URL — skip the billed call. This is what
+      // keeps calling updateWebhooks on every sync cheap: one call per item, once.
+      if (item.webhookUrl === desired) continue;
+      attempted += 1;
+      try {
+        const token = decryptToken(item.accessToken);
+        await plaidPost<{ item?: unknown }>('/item/webhook/update', {
+          access_token: token,
+          webhook: desired,
+        });
+        // Record only AFTER Plaid accepts it, so a failed call leaves webhookUrl
+        // unchanged and the next sweep retries rather than assuming success.
+        await prisma.plaidItem.update({
+          where: { itemId: item.itemId },
+          data: { webhookUrl: desired },
+        });
+        updated += 1;
+      } catch (e) {
+        failed += 1;
+        // Best-effort audit — plaidPost's message carries Plaid's RESPONSE envelope
+        // only (no access_token), so it is safe to record; a failed audit must not
+        // itself break the sweep.
+        try {
+          await prisma.auditLog.create({
+            data: {
+              userId,
+              action: 'plaid.item.webhook.update.failed',
+              meta: JSON.stringify({
+                itemId: item.itemId,
+                error: e instanceof Error ? e.message : 'unknown error',
+              }),
+            },
+          });
+        } catch {
+          /* audit is diagnostic only */
+        }
+      }
+    }
+    return { attempted, updated, failed };
   }
 
   async getFinanceSnapshot(userId: string): Promise<FinanceSnapshot> {

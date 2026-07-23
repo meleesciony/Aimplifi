@@ -19,6 +19,7 @@ import { DEMO_USER_ID } from '@/lib/demo-user';
 
 const syncTransactions = vi.fn();
 const syncLiabilities = vi.fn();
+const updateWebhooks = vi.fn(async () => ({ attempted: 0, updated: 0, failed: 0 }));
 let currentUserId = '';
 
 const rateLimitDurable = vi.fn(async () => true);
@@ -30,11 +31,12 @@ vi.mock('@/lib/providers/plaid', () => ({
   PlaidProvider: class {
     syncTransactions = syncTransactions;
     syncLiabilities = syncLiabilities;
+    updateWebhooks = updateWebhooks;
   },
 }));
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 
-const { syncPlaidNow } = await import('@/server/plaid-actions');
+const { syncPlaidNow, updatePlaidWebhooksNow } = await import('@/server/plaid-actions');
 
 async function userWithItem(tag: string): Promise<string> {
   const user = await prisma.user.create({
@@ -132,6 +134,97 @@ describe('syncPlaidNow', () => {
 
     expect(r.ok).toBe(false);
     expect(syncTransactions).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Webhook backfill runs best-effort at the tail of a normal sync, so a user who
+ * taps Sync (or the cron) also registers the webhook on any item that predates
+ * PLAID_WEBHOOK_URL — without a separate step. It must NEVER fail the sync.
+ */
+describe('syncPlaidNow — webhook backfill integration', () => {
+  beforeEach(() => {
+    vi.stubEnv('PLAID_CLIENT_ID', 'test-id');
+    vi.stubEnv('PLAID_SECRET', 'test-secret');
+    vi.stubEnv('DATA_ENCRYPTION_KEY', 'test-key');
+    rateLimitDurable.mockReset().mockResolvedValue(true);
+    syncTransactions.mockReset().mockResolvedValue({ added: 3 });
+    syncLiabilities.mockReset().mockResolvedValue({ itemsAttempted: 1, itemsFailed: 0, statementsWritten: 0 });
+    updateWebhooks.mockReset().mockResolvedValue({ attempted: 1, updated: 1, failed: 0 });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('backfills the webhook after a sync, scoped to the same bank', async () => {
+    currentUserId = await userWithItem('whok');
+    const r = await syncPlaidNow();
+    expect(r.ok).toBe(true);
+    expect(updateWebhooks).toHaveBeenCalledWith(currentUserId, { itemId: undefined });
+  });
+
+  it('a webhook-backfill failure never fails an otherwise-successful sync', async () => {
+    currentUserId = await userWithItem('whfail');
+    updateWebhooks.mockRejectedValue(new Error('boom'));
+    const r = await syncPlaidNow();
+    expect(r.ok).toBe(true); // the data pull succeeded — that is the point of the sync
+    expect(r.added).toBe(3);
+  });
+});
+
+/**
+ * updatePlaidWebhooksNow — the direct, user-triggerable backfill. Same guards as
+ * every other Plaid action (demo-fenced, config-gated, rate-limited, user-scoped),
+ * plus a distinct "not configured yet" signal so a missing PLAID_WEBHOOK_URL reads
+ * as setup-incomplete rather than a failure.
+ */
+describe('updatePlaidWebhooksNow', () => {
+  beforeEach(() => {
+    vi.stubEnv('PLAID_CLIENT_ID', 'test-id');
+    vi.stubEnv('PLAID_SECRET', 'test-secret');
+    vi.stubEnv('DATA_ENCRYPTION_KEY', 'test-key');
+    vi.stubEnv('PLAID_WEBHOOK_URL', 'https://www.aimplifi.app/api/plaid/webhook');
+    rateLimitDurable.mockReset().mockResolvedValue(true);
+    updateWebhooks.mockReset().mockResolvedValue({ attempted: 2, updated: 2, failed: 0 });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('registers webhooks for the caller and reports counts', async () => {
+    currentUserId = await userWithItem('wh-run');
+    const r = await updatePlaidWebhooksNow();
+    expect(r).toMatchObject({ ok: true, configured: true, attempted: 2, updated: 2 });
+    expect(updateWebhooks).toHaveBeenCalledWith(currentUserId);
+  });
+
+  it('reports "not configured" (distinct from a failure) when PLAID_WEBHOOK_URL is unset', async () => {
+    vi.stubEnv('PLAID_WEBHOOK_URL', '');
+    currentUserId = await userWithItem('wh-unset');
+    const r = await updatePlaidWebhooksNow();
+    expect(r).toMatchObject({ ok: false, configured: false });
+    expect(updateWebhooks).not.toHaveBeenCalled();
+  });
+
+  it('refuses for the shared demo account', async () => {
+    currentUserId = DEMO_USER_ID;
+    const r = await updatePlaidWebhooksNow();
+    expect(r.ok).toBe(false);
+    expect(updateWebhooks).not.toHaveBeenCalled();
+  });
+
+  it('refuses when no Plaid bank is connected', async () => {
+    const user = await prisma.user.create({
+      data: { email: `wh-none-${Date.now()}-${Math.random()}@aimplifi.test` },
+    });
+    currentUserId = user.id;
+    const r = await updatePlaidWebhooksNow();
+    expect(r).toMatchObject({ ok: false, error: 'No Plaid banks are connected.' });
+    expect(updateWebhooks).not.toHaveBeenCalled();
+  });
+
+  it('honors the durable rate limiter without spending a Plaid call', async () => {
+    currentUserId = await userWithItem('wh-rate');
+    rateLimitDurable.mockResolvedValue(false);
+    const r = await updatePlaidWebhooksNow();
+    expect(r.ok).toBe(false);
+    expect(updateWebhooks).not.toHaveBeenCalled();
   });
 });
 
