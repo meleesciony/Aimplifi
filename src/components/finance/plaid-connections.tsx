@@ -28,7 +28,6 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [syncNote, setSyncNote] = useState<string | null>(null);
 
   if (items.length === 0) return null;
 
@@ -40,7 +39,6 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
   function syncNow(itemId: string, institution: string | null) {
     if (syncing || pending) return;
     setError(null);
-    setSyncNote(null);
     setSyncing(true);
     void (async () => {
       try {
@@ -57,9 +55,12 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
           'accounts',
           [
             `Synced ${institution ?? 'your bank'}.`,
-            r.added !== undefined
-              ? `${r.added} new transaction${r.added === 1 ? '' : 's'}.`
-              : null,
+            // Same rule as the all-provider summary: a failed pull is NOT zero
+            // transactions, and must never be reported as (or silently look like)
+            // a clean result.
+            r.transactionsFailed
+              ? 'Your bank didn’t return transactions this time, so anything new is still missing.'
+              : `${r.added ?? 0} new transaction${(r.added ?? 0) === 1 ? '' : 's'}.`,
             r.statementsWritten
               ? `${r.statementsWritten} card statement${r.statementsWritten === 1 ? '' : 's'} updated.`
               : r.liabilitiesFailed
@@ -158,11 +159,6 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
           )}
         </div>
       ))}
-      {syncNote && (
-        <p className="text-xs text-muted-foreground" data-testid="plaid-sync-note">
-          {syncNote}
-        </p>
-      )}
       {error && (
         <p role="alert" className="text-xs text-red-400" data-testid="plaid-disconnect-error">
           {error}

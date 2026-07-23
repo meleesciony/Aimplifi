@@ -11,7 +11,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { DEMO_CONNECT_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { PlaidProvider } from '@/lib/providers/plaid';
-import { requireUserId } from '@/server/authz';
+import { rateLimitDurable, requireUserId } from '@/server/authz';
 
 export interface LinkTokenResult {
   ok: boolean;
@@ -102,14 +102,31 @@ export interface DisconnectItemResult {
 
 export interface PlaidSyncNowResult {
   ok: boolean;
-  /** Transactions ingested this run. */
+  /** Transactions ingested this run. Undefined ONLY when the half never ran. */
   added?: number;
+  /**
+   * True when the transaction half FAILED. Critic P1-3: without this, `added:
+   * undefined` on a thrown pull is indistinguishable from a genuine zero, and the
+   * caller cheerfully reports "No new transactions" to a user whose bank login has
+   * expired — the exact silent staleness this feature exists to end.
+   */
+  transactionsFailed?: boolean;
   /** Card statements written — the due dates the cash-needed answer is built on. */
   statementsWritten?: number;
   /** True when every Plaid item errored on /liabilities/get (see LiabilitySyncResult). */
   liabilitiesFailed?: boolean;
   error?: string;
 }
+
+/**
+ * Bound the sync path (the repo rule: every request path uses rateLimitDurable).
+ * Unlike the SimpleFIN bridge, PRODUCTION PLAID CALLS ARE BILLED PER REQUEST, and
+ * the only other brake is a per-tab `sessionStorage` stamp — which a fresh tab, a
+ * reload loop, or a bot resets for free (critic P1-4). Generous enough that a real
+ * person tapping "Sync now" repeatedly never sees it.
+ */
+const SYNC_LIMIT = 12;
+const SYNC_WINDOW_MS = 60_000;
 
 /**
  * Sync every linked Plaid bank NOW, on demand (owner-reported 2026-07-23: "some of
@@ -129,6 +146,17 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
     const userId = await requireUserId();
     if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
     if (!plaidConfigured()) return { ok: false, error: 'Bank linking isn’t configured yet.' };
+    // A server-action argument is attacker-controlled: TypeScript's `string` is
+    // erased at the boundary, so a crafted POST can send any JSON. Unvalidated,
+    // `itemId = {not:'x'}` reached the Prisma `where` verbatim, matched EVERY item,
+    // passed the ownership gate, and turned "sync this one bank" into "sync all of
+    // them" (critic P1-1, executed). Scalar-validate at the boundary, like #271.
+    if (itemId !== undefined && (typeof itemId !== 'string' || itemId.trim() === '')) {
+      return { ok: false, error: 'That bank isn’t connected.' };
+    }
+    if (!(await rateLimitDurable(`plaid-sync:${userId}`, SYNC_LIMIT, SYNC_WINDOW_MS))) {
+      return { ok: false, error: 'Too many syncs — give it a minute and try again.' };
+    }
     // Scoped count doubles as the ownership check for a per-connection sync: a
     // foreign itemId counts 0 and is refused, never silently syncing nothing.
     const items = await prisma.plaidItem.count({
@@ -169,9 +197,19 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
     if (txError !== undefined && liabilitiesFailed) {
       return { ok: false, error: 'Sync failed — please try again in a minute.' };
     }
-    return { ok: true, added, statementsWritten, liabilitiesFailed };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Could not sync your banks.' };
+    return {
+      ok: true,
+      added,
+      transactionsFailed: txError !== undefined,
+      statementsWritten,
+      liabilitiesFailed,
+    };
+  } catch {
+    // FIXED string. The inner catches were already careful, but this one returned
+    // `e.message` — and a Prisma validation error carries the deploy's absolute
+    // paths, four lines of server source, the model shape and the raw userId, all
+    // of which the UI renders verbatim in a role="alert" (critic P1-2, executed).
+    return { ok: false, error: 'Could not sync your banks — please try again in a minute.' };
   }
 }
 

@@ -21,7 +21,11 @@ const syncSimplefinNow = vi.fn();
 const syncPlaidNow = vi.fn();
 let currentUserId = '';
 
-vi.mock('@/server/authz', () => ({ requireUserId: async () => currentUserId }));
+const rateLimitDurable = vi.fn(async () => true);
+vi.mock('@/server/authz', () => ({
+  requireUserId: async () => currentUserId,
+  rateLimitDurable: (...args: unknown[]) => rateLimitDurable(...(args as [])),
+}));
 vi.mock('@/server/simplefin-actions', () => ({ syncSimplefinNow }));
 vi.mock('@/server/plaid-actions', () => ({ syncPlaidNow }));
 
@@ -44,6 +48,7 @@ async function givePlaid(userId: string) {
 
 describe('syncAllAccounts', () => {
   beforeEach(() => {
+    rateLimitDurable.mockReset().mockResolvedValue(true);
     syncSimplefinNow.mockReset().mockResolvedValue({ ok: true, added: 3 });
     syncPlaidNow.mockReset().mockResolvedValue({ ok: true, added: 4, statementsWritten: 1 });
   });
@@ -144,5 +149,83 @@ describe('syncAllAccounts', () => {
     expect(r.ok).toBe(false);
     expect(syncSimplefinNow).not.toHaveBeenCalled();
     expect(syncPlaidNow).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Critic P1-3, the false all-clear — in the summary this module's own docblock says
+ * it exists to prevent. A Plaid sync whose TRANSACTION half threw still returns
+ * ok:true (the liabilities half's data is real) with `added: undefined`, which
+ * `?? 0` turned into "No new transactions." for a user whose bank login had
+ * expired: a green all-clear over exactly the staleness that motivated the ticket.
+ */
+describe('syncAllAccounts — a half-failed provider is never reported as clean', () => {
+  beforeEach(() => {
+    rateLimitDurable.mockReset().mockResolvedValue(true);
+    syncSimplefinNow.mockReset().mockResolvedValue({ ok: true, added: 0 });
+    syncPlaidNow.mockReset().mockResolvedValue({ ok: true, added: 4, statementsWritten: 1 });
+  });
+
+  it('does NOT say "No new transactions" when the transaction pull failed', async () => {
+    currentUserId = await makeUser('txfail');
+    await givePlaid(currentUserId);
+    syncPlaidNow.mockResolvedValue({
+      ok: true,
+      added: undefined,
+      transactionsFailed: true,
+      statementsWritten: 2,
+    });
+
+    const r = await syncAllAccounts();
+
+    expect(r.summary).not.toContain('No new transactions');
+    expect(r.summary).toContain('didn’t return transactions');
+    expect(r.partial).toContain('transactions');
+  });
+
+  it('says so when no card statement data came back', async () => {
+    currentUserId = await makeUser('liabfail');
+    await givePlaid(currentUserId);
+    syncPlaidNow.mockResolvedValue({
+      ok: true,
+      added: 3,
+      statementsWritten: 0,
+      liabilitiesFailed: true,
+    });
+
+    const r = await syncAllAccounts();
+
+    expect(r.summary).toContain('3 new transactions');
+    expect(r.summary).toContain('card due dates are unchanged');
+    expect(r.partial).toContain('card statements');
+  });
+
+  it('still reports a genuine zero as a zero', async () => {
+    currentUserId = await makeUser('genuinezero');
+    await givePlaid(currentUserId);
+    syncPlaidNow.mockResolvedValue({
+      ok: true,
+      added: 0,
+      transactionsFailed: false,
+      statementsWritten: 0,
+    });
+
+    const r = await syncAllAccounts();
+
+    expect(r.summary).toContain('No new transactions');
+    expect(r.partial).toEqual([]);
+  });
+
+  it('consults the durable rate limiter and honours a refusal', async () => {
+    currentUserId = await makeUser('ratelimited');
+    await givePlaid(currentUserId);
+    rateLimitDurable.mockResolvedValue(false);
+
+    const r = await syncAllAccounts();
+
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain('Too many syncs');
+    expect(syncPlaidNow).not.toHaveBeenCalled();
+    expect(syncSimplefinNow).not.toHaveBeenCalled();
   });
 });

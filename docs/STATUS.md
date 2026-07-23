@@ -2,6 +2,39 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## 🟠 OPEN — `reconcile.spec.ts` first test fails locally: `reconcile-candidates` resolves to TWO elements
+
+Found 2026-07-24 (~03:00 local) while gating #279. **NOT DIAGNOSED — do not act on any theory
+below before its check.**
+
+**Symptom.** `tests/e2e/reconcile.spec.ts:89` ("reconciling a stale account with its live twin…")
+fails with a Playwright strict-mode violation: `getByTestId('reconcile-candidates')` resolves to
+2 elements, one of them `hidden`, the other under `#content`.
+
+**What is established (each executed):**
+1. **Not caused by the #279 changes.** `git stash push -- src tests` + rebuild + rerun → fails
+   identically on the pre-change tree.
+2. **Not local database accumulation.** Deleted the e2e SQLite file so global-setup recreated it
+   → still fails.
+3. **Not the documented load-contention flake.** Reproduces isolated, `--workers=1`, 3/3.
+4. **It passed repeatedly earlier the same night** on the same code — several full
+   `VERIFY_E2E=1` runs reported 162/162.
+5. The testid is on a SINGLE `<Card>` that renders once when `candidates.length > 0`
+   (`accounts-list.tsx:467`), and `ReconciliationCandidatesCard` has exactly one render site
+   (`accounts-list.tsx:263`), which is why two DOM elements is surprising: it implies a
+   duplicated tree, not two candidates.
+
+**Leading hypothesis (LABELLED, unconfirmed) + its check.** The only variable that changed
+between the passing runs and the failing ones is the WALL CLOCK crossing midnight; the app's
+`businessToday` is the real clock while the spec seeds fixed dates. **Check:** re-run with
+`DEMO_TODAY` pinned to the date the spec assumes, and separately dump the rendered HTML at the
+failure to confirm whether the second node is a stale router tree (a transition artifact) or a
+genuine second render.
+
+**Not shipped-blocking for #279** (that work's own tests and the rest of the suite are green),
+but this test guards Wave 4.6's money boundary, so it needs settling before the next money slice.
+CI is the arbiter — check whether the Linux runner agrees.
+
 ## 🔴→✅ No way to sync a Plaid account (#278, 2026-07-23) — owner-reported, FIXED
 
 Owner: *"Is there a way to (force) sync accounts in app? Some of my accounts haven't been synced

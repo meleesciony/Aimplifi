@@ -21,7 +21,11 @@ const syncTransactions = vi.fn();
 const syncLiabilities = vi.fn();
 let currentUserId = '';
 
-vi.mock('@/server/authz', () => ({ requireUserId: async () => currentUserId }));
+const rateLimitDurable = vi.fn(async () => true);
+vi.mock('@/server/authz', () => ({
+  requireUserId: async () => currentUserId,
+  rateLimitDurable: (...args: unknown[]) => rateLimitDurable(...(args as [])),
+}));
 vi.mock('@/lib/providers/plaid', () => ({
   PlaidProvider: class {
     syncTransactions = syncTransactions;
@@ -47,6 +51,7 @@ describe('syncPlaidNow', () => {
     vi.stubEnv('PLAID_CLIENT_ID', 'test-id');
     vi.stubEnv('PLAID_SECRET', 'test-secret');
     vi.stubEnv('DATA_ENCRYPTION_KEY', 'test-key');
+    rateLimitDurable.mockReset().mockResolvedValue(true);
     syncTransactions.mockReset().mockResolvedValue({ added: 7 });
     syncLiabilities.mockReset().mockResolvedValue({
       itemsAttempted: 1,
@@ -140,6 +145,7 @@ describe('syncPlaidNow — per-connection', () => {
     vi.stubEnv('PLAID_CLIENT_ID', 'test-id');
     vi.stubEnv('PLAID_SECRET', 'test-secret');
     vi.stubEnv('DATA_ENCRYPTION_KEY', 'test-key');
+    rateLimitDurable.mockReset().mockResolvedValue(true);
     syncTransactions.mockReset().mockResolvedValue({ added: 1 });
     syncLiabilities
       .mockReset()
@@ -182,6 +188,122 @@ describe('syncPlaidNow — per-connection', () => {
     const r = await syncPlaidNow(strangerItem);
 
     expect(r).toMatchObject({ ok: false, error: 'That bank isn’t connected.' });
+    expect(syncTransactions).not.toHaveBeenCalled();
+    expect(syncLiabilities).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Hostile-critic findings on the shipped #278 commit, each reproduced by the
+ * critic before being fixed here.
+ */
+describe('syncPlaidNow — critic hardening', () => {
+  beforeEach(() => {
+    vi.stubEnv('PLAID_CLIENT_ID', 'test-id');
+    vi.stubEnv('PLAID_SECRET', 'test-secret');
+    vi.stubEnv('DATA_ENCRYPTION_KEY', 'test-key');
+    rateLimitDurable.mockReset().mockResolvedValue(true);
+    syncTransactions.mockReset().mockResolvedValue({ added: 1 });
+    syncLiabilities
+      .mockReset()
+      .mockResolvedValue({ itemsAttempted: 1, itemsFailed: 0, statementsWritten: 0 });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  /**
+   * P1-1. A server-action argument is attacker-controlled — TypeScript's `string`
+   * is erased at the boundary. Unvalidated, `{not:'x'}` reached the Prisma `where`
+   * verbatim, matched EVERY item, passed the ownership gate, and turned the
+   * per-bank control into an all-banks sweep.
+   */
+  it('refuses a non-string itemId instead of forwarding it into the query', async () => {
+    currentUserId = await userWithItem('filterobj');
+
+    const r = await syncPlaidNow({ not: 'nope' } as unknown as string);
+
+    expect(r).toMatchObject({ ok: false, error: 'That bank isn’t connected.' });
+    expect(syncTransactions).not.toHaveBeenCalled();
+    expect(syncLiabilities).not.toHaveBeenCalled();
+  });
+
+  it('refuses an empty/whitespace itemId', async () => {
+    currentUserId = await userWithItem('blank');
+    expect((await syncPlaidNow('   ')).ok).toBe(false);
+    expect(syncTransactions).not.toHaveBeenCalled();
+  });
+
+  /**
+   * P1-2. The outer catch returned `e.message`; a Prisma validation error carries
+   * absolute server paths, four lines of source, the model shape and the raw
+   * userId — and the UI renders it verbatim in a role="alert".
+   */
+  it('never leaks internal error detail to the caller', async () => {
+    currentUserId = await userWithItem('leak');
+    syncTransactions.mockImplementation(() => {
+      throw new Error('C:/dev/Aimplifi/src/server/plaid-actions.ts:134 userId "secret-id"');
+    });
+    syncLiabilities.mockRejectedValue(new Error('also failed'));
+
+    const r = await syncPlaidNow();
+
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('Sync failed — please try again in a minute.');
+    expect(r.error).not.toContain('Aimplifi');
+    expect(r.error).not.toContain('secret-id');
+  });
+
+  /**
+   * P1-3. `added: undefined` after a THROWN pull was indistinguishable from a
+   * genuine zero, so the caller reported "No new transactions" to a user whose
+   * bank login had expired.
+   */
+  it('flags a failed transaction half rather than letting it read as zero', async () => {
+    currentUserId = await userWithItem('halfflag');
+    syncTransactions.mockRejectedValue(new Error('ITEM_LOGIN_REQUIRED'));
+
+    const r = await syncPlaidNow();
+
+    expect(r.ok).toBe(true); // the liabilities half still delivered
+    expect(r.transactionsFailed).toBe(true);
+    expect(r.added).toBeUndefined();
+  });
+
+  it('does not flag a transaction half that genuinely returned zero', async () => {
+    currentUserId = await userWithItem('realzero');
+    syncTransactions.mockResolvedValue({ added: 0 });
+
+    const r = await syncPlaidNow();
+
+    expect(r.transactionsFailed).toBe(false);
+    expect(r.added).toBe(0);
+  });
+
+  /**
+   * P1-4. A per-request-BILLED endpoint had no server-side ceiling; the only brake
+   * was a per-tab sessionStorage stamp that a fresh tab or a reload loop resets for
+   * free. These lock that the action CONSULTS the durable limiter and HONORS a
+   * refusal without spending a Plaid call.
+   */
+  it('consults the durable rate limiter, scoped per user', async () => {
+    currentUserId = await userWithItem('ratekey');
+
+    await syncPlaidNow();
+
+    expect(rateLimitDurable).toHaveBeenCalledWith(
+      `plaid-sync:${currentUserId}`,
+      expect.any(Number),
+      expect.any(Number),
+    );
+  });
+
+  it('refuses without calling Plaid when the limiter says no', async () => {
+    currentUserId = await userWithItem('ratedeny');
+    rateLimitDurable.mockResolvedValue(false);
+
+    const r = await syncPlaidNow();
+
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain('Too many syncs');
     expect(syncTransactions).not.toHaveBeenCalled();
     expect(syncLiabilities).not.toHaveBeenCalled();
   });

@@ -849,6 +849,24 @@ export class PlaidProvider implements DataProvider {
 
           const stmt = mapPlaidLiabilityToStatement(credit, accountId);
           if (!stmt) continue; // no generated statement → cash-needed estimate path
+          // Count only statements that actually CHANGED. Counting every upsert made
+          // a second sync report "2 card statements updated" again, which undercuts
+          // the one thing this number exists to say — whether anything moved
+          // (critic P2-3). The read also lets an unchanged row skip its write.
+          const existing = await prisma.statement.findUnique({
+            where: { accountId_cycleEnd: { accountId, cycleEnd: stmt.cycleEnd } },
+            select: {
+              dueDate: true,
+              statementBalanceCents: true,
+              minimumPaymentCents: true,
+            },
+          });
+          const unchanged =
+            existing !== null &&
+            existing.dueDate === stmt.dueDate &&
+            existing.statementBalanceCents === stmt.statementBalanceCents &&
+            existing.minimumPaymentCents === stmt.minimumPaymentCents;
+          if (unchanged) continue;
           statementsWritten += 1;
           await prisma.statement.upsert({
             where: { accountId_cycleEnd: { accountId, cycleEnd: stmt.cycleEnd } },

@@ -19,7 +19,7 @@
  */
 import { prisma } from '@/lib/db';
 import { DEMO_CONNECT_BLOCKED, isDemoUser } from '@/lib/demo-user';
-import { requireUserId } from '@/server/authz';
+import { rateLimitDurable, requireUserId } from '@/server/authz';
 import { syncPlaidNow } from '@/server/plaid-actions';
 import { syncSimplefinNow } from '@/server/simplefin-actions';
 
@@ -31,16 +31,30 @@ export interface SyncAllResult {
   statementsWritten: number;
   /** Providers that were attempted and failed — named, never folded into one message. */
   failed: ('simplefin' | 'plaid')[];
+  /**
+   * Halves that failed inside a provider that otherwise succeeded (e.g. Plaid
+   * returned transactions but no card statements). Named for the same reason
+   * `failed` is: a partial result reported as a whole one is a false all-clear.
+   */
+  partial: string[];
   /** Human-readable summary for the flash message. */
   summary: string;
   error?: string;
 }
 
 export async function syncAllAccounts(): Promise<SyncAllResult> {
-  const empty = { ran: [], addedTransactions: 0, statementsWritten: 0, failed: [] };
+  const empty = { ran: [], addedTransactions: 0, statementsWritten: 0, failed: [], partial: [] };
   const userId = await requireUserId();
   if (isDemoUser(userId)) {
     return { ok: false, ...empty, summary: '', error: DEMO_CONNECT_BLOCKED };
+  }
+  // The repo rule: every request path uses rateLimitDurable. Doubly so here — this
+  // fans out to a per-request-BILLED provider, and the button's only other brake is
+  // client state destroyed by its own page reload, so click-reload-click was
+  // unbounded (critic P1-4). `syncPlaidNow` has its own limiter; this one caps the
+  // fan-out itself so the SimpleFIN half is bounded too.
+  if (!(await rateLimitDurable(`sync-all:${userId}`, 10, 60_000))) {
+    return { ok: false, ...empty, summary: '', error: 'Too many syncs — give it a minute and try again.' };
   }
 
   const [simplefin, plaidItems] = await Promise.all([
@@ -54,6 +68,8 @@ export async function syncAllAccounts(): Promise<SyncAllResult> {
 
   const ran: ('simplefin' | 'plaid')[] = [];
   const failed: ('simplefin' | 'plaid')[] = [];
+  /** Halves that failed inside an otherwise-successful provider sync. */
+  const partial: string[] = [];
   let addedTransactions = 0;
   let statementsWritten = 0;
 
@@ -75,6 +91,13 @@ export async function syncAllAccounts(): Promise<SyncAllResult> {
       if (r.ok) {
         addedTransactions += r.added ?? 0;
         statementsWritten += r.statementsWritten ?? 0;
+        // A HALF-failed Plaid sync still returns ok:true (the other half's data is
+        // real). Dropping these flags let the summary say "Synced Plaid. No new
+        // transactions." to a user whose bank login had expired — a green
+        // all-clear over the exact staleness this feature exists to end
+        // (critic P1-3, executed).
+        if (r.transactionsFailed) partial.push('transactions');
+        if (r.liabilitiesFailed) partial.push('card statements');
       } else {
         failed.push('plaid');
       }
@@ -92,7 +115,8 @@ export async function syncAllAccounts(): Promise<SyncAllResult> {
     addedTransactions,
     statementsWritten,
     failed,
-    summary: summarize({ ran, failed, addedTransactions, statementsWritten }),
+    partial,
+    summary: summarize({ ran, failed, partial, addedTransactions, statementsWritten }),
   };
 }
 
@@ -104,6 +128,7 @@ export async function syncAllAccounts(): Promise<SyncAllResult> {
 function summarize(r: {
   ran: ('simplefin' | 'plaid')[];
   failed: ('simplefin' | 'plaid')[];
+  partial: string[];
   addedTransactions: number;
   statementsWritten: number;
 }): string {
@@ -114,11 +139,19 @@ function summarize(r: {
   if (succeeded.length > 0) {
     parts.push(`Synced ${succeeded.map((p) => label[p]).join(' and ')}.`);
   }
+  // "No new transactions" is only sayable when the pull actually RAN. If it threw,
+  // we don't know what's out there, and claiming zero would be the false all-clear.
+  const txUnknown = r.partial.includes('transactions');
   parts.push(
-    r.addedTransactions > 0
-      ? `${r.addedTransactions} new transaction${r.addedTransactions === 1 ? '' : 's'}.`
-      : 'No new transactions.',
+    txUnknown
+      ? 'Your bank didn’t return transactions this time, so anything new is still missing.'
+      : r.addedTransactions > 0
+        ? `${r.addedTransactions} new transaction${r.addedTransactions === 1 ? '' : 's'}.`
+        : 'No new transactions.',
   );
+  if (r.partial.includes('card statements')) {
+    parts.push('No card statement data came back, so card due dates are unchanged.');
+  }
   if (r.statementsWritten > 0) {
     parts.push(
       `${r.statementsWritten} card statement${r.statementsWritten === 1 ? '' : 's'} updated.`,
