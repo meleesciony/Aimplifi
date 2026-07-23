@@ -2,6 +2,36 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## 🔴→✅ No way to sync a Plaid account (#278, 2026-07-23) — owner-reported, FIXED
+
+Owner: *"Is there a way to (force) sync accounts in app? Some of my accounts haven't been synced
+for almost a week"*, then *"I want one button sync of all accounts. And individual syncing if
+required."*
+
+**Verified cause.** SimpleFIN has had an on-demand `syncSimplefinNow` **and** auto-sync on every
+full page load since #91. Plaid had **neither**: its only ingest was the one-shot pull inside
+`linkPlaidAccount`, and the nightly cron resolves through `getProvider()`, a no-op unless
+`DATA_PROVIDER === 'plaid'`. So a Plaid account synced once, at link, and then went stale — the
+/accounts row printed "last synced …" next to a Disconnect button and nothing else. Two providers,
+two completely different behaviours for the same user action.
+
+**Shipped.** A single **Sync all accounts** button at the top of the connections block on
+/accounts (`sync-all` testid) that covers every connected provider; a per-bank **Sync** on each
+Plaid connection row (`plaid-sync`); SimpleFIN keeps its existing button; and Plaid now
+participates in auto-sync-on-load, throttled to 15 minutes against SimpleFIN's 10 seconds because
+production Plaid calls are billed per request and this fires on every full page load.
+`syncAllAccounts` composes the two per-provider actions rather than reimplementing them, isolates
+each provider (one bank's expired login must not cost the other's fresh data), reports partial
+success as success with the failure **named**, and always states the outcome — including "No new
+transactions", so a sync that did nothing cannot be mistaken for one that never ran.
+`DataProvider.syncTransactions`' vestigial `cursor?: string` parameter (no caller ever passed it)
+became an options bag carrying `itemId`; the same scoping was added to `syncLiabilities`, always
+user-scoped so a foreign `itemId` matches nothing rather than syncing a stranger's bank.
+
+Gate: `VERIFY_E2E=1 bash scripts/verify.sh` → **VERIFY GREEN** — 3504 unit / 241 files, 162 e2e.
+No schema change. **UNVERIFIED:** the buttons have not been exercised against a live Plaid
+connection — only against mocked providers and the demo/e2e fences.
+
 ## 🔴→✅ Cards said "nothing due" while cards were owed (#277, 2026-07-23) — owner-reported, FIXED
 
 Owner, verbatim, with real Chase/Capital One cards linked through Plaid: *"cards: no card

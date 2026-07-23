@@ -100,6 +100,81 @@ export interface DisconnectItemResult {
   error?: string;
 }
 
+export interface PlaidSyncNowResult {
+  ok: boolean;
+  /** Transactions ingested this run. */
+  added?: number;
+  /** Card statements written — the due dates the cash-needed answer is built on. */
+  statementsWritten?: number;
+  /** True when every Plaid item errored on /liabilities/get (see LiabilitySyncResult). */
+  liabilitiesFailed?: boolean;
+  error?: string;
+}
+
+/**
+ * Sync every linked Plaid bank NOW, on demand (owner-reported 2026-07-23: "some of
+ * my accounts haven't been synced for almost a week", and there was no way to make
+ * them). SimpleFIN has had `syncSimplefinNow` plus auto-sync-on-load since #91;
+ * Plaid had NEITHER — its only ingest was the one-shot pull inside
+ * `linkPlaidAccount` and a nightly cron that is a no-op unless DATA_PROVIDER is
+ * 'plaid'. So a Plaid account synced once, at link, and then silently went stale
+ * with no user-reachable remedy.
+ *
+ * Runs BOTH halves: transactions and liabilities. They are independent — a failed
+ * transaction pull must not cost the user their card due dates, which are the more
+ * valuable datum — so each is caught separately and the result says which worked.
+ */
+export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult> {
+  try {
+    const userId = await requireUserId();
+    if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
+    if (!plaidConfigured()) return { ok: false, error: 'Bank linking isn’t configured yet.' };
+    // Scoped count doubles as the ownership check for a per-connection sync: a
+    // foreign itemId counts 0 and is refused, never silently syncing nothing.
+    const items = await prisma.plaidItem.count({
+      where: { userId, ...(itemId ? { itemId } : {}) },
+    });
+    if (items === 0) {
+      return { ok: false, error: itemId ? 'That bank isn’t connected.' : 'No Plaid banks are connected.' };
+    }
+
+    const provider = new PlaidProvider();
+    let added: number | undefined;
+    let txError: string | undefined;
+    try {
+      added = (await provider.syncTransactions(userId, { itemId })).added;
+    } catch (e) {
+      // The provider already audits per-item sync failures.
+      txError = e instanceof Error ? e.message : 'transaction sync failed';
+    }
+
+    let statementsWritten: number | undefined;
+    let liabilitiesFailed = false;
+    try {
+      const liab = await provider.syncLiabilities(userId, { itemId });
+      statementsWritten = liab.statementsWritten;
+      liabilitiesFailed = liab.itemsAttempted > 0 && liab.itemsFailed >= liab.itemsAttempted;
+    } catch {
+      liabilitiesFailed = true;
+    }
+
+    revalidatePath('/accounts');
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/cards');
+    revalidatePath('/investments');
+
+    // Only a BOTH-halves failure is a failed sync; either half succeeding is real
+    // progress the user should see rather than a red error.
+    if (txError !== undefined && liabilitiesFailed) {
+      return { ok: false, error: 'Sync failed — please try again in a minute.' };
+    }
+    return { ok: true, added, statementsWritten, liabilitiesFailed };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Could not sync your banks.' };
+  }
+}
+
 /**
  * Disconnect one Plaid bank connection (#256): revoke the item's access token at
  * Plaid and delete the local PlaidItem row. Already-synced accounts and their

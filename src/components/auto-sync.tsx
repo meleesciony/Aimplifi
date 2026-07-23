@@ -19,53 +19,72 @@
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { syncSimplefinNow } from '@/server/simplefin-actions';
+import { syncPlaidNow } from '@/server/plaid-actions';
 
 const THROTTLE_MS = 10_000;
 const STAMP_KEY = 'aimplifi:lastAutoSync';
+/** Plaid bills per API call, so its background pull is throttled far harder. */
+const PLAID_THROTTLE_MS = 15 * 60_000;
+const PLAID_STAMP_KEY = 'aimplifi:lastAutoSyncPlaid';
 
-function recentlySynced(): boolean {
+function recentlySynced(key: string, windowMs: number): boolean {
   try {
-    const last = Number(sessionStorage.getItem(STAMP_KEY) ?? '0');
-    return Number.isFinite(last) && Date.now() - last < THROTTLE_MS;
+    const last = Number(sessionStorage.getItem(key) ?? '0');
+    return Number.isFinite(last) && Date.now() - last < windowMs;
   } catch {
     return false; // storage unavailable → just sync
   }
 }
 
-function stampNow(): void {
+function stampNow(key: string): void {
   try {
-    sessionStorage.setItem(STAMP_KEY, String(Date.now()));
+    sessionStorage.setItem(key, String(Date.now()));
   } catch {
     // ignore — throttling is best-effort
   }
 }
 
-export function AutoSync({ enabled }: { enabled: boolean }) {
+export function AutoSync({ enabled, plaid = false }: { enabled: boolean; plaid?: boolean }) {
   const router = useRouter();
   const ran = useRef(false);
 
   useEffect(() => {
-    if (!enabled || ran.current) return;
+    if ((!enabled && !plaid) || ran.current) return;
     ran.current = true; // guard React's dev double-invoke / any remount this session
-    if (recentlySynced()) return;
-    stampNow();
 
     let cancelled = false;
     void (async () => {
-      try {
-        const r = await syncSimplefinNow();
-        // Only re-fetch server data when something actually changed — a no-change
-        // sync shouldn't trigger a full re-render on every load.
-        if (!cancelled && r.ok && (r.added ?? 0) > 0) router.refresh();
-      } catch {
-        // best-effort background refresh — never surface a failure to the user
+      let changed = false;
+      if (enabled && !recentlySynced(STAMP_KEY, THROTTLE_MS)) {
+        stampNow(STAMP_KEY);
+        try {
+          const r = await syncSimplefinNow();
+          if (r.ok && (r.added ?? 0) > 0) changed = true;
+        } catch {
+          // best-effort background refresh — never surface a failure to the user
+        }
       }
+      // Plaid gets its OWN, much longer throttle: unlike the SimpleFIN bridge,
+      // production Plaid calls are billed per request and this fires on every full
+      // page load. The on-demand "Sync now" button covers the impatient case.
+      if (plaid && !recentlySynced(PLAID_STAMP_KEY, PLAID_THROTTLE_MS)) {
+        stampNow(PLAID_STAMP_KEY);
+        try {
+          const r = await syncPlaidNow();
+          if (r.ok && ((r.added ?? 0) > 0 || (r.statementsWritten ?? 0) > 0)) changed = true;
+        } catch {
+          // same contract as above
+        }
+      }
+      // Only re-fetch server data when something actually changed — a no-change
+      // sync shouldn't trigger a full re-render on every load.
+      if (!cancelled && changed) router.refresh();
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [enabled, router]);
+  }, [enabled, plaid, router]);
 
   return null;
 }

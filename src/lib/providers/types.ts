@@ -60,7 +60,15 @@ export interface DataProvider {
   today(userId?: string): ISODate;
   listAccounts(userId: string): Promise<AccountLike[]>;
   getStatements(userId: string, accountId: string): Promise<StatementLike[]>;
-  /** Demo: no-op. Plaid (Phase 4): cursor-based /transactions/sync. */
-  syncTransactions(userId: string, cursor?: string): Promise<SyncResult>;
+  /**
+   * Demo: no-op. Plaid (Phase 4): cursor-based /transactions/sync.
+   *
+   * The second parameter was `cursor?: string` and NO caller ever passed it — the
+   * cursor is persisted per item and read inside the provider. Replaced with an
+   * options bag carrying `itemId`, which scopes the sweep to ONE linked bank for
+   * the per-connection "Sync" control (owner request 2026-07-23). Omit it to sync
+   * every item, which is what every existing caller does.
+   */
+  syncTransactions(userId: string, opts?: { itemId?: string }): Promise<SyncResult>;
   getFinanceSnapshot(userId: string): Promise<FinanceSnapshot>;
 }

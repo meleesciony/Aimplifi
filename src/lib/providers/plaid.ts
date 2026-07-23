@@ -314,8 +314,13 @@ export class PlaidProvider implements DataProvider {
    * upserted; removed rows are deleted; the cursor is persisted per item.
    * Cross-account transfer pairing runs once over the user's full set after.
    */
-  async syncTransactions(userId: string): Promise<SyncResult> {
-    const items = await prisma.plaidItem.findMany({ where: { userId } });
+  async syncTransactions(userId: string, opts?: { itemId?: string }): Promise<SyncResult> {
+    // `itemId` scopes the sweep to ONE linked bank, for the per-connection "Sync"
+    // control. Always user-scoped as well, so a foreign itemId simply matches
+    // nothing rather than syncing someone else's bank.
+    const items = await prisma.plaidItem.findMany({
+      where: { userId, ...(opts?.itemId ? { itemId: opts.itemId } : {}) },
+    });
     const [rules, tuning] = await Promise.all([loadUserRules(userId), getThresholdTuning(userId)]);
     const today = this.today(userId); // stamp per-item sync success/failure (Gap 1 §4)
     let added = 0;
@@ -766,7 +771,7 @@ export class PlaidProvider implements DataProvider {
    * its APR stays 0 (the debt-payoff planner mis-computes) and its payment/due-date never
    * surface on the calendar or reminders.
    */
-  async syncLiabilities(userId: string): Promise<LiabilitySyncResult> {
+  async syncLiabilities(userId: string, opts?: { itemId?: string }): Promise<LiabilitySyncResult> {
     // Per-item errors are caught below so one bad item can't cost the others their
     // data — but that means a caller could never tell a fully-failed sweep from a
     // clean one (critic F-6). The counts are the honest signal: they make a silent
@@ -774,7 +779,10 @@ export class PlaidProvider implements DataProvider {
     let itemsAttempted = 0;
     let itemsFailed = 0;
     let statementsWritten = 0;
-    const items = await prisma.plaidItem.findMany({ where: { userId } });
+    // Same user-scoped per-item narrowing as syncTransactions.
+    const items = await prisma.plaidItem.findMany({
+      where: { userId, ...(opts?.itemId ? { itemId: opts.itemId } : {}) },
+    });
     const accounts = await prisma.account.findMany({
       where: { userId, provider: 'plaid' },
       select: { id: true, providerRef: true },

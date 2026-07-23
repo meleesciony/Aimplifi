@@ -36,6 +36,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       where: { userId: session.user.id },
       select: { userId: true },
     })) !== null;
+  // Plaid was never included here (owner-reported 2026-07-23: accounts a week
+  // stale). SimpleFIN has auto-synced on load since #91 while a Plaid item's only
+  // ingest was the one-shot pull at link time, so the two providers behaved
+  // completely differently for the same user action.
+  const hasPlaid =
+    (await prisma.plaidItem.findFirst({
+      where: { userId: session.user.id },
+      select: { userId: true },
+    })) !== null;
 
   async function doSignOut() {
     'use server';
@@ -44,7 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="pb-bottom-nav mx-auto max-w-5xl px-4 sm:px-6">
-      <AutoSync enabled={hasSimplefin} />
+      <AutoSync enabled={hasSimplefin} plaid={hasPlaid} />
       <a
         href="#content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"

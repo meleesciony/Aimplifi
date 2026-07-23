@@ -15,7 +15,7 @@
 import { useState } from 'react';
 import { setFlash } from '@/components/finance/flash';
 import { ConfirmPrompt, useConfirmArm } from '@/components/ui/confirm-action';
-import { disconnectPlaidItem } from '@/server/plaid-actions';
+import { disconnectPlaidItem, syncPlaidNow } from '@/server/plaid-actions';
 
 export interface PlaidItemView {
   itemId: string;
@@ -27,8 +27,57 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
   const confirm = useConfirmArm();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
 
   if (items.length === 0) return null;
+
+  /**
+   * On-demand sync for every linked Plaid bank. Before this the only Plaid ingest
+   * was the one-shot pull at link time, so "last synced" could sit a week stale
+   * with nothing in the UI able to move it (owner-reported 2026-07-23).
+   */
+  function syncNow(itemId: string, institution: string | null) {
+    if (syncing || pending) return;
+    setError(null);
+    setSyncNote(null);
+    setSyncing(true);
+    void (async () => {
+      try {
+        const r = await syncPlaidNow(itemId);
+        if (!r.ok) {
+          setError(r.error ?? 'Something went wrong.');
+          setSyncing(false);
+          return;
+        }
+        // Say what actually happened rather than a generic "done": a sync that
+        // ingests nothing is a real outcome the user should be able to tell apart
+        // from one that never ran.
+        setFlash(
+          'accounts',
+          [
+            `Synced ${institution ?? 'your bank'}.`,
+            r.added !== undefined
+              ? `${r.added} new transaction${r.added === 1 ? '' : 's'}.`
+              : null,
+            r.statementsWritten
+              ? `${r.statementsWritten} card statement${r.statementsWritten === 1 ? '' : 's'} updated.`
+              : r.liabilitiesFailed
+                ? 'Your bank returned no card statement data this time.'
+                : null,
+          ]
+            .filter(Boolean)
+            .join(' '),
+        );
+        // Full reload for the same reason disconnect does it: every figure on the
+        // page is server-rendered from what this sync just changed.
+        window.location.reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Something went wrong.');
+        setSyncing(false);
+      }
+    })();
+  }
 
   function disconnect(itemId: string) {
     if (pending) return;
@@ -73,6 +122,17 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
             {item.lastSyncedAt ? `last synced ${item.lastSyncedAt}` : 'not synced yet'}
           </span>
           {!confirm.isArmed(item.itemId) ? (
+            <div className="flex shrink-0 gap-1">
+            <button
+              type="button"
+              data-testid="plaid-sync"
+              aria-label={`Sync ${item.institution ?? 'this bank'} now (Plaid)`}
+              disabled={syncing || pending}
+              onClick={() => syncNow(item.itemId, item.institution)}
+              className="tap-target inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+            >
+              {syncing ? 'Syncing…' : 'Sync'}
+            </button>
             <button
               type="button"
               data-testid="plaid-disconnect"
@@ -83,6 +143,7 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
             >
               Disconnect
             </button>
+            </div>
           ) : (
             <ConfirmPrompt
               rowTestId="plaid-disconnect-confirm-row"
@@ -97,6 +158,11 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
           )}
         </div>
       ))}
+      {syncNote && (
+        <p className="text-xs text-muted-foreground" data-testid="plaid-sync-note">
+          {syncNote}
+        </p>
+      )}
       {error && (
         <p role="alert" className="text-xs text-red-400" data-testid="plaid-disconnect-error">
           {error}

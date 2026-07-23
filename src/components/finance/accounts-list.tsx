@@ -15,6 +15,7 @@ import { ConfirmPrompt, useConfirmArm } from '@/components/ui/confirm-action';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { ConnectSimplefin } from '@/components/finance/connect-simplefin';
 import { PlaidConnections } from '@/components/finance/plaid-connections';
+import { SyncAllButton } from '@/components/finance/sync-all-button';
 import {
   ManualCardStatementForm,
   type ManualStatementFormValues,
@@ -326,6 +327,9 @@ export function AccountsList({ data }: { data: AccountsView }) {
         onClearStatement={(accountId) => refreshAfter(() => clearManualCardStatement(accountId), 'Statement cleared.')}
         onCancelStatement={() => setStatementCardId(null)}
       />
+
+      {/* One button for every provider, above the per-connection controls. */}
+      <SyncAllButton connected={data.simplefin.connected || data.plaid.items.length > 0} />
 
       {/* Link real accounts: SimpleFIN (cheaper, no Plaid gatekeeping) or Plaid */}
       <ConnectSimplefin connected={data.simplefin.connected} health={data.simplefin.health} />
