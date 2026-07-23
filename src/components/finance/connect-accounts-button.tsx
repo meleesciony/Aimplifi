@@ -1,72 +1,83 @@
 'use client';
 
 /**
- * "Connect a bank or brokerage" — Plaid Link front door (DECISIONS #41). Opens
- * Plaid's hosted Link UI, then hands the public token to the sandbox-validated
- * exchange path (linkPlaidAccount), which pulls accounts, transactions, and
- * liabilities. The link token is fetched ON CLICK (never on render), so the
- * page makes no Plaid network call just by loading.
+ * "Connect a bank or brokerage" — Plaid Link front door (DECISIONS #41).
  *
- * OAuth banks (Chase/BofA) redirect the browser to the registered redirect URI,
- * which destroys this component's state — so the freshly-minted token is stashed
- * (storeLinkToken) for /plaid-oauth to recover and resume Link. It's cleared on
- * every terminal outcome (success, error, exit).
+ * OAUTH POPUP NEEDS THE CLICK'S USER GESTURE (#284 — owner-reported: connecting
+ * failed for EVERY OAuth bank on EVERY device; Link closed silently with no bank
+ * page, no server return hit, and no error). Plaid opens an OAuth bank
+ * (Chase/BofA/Amex) in a POPUP (new tab on mobile), and browsers only permit
+ * `window.open()` when it runs inside a real user gesture. The old code fetched the
+ * link token ON CLICK (an async server round-trip) and then opened Link from a
+ * `useEffect` — the `await` severs the click's user activation, so when the user
+ * later selected an OAuth bank the popup was refused and Link tore down. Non-OAuth
+ * banks run inside the iframe and never hit this, which is why it looked bank-
+ * specific at first.
  *
- * ONE Link instance PER TOKEN (#282, owner-reported): the launcher below is
- * mounted keyed by the token, so every attempt gets a FRESH usePlaidLink handler.
- * The previous single-hook-reused-across-tokens shape wedged after an ungraceful
- * OAuth close — the modal vanished, no `onExit` fired, and `open()` on the consumed
- * instance did nothing, so the button went dead until a full page refresh AND the
- * exit reason never surfaced. A fresh instance per token fixes the retry and lets
- * onExit actually fire.
+ * FIX: mint the link token AHEAD of the click (on mount, and again after every
+ * terminal outcome), and call `open()` DIRECTLY in the button's onClick — never from
+ * an effect. This mirrors Plaid's official react-plaid-link OAuth example. The
+ * /plaid-oauth return page keeps its effect-based re-open — that one is correct
+ * (Plaid exempts the redirect-return leg; the popup step is already done there).
+ *
+ * OAuth banks navigate the browser away via the registered redirect URI, destroying
+ * this component's state, so the token + origin path are stashed (storeLinkToken /
+ * storeOriginPath) for /plaid-oauth to recover and resume Link.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { usePlaidLink, type PlaidLinkOnExit } from 'react-plaid-link';
+import { usePlaidLink, type PlaidLinkError } from 'react-plaid-link';
 import { createPlaidLinkToken, linkPlaidAccount } from '@/server/plaid-actions';
 import { clearStoredLinkToken, storeLinkToken, storeOriginPath } from '@/lib/plaid-oauth';
 
-/**
- * A single-use Plaid Link handler for exactly one token. Mounted (keyed by token)
- * only while a link is in flight; auto-opens as soon as the SDK is ready. Because
- * the parent keys it by the token string, a new attempt = a brand-new instance,
- * never a reused/consumed one.
- */
-function PlaidLinkLauncher({
-  token,
-  onSuccess,
-  onExit,
-}: {
-  token: string;
-  onSuccess: (publicToken: string) => void;
-  onExit: PlaidLinkOnExit;
-}) {
-  const { open, ready } = usePlaidLink({ token, onSuccess, onExit });
-  useEffect(() => {
-    if (ready) open();
-  }, [ready, open]);
-  return null;
-}
-
 export function ConnectAccountsButton() {
   const router = useRouter();
-  // The in-flight link token. Setting it MOUNTS a fresh launcher; clearing it (on
-  // any terminal outcome) unmounts so the next attempt starts clean.
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // #256: Plaid's SANDBOX rejects real-world input inside its own Link UI (real
-  // bank logins, real phone numbers) — without this disclosure that reads as a
-  // broken app rather than test mode.
+  // #256: Plaid's SANDBOX rejects real-world input inside its own Link UI — without
+  // this disclosure that reads as a broken app rather than test mode.
   const [sandbox, setSandbox] = useState(false);
+  const generating = useRef(false);
+
+  /**
+   * Mint a fresh link token so one is READY before the user taps. `showError` is
+   * false for the silent pre-arm (a demo user or a Plaid-not-configured gap must not
+   * flash an error just from viewing the page); real errors surface only on a real
+   * click. Guarded against concurrent mints.
+   */
+  const generateToken = useCallback(async (showError: boolean) => {
+    if (generating.current) return;
+    generating.current = true;
+    try {
+      const r = await createPlaidLinkToken();
+      if (r.ok && r.linkToken) {
+        setSandbox(r.sandbox === true);
+        storeLinkToken(r.linkToken);
+        storeOriginPath(window.location.pathname);
+        setToken(r.linkToken);
+      } else if (showError) {
+        setError(r.error ?? 'Could not start bank linking.');
+      }
+    } catch {
+      if (showError) setError('Could not start bank linking — please try again.');
+    } finally {
+      generating.current = false;
+    }
+  }, []);
+
+  // Pre-arm on mount so the FIRST tap opens Link synchronously (keeping the gesture).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- generateToken only setState()s AFTER an async server round-trip (createPlaidLinkToken), so this is not a synchronous cascading render; the pre-arm must run on mount so the first click opens() in-gesture (#284).
+    void generateToken(false);
+  }, [generateToken]);
 
   const onSuccess = useCallback(
     (publicToken: string) => {
       setBusy(true);
       setError(null);
-      // A rejected exchange (session expiry, network) must NOT silently drop the
-      // public_token Plaid just handed us — clear busy and surface an error, never
-      // leave the button stuck on "Connecting…" after a successful bank login.
+      // A rejected exchange must NOT silently drop the public_token — clear busy and
+      // surface an error, never strand the button on "Connecting…".
       void linkPlaidAccount(publicToken)
         .then((r) => {
           clearStoredLinkToken();
@@ -85,55 +96,33 @@ export function ConnectAccountsButton() {
     [router],
   );
 
-  const onExit = useCallback<PlaidLinkOnExit>((err, metadata) => {
-    clearStoredLinkToken();
-    // Clear the token so the launcher unmounts; the NEXT click mounts a fresh one.
-    setToken(null);
-    // TEMP DIAGNOSTIC (#282): surface Plaid's OWN exit reason on-screen (readable on
-    // mobile, no console). Now that each attempt gets a fresh instance, onExit fires
-    // reliably instead of being swallowed by a wedged handler. Revert to the plain
-    // `if (err)` message once the Chase cause is identified.
-    const parts = [
-      metadata?.status ? `status=${metadata.status}` : null,
-      err?.error_code ? `code=${err.error_code}` : null,
-      err?.error_type ? `type=${err.error_type}` : null,
-      err?.error_message ?? null,
-      metadata?.institution?.name ? `bank=${metadata.institution.name}` : null,
-      metadata?.request_id ? `req=${metadata.request_id}` : null,
-    ].filter(Boolean);
-    const diag = parts.join(' · ') || 'no reason reported by Plaid';
-    setError(
-      err
-        ? (err.display_message ?? err.error_message ?? `Link ended — ${diag}`)
-        : `Diagnostic — Link closed without connecting: ${diag}`,
-    );
-  }, []);
-
-  async function start() {
-    if (busy || token) return;
-    setError(null);
-    setBusy(true);
-    // try/finally so a rejected action always clears busy — never strand the
-    // button disabled on "Connecting…" with no error shown.
-    try {
-      const r = await createPlaidLinkToken();
-      if (!r.ok || !r.linkToken) {
-        setError(r.error ?? 'Could not start bank linking.');
-        return;
+  const onExit = useCallback(
+    (err: PlaidLinkError | null) => {
+      clearStoredLinkToken();
+      // The link token is single-use; drop it and pre-mint a fresh one so the next
+      // tap opens Link straight away (a new instance also avoids reusing a consumed
+      // handler). A clean user cancel passes err=null and stays quiet.
+      setToken(null);
+      if (err) {
+        setError(err.display_message ?? err.error_message ?? 'Bank connection was cancelled.');
       }
-      setSandbox(r.sandbox === true);
-      // Persist for a possible OAuth round-trip: an OAuth bank navigates the
-      // browser away (destroying this component's state), and /plaid-oauth needs
-      // the token (and where to send the user back) to resume Link. Harmless for
-      // non-OAuth banks — the resume page is never visited.
-      storeLinkToken(r.linkToken);
-      storeOriginPath(window.location.pathname);
-      // Mounts <PlaidLinkLauncher key={token}> which auto-opens once ready.
-      setToken(r.linkToken);
-    } catch {
-      setError('Could not start bank linking — please try again.');
-    } finally {
-      setBusy(false);
+      void generateToken(false);
+    },
+    [generateToken],
+  );
+
+  const { open, ready } = usePlaidLink({ token, onSuccess, onExit });
+
+  function handleClick() {
+    setError(null);
+    if (ready) {
+      // Synchronous open() INSIDE the click — this is what keeps the OAuth bank
+      // popup allowed. Never move this into a useEffect.
+      open();
+    } else {
+      // Not armed yet (still minting, token expired, or a demo/config block) — mint
+      // one now and surface any error; the token then arms for the next tap.
+      void generateToken(true);
     }
   }
 
@@ -143,14 +132,11 @@ export function ConnectAccountsButton() {
         type="button"
         data-testid="connect-bank-btn"
         disabled={busy}
-        onClick={start}
+        onClick={handleClick}
         className="rounded-md border border-emerald-700/40 bg-emerald-950/30 px-3 py-1.5 text-sm font-medium text-emerald-300 hover:bg-emerald-950/50 disabled:opacity-50"
       >
         {busy ? 'Connecting…' : '+ Connect a bank or brokerage (Plaid)'}
       </button>
-      {token && (
-        <PlaidLinkLauncher key={token} token={token} onSuccess={onSuccess} onExit={onExit} />
-      )}
       {sandbox && (
         <p data-testid="plaid-sandbox-notice" className="text-[11px] text-amber-300/80">
           Plaid is running in <b>sandbox (test) mode</b>: real banks, real logins, and real phone
