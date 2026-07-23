@@ -183,6 +183,15 @@ export interface WebhookUpdateResult {
   failed: number;
 }
 
+export interface InstitutionSyncResult {
+  /** Items that still lacked an institution name and were looked up (already-named items are skipped, not counted). */
+  attempted: number;
+  /** Items whose institution name was resolved from Plaid AND recorded locally. */
+  updated: number;
+  /** Items whose /institutions lookup failed (audited, isolated — never blocks the rest). */
+  failed: number;
+}
+
 export class PlaidProvider implements DataProvider {
   today(userId?: string): ISODate {
     // Real Plaid users get the real clock; DEMO_TODAY still pins it for tests
@@ -207,13 +216,34 @@ export class PlaidProvider implements DataProvider {
       '/item/public_token/exchange',
       { public_token: publicToken },
     );
+    // Resolve the human institution name ("Chase") so the /accounts connection row can
+    // LABEL this bank instead of the generic "Connected bank" — the schema field and the
+    // UI have always supported it; nothing ever wrote it (owner-reported 2026-07-23, two
+    // linked banks both reading "Plaid: Connected bank"). Best-effort: the name is
+    // cosmetic and a lookup failure must NEVER fail a real link — syncInstitutions
+    // backfills it on the next sweep/Sync. Null → omitted below (preserve-on-null #130).
+    let institution: string | null = null;
+    try {
+      institution = await this.resolveInstitutionName(result.access_token);
+    } catch {
+      /* cosmetic; backfilled by syncInstitutions — never blocks the link */
+    }
     // Upsert by itemId so a link that failed AFTER the token was stored (e.g. the
     // initial account sync threw) stays retryable — re-linking refreshes the token
     // instead of hitting the itemId unique constraint and locking the user out.
     await prisma.plaidItem.upsert({
       where: { itemId: result.item_id },
-      create: { userId, itemId: result.item_id, accessToken: encryptToken(result.access_token) },
-      update: { accessToken: encryptToken(result.access_token) },
+      create: {
+        userId,
+        itemId: result.item_id,
+        accessToken: encryptToken(result.access_token),
+        // Only set when resolved: never overwrite a real name with null on a re-link.
+        ...(institution ? { institution } : {}),
+      },
+      update: {
+        accessToken: encryptToken(result.access_token),
+        ...(institution ? { institution } : {}),
+      },
     });
     await prisma.auditLog.create({
       data: { userId, action: 'plaid.item.link', meta: JSON.stringify({ itemId: result.item_id }) },
@@ -981,6 +1011,82 @@ export class PlaidProvider implements DataProvider {
             data: {
               userId,
               action: 'plaid.item.webhook.update.failed',
+              meta: JSON.stringify({
+                itemId: item.itemId,
+                error: e instanceof Error ? e.message : 'unknown error',
+              }),
+            },
+          });
+        } catch {
+          /* audit is diagnostic only */
+        }
+      }
+    }
+    return { attempted, updated, failed };
+  }
+
+  /**
+   * Resolve a linked item's human institution name ("Chase", "Capital One") from
+   * Plaid: /item/get → institution_id, then /institutions/get_by_id → name. Returns
+   * null when the item exposes no institution_id (rare — e.g. some manually-created
+   * sandbox items) or Plaid returns a blank name. `accessToken` is the RAW (decrypted)
+   * token. Throws only on a network/Plaid error, which every caller isolates — the
+   * name is cosmetic and must never block a link or a data sync.
+   */
+  private async resolveInstitutionName(accessToken: string): Promise<string | null> {
+    const { item } = await plaidPost<{ item: { institution_id?: string | null } }>('/item/get', {
+      access_token: accessToken,
+    });
+    const institutionId = item?.institution_id;
+    if (!institutionId) return null;
+    const { institution } = await plaidPost<{ institution: { name?: string | null } }>(
+      '/institutions/get_by_id',
+      { institution_id: institutionId, country_codes: ['US'] },
+    );
+    const name = institution?.name?.trim();
+    return name ? name : null;
+  }
+
+  /**
+   * Backfill the institution name on linked items that still lack one — items linked
+   * before institution capture existed (or whose link-time lookup failed), which read
+   * "Connected bank" on /accounts until named (owner-reported 2026-07-23: two linked
+   * banks both showing "Plaid: Connected bank", indistinguishable). Mirrors
+   * updateWebhooks: idempotent (only null-name items are looked up via the WHERE, so it
+   * is cheap to call on every sync and spends no billed call once resolved), per-item
+   * fault isolation (one bank's failure is audited and skipped, never blocking the
+   * rest), always user-scoped (a foreign itemId matches nothing).
+   */
+  async syncInstitutions(
+    userId: string,
+    opts?: { itemId?: string },
+  ): Promise<InstitutionSyncResult> {
+    const items = await prisma.plaidItem.findMany({
+      where: { userId, institution: null, ...(opts?.itemId ? { itemId: opts.itemId } : {}) },
+    });
+    let attempted = 0;
+    let updated = 0;
+    let failed = 0;
+    for (const item of items) {
+      attempted += 1;
+      try {
+        const name = await this.resolveInstitutionName(decryptToken(item.accessToken));
+        if (name) {
+          await prisma.plaidItem.update({
+            where: { itemId: item.itemId },
+            data: { institution: name },
+          });
+          updated += 1;
+        }
+        // name === null → the item has no resolvable institution; leave it and do NOT
+        // count a failure (a failure implies a retryable error, which this isn't).
+      } catch (e) {
+        failed += 1;
+        try {
+          await prisma.auditLog.create({
+            data: {
+              userId,
+              action: 'plaid.institution.resolve.failed',
               meta: JSON.stringify({
                 itemId: item.itemId,
                 error: e instanceof Error ? e.message : 'unknown error',

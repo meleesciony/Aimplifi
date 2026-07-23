@@ -255,4 +255,48 @@ describe('sweepPlaidLinkedUsers', () => {
     expect(row.error).toContain('all 2 Plaid item(s) failed');
     expect(row.webhooksUpdated).toBeUndefined();
   });
+
+  it('backfills institution names hands-free and records the count in the audit', async () => {
+    const userId = await makeUserWithItem('inst');
+    const instCalls: string[] = [];
+    const { p } = port({
+      async syncInstitutions(u) {
+        instCalls.push(u);
+        return { attempted: 1, updated: 1, failed: 0 };
+      },
+    });
+
+    const row = (await sweepPlaidLinkedUsers(p, { syncTransactions: false })).find(
+      (r) => r.userId === userId,
+    )!;
+
+    expect(instCalls).toContain(userId);
+    expect(row.institutionsUpdated).toBe(1);
+    const audit = await prisma.auditLog.findFirst({
+      where: { userId, action: 'sync.cron.plaid' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(JSON.parse(audit!.meta ?? '{}')).toMatchObject({ institutionsUpdated: 1 });
+  });
+
+  it('an institution-backfill failure never fails the sweep, nor masks a real prior error', async () => {
+    const userId = await makeUserWithItem('instfail');
+    const { p } = port({
+      async syncLiabilities() {
+        return { itemsAttempted: 2, itemsFailed: 2, statementsWritten: 0 };
+      },
+      async syncInstitutions() {
+        throw new Error('institution boom');
+      },
+    });
+
+    const row = (await sweepPlaidLinkedUsers(p, { syncTransactions: false })).find(
+      (r) => r.userId === userId,
+    )!;
+
+    // The pre-existing liability failure is the reported error, not the cosmetic backfill.
+    expect(row.liabilities).toBe('failed');
+    expect(row.error).toContain('all 2 Plaid item(s) failed');
+    expect(row.institutionsUpdated).toBeUndefined();
+  });
 });

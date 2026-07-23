@@ -47,6 +47,16 @@ export interface PlaidSyncPort {
   updateWebhooks?(
     userId: string,
   ): Promise<{ attempted: number; updated: number; failed: number }>;
+  /**
+   * Backfill the human institution name on items that still lack one (idempotent —
+   * only null-name items are looked up). Optional so a narrower test port need not
+   * provide it; when present, the daily cron labels a bank ("Chase") hands-free for a
+   * user who never opens the app, so the /accounts connection row stops reading
+   * "Connected bank".
+   */
+  syncInstitutions?(
+    userId: string,
+  ): Promise<{ attempted: number; updated: number; failed: number }>;
 }
 
 export interface PlaidSweepRow {
@@ -65,6 +75,8 @@ export interface PlaidSweepRow {
   statementsWritten: number;
   /** Webhooks registered this run (only set when the port supports the backfill). */
   webhooksUpdated?: number;
+  /** Institution names resolved this run (only set when the port supports the backfill). */
+  institutionsUpdated?: number;
   /** Carried through so a PARTIAL failure (2 of 3 items) isn't audited as a clean run. */
   itemsAttempted: number;
   itemsFailed: number;
@@ -157,6 +169,17 @@ export async function sweepPlaidLinkedUsers(
       }
     }
 
+    // Best-effort institution-name backfill — same contract as the webhook backfill:
+    // hands-free for a user who never taps Sync, never overwrites a prior step's error,
+    // and a failure here does not fail the user's sweep (the data pulls are what matter).
+    if (port.syncInstitutions) {
+      try {
+        row.institutionsUpdated = (await port.syncInstitutions(userId)).updated;
+      } catch (e) {
+        row.error = row.error ?? (e instanceof Error ? e.message : 'institution sync failed');
+      }
+    }
+
     await prisma.auditLog
       .create({
         data: {
@@ -170,6 +193,9 @@ export async function sweepPlaidLinkedUsers(
             itemsAttempted: row.itemsAttempted,
             itemsFailed: row.itemsFailed,
             ...(row.webhooksUpdated !== undefined ? { webhooksUpdated: row.webhooksUpdated } : {}),
+            ...(row.institutionsUpdated !== undefined
+              ? { institutionsUpdated: row.institutionsUpdated }
+              : {}),
             ...(row.error ? { error: row.error } : {}),
           }),
         },

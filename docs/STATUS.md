@@ -73,6 +73,76 @@ It nominally guards Wave 4.6's money boundary, but Wave 4.6 is COMPLETE (#275) a
 renders show the markup is hydration-sound, so this is a flaky-gate hardening item, not a live
 money-correctness risk.
 
+## 🔴→✅ Plaid connections showed no bank name — "Connected bank" for every link (#288, 2026-07-23) — owner-reported, FIXED
+
+Owner, with real Chase + a just-added Capital One both linked through Plaid (screenshots):
+*"This section needs labels."* Every Plaid connection row on /accounts read **"Plaid: Connected
+bank"**, so two linked banks were indistinguishable.
+
+**Verified cause (not the reported surface — the pipeline behind it).** `PlaidItem.institution`
+(the schema field), `getAccountsView`'s select (`src/server/transactions.ts:327`), and the
+connection row's render (`src/components/finance/plaid-connections.tsx:122` —
+`{item.institution ?? 'Connected bank'}`) had ALL supported the name since the field was added —
+but **nothing ever WROTE it**. `exchangePublicToken` created the item with no institution, and no
+other code set it (`grep institution src/lib/providers/plaid.ts` returned nothing). A
+supported-but-unwritten column renders as a permanent blank. Same shape as #277's unwritten cycle
+days: a surface promising something the pipeline never filled.
+
+**Shipped.** A server-side resolver `resolveInstitutionName` (`/item/get` → `institution_id`, then
+`/institutions/get_by_id` with `country_codes: ['US']` → name) is called (a) at link in
+`exchangePublicToken`, stored preserve-on-null so a re-link never nulls a real name; and (b) as a
+backfill `syncInstitutions(userId, {itemId?})` for items still lacking a name — idempotent (only
+`institution: null` items are looked up, so no billed call once resolved), per-item fault isolation
++ audit (`plaid.institution.resolve.failed`), always user-scoped. It mirrors the #280
+`updateWebhooks` backfill EXACTLY and is wired best-effort into the same two places: `syncPlaidNow`
+(so the per-bank **Sync** and the one-tap **Sync all accounts** both label banks) and the daily
+cron sweep (optional port method + `institutionsUpdated` row/audit, hands-free for a user who never
+opens the app). **No schema change** (the field existed) and **no UI change** (already rendered).
+
+**What the owner does:** tap **Sync all accounts** once after this deploys — Chase and Capital One
+pick up their names on that pass (or the next daily sweep does it automatically). New links are
+named at link time.
+
+Gate: `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0 / eslint 0 / **3541 unit / 243 files** /
+build clean (+10 tests, +1 file). E2E not separately run — backend-only, no UI/route change (same
+stance as #280). **UNVERIFIED against live Plaid** (no creds in this env): the `/item/get` +
+`/institutions/get_by_id` sockets have never run here; mocked-server + real-Prisma tests only.
+
+## 🟠 OPEN — duplicate "Venture" row in the "Combined accounts" card (owner-reported 2026-07-23)
+
+Owner, same /accounts screenshots: the **"Combined accounts / Counted once, on the live
+connection"** card lists **"Venture (Plaid ····6271)" TWICE, identically** (same mask, same "history
+kept through 2026-07-18"); Spark Miles ····5154 and QuicksilverOne ····2079 each appear once.
+
+**Mechanism (verified from code, NOT the reported surface).** `AccountReconciliation` makes
+`predecessorAccountId @unique` but leaves `successorAccountId` NON-unique on purpose
+(`prisma/schema.prisma:192-193`, comment: "one live account may supersede more than one old row").
+The card (`ContinuedAccountsCard`, `accounts-list.tsx` ~592-637) and its assembler
+(`getAccountsView`, `transactions.ts` ~479-492) render **one entry per active reconciliation link,
+with no grouping/dedup by successor**. So the two Venture rows are **two different SimpleFIN
+predecessors both linked to the one Plaid "Venture ····6271" successor**.
+
+**This is NOT the #287 hydration duplication** — only one entry doubles, not the whole tree (net
+worth + the other rows appear once).
+
+**Money impact — net worth is NOT double-counted.** Under the reconcile boundary (R1/R2, #272/#273)
+every predecessor contributes **0** balance and the live successor's balance counts **once**, so two
+predecessors → one successor does not inflate the total. The open risks are (a) the confusing
+duplicate display and (b) whether both links are *correct*: if the matcher tied two genuinely
+different old cards to one new card, the successor wrongly absorbs both histories.
+
+**Owner-gated before any fix (rule 0 — cannot see their data):** does the owner actually have **two
+separate "Venture" accounts** at Capital One, or one? Two real accounts → the fix is display
+grouping (one card per successor, listing its predecessors). One account wrongly matched twice → a
+reconciliation-match fix. **Either touches how reconciled balances/history render → Fable critic
+when built.** Interim remedy for the owner: **Undo** on the spurious row un-links it (reversible).
+
+**Lifecycle ("hopefully this disappears eventually"):** entries persist while both predecessor and
+successor exist and the link is active; one leaves on **Undo**, or when the old SimpleFIN
+predecessor is deleted/disconnected (the link goes inert) — but deleting the predecessor discards
+its pre-Plaid history, which is the exact thing reconciliation exists to keep. A less-destructive
+option (offered to the owner): make the card collapsible / less prominent once confirmed.
+
 ## 🔴→✅ No way to sync a Plaid account (#278, 2026-07-23) — owner-reported, FIXED
 
 Owner: *"Is there a way to (force) sync accounts in app? Some of my accounts haven't been synced

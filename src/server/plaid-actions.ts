@@ -246,6 +246,16 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
       /* provider isolates + audits per-item failures; a total failure is non-fatal here */
     }
 
+    // Best-effort institution-name backfill (owner-reported 2026-07-23: linked banks
+    // read "Connected bank" with no name). Idempotent — only items still missing a name
+    // are looked up, so a normal Sync tap labels Chase/Capital One the first time and
+    // costs nothing thereafter. Cosmetic: never turns a successful data pull into an error.
+    try {
+      await provider.syncInstitutions(userId, { itemId });
+    } catch {
+      /* provider isolates + audits per-item failures; a total failure is non-fatal here */
+    }
+
     revalidatePath('/accounts');
     revalidatePath('/dashboard');
     revalidatePath('/transactions');
