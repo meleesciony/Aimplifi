@@ -569,7 +569,23 @@ export function TriageInbox({
       >
         <div className="grid grid-cols-3 gap-2" data-testid="triage-alternatives">
           {quickPickIds.map((id, i) => (
-            <Button key={id} variant="outline" size="sm" disabled={pending} onClick={() => onPick(id)}>
+            <Button
+              key={id}
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => onPick(id)}
+              // Wave M.3 §a: the Button base is `whitespace-nowrap shrink-0`, and a grid
+              // item's min-width:auto floors the track at its min-content width — so at
+              // 360px a category name wider than the ~102px 1fr track (measured:
+              // "Household & Home" needs 108px) paints outside its own cell, and a longer
+              // user-created name would run off the edge entirely. A category name is the
+              // label on a control that files money; it must never be half-visible.
+              // min-w-0 lets the track shrink, whitespace-normal lets the name wrap, and
+              // h-auto lets the row grow for the second line (the .tap-target 44px floor
+              // still applies on touch devices).
+              className="h-auto min-w-0 py-1.5 leading-tight whitespace-normal"
+            >
               {quickPickNames[i]}
             </Button>
           ))}

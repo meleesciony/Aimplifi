@@ -145,6 +145,46 @@ function seedTransaction(opts: {
   }
 }
 
+/**
+ * Seed ONE unrecognised POSTED outflow that lands in the triage queue, for a
+ * throwaway signed-up user. Deliberately NOT the demo user: the demo row is
+ * shared, and the other specs (phase2-triage) file its queue, so a demo-based
+ * triage fixture passes alone and finds an empty inbox under the full suite.
+ *
+ * The descriptor is nonsense on purpose. `suggestAlternatives` (pipeline.ts) is
+ * deterministic: an unrecognised merchant with a negative amount yields exactly
+ * ['shopping','dining','household'] → "Shopping" / "Dining Out" / "Household &
+ * Home" — the third of which is the long name this test exists to measure. System
+ * categories are global (userId=null), so a fresh user resolves the same names.
+ */
+function seedTriageTransaction(opts: { email: string; descriptor: string; date: string }) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(opts.email) as
+      | { id: string }
+      | undefined;
+    if (!user) throw new Error(`seedTriageTransaction: user ${opts.email} not found`);
+    const accountId = `e2e-triage-acct-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, name, type, currentBalanceCents, currency)
+       VALUES (?, ?, 'simplefin', 'Everyday Checking', 'CHECKING', 250000, 'USD')`,
+    ).run(accountId, user.id);
+    db.prepare(
+      `INSERT INTO "Transaction" (id, accountId, date, amountCents, rawDescriptor, status, needsReview)
+       VALUES (?, ?, ?, ?, ?, 'POSTED', 1)`,
+    ).run(
+      `e2e-triage-txn-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+      accountId,
+      opts.date,
+      -4210,
+      opts.descriptor,
+    );
+  } finally {
+    db.close();
+  }
+}
+
 async function addManual(
   page: Page,
   kind: 'asset' | 'liability',
@@ -297,6 +337,50 @@ const DEMO_ROUTES: ReadonlyArray<{ path: string; ready: string }> = [
 // these were separate tests; see playwright.config.ts's worker note + the e2e-flake
 // lessons). Looping keeps full coverage at a fraction of the load; the per-route
 // `label` in assertFitsEveryWidth's message preserves failure attribution.
+// Wave M.3 §a, the deferred half: every control behind a TAP was invisible to the
+// sweep above, which only loads routes passively. Measured at 360px before the fix,
+// the triage quick-pick grid put "Household & Home" (min-content 108px) in a ~102px
+// `grid-cols-3` track — the Button base is `whitespace-nowrap`, so the label painted
+// outside its own cell, and a longer user-created category name would run off the
+// edge. The page-level gate cannot see this (the bleed lands in the 16px gutter, so
+// document scrollWidth never exceeds the viewport), which is why it needs its own
+// per-element assertion. A category name is the label on a control that files money.
+test('triage quick-pick category names fit their own cells at every phone width', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedTriageTransaction({ email, descriptor: 'ZZQX LOCAL VENDOR 4471', date: '2026-07-15' });
+  await page.goto('/triage');
+  await expect(page.getByTestId('triage-inbox')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('triage-more').click();
+  const quickPicks = page.getByTestId('triage-alternatives').locator('button');
+  await expect(quickPicks.first()).toBeVisible();
+
+  for (const width of WIDTHS) {
+    await page.setViewportSize({ width, height: HEIGHT });
+    await page.waitForTimeout(50);
+    const measured = await quickPicks.evaluateAll((els) =>
+      els.map((el) => ({
+        text: (el.textContent ?? '').trim(),
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+      })),
+    );
+    // Guard the FIXTURE, not just the invariant: if the quick picks ever stop
+    // including the long name, this test would still pass while measuring only
+    // short labels that fit anything — a lock that cannot fail.
+    expect(measured.map((m) => m.text)).toContain('Household & Home');
+    for (const m of measured) {
+      expect(
+        m.scrollWidth,
+        `triage quick-pick "${m.text}" @${width}px overflows its own cell (scrollWidth ${m.scrollWidth} > clientWidth ${m.clientWidth}) — the category name is clipped or paints over its neighbour.`,
+      ).toBeLessThanOrEqual(m.clientWidth + 1);
+    }
+  }
+  // The whole panel must also fit the page at every width.
+  await assertFitsEveryWidth(page, '/triage (picker open)');
+});
+
 test('every authenticated content route (demo) fits every phone width', async ({ page }) => {
   test.setTimeout(120_000); // 17 routes × 3 widths in one test — legitimately longer.
   await signInDemo(page);

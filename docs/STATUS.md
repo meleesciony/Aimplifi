@@ -2,6 +2,47 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave M.3 close-out — the tap-reachable overflow class (#276, 2026-07-23) — M.3 COMPLETE
+
+The M.3 items deferred as "no clipped figure" were **measured** rather than read off the brief,
+with a temporary per-element probe (deleted before commit) that opened the controls the M.1
+sweep structurally cannot reach — it only loads routes passively — at 360/393/430.
+
+**One real defect, fixed.** The triage quick-pick `grid-cols-3` put "Household & Home"
+(min-content 108px) in a ~102px track; the shadcn Button base is `whitespace-nowrap shrink-0`
+and a grid item's `min-width:auto` floors the track at min-content, so the category name painted
+outside its own cell — and a longer user-created category name would run off the edge entirely.
+A category name is the label on a control that files money. Fix: `h-auto min-w-0 py-1.5
+leading-tight whitespace-normal` on those Buttons (wraps in place; the `.tap-target` 44px floor
+still applies — measured height 46px).
+
+**Why the existing gate could not have caught it:** the bleed lands in the 16px shell gutter, so
+document `scrollWidth` never exceeds the viewport. The lock is therefore a per-BUTTON
+`scrollWidth <= clientWidth` assertion at all three widths in both `mobile-380` and
+`mobile-webkit`. Fail-old was executed against pre-fix code (108 > 102).
+
+**Fixture independence (a real bug in the first version of the test):** it drove the shared DEMO
+triage queue, passed in isolation, and then failed under the full suite with an empty inbox
+because `phase2-triage` files that queue first. It now signs up a throwaway user and seeds its
+own `needsReview` row, and asserts the long name is actually present so the lock cannot degrade
+into measuring only short labels.
+
+**Three brief items CORRECTED as stale (the §c / #248 class), deliberately NOT "fixed":** the
+money-dials and retirement what-if `grid-cols-3` number grids, and every §d fixed-width input
+(custom-category-manager `w-40`/`w-44`, household-card `max-w-40`/`max-w-60`, triage
+`w-40`/`w-44`/`w-24`) measured CLEAN at all three widths — they sit in `flex flex-wrap`
+containers that wrap or `minmax(0,1fr)` tracks that shrink. **Moved to M.4:** the 2 inline
+category-chips (transaction-list:374, shared-transaction-list:154).
+
+**E2E flake note (not a regression):** the first two full-suite runs on this tree failed on
+`phase4-features goals` then `pwa-offline` — the two documented load-induced contention specs, a
+different one each run. Settled per the lesson: clean HEAD ran 159/159, this tree then ran
+161/161, and the final gate ran green. CI remains the arbiter.
+
+Gate: `VERIFY_E2E=1 bash scripts/verify.sh` → **VERIFY GREEN** — 3465 unit / 238 files,
+**161 e2e** (+2, the new lock in both engines). Layout-only; no money/authz/routing, so no
+Fable critic (same lane as M.1/M.2).
+
 ## Wave 4.6 slice 6 — full-surface hostile critic (#275, 2026-07-22) — WAVE 4.6 COMPLETE
 
 Three parallel fresh-context critics (money core + §6 straddle lead target / lifecycle-authz /
