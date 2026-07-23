@@ -110,8 +110,11 @@ export const COACH_COPY = {
   nextActionCancelSub: (merchant: string, monthly: Cents) =>
     `decide on ${merchant} — if it's not earning its ${formatCents(monthly)}/mo, one cancellation beats a month of small sacrifices`,
 
+  // "every card" is a claim about ALL of them, and the transfer figure only ever
+  // covers the cards the engine could date (critic F-10, same class as the
+  // dashboard's "all N cards"). Scoped wording keeps it true either way.
   nextActionTransfer: (amount: Cents, byDate: string) =>
-    `move ${formatCents(amount)} to checking by ${byDate} so every card clears in full`,
+    `move ${formatCents(amount)} to checking by ${byDate} so the cards due this cycle clear in full`,
 
   nextActionAutomate: () =>
     `automate one transfer on payday — pay yourself first and the streak takes care of itself`,
@@ -258,6 +261,26 @@ export const COACH_COPY = {
     `Your weekly check-in as of ${todayLong} — a quick look at what changed and what's coming up.`,
   digestPaymentsHeader: () => `Coming up in the next 7 days:`,
   digestNothingDue: () => `Nothing due in the next 7 days — a clear week ahead.`,
+  /**
+   * The same week, but with cards we could not date. "A clear week ahead" would be
+   * a false all-clear: a reminder can only exist for a card that HAS a due date, so
+   * an empty reminder set with undated cards outstanding means we don't know, not
+   * that nothing is owed (owner-reported 2026-07-23). The email is the one surface
+   * where the user cannot see the in-app panel that says so.
+   */
+  digestNothingDueWithUndated: (undatedCount: number) =>
+    `Nothing due in the next 7 days on the cards we can date. ${
+      undatedCount === 1
+        ? `One card has no statement or due date yet, so it isn't included`
+        : `${undatedCount} cards have no statement or due date yet, so they aren't included`
+    } — open Aimplifi to see which.`,
+  /** The same caveat when there IS a due list — a list reads as complete without it. */
+  digestUndatedAlongsideDues: (undatedCount: number) =>
+    `Not shown above: ${
+      undatedCount === 1
+        ? `one card has no statement or due date yet`
+        : `${undatedCount} cards have no statement or due date yet`
+    }, so nothing about ${undatedCount === 1 ? 'it' : 'them'} is included here.`,
   digestOutro: () => `That's your week. Aimplifi reminds you; it never moves your money.`,
 
   // ── #252: Money Signature (AI plan §Later #11 reworked) ─────────────────────

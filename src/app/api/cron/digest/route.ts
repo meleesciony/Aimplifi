@@ -130,7 +130,15 @@ export async function GET(request: NextRequest) {
       const receipts = await getValueReceiptsSummary(user.id);
       // `household` was resolved (or degraded to null, together with the dues
       // read) above — reminders and context are guaranteed same-scope here.
-      const digest = buildWeeklyDigest({ review, reminders, today, receipts, household });
+      const digest = buildWeeklyDigest({
+        review,
+        reminders,
+        today,
+        receipts,
+        household,
+        // Same `result` the reminders came from, so the qualifier is same-scope.
+        undatedCardCount: result.unknownDueDateCards.length,
+      });
 
       let sent = false;
       let reason: string | undefined;

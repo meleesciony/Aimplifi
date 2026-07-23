@@ -138,6 +138,16 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
 
       let nextCycleCloseDate: ISODate | undefined;
       let nextDueDate: ISODate | undefined;
+      // BOTH days are required, deliberately. A due day without a close day is not a
+      // date: `nextDayOfMonth(dueDay, today)` is the next calendar occurrence, which
+      // is a coin flip up to a month wide. Relaxing this (attempted 2026-07-23 to
+      // rescue Plaid cards with no statement) was reverted after the cycle-2 critic
+      // executed the repro: with cycleClose null and dueDay 25 on 2026-07-23 the
+      // engine produced byDate 2026-07-24 — a month early — plus an $842.67
+      // shortfall and a live "move $850 into checking today" recommendation, and
+      // disclosed the guessed date as the issuer's own. An undatable card must stay
+      // undatable and say so (unknownDueDateCards); a fabricated date is worse than
+      // an honest gap.
       if (!current && card.cycleCloseDayOfMonth !== null && card.dueDayOfMonth !== null) {
         nextCycleCloseDate = nextDayOfMonth(card.cycleCloseDayOfMonth, p.today);
         nextDueDate = nextDayOfMonth(card.dueDayOfMonth, addDays(nextCycleCloseDate, 1));

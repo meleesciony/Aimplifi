@@ -21,7 +21,7 @@
  * Demo mode is entirely unaffected — the DataProvider seam keeps this dormant.
  */
 import type { JWK } from 'jose';
-import type { ISODate } from '@/lib/dates';
+import { dayOfMonthFromISO, type ISODate } from '@/lib/dates';
 import { businessToday } from '@/lib/business-today';
 import { decryptToken, encryptToken } from '@/lib/crypto';
 import { isDemoUser } from '@/lib/demo-user';
@@ -158,6 +158,20 @@ export function linkTokenParams(userId: string, redirectUri?: string): Record<st
     webhook: process.env.PLAID_WEBHOOK_URL || undefined,
     redirect_uri: redirectUri || undefined,
   };
+}
+
+/**
+ * Outcome of one user's liability sweep. Per-item errors are swallowed inside
+ * `syncLiabilities` (one bad item must not cost the others their data), so these
+ * counts are the ONLY way a caller can tell "nothing to sync" from "every item
+ * failed" — which is the difference between a card having no due date because the
+ * issuer sends none, and because the sync is broken (critic F-6).
+ */
+export interface LiabilitySyncResult {
+  itemsAttempted: number;
+  itemsFailed: number;
+  /** Statements actually written (a card can sync fine and still generate none). */
+  statementsWritten: number;
 }
 
 export class PlaidProvider implements DataProvider {
@@ -752,7 +766,14 @@ export class PlaidProvider implements DataProvider {
    * its APR stays 0 (the debt-payoff planner mis-computes) and its payment/due-date never
    * surface on the calendar or reminders.
    */
-  async syncLiabilities(userId: string): Promise<void> {
+  async syncLiabilities(userId: string): Promise<LiabilitySyncResult> {
+    // Per-item errors are caught below so one bad item can't cost the others their
+    // data — but that means a caller could never tell a fully-failed sweep from a
+    // clean one (critic F-6). The counts are the honest signal: they make a silent
+    // total failure visible to the cron's audit row.
+    let itemsAttempted = 0;
+    let itemsFailed = 0;
+    let statementsWritten = 0;
     const items = await prisma.plaidItem.findMany({ where: { userId } });
     const accounts = await prisma.account.findMany({
       where: { userId, provider: 'plaid' },
@@ -776,6 +797,7 @@ export class PlaidProvider implements DataProvider {
     };
 
     for (const item of items) {
+      itemsAttempted += 1;
       try {
         const token = decryptToken(item.accessToken);
         const { liabilities } = await plaidPost<{
@@ -801,8 +823,25 @@ export class PlaidProvider implements DataProvider {
           if (aprBps !== null) {
             await prisma.account.update({ where: { id: accountId }, data: { aprBps } });
           }
+          // Record whichever cycle days Plaid DID report, even when it reported too
+          // little for a full statement (critic F-7). The engine's estimate path
+          // needs BOTH cycleCloseDayOfMonth and dueDayOfMonth, and nothing in the
+          // Plaid path ever wrote either for a credit card — so a card whose issuer
+          // returns, say, a due date but no statement issue date was permanently
+          // undatable, and the "estimate path covers it" comment below was false.
+          // Preserve-on-null (#130): a missing field never clears a known value.
+          const cycleDays: { cycleCloseDayOfMonth?: number; dueDayOfMonth?: number } = {};
+          const closeDay = dayOfMonthFromISO(credit.last_statement_issue_date);
+          const dueDay = dayOfMonthFromISO(credit.next_payment_due_date);
+          if (closeDay !== null) cycleDays.cycleCloseDayOfMonth = closeDay;
+          if (dueDay !== null) cycleDays.dueDayOfMonth = dueDay;
+          if (Object.keys(cycleDays).length > 0) {
+            await prisma.account.update({ where: { id: accountId }, data: cycleDays });
+          }
+
           const stmt = mapPlaidLiabilityToStatement(credit, accountId);
           if (!stmt) continue; // no generated statement → cash-needed estimate path
+          statementsWritten += 1;
           await prisma.statement.upsert({
             where: { accountId_cycleEnd: { accountId, cycleEnd: stmt.cycleEnd } },
             create: {
@@ -824,8 +863,9 @@ export class PlaidProvider implements DataProvider {
       } catch (e) {
         // A depository-only item has no Liabilities product (PRODUCTS_NOT_SUPPORTED),
         // and a freshly-linked item may not have generated liability data yet. Neither
-        // must abort liability sync for the user's OTHER items (nor fail a link). The
-        // estimate path covers any card left without a statement. Audit + continue.
+        // must abort liability sync for the user's OTHER items (nor fail a link).
+        // Counted, so a caller can tell a total failure from a clean run. Audit + continue.
+        itemsFailed += 1;
         await prisma.auditLog
           .create({
             data: {
@@ -837,6 +877,7 @@ export class PlaidProvider implements DataProvider {
           .catch(() => {});
       }
     }
+    return { itemsAttempted, itemsFailed, statementsWritten };
   }
 
 

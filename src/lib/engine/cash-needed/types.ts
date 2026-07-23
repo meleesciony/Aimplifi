@@ -71,6 +71,17 @@ export interface CardObligation {
   notes: string[];
 }
 
+/**
+ * A card with a balance but nothing the engine can date. See
+ * `CashNeededResult.unknownDueDateCards`.
+ */
+export interface UnknownDueDateCard {
+  cardId: string;
+  cardName: string;
+  /** The card's current balance — stated as a balance, never as an amount "due". */
+  currentBalanceCents: Cents;
+}
+
 export interface ObligationPoint {
   date: ISODate; // effective due date
   cards: { cardId: string; cardName: string; amountCents: Cents; autopayCents: Cents; isEstimated: boolean }[];
@@ -99,6 +110,16 @@ export interface CashNeededResult {
   perDueDate: ObligationPoint[];
   /** Every card, including $0-due and estimated ones (for the /cards page). */
   cards: CardObligation[];
+  /**
+   * Cards the engine could place NOTHING on: no generated statement AND no cycle
+   * days to estimate from (a Plaid card whose issuer never returned liabilities is
+   * the common case — nothing but this list distinguishes it from a card that is
+   * genuinely paid off). These carry a real balance the user owes, so their absence
+   * must never be rendered as "nothing is due": the honest claim is that we do not
+   * know when they are due. Kept OUT of `cards`, every total, and every projection —
+   * a figure we cannot support is never invented (#221 class).
+   */
+  unknownDueDateCards: UnknownDueDateCard[];
   /** Estimated next-cycle obligations (statement not yet generated) — informational. */
   upcoming: CardObligation[];
   intraPeriodMinimum: { date: ISODate; balanceCents: Cents } | null;

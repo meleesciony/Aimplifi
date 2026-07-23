@@ -42,6 +42,55 @@ export function CashNeededCard({
   const { headline } = result;
 
   if (headline.byDate === null) {
+    // "Nothing is due" and "we cannot date anything" are different facts, and only
+    // one of them is a claim about the user's money. A card whose issuer never sent
+    // a statement (and that has no cycle days to estimate from) carries a real
+    // balance the user still owes — saying nothing is due would be false.
+    // A card carrying NO balance owes nothing, so "nothing is due" is true for it —
+    // raising the amber alert over a closed or paid-off card would be a false alarm,
+    // the mirror of the false all-clear this branch exists to prevent. Those cards
+    // are still listed on /cards; they just don't take over the hero.
+    const unknown = result.unknownDueDateCards.filter((c) => c.currentBalanceCents !== 0);
+    if (unknown.length > 0) {
+      const owed = unknown.reduce((sum, c) => sum + c.currentBalanceCents, 0);
+      return (
+        <Card data-testid="cash-needed-card" className="border-amber-900/40">
+          <CardHeader>
+            <CardTitle>Cards: due dates missing</CardTitle>
+            <CardDescription data-testid="cash-needed-unknown">
+              {unknown.length === 1
+                ? `We don’t have a statement or due date for ${unknown[0]!.cardName}, so it isn’t in this cycle’s total.`
+                : `We don’t have a statement or due date for ${unknown.length} cards, so they aren’t in this cycle’s total.`}{' '}
+              {/* Only state a total when every balance points the same way. A set
+                  mixing a balance owed with a credit can net to a number that
+                  describes neither, so we say nothing rather than something wrong. */}
+              {unknown.every((c) => c.currentBalanceCents > 0)
+                ? `${unknown.length === 1 ? 'Its balance is' : 'Their balances add up to'} ${formatCents(cents(owed))} — that is a balance, not an amount we can say is due.`
+                : 'A balance on one of these is not an amount we can say is due.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs text-muted-foreground">
+            {/* No instruction here. The "+ Add statement" control exists ONLY for
+                manually-added cards (server/transactions.ts builds cardBilling for
+                provider === 'manual', and card-actions.ts refuses anything else), so
+                telling the owner of a CONNECTED card to add one sends them looking
+                for a button that isn't on their row — cycle-2 critic P1-1. What is
+                true for every card is that we re-check daily. */}
+            <p>
+              The bank hasn’t sent a statement for{' '}
+              {unknown.length === 1 ? 'this card' : 'these cards'} yet. Connected cards
+              are re-checked every day, and the due date appears here as soon as it
+              arrives — there’s nothing to do in the meantime.
+            </p>
+            <p>
+              <Link href="/cards" className="underline hover:text-foreground">
+                See all cards →
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
     return (
       <Card data-testid="cash-needed-card">
         <CardHeader>
@@ -73,11 +122,26 @@ export function CashNeededCard({
             <span className="font-medium text-foreground">
               {formatISODate(isoDate(headline.byDate))}
             </span>{' '}
-            to pay all {headline.cardsDueCount} cards in full this cycle.
+            {/* "all" is a claim about EVERY card. It is false the moment one card
+                has no due date we can place, so it only survives when there are
+                none — otherwise this figure covers the datable cards only. */}
+            {result.unknownDueDateCards.length > 0
+              ? `to pay the ${headline.cardsDueCount} cards we have due dates for.`
+              : `to pay all ${headline.cardsDueCount} cards in full this cycle.`}
           </p>
         </GlassBoxNumber>
       </CardHeader>
       <CardContent className="space-y-3">
+        {result.unknownDueDateCards.length > 0 && (
+          // The mixed case: a real total for the datable cards, plus at least one
+          // card we cannot date. Without this line the figure reads as complete.
+          <p className="text-xs text-amber-500" data-testid="cash-needed-unknown-note">
+            Not included:{' '}
+            {result.unknownDueDateCards.map((c) => c.cardName).join(', ')} — no statement or
+            due date yet, so {result.unknownDueDateCards.length === 1 ? 'its' : 'their'}{' '}
+            balance isn’t in this figure.
+          </p>
+        )}
         {covered ? (
           <Alert data-testid="covered-alert">
             <AlertTitle>You&apos;re covered</AlertTitle>

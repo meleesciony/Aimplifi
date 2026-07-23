@@ -5,6 +5,7 @@
  * computed server-side by the engine; this component only switches between them.
  */
 import { useState } from 'react';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -77,6 +78,13 @@ export function CardsBreakdown({
                 : `in ${paymentAccountName}`}{' '}
               by {formatISODate(isoDate(result.headline.byDate))}
             </>
+          ) : result.unknownDueDateCards.length > 0 ? (
+            // Not "nothing due" — we simply cannot date these cards. See
+            // CashNeededResult.unknownDueDateCards.
+            <span data-testid="scenario-unknown">
+              No due dates available — {result.unknownDueDateCards.length} card
+              {result.unknownDueDateCards.length === 1 ? '' : 's'} below have no statement yet
+            </span>
           ) : (
             'Nothing due this cycle'
           )}
@@ -223,6 +231,46 @@ export function CardsBreakdown({
                 );
               })}
             </div>
+            {result.unknownDueDateCards.length > 0 && (
+              // These carry a real balance but nothing datable, so they are excluded
+              // from every total above. Listing them is the difference between "you
+              // owe nothing" and "we can't tell you when this is due" — the second is
+              // the truth, and hiding the card entirely told the first.
+              <div
+                className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-sm"
+                data-testid="cards-unknown-due"
+              >
+                <p className="font-medium">No due date yet</p>
+                {/* Deliberately not an instruction: "+ Add statement" exists only on
+                    MANUALLY added cards, so it is unfollowable for the connected ones
+                    this panel mostly holds (cycle-2 critic P1-1). */}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  The bank hasn’t sent a statement for these, so they aren’t counted in
+                  any figure above. Connected cards are re-checked daily and will appear
+                  as soon as one arrives. A card you added by hand can carry a statement
+                  you enter yourself, from{' '}
+                  <Link href="/accounts" className="underline hover:text-foreground">
+                    Accounts
+                  </Link>
+                  .
+                </p>
+                <ul className="mt-2 space-y-0.5 text-xs">
+                  {result.unknownDueDateCards.map((c) => {
+                    // Owner-attributed exactly like every other row in this component
+                    // (slice-8 critic F-2): a partner's card is never rendered as the
+                    // reader's to go and fix.
+                    const owner = accountOwnerLabel[c.cardId];
+                    return (
+                      <li key={c.cardId} data-testid={`card-unknown-${c.cardId}`}>
+                        {c.cardName}
+                        {owner ? ` (${owner})` : ''} — balance{' '}
+                        {formatCents(c.currentBalanceCents)}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
           </>
         );
       })()}

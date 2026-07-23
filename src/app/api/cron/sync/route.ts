@@ -10,6 +10,18 @@ import { prisma } from '@/lib/db';
 import { DEMO_USER_ID } from '@/lib/demo-user';
 import { getProvider } from '@/lib/providers/demo';
 import { checkCronBearer } from '@/lib/cron-auth';
+import {
+  plaidSyncConfigured,
+  sweepPlaidLinkedUsers,
+  type PlaidSweepRow,
+} from '@/server/plaid-sync';
+
+/**
+ * The sweep now makes up to two Plaid round-trips per linked user on top of the
+ * primary sync, so it needs the same headroom the vocab cron takes (critic F-14) —
+ * a timeout mid-sweep leaves later users unswept with no cursor to resume from.
+ */
+export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   if (!checkCronBearer(request.headers.get('authorization'), process.env.CRON_SECRET)) {
@@ -46,5 +58,33 @@ export async function GET(request: NextRequest) {
       }
     }
   }
-  return NextResponse.json({ synced: results.length, results });
+  // Plaid-linked users are swept REGARDLESS of DATA_PROVIDER (src/server/plaid-sync.ts
+  // explains why). Without this, card due dates were fetched once at link time and
+  // never again, and under a non-plaid DATA_PROVIDER nothing synced at all.
+  let plaid: PlaidSweepRow[] = [];
+  let plaidError: string | undefined;
+  // Wrapped whole: a throw from the dynamic import, the constructor, or the item
+  // query must not 500 the route AFTER the primary sweep's writes have committed —
+  // that would discard results the caller needs and hide a partial success.
+  try {
+    if (plaidSyncConfigured()) {
+      // Lazy import for the same reason getProvider() does it: the demo path must not
+      // pull the Plaid module in at all when no credentials exist.
+      const { PlaidProvider } = await import('@/lib/providers/plaid');
+      plaid = await sweepPlaidLinkedUsers(new PlaidProvider(), {
+        // The primary sweep above already ran transactions for these users when the
+        // configured provider IS Plaid; don't run them twice.
+        syncTransactions: (process.env.DATA_PROVIDER ?? 'demo') !== 'plaid',
+      });
+    }
+  } catch (e) {
+    plaidError = e instanceof Error ? e.message : 'plaid sweep failed';
+  }
+
+  return NextResponse.json({
+    synced: results.length,
+    results,
+    plaid,
+    ...(plaidError ? { plaidError } : {}),
+  });
 }

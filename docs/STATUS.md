@@ -2,6 +2,64 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## 🔴→✅ Cards said "nothing due" while cards were owed (#277, 2026-07-23) — owner-reported, FIXED
+
+Owner, verbatim, with real Chase/Capital One cards linked through Plaid: *"cards: no card
+payments are due this cycle…this isn't true"*, and separately that **/cards listed no cards at
+all** while /accounts showed them with balances.
+
+**Two independent root causes, both confirmed by execution.**
+
+1. **Engine → UI.** `buildObligation` returns null for a card with no generated statement AND no
+   cycle days — its own comment says "nothing knowable about this card" — and the caller
+   discarded that null. So a card whose issuer sent no liabilities was indistinguishable from a
+   paid-off card, and the resulting EMPTY set was rendered as a positive money claim on **eight**
+   surfaces. A Plaid card reaches this state by construction: the liabilities sync writes a
+   Statement or nothing, and the only writer of `cycleCloseDayOfMonth` is the user's own
+   manual-card form — so the advertised "estimate path" fallback could never fire for a linked card.
+2. **Data.** `syncLiabilities` — the only writer of card statements, due dates and minimum
+   payments — had exactly ONE production caller (`linkPlaidAccount`, inside a try/catch that
+   swallows the error) and **no cron**. Due dates were fetched once, best-effort, at link time and
+   never refreshed; a fresh item Plaid wasn't ready to answer for failed silently forever, and a
+   successful pull went stale the next cycle. Compounding it, the nightly sweep resolves through
+   `getProvider()`, a documented no-op unless `DATA_PROVIDER === 'plaid'`, so a linked user could
+   stop syncing entirely while *linking* is deliberately provider-independent.
+
+**Shipped.** `CashNeededResult.unknownDueDateCards` carries the undatable cards out of the engine,
+excluded from every total, projection and trace (a figure we cannot support is never invented) and
+disclosed in `assumptions`. The dashboard hero, `/cards` (including its "No credit cards yet"
+empty-state guard, which had excluded undatable cards from the definition of "cards"), the Ask
+assistant, the weekly digest **email** and the payment-reminders card now separate "nothing is due"
+from "we don't know" — in the mixed branch as well as the empty one. New `src/server/plaid-sync.ts`
+sweeps Plaid-linked users daily for liabilities **regardless of DATA_PROVIDER**;
+`PlaidProvider.syncLiabilities` returns counts so a silent total failure is reportable, and its
+credit branch now records whichever cycle days Plaid reports.
+
+**Three hostile-critic cycles, all findings executed rather than argued.** Cycle 1 (FAIL, 7 P1):
+the identical false claim was still standing on six surfaces the first pass never touched — the
+#221 widened-data-class lesson exactly. Cycle 2 (FAIL, 1 P0 + 2 P1): the P0 was **self-inflicted** —
+an attempt to rescue Plaid cards by dating them from a due day alone produced a due date a month
+early, an $842.67 shortfall and a live "move $850 into checking today" instruction, with the guess
+disclosed as the issuer's own date. **Reverted and counter-locked**: an undatable card stays
+undatable. Cycle 2 also proved the new "Add statement" instruction was unfollowable — that control
+exists only for manually-added cards — so it was removed rather than reworded.
+
+**Deliberate non-fixes (recorded):** dating a card from a due day with no cycle anchor (see the
+P0 above); the nudge feed's "Nothing needs you today" (P2, needs undated cards plumbed into the
+nudge proposal engine); `cash-needed-card` takes no `accountOwnerLabel`, so at household scope the
+mixed-case note names a partner's card without an owner badge (P2); a depository-only Plaid item
+audits `liabilities: 'failed'` daily because "no liabilities product" and "broken" share a boundary
+(P2); `plaidError` in the sync route is returned but not audited (P2).
+
+**Still true and NOT fixed by this work:** if the owner's issuers return no liabilities at all,
+these cards stay in the honest "no due date yet" panel. What changed is that the app now says so
+instead of claiming nothing is owed, and re-checks every day instead of never. Confirming which
+applies needs the `plaid.liabilities.failed` / `sync.cron.plaid` audit rows from a real run —
+**UNVERIFIED against the owner's live data.**
+
+Gate: `VERIFY_E2E=1 bash scripts/verify.sh` → **VERIFY GREEN** — 3500 unit / 241 files,
+**162 e2e**. Cycle-3 critic verification of the three cycle-2 items: see PROGRESS.md.
+
 ## Wave M.3 close-out — the tap-reachable overflow class (#276, 2026-07-23) — M.3 COMPLETE
 
 The M.3 items deferred as "no clipped figure" were **measured** rather than read off the brief,

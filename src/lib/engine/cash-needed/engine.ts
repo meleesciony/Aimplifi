@@ -56,6 +56,7 @@ import type {
   CashNeededResult,
   ObligationPoint,
   Scenario,
+  UnknownDueDateCard,
 } from './types';
 
 /**
@@ -179,9 +180,32 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
   const assumptions = new Set<string>();
 
   const allObligations: CardObligation[] = [];
+  // Cards buildObligation could place nothing on. Previously these were dropped on
+  // the floor, so a card whose issuer never sent a statement was INDISTINGUISHABLE
+  // from a paid-off card — and the UI rendered the resulting empty set as the
+  // positive claim "no card payments are due this cycle", which is a money claim
+  // the data does not support. Carry them out instead, so every surface can say
+  // what is actually true: we do not know when this card is due.
+  const unknownDueDateCards: UnknownDueDateCard[] = [];
   for (const card of input.cards) {
     const ob = buildObligation(card, scenario, today, holidays, assumptions);
     if (ob) allObligations.push(ob);
+    else
+      unknownDueDateCards.push({
+        cardId: card.id,
+        cardName: card.name,
+        currentBalanceCents: card.currentBalanceCents,
+      });
+  }
+  if (unknownDueDateCards.length > 0) {
+    // Every other exclusion in this engine states itself in `assumptions`; an
+    // excluded CARD is the biggest one there is, so it belongs in the same
+    // disclosure rather than only in the surfaces that opted in (critic F-16).
+    assumptions.add(
+      `${unknownDueDateCards.length} card(s) are excluded from every figure here — no statement and no cycle dates, so nothing about them can be dated: ${unknownDueDateCards
+        .map((c) => c.cardName)
+        .join(', ')}.`,
+    );
   }
 
   // "This cycle" = generated statements. Estimated (not-yet-generated) statements
@@ -334,6 +358,7 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
     },
     perDueDate: points,
     cards: allObligations,
+    unknownDueDateCards,
     upcoming,
     intraPeriodMinimum: minPoint,
     minimumPathInterestCents,

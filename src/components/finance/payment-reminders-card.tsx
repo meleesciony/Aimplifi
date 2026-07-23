@@ -39,11 +39,20 @@ export function PaymentRemindersCard({
   reminders,
   today,
   accountOwnerLabel = {},
+  undatedCardCount = 0,
 }: {
   reminders: PaymentReminder[];
   today: string;
   /** accountId → owning partner's name at household scope (empty for 'mine'). */
   accountOwnerLabel?: Record<string, string>;
+  /**
+   * Cards excluded from `reminders` because nothing could date them
+   * (CashNeededResult.unknownDueDateCards). A reminder can only exist for a card
+   * with a due date, so "you're all caught up" would be a false all-clear while
+   * these are outstanding — the empty set means "nothing we can date", not
+   * "nothing owed" (owner-reported 2026-07-23).
+   */
+  undatedCardCount?: number;
 }) {
   const t = isoDate(today);
   return (
@@ -52,8 +61,16 @@ export function PaymentRemindersCard({
         <CardTitle className="text-base">Payment reminders</CardTitle>
         <CardDescription>
           {reminders.length === 0
-            ? 'You’re all caught up — no payments coming up.'
-            : 'Upcoming card & loan payments this cycle. Aimplifi never moves money for you — this is just a heads-up.'}
+            ? undatedCardCount > 0
+              ? `No payments coming up on what we can date — ${undatedCardCount === 1 ? 'one card has' : `${undatedCardCount} cards have`} no due date yet, so ${undatedCardCount === 1 ? 'it isn’t' : 'they aren’t'} included.`
+              : 'You’re all caught up — no payments coming up.'
+            : `Upcoming card & loan payments this cycle. Aimplifi never moves money for you — this is just a heads-up.${
+                // The mixed case (cycle-2 critic P2-1): a list of what's due reads as
+                // complete unless what's missing is named next to it.
+                undatedCardCount > 0
+                  ? ` ${undatedCardCount === 1 ? 'One card is' : `${undatedCardCount} cards are`} not shown — no due date yet.`
+                  : ''
+              }`}
         </CardDescription>
       </CardHeader>
       {reminders.length > 0 && (

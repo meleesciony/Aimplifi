@@ -225,6 +225,7 @@ export default async function DashboardPage({
         reminders={data.reminders}
         today={data.today}
         accountOwnerLabel={data.accountOwnerLabel}
+        undatedCardCount={data.payInFull.unknownDueDateCards.length}
       />
     </div>
   );

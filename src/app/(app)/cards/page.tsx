@@ -28,7 +28,12 @@ export default async function CardsPage({
   const requestedScope = (await searchParams).scope === 'household' ? 'household' : 'mine';
   const data = await getDashboardData(session.user.id, requestedScope);
 
-  if (data.payInFull.cards.length === 0) {
+  // "No credit cards yet" is a claim about what the user HAS, but `cards` only
+  // holds cards the engine could place a due date on — so a linked card whose
+  // issuer sent no statement fell into this branch and was told to connect the
+  // bank it was already connected to (owner-reported 2026-07-23). Undatable cards
+  // still count as cards; CardsBreakdown lists them under "No due date yet".
+  if (data.payInFull.cards.length === 0 && data.payInFull.unknownDueDateCards.length === 0) {
     return (
       <div className="space-y-4">
         <h1 className="text-xl font-semibold">Credit cards</h1>

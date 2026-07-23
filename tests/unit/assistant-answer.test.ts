@@ -236,7 +236,15 @@ describe('answerSafeToSpend', () => {
 });
 
 describe('answerCashNeeded', () => {
-  const base = { cards: [], intraPeriodMinimum: null, minimumPathInterestCents: null };
+  // `unknownDueDateCards` is always present on a real engine result; these fixtures
+  // are hand-built casts, so it has to be stated here too. Empty = every card is
+  // datable, which is what these three cases are about.
+  const base = {
+    cards: [],
+    unknownDueDateCards: [],
+    intraPeriodMinimum: null,
+    minimumPathInterestCents: null,
+  };
   it('amount + date', () => {
     const r = {
       ...base,

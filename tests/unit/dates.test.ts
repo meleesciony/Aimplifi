@@ -4,6 +4,7 @@ import {
   addMonthsClamped,
   addMonthsToMonthKey,
   compareDates,
+  dayOfMonthFromISO,
   dayOfWeek,
   daysBetween,
   daysInMonth,
@@ -234,5 +235,39 @@ describe('monthKey / addMonthsToMonthKey (the one month-key home — 2026-07-21 
   it('rejects a malformed month key rather than inventing one', () => {
     expect(() => addMonthsToMonthKey('2026-13', 1)).toThrow();
     expect(() => addMonthsToMonthKey('not-a-month', 1)).toThrow();
+  });
+});
+
+/**
+ * dayOfMonthFromISO — added 2026-07-23 so the Plaid liability sync can record the
+ * cycle-close / due day a card reports even when the issuer sends too little for a
+ * full statement. Null-tolerant BY DESIGN: provider payloads routinely omit these
+ * fields, and a missing value must preserve the last-known one (#130), never throw
+ * and never zero it.
+ */
+describe('dayOfMonthFromISO', () => {
+  it('reads the calendar day', () => {
+    expect(dayOfMonthFromISO('2026-07-23')).toBe(23);
+    expect(dayOfMonthFromISO('2026-07-01')).toBe(1);
+  });
+
+  it('handles month ends, including a leap day', () => {
+    expect(dayOfMonthFromISO('2026-01-31')).toBe(31);
+    expect(dayOfMonthFromISO('2026-02-28')).toBe(28);
+    expect(dayOfMonthFromISO('2024-02-29')).toBe(29);
+  });
+
+  it('returns null for a missing value rather than throwing', () => {
+    expect(dayOfMonthFromISO(null)).toBeNull();
+    expect(dayOfMonthFromISO(undefined)).toBeNull();
+    expect(dayOfMonthFromISO('')).toBeNull();
+  });
+
+  it('returns null for malformed or impossible dates (never a wrong day)', () => {
+    expect(dayOfMonthFromISO('2026-13-01')).toBeNull(); // month 13
+    expect(dayOfMonthFromISO('2026-02-30')).toBeNull(); // not a real calendar date
+    expect(dayOfMonthFromISO('2025-02-29')).toBeNull(); // not a leap year
+    expect(dayOfMonthFromISO('07/23/2026')).toBeNull(); // wrong format
+    expect(dayOfMonthFromISO('2026-07-23T00:00:00Z')).toBeNull(); // timestamp, not a civil date
   });
 });

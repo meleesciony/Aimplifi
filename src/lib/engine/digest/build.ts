@@ -73,8 +73,15 @@ export function buildWeeklyDigest(input: {
    * account moved. Absent/null ⇒ the personal digest, byte-identical to pre-slice-7.
    */
   household?: HouseholdDigestContext | null;
+  /**
+   * Count of cards the cash-needed engine could not date
+   * (CashNeededResult.unknownDueDateCards). NOT a send trigger — like receipts,
+   * an unknown alone isn't news — but it must qualify the "nothing due" line when
+   * the digest sends for another reason.
+   */
+  undatedCardCount?: number;
 }): WeeklyDigest | null {
-  const { review, reminders, today, receipts, household } = input;
+  const { review, reminders, today, receipts, household, undatedCardCount = 0 } = input;
   if (!review && reminders.length === 0) return null;
 
   const parts: string[] = [COACH_COPY.digestIntro(formatISODate(today, 'long')), ''];
@@ -89,7 +96,11 @@ export function buildWeeklyDigest(input: {
 
   parts.push(household ? HOUSEHOLD_COPY.digestPaymentsHeader() : COACH_COPY.digestPaymentsHeader());
   if (reminders.length === 0) {
-    parts.push(COACH_COPY.digestNothingDue());
+    parts.push(
+      undatedCardCount > 0
+        ? COACH_COPY.digestNothingDueWithUndated(undatedCardCount)
+        : COACH_COPY.digestNothingDue(),
+    );
   } else {
     for (const r of reminders) {
       // A partner's shared card NEVER renders through the second-person
@@ -111,6 +122,10 @@ export function buildWeeklyDigest(input: {
           : reminderLine(r),
       );
     }
+    // The mixed case (cycle-2 critic P1-2): a list of what IS due reads as complete,
+    // so the undated cards have to be named here too — not only when the list is
+    // empty. The email is the surface where no in-app panel can correct it.
+    if (undatedCardCount > 0) parts.push(COACH_COPY.digestUndatedAlongsideDues(undatedCardCount));
   }
 
   if (household) {

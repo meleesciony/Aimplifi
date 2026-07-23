@@ -138,6 +138,7 @@ function cashNeededOf(o: {
     },
     perDueDate,
     cards: [],
+    unknownDueDateCards: [],
     upcoming: [],
     intraPeriodMinimum: null,
     minimumPathInterestCents: null,

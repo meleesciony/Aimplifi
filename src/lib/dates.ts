@@ -22,6 +22,21 @@ export function isoDate(s: string): ISODate {
   return s as ISODate;
 }
 
+/**
+ * Day-of-month (1–31) from a provider-supplied `YYYY-MM-DD`, or null when the value
+ * is absent or not a valid calendar date. Null-tolerant on purpose: provider payloads
+ * routinely omit these fields, and a missing day must PRESERVE the last-known value
+ * rather than throw or zero it (#130 discipline).
+ */
+export function dayOfMonthFromISO(value: string | null | undefined): number | null {
+  if (!value) return null;
+  try {
+    return Number(isoDate(value).slice(8, 10));
+  } catch {
+    return null; // malformed or impossible calendar date — treat as not reported
+  }
+}
+
 export function isLeapYear(year: number): boolean {
   return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 }

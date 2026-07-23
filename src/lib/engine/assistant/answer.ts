@@ -644,17 +644,30 @@ export function answerSafeToSpend(plan: SpendingPlan): AssistantAnswer {
 export function answerCashNeeded(result: CashNeededResult, paymentAccountName: string): AssistantAnswer {
   const s = result.headline;
   const source: AssistantSource = { label: 'See cards', href: '/cards' };
+  // A card the engine could not date is absent from cardsDueCount, so "nothing is
+  // due" would be a false all-clear for exactly the case this branch is most likely
+  // to hit: a linked card whose issuer sent no statement (owner-reported
+  // 2026-07-23). Name the gap instead of answering past it.
+  const undated = result.unknownDueDateCards;
+  const undatedFact: AssistantFact[] =
+    undated.length > 0
+      ? [{ label: 'No due date yet', value: undated.map((c) => c.cardName).join(', ') }]
+      : [];
   if (s.cardsDueCount === 0 || s.requiredCents === 0) {
     return {
       kind: 'cash_needed',
-      headline: 'You have nothing due on your cards this cycle.',
-      facts: [],
+      headline:
+        undated.length > 0
+          ? `Nothing is due on the cards I can date — but ${undated.length === 1 ? 'one card has' : `${undated.length} cards have`} no statement or due date yet, so I can’t tell you what’s due on ${undated.length === 1 ? 'it' : 'them'}.`
+          : 'You have nothing due on your cards this cycle.',
+      facts: undatedFact,
       source,
     };
   }
   const facts: AssistantFact[] = [
     { label: 'Cards due', value: String(s.cardsDueCount) },
     { label: 'From', value: paymentAccountName },
+    ...undatedFact,
   ];
   let detail: string | undefined;
   if (s.shortfallCents > 0 && s.recommendation) {
@@ -663,7 +676,8 @@ export function answerCashNeeded(result: CashNeededResult, paymentAccountName: s
   }
   return {
     kind: 'cash_needed',
-    headline: `You need ${fmt(s.requiredCents)}${s.byDate ? ` by ${humanDate(s.byDate)}` : ''} to pay your cards in full.`,
+    // "your cards" = all of them. Only true when every card could be dated.
+    headline: `You need ${fmt(s.requiredCents)}${s.byDate ? ` by ${humanDate(s.byDate)}` : ''} to pay ${undated.length > 0 ? 'the cards I can date' : 'your cards'} in full.`,
     // Slice 3: the builder's own figure for the derivation trace's drift gate.
     // Set only on this path — the zero-due answer above has no figure to trace.
     headlineCents: s.requiredCents,
