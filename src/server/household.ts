@@ -5,7 +5,8 @@
  * self-heal's primary trigger point.
  */
 import { prisma } from '@/lib/db';
-import { partnerSharedAccountsWhere, requireViewer } from '@/server/authz';
+import { partnerIdsOf, partnerSharedAccountsWhere, requireViewer } from '@/server/authz';
+import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { categoryNamesByIds } from '@/server/category-meta';
 import { normalizeEmail } from '@/lib/auth/validate';
 import { isSupportedCurrency } from '@/lib/providers/currency';
@@ -95,7 +96,7 @@ export async function getAccountSharingView(): Promise<AccountSharingView> {
   if (!viewer.household) return { kind: 'none' };
 
   const sharedWhere = partnerSharedAccountsWhere(viewer);
-  const [mine, shared] = await Promise.all([
+  const [mine, shared, supersededIds] = await Promise.all([
     prisma.account.findMany({
       where: { userId: viewer.userId },
       select: {
@@ -122,6 +123,11 @@ export async function getAccountSharingView(): Promise<AccountSharingView> {
           orderBy: [{ type: 'asc' }, { name: 'asc' }],
         })
       : Promise.resolve([]),
+    // R5 (slice 4): a partner's superseded predecessor is not separately shared —
+    // the live successor represents it once. (The viewer's OWN toggle list `mine`
+    // still shows every owned account; a superseded predecessor on the viewer's own
+    // /accounts surfaces is slice-5's F5 personal-surface pass.)
+    activeSupersededPredecessorIds(partnerIdsOf(viewer)),
   ]);
 
   return {
@@ -139,7 +145,7 @@ export async function getAccountSharingView(): Promise<AccountSharingView> {
       sharedToHousehold: a.sharedToHousehold,
     })),
     sharedWithMe: shared
-      .filter((a) => isSupportedCurrency(a.currency))
+      .filter((a) => isSupportedCurrency(a.currency) && !supersededIds.has(a.id))
       .map((a) => ({
         id: a.id,
         name: a.name,
@@ -198,6 +204,11 @@ export async function getSharedTransactionsView(): Promise<SharedTransactionsVie
     return { kind: 'member', householdName: viewer.household.name, rows: [], truncated: false };
   }
 
+  // R5 (slice 4): a superseded reconciliation predecessor is the owner's stale
+  // duplicate — its rows must not appear in the partner's register alongside the
+  // live successor's. Excluded at the account scope (DB-side), so pagination stays correct.
+  const supersededIds = await activeSupersededPredecessorIds(partnerIdsOf(viewer));
+
   // Fetch one past the cap so we can report truncation without a separate count.
   const txns = await prisma.transaction.findMany({
     where: {
@@ -207,6 +218,7 @@ export async function getSharedTransactionsView(): Promise<SharedTransactionsVie
           // Spending + currency guard — same predicates as getTransactions (#62/#135).
           { type: { in: [...SPENDING_ACCOUNT_TYPES] } },
           { OR: [{ currency: null }, { currency: 'USD' }] },
+          ...(supersededIds.size ? [{ id: { notIn: [...supersededIds] } }] : []),
         ],
       },
       isSplitParent: false,

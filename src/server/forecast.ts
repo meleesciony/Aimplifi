@@ -60,8 +60,12 @@ export async function getCashFlowForecast(
   // is an accepted approximation). Same holiday+obligation derivation as finance.ts.
   const year = Number(today.slice(0, 4));
   const holidays = holidayTable(year - 1, year + 1);
+  // Reconciliation (Wave 4.6 slice 4, R4): a superseded predecessor LOAN keeps its
+  // `minimumPaymentCents`/`dueDayOfMonth` (the boundary only zeros the balance), so
+  // without this filter it would inject a phantom loan flow into the projection —
+  // the same skip `cashNeededFromSnapshot` applies for the reminders/headline surface.
   const loanFlows = loanObligationsToScheduledFlows(
-    selectLoanObligations({ accounts: snap.accounts, today, holidays }),
+    selectLoanObligations({ accounts: snap.accounts.filter((a) => !superseded.has(a.id)), today, holidays }),
   );
 
   const events = expandScheduled([...flows, ...loanFlows], today, horizonDays);

@@ -141,6 +141,19 @@ export function partnerSharedAccountsWhere(viewer: Viewer): Prisma.AccountWhereI
  *      copying it into a viewer-relative surface would be wrong;
  *   4. `household.ts` consent/read views via `partnerSharedAccountsWhere`.
  * If you need a new shape, add it HERE and to this list in the same commit.
+ *
+ * RECONCILIATION EXCLUSION (Wave 4.6 slice 4, R5). Every shared-set read/guard ALSO
+ * subtracts the relevant members' `activeSupersededPredecessorIds` — a superseded
+ * reconciliation predecessor is the owner's stale duplicate, not a separately-shared
+ * account; the live successor represents it once. This helper is a pure Prisma where-builder
+ * (no async read), so the subtraction rides each CALLER rather than this clause. The SIX
+ * sites: the four above PLUS `household-finance.ts` getSharedSnapshotSlice/
+ * getHouseholdDuplicateCandidates and the slice-6 `household-actions.ts`
+ * recategorizeSharedTransaction WRITE-guard (a read surface that hides a row and a write
+ * guard that lets a member mutate it would be a read/write asymmetry — critic cycle-2 CLAIM5).
+ * The `household reconciliation follows the successor` integration test drives a real
+ * reconciled+shared pair through every one so a missed site fails loudly (docs/lessons/
+ * fence-by-construction-not-per-call-site). A new shared-set read/guard must apply it too.
  */
 export function visibleAccountsWhere(viewer: Viewer): Prisma.AccountWhereInput {
   const shared = partnerSharedAccountsWhere(viewer);

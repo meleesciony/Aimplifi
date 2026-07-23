@@ -74,19 +74,26 @@ export class DemoProvider implements DataProvider {
     // like every other child row (autopays stay as-is: no join-free consumer).
     const supportedStatements = statements.filter((s) => supportedIds.has(s.accountId));
     const supportedStatementIds = new Set(supportedStatements.map((s) => s.id));
-    // Reconciliation boundary (Wave 4.6 slice 3, PROVIDER_RECONCILIATION_ARCHITECTURE §5):
+    // Reconciliation boundary (Wave 4.6 slices 3–4, PROVIDER_RECONCILIATION_ARCHITECTURE §5):
     // applied ONCE here, after the currency guard, so every downstream engine inherits
     // it. A linked predecessor contributes 0 balance and only its date<=cutover rows;
     // the successor contributes its live balance and only date>cutover rows (R1/R2);
-    // a superseded funding account is remapped to its successor. With no active links
-    // this is the exact-reference fast path — demo/golden byte-identical (R8).
-    // Statements/cardPayments/scheduled/autopays are deliberately untouched until
-    // slice 4 (R4 cards / R5 household).
+    // a superseded funding account is remapped to its successor. Slice 4 also drops the
+    // predecessor's STATEMENTS (R4 — the successor is the live source of what's owed, so
+    // its stale statement must not double a card's due or corrupt the coach cleared-streak)
+    // and RE-KEYS its SCHEDULED rows onto the successor (F6 — else the remapped payment
+    // account's filter silently drops the predecessor's income/bills). cardPayments/autopays
+    // ride along unchanged: an orphaned predecessor cardPayment is ignored by every consumer
+    // (its statement is gone), and a predecessor autopay never fires because cash-needed skips
+    // the superseded card. With no active links this is the exact-reference fast path —
+    // demo/golden byte-identical (R8).
     const boundary = applyReconciliationBoundary({
       paymentAccountId: user?.paymentAccountId ?? null,
       accounts: supportedAccounts,
       transactions: transactions.filter((t) => supportedIds.has(t.accountId)),
       balanceSnapshots: balanceSnapshots.filter((b) => supportedIds.has(b.accountId)),
+      statements: supportedStatements,
+      scheduled: scheduled.filter((s) => supportedIds.has(s.accountId)),
       links: reconciliations,
     });
     return {
@@ -94,10 +101,10 @@ export class DemoProvider implements DataProvider {
       supersededAccountIds: boundary.supersededAccountIds,
       accounts: [...boundary.accounts],
       autopays,
-      statements: supportedStatements,
+      statements: [...boundary.statements],
       cardPayments: cardPayments.filter((cp) => supportedStatementIds.has(cp.statementId)),
       transactions: [...boundary.transactions],
-      scheduled: scheduled.filter((s) => supportedIds.has(s.accountId)),
+      scheduled: [...boundary.scheduled],
       balanceSnapshots: [...boundary.balanceSnapshots],
     };
   }

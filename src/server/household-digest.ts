@@ -31,6 +31,7 @@ import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { isSupportedCurrency } from '@/lib/providers/currency';
 import { partnerIdsOf, type Viewer } from '@/server/household-authz';
 import { getHouseholdDuplicateCandidates } from '@/server/household-finance';
+import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 
 /**
  * Shared-account context for the joint digest, or null when there is no joint
@@ -56,10 +57,18 @@ export async function getHouseholdDigestContext(
     sharedToHousehold: true,
   };
 
-  const accounts = await prisma.account.findMany({
-    where: sharedWhere,
-    select: { id: true, userId: true, currency: true, type: true },
-  });
+  // R5 (slice 4): a superseded reconciliation predecessor (any member's) is not part
+  // of the shared set — dropping it here keeps the mailed dues/movement from
+  // double-counting a member's reconciled pair, the same money-integrity rule the
+  // interactive household surfaces apply.
+  const [allShared, supersededIds] = await Promise.all([
+    prisma.account.findMany({
+      where: sharedWhere,
+      select: { id: true, userId: true, currency: true, type: true },
+    }),
+    activeSupersededPredecessorIds(viewer.household.memberIds),
+  ]);
+  const accounts = allShared.filter((a) => !supersededIds.has(a.id));
 
   // accountId → owner name, for PARTNER-owned shared accounts only. The viewer's
   // OWN cards keep the personal second-person line, byte-identical. `|| 'Partner'`

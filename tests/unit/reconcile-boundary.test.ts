@@ -51,12 +51,28 @@ const SNAPSHOTS = [
   { accountId: 'other', date: '2026-06-30', balanceCents: 100_000 }, // kept
 ];
 
+// Slice 4 (R4/F6): statements are full-dropped for a predecessor; scheduled rows
+// are re-keyed predecessor→successor. Both carry a stable `id`/`description` so a
+// re-keyed row's IDENTITY (only its accountId changes) is checkable.
+const STATEMENTS = [
+  { id: 'st-pred', accountId: 'pred', cycleEnd: '2026-06-20', statementBalanceCents: 50_000 }, // dropped (R4)
+  { id: 'st-succ', accountId: 'succ', cycleEnd: '2026-07-20', statementBalanceCents: 60_000 }, // kept
+  { id: 'st-other', accountId: 'other', cycleEnd: '2026-06-20', statementBalanceCents: 0 }, // kept (bystander)
+];
+const SCHEDULED = [
+  { accountId: 'pred', description: 'Paycheck', amountCents: 300_000, nextDate: '2026-07-15', cadence: 'BIWEEKLY' }, // re-keyed → succ
+  { accountId: 'succ', description: 'Rent', amountCents: -200_000, nextDate: '2026-07-01', cadence: 'MONTHLY' }, // kept
+  { accountId: 'other', description: 'Gym', amountCents: -5_000, nextDate: '2026-07-05', cadence: 'MONTHLY' }, // kept
+];
+
 function apply(links: ReconciliationLinkLike[], paymentAccountId: string | null = null) {
   return applyReconciliationBoundary({
     paymentAccountId,
     accounts: ACCOUNTS,
     transactions: TXNS,
     balanceSnapshots: SNAPSHOTS,
+    statements: STATEMENTS,
+    scheduled: SCHEDULED,
     links,
   });
 }
@@ -144,6 +160,8 @@ describe('applyReconciliationBoundary — the money core', () => {
         { accountId: 'c', date: '2026-07-01' }, // > cutBC → kept
       ],
       balanceSnapshots: [],
+      statements: [],
+      scheduled: [],
       links: [
         { predecessorAccountId: 'a', successorAccountId: 'b', cutoverDate: '2026-03-31' },
         { predecessorAccountId: 'b', successorAccountId: 'c', cutoverDate: '2026-06-30' },
@@ -175,6 +193,8 @@ describe('applyReconciliationBoundary — the money core', () => {
         { accountId: 'p2', date: '2026-06-30' }, // kept
       ],
       balanceSnapshots: [],
+      statements: [],
+      scheduled: [],
       links: [
         { predecessorAccountId: 'p1', successorAccountId: 's', cutoverDate: '2026-03-31' },
         { predecessorAccountId: 'p2', successorAccountId: 's', cutoverDate: '2026-06-30' },
@@ -200,6 +220,8 @@ describe('applyReconciliationBoundary — the money core', () => {
         { accountId: 'succ', date: '2026-03-15', amountCents: -80_000 }, // before pred's first row (6/29)
       ],
       balanceSnapshots: [],
+      statements: [],
+      scheduled: [],
       links: [LINK],
     });
     const succDates = out.transactions.filter((t) => t.accountId === 'succ').map((t) => t.date);
@@ -223,6 +245,8 @@ describe('applyReconciliationBoundary — the money core', () => {
         { accountId: 'succ', date: '2026-07-10', amountCents: -9_000 }, // in the empty tail → KEPT
       ],
       balanceSnapshots: [],
+      statements: [],
+      scheduled: [],
       links: [{ ...LINK, cutoverDate: '2026-07-15' }],
     });
     expect(out.transactions.map((t) => `${t.accountId}:${t.date}`)).toEqual([
@@ -245,6 +269,8 @@ describe('applyReconciliationBoundary — the money core', () => {
         { accountId: 'succ', date: '2026-04-30', balanceCents: 230_000 }, // deep backfill, no pred copy → kept
         { accountId: 'succ', date: '2026-07-31', balanceCents: 252_000 },
       ],
+      statements: [],
+      scheduled: [],
       links: [{ ...LINK, cutoverDate: '2026-06-25' }],
     });
     expect(out.balanceSnapshots).toHaveLength(4);
@@ -269,6 +295,8 @@ describe('applyReconciliationBoundary — the money core', () => {
         { accountId: 'pred', date: '2026-07-31', balanceCents: 240_000 }, // > cutover, collision → dropped
         { accountId: 'succ', date: '2026-07-31', balanceCents: 252_000 }, // succ wins
       ],
+      statements: [],
+      scheduled: [],
       links: [LINK],
     });
     expect(out.balanceSnapshots).toEqual([
@@ -291,12 +319,108 @@ describe('applyReconciliationBoundary — the money core', () => {
         { accountId: 'succ', date: '2026-06-01', amountCents: -7_000 }, // mid-span hole → dropped (pinned)
       ],
       balanceSnapshots: [],
+      statements: [],
+      scheduled: [],
       links: [LINK],
     });
     expect(out.transactions.map((t) => `${t.accountId}:${t.date}`)).toEqual([
       'pred:2026-05-01',
       'pred:2026-06-30',
     ]);
+  });
+
+  it('R4: a predecessor statement the successor already covers (older cycleEnd) is dropped; successor + bystander keep identity', () => {
+    // st-pred cycleEnd 2026-06-20 <= st-succ's 2026-07-20 → the live successor owns that
+    // cycle authoritatively, so the stale predecessor copy is dropped (no streak double).
+    const out = apply([LINK]);
+    expect(out.statements.map((s) => s.id)).toEqual(['st-succ', 'st-other']);
+    // Untouched statement rows are the SAME objects (golden safety by construction).
+    expect(out.statements[0]).toBe(STATEMENTS[1]);
+    expect(out.statements[1]).toBe(STATEMENTS[2]);
+  });
+
+  it('R4 (CLAIM 2): a predecessor statement NEWER than the successor’s is RE-KEYED onto the successor', () => {
+    // The live successor has not generated its own statement for the latest cycle yet
+    // (a fresh reconnect on the estimate path): the predecessor's current statement must
+    // survive AS the successor's, or the owed amount vanishes from the cash-needed headline.
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: ACCOUNTS,
+      transactions: [],
+      balanceSnapshots: [],
+      statements: [
+        { id: 'p-current', accountId: 'pred', cycleEnd: '2026-06-20' }, // newer than succ's → re-keyed
+        { id: 's-old', accountId: 'succ', cycleEnd: '2026-05-20' }, // successor's own, older
+      ],
+      scheduled: [],
+      links: [LINK],
+    });
+    expect(out.statements.map((s) => `${s.accountId}:${s.id}`).sort()).toEqual(['succ:p-current', 'succ:s-old']);
+  });
+
+  it('R4 (CLAIM 2): with NO successor statement, ALL predecessor statements re-key onto it', () => {
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: ACCOUNTS,
+      transactions: [],
+      balanceSnapshots: [],
+      statements: [
+        { id: 'p1', accountId: 'pred', cycleEnd: '2026-05-20' },
+        { id: 'p2', accountId: 'pred', cycleEnd: '2026-06-20' },
+      ],
+      scheduled: [],
+      links: [LINK],
+    });
+    expect(out.statements.map((s) => `${s.accountId}:${s.id}`)).toEqual(['succ:p1', 'succ:p2']);
+  });
+
+  it('F6: a predecessor’s scheduled rows are re-keyed to the successor; only accountId changes', () => {
+    const out = apply([LINK]);
+    // The paycheck moves pred→succ; every other field is preserved verbatim — the
+    // forecast/radar/cash-needed filters (pinned to the successor) now find it.
+    const paycheck = out.scheduled.find((s) => s.description === 'Paycheck')!;
+    expect(paycheck).toEqual({
+      accountId: 'succ',
+      description: 'Paycheck',
+      amountCents: 300_000,
+      nextDate: '2026-07-15',
+      cadence: 'BIWEEKLY',
+    });
+    // Successor + bystander rows keep identity (same object — never a re-key copy).
+    expect(out.scheduled.find((s) => s.description === 'Rent')).toBe(SCHEDULED[1]);
+    expect(out.scheduled.find((s) => s.description === 'Gym')).toBe(SCHEDULED[2]);
+    // No row is dropped — re-keying never loses an income/bill.
+    expect(out.scheduled).toHaveLength(3);
+  });
+
+  it('F6 chain A→B→C: a predecessor’s scheduled rows follow to the TERMINAL successor', () => {
+    const A = { id: 'a', type: 'CHECKING', currentBalanceCents: 10_000 };
+    const B = { id: 'b', type: 'CHECKING', currentBalanceCents: 20_000 };
+    const C = { id: 'c', type: 'CHECKING', currentBalanceCents: 30_000 };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [A, B, C],
+      transactions: [],
+      balanceSnapshots: [],
+      statements: [
+        { id: 'sa', accountId: 'a', cycleEnd: '2026-01-31' }, // older than C's → dropped on re-key
+        { id: 'sb', accountId: 'b', cycleEnd: '2026-02-28' }, // older than C's → dropped on re-key
+        { id: 'sc', accountId: 'c', cycleEnd: '2026-03-31' }, // terminal's own, newest → kept
+      ],
+      scheduled: [
+        { accountId: 'a', description: 'Paycheck' },
+        { accountId: 'b', description: 'Rent' },
+        { accountId: 'c', description: 'Gym' },
+      ],
+      links: [
+        { predecessorAccountId: 'a', successorAccountId: 'b', cutoverDate: '2026-03-31' },
+        { predecessorAccountId: 'b', successorAccountId: 'c', cutoverDate: '2026-06-30' },
+      ],
+    });
+    // Both A and B are predecessors → every scheduled row lands on C (terminal live side).
+    expect(out.scheduled.map((s) => s.accountId)).toEqual(['c', 'c', 'c']);
+    // Both A and B statements dropped; only C's survives (the terminal source of truth).
+    expect(out.statements.map((s) => s.id)).toEqual(['sc']);
   });
 });
 
@@ -306,6 +430,10 @@ describe('applyReconciliationBoundary — inertness (a bad link must change NOTH
     expect(out.accounts).toBe(ACCOUNTS);
     expect(out.transactions).toBe(TXNS);
     expect(out.balanceSnapshots).toBe(SNAPSHOTS);
+    // R8 extends to the slice-4 families: no effective link → the SAME references,
+    // so a demo/golden snapshot with no reconciliations is byte-identical.
+    expect(out.statements).toBe(STATEMENTS);
+    expect(out.scheduled).toBe(SCHEDULED);
   };
 
   it('R8: no links at all → the exact input references (golden fast path)', () => {
@@ -351,6 +479,8 @@ describe('applyReconciliationBoundary — inertness (a bad link must change NOTH
       accounts: [...ACCOUNTS, X, Y],
       transactions: TXNS,
       balanceSnapshots: [],
+      statements: [],
+      scheduled: [],
       links: [
         LINK,
         { predecessorAccountId: 'succ', successorAccountId: 'pred', cutoverDate: '2026-07-10' }, // cycle with LINK

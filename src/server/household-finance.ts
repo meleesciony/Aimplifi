@@ -18,6 +18,7 @@ import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import type { PartnerSnapshotSlice } from '@/lib/engine/household/merge-snapshot';
 import { isSupportedCurrency } from '@/lib/providers/currency';
 import { getProvider } from '@/lib/providers/demo';
+import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 
 export async function getSharedSnapshotSlice(partnerId: string): Promise<PartnerSnapshotSlice> {
   // The partner's OWN business day (§4.4 drift guard) — today this is the same
@@ -41,13 +42,23 @@ export async function getSharedSnapshotSlice(partnerId: string): Promise<Partner
     prisma.scheduledTransaction.findMany({ where: ownedByShared }),
   ]);
 
+  // Reconciliation (Wave 4.6 slice 4, R5): a superseded predecessor is NOT part of
+  // the shared set — the live successor is the single account the household sees, so
+  // the stale predecessor must not double-count in the partner's joint cash-needed.
+  // Excluding it from the account list cascades to EVERY child row via `supportedIds`
+  // (same mechanism as the currency guard), so no per-row-family fence is needed.
+  const supersededIds = await activeSupersededPredecessorIds([partnerId]);
+
   // Currency guard (DECISIONS #135 parity): a non-USD shared account is withheld
   // from every money engine, same as the owner's own dashboard would withhold it.
   // EVERY dependent row family is filtered by the surviving account set (slice-8
   // critic F-7): an orphan autopay/statement/cardPayment for a withheld account
   // must never travel into the merge, where a future consumer could act on it.
-  // The withhold is COUNTED so callers can disclose it (critic F-6, #135 stance).
-  const supportedAccounts = accounts.filter((a) => isSupportedCurrency(a.currency));
+  // The withhold is COUNTED so callers can disclose it (critic F-6, #135 stance) —
+  // and it stays CURRENCY-only: a superseded predecessor is not "withheld", it is
+  // the owner's stale duplicate the partner should simply never see.
+  const currencySupported = accounts.filter((a) => isSupportedCurrency(a.currency));
+  const supportedAccounts = currencySupported.filter((a) => !supersededIds.has(a.id));
   const supportedIds = new Set(supportedAccounts.map((a) => a.id));
   const supportedStatements = statements.filter((s) => supportedIds.has(s.accountId));
   const supportedStatementIds = new Set(supportedStatements.map((s) => s.id));
@@ -60,7 +71,7 @@ export async function getSharedSnapshotSlice(partnerId: string): Promise<Partner
     cardPayments: cardPayments.filter((p) => supportedStatementIds.has(p.statementId)),
     transactions: transactions.filter((t) => supportedIds.has(t.accountId)),
     scheduled: scheduled.filter((s) => supportedIds.has(s.accountId)),
-    withheldAccountCount: accounts.length - supportedAccounts.length,
+    withheldAccountCount: accounts.length - currencySupported.length,
   };
 }
 
@@ -86,7 +97,7 @@ export async function getHouseholdDuplicateCandidates(
     currentBalanceCents: true,
     currency: true,
   } as const;
-  const [own, shared] = await Promise.all([
+  const [own, shared, supersededIds] = await Promise.all([
     prisma.account.findMany({ where: { userId: viewerId }, select, orderBy: { id: 'asc' } }),
     partnerIds.length > 0
       ? prisma.account.findMany({
@@ -95,9 +106,13 @@ export async function getHouseholdDuplicateCandidates(
           orderBy: { id: 'asc' },
         })
       : Promise.resolve([]),
+    // R5 (slice 4): a reconciled pair is not an active duplicate — exclude the
+    // superseded predecessor (viewer's own or a partner's) so the household
+    // duplicate advisory never fires for a pair the user already reconciled.
+    activeSupersededPredecessorIds([viewerId, ...partnerIds]),
   ]);
   return [...own, ...shared]
-    .filter((a) => isSupportedCurrency(a.currency))
+    .filter((a) => isSupportedCurrency(a.currency) && !supersededIds.has(a.id))
     .map((a) => ({
       id: a.id,
       ownerId: a.userId,

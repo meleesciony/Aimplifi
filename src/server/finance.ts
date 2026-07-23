@@ -154,11 +154,21 @@ export function cashNeededFromSnapshot(
 ) {
   const year = Number(today.slice(0, 4));
   const holidays = holidayTable(year - 1, year + 1);
+  // Reconciliation (Wave 4.6 slice 4, R4): a superseded predecessor's balance is zeroed
+  // but its card CONFIG/autopay and its loan `minimumPaymentCents` are not — so it would
+  // still emit a phantom card obligation (via the estimate/autopay path) or a phantom loan
+  // payment (`selectLoanObligations` reads a field the boundary never zeroed). The live
+  // successor is the one that owes; skip the predecessor from BOTH obligation surfaces in
+  // one place. Byte-identical when nothing is superseded (same array reference → R8).
+  const superseded = new Set(snap.supersededAccountIds ?? []);
+  const obligationAccounts = superseded.size
+    ? snap.accounts.filter((a) => !superseded.has(a.id))
+    : snap.accounts;
   const input = assembleCashNeededInput({
     today,
     scenario,
     paymentAccountId: paymentAccountIdOverride ?? resolvePaymentAccount(snap).id,
-    accounts: snap.accounts,
+    accounts: obligationAccounts,
     autopays: snap.autopays,
     statements: snap.statements,
     cardPayments: snap.cardPayments,
@@ -169,7 +179,7 @@ export function cashNeededFromSnapshot(
   // The next LOAN/MORTGAGE payments — a SEPARATE surface (calendar + reminders), never
   // folded into the card-framed cash-needed headline (#134). One definition here so the
   // dashboard, calendar, and cron sweep all agree.
-  const loanObligations = selectLoanObligations({ accounts: snap.accounts, today, holidays });
+  const loanObligations = selectLoanObligations({ accounts: obligationAccounts, today, holidays });
   return { input, result: computeCashNeeded(input), loanObligations };
 }
 

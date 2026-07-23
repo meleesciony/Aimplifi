@@ -18,6 +18,8 @@ import { prisma } from '@/lib/db';
 import { type ISODate, compareDates, isoDate } from '@/lib/dates';
 import { DEMO_RECONCILE_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import type { DuplicateConfidence, ReconciliationMatchSignal } from '@/lib/engine/account/duplicates';
+import { effectiveReconciliationLinks } from '@/lib/engine/account/reconcile-boundary';
+import { isSupportedCurrency } from '@/lib/providers/currency';
 
 export interface ConfirmReconciliationInput {
   predecessorAccountId: string;
@@ -120,11 +122,11 @@ export async function confirmReconciliationFor(
     const [pred, succ] = await Promise.all([
       tx.account.findFirst({
         where: { id: predecessorAccountId, userId },
-        select: { id: true, provider: true, plaidItemId: true, type: true },
+        select: { id: true, provider: true, plaidItemId: true, type: true, currency: true },
       }),
       tx.account.findFirst({
         where: { id: successorAccountId, userId },
-        select: { id: true, provider: true, plaidItemId: true, type: true },
+        select: { id: true, provider: true, plaidItemId: true, type: true, currency: true },
       }),
     ]);
     // Either id not owned by this user → generic not-found (R10: no cross-user oracle).
@@ -137,6 +139,15 @@ export async function confirmReconciliationFor(
     // engine additionally treats any such stored link as inert.
     if (pred.type !== succ.type) {
       return { ok: false, error: 'Those accounts aren’t the same kind, so they can’t be the same account.' };
+    }
+
+    // Same-currency only (slice 4, critic cycle-2): the SAME real account can't be USD in
+    // one provider and another currency in the other, and a currency-withheld side is inert
+    // in the boundary — a crafted cross-currency link would be inert personally but, without
+    // this guard, marked superseded by the household exclusion, hiding a real shared account.
+    // The #192 detector never proposes a cross-currency pair; refuse it at the source too.
+    if ((pred.currency ?? 'USD').toUpperCase() !== (succ.currency ?? 'USD').toUpperCase()) {
+      return { ok: false, error: 'Those accounts are in different currencies, so they can’t be the same account.' };
     }
 
     const [sfConn, plaidItems, firstTxn] = await Promise.all([
@@ -250,4 +261,46 @@ export async function getActiveReconciliations(userId: string): Promise<ActiveRe
     select: { id: true, predecessorAccountId: true, successorAccountId: true, cutoverDate: true },
     orderBy: { confirmedByUserAt: 'asc' },
   });
+}
+
+/**
+ * Predecessor account ids of ACTIVE reconciliations owned by the given users, whose
+ * successor account still exists (Wave 4.6 slice 4, R5). A superseded predecessor is NOT
+ * part of any household-shared set: the live successor is the single account the household
+ * sees, so the stale predecessor must not double-count in a partner's joint cash-needed /
+ * digest nor appear as a separate row in the shared-accounts list or register.
+ *
+ * The personal assembler already handles the OWNER's own view (zeroes the predecessor,
+ * splits its rows); this exclusion is for the SEPARATE, Prisma-direct household read paths
+ * that never touch the assembler (`getSharedSnapshotSlice`, `getAccountSharingView`,
+ * `getSharedTransactionsView`, `getHouseholdDigestContext`, `getHouseholdDuplicateCandidates`,
+ * and the slice-6 `recategorizeSharedTransaction` write-guard). Every one of those SANCTIONED
+ * shared-set reads (household-authz.ts) must apply it; the `household reconciliation follows
+ * the successor` integration test drives a real reconciled+shared pair through all of them so
+ * a missed site fails loudly.
+ *
+ * EXACT ASSEMBLER PARITY (docs/lessons/a-guard-must-read-what-it-guards, critic cycle-2): run
+ * the SAME `effectiveReconciliationLinks` rule on the SAME currency-supported account set the
+ * boundary uses (`getFinanceSnapshot` runs it on `supportedAccounts`). A link the personal
+ * view treats as INERT — a deleted or currency-withheld side, a cross-type pair, or a cycle —
+ * is never treated as effective here, so the household view can NEVER hide a predecessor the
+ * owner still counts fully (which would under-count / vanish a real shared account). Confirm
+ * refuses cross-type/cross-currency/reverse shapes at write time; this is defense in depth
+ * against a historical/racing/crafted row, exactly as the boundary itself guards them at read.
+ */
+export async function activeSupersededPredecessorIds(userIds: readonly string[]): Promise<Set<string>> {
+  if (userIds.length === 0) return new Set();
+  const [links, accounts] = await Promise.all([
+    prisma.accountReconciliation.findMany({
+      where: { userId: { in: [...userIds] }, undoneAt: null },
+      select: { predecessorAccountId: true, successorAccountId: true, cutoverDate: true },
+    }),
+    prisma.account.findMany({
+      where: { userId: { in: [...userIds] } },
+      select: { id: true, type: true, currency: true, currentBalanceCents: true },
+    }),
+  ]);
+  if (links.length === 0) return new Set();
+  const supported = accounts.filter((a) => isSupportedCurrency(a.currency));
+  return new Set(effectiveReconciliationLinks(supported, links).map((l) => l.predecessorAccountId));
 }

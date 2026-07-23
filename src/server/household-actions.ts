@@ -15,6 +15,7 @@
 import { revalidatePath } from 'next/cache';
 import { randomBytes } from 'crypto';
 import { prisma, serializableTx } from '@/lib/db';
+import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 // T6 is a GUARD, not a seed accident (critic #210 F1): the demo user is a shared,
 // credential-free login, so a demo membership would hand every anonymous visitor a
 // seat in a real user's household and perturb the demo dataset for everyone.
@@ -493,6 +494,13 @@ export async function recategorizeSharedTransaction(input: {
     if (partners.length === 0) return null;
     const partnerIds = partners.map((p) => p.userId);
 
+    // R5 (Wave 4.6 slice 4, critic cycle-2 CLAIM5): the 6th shared-set site. The shared
+    // register HIDES the owner's superseded reconciliation predecessors, so a member must
+    // not be able to recategorize a row on one either — the write guard must match what the
+    // read surface shows (same helper as getSharedTransactionsView; a missed site is exactly
+    // the read/write asymmetry the fence-by-construction lesson warns about).
+    const supersededIds = await activeSupersededPredecessorIds(partnerIds);
+
     // Same visibility guard as getSharedTransactionsView (§4.5 / #62/#135): a
     // member may act only on a row they can actually see in the shared section.
     const fresh = await tx.transaction.findFirst({
@@ -504,6 +512,7 @@ export async function recategorizeSharedTransaction(input: {
             { sharedToHousehold: true, userId: { in: partnerIds } },
             { type: { in: [...SPENDING_ACCOUNT_TYPES] } },
             { OR: [{ currency: null }, { currency: 'USD' }] },
+            ...(supersededIds.size ? [{ id: { notIn: [...supersededIds] } }] : []),
           ],
         },
       },
