@@ -14,7 +14,18 @@ import { categoryName } from '@/lib/engine/categorize/categories';
 import { type PredictionSource, describeProvenance } from '@/lib/engine/categorize/provenance';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type NetWorthSeriesPoint, netWorthSeries } from '@/lib/engine/networth/series';
-import { type SuspectedDuplicatePair, detectDuplicateAccounts } from '@/lib/engine/account/duplicates';
+import {
+  type ReconciliationCandidate,
+  type SuspectedDuplicatePair,
+  detectDuplicateAccounts,
+  detectReconciliationCandidates,
+} from '@/lib/engine/account/duplicates';
+import {
+  type ReconciliationLinkLike,
+  applyReconciliationBoundary,
+  effectiveReconciliationLinks,
+} from '@/lib/engine/account/reconcile-boundary';
+import { getActiveReconciliations, isAccountLive } from '@/server/reconciliation';
 import {
   type WithheldAccountSummary,
   isSupportedCurrency,
@@ -232,8 +243,21 @@ export interface ManualCardBilling {
   autopayFixedAmountCents: number | null;
 }
 
+/** One active cross-provider reconciliation, enriched for the /accounts "combined accounts"
+ *  disclosure + Undo (Wave 4.6 slice 5). The predecessor's balance is already zeroed by the
+ *  boundary; this row is what the UI renders as the single logical account it became. */
+export interface ReconciledPairView {
+  /** AccountReconciliation.id — the Undo target. */
+  id: string;
+  cutoverDate: string; // YYYY-MM-DD
+  predecessor: { id: string; name: string; mask: string | null; provider: string };
+  successor: { id: string; name: string; mask: string | null; provider: string };
+}
+
 export interface AccountsView extends AccountsSummary {
   paymentAccountId: string | null;
+  /** The business "today" for this user — the default + max for a reconciliation cutover date. */
+  today: string; // YYYY-MM-DD
   /** Net worth over time (DECISIONS #40), oldest → newest, ending at today. */
   trend: NetWorthSeriesPoint[];
   /** Per-account billing for manual credit cards, keyed by account id. */
@@ -247,13 +271,22 @@ export interface AccountsView extends AccountsSummary {
   /** What the currency guard withheld — drives the disclosure banner (#135 residual). */
   withheld: WithheldAccountSummary;
   /** Suspected same-account-via-two-providers pairs (DECISIONS #192). Advisory only — the
-   *  app has no cross-provider dedup, so these double-count until the user disconnects one. */
+   *  app has no cross-provider dedup, so these double-count until the user disconnects one.
+   *  A pair with an ACTIVE reconciliation is suppressed here (R6) — it is resolved, not a warning. */
   duplicates: SuspectedDuplicatePair[];
+  /** Active cross-provider reconciliations (Wave 4.6 slice 5). Each renders as one logical
+   *  account with an inline disclosure + Undo; the predecessor is shown at $0.00 (its row is
+   *  folded out of the asset/liability groups by the client, its balance counted on the successor). */
+  reconciliations: ReconciledPairView[];
+  /** Cross-provider "continue this account?" proposals (R3): exactly one live side, not yet linked.
+   *  Empty unless a duplicate pair has one connected + one disconnected provider. */
+  reconciliationCandidates: ReconciliationCandidate[];
 }
 
 /** Every account, grouped into assets vs liabilities with net worth + trend. */
 export async function getAccountsView(userId: string): Promise<AccountsView> {
-  const [user, accounts, snapshots, statements, autopays, sfConn, plaidItems, newestByAccount] = await Promise.all([
+  const [user, accounts, snapshots, statements, autopays, sfConn, plaidItems, newestByAccount, activeReconciliations] =
+    await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
     prisma.balanceSnapshot.findMany({
@@ -278,6 +311,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     // Newest transaction date per account — the per-row freshness reference (Gap 1 §3
     // follow-up). One grouped query rather than N per-account reads.
     prisma.transaction.groupBy({ by: ['accountId'], where: { account: { userId } }, _max: { date: true } }),
+    getActiveReconciliations(userId),
   ]);
 
   // Currency guard (DECISIONS #135): withhold non-USD accounts from the /accounts page so its
@@ -332,12 +366,12 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   }
 
   const today = businessToday(userId);
-  const trend = netWorthSeries({ snapshots, accounts: views, today });
 
   // Per-account connection freshness (Gap 1 §3 follow-up). The engine decides which
   // accounts get a result (SimpleFIN/Plaid feeds, non-INVESTMENT); manual/demo rows and
   // brokerages come back null and render no line. A SimpleFIN account's connection sync
-  // floors its reference date so a quiet-but-live feed doesn't false-alarm.
+  // floors its reference date so a quiet-but-live feed doesn't false-alarm. Assigned onto
+  // `views` BEFORE the reconciliation boundary so its copy-on-write predecessor rows carry it.
   const newestTxnByAccount = new Map<string, string>();
   for (const g of newestByAccount) if (g._max.date) newestTxnByAccount.set(g.accountId, g._max.date);
   const sfLastSynced = sfConn?.lastSyncedAt ? isoDate(sfConn.lastSyncedAt) : null;
@@ -353,9 +387,81 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   );
   for (const v of views) v.freshness = freshnessById[v.id] ?? null;
 
-  return {
-    ...groupAccounts(views),
+  // Cross-provider reconciliation (Wave 4.6 slice 5). This is the LAST Prisma-direct per-account
+  // money surface — the dashboard + assistant already read the boundary-adjusted snapshot — so
+  // apply the SAME `applyReconciliationBoundary` engine here. /accounts can then never disagree
+  // with the dashboard on a reconciled predecessor's balance, subtotal, or net-worth trend (F5).
+  // Liveness is derived from the SAME `isAccountLive` the confirm action re-checks in-tx, so a
+  // proposal and its guard can't disagree (docs/lessons/a-guard-must-read-what-it-guards).
+  const conns = { simplefinConnected: sfConn !== null, plaidItemIds: new Set(plaidItems.map((i) => i.itemId)) };
+  const activeLinks: ReconciliationLinkLike[] = activeReconciliations.map((r) => ({
+    predecessorAccountId: r.predecessorAccountId,
+    successorAccountId: r.successorAccountId,
+    cutoverDate: r.cutoverDate,
+  }));
+  // The links that actually take effect (both sides present, same type, acyclic) — the SAME rule
+  // the boundary zeroes on. A candidate for, or a duplicate warning about, an already-effective
+  // pair is keyed off exactly this set, so display and money can never drift apart.
+  const effective = effectiveReconciliationLinks(views, activeLinks);
+  const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  const reconciledPairKeys = new Set(effective.map((l) => pairKey(l.predecessorAccountId, l.successorAccountId)));
+
+  // Candidates use RAW balances + the live-connection map (before any zeroing) so the #192 balance
+  // signal still fires; already-reconciled pairs are dropped (resolved, not proposals).
+  const reconciliationCandidates = detectReconciliationCandidates(
+    supported.map((a) => ({
+      id: a.id,
+      provider: a.provider,
+      name: a.name,
+      type: a.type,
+      mask: a.mask,
+      currentBalanceCents: a.currentBalanceCents,
+      currency: a.currency,
+      hasLiveConnection: isAccountLive({ provider: a.provider, plaidItemId: a.plaidItemId }, conns),
+    })),
+  ).filter((c) => !reconciledPairKeys.has(pairKey(c.predecessor.id, c.successor.id)));
+  const candidatePairKeys = new Set(reconciliationCandidates.map((c) => pairKey(c.predecessor.id, c.successor.id)));
+
+  // The money boundary: predecessor balance → 0, colliding predecessor snapshots dropped. Fed the
+  // SAME accounts + snapshots + links as the dashboard's snapshot assembly, with the row types
+  // /accounts doesn't render (txns/statements/scheduled) empty — the account + snapshot outputs
+  // depend only on accounts+snapshots+links, so the balances and trend match the dashboard exactly.
+  const boundary = applyReconciliationBoundary({
     paymentAccountId: user?.paymentAccountId ?? null,
+    accounts: views,
+    transactions: [],
+    balanceSnapshots: snapshots,
+    statements: [],
+    scheduled: [],
+    links: activeLinks,
+  });
+  const adjustedViews = boundary.accounts;
+  const trend = netWorthSeries({ snapshots: boundary.balanceSnapshots, accounts: adjustedViews, today });
+
+  // Enrich each effective link for the "combined accounts" disclosure + Undo (names/masks from the
+  // RAW rows, so the predecessor still reads by its own name). Ineffective links (deleted/withheld
+  // side) render nothing — the predecessor then counts normally, exactly as R7 requires.
+  const acctById = new Map(accounts.map((a) => [a.id, a]));
+  const idByPredecessor = new Map(activeReconciliations.map((r) => [r.predecessorAccountId, r.id]));
+  const reconciliations: ReconciledPairView[] = effective.flatMap((l) => {
+    const p = acctById.get(l.predecessorAccountId);
+    const s = acctById.get(l.successorAccountId);
+    const id = idByPredecessor.get(l.predecessorAccountId);
+    if (!p || !s || id === undefined) return [];
+    return [
+      {
+        id,
+        cutoverDate: l.cutoverDate,
+        predecessor: { id: p.id, name: p.name, mask: p.mask, provider: p.provider },
+        successor: { id: s.id, name: s.name, mask: s.mask, provider: s.provider },
+      },
+    ];
+  });
+
+  return {
+    ...groupAccounts(adjustedViews),
+    paymentAccountId: user?.paymentAccountId ?? null,
+    today,
     trend,
     cardBilling,
     simplefin: {
@@ -366,8 +472,10 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     plaid: { items: plaidItems },
     // The unfiltered rows are already in hand, so the disclosure costs no extra query.
     withheld: summarizeWithheldAccounts(accounts),
-    // Computed over the accounts actually shown (same currency guard as the page), so the
-    // warning never references a hidden row. Advisory: the app has no cross-provider dedup.
+    // Advisory duplicate warning. Suppressed for a pair that is already reconciled (R6 — resolved,
+    // not a warning) OR that has a live continue-candidate (the candidate card is the actionable
+    // version of the same message; showing both would double-message one pair). A both-live genuine
+    // duplicate has no candidate and still warns. Undoing a link brings its pair back here next load.
     duplicates: detectDuplicateAccounts(
       supported.map((a) => ({
         id: a.id,
@@ -378,7 +486,12 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
         currentBalanceCents: a.currentBalanceCents,
         currency: a.currency,
       })),
-    ),
+    ).filter((d) => {
+      const k = pairKey(d.a.id, d.b.id);
+      return !reconciledPairKeys.has(k) && !candidatePairKeys.has(k);
+    }),
+    reconciliations,
+    reconciliationCandidates,
   };
 }
 

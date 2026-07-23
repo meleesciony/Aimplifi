@@ -23,7 +23,7 @@ import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { MANUAL_ASSET_TYPES, MANUAL_LIABILITY_TYPES } from '@/lib/engine/networth/manual';
-import type { SuspectedDuplicatePair } from '@/lib/engine/account/duplicates';
+import type { ReconciliationCandidate, SuspectedDuplicatePair } from '@/lib/engine/account/duplicates';
 import { freshnessMessage } from '@/lib/engine/sync/health';
 import {
   addManualAccount,
@@ -32,11 +32,12 @@ import {
   updateManualAccountValue,
 } from '@/server/networth-actions';
 import { clearManualCardStatement, setManualCardStatement } from '@/server/card-actions';
+import { confirmReconciliation, undoReconciliation } from '@/server/reconciliation-actions';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { setFlash, takeFlash } from '@/components/finance/flash';
 import type { AccountGroup, AccountView } from '@/lib/engine/transactions/query';
-import type { AccountsView, ManualCardBilling } from '@/server/transactions';
+import type { AccountsView, ManualCardBilling, ReconciledPairView } from '@/server/transactions';
 
 const TYPE_LABEL: Record<string, string> = {
   CHECKING: 'Checking',
@@ -221,6 +222,15 @@ export function AccountsList({ data }: { data: AccountsView }) {
     })();
   }
 
+  // A reconciled predecessor is folded OUT of the asset/liability groups: its balance is $0 and it
+  // is disclosed as one logical account in ContinuedAccountsCard, so a confusing "$0.00 ghost" row
+  // never appears. Net worth + subtotals are unchanged by this (the row already contributes 0).
+  const supersededIds = new Set(data.reconciliations.map((r) => r.predecessor.id));
+  const filterGroup = (g: AccountGroup): AccountGroup =>
+    supersededIds.size === 0 ? g : { ...g, accounts: g.accounts.filter((a) => !supersededIds.has(a.id)) };
+  const assetsShown = filterGroup(data.assets);
+  const liabilitiesShown = filterGroup(data.liabilities);
+
   return (
     <div className="space-y-4">
       {isEmpty ? <AccountsEmptyState withheldCount={data.withheld.count} /> : <NetWorthCard data={data} />}
@@ -249,10 +259,39 @@ export function AccountsList({ data }: { data: AccountsView }) {
         </p>
       )}
 
+      <ReconciliationCandidatesCard
+        candidates={data.reconciliationCandidates}
+        today={data.today}
+        pending={pending}
+        onConfirm={(c, cutoverDate) =>
+          refreshAfter(
+            () =>
+              confirmReconciliation({
+                predecessorAccountId: c.predecessor.id,
+                successorAccountId: c.successor.id,
+                cutoverDate,
+                matchSignal: c.matchSignal,
+                confidence: c.confidence,
+              }).then((r) => (r.ok ? { ok: true } : { ok: false, errors: [r.error] })),
+            'Accounts combined — the old balance now counts once.',
+          )
+        }
+      />
+      <ContinuedAccountsCard
+        reconciliations={data.reconciliations}
+        pending={pending}
+        onUndo={(id) =>
+          refreshAfter(
+            () => undoReconciliation(id).then((r) => (r.ok ? { ok: true } : { ok: false, errors: [r.error] })),
+            'Undone — both accounts count on their own again.',
+          )
+        }
+      />
+
       <DuplicateAccountsWarning pairs={data.duplicates} />
 
       <Group
-        group={data.assets}
+        group={assetsShown}
         title="Assets"
         paymentAccountId={data.paymentAccountId}
         cardBilling={data.cardBilling}
@@ -270,7 +309,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
         onCancelStatement={() => setStatementCardId(null)}
       />
       <Group
-        group={data.liabilities}
+        group={liabilitiesShown}
         title="Liabilities"
         paymentAccountId={data.paymentAccountId}
         cardBilling={data.cardBilling}
@@ -388,6 +427,172 @@ function DuplicateAccountsWarning({ pairs }: { pairs: SuspectedDuplicatePair[] }
                 </span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{p.reasons.join(' · ')}</p>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+function providerMask(p: { provider: string; mask: string | null }): string {
+  return `${PROVIDER_LABEL[p.provider] ?? p.provider}${p.mask ? ` ····${p.mask}` : ''}`;
+}
+
+/**
+ * "Continue this account?" — cross-provider reconciliation proposals (Wave 4.6 slice 5, R3).
+ * Shown only when exactly one side of a suspected duplicate is live (successor) and the other is
+ * disconnected (predecessor). Confirming links them so the stale balance stops counting twice;
+ * every projection states its assumption inline (cutover window + what it supersedes), per the
+ * coaching guardrails. This is the actionable version of DuplicateAccountsWarning, which is
+ * suppressed server-side for any pair that has a candidate.
+ */
+function ReconciliationCandidatesCard({
+  candidates,
+  today,
+  pending,
+  onConfirm,
+}: {
+  candidates: ReconciliationCandidate[];
+  today: string;
+  pending: boolean;
+  onConfirm: (candidate: ReconciliationCandidate, cutoverDate: string) => void;
+}) {
+  if (candidates.length === 0) return null;
+  return (
+    <Card data-testid="reconcile-candidates" className="border-sky-900/50 bg-sky-950/30">
+      <CardHeader className="pb-2">
+        <CardDescription className="text-sky-300">Same account, new connection?</CardDescription>
+        <CardTitle className="text-base">Continue an account you already had</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p className="text-muted-foreground">
+          One of your live connections looks like an account you linked before. Continue it so its
+          history stays and its balance stops counting twice — we keep both records and only ever
+          count the live one.
+        </p>
+        <ul className="space-y-3" role="list">
+          {candidates.map((c) => (
+            <CandidateRow
+              key={`${c.predecessor.id}-${c.successor.id}`}
+              candidate={c}
+              today={today}
+              pending={pending}
+              onConfirm={onConfirm}
+            />
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CandidateRow({
+  candidate,
+  today,
+  pending,
+  onConfirm,
+}: {
+  candidate: ReconciliationCandidate;
+  today: string;
+  pending: boolean;
+  onConfirm: (candidate: ReconciliationCandidate, cutoverDate: string) => void;
+}) {
+  const [cutover, setCutover] = useState(today);
+  const { predecessor, successor } = candidate;
+  return (
+    <li data-testid="reconcile-candidate" className="rounded-md border border-sky-900/40 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-medium">{predecessor.name}</span>
+        <span className="text-xs text-muted-foreground">({providerMask(predecessor)})</span>
+        <span aria-hidden className="text-muted-foreground">
+          →
+        </span>
+        <span className="font-medium">{successor.name}</span>
+        <span className="text-xs text-muted-foreground">({providerMask(successor)})</span>
+        <span
+          className={`ml-auto rounded px-1.5 py-0.5 text-xs ${candidate.confidence === 'high' ? 'bg-sky-900/60 text-sky-100' : 'bg-sky-900/30 text-sky-200'}`}
+        >
+          {candidate.confidence === 'high' ? 'likely' : 'possible'}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">{candidate.reasons.join(' · ')}</p>
+      <div className="mt-2 flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          History cutover date
+          <input
+            type="date"
+            data-testid="reconcile-cutover"
+            value={cutover}
+            max={today}
+            disabled={pending}
+            onChange={(e) => setCutover(e.target.value)}
+            className="tap-target rounded-md border bg-background px-2 py-1 text-sm text-foreground disabled:opacity-50"
+          />
+        </label>
+        <button
+          type="button"
+          data-testid="reconcile-confirm"
+          disabled={pending}
+          onClick={() => onConfirm(candidate, cutover)}
+          className="tap-target inline-flex items-center justify-center rounded-md border border-sky-700 bg-sky-900/40 px-3 py-1.5 text-sm text-sky-100 hover:bg-sky-900/70 disabled:opacity-50"
+        >
+          Combine accounts
+        </button>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        We’ll keep <strong>{predecessor.name}</strong>’s history through {cutover} and count{' '}
+        <strong>{successor.name}</strong> after that. Inside that window, the old account’s records
+        replace anything the new connection re-imported. You can undo this anytime.
+      </p>
+    </li>
+  );
+}
+
+/**
+ * "Combined accounts" — active reconciliations, each rendered as ONE logical account (R6/R9). The
+ * predecessor's own row is folded out of the asset/liability groups by the parent; this card
+ * discloses the merge and offers Undo (reversible — both sides count on their own again).
+ */
+function ContinuedAccountsCard({
+  reconciliations,
+  pending,
+  onUndo,
+}: {
+  reconciliations: ReconciledPairView[];
+  pending: boolean;
+  onUndo: (id: string) => void;
+}) {
+  if (reconciliations.length === 0) return null;
+  return (
+    <Card data-testid="reconcile-combined" className="border-emerald-900/40 bg-emerald-950/20">
+      <CardHeader className="pb-2">
+        <CardDescription className="text-emerald-300">Combined accounts</CardDescription>
+        <CardTitle className="text-base">Counted once, on the live connection</CardTitle>
+      </CardHeader>
+      <CardContent className="text-sm">
+        <ul className="space-y-2" role="list">
+          {reconciliations.map((r) => (
+            <li
+              key={r.id}
+              data-testid="reconcile-combined-pair"
+              className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-emerald-900/40 px-3 py-2"
+            >
+              <span className="font-medium">{r.successor.name}</span>
+              <span className="text-xs text-muted-foreground">({providerMask(r.successor)})</span>
+              <span className="text-xs text-muted-foreground">
+                continued from your old {providerMask(r.predecessor)} account — history kept through{' '}
+                {r.cutoverDate}, balance counted here.
+              </span>
+              <button
+                type="button"
+                data-testid="reconcile-undo"
+                disabled={pending}
+                onClick={() => onUndo(r.id)}
+                className="tap-target ml-auto inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50"
+              >
+                Undo
+              </button>
             </li>
           ))}
         </ul>
