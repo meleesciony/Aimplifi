@@ -26,19 +26,52 @@ in the DOM — not a component rendering two cards.
 5. **It IS intermittent, with a long sticky period.** After failing 3/3, the same spec then passed
    3/3 with no code change. It also passed several full `VERIFY_E2E=1` runs earlier the same night.
 
-**Leading hypothesis (LABELLED, unconfirmed) + its check.** A React hydration mismatch: when the
-server HTML and the first client render disagree, React can append the client tree beside the
-server one instead of patching it, which produces exactly this — a persistent, hidden, identical
-duplicate. /accounts renders several time-relative strings (`lastSyncedAt` / "Not synced yet" /
-`formatRelativeDays`), and the app's `businessToday` is the real clock, so a server/client
-straddle is a plausible trigger and would explain the intermittency.
-**Check:** attach a `page.on('console')` listener and re-run `reconcile.spec.ts` in a loop until
-it fails, then read the browser console for React's hydration-mismatch error and the element it
-names. Until that error is seen, the cause is unknown — do not "fix" it by loosening the
-locators, which would only hide a real duplicate-render bug from the gate.
+**Original leading hypothesis — now DISPROVEN for the /accounts markup (2026-07-24 diagnosis).**
+The theory was a React hydration mismatch driven by a time-relative string on /accounts
+(`lastSyncedAt` / "Not synced yet" / `formatRelativeDays`) diverging between the server render and
+client hydration. An explorer trace of the whole /accounts render tree found it is **clock-clean**:
+`page.tsx` computes `businessToday()` **once, server-side**, and serializes it into props
+(`data.today`, `data.simplefin.health`, per-account `freshness`); every relative-time value on the
+client — `freshnessMessage`, the PlaidConnections "last synced" line, ConnectSimplefin — is a
+**pure formatter reading a server-computed prop**, and **no client component re-reads the clock**.
+So the specific "time-relative string in the /accounts tree" trigger cannot fire.
 
-**Not shipped-blocking** (unit suite green; the rest of the e2e suite green; CI is the arbiter),
-but it guards Wave 4.6's money boundary, so settle it before the next money slice.
+**Ruled out this session (each checked, not argued):** the **service worker** (`public/sw.js` is
+v4 — installability + push only, **no fetch handler**, so it cannot double-serve a document);
+**React StrictMode** (absent, and e2e runs a **production `next start` build**, where StrictMode's
+dev double-render doesn't apply); the **root layout** (`src/app/layout.tsx` is fully static —
+hardcoded `dark` class, `next/font`, no clock, no client-conditional attributes).
+
+**Confirmed structural mechanism for the "hidden" duplicate.** `src/app/(app)/loading.tsx` exists,
+so Next.js wraps the entire `(app)` route group — /accounts included — in a **Suspense boundary**.
+A Suspense streaming reveal emits the resolved content into a `<div hidden>…</div>` and a script
+relocates it; a reveal/hydration that doesn't cleanly complete leaves the server's hidden copy
+beside the client render — which is exactly "the whole content tree twice, one copy hidden." This
+explains the *shape*; the *trigger* is still unconfirmed.
+
+**Could NOT reproduce (2026-07-24).** Ran a temporary instrumented probe on current HEAD (rebuilt)
+that drove /accounts with the seeded reconcile pair and a `page.on('console')`/`pageerror`
+listener — **48 iterations total** across two shapes (single reused context, then a faithful
+fresh-context-per-iteration against the warm server). **Zero duplications, zero hydration console
+errors** (prod React still logs minified #418/#421/#423, so a real mismatch would have shown). The
+flake is in its "good" sticky period; ground truth is not obtainable until it re-enters a bad one.
+
+**Armed for next time (shipped this session).** `reconcile.spec.ts` now has a `test.beforeEach`
+that prints any React hydration error (incl. the minified #418/#421/#423) and any `pageerror`
+straight into the run output. When the flake next fires — in CI or a future local bad period — the
+opaque "resolved to 2 elements" strict-mode failure will arrive **already named** with React's own
+error and the element it points at. **Do NOT loosen the strict locators to make it pass** — that
+would hide a real duplicate-render bug. The temporary probe was deleted (its job was the 48-run
+capture above).
+
+**Next step when it recurs:** read the `[reconcile hydration]` / `[reconcile pageerror]` line the
+beforeEach prints; it names the mismatching element. Then the fix targets that element's
+server/client divergence (or the Suspense boundary), deterministically.
+
+**Not shipped-blocking** (unit suite green; the rest of the e2e suite green; CI is the arbiter).
+It nominally guards Wave 4.6's money boundary, but Wave 4.6 is COMPLETE (#275) and 48 clean
+renders show the markup is hydration-sound, so this is a flaky-gate hardening item, not a live
+money-correctness risk.
 
 ## 🔴→✅ No way to sync a Plaid account (#278, 2026-07-23) — owner-reported, FIXED
 

@@ -86,6 +86,25 @@ function seedReconcilePair(email: string) {
   }
 }
 
+// Armed for the STATUS §OPEN "intermittent whole-page DOM duplication on /accounts"
+// (the strict-mode "getByTestId('reconcile-candidates') resolved to 2 elements" failure
+// originates here). The cause is an unconfirmed hydration mismatch; when it next fires,
+// this surfaces React's own hydration error (prod still logs the minified #418/#421/#423)
+// and any pageerror straight into the run output, so the opaque "2 elements" failure
+// arrives already named. It changes no assertion — it only observes. Do NOT loosen the
+// strict locators to "fix" the flake; that would hide a real duplicate-render bug.
+test.beforeEach(({ page }) => {
+  page.on('console', (msg) => {
+    const t = msg.text();
+    if (/hydrat|Minified React error #(418|421|422|423|425)|did not match|server rendered/i.test(t)) {
+      console.log(`[reconcile hydration] ${t}`);
+    }
+  });
+  page.on('pageerror', (err) => {
+    console.log(`[reconcile pageerror] ${err.message}`);
+  });
+});
+
 test('reconciling a stale account with its live twin stops net worth from doubling, and undo restores it', async ({
   page,
 }) => {
