@@ -3,22 +3,19 @@
 /**
  * "Connect a bank or brokerage" — Plaid Link front door (DECISIONS #41).
  *
- * OAUTH POPUP NEEDS THE CLICK'S USER GESTURE (#284 — owner-reported: connecting
- * failed for EVERY OAuth bank on EVERY device; Link closed silently with no bank
- * page, no server return hit, and no error). Plaid opens an OAuth bank
- * (Chase/BofA/Amex) in a POPUP (new tab on mobile), and browsers only permit
- * `window.open()` when it runs inside a real user gesture. The old code fetched the
- * link token ON CLICK (an async server round-trip) and then opened Link from a
- * `useEffect` — the `await` severs the click's user activation, so when the user
- * later selected an OAuth bank the popup was refused and Link tore down. Non-OAuth
- * banks run inside the iframe and never hit this, which is why it looked bank-
- * specific at first.
+ * OAUTH POPUP NEEDS THE CLICK'S USER GESTURE (#284): Plaid opens an OAuth bank in a
+ * popup/new tab, which browsers permit only when `open()` runs inside a real user
+ * gesture. So the link token is minted AHEAD of the click (on mount, and again after
+ * every terminal outcome) and `open()` is called DIRECTLY in the button's onClick,
+ * never from an effect — matching Plaid's official react-plaid-link OAuth example.
+ * The /plaid-oauth return page keeps its effect-based re-open (correct for the
+ * redirect-return leg).
  *
- * FIX: mint the link token AHEAD of the click (on mount, and again after every
- * terminal outcome), and call `open()` DIRECTLY in the button's onClick — never from
- * an effect. This mirrors Plaid's official react-plaid-link OAuth example. The
- * /plaid-oauth return page keeps its effect-based re-open — that one is correct
- * (Plaid exempts the redirect-return leg; the popup step is already done there).
+ * (Historical note: the universal every-bank OAuth failure that dominated a long
+ * debugging session was ultimately a Plaid DASHBOARD setting — Data Transparency
+ * Messaging use cases were unconfigured, so Link EXITed at institution-select with
+ * INVALID_LINK_CUSTOMIZATION. Not an app-code bug. The gesture fix here is still the
+ * correct pattern and is kept.)
  *
  * OAuth banks navigate the browser away via the registered redirect URI, destroying
  * this component's state, so the token + origin path are stashed (storeLinkToken /
@@ -26,11 +23,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  usePlaidLink,
-  type PlaidLinkError,
-  type PlaidLinkOnEventMetadata,
-} from 'react-plaid-link';
+import { usePlaidLink, type PlaidLinkError } from 'react-plaid-link';
 import { createPlaidLinkToken, linkPlaidAccount } from '@/server/plaid-actions';
 import { clearStoredLinkToken, storeLinkToken, storeOriginPath } from '@/lib/plaid-oauth';
 
@@ -43,10 +36,6 @@ export function ConnectAccountsButton() {
   // this disclosure that reads as a broken app rather than test mode.
   const [sandbox, setSandbox] = useState(false);
   const generating = useRef(false);
-  // TEMP DIAGNOSTIC (#285): Plaid Link's own event stream, shown on-page, so we can
-  // read EXACTLY which step the OAuth hand-off dies at (OPEN → SELECT_INSTITUTION →
-  // OPEN_OAUTH → …) and its error code, instead of inferring. Remove once resolved.
-  const [events, setEvents] = useState<string[]>([]);
 
   /**
    * Mint a fresh link token so one is READY before the user taps. `showError` is
@@ -108,8 +97,7 @@ export function ConnectAccountsButton() {
     (err: PlaidLinkError | null) => {
       clearStoredLinkToken();
       // The link token is single-use; drop it and pre-mint a fresh one so the next
-      // tap opens Link straight away (a new instance also avoids reusing a consumed
-      // handler). A clean user cancel passes err=null and stays quiet.
+      // tap opens Link straight away. A clean user cancel passes err=null and stays quiet.
       setToken(null);
       if (err) {
         setError(err.display_message ?? err.error_message ?? 'Bank connection was cancelled.');
@@ -119,28 +107,7 @@ export function ConnectAccountsButton() {
     [generateToken],
   );
 
-  // TEMP DIAGNOSTIC (#285): record every Plaid Link event with its view + error.
-  const onEvent = useCallback((eventName: string, metadata: PlaidLinkOnEventMetadata) => {
-    const part = (v: unknown) => (typeof v === 'string' && v ? v : '');
-    setEvents((prev) =>
-      [
-        ...prev,
-        [
-          eventName,
-          part(metadata.view_name) && `view=${part(metadata.view_name)}`,
-          part(metadata.institution_name) && `@${part(metadata.institution_name)}`,
-          part(metadata.error_code) && `ERR:${part(metadata.error_code)}`,
-          part(metadata.error_type) && `(${part(metadata.error_type)})`,
-          part(metadata.error_message),
-          part(metadata.exit_status) && `exit=${part(metadata.exit_status)}`,
-        ]
-          .filter(Boolean)
-          .join(' '),
-      ].slice(-16),
-    );
-  }, []);
-
-  const { open, ready } = usePlaidLink({ token, onSuccess, onExit, onEvent });
+  const { open, ready } = usePlaidLink({ token, onSuccess, onExit });
 
   function handleClick() {
     setError(null);
@@ -180,15 +147,6 @@ export function ConnectAccountsButton() {
         <p role="alert" data-testid="connect-error" className="text-xs text-red-400">
           {error}
         </p>
-      )}
-      {events.length > 0 && (
-        <ol data-testid="plaid-events" className="mt-1 space-y-0.5 rounded border border-amber-900/40 bg-amber-950/20 p-2 text-[10px] leading-tight text-amber-200/90">
-          {events.map((e, i) => (
-            <li key={i} className="font-mono break-all">
-              {i + 1}. {e}
-            </li>
-          ))}
-        </ol>
       )}
     </div>
   );
