@@ -2,38 +2,43 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
-## 🟠 OPEN — `reconcile.spec.ts` first test fails locally: `reconcile-candidates` resolves to TWO elements
+## 🟠 OPEN — intermittent DOM duplication on /accounts (surfaces as a strict-mode e2e failure)
 
-Found 2026-07-24 (~03:00 local) while gating #279. **NOT DIAGNOSED — do not act on any theory
-below before its check.**
+Found 2026-07-24 (~03:00 local) while gating #279, then narrowed with a temporary probe (deleted).
+**NOT DIAGNOSED — do not act on the hypothesis below before running its check.**
 
-**Symptom.** `tests/e2e/reconcile.spec.ts:89` ("reconciling a stale account with its live twin…")
-fails with a Playwright strict-mode violation: `getByTestId('reconcile-candidates')` resolves to
-2 elements, one of them `hidden`, the other under `#content`.
+**Symptom.** `tests/e2e/reconcile.spec.ts:89` fails with a Playwright strict-mode violation:
+`getByTestId('reconcile-candidates')` resolves to 2 elements, one `hidden`.
+
+**Corrected scope — it is NOT reconcile-specific.** The probe showed
+`accounts-net-worth-amount` ALSO resolving to two identical `$4,900.00` nodes on the same page.
+Both testids have exactly ONE render site in the source (`accounts-list.tsx:79` and `:467`), and
+the page mounts `<AccountsList>` once, so this is the whole /accounts content tree existing twice
+in the DOM — not a component rendering two cards.
 
 **What is established (each executed):**
-1. **Not caused by the #279 changes.** `git stash push -- src tests` + rebuild + rerun → fails
-   identically on the pre-change tree.
-2. **Not local database accumulation.** Deleted the e2e SQLite file so global-setup recreated it
-   → still fails.
-3. **Not the documented load-contention flake.** Reproduces isolated, `--workers=1`, 3/3.
-4. **It passed repeatedly earlier the same night** on the same code — several full
-   `VERIFY_E2E=1` runs reported 162/162.
-5. The testid is on a SINGLE `<Card>` that renders once when `candidates.length > 0`
-   (`accounts-list.tsx:467`), and `ReconciliationCandidatesCard` has exactly one render site
-   (`accounts-list.tsx:263`), which is why two DOM elements is surprising: it implies a
-   duplicated tree, not two candidates.
+1. **Not caused by #278/#279.** `git stash push -- src tests` + rebuild + rerun → fails identically.
+2. **Not local database accumulation.** Deleted the e2e SQLite file so global-setup recreated it → still failed.
+3. **Not the documented load-contention flake.** Reproduced isolated at `--workers=1`, 3/3.
+4. **Not a render-transition artifact.** The duplicate persisted for the full 20s `toBeVisible`
+   timeout, and the second copy is hidden (which is why the accessibility snapshot, which prunes
+   hidden subtrees, shows only one copy and looks normal).
+5. **It IS intermittent, with a long sticky period.** After failing 3/3, the same spec then passed
+   3/3 with no code change. It also passed several full `VERIFY_E2E=1` runs earlier the same night.
 
-**Leading hypothesis (LABELLED, unconfirmed) + its check.** The only variable that changed
-between the passing runs and the failing ones is the WALL CLOCK crossing midnight; the app's
-`businessToday` is the real clock while the spec seeds fixed dates. **Check:** re-run with
-`DEMO_TODAY` pinned to the date the spec assumes, and separately dump the rendered HTML at the
-failure to confirm whether the second node is a stale router tree (a transition artifact) or a
-genuine second render.
+**Leading hypothesis (LABELLED, unconfirmed) + its check.** A React hydration mismatch: when the
+server HTML and the first client render disagree, React can append the client tree beside the
+server one instead of patching it, which produces exactly this — a persistent, hidden, identical
+duplicate. /accounts renders several time-relative strings (`lastSyncedAt` / "Not synced yet" /
+`formatRelativeDays`), and the app's `businessToday` is the real clock, so a server/client
+straddle is a plausible trigger and would explain the intermittency.
+**Check:** attach a `page.on('console')` listener and re-run `reconcile.spec.ts` in a loop until
+it fails, then read the browser console for React's hydration-mismatch error and the element it
+names. Until that error is seen, the cause is unknown — do not "fix" it by loosening the
+locators, which would only hide a real duplicate-render bug from the gate.
 
-**Not shipped-blocking for #279** (that work's own tests and the rest of the suite are green),
-but this test guards Wave 4.6's money boundary, so it needs settling before the next money slice.
-CI is the arbiter — check whether the Linux runner agrees.
+**Not shipped-blocking** (unit suite green; the rest of the e2e suite green; CI is the arbiter),
+but it guards Wave 4.6's money boundary, so settle it before the next money slice.
 
 ## 🔴→✅ No way to sync a Plaid account (#278, 2026-07-23) — owner-reported, FIXED
 
