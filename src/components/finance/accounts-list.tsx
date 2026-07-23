@@ -23,7 +23,7 @@ import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { MANUAL_ASSET_TYPES, MANUAL_LIABILITY_TYPES } from '@/lib/engine/networth/manual';
-import type { ReconciliationCandidate, SuspectedDuplicatePair } from '@/lib/engine/account/duplicates';
+import type { SuspectedDuplicatePair } from '@/lib/engine/account/duplicates';
 import { freshnessMessage } from '@/lib/engine/sync/health';
 import {
   addManualAccount,
@@ -37,7 +37,7 @@ import { ActionDeadline, withDeadline } from '@/components/triage/action-deadlin
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { setFlash, takeFlash } from '@/components/finance/flash';
 import type { AccountGroup, AccountView } from '@/lib/engine/transactions/query';
-import type { AccountsView, ManualCardBilling, ReconciledPairView } from '@/server/transactions';
+import type { AccountsView, ManualCardBilling, ReconciledPairView, ReconciliationCandidateView } from '@/server/transactions';
 
 const TYPE_LABEL: Record<string, string> = {
   CHECKING: 'Checking',
@@ -453,10 +453,10 @@ function ReconciliationCandidatesCard({
   pending,
   onConfirm,
 }: {
-  candidates: ReconciliationCandidate[];
+  candidates: ReconciliationCandidateView[];
   today: string;
   pending: boolean;
-  onConfirm: (candidate: ReconciliationCandidate, cutoverDate: string) => void;
+  onConfirm: (candidate: ReconciliationCandidateView, cutoverDate: string) => void;
 }) {
   if (candidates.length === 0) return null;
   return (
@@ -493,13 +493,22 @@ function CandidateRow({
   pending,
   onConfirm,
 }: {
-  candidate: ReconciliationCandidate;
+  candidate: ReconciliationCandidateView;
   today: string;
   pending: boolean;
-  onConfirm: (candidate: ReconciliationCandidate, cutoverDate: string) => void;
+  onConfirm: (candidate: ReconciliationCandidateView, cutoverDate: string) => void;
 }) {
-  const [cutover, setCutover] = useState(today);
+  // Default cutover = the predecessor's LAST transaction date (spec §6) — `today` maximized
+  // the boundary-straddle window and made the disclosure wrong for the default pick (slice-6
+  // critics A-F10/C-12). Span start is the editable minimum (C-13): the server refuses an
+  // earlier date, so the input shouldn't offer one.
+  const span = candidate.predecessorTxnSpan;
+  const [cutover, setCutover] = useState(span?.last ?? today);
   const { predecessor, successor } = candidate;
+  // What the engine will actually claim for the predecessor: [first, min(cutover, last)].
+  // ISO YYYY-MM-DD strings compare correctly as strings.
+  const claimEnd = span !== null ? (cutover < span.last ? cutover : span.last) : null;
+  const cedesTail = span !== null && cutover < span.last;
   return (
     <li data-testid="reconcile-candidate" className="rounded-md border border-sky-900/40 px-3 py-2">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -524,6 +533,7 @@ function CandidateRow({
             type="date"
             data-testid="reconcile-cutover"
             value={cutover}
+            min={span?.first}
             max={today}
             disabled={pending}
             onChange={(e) => setCutover(e.target.value)}
@@ -540,11 +550,32 @@ function CandidateRow({
           Combine accounts
         </button>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        We’ll keep <strong>{predecessor.name}</strong>’s history through {cutover} and count{' '}
-        <strong>{successor.name}</strong> after that. Inside that window, the old account’s records
-        replace anything the new connection re-imported. You can undo this anytime.
-      </p>
+      {/* Honest span disclosure (slice-6 critics C-6/A-F5): state the REAL claim window
+          [first txn, min(cutover, last txn)] — the successor keeps everything outside it,
+          including OLDER re-imported history — plus the boundary-skew caveat the spec's §6
+          "accept-and-disclose" choice requires. Copy derived from the same values the
+          engine uses, never a paraphrase of the default. */}
+      {span !== null && claimEnd !== null ? (
+        <p className="mt-2 text-xs text-muted-foreground" data-testid="reconcile-span-disclosure">
+          We’ll keep <strong>{predecessor.name}</strong>’s records from {span.first} through {claimEnd} —
+          inside that window they replace anything <strong>{successor.name}</strong> re-imported.{' '}
+          <strong>{successor.name}</strong> counts everywhere else, including older history it brought
+          back.{cedesTail ? (
+            <>
+              {' '}
+              <strong>{predecessor.name}</strong>’s records after {claimEnd} stop counting —{' '}
+              <strong>{successor.name}</strong>’s version of those days counts instead.
+            </>
+          ) : null}{' '}
+          If the two banks dated the same purchase differently right at the boundary, it can briefly
+          appear twice. You can undo this anytime.
+        </p>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground" data-testid="reconcile-span-disclosure">
+          <strong>{predecessor.name}</strong> has no recorded transactions, so its balance simply stops
+          counting and <strong>{successor.name}</strong> counts everything. You can undo this anytime.
+        </p>
+      )}
     </li>
   );
 }

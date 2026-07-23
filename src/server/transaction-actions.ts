@@ -23,6 +23,7 @@ import { loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { logCategoryPredictions } from '@/server/predictions';
 import { assertOwnedCategory, getCustomCategories } from '@/server/category-meta';
+import { refuseManualWriteToSuperseded } from '@/server/reconciliation';
 import { refreshRecurringForUser } from '@/server/recurring';
 import { getProvider } from '@/lib/providers/demo';
 import { isoDate } from '@/lib/dates';
@@ -69,6 +70,13 @@ export async function createManualTransaction(
 
   const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
   if (!account) return { ok: false, errors: ['That account wasn’t found — refresh and try again.'] };
+
+  // Superseded-predecessor fence (slice-6 critics B-F2/C-4): a hand-typed row on a
+  // reconciled predecessor dated after its cutover is dropped by the boundary — money the
+  // user entered that no figure would reflect, a silent dropped figure. Predecessors are
+  // read-only history; the pickers exclude them and this guard closes the direct path.
+  const supersededRefusal = await refuseManualWriteToSuperseded(userId, accountId);
+  if (supersededRefusal) return { ok: false, errors: [supersededRefusal] };
 
   // An EXPLICIT category must be a known system id or a custom this user owns —
   // a foreign/garbage id would otherwise be trusted into the row (DECISIONS #111).
@@ -218,6 +226,11 @@ export async function importTransactionsCsv(
   const accountId = String(formData.get('accountId') ?? '');
   const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
   if (!account) return { ok: false, imported: 0, skipped: 0, errors: ['Account not found'] };
+
+  // Superseded-predecessor fence (slice-6 critics B-F2/C-4) — same rule as manual entry:
+  // imported rows landing on a reconciled predecessor would be silently dropped figures.
+  const supersededRefusal = await refuseManualWriteToSuperseded(userId, accountId);
+  if (supersededRefusal) return { ok: false, imported: 0, skipped: 0, errors: [supersededRefusal] };
 
   const text = String(formData.get('csv') ?? '');
   if (!text.trim()) {

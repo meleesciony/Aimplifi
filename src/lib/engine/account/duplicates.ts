@@ -28,6 +28,11 @@ export interface DuplicateAccountCandidate {
   mask: string | null; // last-4 (Plaid populates; SimpleFIN/manual usually null)
   currentBalanceCents: number;
   currency: string | null; // ISO-4217; null assumed USD
+  /** The owning PlaidItem, when provider === 'plaid' (slice-6 critic C-10): the per-item
+   *  providerRef scheme means the SAME bank re-linked through a NEW item mints new rows, so
+   *  two plaid accounts from DIFFERENT items can be the same real account. Optional —
+   *  callers that omit it keep the blanket same-provider skip. */
+  plaidItemId?: string | null;
 }
 
 export interface DuplicateAccountRef {
@@ -166,8 +171,16 @@ function evaluatePair(
   lo: DuplicateAccountCandidate,
   hi: DuplicateAccountCandidate,
 ): SuspectedDuplicatePair | null {
-  // Only cross-provider pairs can be un-deduped duplicates; same-provider ingest already dedups.
-  if (lo.provider === hi.provider) return null;
+  // Same-provider ingest dedups per (accountId, providerRef) — within ONE connection. That
+  // skip stays for simplefin (one connection per user) and manual rows, but two plaid rows
+  // from DIFFERENT PlaidItems are un-deduped by construction (each item has its own
+  // providerRef scheme): the same bank re-linked through a new item is the classic silent
+  // both-live double-count (slice-6 critic C-10), so those pairs stay eligible.
+  if (lo.provider === hi.provider) {
+    const differentPlaidItems =
+      lo.provider === 'plaid' && lo.plaidItemId != null && hi.plaidItemId != null && lo.plaidItemId !== hi.plaidItemId;
+    if (!differentPlaidItems) return null;
+  }
   const signals = duplicateSignals(lo, hi);
   if (!signals) return null;
   return { a: toRef(lo), b: toRef(hi), confidence: signals.confidence, reasons: signals.reasons };

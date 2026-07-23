@@ -10,6 +10,8 @@
  * routing + answers).
  */
 import { requireUserId, rateLimitDurable } from '@/server/authz';
+import { terminalSuccessorMap } from '@/lib/engine/account/reconcile-boundary';
+import { getActiveReconciliations } from '@/server/reconciliation';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
 import { resolvePaymentAccount, getCashNeeded } from '@/server/finance';
@@ -418,7 +420,14 @@ async function buildAnswer(
         : { ...answer, trace: traceNetWorthDerivation(snap.accounts, answer.headlineCents) };
     }
     case 'account_balance':
-      return answerAccountBalance(snap.accounts, intent.query);
+      // Slice-6 critic C-5: fold a matched superseded predecessor onto its live successor —
+      // the boundary zeroes the predecessor, so answering it raw said "$0.00" for a real,
+      // funded account and counted one real account as two in type totals.
+      return answerAccountBalance(
+        snap.accounts,
+        intent.query,
+        terminalSuccessorMap(snap.accounts, await getActiveReconciliations(userId)),
+      );
     case 'spend_total':
       // Exact /reports parity — pass the snapshot rows straight to the same engine.
       return answerSpendTotal(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.timeframe);

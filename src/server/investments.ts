@@ -21,6 +21,7 @@ import {
   type RetirementProjection,
 } from '@/lib/engine/investments/retirement';
 import { getCoachData } from '@/server/coach';
+import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { auditLog, requireUserId } from '@/server/authz';
 
 export interface InvestmentAccountView {
@@ -92,7 +93,11 @@ export async function getInvestments(): Promise<InvestmentsView> {
   // USD-labeled "Portfolio value" at a fabricated 1:1 — exclude it exactly as net worth and
   // /accounts do, so /investments agrees with the headline + /coach. Demo rows are
   // null-currency = USD → golden-safe no-op.
-  const accounts = accountsRaw.filter((a) => isSupportedCurrency(a.currency));
+  // Reconciliation guard (slice-6 critic C-7): a reconciled INVESTMENT predecessor's stale
+  // balance and holdings must not render or roll into "Portfolio value" — the successor is
+  // the single live account, exactly as the dashboard/coach (snapshot-fed) already count it.
+  const superseded = await activeSupersededPredecessorIds([userId]);
+  const accounts = accountsRaw.filter((a) => isSupportedCurrency(a.currency) && !superseded.has(a.id));
 
   const views: InvestmentAccountView[] = accounts.map((a) => ({
     accountId: a.id,

@@ -26,6 +26,36 @@ async function signUpThrowaway(page: Page): Promise<string> {
   return email;
 }
 
+/** Overlapping history for the slice-6 register test: the successor re-imported the
+ *  predecessor's two purchases, plus one of its own after the span. */
+function seedOverlapTransactions(email: string) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
+    if (!user) throw new Error(`seedOverlapTransactions: user ${email} not found`);
+    const pred = db
+      .prepare("SELECT id FROM Account WHERE userId = ? AND provider = 'simplefin'")
+      .get(user.id) as { id: string } | undefined;
+    const succ = db.prepare("SELECT id FROM Account WHERE userId = ? AND provider = 'plaid'").get(user.id) as
+      | { id: string }
+      | undefined;
+    if (!pred || !succ) throw new Error('seedOverlapTransactions: pair not found');
+    const ins = db.prepare(
+      `INSERT INTO "Transaction" (id, accountId, providerRef, date, amountCents, rawDescriptor, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'POSTED')`,
+    );
+    const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    ins.run(`e2e-rt-p1-${suffix}`, pred.id, 'p1', '2026-05-01', -5000, 'COFFEE SHOP');
+    ins.run(`e2e-rt-p2-${suffix}`, pred.id, 'p2', '2026-06-10', -7000, 'GROCERY MART');
+    ins.run(`e2e-rt-s1-${suffix}`, succ.id, 's1', '2026-05-01', -5000, 'COFFEE SHOP');
+    ins.run(`e2e-rt-s2-${suffix}`, succ.id, 's2', '2026-06-10', -7000, 'GROCERY MART');
+    ins.run(`e2e-rt-s3-${suffix}`, succ.id, 's3', '2026-07-01', -3000, 'GAS STATION');
+  } finally {
+    db.close();
+  }
+}
+
 /** A stale SimpleFIN predecessor ($2,400.00) + a live Plaid successor ($2,500.00), same mask. */
 function seedReconcilePair(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
@@ -78,4 +108,32 @@ test('reconciling a stale account with its live twin stops net worth from doubli
   await page.getByTestId('reconcile-undo').click();
   await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText(/4,900/, { timeout: 20_000 });
   await expect(page.getByTestId('reconcile-candidates')).toBeVisible();
+});
+
+test('slice 6: the register agrees with the dashboard after combining — overlap rows count once', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedReconcilePair(email);
+  seedOverlapTransactions(email);
+  await page.goto('/accounts');
+
+  // The confirm card discloses the REAL claim span from the predecessor's own history
+  // (slice-6 critics C-6/C-12): span [2026-05-01, 2026-06-10], cutover defaulted to its
+  // last transaction date — not `today` — and the input's min blocks an invalid early pick.
+  await expect(page.getByTestId('reconcile-candidates')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('reconcile-cutover')).toHaveValue('2026-06-10');
+  await expect(page.getByTestId('reconcile-span-disclosure')).toContainText('from 2026-05-01 through 2026-06-10');
+
+  // Pre-link: the register shows both providers' copies (5 rows, $270.00 out).
+  await page.goto('/transactions');
+  await expect(page.getByTestId('summary-out')).toContainText('270.00', { timeout: 20_000 });
+
+  // Combine, then the register must match the dashboard: 3 real transactions, $150.00 out
+  // (pre-fix: still 5 rows / $270.00 — an 80% inflation contradicting /reports on screen).
+  await page.goto('/accounts');
+  await page.getByTestId('reconcile-confirm').click();
+  await expect(page.getByTestId('reconcile-combined')).toBeVisible({ timeout: 20_000 });
+  await page.goto('/transactions');
+  await expect(page.getByTestId('summary-out')).toContainText('150.00', { timeout: 20_000 });
 });

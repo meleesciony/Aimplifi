@@ -25,6 +25,15 @@ export async function confirmReconciliation(
   const result = await confirmReconciliationFor(userId, input, businessToday(userId));
   if (result.ok) {
     await auditLog(userId, 'reconciliation.confirm', { reconciliationId: result.id });
+    // Slice-6 critic B-F5: the confirm may have dissolved an opposite-direction link in the
+    // same transaction (the direction-conflict auto-undo). That rewrites a user's earlier
+    // confirmed decision, so it must leave its own audit trail, not happen silently.
+    if (result.autoUndoneReverseId !== null) {
+      await auditLog(userId, 'reconciliation.auto-undo-reverse', {
+        reconciliationId: result.autoUndoneReverseId,
+        replacedBy: result.id,
+      });
+    }
     revalidatePath('/accounts');
   }
   return result;

@@ -10,6 +10,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { categorize, suggestAlternatives } from '@/lib/engine/categorize/pipeline';
 import { deriveCorrectionHints } from '@/lib/engine/categorize/learn';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { loadCorrectionInputs, loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { getCategoryMeta } from '@/server/category-meta';
@@ -95,6 +96,13 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
       },
       include: { account: { select: { name: true } }, merchant: true },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    }).then(async (rows) => {
+      // Reconciliation boundary (slice-6 critic C-9): a successor backfill's copies of
+      // claim-span rows arrive needsReview, but the boundary excludes them from every sum —
+      // queueing them asks the user to categorize rows that count in nothing (and shows the
+      // same real purchase twice). Same shared R1 rule as the register; groups/badge match.
+      const keepsReconciled = await getReconciliationTxnKeep(userId);
+      return rows.filter((t) => keepsReconciled(t.accountId, t.date));
     }),
     loadUserRules(userId), // the user's own rules drive suggestions (cycle-1 C2)
     getCategoryMeta(userId), // a custom-category suggestion (via a user rule) resolves its name (#111)
@@ -196,6 +204,10 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
       },
       include: { account: { select: { name: true } }, merchant: true },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    }).then(async (rows) => {
+      // Reconciliation boundary (slice-6 critic C-9) — same exclusion as getTriageItems.
+      const keepsReconciled = await getReconciliationTxnKeep(userId);
+      return rows.filter((t) => keepsReconciled(t.accountId, t.date));
     }),
     loadUserRules(userId),
     getCategoryMeta(userId),
@@ -269,10 +281,12 @@ export async function getReviewCount(userId: string): Promise<number> {
       OR: [{ isTransfer: false }, { reviewPinned: true }],
       account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
     },
-    select: { merchantId: true, rawDescriptor: true, merchant: { select: { canonical: true } } },
+    select: { accountId: true, date: true, merchantId: true, rawDescriptor: true, merchant: { select: { canonical: true } } },
   });
+  // Reconciliation boundary (slice-6 critic C-9) — same exclusion as the queue; badge agrees.
+  const keepsReconciled = await getReconciliationTxnKeep(userId);
   const keys = new Set(
-    rows.map((r) =>
+    rows.filter((r) => keepsReconciled(r.accountId, r.date)).map((r) =>
       groupKey({
         merchantId: r.merchantId,
         rawDescriptor: r.rawDescriptor,

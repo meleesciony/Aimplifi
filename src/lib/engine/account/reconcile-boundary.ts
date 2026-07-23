@@ -165,7 +165,7 @@ export function effectiveReconciliationLinks<A extends BoundaryAccountLike>(
   // inert. With `predecessorAccountId` unique there is at most one outgoing edge
   // per node, so a simple visited-walk per link suffices and terminates.
   const succOf = new Map(structural.map((l) => [l.predecessorAccountId, l.successorAccountId]));
-  return structural.filter((l) => {
+  const acyclic = structural.filter((l) => {
     const seen = new Set<string>([l.predecessorAccountId]);
     let cursor: string | undefined = l.successorAccountId;
     while (cursor !== undefined) {
@@ -175,6 +175,185 @@ export function effectiveReconciliationLinks<A extends BoundaryAccountLike>(
     }
     return true;
   });
+
+  // Chain-monotonicity guard (slice-6 critic B-F4): the confirm action refuses a
+  // downstream cutover earlier than any upstream cutover, but two RACING confirms
+  // on Postgres can commit a non-monotone chain the write-time guard never saw —
+  // and in that shape the window (downstream cutover, upstream cutover] is kept by
+  // BOTH the upstream predecessor and the terminal successor (a double-count).
+  // Read-time backstop, same doctrine as the cycle guard: drop the DOWNSTREAM link
+  // of any pair where a transitive upstream link's cutover exceeds its own — the
+  // pair falls back to "both count fully" (advisory-covered duplicate), never to a
+  // dropped or doubled figure. Evaluated against the acyclic set so the walk
+  // terminates; conservative in pathological shapes by design.
+  const linksIntoPred = new Map<string, ReconciliationLinkLike[]>();
+  for (const l of acyclic) {
+    const list = linksIntoPred.get(l.successorAccountId) ?? [];
+    list.push(l);
+    linksIntoPred.set(l.successorAccountId, list);
+  }
+  return acyclic.filter((l) => {
+    const own = isoDate(l.cutoverDate);
+    const queue = [...(linksIntoPred.get(l.predecessorAccountId) ?? [])];
+    const seen = new Set<string>();
+    while (queue.length > 0) {
+      const up = queue.pop() as ReconciliationLinkLike;
+      if (seen.has(up.predecessorAccountId)) continue;
+      seen.add(up.predecessorAccountId);
+      if (compareDates(isoDate(up.cutoverDate), own) > 0) return false; // non-monotone → inert
+      queue.push(...(linksIntoPred.get(up.predecessorAccountId) ?? []));
+    }
+    return true;
+  });
+}
+
+/**
+ * Chain traversal maps over EFFECTIVE links (slice-6 critic A-F1/A-F4): claims
+ * and snapshot collisions must compose across a CHAIN (A→B→C), not just across
+ * direct links — the terminal successor's deep backfill re-imports history the
+ * ORIGINAL predecessor already holds, two links away, and a direct-only check
+ * double-counted it. `upstreamsOf(X)` = every account whose chain of links leads
+ * INTO X; `downstreamsOf(X)` = the chain from X to the terminal successor; the
+ * terminal remap is the slice-3 payment-account/re-key walk. All cycle-free by
+ * construction (effective links only), visited-guarded anyway.
+ */
+function chainMaps(links: readonly ReconciliationLinkLike[]): {
+  upstreamsOf: (id: string) => string[];
+  downstreamsOf: (id: string) => string[];
+  remapToTerminal: (id: string) => string;
+} {
+  const succOf = new Map(links.map((l) => [l.predecessorAccountId, l.successorAccountId]));
+  const predsOf = new Map<string, string[]>();
+  for (const l of links) {
+    const list = predsOf.get(l.successorAccountId) ?? [];
+    list.push(l.predecessorAccountId);
+    predsOf.set(l.successorAccountId, list);
+  }
+  const upstreamsOf = (id: string): string[] => {
+    const out: string[] = [];
+    const queue = [...(predsOf.get(id) ?? [])];
+    const seen = new Set<string>();
+    while (queue.length > 0) {
+      const p = queue.pop() as string;
+      if (seen.has(p)) continue;
+      seen.add(p);
+      out.push(p);
+      queue.push(...(predsOf.get(p) ?? []));
+    }
+    return out;
+  };
+  const downstreamsOf = (id: string): string[] => {
+    const out: string[] = [];
+    const seen = new Set<string>([id]);
+    let cursor = succOf.get(id);
+    while (cursor !== undefined && !seen.has(cursor)) {
+      seen.add(cursor);
+      out.push(cursor);
+      cursor = succOf.get(cursor);
+    }
+    return out;
+  };
+  const remapToTerminal = (id: string): string => {
+    const seen = new Set<string>();
+    let current = id;
+    while (succOf.has(current) && !seen.has(current)) {
+      seen.add(current);
+      current = succOf.get(current) as string;
+    }
+    return current;
+  };
+  return { upstreamsOf, downstreamsOf, remapToTerminal };
+}
+
+/**
+ * The ONE R1 transaction ownership rule (built from effective links + claim
+ * spans; used by the assembler AND by reconciliationTxnKeepFilter). Predecessor
+ * keeps date <= cutover; every account keeps only dates OUTSIDE each TRANSITIVE
+ * upstream predecessor's claim (A-F1). A mid-chain account composes both roles
+ * by AND: B owns exactly (claim end of A, cutover of B→C].
+ */
+function txnKeepRule(
+  links: readonly ReconciliationLinkLike[],
+  cutover: ReadonlyMap<string, ISODate>,
+  txnSpan: ReadonlyMap<string, { first: ISODate; last: ISODate }>,
+): (accountId: string, date: string) => boolean {
+  const { upstreamsOf } = chainMaps(links);
+  return (accountId, date) => {
+    const cutSelf = cutover.get(accountId);
+    if (cutSelf !== undefined) {
+      // If the stored cutover predates the predecessor's FIRST transaction
+      // (unreachable via confirm, but a later deletion of its earliest manual
+      // row can move the first date past it), dropping `date > cutover` would
+      // erase the ENTIRE history with no successor copies (critic A-F8). The
+      // claim goes degenerate instead: the predecessor keeps everything —
+      // balance still zeroed; the failure direction is a visible, advisory-
+      // covered double, never a silent loss.
+      const spanSelf = txnSpan.get(accountId);
+      const degenerate = spanSelf !== undefined && compareDates(cutSelf, spanSelf.first) < 0;
+      if (!degenerate && compareDates(isoDate(date), cutSelf) > 0) return false;
+    }
+    for (const p of upstreamsOf(accountId)) {
+      const span = txnSpan.get(p);
+      if (!span) continue; // that predecessor has no transactions → no claim
+      const cut = cutover.get(p) as ISODate;
+      if (compareDates(cut, span.first) < 0) continue; // degenerate claim (A-F8)
+      const claimEnd = compareDates(cut, span.last) < 0 ? cut : span.last;
+      const d = isoDate(date);
+      if (compareDates(d, span.first) >= 0 && compareDates(d, claimEnd) <= 0) return false;
+    }
+    return true;
+  };
+}
+
+/**
+ * pred id → TERMINAL live successor id, over effective links only (slice-6 critic C-5).
+ * The assistant's account-balance answer folds a matched superseded predecessor onto the
+ * account that actually carries the money — without this, "how much is in my old
+ * checking" answered the boundary-zeroed "$0.00" ghost, and a type query counted one
+ * real account as two.
+ */
+export function terminalSuccessorMap<A extends BoundaryAccountLike>(
+  accounts: readonly A[],
+  links: readonly ReconciliationLinkLike[],
+): Map<string, string> {
+  const eff = effectiveReconciliationLinks(accounts, links);
+  const { remapToTerminal } = chainMaps(eff);
+  return new Map(eff.map((l) => [l.predecessorAccountId, remapToTerminal(l.predecessorAccountId)]));
+}
+
+/** A linked predecessor's FULL-history transaction span (min/max date). */
+export interface PredecessorSpanLike {
+  accountId: string;
+  first: string;
+  last: string;
+}
+
+/**
+ * The windowed-surface filter (slice-6 critics B-F1/C-1/C-2/C-3): the register,
+ * CSV export, budgets, recurring detection, and triage page or window their
+ * transaction reads, so they cannot feed the whole ledger through
+ * `applyReconciliationBoundary` — but they MUST apply the identical R1 rule or
+ * they contradict the dashboard on the same screenload. Spans must come from a
+ * min/max aggregate over each linked predecessor's FULL history, never from the
+ * windowed rows themselves (a-guard-must-read-what-it-guards): a window that
+ * clips the predecessor's span would move the claim edge and change ownership.
+ * Returns the same closure the assembler uses; with no effective links it keeps
+ * everything (R8).
+ */
+export function reconciliationTxnKeepFilter<A extends BoundaryAccountLike>(
+  accounts: readonly A[],
+  links: readonly ReconciliationLinkLike[],
+  predecessorSpans: readonly PredecessorSpanLike[],
+): (accountId: string, date: string) => boolean {
+  const eff = effectiveReconciliationLinks(accounts, links);
+  if (eff.length === 0) return () => true;
+  const cutover = new Map<string, ISODate>(eff.map((l) => [l.predecessorAccountId, isoDate(l.cutoverDate)]));
+  const txnSpan = new Map(
+    predecessorSpans
+      .filter((s) => cutover.has(s.accountId))
+      .map((s) => [s.accountId, { first: isoDate(s.first), last: isoDate(s.last) }]),
+  );
+  return txnKeepRule(eff, cutover, txnSpan);
 }
 
 export function applyReconciliationBoundary<
@@ -241,57 +420,27 @@ export function applyReconciliationBoundary<
       : a,
   );
 
-  // R1 for transactions. Per link: predecessor keeps date <= cutover; successor
-  // keeps dates OUTSIDE the predecessor's claim. An account holding both roles
-  // (chain A→B→C) composes by AND: B owns exactly (claim end of A, cutover of
-  // B→C].
-  const keepsTxn = (accountId: string, date: string): boolean => {
-    for (const l of links) {
-      if (l.predecessorAccountId === accountId) {
-        if (compareDates(isoDate(date), cutover.get(accountId) as ISODate) > 0) return false;
-      }
-      if (l.successorAccountId === accountId) {
-        const span = txnSpan.get(l.predecessorAccountId);
-        if (!span) continue; // predecessor has no transactions → no claim
-        const cut = cutover.get(l.predecessorAccountId) as ISODate;
-        const claimEnd = compareDates(cut, span.last) < 0 ? cut : span.last;
-        const d = isoDate(date);
-        if (compareDates(d, span.first) >= 0 && compareDates(d, claimEnd) <= 0) return false;
-      }
-    }
-    return true;
-  };
+  // Chain maps + the shared R1 keep rule (module-level builders so the register
+  // filter applies the IDENTICAL rule — see reconciliationTxnKeepFilter).
+  const { upstreamsOf, downstreamsOf, remapToTerminal } = chainMaps(links);
+  const keepsTxn = txnKeepRule(links, cutover, txnSpan);
 
-  // F3 rule for balance snapshots: drop only on an exact-date collision with
-  // the linked counterpart; the cutover picks the winner.
+  // F3 rule for balance snapshots, composed transitively (A-F4): drop only on
+  // an exact-date collision with a chain counterpart; the OLDER side's cutover
+  // picks the winner — upstream wins on/before its cutover, downstream after.
   const keepsSnapshot = (accountId: string, date: string): boolean => {
-    for (const l of links) {
-      if (l.predecessorAccountId === accountId) {
-        const succHasDate = snapshotDates.get(l.successorAccountId)?.has(date) ?? false;
-        if (succHasDate && compareDates(isoDate(date), cutover.get(accountId) as ISODate) > 0) return false;
-      }
-      if (l.successorAccountId === accountId) {
-        const predHasDate = snapshotDates.get(l.predecessorAccountId)?.has(date) ?? false;
-        if (predHasDate && compareDates(isoDate(date), cutover.get(l.predecessorAccountId) as ISODate) <= 0)
-          return false;
+    for (const p of upstreamsOf(accountId)) {
+      const predHasDate = snapshotDates.get(p)?.has(date) ?? false;
+      if (predHasDate && compareDates(isoDate(date), cutover.get(p) as ISODate) <= 0) return false;
+    }
+    const cutSelf = cutover.get(accountId);
+    if (cutSelf !== undefined) {
+      for (const s of downstreamsOf(accountId)) {
+        const succHasDate = snapshotDates.get(s)?.has(date) ?? false;
+        if (succHasDate && compareDates(isoDate(date), cutSelf) > 0) return false;
       }
     }
     return true;
-  };
-
-  // A superseded account funds nothing and keys nothing — follow the chain to the
-  // terminal live side. Built once and reused for the payment account (slice 3)
-  // AND for re-keying the predecessor's scheduled rows (slice 4, F6). Cycle-free
-  // by construction (effective links only), but the visited guard keeps it total.
-  const succOf = new Map(links.map((l) => [l.predecessorAccountId, l.successorAccountId]));
-  const remapToTerminal = (id: string): string => {
-    const seen = new Set<string>();
-    let current = id;
-    while (succOf.has(current) && !seen.has(current)) {
-      seen.add(current);
-      current = succOf.get(current) as string;
-    }
-    return current;
   };
 
   // R4 statements: the latest cycleEnd each SUCCESSOR/bystander already has of its OWN
@@ -303,6 +452,31 @@ export function applyReconciliationBoundary<
     const d = isoDate(s.cycleEnd);
     const cur = ownMaxCycleEnd.get(s.accountId);
     if (cur === undefined || compareDates(d, cur) > 0) ownMaxCycleEnd.set(s.accountId, d);
+  }
+
+  // A-F6 (slice 6): two sources can re-key the SAME real cycle onto one terminal
+  // successor — sibling predecessors ("same account connected twice", the very
+  // shape the non-unique successorAccountId exists for) or two chain generations.
+  // Exactly one copy may survive per (terminal, cycleEnd): the one from the source
+  // with the LATEST cutover (the most recently authoritative provider), account-id
+  // ascending as the tiebreak — so the coach cleared-streak never counts a cycle
+  // twice and cash-needed's one-statement-per-card pick is order-independent.
+  const rekeyChoice = new Map<string, { rowRef: BoundaryStatementRowLike; sourceId: string; sourceCut: ISODate }>();
+  for (const s of input.statements) {
+    if (!cutover.has(s.accountId)) continue;
+    const to = remapToTerminal(s.accountId);
+    const succMax = ownMaxCycleEnd.get(to);
+    if (succMax !== undefined && compareDates(isoDate(s.cycleEnd), succMax) <= 0) continue;
+    const key = `${to}:${s.cycleEnd}`;
+    const cut = cutover.get(s.accountId) as ISODate;
+    const cur = rekeyChoice.get(key);
+    if (
+      cur === undefined ||
+      compareDates(cut, cur.sourceCut) > 0 ||
+      (compareDates(cut, cur.sourceCut) === 0 && s.accountId < cur.sourceId)
+    ) {
+      rekeyChoice.set(key, { rowRef: s, sourceId: s.accountId, sourceCut: cut });
+    }
   }
 
   return {
@@ -325,6 +499,7 @@ export function applyReconciliationBoundary<
       const to = remapToTerminal(s.accountId);
       const succMax = ownMaxCycleEnd.get(to);
       if (succMax !== undefined && compareDates(isoDate(s.cycleEnd), succMax) <= 0) return [];
+      if (rekeyChoice.get(`${to}:${s.cycleEnd}`)?.rowRef !== s) return []; // A-F6 one copy per cycle
       return [{ ...s, accountId: to }];
     }),
     // F6: re-key the predecessor's scheduled rows onto the terminal successor so the

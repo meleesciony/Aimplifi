@@ -18,6 +18,7 @@ import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurrin
 import { upcomingRenewals, type UpcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCategoryMeta } from '@/server/category-meta';
+import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getProvider } from '@/lib/providers/demo';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
@@ -98,7 +99,12 @@ export async function refreshRecurringForUser(
     },
     select: { id: true, accountId: true, date: true, amountCents: true, rawDescriptor: true, isTransfer: true },
   });
-  const series = detectRecurring(txns as RecurringTxn[], today);
+  // Reconciliation boundary (slice-6 critic C-11): a reconciled pair's overlap rows are two
+  // same-day, same-amount copies of every real charge — fed raw into detection they distort
+  // cadence/price-change/possiblyUnused, and the persisted scheduled rows feed forecast and
+  // cash-needed. Same shared R1 rule as the register.
+  const keepsReconciled = await getReconciliationTxnKeep(userId);
+  const series = detectRecurring(txns.filter((t) => keepsReconciled(t.accountId, t.date)) as RecurringTxn[], today);
 
   // RecurringSeries.merchantId is required; resolve canonical → Merchant.id. Series
   // whose merchant has no row are skipped (mirrors the seed). The Plaid ingest

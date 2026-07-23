@@ -1,6 +1,7 @@
 # Cross-provider account reconciliation — architecture decision
 
-Status: **DESIGN (spec only, not built)** · Opened 2026-07-22 (owner question:
+Status: **BUILT — all 6 slices shipped 2026-07-22 (#270–#275); §5/§6/§10 read as-built.**
+Originally opened 2026-07-22 as design-only (owner question:
 "how do we reconcile the account data pulled from SimpleFIN Bridge — no longer
 connected — with the new Plaid pull when it's available"). Money-aggregation +
 cross-provider-identity work ⇒ **Fable-lane build + hostile critic** per TASKS
@@ -217,6 +218,17 @@ predecessor transaction within ±3 days of the cutover — a *narrow, boundary-l
 not a general fuzzy match. Prefer (a) unless the critic shows a realistic double-count;
 never a general cross-provider fuzzy dedup (§3 rationale).
 
+**DECIDED (slice 6, DECISIONS #275): option (a), accept-and-disclose — extended to all
+THREE skew windows the slice-6 critic mapped** (the trailing double above; its leading-edge
+mirror at the claim start, critic A-F3; and a trailing ZERO-count possible only under a
+user-shortened cutover, critic A-F2). Rationale: an amount-match dedup's false-positive
+direction is a silently DROPPED real transaction — a worse failure than a visible double
+(docs/lessons/precision-fix-that-fabricates-is-worse-than-a-safe-superset). Shipped
+mitigations instead: the UI default cutover now equals this section's rule (the
+predecessor's last transaction — the `today` default had maximized the window), the
+confirm card discloses the real claim span and the boundary-skew caveat inline, and
+EDGE_CASES §Reconciliation-Boundary documents all three windows as residuals (b)/(b′)/(b″).
+
 ---
 
 ## 7. Interaction with existing systems
@@ -318,11 +330,21 @@ Every invariant below ships with a named test in its build slice (fail-old prove
    the old account's records replace the new provider's backfill.
    — Opus (+ Cursor/Grok polish).
 6. **Full-surface hostile critic** over R1–R10 with the residual §6 boundary-straddle as
-   the lead adversarial target. — **Fable.**
+   the lead adversarial target. — **Fable.** *DONE 2026-07-22 (#275): three parallel
+   fresh-context critics (money core / lifecycle / downstream surfaces); every P1 fixed +
+   regression-locked (transitive chain composition, the register/export/budgets/triage/
+   recurring shared filter, manual-write fence, assistant fold, honest confirm copy) or
+   resolved per this spec's own §6 decision (skew windows → accept-and-disclose). See
+   DECISIONS #275 + EDGE_CASES §Reconciliation-Boundary slice-6 sections.*
 
 ---
 
-## 11. Open question for the owner (non-blocking)
+## 11. Open question for the owner (non-blocking) — RESOLVED (slice 6, DECISIONS #275)
+
+Resolved per §6's own rule: the critic confirmed both a realistic double AND a realistic
+loss, and the loss direction is worse — so the build chose accept-and-disclose (option a)
+for all three skew windows, plus the spec-default cutover in the UI. No owner action needed;
+the original framing is kept below for the record.
 
 The §6 boundary-straddle mitigation (accept-and-disclose a ≤1-day window vs. a narrow
 boundary-local amount/merchant dedup) is a small money-honesty tradeoff. The build will

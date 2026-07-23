@@ -14,11 +14,12 @@
  * the real Prisma client, exactly like server/account-delete.ts. The thin `'use server'`
  * wrapper that pulls the session lives in server/reconciliation-actions.ts.
  */
+import { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/lib/db';
 import { type ISODate, compareDates, isoDate } from '@/lib/dates';
 import { DEMO_RECONCILE_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import type { DuplicateConfidence, ReconciliationMatchSignal } from '@/lib/engine/account/duplicates';
-import { effectiveReconciliationLinks } from '@/lib/engine/account/reconcile-boundary';
+import { effectiveReconciliationLinks, reconciliationTxnKeepFilter } from '@/lib/engine/account/reconcile-boundary';
 import { isSupportedCurrency } from '@/lib/providers/currency';
 
 export interface ConfirmReconciliationInput {
@@ -29,7 +30,11 @@ export interface ConfirmReconciliationInput {
   confidence: string; // 'high' | 'medium' (validated here)
 }
 
-export type ConfirmReconciliationResult = { ok: true; id: string } | { ok: false; error: string };
+export type ConfirmReconciliationResult =
+  /** `autoUndoneReverseId`: the reverse link (this successor as someone's predecessor) that this
+   *  confirm dissolved in the same transaction — surfaced so the wrapper can audit-log the
+   *  dissolution instead of it happening silently (slice-6 critic B-F5). */
+  { ok: true; id: string; autoUndoneReverseId: string | null } | { ok: false; error: string };
 export type UndoReconciliationResult = { ok: true } | { ok: false; error: string };
 
 /** The shape slice 3's assembler and slice 5's advisory-suppression consume. */
@@ -55,6 +60,12 @@ const NOT_FOUND = 'Account not found.';
  * so every SimpleFIN account is live iff that connection exists; a Plaid account is live iff its
  * stamped `plaidItemId` still resolves to an existing `PlaidItem`; manual / demo / unknown
  * providers are never a live sync source (a manual row is predecessor-eligible by design, §4).
+ *
+ * DELIBERATE conservatism (slice-6 critic B-F7): a broken-but-present connection (e.g. a
+ * PlaidItem with `lastSyncError` set) still counts as LIVE. For the R3 money guard that is the
+ * only safe direction — treating broken-as-live can only REFUSE a reconciliation ("both still
+ * connected" / continuing into it), never zero a balance that is actually live; the refusal
+ * message tells the user to disconnect the broken item first, which also clears this state.
  */
 export function isAccountLive(
   account: { provider: string; plaidItemId: string | null },
@@ -118,7 +129,17 @@ export async function confirmReconciliationFor(
     return { ok: false, error: 'The cutover date can’t be in the future.' };
   }
 
-  return prisma.$transaction(async (tx): Promise<ConfirmReconciliationResult> => {
+  // SERIALIZABLE (slice-6 critics B-F3/B-F4): two racing confirms in opposite directions
+  // (A→B ∥ B→A under a connection flap) or onto adjacent chain links each pass their OWN
+  // liveness reads, auto-undo scans, and monotonicity checks under READ COMMITTED — neither
+  // sees the other's uncommitted row, and both commit, leaving a cycle or a non-monotone
+  // chain the write-time guards never saw. Under SERIALIZABLE the read/write overlap is a
+  // detected conflict: exactly one transaction aborts (P2034, surfaced as a retryable
+  // error). SQLite serializes writes anyway; the read-time engine guards (cycle +
+  // monotonicity inertness) remain as defense in depth for historical rows.
+  let result: ConfirmReconciliationResult;
+  try {
+    result = await prisma.$transaction(async (tx): Promise<ConfirmReconciliationResult> => {
     const [pred, succ] = await Promise.all([
       tx.account.findFirst({
         where: { id: predecessorAccountId, userId },
@@ -191,9 +212,9 @@ export async function confirmReconciliationFor(
     // where the previous ended, so the downstream cutover must be ≥ every upstream one. A new
     // downstream link with an EARLIER cutover would open a window ((new cutover, upstream cutover])
     // that both the oldest and newest generation keep — a silent double-count behind a "reconciled"
-    // label. The engine composes DIRECT links only (deliberately — transitive claims would turn the
-    // read path into graph analysis), so the misordered shape is refused at the only place it can
-    // be created. Upstream links = active links whose successor is THIS predecessor.
+    // label. Refused here at creation; since slice 6 the engine ALSO treats a non-monotone chain
+    // link as inert at read time (effectiveReconciliationLinks), so a racing/historical row can
+    // never open the window. Upstream links = active links whose successor is THIS predecessor.
     const upstream = await tx.accountReconciliation.findFirst({
       where: { userId, successorAccountId: predecessorAccountId, undoneAt: null },
       orderBy: { cutoverDate: 'desc' },
@@ -211,11 +232,19 @@ export async function confirmReconciliationFor(
     // LIVE inside this transaction. Left in place, A→B + B→A active together would zero
     // BOTH balances and drop a real account from net worth entirely. Undo the reverse
     // link (reversible, ordinary undoneAt), never delete it. Chains (Q→P→S) are NOT
-    // conflicts: a link whose SUCCESSOR is our predecessor stays.
-    await tx.accountReconciliation.updateMany({
+    // conflicts: a link whose SUCCESSOR is our predecessor stays. The dissolved link's id
+    // is captured first and returned so the wrapper can audit-log it (critic B-F5) —
+    // rewriting a user's earlier confirmed decision must leave a trail.
+    const reverse = await tx.accountReconciliation.findFirst({
       where: { userId, predecessorAccountId: successorAccountId, undoneAt: null },
-      data: { undoneAt: new Date() },
+      select: { id: true },
     });
+    if (reverse) {
+      await tx.accountReconciliation.updateMany({
+        where: { id: reverse.id, undoneAt: null },
+        data: { undoneAt: new Date() },
+      });
+    }
 
     const row = await tx.accountReconciliation.upsert({
       where: { predecessorAccountId },
@@ -229,8 +258,17 @@ export async function confirmReconciliationFor(
         confirmedByUserAt: new Date(),
       },
     });
-    return { ok: true, id: row.id };
-  });
+    return { ok: true, id: row.id, autoUndoneReverseId: reverse?.id ?? null };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (e) {
+    // P2034 = write conflict / deadlock under SERIALIZABLE — the race's designated loser.
+    // Clean retryable refusal; the winner's state is consistent and the UI reloads it.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') {
+      return { ok: false, error: 'That change collided with another update — reload and try again.' };
+    }
+    throw e;
+  }
+  return result;
 }
 
 /**
@@ -303,4 +341,57 @@ export async function activeSupersededPredecessorIds(userIds: readonly string[])
   if (links.length === 0) return new Set();
   const supported = accounts.filter((a) => isSupportedCurrency(a.currency));
   return new Set(effectiveReconciliationLinks(supported, links).map((l) => l.predecessorAccountId));
+}
+
+/**
+ * The R1 ownership filter for WINDOWED Prisma-direct transaction surfaces (slice-6 critics
+ * B-F1/C-1/C-2/C-3): the register, CSV export, budgets month query, recurring re-detection,
+ * and triage read transactions directly rather than through the assembler, so a reconciled
+ * pair's overlap rows double-counted there while the dashboard counted them once. This
+ * returns the IDENTICAL keep rule the assembler applies (shared engine closure — a-guard-
+ * must-read-what-it-guards), built from: the user's active links, the currency-supported
+ * account set (exact `activeSupersededPredecessorIds` parity), and each linked predecessor's
+ * FULL-history min/max transaction dates (an aggregate — never the surface's own windowed
+ * rows, which would move the claim edge). With no active links: a constant-true fast path,
+ * zero extra queries beyond the link lookup (R8).
+ */
+export async function getReconciliationTxnKeep(userId: string): Promise<(accountId: string, date: string) => boolean> {
+  const links = await getActiveReconciliations(userId);
+  if (links.length === 0) return () => true;
+  const accounts = await prisma.account.findMany({
+    where: { userId },
+    select: { id: true, type: true, currency: true, currentBalanceCents: true },
+  });
+  const predIds = links.map((l) => l.predecessorAccountId);
+  const spans = await prisma.transaction.groupBy({
+    by: ['accountId'],
+    where: { accountId: { in: predIds }, account: { userId } },
+    _min: { date: true },
+    _max: { date: true },
+  });
+  return reconciliationTxnKeepFilter(
+    accounts.filter((a) => isSupportedCurrency(a.currency)),
+    links,
+    spans.flatMap((s) =>
+      s._min.date != null && s._max.date != null ? [{ accountId: s.accountId, first: s._min.date, last: s._max.date }] : [],
+    ),
+  );
+}
+
+/**
+ * Whether a manual write (manual entry, CSV import) may target this account (slice-6
+ * critics B-F2/C-4): a row hand-typed onto a superseded PREDECESSOR dated after its
+ * cutover is dropped by the boundary — money the user entered that no figure reflects, a
+ * silent dropped figure. Superseded predecessors are read-only history: refuse ALL manual
+ * writes to them (any date — pre-cutover writes would silently rewrite claimed history the
+ * successor can never see either) and point at the successor / Undo instead. Evaluated on
+ * the same effective-links basis as the boundary.
+ */
+export async function refuseManualWriteToSuperseded(
+  userId: string,
+  accountId: string,
+): Promise<string | null> {
+  const superseded = await activeSupersededPredecessorIds([userId]);
+  if (!superseded.has(accountId)) return null;
+  return 'This account was combined into its connected successor — add transactions there, or undo the combination on the Accounts page first.';
 }

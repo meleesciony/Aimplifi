@@ -11,6 +11,7 @@ import { prisma } from '@/lib/db';
 import { BudgetTargetForm } from '@/components/finance/budget-target-form';
 import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
 import { getCustomCategories } from '@/server/category-meta';
+import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { ConsciousBucketsStrip } from '@/components/finance/conscious-buckets-strip';
 
@@ -49,7 +50,7 @@ export default async function BudgetsPage() {
         isSplitParent: false,
         status: 'POSTED',
       },
-      select: { categoryId: true, amountCents: true },
+      select: { categoryId: true, amountCents: true, accountId: true, date: true },
     }),
     prisma.budget.findMany({ where: { userId } }),
     prisma.user.findUnique({ where: { id: userId } }),
@@ -62,7 +63,12 @@ export default async function BudgetsPage() {
   const meta = mergeCategoryMeta(custom);
   const dials = new Set<string>(parseStoredDials(user?.moneyDials));
   const budgetByCategory = new Map(budgets.map((b) => [b.categoryId, b.monthCents]));
-  const spendByCategory = netSpendByCategory(txns);
+  // Reconciliation boundary (slice-6 critic C-3): a mid-month provider migration backfills
+  // the month on the successor while the predecessor still holds the same purchases, so a
+  // raw month query counted every category's spend twice — while /reports showed it once.
+  // Same shared R1 rule as the register/export.
+  const keepsReconciled = await getReconciliationTxnKeep(userId);
+  const spendByCategory = netSpendByCategory(txns.filter((t) => keepsReconciled(t.accountId, t.date)));
 
   // Custom categories are spending by definition (never income/transfer/uncategorized).
   const categoryOptions = [...SYSTEM_BUDGETABLE, ...custom.filter((c) => isBudgetable(c.id))];

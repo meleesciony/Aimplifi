@@ -10,6 +10,7 @@ import { getDashboardData } from '@/server/finance';
 import { netWorthReportPdf, netWorthToCsv, transactionsToCsv } from '@/lib/export';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { getReconciliationTxnKeep } from '@/server/reconciliation';
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
   const format = request.nextUrl.searchParams.get('format') ?? 'transactions-csv';
 
   if (format === 'transactions-csv') {
-    const txns = await prisma.transaction.findMany({
+    const rawTxns = await prisma.transaction.findMany({
       // Transactions = spending (bank + cards); brokerage/loan activity excluded (#62).
       where: { account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
       // Join the category so a custom category exports its real name (#111); system
@@ -33,6 +34,11 @@ export async function GET(request: NextRequest) {
       include: { account: { select: { name: true } }, merchant: true, category: { select: { name: true } } },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
     });
+    // Reconciliation boundary (slice-6 critic C-2): the exported ledger must match the
+    // in-app register/reports — without this, a reconciled pair's overlap rows exported
+    // both providers' copies of every real transaction. Same shared R1 rule as the register.
+    const keepsReconciled = await getReconciliationTxnKeep(userId);
+    const txns = rawTxns.filter((t) => keepsReconciled(t.accountId, t.date));
     const csv = transactionsToCsv(
       txns.map((t) => ({
         date: t.date,

@@ -25,7 +25,7 @@ import {
   applyReconciliationBoundary,
   effectiveReconciliationLinks,
 } from '@/lib/engine/account/reconcile-boundary';
-import { getActiveReconciliations, isAccountLive } from '@/server/reconciliation';
+import { getActiveReconciliations, getReconciliationTxnKeep, isAccountLive } from '@/server/reconciliation';
 import {
   type WithheldAccountSummary,
   isSupportedCurrency,
@@ -86,7 +86,7 @@ const PAGE_SIZE = 100;
  * scale concern (see docs/ROADMAP.md #8), consistent with getDashboardData.
  */
 export async function getTransactions(userId: string, filter: TxnFilter = {}, page = 1): Promise<TransactionsResult> {
-  const txns = await prisma.transaction.findMany({
+  const rawTxns = await prisma.transaction.findMany({
     // Spending accounts only — bank + cards; brokerage/loan activity isn't spending (#62).
     // Currency guard (DECISIONS #135): exclude non-USD accounts so the register + its account
     // dropdown match /accounts and net worth, which withhold them (no FX).
@@ -100,6 +100,16 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     include: { account: { select: { id: true, name: true } }, merchant: true, category: { select: { name: true } } },
     orderBy: [{ date: 'desc' }, { id: 'desc' }],
   });
+
+  // Reconciliation boundary (slice-6 critics B-F1/C-1): the register was the one
+  // transaction surface reading Prisma directly, so a reconciled pair's overlap rows
+  // double-counted here — rows AND summary totals — while the dashboard, reports, and
+  // trends (snapshot-fed) counted them once, on the same screenload. Apply the
+  // assembler's EXACT R1 ownership rule before anything derives from the row set:
+  // merchant counts, provenance, the lens, the summary, pagination, and the account
+  // dropdown all inherit it. No active links → constant-true fast path (R8).
+  const keepsReconciled = await getReconciliationTxnKeep(userId);
+  const txns = rawTxns.filter((t) => keepsReconciled(t.accountId, t.date));
 
   // How many transactions share each merchant — drives the "apply to N" count
   // on the register's "Always" action (DECISIONS #42).
@@ -280,8 +290,17 @@ export interface AccountsView extends AccountsSummary {
   reconciliations: ReconciledPairView[];
   /** Cross-provider "continue this account?" proposals (R3): exactly one live side, not yet linked.
    *  Empty unless a duplicate pair has one connected + one disconnected provider. */
-  reconciliationCandidates: ReconciliationCandidate[];
+  reconciliationCandidates: ReconciliationCandidateView[];
 }
+
+/** A candidate enriched with the predecessor's full-history transaction span (slice 6): the
+ *  confirm card's honest claim-span disclosure, the cutover DEFAULT (span end — the spec-§6
+ *  "predecessor's last transaction" rule; `today` maximized the straddle window, critic
+ *  A-F10/C-12) and the editable minimum (span start, so an early pick fails client-side
+ *  instead of round-tripping to the server refusal, critic C-13). Null span = no rows. */
+export type ReconciliationCandidateView = ReconciliationCandidate & {
+  predecessorTxnSpan: { first: string; last: string } | null;
+};
 
 /** Every account, grouped into assets vs liabilities with net worth + trend. */
 export async function getAccountsView(userId: string): Promise<AccountsView> {
@@ -309,8 +328,10 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       orderBy: { createdAt: 'asc' },
     }),
     // Newest transaction date per account — the per-row freshness reference (Gap 1 §3
-    // follow-up). One grouped query rather than N per-account reads.
-    prisma.transaction.groupBy({ by: ['accountId'], where: { account: { userId } }, _max: { date: true } }),
+    // follow-up). One grouped query rather than N per-account reads. `_min` added in
+    // slice 6: with `_max` it is each account's full-history span, which the confirm
+    // card needs for the honest claim-span disclosure + the cutover default/min bounds.
+    prisma.transaction.groupBy({ by: ['accountId'], where: { account: { userId } }, _min: { date: true }, _max: { date: true } }),
     getActiveReconciliations(userId),
   ]);
 
@@ -407,8 +428,17 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   const reconciledPairKeys = new Set(effective.map((l) => pairKey(l.predecessorAccountId, l.successorAccountId)));
 
   // Candidates use RAW balances + the live-connection map (before any zeroing) so the #192 balance
-  // signal still fires; already-reconciled pairs are dropped (resolved, not proposals).
-  const reconciliationCandidates = detectReconciliationCandidates(
+  // signal still fires; already-reconciled pairs are dropped (resolved, not proposals). A predecessor
+  // already in ANY effective link is dropped too (slice-6 critic C-8): offering "A → C" while A → B is
+  // active would let one tap silently RE-TARGET a confirmed decision via the upsert slot — if the user
+  // wants a different successor they undo first, explicitly.
+  const effectivePredIds = new Set(effective.map((l) => l.predecessorAccountId));
+  const spanByAccount = new Map(
+    newestByAccount.flatMap((g) =>
+      g._min.date != null && g._max.date != null ? [[g.accountId, { first: g._min.date, last: g._max.date }] as const] : [],
+    ),
+  );
+  const reconciliationCandidates: ReconciliationCandidateView[] = detectReconciliationCandidates(
     supported.map((a) => ({
       id: a.id,
       provider: a.provider,
@@ -417,9 +447,12 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       mask: a.mask,
       currentBalanceCents: a.currentBalanceCents,
       currency: a.currency,
+      plaidItemId: a.plaidItemId, // C-10: two items' rows for the same bank are eligible pairs
       hasLiveConnection: isAccountLive({ provider: a.provider, plaidItemId: a.plaidItemId }, conns),
     })),
-  ).filter((c) => !reconciledPairKeys.has(pairKey(c.predecessor.id, c.successor.id)));
+  )
+    .filter((c) => !reconciledPairKeys.has(pairKey(c.predecessor.id, c.successor.id)) && !effectivePredIds.has(c.predecessor.id))
+    .map((c) => ({ ...c, predecessorTxnSpan: spanByAccount.get(c.predecessor.id) ?? null }));
   const candidatePairKeys = new Set(reconciliationCandidates.map((c) => pairKey(c.predecessor.id, c.successor.id)));
 
   // The money boundary: predecessor balance → 0, colliding predecessor snapshots dropped. Fed the
@@ -460,7 +493,11 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
 
   return {
     ...groupAccounts(adjustedViews),
-    paymentAccountId: user?.paymentAccountId ?? null,
+    // The boundary-remapped id (slice-6 critic A-F7): if the designated funding account is a
+    // superseded predecessor, every money engine funds from its successor — returning the raw
+    // stored id here would badge the zeroed $0.00 row as "payment account" while cash-needed
+    // funds from the successor, a cross-surface contradiction on the same screen.
+    paymentAccountId: boundary.paymentAccountId,
     today,
     trend,
     cardBilling,
@@ -485,10 +522,19 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
         mask: a.mask,
         currentBalanceCents: a.currentBalanceCents,
         currency: a.currency,
+        plaidItemId: a.plaidItemId, // C-10: same-bank-relinked (two items) both-live pairs warn
       })),
     ).filter((d) => {
       const k = pairKey(d.a.id, d.b.id);
-      return !reconciledPairKeys.has(k) && !candidatePairKeys.has(k);
+      // A pair involving an EFFECTIVE predecessor never warns (slice-6, with C-8): that row is
+      // zeroed and folded, so it cannot double-count with anyone — a warning about it would be
+      // noise about an already-resolved account (undo restores it, and then the warning too).
+      return (
+        !reconciledPairKeys.has(k) &&
+        !candidatePairKeys.has(k) &&
+        !effectivePredIds.has(d.a.id) &&
+        !effectivePredIds.has(d.b.id)
+      );
     }),
     reconciliations,
     reconciliationCandidates,

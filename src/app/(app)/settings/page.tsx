@@ -29,6 +29,7 @@ import { getLatestSelfAuditSnapshot } from '@/server/self-audit';
 import { listLearnedPhrases } from '@/server/vocab';
 import { LearnedPhrases } from '@/components/settings/learned-phrases';
 import { prisma } from '@/lib/db';
+import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { isDemoUser } from '@/lib/demo-user';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 
@@ -77,8 +78,12 @@ export default async function SettingsPage() {
 
   const customGroups = CUSTOM_CATEGORY_GROUPS;
 
+  // Slice-6 critic C-14: a reconciled predecessor is not a valid funding choice — the
+  // boundary remaps it to its successor anyway, so offering the folded $0.00 twin here
+  // (often under a near-identical name) invites a confusing dead pick.
+  const supersededFunding = await activeSupersededPredecessorIds([userId]);
   const eligibleAccounts = accounts
-    .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))
+    .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type) && !supersededFunding.has(a.id))
     .map((a) => ({ id: a.id, name: a.name }));
 
   const vapidPublicKey = getVapidPublicKey();

@@ -513,3 +513,167 @@ describe('effectiveReconciliationLinks — the shared effectiveness rule', () =>
     ).toEqual([]);
   });
 });
+
+// ─── Slice 6 (full-surface hostile critic): chains, siblings, and read guards ─
+
+describe('slice-6 chain composition (critics A-F1/A-F4/A-F6/A-F8, B-F4)', () => {
+  // Chain fixture: A (SimpleFIN, dead) → B (reconnect, dead) → C (Plaid, live).
+  // Monotone cutovers: cutAB 2026-03-31 <= cutBC 2026-06-30.
+  const A = { id: 'a', type: 'CHECKING', currentBalanceCents: 100_000 };
+  const B = { id: 'b', type: 'CHECKING', currentBalanceCents: 110_000 };
+  const C = { id: 'c', type: 'CHECKING', currentBalanceCents: 120_000 };
+  const CHAIN: ReconciliationLinkLike[] = [
+    { predecessorAccountId: 'a', successorAccountId: 'b', cutoverDate: '2026-03-31' },
+    { predecessorAccountId: 'b', successorAccountId: 'c', cutoverDate: '2026-06-30' },
+  ];
+  const chainApply = (over: {
+    transactions?: { accountId: string; date: string; amountCents: number }[];
+    balanceSnapshots?: { accountId: string; date: string; balanceCents: number }[];
+    statements?: { id: string; accountId: string; cycleEnd: string; statementBalanceCents: number }[];
+  }) =>
+    applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [A, B, C],
+      transactions: over.transactions ?? [],
+      balanceSnapshots: over.balanceSnapshots ?? [],
+      statements: over.statements ?? [],
+      scheduled: [],
+      links: CHAIN,
+    });
+
+  it('A-F1: the terminal successor is excluded by the GRAND-predecessor claim, not just the direct one', () => {
+    // A claims [2026-01-15, 2026-03-31]. C (deep Plaid backfill) re-imports a purchase
+    // dated 2026-02-10 that A already holds — outside B claim, inside A claim.
+    const out = chainApply({
+      transactions: [
+        { accountId: 'a', date: '2026-01-15', amountCents: -1_000 },
+        { accountId: 'a', date: '2026-02-10', amountCents: -5_000 },
+        { accountId: 'a', date: '2026-03-31', amountCents: -1_000 },
+        { accountId: 'b', date: '2026-04-15', amountCents: -1_000 },
+        { accountId: 'c', date: '2026-02-10', amountCents: -5_000 }, // A's claim — dropped
+        { accountId: 'c', date: '2026-07-01', amountCents: -1_000 },
+      ],
+    });
+    const keys = out.transactions.map((t) => `${t.accountId}:${t.date}:${t.amountCents}`);
+    expect(keys).toEqual([
+      'a:2026-01-15:-1000',
+      'a:2026-02-10:-5000',
+      'a:2026-03-31:-1000',
+      'b:2026-04-15:-1000',
+      'c:2026-07-01:-1000',
+    ]);
+    // The $50 purchase contributes once (pre-fix: twice, -10 000 cents).
+    expect(out.transactions.filter((t) => t.amountCents === -5_000)).toHaveLength(1);
+  });
+
+  it('A-F1 control: C backfill BEFORE every claim is still kept (deep history never dropped)', () => {
+    const out = chainApply({
+      transactions: [
+        { accountId: 'a', date: '2026-01-15', amountCents: -1_000 },
+        { accountId: 'c', date: '2025-06-01', amountCents: -7_000 }, // pre-A backfill → kept
+      ],
+    });
+    expect(out.transactions.some((t) => t.accountId === 'c' && t.date === '2025-06-01')).toBe(true);
+  });
+
+  it('A-F4: a grand-pair same-date snapshot collision keeps exactly one copy (the authoritative side)', () => {
+    // B has NO snapshot on the date — the direct-only check saw no collision at all.
+    const out = chainApply({
+      balanceSnapshots: [
+        { accountId: 'a', date: '2026-02-28', balanceCents: 100_000 },
+        { accountId: 'c', date: '2026-02-28', balanceCents: 100_000 },
+      ],
+    });
+    // 02-28 <= cutAB → A is authoritative; C's copy drops. One contribution (pre-fix: 200 000 cents).
+    expect(out.balanceSnapshots).toEqual([{ accountId: 'a', date: '2026-02-28', balanceCents: 100_000 }]);
+  });
+
+  it('A-F4 control: after the elder cutover the DOWNSTREAM side wins the collision', () => {
+    const out = chainApply({
+      balanceSnapshots: [
+        { accountId: 'a', date: '2026-05-15', balanceCents: 90_000 }, // > cutAB, C has the date → drops
+        { accountId: 'c', date: '2026-05-15', balanceCents: 91_000 },
+      ],
+    });
+    expect(out.balanceSnapshots).toEqual([{ accountId: 'c', date: '2026-05-15', balanceCents: 91_000 }]);
+  });
+
+  it('A-F4 control: a lone observation is never dropped anywhere in the chain', () => {
+    const out = chainApply({
+      balanceSnapshots: [{ accountId: 'a', date: '2026-05-15', balanceCents: 90_000 }],
+    });
+    expect(out.balanceSnapshots).toHaveLength(1);
+  });
+
+  it('A-F6: two chain generations re-keying the SAME cycle produce ONE statement on the terminal successor', () => {
+    // C has no statements of its own; A and B both carry the 2026-02-28 real cycle.
+    const out = chainApply({
+      statements: [
+        { id: 'sa', accountId: 'a', cycleEnd: '2026-02-28', statementBalanceCents: 40_000 },
+        { id: 'sb', accountId: 'b', cycleEnd: '2026-02-28', statementBalanceCents: 40_000 },
+      ],
+    });
+    // B's cutover (06-30) is later than A's (03-31) → B's copy (most recent provider) wins.
+    expect(out.statements).toEqual([{ id: 'sb', accountId: 'c', cycleEnd: '2026-02-28', statementBalanceCents: 40_000 }]);
+  });
+
+  it('A-F6 siblings: two predecessors of ONE successor re-keying the same cycle keep one copy, order-independent', () => {
+    const S1 = { id: 'p1', type: 'CREDIT', currentBalanceCents: -50_000 };
+    const S2 = { id: 'p2', type: 'CREDIT', currentBalanceCents: -50_000 };
+    const LIVE = { id: 'live', type: 'CREDIT', currentBalanceCents: -50_000 };
+    const links: ReconciliationLinkLike[] = [
+      { predecessorAccountId: 'p1', successorAccountId: 'live', cutoverDate: '2026-06-30' },
+      { predecessorAccountId: 'p2', successorAccountId: 'live', cutoverDate: '2026-06-15' },
+    ];
+    const stmts = [
+      { id: 'sp1', accountId: 'p1', cycleEnd: '2026-06-20', statementBalanceCents: 50_000 },
+      { id: 'sp2', accountId: 'p2', cycleEnd: '2026-06-20', statementBalanceCents: 50_000 },
+    ];
+    for (const order of [stmts, [...stmts].reverse()]) {
+      const out = applyReconciliationBoundary({
+        paymentAccountId: null,
+        accounts: [S1, S2, LIVE],
+        transactions: [],
+        balanceSnapshots: [],
+        statements: order,
+        scheduled: [],
+        links,
+      });
+      // p1's cutover (06-30) is the latest → its copy wins in BOTH input orders.
+      expect(out.statements.map((s) => `${s.accountId}:${s.id}`)).toEqual(['live:sp1']);
+    }
+  });
+
+  it('A-F8: a cutover BEFORE the predecessor first transaction goes claim-inert — nothing is erased', () => {
+    // Unreachable via confirm (bounded >= first txn) but reachable by deleting the
+    // predecessor's earliest manual row afterward. Pre-fix: EVERY pred row dropped
+    // with no successor copies — silent total erasure. Now: pred keeps everything
+    // (visible, advisory-covered double at worst); balance still zeroed.
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [A, B],
+      transactions: [
+        { accountId: 'a', date: '2026-05-01', amountCents: -1_000 },
+        { accountId: 'a', date: '2026-06-01', amountCents: -2_000 },
+      ],
+      balanceSnapshots: [],
+      statements: [],
+      scheduled: [],
+      links: [{ predecessorAccountId: 'a', successorAccountId: 'b', cutoverDate: '2026-03-31' }],
+    });
+    expect(out.transactions).toHaveLength(2);
+    expect(out.accounts.find((a) => a.id === 'a')!.currentBalanceCents).toBe(0);
+  });
+
+  it('B-F4: a non-monotone chain link (racing-commit shape) is INERT at read time — never a double-window', () => {
+    // Downstream cutover (03-01) EARLIER than upstream (03-31): refused at confirm, but a
+    // Postgres race can commit it. The downstream link must drop; the upstream link stands.
+    const bad: ReconciliationLinkLike[] = [
+      { predecessorAccountId: 'a', successorAccountId: 'b', cutoverDate: '2026-03-31' },
+      { predecessorAccountId: 'b', successorAccountId: 'c', cutoverDate: '2026-03-01' },
+    ];
+    expect(effectiveReconciliationLinks([A, B, C], bad)).toEqual([bad[0]]);
+    // Monotone chain control: both kept.
+    expect(effectiveReconciliationLinks([A, B, C], CHAIN)).toEqual(CHAIN);
+  });
+});

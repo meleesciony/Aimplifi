@@ -185,26 +185,59 @@ export function answerNetWorth(accounts: readonly AccountLike[]): AssistantAnswe
 
 // ─── account balance ────────────────────────────────────────────────────────
 
-export function answerAccountBalance(accounts: readonly AccountLike[], query: string): AssistantAnswer {
+export function answerAccountBalance(
+  accounts: readonly AccountLike[],
+  query: string,
+  /** Reconciled predecessor id → terminal successor id (slice-6 critic C-5). A superseded
+   *  predecessor is boundary-zeroed — answering its "$0.00" would be a false money claim, and
+   *  counting it beside its successor reports one real account as two. Matching still SEES
+   *  predecessors (their old name is exactly what the user may ask by), but every match and
+   *  every listed fact folds onto the account that actually carries the money. */
+  successorOf: ReadonlyMap<string, string> = new Map(),
+): AssistantAnswer {
   const q = query.toLowerCase();
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const foldMatches = (raw: readonly AccountLike[]): { folded: AccountLike[]; foldedFrom: string[] } => {
+    const foldedFrom: string[] = [];
+    const seen = new Set<string>();
+    const folded: AccountLike[] = [];
+    for (const a of raw) {
+      const succId = successorOf.get(a.id);
+      const target = succId !== undefined ? (byId.get(succId) ?? a) : a;
+      if (succId !== undefined && byId.has(succId)) foldedFrom.push(a.name);
+      if (!seen.has(target.id)) {
+        seen.add(target.id);
+        folded.push(target);
+      }
+    }
+    return { folded, foldedFrom };
+  };
+  const visible = accounts.filter((a) => !successorOf.has(a.id));
   const typeHit = TYPE_WORDS.find((t) => t.re.test(q));
-  let matches: AccountLike[] = [];
-  if (typeHit) matches = accounts.filter((a) => a.type === typeHit.type);
-  if (matches.length === 0) {
-    matches = accounts.filter((a) =>
+  let rawMatches: AccountLike[] = [];
+  if (typeHit) rawMatches = accounts.filter((a) => a.type === typeHit.type);
+  if (rawMatches.length === 0) {
+    rawMatches = accounts.filter((a) =>
       a.name
         .toLowerCase()
         .split(/[^a-z0-9]+/)
         .some((w) => w.length >= 4 && !GENERIC_NAME_WORD.has(w) && q.includes(w)),
     );
   }
+  const { folded: matches, foldedFrom } = foldMatches(rawMatches);
+  // Disclosed only when a fold actually changed what the user asked about (their word
+  // named the OLD account) — a plain type query over live accounts stays undecorated.
+  const foldNote =
+    foldedFrom.length > 0
+      ? `${foldedFrom.join(' and ')} was combined into its connected account, so it counts once.`
+      : undefined;
 
   if (matches.length === 0) {
     return {
       kind: 'account_balance',
       headline: "I couldn't find an account matching that.",
       detail: 'Here are the accounts I can see.',
-      facts: accounts.map((a) => ({ label: a.name, value: fmt(a.currentBalanceCents) })),
+      facts: visible.map((a) => ({ label: a.name, value: fmt(a.currentBalanceCents) })),
       source: { label: 'See accounts', href: '/accounts' },
     };
   }
@@ -214,6 +247,7 @@ export function answerAccountBalance(accounts: readonly AccountLike[], query: st
     return {
       kind: 'account_balance',
       headline: `${a.name} ${owed ? 'has a balance of' : 'has'} ${fmt(a.currentBalanceCents)}${owed ? ' owed' : ''}.`,
+      ...(foldNote !== undefined ? { detail: foldNote } : {}),
       facts: [{ label: a.name, value: fmt(a.currentBalanceCents) }],
       source: { label: 'See accounts', href: '/accounts' },
     };
@@ -222,6 +256,7 @@ export function answerAccountBalance(accounts: readonly AccountLike[], query: st
   return {
     kind: 'account_balance',
     headline: `${fmt(total)} across ${matches.length} accounts.`,
+    ...(foldNote !== undefined ? { detail: foldNote } : {}),
     facts: matches.map((a) => ({ label: a.name, value: fmt(a.currentBalanceCents) })),
     source: { label: 'See accounts', href: '/accounts' },
   };

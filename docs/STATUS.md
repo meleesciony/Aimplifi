@@ -2,6 +2,44 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## Wave 4.6 slice 6 — full-surface hostile critic (#275, 2026-07-22) — WAVE 4.6 COMPLETE
+
+Three parallel fresh-context critics (money core + §6 straddle lead target / lifecycle-authz /
+downstream surfaces + copy honesty) over R1–R10. **8 P1s found, all fixed + regression-locked in
+the same session; zero P0.** Headlines: the boundary engine composed DIRECT links only, so a
+chain A→B→C double-counted the terminal successor's deep backfill inside the original
+predecessor's claim and doubled A↔C same-date snapshots (executed $-repros) — claims and
+snapshot collisions now compose transitively, sibling statement re-keys dedupe, a pre-first-txn
+cutover goes claim-inert, non-monotone racing chains are inert at read; the register, CSV
+export, budgets, triage, and recurring detection were still Prisma-direct (register summary
+80% inflated vs the dashboard on one screenload, executed) — all five now share ONE R1 closure
+(`getReconciliationTxnKeep`); manual/CSV writes to a superseded predecessor vanished from every
+sum — now refused and hidden from pickers; the assistant answered a predecessor query "$0.00" —
+now folds onto the terminal successor with an inline disclosure; getAccountsView returned the
+raw `paymentAccountId`, re-offered an already-linked predecessor (silent re-target on one tap),
+and defaulted the cutover to `today` against spec §6 — all fixed; #192 now catches same-bank
+re-linked through a new PlaidItem; confirm runs SERIALIZABLE (closes the two Postgres races)
+and audit-logs the direction-conflict auto-undo.
+
+**§6 straddle resolved (was the §11 open question):** accept-and-disclose across all three
+skew windows — trailing double (b), leading-edge mirror (b′, critic A-F3), user-shortened-
+cutover zero-count (b″, critic A-F2) — because an amount-match dedup's false-positive
+direction is a silently dropped transaction, worse than a visible double. Mitigations shipped:
+UI default cutover = predecessor's last transaction (spec §6), honest claim-span + skew
+disclosure in the confirm card, EDGE_CASES residuals.
+
+**Deliberate non-fixes (recorded, DECISIONS #275):** sibling-predecessor transaction/snapshot
+overlap stays residual (c) (advisory-covered; the link model cannot express it); B-F6 UTC
+business-today = platform #58; B-F7 broken-item-counts-live is the safe refusal direction
+(commented in code); household duplicate detectors keep the blanket same-provider skip.
+**Remaining e2e gaps (unit-locked, not e2e-driven):** credit-card reconciled pair, 3-account
+cluster flows.
+
+Gate: `VERIFY_E2E=1 bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0 / eslint 0 /
+**3465 unit / 238 files** / build clean / **e2e 159/159** (both engines; the documented goals
+teardown flake did not occur this run). 5 REGRESSION_LEDGER entries; EDGE_CASES
+§Reconciliation-Boundary slice-6 sections; spec marked BUILT, §11 resolved.
+
 ## 🔴 OPEN — owner-reported 2026-07-21: "the password isn't being remembered" (START HERE NEXT SESSION)
 
 Owner, verbatim, at the end of the #260 session: *"There's a problem with the
