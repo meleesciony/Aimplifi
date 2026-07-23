@@ -1,9 +1,19 @@
 import type { NextConfig } from "next";
 
 /**
- * Security headers (Phase 4): CSP with no third-party scripts (the app loads
- * none), frame denial, and conservative defaults. 'unsafe-inline' for styles
- * is required by Tailwind's inline style attributes; script-src stays strict.
+ * Security headers (Phase 4): CSP scoped to what the app + Plaid Link need, frame
+ * denial, and conservative defaults. 'unsafe-inline' for styles is required by
+ * Tailwind's inline style attributes.
+ *
+ * PLAID LINK NEEDS MORE THAN cdn.plaid.com (#283, owner-reported live: connecting
+ * a bank silently failed for EVERY institution). Plaid Link runs Google reCAPTCHA
+ * for fraud/bot checks, which makes background calls to www.google.com /
+ * www.gstatic.com and renders a challenge iframe from www.google.com /
+ * recaptcha.google.com. Our old CSP allowed ONLY self + *.plaid.com, so reCAPTCHA
+ * was refused (`Refused to connect … recaptcha/api2 … violates connect-src`) and
+ * the connection died with no error — a self-inflicted, too-strict-CSP footgun that
+ * permissive competitors don't hit. The Google/reCAPTCHA origins below are the
+ * documented requirement (script-src + frame-src + connect-src + an img on gstatic).
  *
  * DEV ONLY: `next dev` compiles client code with eval-based source maps
  * (eval-source-map), so the dev runtime needs 'unsafe-eval' or the CSP blocks
@@ -22,14 +32,19 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       // cdn.plaid.com hosts the Plaid Link SDK; *.plaid.com is the Link iframe +
-      // its API calls (DECISIONS #41). Scoped to Plaid only. 'unsafe-eval' is
-      // dev-only (Next.js HMR/source-maps); never emitted in production.
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://cdn.plaid.com`,
+      // its API calls (DECISIONS #41). www.google.com + www.gstatic.com are Plaid
+      // Link's reCAPTCHA (fraud check) scripts. 'unsafe-eval' is dev-only.
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://cdn.plaid.com https://www.google.com https://www.gstatic.com`,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      // gstatic serves reCAPTCHA's images/badge.
+      "img-src 'self' data: blob: https://www.gstatic.com",
       "font-src 'self' data:",
-      `connect-src 'self' https://*.plaid.com${sentryConfigured ? " https://*.ingest.sentry.io" : ""}`,
-      "frame-src https://*.plaid.com",
+      // *.plaid.com = Link API; www.google.com + www.gstatic.com = reCAPTCHA's
+      // background validation calls (the ones the live console showed blocked).
+      `connect-src 'self' https://*.plaid.com https://www.google.com https://www.gstatic.com${sentryConfigured ? " https://*.ingest.sentry.io" : ""}`,
+      // *.plaid.com = Link iframe; www.google.com + recaptcha.google.com = the
+      // reCAPTCHA challenge iframe Plaid can render mid-connection.
+      "frame-src https://*.plaid.com https://www.google.com https://recaptcha.google.com",
       "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",
