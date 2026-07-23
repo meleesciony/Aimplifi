@@ -76,11 +76,14 @@ export function CashNeededCard({
                 telling the owner of a CONNECTED card to add one sends them looking
                 for a button that isn't on their row — cycle-2 critic P1-1. What is
                 true for every card is that we re-check daily. */}
+            {/* No cadence claim: the daily sweep depends on the deployment's cron
+                actually firing, which is UNVERIFIED (docs/STATUS.md Wave 0.3). This
+                sentence is true either way. */}
             <p>
               The bank hasn’t sent a statement for{' '}
-              {unknown.length === 1 ? 'this card' : 'these cards'} yet. Connected cards
-              are re-checked every day, and the due date appears here as soon as it
-              arrives — there’s nothing to do in the meantime.
+              {unknown.length === 1 ? 'this card' : 'these cards'} yet. The due date
+              appears here as soon as one arrives — there’s nothing to do in the
+              meantime.
             </p>
             <p>
               <Link href="/cards" className="underline hover:text-foreground">

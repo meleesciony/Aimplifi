@@ -246,9 +246,8 @@ export function CardsBreakdown({
                     this panel mostly holds (cycle-2 critic P1-1). */}
                 <p className="mt-1 text-xs text-muted-foreground">
                   The bank hasn’t sent a statement for these, so they aren’t counted in
-                  any figure above. Connected cards are re-checked daily and will appear
-                  as soon as one arrives. A card you added by hand can carry a statement
-                  you enter yourself, from{' '}
+                  any figure above. They’ll appear as soon as one arrives. A card you
+                  added by hand can carry a statement you enter yourself, from{' '}
                   <Link href="/accounts" className="underline hover:text-foreground">
                     Accounts
                   </Link>
