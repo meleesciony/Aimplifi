@@ -12,21 +12,47 @@
  * (storeLinkToken) for /plaid-oauth to recover and resume Link. It's cleared on
  * every terminal outcome (success, error, exit).
  *
- * This button now renders on every zero-account route (inlined on EmptyDashboard,
- * Gap 3 §3), not just /accounts — so the current path is stashed alongside the
- * token (storeOriginPath) too, and /plaid-oauth sends the user back to wherever
- * they started Link instead of a hardcoded '/accounts'.
+ * ONE Link instance PER TOKEN (#282, owner-reported): the launcher below is
+ * mounted keyed by the token, so every attempt gets a FRESH usePlaidLink handler.
+ * The previous single-hook-reused-across-tokens shape wedged after an ungraceful
+ * OAuth close — the modal vanished, no `onExit` fired, and `open()` on the consumed
+ * instance did nothing, so the button went dead until a full page refresh AND the
+ * exit reason never surfaced. A fresh instance per token fixes the retry and lets
+ * onExit actually fire.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { usePlaidLink } from 'react-plaid-link';
+import { usePlaidLink, type PlaidLinkOnExit } from 'react-plaid-link';
 import { createPlaidLinkToken, linkPlaidAccount } from '@/server/plaid-actions';
 import { clearStoredLinkToken, storeLinkToken, storeOriginPath } from '@/lib/plaid-oauth';
 
+/**
+ * A single-use Plaid Link handler for exactly one token. Mounted (keyed by token)
+ * only while a link is in flight; auto-opens as soon as the SDK is ready. Because
+ * the parent keys it by the token string, a new attempt = a brand-new instance,
+ * never a reused/consumed one.
+ */
+function PlaidLinkLauncher({
+  token,
+  onSuccess,
+  onExit,
+}: {
+  token: string;
+  onSuccess: (publicToken: string) => void;
+  onExit: PlaidLinkOnExit;
+}) {
+  const { open, ready } = usePlaidLink({ token, onSuccess, onExit });
+  useEffect(() => {
+    if (ready) open();
+  }, [ready, open]);
+  return null;
+}
+
 export function ConnectAccountsButton() {
   const router = useRouter();
+  // The in-flight link token. Setting it MOUNTS a fresh launcher; clearing it (on
+  // any terminal outcome) unmounts so the next attempt starts clean.
   const [token, setToken] = useState<string | null>(null);
-  const [wantOpen, setWantOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // #256: Plaid's SANDBOX rejects real-world input inside its own Link UI (real
@@ -45,7 +71,6 @@ export function ConnectAccountsButton() {
         .then((r) => {
           clearStoredLinkToken();
           setToken(null);
-          setWantOpen(false);
           setBusy(false);
           if (!r.ok) setError(r.error ?? 'Linking failed.');
           else router.refresh();
@@ -53,7 +78,6 @@ export function ConnectAccountsButton() {
         .catch(() => {
           clearStoredLinkToken();
           setToken(null);
-          setWantOpen(false);
           setBusy(false);
           setError('Linking failed — please try again.');
         });
@@ -61,47 +85,32 @@ export function ConnectAccountsButton() {
     [router],
   );
 
-  const { open, ready } = usePlaidLink({
-    token,
-    onSuccess,
-    // Surface a real Link error (institution/login failure) instead of silent
-    // re-enable; a clean user cancel passes err=null, so it stays quiet.
-    onExit: (err, metadata) => {
-      clearStoredLinkToken();
-      setWantOpen(false);
-      // TEMP DIAGNOSTIC (#281): a Chase OAuth close was arriving with err=null and
-      // no on-screen reason, so both the page and the console looked empty and we
-      // were left guessing. Plaid reports the real reason in `metadata` (status,
-      // and an error object on an OAuth failure) — surface it on-screen so it's
-      // readable on ANY device. Revert to the plain `if (err)` message once the
-      // cause is identified.
-      const parts = [
-        metadata?.status ? `status=${metadata.status}` : null,
-        err?.error_code ? `code=${err.error_code}` : null,
-        err?.error_type ? `type=${err.error_type}` : null,
-        err?.error_message ?? null,
-        metadata?.institution?.name ? `bank=${metadata.institution.name}` : null,
-        metadata?.request_id ? `req=${metadata.request_id}` : null,
-      ].filter(Boolean);
-      const diag = parts.join(' · ') || 'no reason reported by Plaid';
-      setError(
-        err
-          ? (err.display_message ?? err.error_message ?? `Link ended — ${diag}`)
-          : `Diagnostic — Link closed without connecting: ${diag}`,
-      );
-    },
-  });
-
-  // Open Plaid Link once the SDK is ready with the freshly-minted token.
-  useEffect(() => {
-    if (wantOpen && ready) {
-      open();
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- pre-existing pattern surfaced by the react-hooks v6 upgrade (#166), not this increment's scope
-      setWantOpen(false);
-    }
-  }, [wantOpen, ready, open]);
+  const onExit = useCallback<PlaidLinkOnExit>((err, metadata) => {
+    clearStoredLinkToken();
+    // Clear the token so the launcher unmounts; the NEXT click mounts a fresh one.
+    setToken(null);
+    // TEMP DIAGNOSTIC (#282): surface Plaid's OWN exit reason on-screen (readable on
+    // mobile, no console). Now that each attempt gets a fresh instance, onExit fires
+    // reliably instead of being swallowed by a wedged handler. Revert to the plain
+    // `if (err)` message once the Chase cause is identified.
+    const parts = [
+      metadata?.status ? `status=${metadata.status}` : null,
+      err?.error_code ? `code=${err.error_code}` : null,
+      err?.error_type ? `type=${err.error_type}` : null,
+      err?.error_message ?? null,
+      metadata?.institution?.name ? `bank=${metadata.institution.name}` : null,
+      metadata?.request_id ? `req=${metadata.request_id}` : null,
+    ].filter(Boolean);
+    const diag = parts.join(' · ') || 'no reason reported by Plaid';
+    setError(
+      err
+        ? (err.display_message ?? err.error_message ?? `Link ended — ${diag}`)
+        : `Diagnostic — Link closed without connecting: ${diag}`,
+    );
+  }, []);
 
   async function start() {
+    if (busy || token) return;
     setError(null);
     setBusy(true);
     // try/finally so a rejected action always clears busy — never strand the
@@ -113,15 +122,14 @@ export function ConnectAccountsButton() {
         return;
       }
       setSandbox(r.sandbox === true);
-      setToken(r.linkToken);
       // Persist for a possible OAuth round-trip: an OAuth bank navigates the
       // browser away (destroying this component's state), and /plaid-oauth needs
       // the token (and where to send the user back) to resume Link. Harmless for
-      // non-OAuth banks — the resume page is never visited, and the entries are
-      // cleared on every subsequent Link open.
+      // non-OAuth banks — the resume page is never visited.
       storeLinkToken(r.linkToken);
       storeOriginPath(window.location.pathname);
-      setWantOpen(true);
+      // Mounts <PlaidLinkLauncher key={token}> which auto-opens once ready.
+      setToken(r.linkToken);
     } catch {
       setError('Could not start bank linking — please try again.');
     } finally {
@@ -140,6 +148,9 @@ export function ConnectAccountsButton() {
       >
         {busy ? 'Connecting…' : '+ Connect a bank or brokerage (Plaid)'}
       </button>
+      {token && (
+        <PlaidLinkLauncher key={token} token={token} onSuccess={onSuccess} onExit={onExit} />
+      )}
       {sandbox && (
         <p data-testid="plaid-sandbox-notice" className="text-[11px] text-amber-300/80">
           Plaid is running in <b>sandbox (test) mode</b>: real banks, real logins, and real phone
