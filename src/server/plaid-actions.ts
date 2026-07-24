@@ -85,9 +85,18 @@ export async function linkPlaidAccount(publicToken: string): Promise<LinkResult>
     } catch {
       // no Liabilities product (depository-only) or not yet generated — non-fatal
     }
+    try {
+      // A just-linked brokerage's positions (TASKS 4.3). No-op (zero billed calls) when the
+      // user linked a checking/credit-only bank; non-fatal if the Investments product isn't
+      // granted (existing/unsupported institution) — the /investments page just stays as-is.
+      await provider.syncHoldings(userId);
+    } catch {
+      // no Investments product or not yet generated — non-fatal
+    }
     revalidatePath('/accounts');
     revalidatePath('/transactions');
     revalidatePath('/dashboard');
+    revalidatePath('/investments');
     return { ok: true, added };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Could not link your accounts.' };
@@ -265,6 +274,16 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
     // costs nothing thereafter. Cosmetic: never turns a successful data pull into an error.
     try {
       await provider.syncInstitutions(userId, { itemId });
+    } catch {
+      /* provider isolates + audits per-item failures; a total failure is non-fatal here */
+    }
+
+    // Best-effort investment-holdings refresh (TASKS 4.3). No-op (zero billed calls) for a
+    // user with no investment account; isolated + non-fatal like the backfills above — a
+    // holdings hiccup must never turn a successful transaction/statement sync into a red
+    // error. The /investments revalidation below then surfaces any updated positions.
+    try {
+      await provider.syncHoldings(userId, { itemId });
     } catch {
       /* provider isolates + audits per-item failures; a total failure is non-fatal here */
     }

@@ -63,6 +63,15 @@ export interface PlaidSyncPort {
   syncInstitutions?(
     userId: string,
   ): Promise<{ attempted: number; updated: number; failed: number }>;
+  /**
+   * Sync each INVESTMENT account's holdings (TASKS 4.3). Optional so a narrower test port
+   * need not provide it; when present, the daily cron refreshes a linked brokerage's
+   * positions hands-free for a user who never opens the app. No-op (zero billed calls) for
+   * a user with no investment account, so a checking/credit-only sweep is unaffected.
+   */
+  syncHoldings?(
+    userId: string,
+  ): Promise<{ itemsAttempted: number; itemsFailed: number; upserted: number; removed: number }>;
 }
 
 export interface PlaidSweepRow {
@@ -83,6 +92,15 @@ export interface PlaidSweepRow {
   webhooksUpdated?: number;
   /** Institution names resolved this run (only set when the port supports the backfill). */
   institutionsUpdated?: number;
+  /** Investment positions written/updated this run (only set when the port supports holdings sync). */
+  holdingsUpserted?: number;
+  /** Investment positions pruned this run — sold (only set when the port supports holdings sync). */
+  holdingsRemoved?: number;
+  /** Investment-bearing items asked for holdings this run (only set when the port supports it). */
+  holdingsAttempted?: number;
+  /** Investment-holdings items that errored — surfaced so a total holdings failure is visible in
+   *  the summary, not just the per-item audit (the liabilities F-6 invariant, holdings parity). */
+  holdingsFailed?: number;
   /** Carried through so a PARTIAL failure (2 of 3 items) isn't audited as a clean run. */
   itemsAttempted: number;
   itemsFailed: number;
@@ -194,6 +212,28 @@ export async function sweepPlaidLinkedUsers(
       }
     }
 
+    // Best-effort investment-holdings refresh (TASKS 4.3) — same contract: hands-free,
+    // never overwrites a prior step's error, and a failure here doesn't fail the sweep
+    // (holdings are an additive /investments breakdown; net worth rides the account balance).
+    if (port.syncHoldings) {
+      try {
+        const h = await port.syncHoldings(userId);
+        row.holdingsUpserted = h.upserted;
+        row.holdingsRemoved = h.removed;
+        row.holdingsAttempted = h.itemsAttempted;
+        row.holdingsFailed = h.itemsFailed;
+        // syncHoldings swallows per-item errors (like syncLiabilities), so a total failure
+        // returns normally with upserted:0/removed:0 — byte-identical to a no-change run unless
+        // the counts are surfaced. Flag it so the sync.cron.plaid summary shows a broken
+        // brokerage-holdings sweep instead of a silent all-clear (#277 F-6, holdings parity).
+        if (h.itemsAttempted > 0 && h.itemsFailed >= h.itemsAttempted) {
+          row.error = row.error ?? `all ${h.itemsAttempted} investment-holdings item(s) failed /investments/holdings/get`;
+        }
+      } catch (e) {
+        row.error = row.error ?? (e instanceof Error ? e.message : 'holdings sync failed');
+      }
+    }
+
     await prisma.auditLog
       .create({
         data: {
@@ -210,6 +250,14 @@ export async function sweepPlaidLinkedUsers(
             ...(row.webhooksUpdated !== undefined ? { webhooksUpdated: row.webhooksUpdated } : {}),
             ...(row.institutionsUpdated !== undefined
               ? { institutionsUpdated: row.institutionsUpdated }
+              : {}),
+            ...(row.holdingsUpserted !== undefined
+              ? {
+                  holdingsUpserted: row.holdingsUpserted,
+                  holdingsRemoved: row.holdingsRemoved,
+                  holdingsAttempted: row.holdingsAttempted,
+                  holdingsFailed: row.holdingsFailed,
+                }
               : {}),
             ...(row.error ? { error: row.error } : {}),
           }),

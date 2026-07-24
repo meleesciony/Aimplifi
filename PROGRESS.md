@@ -1,5 +1,9 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-23 — Wave 4.3 shipped — Plaid /investments/holdings parity (#290)
+
+Wave 4.3 COMPLETE. New pure mapper src/lib/providers/plaid-holdings.ts + PlaidProvider.syncHoldings/reconcilePlaidHoldings; investments added to the link-token required_if_supported; wired best-effort into linkPlaidAccount, syncPlaidNow, and the daily sweep. Hostile-critic Workflow (3 lenses, adversarial verify): 1 P2 + 3 P3 all fixed and regression-locked (malformed-array Array.isArray guard, prune-only-on-clean-run, sweep failure-count surfacing). Deliberate non-fix: null cost_basis full-value gain display (pre-existing, SimpleFIN-shared, needs a nullable costBasisCents schema change, out of scope). Gate: bash scripts/verify.sh GREEN — tsc 0, eslint 0, vitest 246 files / 3591 tests, next build clean. E2E from the earlier VERIFY_E2E run: 163 pass + 1 documented load-flake (goals then money-dials, a different contention spec each run, both pass clean in isolation), CI is the arbiter. UNVERIFIED against live Plaid (no sandbox creds): mapping + reconcile tested against mocked providers + real Prisma only; existing items linked before this need re-linking to gain the investments product. Next: owner-gated items remain (Venture duplicate row, password reset, mobile UI screenshots).
+
 ## 2026-07-23 — #289 — TASKS L.4: the five #277-critic P2s + a critic-found undatable-card copy inconsistency
 
 Built on Opus (ultracode); the owner is out of Fable credits. Closed the five recorded #277 P2s AND the coherent defect a 3-lens hostile-critic pass then surfaced.

@@ -37,12 +37,14 @@ describe('linkTokenParams — redirect_uri is opt-in (configured-only)', () => {
     expect(body.redirect_uri).toBe('https://www.aimplifi.app/plaid-oauth');
   });
 
-  it('keeps the link-token contract: scoped user, transactions product, liabilities only-if-supported', () => {
+  it('keeps the link-token contract: scoped user, transactions product, liabilities + investments only-if-supported', () => {
     const body = linkTokenParams('user-42');
     expect(body.user).toEqual({ client_user_id: 'user-42' });
     expect(body.client_name).toBe('Aimplifi');
     expect(body.products).toEqual(['transactions']);
-    expect(body.required_if_supported_products).toEqual(['liabilities']);
+    // liabilities + investments are best-effort: a depository-only bank still links, and
+    // the unsupported product's sync reports the item as unsupported, never failed (4.3).
+    expect(body.required_if_supported_products).toEqual(['liabilities', 'investments']);
     expect(body.country_codes).toEqual(['US']);
     expect(body.language).toBe('en');
   });

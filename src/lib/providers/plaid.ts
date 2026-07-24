@@ -46,6 +46,12 @@ import {
   pickPlaidAprBps,
   prepareIngestedTransaction,
 } from './plaid-map';
+import {
+  type MappedPlaidHolding,
+  type PlaidHolding,
+  type PlaidSecurity,
+  mapPlaidHoldings,
+} from './plaid-holdings';
 import { assistUnsureRows } from '@/server/categorize-assist';
 import { categorizeSuggestFor } from '@/server/categorize-suggest';
 import { DemoProvider } from './demo';
@@ -141,18 +147,23 @@ export async function fetchPlaidWebhookKey(kid: string): Promise<JWK | null> {
 /**
  * Build the `/link/token/create` request body (minus client_id/secret, which
  * plaidPost injects). Pure + unit-tested (tests/unit/plaid-oauth.test.ts). Keeping
- * `liabilities` in required_if_supported (not `products`) is what keeps depository-
- * only banks linkable. `redirectUri` is registered ONLY when set: an OAuth bank
- * (Chase/BofA) redirects the browser to it to hand the user back; when unset the
- * key is omitted entirely so non-OAuth linking works with zero extra config (Plaid
- * rejects a redirect_uri that isn't an exact match for a dashboard-registered URI).
+ * `liabilities` AND `investments` in required_if_supported (not `products`) is what
+ * keeps depository-only banks linkable: a bank without an investments/liabilities
+ * product still links, and the corresponding sync simply reports the item as
+ * `unsupported` (never `failed`, TASKS 4.3 / #277 P2). `investments` grants the
+ * /investments/holdings/get product so a linked brokerage's positions can sync
+ * (existing items linked BEFORE this need re-linking to gain it). `redirectUri` is
+ * registered ONLY when set: an OAuth bank (Chase/BofA) redirects the browser to it to
+ * hand the user back; when unset the key is omitted entirely so non-OAuth linking works
+ * with zero extra config (Plaid rejects a redirect_uri that isn't an exact match for a
+ * dashboard-registered URI).
  */
 export function linkTokenParams(userId: string, redirectUri?: string): Record<string, unknown> {
   return {
     user: { client_user_id: userId },
     client_name: 'Aimplifi',
     products: ['transactions'],
-    required_if_supported_products: ['liabilities'],
+    required_if_supported_products: ['liabilities', 'investments'],
     country_codes: ['US'],
     language: 'en',
     webhook: process.env.PLAID_WEBHOOK_URL || undefined,
@@ -198,6 +209,30 @@ export interface InstitutionSyncResult {
   updated: number;
   /** Items whose /institutions lookup failed (audited, isolated — never blocks the rest). */
   failed: number;
+}
+
+/**
+ * Outcome of one user's investment-HOLDINGS sweep (TASKS 4.3). Per-item errors are
+ * swallowed inside `syncHoldings`, so — exactly like LiabilitySyncResult — these counts
+ * are the only way a caller tells "nothing to sync" from "the pull failed". `itemsAttempted`
+ * counts only items that HAVE an investment account (a checking/credit-only item is never
+ * asked, to avoid a per-request-billed call that could only return PRODUCTS_NOT_SUPPORTED).
+ */
+export interface HoldingsSyncResult {
+  itemsAttempted: number;
+  /** Items that errored for a reason OTHER than "no Investments product on this item". */
+  itemsFailed: number;
+  /** Items Plaid answered with PRODUCTS_NOT_SUPPORTED — expected (item linked before
+   *  `investments` was requested, or the institution doesn't support it), never a failure. */
+  itemsUnsupported: number;
+  /** Positions written or updated (source='plaid'). */
+  upserted: number;
+  /** Stale synced positions deleted (sold). */
+  removed: number;
+  /** Feed positions not recorded (un-mappable / out of bounds / a manual-ticker collision). */
+  skipped: number;
+  /** Positions withheld because their value currency isn't USD (no FX — DECISIONS #156). */
+  withheldNonUsd: number;
 }
 
 export class PlaidProvider implements DataProvider {
@@ -962,6 +997,176 @@ export class PlaidProvider implements DataProvider {
       }
     }
     return { itemsAttempted, itemsFailed, itemsUnsupported, statementsWritten };
+  }
+
+  /**
+   * /investments/holdings/get → upsert each INVESTMENT account's positions into `Holding`
+   * (TASKS 4.3, the Plaid parity of syncFromSimplefin's holdings branch). Holdings are a
+   * within-account breakdown for /investments; net worth stays on the account balance
+   * (already refreshed by the account sync), so this never moves a total (DECISIONS #124).
+   *
+   * Cost-aware: production Plaid calls are billed per request, so a user with NO investment
+   * account makes ZERO calls, and a checking/credit-only bank is never asked (it would only
+   * answer PRODUCTS_NOT_SUPPORTED). Per-item fault isolation + the unsupported/failed audit
+   * split mirror syncLiabilities exactly. UNVERIFIED against live Plaid (no sandbox creds).
+   */
+  async syncHoldings(userId: string, opts?: { itemId?: string }): Promise<HoldingsSyncResult> {
+    let itemsAttempted = 0;
+    let itemsFailed = 0;
+    let itemsUnsupported = 0;
+    let upserted = 0;
+    let removed = 0;
+    let skipped = 0;
+    let withheldNonUsd = 0;
+
+    // Only INVESTMENT accounts carry holdings. A user with none (the common checking/credit-
+    // only case, e.g. the owner's Chase + Capital One) short-circuits to zero billed calls.
+    const investmentAccounts = await prisma.account.findMany({
+      where: { userId, provider: 'plaid', type: 'INVESTMENT' },
+      select: { id: true, providerRef: true, plaidItemId: true },
+    });
+    if (investmentAccounts.length === 0) {
+      return { itemsAttempted, itemsFailed, itemsUnsupported, upserted, removed, skipped, withheldNonUsd };
+    }
+
+    // Same user-scoped per-item narrowing as syncTransactions/syncLiabilities.
+    const items = await prisma.plaidItem.findMany({
+      where: { userId, ...(opts?.itemId ? { itemId: opts.itemId } : {}) },
+    });
+
+    for (const item of items) {
+      // Ask a bank for holdings ONLY when it has an investment account (billed per request).
+      // Linkage self-heals: a new investment account stamps plaidItemId on the account sync
+      // that precedes every holdings sync, so a legacy null-linked row is picked up next run.
+      const itemInvestmentAccounts = investmentAccounts.filter((a) => a.plaidItemId === item.itemId);
+      if (itemInvestmentAccounts.length === 0) continue;
+      itemsAttempted += 1;
+      try {
+        const token = decryptToken(item.accessToken);
+        const { holdings: rawHoldings, securities } = await plaidPost<{
+          holdings?: PlaidHolding[];
+          securities?: PlaidSecurity[];
+        }>('/investments/holdings/get', { access_token: token });
+        // A well-formed /investments/holdings/get 200 always carries a holdings ARRAY (empty =
+        // "sold everything"). A MISSING / null / non-array holdings (a truncated or garbled-but-
+        // 200 body, proxy corruption, schema drift) must NOT be read as "no positions" — that
+        // would WIPE the synced breakdown, the #128 `transactions: null` hazard the SimpleFIN
+        // sibling guards with Array.isArray (simplefin.ts:502). Leave every account's rows intact
+        // this run and record it; a clean 200 next sweep reconciles normally.
+        if (!Array.isArray(rawHoldings)) {
+          await prisma.auditLog
+            .create({ data: { userId, action: 'plaid.holdings.malformed', meta: JSON.stringify({ itemId: item.itemId }) } })
+            .catch(() => {});
+          continue;
+        }
+        const allSecurities = Array.isArray(securities) ? securities : [];
+        for (const acct of itemInvestmentAccounts) {
+          const rawForAccount = rawHoldings.filter((h) => h.account_id === acct.providerRef);
+          const mapped = mapPlaidHoldings(rawForAccount, allSecurities);
+          withheldNonUsd += mapped.withheldNonUsd; // counted once, independent of whether we prune
+          // Upsert whatever mapped, but PRUNE stale rows ONLY on a CLEAN run (skipped === 0). A
+          // run that left un-mappable rows (skipped > 0 — e.g. a truncated securities[] that
+          // dropped a still-held position's security, or a genuinely un-keyable position) might
+          // be hiding a position we still hold, so "absent from the mapped set" must NOT be read
+          // as "sold". An explicit-empty, cash-only, or all-foreign account is skipped === 0 →
+          // prunes correctly (a real sell-all). This subsumes the old "don't wipe on an all-
+          // un-mappable feed" guard: 0 mapped + skipped > 0 upserts nothing and prunes nothing.
+          const rec = await this.reconcilePlaidHoldings(acct.id, mapped.holdings, mapped.skipped === 0);
+          upserted += rec.upserted;
+          removed += rec.removed;
+          skipped += mapped.skipped + rec.skipped;
+        }
+      } catch (e) {
+        // An item linked BEFORE `investments` was requested (or an institution that doesn't
+        // support it) answers PRODUCTS_NOT_SUPPORTED — the issuer's own "nothing here",
+        // expected rather than broken. Split from real failures so a re-link-needed item
+        // doesn't paint every holdings sweep red (the #277 P2 liabilities lesson).
+        const message = e instanceof Error ? e.message : String(e);
+        const unsupported = /\b(?:PRODUCTS_NOT_SUPPORTED|NO_INVESTMENT_ACCOUNTS)\b/.test(message);
+        if (unsupported) itemsUnsupported += 1;
+        else itemsFailed += 1;
+        await prisma.auditLog
+          .create({
+            data: {
+              userId,
+              action: unsupported ? 'plaid.holdings.unsupported' : 'plaid.holdings.failed',
+              meta: JSON.stringify({ itemId: item.itemId, error: message }),
+            },
+          })
+          .catch(() => {});
+      }
+    }
+    return { itemsAttempted, itemsFailed, itemsUnsupported, upserted, removed, skipped, withheldNonUsd };
+  }
+
+  /**
+   * Reconcile ONE Plaid investment account's positions: upsert the feed's source='plaid'
+   * rows, prune stale source='plaid' rows (sold), and NEVER touch a row written by anything
+   * else. This generalizes reconcileSimplefinHoldings's manual-protection to a cross-provider
+   * invariant — "a feed touches only its OWN source rows" — so a user's manually-entered
+   * position (and, defensively, any other provider's row) is off-limits to both the upsert
+   * and the delete. Resilient: a single position's DB error is counted (skipped), not thrown.
+   */
+  private async reconcilePlaidHoldings(
+    accountId: string,
+    holdings: readonly MappedPlaidHolding[],
+    /** Prune stale source='plaid' rows? Only on a CLEAN run (no un-mappable feed rows): a
+     *  partial run upserts what it can WITHOUT deleting positions it may have failed to map. */
+    prune: boolean,
+  ): Promise<{ upserted: number; removed: number; skipped: number }> {
+    // Off-limits to the Plaid feed (upsert AND delete): every symbol NOT owned by Plaid.
+    const offLimits = new Set(
+      (
+        await prisma.holding.findMany({
+          where: { accountId, NOT: { source: 'plaid' } },
+          select: { symbol: true },
+        })
+      ).map((h) => h.symbol),
+    );
+
+    let upserted = 0;
+    let skipped = 0;
+    for (const hld of holdings) {
+      if (offLimits.has(hld.symbol)) {
+        skipped++; // a manual (or other-provider) ticker the feed also reports — leave it intact
+        continue;
+      }
+      const fields = {
+        name: hld.name,
+        quantity: hld.quantity,
+        costBasisCents: hld.costBasisCents,
+        priceCents: hld.priceCents,
+        // Authoritative TOTAL market value (DECISIONS #129) — stored so the engine reports
+        // Plaid's real position value instead of reconstructing from a rounded per-share price.
+        marketValueCents: hld.marketValueCents,
+        source: 'plaid',
+      };
+      try {
+        await prisma.holding.upsert({
+          where: { accountId_symbol: { accountId, symbol: hld.symbol } },
+          create: { accountId, symbol: hld.symbol, ...fields },
+          update: fields,
+        });
+        upserted++;
+      } catch {
+        skipped++; // one position's write hiccup shouldn't lose the rest
+      }
+    }
+
+    // Delete sold positions — ONLY our own synced rows (manual/other-provider rows never in
+    // scope), and ONLY on a clean run (prune). An explicit empty set means every previously-
+    // synced Plaid position is gone (sold-all). A partial run (prune=false) deletes nothing.
+    let removed = 0;
+    if (prune) {
+      const syncedSymbols = holdings.filter((h) => !offLimits.has(h.symbol)).map((h) => h.symbol);
+      ({ count: removed } =
+        syncedSymbols.length === 0
+          ? await prisma.holding.deleteMany({ where: { accountId, source: 'plaid' } })
+          : await prisma.holding.deleteMany({
+              where: { accountId, source: 'plaid', symbol: { notIn: syncedSymbols } },
+            }));
+    }
+    return { upserted, removed, skipped };
   }
 
 

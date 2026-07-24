@@ -230,6 +230,58 @@ applies needs the `plaid.liabilities.failed` / `sync.cron.plaid` audit rows from
 Gate: `VERIFY_E2E=1 bash scripts/verify.sh` → **VERIFY GREEN** — 3500 unit / 241 files,
 **162 e2e**. Cycle-3 critic verification of the three cycle-2 items: see PROGRESS.md.
 
+## ✅ Wave 4.3 — Plaid `/investments/holdings` parity with SimpleFIN (#290, 2026-07-23)
+
+Plaid investment accounts now sync their positions into `Holding` with the same correctness
+guarantees the SimpleFIN path already had. Built + hostile-criticized on Fable.
+
+**Shipped.** A new pure mapper `src/lib/providers/plaid-holdings.ts` joins Plaid's split
+`holdings[]`→`securities[]` (by `security_id`), maps dollars→integer cents, keeps
+`institution_value` as the authoritative `marketValueCents` and DERIVES the per-share
+`priceCents = round(total/shares)` (not Plaid's own `institution_price`) so the
+derived-vs-authoritative model matches SimpleFIN exactly (#129); withholds non-USD lots (no FX),
+drops cash sweeps, skips shorts/over-ceiling/un-keyable rows. `PlaidProvider.syncHoldings` +
+`reconcilePlaidHoldings` write `source='plaid'` rows and prune sold ones, with **source
+isolation generalized** — a feed touches ONLY its own `source` rows, so a manual (or any other
+provider's) position is off-limits to both upsert and delete. `investments` was added to the
+link-token `required_if_supported_products` (a depository-only bank still links; an item without
+the product reports `unsupported`, never `failed`). **Cost guard** (production Plaid is billed per
+request): a user with no INVESTMENT account makes ZERO holdings calls, and a checking/credit-only
+bank is never asked, via the `Account.plaidItemId → PlaidItem.itemId` linkage. Wired best-effort
+into `linkPlaidAccount`, `syncPlaidNow` (per-bank + Sync-all), and the daily cron sweep (with
+`holdings*` counts in the `sync.cron.plaid` audit). Net worth is unaffected — holdings are a
+within-account breakdown; the account balance stays authoritative — and cross-provider
+reconciliation needs no new work (`getInvestments` already filters superseded predecessors, #273).
+
+**Hostile-critic Workflow — 3 fresh-context lenses, each finding adversarially verified: 1 P2 +
+3 P3, ALL fixed + regression-locked.** (P2) `rawHoldings ?? []` read a malformed/missing `holdings`
+array on a 200 as "sold everything" and wiped positions — the #128 `transactions:null` hazard the
+SimpleFIN sibling guards with `Array.isArray`; now guarded (leave rows intact + audit
+`plaid.holdings.malformed`). (P3) a truncated `securities[]` pruned still-held un-joinable
+positions — now prune only on a CLEAN run (`skipped===0`). (P3) the sweep dropped `syncHoldings`
+`itemsFailed`, so a total holdings failure read as a clean run — now surfaces
+`holdingsAttempted`/`holdingsFailed` + a total-failure error.
+
+**Known limitation — deliberate non-fix (recorded; a follow-up, not this slice).** When Plaid
+reports `cost_basis: null` (common), the mapper stores `costBasisCents = 0`, and /investments then
+shows the position's unrealized *dollar* gain as its full market value (a green "+$X"); the gain
+*percent* is correctly suppressed (null). This is **identical to the shipped SimpleFIN path** — not
+introduced here — and it is confined to the per-position /investments display (never net worth, FI,
+coach, or any total). An honest fix ("gain unknown" when basis is absent) needs a **nullable
+`costBasisCents`** to tell "unknown basis" from a genuine $0 basis — a schema + engine + UI +
+SimpleFIN + manual-entry change across the whole investments path, out of scope for a Plaid parity
+slice. Recorded here so it isn't rediscovered as new.
+
+Gate: `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0 / eslint 0 / **3591 unit / 246 files** /
+build clean (+38 tests, +2 files). E2E (from the earlier `VERIFY_E2E=1` run): **163 passed, 1
+failed = the documented load-contention flake** (a different spec each run — `phase4-features goals`
+then `settings-dials money-dials` — both proven to pass clean in isolation; §`e2e-dials` lesson).
+CI is the arbiter. **UNVERIFIED against live Plaid** (no sandbox creds here): the
+`/investments/holdings/get` socket has never run; mapping + reconcile tested against mocked
+providers + real Prisma only. Existing items linked BEFORE this change don't carry the
+`investments` product, so their holdings sync returns `PRODUCTS_NOT_SUPPORTED` (→ `unsupported`,
+not `failed`) until re-linked — a forward-looking gate, no app bug.
+
 ## ✅ TASKS L.4 close-out — the five #277-critic P2s + a critic-found copy inconsistency (#289, 2026-07-23)
 
 Built on Opus (ultracode; owner out of Fable credits). The five recorded #277 P2s are closed, and a

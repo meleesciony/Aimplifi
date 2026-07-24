@@ -344,4 +344,81 @@ describe('sweepPlaidLinkedUsers', () => {
     expect(row.error).toContain('all 2 liabilities-supporting Plaid item(s) failed');
     expect(row.institutionsUpdated).toBeUndefined();
   });
+
+  it('backfills investment holdings hands-free and records the counts in the audit', async () => {
+    const userId = await makeUserWithItem('hold');
+    const holdCalls: string[] = [];
+    const { p } = port({
+      async syncHoldings(u) {
+        holdCalls.push(u);
+        return { itemsAttempted: 1, itemsFailed: 0, upserted: 3, removed: 1 };
+      },
+    });
+
+    const row = (await sweepPlaidLinkedUsers(p, { syncTransactions: false })).find(
+      (r) => r.userId === userId,
+    )!;
+
+    expect(holdCalls).toContain(userId);
+    expect(row.holdingsUpserted).toBe(3);
+    expect(row.holdingsRemoved).toBe(1);
+    const audit = await prisma.auditLog.findFirst({
+      where: { userId, action: 'sync.cron.plaid' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(JSON.parse(audit!.meta ?? '{}')).toMatchObject({
+      holdingsUpserted: 3,
+      holdingsRemoved: 1,
+      holdingsAttempted: 1,
+      holdingsFailed: 0,
+    });
+  });
+
+  /**
+   * Holdings parity with the liabilities F-6 invariant (critic 4.3): syncHoldings swallows
+   * per-item errors and returns normally, so a total failure would read as a clean no-change
+   * run unless the counts surface it. It must show up in the row AND the audit summary, not
+   * only in the per-item plaid.holdings.failed audit rows.
+   */
+  it('surfaces a total holdings failure (nothing thrown, every item errored) in the row + audit', async () => {
+    const userId = await makeUserWithItem('holdfail');
+    const { p } = port({
+      async syncHoldings() {
+        return { itemsAttempted: 2, itemsFailed: 2, upserted: 0, removed: 0 };
+      },
+    });
+
+    const row = (await sweepPlaidLinkedUsers(p, { syncTransactions: false })).find(
+      (r) => r.userId === userId,
+    )!;
+
+    expect(row.holdingsFailed).toBe(2);
+    expect(row.error).toContain('all 2 investment-holdings item(s) failed');
+    const audit = await prisma.auditLog.findFirst({
+      where: { userId, action: 'sync.cron.plaid' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(JSON.parse(audit!.meta ?? '{}')).toMatchObject({ holdingsFailed: 2, holdingsAttempted: 2 });
+  });
+
+  it('a holdings-backfill throw never fails the sweep, nor masks a real prior error', async () => {
+    const userId = await makeUserWithItem('holdthrow');
+    const { p } = port({
+      async syncLiabilities() {
+        return { itemsAttempted: 2, itemsFailed: 2, itemsUnsupported: 0, statementsWritten: 0 };
+      },
+      async syncHoldings() {
+        throw new Error('holdings boom');
+      },
+    });
+
+    const row = (await sweepPlaidLinkedUsers(p, { syncTransactions: false })).find(
+      (r) => r.userId === userId,
+    )!;
+
+    // The pre-existing liability failure is the reported error, not the holdings backfill throw.
+    expect(row.liabilities).toBe('failed');
+    expect(row.error).toContain('all 2 liabilities-supporting Plaid item(s) failed');
+    expect(row.holdingsUpserted).toBeUndefined();
+  });
 });
