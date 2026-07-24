@@ -2,7 +2,7 @@
  * Cross-provider duplicate-account detection (DECISIONS #192).
  * Hand-verified scenarios; see docs/EDGE_CASES.md §Duplicate-Accounts.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   type DuplicateAccountCandidate,
@@ -13,6 +13,7 @@ import {
   hasSuspectedDuplicates,
 } from '@/lib/engine/account/duplicates';
 import { getAccountsView } from '@/server/transactions';
+import { duplicatePairDismissKey } from '@/server/duplicate-dismissal';
 import { prisma } from '@/lib/db';
 
 function acct(p: Partial<DuplicateAccountCandidate> & { id: string }): DuplicateAccountCandidate {
@@ -67,6 +68,39 @@ describe('detectDuplicateAccounts', () => {
     expect(pairs).toHaveLength(1);
     expect(pairs[0].confidence).toBe('high');
     expect(pairs[0].reasons).toEqual(['same last-4 (1234)', 'shared name: “chase”']);
+  });
+
+  it('does NOT flag two accounts with DIFFERENT last-4, even on a shared name (owner: his Venture ····6271 vs her Venture ····0966)', () => {
+    // Two Capital One "Venture" cards connected through DIFFERENT Plaid items (his + spouse).
+    // Shared name "venture", but different last-4 → definitively different cards → never flagged.
+    expect(
+      detectDuplicateAccounts([
+        acct({ id: 'his', provider: 'plaid', plaidItemId: 'item-his', name: 'Venture', type: 'CREDIT', mask: '6271', currentBalanceCents: 1021899 }),
+        acct({ id: 'hers', provider: 'plaid', plaidItemId: 'item-hers', name: 'Venture', type: 'CREDIT', mask: '0966', currentBalanceCents: 0 }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('the differing-last-4 veto beats a shared name AND an identical non-zero balance', () => {
+    // Even if two different cards coincidentally carried the same balance, different last-4 is
+    // proof they are different accounts — the veto runs BEFORE any positive signal.
+    expect(
+      detectDuplicateAccounts([
+        acct({ id: 'p', provider: 'plaid', name: 'Venture', type: 'CREDIT', mask: '6271', currentBalanceCents: 50000 }),
+        acct({ id: 'm', provider: 'manual', name: 'Venture', type: 'CREDIT', mask: '0966', currentBalanceCents: 50000 }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('still flags when only ONE side has a last-4 (SimpleFIN carries none) — the veto needs BOTH masks', () => {
+    // The veto must NOT fire when one side is mask-null, or a real Plaid↔SimpleFIN duplicate
+    // (the whole reason #192 exists) would stop being detected.
+    const pairs = detectDuplicateAccounts([
+      acct({ id: 'p', provider: 'plaid', name: 'Chase', mask: '6271', currentBalanceCents: 50000 }),
+      acct({ id: 's', provider: 'simplefin', name: 'Chase', mask: null, currentBalanceCents: 48000 }),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].reasons).toContain('shared name: “chase”');
   });
 
   it('does NOT flag identical ZERO balances with no other signal (empty accounts)', () => {
@@ -251,5 +285,85 @@ describe('detectHouseholdDuplicateAccounts (slice 8 — F5 / T9(b))', () => {
         hAcct({ id: 'b', ownerId: 'u2', provider: 'simplefin', name: 'Chase', currency: 'EUR', currentBalanceCents: 100 }),
       ]),
     ).toEqual([]);
+  });
+});
+
+/**
+ * Owner-reported /accounts fixes (2026-07-23, #290-adjacent): (a) each Plaid connection now
+ * shows the accounts under it (name + last-4) so two same-bank connections are distinguishable;
+ * (b) a duplicate warning can be dismissed. Drives the REAL getAccountsView.
+ */
+describe('getAccountsView — connection accounts + dismissible duplicate warning', () => {
+  const uid = `dup-fix-${Date.now()}-${process.pid}`;
+  const wipe = async () => {
+    await prisma.account.deleteMany({ where: { userId: uid } });
+    await prisma.plaidItem.deleteMany({ where: { userId: uid } });
+    await prisma.nudgeDismissal.deleteMany({ where: { userId: uid } });
+    await prisma.user.deleteMany({ where: { id: uid } });
+  };
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: uid, email: `${uid}@test.local` } });
+  });
+  afterAll(wipe);
+  beforeEach(async () => {
+    await prisma.account.deleteMany({ where: { userId: uid } });
+    await prisma.plaidItem.deleteMany({ where: { userId: uid } });
+    await prisma.nudgeDismissal.deleteMany({ where: { userId: uid } });
+  });
+
+  it('lists each connection’s cards (name + last-4) and vetoes his-vs-spouse Ventures across TWO connections', async () => {
+    // The owner's real setup: two Capital One connections (his + spouse). His has Venture ····6271
+    // and Venture One ····2689; hers has Venture ····0966. DIFFERENT plaidItems, so the cross-
+    // connection pairs reach the mask veto (not the same-item skip) — this exercises the veto on
+    // the server path, unlike a single-item setup which would short-circuit before it.
+    await prisma.plaidItem.createMany({
+      data: [
+        { userId: uid, itemId: 'it-his', accessToken: 'enc', institution: 'Capital One' },
+        { userId: uid, itemId: 'it-hers', accessToken: 'enc', institution: 'Capital One' },
+      ],
+    });
+    await prisma.account.createMany({
+      data: [
+        { userId: uid, provider: 'plaid', providerRef: 'v1', plaidItemId: 'it-his', name: 'Venture', type: 'CREDIT', mask: '6271', currentBalanceCents: 1021899, currency: 'USD' },
+        { userId: uid, provider: 'plaid', providerRef: 'v2', plaidItemId: 'it-his', name: 'Venture One', type: 'CREDIT', mask: '2689', currentBalanceCents: 0, currency: 'USD' },
+        { userId: uid, provider: 'plaid', providerRef: 'v3', plaidItemId: 'it-hers', name: 'Venture', type: 'CREDIT', mask: '0966', currentBalanceCents: 0, currency: 'USD' },
+      ],
+    });
+    const view = await getAccountsView(uid);
+    // Each connection lists its OWN cards with last-4, so the two "Capital One" rows are distinguishable.
+    expect(view.plaid.items.find((i) => i.itemId === 'it-his')!.accounts).toEqual([
+      { name: 'Venture', mask: '6271' },
+      { name: 'Venture One', mask: '2689' },
+    ]);
+    expect(view.plaid.items.find((i) => i.itemId === 'it-hers')!.accounts).toEqual([{ name: 'Venture', mask: '0966' }]);
+    // No pair is flagged: his Venture 6271 ↔ his Venture One 2689 is a same-item skip; the two
+    // cross-connection pairs (6271↔0966, 2689↔0966) reach the veto and are vetoed on the differing
+    // last-4 despite the shared name "Venture" — the owner's false positive is gone via the veto.
+    expect(view.duplicates).toEqual([]);
+  });
+
+  it('filters out a pair the user has dismissed (the warning is no longer permanent)', async () => {
+    // Cross-provider shared-name pair — SimpleFIN carries no last-4, so the veto can't fire and it DOES flag.
+    const p = await prisma.account.create({ data: { userId: uid, provider: 'plaid', providerRef: 'cp', name: 'Chase Checking', type: 'CHECKING', mask: '1234', currentBalanceCents: 50000, currency: 'USD' } });
+    const s = await prisma.account.create({ data: { userId: uid, provider: 'simplefin', providerRef: 'cs', name: 'CHASE Checking', type: 'CHECKING', mask: null, currentBalanceCents: 48000, currency: 'USD' } });
+    expect((await getAccountsView(uid)).duplicates).toHaveLength(1); // surfaces before dismissal
+    // The dup:-namespaced NudgeDismissal row the dismiss action writes.
+    await prisma.nudgeDismissal.create({ data: { userId: uid, dismissKey: duplicatePairDismissKey(p.id, s.id) } });
+    expect((await getAccountsView(uid)).duplicates).toEqual([]); // filtered after
+  });
+
+  it('a dismissed pair does NOT re-surface as a reconciliation (combine) candidate either (dup-veto DUP-DISMISS-1)', async () => {
+    // A LIVE Plaid "Chase" + a DEAD SimpleFIN "Chase" (no SimpleFIN connection): one live + one
+    // dead, shared name, SF mask null so the veto can't fire → a reconciliation CANDIDATE (the
+    // "actionable version" of the duplicate warning). An explicit dismiss must bind this surface too.
+    await prisma.plaidItem.create({ data: { userId: uid, itemId: 'it-chase', accessToken: 'enc', institution: 'Chase' } });
+    const live = await prisma.account.create({ data: { userId: uid, provider: 'plaid', providerRef: 'pc', plaidItemId: 'it-chase', name: 'Chase Checking', type: 'CHECKING', mask: '1234', currentBalanceCents: 50000, currency: 'USD' } });
+    const dead = await prisma.account.create({ data: { userId: uid, provider: 'simplefin', providerRef: 'sc', name: 'CHASE Checking', type: 'CHECKING', mask: null, currentBalanceCents: 48000, currency: 'USD' } });
+    const before = await getAccountsView(uid);
+    expect(before.reconciliationCandidates).toHaveLength(1); // proposed as a combine before dismissal
+    await prisma.nudgeDismissal.create({ data: { userId: uid, dismissKey: duplicatePairDismissKey(live.id, dead.id) } });
+    const after = await getAccountsView(uid);
+    expect(after.reconciliationCandidates).toEqual([]); // the dismissed "not a duplicate" judgment binds here too
   });
 });

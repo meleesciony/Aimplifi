@@ -133,6 +133,15 @@ function duplicateSignals(
   // A genuine duplicate is the same account: same type and same currency are hard prerequisites.
   if (lo.type !== hi.type) return null;
   if (normalizeCurrency(lo.currency) !== normalizeCurrency(hi.currency)) return null;
+  // NEGATIVE signal — different last-4 is proof of DIFFERENT accounts (owner-reported
+  // 2026-07-23: "obviously if accounts end in different numbers, it's a different card").
+  // When BOTH sides carry a mask and they DIFFER, no shared name or coincidental balance can
+  // make them the same card, so veto BEFORE any positive signal is considered. This is what
+  // stopped his "Venture ····6271" and his spouse's "Venture ····0966" from being flagged a
+  // possible duplicate on the shared name "venture" alone. Fires ONLY when both masks are
+  // present: SimpleFIN/manual rows carry no last-4 (see the file header), so a real
+  // Plaid-vs-SimpleFIN duplicate (one side mask-null) still evaluates by balance/name.
+  if (lo.mask && hi.mask && lo.mask !== hi.mask) return null;
 
   const reasons: string[] = [];
   let confidence: DuplicateConfidence | null = null;

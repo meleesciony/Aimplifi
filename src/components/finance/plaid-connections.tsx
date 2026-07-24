@@ -21,6 +21,10 @@ export interface PlaidItemView {
   itemId: string;
   institution: string | null;
   lastSyncedAt: string | null;
+  /** The accounts under this connection (name + last-4). Rendered so two connections at the
+   *  SAME bank — e.g. a member's own Chase and their spouse's Chase — are distinguishable, and
+   *  so it's clear which one a Disconnect removes (owner-reported 2026-07-23). */
+  accounts: { name: string; mask: string | null }[];
 }
 
 export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
@@ -156,6 +160,19 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
               onConfirm={() => disconnect(item.itemId)}
               onCancel={confirm.disarm}
             />
+          )}
+          {item.accounts.length > 0 && (
+            // Full-width second line: the cards under this connection, each with its last-4, so
+            // two same-bank connections are distinguishable and you can see what a Disconnect
+            // would remove (owner-reported: two identical "Plaid: Chase" rows).
+            <span
+              className="w-full text-xs text-muted-foreground/70"
+              data-testid="plaid-item-accounts"
+            >
+              {item.accounts
+                .map((a) => (a.mask ? `${a.name} ····${a.mask}` : a.name))
+                .join(' · ')}
+            </span>
           )}
         </div>
       ))}

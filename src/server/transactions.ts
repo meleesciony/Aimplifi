@@ -20,6 +20,7 @@ import {
   detectDuplicateAccounts,
   detectReconciliationCandidates,
 } from '@/lib/engine/account/duplicates';
+import { duplicatePairDismissKey, getDismissedDuplicateKeys } from '@/server/duplicate-dismissal';
 import {
   type ReconciliationLinkLike,
   applyReconciliationBoundary,
@@ -277,7 +278,17 @@ export interface AccountsView extends AccountsSummary {
   simplefin: { connected: boolean; lastSyncedAt: string | null; health: FreshnessResult };
   /** Plaid bank connections (#256) — one row per linked item, for the per-bank
    *  Disconnect control. Empty for users with no Plaid links. */
-  plaid: { items: { itemId: string; institution: string | null; lastSyncedAt: string | null }[] };
+  plaid: {
+    items: {
+      itemId: string;
+      institution: string | null;
+      lastSyncedAt: string | null;
+      /** The accounts under this connection (name + last-4), so two same-bank connections —
+       *  e.g. a member's own Chase plus their spouse's Chase — are distinguishable on /accounts
+       *  (owner-reported 2026-07-23: two identical "Plaid: Chase" rows couldn't be told apart). */
+      accounts: { name: string; mask: string | null }[];
+    }[];
+  };
   /** What the currency guard withheld — drives the disclosure banner (#135 residual). */
   withheld: WithheldAccountSummary;
   /** Suspected same-account-via-two-providers pairs (DECISIONS #192). Advisory only — the
@@ -304,7 +315,7 @@ export type ReconciliationCandidateView = ReconciliationCandidate & {
 
 /** Every account, grouped into assets vs liabilities with net worth + trend. */
 export async function getAccountsView(userId: string): Promise<AccountsView> {
-  const [user, accounts, snapshots, statements, autopays, sfConn, plaidItems, newestByAccount, activeReconciliations] =
+  const [user, accounts, snapshots, statements, autopays, sfConn, plaidItems, newestByAccount, activeReconciliations, dismissedDupKeys] =
     await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
@@ -333,6 +344,8 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     // card needs for the honest claim-span disclosure + the cutover default/min bounds.
     prisma.transaction.groupBy({ by: ['accountId'], where: { account: { userId } }, _min: { date: true }, _max: { date: true } }),
     getActiveReconciliations(userId),
+    // Pairs the user has marked "not a duplicate" — filtered out of the advisory warning below.
+    getDismissedDuplicateKeys(userId),
   ]);
 
   // Currency guard (DECISIONS #135): withhold non-USD accounts from the /accounts page so its
@@ -451,7 +464,16 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       hasLiveConnection: isAccountLive({ provider: a.provider, plaidItemId: a.plaidItemId }, conns),
     })),
   )
-    .filter((c) => !reconciledPairKeys.has(pairKey(c.predecessor.id, c.successor.id)) && !effectivePredIds.has(c.predecessor.id))
+    .filter(
+      (c) =>
+        !reconciledPairKeys.has(pairKey(c.predecessor.id, c.successor.id)) &&
+        !effectivePredIds.has(c.predecessor.id) &&
+        // A pair the user dismissed as "not a duplicate" must not re-surface as a combine
+        // candidate once one side goes non-live — the candidate card is "the actionable version
+        // of the same message", so an explicit "these are different" judgment binds BOTH surfaces
+        // (dup-veto critic DUP-DISMISS-1). Same key + sort as the duplicates-warning filter.
+        !dismissedDupKeys.has(duplicatePairDismissKey(c.predecessor.id, c.successor.id)),
+    )
     .map((c) => ({ ...c, predecessorTxnSpan: spanByAccount.get(c.predecessor.id) ?? null }));
   const candidatePairKeys = new Set(reconciliationCandidates.map((c) => pairKey(c.predecessor.id, c.successor.id)));
 
@@ -506,7 +528,17 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       lastSyncedAt: sfConn?.lastSyncedAt ?? null,
       health: classifyFreshness(sfConn?.lastSyncedAt ? isoDate(sfConn.lastSyncedAt) : null, today),
     },
-    plaid: { items: plaidItems },
+    plaid: {
+      // Attach each connection's accounts (name + last-4) so two same-bank connections are
+      // distinguishable. `accounts` carries every row; only this item's Plaid accounts have a
+      // matching plaidItemId, so the filter naturally selects them.
+      items: plaidItems.map((item) => ({
+        ...item,
+        accounts: accounts
+          .filter((a) => a.plaidItemId === item.itemId)
+          .map((a) => ({ name: a.name, mask: a.mask })),
+      })),
+    },
     // The unfiltered rows are already in hand, so the disclosure costs no extra query.
     withheld: summarizeWithheldAccounts(accounts),
     // Advisory duplicate warning. Suppressed for a pair that is already reconciled (R6 — resolved,
@@ -533,7 +565,10 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
         !reconciledPairKeys.has(k) &&
         !candidatePairKeys.has(k) &&
         !effectivePredIds.has(d.a.id) &&
-        !effectivePredIds.has(d.b.id)
+        !effectivePredIds.has(d.b.id) &&
+        // …and not a pair the user has explicitly dismissed as "not a duplicate" (owner-reported:
+        // the warning had no cancel). Order-independent key, same sort as pairKey.
+        !dismissedDupKeys.has(duplicatePairDismissKey(d.a.id, d.b.id))
       );
     }),
     reconciliations,

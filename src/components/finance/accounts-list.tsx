@@ -34,6 +34,7 @@ import {
 } from '@/server/networth-actions';
 import { clearManualCardStatement, setManualCardStatement } from '@/server/card-actions';
 import { confirmReconciliation, undoReconciliation } from '@/server/reconciliation-actions';
+import { dismissDuplicatePair } from '@/server/duplicate-actions';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { setFlash, takeFlash } from '@/components/finance/flash';
@@ -289,7 +290,19 @@ export function AccountsList({ data }: { data: AccountsView }) {
         }
       />
 
-      <DuplicateAccountsWarning pairs={data.duplicates} />
+      <DuplicateAccountsWarning
+        pairs={data.duplicates}
+        pending={pending}
+        onDismiss={(aId, bId) =>
+          refreshAfter(
+            () =>
+              dismissDuplicatePair(aId, bId).then((r) =>
+                r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not dismiss — please try again.'] },
+              ),
+            'Dismissed — we won’t flag those two as a possible duplicate again.',
+          )
+        }
+      />
 
       <Group
         group={assetsShown}
@@ -389,7 +402,16 @@ const PROVIDER_LABEL: Record<string, string> = {
  * user disconnects one side (via the existing SimpleFIN disconnect / Plaid / manual-delete
  * flows). Never auto-deletes — which side to keep is the user's call.
  */
-function DuplicateAccountsWarning({ pairs }: { pairs: SuspectedDuplicatePair[] }) {
+function DuplicateAccountsWarning({
+  pairs,
+  onDismiss,
+  pending,
+}: {
+  pairs: SuspectedDuplicatePair[];
+  /** Mark a pair "not a duplicate" so it stops surfacing (owner-reported: the card was permanent). */
+  onDismiss?: (aId: string, bId: string) => void;
+  pending?: boolean;
+}) {
   if (pairs.length === 0) return null;
   const label = (p: { provider: string; mask: string | null }) =>
     `${PROVIDER_LABEL[p.provider] ?? p.provider}${p.mask ? ` ····${p.mask}` : ''}`;
@@ -431,6 +453,20 @@ function DuplicateAccountsWarning({ pairs }: { pairs: SuspectedDuplicatePair[] }
                 </span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{p.reasons.join(' · ')}</p>
+              {onDismiss && (
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    data-testid="duplicate-dismiss"
+                    aria-label={`Dismiss — ${p.a.name} and ${p.b.name} are not duplicates`}
+                    disabled={pending}
+                    onClick={() => onDismiss(p.a.id, p.b.id)}
+                    className="tap-target rounded-md border border-amber-900/40 px-2 py-1 text-xs text-amber-200 hover:bg-amber-900/30 disabled:opacity-50"
+                  >
+                    Not a duplicate — dismiss
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

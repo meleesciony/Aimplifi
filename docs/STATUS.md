@@ -108,7 +108,39 @@ build clean (+10 tests, +1 file). E2E not separately run — backend-only, no UI
 stance as #280). **UNVERIFIED against live Plaid** (no creds in this env): the `/item/get` +
 `/institutions/get_by_id` sockets have never run here; mocked-server + real-Prisma tests only.
 
-## 🟠 OPEN — duplicate "Venture" row in the "Combined accounts" card (owner-reported 2026-07-23)
+## 🟠→✅ Duplicate "Venture" flag was a MIS-MATCH — differing-last-4 veto + dismiss + connection last-4 (#291, 2026-07-23) — FIXED
+
+**RESOLVED (#291).** The owner confirmed (Capital One screenshot) he has **two different cards** —
+**Venture ····6271** ($10,218.99) and **Venture One ····2689** ($0.00) — and that he aggregates
+**both his and his spouse's** cards in one account (so two Capital One connections; her Venture ends
+**····0966**). So the "possible duplicate" was a **false positive**: the #192 detector matched two
+genuinely-different cards on the shared name "Venture" alone, ignoring the different last-4. Three
+fixes shipped (Fable hostile-critic pass; see §DECISIONS #282 / #291):
+
+1. **Logic** — `duplicateSignals` (`duplicates.ts`) gains a NEGATIVE veto: when BOTH accounts carry a
+   last-4 and they **differ**, `return null` before any positive signal. One change in the shared
+   matcher fixes the duplicate **warning** AND the reconciliation **candidate** path. Fires only when
+   both masks are present, so a real Plaid-vs-SimpleFIN duplicate (SimpleFIN carries no mask) still
+   evaluates by name/balance.
+2. **Identification** — each Plaid connection row now lists its cards (name + last-4) via a new
+   `PlaidItemView.accounts`, so two same-bank connections (his Chase vs her Chase) are
+   distinguishable and it's clear what a Disconnect removes.
+3. **Dismissible** — a "Not a duplicate — dismiss" button persists a per-pair dismissal in the
+   `NudgeDismissal` store under a `dup:` namespace (no schema change), filtered out of **both** the
+   warning and the reconciliation candidates (critic DUP-DISMISS-1 — an explicit "not a duplicate"
+   judgment binds the sister surface too).
+
+**Accepted trade-off (critic F1, recorded).** A single card reissued with a NEW number and re-linked
+as two Plaid items carries two different last-4s and is now silently un-warned by the veto — the
+direct collateral of the owner's "different last-4 = different card" rule. The common reissue updates
+the mask in place on the SAME item (no second row), so the trigger is disconnect+relink / same-bank-
+linked-twice only, it's Undo-reversible, and it is never a cross-provider/normalization false-negative
+(only Plaid writes masks). Widening this would reintroduce the false positive the owner reported.
+
+Gate: `bash scripts/verify.sh` → GREEN (tsc 0 / eslint 0 / **3597 unit / 246 files** / build clean);
+e2e `auth.spec` + `reconcile.spec` 7/7 on mobile-380. No schema change. Original analysis kept below.
+
+---
 
 Owner, same /accounts screenshots: the **"Combined accounts / Counted once, on the live
 connection"** card lists **"Venture (Plaid ····6271)" TWICE, identically** (same mask, same "history

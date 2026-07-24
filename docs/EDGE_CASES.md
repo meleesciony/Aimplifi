@@ -2287,3 +2287,26 @@ Reconcile safety (PlaidProvider.reconcilePlaidHoldings + the syncHoldings guard)
 - A malformed 200 (missing/null/non-array holdings) is NOT read as sold-all: syncHoldings leaves
   every account's rows intact and audits plaid.holdings.malformed (the SimpleFIN Array.isArray
   guard, #128 transactions:null hazard).
+
+## Duplicate-detection differing-last-4 veto (#291)
+
+duplicateSignals (src/lib/engine/account/duplicates.ts) vetoes a suspected-duplicate pair when
+BOTH accounts carry a last-4 (mask) and the two masks DIFFER: `if (lo.mask && hi.mask && lo.mask
+!== hi.mask) return null;` runs BEFORE any positive signal. Owner rule: different last-4 = a
+different card. Applies to BOTH the #192 duplicate warning and the reconciliation candidate path
+(shared function).
+
+- His Venture ····6271 vs spouse Venture ····0966 (both Plaid, both masks, shared name "venture")
+  -> vetoed, NOT flagged (the reported false positive).
+- The veto fires ONLY when both masks are present. SimpleFIN/manual rows carry no last-4 (null),
+  so a real Plaid-vs-SimpleFIN duplicate (one mask null) is NOT vetoed and still evaluates by
+  name/balance -- the #192 detector keeps working.
+- ACCEPTED trade-off (critic F1): a single card reissued with a NEW number and re-linked as two
+  Plaid items has two different last-4s and is silently un-warned. Reachable only via
+  disconnect+relink / same-bank-linked-twice (the common in-place reissue keeps one row on the
+  same item), Undo-reversible, never a cross-provider/normalization false-negative (only Plaid
+  writes masks). Widening the veto to rescue it would reintroduce the owner's false positive.
+
+Dismissal: a user "Not a duplicate" dismissal is stored in NudgeDismissal under a `dup:<sortedIds>`
+key and filtered from BOTH the duplicate warning AND the reconciliation candidates (an explicit
+judgment binds every surface derived from the same signal — critic DUP-DISMISS-1).
