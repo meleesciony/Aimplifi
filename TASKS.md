@@ -8,8 +8,13 @@ regression ledger on every fix. Update the Status column in place; record decisi
 
 ## Routing policy (token efficiency is a core principle)
 
-Per `docs/COMPETITIVE_GAP_PLAN.md` §3. Pricing (per MTok in/out): Fable 5 $10/$50 · Opus 4.8
-$5/$25 · Sonnet $3/$15 · Haiku 4.5 $1/$5. Output tokens dominate agentic sessions.
+Per `docs/COMPETITIVE_GAP_PLAN.md` §3. Pricing (per MTok in/out): Fable 5 $10/$50 · **Opus 5
+$5/$25** · Opus 4.8 $5/$25 · Sonnet $3/$15 · Haiku 4.5 $1/$5. Output tokens dominate agentic
+sessions. **UPDATED 2026-07-24: Claude Opus 5 shipped and replaces Opus 4.8 everywhere below; it
+carries the full effort ladder including a new `max` tier, and Anthropic positions it as frontier
+intelligence at half Fable's price with its biggest gains in deep reasoning, long-horizon agentic
+work and bug-finding. Route money-math + critic work to Opus 5 `xhigh` (or `max` for the hardest),
+and keep Fable 5 for a differently-trained second opinion on expensive clean bills of health.**
 
 - **Fable 5 (effort high/xhigh)** — ONLY: new money-math/routing semantics, architecture
   decisions, hostile-critic passes on money/security/data-integrity. Costs 2× Opus; spend it

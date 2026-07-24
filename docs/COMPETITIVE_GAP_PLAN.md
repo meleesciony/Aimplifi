@@ -142,14 +142,36 @@ the brand story once 1–3 exist. 5–6 run as small slices between phases.
 
 ## 3. Model-routing policy (token efficiency)
 
-Pricing (per MTok, in/out): **Fable 5** $10/$50 · **Opus 4.8** $5/$25 · **Sonnet** $3/$15 ·
-**Haiku 4.5** $1/$5. Output tokens dominate agentic sessions, so Fable ≈ 2× Opus ≈ 10× Haiku
-in practice.
+Pricing (per MTok, in/out): **Fable 5** $10/$50 · **Opus 5** $5/$25 · **Opus 4.8** $5/$25 ·
+**Sonnet** $3/$15 · **Haiku 4.5** $1/$5. Output tokens dominate agentic sessions, so Fable ≈ 2×
+Opus ≈ 10× Haiku in practice.
+
+**REVISED 2026-07-24 — Claude Opus 5 shipped today and supersedes Opus 4.8 in every row below.**
+Verified from Anthropic's docs this session (`platform.claude.com/.../whats-new-opus-5`): model id
+`claude-opus-5`, the same $5/$25 as Opus 4.8, a 1M-token context window (default *and* maximum),
+128k max output, thinking on by default, and the **full effort ladder `low` → `medium` → `high` →
+`xhigh` → `max`** — `max` being a new top tier above what Fable exposes. Anthropic describes it as
+frontier intelligence "at half the cost of Claude Fable 5", state-of-the-art on coding and
+knowledge-work evals, with its largest gains in deep reasoning, long-horizon agentic work,
+test-time compute scaling, and **code review / bug-finding at a high true-positive rate** — which
+is precisely the lane this repo spends Fable on.
+
+**So the routing changes:** use **Opus 5 at `xhigh`** as the default for the money-math and
+hostile-critic work the table below assigns to Fable 5, and **`max`** for the hardest of it (a
+new engine's first critic cycle, an authz or boundary redesign). Keep Fable 5 for a genuine
+second opinion when an Opus 5 critic pass comes back clean on something expensive — a
+differently-trained reviewer still catches what a same-model reviewer rationalises. Two caveats,
+both from the same doc: with `xhigh`/`max`, `thinking: {"type":"disabled"}` is a 400 error (not a
+concern in Claude Code, which keeps thinking on); and Opus 5 **verifies its own work unprompted**,
+so blanket "use a subagent to verify" boilerplate causes over-verification. That does NOT apply to
+this repo's gates — `verify.sh`, the regression ledger and the money-surface critic pass are
+process with a track record (three P0s caught today alone) — but the per-task "add a verification
+step" phrasing in a prompt can go.
 
 | Work | Model | Why |
 |---|---|---|
-| Architecture decisions, new *money-math* engines (radar simulation, solvers), hostile-critic passes on rule-3 domains (money, security, data integrity), multi-hour autonomous phase builds | **Fable 5** | Highest ceiling on long-horizon + adversarial work; this repo's correctness bar justifies 2× exactly where a silent math bug is the most expensive defect. Give it the full phase spec up front, effort high. |
-| Default daily driver: feature slices, UI work, refactors, most implementation + routine critic cycles, e2e authoring | **Opus 4.8** | Same tokenizer as Fable at half the price; state-of-the-art agentic coding. This should be ~80% of main-thread sessions. |
+| Architecture decisions, new *money-math* engines (radar simulation, solvers), hostile-critic passes on rule-3 domains (money, security, data integrity), multi-hour autonomous phase builds | **Opus 5** `xhigh`/`max` (was Fable 5) | Highest ceiling on long-horizon + adversarial work; this repo's correctness bar justifies 2× exactly where a silent math bug is the most expensive defect. Give it the full phase spec up front, effort high. |
+| Default daily driver: feature slices, UI work, refactors, most implementation + routine critic cycles, e2e authoring | **Opus 5** `medium`/`high` (was Opus 4.8) | Same tokenizer as Fable at half the price; state-of-the-art agentic coding. This should be ~80% of main-thread sessions. |
 | Mechanical, well-specified slices (backlog burn-down items in Gap 3.1, copy edits, test scaffolds) | **Sonnet** (or Opus at `effort: medium`) | Near-Opus on scoped coding at 60% of the price; lowering effort on Opus is often the simpler lever than switching models. |
 | Exploration, doc digestion, lesson-mining, grep-and-summarize — anything read-heavy | **Haiku 4.5** via the `explorer` subagent | Already codified in LOOP_ENGINEERING token rule 1/5. Keep heavy reads out of the Fable/Opus context; this session's three sweeps ran exactly this way. |
 | **Local Qwen (Ollama)** | See below | Not for in-repo agentic coding; genuinely good for two specific jobs. |
