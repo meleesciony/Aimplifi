@@ -4758,3 +4758,27 @@ UNVERIFIED: live Plaid (no creds) - the token revoke and the /accounts/get ident
 against mocked providers only.
 NEXT: L.10 slice 3's other half (collision interception on the fresh-Link front door), then L.8
 (the dashboard still double-counts a both-live duplicate silently).
+
+## #305 say WHY there is no Combine button. 2026-07-24
+OWNER, on #304 shipped an hour earlier: "Not there." No Combine card on his /accounts for the
+two Chase ....0977 connections. MY DEFECT: the feature rendered a control when it could act and
+NOTHING when it could not, so "checked, cannot prove" looked identical to "never looked" - the
+an-empty-set-is-not-a-fact rule applied to my own feature.
+SHIPPED: pure explainUncombinableConnections keyed off what the READER sees (two live
+connections at one bank with same-last-4 accounts), not off the ladder, so a pair the ladder
+cannot even scope is still explained. Six reasons + two one-tap repairs: bank-id-missing ->
+"Get the bank's ID" (runs syncInstitutions on demand; THE leading candidate for his case, since
+the ladder refuses a name-only match after this morning's critic finding and a connection linked
+before the institutionId column carries null); dismissed -> "Offer it again"
+(new reconsiderDuplicatePair); strands/ambiguous/different-kind/different-bank/unproven stated.
+GATE: verify.sh GREEN - tsc 0 / eslint 0 / 3929 unit / 261 files / build clean; new e2e drives
+the blocked path.
+OPEN, PROVED NOT MINE (stashed clean-tree run reproduces it): duplicate-connections.spec "two
+connections to one bank are told apart" now hits the documented #287 whole-page DOM duplication
+on most runs (duplicate-accounts-warning resolves to 2 elements). Full serialized suite was
+173/174. Do NOT loosen the locator. Next session: chase #287.
+SHIPPED LIVE: 50f9004..fc9e0d5; dpl_Ea3eoQhVyhLLKNvQqSAWck4ABZwG, build log "Deployment
+completed"; three-way byte check at one instant: www == the fc9e0d5 deployment and != the
+previous one.
+NEXT: read the owner's next screenshot - the page now names the blocker, so the next step is
+determined by which reason it prints.
