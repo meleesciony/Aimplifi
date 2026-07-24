@@ -21,7 +21,10 @@ import { cents } from '@/lib/money';
 // (cron routes included), breaking any test that doesn't mock `@/auth`.
 import { partnerIdsOf, resolveViewer, type Viewer } from '@/server/household-authz';
 import { getHouseholdDuplicateCandidates, getSharedSnapshotSlice } from '@/server/household-finance';
-import { detectHouseholdDuplicateAccounts } from '@/lib/engine/account/duplicates';
+import { detectDuplicateAccounts, detectHouseholdDuplicateAccounts } from '@/lib/engine/account/duplicates';
+import { duplicatePairDismissKey, getDismissedDuplicateKeys } from '@/server/duplicate-dismissal';
+import { isAccountLive } from '@/server/reconciliation';
+import { prisma } from '@/lib/db';
 import type { PartnerSnapshotSlice } from '@/lib/engine/household/merge-snapshot';
 
 /** Cash-needed scope (TASKS 4.2 slice 4): 'mine' is byte-identical to pre-household
@@ -74,6 +77,20 @@ export interface DashboardData {
    *  adjusted; the UI disclosure is the mitigation, mirroring #192's stance.
    *  Empty in 'mine' scope (T6). */
   householdDuplicates: HouseholdDuplicateDisplayPair[];
+  /** Suspected same-real-account-twice pairs among the VIEWER'S OWN cards, restricted to the
+   *  cards /cards actually lists (TASKS L.6). Ids only: every rendered string is built by
+   *  `card-duplicate-view.ts` from the labels the page paints, so the disclosure can never name a
+   *  card differently from the card itself. ADVISORY — like `householdDuplicates`, no figure is
+   *  adjusted (DECISIONS #289). Empty for everyone with no suspected duplicate. */
+  cardDuplicates: CardDuplicateIdPair[];
+}
+
+/** A suspected duplicate pair as the server hands it to the UI: identity + basis, never copy. */
+export interface CardDuplicateIdPair {
+  aId: string;
+  bId: string;
+  confidence: 'high' | 'medium';
+  reasons: string[];
 }
 
 export interface HouseholdDuplicateDisplayPair {
@@ -113,6 +130,100 @@ async function householdExtras(
     confidence: p.confidence,
   }));
   return { accountOwnerLabel, householdWithheldCount, householdDuplicates };
+}
+
+/**
+ * Suspected duplicate CARDS among the viewer's own accounts, restricted to the rows /cards lists
+ * (TASKS L.6). The detector is #192's, unchanged — this adds a SURFACE, not a heuristic.
+ *
+ * Three deliberate scoping decisions:
+ * 1. **The viewer's OWN accounts only** (`snap`, never the household-merged snapshot). A partner's
+ *    row must never enter the personal detector — the same rule `/accounts` states at its call site;
+ *    a household-level duplicate is `detectHouseholdDuplicateAccounts`, already disclosed on the
+ *    scope toggle, and feeding partner rows in here would call two people's separate cards at one
+ *    bank a duplicate.
+ * 2. **Only rows this page displays.** Intersecting with the displayed ids does the suppression
+ *    `/accounts` spends queries on, for free: a reconciliation predecessor is already stripped from
+ *    the obligations by `cashNeededFromSnapshot`, so it is not displayed and cannot pair. It also
+ *    keeps a checking-account pair — real, and disclosed on /accounts — off a page that lists no
+ *    checking accounts and could only confuse.
+ * 3. **A dismissed pair stays dismissed.** "Not duplicates" was the user's answer to this exact
+ *    question; re-asking it on another page, where the dismiss control does not exist, would be
+ *    nagging with no way out. The read is skipped entirely when nothing was detected.
+ *
+ * 4. **BOTH sides must still be live.** This was a hostile-critic fix, and it is the sharpest fence
+ *    here. `detectReconciliationCandidates` only ever proposes a pair whose sides DIFFER in
+ *    liveness (`duplicates.ts:384`), and /accounts suppresses its duplicate warning for any pair
+ *    that has such a candidate — so for a one-side-dead pair /accounts renders the "Combine
+ *    accounts" card and NO warning, which means no dismiss control exists for it anywhere. An
+ *    unsuppressed banner here would therefore be permanent and undismissable on the money page:
+ *    exactly the owner complaint that created the dismissal feature ("the warning had no cancel"),
+ *    reintroduced one page over. Both-live is also precisely the reported defect — the only shape
+ *    that double-counts with no combine offer — so the fence costs nothing real.
+ *    Liveness comes from `isAccountLive`, the same helper the confirm action re-checks in its
+ *    transaction, so this can never disagree with /accounts about what is live.
+ */
+async function detectDisplayedCardDuplicates(
+  userId: string,
+  snap: FinanceSnapshot,
+  displayedIds: ReadonlySet<string>,
+): Promise<CardDuplicateIdPair[]> {
+  const displayed = snap.accounts.filter((a) => displayedIds.has(a.id));
+  if (displayed.length < 2) return [];
+  // `AccountLike` does not DECLARE provider/mask/currency/plaidItemId; the rows carry them only
+  // because the provider hands back whole Account records. Rather than default a missing
+  // `provider` to something plausible, fail CLOSED: a wrong default would both hide every real
+  // duplicate (the blanket same-provider skip) and stop `EXCLUDED_PROVIDERS` from fencing out the
+  // shared demo rows — silently, and invisibly to tsc. No detection is the safe failure here; a
+  // wrong one is printed above a payment instruction.
+  const rows = displayed.map(
+    (a) =>
+      a as typeof a & {
+        provider?: string;
+        mask?: string | null;
+        currency?: string | null;
+        plaidItemId?: string | null;
+      },
+  );
+  if (rows.some((r) => typeof r.provider !== 'string')) return [];
+  const pairs = detectDuplicateAccounts(
+    rows.map((row) => ({
+      id: row.id,
+      provider: row.provider as string,
+      name: row.name,
+      type: row.type,
+      mask: row.mask ?? null,
+      currentBalanceCents: row.currentBalanceCents,
+      currency: row.currency ?? null,
+      // Same-bank-relinked both-live pairs are the reported case (C-10): without this the
+      // detector's blanket same-provider skip would hide exactly the pair we are here for.
+      plaidItemId: row.plaidItemId ?? null,
+    })),
+  );
+  if (pairs.length === 0) return [];
+
+  // Both-live only (see 4 above). These two reads happen ONLY when a pair was actually detected,
+  // so the no-duplicates path — everyone, almost always — still adds no query at all.
+  const [plaidItems, sfConn] = await Promise.all([
+    prisma.plaidItem.findMany({ where: { userId }, select: { itemId: true } }),
+    prisma.simpleFinConnection.findFirst({ where: { userId }, select: { id: true } }),
+  ]);
+  const conns = {
+    simplefinConnected: sfConn !== null,
+    plaidItemIds: new Set(plaidItems.map((i) => i.itemId)),
+  };
+  const liveById = new Map(
+    rows.map((r) => [
+      r.id,
+      isAccountLive({ provider: r.provider as string, plaidItemId: r.plaidItemId ?? null }, conns),
+    ]),
+  );
+
+  const dismissed = await getDismissedDuplicateKeys(userId);
+  return pairs
+    .filter((p) => liveById.get(p.a.id) === true && liveById.get(p.b.id) === true)
+    .filter((p) => !dismissed.has(duplicatePairDismissKey(p.a.id, p.b.id)))
+    .map((p) => ({ aId: p.a.id, bId: p.b.id, confidence: p.confidence, reasons: p.reasons }));
 }
 
 /**
@@ -331,9 +442,22 @@ export async function getDashboardData(
     cardMask[a.id] = (a as { mask?: string | null }).mask ?? null;
   }
 
+  // The pair disclosure for /cards (TASKS L.6). Both lists, because an undated copy is still a
+  // second row for the same card even though it is in no total — and it is the "No due date yet"
+  // panel that most often holds the thin, unnamed rows a duplicate arrives as.
+  const cardDuplicates = await detectDisplayedCardDuplicates(
+    userId,
+    snap,
+    new Set([
+      ...payInFull.cards.map((c) => c.cardId),
+      ...payInFull.unknownDueDateCards.map((c) => c.cardId),
+    ]),
+  );
+
   return {
     today,
     cardMask,
+    cardDuplicates,
     paymentAccountName: paymentAccount.name,
     paymentAccountId: snap.paymentAccountId,
     payInFull,

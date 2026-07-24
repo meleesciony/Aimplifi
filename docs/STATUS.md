@@ -2,7 +2,7 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
-## 🟠 OPEN — a both-live duplicate card is counted twice on /cards, silently (found 2026-07-24)
+## ✅ CLOSED 2026-07-24 (#299) — a both-live duplicate card was counted twice on /cards, silently
 
 Found by reading the owner's /cards screenshot — the same highest-signal source as the rest of Wave L,
 not a failing test.
@@ -49,7 +49,46 @@ figure belongs to.
 
 **Interim remedy for a future duplicate (unchanged).** Delete the duplicate row on /accounts, or
 combine the pair — either removes it from /cards, since both surfaces read the same Account rows.
-Tracked as TASKS L.6.
+Tracked as TASKS L.6 — **now closed by #299 (DECISIONS #290).**
+
+### What #299 shipped
+
+/cards now renders an advisory disclosure directly ABOVE the "Do this first" instruction whenever a
+card it lists looks like one real card arriving twice. It names both entries by the exact headings
+the page paints, quotes each row's own cash-required figure, states the detector's confidence and
+the signals that fired, and says plainly that **no figure was adjusted** — the #192/#221/#289 stance,
+never quietly reversed inside a money headline. Detection is #192's, untouched; this was a missing
+surface, not a missing engine.
+
+Two fences worth knowing about, both from the fresh-context critic:
+
+1. **"Counted" means inside `headline.requiredCents`, not merely painted in the grid.** The first cut
+   read `cashRequiredCents` off every row in `result.cards` and claimed the totals included both. The
+   critic ran the engine and falsified it: `requiredCents` sums only `cycleObligations`, and ESTIMATED
+   obligations are dropped wholesale as soon as any one card has a real statement
+   (`cash-needed/engine.ts:214-223`), then filtered to `cashRequiredCents > 0`. So an estimated — or
+   paid-off — duplicated pair is painted with a real-looking figure twice while contributing nothing.
+   The old copy would have told a reader with a $217.99 headline that it was inflated by two
+   $6,679.68 rows it did not contain, which could have sent them to move cash they do not owe.
+2. **Both sides must still be live.** `detectReconciliationCandidates` only ever proposes a pair whose
+   sides DIFFER in liveness, and /accounts suppresses its duplicate warning — and therefore its only
+   Dismiss control — for any pair that has such a candidate. An unfenced banner here would have been
+   permanent and undismissable on the money page: the exact owner complaint that created the
+   dismissal feature. Both-live is also precisely the reported defect.
+
+Also fixed a #298 residual found on the way: the two per-section `cardIdentityLabels` passes each
+guaranteed distinctness only WITHIN their own list, so a dated `CREDIT CARD` and an undated one with
+no last-4 painted identical headings. Now one pass over everything the page displays.
+
+### 🟠 STILL OPEN — the DASHBOARD does not disclose it
+
+`cardDuplicates` is computed inside `getDashboardData`, which the dashboard also calls, but only
+/cards consumes it. The dashboard's cash-needed headline and its `reminders` are built from the same
+`payInFull.cards` that lists both copies, so they remain inflated with **no disclosure at all**.
+Scoping to /cards was the deliberate slice boundary, but the gap is real: a reader who never opens
+/cards sees the inflated number and nothing about it. The data is already in hand, so the fix is a
+consumer, not a query.
+
 
 ## ✅ ANSWERED 2026-07-24 — the issuers DO return card due dates (TASKS L.3); no date is invented
 

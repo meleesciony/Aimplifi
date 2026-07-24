@@ -94,6 +94,7 @@ export default async function CardsPage({
         today={data.today}
         accountOwnerLabel={data.accountOwnerLabel}
         cardMask={data.cardMask}
+        cardDuplicates={data.cardDuplicates}
         householdName={data.scope === 'household' ? data.household?.name ?? null : null}
       />
     </div>

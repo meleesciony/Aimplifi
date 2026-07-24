@@ -293,3 +293,135 @@ test('the duplicate blocks stay inside the viewport on a phone', async ({ page }
     expect(box!.height, `${id} is under 44px tall`).toBeGreaterThanOrEqual(44);
   }
 });
+
+/**
+ * TASKS L.6 — the same disease on /cards, where it costs money.
+ *
+ * The owner's screenshot of 2026-07-24: one real Chase card on two live Plaid connections rendered
+ * TWO entries — both named `CREDIT CARD`, both $6,679.68, both $66.00 minimum, both Aug 5 — and
+ * both emitted a full obligation, so the "Do this first" instruction and every card total carried
+ * +$6,679.68 that he does not owe. The page flagged nothing: `cashNeededFromSnapshot` strips only
+ * RECONCILED rows, and the personal duplicate detector rendered only on /accounts.
+ */
+function seedDuplicateCardOnTwoConnections(email: string) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
+    if (!user) throw new Error(`seedDuplicateCardOnTwoConnections: user ${email} not found`);
+    const uid = user.id;
+    const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    const insItem = db.prepare(
+      `INSERT INTO PlaidItem (id, userId, itemId, accessToken, institution, lastSyncedAt)
+       VALUES (?, ?, ?, 'ct-e2e', 'Chase', '2026-07-24')`,
+    );
+    insItem.run(`e2e-l6-item-row-a-${suffix}`, uid, `e2e-l6-item-a-${suffix}`);
+    insItem.run(`e2e-l6-item-row-b-${suffix}`, uid, `e2e-l6-item-b-${suffix}`);
+    // Both cycle days are set on purpose: #277's cycle-2 counter-lock refuses to date a card from a
+    // due day alone, so without an anchor these would land in "No due date yet" and never reach the
+    // totals the disclosure is about.
+    const insAcct = db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, plaidItemId, name, type, mask,
+                            currentBalanceCents, currency, dueDayOfMonth, cycleCloseDayOfMonth)
+       VALUES (?, ?, 'plaid', ?, ?, ?, 'CREDIT', ?, ?, 'USD', 5, 8)`,
+    );
+    insAcct.run(`e2e-l6-card-a-${suffix}`, uid, `pl-l6a-${suffix}`, `e2e-l6-item-a-${suffix}`, 'CREDIT CARD', '0977', -667968);
+    insAcct.run(`e2e-l6-card-b-${suffix}`, uid, `pl-l6b-${suffix}`, `e2e-l6-item-b-${suffix}`, 'CREDIT CARD', '0977', -667968);
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, plaidItemId, name, type, mask,
+                            currentBalanceCents, currency)
+       VALUES (?, ?, 'plaid', ?, ?, 'Everyday Checking', 'CHECKING', '4411', 500000, 'USD')`,
+    ).run(`e2e-l6-chk-${suffix}`, uid, `pl-l6c-${suffix}`, `e2e-l6-item-a-${suffix}`);
+    // The issuer statement each side carries — his real figures. Without one the engine estimates
+    // a $0 statement and the disclosure would quote $0.00 twice, which proves nothing about the
+    // double-count it exists to disclose.
+    const insStmt = db.prepare(
+      `INSERT INTO Statement (id, accountId, cycleStart, cycleEnd, dueDate, statementBalanceCents,
+                              minimumPaymentCents, isEstimated)
+       VALUES (?, ?, '2026-07-09', '2026-08-08', '2026-09-05', 667968, 6600, 0)`,
+    );
+    insStmt.run(`e2e-l6-stmt-a-${suffix}`, `e2e-l6-card-a-${suffix}`);
+    insStmt.run(`e2e-l6-stmt-b-${suffix}`, `e2e-l6-card-b-${suffix}`);
+  } finally {
+    db.close();
+  }
+}
+
+test('/cards discloses a card counted twice, and names which two entries', async ({ page }) => {
+  const email = await signUpThrowaway(page);
+  seedDuplicateCardOnTwoConnections(email);
+  await page.goto('/cards');
+
+  const warning = page.getByTestId('cards-duplicate');
+  await expect(warning).toBeVisible({ timeout: 20_000 });
+  const text = (await warning.innerText()).replace(/\s+/g, ' ');
+
+  // It says the thing the page previously left silent: both rows are in this cycle's total.
+  // Both carry a REAL statement here, so both are genuinely inside headline.requiredCents —
+  // the only state in which this sentence is true (see the estimated/paid-off unit cases).
+  expect(text).toContain("this cycle's figures include both");
+  expect(text).toContain('$6,679.68');
+  // The basis is stated inline rather than asserted bare above a payment instruction.
+  expect(text).toContain('Likely — matched on');
+  // …and it does NOT quietly subtract one. Disclose, never adjust (DECISIONS #289).
+  expect(text).toContain('No figure above has been adjusted');
+  expect(text).toContain('only you can confirm');
+
+  // Naming both entries is the whole point — "CREDIT CARD" alone identifies neither.
+  const headings = (await page.getByTestId(/^card-identity-/).allInnerTexts()).map((t) => t.trim());
+  expect(headings).toHaveLength(2);
+  expect(headings[0]).not.toBe(headings[1]);
+  for (const h of headings) expect(text).toContain(h);
+});
+
+/**
+ * The cross-section half of the identity guarantee (#298, extended for TASKS L.6).
+ *
+ * #298 computed card identities in TWO passes — one for the dated grid, one for the "No due date
+ * yet" panel — so each guaranteed distinctness only WITHIN itself. A dated card and an undated card
+ * sharing a name, with no last-4 between them, therefore painted two identical headings. That is
+ * the state the whole #296/#297/#298 line of work exists to prevent, and the L.6 disclosure names
+ * cards by exactly these headings. One pass over the whole displayed list restores it.
+ */
+function seedSameNameDatedAndUndated(email: string) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
+    if (!user) throw new Error(`seedSameNameDatedAndUndated: user ${email} not found`);
+    const uid = user.id;
+    const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    db.prepare(
+      `INSERT INTO PlaidItem (id, userId, itemId, accessToken, institution, lastSyncedAt)
+       VALUES (?, ?, ?, 'ct-e2e', 'Chase', '2026-07-24')`,
+    ).run(`e2e-xid-item-row-${suffix}`, uid, `e2e-xid-item-${suffix}`);
+    // Deliberately NO mask on either row — a manual/thin feed is exactly when the numbering
+    // fallback has to carry the identity on its own.
+    const insAcct = db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, plaidItemId, name, type, mask,
+                            currentBalanceCents, currency, dueDayOfMonth, cycleCloseDayOfMonth)
+       VALUES (?, ?, 'plaid', ?, ?, 'CREDIT CARD', 'CREDIT', NULL, ?, 'USD', ?, ?)`,
+    );
+    // Dated: both cycle days present ⇒ a real obligation in the grid.
+    insAcct.run(`e2e-xid-dated-${suffix}`, uid, `pl-xd-${suffix}`, `e2e-xid-item-${suffix}`, -120000, 5, 8);
+    // Undated: no cycle days at all ⇒ the "No due date yet" panel (#277's counter-lock).
+    insAcct.run(`e2e-xid-undated-${suffix}`, uid, `pl-xu-${suffix}`, `e2e-xid-item-${suffix}`, -45000, null, null);
+  } finally {
+    db.close();
+  }
+}
+
+test('a dated card and an undated card with the same name are still told apart', async ({ page }) => {
+  const email = await signUpThrowaway(page);
+  seedSameNameDatedAndUndated(email);
+  await page.goto('/cards');
+
+  await expect(page.getByTestId('cards-unknown-due')).toBeVisible({ timeout: 20_000 });
+  // Neither row has a last-4, so the identity falls back to the positional marker — and the two
+  // sections are numbered as ONE list running down the page. The pre-fix build numbered each list
+  // from 1 independently, so both rows read "1. no card number on file" and the page contained no
+  // "2." at all. The undated panel prints its identity as plain text, so assert on rendered copy.
+  const body = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
+  expect(body).toContain('1. no card number on file');
+  expect(body).toContain('2. no card number on file');
+});

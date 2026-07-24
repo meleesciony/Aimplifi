@@ -18,6 +18,13 @@ import { Button } from '@/components/ui/button';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { CARD_IDENTITY_TESTID, cardIdentityLabels } from '@/components/finance/card-identity-view';
+import {
+  CARD_DUPLICATE_PAIR_TESTID,
+  CARD_DUPLICATE_TESTID,
+  type CardDuplicatePairInput,
+  type CardMoneyRole,
+  cardDuplicateView,
+} from '@/components/finance/card-duplicate-view';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
 
@@ -29,6 +36,7 @@ export function CardsBreakdown({
   accountOwnerLabel = {},
   householdName = null,
   cardMask = {},
+  cardDuplicates = [],
 }: {
   payInFull: CashNeededResult;
   minimum: CashNeededResult;
@@ -40,6 +48,10 @@ export function CardsBreakdown({
   /** cardId → owning partner's name, for cards folded in from household scope
    *  (TASKS 4.2 slice 5). Empty for solo/'mine' scope — no badge renders. */
   accountOwnerLabel?: Record<string, string>;
+  /** Suspected duplicate pairs among the viewer's own displayed cards (TASKS L.6).
+   *  Ids only — every string comes from `cardDuplicateView`, built from the labels
+   *  painted below, so the disclosure cannot name a card differently from the card. */
+  cardDuplicates?: CardDuplicatePairInput[];
   /** Set ONLY at household scope (slice-8 critic F-3): the joint total is
    *  needed ACROSS the household — attributing it to the viewer's own funding
    *  account would claim a partner's autopay draft must sit there. */
@@ -112,21 +124,81 @@ export function CardsBreakdown({
             b.userActionCents - a.userActionCents,
         );
         const firstAction = ordered.find((c) => c.userActionCents > 0);
-        // The undated cards are a SEPARATE list (engine.ts keeps them out of `cards`), so they get
-        // their own pass — otherwise three connected cards all named "CREDIT CARD" list identically
-        // three lines below the fix (#298 critic F4).
-        const unknownIdentity = cardIdentityLabels(
-          result.unknownDueDateCards.map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
-          cardMask,
+        // ONE identity pass over EVERY card the page paints — the dated grid first, then the
+        // "No due date yet" panel, i.e. exactly the order they appear down the page.
+        //
+        // The undated cards are a separate engine list (engine.ts keeps them out of `cards`) and
+        // #298 gave them their own `cardIdentityLabels` call so they were not left bare (critic F4).
+        // Two SEPARATE passes each guarantee distinctness only within themselves, so a dated
+        // "CREDIT CARD" and an undated "CREDIT CARD" with no last-4 between them painted two
+        // identical headings and neither was numbered — and the L.6 disclosure below names cards by
+        // those headings. Computing both lists together restores the #298 guarantee across the
+        // whole page. The number is a within-view marker, re-assigned if the toggle reorders the
+        // list, which is why nothing else ever refers to it.
+        const displayedCards = [
+          ...ordered.map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
+          ...result.unknownDueDateCards.map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
+        ];
+        const identity = cardIdentityLabels(displayedCards, cardMask);
+        const painted = (cardId: string, cardName: string) =>
+          identity[cardId] ? `${cardName} ${identity[cardId]}` : cardName;
+        // Which rows are ACTUALLY inside `headline.requiredCents`. The engine's own selection,
+        // read off its own output rather than re-implemented here: `requiredCents` sums
+        // `cycleObligations` filtered to `cashRequiredCents > 0`, and `cycleObligations` is
+        // precisely `cards` minus `upcoming` — `upcoming` holds the estimated obligations that are
+        // dropped wholesale the moment any card has a real statement (engine.ts:214-223). A critic
+        // running the engine caught the first cut claiming two estimated $6,679.68 rows inflated a
+        // $217.99 headline that contained neither.
+        const upcomingIds = new Set(result.upcoming.map((c) => c.cardId));
+        // The disclosure is computed from the SCENARIO CURRENTLY ON SCREEN, so the amounts it
+        // quotes are the amounts beside the cards — the pay-in-full and minimum figures differ.
+        const duplicates = cardDuplicateView(
+          cardDuplicates,
+          displayedCards.map((c) => {
+            const obligation = ordered.find((o) => o.cardId === c.cardId);
+            const role: CardMoneyRole = !obligation
+              ? { counted: false, reason: 'no-statement' }
+              : upcomingIds.has(c.cardId)
+                ? { counted: false, reason: 'next-cycle' }
+                : obligation.cashRequiredCents > 0
+                  ? { counted: true, cents: obligation.cashRequiredCents }
+                  : { counted: false, reason: 'nothing-due' };
+            return { cardId: c.cardId, label: painted(c.cardId, c.cardName), role };
+          }),
         );
-        // Computed over `ordered` — the list actually on screen — so the fallback numbering always
-        // reads 1, 2, 3 DOWN THE PAGE. Numbering the unsorted input instead would print "3." above
-        // "1.", a label claiming a position it does not have. The number is a within-view marker
-        // that separates otherwise-identical cards, not a durable name for a card: it is
-        // re-assigned if the toggle reorders the list, which is why nothing else ever refers to it.
-        const identity = cardIdentityLabels(ordered, cardMask);
         return (
           <>
+            {duplicates && (
+              // Above the instruction it qualifies (TASKS L.6): "Do this first: pay CREDIT CARD
+              // $6,679.68" is the sentence a double-counted card corrupts, so the reader must meet
+              // the caveat before the imperative, not three screens below it.
+              <div
+                // Announced like the /accounts warning it mirrors: without this a screen-reader
+                // user meets the payment instruction with no signal that it is qualified.
+                role="alert"
+                className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-sm"
+                data-testid={CARD_DUPLICATE_TESTID}
+              >
+                <p className="font-medium">{duplicates.title}</p>
+                <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                  {duplicates.pairs.map((p) => (
+                    <li key={p.key} data-testid={`${CARD_DUPLICATE_PAIR_TESTID}-${p.key}`}>
+                      {p.sentence} {p.impact}{' '}
+                      {/* The basis, never hidden: this is a heuristic sitting directly above a
+                          payment instruction, and /accounts shows its strength and reasons too. */}
+                      <span className="italic">{p.basis}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {duplicates.howTo}{' '}
+                  <Link href="/accounts" className="underline hover:text-foreground">
+                    Go to Accounts
+                  </Link>
+                  .
+                </p>
+              </div>
+            )}
             {firstAction && (
               <p
                 className="rounded-lg border border-emerald-900/50 bg-emerald-950/30 px-3 py-2 text-sm"
@@ -306,7 +378,7 @@ export function CardsBreakdown({
                             means a thin issuer feed — so the identity matters more here, not
                             less (#298 critic F4). They are deliberately kept out of
                             `result.cards`, hence their own label pass. */}
-                        {unknownIdentity[c.cardId] ? ` ${unknownIdentity[c.cardId]}` : ''}
+                        {identity[c.cardId] ? ` ${identity[c.cardId]}` : ''}
                         {owner ? ` (${owner})` : ''} — balance{' '}
                         {formatCents(c.currentBalanceCents)}
                       </li>
