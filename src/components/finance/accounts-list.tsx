@@ -38,6 +38,15 @@ import {
   type DuplicateSideView,
 } from '@/components/finance/duplicate-card-view';
 import {
+  continuedAccountsView,
+  CONTINUED_ACCOUNT_TESTID,
+  CONTINUED_CARD_TESTID,
+  CONTINUED_CHAINED_TESTID,
+  CONTINUED_COMBINES_TESTID,
+  CONTINUED_SOURCE_TESTID,
+  CONTINUED_UNDO_TESTID,
+} from '@/components/finance/continued-accounts-view';
+import {
   ManualCardStatementForm,
   type ManualStatementFormValues,
 } from '@/components/finance/manual-card-statement-form';
@@ -307,7 +316,10 @@ export function AccountsList({ data }: { data: AccountsView }) {
         onUndo={(id) =>
           refreshAfter(
             () => undoReconciliation(id).then((r) => (r.ok ? { ok: true } : { ok: false, errors: [r.error] })),
-            'Undone — both accounts count on their own again.',
+            // Speaks about the PREDECESSOR only. "Both accounts count on their own again" was
+            // false in a chain (#297 critic): undoing Q→P restores Q, but P stays zeroed while
+            // P→S is still active, so the user was promised two accounts back and got one.
+            'Undone — that old account counts on its own again.',
           )
         }
       />
@@ -772,9 +784,14 @@ function CandidateRow({
 }
 
 /**
- * "Combined accounts" — active reconciliations, each rendered as ONE logical account (R6/R9). The
- * predecessor's own row is folded out of the asset/liability groups by the parent; this card
- * discloses the merge and offers Undo (reversible — both sides count on their own again).
+ * "Combined accounts" — active reconciliations, grouped by the LIVE account each one folds into
+ * (R6/R9). The predecessor's own row is folded out of the asset/liability groups by the parent;
+ * this card discloses the merge and offers a per-link Undo (reversible — both sides count on their
+ * own again).
+ *
+ * #297: one live account may supersede more than one old row (schema.prisma:193), so entries are
+ * grouped and every old account is named. All rendered strings come from `continuedAccountsView`,
+ * which computes them together so two identical Undo controls are impossible for ANY input.
  */
 function ContinuedAccountsCard({
   reconciliations,
@@ -786,35 +803,70 @@ function ContinuedAccountsCard({
   onUndo: (id: string) => void;
 }) {
   if (reconciliations.length === 0) return null;
+  const accounts = continuedAccountsView(reconciliations);
   return (
-    <Card data-testid="reconcile-combined" className="border-emerald-900/40 bg-emerald-950/20">
+    <Card
+      data-testid={CONTINUED_CARD_TESTID}
+      className="border-emerald-900/40 bg-emerald-950/20"
+    >
       <CardHeader className="pb-2">
         <CardDescription className="text-emerald-300">Combined accounts</CardDescription>
         <CardTitle className="text-base">Counted once, on the live connection</CardTitle>
       </CardHeader>
       <CardContent className="text-sm">
         <ul className="space-y-2" role="list">
-          {reconciliations.map((r) => (
+          {accounts.map((a) => (
             <li
-              key={r.id}
-              data-testid="reconcile-combined-pair"
-              className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-emerald-900/40 px-3 py-2"
+              key={a.successorId}
+              data-testid={CONTINUED_ACCOUNT_TESTID}
+              className="rounded-md border border-emerald-900/40 px-3 py-2"
             >
-              <span className="font-medium">{r.successor.name}</span>
-              <span className="text-xs text-muted-foreground">({providerMask(r.successor)})</span>
-              <span className="text-xs text-muted-foreground">
-                continued from your old {providerMask(r.predecessor)} account — history kept through{' '}
-                {r.cutoverDate}, balance counted here.
-              </span>
-              <button
-                type="button"
-                data-testid="reconcile-undo"
-                disabled={pending}
-                onClick={() => onUndo(r.id)}
-                className="tap-target ml-auto inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50"
-              >
-                Undo
-              </button>
+              <div className="flex flex-wrap items-center gap-x-2">
+                <span className="min-w-0 break-words font-medium">{a.name}</span>
+                <span className="text-xs text-muted-foreground">({a.providerMask})</span>
+              </div>
+              {a.combinesLine && (
+                <p
+                  data-testid={CONTINUED_COMBINES_TESTID}
+                  className="mt-1 text-xs text-emerald-300"
+                >
+                  {a.combinesLine}
+                </p>
+              )}
+              {a.chainedLine && (
+                <p
+                  data-testid={CONTINUED_CHAINED_TESTID}
+                  className="mt-1 text-xs text-amber-300"
+                >
+                  {a.chainedLine}
+                </p>
+              )}
+              <ul className="mt-1 space-y-1" role="list">
+                {a.sources.map((s) => (
+                  <li
+                    key={s.key}
+                    data-testid={CONTINUED_SOURCE_TESTID}
+                    className="flex flex-wrap items-center gap-x-2 gap-y-1"
+                  >
+                    <span className="min-w-0 break-words text-xs text-muted-foreground">
+                      {s.identityLine}
+                    </span>
+                    {/* max-w-full + whitespace-normal + break-words per the #265/#276 recipe: this
+                        face now carries a bank-supplied name of uncapped length, so without them a
+                        single long token would push the document wider than a 360px phone. */}
+                    <button
+                      type="button"
+                      data-testid={CONTINUED_UNDO_TESTID}
+                      aria-label={s.undoAriaLabel}
+                      disabled={pending}
+                      onClick={() => onUndo(s.id)}
+                      className="tap-target ml-auto inline-flex h-auto max-w-full min-w-0 items-center justify-center rounded-md border px-3 py-1.5 text-xs break-words whitespace-normal hover:bg-accent disabled:opacity-50"
+                    >
+                      {s.undoLabel}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </li>
           ))}
         </ul>

@@ -2,6 +2,74 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-24 — the Combined-accounts card groups by live account (#297)
+
+Closes the last open defect from the owner 2026-07-24 /accounts screenshots, recorded until now as
+a known limitation of #296: the **"Combined accounts"** card listed **"Venture (Plaid ····6271)"
+twice, identically** — same mask, same "history kept through 2026-07-18" — with two byte-identical
+"Undo" buttons. Owner: *"two identical rows I can't tell apart."*
+
+**Verified cause.** `AccountReconciliation.successorAccountId` is deliberately NOT unique
+(`prisma/schema.prisma:193` — "one live account may supersede more than one old row"), so TWO
+SimpleFIN predecessors folding into ONE live Plaid successor is **valid data**. The card rendered
+one flat row per link with no grouping, and never rendered the one field that differs — the
+**predecessor's own name**. It rendered `providerMask(predecessor)`, which for two SimpleFIN rows
+(no mask column) is the constant string "SimpleFIN". Same disease as #296, one card lower.
+
+**Shipped.** A pure, framework-free view module (`src/components/finance/continued-accounts-view.ts`)
+owns every rendered string: it groups by successor (ONE block per live account), names each old
+account with an "old account N of M" ordinal that survives byte-identical names, and guarantees no
+two Undo controls can tie. **Zero server change, empty prisma diff** — the payload already carried
+`predecessor.name` (`transactions.ts:264`); it was simply never rendered.
+
+**Three fresh-context critics, all findings fixed + regression-locked in cycle 1:**
+- The `(copy N)` breaker **wrote into the string space it compared**, so a predecessor named
+  "Venture (copy 1)" tied with a rewritten "Venture" (executed repro; 39/4000 fuzz seeds). Replaced
+  with a card-wide positional **prefix** that is provably unforgeable (a digit is never a '.').
+- Distinctness was computed on **raw** strings while the browser paints **collapsed** ones, so
+  `"Venture "`, `"Ven<ZWSP>ture"` and `"Venture  "` painted identically. Names are now sanitized once
+  at construction, which also strips a U+202E that would reverse a button face.
+- **Copy outran the data.** "balance counted on the live connection" is false in a chain Q→P→S
+  (each link is emitted with its DIRECT successor, `transactions.ts:525`, while the boundary zeroes
+  EVERY predecessor, `reconcile-boundary.ts:419`) and after a successor's bank is disconnected
+  (liveness is re-checked nowhere after confirm). Every sentence now states only what is true in
+  every state — a fact about the PREDECESSOR — and a mid-chain block says so explicitly. The undo
+  toast's "both accounts count on their own again" was false for the same reason and now speaks
+  about the old account only.
+
+**Coverage gap closed.** `prisma/seed.ts` creates no reconciliations, so the demo user's /accounts
+early-returns this card — meaning the repo's axe scan and mobile-overflow sweep had **never seen
+this markup**. The new spec re-runs both gates against a seeded card at 360/393/430.
+
+**Known limitations (deliberate, not defects):**
+- Ordinals are POSITIONAL over the payload, so two links created in the same database second have an
+  unspecified order, and undoing one RENUMBERS the survivors. Nothing claims a date order, a link
+  order, or that the number is durable, and every Undo's accessible name also carries the account
+  NAME.
+- The card does **not** claim the links are CORRECT. Whether a second predecessor was matched to the
+  right live account is owner-only knowledge (rule 0); the card's job is to make that answerable and
+  each link separately reversible.
+- `tests/e2e/combined-accounts.spec.ts` is exposed to the §OPEN "/accounts DOM duplication" flake
+  like every /accounts spec. **Measured this session, three full-suite runs**, rather than assumed:
+  with #297 present 6 failed, then 2 failed (both in #296's untouched `duplicate-connections.spec.ts`,
+  every #297 test green); with #297 **entirely reverted and rebuilt** the same suite still failed 5,
+  including the SAME `reconcile.spec.ts` ×2 and `duplicate-connections.spec.ts` ×2. Paired runs
+  showed `reconcile.spec.ts` failing ~1 in 3 alongside **either** the new spec **or** #296's, and
+  all of them pass 13/13 at `--workers=1`. The victim rotates run to run; this slice adds EXPOSURE,
+  not cause. Do NOT loosen the strict locators to make it pass — that would hide the real bug.
+
+**OPEN, deliberately not widened here (both pre-date #297, both recorded by the copy critic):**
+1. **Degenerate claim span.** If a stored cutover predates the predecessor's first transaction
+   (reachable — deleting its earliest manual row can move that date), `reconcile-boundary.ts:284-293`
+   makes the claim degenerate and BOTH sides keep everything, a real transaction double-count. The
+   card still says "history kept through {cutover}", and `transactions.ts:591` suppresses the
+   duplicate warning for any effective predecessor — so no surface flags it. Also, the true claim
+   end is `min(cutover, last txn)`, not `cutover`.
+2. **The persistent card omits two confirm-time disclosures** that remain true forever: inside the
+   claim span the predecessor's records REPLACE anything the successor re-imported, and where
+   `cutover < last txn` the predecessor's later records stop counting. "History kept through X" reads
+   as a clean handoff and never mentions that rows on either side were dropped.
+
 ## ✅ SHIPPED 2026-07-24 — duplicate card distinguishes CONNECTIONS (#296)
 
 The owner-reported byte-identical-button defect is closed: two live Plaid connections to the same
@@ -34,9 +102,9 @@ the latter verified to fail against the reverted pre-#296 build.
   fixed in this slice). Its earlier copy — "Disconnect? Synced accounts and history are kept." with
   two byte-identical "Disconnect U.S. Bank (Plaid)" aria-labels — would otherwise have been the
   weaker surface for the identical action, contradicting the card one section above it.
-- The Combined-accounts card still has its own unresolved "two identical rows I can't tell apart"
-  report (Venture ····6271 twice). The per-side connection block established here is the obvious
-  precedent, but it is owner-gated and was not touched unasked.
+- The Combined-accounts card had its own "two identical rows I can't tell apart" report
+  (Venture ····6271 twice). **CLOSED 2026-07-24 by #297** — see the section at the top of this
+  file; the per-side block established here was indeed the precedent it took.
 
 
 ## 🟠 OPEN — intermittent DOM duplication on /accounts (surfaces as a strict-mode e2e failure)
@@ -247,6 +315,11 @@ Gate: `bash scripts/verify.sh` → GREEN (tsc 0 / eslint 0 / **3597 unit / 246 f
 e2e `auth.spec` + `reconcile.spec` 7/7 on mobile-380. No schema change. Original analysis kept below.
 
 ---
+
+> **RESOLVED 2026-07-24 by #297** (display half). The card now groups by live account, names
+> every old account folded in, and gives each link its own tellable-apart Undo. The
+> CORRECTNESS half below — whether both links are right — remains owner-only knowledge, and is
+> exactly what the new rendering makes answerable.
 
 Owner, same /accounts screenshots: the **"Combined accounts / Counted once, on the live
 connection"** card lists **"Venture (Plaid ····6271)" TWICE, identically** (same mask, same "history

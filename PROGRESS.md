@@ -1,5 +1,66 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-24 — #297 DONE: the Combined-accounts card groups by live account
+
+Closes the LAST open item from the owner's 2026-07-24 /accounts screenshots — carried until now as
+a known limitation of #296. The "Combined accounts" card listed "Venture (Plaid ····6271)" TWICE,
+identically, with two byte-identical "Undo" buttons. Owner: "two identical rows I can't tell apart."
+
+ROOT CAUSE (verified from schema + code, not theorized): `AccountReconciliation.successorAccountId`
+is deliberately NOT unique (schema.prisma:193), so two SimpleFIN predecessors folding into ONE live
+Plaid successor is VALID data. The card rendered one flat row per link with no grouping and never
+rendered the predecessor NAME — only `providerMask(predecessor)`, which for two SimpleFIN rows (no
+mask column) is the constant string "SimpleFIN". Same disease as #296, one card lower.
+
+SHIPPED: pure `src/components/finance/continued-accounts-view.ts` owns every rendered string —
+groups by successor (ONE block per live account), names each old account with an "old account N of
+M" ordinal, and proves control distinctness by construction. ZERO server change, empty prisma diff:
+the payload already carried `predecessor.name` (transactions.ts:264), it was simply never rendered.
+
+THREE fresh-context critics (copy honesty / uniqueness invariant / downstream regressions). ALL
+found real defects in cycle 1; ALL fixed + regression-locked:
+ - the `(copy N)` breaker could CREATE the tie it existed to prevent (executed repro; 39/4000 fuzz
+   seeds) because it appended INTO the string space it compared -> replaced with a card-wide
+   positional PREFIX, unforgeable by the digit-vs-dot argument, one pass;
+ - distinctness compared RAW strings while the browser paints COLLAPSED ones ("Venture ",
+   "Ven<ZWSP>ture") -> names sanitized once at construction, which also strips a U+202E that would
+   reverse a button face;
+ - COPY OUTRAN THE DATA: "balance counted on the live connection" is false in a chain Q->P->S
+   (transactions.ts:525 emits each link with its DIRECT successor; reconcile-boundary.ts:419 zeroes
+   EVERY predecessor) and after a successor bank is disconnected -> every sentence now states only
+   what is true in EVERY state (a fact about the PREDECESSOR), plus an explicit mid-chain note; the
+   undo toast's "both accounts count on their own again" was false for the same reason and now
+   speaks about the old account only.
+Also closed the axe/mobile-overflow BLIND SPOT: the demo seed creates no reconciliations, so this
+markup had never been scanned by either gate; the new spec re-runs both against a seeded card.
+
+FAIL-OLD PROVEN, not assumed: with accounts-list.tsx reverted and rebuilt, the new e2e FAIL and the
+output reproduces the owner's exact duplicated string ("Venture(Plaid ····6271)continued from your
+old SimpleFIN account — history kept through 2026-07-18, balance counted here.Undo"); restored and
+rebuilt, they pass.
+
+GATE: `bash scripts/verify.sh` -> VERIFY GREEN — tsc 0, eslint 0, 3720 unit / 250 files, build clean,
+no schema change. E2E: the /accounts specs sit on the STATUS §OPEN DOM-duplication flake, MEASURED
+across three full-suite runs rather than assumed — with #297 present 6 failed then 2 failed (both
+in #296's untouched spec, every #297 test green); with #297 ENTIRELY REVERTED and rebuilt the same
+suite still failed 5, including the same reconcile ×2 and duplicate-connections ×2. All 13 of the
+implicated tests pass at --workers=1. The victim rotates; #297 adds exposure, not cause.
+
+LEDGERS: DECISIONS #288, REGRESSION_LEDGER ×4, STATUS (new shipped section + the #296 limitation
+flipped + the old owner report annotated RESOLVED), EDGE_CASES §Combined-accounts (A-E, hand
+verified), TASKS Wave L.5 -> [x].
+
+LEFT OPEN DELIBERATELY (both pre-date #297; recorded in STATUS, not silently widened): the
+degenerate-cutover claim span (cutover before the predecessor's first txn makes BOTH sides keep
+everything — a real transaction double-count no surface flags, since transactions.ts:591 suppresses
+the duplicate warning for an effective predecessor), and the persistent card omitting the two
+confirm-time disclosures about replaced/dropped rows.
+
+STILL OPEN FOR THE OWNER (unchanged by this slice): his two both-live duplicate PAIRS
+(CREDIT CARD ····0977, Loan - 2927) are resolvable via #296's card but not yet resolved — about
+8.5k + 23.8k of phantom debt, two taps each. And TASKS L.3, /cards due dates after a real sync,
+has never been confirmed.
+
 ## 2026-07-24 — The duplicate card now distinguishes CONNECTIONS, not rows (#296)
 
 Owner-reported with a screenshot, hours after #295 shipped: the duplicate card he had just been given
