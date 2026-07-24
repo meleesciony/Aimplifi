@@ -2,6 +2,42 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-24 (#305) — L.6: when the app will NOT combine two look-alike connections, it now says why
+
+**Owner, on the build shipped an hour earlier: "Not there."** He reloaded /accounts and found no Combine
+card at all for his two Chase `····0977` connections. That is a real defect, and it is mine: the feature
+rendered a control when it could act and **nothing** when it could not, so "we checked and cannot prove
+these are one account" was indistinguishable from "we never looked" — which is exactly what he concluded,
+twice. It is the `an-empty-set-is-not-a-fact` rule applied to my own feature: the absence of an offer is a
+CONCLUSION, and a conclusion has to be stated.
+
+**Shipped:** a pure `explainUncombinableConnections` keyed off what the READER can see — two live
+connections the page shows at one bank, holding accounts with the same last-4 — that reports why no offer
+was made, plus the server half for the two reasons only it knows. Six reasons, each with its own sentence
+and, where one exists, a one-tap repair:
+
+* **`bank-id-missing`** — the ladder refuses to place two connections at one institution when only one
+  carries the bank's own `ins_*` id (a rule added the same day, after a critic showed that matching on the
+  bank NAME alone can merge two different banks). A connection linked before that column existed carries
+  null until the ordinary sweep fills it in. **This is the leading candidate for the owner's own case**,
+  and the card now offers *"Get the bank's ID"*, which runs `syncInstitutions` on demand.
+* **`dismissed`** — a pair the user previously marked "not a duplicate" suppresses the offer everywhere,
+  which is right, but was permanent and invisible. The card now says so and offers *"Offer it again"*
+  (new `reconsiderDuplicatePair` action).
+* **`strands`** / **`ambiguous`** / **`different-kind`** / **`different-bank`** / **`unproven`** — stated,
+  with the stranded accounts named by their last-4.
+
+Gate: `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **3929 unit / 261 files** / build clean; the new
+e2e case drives the blocked path (no Combine button, the reason visible, the repair offered).
+
+**Open, and NOT caused by this change (proved by a stashed clean-tree run):** `duplicate-connections.spec`
+→ *"two connections to one bank are told apart"* now fails most runs with the documented **#287 whole-page
+DOM-duplication** (`getByTestId('duplicate-accounts-warning') resolved to 2 elements`), an unconfirmed
+hydration mismatch on /accounts that predates this work. It reproduces with today's changes stashed, and
+the full serialized suite was 173/173 immediately before the fixture grew a fourth account, so the new
+fixture appears to make an existing race far more likely to land. Do NOT loosen the locator — that would
+hide a real duplicate-render bug. Next session should chase #287 itself.
+
 ## ✅ SHIPPED 2026-07-24 (#304, DECISIONS #297) — L.6/L.10: the duplicate card the owner has been staring at can now be combined in one tap
 
 **The owner's question, verbatim, mid-session: "What did you actually fix? I see the same accounts that I

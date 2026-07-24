@@ -27,7 +27,13 @@ import {
   effectiveReconciliationLinks,
 } from '@/lib/engine/account/reconcile-boundary';
 import { getActiveReconciliations, getReconciliationTxnKeep, isAccountLive } from '@/server/reconciliation';
-import { combinableConnectionsFor, suppressCombineProposals } from '@/server/combine-connections';
+import {
+  type CombineBlockedView,
+  combinableConnectionsFor,
+  combinePairKey,
+  suppressCombineProposals,
+  uncombinableConnectionsFor,
+} from '@/server/combine-connections';
 import type { CombineConnectionsProposal } from '@/lib/engine/account/combine-connections';
 import {
   type WithheldAccountSummary,
@@ -309,6 +315,10 @@ export interface AccountsView extends AccountsSummary {
    *  The card offers to disconnect one and continue the account on the other. Empty for the
    *  ordinary one-connection-per-bank case. */
   combinableConnections: CombineConnectionsProposal[];
+  /** Pairs that LOOK like duplicates to the reader but produced no offer, each with the reason.
+   *  Rendering nothing when the app has CONCLUDED something is how the first version of this
+   *  feature read as "nothing shipped" to the owner — an absence is not an answer. */
+  uncombinableConnections: CombineBlockedView[];
 }
 
 /** A candidate enriched with the predecessor's full-history transaction span (slice 6): the
@@ -554,6 +564,14 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       linkedPredecessorIds: effectivePredIds,
     },
   );
+  const uncombinableConnections = uncombinableConnectionsFor(userId, plaidItems, accounts, {
+    offeredItemPairKeys: new Set(
+      combinableConnections.map((p) => combinePairKey(p.recommended.keepItemId, p.recommended.dropItemId)),
+    ),
+    dismissedPairKeys: dismissedDupKeys,
+    reconciledPairKeys,
+  });
+
   // A pair with a combine OFFER must not also raise the advisory warning: the offer is the
   // actionable version of the same message, and #192's card would tell the same user to
   // "disconnect one side" while the card above already does exactly that in one tap.
@@ -668,6 +686,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     reconciliations,
     reconciliationCandidates,
     combinableConnections,
+    uncombinableConnections,
   };
 }
 

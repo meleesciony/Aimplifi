@@ -41,12 +41,14 @@ import { prisma } from '@/lib/db';
 import { type ISODate, addDays, compareDates, isoDate } from '@/lib/dates';
 import { DEMO_RECONCILE_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import {
+  explainUncombinableConnections,
   planCombinableConnections,
   type CombineAccountPair,
   type CombineConnectionAccount,
   type CombineConnectionItem,
   type CombineConnectionsProposal,
   type CombineDirection,
+  type UncombinableConnections,
 } from '@/lib/engine/account/combine-connections';
 import { isSupportedCurrency } from '@/lib/providers/currency';
 import { duplicatePairDismissKey } from '@/server/duplicate-dismissal';
@@ -514,4 +516,65 @@ export function combinableConnectionsFor(
   if (isDemoUser(userId)) return [];
   const { engineItems, engineAccounts } = buildCombineInputs(items, accounts);
   return planCombinableConnections(engineItems, engineAccounts);
+}
+
+/** One "why isn't there a Combine button?" row for the /accounts card. */
+export interface CombineBlockedView {
+  institutionLabel: string | null;
+  keepItemId: string;
+  dropItemId: string;
+  lookalikes: readonly { name: string; mask: string }[];
+  kind: UncombinableConnections['kind'] | 'dismissed' | 'already-linked';
+  strandedAccountNames: readonly string[];
+  /** Present only for `dismissed`: the account pair a "reconsider" control would un-dismiss. */
+  dismissedPair: { aId: string; bId: string } | null;
+}
+
+/**
+ * The pairs that LOOK like duplicates but are not offered, each with the reason — including the
+ * two reasons only the server knows: the user dismissed this pair, or it is already reconciled.
+ * Rendered so the absence of an offer is never mistaken for the app not having looked.
+ */
+export function uncombinableConnectionsFor(
+  userId: string,
+  items: readonly CombineItemRow[],
+  accounts: readonly CombineAccountRow[],
+  ctx: {
+    offeredItemPairKeys: ReadonlySet<string>;
+    dismissedPairKeys: ReadonlySet<string>;
+    reconciledPairKeys: ReadonlySet<string>;
+  },
+): CombineBlockedView[] {
+  if (isDemoUser(userId)) return [];
+  const { engineItems, engineAccounts } = buildCombineInputs(items, accounts);
+  const out: CombineBlockedView[] = explainUncombinableConnections(engineItems, engineAccounts).map((e) => ({
+    ...e,
+    dismissedPair: null,
+  }));
+
+  // A pair the ENGINE would offer but the server suppressed reaches neither list, so re-derive
+  // those here: the user is owed the reason for a control that is deliberately absent.
+  for (const proposal of planCombinableConnections(engineItems, engineAccounts)) {
+    const d = proposal.recommended;
+    if (ctx.offeredItemPairKeys.has(combinePairKey(d.keepItemId, d.dropItemId))) continue;
+    const dismissed = d.pairs.find((p) =>
+      ctx.dismissedPairKeys.has(duplicatePairDismissKey(p.predecessorAccountId, p.successorAccountId)),
+    );
+    const linked = d.pairs.some((p) =>
+      ctx.reconciledPairKeys.has(combinePairKey(p.predecessorAccountId, p.successorAccountId)),
+    );
+    if (!dismissed && !linked) continue;
+    out.push({
+      institutionLabel: proposal.institutionLabel,
+      keepItemId: d.keepItemId,
+      dropItemId: d.dropItemId,
+      lookalikes: d.pairs.flatMap((p) => (p.mask ? [{ name: p.successorName, mask: p.mask }] : [])),
+      strandedAccountNames: [],
+      kind: dismissed ? 'dismissed' : 'already-linked',
+      dismissedPair: dismissed
+        ? { aId: dismissed.predecessorAccountId, bId: dismissed.successorAccountId }
+        : null,
+    });
+  }
+  return out;
 }

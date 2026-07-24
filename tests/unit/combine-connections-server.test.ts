@@ -550,3 +550,60 @@ describe('the money-and-boundary critic findings, locked', () => {
     expect((await getAccountsView(uid)).liabilities.subtotalCents).toBe(853_909);
   });
 });
+
+describe('when the app will NOT offer a combine, it says why', () => {
+  beforeEach(() => seed());
+
+  it('names the missing bank ID — the reason the owner saw nothing at all', async () => {
+    // The ladder refuses to scope a comparison it cannot place at ONE institution, so a
+    // connection linked before the institutionId column existed blocks the offer until the
+    // ordinary sweep fills it in. Rendering nothing there is what made the whole feature look
+    // like it had not shipped.
+    await prisma.plaidItem.update({ where: { itemId: 'item-second' }, data: { institutionId: null } });
+    const view = await getAccountsView(uid);
+    expect(view.combinableConnections).toEqual([]);
+    expect(view.uncombinableConnections).toHaveLength(1);
+    expect(view.uncombinableConnections[0].kind).toBe('bank-id-missing');
+    expect(view.uncombinableConnections[0].lookalikes[0]).toEqual({ name: 'CREDIT CARD', mask: '0977' });
+  });
+
+  it('names a dismissal, and carries the pair a "reconsider" control would restore', async () => {
+    await prisma.nudgeDismissal.create({
+      data: { userId: uid, dismissKey: duplicatePairDismissKey(`${uid}-a1`, `${uid}-a2`) },
+    });
+    const view = await getAccountsView(uid);
+    expect(view.combinableConnections).toEqual([]);
+    const [blocked] = view.uncombinableConnections;
+    expect(blocked.kind).toBe('dismissed');
+    expect(blocked.dismissedPair).not.toBeNull();
+    expect([blocked.dismissedPair?.aId, blocked.dismissedPair?.bId].sort()).toEqual(
+      [`${uid}-a1`, `${uid}-a2`].sort(),
+    );
+  });
+
+  it('names what would be stranded when neither direction is safe', async () => {
+    await prisma.account.createMany({
+      data: [
+        { id: `${uid}-x1`, userId: uid, provider: 'plaid', providerRef: 'x1', plaidItemId: 'item-first',
+          name: 'CHECKING A', type: 'CHECKING', mask: '2222', subtype: 'checking', currentBalanceCents: 10, currency: 'USD' },
+        { id: `${uid}-x2`, userId: uid, provider: 'plaid', providerRef: 'x2', plaidItemId: 'item-second',
+          name: 'CHECKING B', type: 'CHECKING', mask: '3333', subtype: 'checking', currentBalanceCents: 20, currency: 'USD' },
+      ],
+    });
+    const view = await getAccountsView(uid);
+    expect(view.combinableConnections).toEqual([]);
+    const [blocked] = view.uncombinableConnections;
+    expect(blocked.kind).toBe('strands');
+    expect([...blocked.strandedAccountNames].sort()).toEqual(['CHECKING A ····2222', 'CHECKING B ····3333']);
+  });
+
+  it('stays quiet when there IS an offer — the offer is the answer', async () => {
+    const view = await getAccountsView(uid);
+    expect(view.combinableConnections).toHaveLength(1);
+    expect(view.uncombinableConnections).toEqual([]);
+  });
+
+  it('stays quiet for the demo account', async () => {
+    expect((await getAccountsView('user-demo')).uncombinableConnections).toEqual([]);
+  });
+});

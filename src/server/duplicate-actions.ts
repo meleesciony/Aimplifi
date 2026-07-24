@@ -44,3 +44,31 @@ export async function dismissDuplicatePair(aId: string, bId: string): Promise<Di
     return { ok: false, error: 'Could not dismiss that — please try again in a minute.' };
   }
 }
+
+/**
+ * Undo a "not a duplicate" dismissal (TASKS L.6, owner-reported 2026-07-24 "Not there").
+ *
+ * A dismissal suppresses the advisory warning AND the one-tap Combine offer, which is right —
+ * an explicit judgment should bind every surface. But it made the dismissal permanent and
+ * invisible: a user who dismissed the pair before the Combine flow existed had no way back, and
+ * no way to even learn that was why nothing was offered. The /accounts card now states the
+ * reason and offers this.
+ */
+export async function reconsiderDuplicatePair(aId: string, bId: string): Promise<DismissDuplicateResult> {
+  try {
+    const userId = await requireUserId();
+    if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
+    if (typeof aId !== 'string' || typeof bId !== 'string' || !aId.trim() || !bId.trim() || aId === bId) {
+      return { ok: false, error: 'That isn’t a valid pair of accounts.' };
+    }
+    const owned = await prisma.account.count({ where: { userId, id: { in: [aId, bId] } } });
+    if (owned < 2) return { ok: false, error: 'Those accounts aren’t both connected to your account.' };
+    await prisma.nudgeDismissal.deleteMany({
+      where: { userId, dismissKey: duplicatePairDismissKey(aId, bId) },
+    });
+    revalidatePath('/accounts');
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'Could not undo that — please try again in a minute.' };
+  }
+}

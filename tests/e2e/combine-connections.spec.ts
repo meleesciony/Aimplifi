@@ -108,3 +108,31 @@ test('a card arriving through two live connections is combined into one, and wha
   await page.getByTestId('reconcile-undo').click();
   await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText(/2,000/, { timeout: 20_000 });
 });
+
+test('when it will NOT offer a combine, the page says why and offers the one-tap fix', async ({ page }) => {
+  // Owner-reported 2026-07-24, after the offer shipped: "Not there." Rendering nothing when the
+  // app has CONCLUDED something is indistinguishable from never having looked — which is exactly
+  // what he concluded. Here the second connection has no stored bank ID, so the identity ladder
+  // refuses to place both connections at one institution and no offer is made.
+  const email = await signUpThrowaway(page);
+  seedDuplicateConnections(email);
+  const db = new Database(E2E_DB_URL.replace(/^file:/, ''), { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string };
+    db.prepare("UPDATE PlaidItem SET institutionId = NULL WHERE userId = ? AND itemId LIKE '%-second-%'").run(user.id);
+  } finally {
+    db.close();
+  }
+
+  await page.goto('/accounts');
+  await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText(/2,000/, { timeout: 20_000 });
+
+  // No Combine button…
+  await expect(page.getByTestId('combine-connections-confirm')).toHaveCount(0);
+  // …but the card is there, naming the two rows and stating the conclusion + the remedy.
+  const reason = page.getByTestId('combine-connections-blocked-reason');
+  await expect(reason).toBeVisible();
+  await expect(reason).toContainText('CREDIT CARD ····0977');
+  await expect(reason).toContainText('bank’s own ID');
+  await expect(page.getByTestId('combine-connections-unblock')).toBeVisible();
+});

@@ -236,3 +236,131 @@ export function planCombinableConnections(
 
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Why NOT — the honest half (owner-reported 2026-07-24: "Not there").
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a pair of connections that plainly LOOK like duplicates to the reader produced no offer.
+ *
+ * The first version of this feature rendered nothing when it could not act, which made "we
+ * checked and cannot prove this" indistinguishable from "we never looked" — the owner saw two
+ * `CREDIT CARD ····0977` rows, no card, and reasonably concluded nothing had shipped. An empty
+ * set is not a fact (docs/lessons/an-empty-set-is-not-a-fact-about-money.md); the absence of an
+ * offer is a CONCLUSION, and a conclusion has to be stated.
+ */
+export type CombineBlockedKind =
+  /** The bank's own id is missing on one or both connections, so "same bank" is unproven. */
+  | 'bank-id-missing'
+  /** The bank ids are present and different. */
+  | 'different-bank'
+  /** Type, subtype or currency says these are different kinds of account. */
+  | 'different-kind'
+  /** Proven the same, but dropping either side would freeze an account nothing else covers. */
+  | 'strands'
+  /** A row matches more than one row on the other side, so nothing is proven. */
+  | 'ambiguous'
+  /** Nothing in the data proves it either way (e.g. no last-4 stored). */
+  | 'unproven';
+
+export interface UncombinableConnections {
+  readonly institutionLabel: string | null;
+  readonly keepItemId: string;
+  readonly dropItemId: string;
+  /** The accounts a reader would look at and call duplicates: same last-4, one on each side. */
+  readonly lookalikes: readonly { name: string; mask: string }[];
+  readonly kind: CombineBlockedKind;
+  /** For `strands`: the accounts that would be frozen, already labelled with their last-4. */
+  readonly strandedAccountNames: readonly string[];
+}
+
+/** The lookalikes a reader can see: same non-empty last-4, one row on each connection. */
+function lookalikePairs(
+  a: readonly CombineConnectionAccount[],
+  b: readonly CombineConnectionAccount[],
+): { name: string; mask: string }[] {
+  const out: { name: string; mask: string }[] = [];
+  const seen = new Set<string>();
+  for (const x of a) {
+    const mask = (x.mask ?? '').trim();
+    if (!mask || seen.has(mask)) continue;
+    if (b.some((y) => (y.mask ?? '').trim() === mask)) {
+      out.push({ name: x.name, mask });
+      seen.add(mask);
+    }
+  }
+  return out;
+}
+
+/**
+ * Pairs of live connections that a reader would call duplicates but that this engine will not
+ * offer to combine, each with the reason. Deliberately keyed off what is VISIBLE — two
+ * connections the page shows at the same bank, holding accounts with the same last-4 — rather
+ * than off the ladder, so a pair the ladder cannot even scope still gets explained.
+ */
+export function explainUncombinableConnections(
+  items: readonly CombineConnectionItem[],
+  accounts: readonly CombineConnectionAccount[],
+): UncombinableConnections[] {
+  const sorted = [...items].sort((x, y) => x.linkedAtKey.localeCompare(y.linkedAtKey) || x.itemId.localeCompare(y.itemId));
+  const out: UncombinableConnections[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const first = sorted[i];
+      const second = sorted[j];
+      // "Two Chase connections" as the READER sees it: the same bank NAME is enough to ask the
+      // question, even when the id that would answer it is missing — that is the whole point.
+      const nameA = (first.institutionName ?? '').trim().toLowerCase();
+      const nameB = (second.institutionName ?? '').trim().toLowerCase();
+      const looksLikeOneBank = sameInstitution(first, second) || (nameA.length > 0 && nameA === nameB);
+      if (!looksLikeOneBank) continue;
+
+      const accountsA = accountsOf(accounts, first.itemId);
+      const accountsB = accountsOf(accounts, second.itemId);
+      const lookalikes = lookalikePairs(accountsA, accountsB);
+      if (lookalikes.length === 0) continue;
+
+      const [keep, drop] = keepRank(first, second) <= 0 ? [first, second] : [second, first];
+      const preferred = planDirection(keep, drop, accounts);
+      const reverse = planDirection(drop, keep, accounts);
+      if (preferred.offerable || reverse.offerable) continue; // an offer exists; nothing to explain
+
+      // Diagnose on the first lookalike pair — the rows the reader is looking at.
+      const mask = lookalikes[0].mask;
+      const rowA = accountsA.find((x) => (x.mask ?? '').trim() === mask);
+      const rowB = accountsB.find((x) => (x.mask ?? '').trim() === mask);
+      let kind: CombineBlockedKind = 'unproven';
+      if (rowA && rowB) {
+        const verdict = compareAccountIdentity(identityOf(rowA), identityOf(rowB));
+        if (verdict.verdict === 'same') {
+          // Proven, so the block is structural: something would be stranded, or a row on one
+          // side matched more than one on the other.
+          const stranded = [...preferred.strandedAccountNames, ...reverse.strandedAccountNames];
+          kind = stranded.length > 0 ? 'strands' : 'ambiguous';
+        } else if (verdict.verdict === 'different') {
+          kind = verdict.reasons.some((r) => r.includes('bank')) ? 'different-bank' : 'different-kind';
+        } else {
+          // Unproven. The overwhelmingly common cause is the bank id not being stored yet: the
+          // ladder refuses to scope a comparison it cannot place at one institution.
+          const idsKnown = (first.institutionId ?? '').trim() !== '' && (second.institutionId ?? '').trim() !== '';
+          kind = idsKnown ? 'unproven' : 'bank-id-missing';
+        }
+      }
+
+      out.push({
+        institutionLabel: (keep.institutionName ?? drop.institutionName ?? '').trim() || null,
+        keepItemId: keep.itemId,
+        dropItemId: drop.itemId,
+        lookalikes,
+        kind,
+        strandedAccountNames:
+          kind === 'strands'
+            ? [...new Set([...preferred.strandedAccountNames, ...reverse.strandedAccountNames])]
+            : [],
+      });
+    }
+  }
+  return out;
+}

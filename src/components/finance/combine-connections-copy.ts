@@ -121,3 +121,67 @@ export function combineSuccessFlash(combined: number, failures: readonly string[
     ' ',
   )})`;
 }
+
+// ---------------------------------------------------------------------------
+// Why there is NO Combine button (owner-reported 2026-07-24: "Not there").
+// ---------------------------------------------------------------------------
+
+/**
+ * The reader is looking at two rows that plainly look like one card. If the app will not offer to
+ * merge them, silence is the wrong answer — it reads as "nothing shipped", which is exactly what
+ * the owner concluded. Each sentence below says what the app concluded and, where there is one,
+ * what would change it.
+ */
+export function combineBlockedHeading(institution: string | null, lookalike: string): string {
+  const bank = (institution ?? '').trim();
+  return bank
+    ? `Two ${bank} connections both list ${lookalike}`
+    : `Two connections both list ${lookalike}`;
+}
+
+export function combineBlockedReason(
+  kind:
+    | 'bank-id-missing'
+    | 'different-bank'
+    | 'different-kind'
+    | 'strands'
+    | 'ambiguous'
+    | 'unproven'
+    | 'dismissed'
+    | 'already-linked',
+  opts: { strandedAccountNames?: readonly string[] } = {},
+): string {
+  switch (kind) {
+    case 'bank-id-missing':
+      return 'We won’t offer to combine them yet, because we don’t have the bank’s own ID stored for both connections — and matching on the bank’s NAME alone can put two different banks together. Fetching it takes one tap.';
+    case 'different-bank':
+      return 'The bank’s own IDs say these two connections are at different banks, so we won’t offer to combine them.';
+    case 'different-kind':
+      return 'The two accounts differ in kind — the type, sub-type or currency isn’t the same — so we won’t treat them as one account.';
+    case 'strands':
+      return `Combining would mean disconnecting a connection that also feeds ${joinList([
+        ...(opts.strandedAccountNames ?? []),
+      ])}, and that account isn’t a duplicate of anything — it would stop updating. So neither direction is offered.`;
+    case 'ambiguous':
+      return 'One of these rows matches more than one account on the other connection, so nothing here is proven — picking one would risk folding the wrong account.';
+    case 'unproven':
+      return 'Nothing stored on these two rows proves they are the same account — most often there is no last-4 on one of them — so this stays a suggestion, not an action.';
+    case 'dismissed':
+      return 'You told us these are not the same account, so we stopped offering to combine them. If that was wrong, you can put the offer back.';
+    case 'already-linked':
+      return 'These two are already combined, so there is nothing left to do here.';
+  }
+}
+
+/** What the reader can do about it, when there is something. */
+export function combineBlockedActionLabel(kind: string): string | null {
+  if (kind === 'bank-id-missing') return 'Get the bank’s ID';
+  if (kind === 'dismissed') return 'Offer it again';
+  return null;
+}
+
+export function bankIdentityRefreshedFlash(updated: number): string {
+  return updated > 0
+    ? `Got it — ${updated} ${updated === 1 ? 'connection' : 'connections'} identified. If they are the same account, the Combine option is on this page now.`
+    : 'Your bank didn’t return an ID for those connections just now. Nothing changed — try again in a few minutes, or tap Sync on each connection first.';
+}

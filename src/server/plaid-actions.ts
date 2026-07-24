@@ -424,3 +424,25 @@ export async function disconnectPlaidItem(itemId: string): Promise<DisconnectIte
     return { ok: false, error: e instanceof Error ? e.message : 'Could not disconnect this bank.' };
   }
 }
+
+/**
+ * Ask Plaid who each connection banks with, for connections whose `institutionId` is not stored
+ * yet (TASKS L.10). The identity ladder scopes every comparison to one institution and refuses
+ * to fall back to the human bank NAME when only one side has been identified — so a connection
+ * linked before that column existed can block a Combine offer until the ordinary sweep fills it
+ * in. This is that sweep, on demand, from the card that explains the block.
+ */
+export async function refreshBankIdentity(): Promise<{ ok: boolean; updated?: number; error?: string }> {
+  try {
+    const userId = await requireUserId();
+    if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
+    if (!(await rateLimitDurable(`plaid-institutions:${userId}`, 6, 60_000))) {
+      return { ok: false, error: 'Too many attempts — wait a minute and try again.' };
+    }
+    const result = await new PlaidProvider().syncInstitutions(userId);
+    revalidatePath('/accounts');
+    return { ok: true, updated: result.updated };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Could not reach your bank just now.' };
+  }
+}

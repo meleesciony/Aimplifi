@@ -25,7 +25,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmPrompt, useConfirmArm } from '@/components/ui/confirm-action';
 import type { CombineConnectionsProposal, CombineDirection } from '@/lib/engine/account/combine-connections';
+import type { CombineBlockedView } from '@/server/combine-connections';
 import {
+  accountLabel,
+  combineBlockedActionLabel,
+  combineBlockedHeading,
+  combineBlockedReason,
   combineCardTitle,
   combineConfirmPrompt,
   combineEvidence,
@@ -47,6 +52,12 @@ export interface CombineConnectionsCardProps {
    *  warning for it — the same judgment, recorded once. Without it this card would be permanent
    *  and undismissable for anyone whose two look-alike rows are genuinely two accounts. */
   onDismiss: (predecessorAccountId: string, successorAccountId: string) => void;
+  /** Pairs that LOOK like duplicates but produced no offer, each with the reason. */
+  blocked: readonly CombineBlockedView[];
+  /** Ask Plaid for the bank's own id on connections that don't have it stored. */
+  onFetchBankId: () => void;
+  /** Put a dismissed pair back in play. */
+  onReconsider: (aId: string, bId: string) => void;
 }
 
 export function CombineConnectionsCard({
@@ -55,9 +66,15 @@ export function CombineConnectionsCard({
   pending,
   onCombine,
   onDismiss,
+  blocked,
+  onFetchBankId,
+  onReconsider,
 }: CombineConnectionsCardProps) {
   const { isArmed, arm, disarm } = useConfirmArm();
-  if (proposals.length === 0) return null;
+  // `already-linked` is not a problem the reader needs told about — the Combined-accounts card
+  // above already says so — but every other reason is a conclusion this page owes them.
+  const explained = blocked.filter((b) => b.kind !== 'already-linked');
+  if (proposals.length === 0 && explained.length === 0) return null;
   const ordinals = connectionOrdinals(items);
   const institutionOf = new Map(items.map((i) => [i.itemId, i.institution]));
   const label = (itemId: string) => connectionLabel(institutionOf.get(itemId) ?? null, ordinals.get(itemId));
@@ -65,7 +82,7 @@ export function CombineConnectionsCard({
   return (
     <Card data-testid="combine-connections-card" className="border-amber-900/50">
       <CardHeader>
-        <CardTitle className="text-base">{combineCardTitle(proposals.length)}</CardTitle>
+        <CardTitle className="text-base">{combineCardTitle(proposals.length + explained.length)}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {proposals.map((p) => {
@@ -142,6 +159,41 @@ export function CombineConnectionsCard({
               >
                 Not the same account
               </Button>
+            </div>
+          );
+        })}
+
+        {explained.map((b) => {
+          const lookalike = b.lookalikes[0]
+            ? accountLabel({ name: b.lookalikes[0].name, mask: b.lookalikes[0].mask })
+            : 'the same account';
+          const actionLabel = combineBlockedActionLabel(b.kind);
+          return (
+            <div
+              key={`blocked:${b.keepItemId}|${b.dropItemId}`}
+              className="space-y-2 text-sm"
+              data-testid="combine-connections-blocked-reason"
+            >
+              <p className="font-medium">{combineBlockedHeading(b.institutionLabel, lookalike)}</p>
+              <p className="text-muted-foreground">
+                {combineBlockedReason(b.kind, { strandedAccountNames: b.strandedAccountNames })}
+              </p>
+              {actionLabel !== null && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  data-testid="combine-connections-unblock"
+                  onClick={() =>
+                    b.kind === 'dismissed' && b.dismissedPair
+                      ? onReconsider(b.dismissedPair.aId, b.dismissedPair.bId)
+                      : onFetchBankId()
+                  }
+                >
+                  {actionLabel}
+                </Button>
+              )}
             </div>
           );
         })}

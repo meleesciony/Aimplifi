@@ -66,9 +66,13 @@ import { clearManualCardStatement, setManualCardStatement } from '@/server/card-
 import { confirmReconciliation, undoReconciliation } from '@/server/reconciliation-actions';
 import { combineDuplicateConnections } from '@/server/combine-connections-actions';
 import { CombineConnectionsCard } from '@/components/finance/combine-connections-card';
-import { combineRevokeWarning, combineSuccessFlash } from '@/components/finance/combine-connections-copy';
-import { dismissDuplicatePair } from '@/server/duplicate-actions';
-import { disconnectPlaidItem } from '@/server/plaid-actions';
+import {
+  bankIdentityRefreshedFlash,
+  combineRevokeWarning,
+  combineSuccessFlash,
+} from '@/components/finance/combine-connections-copy';
+import { dismissDuplicatePair, reconsiderDuplicatePair } from '@/server/duplicate-actions';
+import { disconnectPlaidItem, refreshBankIdentity } from '@/server/plaid-actions';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { setFlash, takeFlash } from '@/components/finance/flash';
@@ -334,6 +338,25 @@ export function AccountsList({ data }: { data: AccountsView }) {
                 r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not dismiss — please try again.'] },
               ),
             'Dismissed — we won’t offer to combine those two again.',
+          )
+        }
+        blocked={data.uncombinableConnections}
+        onFetchBankId={() =>
+          refreshAfter(() =>
+            refreshBankIdentity().then((r) =>
+              r.ok
+                ? { ok: true, flash: bankIdentityRefreshedFlash(r.updated ?? 0) }
+                : { ok: false, errors: [r.error ?? 'Could not reach your bank just now.'] },
+            ),
+          )
+        }
+        onReconsider={(aId, bId) =>
+          refreshAfter(
+            () =>
+              reconsiderDuplicatePair(aId, bId).then((r) =>
+                r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not undo that — please try again.'] },
+              ),
+            'Back in play — if they are the same account, the Combine option is on this page.',
           )
         }
       />
