@@ -9,6 +9,7 @@ import {
   monthsToFI,
   opportunityFVCents,
   savingsRateBps,
+  pooledSavingsRateBps,
 } from '@/lib/engine/fi/fi';
 import { cents } from '@/lib/money';
 
@@ -96,5 +97,48 @@ describe('savings rate', () => {
   });
   it('no income → null (never a fake 100%)', () => {
     expect(savingsRateBps(cents(0), cents(100))).toBeNull();
+  });
+});
+
+describe('pooled savings rate (multi-month) — pools dollars, never averages ratios', () => {
+  const flow = (incomeCents: number, expensesCents: number) => ({
+    incomeCents: cents(incomeCents),
+    expensesCents: cents(expensesCents),
+  });
+
+  it('is the pooled ratio, not the mean of monthly ratios', () => {
+    // Two months: one normal, one with real income. Pooled = (Σinc − Σexp)/Σinc.
+    // ($6,000+$8,000 − $4,200−$4,000) / ($6,000+$8,000) = $5,800 / $14,000 = 41.43%.
+    const r = pooledSavingsRateBps([flow(600_000, 420_000), flow(800_000, 400_000)]);
+    expect(r).toEqual({ rateBps: 4143, months: 2 });
+  });
+
+  it('a near-zero-income month cannot blow the window up — the −855105.8% bug', () => {
+    // The reported shape: a month whose paychecks weren't categorised as income ($5)
+    // beside normal spending ($5,000), pooled with a real $8,000/$4,000 month.
+    // Mean of ratios would be ((5−5000)/5 + (8000−4000)/8000)/2 ≈ −49,925%. Pooled is
+    // ($8,005 − $9,000)/$8,005 = −12.43%, a number that means something.
+    const r = pooledSavingsRateBps([flow(500, 500_000), flow(800_000, 400_000)]);
+    expect(r).toEqual({ rateBps: -1243, months: 2 });
+    // Guard the property directly: no single month can drive the pooled rate past
+    // −100% while any real-income month is present.
+    expect(r!.rateBps).toBeGreaterThan(-10_000);
+  });
+
+  it('skips zero/negative-income months (no ratio to pool) and counts only contributors', () => {
+    const r = pooledSavingsRateBps([flow(0, 300_000), flow(600_000, 420_000), flow(0, 0)]);
+    // Only the one real-income month contributes: $1,800/$6,000 = 30%, months = 1.
+    expect(r).toEqual({ rateBps: 3000, months: 1 });
+  });
+
+  it('null when the whole window has no income — the honest "can’t compute yet", never a giant number', () => {
+    expect(pooledSavingsRateBps([flow(0, 100_000), flow(0, 50_000)])).toBeNull();
+    expect(pooledSavingsRateBps([])).toBeNull();
+  });
+
+  it('a negative pooled rate is real when spending genuinely outran income', () => {
+    // $5,000 income across the window, $7,000 spent → −40%.
+    const r = pooledSavingsRateBps([flow(300_000, 500_000), flow(200_000, 200_000)]);
+    expect(r).toEqual({ rateBps: -4000, months: 2 });
   });
 });

@@ -109,3 +109,39 @@ export function savingsRateBps(incomeCents: Cents, expensesCents: Cents): number
   if (incomeCents <= 0) return null;
   return Math.round(((incomeCents - expensesCents) / incomeCents) * 10000);
 }
+
+/**
+ * Savings rate ACROSS a window of months — POOLED, not the mean of monthly rates.
+ *
+ * A multi-month savings rate must divide summed dollars by summed dollars:
+ * (Σ income − Σ expenses) / Σ income. Averaging the monthly *ratios* instead is a real
+ * bug, not a rounding nicety: one month with near-zero income makes its own
+ * (income − expenses)/income explode to hundreds of thousands of percent, and an
+ * arithmetic mean lets that single month dominate every other. The owner's dashboard
+ * showed a "4-month average of −855105.8%" from exactly this — a month whose paychecks
+ * weren't categorised as income divided a normal month's spending by a few dollars.
+ *
+ * Only months with income > 0 contribute (matching `savingsRateBps`'s own income ≤ 0 →
+ * null): a zero-income month has no ratio to pool and would otherwise add expenses with no
+ * denominator. Returns null when the whole window has no income to divide by — the honest
+ * "we can't compute this yet", never a fabricated giant number. Integer bps; no floats
+ * survive. `months` is the count that actually contributed, for the "{n}-month" label.
+ */
+export function pooledSavingsRateBps(
+  flows: readonly { incomeCents: Cents; expensesCents: Cents }[],
+): { rateBps: number; months: number } | null {
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  let months = 0;
+  for (const f of flows) {
+    if (f.incomeCents <= 0) continue;
+    totalIncome += f.incomeCents;
+    totalExpenses += f.expensesCents;
+    months += 1;
+  }
+  if (totalIncome <= 0) return null;
+  return {
+    rateBps: Math.round(((totalIncome - totalExpenses) / totalIncome) * 10000),
+    months,
+  };
+}
