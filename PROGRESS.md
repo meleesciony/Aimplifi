@@ -46,6 +46,14 @@ in #296's untouched spec, every #297 test green); with #297 ENTIRELY REVERTED an
 suite still failed 5, including the same reconcile ×2 and duplicate-connections ×2. All 13 of the
 implicated tests pass at --workers=1. The victim rotates; #297 adds exposure, not cause.
 
+DEPLOYED + PROVEN: pushed c958ffc..b9887a3; Vercel dpl_7u7UKQCSbvnwDpfxw2tMjdHdeY8U reached
+READY on githubCommitSha b9887a3 and carries the production aliases (www.aimplifi.app,
+aimplifi.app). Build log confirms "The database is already in sync with the Prisma schema" — the
+empty prisma diff means Neon was untouched. HONEST LIMIT on the live proof: the Combined-accounts
+card is auth-gated AND only renders for a user who has confirmed reconciliation links, so there is
+no public marker to curl; the evidence is the READY deployment on this exact SHA, not a grep of a
+rendered string (the #290-class limitation).
+
 LEDGERS: DECISIONS #288, REGRESSION_LEDGER ×4, STATUS (new shipped section + the #296 limitation
 flipped + the old owner report annotated RESOLVED), EDGE_CASES §Combined-accounts (A-E, hand
 verified), TASKS Wave L.5 -> [x].
