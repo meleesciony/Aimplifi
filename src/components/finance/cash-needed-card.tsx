@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/card';
 import { GlassBoxNumber } from '@/components/finance/glass-box';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
-import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
+import { type CashNeededResult, undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { traceCashNeeded } from '@/lib/engine/glass-box/trace';
 import { formatISODate, formatRelativeDays, isoDate, type ISODate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
@@ -28,6 +28,7 @@ export function CashNeededCard({
   today,
   transferSource,
   householdName = null,
+  accountOwnerLabel = {},
 }: {
   result: CashNeededResult;
   paymentAccountName: string;
@@ -38,8 +39,17 @@ export function CashNeededCard({
    *  drafts from THEIR account, so the joint total is needed ACROSS the
    *  household — never claimed to belong in the viewer's funding account. */
   householdName?: string | null;
+  /** accountId → owning partner's name at household scope (empty for 'mine').
+   *  Without it a partner's undatable card was named here unattributed —
+   *  reading as the viewer's own (#277 P2, the slice-8 F-1 class). */
+  accountOwnerLabel?: Record<string, string>;
 }) {
   const { headline } = result;
+  /** A card name, owner-attributed at household scope (payment-reminders idiom). */
+  const ownedName = (c: { cardId: string; cardName: string }) => {
+    const owner = accountOwnerLabel[c.cardId];
+    return owner ? `${c.cardName} (${owner}'s)` : c.cardName;
+  };
 
   if (headline.byDate === null) {
     // "Nothing is due" and "we cannot date anything" are different facts, and only
@@ -50,7 +60,7 @@ export function CashNeededCard({
     // raising the amber alert over a closed or paid-off card would be a false alarm,
     // the mirror of the false all-clear this branch exists to prevent. Those cards
     // are still listed on /cards; they just don't take over the hero.
-    const unknown = result.unknownDueDateCards.filter((c) => c.currentBalanceCents !== 0);
+    const unknown = undatedCardsWithBalance(result);
     if (unknown.length > 0) {
       const owed = unknown.reduce((sum, c) => sum + c.currentBalanceCents, 0);
       return (
@@ -59,7 +69,7 @@ export function CashNeededCard({
             <CardTitle>Cards: due dates missing</CardTitle>
             <CardDescription data-testid="cash-needed-unknown">
               {unknown.length === 1
-                ? `We don’t have a statement or due date for ${unknown[0]!.cardName}, so it isn’t in this cycle’s total.`
+                ? `We don’t have a statement or due date for ${ownedName(unknown[0]!)}, so it isn’t in this cycle’s total.`
                 : `We don’t have a statement or due date for ${unknown.length} cards, so they aren’t in this cycle’s total.`}{' '}
               {/* Only state a total when every balance points the same way. A set
                   mixing a balance owed with a credit can net to a number that
@@ -105,6 +115,11 @@ export function CashNeededCard({
   }
 
   const covered = headline.shortfallCents === 0;
+  // Same fence as the byDate-null branch and the nudge: a $0 paid-off undatable
+  // card owes nothing, so it neither retracts the "pay all N cards" claim nor
+  // gets named as a withheld balance (L.4 #277-critic P2 — this branch used the
+  // raw list and disagreed with the hero/nudge/reminders on one dashboard).
+  const unknownWithBalance = undatedCardsWithBalance(result);
 
   return (
     <Card data-testid="cash-needed-card" className="border-emerald-900/40">
@@ -128,20 +143,21 @@ export function CashNeededCard({
             {/* "all" is a claim about EVERY card. It is false the moment one card
                 has no due date we can place, so it only survives when there are
                 none — otherwise this figure covers the datable cards only. */}
-            {result.unknownDueDateCards.length > 0
+            {unknownWithBalance.length > 0
               ? `to pay the ${headline.cardsDueCount} cards we have due dates for.`
               : `to pay all ${headline.cardsDueCount} cards in full this cycle.`}
           </p>
         </GlassBoxNumber>
       </CardHeader>
       <CardContent className="space-y-3">
-        {result.unknownDueDateCards.length > 0 && (
+        {unknownWithBalance.length > 0 && (
           // The mixed case: a real total for the datable cards, plus at least one
-          // card we cannot date. Without this line the figure reads as complete.
+          // balance-carrying card we cannot date. Without this line the figure
+          // reads as complete.
           <p className="text-xs text-amber-500" data-testid="cash-needed-unknown-note">
             Not included:{' '}
-            {result.unknownDueDateCards.map((c) => c.cardName).join(', ')} — no statement or
-            due date yet, so {result.unknownDueDateCards.length === 1 ? 'its' : 'their'}{' '}
+            {unknownWithBalance.map((c) => ownedName(c)).join(', ')} — no statement or
+            due date yet, so {unknownWithBalance.length === 1 ? 'its' : 'their'}{' '}
             balance isn’t in this figure.
           </p>
         )}

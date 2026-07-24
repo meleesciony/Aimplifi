@@ -31,6 +31,7 @@ import { partnerIdsOf, resolveViewer } from '@/server/household-authz';
 import { getHouseholdDigestContext } from '@/server/household-digest';
 import { selectPaymentReminders } from '@/lib/engine/reminders/select';
 import { buildWeeklyDigest } from '@/lib/engine/digest/build';
+import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { receiptsFromOpportunities } from '@/lib/engine/receipts/receipts';
 import { getValueReceiptsSummary, recordReceipts } from '@/server/receipts';
 import { emailProviderConfigured, sendEmail } from '@/lib/email';
@@ -137,7 +138,10 @@ export async function GET(request: NextRequest) {
         receipts,
         household,
         // Same `result` the reminders came from, so the qualifier is same-scope.
-        undatedCardCount: result.unknownDueDateCards.length,
+        // A $0 paid-off undatable card owes nothing, so it never qualifies the
+        // "nothing due" line as if an obligation were withheld (L.4 #277-critic P2;
+        // the shared fence the hero, nudge and reminders card all read).
+        undatedCardCount: undatedCardsWithBalance(result).length,
       });
 
       let sent = false;

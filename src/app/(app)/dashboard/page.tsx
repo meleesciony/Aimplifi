@@ -18,6 +18,7 @@ import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { StepIndicator } from '@/components/onboarding/step-indicator';
 import { OnboardingNudge } from '@/components/settings/onboarding-nudge';
 import { PAYMENT_ACCOUNT_TYPES, needsOnboarding } from '@/lib/engine/settings/dials';
+import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { prisma } from '@/lib/db';
 import { DEMO_USER_ID } from '@/lib/demo-user';
 import { getCoachData } from '@/server/coach';
@@ -160,6 +161,7 @@ export default async function DashboardPage({
         today={data.today}
         transferSource={transferSource}
         householdName={data.scope === 'household' ? data.household?.name ?? null : null}
+        accountOwnerLabel={data.accountOwnerLabel}
       />
 
       {/* "Today" nudge feed (NUDGE_PLAN slice 2) — the one thing that needs you now,
@@ -225,7 +227,7 @@ export default async function DashboardPage({
         reminders={data.reminders}
         today={data.today}
         accountOwnerLabel={data.accountOwnerLabel}
-        undatedCardCount={data.payInFull.unknownDueDateCards.length}
+        undatedCardCount={undatedCardsWithBalance(data.payInFull).length}
       />
     </div>
   );

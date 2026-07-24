@@ -128,3 +128,22 @@ export interface CashNeededResult {
   minimumPathInterestCents: Cents | null;
   assumptions: string[];
 }
+
+/**
+ * The undatable cards a user-facing surface should mention as an EXCLUDED
+ * OBLIGATION — i.e. those carrying a non-zero balance. A $0 paid-off card is
+ * undatable too (it lands in `unknownDueDateCards`, and /cards still lists it so
+ * a connected card is never invisible — #277), but it owes nothing, so framing
+ * it as "a card we're leaving out of what you owe" is a false alarm — the mirror
+ * of the false all-clear the whole feature exists to prevent.
+ *
+ * ONE definition of that fence: the hero-null branch, the number/mixed branch,
+ * the nudge, the payment-reminders count and the weekly digest all read it here,
+ * so they cannot drift into disagreeing on one dashboard (the L.4 #277-critic
+ * finding: three surfaces had). A NEGATIVE (credit / overpaid) balance is still
+ * a real card we cannot date and IS mentioned, matching the hero panel's own
+ * `!== 0` threshold. Pure; no allocation when nothing qualifies.
+ */
+export function undatedCardsWithBalance(result: CashNeededResult): UnknownDueDateCard[] {
+  return result.unknownDueDateCards.filter((c) => c.currentBalanceCents !== 0);
+}

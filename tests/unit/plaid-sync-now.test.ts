@@ -23,9 +23,11 @@ const updateWebhooks = vi.fn(async () => ({ attempted: 0, updated: 0, failed: 0 
 let currentUserId = '';
 
 const rateLimitDurable = vi.fn(async () => true);
+const auditLog = vi.fn(async () => {});
 vi.mock('@/server/authz', () => ({
   requireUserId: async () => currentUserId,
   rateLimitDurable: (...args: unknown[]) => rateLimitDurable(...(args as [])),
+  auditLog: (...args: unknown[]) => auditLog(...(args as [])),
 }));
 vi.mock('@/lib/providers/plaid', () => ({
   PlaidProvider: class {
@@ -58,6 +60,7 @@ describe('syncPlaidNow', () => {
     syncLiabilities.mockReset().mockResolvedValue({
       itemsAttempted: 1,
       itemsFailed: 0,
+      itemsUnsupported: 0,
       statementsWritten: 2,
     });
   });
@@ -87,7 +90,7 @@ describe('syncPlaidNow', () => {
 
   it('reports a liabilities-only failure without calling the whole sync failed', async () => {
     currentUserId = await userWithItem('liabfail');
-    syncLiabilities.mockResolvedValue({ itemsAttempted: 2, itemsFailed: 2, statementsWritten: 0 });
+    syncLiabilities.mockResolvedValue({ itemsAttempted: 2, itemsFailed: 2, itemsUnsupported: 0, statementsWritten: 0 });
 
     const r = await syncPlaidNow();
 
@@ -149,7 +152,7 @@ describe('syncPlaidNow — webhook backfill integration', () => {
     vi.stubEnv('DATA_ENCRYPTION_KEY', 'test-key');
     rateLimitDurable.mockReset().mockResolvedValue(true);
     syncTransactions.mockReset().mockResolvedValue({ added: 3 });
-    syncLiabilities.mockReset().mockResolvedValue({ itemsAttempted: 1, itemsFailed: 0, statementsWritten: 0 });
+    syncLiabilities.mockReset().mockResolvedValue({ itemsAttempted: 1, itemsFailed: 0, itemsUnsupported: 0, statementsWritten: 0 });
     updateWebhooks.mockReset().mockResolvedValue({ attempted: 1, updated: 1, failed: 0 });
   });
   afterEach(() => vi.unstubAllEnvs());
@@ -242,7 +245,7 @@ describe('syncPlaidNow — per-connection', () => {
     syncTransactions.mockReset().mockResolvedValue({ added: 1 });
     syncLiabilities
       .mockReset()
-      .mockResolvedValue({ itemsAttempted: 1, itemsFailed: 0, statementsWritten: 0 });
+      .mockResolvedValue({ itemsAttempted: 1, itemsFailed: 0, itemsUnsupported: 0, statementsWritten: 0 });
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -299,7 +302,7 @@ describe('syncPlaidNow — critic hardening', () => {
     syncTransactions.mockReset().mockResolvedValue({ added: 1 });
     syncLiabilities
       .mockReset()
-      .mockResolvedValue({ itemsAttempted: 1, itemsFailed: 0, statementsWritten: 0 });
+      .mockResolvedValue({ itemsAttempted: 1, itemsFailed: 0, itemsUnsupported: 0, statementsWritten: 0 });
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -359,6 +362,13 @@ describe('syncPlaidNow — critic hardening', () => {
     expect(r.ok).toBe(true); // the liabilities half still delivered
     expect(r.transactionsFailed).toBe(true);
     expect(r.added).toBeUndefined();
+    // #277 P2 (TASKS L.4): a total transaction-sync failure the user triggered used
+    // to vanish — returned to the UI, recorded nowhere. It must now be audited.
+    expect(auditLog).toHaveBeenCalledWith(
+      currentUserId,
+      'plaid.sync.transactions.failed',
+      expect.objectContaining({ error: expect.stringContaining('ITEM_LOGIN_REQUIRED') }),
+    );
   });
 
   it('does not flag a transaction half that genuinely returned zero', async () => {

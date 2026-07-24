@@ -216,11 +216,10 @@ undatable. Cycle 2 also proved the new "Add statement" instruction was unfollowa
 exists only for manually-added cards — so it was removed rather than reworded.
 
 **Deliberate non-fixes (recorded):** dating a card from a due day with no cycle anchor (see the
-P0 above); the nudge feed's "Nothing needs you today" (P2, needs undated cards plumbed into the
-nudge proposal engine); `cash-needed-card` takes no `accountOwnerLabel`, so at household scope the
-mixed-case note names a partner's card without an owner badge (P2); a depository-only Plaid item
-audits `liabilities: 'failed'` daily because "no liabilities product" and "broken" share a boundary
-(P2); `plaidError` in the sync route is returned but not audited (P2).
+P0 above). ~~The nudge feed's "Nothing needs you today"; `cash-needed-card` takes no
+`accountOwnerLabel`; a depository-only Plaid item audits `liabilities: 'failed'` daily; `plaidError`
+returned but not audited.~~ **→ All four (plus the missing mixed-branch coverage) CLOSED by TASKS
+L.4 / #289 (2026-07-23); see §L.4 close-out below.**
 
 **Still true and NOT fixed by this work:** if the owner's issuers return no liabilities at all,
 these cards stay in the honest "no due date yet" panel. What changed is that the app now says so
@@ -230,6 +229,54 @@ applies needs the `plaid.liabilities.failed` / `sync.cron.plaid` audit rows from
 
 Gate: `VERIFY_E2E=1 bash scripts/verify.sh` → **VERIFY GREEN** — 3500 unit / 241 files,
 **162 e2e**. Cycle-3 critic verification of the three cycle-2 items: see PROGRESS.md.
+
+## ✅ TASKS L.4 close-out — the five #277-critic P2s + a critic-found copy inconsistency (#289, 2026-07-23)
+
+Built on Opus (ultracode; owner out of Fable credits). The five recorded #277 P2s are closed, and a
+hostile-critic Workflow (3 fresh-context lens critics → each finding adversarially verified) then
+found a coherent defect the five did not, which is closed in the same change.
+
+**The five P2s.** (1) The nudge feed's empty `emptyReason` ("Nothing needs you today.") now names
+the gap when balance-carrying undatable cards exist — it was a false all-clear while a real card
+balance was outstanding. (2) `CashNeededCard` gains an `accountOwnerLabel` prop and owner-attributes
+a partner's undatable card at household scope (byte-identical at `mine` — empty map → bare name;
+key-space verified: `unknownDueDateCards[].cardId === account.id === accountOwnerLabel` key). (3)
+`LiabilitySyncResult`/`PlaidSweepRow` gain `itemsUnsupported`: `syncLiabilities` classifies
+`PRODUCTS_NOT_SUPPORTED` / `NO_LIABILITY_ACCOUNTS` (a depository-only item's own "no liability data
+here" — expected) as unsupported, audited `plaid.liabilities.unsupported`, and the sweep +
+`syncPlaidNow` "failed" predicate excludes unsupported — so a checking-only user is no longer audited
+`failed` every night forever. (4) A user-initiated transaction-sync total failure now audits
+`plaid.sync.transactions.failed` instead of being returned to the UI and recorded nowhere. (5) The
+dashboard mixed branch gains e2e coverage.
+
+**The critic finding (4 confirmed / 3 refuted, one root cause).** The cash-needed engine carries
+**every** undatable card in `unknownDueDateCards` — including a $0 paid-off card, which is correct
+because `/cards` still lists it (a connected card is never invisible, #277). But only the hero-null
+branch and the new nudge fenced on `currentBalanceCents !== 0`; the cash-needed **number/mixed
+branch**, the **payment-reminders count** and the **weekly digest count** read the raw list. So a $0
+paid-off card retracted "pay all N cards in full", was named as a withheld balance, and made the
+reminders card + digest claim "a card has no due date yet, so it isn't included" — **while the hero
+and nudge on the same dashboard showed the plain all-clear.** The 3 refuted findings were all the
+negative-balance variant, correctly refuted: a credit/overpaid card genuinely can't be dated, so
+"not included" stays honest (matching the hero panel's own threshold).
+
+**Fix.** ONE shared `undatedCardsWithBalance()` in `cash-needed/types.ts`, read by all five surfaces
+(hero-null, number/mixed branch, nudge, reminders count, digest count) — three inline copies of the
+`!== 0` filter were exactly the drift the critic caught. `/cards` deliberately NOT fenced (#277
+visibility — filtering would regress the "No credit cards yet" empty-state for a user whose only card
+is a $0 one). Negative (credit) balances deliberately kept.
+
+**Gotcha (recorded).** The e2e `webServer` runs `next start` with **no** `next build` +
+`reuseExistingServer` locally, so a direct `playwright` run after a source edit tests the **stale**
+`.next`. The $0-card e2e first "failed" on the pre-fence build; a rebuild made it pass. Rebuild (or
+run through `verify.sh`) before trusting a local e2e after an edit.
+
+Gate: `VERIFY_E2E=1 bash scripts/verify.sh` → tsc 0 / eslint 0 / **3553 unit / 244 files** / build
+clean. E2E 163 passed, 1 failed = the documented **#287 /accounts DOM-duplication flake**
+(`reconcile.spec.ts:108`, "reconcile-candidates resolved to 2 elements, one hidden" — §top), which
+passed **2/2 in isolation** and touches none of this diff. CI is the arbiter. **UNVERIFIED against
+live Plaid** (no creds here): the liabilities classification + `txError` audit ran only against
+mocked providers.
 
 ## Wave M.3 close-out — the tap-reachable overflow class (#276, 2026-07-23) — M.3 COMPLETE
 

@@ -169,7 +169,15 @@ export function linkTokenParams(userId: string, redirectUri?: string): Record<st
  */
 export interface LiabilitySyncResult {
   itemsAttempted: number;
+  /** Items that errored for a reason OTHER than "this item has no liability data". */
   itemsFailed: number;
+  /**
+   * Items Plaid answered with PRODUCTS_NOT_SUPPORTED / NO_LIABILITY_ACCOUNTS — the
+   * issuer's own "there is nothing here" for a depository-only item. Expected, not
+   * broken; counted apart from `itemsFailed` so a checking-only item doesn't read
+   * as a daily sync failure (#277 P2).
+   */
+  itemsUnsupported: number;
   /** Statements actually written (a card can sync fine and still generate none). */
   statementsWritten: number;
 }
@@ -817,6 +825,7 @@ export class PlaidProvider implements DataProvider {
     // total failure visible to the cron's audit row.
     let itemsAttempted = 0;
     let itemsFailed = 0;
+    let itemsUnsupported = 0;
     let statementsWritten = 0;
     // Same user-scoped per-item narrowing as syncTransactions.
     const items = await prisma.plaidItem.findMany({
@@ -930,19 +939,29 @@ export class PlaidProvider implements DataProvider {
         // and a freshly-linked item may not have generated liability data yet. Neither
         // must abort liability sync for the user's OTHER items (nor fail a link).
         // Counted, so a caller can tell a total failure from a clean run. Audit + continue.
-        itemsFailed += 1;
+        //
+        // "The issuer has nothing here" and "the sync is broken" shared one count and
+        // one audit action, so a checking-only item wrote plaid.liabilities.failed
+        // every day forever (#277 P2). Plaid's own error_code — which plaidPost bakes
+        // into the thrown message verbatim (plaidErrorSummary) — separates them:
+        // PRODUCTS_NOT_SUPPORTED / NO_LIABILITY_ACCOUNTS are the documented
+        // "no liability data on this item" answers, expected rather than broken.
+        const message = e instanceof Error ? e.message : String(e);
+        const unsupported = /\b(?:PRODUCTS_NOT_SUPPORTED|NO_LIABILITY_ACCOUNTS)\b/.test(message);
+        if (unsupported) itemsUnsupported += 1;
+        else itemsFailed += 1;
         await prisma.auditLog
           .create({
             data: {
               userId,
-              action: 'plaid.liabilities.failed',
-              meta: JSON.stringify({ itemId: item.itemId, error: e instanceof Error ? e.message : String(e) }),
+              action: unsupported ? 'plaid.liabilities.unsupported' : 'plaid.liabilities.failed',
+              meta: JSON.stringify({ itemId: item.itemId, error: message }),
             },
           })
           .catch(() => {});
       }
     }
-    return { itemsAttempted, itemsFailed, statementsWritten };
+    return { itemsAttempted, itemsFailed, itemsUnsupported, statementsWritten };
   }
 
 

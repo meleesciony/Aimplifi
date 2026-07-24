@@ -14,7 +14,7 @@ import { type Cents, ZERO } from '@/lib/money';
 import { compareDates, type ISODate } from '@/lib/dates';
 import type { PaymentReminder } from '@/lib/engine/reminders/select';
 import type { RadarResult } from '@/lib/engine/radar/radar';
-import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
+import { type CashNeededResult, undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import type { Opportunity } from '@/lib/engine/fi/insights';
 import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
 import type { IncomePauseState } from '@/lib/engine/income/pause';
@@ -375,7 +375,20 @@ export function buildNudgeFeed(input: NudgeInput): NudgeFeed {
 
   const headline = ordered.find((p) => p.tier !== 'handled') ?? null;
   const rest = headline ? ordered.filter((p) => p !== headline) : ordered;
-  const emptyReason = headline ? null : 'Nothing needs you today.';
+  // "Nothing needs you today" is a positive all-clear, and a card the cash-needed
+  // engine could not date carries a real balance no proposal above can represent —
+  // so the unqualified all-clear was false exactly when the owner's issuer sent no
+  // statement (#277 P2, the owner-reported class). Name the gap instead. A card
+  // with a ZERO balance owes nothing, so it never qualifies the all-clear (the
+  // same fence as cash-needed-card's hero branch).
+  const undatedCount = cashNeeded ? undatedCardsWithBalance(cashNeeded).length : 0;
+  const emptyReason = headline
+    ? null
+    : undatedCount > 0
+      ? `Nothing needs you today on what we can date — ${
+          undatedCount === 1 ? 'one card has' : `${undatedCount} cards have`
+        } no due date yet, so ${undatedCount === 1 ? 'it isn’t' : 'they aren’t'} included.`
+      : 'Nothing needs you today.';
 
   return { headline, rest, ordered, emptyReason };
 }

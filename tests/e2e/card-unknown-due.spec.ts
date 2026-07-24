@@ -95,3 +95,161 @@ test('a card with no statement is reported as undatable, never as "nothing due"'
   await expect(page.getByTestId('scenario-summary')).not.toContainText('Nothing due this cycle');
   await expect(page.getByTestId('scenario-unknown')).toBeVisible();
 });
+
+/**
+ * #277 P2 (TASKS L.4): the MIXED branch — a real total for the datable cards with
+ * the undatable card disclosed beside it — had no test at all. Seed one card WITH
+ * a statement and one without, and lock both halves of the hero: the figure
+ * renders, scoped to "cards we have due dates for", and the excluded card is
+ * named in the amber note rather than silently absorbed or silently dropped.
+ */
+function seedDatedCard(email: string, cardName: string) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as
+      | { id: string }
+      | undefined;
+    if (!user) throw new Error(`seedDatedCard: user ${email} not found`);
+    const stamp = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+
+    const cardId = `e2e-dated-${stamp}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, name, type, currentBalanceCents, currency)
+       VALUES (?, ?, 'plaid', ?, 'CREDIT', 52510, 'USD')`,
+    ).run(cardId, user.id, cardName);
+
+    // A generated statement with a due date inside the current cycle window —
+    // the shape a liabilities-answering issuer produces.
+    const inDays = (days: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    };
+    db.prepare(
+      `INSERT INTO Statement (id, accountId, cycleStart, cycleEnd, dueDate, statementBalanceCents, minimumPaymentCents, isEstimated)
+       VALUES (?, ?, ?, ?, ?, 52510, 3500, 0)`,
+    ).run(`e2e-stmt-${stamp}`, cardId, inDays(-33), inDays(-3), inDays(10));
+    return { cardId };
+  } finally {
+    db.close();
+  }
+}
+
+test('the mixed case: a dated-cards total names the undatable card beside it', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  const undatableName = 'Chase Sapphire Reserve';
+  seedUndatableCard(email, undatableName); // also seeds checking + funding account
+  const datedName = 'United Explorer';
+  seedDatedCard(email, datedName);
+
+  await page.goto('/dashboard');
+  const hero = page.getByTestId('cash-needed-card');
+  await expect(hero).toBeVisible({ timeout: 20_000 });
+
+  // The dated card produces a REAL figure — the hero is the number branch, not the
+  // "due dates missing" panel and never the "nothing due" claim.
+  await expect(page.getByTestId('cash-needed-amount')).toBeVisible();
+  await expect(hero).not.toContainText('No card payments are due this cycle');
+
+  // The figure is scoped: it covers the datable cards only, and says so.
+  await expect(page.getByTestId('cash-needed-headline')).toContainText(
+    'we have due dates for',
+  );
+
+  // The undatable card is disclosed by name in the note, not silently dropped.
+  const note = page.getByTestId('cash-needed-unknown-note');
+  await expect(note).toBeVisible();
+  await expect(note).toContainText(undatableName);
+
+  // And the dated card is in the per-due-date rows, not the note.
+  await expect(page.getByTestId('due-date-list')).toContainText(datedName);
+  await expect(note).not.toContainText(datedName);
+});
+
+/**
+ * #277-critic (TASKS L.4): a $0 paid-off undatable card must NOT be framed as a
+ * withheld obligation. The engine still carries it (so /cards lists it), but the
+ * hero number branch, the "Not included" note and the payment-reminders qualifier
+ * all read the shared `undatedCardsWithBalance` fence — so on a screen with a real
+ * dated figure plus one $0 undatable card, no surface claims a card is being
+ * excluded from what's owed. Before the fix these surfaces used the raw list and
+ * contradicted the hero/nudge (which already fenced) on the same dashboard.
+ */
+function seedZeroBalanceMix(email: string, datedName: string, paidOffName: string) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as
+      | { id: string }
+      | undefined;
+    if (!user) throw new Error(`seedZeroBalanceMix: user ${email} not found`);
+    const stamp = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+
+    const checkingId = `e2e-zchk-${stamp}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, name, type, currentBalanceCents, currency)
+       VALUES (?, ?, 'plaid', 'Everyday Checking', 'CHECKING', 250000, 'USD')`,
+    ).run(checkingId, user.id);
+    db.prepare('UPDATE User SET paymentAccountId = ? WHERE id = ?').run(checkingId, user.id);
+
+    // A datable card (generated statement, due date inside the window) → real figure.
+    const datedId = `e2e-zdated-${stamp}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, name, type, currentBalanceCents, currency)
+       VALUES (?, ?, 'plaid', ?, 'CREDIT', 52510, 'USD')`,
+    ).run(datedId, user.id, datedName);
+    const inDays = (days: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    };
+    db.prepare(
+      `INSERT INTO Statement (id, accountId, cycleStart, cycleEnd, dueDate, statementBalanceCents, minimumPaymentCents, isEstimated)
+       VALUES (?, ?, ?, ?, ?, 52510, 3500, 0)`,
+    ).run(`e2e-zstmt-${stamp}`, datedId, inDays(-33), inDays(-3), inDays(10));
+
+    // A $0 paid-off undatable card: no statement, no cycle dates, zero balance.
+    const paidOffId = `e2e-zpaid-${stamp}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, name, type, currentBalanceCents, currency)
+       VALUES (?, ?, 'plaid', ?, 'CREDIT', 0, 'USD')`,
+    ).run(paidOffId, user.id, paidOffName);
+    return { datedId, paidOffId };
+  } finally {
+    db.close();
+  }
+}
+
+test('a $0 paid-off undatable card is never framed as a withheld obligation', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  const datedName = 'United Explorer';
+  const paidOffName = 'Old Store Card';
+  seedZeroBalanceMix(email, datedName, paidOffName);
+
+  await page.goto('/dashboard');
+  const hero = page.getByTestId('cash-needed-card');
+  await expect(hero).toBeVisible({ timeout: 20_000 });
+
+  // Real figure renders (number branch), and the completeness claim is NOT retracted:
+  // "pay all N cards in full" — never demoted to "cards we have due dates for".
+  await expect(page.getByTestId('cash-needed-amount')).toBeVisible();
+  await expect(page.getByTestId('cash-needed-headline')).toContainText('in full this cycle');
+  await expect(page.getByTestId('cash-needed-headline')).not.toContainText(
+    'we have due dates for',
+  );
+
+  // The $0 card is NOT named as excluded — the amber note must be absent entirely.
+  await expect(page.getByTestId('cash-needed-unknown-note')).toHaveCount(0);
+
+  // And the payment-reminders card does not claim a card is being withheld.
+  await expect(page.getByTestId('payment-reminders-card')).not.toContainText('no due date yet');
+
+  // The $0 card is still VISIBLE on /cards (never invisible — #277).
+  await page.goto('/cards');
+  await expect(page.getByTestId('cards-unknown-due')).toContainText(paidOffName);
+});

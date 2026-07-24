@@ -790,3 +790,61 @@ describe('nudge · slice-2 cycle-2 · money-honesty passthroughs', () => {
     expect(est.headline!.isEstimated).toBe(true);
   });
 });
+
+// ================================================================================
+// #277 P2 (TASKS L.4) — undatable cards qualify the empty-feed all-clear
+// ================================================================================
+describe('nudge · undatable cards qualify the empty-feed all-clear (#277 P2)', () => {
+  const withUndated = (cards: { id: string; name: string; balance: number }[]): CashNeededResult => ({
+    ...cashNeededOf({ shortfallCents: 0, byDate: null }),
+    unknownDueDateCards: cards.map((c) => ({
+      cardId: c.id,
+      cardName: c.name,
+      currentBalanceCents: cents(c.balance),
+    })),
+  });
+
+  it('an empty feed with one undatable balance-carrying card names the gap, never the unqualified all-clear', () => {
+    const feed = buildNudgeFeed(
+      input({ cashNeeded: withUndated([{ id: 'u1', name: 'Sapphire', balance: 184267 }]) }),
+    );
+    expect(feed.headline).toBeNull();
+    expect(feed.emptyReason).toBe(
+      'Nothing needs you today on what we can date — one card has no due date yet, so it isn’t included.',
+    );
+  });
+
+  it('pluralizes for several undatable cards', () => {
+    const feed = buildNudgeFeed(
+      input({
+        cashNeeded: withUndated([
+          { id: 'u1', name: 'Sapphire', balance: 184267 },
+          { id: 'u2', name: 'Venture', balance: 50000 },
+        ]),
+      }),
+    );
+    expect(feed.emptyReason).toBe(
+      'Nothing needs you today on what we can date — 2 cards have no due date yet, so they aren’t included.',
+    );
+  });
+
+  it('a ZERO-balance undatable card owes nothing — the plain all-clear stands', () => {
+    const feed = buildNudgeFeed(
+      input({ cashNeeded: withUndated([{ id: 'u1', name: 'Paid Off', balance: 0 }]) }),
+    );
+    expect(feed.headline).toBeNull();
+    expect(feed.emptyReason).toBe('Nothing needs you today.');
+  });
+
+  it('with a headline present the qualifier is irrelevant — emptyReason stays null', () => {
+    const withHeadline: CashNeededResult = {
+      ...cashNeededOf({ shortfallCents: 5000 }),
+      unknownDueDateCards: [
+        { cardId: 'u1', cardName: 'Sapphire', currentBalanceCents: cents(184267) },
+      ],
+    };
+    const feed = buildNudgeFeed(input({ cashNeeded: withHeadline }));
+    expect(feed.headline).not.toBeNull();
+    expect(feed.emptyReason).toBeNull();
+  });
+});

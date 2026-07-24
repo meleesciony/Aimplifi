@@ -27,7 +27,7 @@ function port(over: Partial<PlaidSyncPort> = {}) {
     },
     async syncLiabilities(userId) {
       calls.liabilities.push(userId);
-      return { itemsAttempted: 1, itemsFailed: 0, statementsWritten: 1 };
+      return { itemsAttempted: 1, itemsFailed: 0, itemsUnsupported: 0, statementsWritten: 1 };
     },
     ...over,
   };
@@ -86,7 +86,7 @@ describe('sweepPlaidLinkedUsers', () => {
       async syncLiabilities(userId) {
         calls.liabilities.push(userId);
         if (userId === a) throw new Error('PRODUCTS_NOT_SUPPORTED');
-        return { itemsAttempted: 1, itemsFailed: 0, statementsWritten: 1 };
+        return { itemsAttempted: 1, itemsFailed: 0, itemsUnsupported: 0, statementsWritten: 1 };
       },
     });
 
@@ -105,7 +105,7 @@ describe('sweepPlaidLinkedUsers', () => {
     const userId = await makeUserWithItem('silentfail');
     const { p } = port({
       async syncLiabilities() {
-        return { itemsAttempted: 2, itemsFailed: 2, statementsWritten: 0 };
+        return { itemsAttempted: 2, itemsFailed: 2, itemsUnsupported: 0, statementsWritten: 0 };
       },
     });
 
@@ -114,7 +114,7 @@ describe('sweepPlaidLinkedUsers', () => {
 
     expect(row.liabilities).toBe('failed');
     expect(row.statementsWritten).toBe(0);
-    expect(row.error).toContain('all 2 Plaid item(s) failed');
+    expect(row.error).toContain('all 2 liabilities-supporting Plaid item(s) failed');
 
     const audit = await prisma.auditLog.findFirst({
       where: { userId, action: 'sync.cron.plaid' },
@@ -127,7 +127,7 @@ describe('sweepPlaidLinkedUsers', () => {
     const userId = await makeUserWithItem('partial');
     const { p } = port({
       async syncLiabilities() {
-        return { itemsAttempted: 3, itemsFailed: 1, statementsWritten: 2 };
+        return { itemsAttempted: 3, itemsFailed: 1, itemsUnsupported: 0, statementsWritten: 2 };
       },
     });
 
@@ -139,11 +139,56 @@ describe('sweepPlaidLinkedUsers', () => {
     expect(row.error).toBeUndefined();
   });
 
+  /**
+   * #277 P2 (TASKS L.4): a depository-only item — the issuer's own "no liability
+   * data here" — used to be indistinguishable from a broken sync, so a
+   * checking-only user was audited 'failed' every night forever.
+   */
+  it('an all-unsupported sweep (depository-only user) is ran, not failed, and disclosed in the audit', async () => {
+    const userId = await makeUserWithItem('unsup');
+    const { p } = port({
+      async syncLiabilities() {
+        return { itemsAttempted: 1, itemsFailed: 0, itemsUnsupported: 1, statementsWritten: 0 };
+      },
+    });
+
+    const row = (await sweepPlaidLinkedUsers(p, { syncTransactions: false })).find(
+      (r) => r.userId === userId,
+    )!;
+    expect(row.liabilities).toBe('ran');
+    expect(row.error).toBeUndefined();
+
+    const audit = await prisma.auditLog.findFirst({
+      where: { userId, action: 'sync.cron.plaid' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(JSON.parse(audit!.meta ?? '{}')).toMatchObject({
+      liabilities: 'ran',
+      itemsUnsupported: 1,
+      itemsFailed: 0,
+    });
+  });
+
+  it('an unsupported item plus a REAL failure on every supportable item is still failed', async () => {
+    const userId = await makeUserWithItem('unsupfail');
+    const { p } = port({
+      async syncLiabilities() {
+        return { itemsAttempted: 2, itemsFailed: 1, itemsUnsupported: 1, statementsWritten: 0 };
+      },
+    });
+
+    const row = (await sweepPlaidLinkedUsers(p, { syncTransactions: false })).find(
+      (r) => r.userId === userId,
+    )!;
+    expect(row.liabilities).toBe('failed');
+    expect(row.error).toContain('all 1 liabilities-supporting Plaid item(s) failed');
+  });
+
   it('reports "none" when the user has no items left to ask about', async () => {
     const userId = await makeUserWithItem('noitems');
     const { p } = port({
       async syncLiabilities() {
-        return { itemsAttempted: 0, itemsFailed: 0, statementsWritten: 0 };
+        return { itemsAttempted: 0, itemsFailed: 0, itemsUnsupported: 0, statementsWritten: 0 };
       },
     });
 
@@ -239,7 +284,7 @@ describe('sweepPlaidLinkedUsers', () => {
     const userId = await makeUserWithItem('whfail');
     const { p } = port({
       async syncLiabilities() {
-        return { itemsAttempted: 2, itemsFailed: 2, statementsWritten: 0 };
+        return { itemsAttempted: 2, itemsFailed: 2, itemsUnsupported: 0, statementsWritten: 0 };
       },
       async updateWebhooks() {
         throw new Error('webhook boom');
@@ -252,7 +297,7 @@ describe('sweepPlaidLinkedUsers', () => {
 
     // The liabilities failure is the meaningful error; the webhook throw must not overwrite it.
     expect(row.liabilities).toBe('failed');
-    expect(row.error).toContain('all 2 Plaid item(s) failed');
+    expect(row.error).toContain('all 2 liabilities-supporting Plaid item(s) failed');
     expect(row.webhooksUpdated).toBeUndefined();
   });
 
@@ -283,7 +328,7 @@ describe('sweepPlaidLinkedUsers', () => {
     const userId = await makeUserWithItem('instfail');
     const { p } = port({
       async syncLiabilities() {
-        return { itemsAttempted: 2, itemsFailed: 2, statementsWritten: 0 };
+        return { itemsAttempted: 2, itemsFailed: 2, itemsUnsupported: 0, statementsWritten: 0 };
       },
       async syncInstitutions() {
         throw new Error('institution boom');
@@ -296,7 +341,7 @@ describe('sweepPlaidLinkedUsers', () => {
 
     // The pre-existing liability failure is the reported error, not the cosmetic backfill.
     expect(row.liabilities).toBe('failed');
-    expect(row.error).toContain('all 2 Plaid item(s) failed');
+    expect(row.error).toContain('all 2 liabilities-supporting Plaid item(s) failed');
     expect(row.institutionsUpdated).toBeUndefined();
   });
 });

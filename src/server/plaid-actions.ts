@@ -11,7 +11,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { DEMO_CONNECT_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { PlaidProvider } from '@/lib/providers/plaid';
-import { rateLimitDurable, requireUserId } from '@/server/authz';
+import { auditLog, rateLimitDurable, requireUserId } from '@/server/authz';
 
 export interface LinkTokenResult {
   ok: boolean;
@@ -220,8 +220,16 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
     try {
       added = (await provider.syncTransactions(userId, { itemId })).added;
     } catch (e) {
-      // The provider already audits per-item sync failures.
+      // The provider audits PER-ITEM sync failures — but a throw that lands HERE is
+      // a total one (config, decrypt, the first fetch), and it used to be returned
+      // to the UI and lost: nothing in the audit log recorded that a user-initiated
+      // sync failed or why (#277 P2). Record it; never let the audit write itself
+      // turn the failure report into a second failure.
       txError = e instanceof Error ? e.message : 'transaction sync failed';
+      await auditLog(userId, 'plaid.sync.transactions.failed', {
+        ...(itemId ? { itemId } : {}),
+        error: txError,
+      }).catch(() => {});
     }
 
     let statementsWritten: number | undefined;
@@ -229,7 +237,12 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
     try {
       const liab = await provider.syncLiabilities(userId, { itemId });
       statementsWritten = liab.statementsWritten;
-      liabilitiesFailed = liab.itemsAttempted > 0 && liab.itemsFailed >= liab.itemsAttempted;
+      // Unsupported items (depository-only — the issuer's own "no liability data
+      // here") are not failures: a checking-only bank must not paint the Sync
+      // button red every tap (#277 P2). Failed = every item that COULD have
+      // answered errored, and at least one did.
+      liabilitiesFailed =
+        liab.itemsFailed > 0 && liab.itemsFailed >= liab.itemsAttempted - liab.itemsUnsupported;
     } catch {
       liabilitiesFailed = true;
     }

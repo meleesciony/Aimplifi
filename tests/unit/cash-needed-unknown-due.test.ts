@@ -21,7 +21,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
-import type { CardSnapshot, CashNeededInput } from '@/lib/engine/cash-needed/types';
+import {
+  undatedCardsWithBalance,
+  type CardSnapshot,
+  type CashNeededInput,
+  type CashNeededResult,
+} from '@/lib/engine/cash-needed/types';
 import { holidayTable, isoDate } from '@/lib/dates';
 import { assembleCashNeededInput } from '@/lib/engine/cash-needed/assemble';
 import { cents } from '@/lib/money';
@@ -219,5 +224,47 @@ describe('cash-needed: a due day ALONE never fabricates a date', () => {
     );
     expect(r.cards).toEqual([]);
     expect(r.unknownDueDateCards.map((c) => c.cardName)).toEqual(['Chase Sapphire']);
+  });
+});
+
+/**
+ * #277-critic (TASKS L.4) — the shared "worth mentioning" fence.
+ *
+ * The engine carries EVERY undatable card in `unknownDueDateCards` (so /cards can
+ * still list a $0 paid-off card — #277 made connected cards visible). But a
+ * surface that frames an undatable card as a WITHHELD OBLIGATION must exclude a
+ * $0 card: it owes nothing, so "we're leaving a card out of what you owe" is a
+ * false alarm — the mirror of the false all-clear. `undatedCardsWithBalance` is
+ * the ONE definition of that fence, shared by the hero, the number/mixed branch,
+ * the nudge, the payment-reminders count and the weekly digest so they cannot
+ * drift into contradicting each other on one screen (they had — three surfaces).
+ */
+describe('undatedCardsWithBalance — the shared withheld-obligation fence', () => {
+  const card = (cardId: string, cardName: string, currentBalanceCents: number) => ({
+    cardId,
+    cardName,
+    currentBalanceCents: cents(currentBalanceCents),
+  });
+  const resultWith = (cards: ReturnType<typeof card>[]): CashNeededResult =>
+    ({ unknownDueDateCards: cards }) as unknown as CashNeededResult;
+
+  it('drops a $0 paid-off undatable card', () => {
+    const r = resultWith([card('a', 'Paid Off', 0), card('b', 'Sapphire', 184267)]);
+    expect(undatedCardsWithBalance(r).map((c) => c.cardName)).toEqual(['Sapphire']);
+  });
+
+  it('keeps a positive balance (owed)', () => {
+    const r = resultWith([card('a', 'Sapphire', 184267)]);
+    expect(undatedCardsWithBalance(r)).toHaveLength(1);
+  });
+
+  it('keeps a negative balance (credit / overpaid) — still a real undatable card, matching the hero panel', () => {
+    const r = resultWith([card('a', 'Overpaid', -5000)]);
+    expect(undatedCardsWithBalance(r).map((c) => c.cardName)).toEqual(['Overpaid']);
+  });
+
+  it('is empty when every undatable card is $0 — no surface frames a withheld obligation', () => {
+    const r = resultWith([card('a', 'Paid Off', 0), card('b', 'Closed', 0)]);
+    expect(undatedCardsWithBalance(r)).toEqual([]);
   });
 });

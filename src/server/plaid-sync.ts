@@ -37,7 +37,13 @@ export interface PlaidSyncPort {
    */
   syncLiabilities(
     userId: string,
-  ): Promise<{ itemsAttempted: number; itemsFailed: number; statementsWritten: number }>;
+  ): Promise<{
+    itemsAttempted: number;
+    itemsFailed: number;
+    /** Items whose issuer reports no liability data (depository-only) — expected, not broken. */
+    itemsUnsupported: number;
+    statementsWritten: number;
+  }>;
   /**
    * Register the configured webhook on items linked before PLAID_WEBHOOK_URL was
    * set (idempotent, no-op when the env is unset). Optional so a narrower test port
@@ -80,6 +86,8 @@ export interface PlaidSweepRow {
   /** Carried through so a PARTIAL failure (2 of 3 items) isn't audited as a clean run. */
   itemsAttempted: number;
   itemsFailed: number;
+  /** Depository-only items (issuer reports no liability data) — disclosed apart from failures (#277 P2). */
+  itemsUnsupported: number;
   error?: string;
 }
 
@@ -126,6 +134,7 @@ export async function sweepPlaidLinkedUsers(
       statementsWritten: 0,
       itemsAttempted: 0,
       itemsFailed: 0,
+      itemsUnsupported: 0,
     };
 
     if (opts.syncTransactions) {
@@ -142,16 +151,21 @@ export async function sweepPlaidLinkedUsers(
       row.statementsWritten = liab.statementsWritten;
       row.itemsAttempted = liab.itemsAttempted;
       row.itemsFailed = liab.itemsFailed;
-      // Every attempted item erroring is a failure even though nothing threw — the
-      // provider catches per item. No items at all is neither success nor failure.
+      row.itemsUnsupported = liab.itemsUnsupported;
+      // Every attempted item that COULD have liability data erroring is a failure
+      // even though nothing threw — the provider catches per item. An unsupported
+      // item (depository-only) is the issuer's "nothing here", never a failure:
+      // before this split a checking-only user was audited 'failed' every night
+      // forever (#277 P2). No items at all is neither success nor failure.
+      const supportable = liab.itemsAttempted - liab.itemsUnsupported;
       row.liabilities =
         liab.itemsAttempted === 0
           ? 'none'
-          : liab.itemsFailed >= liab.itemsAttempted
+          : liab.itemsFailed > 0 && liab.itemsFailed >= supportable
             ? 'failed'
             : 'ran';
       if (row.liabilities === 'failed') {
-        row.error = row.error ?? `all ${liab.itemsAttempted} Plaid item(s) failed /liabilities/get`;
+        row.error = row.error ?? `all ${supportable} liabilities-supporting Plaid item(s) failed /liabilities/get`;
       }
     } catch (e) {
       row.liabilities = 'failed';
@@ -192,6 +206,7 @@ export async function sweepPlaidLinkedUsers(
             statementsWritten: row.statementsWritten,
             itemsAttempted: row.itemsAttempted,
             itemsFailed: row.itemsFailed,
+            itemsUnsupported: row.itemsUnsupported,
             ...(row.webhooksUpdated !== undefined ? { webhooksUpdated: row.webhooksUpdated } : {}),
             ...(row.institutionsUpdated !== undefined
               ? { institutionsUpdated: row.institutionsUpdated }
