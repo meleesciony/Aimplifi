@@ -89,6 +89,9 @@ export interface PlaidAccount {
   mask: string | null;
   type: string;
   subtype: string | null;
+  /** Plaid's cross-Item stable account id. Present ONLY for institutions using Tokenized
+   *  Account Numbers, so undefined is the common case (docs/ACCOUNT_IDENTITY_ARCHITECTURE.md §3). */
+  persistent_account_id?: string | null;
   balances: {
     current: number | null;
     available: number | null;
@@ -111,6 +114,18 @@ export interface MappedAccount {
   /** Canonical currency code (e.g. 'USD'), or null when Plaid reports neither code. Non-USD
    *  accounts are withheld from net worth at the read boundary (DECISIONS #135). */
   currency: string | null;
+  /** Plaid's raw subtype, verbatim and untranslated ('checking', 'credit card', 'roth'). Distinct
+   *  from `type`, which is this app's own closed set and is what every engine reads. Identity only. */
+  subtype: string | null;
+  /** Plaid `persistent_account_id` when the institution supplies one; null otherwise — which is
+   *  the common case and means "unknown", never "different account". */
+  persistentAccountId: string | null;
+}
+
+/** Trim a provider-supplied identity string; a blank or whitespace-only value is NOT a value. */
+function identityOrNull(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim();
+  return trimmed ? trimmed : null;
 }
 
 export function mapPlaidAccount(account: PlaidAccount): MappedAccount {
@@ -139,6 +154,12 @@ export function mapPlaidAccount(account: PlaidAccount): MappedAccount {
       account.balances.iso_currency_code,
       account.balances.unofficial_currency_code,
     ),
+    // Identity fields (docs/ACCOUNT_IDENTITY_ARCHITECTURE.md §6). Carried through verbatim —
+    // no case-folding, no mapping onto the app's own vocabulary — because the whole point is
+    // to compare what the PROVIDER said about two of its own accounts. Normalisation for
+    // comparison belongs in the identity ladder, not here.
+    subtype: identityOrNull(account.subtype),
+    persistentAccountId: identityOrNull(account.persistent_account_id),
   };
 }
 

@@ -134,7 +134,8 @@ model PlaidItem {
   accessToken       String // AES-256-GCM ciphertext (see src/lib/crypto.ts)
   cursor            String? // /transactions/sync incremental cursor
   webhookUrl        String? // last webhook URL registered on this item via /item/webhook/update; null = never set (item predates PLAID_WEBHOOK_URL)
-  institution       String?
+  institution       String? // human name ("Chase") — COSMETIC only; resolved at link, backfilled by syncInstitutions
+  institutionId     String? // Plaid's stable `ins_*` id — IDENTITY, not decoration: the only way to ask "is this bank already connected?" before writing a second copy of it (docs/ACCOUNT_IDENTITY_ARCHITECTURE.md §6). Null on items linked before this column, until the sweep backfills them.
   lastSyncedAt      String? // YYYY-MM-DD — last SUCCESSFUL per-item sync (Gap 1 §4)
   lastSyncAttemptAt String? // YYYY-MM-DD — last attempt (success or failure)
   lastSyncError     String? // sanitized SyncFailureReason on a failed attempt; null when healthy
@@ -153,6 +154,8 @@ model Account {
   name                  String
   type                  String // CHECKING | SAVINGS | CREDIT | INVESTMENT | LOAN
   mask                  String? // last 4 only — never full numbers
+  subtype               String? // the PROVIDER's raw subtype, verbatim ('checking' | 'credit card' | 'roth' | 'traditional' | …); null = the provider gave none. Identity only — `type` above is what every engine reads. Exists so a Roth can never be matched against a Traditional (docs/ACCOUNT_IDENTITY_ARCHITECTURE.md §5 tiers A/V, TASKS L.9).
+  persistentAccountId   String? // Plaid `persistent_account_id` — the one identifier that survives a re-link (a new Item mints a new account_id, so `providerRef` cannot). Only institutions using Tokenized Account Numbers supply it, so null is the COMMON case and never evidence of anything (§5 tier P).
   currentBalanceCents   Int // stored positive; type determines net-worth sign
   currency              String? // ISO-4217 (e.g. 'USD'); null = legacy/assumed USD. Non-USD accounts are withheld from net worth — no FX (DECISIONS #135, #127 audit #3/#10).
   availableBalanceCents Int?

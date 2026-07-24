@@ -203,11 +203,13 @@ export interface WebhookUpdateResult {
 }
 
 export interface InstitutionSyncResult {
-  /** Items that still lacked an institution name and were looked up (already-named items are skipped, not counted). */
+  /** Items still missing an institution name and/or its `ins_*` id, which were looked up (a fully-resolved item is skipped, not counted). */
   attempted: number;
-  /** Items whose institution name was resolved from Plaid AND recorded locally. */
+  /** Items where a name and/or an institution id was resolved from Plaid AND recorded locally. */
   updated: number;
-  /** Items whose /institutions lookup failed (audited, isolated — never blocks the rest). */
+  /** Items whose lookup failed (audited, isolated — never blocks the rest). NOT exclusive with
+   *  `updated`: the id and the name are bought separately, so an item can record one and fail
+   *  the other in the same pass. */
   failed: number;
 }
 
@@ -262,14 +264,18 @@ export class PlaidProvider implements DataProvider {
     // Resolve the human institution name ("Chase") so the /accounts connection row can
     // LABEL this bank instead of the generic "Connected bank" — the schema field and the
     // UI have always supported it; nothing ever wrote it (owner-reported 2026-07-23, two
-    // linked banks both reading "Plaid: Connected bank"). Best-effort: the name is
-    // cosmetic and a lookup failure must NEVER fail a real link — syncInstitutions
-    // backfills it on the next sweep/Sync. Null → omitted below (preserve-on-null #130).
+    // linked banks both reading "Plaid: Connected bank"). The same call now also yields the
+    // stable `ins_*` id, which is identity rather than decoration (see resolveInstitution).
+    // Best-effort for BOTH: a lookup failure must NEVER fail a real link — syncInstitutions
+    // backfills them on the next sweep/Sync. Null → omitted below (preserve-on-null #130).
     let institution: string | null = null;
+    let institutionId: string | null = null;
     try {
-      institution = await this.resolveInstitutionName(result.access_token);
+      const resolved = await this.resolveInstitution(result.access_token);
+      institution = resolved.name;
+      institutionId = resolved.institutionId;
     } catch {
-      /* cosmetic; backfilled by syncInstitutions — never blocks the link */
+      /* cosmetic + backfillable; syncInstitutions retries — never blocks the link */
     }
     // Upsert by itemId so a link that failed AFTER the token was stored (e.g. the
     // initial account sync threw) stays retryable — re-linking refreshes the token
@@ -280,12 +286,14 @@ export class PlaidProvider implements DataProvider {
         userId,
         itemId: result.item_id,
         accessToken: encryptToken(result.access_token),
-        // Only set when resolved: never overwrite a real name with null on a re-link.
+        // Only set when resolved: never overwrite a real name or id with null on a re-link.
         ...(institution ? { institution } : {}),
+        ...(institutionId ? { institutionId } : {}),
       },
       update: {
         accessToken: encryptToken(result.access_token),
         ...(institution ? { institution } : {}),
+        ...(institutionId ? { institutionId } : {}),
       },
     });
     await prisma.auditLog.create({
@@ -352,6 +360,15 @@ export class PlaidProvider implements DataProvider {
         // Written on update too, so rows created before #256 back-fill their item
         // linkage on the first sync after deploy.
         plaidItemId: itemId,
+        // Identity columns (docs/ACCOUNT_IDENTITY_ARCHITECTURE.md §6). PRESERVE-ON-NULL, like
+        // `institution` on the item and UNLIKE `currency`: these say WHICH real account this
+        // is, and Plaid omits `persistent_account_id` entirely for every institution outside
+        // its Tokenized-Account-Number set — so writing null on a fetch that merely didn't
+        // carry one would erase the single identifier that survives a re-link. Spread into the
+        // shared `base`, so an account linked before these columns existed backfills them on
+        // its next ordinary sync, with no re-link and no data migration.
+        ...(m.subtype ? { subtype: m.subtype } : {}),
+        ...(m.persistentAccountId ? { persistentAccountId: m.persistentAccountId } : {}),
       };
       const existing = await prisma.account.findFirst({
         where: { userId, provider: 'plaid', providerRef: m.providerRef },
@@ -1250,19 +1267,50 @@ export class PlaidProvider implements DataProvider {
   }
 
   /**
-   * Resolve a linked item's human institution name ("Chase", "Capital One") from
-   * Plaid: /item/get → institution_id, then /institutions/get_by_id → name. Returns
-   * null when the item exposes no institution_id (rare — e.g. some manually-created
-   * sandbox items) or Plaid returns a blank name. `accessToken` is the RAW (decrypted)
-   * token. Throws only on a network/Plaid error, which every caller isolates — the
-   * name is cosmetic and must never block a link or a data sync.
+   * Resolve a linked item's institution from Plaid: /item/get → `institution_id`, then —
+   * only when the name is what's wanted — /institutions/get_by_id → "Chase", "Capital One".
+   *
+   * Two different things come back and they are not interchangeable. The NAME is cosmetic:
+   * it labels a connection row on /accounts. The `ins_*` ID is identity — it is what lets
+   * the app ask "is this bank already connected?" *before* writing a second copy of an
+   * account the user already has (docs/ACCOUNT_IDENTITY_ARCHITECTURE.md §4 layer 2). Either
+   * may be null: an item can expose no institution_id (rare — e.g. some manually-created
+   * sandbox items), and a blank name counts as no name.
+   *
+   * The two halves are fetched by two separate calls, kept separate on purpose: Plaid bills
+   * per request, so a caller that needs only one must be able to buy only one — and a
+   * failure of the cosmetic half must not discard the identity half already in hand.
+   *
+   * `accessToken` is the RAW (decrypted) token. Throws only on a network/Plaid error from
+   * the /item/get leg, which every caller isolates — none of this may ever block a link or
+   * a data sync.
    */
-  private async resolveInstitutionName(accessToken: string): Promise<string | null> {
+  private async resolveInstitution(
+    accessToken: string,
+  ): Promise<{ institutionId: string | null; name: string | null }> {
+    const institutionId = await this.resolveInstitutionId(accessToken);
+    if (!institutionId) return { institutionId: null, name: null };
+    try {
+      return { institutionId, name: await this.institutionNameFor(institutionId) };
+    } catch {
+      // The name is cosmetic and the sweep retries it. The id is identity and is already
+      // paid for — throwing it away with the failed second call is the expensive half of
+      // the loss, and would leave layer 2 blind at exactly the bank whose rows are hardest
+      // to tell apart (an unnamed one).
+      return { institutionId, name: null };
+    }
+  }
+
+  /** /item/get → the bank's stable `ins_*` id, or null when the item exposes none. */
+  private async resolveInstitutionId(accessToken: string): Promise<string | null> {
     const { item } = await plaidPost<{ item: { institution_id?: string | null } }>('/item/get', {
       access_token: accessToken,
     });
-    const institutionId = item?.institution_id;
-    if (!institutionId) return null;
+    return item?.institution_id?.trim() || null;
+  }
+
+  /** /institutions/get_by_id → the human name, or null when Plaid returns a blank one. */
+  private async institutionNameFor(institutionId: string): Promise<string | null> {
     const { institution } = await plaidPost<{ institution: { name?: string | null } }>(
       '/institutions/get_by_id',
       { institution_id: institutionId, country_codes: ['US'] },
@@ -1272,37 +1320,61 @@ export class PlaidProvider implements DataProvider {
   }
 
   /**
-   * Backfill the institution name on linked items that still lack one — items linked
-   * before institution capture existed (or whose link-time lookup failed), which read
-   * "Connected bank" on /accounts until named (owner-reported 2026-07-23: two linked
-   * banks both showing "Plaid: Connected bank", indistinguishable). Mirrors
-   * updateWebhooks: idempotent (only null-name items are looked up via the WHERE, so it
-   * is cheap to call on every sync and spends no billed call once resolved), per-item
-   * fault isolation (one bank's failure is audited and skipped, never blocking the
-   * rest), always user-scoped (a foreign itemId matches nothing).
+   * Backfill what an item knows about its bank: the human NAME (items linked before
+   * institution capture existed, or whose link-time lookup failed, read "Connected bank" on
+   * /accounts until named — owner-reported 2026-07-23: two linked banks both showing
+   * "Plaid: Connected bank", indistinguishable) and the `ins_*` INSTITUTION ID (every item
+   * linked before that column existed, including every item the owner has today).
+   *
+   * Mirrors updateWebhooks: idempotent (the WHERE selects only items missing one of the two,
+   * so once an item is fully resolved this spends no billed call at all), per-item fault
+   * isolation (one bank's failure is audited and skipped, never blocking the rest), always
+   * user-scoped (a foreign itemId matches nothing).
    */
   async syncInstitutions(
     userId: string,
     opts?: { itemId?: string },
   ): Promise<InstitutionSyncResult> {
     const items = await prisma.plaidItem.findMany({
-      where: { userId, institution: null, ...(opts?.itemId ? { itemId: opts.itemId } : {}) },
+      where: {
+        userId,
+        // Either half missing is reason enough to look. A name-but-no-id item is the COMMON
+        // case after this column shipped, and it is exactly the one that must be swept: the
+        // id is what layer 2 needs, and nothing else ever fetches it.
+        OR: [{ institution: null }, { institutionId: null }],
+        ...(opts?.itemId ? { itemId: opts.itemId } : {}),
+      },
     });
     let attempted = 0;
     let updated = 0;
     let failed = 0;
     for (const item of items) {
       attempted += 1;
+      // Written OUTSIDE the try so a half that landed still counts when the other half
+      // throws — the two are bought separately and can succeed separately.
+      let wrote = false;
       try {
-        const name = await this.resolveInstitutionName(decryptToken(item.accessToken));
-        if (name) {
-          await prisma.plaidItem.update({
-            where: { itemId: item.itemId },
-            data: { institution: name },
-          });
-          updated += 1;
+        // Buy only what is missing (Plaid bills per request): an item that already knows its
+        // id skips /item/get, and an item that already has a name never re-buys it.
+        const institutionId =
+          item.institutionId ?? (await this.resolveInstitutionId(decryptToken(item.accessToken)));
+        if (institutionId && item.institutionId == null) {
+          // The identity half is persisted FIRST and on its own, so a flaky name lookup
+          // cannot cost the app the thing collision interception actually needs.
+          await prisma.plaidItem.update({ where: { itemId: item.itemId }, data: { institutionId } });
+          wrote = true;
         }
-        // name === null → the item has no resolvable institution; leave it and do NOT
+        if (item.institution == null && institutionId) {
+          const name = await this.institutionNameFor(institutionId);
+          if (name) {
+            await prisma.plaidItem.update({
+              where: { itemId: item.itemId },
+              data: { institution: name },
+            });
+            wrote = true;
+          }
+        }
+        // Nothing resolved → the item exposes no institution; leave it and do NOT
         // count a failure (a failure implies a retryable error, which this isn't).
       } catch (e) {
         failed += 1;
@@ -1321,6 +1393,7 @@ export class PlaidProvider implements DataProvider {
           /* audit is diagnostic only */
         }
       }
+      if (wrote) updated += 1;
     }
     return { attempted, updated, failed };
   }

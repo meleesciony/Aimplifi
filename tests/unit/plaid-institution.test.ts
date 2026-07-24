@@ -90,10 +90,12 @@ async function addItem(
   tag: string,
   token: string,
   institution: string | null,
+  /** The stable `ins_*` id (L.10 slice 1). Null = an item linked before that column existed. */
+  institutionId: string | null = null,
 ): Promise<string> {
   const itemId = `item-inst-${tag}-${Date.now()}-${Math.random()}`;
   await prisma.plaidItem.create({
-    data: { userId, itemId, accessToken: encryptToken(token), institution },
+    data: { userId, itemId, accessToken: encryptToken(token), institution, institutionId },
   });
   return itemId;
 }
@@ -129,9 +131,11 @@ describe('PlaidProvider.syncInstitutions (backfill)', () => {
     expect((await prisma.plaidItem.findUnique({ where: { itemId } }))?.institution).toBe('Chase');
   });
 
-  it('skips an item that already has a name (no billed lookup)', async () => {
+  it('skips a fully-resolved item — name AND institution id present (no billed lookup)', async () => {
+    // The original guarantee, now stated against BOTH halves (L.10 slice 1): once there is
+    // nothing left to learn about a bank, the sweep costs nothing, however often it runs.
     const userId = await makeUser('already');
-    await addItem(userId, 'already', 'tok-already', 'Capital One');
+    await addItem(userId, 'already', 'tok-already', 'Capital One', 'ins_capone');
 
     const r = await new PlaidProvider().syncInstitutions(userId);
 
@@ -139,6 +143,62 @@ describe('PlaidProvider.syncInstitutions (backfill)', () => {
     expect(itemGetCalls).toEqual([]);
     expect(institutionsGetCalls).toEqual([]);
   });
+
+  it('backfills the institution id on a NAMED item — one call, and no re-billed name lookup', async () => {
+    // Every item the owner has today: linked when only the cosmetic name was captured. The
+    // `ins_*` id is what layer 2 needs to ask "is this bank already connected?", so a named
+    // item must still be swept — but paying twice for a name already stored would be waste.
+    const userId = await makeUser('idonly');
+    institutionIdByToken.set('tok-idonly', 'ins_chase');
+    const itemId = await addItem(userId, 'idonly', 'tok-idonly', 'Chase', null);
+
+    const r = await new PlaidProvider().syncInstitutions(userId);
+
+    expect(r).toEqual({ attempted: 1, updated: 1, failed: 0 });
+    const item = await prisma.plaidItem.findUnique({ where: { itemId } });
+    expect(item?.institutionId).toBe('ins_chase');
+    expect(item?.institution).toBe('Chase'); // untouched
+    expect(itemGetCalls).toEqual(['tok-idonly']); // exactly one call…
+    expect(institutionsGetCalls).toEqual([]); // …and never the second, billed one
+  });
+
+  it('resolves BOTH halves in one pass for an item that has neither', async () => {
+    const userId = await makeUser('both');
+    institutionIdByToken.set('tok-both', 'ins_usbank');
+    nameByInstitutionId.set('ins_usbank', 'U.S. Bank');
+    const itemId = await addItem(userId, 'both', 'tok-both', null, null);
+
+    const r = await new PlaidProvider().syncInstitutions(userId);
+
+    expect(r).toEqual({ attempted: 1, updated: 1, failed: 0 });
+    const item = await prisma.plaidItem.findUnique({ where: { itemId } });
+    expect(item?.institution).toBe('U.S. Bank');
+    expect(item?.institutionId).toBe('ins_usbank');
+  });
+
+  it('keeps the id when the NAME lookup fails, instead of losing both halves', async () => {
+    // A failed /institutions/get_by_id is a cosmetic loss; the id it was resolved FROM is
+    // identity and is already paid for, so it must not be discarded with it — least of all
+    // at an unnamed bank, whose rows are the hardest for a user to tell apart. The item is
+    // still counted a failure, because the name really is retryable.
+    const userId = await makeUser('namefail');
+    institutionIdByToken.set('tok-namefail', 'ins_flaky');
+    rejectInstitutionsGet.add('ins_flaky');
+    const itemId = await addItem(userId, 'namefail', 'tok-namefail', null, null);
+
+    const r = await new PlaidProvider().syncInstitutions(userId);
+
+    // updated AND failed: the two halves are bought separately and settled separately.
+    expect(r).toEqual({ attempted: 1, updated: 1, failed: 1 });
+    const item = await prisma.plaidItem.findUnique({ where: { itemId } });
+    expect(item?.institutionId).toBe('ins_flaky'); // durable half kept
+    expect(item?.institution).toBeNull(); // still unnamed, retried next sweep
+    const audit = await prisma.auditLog.findFirst({
+      where: { userId, action: 'plaid.institution.resolve.failed' },
+    });
+    expect(audit).not.toBeNull();
+  });
+
 
   it('leaves an item with no resolvable institution null, without counting a failure', async () => {
     const userId = await makeUser('noinst');
@@ -230,6 +290,21 @@ describe('PlaidProvider.exchangePublicToken (link-time capture)', () => {
 
     const item = await prisma.plaidItem.findUnique({ where: { itemId: 'exch-item-public-abc' } });
     expect(item?.institution).toBe('Chase');
+    // The same round-trip yields the stable `ins_*` id, which is identity rather than a
+    // label: it is what lets a later link ask "is this bank already connected?" (L.10 §4).
+    expect(item?.institutionId).toBe('ins_chase');
+  });
+
+  it('records the institution id even when the NAME lookup fails', async () => {
+    const userId = await makeUser('exchid');
+    institutionIdByToken.set('exch-token', 'ins_quiet');
+    rejectInstitutionsGet.add('ins_quiet'); // /institutions/get_by_id throws → no name
+
+    await new PlaidProvider().exchangePublicToken(userId, 'public-quiet');
+
+    const item = await prisma.plaidItem.findUnique({ where: { itemId: 'exch-item-public-quiet' } });
+    expect(item?.institutionId).toBe('ins_quiet'); // durable half survives the cosmetic failure
+    expect(item?.institution).toBeNull(); // backfilled by syncInstitutions later
   });
 
   it('links successfully even when the institution lookup fails (cosmetic, non-fatal)', async () => {
