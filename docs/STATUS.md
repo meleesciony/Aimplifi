@@ -2,7 +2,31 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
-## 🔴 NEW — owner-reported 2026-07-24, mid-session, NOT yet diagnosed (TASKS L.11–L.13)
+## ✅ FIXED 2026-07-24 (#302) — savings rate printed "−855105.8%" on real data (TASKS L.11(A))
+
+The owner's dashboard showed "Savings rate · 4-month average of **−855105.8%**". Cause: the card
+averaged monthly `(income−expenses)/income` RATIOS, and a month whose paychecks weren't
+categorised as income (a near-zero income denominator) exploded to hundreds of thousands of
+percent and dominated the mean; the data-driven chart scale then flattened every other bar.
+
+Fixed: new pure `pooledSavingsRateBps` (Σincome−Σexpenses)/Σincome over income-bearing months;
+a display floor so anything past −100% renders "below -100%" (headline, average, tooltip); the
+"N-month average" line only with ≥2 contributing months; a fixed ±100% chart scale; the 15%
+aspiration line only when a month actually saved. A fresh-context critic (Opus — owner is out of
+Fable) proved pooling alone still showed the giant number for a single-income-month window; the
+floor + ≥2-month gate close it, locked by the exact repros. **Deployed READY on `4e235dc`,
+production, `www.aimplifi.app`.** The root input problem (income under-measured because paychecks
+aren't categorised as income) is the same gap as L.12; the savings math is now robust regardless.
+
+**OWNER DECISIONS 2026-07-24 (persisted so a /clear doesn't lose them):**
+- **Next build = categorisation (L.12)** — the loudest competitive complaint. Root cause verified:
+  Plaid's own category is captured but never persisted, the inbox re-guesses without it, and the
+  ruleset can't even match "Grille". Fix = persist the hint + surface it as a one-tap suggestion.
+- **Safe-to-Spend → "guilt-free spending"** (I Will Teach You to Be Rich / Ramit Sethi): income
+  minus fixed bills, this-cycle card obligations, AND a savings-% goal the user sets in Settings
+  (a Conscious-Spending-Plan allocation). Spec in TASKS L.11(C).
+
+## 🔴 NEW — owner-reported 2026-07-24, mid-session (TASKS L.11–L.13); (A) now fixed
 
 Three reports about his real linked data. **Nothing below has been reproduced or diagnosed, and
 none of it should be guessed at** — rule 0. Full context and the decisions each one needs are in
