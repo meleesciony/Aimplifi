@@ -2,6 +2,76 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## 🟠 OPEN — a both-live duplicate card is counted twice on /cards, silently (found 2026-07-24)
+
+Found by reading the owner's /cards screenshot — the same highest-signal source as the rest of Wave L,
+not a failing test.
+
+**What the screen shows.** Two entries both named `CREDIT CARD`, both **$6,679.68** amount due, both
+$6,679.68 remaining statement due, both **$66.00** minimum, both due Wed Aug 5 — byte-identical.
+That matches the known Chase `····0977` duplicate recorded elsewhere in this file (−$8,475.31 twice,
+one real card arriving through two live Plaid connections).
+
+**Precise cause — /cards DOES dedupe, but only the reconciled kind.** `cashNeededFromSnapshot` strips
+`supersededAccountIds` from the accounts fed to `assembleCashNeededInput` (`server/finance.ts:157-166`,
+Wave 4.6 slice 4 / R4), so a predecessor that was COMBINED into a successor emits no phantom
+obligation. A **both-live** duplicate has no reconciliation link at all, so that set is empty for it
+and **both rows emit a full obligation**. Separately, the personal duplicate detector
+(`SuspectedDuplicatePair`, `duplicate-accounts-warning`) renders only in `accounts-list.tsx`;
+`src/app/(app)/cards/page.tsx:87` passes only `householdDuplicates` (the partner-scope check). The
+page therefore double-counts **and** stays silent about it.
+
+**Consequences.**
+1. The **"Do this first"** headline and the pay-in-full / minimum totals include the duplicate. The
+   owner's visible cards sum to $25,258.27, of which **$6,679.68 is phantom** — a real payment
+   instruction inflated by one card counted twice.
+2. /cards never renders a last-4, so **three** cards named `CREDIT CARD` are indistinguishable — the
+   #296/#297 defect on a third surface, and worse here: the user cannot tell which card the
+   instruction is even about.
+
+**Not a regression.** Nothing here changed in #296/#297, which fixed /accounts. This surface never
+had the defence.
+
+**Design question for whoever builds it:** whether a both-live duplicate should be EXCLUDED from the
+headline total or merely disclosed. Excluding it silently is itself a claim (that the two are the
+same card) that only the user can confirm — the #192 detector is deliberately advisory and never
+auto-deletes, and that stance should not be quietly reversed inside a money headline.
+
+**Interim remedy (unchanged).** Delete the duplicate row on /accounts, or combine the pair — either
+removes it from /cards, since both surfaces read the same Account rows. Tracked as TASKS L.6.
+
+## ✅ ANSWERED 2026-07-24 — the issuers DO return card due dates (TASKS L.3); no date is invented
+
+Open since #277 asked what Chase / Capital One actually return. The owner's /cards screenshot settles
+it: **eight cards** render real statement figures — amount due, remaining statement due, and a
+**distinct** minimum ($92.00, $66.00, $25.00, $40.00, $35.00, not one derived constant) — and one card
+carries the post-close-credit disclosure that only a generated statement produces. No card sits in the
+honest "no due date yet" panel, so **manual statement entry does not need extending to linked cards**,
+which was the only decision L.3 gated.
+
+**On the alarming part — all eight cards read "Due Wed, Aug 5 (in 12 days)".** That is exactly what a
+fabricated fallback would look like, so the pipeline was traced rather than assumed. State the result
+precisely: **no due date is invented from nothing**, but a due date is not always verbatim either.
+- With a statement: the issuer's date verbatim — `dueDate: isoDate(next_payment_due_date)`
+  (`plaid-map.ts:241`). `mapPlaidLiabilityToStatement` returns **null**, creating no statement at all,
+  when the issuer supplies no due date (`plaid-map.ts:216-222`) — so a statement cannot carry an
+  invented date.
+- With no statement: the date is **derived** from BOTH `cycleCloseDayOfMonth` and `dueDayOfMonth`
+  (`cash-needed/assemble.ts:151`) and flagged `isEstimated`, which the UI badges
+  (`cards-breakdown.tsx:152`). The #277 cycle-2 counter-lock refuses a due day without a cycle anchor,
+  whose comment records that relaxing it produced a date a month early plus a live "move $850 into
+  checking today" instruction. An undatable card stays undatable and says so.
+- Both cycle days themselves originate from Plaid (`plaid.ts:924-926`).
+
+So a shared Aug 5 is consistent with several Capital One cards on one customer-chosen due day, and is
+**not** evidence of a fabricated default. Per-card truth is readable off the estimate badge. The
+relative rendering also checks out: 2026-07-24 + 12 days = 2026-08-05.
+
+Note for future readers: `effectiveDueDate` may differ from the issuer's `dueDate` — it is walked back
+to the prior business day and floored to today if already past (`cash-needed/engine.ts:150-161`), and
+the UI appends "· issuer date …" when the two differ. That is an adjustment of a real date, not a
+derivation.
+
 ## ✅ SHIPPED 2026-07-24 — the Combined-accounts card groups by live account (#297)
 
 Closes the last open defect from the owner 2026-07-24 /accounts screenshots, recorded until now as
