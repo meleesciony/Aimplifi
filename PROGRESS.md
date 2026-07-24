@@ -1,5 +1,52 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-24 — The duplicate card now distinguishes CONNECTIONS, not rows (#296)
+
+Owner-reported with a screenshot, hours after #295 shipped: the duplicate card he had just been given
+was UNUSABLE for his actual case. Its two sides were byte-identical — "Loan - 2927 (Plaid ····2927)"
+twice, with two "Disconnect U.S. Bank (Plaid ····2927)" buttons carrying the SAME aria-label. His words:
+"I don't know which to delete. One usbank plaid sync has 2 accounts on it (the two us bank loans).
+There has to be a way to show this."
+
+ROOT CAUSE: both rows are live Plaid rows on two DIFFERENT PlaidItems (one bank linked twice), so
+neither is deletable and #295's sideAction() built both labels from institution + provider + mask —
+none of which differ across two items at one bank. The single fact that DID differ (how many accounts
+each connection feeds) was spent only inside the post-tap confirm prompt: revealed after the decision
+it was needed for. Distinctness was left to the DATA instead of being an invariant of construction.
+
+SHIPPED: a pure, framework-free pair-level view module (src/components/finance/duplicate-card-view.ts)
+that computes BOTH sides together and owns every rendered string. Each side is now its own block with
+its connection identity ("Plaid: U.S. Bank · connection 1 of 2 · last synced 2026-07-24"), its manifest
+("Also feeds 1 other account: CREDIT CARD ····0977" vs "Feeds only this account."), and a button whose
+face carries the ordinal AND the blast radius ("Disconnect connection 1" / "2 accounts stop updating").
+A mechanical " (row 1)/(row 2)" breaker runs after both labels exist, so two identical controls are
+impossible for ANY input. Bank sync numbers the same connections identically, so "connection 1 of 2" is
+cross-referencable on the page. The intro's "linked through two providers" — factually false for exactly
+the case he hit — is replaced by a per-pair provider-conditional sentence.
+
+HONESTY FIX IN THE SAME SLICE: the card now states the two-step truth. Verified against removeItem +
+the unfiltered net-worth sum — disconnecting revokes the token and deletes the PlaidItem but LEAVES the
+Account row counting, so the double-count stops only after the follow-up delete. Every disconnect prompt
+says so, and the success flash now says every account on that item became deletable (the old copy was
+singular and understated it).
+
+ZERO server change, empty prisma diff: the ordinal is POSITIONAL over the payload /accounts already
+sends. Known limitation: two connections created in the same DB second have an unspecified ORDER, so
+which is "connection 1" is unspecified — the numbers stay distinct and the copy claims no order.
+
+CLOSES the #295 coverage gap ("no e2e for the duplicate-card actions"): tests/unit/duplicate-card-view.test.ts
+(56 tests) + tests/e2e/duplicate-connections.spec.ts (4 tests). FAIL-OLD PROVEN, not assumed: with the
+three source files reverted to pre-#296 and rebuilt, all 4 e2e tests FAIL; restored and rebuilt, all 4 pass.
+
+Gate: verify.sh GREEN — 248 files / 3662 tests, tsc + eslint clean, build clean, no schema change.
+E2E: duplicate-connections 4 passed; tripwires (reconcile, mobile-overflow, account-deletion,
+connection-health) 15 passed; phase5-a11y 9 passed.
+
+STILL OPEN FOR THE OWNER: the two both-live pairs are now RESOLVABLE but not yet resolved — he still has
+to pick a connection and do the two taps (about 8.5k + 23.8k of phantom debt). The e2e cannot drive the
+real disconnect (Plaid /item/remove decrypts a live access token; a seeded row fails "Malformed encrypted
+token"), so step 1 is covered by unit tests + the seeded post-disconnect state, not end-to-end.
+
 ## 2026-07-24 — SESSION HANDOFF — Wave 4.3 + five owner-reported /accounts fixes (#290-#295)
 
 LONG session (should have been split — one task per session). SHIPPED + LIVE, all verified READY on www.aimplifi.app: #290 Wave 4.3 Plaid /investments/holdings parity (TASKS 4.3 flipped done). #291 differing-last-4 duplicate rule + per-connection card last-4 + dismissible warning. #292 refined that rule after owner clarification — a different last-4 is a different CARD not necessarily a different ACCOUNT (a spouse authorized-user card shares one balance), so it disqualifies only the weak NAME signal, never the identical-balance signal; removed name-parsing from the veto (critic F1/F2: a parenthesized year or the x in Amex mis-read as a last-4 would silently hide a real duplicate). #293 Plaid account freshness now uses its own bank lastSyncedAt (was SimpleFIN-only, so mortgages/loans/quiet cards falsely read "Not synced yet" / "No new data in 15 days — you may need to reconnect" while the connection said it synced today) + connection-row alignment. #294 a last-4 embedded in the NAME is now a POSITIVE-only match, catching the owner U.S. Bank loan + Truist mortgage duplicates nothing was flagging. #295 (THIS COMMIT) the duplicate card is finally actionable: Delete this one for a deletable side, Disconnect <bank> for a live side, two-step confirm; AccountView gained plaidItemId. OWNER ALREADY DID: deleted the Truist mortgage + U.S. Bank stale rows (~957k of phantom debt gone; liabilities went from about -1.97M to -1,014,498.45). STILL OPEN FOR THE OWNER: two both-live duplicate pairs remain — CREDIT CARD ····0977 x2 and Loan - 2927 x2 — each the SAME account arriving through TWO live Plaid connections; with #295 he can now Disconnect the redundant connection from the warning card, then Delete the orphaned row (about 8.5k + 23.8k more phantom debt). ALSO OPEN: /cards due dates after a real sync (TASKS L.3) — never confirmed. DROPPED: the 07-21 password item (stale, owner did not recognize it). GAP RECORDED: no e2e for the new duplicate-card actions. Gate on this commit: verify.sh GREEN — 247 files / 3606 tests, build clean, no schema change.

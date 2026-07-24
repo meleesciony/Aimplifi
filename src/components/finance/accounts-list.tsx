@@ -17,6 +17,27 @@ import { ConnectSimplefin } from '@/components/finance/connect-simplefin';
 import { PlaidConnections } from '@/components/finance/plaid-connections';
 import { SyncAllButton } from '@/components/finance/sync-all-button';
 import {
+  cardOffersDisconnect,
+  connectionsById,
+  duplicateCardView,
+  providerMask,
+  visibleAccountsByItem,
+  DUPLICATE_HOWTO,
+  DUPLICATE_HOWTO_TESTID,
+  DUPLICATE_INTRO,
+  DUPLICATE_INTRO_TESTID,
+  DUPLICATE_PAIR_IMPACT_TESTID,
+  DUPLICATE_PAIR_WHY_TESTID,
+  DUPLICATE_SIDE_A_TESTID,
+  DUPLICATE_SIDE_B_TESTID,
+  DUPLICATE_SIDE_CONNECTION_TESTID,
+  DUPLICATE_SIDE_FEEDS_TESTID,
+  DUPLICATE_SIDE_NOTE_TESTID,
+  type DuplicateConnectionInfo,
+  type DuplicateSideAction,
+  type DuplicateSideView,
+} from '@/components/finance/duplicate-card-view';
+import {
   ManualCardStatementForm,
   type ManualStatementFormValues,
 } from '@/components/finance/manual-card-statement-form';
@@ -297,13 +318,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
         accountsById={
           new Map([...data.assets.accounts, ...data.liabilities.accounts].map((a) => [a.id, a] as const))
         }
-        itemsById={
-          new Map(
-            data.plaid.items.map(
-              (i) => [i.itemId, { institution: i.institution, accountCount: i.accounts.length }] as const,
-            ),
-          )
-        }
+        itemsById={connectionsById(data.plaid.items)}
         onDelete={(accountId) =>
           refreshAfter(
             () => deleteDisconnectedSyncedAccount(accountId),
@@ -316,7 +331,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
               disconnectPlaidItem(itemId).then((r) =>
                 r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not disconnect that bank.'] },
               ),
-            'Bank disconnected. That copy stops updating — a Delete control now appears on its row.',
+            'Bank disconnected. Every account it fed keeps its history but stops updating, and each now has a Delete control. Delete the duplicate copy to stop it counting twice.',
           )
         }
         onDismiss={(aId, bId) =>
@@ -415,18 +430,15 @@ export function AccountsList({ data }: { data: AccountsView }) {
   );
 }
 
-const PROVIDER_LABEL: Record<string, string> = {
-  plaid: 'Plaid',
-  simplefin: 'SimpleFIN',
-  manual: 'Manual',
-  demo: 'Demo',
-};
-
 /**
- * Advisory warning for suspected same-account-via-two-providers duplicates (DECISIONS #192).
+ * Advisory warning for suspected same-account-connected-twice duplicates (DECISIONS #192).
  * Display-only: the app has no cross-provider dedup, so a duplicate double-counts until the
- * user disconnects one side (via the existing SimpleFIN disconnect / Plaid / manual-delete
- * flows). Never auto-deletes — which side to keep is the user's call.
+ * user disconnects one side and deletes the row it leaves behind. Never auto-deletes — which
+ * side to keep is the user's call.
+ *
+ * Every string and every per-side decision lives in the pure duplicate-card-view module (#296),
+ * which computes BOTH sides of a pair together so two identical controls cannot be rendered.
+ * This component only maps that view onto JSX and dispatches the chosen action.
  */
 function DuplicateAccountsWarning({
   pairs,
@@ -443,53 +455,101 @@ function DuplicateAccountsWarning({
   pending?: boolean;
   /** id → the account row, for its `deletable` flag and owning Plaid item. */
   accountsById: Map<string, AccountView>;
-  /** itemId → the bank behind it + how many accounts it feeds (honest Disconnect copy). */
-  itemsById: Map<string, { institution: string | null; accountCount: number }>;
+  /** itemId → that connection's identity: bank, position among the SAME bank's connections, last
+   *  sync, and how many accounts it feeds. The pre-#296 projection carried only
+   *  {institution, accountCount}, which is byte-identical for two connections to one bank. */
+  itemsById: Map<string, DuplicateConnectionInfo>;
   onDelete?: (accountId: string) => void;
   onDisconnect?: (itemId: string) => void;
 }) {
   // Hook before any early return.
   const confirm = useConfirmArm();
   if (pairs.length === 0) return null;
-  const label = (p: { provider: string; mask: string | null }) =>
-    `${PROVIDER_LABEL[p.provider] ?? p.provider}${p.mask ? ` ····${p.mask}` : ''}`;
 
-  /**
-   * The resolving action for ONE side of a pair — owner-reported 2026-07-24: the card said
-   * "keep one and disconnect or delete the other" and offered neither control, while both rows
-   * were live so neither had a Delete in the list either. An instruction with no way to follow it
-   * is the #277 class of bug. So each side now carries the action that ACTUALLY works for it:
-   *  - the row is deletable (nothing left to re-create it) → Delete it;
-   *  - the row is live on a Plaid connection → Disconnect that bank, the only thing that stops it
-   *    coming straight back on the next sync (deleting a live row is refused by design, #253).
-   * Null only when we can't resolve either (e.g. a live SimpleFIN row — its own Disconnect lives
-   * in the SimpleFIN block), and the dismiss stays available regardless.
-   */
-  const sideAction = (ref: { id: string; name: string }) => {
-    const acct = accountsById.get(ref.id);
-    if (!acct) return null;
-    if (acct.deletable && onDelete) {
-      return {
-        label: 'Delete this one',
-        prompt: `Delete ${ref.name}? Its stored history goes with it. The other copy keeps counting.`,
-        run: () => onDelete(ref.id),
-      };
-    }
-    const itemId = acct.plaidItemId;
-    if (itemId && onDisconnect) {
-      const item = itemsById.get(itemId);
-      const bank = item?.institution ?? 'this bank';
-      const others = Math.max(0, (item?.accountCount ?? 1) - 1);
-      return {
-        label: `Disconnect ${bank}`,
-        prompt:
-          others > 0
-            ? `Disconnect ${bank}? It also feeds ${others} other account${others === 1 ? '' : 's'}, which stop updating. Accounts and history are kept.`
-            : `Disconnect ${bank}? Accounts and history are kept — this row just stops updating, then you can delete it.`,
-        run: () => onDisconnect(itemId),
-      };
-    }
-    return null;
+  // accountsById is rebuilt by the parent on every render, so useMemo could never hit; N is tiny.
+  const visibleByItem = visibleAccountsByItem([...accountsById.values()]);
+  const ctx = {
+    accountsById,
+    itemsById,
+    visibleByItem,
+    canDelete: !!onDelete,
+    canDisconnect: !!onDisconnect,
+  };
+  // Card-wide, not per pair: three copies of one account emit three pairs, and only a card-wide
+  // pass can guarantee two identical faces never resolve different objects (critic P1).
+  const views = duplicateCardView(pairs, ctx);
+  const showHowto = cardOffersDisconnect(views);
+  const runAction = (action: DuplicateSideAction) => {
+    if (action.kind === 'delete') onDelete?.(action.targetId);
+    else onDisconnect?.(action.targetId);
+  };
+
+  /** One side of a pair as its own bordered block: the row, WHICH connection feeds it, what else
+   *  that connection carries, and the control — so the choice is answerable without tapping. */
+  const renderSide = (view: DuplicateSideView, pairKey: string, side: 'a' | 'b') => {
+    const armed = confirm.isArmed(`${pairKey}:${side}`);
+    const action = view.action;
+    return (
+      <div
+        data-testid={side === 'a' ? DUPLICATE_SIDE_A_TESTID : DUPLICATE_SIDE_B_TESTID}
+        role="group"
+        aria-label={`Row ${view.n}: ${view.name} (${view.providerMask})`}
+        className="mt-2 min-w-0 rounded-md border border-amber-900/40 px-2 py-1.5"
+      >
+        <div className="min-w-0 break-words text-sm font-medium">{view.name}</div>
+        <div className="break-words text-xs text-muted-foreground">{view.providerMask}</div>
+        <div
+          className="mt-0.5 break-words text-xs text-muted-foreground"
+          data-testid={DUPLICATE_SIDE_CONNECTION_TESTID}
+        >
+          {view.connectionLine}
+        </div>
+        {view.feedsLine && (
+          <div
+            // NOT muted/70: this line is the decision the card exists to support, and at /70 it
+            // fell under the WCAG AA contrast floor (critic P2).
+            className="mt-0.5 break-words text-xs text-muted-foreground"
+            data-testid={DUPLICATE_SIDE_FEEDS_TESTID}
+          >
+            {view.feedsLine}
+          </div>
+        )}
+        {view.note && (
+          <p className="mt-0.5 break-words text-xs text-muted-foreground" data-testid={DUPLICATE_SIDE_NOTE_TESTID}>
+            {view.note}
+          </p>
+        )}
+        {action && armed && (
+          <div className="mt-1.5">
+            <ConfirmPrompt
+              rowTestId="duplicate-action-confirm-row"
+              prompt={action.prompt}
+              confirmLabel={pending ? 'Working…' : 'Yes'}
+              confirmTestId="duplicate-action-confirm"
+              confirmAriaLabel={`Yes — ${action.ariaLabel}`}
+              pending={pending ?? false}
+              onConfirm={() => runAction(action)}
+              onCancel={confirm.disarm}
+            />
+          </div>
+        )}
+        {action && !armed && (
+          <div className="mt-1.5 flex justify-end">
+            <button
+              type="button"
+              data-testid={side === 'a' ? 'duplicate-resolve-a' : 'duplicate-resolve-b'}
+              aria-label={action.ariaLabel}
+              disabled={pending}
+              onClick={() => confirm.arm(`${pairKey}:${side}`)}
+              className="tap-target max-w-full whitespace-normal rounded-md border border-amber-900/40 px-2 py-1 text-right text-xs text-amber-100 hover:bg-amber-900/30 disabled:opacity-50"
+            >
+              <span className="block">{action.label}</span>
+              <span className="block text-amber-300/70">{action.subLabel}</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
   };
   return (
     <Card
@@ -499,110 +559,75 @@ function DuplicateAccountsWarning({
     >
       <CardHeader className="pb-2">
         <CardDescription className="text-amber-300">Possible duplicate accounts</CardDescription>
-        <CardTitle className="text-base">One account may be connected twice</CardTitle>
+        <CardTitle className="text-base">One account may be counted twice</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <p className="text-muted-foreground">
-          These look like the same real account linked through two providers. Each connection is
-          counted separately, so a duplicate <strong>doubles</strong> that balance in your net worth
-          and its spending. Keep one and disconnect or delete the other.
+        <p className="text-muted-foreground" data-testid={DUPLICATE_INTRO_TESTID}>
+          {DUPLICATE_INTRO}
         </p>
+        {showHowto && (
+          <p className="text-muted-foreground" data-testid={DUPLICATE_HOWTO_TESTID}>
+            {DUPLICATE_HOWTO}
+          </p>
+        )}
         <ul className="space-y-2" role="list">
-          {pairs.map((p) => (
-            <li
-              key={`${p.a.id}-${p.b.id}`}
-              data-testid="duplicate-pair"
-              className="rounded-md border border-amber-900/40 px-3 py-2"
-            >
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="font-medium">{p.a.name}</span>
-                <span className="text-xs text-muted-foreground">({label(p.a)})</span>
-                <span aria-hidden className="text-muted-foreground">
-                  ↔
-                </span>
-                <span className="font-medium">{p.b.name}</span>
-                <span className="text-xs text-muted-foreground">({label(p.b)})</span>
-                <span
-                  className={`ml-auto rounded px-1.5 py-0.5 text-xs ${p.confidence === 'high' ? 'bg-amber-900/60 text-amber-100' : 'bg-amber-900/30 text-amber-200'}`}
+          {pairs.map((p, i) => {
+            const view = views[i];
+            const pairKey = `${p.a.id}-${p.b.id}`;
+            const pairArmed = confirm.isArmed(`${pairKey}:a`) || confirm.isArmed(`${pairKey}:b`);
+            return (
+              <li
+                key={pairKey}
+                data-testid="duplicate-pair"
+                className="rounded-md border border-amber-900/40 px-3 py-2"
+              >
+                <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+                  <p className="min-w-0 flex-1 break-words text-xs text-muted-foreground">
+                    {p.reasons.join(' · ')}
+                  </p>
+                  <span
+                    className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-xs ${p.confidence === 'high' ? 'bg-amber-900/60 text-amber-100' : 'bg-amber-900/30 text-amber-200'}`}
+                  >
+                    {p.confidence === 'high' ? 'likely' : 'possible'}
+                  </span>
+                </div>
+                <p
+                  className="mt-1 break-words text-xs text-muted-foreground"
+                  data-testid={DUPLICATE_PAIR_WHY_TESTID}
                 >
-                  {p.confidence === 'high' ? 'likely' : 'possible'}
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">{p.reasons.join(' · ')}</p>
-              {(() => {
-                const pairKey = `${p.a.id}-${p.b.id}`;
-                const actionA = sideAction(p.a);
-                const actionB = sideAction(p.b);
-                const armedA = confirm.isArmed(`${pairKey}:a`);
-                const armedB = confirm.isArmed(`${pairKey}:b`);
-                if ((armedA && actionA) || (armedB && actionB)) {
-                  const act = armedA ? actionA! : actionB!;
-                  return (
-                    <div className="mt-2">
-                      <ConfirmPrompt
-                        rowTestId="duplicate-action-confirm-row"
-                        prompt={act.prompt}
-                        confirmLabel={pending ? 'Working…' : 'Yes'}
-                        confirmTestId="duplicate-action-confirm"
-                        confirmAriaLabel={`Yes, ${act.label}`}
-                        pending={pending ?? false}
-                        onConfirm={act.run}
-                        onCancel={confirm.disarm}
-                      />
-                    </div>
-                  );
-                }
-                return (
-                  <div className="mt-2 flex flex-wrap justify-end gap-2">
-                    {actionA && (
-                      <button
-                        type="button"
-                        data-testid="duplicate-resolve-a"
-                        aria-label={`${actionA.label} — ${p.a.name} (${label(p.a)})`}
-                        disabled={pending}
-                        onClick={() => confirm.arm(`${pairKey}:a`)}
-                        className="tap-target rounded-md border border-amber-900/40 px-2 py-1 text-xs text-amber-100 hover:bg-amber-900/30 disabled:opacity-50"
-                      >
-                        {actionA.label} <span className="text-amber-300/70">({label(p.a)})</span>
-                      </button>
-                    )}
-                    {actionB && (
-                      <button
-                        type="button"
-                        data-testid="duplicate-resolve-b"
-                        aria-label={`${actionB.label} — ${p.b.name} (${label(p.b)})`}
-                        disabled={pending}
-                        onClick={() => confirm.arm(`${pairKey}:b`)}
-                        className="tap-target rounded-md border border-amber-900/40 px-2 py-1 text-xs text-amber-100 hover:bg-amber-900/30 disabled:opacity-50"
-                      >
-                        {actionB.label} <span className="text-amber-300/70">({label(p.b)})</span>
-                      </button>
-                    )}
-                    {onDismiss && (
-                      <button
-                        type="button"
-                        data-testid="duplicate-dismiss"
-                        aria-label={`Dismiss — ${p.a.name} and ${p.b.name} are not duplicates`}
-                        disabled={pending}
-                        onClick={() => onDismiss(p.a.id, p.b.id)}
-                        className="tap-target rounded-md border border-amber-900/40 px-2 py-1 text-xs text-amber-200 hover:bg-amber-900/30 disabled:opacity-50"
-                      >
-                        Not a duplicate — dismiss
-                      </button>
-                    )}
+                  {view.why}
+                </p>
+                {view.impact && (
+                  <p
+                    className="mt-1 break-words text-xs text-amber-200"
+                    data-testid={DUPLICATE_PAIR_IMPACT_TESTID}
+                  >
+                    {view.impact}
+                  </p>
+                )}
+                {renderSide(view.a, pairKey, 'a')}
+                {renderSide(view.b, pairKey, 'b')}
+                {onDismiss && !pairArmed && (
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      data-testid="duplicate-dismiss"
+                      aria-label={`Dismiss — ${p.a.name} and ${p.b.name} are not duplicates`}
+                      disabled={pending}
+                      onClick={() => onDismiss(p.a.id, p.b.id)}
+                      className="tap-target rounded-md border border-amber-900/40 px-2 py-1 text-xs text-amber-200 hover:bg-amber-900/30 disabled:opacity-50"
+                    >
+                      Not a duplicate — dismiss
+                    </button>
                   </div>
-                );
-              })()}
-            </li>
-          ))}
+                )}
+              </li>
+            );
+          })}
         </ul>
       </CardContent>
     </Card>
   );
-}
-
-function providerMask(p: { provider: string; mask: string | null }): string {
-  return `${PROVIDER_LABEL[p.provider] ?? p.provider}${p.mask ? ` ····${p.mask}` : ''}`;
 }
 
 /**

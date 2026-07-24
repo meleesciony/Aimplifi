@@ -2,6 +2,43 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-24 — duplicate card distinguishes CONNECTIONS (#296)
+
+The owner-reported byte-identical-button defect is closed: two live Plaid connections to the same
+bank no longer render two identical "Disconnect U.S. Bank (Plaid ····2927)" controls. Each side of a
+pair now carries its connection identity, its account manifest, and a button face with the ordinal
+plus the blast radius; a mechanical " (row 1)/(row 2)" breaker makes identical controls impossible
+for any input rather than merely unlikely for this data. His two remaining both-live pairs
+(Loan - 2927, CREDIT CARD ····0977) are now resolvable from the card.
+
+This also CLOSES the #295 coverage gap recorded as "no e2e for the duplicate-card actions"
+(DECISIONS #286): tests/unit/duplicate-card-view.test.ts + tests/e2e/duplicate-connections.spec.ts,
+the latter verified to fail against the reverted pre-#296 build.
+
+**Known limitations (deliberate, not defects):**
+- Two connections created in the same database second have an unspecified payload ORDER, so which
+  one is numbered "connection 1" is unspecified. The numbers are still distinct and the copy claims
+  no date and no link order, so nothing false is rendered; the e2e assertions are order-agnostic.
+- The e2e cannot drive the real Plaid disconnect: /item/remove decrypts the stored access token and
+  a seeded row fails with "Malformed encrypted token". Step 1 is covered by unit tests plus a
+  seeded post-disconnect state; only step 2 (the delete) runs against the real server action.
+- tests/e2e/duplicate-connections.spec.ts is exposed to the §OPEN "intermittent DOM duplication on
+  /accounts" flake below, like every other /accounts spec. Measured this session: run ALONE it
+  passes 3/3 (5 tests). Run concurrently with five other /accounts specs it fails ~1-2 tests per
+  run with "strict mode violation: resolved to 2 elements". The SAME load on the reverted pre-#296
+  build fails 2 of 3 runs with the identical signature on `reconcile-candidates` — a locator this
+  slice does not touch — so the cause is the pre-existing page-level issue, not #296. This slice
+  adds more /accounts page loads, so it increases EXPOSURE to that bug without being its cause.
+- PlaidConnections' own Disconnect confirm now states the two-step truth and names which connection
+  it is cutting, and both its destructive controls carry distinct accessible names (critic P2s,
+  fixed in this slice). Its earlier copy — "Disconnect? Synced accounts and history are kept." with
+  two byte-identical "Disconnect U.S. Bank (Plaid)" aria-labels — would otherwise have been the
+  weaker surface for the identical action, contradicting the card one section above it.
+- The Combined-accounts card still has its own unresolved "two identical rows I can't tell apart"
+  report (Venture ····6271 twice). The per-side connection block established here is the obvious
+  precedent, but it is owner-gated and was not touched unasked.
+
+
 ## 🟠 OPEN — intermittent DOM duplication on /accounts (surfaces as a strict-mode e2e failure)
 
 Found 2026-07-24 (~03:00 local) while gating #279, then narrowed with a temporary probe (deleted).

@@ -13,6 +13,7 @@
  * FULL reload, and the confirmation text rides flash('accounts') across it.
  */
 import { useState } from 'react';
+import { connectionOrdinals } from '@/components/finance/duplicate-card-view';
 import { setFlash } from '@/components/finance/flash';
 import { ConfirmPrompt, useConfirmArm } from '@/components/ui/confirm-action';
 import { disconnectPlaidItem, syncPlaidNow } from '@/server/plaid-actions';
@@ -34,6 +35,8 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
   const [syncing, setSyncing] = useState(false);
 
   if (items.length === 0) return null;
+
+  const ordinals = connectionOrdinals(items);
 
   /**
    * On-demand sync for every linked Plaid bank. Before this the only Plaid ingest
@@ -125,61 +128,82 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
         // two different places down the list. Now the status text flexes/wraps in its own column
         // and the controls are pinned right on the first line, identically for every row.
         <div key={item.itemId} className="rounded-md border px-2 py-1.5">
-          <div className="flex items-start justify-between gap-2">
-            <span className="min-w-0 flex-1 text-xs text-muted-foreground" data-testid="plaid-item-status">
-              Plaid: {item.institution ?? 'Connected bank'} ·{' '}
-              {item.lastSyncedAt ? `last synced ${item.lastSyncedAt}` : 'not synced yet'}
-            </span>
-            {!confirm.isArmed(item.itemId) && (
-              <div className="flex shrink-0 gap-1">
-                <button
-                  type="button"
-                  data-testid="plaid-sync"
-                  aria-label={`Sync ${item.institution ?? 'this bank'} now (Plaid)`}
-                  disabled={syncing || pending}
-                  onClick={() => syncNow(item.itemId, item.institution)}
-                  className="tap-target inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
-                >
-                  {syncing ? 'Syncing…' : 'Sync'}
-                </button>
-                <button
-                  type="button"
-                  data-testid="plaid-disconnect"
-                  aria-label={`Disconnect ${item.institution ?? 'this bank'} (Plaid)`}
-                  disabled={pending}
-                  onClick={() => confirm.arm(item.itemId)}
-                  className="tap-target inline-flex shrink-0 items-center justify-center rounded-md border px-2 py-1 text-xs text-red-400 hover:bg-accent disabled:opacity-50"
-                >
-                  Disconnect
-                </button>
-              </div>
-            )}
-          </div>
-          {item.accounts.length > 0 && (
-            // The cards under this connection, each with its last-4, so two same-bank connections
-            // are distinguishable and you can see what a Disconnect would remove.
-            <div className="mt-1 text-xs text-muted-foreground/70" data-testid="plaid-item-accounts">
-              {item.accounts
-                .map((a) => (a.mask ? `${a.name} ····${a.mask}` : a.name))
-                .join(' · ')}
-            </div>
-          )}
-          {confirm.isArmed(item.itemId) && (
-            // Armed state gets its own full-width row — a sentence plus two buttons never fits
-            // beside the status text at 380px.
-            <div className="mt-1">
-              <ConfirmPrompt
-                rowTestId="plaid-disconnect-confirm-row"
-                prompt="Disconnect? Synced accounts and history are kept."
-                confirmLabel={pending ? 'Disconnecting…' : 'Yes'}
-                confirmTestId="plaid-disconnect-confirm"
-                confirmAriaLabel={`Yes, disconnect ${item.institution ?? 'this bank'}`}
-                pending={pending}
-                onConfirm={() => disconnect(item.itemId)}
-                onCancel={confirm.disarm}
-              />
-            </div>
-          )}
+          {/* Numbered the SAME way as the duplicate card (#296), so "connection 1 of 2" there is
+              verifiable here instead of being card-local jargon. The ordinal also rides the two
+              destructive controls' ACCESSIBLE NAMES: without it a screen-reader user hears
+              "Disconnect U.S. Bank (Plaid)" twice with nothing to choose between (the same defect
+              #296 fixes on the card, one section up — critic P2). Only shown when this bank really
+              has more than one connection; "connection 1 of 1" would be noise. */}
+          {(() => {
+            const ord = ordinals.get(item.itemId);
+            const bank = item.institution ?? 'this bank';
+            const numbered = ord && ord.sameBankCount > 1;
+            const which = numbered ? `, connection ${ord.ordinal} of ${ord.sameBankCount}` : '';
+            const feeds = `${item.accounts.length} account${item.accounts.length === 1 ? '' : 's'}`;
+            return (
+              <>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 flex-1 text-xs text-muted-foreground" data-testid="plaid-item-status">
+                    Plaid: {item.institution ?? 'Connected bank'}
+                    {numbered ? ` · connection ${ord.ordinal} of ${ord.sameBankCount}` : ''}{' '}
+                    · {item.lastSyncedAt ? `last synced ${item.lastSyncedAt}` : 'not synced yet'}
+                  </span>
+                  {!confirm.isArmed(item.itemId) && (
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        type="button"
+                        data-testid="plaid-sync"
+                        aria-label={`Sync ${bank}${which} now (Plaid)`}
+                        disabled={syncing || pending}
+                        onClick={() => syncNow(item.itemId, item.institution)}
+                        className="tap-target inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+                      >
+                        {syncing ? 'Syncing…' : 'Sync'}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="plaid-disconnect"
+                        aria-label={`Disconnect ${bank}${which} (Plaid, feeds ${feeds})`}
+                        disabled={pending}
+                        onClick={() => confirm.arm(item.itemId)}
+                        className="tap-target inline-flex shrink-0 items-center justify-center rounded-md border px-2 py-1 text-xs text-red-400 hover:bg-accent disabled:opacity-50"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {item.accounts.length > 0 && (
+                  // The accounts under this connection, each with its last-4, so two same-bank
+                  // connections are distinguishable and you can see what a Disconnect removes.
+                  // Stays ABOVE the armed prompt (its original position): it is the evidence the
+                  // confirm is asking you to act on, so it must not be pushed below the question.
+                  // Not muted/70 — same contrast reason as the duplicate card's feeds line.
+                  <div className="mt-1 text-xs text-muted-foreground" data-testid="plaid-item-accounts">
+                    {item.accounts.map((a) => (a.mask ? `${a.name} ····${a.mask}` : a.name)).join(' · ')}
+                  </div>
+                )}
+                {confirm.isArmed(item.itemId) && (
+                  // Armed state gets its own full-width row — a sentence plus two buttons never
+                  // fits beside the status text at 380px. The prompt names WHICH connection and
+                  // what it feeds, and states the same two-step truth as the duplicate card
+                  // (#296): disconnecting stops updates but the rows keep counting until deleted.
+                  <div className="mt-1">
+                    <ConfirmPrompt
+                      rowTestId="plaid-disconnect-confirm-row"
+                      prompt={`Disconnect ${bank}${which}? ${feeds} stop${item.accounts.length === 1 ? 's' : ''} updating. Nothing is deleted — they keep their history and keep counting until you delete them. Reconnecting means signing in at your bank again.`}
+                      confirmLabel={pending ? 'Disconnecting…' : 'Yes'}
+                      confirmTestId="plaid-disconnect-confirm"
+                      confirmAriaLabel={`Yes, disconnect ${bank}${which}`}
+                      pending={pending}
+                      onConfirm={() => disconnect(item.itemId)}
+                      onCancel={confirm.disarm}
+                    />
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       ))}
       {error && (
