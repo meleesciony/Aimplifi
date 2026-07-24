@@ -96,6 +96,31 @@ function normalizeCurrency(c: string | null): string {
   return (c ?? 'USD').toUpperCase();
 }
 
+/**
+ * A last-4 read from an account NAME, for feeds with no mask column that embed the number in the
+ * name (SimpleFIN: "U.S. Bank Loan - 2927 (2927)", "Truist Mortgage 1192 (1192)"). Conservative:
+ * only a PARENTHESIZED or MASK-PREFIXED 4-digit group, never a bare 4-digit run.
+ *
+ * DIRECTION IS THE WHOLE POINT (critic F3, owner-reported 2026-07-24): this is used ONLY as a
+ * POSITIVE, confirming signal — one side's real mask column matching the other side's name-embedded
+ * number is strong evidence of the SAME account. It is NEVER used to veto. A mis-read (a
+ * parenthesized YEAR like "Roth IRA (2021)") can then only ever SURFACE a dismissable pair; used as
+ * a veto the same mis-read would SILENTLY HIDE a real duplicate and let a balance double-count,
+ * which is why #292 removed it from the veto path. Positive = safe, negative = dangerous.
+ */
+function maskFromName(name: string): string | null {
+  const paren = /\((\d{4})\)/.exec(name);
+  if (paren) return paren[1];
+  // No 'x' here on purpose: the x in "Amex 2019" over-matched a year (critic F2).
+  const masked = /(?:[•·*#]|\.{2,}|…)\s*(\d{4})\b/.exec(name);
+  return masked ? masked[1] : null;
+}
+
+/** The account's last-4 for POSITIVE matching: the mask column, else one embedded in the name. */
+function matchableMask(a: { mask: string | null; name: string }): string | null {
+  return a.mask ?? maskFromName(a.name);
+}
+
 /** Distinctive lowercase name tokens (institution-ish), stopwords / numbers / 1-char removed. */
 export function distinctiveNameTokens(name: string): Set<string> {
   const tokens = name
@@ -149,9 +174,16 @@ function duplicateSignals(
   const reasons: string[] = [];
   let confidence: DuplicateConfidence | null = null;
 
-  const maskMatch = !!lo.mask && !!hi.mask && lo.mask === hi.mask;
+  // POSITIVE last-4 match. Uses the mask column OR a last-4 embedded in the name, so a SimpleFIN
+  // row that carries no mask column ("U.S. Bank Loan - 2927 (2927)") still confirms against the
+  // live Plaid mask (2927) — owner-reported 2026-07-24: that pair was double-counting $23.8K and
+  // NOTHING flagged it, because its name reduces to no distinctive token ("bank"/"loan" are
+  // stopwords, "2927" is numeric) and its balances differ by $8.77. Positive-only (see maskFromName).
+  const loMatchMask = matchableMask(lo);
+  const hiMatchMask = matchableMask(hi);
+  const maskMatch = !!loMatchMask && !!hiMatchMask && loMatchMask === hiMatchMask;
   if (maskMatch) {
-    reasons.push(`same last-4 (${lo.mask})`);
+    reasons.push(`same last-4 (${loMatchMask})`);
     confidence = 'high';
   }
 

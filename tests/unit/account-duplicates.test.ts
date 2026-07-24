@@ -119,15 +119,41 @@ describe('detectDuplicateAccounts', () => {
   });
 
   it('does NOT read a parenthesized YEAR as a last-4 — a real duplicate with an identical balance still flags (critic F1)', () => {
-    // "Roth IRA (2021)" (the year, not a last-4) vs a live Plaid Roth IRA with a real mask, same
-    // balance: we must NOT suppress it. Using the mask COLUMN only (no name parsing) means the
-    // identical balance carries it — the genuine duplicate is never silently hidden.
+    // "Roth IRA (2021)" (a year, not a last-4) vs a live Plaid Roth IRA with a real mask, same
+    // balance. Two things must hold: the year must NOT be matched against 8842 (no false positive),
+    // and — the reason the name parsing is POSITIVE-ONLY — it must never suppress the pair, so the
+    // identical balance still carries it and the genuine duplicate is never silently hidden.
     const pairs = detectDuplicateAccounts([
       acct({ id: 'm', provider: 'manual', name: 'Roth IRA (2021)', type: 'INVESTMENT', mask: null, currentBalanceCents: 5000000 }),
       acct({ id: 'p', provider: 'plaid', name: 'Fidelity Roth IRA', type: 'INVESTMENT', mask: '8842', currentBalanceCents: 5000000 }),
     ]);
     expect(pairs).toHaveLength(1);
     expect(pairs[0].reasons).toContain('identical balance');
+    expect(pairs[0].reasons.join(' ')).not.toContain('same last-4'); // 2021 never matched to 8842
+  });
+
+  it('CONFIRMS a duplicate when one side embeds the last-4 in its NAME — the $23.8K U.S. Bank loan nothing was flagging', () => {
+    // Owner screenshots 2026-07-24: "U.S. Bank Loan - 2927 (2927)" (SimpleFIN, no mask column) and
+    // "Loan - 2927 ····2927" (live Plaid) were BOTH counting. Nothing flagged them: the name reduces
+    // to no distinctive token ("bank"/"loan" are stopwords, "2927" is numeric) and the balances
+    // differ by $8.77, so neither the name nor the balance signal could fire.
+    const pairs = detectDuplicateAccounts([
+      acct({ id: 'sf', provider: 'simplefin', name: 'U.S. Bank Loan - 2927 (2927)', type: 'LOAN', mask: null, currentBalanceCents: 2378780 }),
+      acct({ id: 'pl', provider: 'plaid', name: 'Loan - 2927', type: 'LOAN', mask: '2927', currentBalanceCents: 2379657 }),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].confidence).toBe('high');
+    expect(pairs[0].reasons).toContain('same last-4 (2927)');
+  });
+
+  it('CONFIRMS the Truist mortgage pair the same way (name-embedded 1192 vs mask 1192) — the $933K one', () => {
+    const pairs = detectDuplicateAccounts([
+      acct({ id: 'sf', provider: 'simplefin', name: 'Truist Mortgage 1192 (1192)', type: 'MORTGAGE', mask: null, currentBalanceCents: 93336731 }),
+      acct({ id: 'pl', provider: 'plaid', name: 'Mortgage 1192', type: 'MORTGAGE', mask: '1192', currentBalanceCents: 93130641 }),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].confidence).toBe('high');
+    expect(pairs[0].reasons).toContain('same last-4 (1192)');
   });
 
   it('does NOT flag identical ZERO balances with no other signal (empty accounts)', () => {

@@ -108,7 +108,7 @@ build clean (+10 tests, +1 file). E2E not separately run — backend-only, no UI
 stance as #280). **UNVERIFIED against live Plaid** (no creds in this env): the `/item/get` +
 `/institutions/get_by_id` sockets have never run here; mocked-server + real-Prisma tests only.
 
-## 🔴 OPEN — real duplicates double-counting ~$965K of the owner's net worth (owner screenshots 2026-07-24)
+## 🔴 OWNER ACTION — real duplicates double-counting ~$965K (detector gap FIXED #294; the rows still need deleting)
 
 The owner's /accounts screenshots show **three accounts listed twice** — an old stale row AND the
 live Plaid row — **both counting** toward the **−$1,971,653.56** net worth:
@@ -128,10 +128,14 @@ The **U.S. Bank loan pair is invisible to the detector**: `distinctiveNameTokens
 2927 (2927)")` reduces to **{}** — "bank" and "loan" are stopwords, "2927" is dropped as numeric,
 "u"/"s" are 1-char — and the Plaid side "Loan - 2927" likewise; balances differ by $8.77 so the
 balance signal misses; SimpleFIN has no mask column. No signal fires.
-**Planned fix:** use a last-4 **embedded in the name** as a **POSITIVE** match signal (SimpleFIN
-"…(2927)" vs Plaid mask **2927** = a confirmed same-account match). This is the SAFE direction and
-the exact asymmetry critic F3 flagged — a mis-read can only surface a *dismissable* pair, never
-hide a real duplicate (which is why the same parsing was correctly rejected for the veto in #292).
+**FIXED (#294).** A last-4 **embedded in the name** is now a **POSITIVE** match signal (SimpleFIN
+"…(2927)" vs Plaid mask **2927** = a confirmed same-account match, high confidence). This is the SAFE
+direction and the exact asymmetry critic F3 flagged — a mis-read can only surface a *dismissable*
+pair, never hide a real duplicate (which is why the same parsing stays OUT of the veto path, #292).
+Both the loan and the mortgage pair now flag `same last-4 (2927)` / `(1192)`; a parenthesized YEAR
+("Roth IRA (2021)") is neither matched against a real mask nor suppressed. **Still owner-action:**
+the detector is advisory by design (#192) and never auto-deletes — the stale row of each pair has to
+be Deleted or Combined by the user.
 
 ## ✅ Plaid account rows claimed "not synced" while their bank had synced that morning (#293, 2026-07-24) — FIXED
 
