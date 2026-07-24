@@ -49,6 +49,9 @@ export interface DashboardData {
   /** Upcoming card payments this cycle (ROADMAP #6) — derived from the same obligations. */
   reminders: PaymentReminder[];
   accounts: { id: string; name: string; type: string; currentBalanceCents: number; mask: string | null }[];
+  /** cardId -> last-4 for the /cards identity line (#298). Covers HOUSEHOLD scope too:
+   *  built from the merged snapshot the obligations are computed over, not the personal one. */
+  cardMask: Record<string, string | null>;
   /** The scope actually computed — may fall back to 'mine' if the requested
    *  'household' scope had no live partners to fold in (§4.4). */
   scope: CashNeededScope;
@@ -315,8 +318,22 @@ export async function getDashboardData(
     mask: (a as { mask?: string | null }).mask ?? null,
   }));
 
+  // cardId -> last-4, for the /cards identity line (#298). Built from `cashNeededSnap`, NOT from
+  // `accounts` above: `accounts` is the PERSONAL snapshot, while the obligation list is computed
+  // over the household-MERGED one, so sourcing it from `accounts` left every partner card without
+  // an identity — and, worse, left a partner card and the reader's own card both titled "Venture"
+  // looking different only by the reader's mask, which is precisely the state the identity module
+  // exists to prevent (#298 critic F1). A partner's last-4 is already part of what a shared account
+  // discloses (docs/PRIVACY.md: name, type, last-4 mask, current balance), so this reveals nothing
+  // new. Mirrors the `accountOwnerLabel` server-side map (TASKS 4.2 slice 5).
+  const cardMask: Record<string, string | null> = {};
+  for (const a of cashNeededSnap.accounts) {
+    cardMask[a.id] = (a as { mask?: string | null }).mask ?? null;
+  }
+
   return {
     today,
+    cardMask,
     paymentAccountName: paymentAccount.name,
     paymentAccountId: snap.paymentAccountId,
     payInFull,

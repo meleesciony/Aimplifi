@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
+import { CARD_IDENTITY_TESTID, cardIdentityLabels } from '@/components/finance/card-identity-view';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
 
@@ -27,11 +28,15 @@ export function CardsBreakdown({
   today,
   accountOwnerLabel = {},
   householdName = null,
+  cardMask = {},
 }: {
   payInFull: CashNeededResult;
   minimum: CashNeededResult;
   paymentAccountName: string;
   today: string;
+  /** cardId → the account's last-4, for the identity line under each card name
+   *  (#298). Absent/empty is safe: a card simply renders no identity. */
+  cardMask?: Record<string, string | null>;
   /** cardId → owning partner's name, for cards folded in from household scope
    *  (TASKS 4.2 slice 5). Empty for solo/'mine' scope — no badge renders. */
   accountOwnerLabel?: Record<string, string>;
@@ -107,6 +112,19 @@ export function CardsBreakdown({
             b.userActionCents - a.userActionCents,
         );
         const firstAction = ordered.find((c) => c.userActionCents > 0);
+        // The undated cards are a SEPARATE list (engine.ts keeps them out of `cards`), so they get
+        // their own pass — otherwise three connected cards all named "CREDIT CARD" list identically
+        // three lines below the fix (#298 critic F4).
+        const unknownIdentity = cardIdentityLabels(
+          result.unknownDueDateCards.map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
+          cardMask,
+        );
+        // Computed over `ordered` — the list actually on screen — so the fallback numbering always
+        // reads 1, 2, 3 DOWN THE PAGE. Numbering the unsorted input instead would print "3." above
+        // "1.", a label claiming a position it does not have. The number is a within-view marker
+        // that separates otherwise-identical cards, not a durable name for a card: it is
+        // re-assigned if the toggle reorders the list, which is why nothing else ever refers to it.
+        const identity = cardIdentityLabels(ordered, cardMask);
         return (
           <>
             {firstAction && (
@@ -119,7 +137,12 @@ export function CardsBreakdown({
                   // (slice-8 critic F-2): it's on the partner's account, and
                   // Aimplifi doesn't decide who pays.
                   HOUSEHOLD_COPY.cardsDueFirstPartner({
-                    cardName: firstAction.cardName,
+                    // The identity rides INTO the partner sentence as well (#298 critic F3):
+                    // "Sam should pay Venture $9,250.93" is exactly the reported defect when the
+                    // household holds two Ventures.
+                    cardName: identity[firstAction.cardId]
+                      ? `${firstAction.cardName} ${identity[firstAction.cardId]}`
+                      : firstAction.cardName,
                     ownerLabel: accountOwnerLabel[firstAction.cardId],
                     amountCents: firstAction.userActionCents,
                     dateLong: formatISODate(isoDate(firstAction.effectiveDueDate)),
@@ -127,7 +150,10 @@ export function CardsBreakdown({
                   })
                 ) : (
                   <>
-                    <span className="font-medium">Do this first:</span> pay {firstAction.cardName}{' '}
+                    {/* The identity rides along here too (#298): this is THE instruction, and
+                        "pay Venture" is not actionable for a reader who holds two Ventures. */}
+                    <span className="font-medium">Do this first:</span> pay {firstAction.cardName}
+                    {identity[firstAction.cardId] ? ` ${identity[firstAction.cardId]}` : ''}{' '}
                     {formatCents(firstAction.userActionCents)} by{' '}
                     {formatISODate(isoDate(firstAction.effectiveDueDate))} (
                     {formatRelativeDays(isoDate(today), isoDate(firstAction.effectiveDueDate))}).
@@ -142,7 +168,21 @@ export function CardsBreakdown({
                 <Card key={card.cardId} data-testid={`card-${card.cardId}`}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-base">{card.cardName}</CardTitle>
+                      <CardTitle className="min-w-0 break-words text-base">
+                        {card.cardName}
+                        {/* A real space, not just the margin: the heading's TEXT content is what a
+                            reader copies and what assistive tech reads, and "CREDIT CARD····0977"
+                            runs the two together (#298 critic F7). */}
+                        {identity[card.cardId] ? ' ' : ''}
+                        {identity[card.cardId] && (
+                          <span
+                            data-testid={`${CARD_IDENTITY_TESTID}-${card.cardId}`}
+                            className="ml-2 text-xs font-normal text-muted-foreground"
+                          >
+                            {identity[card.cardId]}
+                          </span>
+                        )}
+                      </CardTitle>
                       <div className="flex gap-1">
                         {owner && (
                           <Badge variant="outline" data-testid={`card-owner-${card.cardId}`}>
@@ -262,6 +302,11 @@ export function CardsBreakdown({
                     return (
                       <li key={c.cardId} data-testid={`card-unknown-${c.cardId}`}>
                         {c.cardName}
+                        {/* These are the cards MOST likely to be unnamed — no statement often
+                            means a thin issuer feed — so the identity matters more here, not
+                            less (#298 critic F4). They are deliberately kept out of
+                            `result.cards`, hence their own label pass. */}
+                        {unknownIdentity[c.cardId] ? ` ${unknownIdentity[c.cardId]}` : ''}
                         {owner ? ` (${owner})` : ''} — balance{' '}
                         {formatCents(c.currentBalanceCents)}
                       </li>

@@ -37,8 +37,19 @@ headline total or merely disclosed. Excluding it silently is itself a claim (tha
 same card) that only the user can confirm — the #192 detector is deliberately advisory and never
 auto-deletes, and that stance should not be quietly reversed inside a money headline.
 
-**Interim remedy (unchanged).** Delete the duplicate row on /accounts, or combine the pair — either
-removes it from /cards, since both surfaces read the same Account rows. Tracked as TASKS L.6.
+**OWNER-CONFIRMED RESOLVED 2026-07-24 (his data).** He deleted the duplicate row and re-checked:
+"No more 2 cc". So the screenshot PREDATED the deletion, the +$6,679.68 phantom is gone, and his
+/cards figures are correct. **The code gap below is therefore LATENT, not an active money error** —
+do not tell him his totals are wrong.
+
+**Still ACTIVE for him, and the reason L.6 stays open:** the identity half. His screen still shows
+THREE cards named `CREDIT CARD` and TWO named `Venture`, with no last-4 and no institution, on the
+surface that issues payment instructions. Even with zero duplicates he cannot tell which card a
+figure belongs to.
+
+**Interim remedy for a future duplicate (unchanged).** Delete the duplicate row on /accounts, or
+combine the pair — either removes it from /cards, since both surfaces read the same Account rows.
+Tracked as TASKS L.6.
 
 ## ✅ ANSWERED 2026-07-24 — the issuers DO return card due dates (TASKS L.3); no date is invented
 

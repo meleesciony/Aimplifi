@@ -1,5 +1,49 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-24 — #298 DONE: /cards tells same-named cards apart
+
+Owner sent a live /cards screenshot answering the L.3 question. It answered it (his issuers DO
+return statements — see STATUS) and exposed two more things.
+
+RESOLVED BY THE OWNER: the two identical `CREDIT CARD` $6,679.68 entries were the known Chase
+····0977 duplicate. He deleted it and re-checked ("No more 2 cc"), so the screenshot PREDATED the
+deletion and the +$6,679.68 phantom is gone. His figures are correct — do NOT tell him otherwise.
+
+SHIPPED (#298): the residue that remains with ZERO duplicates — THREE cards named `CREDIT CARD` and
+TWO named `Venture`, each with its own amount due, and "Do this first: pay Venture $9,250.93" while
+he holds two Ventures. Pure `card-identity-view.ts` renders the account last-4 the payload already
+carried (no new query, no engine change) in the card heading, in BOTH branches of the pay-first
+instruction, and in the "no due date yet" panel; when nothing separates two cards they are numbered
+in DISPLAY order. A last-4 is never parsed out of the NAME (#292 mis-read direction).
+
+DECIDED (was flagged as an owner question, answered by precedent instead): disclose, never silently
+adjust a money headline — #192 is advisory by design and #221 closed the identical household case
+with "figures deliberately not adjusted".
+
+CRITIC (fresh-context, money-display surface): 0 P0 — key spaces verified to coincide, `cardId` IS
+`Account.id` — but 4 P1 + 4 P2, ALL fixed + regression-locked: `cardMask` was built from the
+PERSONAL snapshot while obligations use the household-MERGED one (every partner card lost its
+identity, and the numbering did not fire to cover it); the numbering indexed ENGINE order while the
+page sorts by due date, printing "3." above "1."; the partner branch of the instruction and the
+undated panel both still rendered bare names; the tie test compared a private key rather than the
+PAINTED string (#297's "writes into the string space it compares", again); and an unvalidated mask
+would have printed a full PAN behind four dots — `lastFour()` now keeps digits only, last four, and a
+short mask renders "ending 12" so the dots never claim a length the data lacks.
+
+FAIL-OLD PROVEN: with the component + page reverted and rebuilt, both new e2e FAIL; restored, pass.
+
+GATE: `bash scripts/verify.sh` -> VERIFY GREEN — tsc 0, eslint 0, **3743 unit / 251 files**, build
+clean, no schema change. E2E: card-identity + card-unknown-due + phase1-cash-needed + household =
+13/13 at --workers=1.
+
+KNOWN LIMITATION (recorded, not hidden): `Account.mask` is written ONLY by the Plaid path; SimpleFIN
+never sets it and manual accounts hardcode null, so a SimpleFIN-only user gets the numbering fallback
+rather than real last-4s, and demo mode exercises only the fallback.
+
+STILL OPEN: TASKS L.6's other half — surfacing the personal duplicate detector on /cards (it renders
+only on /accounts, so a both-live duplicate is counted twice there with nothing flagging it). Latent
+for the owner now that he has deleted his.
+
 ## 2026-07-24 — #297 DONE: the Combined-accounts card groups by live account
 
 Closes the LAST open item from the owner's 2026-07-24 /accounts screenshots — carried until now as

@@ -93,6 +93,7 @@ export default async function CardsPage({
         paymentAccountName={data.paymentAccountName}
         today={data.today}
         accountOwnerLabel={data.accountOwnerLabel}
+        cardMask={data.cardMask}
         householdName={data.scope === 'household' ? data.household?.name ?? null : null}
       />
     </div>
