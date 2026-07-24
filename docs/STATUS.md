@@ -72,6 +72,22 @@ permanently identity-less — precisely the population the Combine flow works on
   every fact about the request shape was read from plaid.com/docs on 2026-07-24 and the flow is
   exercised only against a mocked Plaid server. The Link window itself cannot be browser-tested.
 
+### Deploy verified
+
+Slice 1 → deployment `dpl_H1suyPbp9b8Ehz4Bs5nSB3skJCsA`, **READY on `059c490`**, target production.
+Slice 2 → deployment `dpl_H5qo2myka88EBVejZXREgDqznAj9`, **READY on `abc4398`**, target production,
+aliased to `www.aimplifi.app`, and the live site answers 200. Slice 1's prisma diff was four
+additive nullable lines (columns added, no data touched); slice 2's was empty.
+
+**Stated precisely, because rule 5 asks for a live marker and there is not one to grep here:** both
+slices land behind auth, and the new control renders only for a user who has a Plaid connection —
+so there is no unauthenticated string on the live site unique to either commit. The evidence is the
+READY state on those exact SHAs with the production aliases attached, plus the local gate.
+
+**What the owner will see:** on /accounts, each connected bank's row now carries an **Add or fix
+accounts** button beside Sync and Disconnect, and one line under the list explaining when to use
+it. Nothing else on any screen changed.
+
 ## ✅ CLOSED 2026-07-24 (#299) — a both-live duplicate card was counted twice on /cards, silently
 
 Found by reading the owner's /cards screenshot — the same highest-signal source as the rest of Wave L,
