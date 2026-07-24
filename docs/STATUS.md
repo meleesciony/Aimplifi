@@ -80,6 +80,18 @@ Also fixed a #298 residual found on the way: the two per-section `cardIdentityLa
 guaranteed distinctness only WITHIN their own list, so a dated `CREDIT CARD` and an undated one with
 no last-4 painted identical headings. Now one pass over everything the page displays.
 
+### Deploy verified
+
+Vercel deployment `dpl_J5j8Pc5pBJhpvqjGvUwEbJ8XgkzN` reached **READY on commit `01cd341`**, target
+production, aliased to `www.aimplifi.app`. Empty prisma diff, so the live Neon database was untouched.
+
+**Stated precisely, because rule 5 asks for a live marker and there is not one to grep here:** /cards
+is behind auth, AND the disclosure is conditional — it renders only when a suspected duplicate exists
+among the cards being listed. The owner deleted his duplicate row before this shipped, so on his
+screen today this change correctly renders NOTHING. There is therefore no unauthenticated string on
+the live site unique to this commit; the deploy evidence is the READY state on that exact SHA with the
+production aliases attached, plus the local gate. Do not tell him to go look for a new banner.
+
 ### 🟠 STILL OPEN — the DASHBOARD does not disclose it
 
 `cardDuplicates` is computed inside `getDashboardData`, which the dashboard also calls, but only
