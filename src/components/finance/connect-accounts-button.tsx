@@ -50,8 +50,12 @@ export function ConnectAccountsButton() {
       const r = await createPlaidLinkToken();
       if (r.ok && r.linkToken) {
         setSandbox(r.sandbox === true);
-        storeLinkToken(r.linkToken);
-        storeOriginPath(window.location.pathname);
+        // NOT stashed here. This runs on mount and after every terminal outcome, on every
+        // route that renders this button — so stashing at mint time meant a background
+        // re-mint could overwrite the record of a Link session already running (the
+        // per-connection update flow renders on this same page). The stash now happens in
+        // the click, immediately before open(), so the stored record always describes the
+        // session actually open. Found by a fresh-context critic, L.10 slice 2.
         setToken(r.linkToken);
       } else if (showError) {
         setError(r.error ?? 'Could not start bank linking.');
@@ -112,6 +116,11 @@ export function ConnectAccountsButton() {
   function handleClick() {
     setError(null);
     if (ready) {
+      // Stamp the session THIS click is about to open, so the OAuth return page resumes
+      // the right token and knows this is a NEW connection (it must exchange). Must
+      // happen here rather than at mint: see generateToken.
+      if (token) storeLinkToken(token);
+      storeOriginPath(window.location.pathname);
       // Synchronous open() INSIDE the click — this is what keeps the OAuth bank
       // popup allowed. Never move this into a useEffect.
       open();

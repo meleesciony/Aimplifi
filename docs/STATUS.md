@@ -2,6 +2,76 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## 🔴 NEW — owner-reported 2026-07-24, mid-session, NOT yet diagnosed (TASKS L.11–L.13)
+
+Three reports about his real linked data. **Nothing below has been reproduced or diagnosed, and
+none of it should be guessed at** — rule 0. Full context and the decisions each one needs are in
+TASKS L.11 / L.12 / L.13.
+
+1. **"Cash needed on main page and safe to spend make no sense."** Two money headlines on the
+   dashboard. No screenshot yet; the first action is to ask for one, because both figures depend
+   on his account shape and neither can be judged from here. Note L.8 is still open and sits in
+   the same headline: a both-live duplicate card double-counts into cash-needed with no
+   disclosure. That may or may not be what he is seeing.
+2. **"We added plaid to all accounts. Why do I still have 321 inbox items to review… Simplifi and
+   mint never had this problem."** Verified this session: the triage inbox is fed by a CONFIDENCE
+   THRESHOLD (`AUTO_FLAGGED_BPS = 7000`, `engine/categorize/pipeline.ts:21`), not by which
+   provider supplied the row — so linking Plaid would not empty it, and his "it didn't do a
+   thing" is an accurate description of what he sees. 321 is past the point any user will work
+   through a queue; this is a calibration/product problem, not only a bug.
+3. **"Also the previous items regarding vanguard."** **Recorded as an unresolved reference.** A
+   search of `docs/`, `TASKS.md`, `PROGRESS.md` and `REGRESSION_LEDGER.md` this session found no
+   open Vanguard item — the only mention is DECISIONS #61, a closed SimpleFIN-era account-type
+   fix. Ask him which items rather than inventing a match.
+
+## ✅ SHIPPED 2026-07-24 — account identity, slices 1 and 2 (#300, #301; TASKS L.10)
+
+**Slice 1 — capture what survives a re-link (#300, DECISIONS #292).** Three nullable, additive
+columns: `PlaidItem.institutionId` (Plaid's stable `ins_*` id), `Account.subtype` (the provider's
+raw subtype, verbatim) and `Account.persistentAccountId`. The app could not tell "one real account
+pulled twice" from "two accounts that look alike" because it stored nothing that survives a
+re-link: a Plaid row is keyed on `account_id`, which a second Link session re-mints. Nothing reads
+the columns yet — no figure, route or copy changed. Deployed and verified READY on `059c490`.
+
+**Slice 2 — Plaid Link update mode (#301, DECISIONS #293).** Every connection on /accounts now
+offers **Add or fix accounts**, which reopens Link on the connection that already exists rather
+than creating a second one. This is the door whose absence manufactured the duplicates the last
+six commits have been detecting and disclosing: until now, "add an account I didn't share" and
+"repair a broken login" both had the same only answer — connect the bank again.
+
+Three fresh-context critics, **2 P0 + 6 P1, all fixed in cycle 1 and regression-locked.** The
+headline P0 was structural and mine: the update/new discriminator lived in a second localStorage
+key written at token-mint time, while /accounts renders this control beside the connect front
+door, which pre-mints a token on mount and after every exit — and whose fast path opens Link
+without writing at all. In the worst ordering a **completed brand-new bank link was discarded
+without being exchanged, and the user was redirected as though it had worked.** Fixed by shape,
+not by a bigger fence: one atomic record, stamped by whoever is opening Link.
+
+Two of the P1s were pre-existing and are fixed because the new copy depends on them: a per-item
+sync failure was invisible to callers, so the **existing** Sync button told users "no new
+transactions" when their bank had refused them; and `removeItem` bought `/accounts/get` to stamp
+item linkage and threw the identity away in the same response, leaving every disconnected row
+permanently identity-less — precisely the population the Combine flow works on.
+
+### 🟠 Known residuals from this work
+
+- **A deselected account freezes and keeps counting — TASKS L.14, deliberately not fixed here.**
+  Update mode ships with account selection, which unticks as well as ticks, and nothing prunes a
+  row whose feed stops returning it: it keeps its last balance, keeps counting toward every total,
+  and still reads as freshly synced because a Plaid row's freshness comes from its bank's sync
+  date (#293). Slice 2 discloses it in the success flash and names the re-tick as the remedy. A
+  transient message is not a fix for a permanently wrong figure; the real fix needs a schema shape
+  and its own money critic.
+- **An unresolvable item is re-swept every run.** The institution sweep now selects items missing
+  a name *or* an id, so an item whose `/item/get` permanently fails (revoked at the bank, never
+  disconnected in the app) costs one billed call per sweep indefinitely. Accepted rather than
+  skipped, because a broken item's identity is exactly what collision interception will need, and
+  `/item/get` usually answers even for a login-broken item. `institutionsFailed` is now recorded
+  in the cron audit so the cost is visible rather than silent.
+- **Update mode is UNVERIFIED against live Plaid.** No live connection exists in this environment;
+  every fact about the request shape was read from plaid.com/docs on 2026-07-24 and the flow is
+  exercised only against a mocked Plaid server. The Link window itself cannot be browser-tested.
+
 ## ✅ CLOSED 2026-07-24 (#299) — a both-live duplicate card was counted twice on /cards, silently
 
 Found by reading the owner's /cards screenshot — the same highest-signal source as the rest of Wave L,

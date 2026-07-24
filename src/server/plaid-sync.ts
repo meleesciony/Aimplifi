@@ -90,8 +90,11 @@ export interface PlaidSweepRow {
   statementsWritten: number;
   /** Webhooks registered this run (only set when the port supports the backfill). */
   webhooksUpdated?: number;
-  /** Institution names resolved this run (only set when the port supports the backfill). */
+  /** Institution names/ids resolved this run (only set when the port supports the backfill). */
   institutionsUpdated?: number;
+  /** Institution lookups that failed this run — isolated per item, never fatal. `updated: 0`
+   *  with a non-zero count here is the quiet-failure shape (cf. statementsWritten above). */
+  institutionsFailed?: number;
   /** Investment positions written/updated this run (only set when the port supports holdings sync). */
   holdingsUpserted?: number;
   /** Investment positions pruned this run — sold (only set when the port supports holdings sync). */
@@ -206,7 +209,14 @@ export async function sweepPlaidLinkedUsers(
     // and a failure here does not fail the user's sweep (the data pulls are what matter).
     if (port.syncInstitutions) {
       try {
-        row.institutionsUpdated = (await port.syncInstitutions(userId)).updated;
+        const inst = await port.syncInstitutions(userId);
+        row.institutionsUpdated = inst.updated;
+        // The failure count is recorded, not just the successes. Liabilities and holdings
+        // both surface theirs for the #277 F-6 reason — a sweep that resolved nothing
+        // because every lookup failed audits byte-identically to a sweep with nothing to
+        // do, so a silently broken backfill looks exactly like a finished one. That
+        // matters more now that this sweep is what backfills account IDENTITY.
+        row.institutionsFailed = inst.failed;
       } catch (e) {
         row.error = row.error ?? (e instanceof Error ? e.message : 'institution sync failed');
       }
@@ -251,6 +261,7 @@ export async function sweepPlaidLinkedUsers(
             ...(row.institutionsUpdated !== undefined
               ? { institutionsUpdated: row.institutionsUpdated }
               : {}),
+            ...(row.institutionsFailed ? { institutionsFailed: row.institutionsFailed } : {}),
             ...(row.holdingsUpserted !== undefined
               ? {
                   holdingsUpserted: row.holdingsUpserted,

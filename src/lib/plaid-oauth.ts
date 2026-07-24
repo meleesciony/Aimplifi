@@ -31,25 +31,85 @@ export function isOAuthRedirect(urlOrSearch: string): boolean {
   return new URLSearchParams(search).has('oauth_state_id');
 }
 
-/** Stash the in-flight link token before opening Link (browser-only; no-op on failure). */
-export function storeLinkToken(token: string): void {
+/**
+ * Everything the OAuth return page needs to finish the session that was opened: the token
+ * to resume with, and — when the session was UPDATE mode — the item it reopened.
+ *
+ * ONE record, written atomically, because these two facts are only meaningful together.
+ * They began as two keys and that was wrong in a way worth recording: two keys with two
+ * writers on one page produced a state where a completed link could be discarded. See
+ * `storeLinkToken`.
+ */
+interface StoredLinkSession {
+  token: string;
+  /** Present ⇒ update mode on this item. Absent ⇒ a NEW connection, which must exchange. */
+  updateItemId?: string;
+}
+
+/**
+ * Stash the session about to be opened. Call this IMMEDIATELY BEFORE `open()`, never at
+ * mint time — the stored record must describe the session actually running.
+ *
+ * Both rules were learned from a fresh-context critic that broke the first version:
+ *
+ *   1. ONE record, one `setItem`. The first version kept the update marker in a second
+ *      key. A partial write (quota) left a token with no marker — and the no-marker
+ *      branch is the one that EXCHANGES, so the failure direction was the unsafe one.
+ *   2. Stamped at open, not at mint. /accounts renders this alongside the connect
+ *      front door, which pre-mints a token on mount and again after every exit. Stamping
+ *      at mint let that background writer replace a live update session's record, and let
+ *      an abandoned update session's record outlive it — so the return page could exchange
+ *      an update token, or, worse, take the update branch for a genuinely new bank and
+ *      silently discard a completed link while redirecting as though it had worked.
+ *
+ * Only one Link session can be open at a time (it is a modal), so a single slot is the
+ * right shape — provided it is stamped by whoever is opening it.
+ */
+export function storeLinkToken(token: string, updateItemId?: string): void {
+  const session: StoredLinkSession = updateItemId ? { token, updateItemId } : { token };
   try {
-    window.localStorage.setItem(OAUTH_LINK_TOKEN_KEY, token);
+    window.localStorage.setItem(OAUTH_LINK_TOKEN_KEY, JSON.stringify(session));
   } catch {
     /* localStorage unavailable (e.g. private mode) — OAuth resume just won't persist */
   }
 }
 
-/** Read back the link token on the OAuth return page (browser-only). */
-export function readStoredLinkToken(): string | null {
+/** The stashed session, or null. Tolerates the pre-JSON format (see below). */
+function readStoredSession(): StoredLinkSession | null {
+  let raw: string | null = null;
   try {
-    return window.localStorage.getItem(OAUTH_LINK_TOKEN_KEY);
+    raw = window.localStorage.getItem(OAUTH_LINK_TOKEN_KEY);
   } catch {
     return null;
   }
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      const { token, updateItemId } = parsed as Record<string, unknown>;
+      if (typeof token !== 'string' || token.trim() === '') return null;
+      return typeof updateItemId === 'string' && updateItemId.trim() !== ''
+        ? { token, updateItemId }
+        : { token };
+    }
+    return null;
+  } catch {
+    // A bare token string: a session started on the build before this shipped, whose
+    // browser round-trip lands after the deploy. It can only be a NEW connection, since
+    // update mode did not exist then — so no marker is exactly right.
+    return raw.trim() === '' ? null : { token: raw };
+  }
 }
 
-/** Clear the stashed link token once the round-trip is over (success, error, or exit). */
+/** Read back the link token on the OAuth return page (browser-only). */
+export function readStoredLinkToken(): string | null {
+  return readStoredSession()?.token ?? null;
+}
+
+/**
+ * Clear the stashed session once the round-trip is over (success, error, or exit). One
+ * record means the token and its update marker cannot survive each other.
+ */
 export function clearStoredLinkToken(): void {
   try {
     window.localStorage.removeItem(OAUTH_LINK_TOKEN_KEY);
@@ -99,4 +159,26 @@ export function clearStoredOriginPath(): void {
   } catch {
     /* nothing to clear / storage unavailable — non-fatal */
   }
+}
+
+/**
+ * localStorage key holding the Plaid item id when the in-flight Link session is an
+ * UPDATE-mode one (TASKS L.10 layer 1) — reopening a bank the user already has, rather
+ * than connecting a new one.
+ *
+ * The return page has to be able to tell the two apart, because their success handling
+ * is not merely different but mutually wrong. A NEW connection must exchange its public
+ * token; an update-mode session must NOT — Plaid documents that the item's access token
+ * is unchanged and the exchange is not repeated. Sending an update-mode token down the
+ * exchange path would be an unrequested token operation on a healthy connection, and it
+ * is a real path rather than a hypothetical one: the banks that redirect through this
+ * page (Chase, Capital One, U.S. Bank) are exactly the ones the owner has.
+ *
+ * Presence of this key IS the signal, and its value is the item to resync. Same
+ * lifecycle as the token and origin path: stashed before Link opens, cleared on every
+ * terminal outcome, so a stale key can never mislabel a later session.
+ */
+/** The in-flight session's item id, or null when this is a NEW connection (browser-only). */
+export function readStoredUpdateItemId(): string | null {
+  return readStoredSession()?.updateItemId ?? null;
 }

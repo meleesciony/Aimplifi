@@ -256,6 +256,53 @@ test('the Bank-sync controls are distinguishable too — the same defect, one se
   expect(prompt).toContain('keep counting until you delete them');
 });
 
+/**
+ * TASKS L.10 layer 1 — the door that stops this page needing the card above it.
+ *
+ * Everything else in this file is about telling an existing duplicate apart. This test is
+ * about the duplicate not happening: a user who wants to add an account they didn't share,
+ * or to fix a bank that stopped updating, must find a control that reopens the connection
+ * they HAVE. Without one the only available move is connecting the same bank again, which
+ * mints a second Item and a second copy of every account on it.
+ *
+ * The Plaid Link window itself is hosted by Plaid and cannot be driven from a browser test
+ * (the standing note in plaid-actions.test.ts), so what is locked here is what the page
+ * offers and how it reads — not the bank round-trip, which is UNVERIFIED against Plaid.
+ */
+test('every connection offers a way to add or fix its accounts, distinguishably', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedTwoUsBankConnections(email);
+  await page.goto('/accounts');
+  await expect(page.getByTestId('plaid-connections')).toBeVisible({ timeout: 20_000 });
+
+  const buttons = await page.getByTestId('plaid-update').all();
+  expect(buttons, 'one update control per connection').toHaveLength(2);
+  const names = await Promise.all(buttons.map((b) => b.getAttribute('aria-label')));
+  expect(names.every(Boolean), 'an update control has no accessible name').toBe(true);
+  // Two connections at ONE bank: the accessible names must still differ, or a screen-reader
+  // user is choosing blind between two identical-sounding controls (the #296 defect).
+  expect(new Set(names).size, `update controls share a name: ${names.join(' | ')}`).toBe(2);
+  expect(names.every((n) => n!.includes('U.S. Bank'))).toBe(true);
+
+  // The hint has to appear where the wrong move is otherwise the obvious one.
+  const hint = await page.getByTestId('plaid-update-hint').innerText();
+  expect(hint).toContain('Add or fix accounts');
+  expect(hint).toContain('second copy');
+
+  // A third control joined a row that already held two: check the row still fits a phone
+  // and the new button is still a real tap target (M.2/M.3 floors).
+  await page.setViewportSize({ width: 360, height: 900 });
+  const docOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(docOverflow, 'the connections row overflows at 360px').toBeLessThanOrEqual(1);
+  const box = await page.getByTestId('plaid-update').first().boundingBox();
+  expect(box, 'update control has no box').not.toBeNull();
+  expect(box!.height, 'update control is under 44px tall').toBeGreaterThanOrEqual(44);
+});
+
 test('the duplicate blocks stay inside the viewport on a phone', async ({ page }) => {
   const email = await signUpThrowaway(page);
   seedTwoUsBankConnections(email);

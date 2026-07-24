@@ -158,16 +158,53 @@ export async function fetchPlaidWebhookKey(kid: string): Promise<JWK | null> {
  * with zero extra config (Plaid rejects a redirect_uri that isn't an exact match for a
  * dashboard-registered URI).
  */
-export function linkTokenParams(userId: string, redirectUri?: string): Record<string, unknown> {
-  return {
+export function linkTokenParams(
+  userId: string,
+  redirectUri?: string,
+  /**
+   * UPDATE MODE (TASKS L.10 layer 1). Supply an existing item's RAW access token to
+   * reopen Link on the connection the user already has, instead of creating a second
+   * one. This is Plaid's own documented remedy for "I need to add an account" and for
+   * repairing a broken login: every already-linked account comes back with its existing
+   * `account_id`, so the account upsert takes its UPDATE branch, which is a refresh.
+   * Verified at plaid.com/docs/link/update-mode (fetched 2026-07-24).
+   *
+   * Scope, precisely: THIS door cannot duplicate. The FRONT door still can, and the
+   * owner's "I ran Plaid again and hit select-all" goes through the front door — it is
+   * layer 2 (collision interception on `exchangePublicToken`) that makes that scenario
+   * incapable of duplicating, and layer 2 is not built yet.
+   */
+  update?: { accessToken: string },
+): Record<string, unknown> {
+  const base = {
     user: { client_user_id: userId },
     client_name: 'Aimplifi',
-    products: ['transactions'],
-    required_if_supported_products: ['liabilities', 'investments'],
     country_codes: ['US'],
     language: 'en',
     webhook: process.env.PLAID_WEBHOOK_URL || undefined,
+    // Registered in BOTH modes: an OAuth bank hands the browser back through it, and
+    // update mode reaches the same banks the front door does.
     redirect_uri: redirectUri || undefined,
+  };
+  if (update) {
+    return {
+      ...base,
+      access_token: update.accessToken,
+      // Lets the user tick accounts they didn't share the first time. Plaid honours this
+      // at non-OAuth institutions and at OAuth ones without their own account picker; at
+      // the rest (Chase and friends) the bank runs that step on its own site. Either way
+      // the user chooses, and either way nothing here creates a second Item.
+      update: { account_selection_enabled: true },
+    };
+    // `products` and `required_if_supported_products` are DELIBERATELY absent: Plaid
+    // documents that no products and no product-specific parameters may be sent when a
+    // link token carries an access_token (outside the credit-product exception, which is
+    // not this). Structural, not a spread that could quietly grow one back.
+  }
+  return {
+    ...base,
+    products: ['transactions'],
+    required_if_supported_products: ['liabilities', 'investments'],
   };
 }
 
@@ -251,6 +288,22 @@ export class PlaidProvider implements DataProvider {
     const result = await plaidPost<{ link_token: string }>(
       '/link/token/create',
       linkTokenParams(userId, process.env.PLAID_REDIRECT_URI || undefined),
+    );
+    return result.link_token;
+  }
+
+  /**
+   * Link in UPDATE MODE on a connection the user already has (TASKS L.10 layer 1) —
+   * the path for "add an account I didn't share" and for repairing a login, neither of
+   * which should ever produce a second copy of a bank. Ownership is enforced by
+   * `accessTokenFor`, which resolves the token only from a row matching BOTH the item id
+   * and this user, and throws otherwise: a foreign itemId can never mint a token here.
+   */
+  async createUpdateLinkToken(userId: string, itemId: string): Promise<string> {
+    const accessToken = await this.accessTokenFor(userId, itemId);
+    const result = await plaidPost<{ link_token: string }>(
+      '/link/token/create',
+      linkTokenParams(userId, process.env.PLAID_REDIRECT_URI || undefined, { accessToken }),
     );
     return result.link_token;
   }
@@ -360,14 +413,24 @@ export class PlaidProvider implements DataProvider {
         // Written on update too, so rows created before #256 back-fill their item
         // linkage on the first sync after deploy.
         plaidItemId: itemId,
-        // Identity columns (docs/ACCOUNT_IDENTITY_ARCHITECTURE.md §6). PRESERVE-ON-NULL, like
-        // `institution` on the item and UNLIKE `currency`: these say WHICH real account this
-        // is, and Plaid omits `persistent_account_id` entirely for every institution outside
-        // its Tokenized-Account-Number set — so writing null on a fetch that merely didn't
-        // carry one would erase the single identifier that survives a re-link. Spread into the
-        // shared `base`, so an account linked before these columns existed backfills them on
-        // its next ordinary sync, with no re-link and no data migration.
-        ...(m.subtype ? { subtype: m.subtype } : {}),
+        // Identity columns (docs/ACCOUNT_IDENTITY_ARCHITECTURE.md §6). Written on update
+        // too, so an account linked before they existed backfills on its next ordinary
+        // sync — no re-link, no data migration.
+        //
+        // The two follow DIFFERENT rules, and the difference is load-bearing:
+        //
+        // `subtype` is written ALWAYS, like `currency`, because `type` above is DERIVED
+        // from it (mapPlaidAccountType) and `type` is itself written unconditionally.
+        // Preserving one while recomputing the other lets a row settle at
+        // `type: LOAN, subtype: 'mortgage'` — two stored facts contradicting each other,
+        // on exactly the pair the identity ladder compares as a unit. They move together
+        // or they lie about each other (fresh-context critic, executed repro).
+        //
+        // `persistentAccountId` is PRESERVE-ON-NULL, because nothing is derived from it
+        // and Plaid supplies it only at Tokenized-Account-Number institutions — a response
+        // without one says nothing about the account, so writing null would erase the one
+        // identifier that survives a re-link.
+        subtype: m.subtype,
         ...(m.persistentAccountId ? { persistentAccountId: m.persistentAccountId } : {}),
       };
       const existing = await prisma.account.findFirst({
@@ -425,6 +488,7 @@ export class PlaidProvider implements DataProvider {
     let added = 0;
     let modified = 0;
     let removed = 0;
+    let itemsFailed = 0;
     let lastCursor: string | null = null;
 
     for (const item of items) {
@@ -829,6 +893,12 @@ export class PlaidProvider implements DataProvider {
         // One item in an error state (e.g. ITEM_LOGIN_REQUIRED needing re-auth) must
         // not block the user's other items. Record + continue; this item's cursor is
         // left unadvanced so a later sweep retries it once the user re-auths.
+        //
+        // COUNTED, not only audited: isolation used to make a failure invisible to the
+        // caller — `added: 0` and no error, which the per-bank Sync flash then reported
+        // as "0 new transactions" to someone whose bank had just refused them. The count
+        // is what lets a caller tell "nothing new" from "nothing got through".
+        itemsFailed += 1;
         await prisma.auditLog
           .create({
             data: {
@@ -860,7 +930,7 @@ export class PlaidProvider implements DataProvider {
       // detection is a derived view; the ingest already succeeded
     }
 
-    return { added, modified, removed, nextCursor: lastCursor };
+    return { added, modified, removed, nextCursor: lastCursor, itemsFailed };
   }
 
   /**
@@ -1335,6 +1405,10 @@ export class PlaidProvider implements DataProvider {
     userId: string,
     opts?: { itemId?: string },
   ): Promise<InstitutionSyncResult> {
+    // Demo fence in the CORE, not at the call sites (the removeItem precedent, and the
+    // lesson behind it: a rule enforced per call site gets missed at a call site). The
+    // shared demo row must never cause a real Plaid request, whoever calls this.
+    if (isDemoUser(userId)) return { attempted: 0, updated: 0, failed: 0 };
     const items = await prisma.plaidItem.findMany({
       where: {
         userId,
@@ -1354,11 +1428,14 @@ export class PlaidProvider implements DataProvider {
       // throws — the two are bought separately and can succeed separately.
       let wrote = false;
       try {
-        // Buy only what is missing (Plaid bills per request): an item that already knows its
-        // id skips /item/get, and an item that already has a name never re-buys it.
-        const institutionId =
-          item.institutionId ?? (await this.resolveInstitutionId(decryptToken(item.accessToken)));
-        if (institutionId && item.institutionId == null) {
+        // Read the id FRESH. Only items missing a half are selected at all, and the name
+        // is resolved FROM the id — so remembering a previously-stored id here would mean
+        // looking a name up against an id that may have moved (a bank migration re-keys an
+        // item's institution_id), writing the OLD bank's name and reporting a clean
+        // success. It would also leave collision interception comparing against an id the
+        // institution no longer uses, at exactly the bank a user is most likely re-linking.
+        const institutionId = await this.resolveInstitutionId(decryptToken(item.accessToken));
+        if (institutionId && institutionId !== item.institutionId) {
           // The identity half is persisted FIRST and on its own, so a flaky name lookup
           // cannot cost the app the thing collision interception actually needs.
           await prisma.plaidItem.update({ where: { itemId: item.itemId }, data: { institutionId } });
@@ -1405,6 +1482,14 @@ export class PlaidProvider implements DataProvider {
 
   /** Decrypt the access token for one item (ownership-scoped). */
   private async accessTokenFor(userId: string, itemId: string): Promise<string> {
+    // Scalar-validate in the CORE, so every current and future caller inherits it rather
+    // than each remembering to. TypeScript's `string` is erased at a server-action
+    // boundary, and an object reaching a Prisma `where` does not fail — it MATCHES,
+    // silently selecting this user's first item instead of the one named (#279 found the
+    // same shape one layer up). Safe by construction, not by data.
+    if (typeof itemId !== 'string' || itemId.trim() === '') {
+      throw new Error('No linked Plaid item for this user');
+    }
     const item = await prisma.plaidItem.findFirst({ where: { userId, itemId } });
     if (!item) throw new Error(`No linked Plaid item ${itemId} for this user`);
     return decryptToken(item.accessToken);
@@ -1425,14 +1510,36 @@ export class PlaidProvider implements DataProvider {
       // conservative zero-items delete rule.
       try {
         const token = decryptToken(item.accessToken);
-        const { accounts } = await plaidPost<{ accounts: { account_id: string }[] }>(
-          '/accounts/get',
-          { access_token: token },
-        );
+        const { accounts } = await plaidPost<{
+          accounts: { account_id: string; subtype?: string | null; persistent_account_id?: string | null }[];
+        }>('/accounts/get', { access_token: token });
         await prisma.account.updateMany({
           where: { userId, provider: 'plaid', providerRef: { in: accounts.map((a) => a.account_id) } },
           data: { plaidItemId: itemId },
         });
+        // LAST CHANCE to learn who these accounts are (L.10 slice 1, critic P1-1). This
+        // response already carries their identity and the call is already paid for; a
+        // second later the token is revoked and the item row is deleted, while the
+        // ACCOUNT rows are deliberately kept — and nothing revisits them, because every
+        // sync path iterates PlaidItem. Without this, every row a user disconnects is
+        // permanently identity-less, which is precisely the population the reconciliation
+        // flow works on: the app's own advice for a duplicate is "disconnect one side,
+        // then combine". Preserve-on-null, same rule as the sync path; per-row rather
+        // than one updateMany because each row's values are its own.
+        for (const a of accounts) {
+          const subtype = a.subtype?.trim() || null;
+          const persistentAccountId = a.persistent_account_id?.trim() || null;
+          if (!subtype && !persistentAccountId) continue;
+          await prisma.account
+            .updateMany({
+              where: { userId, provider: 'plaid', providerRef: a.account_id },
+              data: {
+                ...(subtype ? { subtype } : {}),
+                ...(persistentAccountId ? { persistentAccountId } : {}),
+              },
+            })
+            .catch(() => {});
+        }
       } catch {
         // stamping is an optimization for delete-precision, never a blocker for revocation
       }

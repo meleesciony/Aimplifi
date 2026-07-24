@@ -52,6 +52,18 @@ export interface SyncResult {
    * withheldNonUsd = positions withheld because their currency isn't USD (no FX — #156).
    */
   holdings?: { upserted: number; removed: number; skipped: number; withheldNonUsd: number };
+  /**
+   * Linked items whose own sync threw and was isolated (Plaid only; the failure is
+   * audited and persisted as `lastSyncError`, and the sweep continues so one bad bank
+   * cannot cost the others their data).
+   *
+   * Optional because only the Plaid path has per-item isolation. It exists because
+   * without it a totally failed sync is INDISTINGUISHABLE from a clean one that found
+   * nothing: `added: 0` with no error, which every caller then reports as "0 new
+   * transactions". An empty set is not a fact
+   * (docs/lessons/an-empty-set-is-not-a-fact-about-money.md).
+   */
+  itemsFailed?: number;
 }
 
 export interface DataProvider {

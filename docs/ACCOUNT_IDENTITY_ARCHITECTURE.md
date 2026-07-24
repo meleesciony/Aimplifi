@@ -155,7 +155,7 @@ Used **only within one provider and one institution**. Ordered; first hit wins.
 |---|---|---|
 | **P** | `persistent_account_id` present on both sides and equal | **proven same account** |
 | **A** | `mask` present on both and equal, **and** `type` equal, **and** `subtype` equal, **and** `currency` equal | **proven same account** |
-| **V** | `mask` present on both and **different** — or `type`, `subtype`, or `currency` differ | **proven different** (veto; overrides everything) |
+| **V** | `mask` **present on both** and different — or `type` differs — or `subtype` **present on both** and different — or `currency` differs | **proven different** (veto; overrides everything) |
 | — | anything else (mask absent on either side; names merely similar; balances merely equal) | **not proven** → Layer 4 advisory |
 
 Three lines this ladder draws on purpose:
@@ -171,6 +171,15 @@ Three lines this ladder draws on purpose:
   cards" is a fact only the cardholder knows, so it may prompt and must never act.
 * **Differing subtype vetoes.** This is the missing signal that makes a Roth propose against a
   Traditional (L.9). It needs a column.
+
+* **A null is UNKNOWN, never "differs" — decided 2026-07-24, after slice 1.** Every veto in
+  tier V requires a value on *both* sides; one side missing means the tier simply does not
+  fire, and the pair falls through to Layer 4's advisory. A slice-1 critic showed why this has
+  to be written down rather than settled inside slice 3: the rows most likely to carry a null
+  are the stale sides of duplicates that already exist, so reading null as "differs" would veto
+  exactly the pairs the feature is for, while reading it as a match would prove pairs nothing
+  supports. Neither is a match nor a veto — it is an absence, and an absence is not evidence
+  (the same rule as `docs/lessons/an-empty-set-is-not-a-fact-about-money.md`).
 
 ## 6. Schema additions (all nullable and additive; demo byte-identical)
 
@@ -200,9 +209,15 @@ No change to `AccountReconciliation`. Nothing in this design creates a link auto
 ## 8. Slices
 
 1. **Schema + capture** — the three columns, written by the account mapper, `institutionId`
-   backfilled by the institution sweep. No behaviour change. *(Opus)*
+   backfilled by the institution sweep. No behaviour change. *(Opus)* — **BUILT 2026-07-24
+   (#300, DECISIONS #292).** Identity is also captured at DISCONNECT, which a critic showed is
+   the last moment those rows are ever reachable. `subtype` is written unconditionally (it is
+   what `type` is derived from); `persistentAccountId` is preserve-on-null.
 2. **Update mode** — `linkTokenParams` gains the update-mode arguments; per-connection "Add or fix
-   accounts" on /accounts. This is Layer 1, and it is most of the value. *(Opus)*
+   accounts" on /accounts. This is Layer 1, and it is most of the value. *(Opus)* — **BUILT
+   2026-07-24 (#301, DECISIONS #293).** Three fresh-context critics; 2 P0 + 6 P1 all fixed and
+   locked. Known residual, deliberately deferred: account selection can DESELECT an account, and
+   the app does not prune a row whose feed stops returning it — TASKS L.14.
 3. **Identity ladder + collision interception** — pure engine module, then the `exchangePublicToken`
    branch and the prompt. Money-visible structure ⇒ *(Fable build)*
 4. **Combine a both-live pair** — Layer 3. Touches a money surface and the R3 direction guard ⇒

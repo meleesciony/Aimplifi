@@ -1,5 +1,9 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-24 — L.10 slice 1 shipped + deploy verified (#300)
+
+Three identity columns captured (PlaidItem.institutionId, Account.subtype, Account.persistentAccountId), nullable and additive, written by the existing Plaid mapper/upsert and backfilled by the existing syncInstitutions sweep. Nothing reads them yet. Gate: bash scripts/verify.sh GREEN — tsc 0 / eslint 0 / 3785 unit across 254 files / build clean. FAIL-OLD proven: 13 assertions fail against the stashed pre-change source. Pushed as 059c490; Vercel deployment dpl_H1suyPbp9b8Ehz4Bs5nSB3skJCsA reached READY, target production, on that exact SHA. Schema diff was 4 additive nullable lines, so prisma db push added columns and touched no data. NO live marker to grep, stated precisely: nothing user-visible changed, so there is no unauthenticated string unique to this commit — the deploy evidence is the READY state on the SHA plus the local gate. Slice 2 (Link update mode + the per-connection Add or fix accounts control) built in the same session, under hostile-critic review at time of writing.
+
 ## 2026-07-24 — #298 DONE: /cards tells same-named cards apart
 
 Owner sent a live /cards screenshot answering the L.3 question. It answered it (his issuers DO

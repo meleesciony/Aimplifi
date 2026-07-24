@@ -137,6 +137,9 @@ describe('Plaid account upsert — identity capture (real provider, mocked Plaid
       vi.fn(async (input: unknown) => {
         const url = String(input);
         if (url.endsWith('/accounts/get')) return accountsGetResponse();
+        // removeItem revokes the token after stamping; the revocation itself is not what
+        // these tests are about, but it must succeed for the stamping path to complete.
+        if (url.endsWith('/item/remove')) return ok({ request_id: 'req-remove' });
         return fail(404, { error_code: 'NOT_MOCKED' });
       }),
     );
@@ -207,9 +210,9 @@ describe('Plaid account upsert — identity capture (real provider, mocked Plaid
     expect(rows[0].persistentAccountId).toBe('PAI-old-1');
   });
 
-  it('PRESERVES a stored identifier when a later fetch simply does not carry one', async () => {
+  it('PRESERVES persistentAccountId when a later fetch simply does not carry one', async () => {
     // Plaid supplies persistent_account_id only for Tokenized-Account-Number institutions,
-    // and a response can omit a field for reasons that say nothing about the account. Writing
+    // and a response can omit it for reasons that say nothing about the account. Writing
     // null here would erase the one identifier that survives a re-link — the whole point of
     // storing it. Same rule as PlaidItem.institution (preserve-on-null, DECISIONS #130).
     accountsGetResponse = () =>
@@ -225,7 +228,7 @@ describe('Plaid account upsert — identity capture (real provider, mocked Plaid
       });
     await new PlaidProvider().syncAccountsForItem(USER, ITEM_ID);
 
-    // Second sync: same account, neither identifier present.
+    // Second sync: same account, no identifier present.
     accountsGetResponse = () => ok({ accounts: [acct({ account_id: 'keep-1', type: 'depository' })] });
     await new PlaidProvider().syncAccountsForItem(USER, ITEM_ID);
 
@@ -233,7 +236,70 @@ describe('Plaid account upsert — identity capture (real provider, mocked Plaid
       where: { userId: USER, providerRef: 'keep-1' },
     });
     expect(row.persistentAccountId).toBe('PAI-keep-1');
-    expect(row.subtype).toBe('checking');
+  });
+
+  it('keeps `type` and `subtype` consistent — they are one fact, not two', async () => {
+    // `type` is DERIVED from the wire subtype and is rewritten every sync. When subtype was
+    // preserve-on-null the pair could settle at `type: LOAN, subtype: 'mortgage'` — a row
+    // whose two stored facts contradict each other, which the identity ladder then compares
+    // as a unit (§5 tier A requires BOTH equal; tier V vetoes on either differing). A
+    // fresh-context critic executed exactly this. So subtype follows `type`.
+    accountsGetResponse = () =>
+      ok({ accounts: [acct({ account_id: 'pair-1', type: 'loan', subtype: 'mortgage' })] });
+    await new PlaidProvider().syncAccountsForItem(USER, ITEM_ID);
+    const first = await prisma.account.findFirstOrThrow({
+      where: { userId: USER, providerRef: 'pair-1' },
+    });
+    expect([first.type, first.subtype]).toEqual(['MORTGAGE', 'mortgage']);
+
+    // A later response omits subtype: `type` degrades to LOAN, and subtype must follow it
+    // down rather than keeping a value that now describes a different classification.
+    accountsGetResponse = () => ok({ accounts: [acct({ account_id: 'pair-1', type: 'loan' })] });
+    await new PlaidProvider().syncAccountsForItem(USER, ITEM_ID);
+    const second = await prisma.account.findFirstOrThrow({
+      where: { userId: USER, providerRef: 'pair-1' },
+    });
+    expect([second.type, second.subtype]).toEqual(['LOAN', null]);
+  });
+
+  it('captures identity at DISCONNECT — the last moment these rows are ever reachable', async () => {
+    // Disconnect deletes the PlaidItem and KEEPS the accounts, and every sync path
+    // iterates PlaidItem — so a disconnected row is never revisited by anything. It is
+    // also exactly the population the reconciliation flow works on, because the app's own
+    // advice for a duplicate is "disconnect one side, then combine". removeItem already
+    // calls /accounts/get to stamp item linkage; that response carries identity too, and
+    // used to be thrown away (fresh-context critic, executed).
+    await prisma.account.create({
+      data: {
+        userId: USER,
+        provider: 'plaid',
+        providerRef: 'bye-1',
+        name: 'CREDIT CARD',
+        type: 'CREDIT',
+        currentBalanceCents: 847531,
+      },
+    });
+    accountsGetResponse = () =>
+      ok({
+        accounts: [
+          acct({
+            account_id: 'bye-1',
+            type: 'credit',
+            subtype: 'credit card',
+            persistent_account_id: 'PAI-bye-1',
+          }),
+        ],
+      });
+
+    await new PlaidProvider().removeItem(USER, ITEM_ID);
+
+    const row = await prisma.account.findFirstOrThrow({
+      where: { userId: USER, providerRef: 'bye-1' },
+    });
+    expect(row.subtype).toBe('credit card');
+    expect(row.persistentAccountId).toBe('PAI-bye-1');
+    expect(row.plaidItemId).toBe(ITEM_ID); // the pre-existing stamping still happens
+    expect(await prisma.plaidItem.count({ where: { userId: USER } })).toBe(0);
   });
 
   it('still overwrites a stored subtype when the provider sends a different one', async () => {

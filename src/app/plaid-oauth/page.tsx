@@ -16,13 +16,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePlaidLink } from 'react-plaid-link';
-import { linkPlaidAccount } from '@/server/plaid-actions';
+import { setFlash } from '@/components/finance/flash';
+import {
+  UPDATE_PULL_FAILED_AWAY as UPDATE_PULL_FAILED,
+  updateSuccessFlash,
+} from '@/components/finance/plaid-update-copy';
+import { linkPlaidAccount, syncPlaidNow } from '@/server/plaid-actions';
 import {
   clearStoredLinkToken,
   clearStoredOriginPath,
   isOAuthRedirect,
   readStoredLinkToken,
   readStoredOriginPath,
+  readStoredUpdateItemId,
 } from '@/lib/plaid-oauth';
 
 export default function PlaidOAuthReturnPage() {
@@ -50,18 +56,56 @@ export default function PlaidOAuthReturnPage() {
 
   const onSuccess = useCallback(
     (publicToken: string) => {
-      setStatus('Importing your accounts…');
       // Read BEFORE clearing — a big OAuth bank may have been started from any
       // zero-account route (Gap 3 §3 inlined Connect on EmptyDashboard), not just
       // /accounts, so send the user back to where they actually started.
       const origin = readStoredOriginPath();
-      void linkPlaidAccount(publicToken)
+      // Which flow came back through this page decides what "success" means, and the two
+      // handlings are mutually wrong. An UPDATE-mode session reopened a connection the
+      // user already has: Plaid states the item's access token is unchanged and the
+      // exchange is not repeated (plaid.com/docs/link/update-mode, fetched 2026-07-24),
+      // so the work here is simply to pull whatever the user just shared. Exchanging
+      // instead would be an unrequested token operation on a healthy connection — and
+      // the banks that redirect through this page are precisely the ones this matters
+      // for. A NEW connection still exchanges, exactly as before (TASKS L.10 layer 1).
+      const updateItemId = readStoredUpdateItemId();
+      const finish = updateItemId
+        ? syncPlaidNow(updateItemId).then((r) => {
+            // Report the outcome, exactly as the non-OAuth path does. Without this the
+            // banks that redirect through here — Chase, Capital One, U.S. Bank, i.e. the
+            // ones this feature exists for — were the only ones told nothing at all: no
+            // "updated", and no word when the transaction pull silently failed. The
+            // message is composed by the same module, so the two paths cannot drift.
+            if (r.ok) {
+              setFlash(
+                'accounts',
+                updateSuccessFlash({
+                  // This page knows an item id, never the bank's name.
+                  bank: 'your bank',
+                  added: r.added,
+                  transactionsFailed: r.transactionsFailed,
+                }),
+              );
+            }
+            return {
+              ok: r.ok,
+              // The reason RIDES the truthful frame rather than replacing it: whatever
+              // went wrong here, the connection was already updated before this loaded.
+              error: r.error ? `${UPDATE_PULL_FAILED} (${r.error})` : UPDATE_PULL_FAILED,
+            };
+          })
+        : linkPlaidAccount(publicToken).then((r) => ({
+            ok: r.ok,
+            error: r.error ?? 'Linking failed — please try again.',
+          }));
+      setStatus(updateItemId ? 'Updating your bank connection…' : 'Importing your accounts…');
+      void finish
         .then((r) => {
           clearStoredLinkToken();
           clearStoredOriginPath();
           if (!r.ok) {
             setStatus('');
-            setError(r.error ?? 'Linking failed — please try again.');
+            setError(r.error);
           } else {
             router.replace(origin);
           }
@@ -70,7 +114,11 @@ export default function PlaidOAuthReturnPage() {
           clearStoredLinkToken();
           clearStoredOriginPath();
           setStatus('');
-          setError('Linking failed — please try again.');
+          setError(
+            updateItemId
+              ? UPDATE_PULL_FAILED
+              : 'Linking failed — please try again.',
+          );
         });
     },
     [router],
@@ -86,11 +134,19 @@ export default function PlaidOAuthReturnPage() {
     onSuccess,
     onExit: (err) => {
       const origin = readStoredOriginPath();
+      // Read the flow BEFORE clearing, so the fallback names the operation the user
+      // actually started: "connection was cancelled" is wrong for someone who was
+      // reopening a bank they already have.
+      const wasUpdate = readStoredUpdateItemId() !== null;
       clearStoredLinkToken();
       clearStoredOriginPath();
       if (err) {
         setStatus('');
-        setError(err.display_message ?? err.error_message ?? 'Bank connection was cancelled.');
+        setError(
+          err.display_message ??
+            err.error_message ??
+            (wasUpdate ? 'Bank update was cancelled.' : 'Bank connection was cancelled.'),
+        );
       } else {
         router.replace(origin);
       }

@@ -32,6 +32,11 @@ export interface LinkResult {
   error?: string;
 }
 
+/** Update-mode token mints per user per window. A tap opens a bank window, so a human
+ *  cannot legitimately need many; this only stops an unbounded loop of billed calls. */
+const UPDATE_TOKEN_LIMIT = 10;
+const UPDATE_TOKEN_WINDOW_MS = 60_000;
+
 function plaidConfigured(): boolean {
   return Boolean(
     process.env.PLAID_CLIENT_ID && process.env.PLAID_SECRET && process.env.DATA_ENCRYPTION_KEY,
@@ -56,8 +61,65 @@ export async function createPlaidLinkToken(): Promise<LinkTokenResult> {
 }
 
 /**
+ * Reopen Link on a bank the user ALREADY has, in Plaid's update mode (TASKS L.10
+ * layer 1). Two jobs, one control: add an account that wasn't shared the first time,
+ * and repair a connection whose login has expired.
+ *
+ * The reason this exists is that the alternative — "just link it again" — is what
+ * manufactures duplicates. A second Link session at the same bank mints a new Item and
+ * therefore new `account_id`s, so the same real card arrives as a brand-new row that no
+ * heuristic can safely merge afterwards. Through THIS path every already-linked account
+ * returns with its existing id and takes the account upsert's update branch, which is a
+ * refresh: no second copy of an account the user already had, so nothing for the
+ * duplicate detector to find. Rows ARE still written — a newly shared account and its
+ * transactions are the point — and the front door remains as capable of duplicating as
+ * it ever was until layer 2 ships.
+ *
+ * The token it returns must NOT be exchanged — see `linkPlaidAccount`.
+ */
+export async function createPlaidUpdateLinkToken(itemId: string): Promise<LinkTokenResult> {
+  try {
+    const userId = await requireUserId();
+    if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
+    if (!plaidConfigured()) {
+      return { ok: false, error: 'Bank linking isn’t configured yet (Plaid keys not set).' };
+    }
+    // Scalar-validate before the id reaches any Prisma `where` (#279): a server-action
+    // argument is attacker-controlled and TypeScript's `string` is erased at the
+    // boundary, so an object could otherwise match a row that isn't the one named.
+    if (typeof itemId !== 'string' || itemId.trim() === '') {
+      return { ok: false, error: 'That bank isn’t connected.' };
+    }
+    // Every call decrypts a live access token and buys a Plaid request, so it is gated
+    // like the other per-item paths (syncPlaidNow, updatePlaidWebhooksNow). Generous
+    // enough that a real person retrying a flaky bank never meets it.
+    if (!(await rateLimitDurable(`plaid-update-token:${userId}`, UPDATE_TOKEN_LIMIT, UPDATE_TOKEN_WINDOW_MS))) {
+      return { ok: false, error: 'Give it a minute and try again.' };
+    }
+    // Ownership is re-checked inside the provider (accessTokenFor is scoped to
+    // {userId, itemId} and throws), so this is a fast, honest error rather than a gate.
+    const linkToken = await new PlaidProvider().createUpdateLinkToken(userId, itemId);
+    // Minting an update-mode token is a real event on a live connection — the link and
+    // remove sides are both audited, and this one sits between them.
+    await auditLog(userId, 'plaid.item.update_token', { itemId }).catch(() => {});
+    return { ok: true, linkToken, sandbox: (process.env.PLAID_ENV ?? 'sandbox') !== 'production' };
+  } catch {
+    // No message: the provider's can name a Plaid item id, and every failure here —
+    // foreign item, unknown item, decrypt failure, Plaid error — must look identical so
+    // this cannot become an enumeration oracle. The caller supplies the wording, which
+    // lets it name the bank the user actually tapped.
+    return { ok: false };
+  }
+}
+
+/**
  * Step 2: exchange the public token from Plaid Link, then pull accounts,
  * transactions, and liabilities. Reuses the sandbox-validated provider methods.
+ *
+ * NEVER call this with a public token from an UPDATE-mode Link session: Plaid documents
+ * that the item's access token is unchanged and the exchange must not be repeated
+ * (plaid.com/docs/link/update-mode, fetched 2026-07-24). The update flow calls
+ * `syncPlaidNow` instead, which is how newly-shared accounts arrive.
  */
 export async function linkPlaidAccount(publicToken: string): Promise<LinkResult> {
   try {
@@ -227,7 +289,22 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
     let added: number | undefined;
     let txError: string | undefined;
     try {
-      added = (await provider.syncTransactions(userId, { itemId })).added;
+      const sync = await provider.syncTransactions(userId, { itemId });
+      added = sync.added;
+      // A per-item failure is ISOLATED inside the provider — audited, recorded on the
+      // item, and stepped over so one bad bank can't cost the others their data. That
+      // isolation used to end the story: the caller saw `added: 0` and no error, so the
+      // UI told a user whose bank had just refused them "0 new transactions". Now the
+      // count comes back, and a scoped sync (one bank, from its own Sync or from the
+      // update flow) reports failure whenever THAT bank was the one that failed.
+      if ((sync.itemsFailed ?? 0) > 0) {
+        txError = 'the bank did not return transactions';
+        await auditLog(userId, 'plaid.sync.transactions.failed', {
+          ...(itemId ? { itemId } : {}),
+          itemsFailed: sync.itemsFailed,
+          isolated: true,
+        }).catch(() => {});
+      }
     } catch (e) {
       // The provider audits PER-ITEM sync failures — but a throw that lands HERE is
       // a total one (config, decrypt, the first fetch), and it used to be returned

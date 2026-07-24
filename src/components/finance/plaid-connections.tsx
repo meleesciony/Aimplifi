@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { connectionOrdinals } from '@/components/finance/duplicate-card-view';
 import { setFlash } from '@/components/finance/flash';
 import { ConfirmPrompt, useConfirmArm } from '@/components/ui/confirm-action';
+import { PlaidUpdateButton } from '@/components/finance/plaid-update-button';
 import { disconnectPlaidItem, syncPlaidNow } from '@/server/plaid-actions';
 
 export interface PlaidItemView {
@@ -149,7 +150,18 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
                     · {item.lastSyncedAt ? `last synced ${item.lastSyncedAt}` : 'not synced yet'}
                   </span>
                   {!confirm.isArmed(item.itemId) && (
-                    <div className="flex shrink-0 gap-1">
+                    <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                      {/* The duplicate-prevention door (L.10 layer 1). It sits beside Sync
+                          because that is where someone goes when a bank looks wrong — and
+                          the alternative they would otherwise reach for, connecting the
+                          same bank a second time, is what creates a duplicate copy. */}
+                      <PlaidUpdateButton
+                        itemId={item.itemId}
+                        bank={bank}
+                        which={which}
+                        disabled={syncing || pending}
+                        onError={setError}
+                      />
                       <button
                         type="button"
                         data-testid="plaid-sync"
@@ -206,6 +218,27 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
           })()}
         </div>
       ))}
+      {/* Says once, where the decision is actually made, what the control above is for.
+          Without it the honest-looking move for "my bank is missing an account" remains
+          connecting that bank again — which is the one action that creates a second copy
+          of everything already here.
+
+          Both qualifiers are load-bearing, and a fresh-context critic put them there.
+          "listed above" scopes the advice to banks that are actually in this list: a
+          DISCONNECTED bank's row is deleted (removeItem) while its accounts are kept, so
+          without the qualifier this sentence would name a control that isn't there and
+          then forbid the only remaining action. And a genuinely different login at the
+          same bank — a business account, a spouse's — really does need connecting
+          separately: update mode cannot reach accounts behind another login, so calling
+          that a duplicate would send someone hunting through a picker that will never
+          list what they want. */}
+      <p className="pt-1 text-xs text-muted-foreground" data-testid="plaid-update-hint">
+        Missing an account, or a bank that stopped updating? Use <b>Add or fix accounts</b> on
+        that bank in the list above — it reopens the connection you already have. Connecting a
+        bank listed above a second time makes a second copy of its accounts instead. (A
+        different login at the same bank — a business account, or a partner’s — is not a copy:
+        connect that one normally.)
+      </p>
       {error && (
         <p role="alert" className="text-xs text-red-400" data-testid="plaid-disconnect-error">
           {error}
