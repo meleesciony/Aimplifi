@@ -156,6 +156,8 @@ model Account {
   mask                  String? // last 4 only — never full numbers
   subtype               String? // the PROVIDER's raw subtype, verbatim ('checking' | 'credit card' | 'roth' | 'traditional' | …); null = the provider gave none. Identity only — `type` above is what every engine reads. Exists so a Roth can never be matched against a Traditional (docs/ACCOUNT_IDENTITY_ARCHITECTURE.md §5 tiers A/V, TASKS L.9).
   persistentAccountId   String? // Plaid `persistent_account_id` — the one identifier that survives a re-link (a new Item mints a new account_id, so `providerRef` cannot). Only institutions using Tokenized Account Numbers supply it, so null is the COMMON case and never evidence of anything (§5 tier P).
+  institutionId         String? // The bank's stable `ins_*` id, STAMPED at disconnect from the connection row (TASKS L.10). While a connection exists its own `institutionId` is authoritative; this copy exists because disconnecting DELETES the PlaidItem, and the identity ladder still has to know who a disconnected row's bank was — that is exactly the population the combine flow works on.
+  institutionName       String? // The bank's human name at the moment of disconnect, same reason. Fallback for a row whose connection never resolved an `ins_*` id.
   currentBalanceCents   Int // stored positive; type determines net-worth sign
   currency              String? // ISO-4217 (e.g. 'USD'); null = legacy/assumed USD. Non-USD accounts are withheld from net worth — no FX (DECISIONS #135, #127 audit #3/#10).
   availableBalanceCents Int?
@@ -195,7 +197,7 @@ model AccountReconciliation {
   predecessorAccountId String    @unique // one supersession per stale row; owns transactions date <= cutoverDate; balance excluded
   successorAccountId   String // NOT unique: one live account may supersede more than one old row; owns transactions date > cutoverDate; live balance counts
   cutoverDate          String // YYYY-MM-DD calendar date (validated via src/lib/dates.ts, half-open boundary — see §5)
-  matchSignal          String // 'mask' | 'balance' | 'name' — the #192 signal that proposed the pair
+  matchSignal          String // 'persistent' | 'mask' | 'balance' | 'name' — the signal that proposed the pair ('persistent' comes from the identity ladder, TASKS L.10)
   confidence           String // 'high' | 'medium'
   confirmedByUserAt    DateTime  @default(now()) // set at create — this link only ever exists on an explicit user confirm
   undoneAt             DateTime? // reversible: when set the link is inert and both sides count fully again (R9)

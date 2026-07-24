@@ -33,9 +33,17 @@ async function signUpThrowaway(page: Page): Promise<string> {
 }
 
 /**
- * Two live U.S. Bank Plaid connections. Connection A feeds the loan AND a credit card;
- * connection B feeds only its copy of the loan. Both loan rows carry the same mask and the same
- * balance, so the #192 detector flags them 'high' on mask + identical balance.
+ * Two live U.S. Bank Plaid connections, each feeding its own copy of the loan PLUS one card that
+ * exists nowhere else. Both loan rows carry the same mask and the same balance, so the #192
+ * detector flags them 'high' on mask + identical balance.
+ *
+ * The unique card on EACH side is load-bearing since TASKS L.10: a pair whose duplicate rows can
+ * be resolved by disconnecting one whole connection is now offered a one-tap Combine instead, and
+ * the advisory card correctly steps aside for it (one message per pair). Here neither direction
+ * is safe — disconnecting either connection would freeze a card that is nobody's duplicate — so
+ * this is the state that still belongs to the advisory card. It is also a STRICTER test of #296's
+ * contract than the original fixture: both connections now feed the same NUMBER of accounts, so
+ * the blast-radius text can no longer be what tells the two controls apart.
  */
 function seedTwoUsBankConnections(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
@@ -60,6 +68,8 @@ function seedTwoUsBankConnections(email: string) {
     insAcct.run(`e2e-dup-loan-a-${suffix}`, uid, `pl-la-${suffix}`, itemA, 'Loan - 2927', 'LOAN', '2927', 2380042);
     insAcct.run(`e2e-dup-card-a-${suffix}`, uid, `pl-ca-${suffix}`, itemA, 'CREDIT CARD', 'CREDIT', '0977', 120000);
     insAcct.run(`e2e-dup-loan-b-${suffix}`, uid, `pl-lb-${suffix}`, itemB, 'Loan - 2927', 'LOAN', '2927', 2380042);
+    // Load-bearing since TASKS L.10 — see the comment above this function.
+    insAcct.run(`e2e-dup-card-b-${suffix}`, uid, `pl-cb-${suffix}`, itemB, 'CREDIT CARD', 'CREDIT', '0978', 95000);
   } finally {
     db.close();
   }
@@ -91,10 +101,14 @@ test('two connections to one bank are told apart on the duplicate card, without 
   expect(ariaB).toBeTruthy();
   expect(ariaA).not.toBe(ariaB);
 
-  // The blast radius is on the button FACE, before the tap that needs it.
+  // The blast radius is on the button FACE, before the tap that needs it. Both connections feed
+  // two accounts here, so the radius is IDENTICAL on both sides — the distinctness asserted above
+  // therefore rests entirely on the ordinal breaker, which is the contract #296 locked.
   const bothFaces = `${faceA}\n${faceB}`;
-  expect(bothFaces).toContain('2 accounts stop updating');
-  expect(bothFaces).toContain('1 account stops updating');
+  expect(faceA).toContain('2 accounts stop updating');
+  expect(faceB).toContain('2 accounts stop updating');
+  expect(bothFaces).toContain('connection 1');
+  expect(bothFaces).toContain('connection 2');
 
   // Which connection each row sits on, numbered the same way in both places on the page.
   const connectionLines = (await texts(page, 'duplicate-side-connection')).sort();
@@ -105,7 +119,14 @@ test('two connections to one bank are told apart on the duplicate card, without 
 
   // What each connection carries — visible without arming anything.
   const feeds = (await texts(page, 'duplicate-side-feeds')).sort();
-  expect(feeds).toEqual(['Also feeds 1 other account: CREDIT CARD ····0977', 'Feeds only this account.']);
+  expect(feeds).toEqual([
+    'Also feeds 1 other account: CREDIT CARD ····0977',
+    'Also feeds 1 other account: CREDIT CARD ····0978',
+  ]);
+
+  // No one-tap Combine here, and that is the honest answer rather than an omission: disconnecting
+  // either connection would freeze the card only IT feeds (TASKS L.10).
+  await expect(page.getByTestId('combine-connections-card')).toHaveCount(0);
 
   // The pair is two connections to ONE provider — the old copy called that "two providers".
   await expect(page.getByTestId('duplicate-pair-why')).toHaveText(

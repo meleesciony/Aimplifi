@@ -20,6 +20,8 @@
  * distinctive name token). `demo`/seed rows are never compared.
  */
 
+import { compareAccountIdentity, type IdentityAccount } from '@/lib/engine/account/identity';
+
 export interface DuplicateAccountCandidate {
   id: string;
   provider: string; // 'plaid' | 'simplefin' | 'manual' | 'demo' | …
@@ -44,8 +46,10 @@ export interface DuplicateAccountRef {
 
 export type DuplicateConfidence = 'high' | 'medium';
 
-/** The strongest positive signal that fired for a pair (mask > balance > name). */
-export type ReconciliationMatchSignal = 'mask' | 'balance' | 'name';
+/** The strongest positive signal that fired for a pair (persistent > mask > balance > name).
+ *  `persistent` is only ever produced by the identity ladder (identity.ts tier P — the bank's own
+ *  cross-Item account id); this heuristic detector never emits it. */
+export type ReconciliationMatchSignal = 'persistent' | 'mask' | 'balance' | 'name';
 
 export interface SuspectedDuplicatePair {
   a: DuplicateAccountRef;
@@ -340,6 +344,11 @@ export function detectHouseholdDuplicateAccounts(
  */
 export interface ReconciliationAccountCandidate extends DuplicateAccountCandidate {
   hasLiveConnection: boolean;
+  /** The identity-bearing fields (identity.ts), when the caller can supply them. Required for a
+   *  SAME-provider proposal — two Plaid connections at one bank — which is admitted only on
+   *  PROVEN identity, never on the heuristic signals below. Omit it and same-provider pairs are
+   *  skipped exactly as they were before TASKS L.10. */
+  identity?: IdentityAccount;
 }
 
 /**
@@ -370,15 +379,53 @@ export function detectReconciliationCandidates(
   accounts: ReconciliationAccountCandidate[],
 ): ReconciliationCandidate[] {
   const sorted = [...accounts].sort(order);
+  // How many DIFFERENT rows each account is proven identical to. A row proven "the same account"
+  // as two others has proven nothing about either — offering both would put two identically
+  // badged Combine cards on screen, one of which folds the wrong account (critic P2-4; the same
+  // shape as TASKS L.9's open finding (4), closed here for the proven path).
+  const provenPartners = new Map<string, number>();
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const lo = sorted[i];
+      const hi = sorted[j];
+      if (lo.provider !== hi.provider || !lo.identity || !hi.identity) continue;
+      if (compareAccountIdentity(lo.identity, hi.identity).verdict !== 'same') continue;
+      provenPartners.set(lo.id, (provenPartners.get(lo.id) ?? 0) + 1);
+      provenPartners.set(hi.id, (provenPartners.get(hi.id) ?? 0) + 1);
+    }
+  }
+
   const out: ReconciliationCandidate[] = [];
   for (let i = 0; i < sorted.length; i++) {
     for (let j = i + 1; j < sorted.length; j++) {
       const lo = sorted[i];
       const hi = sorted[j];
-      // Cross-provider only, exactly as #192: same-provider ingest already dedups.
-      if (lo.provider === hi.provider) continue;
-      const signals = duplicateSignals(lo, hi);
-      if (!signals) continue;
+      let confidence: DuplicateConfidence;
+      let matchSignal: ReconciliationMatchSignal;
+      let reasons: string[];
+      if (lo.provider === hi.provider) {
+        // SAME provider, two connections (TASKS L.10). This is the state left behind when a
+        // both-live duplicate is half-resolved — the user disconnected one Chase connection, or
+        // a combine disconnected it and then failed to link — and without this the app would
+        // offer no way to finish, which is what the copy on that failure promises.
+        //
+        // Admitted ONLY on the identity ladder's proof (identity.ts), never on the heuristic
+        // signals below: inside one provider a differing last-4 means a different account, so a
+        // balance or name match here could propose merging a spouse's card away. Callers that
+        // supply no identity keep the original blanket skip.
+        const proven = lo.identity && hi.identity ? compareAccountIdentity(lo.identity, hi.identity) : null;
+        if (!proven || proven.verdict !== 'same') continue;
+        if ((provenPartners.get(lo.id) ?? 0) > 1 || (provenPartners.get(hi.id) ?? 0) > 1) continue;
+        confidence = 'high';
+        matchSignal = proven.tier === 'P' ? 'persistent' : 'mask';
+        reasons = [...proven.reasons];
+      } else {
+        const signals = duplicateSignals(lo, hi);
+        if (!signals) continue;
+        confidence = signals.confidence;
+        matchSignal = signals.signal;
+        reasons = signals.reasons;
+      }
       // R3: a direction exists only with exactly one live side. Both-live (active duplicate) and
       // both-dead (no live row) are equal here → skip, proposing nothing.
       if (lo.hasLiveConnection === hi.hasLiveConnection) continue;
@@ -387,9 +434,9 @@ export function detectReconciliationCandidates(
       out.push({
         predecessor: toRef(predecessor),
         successor: toRef(successor),
-        confidence: signals.confidence,
-        matchSignal: signals.signal,
-        reasons: signals.reasons,
+        confidence,
+        matchSignal,
+        reasons,
       });
     }
   }

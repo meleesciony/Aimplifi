@@ -1,0 +1,552 @@
+/**
+ * Combining two live duplicate connections — the ACTION contract, against real Prisma
+ * (TASKS L.6 / L.10; docs/ACCOUNT_IDENTITY_ARCHITECTURE.md §4 layer 3).
+ *
+ * The fixture is the owner's own, from his 2026-07-24 /accounts screenshots: two live Plaid
+ * connections at Chase, each carrying `CREDIT CARD ····0977` at −$8,539.09, so his Liabilities
+ * counted $8,539.09 twice and his cash-needed headline was inflated by the same amount.
+ *
+ * The money proof is the last test: after the combine, `getAccountsView` — the same read the
+ * page renders — reports the card ONCE. Everything before it is the refusals, because an action
+ * that disconnects a bank must refuse far more often than it acts.
+ *
+ * The Plaid disconnect is injected: the real one calls `/item/remove` then deletes the row, so
+ * the fake does the row deletion, which is the only part the rest of the app can observe.
+ */
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+
+import { prisma } from '@/lib/db';
+import { isoDate } from '@/lib/dates';
+import { stampConnectionIdentity } from '@/lib/providers/plaid-identity';
+import { combineDuplicateConnectionsFor } from '@/server/combine-connections';
+import { getAccountsView, getTransactions } from '@/server/transactions';
+import { duplicatePairDismissKey } from '@/server/duplicate-dismissal';
+
+const uid = `combine-${Date.now()}-${process.pid}`;
+const TODAY = isoDate('2026-07-24');
+
+const wipe = async () => {
+  await prisma.user.deleteMany({ where: { id: uid } });
+};
+
+/** Stands in for `PlaidProvider.removeItem` with the network removed. It calls the SAME
+ *  `stampConnectionIdentity` the real path calls and then deletes the row, because those two
+ *  effects are what the rest of the app observes: the dropped side goes stale, and its rows keep
+ *  the bank identity that the deleted connection row was holding. */
+const fakeDisconnect = async (userId: string, itemId: string) => {
+  const item = await prisma.plaidItem.findFirst({ where: { userId, itemId } });
+  if (item) await stampConnectionIdentity(userId, item);
+  await prisma.plaidItem.deleteMany({ where: { userId, itemId } });
+};
+
+const explodingDisconnect = async () => {
+  throw new Error('Plaid said no.');
+};
+
+/** The real revoke takes the captured token; these fakes ignore it. */
+
+async function seed(opts: { extraOnNew?: boolean; differentMask?: boolean } = {}) {
+  await wipe();
+  await prisma.user.create({ data: { id: uid, email: `${uid}@test.local` } });
+  await prisma.plaidItem.createMany({
+    data: [
+      {
+        userId: uid,
+        itemId: 'item-first',
+        accessToken: 'enc:first',
+        institution: 'Chase',
+        institutionId: 'ins_56',
+        lastSyncedAt: '2026-07-24',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+      {
+        userId: uid,
+        itemId: 'item-second',
+        accessToken: 'enc:second',
+        institution: 'Chase',
+        institutionId: 'ins_56',
+        lastSyncedAt: '2026-07-24',
+        createdAt: new Date('2026-06-01T00:00:00.000Z'),
+      },
+    ],
+  });
+  await prisma.account.createMany({
+    data: [
+      {
+        id: `${uid}-a1`,
+        userId: uid,
+        provider: 'plaid',
+        providerRef: 'acct-1',
+        plaidItemId: 'item-first',
+        name: 'CREDIT CARD',
+        type: 'CREDIT',
+        mask: '0977',
+        subtype: 'credit card',
+        currentBalanceCents: 853_909,
+        currency: 'USD',
+      },
+      {
+        id: `${uid}-a2`,
+        userId: uid,
+        provider: 'plaid',
+        providerRef: 'acct-2',
+        plaidItemId: 'item-second',
+        name: 'CREDIT CARD',
+        type: 'CREDIT',
+        mask: opts.differentMask ? '4927' : '0977',
+        subtype: 'credit card',
+        currentBalanceCents: 853_909,
+        currency: 'USD',
+      },
+      ...(opts.extraOnNew
+        ? [
+            {
+              id: `${uid}-a3`,
+              userId: uid,
+              provider: 'plaid',
+              providerRef: 'acct-3',
+              plaidItemId: 'item-second',
+              name: 'CHECKING',
+              type: 'CHECKING',
+              mask: '1111',
+              subtype: 'checking',
+              currentBalanceCents: 120_000,
+              currency: 'USD',
+            },
+          ]
+        : []),
+    ],
+  });
+  // One transaction on each row, same real charge seen through both connections.
+  await prisma.transaction.createMany({
+    data: [
+      { accountId: `${uid}-a1`, date: '2026-07-20', rawDescriptor: 'COSTCO', amountCents: -12_000, status: 'POSTED' },
+      { accountId: `${uid}-a2`, date: '2026-07-20', rawDescriptor: 'COSTCO', amountCents: -12_000, status: 'POSTED' },
+    ],
+  });
+}
+
+afterAll(wipe);
+
+describe('combineDuplicateConnectionsFor — refusals', () => {
+  beforeEach(() => seed());
+
+  it('refuses a direction the engine does not offer (the ids reversed into a stranding combine)', async () => {
+    await seed({ extraOnNew: true });
+    // Dropping the newer connection would freeze its CHECKING row, which is nobody's duplicate.
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(false);
+    // Nothing was disconnected: the refusal happens before the irreversible step.
+    expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(2);
+  });
+
+  it('refuses when the two cards have different last-4s (his card and his wife’s)', async () => {
+    await seed({ differentMask: true });
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(false);
+    expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(2);
+    expect(await prisma.accountReconciliation.count({ where: { userId: uid } })).toBe(0);
+  });
+
+  it('refuses the same connection twice', async () => {
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-first' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(false);
+  });
+
+  it('refuses another user’s connection id exactly like a made-up one', async () => {
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'somebody-elses-item' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(false);
+    expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(2);
+  });
+
+  it('refuses non-scalar input before touching the database', async () => {
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: { evil: true }, dropItemId: ['x'] } as never,
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(false);
+    expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(2);
+  });
+
+  it('refuses the shared demo account outright', async () => {
+    const res = await combineDuplicateConnectionsFor(
+      'user-demo',
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(false);
+  });
+
+  it('finishes the combine when Plaid never confirms the revoke — and says so', async () => {
+    // The claim (drop the connection locally + link the pair) commits first, so a bank that never
+    // answers cannot leave the user half-done. What it CAN leave is a token still live upstream,
+    // which is a fact about their data and is reported rather than swallowed.
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      explodingDisconnect,
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.combined).toBe(1);
+      expect(res.revokeFailed).toBe('Plaid said no.');
+    }
+    expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(1);
+    expect(await prisma.accountReconciliation.count({ where: { userId: uid } })).toBe(1);
+  });
+});
+
+describe('combineDuplicateConnectionsFor — the owner’s Chase pair', () => {
+  beforeEach(() => seed());
+
+  it('offers the pair on /accounts before anything is done', async () => {
+    const view = await getAccountsView(uid);
+    expect(view.combinableConnections).toHaveLength(1);
+    const [p] = view.combinableConnections;
+    expect(p.institutionLabel).toBe('Chase');
+    expect(p.recommended.keepItemId).toBe('item-first');
+    expect(p.recommended.dropItemId).toBe('item-second');
+    expect(p.alternative?.keepItemId).toBe('item-second');
+  });
+
+  it('disconnects the losing connection and links the pair', async () => {
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res).toEqual({ ok: true, combined: 1, failures: [], revokeFailed: null });
+
+    expect(await prisma.plaidItem.findMany({ where: { userId: uid }, select: { itemId: true } })).toEqual([
+      { itemId: 'item-first' },
+    ]);
+    const link = await prisma.accountReconciliation.findFirstOrThrow({ where: { userId: uid } });
+    expect(link.predecessorAccountId).toBe(`${uid}-a2`);
+    expect(link.successorAccountId).toBe(`${uid}-a1`);
+    expect(link.matchSignal).toBe('mask');
+    // Cutover = the predecessor's last transaction, so it claims its own history and the
+    // surviving row supplies everything outside that span.
+    expect(link.cutoverDate).toBe('2026-07-20');
+    expect(link.undoneAt).toBeNull();
+  });
+
+  it('keeps BOTH rows and both histories — nothing is deleted', async () => {
+    await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(await prisma.account.count({ where: { userId: uid } })).toBe(2);
+    expect(await prisma.transaction.count({ where: { account: { userId: uid } } })).toBe(2);
+  });
+
+  it('MONEY: the card stops counting twice on the page the owner is looking at', async () => {
+    const before = await getAccountsView(uid);
+    expect(before.liabilities.subtotalCents).toBe(853_909 * 2);
+
+    await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+
+    const after = await getAccountsView(uid);
+    expect(after.liabilities.subtotalCents).toBe(853_909);
+    // And the pair is no longer offered — it is resolved, not a standing proposal.
+    expect(after.combinableConnections).toEqual([]);
+    expect(after.reconciliations).toHaveLength(1);
+  });
+
+  it('the user can keep the OTHER connection instead', async () => {
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-second', dropItemId: 'item-first' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(true);
+    const link = await prisma.accountReconciliation.findFirstOrThrow({ where: { userId: uid } });
+    expect(link.predecessorAccountId).toBe(`${uid}-a1`);
+    expect(link.successorAccountId).toBe(`${uid}-a2`);
+  });
+
+  it('leaves a finishable state if the link half fails after the disconnect', async () => {
+    // Simulate the partial: disconnect only, no link. The recovery the failure copy promises is
+    // that /accounts then OFFERS the pair as an ordinary continue-candidate.
+    await fakeDisconnect(uid, 'item-second');
+    const view = await getAccountsView(uid);
+    expect(view.reconciliationCandidates).toHaveLength(1);
+    const [c] = view.reconciliationCandidates;
+    expect(c.predecessor.id).toBe(`${uid}-a2`);
+    expect(c.successor.id).toBe(`${uid}-a1`);
+  });
+});
+
+describe('demo golden-safety', () => {
+  it('the seeded demo user is never offered a combine', async () => {
+    const view = await getAccountsView('user-demo');
+    expect(view.combinableConnections).toEqual([]);
+  });
+});
+
+describe('one message per pair', () => {
+  beforeEach(() => seed());
+
+  it('the advisory duplicate warning steps aside for the pair that has a combine offer', async () => {
+    const view = await getAccountsView(uid);
+    expect(view.combinableConnections).toHaveLength(1);
+    // #192's card would tell this same user to "disconnect one side" — which the offer above
+    // already does in one tap. Two cards about one pair is noise, and they disagree on effort.
+    expect(view.duplicates).toEqual([]);
+  });
+
+  it('and comes back if the pair stops being combinable', async () => {
+    // A non-duplicate row under each connection makes BOTH directions strand something.
+    await prisma.account.create({
+      data: {
+        id: `${uid}-a4`, userId: uid, provider: 'plaid', providerRef: 'acct-4', plaidItemId: 'item-first',
+        name: 'CHECKING A', type: 'CHECKING', mask: '2222', subtype: 'checking', currentBalanceCents: 1, currency: 'USD',
+      },
+    });
+    await prisma.account.create({
+      data: {
+        id: `${uid}-a5`, userId: uid, provider: 'plaid', providerRef: 'acct-5', plaidItemId: 'item-second',
+        name: 'CHECKING B', type: 'CHECKING', mask: '3333', subtype: 'checking', currentBalanceCents: 2, currency: 'USD',
+      },
+    });
+    const view = await getAccountsView(uid);
+    expect(view.combinableConnections).toEqual([]);
+    expect(view.duplicates).toHaveLength(1);
+  });
+});
+
+describe('the critic findings, locked', () => {
+  beforeEach(() => seed());
+
+  it('test_regression__combine_keeps_the_live_feed’s_own_transactions', async () => {
+    // Critic P0 (executed): with the handover placed at the OLD row's last transaction, every
+    // row only the SURVIVING connection had — $890 of real charges — was dropped from the
+    // register while the flash said "Done". The handover now sits just before the live feed's
+    // own history starts, so the live feed keeps everything it pulled.
+    await prisma.transaction.createMany({
+      data: [
+        // The old connection's history, including a day the live feed also has.
+        { accountId: `${uid}-a2`, date: '2026-06-01', rawDescriptor: 'RENT', amountCents: -200_000, status: 'POSTED' },
+        // The live connection: the same RENT day (a duplicate) plus two charges only it saw.
+        { accountId: `${uid}-a1`, date: '2026-06-01', rawDescriptor: 'RENT', amountCents: -200_000, status: 'POSTED' },
+        { accountId: `${uid}-a1`, date: '2026-06-15', rawDescriptor: 'SHELL OIL', amountCents: -5_000, status: 'POSTED' },
+        { accountId: `${uid}-a1`, date: '2026-07-02', rawDescriptor: 'DELTA AIR', amountCents: -84_000, status: 'POSTED' },
+      ],
+    });
+
+    await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+
+    const { rows } = await getTransactions(uid);
+    const descriptors = rows.map((r) => r.rawDescriptor).sort();
+    expect(descriptors).toContain('SHELL OIL');
+    expect(descriptors).toContain('DELTA AIR');
+    // …and the duplicated days are counted once, which is the point of combining.
+    expect(descriptors.filter((d) => d === 'RENT')).toHaveLength(1);
+    expect(descriptors.filter((d) => d === 'COSTCO')).toHaveLength(1);
+  });
+
+  it('test_regression__two_opposite_combines_cannot_destroy_both_connections', async () => {
+    // Critic P0 (executed, 3/3): the card renders both directions as live buttons; deriving the
+    // plan outside a transaction let two taps each drop a different connection, leaving zero
+    // connections, zero links and the duplicate still double-counting.
+    const [a, b] = await Promise.all([
+      combineDuplicateConnectionsFor(uid, { keepItemId: 'item-first', dropItemId: 'item-second' }, TODAY, fakeDisconnect),
+      combineDuplicateConnectionsFor(uid, { keepItemId: 'item-second', dropItemId: 'item-first' }, TODAY, fakeDisconnect),
+    ]);
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
+    expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(1);
+    const view = await getAccountsView(uid);
+    expect(view.liabilities.subtotalCents).toBe(853_909);
+  });
+
+  it('test_regression__a_dismissed_pair_cannot_be_combined_by_a_stale_tab', async () => {
+    // Critic P1 (executed): the view suppressed the offer after a dismissal; the action took it
+    // anyway and severed a bank for a pair the user had said was NOT a duplicate.
+    await prisma.nudgeDismissal.create({
+      data: { userId: uid, dismissKey: duplicatePairDismissKey(`${uid}-a1`, `${uid}-a2`) },
+    });
+    expect((await getAccountsView(uid)).combinableConnections).toEqual([]);
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(false);
+    expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(2);
+  });
+
+  it('test_regression__a_currency_withheld_pair_cannot_be_combined', async () => {
+    // Same divergence, different blast radius: /accounts refuses to display these rows at all.
+    await prisma.account.updateMany({ where: { userId: uid }, data: { currency: 'EUR' } });
+    expect((await getAccountsView(uid)).combinableConnections).toEqual([]);
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(false);
+    expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(2);
+  });
+
+  it('test_regression__an_existing_link_is_never_silently_re_targeted', async () => {
+    await prisma.accountReconciliation.create({
+      data: {
+        userId: uid,
+        predecessorAccountId: `${uid}-a1`,
+        successorAccountId: `${uid}-a2`,
+        cutoverDate: '2026-07-01',
+        matchSignal: 'mask',
+        confidence: 'high',
+      },
+    });
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(false);
+    expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(2);
+  });
+});
+
+describe('the money-and-boundary critic findings, locked', () => {
+  beforeEach(() => seed());
+
+  it('test_regression__refuses_a_split_that_would_drop_a_charge_only_one_side_has', async () => {
+    // Critic P0 (executed, both directions): a date split deduplicates two feeds only where they
+    // actually agree. Here the surviving connection was broken for two days, so two real charges
+    // exist ONLY on the connection about to be dropped — and the split would delete $930 of real
+    // spending while reporting "Done".
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: `${uid}-a2`, date: '2026-07-01', rawDescriptor: 'RENT', amountCents: -200_000, status: 'POSTED' },
+        { accountId: `${uid}-a1`, date: '2026-07-01', rawDescriptor: 'RENT', amountCents: -200_000, status: 'POSTED' },
+        { accountId: `${uid}-a2`, date: '2026-07-10', rawDescriptor: 'WHOLE FOODS', amountCents: -31_000, status: 'POSTED' },
+        { accountId: `${uid}-a2`, date: '2026-07-11', rawDescriptor: 'UNITED AIR', amountCents: -62_000, status: 'POSTED' },
+      ],
+    });
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error).toContain('$930.00');
+      expect(res.error).toContain('Nothing was changed');
+    }
+    // Nothing moved: both connections live, no link, both copies still counting.
+    expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(2);
+    expect(await prisma.accountReconciliation.count({ where: { userId: uid } })).toBe(0);
+    expect((await getTransactions(uid)).rows.map((r) => r.rawDescriptor)).toContain('WHOLE FOODS');
+  });
+
+  it('test_regression__autopay_follows_the_account_when_its_connection_is_dropped', async () => {
+    // Critic P1 (executed): the dropped row's autopay was filtered out with it, so /cards said
+    // "move $8,539.09 yourself" while the bank still pulled it — a double payment.
+    await prisma.autopayConfig.create({
+      data: { accountId: `${uid}-a2`, mode: 'STATEMENT_BALANCE', fixedAmountCents: null },
+    });
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(true);
+    const survivor = await prisma.autopayConfig.findUnique({ where: { accountId: `${uid}-a1` } });
+    expect(survivor?.mode).toBe('STATEMENT_BALANCE');
+  });
+
+  it('test_regression__the_user_s_own_autopay_on_the_surviving_row_is_never_overwritten', async () => {
+    await prisma.autopayConfig.createMany({
+      data: [
+        { accountId: `${uid}-a2`, mode: 'STATEMENT_BALANCE' },
+        { accountId: `${uid}-a1`, mode: 'MINIMUM' },
+      ],
+    });
+    await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect((await prisma.autopayConfig.findUnique({ where: { accountId: `${uid}-a1` } }))?.mode).toBe('MINIMUM');
+  });
+
+  it('test_regression__a_third_connection_at_one_bank_can_still_be_combined', async () => {
+    // Critic P1 (executed): blocking any account already inside a link blocked the SUCCESSOR too,
+    // so after the first combine the third connection had no offer and the user was left still
+    // double-counting, with a refusal message asserting something untrue.
+    await prisma.plaidItem.create({
+      data: {
+        userId: uid,
+        itemId: 'item-third',
+        accessToken: 'enc:third',
+        institution: 'Chase',
+        institutionId: 'ins_56',
+        lastSyncedAt: '2026-07-24',
+        createdAt: new Date('2026-07-01T00:00:00.000Z'),
+      },
+    });
+    await prisma.account.create({
+      data: {
+        id: `${uid}-a3`, userId: uid, provider: 'plaid', providerRef: 'acct-3', plaidItemId: 'item-third',
+        name: 'CREDIT CARD', type: 'CREDIT', mask: '0977', subtype: 'credit card',
+        currentBalanceCents: 853_909, currency: 'USD',
+      },
+    });
+    expect((await getAccountsView(uid)).liabilities.subtotalCents).toBe(853_909 * 3);
+
+    const first = await combineDuplicateConnectionsFor(
+      uid, { keepItemId: 'item-first', dropItemId: 'item-second' }, TODAY, fakeDisconnect,
+    );
+    expect(first.ok).toBe(true);
+    const second = await combineDuplicateConnectionsFor(
+      uid, { keepItemId: 'item-first', dropItemId: 'item-third' }, TODAY, fakeDisconnect,
+    );
+    expect(second.ok).toBe(true);
+    expect((await getAccountsView(uid)).liabilities.subtotalCents).toBe(853_909);
+  });
+});

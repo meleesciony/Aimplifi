@@ -219,11 +219,28 @@ No change to `AccountReconciliation`. Nothing in this design creates a link auto
    locked. Known residual, deliberately deferred: account selection can DESELECT an account, and
    the app does not prune a row whose feed stops returning it — TASKS L.14.
 3. **Identity ladder + collision interception** — pure engine module, then the `exchangePublicToken`
-   branch and the prompt. Money-visible structure ⇒ *(Fable build)*
+   branch and the prompt. Money-visible structure ⇒ *(Fable build)* — **LADDER BUILT 2026-07-24
+   (#304, DECISIONS #297)**: `src/lib/engine/account/identity.ts`, with three rules added under
+   critic pressure — it abstains when only ONE side carries an `ins_*` id (falling back to a human
+   name that distinct banks share would match an identified row against an unidentified one); an
+   unknown subtype is DISQUALIFYING for an INVESTMENT pair (the Roth-vs-Traditional case is
+   exactly where a silent absence is too dangerous); and two rows returned by the SAME connection
+   are vetoed by construction. **Collision interception still to build.**
 4. **Combine a both-live pair** — Layer 3. Touches a money surface and the R3 direction guard ⇒
-   *(Fable build)*
+   *(Fable build)* — **BUILT 2026-07-24 (#304)**, ahead of slice 3's interception half because the
+   owner was looking at a duplicate the app could not fix. Connection-level planner + a
+   SERIALIZABLE claim (the row deletion IS the claim) + the shipped `confirmReconciliationFor`.
+   **The rule this slice added to the design:** a date split deduplicates two feeds only where
+   they agree, and two LIVE feeds are both partial in different places — so the combine now
+   REFUSES any split that would drop a charge the surviving side does not also hold, naming the
+   amount. §4's "its failure direction is silent loss" applies to the date line too, not only to
+   fuzzy matching.
 5. **Hostile critic** over D1–D9, lead adversarial target: a genuinely-separate second login at a
-   bank the user already has, wrongly swallowed as a refresh. *(Fable)*
+   bank the user already has, wrongly swallowed as a refresh. *(Fable)* — **RUN 2026-07-24 (#304)**
+   for layers 3–4: three parallel fresh-context critics (money+boundary / destructive-action
+   safety / false-merge+copy), 3 P0 + 6 P1 + 9 P2, all fixed and regression-locked. The
+   lead target holds: a second login is admitted only when the ladder PROVES an overlap, and the
+   spouse/Roth/three-`CREDIT CARD` cases are all locked as refusals. Re-run for interception.
 
 ## 9. What this deliberately does not do
 

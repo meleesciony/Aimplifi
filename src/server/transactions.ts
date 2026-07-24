@@ -27,6 +27,8 @@ import {
   effectiveReconciliationLinks,
 } from '@/lib/engine/account/reconcile-boundary';
 import { getActiveReconciliations, getReconciliationTxnKeep, isAccountLive } from '@/server/reconciliation';
+import { combinableConnectionsFor, suppressCombineProposals } from '@/server/combine-connections';
+import type { CombineConnectionsProposal } from '@/lib/engine/account/combine-connections';
 import {
   type WithheldAccountSummary,
   isSupportedCurrency,
@@ -302,6 +304,11 @@ export interface AccountsView extends AccountsSummary {
   /** Cross-provider "continue this account?" proposals (R3): exactly one live side, not yet linked.
    *  Empty unless a duplicate pair has one connected + one disconnected provider. */
   reconciliationCandidates: ReconciliationCandidateView[];
+  /** BOTH-live duplicate connections at one bank (TASKS L.6 / L.10): two Plaid connections
+   *  pulling the same proven account, which R3 can never propose because neither side is stale.
+   *  The card offers to disconnect one and continue the account on the other. Empty for the
+   *  ordinary one-connection-per-bank case. */
+  combinableConnections: CombineConnectionsProposal[];
 }
 
 /** A candidate enriched with the predecessor's full-history transaction span (slice 6): the
@@ -335,7 +342,16 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     prisma.simpleFinConnection.findUnique({ where: { userId }, select: { lastSyncedAt: true } }),
     prisma.plaidItem.findMany({
       where: { userId },
-      select: { itemId: true, institution: true, lastSyncedAt: true },
+      // institutionId / lastSyncError / createdAt feed the L.10 combine planner — the same rows
+      // this view already loads, so the card costs no extra query.
+      select: {
+        itemId: true,
+        institution: true,
+        institutionId: true,
+        lastSyncedAt: true,
+        lastSyncError: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: 'asc' },
     }),
     // Newest transaction date per account — the per-row freshness reference (Gap 1 §3
@@ -475,6 +491,26 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       g._min.date != null && g._max.date != null ? [[g.accountId, { first: g._min.date, last: g._max.date }] as const] : [],
     ),
   );
+  // An account's institution lives on its CONNECTION row, so the identity ladder (L.10) reads it
+  // through the item map. Supplied for every row; the ladder itself refuses cross-provider and
+  // abstains where the institution is unknown, so a non-Plaid row simply never proves anything.
+  const itemById = new Map(plaidItems.map((i) => [i.itemId, i]));
+  const identityOf = (a: (typeof accounts)[number]) => {
+    const item = a.plaidItemId ? itemById.get(a.plaidItemId) : undefined;
+    return {
+      provider: a.provider,
+      // The live connection is authoritative; the row's own stamp is the last-known value for
+      // a row whose connection has been disconnected (and deleted) — see plaid.ts removeItem.
+      institutionId: item?.institutionId ?? a.institutionId ?? null,
+      institutionName: item?.institution ?? a.institutionName ?? null,
+      mask: a.mask,
+      type: a.type,
+      subtype: a.subtype,
+      currency: a.currency,
+      persistentAccountId: a.persistentAccountId,
+      connectionId: a.plaidItemId ?? null,
+    };
+  };
   const reconciliationCandidates: ReconciliationCandidateView[] = detectReconciliationCandidates(
     supported.map((a) => ({
       id: a.id,
@@ -486,6 +522,9 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       currency: a.currency,
       plaidItemId: a.plaidItemId, // C-10: two items' rows for the same bank are eligible pairs
       hasLiveConnection: isAccountLive({ provider: a.provider, plaidItemId: a.plaidItemId }, conns),
+      // L.10: lets a SAME-provider pair (two connections at one bank, one now disconnected) be
+      // proposed on proven identity — the state a half-finished combine leaves behind.
+      identity: identityOf(a),
     })),
   )
     .filter(
@@ -500,6 +539,31 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     )
     .map((c) => ({ ...c, predecessorTxnSpan: spanByAccount.get(c.predecessor.id) ?? null }));
   const candidatePairKeys = new Set(reconciliationCandidates.map((c) => pairKey(c.predecessor.id, c.successor.id)));
+
+  // Both-live duplicate connections (TASKS L.6 / L.10). Suppressed for a pair the user has
+  // already judged — an explicit "not a duplicate" dismissal binds this surface exactly as it
+  // binds the warning and the candidate card, and an already-reconciled pair is resolved rather
+  // than offered again. Only the currency-supported rows take part, so the offer can never name
+  // an account the page is withholding.
+  const combinableConnections: CombineConnectionsProposal[] = suppressCombineProposals(
+    combinableConnectionsFor(userId, plaidItems, accounts),
+    {
+      supportedAccountIds: new Set(supported.map((a) => a.id)),
+      dismissedPairKeys: dismissedDupKeys,
+      reconciledPairKeys,
+      linkedPredecessorIds: effectivePredIds,
+    },
+  );
+  // A pair with a combine OFFER must not also raise the advisory warning: the offer is the
+  // actionable version of the same message, and #192's card would tell the same user to
+  // "disconnect one side" while the card above already does exactly that in one tap.
+  const combinablePairKeys = new Set(
+    combinableConnections.flatMap((proposal) =>
+      [proposal.recommended, proposal.alternative].flatMap((d) =>
+        d === null ? [] : d.pairs.map((p) => pairKey(p.predecessorAccountId, p.successorAccountId)),
+      ),
+    ),
+  );
 
   // The money boundary: predecessor balance → 0, colliding predecessor snapshots dropped. Fed the
   // SAME accounts + snapshots + links as the dashboard's snapshot assembly, with the row types
@@ -556,8 +620,13 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       // Attach each connection's accounts (name + last-4) so two same-bank connections are
       // distinguishable. `accounts` carries every row; only this item's Plaid accounts have a
       // matching plaidItemId, so the filter naturally selects them.
+      // Explicit field list, not a spread: this row crosses to the client, and the columns the
+      // combine planner needs (institutionId, lastSyncError, createdAt) are server-side inputs,
+      // not things the connection list renders.
       items: plaidItems.map((item) => ({
-        ...item,
+        itemId: item.itemId,
+        institution: item.institution,
+        lastSyncedAt: item.lastSyncedAt,
         accounts: accounts
           .filter((a) => a.plaidItemId === item.itemId)
           .map((a) => ({ name: a.name, mask: a.mask })),
@@ -588,6 +657,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       return (
         !reconciledPairKeys.has(k) &&
         !candidatePairKeys.has(k) &&
+        !combinablePairKeys.has(k) &&
         !effectivePredIds.has(d.a.id) &&
         !effectivePredIds.has(d.b.id) &&
         // …and not a pair the user has explicitly dismissed as "not a duplicate" (owner-reported:
@@ -597,6 +667,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     }),
     reconciliations,
     reconciliationCandidates,
+    combinableConnections,
   };
 }
 

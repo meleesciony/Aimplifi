@@ -23,6 +23,7 @@
 import type { JWK } from 'jose';
 import { dayOfMonthFromISO, type ISODate } from '@/lib/dates';
 import { businessToday } from '@/lib/business-today';
+import { stampAccountIdentity, stampConnectionIdentity } from '@/lib/providers/plaid-identity';
 import { decryptToken, encryptToken } from '@/lib/crypto';
 import { isDemoUser } from '@/lib/demo-user';
 import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
@@ -1503,6 +1504,28 @@ export class PlaidProvider implements DataProvider {
   }
 
   /** Data deletion (docs/PRIVACY.md): revoke each item at Plaid, then cascade. */
+  /**
+   * Revoke ONE access token at Plaid. Split out of `removeItem` for the combine flow (TASKS
+   * L.10), which deletes the connection row inside its own claim transaction and therefore has
+   * the token in hand but no row left for `removeItem` to look up. Does nothing else: no
+   * stamping, no row deletion, no audit — the caller owns those.
+   */
+  async revokeAccessToken(userId: string, accessToken: string): Promise<void> {
+    const token = decryptToken(accessToken);
+    // Same LAST-CHANCE identity capture `removeItem` does: after the revoke these rows are
+    // unreachable, and they are exactly the population a later identity comparison works on.
+    // Best-effort — a failed lookup must never block the revoke the user asked for.
+    try {
+      const { accounts } = await plaidPost<{
+        accounts: { account_id: string; subtype?: string | null; persistent_account_id?: string | null }[];
+      }>('/accounts/get', { access_token: token });
+      await stampAccountIdentity(userId, accounts);
+    } catch {
+      // identity capture is an optimization, never a blocker for revocation
+    }
+    await plaidPost('/item/remove', { access_token: token });
+  }
+
   async removeItem(userId: string, itemId: string): Promise<void> {
     // Demo fence in the CORE (fence-by-construction; #256 critic P2-3): the shared
     // demo row owns no PlaidItem today, but a mutation this destructive must be
@@ -1533,23 +1556,14 @@ export class PlaidProvider implements DataProvider {
         // flow works on: the app's own advice for a duplicate is "disconnect one side,
         // then combine". Preserve-on-null, same rule as the sync path; per-row rather
         // than one updateMany because each row's values are its own.
-        for (const a of accounts) {
-          const subtype = a.subtype?.trim() || null;
-          const persistentAccountId = a.persistent_account_id?.trim() || null;
-          if (!subtype && !persistentAccountId) continue;
-          await prisma.account
-            .updateMany({
-              where: { userId, provider: 'plaid', providerRef: a.account_id },
-              data: {
-                ...(subtype ? { subtype } : {}),
-                ...(persistentAccountId ? { persistentAccountId } : {}),
-              },
-            })
-            .catch(() => {});
-        }
+        await stampAccountIdentity(userId, accounts);
       } catch {
         // stamping is an optimization for delete-precision, never a blocker for revocation
       }
+      // WHO these accounts bank with, stamped onto the rows before the connection row that
+      // holds it is deleted (L.10). Needs no Plaid call — the values are already in hand — so
+      // it runs outside the best-effort block above.
+      await stampConnectionIdentity(userId, item);
       await plaidPost('/item/remove', { access_token: decryptToken(item.accessToken) });
     }
     await prisma.plaidItem.deleteMany({ where: { userId, itemId } });

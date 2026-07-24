@@ -2,6 +2,77 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-24 (#304, DECISIONS #297) — L.6/L.10: the duplicate card the owner has been staring at can now be combined in one tap
+
+**The owner's question, verbatim, mid-session: "What did you actually fix? I see the same accounts that I
+posted earlier."** He was right, and the honest answer was: nothing had removed them. #298/#299 taught
+/cards to tell same-named cards apart and to disclose a both-live duplicate; #300/#301 stopped FUTURE
+duplicates being created. His two Chase connections both pulling `CREDIT CARD ····0977` were untouched —
+**$8,539.09 counted twice** in Liabilities, again in the cash-needed headline, and again in every
+transaction total. The shipped Combine flow refuses a both-live pair by design (R3 needs one stale side)
+and the candidate detector skipped same-provider pairs outright, so the app had **no path at all**. The
+build queue had prevention (L.10 slice 3) ahead of the remedy (layer 3); that ordering was wrong and was
+flipped on the spot.
+
+**What shipped.** A pure identity **ladder** (`engine/account/identity.ts`, design §5) answering
+same / different / unproven within ONE provider at ONE institution — the only scope where a differing
+last-4 is a sound veto, since across providers it is not (SimpleFIN `396` and Plaid `5351` are one real
+Schwab account, L.9). It never reads a balance (D4 is structural: the input type has no balance field) and
+treats every null as UNKNOWN rather than as a difference. A pure **planner**
+(`engine/account/combine-connections.ts`) working at the CONNECTION level, because the only way to make one
+side stale is to disconnect a Plaid item and an item can carry several accounts; a direction is offered only
+when every account under the dropped connection is proven the same as EXACTLY ONE account under the kept
+one, so disconnecting strands nothing. And the **action**: one SERIALIZABLE claim transaction re-derives the
+plan, re-applies every suppression the card applies, stamps the bank identity onto the rows, carries autopay
+across, and deletes the losing connection row — then, outside it, revokes the token and writes one
+reconciliation per pair through the shipped `confirmReconciliationFor`. No new money rule was written: the
+boundary engine already knows how to make two rows read as one account.
+
+**Three fresh-context critics ran in parallel (money+boundary / destructive-action safety /
+false-merge+copy). Cycle 1: 3 P0, 6 P1, 9 P2 — every one from an executed repro, ALL fixed and
+regression-locked (8 REGRESSION_LEDGER entries).** The three that mattered:
+
+* **Two taps destroyed both connections.** The card offers two directions as two live buttons; the plan was
+  derived outside any transaction, so two concurrent taps each disconnected a different connection —
+  executed 3/3: zero connections, zero links, the duplicate still double-counting, both calls returning
+  `ok: true`. Fixed by making the row deletion itself the claim, inside the transaction that reads the plan.
+* **The date split deleted real money — in both directions.** First $890 of charges only the SURVIVING feed
+  had; after the cutover was moved to fix that, $930 that only the DROPPED feed had. Two LIVE feeds are both
+  partial in *different* places, unlike the cross-provider case this machinery was built for. Fixed **not by
+  a better cutover but by a proof**: every row the split would drop must have a same-day, same-amount
+  survivor on the other side (multiset-matched), or the combine is refused with the amount named and nothing
+  changes. An honest gap beats a silent deletion.
+* **Autopay was lost with the dropped row**, so /cards would say "move $8,539.09 yourself" while the bank
+  still pulled it — a double-payment hazard. Autopay now follows the account, never overwriting the
+  survivor's own setting.
+
+**Decided:** the advisory #192 warning steps aside for a pair that has a combine offer (one message per
+pair) — and since that warning carried the only "not a duplicate" control, the combine card grew its own,
+wired to the same dismissal key, so the offer can never be permanent and undismissable. **Deliberately not
+done:** no fuzzy amount/date dedup (its failure direction is silent loss); no automatic action on any
+signal (an identical balance prompts, never acts — D4); cross-provider stays user-confirmed forever (L.9).
+
+**Schema:** two nullable additive `Account` columns (`institutionId`, `institutionName`), stamped at
+disconnect — deleting the `PlaidItem` was destroying the only record of who a disconnected row banks with,
+and that row is exactly the population the ladder works on. `prisma db push` adds them to live Neon on
+deploy; existing rows get NULL.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **3924 unit / 261 files** / build clean.
+E2E: **the full suite passes 173/173 serialized (`--workers=1`, exit 0, 5.4m)**, including the new
+`combine-connections.spec.ts`, which drives the whole flow through the UI — double count visible → arm →
+confirm → the card counts once → the un-revoked token disclosed → undo restores both. The 4-worker run
+showed 5 failures (budget-targets, and two of the reworked duplicate specs), every one of which passes on
+a serialized or isolated rerun: the documented load-induced contention flake
+(`docs/lessons/e2e-dials-value-corruption-flake.md`), not a regression. CI is the arbiter.
+**UNVERIFIED against live Plaid** (no credentials here): the token revoke and the `/accounts/get` identity
+capture ran only against mocked providers and real Prisma.
+
+**Known residuals, recorded rather than silently widened:** a duplicate row's own hand-categorization is
+dropped with it when its twin survives (money is unaffected; the category can be re-set); `keepRank` breaks
+a tie by link order without measuring which feed is deeper (a wrong guess now costs a refusal, never a row);
+and two connections whose stored bank NAMES differ only by whitespace/case still number their ordinals
+separately (P3, cosmetic).
+
 ## ✅ SHIPPED 2026-07-24 (#303, DECISIONS #296) — L.12 (a)+(b): Plaid's category becomes a one-tap inbox suggestion
 
 The owner's loudest competitive complaint ("321 inbox items… Simplifi/mint never had this problem;

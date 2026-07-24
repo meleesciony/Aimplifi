@@ -64,6 +64,9 @@ import {
 } from '@/server/networth-actions';
 import { clearManualCardStatement, setManualCardStatement } from '@/server/card-actions';
 import { confirmReconciliation, undoReconciliation } from '@/server/reconciliation-actions';
+import { combineDuplicateConnections } from '@/server/combine-connections-actions';
+import { CombineConnectionsCard } from '@/components/finance/combine-connections-card';
+import { combineRevokeWarning, combineSuccessFlash } from '@/components/finance/combine-connections-copy';
 import { dismissDuplicatePair } from '@/server/duplicate-actions';
 import { disconnectPlaidItem } from '@/server/plaid-actions';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
@@ -225,7 +228,13 @@ export function AccountsList({ data }: { data: AccountsView }) {
     if (m) setSuccess(m);
   }, []);
 
-  function refreshAfter(fn: () => Promise<{ ok: boolean; errors?: string[] }>, successMsg?: string) {
+  // `flash` on the resolved value lets an action whose outcome VARIES (a combine that partly
+  // succeeded must not read as a clean one) compute its own message from the real result; the
+  // static `successMsg` stays the default for the actions with one outcome.
+  function refreshAfter(
+    fn: () => Promise<{ ok: boolean; errors?: string[]; flash?: string }>,
+    successMsg?: string,
+  ) {
     if (pending) return;
     setError(null);
     setSuccess(null);
@@ -238,7 +247,8 @@ export function AccountsList({ data }: { data: AccountsView }) {
           setPending(false);
           return;
         }
-        if (successMsg) setFlash('accounts', successMsg);
+        const flash = res.flash ?? successMsg;
+        if (flash) setFlash('accounts', flash);
         // Reload, not router.refresh() — the re-rendered list can't lie.
         // pending stays true so controls remain disabled until the new page.
         window.location.reload();
@@ -292,6 +302,41 @@ export function AccountsList({ data }: { data: AccountsView }) {
         </p>
       )}
 
+      <CombineConnectionsCard
+        proposals={data.combinableConnections}
+        items={data.plaid.items}
+        pending={pending}
+        onCombine={(direction, keepLabel, dropLabel) =>
+          refreshAfter(
+            () =>
+              combineDuplicateConnections({
+                keepItemId: direction.keepItemId,
+                dropItemId: direction.dropItemId,
+              }).then((r) =>
+                r.ok
+                  ? {
+                      ok: true,
+                      flash:
+                        combineSuccessFlash(r.combined, r.failures) +
+                        (r.revokeFailed !== null ? combineRevokeWarning(dropLabel) : ''),
+                    }
+                  : { ok: false, errors: [r.error] },
+              ),
+            // Fallback only: the real message is computed from the RESULT above, because a
+            // partial combine must never read as a clean one.
+            `${dropLabel} disconnected; continuing on ${keepLabel}.`,
+          )
+        }
+        onDismiss={(aId, bId) =>
+          refreshAfter(
+            () =>
+              dismissDuplicatePair(aId, bId).then((r) =>
+                r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not dismiss — please try again.'] },
+              ),
+            'Dismissed — we won’t offer to combine those two again.',
+          )
+        }
+      />
       <ReconciliationCandidatesCard
         candidates={data.reconciliationCandidates}
         today={data.today}

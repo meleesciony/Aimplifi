@@ -45,7 +45,12 @@ export interface ActiveReconciliation {
   cutoverDate: string;
 }
 
-const MATCH_SIGNALS: ReadonlySet<string> = new Set<ReconciliationMatchSignal>(['mask', 'balance', 'name']);
+const MATCH_SIGNALS: ReadonlySet<string> = new Set<ReconciliationMatchSignal>([
+  'persistent',
+  'mask',
+  'balance',
+  'name',
+]);
 const CONFIDENCES: ReadonlySet<string> = new Set<DuplicateConfidence>(['high', 'medium']);
 
 // One generic "not found" for every ownership / scalar-shape refusal — no cross-user oracle
