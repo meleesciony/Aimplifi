@@ -210,6 +210,12 @@ export interface AccountView {
    *  (syncedDeleteBlockReason), so the UI can never promise a delete the action
    *  would refuse. Absent on surfaces that don't set it. */
   deletable?: boolean;
+  /** The Plaid connection (item) feeding this row, when provider === 'plaid'. Lets the
+   *  duplicate warning offer the ONLY action that actually resolves a both-live duplicate —
+   *  disconnecting the bank behind one side — instead of telling the user to "disconnect or
+   *  delete" with no control to do it (owner-reported 2026-07-24). Null on non-Plaid rows and
+   *  on rows not re-synced since #256; absent on surfaces that don't set it. */
+  plaidItemId?: string | null;
 }
 
 export interface AccountGroup {

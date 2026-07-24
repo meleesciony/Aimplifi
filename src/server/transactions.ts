@@ -370,6 +370,10 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     deletable:
       (a.provider === 'simplefin' || a.provider === 'plaid') &&
       syncedDeleteBlockReason({ provider: a.provider, plaidItemId: a.plaidItemId }, deleteCtx) === null,
+    // Which bank feeds this row — the duplicate warning needs it to offer "Disconnect <bank>"
+    // for a both-live pair, where deleting is (correctly) refused because the next sync would
+    // just bring the row back.
+    plaidItemId: a.provider === 'plaid' ? a.plaidItemId ?? null : null,
   }));
 
   // Newest statement per account (orderBy cycleEnd desc → first seen wins).
