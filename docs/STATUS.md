@@ -108,6 +108,58 @@ build clean (+10 tests, +1 file). E2E not separately run — backend-only, no UI
 stance as #280). **UNVERIFIED against live Plaid** (no creds in this env): the `/item/get` +
 `/institutions/get_by_id` sockets have never run here; mocked-server + real-Prisma tests only.
 
+## 🔴 OPEN — real duplicates double-counting ~$965K of the owner's net worth (owner screenshots 2026-07-24)
+
+The owner's /accounts screenshots show **three accounts listed twice** — an old stale row AND the
+live Plaid row — **both counting** toward the **−$1,971,653.56** net worth:
+
+| Account | Stale row (has Delete ⇒ disconnected) | Live Plaid row |
+|---|---|---|
+| Truist mortgage | Truist Mortgage 1192 (1192) — **−$933,367.31** (38d stale) | Mortgage 1192 ····1192 — −$931,306.41 |
+| U.S. Bank loan | U.S. Bank Loan - 2927 (2927) — **−$23,787.80** (49d stale) | Loan - 2927 ····2927 — −$23,796.57 |
+| Chase card | CREDIT CARD ····0977 — **−$8,475.31** | CREDIT CARD ····0977 — −$8,475.31 (identical) |
+
+**≈$965K of phantom debt**; the true figure is nearer **−$1,006,000**. Owner-actionable NOW: Delete
+the stale row of each pair (or Combine). No code change can safely auto-delete — that stays the
+user's call (#192 is advisory by design).
+
+**Detection gap to fix (the real work).** The Chase ····0977 pair IS caught (same mask + balance).
+The **U.S. Bank loan pair is invisible to the detector**: `distinctiveNameTokens("U.S. Bank Loan -
+2927 (2927)")` reduces to **{}** — "bank" and "loan" are stopwords, "2927" is dropped as numeric,
+"u"/"s" are 1-char — and the Plaid side "Loan - 2927" likewise; balances differ by $8.77 so the
+balance signal misses; SimpleFIN has no mask column. No signal fires.
+**Planned fix:** use a last-4 **embedded in the name** as a **POSITIVE** match signal (SimpleFIN
+"…(2927)" vs Plaid mask **2927** = a confirmed same-account match). This is the SAFE direction and
+the exact asymmetry critic F3 flagged — a mis-read can only surface a *dismissable* pair, never
+hide a real duplicate (which is why the same parsing was correctly rejected for the veto in #292).
+
+## ✅ Plaid account rows claimed "not synced" while their bank had synced that morning (#293, 2026-07-24) — FIXED
+
+Owner-reported with screenshots: every Plaid **connection** row read "last synced 2026-07-24" while
+the **account** rows under Liabilities read **"Not synced yet"** (Loan - 2927, QuicksilverOne),
+**"Last synced 8 days ago"** (Mortgage 1192, Bonvoy Amex), and **"No new data in 15 days — you may
+need to reconnect."** (Delta SkyMiles) — a reconnect nudge for a card whose bank synced that morning.
+The page contradicted itself.
+
+**Cause.** `getAccountsView` supplied `connectionLastSyncedAt` — the "a sync actually RAN" floor that
+`health.ts`/`mostRecentDate` exists to apply so a quiet-but-live feed can't false-alarm — for
+**SimpleFIN only**; Plaid passed a hardcoded `null`. So a Plaid account graded entirely on its
+**newest transaction date**, which a mortgage or loan never has and a quiet card has rarely.
+
+**Fixed.** Plaid accounts now use their own `PlaidItem.lastSyncedAt`, matched by `Account.plaidItemId`.
+**Counter-locked** so it can't paper over a dead connection: a bank whose `lastSyncedAt` is genuinely
+old still grades `very_stale` and still shows the reconnect nudge. A pre-#256 row with no
+`plaidItemId` keeps the transaction-date fallback and self-heals on its next account sync.
+
+**Also fixed (same report).** The connection rows were a wrapping flex with `justify-between`, so
+Sync/Disconnect sat on the right for a short bank name ("Plaid: Chase") but **wrapped onto their own
+left-aligned line** for a long one ("Plaid: American Express") — the buttons landed in two different
+places down the list. Now a block card: status text flexes in its own column, controls pinned right
+identically on every row, armed confirm on its own full-width line.
+
+Gate: `bash scripts/verify.sh` → GREEN — tsc 0 / eslint 0 / **3604 unit / 247 files** / build clean.
+No schema change. Locked by `tests/unit/accounts-freshness.test.ts` (4 cases incl. the counter-lock).
+
 ## 🟠→✅ Duplicate "Venture" flag was a MIS-MATCH — differing-last-4 rule + dismiss + connection last-4 (#291, refined #292, 2026-07-24) — FIXED
 
 **REFINED (#292, 2026-07-24).** A follow-up owner report on the "Combine accounts" card (his SimpleFIN

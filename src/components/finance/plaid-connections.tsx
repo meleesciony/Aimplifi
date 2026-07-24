@@ -118,61 +118,67 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
         // armed state (a full sentence plus two buttons) made it worse — so the row
         // is now a bordered block whose status text and controls stack when they
         // must. Multiple linked banks also stop reading as one run-on list.
-        <div
-          key={item.itemId}
-          className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-md border px-2 py-1.5"
-        >
-          <span className="min-w-0 text-xs text-muted-foreground" data-testid="plaid-item-status">
-            Plaid: {item.institution ?? 'Connected bank'} ·{' '}
-            {item.lastSyncedAt ? `last synced ${item.lastSyncedAt}` : 'not synced yet'}
-          </span>
-          {!confirm.isArmed(item.itemId) ? (
-            <div className="flex shrink-0 gap-1">
-            <button
-              type="button"
-              data-testid="plaid-sync"
-              aria-label={`Sync ${item.institution ?? 'this bank'} now (Plaid)`}
-              disabled={syncing || pending}
-              onClick={() => syncNow(item.itemId, item.institution)}
-              className="tap-target inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
-            >
-              {syncing ? 'Syncing…' : 'Sync'}
-            </button>
-            <button
-              type="button"
-              data-testid="plaid-disconnect"
-              aria-label={`Disconnect ${item.institution ?? 'this bank'} (Plaid)`}
-              disabled={pending}
-              onClick={() => confirm.arm(item.itemId)}
-              className="shrink-0 rounded-md border px-2 py-1 text-xs text-red-400 hover:bg-accent disabled:opacity-50"
-            >
-              Disconnect
-            </button>
-            </div>
-          ) : (
-            <ConfirmPrompt
-              rowTestId="plaid-disconnect-confirm-row"
-              prompt="Disconnect? Synced accounts and history are kept."
-              confirmLabel={pending ? 'Disconnecting…' : 'Yes'}
-              confirmTestId="plaid-disconnect-confirm"
-              confirmAriaLabel={`Yes, disconnect ${item.institution ?? 'this bank'}`}
-              pending={pending}
-              onConfirm={() => disconnect(item.itemId)}
-              onCancel={confirm.disarm}
-            />
-          )}
+        // A BLOCK card, not one wrapping flex row (owner-reported 2026-07-24: "some are aligned
+        // while others aren't"). The old `flex-wrap … justify-between` put the controls on the
+        // right for a short bank name ("Plaid: Chase") but WRAPPED them onto their own
+        // left-aligned line for a long one ("Plaid: American Express"), so the buttons landed in
+        // two different places down the list. Now the status text flexes/wraps in its own column
+        // and the controls are pinned right on the first line, identically for every row.
+        <div key={item.itemId} className="rounded-md border px-2 py-1.5">
+          <div className="flex items-start justify-between gap-2">
+            <span className="min-w-0 flex-1 text-xs text-muted-foreground" data-testid="plaid-item-status">
+              Plaid: {item.institution ?? 'Connected bank'} ·{' '}
+              {item.lastSyncedAt ? `last synced ${item.lastSyncedAt}` : 'not synced yet'}
+            </span>
+            {!confirm.isArmed(item.itemId) && (
+              <div className="flex shrink-0 gap-1">
+                <button
+                  type="button"
+                  data-testid="plaid-sync"
+                  aria-label={`Sync ${item.institution ?? 'this bank'} now (Plaid)`}
+                  disabled={syncing || pending}
+                  onClick={() => syncNow(item.itemId, item.institution)}
+                  className="tap-target inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+                >
+                  {syncing ? 'Syncing…' : 'Sync'}
+                </button>
+                <button
+                  type="button"
+                  data-testid="plaid-disconnect"
+                  aria-label={`Disconnect ${item.institution ?? 'this bank'} (Plaid)`}
+                  disabled={pending}
+                  onClick={() => confirm.arm(item.itemId)}
+                  className="tap-target inline-flex shrink-0 items-center justify-center rounded-md border px-2 py-1 text-xs text-red-400 hover:bg-accent disabled:opacity-50"
+                >
+                  Disconnect
+                </button>
+              </div>
+            )}
+          </div>
           {item.accounts.length > 0 && (
-            // Full-width second line: the cards under this connection, each with its last-4, so
-            // two same-bank connections are distinguishable and you can see what a Disconnect
-            // would remove (owner-reported: two identical "Plaid: Chase" rows).
-            <span
-              className="w-full text-xs text-muted-foreground/70"
-              data-testid="plaid-item-accounts"
-            >
+            // The cards under this connection, each with its last-4, so two same-bank connections
+            // are distinguishable and you can see what a Disconnect would remove.
+            <div className="mt-1 text-xs text-muted-foreground/70" data-testid="plaid-item-accounts">
               {item.accounts
                 .map((a) => (a.mask ? `${a.name} ····${a.mask}` : a.name))
                 .join(' · ')}
-            </span>
+            </div>
+          )}
+          {confirm.isArmed(item.itemId) && (
+            // Armed state gets its own full-width row — a sentence plus two buttons never fits
+            // beside the status text at 380px.
+            <div className="mt-1">
+              <ConfirmPrompt
+                rowTestId="plaid-disconnect-confirm-row"
+                prompt="Disconnect? Synced accounts and history are kept."
+                confirmLabel={pending ? 'Disconnecting…' : 'Yes'}
+                confirmTestId="plaid-disconnect-confirm"
+                confirmAriaLabel={`Yes, disconnect ${item.institution ?? 'this bank'}`}
+                pending={pending}
+                onConfirm={() => disconnect(item.itemId)}
+                onCancel={confirm.disarm}
+              />
+            </div>
           )}
         </div>
       ))}

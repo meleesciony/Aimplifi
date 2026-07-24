@@ -403,19 +403,39 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
 
   // Per-account connection freshness (Gap 1 §3 follow-up). The engine decides which
   // accounts get a result (SimpleFIN/Plaid feeds, non-INVESTMENT); manual/demo rows and
-  // brokerages come back null and render no line. A SimpleFIN account's connection sync
-  // floors its reference date so a quiet-but-live feed doesn't false-alarm. Assigned onto
-  // `views` BEFORE the reconciliation boundary so its copy-on-write predecessor rows carry it.
+  // brokerages come back null and render no line. A linked account's CONNECTION sync floors
+  // its reference date so a quiet-but-live feed doesn't false-alarm (health.ts mostRecentDate).
+  // Assigned onto `views` BEFORE the reconciliation boundary so its copy-on-write predecessor
+  // rows carry it.
+  //
+  // OWNER-REPORTED 2026-07-24: this floor was supplied for SimpleFIN ONLY — Plaid passed a
+  // hardcoded null — so every Plaid account fell back to its newest TRANSACTION date. Accounts
+  // that legitimately have no recent transactions (a mortgage, a loan, a quiet card) therefore
+  // read "Not synced yet" / "Last synced 10 days ago" / "No new data in 15 days — you may need
+  // to reconnect" while the connection row on the SAME page said it synced today. That is a
+  // false claim about live data (the #277 class). Plaid now supplies its own item's
+  // lastSyncedAt, matched by the account's plaidItemId.
   const newestTxnByAccount = new Map<string, string>();
   for (const g of newestByAccount) if (g._max.date) newestTxnByAccount.set(g.accountId, g._max.date);
   const sfLastSynced = sfConn?.lastSyncedAt ? isoDate(sfConn.lastSyncedAt) : null;
+  // itemId → that bank's last SUCCESSFUL sync date (YYYY-MM-DD string column, like SimpleFIN's).
+  const plaidSyncedByItem = new Map(
+    plaidItems.map((i) => [i.itemId, i.lastSyncedAt ? isoDate(i.lastSyncedAt) : null] as const),
+  );
   const freshnessById = perAccountFreshness(
     supported.map((a) => ({
       id: a.id,
       isLinkedFeed: a.provider === 'simplefin' || a.provider === 'plaid',
       type: a.type,
       newestTxnDate: newestTxnByAccount.has(a.id) ? isoDate(newestTxnByAccount.get(a.id)!) : null,
-      connectionLastSyncedAt: a.provider === 'simplefin' ? sfLastSynced : null,
+      connectionLastSyncedAt:
+        a.provider === 'simplefin'
+          ? sfLastSynced
+          : // A row whose plaidItemId predates #256 (never re-synced) has no linkage yet and keeps
+            // the transaction-date fallback; the next account sync stamps it and this self-heals.
+            a.provider === 'plaid' && a.plaidItemId
+            ? plaidSyncedByItem.get(a.plaidItemId) ?? null
+            : null,
     })),
     today,
   );
