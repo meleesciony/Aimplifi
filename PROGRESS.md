@@ -4723,3 +4723,38 @@ surfaces in the SAME deploy as link UI -> slice 5 (F5); /accounts+getAccountsVie
 GATE: VERIFY_E2E=1 bash scripts/verify.sh -> VERIFY GREEN, 3417 unit / 235 files, 157 e2e, exit 0
 (run includes the F9 guard; 52/52 across all three reconciliation suites).
 NEXT: slice 4 (R4/R5 + scheduled) — Fable critic.
+
+## #304 L.6/L.10: one tap combines two connections pulling the same card. 2026-07-24
+Built + hostile-criticized on Fable; three parallel fresh-context critics.
+OWNER, mid-session, with two screenshots: "What did you actually fix? I see the same accounts
+that I posted earlier." Correct: #298/#299 made the duplicate LEGIBLE and #300/#301 stopped
+future ones; nothing removed his two Chase connections both pulling CREDIT CARD ....0977
+($8,539.09 counted twice). Shipped Combine needs one stale side (R3) and the candidate detector
+skipped same-provider pairs, so there was NO path. Queue had prevention ahead of remedy; flipped.
+SHIPPED: engine/account/identity.ts (the ladder: same/different/unproven within ONE provider at
+ONE institution; never reads a balance - structural; null = UNKNOWN); engine/account/
+combine-connections.ts (connection-level planner; a direction is offered only when every dropped
+account is proven the same as EXACTLY ONE kept account); server/combine-connections.ts (one
+SERIALIZABLE claim tx re-derives the plan, re-applies every card suppression, stamps bank
+identity, carries autopay, deletes the losing connection row; then revoke + the shipped
+confirmReconciliationFor).
+CRITICS: 3 P0 / 6 P1 / 9 P2, every one from an executed repro, ALL fixed + 8 ledger entries.
+(P0) two concurrent taps destroyed BOTH connections -> the row deletion IS the claim, inside the
+tx that reads the plan. (P0) the date split deleted real money in BOTH directions ($890 then
+$930) because two LIVE feeds are partial in different places -> fixed by a no-loss PROOF (every
+dropped row needs a same-day same-amount survivor, else refuse and name the amount), not a third
+cutover. (P1) autopay was lost with the dropped row -> would have said "move $8,539.09 yourself"
+for a card the bank still pulls.
+SCHEMA: Account.institutionId + Account.institutionName (nullable, additive), stamped at
+disconnect - deleting the PlaidItem was destroying the only record of who a disconnected row
+banks with, and that row is the population the ladder works on.
+GATE: verify.sh GREEN - tsc 0 / eslint 0 / 3924 unit / 261 files / build clean; full e2e 173/173
+SERIALIZED (exit 0). The 4-worker run showed 5 failures, all passing isolated - the documented
+load flake.
+SHIPPED LIVE: pushed 32515e2..d0cef99; dpl_5nfVaMB8gCKZdVhypT5qfxZSqLc1; build log shows the
+Neon prisma db push in sync + "Deployment completed"; www.aimplifi.app/sign-in is now
+md5-identical to the new deployment and differs from the previous one.
+UNVERIFIED: live Plaid (no creds) - the token revoke and the /accounts/get identity capture ran
+against mocked providers only.
+NEXT: L.10 slice 3's other half (collision interception on the fresh-Link front door), then L.8
+(the dashboard still double-counts a both-live duplicate silently).

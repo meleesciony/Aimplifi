@@ -67,6 +67,16 @@ a serialized or isolated rerun: the documented load-induced contention flake
 **UNVERIFIED against live Plaid** (no credentials here): the token revoke and the `/accounts/get` identity
 capture ran only against mocked providers and real Prisma.
 
+**Deploy: VERIFIED LIVE on `d0cef99`, production.** Vercel `dpl_5nfVaMB8gCKZdVhypT5qfxZSqLc1`; the build
+log shows `prisma db push` reporting *"Your database is now in sync with your Prisma schema"* against the
+Neon production database (the two nullable `Account` columns are live, existing rows NULL) and
+*"Deployment completed"*. No public marker exists to grep — /accounts is auth-gated and the card renders
+only for a user with two Plaid connections at one bank — so the alias was verified by BYTES instead:
+`https://www.aimplifi.app/sign-in` is now md5-identical to the new deployment's own URL and differs from
+the previous deployment's, i.e. the production domain is serving this build. (The Vercel API's
+`readyState` still read `BUILDING` at the time of writing, several minutes after the build log's
+"Deployment completed"; the serving bytes are the stronger evidence.)
+
 **Known residuals, recorded rather than silently widened:** a duplicate row's own hand-categorization is
 dropped with it when its twin survives (money is unaffected; the category can be re-set); `keepRank` breaks
 a tie by link order without measuring which feed is deeper (a wrong guess now costs a refusal, never a row);
