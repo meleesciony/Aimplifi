@@ -38,8 +38,11 @@ via `eval:categorize`.
 Gate: `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **3846 unit / 257 files** / build clean; new e2e
 `tests/e2e/triage-provider-suggestion.spec.ts` PASSES. **UNVERIFIED against live Plaid** (no creds here —
 mocked providers + real Prisma only; his real inbox's before/after coverage can only be seen after deploy).
-**Deploy:** committed + pushed as #303; Vercel auto-deploys `main` — see the deploy-confirmation line added
-once READY + the live marker is grepped.
+**Deploy:** **VERIFIED READY on `57e3576`, production**, aliased to www.aimplifi.app (Vercel dpl_5eurCpui3N6HNYQZbSbHw2ZnJcZZ,
+readyState READY) — so the schema `prisma db push` succeeded on Neon (two nullable cols added; existing rows NULL).
+No live marker grepped: /triage is auth-gated + client-rendered (same as the L.10 slices), so the evidence is the
+READY state tied to this exact SHA + the production alias, plus the local gate + e2e. www.aimplifi.app answers 307
+(the auth-gate redirect), confirming the alias serves this deployment.
 
 **Next build (owner sequencing 2026-07-24):** the account-duplicate ROOT CAUSE — make it impossible to
 re-pull the same card (L.10 slice 3, collision interception) + a one-tap Combine for both-live duplicates
