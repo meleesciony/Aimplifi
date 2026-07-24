@@ -1,5 +1,38 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-24 — L.12 (a)+(b) DONE (#303) — Plaid's category → a one-tap inbox suggestion
+
+Shipped both slices. `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **3846 unit across 257 files** /
+build clean; new UI e2e `tests/e2e/triage-provider-suggestion.spec.ts` PASSES (signup → seed a review row
+with a persisted Plaid guess → /triage renders "Plaid's guess" → one-tap files the group). Fresh-context
+hostile critic (categorization routing) found ONE P1 + two P3, all fixed + regression-locked: the surfaced
+guess lacked the #44/F4 sign guard, so an OUTFLOW tagged INCOME would one-tap-book spend as income —
+gated in `prepareIngestedTransaction` (outflow never Income; inflow→spend refund kept), locked by
+tests/unit/plaid-map.test.ts sign-guard cases. P3s: swipe-right footer clause dropped on provider-guess-only
+cards (swipe-right is confident-only, a no-op there); deploy heads-up = 2 nullable cols → `prisma db push`
+on Neon. DECISIONS #296. UNVERIFIED against live Plaid (no creds here — mocked providers + real Prisma).
+Next: commit → push → confirm Vercel READY + grep live marker → then the account-duplicate root cause
+(L.10 slice 3 + a Combine remedy) per owner's 2026-07-24 sequencing.
+
+## 2026-07-24 — L.12 (a)+(b) IN PROGRESS — Plaid's category → a one-tap inbox suggestion (superseded by the DONE entry above)
+
+Owner-chosen next build. Root cause verified: Plaid's `personal_finance_category` is mapped at
+ingest (`mapPlaidPersonalFinanceCategory`, plaid-map.ts:546) but NEVER persisted, and `getTriageGroups`
+(triage.ts:194) recomputes suggestions via `categorize` WITHOUT the hint (triage.ts:219-223) — so a row
+Plaid guessed but our ruleset missed shows "Suggestion: none yet". Scope THIS session = (a) persist +
+(b) surface as a one-tap "Plaid's guess"; NOT (c) ruleset widening / (d) auto-file at MEDIUM.
+
+Design: (a) two nullable `Transaction` cols `providerCategoryId`+`providerCategoryConfidenceBps`; shared
+`resolvePfcCategoryId` core; keep `mapPlaidPersonalFinanceCategory` UNCHANGED (auto-file hint); NEW
+`mapPlaidProviderCategoryGuess` superset incl. LOW=4000 (persist-only, never auto-files — clamp floor 6500
+> 4000, tuning.ts:53). Persist via the single `base` obj in plaid.ts. (b) `ReviewRow.providerCategoryId`
+→ `TriageGroup.providerSuggestedCategoryId` (unanimous among opinionated rows, NON-aggregate), deliberately
+OUT of `isConfidentGroup`/Accept-all-confident; three-way UI. Invariants H1-H6: auto-file byte-identical,
+never bulk-files, aggregates suppressed, fallback-only, disclosed, demo golden-safe.
+
+Status: engine-first build starting (schema → plaid-map → plaid.ts → group → triage → UI → tests → verify
+→ fresh-context critic → ship). Prev session's L.10 slice-2 entry below.
+
 ## 2026-07-24 — L.10 slice 2 shipped — Plaid Link update mode (#301)
 
 Every Plaid connection on /accounts now offers 'Add or fix accounts', reopening the connection that exists rather than creating a second one — the door whose absence manufactured the duplicates the previous six commits were detecting and disclosing. THREE fresh-context critics found 2 P0 + 6 P1; all fixed in cycle 1 and regression-locked (4 REGRESSION_LEDGER entries). The P0 was structural and self-inflicted: the update/new discriminator lived in a second localStorage key stamped at token-mint time, while the connect front door on the same page pre-mints on mount and opens without writing — so in the worst ordering a COMPLETED new-bank link was discarded unexchanged while the user was redirected as though it had worked. Fixed by shape: one atomic record, stamped by whoever opens Link. Two pre-existing P1s fixed because the new copy depends on them: SyncResult.itemsFailed (the existing Sync button reported 'no new transactions' when a bank had refused) and identity capture inside removeItem (every disconnected row was permanently identity-less). subtype became write-always because type is derived from it. Gate: bash scripts/verify.sh GREEN — tsc 0 / eslint 0 / 3814 unit across 256 files / build clean. Full e2e 172 passed / 5 failed, all 5 the documented #287 /accounts Suspense DOM-duplication flake (a different test each run; combined-accounts passes 2/2 isolated, duplicate-connections 8/8 in both engines). Pushed as abc4398; empty prisma diff so the live database is untouched. UNVERIFIED against live Plaid. Deferred with reasons: TASKS L.14 (a deselected account freezes and keeps counting). Owner reported three new issues mid-session, notated not diagnosed: TASKS L.11 cash-needed/safe-to-spend, L.12 the 321-item triage inbox, L.13 Vanguard (no open item exists in the repo — ask before assuming).

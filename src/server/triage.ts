@@ -179,6 +179,9 @@ function bestGuess(amountCents: number): string {
 /** A triage group enriched with display names + quick-pick alternatives. */
 export interface TriageGroupView extends TriageGroup {
   suggestedCategoryName: string | null;
+  /** Display name of the provider (Plaid) guess, shown as "Plaid's guess" when our
+   *  own suggestion is null (L.12). null when there is no provider fallback. */
+  providerSuggestedCategoryName: string | null;
   /** 3 quick-pick alternatives (pipeline pool + staples), never the suggestion. */
   alternativeIds: string[];
   alternativeNames: string[];
@@ -232,6 +235,10 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
       status: t.status,
       aggregate: normalizeMerchant(t.rawDescriptor).aggregate,
       suggestedCategoryId: out.categoryId === 'uncategorized' ? null : out.categoryId,
+      // Plaid's persisted own-category guess (L.12). Read straight from the column —
+      // the ingest-time mapping is NOT recomputed here (triage no longer has the raw
+      // PFC), which is exactly why persisting it is what lets the inbox show it.
+      providerCategoryId: t.providerCategoryId,
     };
   });
 
@@ -255,11 +262,14 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
         )
       : [];
     const alts = [...new Set([...pool, 'dining', 'groceries', 'household', 'cash'])]
-      .filter((c) => c !== g.suggestedCategoryId)
+      .filter((c) => c !== g.suggestedCategoryId && c !== g.providerSuggestedCategoryId)
       .slice(0, 3);
     return {
       ...g,
       suggestedCategoryName: g.suggestedCategoryId ? categoryName(g.suggestedCategoryId, meta) : null,
+      providerSuggestedCategoryName: g.providerSuggestedCategoryId
+        ? categoryName(g.providerSuggestedCategoryId, meta)
+        : null,
       alternativeIds: alts,
       alternativeNames: alts.map((id) => categoryName(id, meta)),
     };

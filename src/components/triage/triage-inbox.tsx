@@ -905,6 +905,14 @@ export function TriageInbox({
 
   const one = top.count === 1;
   const anchorRow = top.rows[0];
+  // L.12: when our own pipeline produced no suggestion, fall back to Plaid's persisted
+  // guess — shown labelled "Plaid's guess", never presented as our confident verdict.
+  // One tap files all N as that category (an ordinary, undoable user Correction); the
+  // label is the disclosure and it appears before any tap. This fallback is NEVER part
+  // of "Accept all confident" (that reads only the pipeline's own suggestion).
+  const suggestionIsProviderGuess = !top.suggestedCategoryId && !!top.providerSuggestedCategoryId;
+  const shownSuggestionId = top.suggestedCategoryId ?? top.providerSuggestedCategoryId;
+  const shownSuggestionName = top.suggestedCategoryName ?? top.providerSuggestedCategoryName;
   const confidentSummary = summarizeConfident(groups);
   const activeRow = activeRowId ? top.rows.find((r) => r.id === activeRowId) : null;
   const groupFooter = top.ruleEligible
@@ -1004,6 +1012,11 @@ export function TriageInbox({
             <span className="text-sm text-muted-foreground">Suggestion:</span>
             {top.suggestedCategoryName ? (
               <Badge data-testid="triage-suggestion">{top.suggestedCategoryName}</Badge>
+            ) : top.providerSuggestedCategoryName ? (
+              <Badge variant="outline" data-testid="triage-provider-suggestion">
+                {top.providerSuggestedCategoryName}
+                <span className="ml-1 font-normal text-muted-foreground">· Plaid&rsquo;s guess</span>
+              </Badge>
             ) : (
               <span className="text-sm text-muted-foreground" data-testid="triage-no-suggestion">
                 none yet — pick once for {one ? 'this' : `all ${top.count}`}
@@ -1099,7 +1112,7 @@ export function TriageInbox({
         </Button>
         <Button
           onClick={() => {
-            if (top.suggestedCategoryId) fileGroup(top, top.suggestedCategoryId, 'tap');
+            if (shownSuggestionId) fileGroup(top, shownSuggestionId, 'tap');
             else {
               logInteraction('tap', 'picker (no suggestion)');
               setMode('picker');
@@ -1109,10 +1122,14 @@ export function TriageInbox({
           data-testid="triage-accept"
         >
           <span className="truncate">
-            {top.suggestedCategoryId
-              ? one
-                ? `✓ File as ${top.suggestedCategoryName}`
-                : `✓ File all ${top.count}`
+            {shownSuggestionId
+              ? suggestionIsProviderGuess
+                ? one
+                  ? `✓ File as ${shownSuggestionName} (Plaid's guess)`
+                  : `✓ File all ${top.count} (Plaid's guess)`
+                : one
+                  ? `✓ File as ${shownSuggestionName}`
+                  : `✓ File all ${top.count}`
               : one
                 ? 'Pick category'
                 : `Pick for all ${top.count}`}
@@ -1140,7 +1157,10 @@ export function TriageInbox({
       </p>
 
       <p className="text-center text-xs text-muted-foreground">
-        Swipe right to file · swipe left to pick · long-press to {one ? 'split' : 'review one by one'}
+        {/* Swipe-right files only OUR confident suggestion; on a provider-guess-only or
+            "none yet" card it is a no-op, so drop that clause and point at the button. */}
+        {top.suggestedCategoryId ? 'Swipe right to file · swipe left to pick' : 'Swipe left to pick'} · long-press
+        to {one ? 'split' : 'review one by one'}
       </p>
     </div>
   );

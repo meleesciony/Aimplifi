@@ -37,6 +37,7 @@ function run(rules: RuleLike[]) {
     status: 'POSTED',
     aggregate: normalizeMerchant(o.txn.rawDescriptor).aggregate,
     suggestedCategoryId: o.verdict.categoryId === 'uncategorized' ? null : o.verdict.categoryId,
+    providerCategoryId: null, // pure messy-corpus run has no Plaid PFC — provider fallback inert
   }));
   return { total: txns.length, out, review, groups: groupReviewRows(rows) };
 }

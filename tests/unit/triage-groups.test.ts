@@ -13,7 +13,13 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { auth } from '@/auth';
 import { categorize } from '@/lib/engine/categorize/pipeline';
-import { groupReviewRows } from '@/lib/engine/categorize/group';
+import {
+  groupReviewRows,
+  isConfidentGroup,
+  selectConfidentGroups,
+  summarizeConfident,
+  type ReviewRow,
+} from '@/lib/engine/categorize/group';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { getReviewCount, getTriageGroups } from '@/server/triage';
 import { applyCategory, fileMerchantGroup, makeRuleFromCorrection, recategorize } from '@/server/triage-actions';
@@ -123,6 +129,38 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(seawolf.suggestedCategoryId).toBe('coffee');
   });
 
+  it('L.12: getTriageGroups surfaces Plaid’s persisted guess for an unknown merchant, but NOT for an aggregate', async () => {
+    // Stamp Plaid’s guess onto the Seawolf review rows (unknown merchant → our pipeline
+    // has no suggestion) and onto a Zelle aggregate group.
+    await prisma.transaction.updateMany({
+      where: { merchantId: MERCH_SEAWOLF, account: { userId: USER } },
+      data: { providerCategoryId: 'dining', providerCategoryConfidenceBps: 4000 },
+    });
+    await prisma.transaction.updateMany({
+      where: { rawDescriptor: 'ZELLE PAYMENT TO MARCUS CHEN', account: { userId: USER } },
+      data: { providerCategoryId: 'dining', providerCategoryConfidenceBps: 4000 },
+    });
+
+    const groups = await getTriageGroups(USER);
+    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Sundries')!;
+    expect(seawolf.suggestedCategoryId).toBeNull(); // our ruleset still has none
+    expect(seawolf.providerSuggestedCategoryId).toBe('dining'); // Plaid’s guess surfaces as the fallback
+    expect(seawolf.providerSuggestedCategoryName).toBeTruthy();
+    expect(isConfidentGroup(seawolf)).toBe(false); // H2: a provider fallback is NOT confident
+    expect(selectConfidentGroups(groups)).not.toContain(seawolf);
+
+    const marcus = groups.find((g) => g.variants.includes('ZELLE PAYMENT TO MARCUS CHEN'))!;
+    expect(marcus.aggregate).toBe(true);
+    expect(marcus.providerSuggestedCategoryId).toBeNull(); // H3: aggregates never get a provider fallback
+  });
+
+  it('L.12: no provider guess → "none yet" is unchanged (demo/SimpleFIN byte-identical)', async () => {
+    const groups = await getTriageGroups(USER);
+    const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Sundries')!;
+    expect(seawolf.providerSuggestedCategoryId).toBeNull();
+    expect(seawolf.providerSuggestedCategoryName).toBeNull();
+  });
+
   it('fileMerchantGroup: files ALL rows + per-row corrections + prediction truth + durable rule → next ingest auto-files (trust on repeat)', async () => {
     const groups = await getTriageGroups(USER);
     const seawolf = groups.find((g) => g.merchantCanonical === 'Seawolf Sundries')!;
@@ -186,9 +224,9 @@ describe('merchant-group triage (Phase 3b)', () => {
 
   it('pure grouping: leverage sort (count desc), preserved newest-first rows, merchantless fallback key', () => {
     const groups = groupReviewRows([
-      { id: 'a1', merchantId: null, merchantCanonical: 'Local One', rawDescriptor: 'LOCAL ONE', amountCents: -100, date: '2026-06-09', accountName: 'X', status: 'POSTED', aggregate: false, suggestedCategoryId: null },
-      { id: 'b1', merchantId: 'm1', merchantCanonical: 'Busy', rawDescriptor: 'BUSY 1', amountCents: -100, date: '2026-06-08', accountName: 'X', status: 'POSTED', aggregate: false, suggestedCategoryId: 'coffee' },
-      { id: 'b2', merchantId: 'm1', merchantCanonical: 'Busy', rawDescriptor: 'BUSY 2', amountCents: -200, date: '2026-06-07', accountName: 'X', status: 'POSTED', aggregate: false, suggestedCategoryId: 'dining' },
+      { id: 'a1', merchantId: null, merchantCanonical: 'Local One', rawDescriptor: 'LOCAL ONE', amountCents: -100, date: '2026-06-09', accountName: 'X', status: 'POSTED', aggregate: false, suggestedCategoryId: null, providerCategoryId: null },
+      { id: 'b1', merchantId: 'm1', merchantCanonical: 'Busy', rawDescriptor: 'BUSY 1', amountCents: -100, date: '2026-06-08', accountName: 'X', status: 'POSTED', aggregate: false, suggestedCategoryId: 'coffee', providerCategoryId: null },
+      { id: 'b2', merchantId: 'm1', merchantCanonical: 'Busy', rawDescriptor: 'BUSY 2', amountCents: -200, date: '2026-06-07', accountName: 'X', status: 'POSTED', aggregate: false, suggestedCategoryId: 'dining', providerCategoryId: null },
     ]);
     expect(groups.map((g) => g.merchantCanonical)).toEqual(['Busy', 'Local One']); // 2 rows beat 1
     expect(groups[0].suggestedCategoryId).toBeNull(); // MIXED verdicts → null, no fake unanimity
@@ -197,6 +235,79 @@ describe('merchant-group triage (Phase 3b)', () => {
     // action uses, so card count ≡ action scope (checker P0).
     expect(groups[1].key).toBe('raw:LOCAL ONE');
     expect(groups[1].ruleEligible).toBe(false); // no merchantId → no rule offer
+  });
+
+  // ── L.12: provider (Plaid) fallback suggestion — pure engine ──
+  const rr = (o: Partial<ReviewRow> & { id: string }): ReviewRow => ({
+    id: o.id,
+    merchantId: o.merchantId ?? 'm',
+    merchantCanonical: o.merchantCanonical ?? 'Goose Pond Bar Grille',
+    rawDescriptor: o.rawDescriptor ?? 'GOOSE POND BAR GRILLE',
+    amountCents: o.amountCents ?? -1000,
+    date: o.date ?? '2026-06-09',
+    accountName: 'X',
+    status: 'POSTED',
+    aggregate: o.aggregate ?? false,
+    suggestedCategoryId: o.suggestedCategoryId ?? null,
+    providerCategoryId: o.providerCategoryId ?? null,
+  });
+
+  it('L.12 pure: a unanimous Plaid guess with no pipeline suggestion becomes the fallback, and is NOT confident', () => {
+    const [g] = groupReviewRows([rr({ id: '1', providerCategoryId: 'dining' }), rr({ id: '2', providerCategoryId: 'dining' })]);
+    expect(g.suggestedCategoryId).toBeNull();
+    expect(g.providerSuggestedCategoryId).toBe('dining');
+    expect(isConfidentGroup(g)).toBe(false); // H2
+    expect(selectConfidentGroups([g])).toHaveLength(0);
+    expect(summarizeConfident([g])).toEqual({ merchants: 0, transactions: 0 });
+  });
+
+  it('L.12 pure: rows with no guess ride along when the opinionated rows agree', () => {
+    const [g] = groupReviewRows([rr({ id: '1', providerCategoryId: 'dining' }), rr({ id: '2', providerCategoryId: null })]);
+    expect(g.providerSuggestedCategoryId).toBe('dining');
+  });
+
+  it('L.12 pure: disagreeing Plaid guesses abstain — no fabricated fallback', () => {
+    const [g] = groupReviewRows([rr({ id: '1', providerCategoryId: 'dining' }), rr({ id: '2', providerCategoryId: 'groceries' })]);
+    expect(g.providerSuggestedCategoryId).toBeNull();
+  });
+
+  it('L.12 pure: an aggregate group (one canonical, many payees) NEVER gets a provider fallback (H3)', () => {
+    const [g] = groupReviewRows([
+      rr({ id: '1', aggregate: true, rawDescriptor: 'ZELLE TO ALEX', providerCategoryId: 'dining' }),
+      rr({ id: '2', aggregate: true, rawDescriptor: 'ZELLE TO ALEX', providerCategoryId: 'dining' }),
+    ]);
+    expect(g.aggregate).toBe(true);
+    expect(g.providerSuggestedCategoryId).toBeNull();
+  });
+
+  it('L.12 pure: our own suggestion always wins — provider fallback is not set when the pipeline has one (H4)', () => {
+    const [g] = groupReviewRows([
+      rr({ id: '1', suggestedCategoryId: 'coffee', providerCategoryId: 'dining' }),
+      rr({ id: '2', suggestedCategoryId: 'coffee', providerCategoryId: 'dining' }),
+    ]);
+    expect(g.suggestedCategoryId).toBe('coffee');
+    expect(g.providerSuggestedCategoryId).toBeNull();
+  });
+
+  it('L.12 coverage: the fallback turns "none yet" groups into one-tap suggestions, leaving the rest untouched', () => {
+    const groups = groupReviewRows([
+      rr({ id: 'a1', merchantId: 'ma', merchantCanonical: 'A', rawDescriptor: 'A', providerCategoryId: 'dining' }),
+      rr({ id: 'a2', merchantId: 'ma', merchantCanonical: 'A', rawDescriptor: 'A', providerCategoryId: 'dining' }),
+      rr({ id: 'b1', merchantId: 'mb', merchantCanonical: 'B', rawDescriptor: 'B', providerCategoryId: null }), // no Plaid guess
+      rr({ id: 'c1', aggregate: true, merchantCanonical: 'Zelle', rawDescriptor: 'ZELLE X', providerCategoryId: 'dining' }), // aggregate
+      rr({ id: 'd1', merchantId: 'md', merchantCanonical: 'D', rawDescriptor: 'D', suggestedCategoryId: 'coffee', providerCategoryId: 'dining' }), // app wins
+    ]);
+    const byName = new Map(groups.map((g) => [g.merchantCanonical, g]));
+    // Before this feature EVERY "none yet" group (A, B, Zelle) showed no suggestion.
+    expect(byName.get('A')!.providerSuggestedCategoryId).toBe('dining'); // gained a one-tap
+    expect(byName.get('B')!.providerSuggestedCategoryId).toBeNull(); // no Plaid guess → still none yet
+    expect(byName.get('Zelle')!.providerSuggestedCategoryId).toBeNull(); // aggregate → suppressed
+    expect(byName.get('D')!.suggestedCategoryId).toBe('coffee'); // app suggestion preserved
+    expect(byName.get('D')!.providerSuggestedCategoryId).toBeNull();
+    // Net coverage gained by the feature on this set: exactly the groups that flipped
+    // from "none yet" to a provider one-tap.
+    const gained = groups.filter((g) => g.suggestedCategoryId === null && g.providerSuggestedCategoryId !== null);
+    expect(gained.map((g) => g.merchantCanonical)).toEqual(['A']);
   });
 
   it('P0 lock: a MERCHANTLESS anchor files ONLY its exact-descriptor rows — never every null-merchant row', async () => {

@@ -18,6 +18,7 @@ import { type ISODate, isoDate } from '@/lib/dates';
 import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
 import { estimateMinimumPayment } from '@/lib/engine/cash-needed/engine';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { type CategorizedTxn, type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
 import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 import { resolvePlaidCurrency } from './currency';
@@ -391,6 +392,13 @@ const PFC_CONFIDENCE_BPS: Readonly<Record<string, number>> = {
   MEDIUM: 7200,
 };
 
+// Plaid's LOW confidence → a below-auto-file GUESS bps. Used ONLY for the persisted
+// provider-category guess surfaced as the triage one-tap suggestion (L.12), never for
+// auto-filing: it sits below the tuned auto-file clamp FLOOR (AUTO_FLAGGED_BPS −
+// TUNE_SPAN_BPS = 6500, tuning.ts), so isUsableProviderHint can never file it. UNKNOWN
+// and absent confidence stay "no guess" — Plaid itself couldn't categorize the row.
+const PFC_LOW_GUESS_BPS = 4000;
+
 // Plaid PFC `detailed` (the specific leaf) → Pulse category id. First choice; the
 // primary map below is the fallback. Entries are OMITTED (→ no hint) wherever there
 // is no safe single Pulse target — most importantly EVERY transfer leaf, because
@@ -543,6 +551,21 @@ export const PFC_PRIMARY_TO_CATEGORY: Readonly<Record<string, string>> = {
  * category and NEVER `transfer` (see the maps) — the pipeline additionally re-checks
  * sign-appropriateness and non-transfer before it ever files a hint (isUsableProviderHint).
  */
+/**
+ * Shared PFC → Pulse category id resolution: the specific `detailed` leaf first, then
+ * the `primary` bucket, else null (a transfer leaf, an over-broad service bucket, or an
+ * absent/unmapped value — all deliberately unmapped). Confidence-AGNOSTIC: the two
+ * callers below each apply their own confidence policy, so the category mapping lives
+ * in exactly one place and can never drift between the auto-file hint and the persisted
+ * guess. Exported for tests only.
+ */
+export function resolvePfcCategoryId(pfc: PlaidTransaction['personal_finance_category']): string | null {
+  if (!pfc) return null;
+  const detailed = typeof pfc.detailed === 'string' ? pfc.detailed.trim().toUpperCase() : '';
+  const primary = typeof pfc.primary === 'string' ? pfc.primary.trim().toUpperCase() : '';
+  return PFC_DETAILED_TO_CATEGORY[detailed] ?? PFC_PRIMARY_TO_CATEGORY[primary] ?? null;
+}
+
 export function mapPlaidPersonalFinanceCategory(
   pfc: PlaidTransaction['personal_finance_category'],
 ): { categoryId: string; confidenceBps: number } | null {
@@ -551,11 +574,37 @@ export function mapPlaidPersonalFinanceCategory(
     typeof pfc.confidence_level === 'string'
       ? PFC_CONFIDENCE_BPS[pfc.confidence_level.trim().toUpperCase()]
       : undefined;
-  if (confidenceBps == null) return null; // LOW / UNKNOWN / unrecognized → Plaid isn't sure enough
-  const detailed = typeof pfc.detailed === 'string' ? pfc.detailed.trim().toUpperCase() : '';
-  const primary = typeof pfc.primary === 'string' ? pfc.primary.trim().toUpperCase() : '';
-  const categoryId = PFC_DETAILED_TO_CATEGORY[detailed] ?? PFC_PRIMARY_TO_CATEGORY[primary];
+  if (confidenceBps == null) return null; // LOW / UNKNOWN / unrecognized → Plaid isn't sure enough to auto-file
+  const categoryId = resolvePfcCategoryId(pfc);
   if (!categoryId) return null; // an unmapped (e.g. transfer / over-broad) taxonomy value → no hint
+  return { categoryId, confidenceBps };
+}
+
+/**
+ * Plaid `personal_finance_category` → the provider's OWN category GUESS for the row
+ * (mapped to our taxonomy) + Plaid's confidence, or null. The SUPERSET of
+ * `mapPlaidPersonalFinanceCategory` that ALSO keeps LOW-confidence guesses: it is
+ * persisted on the Transaction and surfaced in the triage inbox as a labelled
+ * "Plaid's guess" one-tap suggestion (L.12), so an unknown local merchant our thin
+ * ruleset missed no longer shows "Suggestion: none yet".
+ *
+ * It is NEVER passed to the categorizer's auto-file path — the ingest hint the
+ * pipeline sees stays `mapPlaidPersonalFinanceCategory` (VERY_HIGH/HIGH/MEDIUM only),
+ * and the auto-file bar (isUsableProviderHint, `confidenceBps < flaggedBps`) is
+ * independent. A LOW guess (4000 bps) is below the tuned clamp floor (6500), so it
+ * could not auto-file even if it were routed there. Returns null for UNKNOWN / absent
+ * confidence (Plaid has no guess) or a transfer/over-broad/unmapped taxonomy value.
+ * Pure + unit-tested.
+ */
+export function mapPlaidProviderCategoryGuess(
+  pfc: PlaidTransaction['personal_finance_category'],
+): { categoryId: string; confidenceBps: number } | null {
+  if (!pfc) return null;
+  const level = typeof pfc.confidence_level === 'string' ? pfc.confidence_level.trim().toUpperCase() : '';
+  const confidenceBps = PFC_CONFIDENCE_BPS[level] ?? (level === 'LOW' ? PFC_LOW_GUESS_BPS : undefined);
+  if (confidenceBps == null) return null; // UNKNOWN / absent / unrecognized → no guess to show
+  const categoryId = resolvePfcCategoryId(pfc);
+  if (!categoryId) return null; // transfer / over-broad / unmapped taxonomy value → no guess
   return { categoryId, confidenceBps };
 }
 
@@ -575,6 +624,12 @@ export interface IngestedTransaction {
    * user-dictates, so this is always the pipeline's CategorySource here; the LLM
    * assist overlay may later stamp it 'llm' via assistUnsureRows. */
   source: PredictionSource;
+  /** Provider's OWN category guess for this row (Plaid PFC → our taxonomy), persisted
+   * verbatim so the triage inbox can offer it as a labelled one-tap suggestion (L.12).
+   * null whenever Plaid has no usable guess. Independent of the filed `categoryId`:
+   * this is what Plaid thinks, never a verdict, and never auto-applied below the bar. */
+  providerCategoryId: string | null;
+  providerCategoryConfidenceBps: number | null;
 }
 
 /**
@@ -595,6 +650,11 @@ export function prepareIngestedTransaction(
   const amountCents = plaidAmountToCents(txn.amount);
   const date = isoDate(txn.date);
   const merchant = normalizeMerchant(rawDescriptor);
+  // Plaid's OWN category guess for this row. The AUTO-FILE hint (fed to the pipeline)
+  // stays the narrow VERY_HIGH/HIGH/MEDIUM map — byte-identical auto-file behavior — so
+  // the categorizer's input is unchanged. The GUESS is the LOW-inclusive superset,
+  // persisted verbatim for the triage one-tap suggestion (L.12); it is never routed to
+  // the auto-file path. Both derive from one shared category resolution (no drift).
   const result: CategorizedTxn = categorize(
     {
       rawDescriptor,
@@ -610,6 +670,18 @@ export function prepareIngestedTransaction(
     rules,
     { flaggedBps },
   );
+  const providerGuess = mapPlaidProviderCategoryGuess(txn.personal_finance_category);
+  // #44 / F4 SIGN GUARD on the persisted guess: the auto-file path refuses to book an
+  // OUTFLOW into an Income category (isUsableProviderHint + the merchant-default guard in
+  // pipeline.ts). The suggestion is filed with ONE tap, so it must not resurface the exact
+  // case the pipeline blocks — an outflow guessed as income would ERASE the spend AND
+  // inflate income (the F4 class). Drop the guess in that one direction only; the
+  // inflow→spend refund case (a positive amount filing back to its spend category) is left
+  // intact, matching the merchant-default convention.
+  const persistedGuess =
+    providerGuess && !(amountCents < 0 && CATEGORY_BY_ID.get(providerGuess.categoryId)?.group === 'Income')
+      ? providerGuess
+      : null;
   return {
     providerRef: txn.transaction_id,
     accountId,
@@ -623,5 +695,7 @@ export function prepareIngestedTransaction(
     isTransfer: result.source === 'transfer',
     status: txn.pending ? 'PENDING' : 'POSTED',
     source: result.source,
+    providerCategoryId: persistedGuess?.categoryId ?? null,
+    providerCategoryConfidenceBps: persistedGuess?.confidenceBps ?? null,
   };
 }

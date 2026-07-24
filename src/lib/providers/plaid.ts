@@ -582,6 +582,13 @@ export class PlaidProvider implements DataProvider {
               rawDescriptor: row.rawDescriptor,
               merchantId: merchant.id,
               status: row.status,
+              // Plaid's own category guess for this row — a bank-supplied FACT (an
+              // input, not the verdict), so it refreshes with the other feed facts on
+              // every sync and rides `base` into every create/update site. Powers the
+              // triage one-tap "Plaid's guess" suggestion (L.12); null for rows Plaid
+              // couldn't categorize. Never auto-applied below the auto-file bar.
+              providerCategoryId: row.providerCategoryId,
+              providerCategoryConfidenceBps: row.providerCategoryConfidenceBps,
             };
             const data = {
               ...base,

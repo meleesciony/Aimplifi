@@ -35,6 +35,14 @@ export interface ReviewRow {
    * bestGuess suggested 'Shopping' on 144 of 144 cards).
    */
   suggestedCategoryId: string | null;
+  /**
+   * The PROVIDER's own category guess for this row (Plaid PFC → our taxonomy), or
+   * null. Persisted at ingest and surfaced as a labelled "Plaid's guess" one-tap
+   * suggestion when our own ruleset produced none (L.12). Distinct from
+   * `suggestedCategoryId`: that is OUR confident verdict (drives "Accept all
+   * confident"); this is Plaid's low-confidence guess the user confirms.
+   */
+  providerCategoryId: string | null;
 }
 
 export interface TriageGroup {
@@ -57,6 +65,15 @@ export interface TriageGroup {
    * null = "you decide once" — never a fabricated amount-based guess.
    */
   suggestedCategoryId: string | null;
+  /**
+   * The provider's own category guess (Plaid) for this group, or null — surfaced as a
+   * labelled "Plaid's guess" one-tap suggestion ONLY when `suggestedCategoryId` is null
+   * (our ruleset had none). Unanimous among the rows that carry a guess, never for an
+   * aggregate group (one pick would misfile many payees). Deliberately NOT part of
+   * `isConfidentGroup`: it is a per-merchant default the user confirms row-by-card,
+   * never bulk-filed by "Accept all confident".
+   */
+  providerSuggestedCategoryId: string | null;
   /** Every queued row, newest first — powers expand-to-singles and the card meta. */
   rows: Array<Pick<ReviewRow, 'id' | 'date' | 'amountCents' | 'rawDescriptor' | 'status' | 'accountName'>>;
 }
@@ -92,6 +109,22 @@ export function groupReviewRows(rows: ReviewRow[]): TriageGroup[] {
     const first = members[0]; // newest (input order preserved)
     const suggestions = new Set(members.map((m) => m.suggestedCategoryId));
     const unanimous = suggestions.size === 1 ? first.suggestedCategoryId : null;
+    // Provider (Plaid) fallback guess: unanimous among the rows that HAVE a guess (a
+    // null-opinion row rides along under the user's one-tap confirmation, same merchant),
+    // and NEVER for an aggregate group — Zelle/checks/ATM group many payees under one
+    // canonical, so a single "file all N" to one guessed category would misfile them.
+    // This is computed here but consumed only as a FALLBACK (when `unanimous` is null);
+    // it never feeds isConfidentGroup, so "Accept all confident" can never sweep it.
+    const providerGuesses = members
+      .map((m) => m.providerCategoryId)
+      .filter((c): c is string => c !== null);
+    const providerUnanimous =
+      // Fallback ONLY: when OUR pipeline already has a unanimous suggestion, that wins —
+      // provider stays null so `providerSuggestedCategoryId !== null` means exactly "this
+      // is the fallback the inbox should show". Never for an aggregate group.
+      unanimous === null && !first.aggregate && new Set(providerGuesses).size === 1
+        ? providerGuesses[0]
+        : null;
     groups.push({
       key,
       anchorTransactionId: first.id,
@@ -105,6 +138,7 @@ export function groupReviewRows(rows: ReviewRow[]): TriageGroup[] {
       oldestDate: members.reduce((a, m) => (m.date < a ? m.date : a), first.date),
       variants: [...new Set(members.map((m) => m.rawDescriptor))],
       suggestedCategoryId: unanimous,
+      providerSuggestedCategoryId: providerUnanimous,
       rows: members.map((m) => ({
         id: m.id,
         date: m.date,

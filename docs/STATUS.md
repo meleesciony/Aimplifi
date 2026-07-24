@@ -2,6 +2,50 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-24 (#303, DECISIONS #296) — L.12 (a)+(b): Plaid's category becomes a one-tap inbox suggestion
+
+The owner's loudest competitive complaint ("321 inbox items… Simplifi/mint never had this problem;
+ours is awful by comparison"). Root cause (verified last session): Plaid's own `personal_finance_category`
+was mapped at ingest but **never persisted**, and the triage inbox recomputed suggestions **without** it,
+so a row Plaid could categorize but our thin ruleset missed showed "Suggestion: none yet".
+
+**(a) Persist the guess.** Two nullable, additive `Transaction` columns — `providerCategoryId` +
+`providerCategoryConfidenceBps` — written only by the Plaid ingest path (`prepareIngestedTransaction` →
+`base` in plaid.ts). New `mapPlaidProviderCategoryGuess` is a superset of the unchanged auto-file hint
+`mapPlaidPersonalFinanceCategory`, sharing one `resolvePfcCategoryId` core, and additionally keeps
+LOW-confidence guesses (4000 bps). Demo / SimpleFIN / CSV / manual rows never write these → null → unchanged.
+
+**(b) Surface it.** `getTriageGroups` reads the column; `groupReviewRows` computes a
+`providerSuggestedCategoryId` shown as a labelled **"Plaid's guess"** one-tap suggestion — but ONLY as a
+fallback when our own pipeline suggestion is null, unanimity-gated among the group's opinionated rows, and
+NEVER for an aggregate group (Zelle/checks hide many payees). It is deliberately kept OUT of
+`isConfidentGroup` / "Accept all confident" / swipe-right, so it can never be bulk-filed — the explicit,
+labelled accept button is the only path, and filing it is an ordinary undoable Correction.
+
+**Honesty boundaries (locked by tests):** auto-file behavior is byte-identical — the LOW guess at 4000 bps
+sits below the tuned clamp floor (6500), so it can never auto-file. A fresh-context hostile critic
+(categorization routing) found **1 P1 + 2 P3, all fixed + regression-locked**: the **P1** was a missing
+#44/F4 sign guard on the surfaced guess — an OUTFLOW that Plaid tagged INCOME would one-tap-book spend as
+income (erasing spend, inflating income); now gated in `prepareIngestedTransaction` (outflow never Income;
+the inflow→spend refund case kept, matching the pipeline). P3s: the "Swipe right to file" footer clause is
+dropped on provider-guess-only cards (swipe-right is confident-only there); and the schema diff means
+`prisma db push` adds two nullable columns to live Neon on deploy (existing rows → NULL, golden-safe).
+
+**Deferred (not this session):** (c) the `\bGRILL\b`→"Grille" ruleset boundary + generic-rule widening;
+(d) auto-file at PFC MEDIUM with an AI badge. Both are lower-priority whack-a-mole to measure on his corpus
+via `eval:categorize`.
+
+Gate: `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **3846 unit / 257 files** / build clean; new e2e
+`tests/e2e/triage-provider-suggestion.spec.ts` PASSES. **UNVERIFIED against live Plaid** (no creds here —
+mocked providers + real Prisma only; his real inbox's before/after coverage can only be seen after deploy).
+**Deploy:** committed + pushed as #303; Vercel auto-deploys `main` — see the deploy-confirmation line added
+once READY + the live marker is grepped.
+
+**Next build (owner sequencing 2026-07-24):** the account-duplicate ROOT CAUSE — make it impossible to
+re-pull the same card (L.10 slice 3, collision interception) + a one-tap Combine for both-live duplicates
+like the two Chase ····0977 the owner circled on /accounts. He confirmed: finish this inbox work first,
+then that.
+
 ## ✅ FIXED 2026-07-24 (#302) — savings rate printed "−855105.8%" on real data (TASKS L.11(A))
 
 The owner's dashboard showed "Savings rate · 4-month average of **−855105.8%**". Cause: the card

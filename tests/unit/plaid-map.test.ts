@@ -9,12 +9,16 @@ import {
   mapPlaidAccountType,
   mapPlaidLiabilityToStatement,
   mapPlaidPersonalFinanceCategory,
+  mapPlaidProviderCategoryGuess,
+  resolvePfcCategoryId,
   pickPlaidAprBps,
   plaidAmountToCents,
   plaidDollarsToPositiveCents,
   plaidSignedDollarsToCents,
   prepareIngestedTransaction,
 } from '@/lib/providers/plaid-map';
+import { AUTO_FLAGGED_BPS } from '@/lib/engine/categorize/pipeline';
+import { TUNE_SPAN_BPS } from '@/lib/engine/categorize/tuning';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
 import type { CardSnapshot, CashNeededInput } from '@/lib/engine/cash-needed/types';
@@ -685,5 +689,146 @@ describe('prepareIngestedTransaction + PFC passthrough (end-to-end, DECISIONS #1
     const row = prepareIngestedTransaction(txn, 'acct-checking');
     expect(row.isTransfer).toBe(true);
     expect(row.categoryId).toBe('transfer');
+  });
+
+  // ── L.12: the persisted provider guess (independent of the auto-file verdict) ──
+  it('persists Plaid’s guess on a REVIEW row that did NOT auto-file (the L.12 gap)', () => {
+    // A LOW-confidence PFC leaves the row in review (auto-file behavior UNCHANGED) —
+    // but the guess is now PERSISTED so the triage inbox can offer it as a one-tap
+    // "Plaid’s guess" instead of "none yet".
+    const txn: PlaidTransaction = {
+      ...base,
+      date: '2026-06-08',
+      amount: 42.0,
+      name: 'GOOSE POND BAR GRILLE', // an unknown local merchant our ruleset misses
+      personal_finance_category: { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_RESTAURANT', confidence_level: 'LOW' },
+    };
+    const row = prepareIngestedTransaction(txn, 'acct-checking');
+    expect(row.needsReview).toBe(true); // H1: unchanged — still goes to review
+    expect(row.categoryId).toBe('uncategorized');
+    expect(row.providerCategoryId).toBe('dining'); // Plaid’s guess, captured for the suggestion
+    expect(row.providerCategoryConfidenceBps).toBe(4000);
+  });
+
+  it('persists the guess on an AUTO-FILED row too (provenance trail)', () => {
+    const txn: PlaidTransaction = {
+      ...base,
+      date: '2026-06-08',
+      amount: 42.0,
+      name: 'ACME WIDGETS LLC',
+      personal_finance_category: { primary: 'GENERAL_MERCHANDISE', detailed: 'GENERAL_MERCHANDISE_ONLINE_MARKETPLACES', confidence_level: 'VERY_HIGH' },
+    };
+    const row = prepareIngestedTransaction(txn, 'acct-checking');
+    expect(row.needsReview).toBe(false); // auto-filed via the hint (existing behavior)
+    expect(row.categoryId).toBe('shopping');
+    expect(row.providerCategoryId).toBe('shopping');
+    expect(row.providerCategoryConfidenceBps).toBe(8800);
+  });
+
+  it('no PFC / UNKNOWN / transfer → providerCategoryId null (demo & SimpleFIN stay byte-identical)', () => {
+    const noPfc: PlaidTransaction = { ...base, date: '2026-06-08', amount: 42.0, name: 'ACME WIDGETS LLC' };
+    const plain = prepareIngestedTransaction(noPfc, 'a');
+    expect(plain.providerCategoryId).toBeNull();
+    expect(plain.providerCategoryConfidenceBps).toBeNull();
+    const unknown: PlaidTransaction = { ...noPfc, personal_finance_category: { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_RESTAURANT', confidence_level: 'UNKNOWN' } };
+    expect(prepareIngestedTransaction(unknown, 'a').providerCategoryId).toBeNull();
+    const transfer: PlaidTransaction = { ...noPfc, personal_finance_category: { primary: 'TRANSFER_OUT', detailed: 'TRANSFER_OUT_ACCOUNT_TRANSFER', confidence_level: 'VERY_HIGH' } };
+    expect(prepareIngestedTransaction(transfer, 'a').providerCategoryId).toBeNull();
+  });
+
+  // #44 / F4 sign guard on the surfaced guess (critic P1): a one-tap suggestion must not
+  // resurface the exact case the auto-file path blocks — an OUTFLOW booked as income.
+  it('sign guard: an OUTFLOW guessed as INCOME is NOT persisted (one tap must never book spend as income)', () => {
+    const spendTaggedIncome: PlaidTransaction = {
+      ...base,
+      date: '2026-06-08',
+      amount: 42.0, // Plaid-positive = OUTFLOW → -4200 cents
+      name: 'ACME WIDGETS LLC',
+      personal_finance_category: { primary: 'INCOME', detailed: 'INCOME_WAGES', confidence_level: 'HIGH' },
+    };
+    const row = prepareIngestedTransaction(spendTaggedIncome, 'acct-checking');
+    expect(row.amountCents).toBeLessThan(0); // outflow
+    expect(row.providerCategoryId).toBeNull(); // the income guess is dropped, never surfaced
+    expect(row.providerCategoryConfidenceBps).toBeNull();
+  });
+
+  it('sign guard: an INFLOW guessed as INCOME IS persisted (income on a credit is legitimate)', () => {
+    const incomeInflow: PlaidTransaction = {
+      ...base,
+      date: '2026-06-05',
+      amount: -3000.0, // Plaid-negative = INFLOW → +300000 cents
+      name: 'ACME WIDGETS LLC',
+      personal_finance_category: { primary: 'INCOME', detailed: 'INCOME_WAGES', confidence_level: 'HIGH' },
+    };
+    const row = prepareIngestedTransaction(incomeInflow, 'acct-checking');
+    expect(row.amountCents).toBeGreaterThan(0); // inflow
+    expect(row.providerCategoryId).toBe('paycheck');
+  });
+
+  it('sign guard: an INFLOW guessed as a SPEND category IS persisted (the refund case, matching the pipeline)', () => {
+    const refund: PlaidTransaction = {
+      ...base,
+      date: '2026-06-08',
+      amount: -42.0, // inflow
+      name: 'ACME WIDGETS LLC',
+      personal_finance_category: { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_RESTAURANT', confidence_level: 'LOW' },
+    };
+    const row = prepareIngestedTransaction(refund, 'acct-checking');
+    expect(row.amountCents).toBeGreaterThan(0); // inflow
+    expect(row.providerCategoryId).toBe('dining'); // refund → its spend category, left intact
+  });
+});
+
+describe('mapPlaidProviderCategoryGuess — Plaid’s persisted guess incl. LOW (L.12)', () => {
+  it('agrees with the auto-file map for VERY_HIGH / HIGH / MEDIUM (superset, shared core)', () => {
+    for (const confidence_level of ['VERY_HIGH', 'HIGH', 'MEDIUM'] as const) {
+      const pfc = { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_GROCERIES', confidence_level };
+      expect(mapPlaidProviderCategoryGuess(pfc)).toEqual(mapPlaidPersonalFinanceCategory(pfc));
+    }
+  });
+
+  it('KEEPS a LOW-confidence guess (4000 bps) that the auto-file map drops', () => {
+    const pfc = { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_RESTAURANT', confidence_level: 'LOW' };
+    expect(mapPlaidPersonalFinanceCategory(pfc)).toBeNull(); // auto-file map: unchanged
+    expect(mapPlaidProviderCategoryGuess(pfc)).toEqual({ categoryId: 'dining', confidenceBps: 4000 });
+  });
+
+  it('the LOW guess bps sits below the tuned auto-file clamp FLOOR — it can never auto-file (H1)', () => {
+    const low = mapPlaidProviderCategoryGuess({ primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_RESTAURANT', confidence_level: 'LOW' });
+    expect(low).not.toBeNull();
+    // isUsableProviderHint files only when confidenceBps >= flaggedBps; the tuned
+    // flaggedBps is clamped to a floor of AUTO_FLAGGED_BPS - TUNE_SPAN_BPS (6500).
+    expect(low!.confidenceBps).toBeLessThan(AUTO_FLAGGED_BPS - TUNE_SPAN_BPS);
+  });
+
+  it('null for UNKNOWN / absent / unrecognized confidence — Plaid has no guess', () => {
+    for (const confidence_level of ['UNKNOWN', 'GARBAGE', '', null, undefined]) {
+      expect(
+        mapPlaidProviderCategoryGuess({ primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_GROCERIES', confidence_level }),
+      ).toBeNull();
+    }
+  });
+
+  it('never a transfer or over-broad bucket, at any confidence (shares resolvePfcCategoryId)', () => {
+    expect(mapPlaidProviderCategoryGuess({ primary: 'TRANSFER_OUT', detailed: 'TRANSFER_OUT_ACCOUNT_TRANSFER', confidence_level: 'LOW' })).toBeNull();
+    expect(mapPlaidProviderCategoryGuess({ primary: 'GENERAL_SERVICES', detailed: null, confidence_level: 'LOW' })).toBeNull();
+  });
+
+  it('resolvePfcCategoryId is confidence-agnostic (one shared core, no drift)', () => {
+    expect(resolvePfcCategoryId({ primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_COFFEE', confidence_level: 'LOW' })).toBe('coffee');
+    expect(resolvePfcCategoryId({ primary: 'TRANSFER_IN', detailed: null, confidence_level: 'VERY_HIGH' })).toBeNull();
+    expect(resolvePfcCategoryId(null)).toBeNull();
+  });
+
+  it('does not throw on malformed field types — degrades to null', () => {
+    const malformed = [
+      { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_GROCERIES', confidence_level: 5 },
+      { primary: 123, detailed: {}, confidence_level: 'LOW' },
+      {},
+    ] as unknown as PlaidTransaction['personal_finance_category'][];
+    for (const pfc of malformed) {
+      expect(() => mapPlaidProviderCategoryGuess(pfc)).not.toThrow();
+      expect(mapPlaidProviderCategoryGuess(pfc)).toBeNull();
+    }
   });
 });

@@ -288,6 +288,14 @@ model Transaction {
   merchantId    String?
   categoryId    String?
   confidenceBps Int? // categorization confidence, 0–10000
+  // Provider's OWN category guess for this row (Plaid `personal_finance_category`,
+  // mapped to our taxonomy), persisted so the triage inbox can offer it as a labelled
+  // one-tap suggestion when our own ruleset produced none (L.12). NULL for demo /
+  // SimpleFIN / CSV / manual rows (no provider guess) — so those stay byte-identical.
+  // This is Plaid's GUESS, an input, never a filed verdict: it is NEVER auto-applied
+  // below the auto-file bar (isUsableProviderHint owns that decision unchanged).
+  providerCategoryId            String?
+  providerCategoryConfidenceBps Int? // Plaid's confidence for that guess, 0–10000
   status        String  @default("POSTED") // PENDING | POSTED
   needsReview   Boolean @default(false)
   isTransfer    Boolean @default(false) // own-account transfers excluded from income/expense
