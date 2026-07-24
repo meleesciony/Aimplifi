@@ -2288,24 +2288,27 @@ Reconcile safety (PlaidProvider.reconcilePlaidHoldings + the syncHoldings guard)
   every account's rows intact and audits plaid.holdings.malformed (the SimpleFIN Array.isArray
   guard, #128 transactions:null hazard).
 
-## Duplicate-detection differing-last-4 veto (#291)
+## Duplicate-detection differing-last-4 rule (#291, refined #292)
 
-duplicateSignals (src/lib/engine/account/duplicates.ts) vetoes a suspected-duplicate pair when
-BOTH accounts carry a last-4 (mask) and the two masks DIFFER: `if (lo.mask && hi.mask && lo.mask
-!== hi.mask) return null;` runs BEFORE any positive signal. Owner rule: different last-4 = a
-different card. Applies to BOTH the #192 duplicate warning and the reconciliation candidate path
-(shared function).
+A different last-4 means different CARDS, not necessarily different ACCOUNTS: one account can carry
+several cards (a spouse authorized-user card) with different numbers but ONE shared balance. So in
+duplicateSignals (src/lib/engine/account/duplicates.ts), a differing last-4 disqualifies ONLY the
+WEAK name signal, NEVER the strong identical-non-zero-balance signal:
+`const masksDiffer = !!lo.mask && !!hi.mask && lo.mask !== hi.mask;` then the shared-name signal is
+gated on `!masksDiffer`. Uses the mask COLUMN only (Plaid populates it; SimpleFIN/manual are null).
+Applies to BOTH the #192 duplicate warning and the reconciliation candidate path (shared function).
 
-- His Venture ····6271 vs spouse Venture ····0966 (both Plaid, both masks, shared name "venture")
-  -> vetoed, NOT flagged (the reported false positive).
-- The veto fires ONLY when both masks are present. SimpleFIN/manual rows carry no last-4 (null),
-  so a real Plaid-vs-SimpleFIN duplicate (one mask null) is NOT vetoed and still evaluates by
-  name/balance -- the #192 detector keeps working.
-- ACCEPTED trade-off (critic F1): a single card reissued with a NEW number and re-linked as two
-  Plaid items has two different last-4s and is silently un-warned. Reachable only via
-  disconnect+relink / same-bank-linked-twice (the common in-place reissue keeps one row on the
-  same item), Undo-reversible, never a cross-provider/normalization false-negative (only Plaid
-  writes masks). Widening the veto to rescue it would reintroduce the owner's false positive.
+- His Venture ····6271 ($10,218.99) vs spouse Venture ····0966 ($0) — both Plaid, DIFFERENT masks,
+  DIFFERENT balances, matched only on the name "venture" -> name disqualified -> NOT flagged.
+- His Chase E.LEE (no mask column, SimpleFIN) vs wife M.LEE ····4927 (Plaid), IDENTICAL balance ->
+  the identical balance is a real same-account signal (likely his account + her authorized card) ->
+  SURFACED so the owner can Combine (one account) or dismiss (genuinely separate). Not hidden.
+- The mask-only rule is deliberate: #292 REMOVED an explored name-embedded last-4 extraction because
+  parsing a 4-digit from a name mis-reads a parenthesized YEAR ("Roth IRA (2021)") or the x in
+  "Amex" as a last-4 and would silently suppress a genuine identical-balance duplicate (critic
+  F1/F2/F3, the double-count direction). A real duplicate whose sides differ only by card number but
+  share a balance is always surfaced on the balance; the safe direction is a visible dismissable
+  pair, never a silent hide.
 
 Dismissal: a user "Not a duplicate" dismissal is stored in NudgeDismissal under a `dup:<sortedIds>`
 key and filtered from BOTH the duplicate warning AND the reconciliation candidates (an explicit

@@ -81,15 +81,17 @@ describe('detectDuplicateAccounts', () => {
     ).toEqual([]);
   });
 
-  it('the differing-last-4 veto beats a shared name AND an identical non-zero balance', () => {
-    // Even if two different cards coincidentally carried the same balance, different last-4 is
-    // proof they are different accounts — the veto runs BEFORE any positive signal.
-    expect(
-      detectDuplicateAccounts([
-        acct({ id: 'p', provider: 'plaid', name: 'Venture', type: 'CREDIT', mask: '6271', currentBalanceCents: 50000 }),
-        acct({ id: 'm', provider: 'manual', name: 'Venture', type: 'CREDIT', mask: '0966', currentBalanceCents: 50000 }),
-      ]),
-    ).toEqual([]);
+  it('a differing last-4 with an IDENTICAL non-zero balance IS surfaced (might be one account with two cards)', () => {
+    // Different last-4 = different CARDS, but the same non-zero balance points at ONE account seen
+    // twice (e.g. a spouse's authorized-user card). The differing last-4 disqualifies the shared
+    // NAME, but the identical balance carries it — surfaced so the user can Combine or dismiss.
+    const pairs = detectDuplicateAccounts([
+      acct({ id: 'p', provider: 'plaid', name: 'Venture', type: 'CREDIT', mask: '6271', currentBalanceCents: 50000 }),
+      acct({ id: 'm', provider: 'manual', name: 'Venture', type: 'CREDIT', mask: '0966', currentBalanceCents: 50000 }),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].confidence).toBe('high');
+    expect(pairs[0].reasons).toEqual(['identical balance']); // NOT the shared name (disqualified by the differing last-4)
   });
 
   it('still flags when only ONE side has a last-4 (SimpleFIN carries none) — the veto needs BOTH masks', () => {
@@ -101,6 +103,31 @@ describe('detectDuplicateAccounts', () => {
     ]);
     expect(pairs).toHaveLength(1);
     expect(pairs[0].reasons).toContain('shared name: “chase”');
+  });
+
+  it('SURFACES the his/wife Chase pair (SimpleFIN "Chase Bank E. LEE (4034)" vs Plaid "M. LEE" ····4927) because the balance is identical', () => {
+    // Owner-confirmed 2026-07-24: this is likely ONE account (his + his wife's authorized card) seen
+    // through two connections, so the identical balance genuinely double-counts. SimpleFIN carries no
+    // mask column, and we do NOT parse the "(4034)" out of the name (that mis-reads years — critic
+    // F1/F2). The identical balance surfaces it so the owner can Combine (one account) or dismiss.
+    const pairs = detectDuplicateAccounts([
+      acct({ id: 'sf', provider: 'simplefin', name: 'Chase Bank E. LEE (4034)', type: 'CHECKING', mask: null, currentBalanceCents: 250000 }),
+      acct({ id: 'pl', provider: 'plaid', name: 'M. LEE', type: 'CHECKING', mask: '4927', currentBalanceCents: 250000 }),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].reasons).toContain('identical balance');
+  });
+
+  it('does NOT read a parenthesized YEAR as a last-4 — a real duplicate with an identical balance still flags (critic F1)', () => {
+    // "Roth IRA (2021)" (the year, not a last-4) vs a live Plaid Roth IRA with a real mask, same
+    // balance: we must NOT suppress it. Using the mask COLUMN only (no name parsing) means the
+    // identical balance carries it — the genuine duplicate is never silently hidden.
+    const pairs = detectDuplicateAccounts([
+      acct({ id: 'm', provider: 'manual', name: 'Roth IRA (2021)', type: 'INVESTMENT', mask: null, currentBalanceCents: 5000000 }),
+      acct({ id: 'p', provider: 'plaid', name: 'Fidelity Roth IRA', type: 'INVESTMENT', mask: '8842', currentBalanceCents: 5000000 }),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].reasons).toContain('identical balance');
   });
 
   it('does NOT flag identical ZERO balances with no other signal (empty accounts)', () => {
@@ -365,5 +392,17 @@ describe('getAccountsView — connection accounts + dismissible duplicate warnin
     await prisma.nudgeDismissal.create({ data: { userId: uid, dismissKey: duplicatePairDismissKey(live.id, dead.id) } });
     const after = await getAccountsView(uid);
     expect(after.reconciliationCandidates).toEqual([]); // the dismissed "not a duplicate" judgment binds here too
+  });
+
+  it('DOES propose a reconciliation combine for the his/wife Chase pair — identical balance surfaces it so the owner decides (owner-confirmed 2026-07-24)', async () => {
+    // The owner's "Combine accounts" card: a DEAD SimpleFIN "Chase Bank E. LEE (4034)" + a LIVE
+    // Plaid "M. LEE" ····4927 (his wife's card on, likely, his account), IDENTICAL balance. It is
+    // NOT silently hidden on the differing last-4 — the identical balance points at one real account,
+    // so it is surfaced for the owner to Combine (one account) or dismiss (genuinely separate).
+    await prisma.plaidItem.create({ data: { userId: uid, itemId: 'it-mlee', accessToken: 'enc', institution: 'Chase' } });
+    await prisma.account.create({ data: { userId: uid, provider: 'plaid', providerRef: 'pm', plaidItemId: 'it-mlee', name: 'M. LEE', type: 'CHECKING', mask: '4927', currentBalanceCents: 250000, currency: 'USD' } });
+    await prisma.account.create({ data: { userId: uid, provider: 'simplefin', providerRef: 'se', name: 'Chase Bank E. LEE (4034)', type: 'CHECKING', mask: null, currentBalanceCents: 250000, currency: 'USD' } });
+    const view = await getAccountsView(uid);
+    expect(view.reconciliationCandidates).toHaveLength(1); // surfaced for the owner to Combine or dismiss
   });
 });

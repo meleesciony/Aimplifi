@@ -133,15 +133,18 @@ function duplicateSignals(
   // A genuine duplicate is the same account: same type and same currency are hard prerequisites.
   if (lo.type !== hi.type) return null;
   if (normalizeCurrency(lo.currency) !== normalizeCurrency(hi.currency)) return null;
-  // NEGATIVE signal — different last-4 is proof of DIFFERENT accounts (owner-reported
-  // 2026-07-23: "obviously if accounts end in different numbers, it's a different card").
-  // When BOTH sides carry a mask and they DIFFER, no shared name or coincidental balance can
-  // make them the same card, so veto BEFORE any positive signal is considered. This is what
-  // stopped his "Venture ····6271" and his spouse's "Venture ····0966" from being flagged a
-  // possible duplicate on the shared name "venture" alone. Fires ONLY when both masks are
-  // present: SimpleFIN/manual rows carry no last-4 (see the file header), so a real
-  // Plaid-vs-SimpleFIN duplicate (one side mask-null) still evaluates by balance/name.
-  if (lo.mask && hi.mask && lo.mask !== hi.mask) return null;
+  // A different last-4 means different CARDS — but NOT necessarily different ACCOUNTS: one account
+  // can carry several cards (an authorized-user card for a spouse) with different numbers yet ONE
+  // shared balance. So a differing last-4 disqualifies only the WEAK name signal (a shared surname
+  // or product line — "lee", "venture" — is common across a household's separate cards); it must NOT
+  // suppress the strong IDENTICAL-NON-ZERO-BALANCE signal, which still points at one real account
+  // seen through two connections. Owner-confirmed 2026-07-24: his + spouse's Ventures (different
+  // last-4, DIFFERENT balances, matched only on the name) stay hidden; his Chase E.LEE(4034) + wife's
+  // M.LEE ····4927 (different last-4 but IDENTICAL balance — likely his account + her authorized card)
+  // stays SURFACED so he can Combine or dismiss it. Uses the mask COLUMN only — parsing a last-4 out
+  // of a NAME mis-reads a parenthesized year ("Roth IRA (2021)") or the x in "Amex" and would wrongly
+  // suppress a genuine duplicate (dup-veto critic F1/F2, the silent-double-count direction).
+  const masksDiffer = !!lo.mask && !!hi.mask && lo.mask !== hi.mask;
 
   const reasons: string[] = [];
   let confidence: DuplicateConfidence | null = null;
@@ -152,15 +155,18 @@ function duplicateSignals(
     confidence = 'high';
   }
 
-  // Identical non-zero balance is a strong signal; zero is excluded (many empty accounts share 0).
+  // Identical non-zero balance is a strong same-account signal (zero excluded — many empty accounts
+  // share 0). It SURVIVES a differing last-4: two cards on one account share one balance.
   const balanceMatch = lo.currentBalanceCents === hi.currentBalanceCents && lo.currentBalanceCents !== 0;
   if (balanceMatch) {
     reasons.push('identical balance');
     confidence = 'high';
   }
 
+  // The name is the WEAK signal, and a differing last-4 disqualifies it — different cards that merely
+  // share a surname / product line are not the same account on the strength of the name alone.
   const shared = sharedTokens(lo.name, hi.name);
-  if (shared.length > 0) {
+  if (shared.length > 0 && !masksDiffer) {
     reasons.push(`shared name: ${shared.map((t) => `“${t}”`).join(', ')}`);
     if (confidence === null) confidence = 'medium';
   }

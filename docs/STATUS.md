@@ -108,7 +108,20 @@ build clean (+10 tests, +1 file). E2E not separately run — backend-only, no UI
 stance as #280). **UNVERIFIED against live Plaid** (no creds in this env): the `/item/get` +
 `/institutions/get_by_id` sockets have never run here; mocked-server + real-Prisma tests only.
 
-## 🟠→✅ Duplicate "Venture" flag was a MIS-MATCH — differing-last-4 veto + dismiss + connection last-4 (#291, 2026-07-23) — FIXED
+## 🟠→✅ Duplicate "Venture" flag was a MIS-MATCH — differing-last-4 rule + dismiss + connection last-4 (#291, refined #292, 2026-07-24) — FIXED
+
+**REFINED (#292, 2026-07-24).** A follow-up owner report on the "Combine accounts" card (his SimpleFIN
+"Chase Bank E. LEE (4034)" vs his wife's Plaid "M. LEE ····4927", IDENTICAL balance) surfaced that the
+#291 veto was **too blunt**: a different last-4 is a different CARD, not necessarily a different
+ACCOUNT — one account can carry a spouse's authorized-user card (different number, one shared balance).
+So the veto now disqualifies **only the weak name signal, never the strong identical-non-zero-balance
+signal**: the Ventures (different balances, name-only) stay hidden, but the identical-balance Chase pair
+is **surfaced** so the owner can Combine (one account) or dismiss. A Fable critic on an explored
+name-embedded last-4 extraction found 3 P2 false-negatives (a parenthesized YEAR "Roth IRA (2021)" and
+the x in "Amex" mis-read as a last-4 → silent double-count), so that extraction was **removed** — the
+mask column + balance-survives handles both owner cases safely. This SUPERSEDES the "accepted trade-off"
+recorded below; there is no silent-suppression path now (a differing last-4 with a matching balance is
+always surfaced). Gate: verify.sh GREEN — 3600 unit / 246 files, build clean. See DECISIONS #283/#292.
 
 **RESOLVED (#291).** The owner confirmed (Capital One screenshot) he has **two different cards** —
 **Venture ····6271** ($10,218.99) and **Venture One ····2689** ($0.00) — and that he aggregates
