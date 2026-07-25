@@ -64,6 +64,17 @@ import { categorizeSuggestFor } from '@/server/categorize-suggest';
 import { DemoProvider } from './demo';
 import type { DataProvider, FinanceSnapshot, SyncResult } from './types';
 
+// The (user, bank) link lease (TASKS L.17b, model PlaidLinkClaim). The wait is deliberately
+// short: a link exchange runs inside one serverless request that has already spent seconds on
+// Plaid calls, and timing that request out would leave a billed Item whose token was never
+// stored — the worst failure on this path (#307). A real double-tap resolves well inside the
+// window; anything slower proceeds unprotected, which is exactly today's behaviour and yields a
+// duplicate the app discloses (#306) and can combine (#304). The TTL only has to outlast one
+// decision, and bounds how long a crashed request can make the next link wait.
+const LINK_CLAIM_TTL_MS = 30_000;
+const LINK_CLAIM_WAIT_MS = 4_000;
+const LINK_CLAIM_POLL_MS = 100;
+
 // Plaid retired the Development environment (2024) — only sandbox/production remain.
 const PLAID_HOSTS: Record<string, string> = {
   sandbox: 'https://sandbox.plaid.com',
@@ -370,20 +381,56 @@ export class PlaidProvider implements DataProvider {
     } catch {
       /* cosmetic + backfillable; syncInstitutions retries — never blocks the link */
     }
-    // ---- Layer 2: collision interception (TASKS L.10, design §4) -------------------------
-    // The owner's complaint, verbatim: *"Why in the heck are you allowed to make 2 of the same
-    // accounts… when I try to link same account again, it just refreshes."* Everything before
-    // this told the copies apart after the fact. This is the door.
+    // ---- Layer 2b: one decision at a time per (user, bank) (TASKS L.17b) ------------------
+    // The decision below READS the user's connections at this bank and then WRITES one. Two
+    // Link sessions racing through that gap — two tabs, a double-tap — both saw zero
+    // connections and both persisted, so invariant D1 held by sequence rather than by
+    // construction. The lease makes the DECISION exclusive; the outcome deliberately is not
+    // (two connections at one bank are legitimate — a spouse's own login).
     //
-    // It runs HERE — before the PlaidItem upsert, not after it as the checkpoint sketched —
-    // because the upsert is by `itemId` and may UPDATE a row that already existed. Deciding
-    // first means the redundant path writes nothing at all, so there is no row to roll back and
-    // no way to delete a connection this link did not create. Invariant D6 (no Account row
-    // before the decision) is satisfied a fortiori: no PlaidItem row either.
+    // A link whose institution never resolved takes no lease: the collision check abstains on
+    // it anyway, so there is nothing to be exclusive about. Failing to get the lease is not a
+    // reason to fail a real link either — see acquireLinkClaim.
+    const claim = institutionId ? await this.acquireLinkClaim(userId, institutionId) : null;
+    try {
+      return await this.decideAndPersistItem(
+        userId,
+        result.access_token,
+        result.item_id,
+        institutionId,
+        institution,
+      );
+    } finally {
+      if (claim) await this.releaseLinkClaim(claim);
+    }
+  }
+
+  /**
+   * Decide what a just-exchanged item is and persist the outcome — the body of a link, run
+   * under the (user, bank) lease its caller holds.
+   *
+   * ---- Layer 2: collision interception (TASKS L.10, design §4) ----
+   * The owner's complaint, verbatim: *"Why in the heck are you allowed to make 2 of the same
+   * accounts… when I try to link same account again, it just refreshes."* Everything before
+   * this told the copies apart after the fact. This is the door.
+   *
+   * The decision runs BEFORE the PlaidItem upsert, not after it as the checkpoint sketched —
+   * because the upsert is by `itemId` and may UPDATE a row that already existed. Deciding
+   * first means the redundant path writes nothing at all, so there is no row to roll back and
+   * no way to delete a connection this link did not create. Invariant D6 (no Account row
+   * before the decision) is satisfied a fortiori: no PlaidItem row either.
+   */
+  private async decideAndPersistItem(
+    userId: string,
+    accessToken: string,
+    itemId: string,
+    institutionId: string | null,
+    institution: string | null,
+  ): Promise<LinkOutcome> {
     const decision = await this.classifyNewItem(
       userId,
-      result.access_token,
-      result.item_id,
+      accessToken,
+      itemId,
       institutionId,
       institution,
     );
@@ -401,8 +448,8 @@ export class PlaidProvider implements DataProvider {
       // it stops being redundant and links normally.
       const discarded = await this.discardRedundantItem(
         userId,
-        result.access_token,
-        result.item_id,
+        accessToken,
+        itemId,
         decision.collision,
       );
       if (discarded) {
@@ -419,30 +466,30 @@ export class PlaidProvider implements DataProvider {
     // initial account sync threw) stays retryable — re-linking refreshes the token
     // instead of hitting the itemId unique constraint and locking the user out.
     await prisma.plaidItem.upsert({
-      where: { itemId: result.item_id },
+      where: { itemId },
       create: {
         userId,
-        itemId: result.item_id,
-        accessToken: encryptToken(result.access_token),
+        itemId,
+        accessToken: encryptToken(accessToken),
         // Only set when resolved: never overwrite a real name or id with null on a re-link.
         ...(institution ? { institution } : {}),
         ...(institutionId ? { institutionId } : {}),
       },
       update: {
-        accessToken: encryptToken(result.access_token),
+        accessToken: encryptToken(accessToken),
         ...(institution ? { institution } : {}),
         ...(institutionId ? { institutionId } : {}),
       },
     });
     await prisma.auditLog.create({
-      data: { userId, action: 'plaid.item.link', meta: JSON.stringify({ itemId: result.item_id }) },
+      data: { userId, action: 'plaid.item.link', meta: JSON.stringify({ itemId }) },
     });
     // Accounts must exist before transactions can be mapped to them. Reuse the /accounts/get
     // the collision check already paid for — Plaid bills per request, and re-fetching here
     // would double the cost of every ordinary link. Falls back to the fetch when the check
     // could not run (no institution id, or the call failed).
-    if (decision) await this.upsertPlaidAccounts(userId, decision.accounts, result.item_id);
-    else await this.syncAccountsForItem(userId, result.item_id);
+    if (decision) await this.upsertPlaidAccounts(userId, decision.accounts, itemId);
+    else await this.syncAccountsForItem(userId, itemId);
 
     if (decision && decision.collision.kind === 'already-connected') {
       // A PARTIAL overlap: some accounts are provably ones they already have, at least one is
@@ -451,14 +498,14 @@ export class PlaidProvider implements DataProvider {
       // leaving the user to find the same card listed twice and wonder (#299/#306).
       return {
         kind: 'linked-with-overlap',
-        itemId: result.item_id,
+        itemId,
         existingItemId: decision.collision.itemId,
         institutionName: decision.collision.institutionName ?? institution,
         matchedAccountCount: decision.incoming.length - decision.newRefs.length,
         newAccountCount: decision.newRefs.length,
       };
     }
-    return { kind: 'linked', itemId: result.item_id };
+    return { kind: 'linked', itemId };
   }
 
   /**
@@ -527,10 +574,12 @@ export class PlaidProvider implements DataProvider {
           },
         });
       }
-      // The user's OTHER connections at THIS bank.
-      const items = await prisma.plaidItem.findMany({
-        where: { userId, institutionId, itemId: { not: newItemId } },
-      });
+      // The user's OTHER connections at THIS bank. A connection that cannot NAME its bank is
+      // asked which one it is, because `institutionId` is null on every item linked before that
+      // column shipped — including every one the owner had when this door was built (TASKS
+      // L.17a). Selecting on the column alone made the whole check a no-op at exactly those
+      // banks, silently, until an ordinary sync happened to backfill them.
+      const items = await this.candidatesAtInstitution(userId, institutionId, newItemId);
       if (items.length === 0) {
         return { collision: { kind: 'none' }, accounts, incoming, newRefs: [], whollyRedundant: false };
       }
@@ -604,6 +653,131 @@ export class PlaidProvider implements DataProvider {
       // A DB failure here must not cost the user their link either.
       return { collision: { kind: 'none' }, accounts, incoming: [], newRefs: [], whollyRedundant: false };
     }
+  }
+
+  /**
+   * Take the (user, bank) lease that makes one link decision run at a time (TASKS L.17b).
+   *
+   * Returns the claim's id, or `null` when the lease could not be had inside
+   * `LINK_CLAIM_WAIT_MS`. Null means PROCEED UNPROTECTED, and that is deliberate: this is a
+   * user standing in front of a bank they just authenticated with, and the worst outcome of
+   * proceeding is a duplicate the app discloses (#306) and can combine (#304), while the worst
+   * outcome of refusing is a completed Link session thrown away with a billed Item behind it.
+   * The waiting is what does the work — the loser of a real race sees the winner's connection
+   * the moment it is released, and treats its own link as the refresh it is.
+   *
+   * A claim past its `expiresAt` is taken over rather than waited on: the request that made it
+   * is gone (a crash, a serverless timeout), and a lease nobody will ever release would wall
+   * off the bank instead of protecting it.
+   */
+  private async acquireLinkClaim(userId: string, institutionId: string): Promise<string | null> {
+    const deadline = Date.now() + LINK_CLAIM_WAIT_MS;
+    for (;;) {
+      try {
+        const claim = await prisma.plaidLinkClaim.create({
+          data: { userId, institutionId, expiresAt: new Date(Date.now() + LINK_CLAIM_TTL_MS) },
+        });
+        return claim.id;
+      } catch (e) {
+        if (!isUniqueViolation(e)) return null; // never let bookkeeping cost a real link
+      }
+      // Someone else holds it. Take it over only if it has expired — deleting by the id we
+      // just read, so a concurrent takeover of the same dead claim loses the create instead
+      // of deleting the live claim its rival went on to make.
+      const held = await prisma.plaidLinkClaim.findUnique({
+        where: { userId_institutionId: { userId, institutionId } },
+      });
+      if (held && held.expiresAt.getTime() <= Date.now()) {
+        await prisma.plaidLinkClaim.deleteMany({ where: { id: held.id } });
+      } else if (Date.now() >= deadline) {
+        return null;
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, LINK_CLAIM_POLL_MS));
+      }
+    }
+  }
+
+  /** Release the lease. Failing to release is harmless — `expiresAt` frees it regardless. */
+  private async releaseLinkClaim(claimId: string): Promise<void> {
+    try {
+      await prisma.plaidLinkClaim.deleteMany({ where: { id: claimId } });
+    } catch {
+      /* the lease expires on its own; a stuck delete must not fail a completed link */
+    }
+  }
+
+  /**
+   * The user's other connections at one bank — the population the identity ladder compares a
+   * new link against.
+   *
+   * A connection whose `institutionId` is null is not evidence that it belongs elsewhere; it is
+   * an item linked before that column existed, which says nothing at all. So it is asked
+   * (`/item/get`) which bank it is, and the answer is written back exactly as the
+   * `syncInstitutions` sweep would have — the id is bought at most once per connection, and only
+   * ever while a link at another bank is in flight, which is the one moment it is worth buying.
+   *
+   * A connection that cannot answer is not a candidate: it proves nothing about being the same
+   * bank, so it takes no part in a match and the new link is kept. Same failure direction as the
+   * rest of this path — a duplicate the app discloses (#306) and can combine (#304), never a
+   * discarded connection.
+   */
+  private async candidatesAtInstitution(
+    userId: string,
+    institutionId: string,
+    newItemId: string,
+  ): Promise<readonly { itemId: string; institution: string | null; institutionId: string }[]> {
+    const siblings = await prisma.plaidItem.findMany({
+      where: {
+        userId,
+        itemId: { not: newItemId },
+        OR: [{ institutionId }, { institutionId: null }],
+      },
+    });
+    const candidates: { itemId: string; institution: string | null; institutionId: string }[] = [];
+    for (const item of siblings) {
+      if (item.institutionId) {
+        candidates.push({
+          itemId: item.itemId,
+          institution: item.institution,
+          institutionId: item.institutionId,
+        });
+        continue;
+      }
+      let resolved: string | null = null;
+      try {
+        // The row came from a user-scoped query, so it is this user's to decrypt (the
+        // syncInstitutions idiom). Persisted whichever bank it turns out to be: the call is
+        // paid for either way, and a candidate at a DIFFERENT bank is the case that would
+        // otherwise re-buy the same id on every future link.
+        resolved = await this.resolveInstitutionId(decryptToken(item.accessToken));
+        if (resolved) {
+          await prisma.plaidItem.update({
+            where: { itemId: item.itemId },
+            data: { institutionId: resolved },
+          });
+        }
+      } catch (e) {
+        try {
+          await prisma.auditLog.create({
+            data: {
+              userId,
+              action: 'plaid.institution.resolve.failed',
+              meta: JSON.stringify({
+                itemId: item.itemId,
+                context: 'link-collision-candidate',
+                error: e instanceof Error ? e.message : 'unknown error',
+              }),
+            },
+          });
+        } catch {
+          /* audit is diagnostic only */
+        }
+      }
+      if (resolved === institutionId) {
+        candidates.push({ itemId: item.itemId, institution: item.institution, institutionId });
+      }
+    }
+    return candidates;
   }
 
   /**

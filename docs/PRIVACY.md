@@ -43,6 +43,11 @@ fictional dataset; everything below applies fully once Plaid is connected.
 - Delivered-notification dedup keys (`NotificationSent`): the stable key + timestamp
   of each push/digest actually delivered, kept so the same alert isn't re-sent
   (pruned after 120 days).
+- Bank-link leases (`PlaidLinkClaim`, TASKS L.17): while you are connecting a bank, a
+  row holding your user id and that bank's public Plaid institution id (e.g. `ins_…`)
+  so two Link windows at the same bank cannot both create a connection. Deleted the
+  moment the connection finishes, and expires by itself within 30 seconds either way.
+  No balances, account numbers, or credentials; cascades on deletion.
 - Household membership (`Household`/`HouseholdMember`/`HouseholdInvite`, 4.2 slice 1):
   the household's display name, who belongs to it (role + joined date), and pending
   invites — each invite stores the invitee's normalized sign-in email, the inviting

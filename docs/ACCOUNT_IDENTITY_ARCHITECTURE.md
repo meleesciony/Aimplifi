@@ -196,7 +196,7 @@ No change to `AccountReconciliation`. Nothing in this design creates a link auto
 
 | # | Invariant |
 |---|---|
-| D1 | After any successful link flow, no user has two live Items at one institution with an overlapping account set. |
+| D1 | After any successful link flow, no user has two live Items at one institution with an overlapping account set. **Held by construction since 2026-07-24 (TASKS L.17b):** the decision runs under a `PlaidLinkClaim` lease unique on `(userId, institutionId)`, because until then two concurrent Link sessions both read zero connections and both persisted — the invariant was enforced only by sequence. Still not absolute: a link whose institution never resolves takes no lease, and the lease fails open after 4s rather than timing out an exchange (see DECISIONS #299). |
 | D2 | An account returned with a known `(provider, providerRef)` updates in place and never creates a row. |
 | D3 | Mask inequality vetoes a match within one provider+institution, and never vetoes across providers. |
 | D4 | Balance equality never triggers an automatic action — advisory or prompt only. |

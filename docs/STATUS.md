@@ -2,6 +2,48 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-24 (#308) — L.17: the last two paths that still created a duplicate connection
+
+Both were residuals the #307 critics **recorded without executing**, so both were reproduced before
+anything was changed. The repro is in PROGRESS.md verbatim; in one line each:
+
+1. **The owner's own banks were the blind spot.** Collision interception selected candidate
+   connections by `PlaidItem.institutionId` — null on every item linked before that column shipped
+   (#300), which is *all* of his. So the door he asked for was a silent no-op at exactly the
+   connections he already had, until an ordinary sync happened to backfill them. A null id was being
+   read as "a different bank"; it means "this row has never been asked". It is now asked over the
+   wire (`/item/get`) and the answer written back as the sweep would write it — bought at most once
+   per connection, only while a link at that bank is in flight, and never again. A candidate that
+   cannot answer takes part in no match and the new link is kept.
+2. **Two Link sessions at one bank at once both persisted.** The decision read the user's
+   connections and then wrote one with nothing in between, so two tabs both saw zero and both
+   created an Item: invariant **D1 held by sequence, not by construction.** Now a lease
+   (`PlaidLinkClaim`, unique on `(userId, institutionId)`) makes the *decision* exclusive; the loser
+   waits, then sees the winner's connection and treats its own link as the refresh it is.
+
+**Not a unique constraint on `PlaidItem`.** Two connections at one bank are legitimate — a spouse's
+own login — so what has to be exclusive is the decision, never the outcome.
+
+**The lease fails open, on purpose.** A 4-second wait, and a timeout PROCEEDS UNPROTECTED: this runs
+inside one serverless request that has already spent seconds on Plaid calls, and timing it out would
+leave a billed Item whose token was never stored — the worst failure on this path (#307). Proceeding
+yields at worst a duplicate the app discloses (#306) and can combine (#304). An abandoned claim is
+taken over rather than waited on, so a request that dies cannot wall off a bank.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **4006 unit / 264 files** / build
+clean; `duplicate-connections` e2e 8/8 at `--workers=1`. Schema is additive: one new model, no
+existing table touched. `PlaidLinkClaim` holds a user id and a public `ins_*` id, nothing financial,
+cascades on account deletion, and is disclosed in PRIVACY.md. **UNVERIFIED against live Plaid** — no
+credentials here; the concurrency repro drives two real `exchangePublicToken` calls against a mocked
+Plaid server and real Prisma.
+
+### 🟠 STILL OPEN — the residual this does not close
+
+A link whose institution never resolves takes no lease (there is nothing to be exclusive about, and
+the collision check abstains on it anyway), so two simultaneous links at a bank Plaid cannot identify
+can still both persist. And a claim leaked by a killed process is reclaimed by the next link at that
+bank rather than by a sweep. Both are recorded rather than claimed away.
+
 ## ✅ SHIPPED 2026-07-24 (#306) — L.8: the DASHBOARD stops double-counting a duplicate card silently
 
 **The open half #299 recorded.** One real card arriving through TWO live bank connections emits two full

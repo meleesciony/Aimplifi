@@ -57,6 +57,7 @@ model User {
   corrections         Correction[]
   recurring           RecurringSeries[]
   plaidItems          PlaidItem[]
+  plaidLinkClaims     PlaidLinkClaim[]
   simplefin           SimpleFinConnection?
   predictions         CategoryPrediction[]
   hiddenCategories    HiddenCategory[]
@@ -144,6 +145,31 @@ model PlaidItem {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// A short-lived lease that serializes Link exchanges at ONE bank for ONE user
+// (TASKS L.17b). Collision interception reads the user's connections at a bank
+// and then writes one; with nothing between the read and the write, two Link
+// sessions (two tabs, a double-tap) both saw zero connections and both persisted,
+// so invariant D1 — never two live Items at one institution with an overlapping
+// account set — held only by sequence. A unique (userId, institutionId) row makes
+// exactly one exchange decide at a time; the loser waits, then sees the winner's
+// connection and treats its own as the refresh it is.
+//
+// Deliberately NOT a unique constraint on PlaidItem itself: two connections at one
+// bank are legitimate (a spouse's separate login), so what needs to be exclusive is
+// the DECISION, not the outcome. `expiresAt` makes the lease self-healing — a
+// request that dies mid-flight blocks nobody for longer than that.
+model PlaidLinkClaim {
+  id            String   @id @default(cuid())
+  userId        String
+  institutionId String // Plaid `ins_*`; a link whose institution never resolved takes no claim (nothing to be exclusive about — the collision check abstains anyway)
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, institutionId])
 }
 
 model Account {

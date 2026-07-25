@@ -4886,6 +4886,49 @@ FAIL-OLD proven (20 assertions fail against the stashed pre-change source). Empt
 UNVERIFIED against live Plaid — no credentials here; every request shape runs against a mocked
 Plaid server, and the Link window itself cannot be browser-tested.
 NEXT: L.15 (the six surfaces that still render a duplicated obligation silently) or L.16.
+
+
+## L.17 — the two duplicate-creating paths layer 2 did not close. 2026-07-24
+Both were RECORDED-BUT-UNREPRODUCED residuals from the #307 critics, so both were reproduced
+first, before a line of source changed. The repro run, verbatim:
+  x test_regression__a_connection_linked_before_the_institution_id_column_is_still_a_candidate
+    expected { kind: 'linked' } to match object { kind: 'already-connected' }
+  x a null-id connection at a DIFFERENT bank is no candidate ... expected null to be 'ins_boa'
+  x test_regression__two_link_sessions_at_one_bank_at_once_do_not_both_persist
+    expected 2 to be 1
+  Tests  3 failed | 17 passed (20)
+(a) THE OWNER'S OWN BANKS were the blind spot: candidates were selected by
+`PlaidItem.institutionId`, null on every item linked before #300, so the door he asked for was
+a silent no-op at exactly the connections he already had. A null id was being read as "a
+different bank" when it means "this row has never been asked". Now asked over the wire
+(`/item/get`) and written back as the sweep would write it: bought at most once per connection,
+only while a link at that bank is in flight, never again. Cannot answer => no match, link kept.
+(b) Two concurrent exchanges (two tabs / a double-tap) both read zero connections and both
+persisted -- D1 held by sequence. Now a lease, `PlaidLinkClaim @@unique([userId,
+institutionId])`, held across classify-and-write and released in a `finally`; the loser waits,
+then sees the winner and refreshes instead of duplicating. NOT a unique constraint on
+`PlaidItem`: two connections at one bank are legitimate, so the DECISION is exclusive, never the
+outcome. Expiry + takeover (delete by the id just read) so a dead request cannot wall off a
+bank; a 4s wait that PROCEEDS UNPROTECTED on timeout, because orphaning a billed Item whose
+token was never stored is worse than a duplicate #306 discloses and #304 combines.
+CHECKED MYSELF (Maker/Checker) and locked: an abandoned lease is TAKEN OVER not waited on
+(told apart structurally -- the stale row is gone afterwards, which only a takeover can do); a
+link that THROWS still releases; two banks at once do not queue; a stranger's lease at the same
+bank neither delays nor costs this user their link.
+SCHEMA: one additive model, no existing table touched. PRIVACY.md discloses it (user id + a
+public `ins_*` id, no financial data, cascades on deletion) -- the #226 undisclosed-table
+finding applied pre-emptively. Deletion needs no code: the User relation cascades.
+GATE: `bash scripts/verify.sh` GREEN -- tsc 0 / eslint 0 / 4006 unit / 264 files / build clean.
+duplicate-connections e2e 8/8 at --workers=1 (first attempt failed 8/8 on a MISSING PLAYWRIGHT
+BROWSER in this session's sandbox cache -- environment, not code; `npx playwright install
+chromium` then 8/8).
+UNVERIFIED against live Plaid -- no credentials here; the concurrency repro drives two real
+`exchangePublicToken` calls against a mocked Plaid server and real Prisma.
+RESIDUAL, written down not claimed away: a link whose institution never resolves takes no lease
+(nothing to be exclusive about, and the collision check abstains on it anyway), and a claim
+leaked by a killed process is reclaimed by the next link at that bank, not by a sweep.
+NEXT: L.15 (the six offline surfaces that still render a duplicated obligation silently) or L.16
+(the real collision prompt with a remembered "keep both").
 SHIPPED LIVE: ba5a222; dpl_3n1FCpGfrTCccnw1AipjwwDQWAXP, aliased www.aimplifi.app. Three-way
 byte check, each md5 stable across 3 repeat fetches: www == the ba5a222 deployment and != the
 previous one. No public marker to grep — the connect flow is auth-gated and the notice renders
