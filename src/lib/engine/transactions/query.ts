@@ -216,6 +216,14 @@ export interface AccountView {
    *  delete" with no control to do it (owner-reported 2026-07-24). Null on non-Plaid rows and
    *  on rows not re-synced since #256; absent on surfaces that don't set it. */
   plaidItemId?: string | null;
+  /** YYYY-MM-DD the account's own connection STOPPED returning it (Account.feedDroppedAt), else
+   *  null. The row is still counted in every subtotal on purpose (TASKS L.14); this is what lets
+   *  the surface say so, instead of painting a frozen balance under a "Synced today" label. */
+  feedDroppedAt?: string | null;
+  /** True when the bank connection feeding this row still exists. Decides which remedy the
+   *  feed-dropped note may name — disconnecting the bank removes the re-tick control while the
+   *  row and its stamp deliberately remain (TASKS L.14, critic F-4). */
+  connectionLive?: boolean;
 }
 
 export interface AccountGroup {

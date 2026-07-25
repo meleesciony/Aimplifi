@@ -23,7 +23,7 @@
  */
 import { type ISODate, compareDates, daysBetween } from '@/lib/dates';
 
-export type FreshnessLevel = 'fresh' | 'stale' | 'very_stale' | 'unknown';
+export type FreshnessLevel = 'fresh' | 'stale' | 'very_stale' | 'unknown' | 'not_shared';
 
 /**
  * Thresholds in whole days since the reference date. A healthy feed normally posts
@@ -67,6 +67,18 @@ export function classifyFreshness(referenceDate: ISODate | null, today: ISODate)
  */
 export function freshnessMessage(result: FreshnessResult): string {
   const { level, daysSince } = result;
+  // `not_shared` is graded from the day the FEED stopped carrying this account, never from its
+  // bank's sync date — the bank is still syncing perfectly, which is exactly why this row read
+  // "Synced today" while its balance had been frozen for weeks (TASKS L.14). Checked before the
+  // null-days branch so it can never fall through to "Not synced yet", which would be false in
+  // the opposite direction: this account WAS synced, and then stopped being offered.
+  if (level === 'not_shared') {
+    return daysSince == null
+      ? 'Your bank stopped sharing this account'
+      : `Your bank stopped sharing this account ${
+          daysSince === 0 ? 'today' : daysSince === 1 ? 'yesterday' : `${daysSince} days ago`
+        }`;
+  }
   if (level === 'unknown' || daysSince == null) return 'Not synced yet';
   const ago = daysSince === 0 ? 'today' : daysSince === 1 ? 'yesterday' : `${daysSince} days ago`;
   if (level === 'fresh') return daysSince === 0 ? 'Synced today' : `Synced ${ago}`;
@@ -141,6 +153,12 @@ export interface AccountFreshnessInput {
   /** The linked connection's last successful sync, when known (SimpleFIN); else null. A
    *  recent whole-connection sync proves a quiet account is still live (see mostRecentDate). */
   connectionLastSyncedAt: ISODate | null;
+  /** YYYY-MM-DD the feed stopped returning this account (Account.feedDroppedAt), else null.
+   *  When set it OVERRIDES both reference dates: a connection that syncs daily says nothing
+   *  about an account it no longer carries. REQUIRED, not optional: a defaulted disclosure
+   *  argument fails silent, and the whole point of this field is that a caller which forgets it
+   *  goes on printing "Synced today" over a frozen balance (the L.15 lesson, applied forward). */
+  feedDroppedAt: ISODate | null;
 }
 
 /**
@@ -158,6 +176,15 @@ export function perAccountFreshness(
 ): Record<string, FreshnessResult | null> {
   const out: Record<string, FreshnessResult | null> = {};
   for (const a of accounts) {
+    // Ordered BEFORE the INVESTMENT early-return on purpose. A brokerage row is normally
+    // valued by holdings rather than a transaction feed, so it renders no freshness line at
+    // all — but it can be unticked in update mode like any other account, and it counts toward
+    // net worth while frozen. Returning null for a dropped brokerage would leave the one
+    // account type whose balance moves most as the only one that says nothing.
+    if (a.isLinkedFeed && a.feedDroppedAt != null) {
+      out[a.id] = { ...classifyFreshness(a.feedDroppedAt, today), level: 'not_shared' };
+      continue;
+    }
     if (!a.isLinkedFeed || a.type === 'INVESTMENT') {
       out[a.id] = null;
       continue;

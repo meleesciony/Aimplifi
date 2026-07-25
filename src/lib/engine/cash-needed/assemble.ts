@@ -25,6 +25,10 @@ export interface AccountLike {
   minimumPaymentCents?: number | null;
   dueDayOfMonth: number | null;
   cycleCloseDayOfMonth: number | null;
+  /** YYYY-MM-DD the bank stopped sharing this account (Account.feedDroppedAt), else null. Carried
+   *  on the snapshot shape itself because the frozen number flows to ~20 surfaces from here, and a
+   *  surface that cannot see the flag cannot qualify the figure (TASKS L.14, critic P1-6). */
+  feedDroppedAt?: string | null;
 }
 export interface AutopayLike {
   accountId: string;
@@ -171,6 +175,7 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
         nextDueDate,
         paymentsAppliedCents: cents(paymentsApplied),
         postCloseCreditCents: postCloseCredit > 0 ? cents(postCloseCredit) : undefined,
+        frozenSince: card.feedDroppedAt ?? null,
       };
     });
 
@@ -204,6 +209,9 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
       name: paymentAccount.name,
       balanceCents: cents(paymentAccount.currentBalanceCents),
       pending,
+      // The projection's whole starting point. If the bank stopped sharing THIS account, the
+      // number below is frozen and the engine must say so — see the field's docstring.
+      frozenSince: paymentAccount.feedDroppedAt ?? null,
     },
     cards,
     scheduled,

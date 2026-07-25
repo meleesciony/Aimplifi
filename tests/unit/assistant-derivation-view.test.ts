@@ -44,7 +44,7 @@ function card(over: Partial<CardSnapshot> & { id: string; name: string }): CardS
 }
 const CASH = computeCashNeeded({
   today: d('2026-06-10'),
-  paymentAccount: { name: 'Checking', balanceCents: cents(900000), pending: [] },
+  paymentAccount: { name: 'Checking', balanceCents: cents(900000), pending: [], frozenSince: null },
   cards: [
     card({
       id: 'amex',

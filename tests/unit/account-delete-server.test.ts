@@ -293,9 +293,9 @@ describe('getAccountsView deletable matrix (#256 critic P2-2 — the affordance 
 });
 
 describe('syncedDeleteBlockReason — the one predicate both the view and the guard read', () => {
-  const sf = { provider: 'simplefin', plaidItemId: null };
-  const plaidLinked = { provider: 'plaid', plaidItemId: 'item-1' };
-  const plaidUnlinked = { provider: 'plaid', plaidItemId: null };
+  const sf = { provider: 'simplefin', plaidItemId: null, feedDroppedAt: null };
+  const plaidLinked = { provider: 'plaid', plaidItemId: 'item-1', feedDroppedAt: null };
+  const plaidUnlinked = { provider: 'plaid', plaidItemId: null, feedDroppedAt: null };
 
   it('simplefin: blocked by the (single) connection, indifferent to Plaid items', () => {
     expect(syncedDeleteBlockReason(sf, { simplefinConnected: true, plaidItemIds: [] })).toMatch(/Disconnect/);
@@ -312,9 +312,37 @@ describe('syncedDeleteBlockReason — the one predicate both the view and the gu
     expect(syncedDeleteBlockReason(plaidUnlinked, { simplefinConnected: false, plaidItemIds: [] })).toBeNull();
   });
 
+  // TASKS L.14: the refusal rests on ONE premise — the next sync would bring this row back. For
+  // a row the feed has stopped returning that premise is false, and refusing would tell the user
+  // to disconnect a healthy bank to remove one frozen account.
+  it('a feed-dropped row is deletable even while its bank is connected', () => {
+    const droppedPlaid = { provider: 'plaid', plaidItemId: 'item-1', feedDroppedAt: '2026-07-19' };
+    expect(
+      syncedDeleteBlockReason(droppedPlaid, { simplefinConnected: true, plaidItemIds: ['item-1'] }),
+    ).toBeNull();
+  });
+
+  it('the same row is still refused while it is being shared (the guard is the STAMP, not the item)', () => {
+    const livePlaid = { provider: 'plaid', plaidItemId: 'item-1', feedDroppedAt: null };
+    expect(
+      syncedDeleteBlockReason(livePlaid, { simplefinConnected: false, plaidItemIds: ['item-1'] }),
+    ).toMatch(/Disconnect/);
+  });
+
+  it('a non-synced provider is still refused even when stamped', () => {
+    // The stamp is an override for the resurrection premise only; it never turns a manual or demo
+    // row into something this path may delete.
+    expect(
+      syncedDeleteBlockReason(
+        { provider: 'demo', plaidItemId: null, feedDroppedAt: '2026-07-19' },
+        { simplefinConnected: false, plaidItemIds: [] },
+      ),
+    ).toMatch(/Only bank-synced/);
+  });
+
   it('non-synced providers are refused outright', () => {
     for (const provider of ['manual', 'demo']) {
-      expect(syncedDeleteBlockReason({ provider, plaidItemId: null }, { simplefinConnected: false, plaidItemIds: [] })).toMatch(/Only bank-synced/);
+      expect(syncedDeleteBlockReason({ provider, plaidItemId: null, feedDroppedAt: null }, { simplefinConnected: false, plaidItemIds: [] })).toMatch(/Only bank-synced/);
     }
   });
 });

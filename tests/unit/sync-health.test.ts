@@ -135,6 +135,7 @@ describe('perAccountFreshness — per-row /accounts freshness (today = 2026-06-1
     type: 'CHECKING',
     newestTxnDate: null,
     connectionLastSyncedAt: null,
+    feedDroppedAt: null,
     ...over,
   });
 
@@ -152,6 +153,57 @@ describe('perAccountFreshness — per-row /accounts freshness (today = 2026-06-1
       TODAY,
     );
     expect(out.brk).toBeNull();
+  });
+
+  // ── TASKS L.14: an account the bank has STOPPED sharing ────────────────────────────────
+  // The bug these lock: a Plaid row's freshness is graded from its BANK's last sync (#293), and
+  // the bank goes on syncing perfectly after a user unticks one account in Link update mode. So
+  // the row printed "Synced today" over a balance that had been frozen for weeks — a stale figure
+  // vouched for as a live one.
+
+  it('a dropped account reads not_shared, measured from the DROP, not the bank’s sync', () => {
+    const out = perAccountFreshness(
+      [
+        acct({
+          id: 'chk',
+          newestTxnDate: d('2026-06-09'),
+          connectionLastSyncedAt: d('2026-06-10'), // the bank synced TODAY
+          feedDroppedAt: d('2026-06-03'),
+        }),
+      ],
+      TODAY,
+    );
+    expect(out.chk).toMatchObject({ level: 'not_shared', daysSince: 7, referenceDate: d('2026-06-03') });
+    expect(freshnessMessage(out.chk!)).toBe('Your bank stopped sharing this account 7 days ago');
+  });
+
+  it('a dropped BROKERAGE still speaks, though a healthy one is silent by design', () => {
+    // Ordered before the INVESTMENT early-return on purpose: a brokerage renders no freshness
+    // line normally, but it can be unticked like anything else and its balance is often the
+    // largest number the user has. Returning null here would leave it the one account type that
+    // freezes silently.
+    const out = perAccountFreshness(
+      [acct({ id: 'brk', type: 'INVESTMENT', feedDroppedAt: d('2026-06-09') })],
+      TODAY,
+    );
+    expect(out.brk).toMatchObject({ level: 'not_shared', daysSince: 1 });
+    expect(freshnessMessage(out.brk!)).toBe('Your bank stopped sharing this account yesterday');
+  });
+
+  it('a MANUAL row is never not_shared — it has no feed to stop', () => {
+    const out = perAccountFreshness(
+      [acct({ id: 'manual', isLinkedFeed: false, feedDroppedAt: d('2026-06-09') })],
+      TODAY,
+    );
+    expect(out.manual).toBeNull();
+  });
+
+  it('a still-shared account is untouched by the new branch', () => {
+    const out = perAccountFreshness(
+      [acct({ id: 'chk', connectionLastSyncedAt: d('2026-06-09'), feedDroppedAt: null })],
+      TODAY,
+    );
+    expect(out.chk).toMatchObject({ level: 'fresh' });
   });
 
   it('a linked account with a recent transaction reads fresh', () => {

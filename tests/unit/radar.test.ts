@@ -42,9 +42,9 @@ function baseInput(over: Partial<RadarInput> = {}): RadarInput {
     committedEvents: [],
     cardDues: [],
     accounts: [
-      { id: 'acct-checking', name: 'Checking', type: 'CHECKING', currentBalanceCents: 100000 },
-      { id: 'acct-savings', name: 'Savings', type: 'SAVINGS', currentBalanceCents: 500000 },
-      { id: 'acct-brokerage', name: 'Brokerage', type: 'INVESTMENT', currentBalanceCents: 14200000 },
+      { id: 'acct-checking', name: 'Checking', type: 'CHECKING', currentBalanceCents: 100000, feedDroppedAt: null },
+      { id: 'acct-savings', name: 'Savings', type: 'SAVINGS', currentBalanceCents: 500000, feedDroppedAt: null },
+      { id: 'acct-brokerage', name: 'Brokerage', type: 'INVESTMENT', currentBalanceCents: 14200000, feedDroppedAt: null },
     ],
     paymentAccountId: 'acct-checking',
     holidays: [],
@@ -265,8 +265,8 @@ describe('computeRadar — misc invariants', () => {
         startingBalanceCents: cents(1000),
         cardDues: [due({ dueDate: '2026-06-15', amountCents: 50000 })],
         accounts: [
-          { id: 'acct-checking', name: 'Checking', type: 'CHECKING', currentBalanceCents: 1000 },
-          { id: 'acct-brokerage', name: 'Brokerage', type: 'INVESTMENT', currentBalanceCents: 999999 },
+          { id: 'acct-checking', name: 'Checking', type: 'CHECKING', currentBalanceCents: 1000, feedDroppedAt: null },
+          { id: 'acct-brokerage', name: 'Brokerage', type: 'INVESTMENT', currentBalanceCents: 999999, feedDroppedAt: null },
         ],
       }),
     );
@@ -296,9 +296,9 @@ describe('computeRadar — misc invariants', () => {
         startingBalanceCents: cents(0),
         cardDues: [due({ dueDate: '2026-06-15', amountCents: 50000 })],
         accounts: [
-          { id: 'acct-checking', name: 'Checking', type: 'CHECKING', currentBalanceCents: 0 },
-          { id: 'acct-savings', name: 'Savings', type: 'SAVINGS', currentBalanceCents: 50000 },
-          { id: 'acct-empty', name: 'Empty savings', type: 'SAVINGS', currentBalanceCents: 0 },
+          { id: 'acct-checking', name: 'Checking', type: 'CHECKING', currentBalanceCents: 0, feedDroppedAt: null },
+          { id: 'acct-savings', name: 'Savings', type: 'SAVINGS', currentBalanceCents: 50000, feedDroppedAt: null },
+          { id: 'acct-empty', name: 'Empty savings', type: 'SAVINGS', currentBalanceCents: 0, feedDroppedAt: null },
         ],
       }),
     );

@@ -4940,3 +4940,78 @@ SHIPPED LIVE: ba5a222; dpl_3n1FCpGfrTCccnw1AipjwwDQWAXP, aliased www.aimplifi.ap
 byte check, each md5 stable across 3 repeat fetches: www == the ba5a222 deployment and != the
 previous one. No public marker to grep — the connect flow is auth-gated and the notice renders
 only after a real Link session — so the evidence is the byte identity plus the local gate.
+
+## L.14 — a deselected account freezes, keeps counting, reads as fresh. 2026-07-25
+THE DEFECT: Plaid Link update mode ships with `account_selection_enabled`, so a user can untick
+an account. `upsertPlaidAccounts` only ever creates or updates, so nothing noticed: the row kept
+its last balance, kept counting toward net worth / cash-needed / /cards, and kept LOOKING current,
+because a Plaid row's freshness is graded from its BANK's last sync (#293) and the bank was still
+syncing. It also could not be deleted ("Disconnect the bank first"). L.10 slice 2 shipped a
+sentence in the post-update flash naming the re-tick; a transient flash is not a fix for a figure
+that stays wrong forever.
+THE DECISION (the one that shaped everything): DISCLOSE, ADJUST NOTHING. The row keeps counting.
+Excluding it would be its own money claim, and its failure direction is the expensive one — an
+unticked card whose statement is still genuinely owed would vanish from cash-needed and the app
+would stop telling someone to pay a bill they still owe. Keeping it over-funds slightly; dropping
+it silently risks a missed payment. Only the user knows whether the account still exists, so the
+app surfaces the decision with BOTH remedies rather than guessing. What changes is what the app
+CLAIMS.
+SHIPPED: additive `Account.feedDroppedAt`; pure `reconcileFeedPresence` (engine-first); wiring in
+`syncAccountsForItem` ONLY — `/transactions/sync` echoes just the accounts with activity, so
+reading absence there would freeze every quiet loan, card and brokerage on the first sync after
+deploy; `not_shared` freshness level graded from the DROP not the bank; Delete permitted (the
+standing refusal's premise — "the next sync would bring it back" — is false for a row the feed no
+longer sends); disclosure on /accounts (has the controls) and the dashboard (has neither, so it
+names the route, per L.15).
+EVIDENCE SO FAR: verify.sh GREEN — tsc 0 / eslint 0 / 271 files / 4130 unit / build clean.
+FAIL-OLD PROVEN: 7 assertions fail with the three behavioural changes reverted (detection call,
+not_shared branch, delete-guard arm) while the schema and engines stay, so the failures are about
+BEHAVIOUR, not module existence. New e2e feed-dropped-account.spec 2/2 at --workers=1.
+FULL SERIAL E2E: 185 passed / 3 failed, all in duplicate-connections.spec. STASHED CLEAN-HEAD
+CONTROL RUN (rebuilt first — e2e runs the last `next build`, not the source): 185 passed / 1
+failed, the SAME spec, one of the same tests (line 343). Pre-existing load flake, not a
+regression; a different subset fails per run, which is its signature.
+FOUND EN ROUTE, fixed: `syncAccountsForItem` destructured `{ accounts }` and handed a non-array
+to the upsert loop on a garbled-but-200 body — `accounts is not iterable`, swallowed into an audit
+on the sync path but thrown out of the LINK path, failing an otherwise good connection. Now guarded
+like the holdings sibling (#128/#290 class).
+UNVERIFIED against live Plaid — no credentials here; every request shape runs against a mocked
+Plaid server with real Prisma.
+IN FLIGHT: two fresh-context hostile critics (money/data-integrity, and copy/surfaces).
+NEXT: fold critic findings, then DECISIONS #301 + REGRESSION_LEDGER + TASKS L.14 status, commit,
+push, verify the deploy is live.
+
+## L.14 critic cycle 1 — both P0s and 4 of 6 P1s closed; 4 recorded as L.18. 2026-07-25
+TWO fresh-context critics ran in parallel (money/data-integrity, copy/surfaces). Both broke it.
+Verdict cycle 1: FAIL — 2 P0 + 6 P1. Every fix below is locked by an EXECUTED test.
+THE DEEPEST FINDING, reached INDEPENDENTLY by both: the whole "keep counting, just say so" stance
+had been argued over LIABILITIES only. The user's own PAYMENT account can be feed-dropped, and
+there the direction inverts — a balance frozen HIGH reports shortfall $0 and no transfer
+recommendation while the real account cannot cover the autopay. That is the exact missed payment
+the rationale claimed to prevent. Recorded as DECISIONS #302: ask the failure-direction question
+per ROLE, not per class of value.
+FIXED + LOCKED:
+ - P0-1 the banner announced a reconciliation PREDECESSOR as "still counted" — the boundary had
+   already zeroed it ($0) and /accounts had hidden it, and the notice then sent the reader there.
+ - P0-2 Cash Flow Radar offered a FROZEN balance as money to move, sorted FIRST (sources sort by
+   size) and stamped sufficient — the one surface issuing a move-this-much instruction.
+ - F-1 cash-needed now discloses that its projection rests on a balance that stopped updating.
+   NOT adjusted: inventing a lower balance would fabricate.
+ - F-2 the holdings sweep PRUNED a dropped brokerage's positions (its clean-run rule answers "is
+   this list complete?", not "is this account still reported?"), so /investments lost $50k while
+   net worth kept it — which made the shipped sentence FALSE. Prune now skipped for a dropped row.
+ - F-3 a partner's frozen account counted in household figures unannounced → a COUNT in the
+   banner; never names or amounts, which exceed the sharing consent.
+ - F-4 the remedy named "Add or fix accounts", a control that ceases to exist once the bank is
+   disconnected → liveness is a REQUIRED argument, not an assumption.
+ - plus: the tautological e2e assertion the critic caught, and a comment claiming the copy held
+   "in an email" for a channel never wired.
+CHECKED MYSELF en route: the `assumptions` array reaches the dashboard hero ONLY — I had assumed
+it fanned out to /cards, Ask and the digest, and grepping before writing the claim is the only
+reason a false one did not ship.
+OPEN, recorded as TASKS L.18 rather than bulk-patched (pasting one sentence onto four surfaces is
+the L.15 failure verbatim): /cards, the Ask answer + its derivation trace, the digest/reminder
+emails + web push, and /coach all still print figures derived from a frozen balance unqualified.
+GATE: verify.sh GREEN — tsc 0 / eslint 0 / 4148 unit / 272 files / build clean. New e2e 2/2.
+This slice does NOT claim a critic pass. It is a strict improvement on main with 4 P1s named.
+NEXT: L.18 (the four silent surfaces), then L.16.

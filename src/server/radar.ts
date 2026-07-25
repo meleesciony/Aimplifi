@@ -188,7 +188,9 @@ export function radarFromSnapshot(
     startingBalanceCents,
     committedEvents,
     cardDues: dues,
-    accounts: snap.accounts,
+    // `feedDroppedAt` is optional on the snapshot shape and REQUIRED here, so the normalization
+    // happens once, at the boundary, rather than the engine guessing (TASKS L.14).
+    accounts: snap.accounts.map((a) => ({ ...a, feedDroppedAt: a.feedDroppedAt ?? null })),
     paymentAccountId: payment.id,
     holidays,
     burn,

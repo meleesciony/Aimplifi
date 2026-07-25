@@ -27,6 +27,11 @@ export interface CardSnapshot {
   paymentsAppliedCents: Cents;
   /** A refund/credit that posted after statement close (informational; does not reduce this statement). */
   postCloseCreditCents?: Cents;
+  /** YYYY-MM-DD the bank stopped sharing this card, else null/absent (TASKS L.14). Carried so the
+   *  engine's `assumptions` — which /cards, the dashboard hero, the calendar, the Ask answer and
+   *  the weekly digest all render — can say that a card's figures come from a balance that has
+   *  stopped moving. The engine adjusts nothing; it stops the number being quoted as current. */
+  frozenSince?: string | null;
 }
 
 export interface ScheduledItem {
@@ -42,7 +47,25 @@ export interface PendingTx {
 
 export interface CashNeededInput {
   today: ISODate;
-  paymentAccount: { name: string; balanceCents: Cents; pending: PendingTx[] };
+  paymentAccount: {
+    name: string;
+    balanceCents: Cents;
+    pending: PendingTx[];
+    /**
+     * YYYY-MM-DD the bank stopped sharing THIS account, else null (TASKS L.14, critic F-1).
+     *
+     * The entire projection starts from `balanceCents` — it is not one number among many, it is
+     * the base of the shortfall. The L.14 slice argued its "keep counting, just say so" stance
+     * over LIABILITIES, where a stale card balance merely over-funds. For the funding ASSET the
+     * direction inverts: a balance frozen high while the real one fell reports shortfall $0 and no
+     * transfer recommendation, and the autopay bounces — the exact missed payment that reasoning
+     * set out to avoid.
+     *
+     * REQUIRED, never defaulted, because a caller that forgets it gets silence at precisely the
+     * moment the number is least trustworthy (the L.15 defaulted-argument lesson).
+     */
+    frozenSince: string | null;
+  };
   cards: CardSnapshot[];
   /** Explicit dated occurrences within the projection window (cadences pre-expanded). */
   scheduled: ScheduledItem[];

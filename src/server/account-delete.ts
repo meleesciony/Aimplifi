@@ -48,13 +48,23 @@ const DISCONNECT_FIRST =
  * Pure — callers supply the connection state they read.
  */
 export function syncedDeleteBlockReason(
-  account: { provider: string; plaidItemId: string | null },
+  account: { provider: string; plaidItemId: string | null; feedDroppedAt: string | null },
   ctx: { simplefinConnected: boolean; plaidItemIds: readonly string[] },
 ): string | null {
+  // TASKS L.14. Each refusal below rests on ONE premise: the next sync would bring this row back.
+  // For a row the feed has stopped returning, that premise is false — the account is no longer in
+  // the census, so no sync can re-create it. Refusing would leave a permanently frozen balance the
+  // user is told to fix by disconnecting an otherwise healthy bank: a worse instruction than the
+  // problem. Checked INSIDE each synced arm rather than at the top, so a stamp can never promote a
+  // manual or demo row into something this path will delete — it overrides the resurrection
+  // premise, nothing else. The simplefin arm is inert today (only Plaid stamps) but correct if it
+  // ever does, which is cheaper than a provider special-case here.
   if (account.provider === 'simplefin') {
+    if (account.feedDroppedAt !== null) return null;
     return ctx.simplefinConnected ? DISCONNECT_FIRST : null;
   }
   if (account.provider === 'plaid') {
+    if (account.feedDroppedAt !== null) return null;
     if (account.plaidItemId !== null) {
       return ctx.plaidItemIds.includes(account.plaidItemId) ? DISCONNECT_FIRST : null;
     }
@@ -73,7 +83,7 @@ export async function deleteDisconnectedSyncedAccountFor(
   if (isDemoUser(userId)) return { ok: false, errors: [DEMO_ENTRY_BLOCKED] };
   const a = await prisma.account.findFirst({
     where: { id: accountId, userId },
-    select: { id: true, provider: true, plaidItemId: true },
+    select: { id: true, provider: true, plaidItemId: true, feedDroppedAt: true },
   });
   if (!a) return { ok: false, errors: ['Account not found.'] };
   if (a.provider !== 'simplefin' && a.provider !== 'plaid') {
@@ -89,7 +99,11 @@ export async function deleteDisconnectedSyncedAccountFor(
     const [fresh, conn, items] = await Promise.all([
       tx.account.findFirst({
         where: { id: accountId, userId },
-        select: { provider: true, plaidItemId: true },
+        // feedDroppedAt joins the re-read set for the same reason plaidItemId did (#256 critic
+        // P1-1): a sync landing in the gap can CLEAR it — the account came back — and a delete
+        // authorised by the stale value would remove a row the very next sync re-creates,
+        // history and all, which is precisely the lie this transaction exists to prevent.
+        select: { provider: true, plaidItemId: true, feedDroppedAt: true },
       }),
       tx.simpleFinConnection.findUnique({ where: { userId } }),
       tx.plaidItem.findMany({ where: { userId }, select: { itemId: true } }),

@@ -36,7 +36,7 @@ const TODAY = isoDate('2026-07-23');
 function input(cards: CardSnapshot[]): CashNeededInput {
   return {
     today: TODAY,
-    paymentAccount: { name: 'Everyday Checking', balanceCents: cents(250000), pending: [] },
+    paymentAccount: { name: 'Everyday Checking', balanceCents: cents(250000), pending: [], frozenSince: null },
     cards,
     scheduled: [],
     scenario: 'PAY_IN_FULL',

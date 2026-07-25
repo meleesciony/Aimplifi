@@ -56,6 +56,7 @@ import { formatISODate, isoDate } from '@/lib/dates';
 import { MANUAL_ASSET_TYPES, MANUAL_LIABILITY_TYPES } from '@/lib/engine/networth/manual';
 import type { SuspectedDuplicatePair } from '@/lib/engine/account/duplicates';
 import { freshnessMessage } from '@/lib/engine/sync/health';
+import { FEED_DROPPED_ROW_TESTID, feedDroppedRowNote } from '@/lib/engine/account/feed-dropped-view';
 import {
   addManualAccount,
   deleteDisconnectedSyncedAccount,
@@ -1058,6 +1059,20 @@ function LinkedRow({
   // holdings and carries inline edit/delete controls, so it renders as a ManualRow
   // and is intentionally not linked here — that also avoids nesting buttons in a link.)
   const isInvestment = account.type === 'INVESTMENT';
+  // TASKS L.14. Built here rather than server-side because this row already owns the painted
+  // identity the sentence has to use — the same "labels arrive already painted" discipline as
+  // the duplicate disclosure, so the note can never name the account differently from the line
+  // above it.
+  const droppedNote = account.feedDroppedAt
+    ? feedDroppedRowNote({
+        id: account.id,
+        name: account.name,
+        mask: account.mask,
+        type: account.type,
+        feedDroppedAt: isoDate(account.feedDroppedAt),
+        currentBalanceCents: account.currentBalanceCents,
+      }, account.connectionLive ?? false)
+    : null;
   // #160: carry the account id so /investments narrows to THIS account's holdings for a
   // multi-brokerage user (inert with one account — the demo lands on the full portfolio).
   const href = isInvestment ? `/investments?account=${account.id}` : `/transactions?account=${account.id}`;
@@ -1068,62 +1083,81 @@ function LinkedRow({
     // reported /accounts overflow (owner screenshots 2026-07-21, e.g. "Charles
     // Schwab US Community Property …383"). The number is shrink-0 and never clips
     // (a half-visible figure is a wrong figure); the NAME yields first.
-    <li className="flex min-w-0 items-center">
-      <Link
-        href={href}
-        data-testid="account-row"
-        className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 hover:bg-accent"
-      >
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-medium">{account.name}</span>
-            {isPaymentAccount && (
-              <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground">Pays cards</span>
+    //
+    // The <li> is a COLUMN wrapper so the feed-dropped note (TASKS L.14) can sit under the row
+    // at full width. The original horizontal line is untouched inside it: the note must never
+    // join the flex line carrying the balance, or a long sentence would squeeze the one figure
+    // on this page that may not be truncated.
+    <li className="min-w-0">
+      <div className="flex min-w-0 items-center">
+        <Link
+          href={href}
+          data-testid="account-row"
+          className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 hover:bg-accent"
+        >
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate font-medium">{account.name}</span>
+              {isPaymentAccount && (
+                <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground">Pays cards</span>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {typeLabel(account.type)}
+              {account.mask ? ` ····${account.mask}` : ''}
+              {isInvestment && <span data-testid="account-row-investment-cue"> · View holdings →</span>}
+            </div>
+            {account.freshness && (
+              <div
+                data-testid="account-freshness"
+                className={`text-xs ${
+                  account.freshness.level === 'very_stale' || account.freshness.level === 'not_shared'
+                    ? 'text-amber-500'
+                    : 'text-muted-foreground'
+                }`}
+              >
+                {freshnessMessage(account.freshness)}
+              </div>
             )}
           </div>
-          <div className="text-xs text-muted-foreground">
-            {typeLabel(account.type)}
-            {account.mask ? ` ····${account.mask}` : ''}
-            {isInvestment && <span data-testid="account-row-investment-cue"> · View holdings →</span>}
+          <div className={`shrink-0 tabular-nums ${isLiability ? 'text-red-400' : 'text-foreground'}`}>
+            {isLiability ? '−' : ''}
+            {formatCents(cents(account.currentBalanceCents))}
           </div>
-          {account.freshness && (
-            <div
-              data-testid="account-freshness"
-              className={`text-xs ${account.freshness.level === 'very_stale' ? 'text-amber-500' : 'text-muted-foreground'}`}
+        </Link>
+        {deletable &&
+          (!confirm.isArmed('delete') ? (
+            <button
+              type="button"
+              data-testid="synced-delete"
+              aria-label={`Delete ${account.name}`}
+              disabled={pending}
+              onClick={() => confirm.arm('delete')}
+              className="tap-target mr-3 inline-flex shrink-0 items-center justify-center rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50"
             >
-              {freshnessMessage(account.freshness)}
-            </div>
-          )}
-        </div>
-        <div className={`shrink-0 tabular-nums ${isLiability ? 'text-red-400' : 'text-foreground'}`}>
-          {isLiability ? '−' : ''}
-          {formatCents(cents(account.currentBalanceCents))}
-        </div>
-      </Link>
-      {deletable &&
-        (!confirm.isArmed('delete') ? (
-          <button
-            type="button"
-            data-testid="synced-delete"
-            aria-label={`Delete ${account.name}`}
-            disabled={pending}
-            onClick={() => confirm.arm('delete')}
-            className="tap-target mr-3 inline-flex shrink-0 items-center justify-center rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50"
-          >
-            Delete
-          </button>
-        ) : (
-          <ConfirmPrompt
-            className="mr-3 shrink-0"
-            rowTestId="synced-delete-confirm-row"
-            prompt="Delete, with its history?"
-            confirmTestId="synced-delete-confirm"
-            confirmAriaLabel={`Yes, delete ${account.name} and its history`}
-            pending={pending}
-            onConfirm={onDelete}
-            onCancel={confirm.disarm}
-          />
-        ))}
+              Delete
+            </button>
+          ) : (
+            <ConfirmPrompt
+              className="mr-3 shrink-0"
+              rowTestId="synced-delete-confirm-row"
+              prompt="Delete, with its history?"
+              confirmTestId="synced-delete-confirm"
+              confirmAriaLabel={`Yes, delete ${account.name} and its history`}
+              pending={pending}
+              onConfirm={onDelete}
+              onCancel={confirm.disarm}
+            />
+          ))}
+      </div>
+      {droppedNote && (
+        <p
+          data-testid={FEED_DROPPED_ROW_TESTID}
+          className="break-words px-3 pb-2 text-xs text-amber-500"
+        >
+          {droppedNote}
+        </p>
+      )}
     </li>
   );
 }

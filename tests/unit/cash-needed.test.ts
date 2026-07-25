@@ -36,7 +36,7 @@ function statement(balance: number, dueDate: string, min = 3500, cycleEnd = '202
 function input(over: Partial<CashNeededInput>): CashNeededInput {
   return {
     today: d('2026-06-10'),
-    paymentAccount: { name: 'Checking', balanceCents: cents(340000), pending: [] },
+    paymentAccount: { name: 'Checking', balanceCents: cents(340000), pending: [], frozenSince: null },
     cards: [],
     scheduled: [],
     scenario: 'PAY_IN_FULL',
@@ -222,7 +222,7 @@ describe('H — intra-period dip (the killer test)', () => {
   const r = computeCashNeeded(
     input({
       today: d('2026-06-01'),
-      paymentAccount: { name: 'Checking', balanceCents: cents(200000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: cents(200000), pending: [], frozenSince: null },
       cards: [
         card({ id: 'c1', name: 'Card1', statement: statement(50000, '2026-06-04') }),
         card({ id: 'c2', name: 'Card2', statement: statement(200000, '2026-06-10') }),
@@ -297,6 +297,7 @@ describe('J — pending transactions affect the projection exactly once', () => 
           name: 'Checking',
           balanceCents: cents(100000),
           pending: [{ amountCents: cents(-25000), description: 'Pending card payment' }],
+          frozenSince: null,
         },
         cards: [c],
       }),

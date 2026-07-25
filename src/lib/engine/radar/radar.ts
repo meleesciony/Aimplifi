@@ -58,6 +58,10 @@ export interface RadarAccountLike {
   name: string;
   type: string;
   currentBalanceCents: number;
+  /** YYYY-MM-DD the bank stopped sharing this account (Account.feedDroppedAt), else null.
+   *  REQUIRED, not optional: a defaulted disclosure argument fails silent, and the cost of a
+   *  caller forgetting it is this engine naming a frozen balance as money to move (TASKS L.14). */
+  feedDroppedAt: string | null;
 }
 
 export interface RadarTransferSource {
@@ -289,12 +293,22 @@ export function computeRadar(input: RadarInput): RadarResult {
     const amountCents = roundUpToNext50Dollars(worstDip);
     const ideal = previousBusinessDay(firstNegativeDate, holidays);
     const byDate = compareDates(ideal, today) < 0 ? today : ideal;
+    // A FROZEN account is never offered as a funding source (TASKS L.14, critic P0-2). Everywhere
+    // else in the app a dropped account keeps counting and the app merely says so — only the user
+    // knows whether it still exists. This is the one place that rule inverts, and the reason is
+    // the failure direction, not consistency: a total that includes a stale balance is a figure
+    // the reader can weigh, but "move $2,900 from Rainy Day Savings" is an INSTRUCTION, and the
+    // frozen row sorts FIRST here because it is sorted by balance. Acting on it means a transfer
+    // that bounces or never happens, and the card payment overdrafts. A fabricated instruction is
+    // worse than an honest gap (the an-empty-set-is-not-a-fact lesson): with no eligible source
+    // the engine already says so in `assumptions`.
     const sources: RadarTransferSource[] = input.accounts
       .filter(
         (a) =>
           a.id !== input.paymentAccountId &&
           TRANSFER_SOURCE_TYPES.has(a.type) &&
-          a.currentBalanceCents > 0,
+          a.currentBalanceCents > 0 &&
+          a.feedDroppedAt == null,
       )
       .map((a) => ({
         id: a.id,
@@ -307,6 +321,22 @@ export function computeRadar(input: RadarInput): RadarResult {
     assumptions.add(
       'Transfer proposal is the worst projected dip rounded UP to the next $50, timed one business day before the first short date. Sources are checking/savings accounts only.',
     );
+    // Withholding a source silently would be its own defect (invariant D9): the reader may know
+    // perfectly well that the account is still theirs and wonder why the app is ignoring it.
+    const frozenSources = input.accounts.filter(
+      (a) =>
+        a.id !== input.paymentAccountId &&
+        TRANSFER_SOURCE_TYPES.has(a.type) &&
+        a.currentBalanceCents > 0 &&
+        a.feedDroppedAt != null,
+    );
+    if (frozenSources.length > 0) {
+      assumptions.add(
+        frozenSources.length === 1
+          ? `${frozenSources[0].name} is not offered as a source: your bank stopped sharing it, so its balance has not updated since ${frozenSources[0].feedDroppedAt}.`
+          : `${frozenSources.length} accounts are not offered as sources: your bank stopped sharing them, so their balances have not updated since it did.`,
+      );
+    }
     if (sources.length === 0) {
       assumptions.add('No other checking or savings account is available to fund the transfer.');
     }

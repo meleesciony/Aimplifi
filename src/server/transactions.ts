@@ -26,7 +26,12 @@ import {
   applyReconciliationBoundary,
   effectiveReconciliationLinks,
 } from '@/lib/engine/account/reconcile-boundary';
-import { getActiveReconciliations, getReconciliationTxnKeep, isAccountLive } from '@/server/reconciliation';
+import {
+  activeSupersededPredecessorIds,
+  getActiveReconciliations,
+  getReconciliationTxnKeep,
+  isAccountLive,
+} from '@/server/reconciliation';
 import {
   type CombineBlockedView,
   combinableConnectionsFor,
@@ -43,6 +48,7 @@ import {
 import { businessToday } from '@/lib/business-today';
 import { isoDate } from '@/lib/dates';
 import { syncedDeleteBlockReason } from '@/server/account-delete';
+import type { DroppedAccountInput } from '@/lib/engine/account/feed-dropped-view';
 import { type FreshnessResult, classifyFreshness, perAccountFreshness } from '@/lib/engine/sync/health';
 import {
   type AccountView,
@@ -395,7 +401,23 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     provider: a.provider,
     deletable:
       (a.provider === 'simplefin' || a.provider === 'plaid') &&
-      syncedDeleteBlockReason({ provider: a.provider, plaidItemId: a.plaidItemId }, deleteCtx) === null,
+      syncedDeleteBlockReason(
+        { provider: a.provider, plaidItemId: a.plaidItemId, feedDroppedAt: a.feedDroppedAt },
+        deleteCtx,
+      ) === null,
+    // The feed stopped carrying this row (TASKS L.14). Its balance still counts in every subtotal
+    // on this page — that is the decision, not an oversight — so the row has to say so itself.
+    feedDroppedAt: a.feedDroppedAt,
+    // Whether the owning bank is STILL CONNECTED, which decides which remedy the note may name:
+    // `PlaidUpdateButton` renders once per PlaidItem, so "reopen Add or fix accounts" is a real
+    // instruction only while that item exists (critic F-4). Computed from the same `deleteCtx`
+    // rows the delete affordance uses, so the note and the controls can never disagree.
+    connectionLive:
+      a.provider === 'simplefin'
+        ? deleteCtx.simplefinConnected
+        : a.provider === 'plaid' && a.plaidItemId !== null
+          ? deleteCtx.plaidItemIds.includes(a.plaidItemId)
+          : false,
     // Which bank feeds this row — the duplicate warning needs it to offer "Disconnect <bank>"
     // for a both-live pair, where deleting is (correctly) refused because the next sync would
     // just bring the row back.
@@ -466,6 +488,9 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
             a.provider === 'plaid' && a.plaidItemId
             ? plaidSyncedByItem.get(a.plaidItemId) ?? null
             : null,
+      // Overrides both reference dates above: the bank syncing today says nothing about an
+      // account it has stopped sending (TASKS L.14).
+      feedDroppedAt: a.feedDroppedAt ? isoDate(a.feedDroppedAt) : null,
     })),
     today,
   );
@@ -703,4 +728,47 @@ export async function getWithheldAccountSummary(userId: string): Promise<Withhel
     select: { currency: true },
   });
   return summarizeWithheldAccounts(rows);
+}
+
+/**
+ * Accounts whose bank has STOPPED sharing them (TASKS L.14) — the dashboard's disclosure input.
+ *
+ * The mirror image of the currency guard above: those rows are withheld from the figures and the
+ * banner says so; these are still IN the figures with a frozen balance, and the banner says that.
+ * Both exist for the same reason — a number the reader is about to act on may not mean what it
+ * appears to mean, and the app is the only party that knows.
+ *
+ * TWO exclusions, both of them the SAME rule: a row this notice announces as counted must actually
+ * be counted, or the disclosure becomes the very thing it exists to prevent.
+ *
+ *  · Currency-guarded like the page is, so an account withheld from every total by DECISIONS #135
+ *    is not then announced as counted in it.
+ *  · Reconciliation-guarded (critic P0-1, executed repro): once a frozen row is superseded by its
+ *    live successor, `applyReconciliationBoundary` zeroes its balance and /accounts folds it into
+ *    "Combined accounts", so it contributes $0 and is not on the page. Reading raw rows here made
+ *    the banner quote a real four-figure balance as "still counted" and send the reader to a page
+ *    where the row does not appear. That pairing is not exotic — it is the journey this very
+ *    disclosure provokes: the row freezes, the user re-adds the bank, disconnects the old
+ *    connection, and accepts "Continue this account". Superseded rows already have their own
+ *    disclosure in the combine flow.
+ */
+export async function getFeedDroppedAccounts(userId: string): Promise<DroppedAccountInput[]> {
+  const [rows, supersededIds] = await Promise.all([
+    prisma.account.findMany({
+      where: {
+        userId,
+        NOT: { feedDroppedAt: null },
+        OR: [{ currency: null }, { currency: 'USD' }],
+      },
+      orderBy: [{ feedDroppedAt: 'asc' }, { name: 'asc' }],
+      select: { id: true, name: true, mask: true, type: true, feedDroppedAt: true, currentBalanceCents: true },
+    }),
+    activeSupersededPredecessorIds([userId]),
+  ]);
+  const superseded = new Set(supersededIds);
+  return rows.flatMap((r) =>
+    r.feedDroppedAt && !superseded.has(r.id)
+      ? [{ ...r, feedDroppedAt: isoDate(r.feedDroppedAt) }]
+      : [],
+  );
 }

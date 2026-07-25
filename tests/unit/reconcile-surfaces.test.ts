@@ -223,9 +223,9 @@ describe('A-F7/C-12 — /accounts payment remap + candidate span', () => {
 
 describe('C-5 — assistant account-balance folds superseded predecessors (pure)', () => {
   const ACCOUNTS = [
-    { id: 'p', name: 'Chase Checking legacy', type: 'CHECKING', currentBalanceCents: 0 }, // boundary-zeroed pred
-    { id: 's', name: 'Chase Checking', type: 'CHECKING', currentBalanceCents: 250_000 },
-    { id: 'o', name: 'Ally Savings', type: 'SAVINGS', currentBalanceCents: 100_000 },
+    { id: 'p', name: 'Chase Checking legacy', type: 'CHECKING', currentBalanceCents: 0, feedDroppedAt: null }, // boundary-zeroed pred
+    { id: 's', name: 'Chase Checking', type: 'CHECKING', currentBalanceCents: 250_000, feedDroppedAt: null },
+    { id: 'o', name: 'Ally Savings', type: 'SAVINGS', currentBalanceCents: 100_000, feedDroppedAt: null },
   ];
   const FOLD = new Map([['p', 's']]);
 

@@ -7,6 +7,11 @@ fictional dataset; everything below applies fully once Plaid is connected.
 
 - Account metadata: institution name, account name, type, **mask (last 4 only)**.
   Full account numbers are never requested, stored, or displayed.
+- Sharing status (`Account.feedDroppedAt`, TASKS L.14): a calendar date recording when
+  your bank connection stopped returning a given account — what happens when you untick
+  one while reconnecting. It holds a date and nothing else: no balance, no transaction,
+  no reason. It exists so the app can stop claiming a frozen balance is current, and it
+  clears itself the moment the account is shared again. Cascades on account deletion.
 - Transactions, statements, balances, scheduled transactions — the data the
   product's engines need.
 - Value receipts (`ValueReceipt`, #206): an append-only per-user tally of what the

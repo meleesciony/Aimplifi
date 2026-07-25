@@ -33,7 +33,7 @@ function card(over: Partial<CardSnapshot> & { id: string; name: string }): CardS
 function input(over: Partial<CashNeededInput>): CashNeededInput {
   return {
     today: d('2026-06-10'),
-    paymentAccount: { name: 'Checking', balanceCents: c(0), pending: [] },
+    paymentAccount: { name: 'Checking', balanceCents: c(0), pending: [], frozenSince: null },
     cards: [],
     scheduled: [],
     scenario: 'PAY_IN_FULL',
@@ -61,7 +61,7 @@ describe('critic5: EDGE_CASES §A — autopay in cash, out of action', () => {
     // Hand: 3400.00 − 4812.33 = −1412.33 on 06-15; ceil(141233/5000)=29 → 145000;
     // prev business day of Mon 06-15 = Fri 06-12.
     const r = computeCashNeeded(input({
-      paymentAccount: { name: 'Checking', balanceCents: c(340000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(340000), pending: [], frozenSince: null },
       cards: [amex, chase],
     }));
     expect(r.headline.requiredCents).toBe(481233);
@@ -80,7 +80,7 @@ describe('critic5: EDGE_CASES §A — autopay in cash, out of action', () => {
     // Hand: scenario target 2100.00, autopay pulls min 35.00 → user acts on 2065.00.
     const amexMin = { ...amex, autopay: { mode: 'MINIMUM' as const } };
     const r = computeCashNeeded(input({
-      paymentAccount: { name: 'Checking', balanceCents: c(340000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(340000), pending: [], frozenSince: null },
       cards: [amexMin, chase],
     }));
     expect(r.headline.requiredCents).toBe(481233); // unchanged
@@ -92,7 +92,7 @@ describe('critic5: EDGE_CASES §A — autopay in cash, out of action', () => {
   it('A3: autopay FIXED $500 → autopay 500, user action $1,600, cash unchanged', () => {
     const amexFixed = { ...amex, autopay: { mode: 'FIXED_AMOUNT' as const, fixedAmountCents: c(50000) } };
     const r = computeCashNeeded(input({
-      paymentAccount: { name: 'Checking', balanceCents: c(340000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(340000), pending: [], frozenSince: null },
       cards: [amexFixed, chase],
     }));
     expect(r.headline.requiredCents).toBe(481233);
@@ -105,7 +105,7 @@ describe('critic5: EDGE_CASES §A — autopay in cash, out of action', () => {
 describe('critic5: EDGE_CASES §B2 — overpayment floors at $0', () => {
   it('statement $500, payments $600 → remaining $0, excluded from headline', () => {
     const r = computeCashNeeded(input({
-      paymentAccount: { name: 'Checking', balanceCents: c(100000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(100000), pending: [], frozenSince: null },
       cards: [card({
         id: 'x', name: 'X',
         statement: { statementBalanceCents: c(50000), minimumPaymentCents: c(3500), dueDate: d('2026-06-15'), cycleEnd: d('2026-06-01') },
@@ -122,7 +122,7 @@ describe('critic5: EDGE_CASES §E2 — Sat due + observed July 4th', () => {
   it('due Sat 2026-07-04 → Fri 07-03 is the observed holiday → effective Thu 2026-07-02', () => {
     const r = computeCashNeeded(input({
       today: d('2026-07-01'),
-      paymentAccount: { name: 'Checking', balanceCents: c(100000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(100000), pending: [], frozenSince: null },
       cards: [card({
         id: 'x', name: 'X',
         statement: { statementBalanceCents: c(10000), minimumPaymentCents: c(3500), dueDate: d('2026-07-04'), cycleEnd: d('2026-06-10') },
@@ -137,7 +137,7 @@ describe('critic5: EDGE_CASES §H — the intra-period dip (re-verified)', () =>
     // Hand walk: 06-01 2000 → 06-03 rent 200 → 06-04 −300 → 06-05 +2500 → 2200 → 06-10 200.
     const r = computeCashNeeded(input({
       today: d('2026-06-01'),
-      paymentAccount: { name: 'Checking', balanceCents: c(200000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(200000), pending: [], frozenSince: null },
       scheduled: [
         { date: d('2026-06-03'), amountCents: c(-180000), description: 'Rent' },
         { date: d('2026-06-05'), amountCents: c(250000), description: 'Payroll' },
@@ -163,7 +163,7 @@ describe('critic5: EDGE_CASES §I — minimum-path interest (average-daily-balan
     // Σ = 300000·14 + 296500·16 = 8,944,000; × 2400/10000/365 = 2,146,560/365 = 5880.99 → 5881.
     const r = computeCashNeeded(input({
       scenario: 'MINIMUM',
-      paymentAccount: { name: 'Checking', balanceCents: c(500000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(500000), pending: [], frozenSince: null },
       cards: [card({
         id: 'x', name: 'X', aprBps: 2400,
         statement: { statementBalanceCents: c(300000), minimumPaymentCents: c(3500), dueDate: d('2026-06-15'), cycleEnd: d('2026-06-01') },
@@ -197,7 +197,7 @@ describe('critic5: §Seed-headline re-derived through the PURE engine', () => {
   ];
   const seedInput = (scenario: 'PAY_IN_FULL' | 'MINIMUM') => input({
     scenario,
-    paymentAccount: { name: 'Everyday Checking', balanceCents: c(340000), pending: [{ amountCents: c(-25000), description: 'pending' }] },
+    paymentAccount: { name: 'Everyday Checking', balanceCents: c(340000), pending: [{ amountCents: c(-25000), description: 'pending' }], frozenSince: null },
     cards: seedCards,
     scheduled: [
       { date: d('2026-06-12'), amountCents: c(245000), description: 'Payroll' },
@@ -256,7 +256,7 @@ describe('critic5 N1: autopay FIXED_AMOUNT larger than the remaining due', () =>
     // (v1 semantic: issuer pull capped at remaining due — see findings re:
     // issuers that pull the full fixed amount.)
     const r = computeCashNeeded(input({
-      paymentAccount: { name: 'Checking', balanceCents: c(100000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(100000), pending: [], frozenSince: null },
       cards: [card({
         id: 'x', name: 'X',
         statement: { statementBalanceCents: c(100000), minimumPaymentCents: c(3500), dueDate: d('2026-06-15'), cycleEnd: d('2026-06-01') },
@@ -276,7 +276,7 @@ describe('critic5 N2: weekend walk-back lands two cards on the SAME effective da
     // Hand: B effective = Fri 06-12. Day total 700+500 = 1200; balance 1000 − 1200 = −200;
     // rec = roundUp50(200) = 200 by prev business day of Fri 06-12 = Thu 06-11.
     const r = computeCashNeeded(input({
-      paymentAccount: { name: 'Checking', balanceCents: c(100000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(100000), pending: [], frozenSince: null },
       cards: [
         card({ id: 'a', name: 'A', statement: { statementBalanceCents: c(70000), minimumPaymentCents: c(3500), dueDate: d('2026-06-12'), cycleEnd: d('2026-05-20') } }),
         card({ id: 'b', name: 'B', statement: { statementBalanceCents: c(50000), minimumPaymentCents: c(3500), dueDate: d('2026-06-13'), cycleEnd: d('2026-05-20') } }),
@@ -298,7 +298,7 @@ describe('critic5 N3: scheduled inflow lands ON the recommendation byDate itself
     // Shortfall 400.00 on 06-15; rec = 400 (already a $50 multiple) by Fri 06-12 —
     // the same day as the inflow. Must be 400, NOT 900 (inflow not ignored).
     const r = computeCashNeeded(input({
-      paymentAccount: { name: 'Checking', balanceCents: c(10000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(10000), pending: [], frozenSince: null },
       scheduled: [{ date: d('2026-06-12'), amountCents: c(50000), description: 'Payroll' }],
       cards: [card({ id: 'x', name: 'X', statement: { statementBalanceCents: c(100000), minimumPaymentCents: c(3500), dueDate: d('2026-06-15'), cycleEnd: d('2026-06-01') } })],
     }));
@@ -312,7 +312,7 @@ describe('critic5 N4: statement with a NEGATIVE balance (credit balance)', () =>
   it('credit statement contributes $0, never negative cash, no crash', () => {
     // Hand: remaining = floorAtZero(−50 − 0) = 0 → excluded from headline.
     const r = computeCashNeeded(input({
-      paymentAccount: { name: 'Checking', balanceCents: c(10000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(10000), pending: [], frozenSince: null },
       cards: [card({
         id: 'x', name: 'X',
         statement: { statementBalanceCents: c(-5000), minimumPaymentCents: c(0), dueDate: d('2026-06-15'), cycleEnd: d('2026-06-01') },
@@ -330,7 +330,7 @@ describe('critic5 N4: statement with a NEGATIVE balance (credit balance)', () =>
   it('credit statement + a $35 minimum (issuer data error) still demands $0', () => {
     const r = computeCashNeeded(input({
       scenario: 'MINIMUM',
-      paymentAccount: { name: 'Checking', balanceCents: c(10000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(10000), pending: [], frozenSince: null },
       cards: [card({
         id: 'x', name: 'X',
         statement: { statementBalanceCents: c(-5000), minimumPaymentCents: c(3500), dueDate: d('2026-06-15'), cycleEnd: d('2026-06-01') },
@@ -347,7 +347,7 @@ describe('critic5 N5: every generated statement is $0 but an estimated card exis
     // Engine rule: estimated obligations are next-cycle unless NO generated
     // statement exists. A $0 statement IS generated → estimate stays upcoming.
     const r = computeCashNeeded(input({
-      paymentAccount: { name: 'Checking', balanceCents: c(10000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(10000), pending: [], frozenSince: null },
       cards: [
         card({ id: 'a', name: 'A', statement: { statementBalanceCents: c(0), minimumPaymentCents: c(0), dueDate: d('2026-06-15'), cycleEnd: d('2026-06-01') } }),
         card({ id: 'b', name: 'B', currentBalanceCents: c(30000), nextCycleCloseDate: d('2026-06-18'), nextDueDate: d('2026-06-20') }),
@@ -361,7 +361,7 @@ describe('critic5 N5: every generated statement is $0 but an estimated card exis
 
   it('…and when NO statement is generated at all, the estimate IS the headline', () => {
     const r = computeCashNeeded(input({
-      paymentAccount: { name: 'Checking', balanceCents: c(10000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(10000), pending: [], frozenSince: null },
       cards: [card({ id: 'b', name: 'B', currentBalanceCents: c(30000), nextCycleCloseDate: d('2026-06-18'), nextDueDate: d('2026-06-19') })],
     }));
     // due 06-19 is Juneteenth (Fri, observed) → effective Thu 06-18.
@@ -380,7 +380,7 @@ describe('critic5 N6: MINIMUM scenario + autopay MINIMUM + partial payment', () 
     // Σ = 98000·14 + 96500·16 = 2,916,000; × 2400/10000/365 = 699,840/365 = 1917.37 → 1917.
     const r = computeCashNeeded(input({
       scenario: 'MINIMUM',
-      paymentAccount: { name: 'Checking', balanceCents: c(50000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(50000), pending: [], frozenSince: null },
       cards: [card({
         id: 'x', name: 'X', aprBps: 2400,
         statement: { statementBalanceCents: c(100000), minimumPaymentCents: c(3500), dueDate: d('2026-06-15'), cycleEnd: d('2026-06-01') },
@@ -400,7 +400,7 @@ describe('critic5 N6: MINIMUM scenario + autopay MINIMUM + partial payment', () 
     // (close 06-01) → 95000·30 = 2,850,000; × 2400/10000/365 = 684,000/365 = 1873.97 → 1874.
     const r = computeCashNeeded(input({
       scenario: 'MINIMUM',
-      paymentAccount: { name: 'Checking', balanceCents: c(50000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: c(50000), pending: [], frozenSince: null },
       cards: [card({
         id: 'x', name: 'X', aprBps: 2400,
         statement: { statementBalanceCents: c(100000), minimumPaymentCents: c(3500), dueDate: d('2026-06-15'), cycleEnd: d('2026-06-01') },

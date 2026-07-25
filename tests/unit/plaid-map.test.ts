@@ -292,7 +292,7 @@ describe('mapPlaidLiabilityToStatement → cash-needed engine (real money impact
   function input(card: CardSnapshot, scenario: 'PAY_IN_FULL' | 'MINIMUM'): CashNeededInput {
     return {
       today: isoDate('2026-06-10'),
-      paymentAccount: { name: 'Checking', balanceCents: cents(500000), pending: [] },
+      paymentAccount: { name: 'Checking', balanceCents: cents(500000), pending: [], frozenSince: null },
       cards: [card],
       scheduled: [],
       scenario,

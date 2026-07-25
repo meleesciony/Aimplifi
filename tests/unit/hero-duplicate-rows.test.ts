@@ -78,7 +78,7 @@ function run(cards: CardSnapshot[]): ReturnType<typeof computeCashNeeded> {
   const input: CashNeededInput = {
     today: TODAY,
     scenario: 'PAY_IN_FULL',
-    paymentAccount: { name: 'Everyday Checking', balanceCents: cents(5_000_000), pending: [] },
+    paymentAccount: { name: 'Everyday Checking', balanceCents: cents(5_000_000), pending: [], frozenSince: null },
     cards,
     scheduled: [],
     holidayTable: [],

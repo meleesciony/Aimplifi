@@ -33,6 +33,7 @@ import {
   type LinkCollision,
   detectLinkCollision,
 } from '@/lib/engine/account/link-collision';
+import { reconcileFeedPresence } from '@/lib/engine/account/feed-presence';
 import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
 import { safeSyncErrorReason } from '@/lib/providers/sync-status';
 import { loadUserRules } from '@/server/rules';
@@ -824,10 +825,117 @@ export class PlaidProvider implements DataProvider {
   /** /accounts/get → upsert Account rows (type-mapped; current balance signed). */
   async syncAccountsForItem(userId: string, itemId: string): Promise<void> {
     const token = await this.accessTokenFor(userId, itemId);
-    const { accounts } = await plaidPost<{ accounts: PlaidAccount[] }>('/accounts/get', {
+    const { accounts } = await plaidPost<{ accounts?: unknown }>('/accounts/get', {
       access_token: token,
     });
-    await this.upsertPlaidAccounts(userId, accounts, itemId);
+    // A well-formed 200 always carries an account ARRAY. A missing / null / non-array one (a
+    // truncated or garbled-but-200 body, proxy corruption, schema drift) used to reach the upsert
+    // loop and throw `accounts is not iterable` — swallowed into an audit line on the sync path,
+    // but thrown straight out of the LINK path, where it fails an otherwise good connection. Same
+    // hazard the holdings sweep already guards with Array.isArray (the #128 `transactions: null`
+    // class); found by this slice's own presence test, which could not otherwise be reached.
+    if (Array.isArray(accounts)) {
+      await this.upsertPlaidAccounts(userId, accounts as PlaidAccount[], itemId);
+    } else {
+      await prisma.auditLog
+        .create({
+          data: { userId, action: 'plaid.accounts.malformed', meta: JSON.stringify({ itemId }) },
+        })
+        .catch(() => {});
+    }
+    // ONLY here. /accounts/get is the item's complete census; `/transactions/sync` echoes just
+    // the accounts with transaction activity (see the comment on that call), so reading absence
+    // from it would mark every quiet loan, card and brokerage as unshared.
+    await this.stampFeedPresence(userId, itemId, accounts);
+  }
+
+  /**
+   * Stamp the rows this connection has STOPPED returning, and un-stamp the ones it returns
+   * again (TASKS L.14). Plaid Link update mode ships with `account_selection_enabled`, so a user
+   * can untick an account; until now nothing noticed, and the row kept its last balance, kept
+   * counting, and kept reading as freshly synced because its BANK was still syncing (#293).
+   *
+   * Adjusts no figure and deletes nothing — see the schema comment on `Account.feedDroppedAt`
+   * for why that is deliberate. Best-effort and audited: a presence bookkeeping failure must
+   * never fail a sync that already wrote real balances.
+   */
+  private async stampFeedPresence(
+    userId: string,
+    itemId: string,
+    accounts: unknown,
+  ): Promise<void> {
+    try {
+      // Scoped to rows we can PROVE belong to this connection. A row whose plaidItemId is still
+      // null (linked before #256 and not re-synced since) is not evidence of anything: it might
+      // belong to another item or to a disconnected one, and guessing would drop it wrongly. The
+      // failure direction is a miss, and it self-heals — every ordinary sync stamps the linkage.
+      const rows = await prisma.account.findMany({
+        where: { userId, provider: 'plaid', plaidItemId: itemId },
+        select: { id: true, providerRef: true, feedDroppedAt: true },
+      });
+      if (rows.length === 0) return;
+      const refs: unknown = Array.isArray(accounts)
+        ? accounts.map((a: { account_id?: unknown }) => a?.account_id)
+        : accounts;
+      const decision = reconcileFeedPresence(rows, refs, this.today(userId));
+      if (decision.kind === 'skip') {
+        // A payload we could not trust. Recorded rather than silently ignored, because a feed
+        // stuck in this state means the protection is not running at that bank.
+        await prisma.auditLog
+          .create({
+            data: {
+              userId,
+              action: 'plaid.accounts.presence.skipped',
+              meta: JSON.stringify({ itemId, reason: decision.reason }),
+            },
+          })
+          .catch(() => {});
+        return;
+      }
+      if (decision.drop.length === 0 && decision.restore.length === 0) return;
+      // serializableTx, not a raw $transaction — the repo-wide lock every write path in this file
+      // obeys. Both updates land together so a reader can never see a census half-applied (one
+      // account announced as unshared while its sibling's restore is still pending). Both are
+      // userId-scoped as well as id-scoped: the ids came from a query, but a write that can freeze
+      // an account gets the ownership predicate stated at the write itself.
+      await serializableTx(async (tx) => {
+        if (decision.drop.length > 0) {
+          await tx.account.updateMany({
+            where: { id: { in: [...decision.drop] }, userId },
+            data: { feedDroppedAt: decision.droppedAt },
+          });
+        }
+        if (decision.restore.length > 0) {
+          await tx.account.updateMany({
+            where: { id: { in: [...decision.restore] }, userId },
+            data: { feedDroppedAt: null },
+          });
+        }
+      });
+      await prisma.auditLog
+        .create({
+          data: {
+            userId,
+            action: 'plaid.accounts.presence',
+            meta: JSON.stringify({
+              itemId,
+              dropped: decision.drop.length,
+              restored: decision.restore.length,
+            }),
+          },
+        })
+        .catch(() => {});
+    } catch (e) {
+      await prisma.auditLog
+        .create({
+          data: {
+            userId,
+            action: 'plaid.accounts.presence.failed',
+            meta: JSON.stringify({ itemId, error: e instanceof Error ? e.message : String(e) }),
+          },
+        })
+        .catch(() => {});
+    }
   }
 
   /**
@@ -1582,7 +1690,8 @@ export class PlaidProvider implements DataProvider {
     // only case, e.g. the owner's Chase + Capital One) short-circuits to zero billed calls.
     const investmentAccounts = await prisma.account.findMany({
       where: { userId, provider: 'plaid', type: 'INVESTMENT' },
-      select: { id: true, providerRef: true, plaidItemId: true },
+      // feedDroppedAt is selected because the prune decision below reads it (TASKS L.14).
+      select: { id: true, providerRef: true, plaidItemId: true, feedDroppedAt: true },
     });
     if (investmentAccounts.length === 0) {
       return { itemsAttempted, itemsFailed, itemsUnsupported, upserted, removed, skipped, withheldNonUsd };
@@ -1630,7 +1739,18 @@ export class PlaidProvider implements DataProvider {
           // as "sold". An explicit-empty, cash-only, or all-foreign account is skipped === 0 →
           // prunes correctly (a real sell-all). This subsumes the old "don't wipe on an all-
           // un-mappable feed" guard: 0 mapped + skipped > 0 upserts nothing and prunes nothing.
-          const rec = await this.reconcilePlaidHoldings(acct.id, mapped.holdings, mapped.skipped === 0);
+          // …and NEVER prune an account the feed has stopped carrying (TASKS L.14, critic F-2).
+          // Its holdings are absent from this payload for the same reason the account is: it was
+          // unticked, not sold. Pruning deleted every position, so /investments showed a portfolio
+          // $50k smaller — or the "No investment holdings yet" empty state — while net worth still
+          // counted the balance and the app was telling the reader it was counted everywhere. That
+          // is this module's own "absent is not sold" argument (#290) one level up, and it is what
+          // makes the shipped disclosure true rather than merely qualified.
+          const rec = await this.reconcilePlaidHoldings(
+            acct.id,
+            mapped.holdings,
+            mapped.skipped === 0 && acct.feedDroppedAt == null,
+          );
           upserted += rec.upserted;
           removed += rec.removed;
           skipped += mapped.skipped + rec.skipped;

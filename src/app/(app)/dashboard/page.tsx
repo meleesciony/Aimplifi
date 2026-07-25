@@ -5,6 +5,7 @@ import { CashNeededCard } from '@/components/finance/cash-needed-card';
 import { paintedHeroCards } from '@/lib/engine/account/card-duplicate-view';
 import { dashboardCardIdentity } from '@/components/finance/card-identity-view';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { FeedDroppedBanner } from '@/components/finance/feed-dropped-banner';
 import { NetWorthCard } from '@/components/finance/net-worth-card';
 import { PaymentRemindersCard } from '@/components/finance/payment-reminders-card';
 import { RecurringSummaryCard } from '@/components/finance/recurring-summary-card';
@@ -25,7 +26,7 @@ import { prisma } from '@/lib/db';
 import { DEMO_USER_ID } from '@/lib/demo-user';
 import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
-import { getWithheldAccountSummary } from '@/server/transactions';
+import { getFeedDroppedAccounts, getWithheldAccountSummary } from '@/server/transactions';
 import { getConnectionAlerts, getDataFreshness } from '@/server/connection-health';
 import { getCashFlowRadar } from '@/server/radar';
 import { getRecurring } from '@/server/recurring';
@@ -59,7 +60,7 @@ export default async function DashboardPage({
   // `?scope=household` link never errors, just silently degenerates.
   const requestedScope = (await searchParams).scope === 'household' ? 'household' : 'mine';
 
-  const [data, coach, plan, reports, recurring, trends, withheld, freshness, connectionAlerts, radar, nudgeDismissedKeys] = await Promise.all([
+  const [data, coach, plan, reports, recurring, trends, withheld, feedDropped, freshness, connectionAlerts, radar, nudgeDismissedKeys] = await Promise.all([
     getDashboardData(session.user.id, requestedScope),
     getCoachData(session.user.id),
     getSpendingPlan(session.user.id),
@@ -67,6 +68,7 @@ export default async function DashboardPage({
     getRecurring(session.user.id),
     getSpendingTrends(session.user.id),
     getWithheldAccountSummary(session.user.id),
+    getFeedDroppedAccounts(session.user.id),
     getDataFreshness(session.user.id),
     getConnectionAlerts(session.user.id),
     getCashFlowRadar(session.user.id),
@@ -203,6 +205,12 @@ export default async function DashboardPage({
       {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
           vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
       <CurrencyExclusionBanner summary={withheld} />
+
+      {/* TASKS L.14 — an account whose bank has stopped sharing it. Its last balance is STILL in
+          every figure on this page, deliberately (only the user knows whether the account still
+          exists), so the one thing that must not happen is silence. Renders nothing when no
+          account is affected, which is every demo and every healthy user. */}
+      <FeedDroppedBanner accounts={feedDropped} householdFrozenCount={data.householdFeedDroppedCount} />
 
       {/* linked-feed staleness heads-up (Gap 1 §3–4): shows only when the auto-synced
           feed has gone quiet. Silent for fresh feeds, manual-only, and the demo user. */}

@@ -36,7 +36,7 @@ function statement(balance: number, dueDate: string, min = 3500, cycleEnd = '202
 function input(over: Partial<CashNeededInput>): CashNeededInput {
   return {
     today: d('2026-06-10'),
-    paymentAccount: { name: 'Checking', balanceCents: cents(340000), pending: [] },
+    paymentAccount: { name: 'Checking', balanceCents: cents(340000), pending: [], frozenSince: null },
     cards: [],
     scheduled: [],
     scenario: 'PAY_IN_FULL',
@@ -57,7 +57,7 @@ describe('S1 — autopay scheduled but payment account insufficient on the autop
       autopay: { mode: 'STATEMENT_BALANCE' },
     });
     const r = computeCashNeeded(
-      input({ paymentAccount: { name: 'Checking', balanceCents: cents(100000), pending: [] }, cards: [auto] }),
+      input({ paymentAccount: { name: 'Checking', balanceCents: cents(100000), pending: [], frozenSince: null }, cards: [auto] }),
     );
     expect(r.headline.requiredCents).toBe(210000);
     expect(r.cards[0].userActionCents).toBe(0);
@@ -84,6 +84,7 @@ describe('S2 — card payment in transit at asOf', () => {
           name: 'Checking',
           balanceCents: cents(200000),
           pending: [{ amountCents: cents(-40000), description: 'EPAY in transit' }],
+          frozenSince: null,
         },
         cards: [c],
       }),
@@ -99,7 +100,7 @@ describe('S2 — card payment in transit at asOf', () => {
   it('payment visible nowhere: conservative full requirement (documented)', () => {
     const c = card({ id: 'c', name: 'C', statement: statement(100000, '2026-06-15') });
     const r = computeCashNeeded(
-      input({ paymentAccount: { name: 'Checking', balanceCents: cents(200000), pending: [] }, cards: [c] }),
+      input({ paymentAccount: { name: 'Checking', balanceCents: cents(200000), pending: [], frozenSince: null }, cards: [c] }),
     );
     expect(r.headline.requiredCents).toBe(100000);
     expect(r.headline.shortfallCents).toBe(0);
@@ -114,7 +115,7 @@ describe('S3 — statement due date earlier than cycle close (data error) and al
   it('treats it as due today', () => {
     const c = card({ id: 'c', name: 'C', statement: statement(50000, '2026-06-05', 3500, '2026-06-20') });
     const r = computeCashNeeded(
-      input({ paymentAccount: { name: 'Checking', balanceCents: cents(0), pending: [] }, cards: [c] }),
+      input({ paymentAccount: { name: 'Checking', balanceCents: cents(0), pending: [], frozenSince: null }, cards: [c] }),
     );
     expect(r.cards[0].effectiveDueDate).toBe('2026-06-10');
     expect(r.headline.shortfallCents).toBe(50000);
@@ -123,7 +124,7 @@ describe('S3 — statement due date earlier than cycle close (data error) and al
   it('FINDING PROBE: recommendation byDate must not be before today', () => {
     const c = card({ id: 'c', name: 'C', statement: statement(50000, '2026-06-05', 3500, '2026-06-20') });
     const r = computeCashNeeded(
-      input({ paymentAccount: { name: 'Checking', balanceCents: cents(0), pending: [] }, cards: [c] }),
+      input({ paymentAccount: { name: 'Checking', balanceCents: cents(0), pending: [], frozenSince: null }, cards: [c] }),
     );
     // Hand-computed CORRECT answer: transfer TODAY (2026-06-10), never a past date.
     expect(r.headline.recommendation).not.toBeNull();
@@ -193,6 +194,7 @@ describe('S6 — pending REFUND (positive pending) on the payment account', () =
           name: 'Checking',
           balanceCents: cents(100000),
           pending: [{ amountCents: cents(25000), description: 'Pending refund' }],
+          frozenSince: null,
         },
         cards: [c],
       }),
@@ -209,7 +211,7 @@ describe('S7 — two scheduled items land ON a due date', () => {
     const c = card({ id: 'c', name: 'C', statement: statement(100000, '2026-06-15') });
     const r = computeCashNeeded(
       input({
-        paymentAccount: { name: 'Checking', balanceCents: cents(10000), pending: [] },
+        paymentAccount: { name: 'Checking', balanceCents: cents(10000), pending: [], frozenSince: null },
         cards: [c],
         scheduled: [
           { date: d('2026-06-15'), amountCents: cents(120000), description: 'Payroll' },
@@ -248,7 +250,7 @@ describe('S9 — card due TODAY with a shortfall: recommendation date sanity', (
   it('FINDING PROBE: never recommend a transfer dated in the past', () => {
     const c = card({ id: 'c', name: 'C', statement: statement(50000, '2026-06-10') });
     const r = computeCashNeeded(
-      input({ paymentAccount: { name: 'Checking', balanceCents: cents(0), pending: [] }, cards: [c] }),
+      input({ paymentAccount: { name: 'Checking', balanceCents: cents(0), pending: [], frozenSince: null }, cards: [c] }),
     );
     expect(r.headline.recommendation).not.toBeNull();
     expect(r.headline.recommendation!.byDate >= '2026-06-10').toBe(true);

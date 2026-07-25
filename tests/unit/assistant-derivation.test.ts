@@ -67,7 +67,7 @@ function statement(balance: number, dueDate: string, min = 3500, cycleEnd = '202
 function input(over: Partial<CashNeededInput>): CashNeededInput {
   return {
     today: d('2026-06-10'),
-    paymentAccount: { name: 'Checking', balanceCents: cents(340000), pending: [] },
+    paymentAccount: { name: 'Checking', balanceCents: cents(340000), pending: [], frozenSince: null },
     cards: [],
     scheduled: [],
     scenario: 'PAY_IN_FULL',

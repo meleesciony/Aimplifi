@@ -72,6 +72,12 @@ export interface DashboardData {
   /** Partner shared accounts withheld by the #135 currency guard at household
    *  scope — disclosed, never silent (slice-8 critic F-6). 0 in 'mine' scope. */
   householdWithheldCount: number;
+  /** Partner accounts whose bank has STOPPED sharing them (TASKS L.14, critic F-3). Their frozen
+   *  balances are inside every household figure on the dashboard, and the viewer's own
+   *  feed-dropped banner is own-rows-only, so without this a joint total quietly rests on a stale
+   *  number the viewer cannot see, cannot fix, and is not told about. Count only — naming another
+   *  member's account here would widen what the viewer sees beyond the sharing consent. */
+  householdFeedDroppedCount: number;
   /** Suspected same-real-account-connected-twice pairs across the household's
    *  visible set (slice-8 critic F-5 / T9(b)). ADVISORY: figures are NOT
    *  adjusted; the UI disclosure is the mitigation, mirroring #192's stance.
@@ -112,7 +118,7 @@ async function householdExtras(
   viewer: Viewer,
   partnerIds: string[],
   slices: PartnerSnapshotSlice[],
-): Promise<Pick<DashboardData, 'accountOwnerLabel' | 'householdWithheldCount' | 'householdDuplicates'>> {
+): Promise<Pick<DashboardData, 'accountOwnerLabel' | 'householdWithheldCount' | 'householdFeedDroppedCount' | 'householdDuplicates'>> {
   const memberNames = viewer.household?.memberNames ?? {};
   const accountOwnerLabel: Record<string, string> = {};
   partnerIds.forEach((partnerId, i) => {
@@ -120,6 +126,13 @@ async function householdExtras(
     for (const a of slices[i].accounts) accountOwnerLabel[a.id] = label;
   });
   const householdWithheldCount = slices.reduce((n, s) => n + s.withheldAccountCount, 0);
+  // Counted over the accounts that actually reach the merged figures — the same list the sums
+  // above are built from — so the count can never describe a different set than the one counted
+  // (the L.15 "a count driving copy must be computed over what will RENDER" rule).
+  const householdFeedDroppedCount = slices.reduce(
+    (n, s) => n + s.accounts.filter((a) => a.feedDroppedAt != null).length,
+    0,
+  );
   const ownerLabelOf = (ownerId: string) =>
     ownerId === userId ? 'yours' : `${memberNames[ownerId] || 'Partner'}'s`;
   const householdDuplicates = detectHouseholdDuplicateAccounts(
@@ -129,7 +142,7 @@ async function householdExtras(
     b: { name: p.b.name, ownerLabel: ownerLabelOf(p.b.ownerId) },
     confidence: p.confidence,
   }));
-  return { accountOwnerLabel, householdWithheldCount, householdDuplicates };
+  return { accountOwnerLabel, householdWithheldCount, householdFeedDroppedCount, householdDuplicates };
 }
 
 /**
@@ -380,8 +393,8 @@ export async function getCashNeeded(
 
   const emptyExtras: Pick<
     DashboardData,
-    'accountOwnerLabel' | 'householdWithheldCount' | 'householdDuplicates'
-  > = { accountOwnerLabel: {}, householdWithheldCount: 0, householdDuplicates: [] };
+    'accountOwnerLabel' | 'householdWithheldCount' | 'householdFeedDroppedCount' | 'householdDuplicates'
+  > = { accountOwnerLabel: {}, householdWithheldCount: 0, householdFeedDroppedCount: 0, householdDuplicates: [] };
   const computed = cashNeededFromSnapshot(snap, today, scenario);
   return {
     today,
@@ -427,8 +440,8 @@ export async function getDashboardData(
   // boundary once unioned).
   let extras: Pick<
     DashboardData,
-    'accountOwnerLabel' | 'householdWithheldCount' | 'householdDuplicates'
-  > = { accountOwnerLabel: {}, householdWithheldCount: 0, householdDuplicates: [] };
+    'accountOwnerLabel' | 'householdWithheldCount' | 'householdFeedDroppedCount' | 'householdDuplicates'
+  > = { accountOwnerLabel: {}, householdWithheldCount: 0, householdFeedDroppedCount: 0, householdDuplicates: [] };
   if (scope === 'household') {
     const slices = await Promise.all(partnerIds.map((id) => getSharedSnapshotSlice(id)));
     extras = await householdExtras(userId, viewer, partnerIds, slices);

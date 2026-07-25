@@ -224,6 +224,33 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
   const byDate = due.length > 0 ? due[due.length - 1].effectiveDueDate : null;
 
   // ── Day-by-day projection from today through the last due date ──
+  // TASKS L.14 / critic F-1. Everything below walks forward from this ONE number, so when the bank
+  // has stopped sharing the funding account it is not merely stale, it is the base of every figure
+  // this engine reports — the shortfall, the by-date, the transfer recommendation, and the
+  // "you're covered" verdict. NOT adjusted: inventing a lower balance would fabricate. Disclosed
+  // instead, on the surface that gives the instruction, because a frozen-HIGH balance reports
+  // shortfall $0 and no recommendation while the real account cannot cover the autopay.
+  // The CARD side of the same problem (critics P1-6/P1-7). A card whose bank stopped sharing it
+  // still produces obligations here — from a frozen balance and, on the estimate path, a
+  // statement-substitute derived from it — and /cards would print "pay $X by DATE" with nothing
+  // said. Stated once in `assumptions`, which /cards, the dashboard hero, the calendar, the Ask
+  // answer and the weekly digest all already render, so the disclosure reaches the surfaces
+  // through the data class rather than being re-pasted onto each one.
+  const frozenCards = input.cards.filter((c) => c.frozenSince != null);
+  if (frozenCards.length > 0) {
+    assumptions.add(
+      frozenCards.length === 1
+        ? `${frozenCards[0].name}'s balance has not updated since ${frozenCards[0].frozenSince}, because your bank stopped sharing that card. Its figures here are based on the last balance we saw.`
+        : `${frozenCards.length} cards have balances that stopped updating when your bank stopped sharing them (${frozenCards
+            .map((c) => c.name)
+            .join(', ')}). Their figures here are based on the last balances we saw.`,
+    );
+  }
+  if (input.paymentAccount.frozenSince != null) {
+    assumptions.add(
+      `${input.paymentAccount.name}'s balance of ${formatCents(input.paymentAccount.balanceCents)} has not updated since ${input.paymentAccount.frozenSince}, because your bank stopped sharing that account. Every figure here is projected from it, so if the real balance is lower, this understates what you need to move.`,
+    );
+  }
   let startBalance = input.paymentAccount.balanceCents;
   const pendingTotal = sumCents(input.paymentAccount.pending.map((p) => p.amountCents));
   if (input.paymentAccount.pending.length > 0) {
