@@ -5165,3 +5165,18 @@ GATE: verify.sh — tsc 0 / eslint 0 / 4213 unit across 273 files / build clean.
 3 failed, a different set again (budget-targets, duplicate-connections ×2); all 10 pass serialized
 in isolation. This slice does NOT claim a critic pass: four surfaces are named OPEN in STATUS.
 NEXT: DECISIONS/ledger are written; commit, push, verify the deploy is live.
+
+## L.18 — the verified deploy. 2026-07-25
+SHIPPED LIVE as `62e7b90`. Deployment `aimplifi-nmis71jsn-reiforge.vercel.app`, Ready, aliased to
+www.aimplifi.app. Verified by three-way byte identity on /sign-in, stable across three repeat
+fetches: www == the new deployment (821f53d948dce93b3d6cfcd61902099f) and != the previous one
+(abd8e434f728df3fc17e840af9660a02).
+NO PUBLIC MARKER, and I checked rather than assuming: every L.18 string lives in an auth-gated
+route's chunk, so I extracted the 12 chunk URLs the sign-in shell references and grepped each one
+served from www for "stopped sharing this account" — none carries it, which is expected and is why
+the evidence here is byte identity plus the local gate, the same standard as L.14 and L.17.
+NO SCHEMA CHANGE — `git diff --stat -- prisma/` was empty before the push, so the live Neon database
+was untouched by this deploy.
+LESSON WRITTEN: docs/lessons/a-disclosure-is-several-claims-in-one-sentence.md (+ INDEX).
+NEXT: L.16 (the D7 prompt), or the five surfaces L.18 names open in STATUS — /calendar first, as
+the only remaining one that prints a dated amount to pay.
