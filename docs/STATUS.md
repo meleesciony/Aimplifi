@@ -2,6 +2,83 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-25 (#312) — L.20: the narrowings that strip the fact, and the loan nobody could name
+
+Three of the five surfaces L.19 left open, taken together because they are **one disease**:
+`feedDroppedAt` rides the money out of the providers and is then dropped at a server-side
+**narrowing** — so a figure computed from a balance the bank stopped sending arrives at the reader
+with nothing attached.
+
+**(1) The dashboard Today feed** — the sharpest of the three, because it prints the two INSTRUCTIONS
+the dashboard gives: “About $X short by DATE” and “A transfer of about $X would cover it”.
+`Proposal` gains `fundingFrozen` on the `autopayCents` idiom (verbatim, per-kind, null on every kind
+not projected from that balance). The dip takes the **radar’s** starting account and the shortfall
+takes `cashNeeded.fundingFrozen` completed with the surface’s own `paymentAccountName` — never each
+other’s: the two engines are handed the same account on today’s dashboard and nothing guarantees it,
+and a disclosure naming the wrong row is worse than none.
+
+**The half that matters is the silent one.** A balance frozen HIGH reports shortfall $0 and produces
+no dip, so *both* builders return null and the feed prints “Nothing needs you today.” over a
+projection that cannot see the account it is projecting — the L.19 /calendar P1-1, one surface
+along. `NudgeFeed.fundingFrozen` carries it: resolved against `ordered` (what will actually render)
+rather than the builder locals, **exclusive** with the per-proposal field so the sentence appears
+exactly once, and deliberately **not** gated on the feed being empty — one unrelated opportunity at
+the top would otherwise re-open the hole. It reads BOTH sources, because the radar can be walking a
+frozen account with no cash-needed result beside it.
+
+**A new sentence, not a borrowed one.** `frozenProjectionNote` opens “This projection starts from…”
+and this feed renders no projection — the antecedent-less phrasing L.19 corrected twice.
+`frozenNoWarningNote` is about the **absence of a warning**, and may not call the feed empty either.
+
+**(2) An undatable frozen loan can finally reach an all-clear** — the residual the L.19 wiring critic
+found. `selectLoanObligations` refuses to date a loan without both a positive payment and a due day
+(correctly — the engine never fabricates a date), but nothing carried the refusal out, so it reached
+no dues list, no reminder and no all-clear. `selectUndatableFrozenLoans` is its exact complement, and
+`FrozenNothingDueRow.kind` gains `'undatable-loan'` — a **third mechanism**, because the loan wording
+is false about it twice over: it names a stored payment and due date as merely stale when there is
+none, and implies the gap could close on its own when the bank that would send one has stopped
+sharing. **Frozen only**, deliberately; the two loan kinds share a dedupe namespace, because one
+account claiming both “stale due date” and “no due date at all” is a self-contradiction on one screen.
+
+**(3) The net-worth PDF** — a durable artifact handed to a lender, with no way to correct itself.
+`feedDroppedAt` is now REQUIRED on the report payload (so the compiler asks), the row is marked
+inline, and the summary names BOTH figures the frozen balance is inside — the headline and the trend
+— with `nextStep: 'open-app'`, since a file holds no control. The footer asserted **“Balances reflect
+the data source at export time”**, which is affirmatively FALSE about a frozen row; it now declines
+to claim a currency it was never checking for, rewritten to be true **unconditionally** rather than
+branched. Its copy was extracted into pure exports — money copy inside a binary artifact is otherwise
+testable only by grepping compressed PDF bytes, so in practice it would not be tested at all.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **4276 unit across 274 files** / build
+clean. New e2e `today-feed-frozen.spec.ts` **4/4** (the quiet case, the instruction case, the
+abstention, and the undatable loan). **Fail-old proven in BOTH directions**: silencing every L.20
+decision point fails **13** assertions, making them speak unconditionally fails **12**. **No schema
+change** — `git diff --stat -- prisma/` is empty, so the live database is untouched. DECISIONS #305;
+eight REGRESSION_LEDGER rows.
+
+**This slice does NOT claim a hostile-critic pass** — the owner redirected mid-slice to a new feature
+request (the Conscious Spending Plan settings section) before the critic cycle ran. The work is
+verified and shipped; the adversarial pass is owed.
+
+### 🟠 STILL OPEN after L.20
+
+1. **/investments and the debt-payoff path** — figures only. `DebtInput` has no frozen field and
+   `getInvestments` does not select `feedDroppedAt`, so both need a widened type rather than copy.
+2. **The CSV exports** (net worth, transactions) — deliberately not changed. A two-column machine
+   format has no honest slot for prose: a leading comment row breaks every parser, and a per-row
+   constant column is noise. Whether to add a column or a companion note is a FORMAT decision, not a
+   copy one, and it belongs with whoever owns the export contract.
+3. **A LIVE undatable loan** reaches no list either. Its gap is a different claim with a different
+   remedy (the bank is still talking to us; the field may yet arrive), so folding it into the
+   `'undatable-loan'` sentence would name the wrong mechanism — it needs its own.
+4. Smaller, carried forward from L.19: `frozenCardsNote`’s multi-row form says “N of these cards” on a
+   grid that also paints loans; the calendar’s two banners name one account differently; and
+   `CardSnapshot.frozenSince` is still optional while `paymentAccount.frozenSince` beside it is
+   required. New here: `frozenFundingNote` and `frozenNoWarningNote` both say “your bank”, which at
+   household scope could be a partner’s funding account — consistent with L.18’s existing stance on
+   that builder, and worth one ownership pass across all three together rather than a fourth
+   one-surface fix.
+
 ## ✅ SHIPPED 2026-07-25 (#311) — L.19: /calendar speaks, and a frozen LOAN can finally reach an all-clear
 
 Two of the five surfaces L.18 named open, taken together because they share one primitive: **the set

@@ -97,6 +97,9 @@ export default async function DashboardPage({
     // the runway rides along as display context for the income_pause copy only.
     incomePauses: coach.incomePauses,
     runwayMonths: coach.runwayMonths,
+    // How THIS page names the funding account (TASKS L.20) — the same label the cash-needed card
+    // above prints, so a frozen-balance qualifier in the feed names the row the reader can see.
+    paymentAccountName: data.paymentAccountName,
   } as const;
   const nudgeFeed = buildNudgeFeed({ ...nudgeInput, dismissedKeys: nudgeDismissedKeys });
   const nudgeFeedAll = buildNudgeFeed({ ...nudgeInput, dismissedKeys: new Set<string>() });
@@ -272,6 +275,10 @@ export default async function DashboardPage({
         frozenDues={frozenNothingDueRows({
           cards: [...data.payInFull.cards, ...data.payInFull.unknownDueDateCards],
           loans: data.loanObligations,
+          // TASKS L.20: the loans that reach no list at all. `loanObligations` above is every loan
+          // the engine could date; this is the complement — frozen AND undatable — and it was the
+          // one row L.19's all-clear qualifier could never be built from.
+          undatableLoans: data.undatableFrozenLoans,
           partnerLabel: data.accountOwnerLabel,
         })}
       />

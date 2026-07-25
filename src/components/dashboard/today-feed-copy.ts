@@ -18,6 +18,10 @@
 import { type ISODate, formatISODate } from '@/lib/dates';
 import { type Cents, formatCents } from '@/lib/money';
 import type { Proposal } from '@/lib/engine/nudge/types';
+import {
+  frozenFundingNote,
+  frozenProjectionNote,
+} from '@/lib/engine/account/feed-dropped-view';
 
 /**
  * The tier's "why am I seeing this" rule line. Tier-generic, EXCEPT where a kind
@@ -65,6 +69,36 @@ export function whyInputs(p: Proposal): string {
   if (p.daysUntil !== null) parts.push(`${p.daysUntil} day${p.daysUntil === 1 ? '' : 's'} out`);
   if (p.isEstimated) parts.push('based on an estimate');
   return parts.join(' · ');
+}
+
+/**
+ * The frozen-funding qualifier for ONE proposal (TASKS L.20), or null when its figure is not
+ * projected from a frozen balance.
+ *
+ * Two kinds, two sentences, because the two rows make different claims: the shortfall row states an
+ * amount the reader is short and is qualified as an INSTRUCTION (`role: 'instruction'` adds the
+ * "treat the amount as a floor" guard), while the dip row re-prints the radar's 90-day verdict and
+ * takes the projection sentence. `shows` is read from `centsAtStake`, the same value the detail
+ * line above uses to decide whether it prints a transfer at all — so the qualifier always describes
+ * the sentence actually on screen rather than a status enum's idea of it.
+ *
+ * `nextStep: 'accounts-route'` on both: this feed renders inside the app, where /accounts is a real
+ * route — named as a route, never as a position.
+ */
+export function proposalFrozenNote(p: Proposal): string | null {
+  if (!p.fundingFrozen) return null;
+  if (p.kind === 'cash_needed_shortfall') {
+    return frozenFundingNote(p.fundingFrozen, { role: 'instruction', nextStep: 'accounts-route' });
+  }
+  if (p.kind === 'cash_flow_dip') {
+    return frozenProjectionNote(p.fundingFrozen, {
+      shows: p.centsAtStake > 0 ? 'a-transfer' : 'a-dip',
+      nextStep: 'accounts-route',
+    });
+  }
+  // No other kind is projected from the funding balance, so no other kind may borrow a sentence
+  // that says it is. `select.ts` sets the field to null on all of them; this is the second lock.
+  return null;
 }
 
 export function proposalCopy(p: Proposal): { title: string; detail: string } {

@@ -133,6 +133,28 @@ export interface RadarResult {
    * start decides whether there is a dip at all, when it lands, and how big the transfer is.
    */
   startingBalanceFrozenDisclosure?: string | null;
+  /**
+   * The same fact as `startingBalanceFrozenDisclosure`, unrendered (TASKS L.20).
+   *
+   * Two surfaces now qualify this projection with sentences of their own — the radar card and the
+   * dashboard's Today feed, which re-prints the dip as an instruction ("A transfer of about $X
+   * would cover it"). Handing the feed either of the two strings above would be the L.15 mistake
+   * exactly: the in-app card's names a route it can point at, the push's is truncated for a
+   * notification, and neither was written for a nudge row. A consumer that must state its own
+   * claim needs the FACT, so it is carried beside the strings rather than parsed back out of one.
+   *
+   * Optional for the same reason the disclosure above is: it is additive, and every pre-L.20
+   * fixture omits it. Null means the starting balance is live.
+   */
+  startingBalanceFrozen?: {
+    readonly label: string;
+    readonly frozenSince: string;
+    /** The frozen number itself. This engine's own two sentences name no balance, but a consumer
+     *  that states a shortfall rather than a dip does (`frozenFundingNote`), and carrying it keeps
+     *  the fact TOTAL — one shape every consumer can use, instead of a nullable field whose empty
+     *  case is unreachable and therefore untestable. */
+    readonly balanceCents: number;
+  } | null;
   assumptions: string[];
 }
 
@@ -394,7 +416,11 @@ export function computeRadar(input: RadarInput): RadarResult {
   const startingAccount = input.accounts.find((a) => a.id === input.paymentAccountId);
   const frozenStart =
     startingAccount?.feedDroppedAt != null
-      ? { label: startingAccount.name, frozenSince: startingAccount.feedDroppedAt }
+      ? {
+          label: startingAccount.name,
+          frozenSince: startingAccount.feedDroppedAt,
+          balanceCents: startingAccount.currentBalanceCents,
+        }
       : null;
   if (frozenStart) {
     assumptions.add(
@@ -424,6 +450,7 @@ export function computeRadar(input: RadarInput): RadarResult {
     burn,
     includesEstimatedDues: input.cardDues.some((d) => d.isEstimated),
     startingBalanceFrozenDisclosure,
+    startingBalanceFrozen: frozenStart,
     assumptions: [...assumptions],
   };
 }

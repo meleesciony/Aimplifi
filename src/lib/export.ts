@@ -4,6 +4,7 @@
  */
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { type Cents, cents, formatCents } from '@/lib/money';
+import { frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
 
 export interface ExportTxn {
   date: string;
@@ -54,11 +55,72 @@ export function netWorthToCsv(rows: readonly NetWorthExportRow[]): string {
   return [header, ...lines].join('\r\n') + '\r\n';
 }
 
+/** The account rows this report prints, as much of them as the honesty rules depend on. */
+export interface NetWorthReportAccount {
+  name: string;
+  type: string;
+  currentBalanceCents: number;
+  /** YYYY-MM-DD the bank stopped sharing this account, else null. */
+  feedDroppedAt: string | null;
+}
+
+/**
+ * The report's provenance line.
+ *
+ * It used to read "Balances reflect the data source at export time", which is affirmatively FALSE
+ * about an account whose bank stopped sending one: the figure printed is older than the export, and
+ * this sentence told a lender otherwise (TASKS L.20). True of every row unconditionally now, rather
+ * than branched — an export with nothing frozen loses nothing by declining to claim a currency it
+ * was never checking for, and a provenance line that is only sometimes right is worse than one that
+ * is always right.
+ *
+ * Exported as a constant, and the per-row/summary builders below as functions, for the reason
+ * `today-feed-copy.ts` gives: money copy inside a binary artifact is otherwise testable only by
+ * grepping compressed PDF bytes, so in practice it would not be tested at all.
+ */
+export const NET_WORTH_REPORT_FOOTER =
+  'Educational, not financial advice. Balances are the most recent figures each source sent us.';
+
+/**
+ * One account row. The staleness is marked on the ROW as well as in the summary note below,
+ * because a reader scanning a long list matches a figure to its caveat far more reliably when the
+ * caveat sits on the figure.
+ */
+export function netWorthAccountLine(a: NetWorthReportAccount): string {
+  const sign = a.type === 'CREDIT' || a.type === 'LOAN' ? '-' : '';
+  const stale = a.feedDroppedAt ? `  - not updated since ${a.feedDroppedAt}` : '';
+  return `${a.name}  (${a.type})  ${sign}${formatCents(cents(a.currentBalanceCents))}${stale}`;
+}
+
+/**
+ * The summary claim for a report containing one or more frozen balances, or null when none are.
+ *
+ * `figureLabel` names BOTH figures the report prints, because the frozen balance is inside each of
+ * them: the trend's recent points carry it forward exactly as the headline does. `open-app` because
+ * a PDF holds no control at all — it can name the app, and nothing inside it.
+ */
+export function netWorthFrozenNote(
+  accounts: readonly NetWorthReportAccount[],
+): string | null {
+  return frozenTotalNote(
+    accounts
+      .filter((a) => a.feedDroppedAt != null)
+      .map((a) => ({ label: a.name, frozenSince: a.feedDroppedAt as string })),
+    { figureLabel: 'the net worth and trend in this report', nextStep: 'open-app' },
+  );
+}
+
 export async function netWorthReportPdf(params: {
   generatedFor: string;
   asOf: string;
   netWorthCents: Cents;
-  accounts: { name: string; type: string; currentBalanceCents: number }[];
+  /**
+   * `feedDroppedAt` is REQUIRED (TASKS L.20). This report is the one surface in the app that
+   * leaves it: a file, handed to a lender or filed away, with no way to correct itself once the
+   * connection is noticed. A caller that forgets the flag produces a document asserting balances
+   * are current when the bank stopped sending them — so the compiler asks for it.
+   */
+  accounts: NetWorthReportAccount[];
   trend: NetWorthExportRow[];
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
@@ -84,9 +146,11 @@ export async function netWorthReportPdf(params: {
   draw(`Net worth: ${formatCents(params.netWorthCents)}`, { size: 14, isBold: true });
   y -= 6;
   draw('Accounts', { size: 12, isBold: true });
-  for (const a of params.accounts) {
-    const sign = a.type === 'CREDIT' || a.type === 'LOAN' ? '-' : '';
-    draw(`${a.name}  (${a.type})  ${sign}${formatCents(cents(a.currentBalanceCents))}`, { size: 10 });
+  for (const a of params.accounts) draw(netWorthAccountLine(a), { size: 10 });
+  const frozenNote = netWorthFrozenNote(params.accounts);
+  if (frozenNote) {
+    y -= 4;
+    draw(frozenNote, { size: 8 });
   }
   y -= 6;
   draw('Trend (month-end)', { size: 12, isBold: true });
@@ -94,7 +158,7 @@ export async function netWorthReportPdf(params: {
     draw(`${r.date}   ${formatCents(cents(r.netWorthCents))}`, { size: 9 });
   }
   y -= 4;
-  draw('Educational, not financial advice. Balances reflect the data source at export time.', { size: 8 });
+  draw(NET_WORTH_REPORT_FOOTER, { size: 8 });
 
   return doc.save();
 }

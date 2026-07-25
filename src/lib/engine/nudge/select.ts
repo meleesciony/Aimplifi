@@ -87,6 +87,7 @@ function paymentProposal(r: PaymentReminder, today: ISODate, dismissed: Readonly
     cadence: null,
     runwayMonths: null,
     isEstimated: r.isEstimated,
+    fundingFrozen: null, // not projected from the funding balance
     dismissed: dismissed.has(dismissKey),
   };
 }
@@ -118,6 +119,12 @@ function dipProposal(
     cadence: null,
     runwayMonths: null,
     isEstimated: radar.includesEstimatedDues,
+    // The dip IS the radar's verdict re-printed as an instruction, so the fact comes from the
+    // radar's own starting account — the account it walked from, labelled as the radar labels it —
+    // never from `cashNeeded.fundingFrozen`. The two are the same account on today's dashboard and
+    // nothing in either engine guarantees it; a disclosure that names the wrong row is worse than
+    // none (TASKS L.20).
+    fundingFrozen: radar.startingBalanceFrozen ?? null,
     dismissed: dismissed.has(dismissKey),
   };
 }
@@ -126,6 +133,8 @@ function shortfallProposal(
   cn: CashNeededResult | null,
   today: ISODate,
   dismissed: ReadonlySet<string>,
+  /** How the surface names the funding account (see `NudgeInput.paymentAccountName`). */
+  paymentAccountName: string,
 ): Proposal | null {
   if (!cn || cn.headline.shortfallCents <= 0) return null;
   const tier: ProposalTier = 'critical';
@@ -155,6 +164,15 @@ function shortfallProposal(
     cadence: null,
     runwayMonths: null,
     isEstimated,
+    // `cn.fundingFrozen` carries the drop date and the balance but deliberately not the name, so
+    // the surface's own label completes it (TASKS L.20).
+    fundingFrozen: cn.fundingFrozen
+      ? {
+          label: paymentAccountName,
+          frozenSince: cn.fundingFrozen.frozenSince,
+          balanceCents: cn.fundingFrozen.balanceCents,
+        }
+      : null,
     dismissed: dismissed.has(dismissKey),
   };
 }
@@ -202,6 +220,7 @@ function opportunityProposal(o: Opportunity, today: ISODate, dismissed: Readonly
     cadence: null,
     runwayMonths: null,
     isEstimated: o.isEstimate,
+    fundingFrozen: null, // not projected from the funding balance
     dismissed: dismissed.has(dismissKey),
   };
 }
@@ -236,6 +255,7 @@ function unusualProposal(u: UnusualCharge, today: ISODate, dismissed: ReadonlySe
     cadence: null,
     runwayMonths: null,
     isEstimated: false, // a real posted charge, never an estimate
+    fundingFrozen: null, // not projected from the funding balance
     dismissed: dismissed.has(dismissKey),
   };
 }
@@ -295,6 +315,7 @@ function incomePauseProposal(
         ? runwayMonths
         : null,
     isEstimated: false, // the missed deposit is a fact; the runway figure discloses its own basis
+    fundingFrozen: null, // not projected from the funding balance
     dismissed: dismissed.has(dismissKey),
   };
 }
@@ -365,7 +386,7 @@ export function buildNudgeFeed(input: NudgeInput): NudgeFeed {
   ];
   const dip = dipProposal(radar, today, dismissed);
   if (dip) proposals.push(dip);
-  const shortfall = shortfallProposal(cashNeeded, today, dismissed);
+  const shortfall = shortfallProposal(cashNeeded, today, dismissed, input.paymentAccountName);
   if (shortfall) proposals.push(shortfall);
 
   // Suppression: a dismissed non-critical proposal leaves the feed until its fact
@@ -390,5 +411,33 @@ export function buildNudgeFeed(input: NudgeInput): NudgeFeed {
         } no due date yet, so ${undatedCount === 1 ? 'it isn’t' : 'they aren’t'} included.`
       : 'Nothing needs you today.';
 
-  return { headline, rest, ordered, emptyReason };
+  // The frozen funding balance NOBODY above accounts for (TASKS L.20).
+  //
+  // Resolved against `ordered` — the proposals this feed will actually render — and not against
+  // the raw `dip`/`shortfall` locals, because the question is whether the sentence already
+  // appears on screen, not whether a proposal was built. (Today the two agree: both funding kinds
+  // are CRITICAL and CRITICAL survives every filter above. Resolving against the rendered set is
+  // what keeps that an observation rather than an assumption — the L.19 P1 on /calendar was a
+  // claim resolved against an engine's input instead of its output.)
+  //
+  // Deliberately NOT gated on the feed being empty. A frozen balance that produced no shortfall
+  // and no dip is silent whether or not an unrelated opportunity happens to sit at the top; the
+  // reader takes the same false comfort from a feed with no cash warning in it either way.
+  // BOTH sources are consulted, not just cash-needed. A frozen balance suppresses the dip and the
+  // shortfall independently — the radar can be walking a frozen account with no cash-needed result
+  // beside it at all — and reading only one of them leaves precisely the quiet case silent again,
+  // one engine along. Cash-needed first when both are frozen: its sentence names the balance AND
+  // the shortfall the dashboard's headline rests on, and on this surface the two engines are
+  // handed the same payment account, so the choice is between two labels for one row.
+  const stated = ordered.some((p) => p.fundingFrozen !== null);
+  const fromCashNeeded = cashNeeded?.fundingFrozen
+    ? {
+        label: input.paymentAccountName,
+        frozenSince: cashNeeded.fundingFrozen.frozenSince,
+        balanceCents: cashNeeded.fundingFrozen.balanceCents,
+      }
+    : null;
+  const fundingFrozen = stated ? null : (fromCashNeeded ?? radar?.startingBalanceFrozen ?? null);
+
+  return { headline, rest, ordered, emptyReason, fundingFrozen };
 }

@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
       const joint = householdRead !== null;
 
       // The week's Monday is the stable once-per-week dedup key.
-      const { today, result, loanObligations, cardDuplicates } =
+      const { today, result, loanObligations, undatableFrozenLoans, cardDuplicates } =
         householdRead ?? (await getCashNeeded(user.id, 'PAY_IN_FULL', 'mine'));
       const weekStart = addDays(today, -((dayOfWeek(today) + 6) % 7));
       const dedupKey = `weekly_digest:${weekStart}`;
@@ -159,9 +159,13 @@ export async function GET(request: NextRequest) {
         // wrong. The row-building itself moved into the engine so the dashboard and this cron
         // cannot drift apart again; the ownership map stays here because only the caller knows
         // whose scope it read. Same map the dues bullets use (critic P1-2).
+        // TASKS L.20: and the loans that reach NO list — frozen, with no due day or payment
+        // amount, so `selectLoanObligations` emits nothing for them and "a clear week ahead" was
+        // never a claim they could qualify.
         frozenDues: frozenNothingDueRows({
           cards: [...result.cards, ...result.unknownDueDateCards],
           loans: loanObligations,
+          undatableLoans: undatableFrozenLoans,
           partnerLabel: household?.partnerAccountLabels ?? {},
         }),
       });

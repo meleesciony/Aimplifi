@@ -209,6 +209,7 @@ describe('PDF export', () => {
         name: a.name,
         type: a.type,
         currentBalanceCents: a.currentBalanceCents,
+        feedDroppedAt: null,
       })),
       trend: [{ date: '2026-05-31', netWorthCents: 14300000 }, { date: '2026-06-10', netWorthCents: 14480474 }],
     });

@@ -71,6 +71,8 @@ function radarOf(o: {
   coverCents?: number;
   coverByDate?: string;
   includesEstimatedDues?: boolean;
+  /** The account this projection walks from is frozen (TASKS L.20). */
+  frozenStart?: { label: string; frozenSince: string; balanceCents: number };
 }): RadarResult {
   const fnd = o.firstNegativeDate === undefined ? '2026-06-14' : o.firstNegativeDate;
   return {
@@ -93,6 +95,7 @@ function radarOf(o: {
         : { amountCents: cents(o.coverCents), byDate: isoDate(o.coverByDate ?? '2026-06-13'), sources: [] },
     burn: null,
     includesEstimatedDues: o.includesEstimatedDues ?? false,
+    startingBalanceFrozen: o.frozenStart ?? null,
     assumptions: [],
   };
 }
@@ -104,6 +107,8 @@ function cashNeededOf(o: {
   requiredCents?: number;
   /** isEstimated flag per synthesized perDueDate point (default: one real point). */
   cycleEstimatedFlags?: boolean[];
+  /** The funding account's bank stopped sharing it (TASKS L.20). */
+  fundingFrozen?: { frozenSince: string; balanceCents: number };
 }): CashNeededResult {
   const flags = o.cycleEstimatedFlags ?? [false];
   const perDueDate = flags.map((est, i) => ({
@@ -137,7 +142,9 @@ function cashNeededOf(o: {
             : null,
       recommendation: null,
     },
-    fundingFrozen: null,
+    fundingFrozen: o.fundingFrozen
+      ? { frozenSince: o.fundingFrozen.frozenSince, balanceCents: cents(o.fundingFrozen.balanceCents) }
+      : null,
     perDueDate,
     cards: [],
     unknownDueDateCards: [],
@@ -176,6 +183,7 @@ function input(over: Partial<NudgeInput> = {}): NudgeInput {
     radar: null,
     cashNeeded: null,
     opportunities: [],
+    paymentAccountName: 'Everyday Checking',
     ...over,
   };
 }
@@ -849,5 +857,117 @@ describe('nudge · undatable cards qualify the empty-feed all-clear (#277 P2)', 
     const feed = buildNudgeFeed(input({ cashNeeded: withHeadline }));
     expect(feed.headline).not.toBeNull();
     expect(feed.emptyReason).toBeNull();
+  });
+});
+
+/**
+ * TASKS L.20 — the frozen funding balance the Today feed used to print instructions from in
+ * silence. Two halves: the fact must ride a funding-derived proposal when one fires, and it must
+ * ride the FEED when the frozen balance is the reason none did. The second half is the expensive
+ * one: a balance frozen HIGH reports no shortfall and produces no dip, so the reader is reassured
+ * by a silence the missing data manufactured.
+ */
+describe('nudge feed — the frozen funding balance (L.20)', () => {
+  const FROZEN = { frozenSince: '2026-05-02', balanceCents: 120000 };
+
+  it('a shortfall proposal carries the frozen funding fact, labelled as the SURFACE names it', () => {
+    const cn = cashNeededOf({ shortfallCents: 25000, fundingFrozen: FROZEN });
+    const feed = buildNudgeFeed(input({ cashNeeded: cn, paymentAccountName: 'Everyday Checking' }));
+    const p = feed.ordered.find((x) => x.kind === 'cash_needed_shortfall')!;
+    expect(p.fundingFrozen).toEqual({
+      label: 'Everyday Checking',
+      frozenSince: '2026-05-02',
+      balanceCents: 120000,
+    });
+    // The date and balance are the engine's, byte-for-byte — this layer copies, never recomputes.
+    expect(p.fundingFrozen!.frozenSince).toBe(cn.fundingFrozen!.frozenSince);
+    expect(p.fundingFrozen!.balanceCents).toBe(cn.fundingFrozen!.balanceCents);
+  });
+
+  it('a dip proposal takes the RADAR’s starting account, not cash-needed’s funding row', () => {
+    // Deliberately different labels: the dip re-prints the radar's verdict, so it must name the
+    // account the radar actually walked from. Naming the wrong row is worse than saying nothing.
+    const rad = radarOf({
+      coverCents: 50000,
+      frozenStart: { label: 'Joint Checking', frozenSince: '2026-04-09', balanceCents: 88000 },
+    });
+    const cn = cashNeededOf({ shortfallCents: 0, fundingFrozen: FROZEN });
+    const feed = buildNudgeFeed(input({ radar: rad, cashNeeded: cn, paymentAccountName: 'Everyday Checking' }));
+    const dip = feed.ordered.find((x) => x.kind === 'cash_flow_dip')!;
+    expect(dip.fundingFrozen).toEqual({
+      label: 'Joint Checking',
+      frozenSince: '2026-04-09',
+      balanceCents: 88000,
+    });
+  });
+
+  it('every other kind carries null — no other figure is projected from that balance', () => {
+    const r = reminder({ dueDate: '2026-06-12', daysUntil: 2, userActionCents: 60000 });
+    const op = oppOf({ kind: 'unused-subscription', merchant: 'GymPass', monthlyCents: 4000 });
+    const feed = buildNudgeFeed(
+      input({ reminders: [r], opportunities: [op], cashNeeded: cashNeededOf({ shortfallCents: 0, fundingFrozen: FROZEN }) }),
+    );
+    for (const p of feed.ordered) {
+      if (p.kind === 'cash_flow_dip' || p.kind === 'cash_needed_shortfall') continue;
+      expect(p.fundingFrozen).toBeNull();
+    }
+  });
+
+  it('THE QUIET CASE: frozen high → no shortfall, no dip, and the FEED carries the fact', () => {
+    // The whole point. Nothing fires, "Nothing needs you today." renders, and until L.20 that
+    // all-clear was computed over a balance the app is no longer being sent.
+    const cn = cashNeededOf({ shortfallCents: 0, fundingFrozen: FROZEN });
+    const feed = buildNudgeFeed(input({ cashNeeded: cn, paymentAccountName: 'Everyday Checking' }));
+    expect(feed.ordered.some((p) => p.kind === 'cash_needed_shortfall')).toBe(false);
+    expect(feed.emptyReason).toBe('Nothing needs you today.');
+    expect(feed.fundingFrozen).toEqual({
+      label: 'Everyday Checking',
+      frozenSince: '2026-05-02',
+      balanceCents: 120000,
+    });
+  });
+
+  it('falls back to the RADAR’s frozen start when there is no cash-needed result at all', () => {
+    // Reading only cash-needed would leave exactly the quiet case silent again, one engine along.
+    const rad = radarOf({
+      pushWorthy: false,
+      firstNegativeDate: null,
+      daysUntilFirstNegative: null,
+      frozenStart: { label: 'Joint Checking', frozenSince: '2026-04-09', balanceCents: 88000 },
+    });
+    const feed = buildNudgeFeed(input({ radar: rad, cashNeeded: null }));
+    expect(feed.ordered.some((p) => p.kind === 'cash_flow_dip')).toBe(false);
+    expect(feed.fundingFrozen).toEqual({
+      label: 'Joint Checking',
+      frozenSince: '2026-04-09',
+      balanceCents: 88000,
+    });
+  });
+
+  it('EXCLUSIVE: when a proposal states it, the feed does not — the sentence appears once', () => {
+    const cn = cashNeededOf({ shortfallCents: 25000, fundingFrozen: FROZEN });
+    const feed = buildNudgeFeed(input({ cashNeeded: cn }));
+    expect(feed.ordered.some((p) => p.fundingFrozen !== null)).toBe(true);
+    expect(feed.fundingFrozen).toBeNull();
+  });
+
+  it('NOT gated on an empty feed: an unrelated opportunity does not silence it', () => {
+    // A quiet cash picture under a subscription nudge is exactly as reassuring, and exactly as
+    // wrong. Gating this on `emptyReason` would have re-opened the hole for any user with one
+    // opportunity in their feed.
+    const cn = cashNeededOf({ shortfallCents: 0, fundingFrozen: FROZEN });
+    const op = oppOf({ kind: 'unused-subscription', merchant: 'GymPass', monthlyCents: 4000 });
+    const feed = buildNudgeFeed(input({ cashNeeded: cn, opportunities: [op] }));
+    expect(feed.headline).not.toBeNull();
+    expect(feed.emptyReason).toBeNull();
+    expect(feed.fundingFrozen).not.toBeNull();
+  });
+
+  it('a LIVE funding balance says nothing, anywhere — the abstention', () => {
+    const cn = cashNeededOf({ shortfallCents: 25000 });
+    const rad = radarOf({ coverCents: 50000 });
+    const feed = buildNudgeFeed(input({ cashNeeded: cn, radar: rad }));
+    expect(feed.fundingFrozen).toBeNull();
+    for (const p of feed.ordered) expect(p.fundingFrozen).toBeNull();
   });
 });

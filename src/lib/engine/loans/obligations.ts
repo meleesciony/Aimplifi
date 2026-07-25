@@ -93,3 +93,54 @@ export function selectLoanObligations(params: {
       compareDates(x.effectiveDueDate, y.effectiveDueDate) || x.accountName.localeCompare(y.accountName),
   );
 }
+
+/**
+ * A frozen loan that `selectLoanObligations` drops entirely, because it carries no dated payment.
+ *
+ * Emitted so an ABSENCE can still be disclosed (TASKS L.20). `frozenSince` is non-null by
+ * construction — the whole point of the list is the loans whose gap cannot close on its own.
+ */
+export interface UndatableFrozenLoan {
+  accountId: string;
+  accountName: string;
+  /** YYYY-MM-DD the bank stopped sharing this loan. Never null here. */
+  frozenSince: string;
+}
+
+/**
+ * The frozen LOAN/MORTGAGE accounts that produce NO obligation above, and so appear in no dues
+ * list, no reminder and no all-clear (TASKS L.20).
+ *
+ * `selectLoanObligations` refuses to date a loan without both a positive payment and a due day,
+ * and refusing is right — the engine never fabricates a date. But the caller then had nothing to
+ * carry the refusal out with, so "You're all caught up" and "a clear week ahead" were computed
+ * over a list this loan could never enter. That is the L.19 thesis in its worst form: L.19 taught
+ * four surfaces to qualify an all-clear using the frozen rows they could see, and this is the row
+ * none of them could. `unknownDueDateCards` is the exact analogue on the card side.
+ *
+ * FROZEN ONLY, deliberately. A LIVE loan missing a due day is also absent from every list, but its
+ * gap is a different claim with a different remedy (the bank is still talking to us; the field may
+ * arrive on its own, or was never offered), and inventing one sentence for both would name the
+ * wrong mechanism for one of them — the mistake `FrozenNothingDueRow.kind` exists to prevent. That
+ * sibling gap is recorded in docs/STATUS.md rather than silently folded in here.
+ *
+ * No `today`, no holidays: nothing here is dated, so there is nothing to compute a date from.
+ */
+export function selectUndatableFrozenLoans(params: {
+  accounts: readonly LoanAccountLike[];
+}): UndatableFrozenLoan[] {
+  const out: UndatableFrozenLoan[] = [];
+  for (const a of params.accounts) {
+    if (!LOAN_TYPES.has(a.type)) continue;
+    const frozenSince = a.feedDroppedAt ?? null;
+    if (frozenSince == null) continue;
+    const payment = a.minimumPaymentCents ?? null;
+    // The exact negation of the two guards above, so the two lists stay disjoint by construction:
+    // a loan is here precisely when it is not there. Written as one condition rather than two
+    // `continue`s so that staying in step with `selectLoanObligations` is a single edit.
+    const datable = payment != null && payment > 0 && a.dueDayOfMonth != null;
+    if (datable) continue;
+    out.push({ accountId: a.id, accountName: a.name, frozenSince });
+  }
+  return out.sort((x, y) => x.accountName.localeCompare(y.accountName));
+}

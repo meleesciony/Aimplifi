@@ -7,7 +7,12 @@ import { holidayTable, type ISODate } from '@/lib/dates';
 import { assembleCashNeededInput, netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
 import { mergeSnapshots } from '@/lib/engine/household/merge-snapshot';
-import { type LoanObligation, selectLoanObligations } from '@/lib/engine/loans/obligations';
+import {
+  type LoanObligation,
+  type UndatableFrozenLoan,
+  selectLoanObligations,
+  selectUndatableFrozenLoans,
+} from '@/lib/engine/loans/obligations';
 import { netWorthSeries } from '@/lib/engine/networth/series';
 import { type PaymentReminder, selectPaymentReminders } from '@/lib/engine/reminders/select';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
@@ -59,7 +64,28 @@ export interface DashboardData {
    * speak for.
    */
   loanObligations: LoanObligation[];
-  accounts: { id: string; name: string; type: string; currentBalanceCents: number; mask: string | null }[];
+  /**
+   * The frozen LOAN/MORTGAGE accounts that produced no obligation at all, because the bank never
+   * sent a due day or a payment amount (TASKS L.20). Disjoint from `loanObligations` by
+   * construction. Carried for the same reason that list is: an all-clear must be able to name the
+   * accounts it cannot speak for, and this is the one row that reaches NO list.
+   */
+  undatableFrozenLoans: UndatableFrozenLoan[];
+  /**
+   * `feedDroppedAt` rides this payload (TASKS L.20) because the PDF export prints these balances
+   * into a durable artifact and, until L.20, its footer asserted the opposite — "Balances reflect
+   * the data source at export time" is affirmatively false about a row whose bank stopped sending
+   * one. A file handed to a lender carries no way to correct itself later, so the qualification has
+   * to be inside it.
+   */
+  accounts: {
+    id: string;
+    name: string;
+    type: string;
+    currentBalanceCents: number;
+    mask: string | null;
+    feedDroppedAt: string | null;
+  }[];
   /** cardId -> last-4 for the /cards identity line (#298). Covers HOUSEHOLD scope too:
    *  built from the merged snapshot the obligations are computed over, not the personal one. */
   cardMask: Record<string, string | null>;
@@ -348,7 +374,13 @@ export function cashNeededFromSnapshot(
   // folded into the card-framed cash-needed headline (#134). One definition here so the
   // dashboard, calendar, and cron sweep all agree.
   const loanObligations = selectLoanObligations({ accounts: obligationAccounts, today, holidays });
-  return { input, result: computeCashNeeded(input), loanObligations };
+  // The loans the line above refuses to date, when their bank has also stopped sharing them
+  // (TASKS L.20). Built here, beside the list it is the complement of, so the two can never drift
+  // apart — and so every consumer of `loanObligations` is handed the refusal at the same time as
+  // the obligations. Without it, "You're all caught up" and "a clear week ahead" are computed over
+  // a list a frozen undatable mortgage can never enter.
+  const undatableFrozenLoans = selectUndatableFrozenLoans({ accounts: obligationAccounts });
+  return { input, result: computeCashNeeded(input), loanObligations, undatableFrozenLoans };
 }
 
 /**
@@ -460,7 +492,7 @@ export async function getDashboardData(
   // Explicit override (critic P0 fix): `paymentAccount` is already resolved from
   // the PERSONAL `snap` above — pass its id through so a household-scope merge
   // can never re-derive the funding account from a partner's shared checking.
-  const { input, result: payInFull, loanObligations } = cashNeededFromSnapshot(
+  const { input, result: payInFull, loanObligations, undatableFrozenLoans } = cashNeededFromSnapshot(
     cashNeededSnap,
     today,
     'PAY_IN_FULL',
@@ -490,6 +522,7 @@ export async function getDashboardData(
     type: a.type,
     currentBalanceCents: a.currentBalanceCents,
     mask: (a as { mask?: string | null }).mask ?? null,
+    feedDroppedAt: a.feedDroppedAt ?? null,
   }));
 
   // cardId -> last-4, for the /cards identity line (#298). Built from `cashNeededSnap`, NOT from
@@ -522,6 +555,7 @@ export async function getDashboardData(
     netWorthTrend,
     reminders,
     loanObligations,
+    undatableFrozenLoans,
     accounts,
     scope,
     household,

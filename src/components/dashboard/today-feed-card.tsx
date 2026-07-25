@@ -5,7 +5,13 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { NudgeFeed, Proposal } from '@/lib/engine/nudge/types';
-import { proposalCopy, tierRule, whyInputs } from '@/components/dashboard/today-feed-copy';
+import {
+  proposalCopy,
+  proposalFrozenNote,
+  tierRule,
+  whyInputs,
+} from '@/components/dashboard/today-feed-copy';
+import { FROZEN_FEED_TESTID, frozenNoWarningNote } from '@/lib/engine/account/feed-dropped-view';
 import { logEngagement } from '@/server/engagement-actions';
 import { dismissNudge } from '@/server/nudge-actions';
 import { confirmIncomePauseAction, undoIncomePauseAction } from '@/server/income-pause-actions';
@@ -122,6 +128,15 @@ export function TodayFeedCard({
           </p>
         )}
 
+        {/* The frozen funding balance no row above accounts for (TASKS L.20). Read from `base`,
+            the same feed the rows are rendered from, so "Show everything" can never move the
+            sentence out of step with the proposals it is exclusive with. */}
+        {base.fundingFrozen && (
+          <p data-testid={FROZEN_FEED_TESTID} className="text-muted-foreground">
+            {frozenNoWarningNote(base.fundingFrozen, { nextStep: 'accounts-route' })}
+          </p>
+        )}
+
         {rest.length > 0 && (
           <ul className="space-y-2 border-t pt-3" data-testid="today-feed-rest">
             {rest.map((p, i) => (
@@ -179,6 +194,7 @@ function ProposalRow({
   pauseError?: boolean;
 }) {
   const { title, detail } = proposalCopy(proposal);
+  const frozenNote = proposalFrozenNote(proposal);
   const dismissable = proposal.tier === 'action' || proposal.tier === 'opportunity';
   // Income-pause management (#251): an unconfirmed pause offers "Yes, it's paused"
   // (gates the projection exclusion); a confirmed one (HANDLED) offers Undo. Both
@@ -196,6 +212,14 @@ function ProposalRow({
         <div>
           <p className={headline ? 'font-semibold' : 'font-medium'}>{title}</p>
           <p className="text-muted-foreground">{detail}</p>
+          {/* Attached to the row whose figure it qualifies, never to the card (TASKS L.20): this
+              feed prints the two sharpest instructions in the app, and a qualifier floating above
+              a ranked list would not say WHICH amount rests on a balance that stopped moving. */}
+          {frozenNote && (
+            <p className="text-muted-foreground" data-testid={`nudge-frozen-${proposal.kind}`}>
+              {frozenNote}
+            </p>
+          )}
           {pauseError && (
             <p className="text-destructive" data-testid="nudge-income-pause-error" role="alert">
               Couldn’t save that — try again.

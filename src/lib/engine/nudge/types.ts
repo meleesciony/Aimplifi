@@ -16,6 +16,7 @@ import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { Opportunity, OpportunityKind } from '@/lib/engine/fi/insights';
 import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
 import type { IncomePauseState, PauseCadence } from '@/lib/engine/income/pause';
+import type { FrozenFundingFigure } from '@/lib/engine/account/feed-dropped-view';
 
 /** Suppression tiers, most urgent first. HANDLED is quiet autopay reassurance. */
 export type ProposalTier = 'critical' | 'action' | 'opportunity' | 'handled';
@@ -102,6 +103,20 @@ export interface Proposal {
   cadence: PauseCadence | null;
   runwayMonths: number | null;
   isEstimated: boolean;
+  /**
+   * The funding account this proposal's figure is walked forward from, when its bank has stopped
+   * sharing it (TASKS L.20); null when that balance is live, and on every kind not projected from
+   * it. Verbatim display context, the `autopayCents` idiom — no arithmetic, and the label is the
+   * one its own source prints (the radar's starting account for a dip, the surface's
+   * `paymentAccountName` for a shortfall).
+   *
+   * This feed prints the two sharpest INSTRUCTIONS in the app — "About $X short by DATE" and "A
+   * transfer of about $X would cover it" — and until L.20 it was the last surface stating them
+   * with no idea whether the balance underneath had stopped moving. The failure direction is the
+   * one L.14 exists for: frozen HIGH understates the shortfall, so the reader moves too little
+   * and the autopay bounces.
+   */
+  fundingFrozen: FrozenFundingFigure | null;
   /** True iff the user has dismissed this proposal's dismissKey (UI collapse hint). */
   dismissed: boolean;
 }
@@ -111,6 +126,19 @@ export interface NudgeInput {
   reminders: readonly PaymentReminder[];
   radar: RadarResult | null;
   cashNeeded: CashNeededResult | null;
+  /**
+   * How THIS surface names the account the cash-needed projection walks from (TASKS L.20).
+   *
+   * REQUIRED, and supplied by the caller rather than read off the result, because
+   * `CashNeededResult.fundingFrozen` deliberately carries the drop date and the balance but not
+   * the name — "a disclosure must name the row the way the reader sees it named", and only the
+   * surface knows that. The dashboard already holds it as `paymentAccountName` and prints it on
+   * the cash-needed card a few rows above this feed.
+   *
+   * Not optional, on this file's standing rule: a defaulted disclosure argument fails silent, and
+   * the cost of forgetting it here is a frozen-balance instruction that says nothing.
+   */
+  paymentAccountName: string;
   opportunities: readonly Opportunity[];
   /**
    * Per-merchant median+MAD outliers from `detectUnusualCharges` (#249). Optional so
@@ -157,4 +185,20 @@ export interface NudgeFeed {
   ordered: Proposal[];
   /** Set when there is no headline (nothing needs the user today). */
   emptyReason: string | null;
+  /**
+   * The frozen funding balance NO proposal on this feed accounts for (TASKS L.20) — null when the
+   * balance is live, and null when a proposal in `ordered` already carries the same fact.
+   *
+   * Two halves of one disclosure, and this is the half that matters more. A balance frozen HIGH
+   * reports a shortfall of $0 and produces no dip, so `shortfallProposal` and `dipProposal` both
+   * return null and the feed prints "Nothing needs you today." over a projection that cannot see
+   * the account it is projecting — the quiet direction, and the expensive one. This is the same
+   * defect the L.19 critic found on /calendar (P1-1), one surface along.
+   *
+   * Exclusive with `Proposal.fundingFrozen` by construction so the sentence appears exactly once,
+   * attached to the claim it qualifies: on the instruction when there is one, on the all-clear
+   * when there is not. Safe because both funding-derived kinds are CRITICAL, and the card renders
+   * every critical row — dismissed or not — so a proposal carrying the fact is never invisible.
+   */
+  fundingFrozen: FrozenFundingFigure | null;
 }
