@@ -5180,3 +5180,64 @@ was untouched by this deploy.
 LESSON WRITTEN: docs/lessons/a-disclosure-is-several-claims-in-one-sentence.md (+ INDEX).
 NEXT: L.16 (the D7 prompt), or the five surfaces L.18 names open in STATUS — /calendar first, as
 the only remaining one that prints a dated amount to pay.
+
+## L.19 scoped and mapped — SESSION PAUSED BY OWNER before any edit. 2026-07-25
+NO CODE CHANGED. Working tree was clean at `9b82a42`, `origin/main...main` = 0 0. This entry exists
+so the next session does not re-explore; everything below is a READ result, nothing is a claim that
+anything was built.
+SCOPE TAKEN: the five surfaces L.18 named open in STATUS, as **L.19**, in the ranked order STATUS
+gives them — (1) /calendar, (2) the dashboard Today-feed nudges, (3) the PDF/CSV export, (4) a
+frozen LOAN that can never reach an all-clear qualifier, (5) /investments + the debt-payoff path.
+Ranked by money consequence, and 1-4 are INSTRUCTIONS or durable artifacts under the L.14
+figure-vs-instruction axis; 5 is figures only and is the one to drop if the slice grows.
+
+THE L.18 PRIMITIVE, MAPPED (so it is reused, not re-invented — this is the L.15 lesson):
+`src/lib/engine/account/feed-dropped-view.ts` exports ELEVEN builders. The four unions, spelled
+exactly: `FrozenFigureRole` = 'figure' | 'instruction'; `FrozenNextStep` = 'accounts-route' |
+'open-app' | 'partner' | 'nothing'; `FrozenOwnership` = 'reader' | 'partner' | 'unknown';
+`frozenProjectionNote`'s `shows` = 'a-transfer' | 'a-dip' | 'no-dip'. Builders relevant to L.19:
+`frozenCardsNote(rows, {role, nextStep})`, `frozenNothingDueNote(rows, {nextStep})`,
+`frozenLoanNote(row, {role, nextStep})`, `frozenFundingNote(funding, {role, nextStep})`,
+`frozenProjectionNote(funding, {shows, nextStep})`, `frozenTotalNote(rows, {figureLabel, nextStep})`.
+`frozenSince: string | null` is REQUIRED on `CardObligation`, `UnknownDueDateCard`, `LoanObligation`
+and `PaymentReminder`; `CashNeededResult.fundingFrozen` is REQUIRED as
+`{frozenSince: string; balanceCents: Cents} | null`. `CardSnapshot.frozenSince` is the one OPTIONAL
+(engine INPUT, not output) — that is the inconsistency STATUS already records as open.
+The lock is `tests/unit/frozen-figure-surfaces.test.ts` (1154 lines), which drives the real engines
+via a `cashNeeded()` helper over `assembleCashNeededInput` -> `computeCashNeeded`, and pins silence
+cases to GOLDEN LITERALS rather than to the code's own defaults.
+
+CONFIRMED BY READING THE CODE, for surfaces 3-5 (surface 1 and 2 are NOT yet mapped — the explorer
+covering /calendar and the nudges was interrupted, so re-run that one first):
+ - EXPORT: `netWorthReportPdf` (`src/lib/export.ts:57-63`) takes accounts as
+   `{name, type, currentBalanceCents}[]` — three fields, so the flag is dropped before it even
+   reaches the exporter. The upstream payload is `src/server/finance.ts:479-485`, five fields
+   (id/name/type/currentBalanceCents/mask), and `feedDroppedAt` is read at :133 but never added.
+   The false footer is `src/lib/export.ts:97`, verbatim: 'Educational, not financial advice.
+   Balances reflect the data source at export time.' Route is `src/app/api/export/route.ts`; the
+   CSV paths (transactions-csv, net-worth-csv) carry NO footer at all, which is its own question —
+   a CSV has nowhere to say it. Only test is `tests/unit/phase4.test.ts:202-218` and it asserts
+   magic bytes and a size floor, so it cannot fail on a false sentence.
+ - LOAN ALL-CLEAR: `frozenNothingDueNote` (feed-dropped-view.ts:413-445) hardcodes the phrase
+   'of the cards here' in its MULTI-row branch at :442, and its single-row branch claims 'a
+   statement issued on it since would not have reached us' — a statement claim, which is a card's
+   story, not a loan's. Callers: `src/lib/engine/digest/build.ts:149` ({nextStep:'open-app'}) and
+   `src/components/finance/payment-reminders-card.tsx:116` ({nextStep:'accounts-route'}). CORRECTION
+   TO THE BRIEF: neither caller filters cards itself — both receive an already-built `frozenCards`
+   prop typed `{label, frozenSince, ownership}[]`, so the cards-only narrowing happens UPSTREAM and
+   the real fix site is whoever builds that prop, not the two callers. `LoanObligation.frozenSince`
+   already exists (obligations.ts:54, set from `a.feedDroppedAt` at :88), so the data is there.
+   All-clear copy: payment-reminders-card.tsx:130, gated on `reminders.length === 0`.
+ - INVESTMENTS: the prune skip is real and deliberate — `plaid.ts:1749-1753` passes
+   `mapped.skipped === 0 && acct.feedDroppedAt == null` as `prune`, with a comment citing L.14 F-2.
+   `investments-view.tsx` has exactly one qualifier mechanism, `CurrencyExclusionBanner` (:60), and
+   no frozen equivalent. DEBT: `DebtInput` (`engine/debt/payoff.ts:22-31`) has NO frozen field, and
+   `loadDebtAccounts` (`src/server/debt.ts:28-41`) builds it from five fields — so surface 5 needs a
+   type widened, not just copy, which is why it is the drop candidate.
+
+NEXT: re-run the interrupted explorer over /calendar (does it render `result.cards` incl. estimates
++ `loanObligations`, and exactly where the L.15 duplicate disclosure sits, since that placement is
+reusable) and over the Today-feed nudge `Proposal` shape (STATUS says it is a closed field set with
+no free-text slot, so wiring it is a shape change). Then build /calendar first. Money-display copy
+over a data-integrity fact => Fable build + hostile critic, and per the L.18 lesson prove fail-old
+in BOTH directions: silencing the builder AND making it speak unconditionally.
