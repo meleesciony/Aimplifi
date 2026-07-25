@@ -66,6 +66,22 @@ three pass alone). **Fail-old proven** on the mixed-case fix by mutating it out:
 the new one, turns red. **No schema change** — `git diff origin/main..main -- prisma/` is empty.
 DECISIONS #306; eight REGRESSION_LEDGER rows.
 
+**Deploy: VERIFIED LIVE.** `dpl_EroVxWej29moLFFoapoLxQCDwsrL` reached `● Ready`, target production,
+and carries `www.aimplifi.app` and `aimplifi.app`. Honest limit on the proof, unchanged since L.19:
+every route this work touches is auth-gated (`/` and `/dashboard` both answer 307 to sign-in) and the
+new copy renders only for a user who actually has a frozen account, so there is no unauthenticated
+string unique to this commit to grep — the evidence is the READY state on the aliases plus the local
+gate, not a curl of rendered copy.
+
+**The first deploy of this commit FAILED and it is worth recording why.** `dpl_5EsmeYxKdhDkrieXXyXvWXP9BKdZ`
+errored with `P1001: Can't reach database server at ep-proud-sound-atpgfoct…neon.tech:5432` during
+`prisma db push`. Not a code failure — a plain redeploy of the same commit went green two minutes
+later, so the Neon compute was briefly unreachable (a cold start or a short incident). The point to
+remember: **the build command runs `prisma db push` on EVERY deploy, whether or not the commit
+touches the schema**, so an unreachable database fails the build of a pure-code change. The
+production aliases stayed on the previous deployment throughout, so the live site was never broken —
+which is also why a push succeeding proves nothing on its own.
+
 ### 🟠 STILL OPEN after L.21
 
 1. **The radar, /forecast and /calendar omit an undatable loan from their projections entirely** and
