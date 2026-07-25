@@ -4820,3 +4820,27 @@ try to link same account again, it just refreshes." He is right, and he said it 
 Disclosure is a patch; L.10 layer 2 (collision interception on the fresh-Link door) is the fix.
 NEXT: L.10 layer 2 - intercept after the token exchange, BEFORE any row is written, and route a
 proven re-pull into update mode instead of creating a second Item.
+
+
+## L.10 layer 2 — the collision ENGINE (pure, unwired). 2026-07-24
+OWNER: "Why in the heck are you allowed to make 2 of the same accounts... when I try to link
+same account again, it just refreshes." The fix, not the symptom.
+SHIPPED: pure detectLinkCollision (engine-first, rule 6) — given the accounts a just-exchanged
+item returned + the user's other LIVE connections, decide whether this is a re-pull. Proves
+nothing softer than the identity ladder (persistent_account_id, or last-4 + type + subtype +
+currency within ONE provider at ONE institution). NOTHING CALLS IT YET: no route, figure or copy
+changed (the slice-1 pattern).
+Abstention tests are the majority on purpose: a wrong 'already-connected' throws away a real
+connection; a missed one leaves a duplicate the app already discloses (#306) and can combine
+(#304). Both owner-named cases survive: spouse's card (differing last-4 vetoes), Roth vs
+Traditional (differing subtype vetoes; UNKNOWN subtype abstains — the rung L.9 lacked).
+GATE: verify.sh GREEN - tsc 0 / eslint 0 / 3966 unit / 263 files / build clean. 15 new tests.
+Empty prisma diff. Commit 4d262c4, pushed.
+NEXT (the wiring, one slice): in exchangePublicToken, between the PlaidItem upsert (plaid.ts:337)
+and syncAccountsForItem (plaid.ts:357) — the window where institutionId is resolved and NO
+Account row exists yet (invariant D6) — fetch /accounts/get, call detectLinkCollision against the
+user's other live items at the same institutionId, and on 'already-connected': /item/remove the
+new token, persist nothing, return an outcome linkPlaidAccount surfaces as "You already have
+Chase connected — refreshing it instead of adding a second copy" with a button into update mode,
+plus the "different login, keep both" escape. Needs a fresh-context critic (/item/remove is
+irreversible) and is UNVERIFIABLE against live Plaid here (no creds).
