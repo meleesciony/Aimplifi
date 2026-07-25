@@ -26,6 +26,8 @@
  * `cardIdentityLabels` computed over the whole displayed list it cannot fire.
  */
 import { renderSafe } from './continued-accounts-view';
+import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
+import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cents, formatCents } from '@/lib/money';
 
 export const CARD_DUPLICATE_TESTID = 'cards-duplicate';
@@ -112,26 +114,45 @@ export interface CardDuplicateView {
   pairs: CardDuplicatePairView[];
 }
 
+/** One row on a surface that names cards but attaches no per-card money role (TASKS L.8). */
+export interface DisplayedCardRow {
+  cardId: string;
+  label: string;
+}
+
+/** A pair whose two cards are both on THIS surface, named exactly as it paints them. */
+interface ResolvedPair<T> {
+  key: string;
+  /** Paint order: `first` is the one that appears higher on the surface. */
+  first: T;
+  second: T;
+  nameA: string;
+  nameB: string;
+  confidence: 'high' | 'medium';
+  reasons: readonly string[];
+}
+
 /**
- * The disclosure, or `null` when there is nothing honest to say (no pairs, or no pair whose BOTH
- * sides are actually on this page).
+ * The one place a pair is matched to what a surface actually paints — shared by every builder
+ * below so they can never disagree about which pairs are disclosable or what the two cards are
+ * called. Only the IMPACT sentence differs per surface, because only the money claim differs.
  *
  * A pair is dropped unless both of its cards are displayed here. A duplicate whose other side is a
- * checking account, a withheld non-USD row, or anything else /cards does not list cannot be
- * described truthfully on this page — the reader would be sent looking for a second entry that is
- * not there — and it is disclosed on /accounts, which does list it.
+ * checking account, a withheld non-USD row, a $0 card this surface does not paint, or anything else
+ * the surface does not list cannot be described truthfully on it — the reader would be sent looking
+ * for a second entry that is not there — and it is disclosed on /accounts, which does list it.
  */
-export function cardDuplicateView(
+function resolvePairs<T extends DisplayedCardRow>(
   pairs: readonly CardDuplicatePairInput[],
-  cards: readonly DisplayedCardForDuplicates[],
-): CardDuplicateView | null {
-  const byId = new Map<string, { index: number; label: string; role: CardMoneyRole }>();
+  cards: readonly T[],
+): ResolvedPair<T>[] {
+  const byId = new Map<string, { index: number; label: string; card: T }>();
   cards.forEach((c, index) => {
-    if (!byId.has(c.cardId)) byId.set(c.cardId, { index, label: renderSafe(c.label), role: c.role });
+    if (!byId.has(c.cardId)) byId.set(c.cardId, { index, label: renderSafe(c.label), card: c });
   });
 
   const seen = new Set<string>();
-  const out: CardDuplicatePairView[] = [];
+  const out: ResolvedPair<T>[] = [];
   for (const p of pairs) {
     if (p.aId === p.bId) continue;
     const key = p.aId < p.bId ? `${p.aId}|${p.bId}` : `${p.bId}|${p.aId}`;
@@ -149,16 +170,38 @@ export function cardDuplicateView(
     // A 1-based ordinal prefix cannot be forged by an account name (#297): for i != j the decimals
     // differ at some digit, or the shorter is followed by '.' where the longer has a digit.
     const collide = first.label === second.label;
-    const nameA = collide ? `${first.index + 1}. ${first.label}` : first.label;
-    const nameB = collide ? `${second.index + 1}. ${second.label}` : second.label;
-
     out.push({
       key,
-      sentence: `“${nameA}” and “${nameB}” look like the same card reaching Aimplifi twice.`,
-      impact: impactOf(first.role, second.role, nameA, nameB),
-      basis: basisOf(p.confidence, p.reasons),
+      first: first.card,
+      second: second.card,
+      nameA: collide ? `${first.index + 1}. ${first.label}` : first.label,
+      nameB: collide ? `${second.index + 1}. ${second.label}` : second.label,
+      confidence: p.confidence,
+      reasons: p.reasons,
     });
   }
+  return out;
+}
+
+/** Completes both halves of every disclosure: who, and on what evidence. */
+function sentenceFor(p: ResolvedPair<DisplayedCardRow>): string {
+  return `“${p.nameA}” and “${p.nameB}” look like the same card reaching Aimplifi twice.`;
+}
+
+/**
+ * The disclosure for a surface whose total is THIS CYCLE'S CASH REQUIRED (/cards, and the dashboard
+ * cash-needed hero) — or `null` when there is nothing honest to say.
+ */
+export function cardDuplicateView(
+  pairs: readonly CardDuplicatePairInput[],
+  cards: readonly DisplayedCardForDuplicates[],
+): CardDuplicateView | null {
+  const out = resolvePairs(pairs, cards).map((p) => ({
+    key: p.key,
+    sentence: sentenceFor(p),
+    impact: impactOf(p.first.role, p.second.role, p.nameA, p.nameB),
+    basis: basisOf(p.confidence, p.reasons),
+  }));
   if (out.length === 0) return null;
   return { title: CARD_DUPLICATE_TITLE, howTo: CARD_DUPLICATE_HOWTO, pairs: out };
 }
@@ -202,4 +245,137 @@ function basisOf(confidence: 'high' | 'medium', reasons: readonly string[]): str
   const strength = confidence === 'high' ? 'Likely' : 'Possible';
   const cleaned = reasons.map((r) => renderSafe(r)).filter((r) => r !== '');
   return cleaned.length > 0 ? `${strength} — matched on ${cleaned.join(', ')}.` : `${strength} match.`;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * TASKS L.8 — the same pair, on the two DASHBOARD surfaces.
+ *
+ * The dashboard reads the very obligations /cards reads, so a both-live duplicate inflates the
+ * cash-needed headline and appears twice in the reminders list — and until now neither said a word,
+ * while /cards said it plainly. A reader who never opens /cards met the inflated number and nothing
+ * else (recorded as the open half when #299 shipped).
+ *
+ * Why these are separate builders rather than one call with a flag: the only thing that differs
+ * between the three surfaces is WHAT MONEY CLAIM IS TRUE THERE, and that is exactly the thing this
+ * module exists to get right. `cardDuplicateView`'s impact sentences all speak about this cycle's
+ * CASH REQUIRED; neither of the surfaces below states that number, so reusing those sentences would
+ * have described a total the reader cannot see. Everything that is genuinely shared — which pairs
+ * are disclosable, what each card is called, the basis — is shared, in `resolvePairs`.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/** One card the cash-needed hero paints, with what it does to the figure above it. */
+export interface PaintedHeroCard {
+  cardId: string;
+  /** The card's name as the hero prints it, BEFORE any identity line is appended. */
+  cardName: string;
+  role: CardMoneyRole;
+}
+
+/**
+ * Every card the cash-needed hero's main branch paints, in PAINT ORDER, each carrying whether it is
+ * inside `headline.requiredCents`.
+ *
+ * Pure, and exported, for one reason: this is the exact computation that produced #299's P0 — the
+ * first cut called every row in `result.cards` "counted", when `requiredCents` sums only
+ * `cycleObligations` filtered to `cashRequiredCents > 0` and ESTIMATED obligations are dropped
+ * wholesale once any card has a real statement. Left inline in the component it would have been
+ * reachable only through Playwright, which `scripts/verify.sh` skips unless `VERIFY_E2E=1` — so the
+ * one piece of this slice with a proven history of being wrong would have had no coverage in the
+ * gate that actually runs. `tests/unit/hero-duplicate-rows.test.ts` now drives it with REAL engine
+ * output and asserts the counted rows sum to the headline, in every scenario.
+ *
+ * Paint order is the hero's own: the "Not included" note, then the due-date list, then the
+ * estimated next-cycle rows.
+ *
+ * A dated card needing $0 is deliberately absent: the engine's `due` filter keeps it out of
+ * `perDueDate`, so the hero paints it nowhere, and naming a row that is not on screen is the defect
+ * this module exists to prevent. /cards lists it and discloses it there.
+ */
+export function paintedHeroCards(result: CashNeededResult): PaintedHeroCard[] {
+  return [
+    // Kept out of `cards`, every total and every projection by the engine itself.
+    ...undatedCardsWithBalance(result).map((c) => ({
+      cardId: c.cardId,
+      cardName: c.cardName,
+      role: { counted: false, reason: 'no-statement' } as CardMoneyRole,
+    })),
+    // `perDueDate` is built from `due` — `cycleObligations` filtered to `cashRequiredCents > 0`,
+    // the exact rows summed into `headline.requiredCents` — and `amountCents` IS that card's
+    // `cashRequiredCents`. The engine's own selection, read off its own output.
+    ...result.perDueDate.flatMap((p) =>
+      p.cards.map((c) => ({
+        cardId: c.cardId,
+        cardName: c.cardName,
+        role: { counted: true, cents: c.amountCents } as CardMoneyRole,
+      })),
+    ),
+    // Estimated, and dropped from this cycle's total the moment any card has a real statement.
+    // Painted with a real-looking figure, which is precisely why it is so easy to call it counted.
+    ...result.upcoming.map((u) => ({
+      cardId: u.cardId,
+      cardName: u.cardName,
+      role: { counted: false, reason: 'next-cycle' } as CardMoneyRole,
+    })),
+  ];
+}
+
+/**
+ * The hero's "Cards: due dates missing" branch adds up BALANCES, not cash required, and says so
+ * ("that is a balance, not an amount we can say is due"). A duplicate lands in that sum twice, so
+ * this is a real inflation of a real figure — but of a different figure, hence its own sentence.
+ *
+ * `totalStated` mirrors the branch's own condition: it prints a summed figure only when every
+ * balance points the same way, and says nothing summable when the set mixes a balance owed with a
+ * credit. Claiming "that total counts it twice" where no total was printed would send the reader
+ * looking for a number that is not on screen.
+ */
+export function cardDuplicateBalanceView(
+  pairs: readonly CardDuplicatePairInput[],
+  cards: readonly DisplayedCardRow[],
+  totalStated: boolean,
+): CardDuplicateView | null {
+  const out = resolvePairs(pairs, cards).map((p) => ({
+    key: p.key,
+    sentence: sentenceFor(p),
+    // "the combined balance stated above", never "the total above": this branch's own description
+    // names TWO totals — this cycle's total, which these cards are explicitly NOT in, and the sum
+    // of their balances, which they are. A bare "the total" points at both.
+    impact: totalStated
+      ? 'Both are inside the combined balance stated above, so if these are one card that figure counts it twice.'
+      : 'No combined balance is stated above, but these are still two rows for what may be one card.',
+    basis: basisOf(p.confidence, p.reasons),
+  }));
+  if (out.length === 0) return null;
+  return { title: CARD_DUPLICATE_TITLE, howTo: CARD_DUPLICATE_HOWTO, pairs: out };
+}
+
+/**
+ * The payment-reminders list states no total at all — it is a list of what to pay and when. So the
+ * harm there is not an inflated figure but a duplicated INSTRUCTION: the same card asking to be paid
+ * twice, on the same day, for the same amount. That is what this sentence names, and it deliberately
+ * makes no claim about any total, because this surface has none.
+ */
+export const CARD_DUPLICATE_HOWTO_LIST =
+  'No amount below has been adjusted — only you can confirm whether two rows are one card. Accounts lists this pair with the choices that fit it, including marking them as not duplicates. If a copy’s bank is still connected, removing it takes two steps there — disconnect, then delete — and its balance keeps counting until it is deleted.';
+
+export function cardDuplicateListView(
+  pairs: readonly CardDuplicatePairInput[],
+  cards: readonly DisplayedCardRow[],
+): CardDuplicateView | null {
+  const out = resolvePairs(pairs, cards).map((p) => ({
+    key: p.key,
+    sentence: sentenceFor(p),
+    // Says nothing about WHICH CYCLE, deliberately. A critic ran the engine on the mixed state —
+    // one card with a real statement, the duplicated pair with none — and found the reminders list
+    // carries both estimated copies (`selectPaymentReminders` takes the complete obligation set and
+    // drops only `cashRequiredCents <= 0`) while the hero, reading the same pair's roles, calls them
+    // next-cycle estimates. The old wording said "this cycle shows two payments", so one dashboard
+    // printed two contradictory sentences under one title. What is true on this surface in EVERY
+    // state is simply that it is asking twice.
+    impact:
+      'Both are listed below with their own amount, so what may be one card is asking to be paid twice. If they are one card, you owe it once.',
+    basis: basisOf(p.confidence, p.reasons),
+  }));
+  if (out.length === 0) return null;
+  return { title: CARD_DUPLICATE_TITLE, howTo: CARD_DUPLICATE_HOWTO_LIST, pairs: out };
 }

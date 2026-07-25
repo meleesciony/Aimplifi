@@ -126,7 +126,17 @@ test('two connections to one bank are told apart on the duplicate card, without 
 
   // No one-tap Combine here, and that is the honest answer rather than an omission: disconnecting
   // either connection would freeze the card only IT feeds (TASKS L.10).
-  await expect(page.getByTestId('combine-connections-card')).toHaveCount(0);
+  //
+  // UPDATED for #305, which changed this deliberately: rendering NOTHING made "we checked and
+  // cannot prove these are one account" indistinguishable from "we never looked", and the owner
+  // read it the second way twice. The card now always appears for two live connections at one bank
+  // sharing a last-4, and STATES why it cannot act. So the invariant this test has always been
+  // about — that no one-tap combine is offered for a pair whose either direction strands an
+  // account — is asserted on the ACTION, which is what a tap would reach, rather than on the
+  // presence of the explanation. Found red on clean HEAD during TASKS L.8: #305 shipped
+  // verify-green because scripts/verify.sh skips Playwright unless VERIFY_E2E=1.
+  await expect(page.getByTestId('combine-connections-confirm')).toHaveCount(0);
+  await expect(page.getByTestId('combine-connections-blocked-reason')).toBeVisible();
 
   // The pair is two connections to ONE provider — the old copy called that "two providers".
   await expect(page.getByTestId('duplicate-pair-why')).toHaveText(

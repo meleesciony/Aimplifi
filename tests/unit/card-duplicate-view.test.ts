@@ -26,11 +26,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CARD_DUPLICATE_HOWTO,
+  CARD_DUPLICATE_HOWTO_LIST,
   CARD_DUPLICATE_TITLE,
   type CardDuplicatePairInput,
   type CardMoneyRole,
   type DisplayedCardForDuplicates,
   type UncountedReason,
+  cardDuplicateBalanceView,
+  cardDuplicateListView,
   cardDuplicateView,
 } from '@/components/finance/card-duplicate-view';
 
@@ -251,5 +254,167 @@ describe('cardDuplicateView — the two sides can never be named identically', (
     );
     expect(view!.pairs[0].impact).toContain('Only “1. CREDIT CARD”');
     expect(view!.pairs[0].impact).toContain('“2. CREDIT CARD” has no statement yet');
+  });
+});
+
+/**
+ * TASKS L.8 — the same pair on the two DASHBOARD surfaces.
+ *
+ * #299 shipped the /cards half and recorded this as the open one: the dashboard reads the very
+ * obligations /cards reads, so the cash-needed hero is inflated by the same duplicate and the
+ * reminders list asks for the same payment twice — and neither said a word, while /cards did.
+ *
+ * FAIL-OLD: neither builder existed, so this whole block fails to compile against the old source.
+ *
+ * What is locked here is NOT "a banner appears". It is that each surface makes only the money claim
+ * that is TRUE THERE. The hero's undated branch adds up BALANCES; the reminders list states no
+ * total at all. Reusing the cycle-total sentences on either would describe a figure the reader
+ * cannot see — the #299 P0 in a new place, which is why these are separate builders and why the
+ * negative assertions below matter at least as much as the positive ones.
+ */
+describe('cardDuplicateBalanceView — the hero branch that sums BALANCES (TASKS L.8)', () => {
+  const row = (cardId: string, label: string) => ({ cardId, label });
+
+  it('says the total counts it twice — that balance sum really is inflated', () => {
+    const view = cardDuplicateBalanceView(
+      [pair('a', 'b')],
+      [row('a', 'CREDIT CARD ····0977'), row('b', 'CREDIT CARD ····0977 (2)')],
+      true,
+    );
+    expect(view!.pairs).toHaveLength(1);
+    expect(view!.pairs[0].sentence).toBe(
+      '“CREDIT CARD ····0977” and “CREDIT CARD ····0977 (2)” look like the same card reaching Aimplifi twice.',
+    );
+    expect(view!.pairs[0].impact).toBe(
+      'Both are inside the combined balance stated above, so if these are one card that figure counts it twice.',
+    );
+    // Never a bare "the total": this branch's description names TWO — this cycle's total, which
+    // these cards are explicitly NOT in, and the balance sum, which they are.
+    expect(view!.pairs[0].impact).not.toContain('the total above');
+  });
+
+  it('claims NO total when the branch printed none — mixed signs print no summable figure', () => {
+    // The branch says "A balance on one of these is not an amount we can say is due" when the set
+    // mixes a balance owed with a credit. Telling that reader a total is inflated would send them
+    // looking for a number that is not on screen.
+    const view = cardDuplicateBalanceView(
+      [pair('a', 'b')],
+      [row('a', 'CREDIT CARD'), row('b', 'Venture')],
+      false,
+    );
+    expect(view!.pairs[0].impact).toBe(
+      'No combined balance is stated above, but these are still two rows for what may be one card.',
+    );
+    expect(view!.pairs[0].impact).not.toContain('counts it twice');
+  });
+
+  it('never borrows the cycle-total wording — this branch states no cash-required figure', () => {
+    for (const stated of [true, false]) {
+      const view = cardDuplicateBalanceView(
+        [pair('a', 'b')],
+        [row('a', 'CREDIT CARD'), row('b', 'Venture')],
+        stated,
+      );
+      expect(view!.pairs[0].impact).not.toContain('cash required');
+      expect(view!.pairs[0].impact).not.toContain('this cycle');
+    }
+  });
+
+  it('states its basis, like every other surface that prints this heuristic', () => {
+    const view = cardDuplicateBalanceView(
+      [pair('a', 'b', { confidence: 'medium', reasons: ['shared name: "credit"'] })],
+      [row('a', 'CREDIT CARD'), row('b', 'CREDIT CARD (2)')],
+      true,
+    );
+    expect(view!.pairs[0].basis).toBe('Possible — matched on shared name: "credit".');
+  });
+
+  it('numbers two rows that paint identically, so the sentence cannot name one card twice', () => {
+    const view = cardDuplicateBalanceView(
+      [pair('a', 'b')],
+      [row('a', 'CREDIT CARD'), row('b', 'CREDIT CARD')],
+      true,
+    );
+    expect(view!.pairs[0].sentence).toBe(
+      '“1. CREDIT CARD” and “2. CREDIT CARD” look like the same card reaching Aimplifi twice.',
+    );
+  });
+
+  it('says nothing when only one side is on this branch — the reader would hunt for a row that is not there', () => {
+    // The common real shape: one copy carries a balance and is undated, the other is dated and so
+    // is painted by the other branch entirely.
+    expect(cardDuplicateBalanceView([pair('a', 'b')], [row('a', 'CREDIT CARD')], true)).toBeNull();
+    expect(cardDuplicateBalanceView([pair('a', 'b')], [], true)).toBeNull();
+  });
+
+  it('carries the how-to that points at the page which owns the decision', () => {
+    const view = cardDuplicateBalanceView([pair('a', 'b')], [row('a', 'A'), row('b', 'B')], true);
+    expect(view!.title).toBe(CARD_DUPLICATE_TITLE);
+    expect(view!.howTo).toBe(CARD_DUPLICATE_HOWTO);
+  });
+});
+
+describe('cardDuplicateListView — the reminders list, which states no total (TASKS L.8)', () => {
+  const row = (cardId: string, label: string) => ({ cardId, label });
+
+  it('names the duplicated INSTRUCTION, not an inflated figure', () => {
+    const view = cardDuplicateListView(
+      [pair('a', 'b')],
+      [row('a', 'CREDIT CARD ····0977'), row('b', 'CREDIT CARD ····0977 (2)')],
+    );
+    expect(view!.pairs).toHaveLength(1);
+    expect(view!.pairs[0].impact).toBe(
+      'Both are listed below with their own amount, so what may be one card is asking to be paid twice. If they are one card, you owe it once.',
+    );
+  });
+
+  it('never claims a CYCLE — this list carries next-cycle estimates too', () => {
+    // A critic ran the engine on the mixed state (one card with a real statement, the duplicated
+    // pair with none) and found `selectPaymentReminders` lists both estimated copies while the hero,
+    // reading the same pair's roles, calls them next-cycle estimates. The old wording said "this
+    // cycle shows two payments", so one dashboard printed two contradictory sentences under one
+    // title. What is true here in every state is only that it is being asked for twice.
+    const view = cardDuplicateListView([pair('a', 'b')], [row('a', 'A'), row('b', 'B')]);
+    expect(view!.pairs[0].impact).not.toContain('cycle');
+  });
+
+  it('makes NO claim about any total — this card has none to be right or wrong about', () => {
+    const view = cardDuplicateListView([pair('a', 'b')], [row('a', 'A'), row('b', 'B')]);
+    expect(view!.pairs[0].impact).not.toContain('total');
+    expect(view!.howTo).not.toContain('above');
+  });
+
+  it('points DOWN the page, because that is where its rows are', () => {
+    const view = cardDuplicateListView([pair('a', 'b')], [row('a', 'A'), row('b', 'B')]);
+    expect(view!.howTo).toBe(CARD_DUPLICATE_HOWTO_LIST);
+    expect(view!.howTo).toContain('No amount below has been adjusted');
+    // The way out still exists and is still named — it just lives on /accounts (one dismiss
+    // control, honoured server-side before any of these surfaces render).
+    expect(view!.howTo).toContain('not duplicates');
+  });
+
+  it('says nothing when only one copy is on the list — a $0 twin earns no reminder row', () => {
+    // `selectPaymentReminders` drops obligations with nothing due, so the pair can be real while
+    // only one side is listed. Nothing is duplicated on this surface, so nothing is claimed.
+    expect(cardDuplicateListView([pair('a', 'b')], [row('a', 'CREDIT CARD')])).toBeNull();
+  });
+
+  it('emits one row per pair even if the detector hands it over twice', () => {
+    const view = cardDuplicateListView(
+      [pair('a', 'b'), pair('b', 'a')],
+      [row('a', 'A'), row('b', 'B')],
+    );
+    expect(view!.pairs).toHaveLength(1);
+  });
+
+  it('numbers rows that paint identically, and states its basis', () => {
+    const view = cardDuplicateListView(
+      [pair('a', 'b', { confidence: 'high', reasons: ['same last-4 (0977)', 'identical balance'] })],
+      [row('a', 'CREDIT CARD'), row('b', 'CREDIT CARD')],
+    );
+    expect(view!.pairs[0].sentence).toBe(
+      '“1. CREDIT CARD” and “2. CREDIT CARD” look like the same card reaching Aimplifi twice.',
+    );
+    expect(view!.pairs[0].basis).toBe('Likely — matched on same last-4 (0977), identical balance.');
   });
 });

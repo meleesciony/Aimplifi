@@ -23,7 +23,23 @@ isolation — no demo-golden perturbation), plus a new spec asserting the fence'
    the fences themselves.
 3. If the phase's DoD requires an e2e, "verify green" without `VERIFY_E2E=1` does not prove it —
    run the affected spec files explicitly and paste the output.
-4. **Rebuild before you run them.** `playwright.config.ts` starts the app with `npx next start`
+4. **A DELIBERATE behaviour change leaves stale expectations too, and a flake can hide them.**
+   Same gap, different cause (2026-07-24, found during L.8): #305 changed /accounts from rendering
+   NOTHING when it cannot combine two connections to rendering a card that says WHY. That is the
+   intended new contract — but `duplicate-connections.spec.ts` still asserted
+   `combine-connections-card` count 0, so `main` sat red. It shipped because verify.sh skips
+   Playwright, and it stayed invisible because the SAME spec also hits the documented #287
+   whole-page DOM duplication under load: the flake fires first, the run is written off as "the
+   known flake", and a real stale expectation rides along underneath. #305's own session did the
+   right thing — a stashed clean-tree run — and still mis-scoped it, because that run reproduced
+   *a* failure and stopped there.
+   The move: read the ERROR SIGNATURE of every failure, not just the test name. Two failures in
+   one spec can have two different causes. Serialize (`--workers=1`) to strip the load-induced
+   one, and whatever still fails deterministically is yours. Fix a stale expectation by asserting
+   the NEW intended contract on the thing a user would actually reach (here: the
+   `combine-connections-confirm` ACTION, not the presence of the explanation) — never by deleting
+   the assertion.
+5. **Rebuild before you run them.** `playwright.config.ts` starts the app with `npx next start`
    and `reuseExistingServer` locally, so a spec run serves the LAST `next build` — your edits are
    invisible to it. Bit #257 once and #260 again: both times a brand-new assertion failed against
    a stale bundle and read exactly like a real product bug (a click that "didn't work", an element

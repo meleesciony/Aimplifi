@@ -67,6 +67,36 @@ export interface CardIdentityInput {
  * appending a suffix writes into the same string space it compares, so a card literally named
  * "… (copy 1)" can tie with a rewritten one.)
  */
+/**
+ * ONE identity pass for a whole PAGE whose cards are painted by more than one component
+ * (the dashboard: the cash-needed hero, then the payment-reminders list) — TASKS L.8.
+ *
+ * Two separate passes is the #299 residual, and a critic reproduced it here across components
+ * rather than sections: each pass numbers from 1 over its own list, so with an Auto Loan reminder
+ * above the duplicated pair, "1." meant the loan on one card and a credit card six inches below on
+ * the other. The numbering is only ever a WITHIN-VIEW marker, and the view is the page.
+ *
+ * De-duplicated by `cardId`, first occurrence wins, order preserved — a card in both lists must be
+ * numbered once, and passing it twice would make the ambiguity check see its own duplicate and
+ * number every card on every dashboard.
+ *
+ * The caller passes CARD rows only. A loan reminder carries a real `Account.mask` too, but this
+ * module's fallback string is "no card number on file", which on a mortgage row is the wrong noun
+ * — and telling two loans apart is not what this exists for.
+ */
+export function dashboardCardIdentity(
+  rows: readonly CardIdentityInput[],
+  maskByCardId: Readonly<Record<string, string | null | undefined>>,
+): Record<string, string> {
+  const seen = new Set<string>();
+  const unique = rows.filter((r) => {
+    if (seen.has(r.cardId)) return false;
+    seen.add(r.cardId);
+    return true;
+  });
+  return cardIdentityLabels(unique, maskByCardId);
+}
+
 export function cardIdentityLabels(
   cards: readonly CardIdentityInput[],
   maskByCardId: Readonly<Record<string, string | null | undefined>>,

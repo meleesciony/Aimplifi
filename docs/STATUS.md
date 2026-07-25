@@ -2,6 +2,87 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-24 (#306) — L.8: the DASHBOARD stops double-counting a duplicate card silently
+
+**The open half #299 recorded.** One real card arriving through TWO live bank connections emits two full
+obligations, so the cash-needed hero is inflated by a card the user does not owe twice, and the payment
+reminders ask them to pay it twice — same day, same amount, same name. /cards has said so since #299;
+the dashboard said nothing, and a reader who never opens /cards met the inflated number and no caveat at
+all. This is also the (B) half of the owner's own report in **L.11** — *"Cash needed on main page and safe
+to spend make no sense"* — confirmed on his screenshot as **+$6,679.68 of phantom cash-needed**.
+
+**No new query and no new heuristic.** `getDashboardData` has computed `cardDuplicates` since #299 and the
+dashboard already called it; only /cards consumed it. This is a CONSUMER.
+
+**What shipped.** Both dashboard surfaces now disclose the pair, reusing the pure
+`card-duplicate-view.ts`, which grew two sibling builders rather than a flag — because the only thing that
+differs between the three surfaces is *which money claim is true there*, and that is the thing this module
+exists to get right:
+
+- the hero's main branch keeps `cardDuplicateView` (this cycle's cash required), rendered below the figure
+  and **above the transfer instruction** it qualifies;
+- the hero's "due dates missing" branch gets `cardDuplicateBalanceView`, because that branch sums
+  **balances**, not cash required — and it states a total only when every balance points the same way, so
+  the sentence is conditioned on that same predicate;
+- the reminders list gets `cardDuplicateListView`, which makes **no claim about any total** (this card has
+  none) and names the duplicated *instruction* instead.
+
+Everything genuinely shared — which pairs are disclosable, what each card is called, the basis — moved into
+one `resolvePairs`, so the three can never disagree about who they are talking about.
+
+**Identity came along, necessarily.** The disclosure names cards by the strings the surface paints. The
+dashboard painted bare `cardName`, so two duplicate rows painted identically and the sentence would have
+named one card twice. `cardIdentityLabels` (#298) now runs once over every card the hero paints — in paint
+order: the "Not included" note, the due-date list, then the estimated rows — and once over the reminder
+rows. Fourth surface of the #296/#297/#298 cure.
+
+**Rows the surface does not paint are deliberately not named.** A dated card needing $0 is in neither hero
+list (the engine's `due` filter drops it), so a pair involving it is dropped here rather than sending the
+reader to hunt for an entry that is not on screen. /cards lists it and discloses it there.
+
+**Stance unchanged: DISCLOSE, NEVER SILENTLY ADJUST** (#192 / #221 / DECISIONS #289, #290). The e2e asserts
+the headline still equals the SUM of both rows — that assertion exists to catch a future "helpful"
+subtraction, which would assert two rows are one card, a thing only the user can confirm.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **3942 unit / 261 files** / build clean.
+New e2e `dashboard-duplicate-disclosure.spec.ts` 3/3, including an axe WCAG-AA scan and a no-horizontal-
+overflow check at 360/393/430 **with a duplicate actually seeded** — the passive gates load routes as the
+demo user, who has no duplicate, so this markup would otherwise never have been scanned (the blind spot
+#297 had to close). FAIL-OLD PROVEN: 13/13 new unit assertions fail against the stashed pre-change source.
+Empty prisma diff — the live database is untouched.
+
+### 🔴 Found on the way: `main` was RED, and the flake was hiding it
+
+`duplicate-connections.spec.ts` asserted `combine-connections-card` count 0. **#305 changed that
+deliberately** — it taught /accounts to render the card and say *why* it cannot combine, precisely so that
+"we checked and cannot prove these are one account" stops looking like "we never looked". The assertion was
+never updated, so it has been failing since #305.
+
+It shipped because `scripts/verify.sh` skips Playwright unless `VERIFY_E2E=1`. It stayed *invisible*
+because the same spec also hits the documented **#287** whole-page DOM duplication under load: the flake
+fires first, the run gets written off as "the known flake", and a real stale expectation rides along
+underneath. #305's session did the right thing — a stashed clean-tree run — and still mis-scoped it,
+because that run reproduced *a* failure and stopped there.
+
+Fixed by re-pointing the assertion at what a user would actually reach: `combine-connections-confirm` count
+0 (no one-tap combine is offered for a pair whose either direction strands an account — the L.10 invariant
+this test has always been about), plus the blocked reason being visible. The assertion was not deleted.
+Lesson updated (`fencing-a-write-path-breaks-the-tests-that-drove-it.md`): read each failure's error
+SIGNATURE, and serialize with `--workers=1` to strip the load-induced one.
+
+### 🟠 STILL OPEN — the rest of the class (now enumerated, as TASKS L.15)
+
+A read-only sweep this session enumerated every surface downstream of the same obligations. Beyond the two
+fixed here and /cards, **six** render the same doubled rows with no disclosure: the /calendar events
+(`engine/calendar/build.ts:90-100`, two events on one due date), the reminder email
+(`engine/reminders/select.ts:153-165` → `api/cron/reminders`), the weekly digest email
+(`api/cron/digest/route.ts:105-145`), web push (`engine/notify/select.ts:97-115`, two notifications), the
+Ask assistant's cash-needed answer (`engine/assistant/answer.ts:644-688`, an inflated card count), and the
+Glass-Box trace (`engine/glass-box/trace.ts:58-96`, two rows inside the tapped breakdown). The emails are
+the sharpest of these — a user acts on them away from the app, with no /cards banner nearby. Scoped out
+deliberately: each needs the detector wired into a different per-user server path (a cron loop, with its
+own demo fence and per-request cost), which is a slice, not a footnote.
+
 ## ✅ SHIPPED 2026-07-24 (#305) — L.6: when the app will NOT combine two look-alike connections, it now says why
 
 **Owner, on the build shipped an hour earlier: "Not there."** He reloaded /accounts and found no Combine

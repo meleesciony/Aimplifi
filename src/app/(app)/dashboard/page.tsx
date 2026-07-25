@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { CashNeededCard } from '@/components/finance/cash-needed-card';
+import { paintedHeroCards } from '@/components/finance/card-duplicate-view';
+import { dashboardCardIdentity } from '@/components/finance/card-identity-view';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { NetWorthCard } from '@/components/finance/net-worth-card';
 import { PaymentRemindersCard } from '@/components/finance/payment-reminders-card';
@@ -126,6 +128,25 @@ export default async function DashboardPage({
       .sort((a, b) => b.currentBalanceCents - a.currentBalanceCents)
       .map((a) => ({ name: a.name, balanceCents: a.currentBalanceCents }))[0] ?? null;
 
+  // ONE identity pass for the whole page (TASKS L.8). The cash-needed hero and the payment
+  // reminders below it both name cards, and `cardIdentityLabels` numbers by position in the list it
+  // is given — so a pass per component numbers each from 1 and "1." means a different account in
+  // the two cards. That is the #299 residual, which a fresh-context critic reproduced here across
+  // components rather than sections. Order is the page's own: the hero's cards, then any reminder
+  // row it did not already cover.
+  //
+  // CARD rows only. A loan reminder carries a real `Account.mask`, but the module's fallback string
+  // is "no card number on file", which on a mortgage row is the wrong noun.
+  const cardIdentity = dashboardCardIdentity(
+    [
+      ...paintedHeroCards(data.payInFull).map((c) => ({ cardId: c.cardId, cardName: c.cardName })),
+      ...data.reminders
+        .filter((r) => r.obligationType === 'card')
+        .map((r) => ({ cardId: r.accountId, cardName: r.accountName })),
+    ],
+    data.cardMask,
+  );
+
   return (
     <div className="space-y-5">
       <h1 className="sr-only">Dashboard</h1>
@@ -162,6 +183,8 @@ export default async function DashboardPage({
         transferSource={transferSource}
         householdName={data.scope === 'household' ? data.household?.name ?? null : null}
         accountOwnerLabel={data.accountOwnerLabel}
+        cardDuplicates={data.cardDuplicates}
+        cardIdentity={cardIdentity}
       />
 
       {/* "Today" nudge feed (NUDGE_PLAN slice 2) — the one thing that needs you now,
@@ -228,6 +251,8 @@ export default async function DashboardPage({
         today={data.today}
         accountOwnerLabel={data.accountOwnerLabel}
         undatedCardCount={undatedCardsWithBalance(data.payInFull).length}
+        cardDuplicates={data.cardDuplicates}
+        cardIdentity={cardIdentity}
       />
     </div>
   );

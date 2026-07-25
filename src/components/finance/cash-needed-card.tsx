@@ -16,6 +16,15 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { GlassBoxNumber } from '@/components/finance/glass-box';
+import {
+  CARD_DUPLICATE_PAIR_TESTID,
+  CARD_DUPLICATE_TESTID,
+  type CardDuplicatePairInput,
+  type CardDuplicateView,
+  cardDuplicateBalanceView,
+  cardDuplicateView,
+  paintedHeroCards,
+} from '@/components/finance/card-duplicate-view';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import { type CashNeededResult, undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { traceCashNeeded } from '@/lib/engine/glass-box/trace';
@@ -29,12 +38,32 @@ export function CashNeededCard({
   transferSource,
   householdName = null,
   accountOwnerLabel = {},
+  cardDuplicates = [],
+  cardIdentity = {},
 }: {
   result: CashNeededResult;
   paymentAccountName: string;
   today: string;
   /** The real account the transfer can come from (name + live balance). */
   transferSource?: { name: string; balanceCents: number } | null;
+  /**
+   * Suspected same-card-twice pairs among the viewer's own cards (TASKS L.8). Ids only — every
+   * rendered string is built by `card-duplicate-view.ts` from the labels painted below, so the
+   * disclosure can never name a card differently from the card.
+   *
+   * This is the surface #299 deliberately left open: the dashboard reads the very obligations
+   * /cards reads, so a both-live duplicate inflates THIS headline too, and until now only /cards
+   * said so — a reader who never opened it met the inflated number and nothing else.
+   */
+  cardDuplicates?: CardDuplicatePairInput[];
+  /**
+   * cardId → the identity line this PAGE assigned that card (#298 / TASKS L.8). Without one, two
+   * duplicate rows paint the same heading and a disclosure naming both of them twice tells the
+   * reader nothing. Computed ONCE for the whole dashboard and handed down, never re-derived here:
+   * a second pass numbers from 1 over its own list, so "1." would mean a different account here
+   * than on the reminders card below (the #299 residual, reproduced across components by a critic).
+   */
+  cardIdentity?: Record<string, string>;
   /** Set ONLY at household scope (slice-8 critic F-3): a partner's autopay
    *  drafts from THEIR account, so the joint total is needed ACROSS the
    *  household — never claimed to belong in the viewer's funding account. */
@@ -63,6 +92,21 @@ export function CashNeededCard({
     const unknown = undatedCardsWithBalance(result);
     if (unknown.length > 0) {
       const owed = unknown.reduce((sum, c) => sum + c.currentBalanceCents, 0);
+      // This branch sums BALANCES, so a duplicate is counted twice in a figure that is not the
+      // cash-needed total — its own claim, hence `cardDuplicateBalanceView` rather than the
+      // cycle-total wording. `totalStated` is this branch's own condition, repeated once below:
+      // where the balances disagree in sign no total is printed, and claiming one is inflated
+      // would send the reader looking for a number that is not on screen.
+      const totalStated = unknown.every((c) => c.currentBalanceCents > 0);
+      // ONE expression for what this branch paints, so the disclosure's labels and the list below
+      // can never drift apart — the label a banner quotes must be the string on screen.
+      const paintedUndated = (c: { cardId: string; cardName: string }) =>
+        cardIdentity[c.cardId] ? `${ownedName(c)} ${cardIdentity[c.cardId]}` : ownedName(c);
+      const duplicates = cardDuplicateBalanceView(
+        cardDuplicates,
+        unknown.map((c) => ({ cardId: c.cardId, label: paintedUndated(c) })),
+        totalStated,
+      );
       return (
         <Card data-testid="cash-needed-card" className="border-amber-900/40">
           <CardHeader>
@@ -74,12 +118,27 @@ export function CashNeededCard({
               {/* Only state a total when every balance points the same way. A set
                   mixing a balance owed with a credit can net to a number that
                   describes neither, so we say nothing rather than something wrong. */}
-              {unknown.every((c) => c.currentBalanceCents > 0)
+              {totalStated
                 ? `${unknown.length === 1 ? 'Its balance is' : 'Their balances add up to'} ${formatCents(cents(owed))} — that is a balance, not an amount we can say is due.`
                 : 'A balance on one of these is not an amount we can say is due.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs text-muted-foreground">
+            {unknown.length > 1 && (
+              // NAMES the cards this branch is about. Without this the branch says "2 cards" and
+              // names none — and a fresh-context critic showed that made the disclosure below
+              // dishonest by construction: a pair only resolves when BOTH sides are in the list, so
+              // the singular sentence above is unreachable whenever the disclosure renders, and the
+              // plural one names nobody. The banner would have quoted two headings that appear
+              // nowhere on screen, with ordinals indexing a list the reader is never shown — the
+              // exact failure the module's "both sides must be displayed" rule exists to prevent.
+              // It is also the branch most likely to hold a duplicate (server/finance.ts:445-447).
+              <p data-testid="cash-needed-unknown-names">
+                No due date yet:{' '}
+                {unknown.map((c) => paintedUndated(c)).join(', ')}.
+              </p>
+            )}
+            {duplicates && <DuplicateDisclosure view={duplicates} />}
             {/* No instruction here. The "+ Add statement" control exists ONLY for
                 manually-added cards (server/transactions.ts builds cardBilling for
                 provider === 'manual', and card-actions.ts refuses anything else), so
@@ -120,6 +179,38 @@ export function CashNeededCard({
   // gets named as a withheld balance (L.4 #277-critic P2 — this branch used the
   // raw list and disagreed with the hero/nudge/reminders on one dashboard).
   const unknownWithBalance = undatedCardsWithBalance(result);
+  const unknownById = new Map(unknownWithBalance.map((c) => [c.cardId, c]));
+
+  // ── TASKS L.8: identity, then the duplicate disclosure ──────────────────────────────────────
+  //
+  // ONE identity pass over EVERY card this card paints, in PAINT ORDER: the "Not included" note,
+  // then the due-date list, then the estimated next-cycle rows. Two passes would each guarantee
+  // distinctness only within themselves — the #298 residual #299 had to fix on /cards — and the
+  // disclosure below names cards by exactly these strings, so a heading that repeats makes the
+  // sentence name the same card twice and say nothing.
+  //
+  // Every row here is a row the reader can see. A dated card needing $0 is in neither list (the
+  // engine's `due` filter drops it) and is deliberately NOT passed: naming a row this card does
+  // not paint would send the reader looking for an entry that is not on screen. /cards lists it,
+  // and discloses it there.
+  // The row/role derivation is a PURE, separately-tested function (`paintedHeroCards`) because it
+  // is the computation that produced #299's P0; inline here it would have been reachable only
+  // through Playwright, which the default gate skips. The owner attribution is applied here,
+  // where the JSX that paints it lives.
+  const paintedRows = paintedHeroCards(result).map((r) => ({
+    ...r,
+    name: unknownById.has(r.cardId) ? ownedName(unknownById.get(r.cardId)!) : r.cardName,
+  }));
+  const painted = (cardId: string, name: string) =>
+    cardIdentity[cardId] ? `${name} ${cardIdentity[cardId]}` : name;
+  const duplicates = cardDuplicateView(
+    cardDuplicates,
+    paintedRows.map((r) => ({
+      cardId: r.cardId,
+      label: painted(r.cardId, r.name),
+      role: r.role,
+    })),
+  );
 
   return (
     <Card data-testid="cash-needed-card" className="border-emerald-900/40">
@@ -150,13 +241,17 @@ export function CashNeededCard({
         </GlassBoxNumber>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Below the figure it qualifies and ABOVE the transfer instruction derived from it
+            (the /cards placement rule): "Transfer $X by Friday" is the sentence a double-counted
+            card corrupts, so the reader must meet the caveat before the imperative. */}
+        {duplicates && <DuplicateDisclosure view={duplicates} />}
         {unknownWithBalance.length > 0 && (
           // The mixed case: a real total for the datable cards, plus at least one
           // balance-carrying card we cannot date. Without this line the figure
           // reads as complete.
           <p className="text-xs text-amber-500" data-testid="cash-needed-unknown-note">
             Not included:{' '}
-            {unknownWithBalance.map((c) => ownedName(c)).join(', ')} — no statement or
+            {unknownWithBalance.map((c) => painted(c.cardId, ownedName(c))).join(', ')} — no statement or
             due date yet, so {unknownWithBalance.length === 1 ? 'its' : 'their'}{' '}
             balance isn’t in this figure.
           </p>
@@ -234,7 +329,7 @@ export function CashNeededCard({
                 {point.cards
                   .map(
                     (c) =>
-                      `${c.cardName} ${formatCents(c.amountCents)}${c.autopayCents > 0 ? ' (autopay)' : ''}`,
+                      `${painted(c.cardId, c.cardName)} ${formatCents(c.amountCents)}${c.autopayCents > 0 ? ' (autopay)' : ''}`,
                   )
                   .join(' + ')}
               </span>
@@ -248,7 +343,7 @@ export function CashNeededCard({
             >
               <span className="whitespace-nowrap">{formatISODate(isoDate(u.effectiveDueDate))}</span>
               <span className="min-w-0 break-words">
-                {u.cardName} {formatCents(u.cashRequiredCents)}{' '}
+                {painted(u.cardId, u.cardName)} {formatCents(u.cashRequiredCents)}{' '}
                 <Badge variant="outline" className="ml-1 align-middle">
                   est.
                 </Badge>
@@ -287,5 +382,43 @@ export function CashNeededCard({
         </details>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The duplicate disclosure, identical in both branches of this card (TASKS L.8) — and deliberately
+ * the same shape /cards renders, because it is the same fact about the same two rows and a reader
+ * moving between the two pages should not have to recognise it twice.
+ *
+ * `role="alert"`: without it a screen-reader user meets the figure, and the transfer instruction
+ * under it, with no signal that either is qualified.
+ *
+ * No dismiss control here, on purpose. The pair is dismissable on /accounts ("not duplicates"), and
+ * that answer is honoured server-side before this ever renders — so the way out exists, on the page
+ * that owns the decision, rather than being duplicated onto every surface that reports it.
+ */
+function DuplicateDisclosure({ view }: { view: CardDuplicateView }) {
+  return (
+    <div
+      role="alert"
+      className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-sm"
+      data-testid={CARD_DUPLICATE_TESTID}
+    >
+      <p className="font-medium">{view.title}</p>
+      <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+        {view.pairs.map((p) => (
+          <li key={p.key} data-testid={`${CARD_DUPLICATE_PAIR_TESTID}-${p.key}`}>
+            {p.sentence} {p.impact} <span className="italic">{p.basis}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {view.howTo}{' '}
+        <Link href="/accounts" className="underline hover:text-foreground">
+          Go to Accounts
+        </Link>
+        .
+      </p>
+    </div>
   );
 }
