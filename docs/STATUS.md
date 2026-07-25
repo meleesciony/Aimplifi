@@ -6585,3 +6585,53 @@ date+amount+merchant matching, per the precision-fix lesson). Residual: SimpleFI
 stay gaps; balances become Plaid-managed after merge. UNVERIFIED until built: whether the
 merge can run before Plaid's first sync (skipping twin creation entirely) — check the link
 callback ordering in the build slice.
+
+## 2026-07-25 — L.14 an unshared account stops claiming to be fresh (critic cycle 1: 2 P0 + 6 P1, 4 P1s OPEN)
+
+**Shipped (commit a16f9e4).** Plaid Link update mode ships with `account_selection_enabled`, so a
+user can untick an account. Nothing pruned the row, so it kept its last balance, kept counting
+toward net worth / cash-needed / /cards, and kept reading as freshly synced because its BANK was
+still syncing (#293) — and it could not be deleted, since the refusal's premise ("the next sync
+would bring it back") is false for a row the feed no longer sends.
+
+Additive `Account.feedDroppedAt`, stamped by a pure `reconcileFeedPresence` from a complete
+`/accounts/get` census only. Never from the `/transactions/sync` echo (it carries only accounts
+with transaction activity, so absence there would have frozen every quiet loan, card and brokerage
+on the first sync after deploy), never on an empty or unreadable list, never re-stamped, cleared
+when the account returns. New `not_shared` freshness level graded from the drop; Delete permitted;
+disclosure on /accounts and the dashboard.
+
+**Two fresh-context critics ran in parallel and both broke it.** Cycle 1 verdict: FAIL. Both P0s
+and 4 of the 6 P1s are fixed and locked by executed tests (see PROGRESS.md and DECISIONS #302).
+The deepest finding, reached independently by both: the "keep counting, just say so" stance had
+been argued over LIABILITIES only, and the user's own PAYMENT account can be frozen, where the
+direction inverts — a balance frozen high reports shortfall $0 while the real account cannot cover
+the autopay.
+
+### OPEN — 4 P1s, tracked as TASKS L.18. This slice does NOT claim a critic pass.
+
+A feed-dropped account keeps counting by design. That is now disclosed on /accounts, in the
+dashboard banner, and in the cash-needed engine's `assumptions`. These surfaces still print
+figures derived from a frozen balance with nothing said, ranked by money consequence:
+
+1. **/cards** — `finance.ts` builds the dashboard accounts payload as an explicit 5-field list
+   that drops `feedDroppedAt`, and /cards renders no assumptions block, so a frozen card can print
+   "pay $X by DATE" from a stale statement-substitute.
+2. **The weekly digest email, the reminder email and web push** — each composes its own body from
+   figures derived from frozen balances, and per the L.15 lesson a channel that composes its own
+   body inherits nothing from an `assumptions` array.
+3. **The Ask assistant** — quotes the balance bare, and `traceNetWorthDerivation` green-checks it
+   in the panel a reader opens specifically to audit the number.
+4. **/coach** — a frozen balance drives the FI number, years-to-FI and runway months behind only
+   the currency banner.
+
+Deliberately not bulk-patched: pasting one sentence onto four surfaces is the L.15 failure
+verbatim. Each needs copy true for what that surface can point at, plus a lock that drives the
+real engine rather than a pure builder.
+
+### Also recorded
+
+Residuals that fail toward the pre-existing behaviour, never toward a false drop: a row whose
+`plaidItemId` predates #256 is out of scope (it cannot be proven to belong to the connection), and
+SimpleFIN is unwired. **UNVERIFIED against live Plaid** — no credentials in this environment;
+every request shape runs against a mocked Plaid server with real Prisma.
