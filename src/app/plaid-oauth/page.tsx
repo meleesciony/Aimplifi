@@ -59,7 +59,7 @@ export default function PlaidOAuthReturnPage() {
       // Read BEFORE clearing — a big OAuth bank may have been started from any
       // zero-account route (Gap 3 §3 inlined Connect on EmptyDashboard), not just
       // /accounts, so send the user back to where they actually started.
-      const origin = readStoredOriginPath();
+      let origin = readStoredOriginPath();
       // Which flow came back through this page decides what "success" means, and the two
       // handlings are mutually wrong. An UPDATE-mode session reopened a connection the
       // user already has: Plaid states the item's access token is unchanged and the
@@ -94,10 +94,28 @@ export default function PlaidOAuthReturnPage() {
               error: r.error ? `${UPDATE_PULL_FAILED} (${r.error})` : UPDATE_PULL_FAILED,
             };
           })
-        : linkPlaidAccount(publicToken).then((r) => ({
-            ok: r.ok,
-            error: r.error ?? 'Linking failed — please try again.',
-          }));
+        : linkPlaidAccount(publicToken).then((r) => {
+            // This page navigates away the instant it succeeds, so an outcome that needs
+            // saying — a redundant link refused, an overlapping one kept (TASKS L.10 layer 2)
+            // — has to ride the flash to survive the redirect, the same way the update flow's
+            // report does. An ordinary link sets nothing and stays silent.
+            //
+            // The redirect is RE-POINTED at /accounts when there is something to say, because
+            // the flash has exactly one reader (accounts-list) while `origin` is deliberately
+            // any route the Connect button mounts on — the dashboard onboarding panel, /cards,
+            // /settings. Sending the user back there would have handed their new connection
+            // back to Plaid and told them nothing at all (invariant D9), then fired the stale
+            // message at them on some later, unrelated visit to /accounts. /accounts is also
+            // where every control the message names actually lives.
+            if (r.ok && r.notice) {
+              setFlash('accounts', r.notice);
+              origin = '/accounts';
+            }
+            return {
+              ok: r.ok,
+              error: r.error ?? 'Linking failed — please try again.',
+            };
+          });
       setStatus(updateItemId ? 'Updating your bank connection…' : 'Importing your accounts…');
       void finish
         .then((r) => {

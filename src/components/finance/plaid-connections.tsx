@@ -235,9 +235,10 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
       <p className="pt-1 text-xs text-muted-foreground" data-testid="plaid-update-hint">
         Missing an account, or a bank that stopped updating? Use <b>Add or fix accounts</b> on
         that bank in the list above — it reopens the connection you already have. Connecting a
-        bank listed above a second time makes a second copy of its accounts instead. (A
-        different login at the same bank — a business account, or a partner’s — is not a copy:
-        connect that one normally.)
+        bank listed above a second time no longer makes a second copy: if every account that
+        login shares is already here, we refresh what you have instead. (A different login at
+        the same bank — a business account, or a partner’s — is not a copy: connect that one
+        normally, and it is kept.)
       </p>
       {error && (
         <p role="alert" className="text-xs text-red-400" data-testid="plaid-disconnect-error">

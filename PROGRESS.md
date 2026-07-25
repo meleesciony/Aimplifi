@@ -4844,3 +4844,45 @@ new token, persist nothing, return an outcome linkPlaidAccount surfaces as "You 
 Chase connected — refreshing it instead of adding a second copy" with a button into update mode,
 plus the "different login, keep both" escape. Needs a fresh-context critic (/item/remove is
 irreversible) and is UNVERIFIABLE against live Plaid here (no creds).
+
+
+## L.10 layer 2 — the door that refuses. WIRED. 2026-07-24
+OWNER: "Why in the heck are you allowed to make 2 of the same accounts... when I try to link
+same account again, it just refreshes." This is the slice where that becomes true.
+SHIPPED: exchangePublicToken now DECIDES before it writes. It resolves the new item's
+institution, asks the user's other connections at that bank what they can reach RIGHT NOW over
+the wire, runs the identity ladder, and when every account the new login reaches is already
+reachable, hands the new Item back to Plaid (/item/remove), persists nothing, and refreshes what
+they already had. A PARTIAL overlap keeps both connections (dropping one would strand the
+accounts only it can reach) and discloses at the moment it happens. The decision runs BEFORE the
+PlaidItem upsert, not after as the checkpoint sketched: the upsert can UPDATE a pre-existing row,
+so deciding first means the refused path writes nothing at all and cannot delete a connection it
+did not create (D6 satisfied a fortiori).
+TWO fresh-context critics, both broke it. 2 P0 + 5 P1 + 6 P2, all fixed cycle 1:
+ - BOTH P0s, one cause: the revoke was authorised by Account ROWS. A bank stops updating, the
+   user reconnects it (the commonest reason anyone re-runs Link) - and the app destroyed the
+   freshly re-authenticated credential, kept the dead one, and said it had "refreshed". Same
+   snapshot matched a row the feed had stopped returning (L.14) and MISSED a row predating the
+   #256 stamp. Fix: prove every candidate live; one that cannot answer proves nothing.
+ - an account Plaid types `other` (never a row, never on screen) kept a whole second connection
+   alive, duplicating everything visible, under copy claiming the opposite
+ - "new" was counted against the ONE connection the collision names, so a sibling connection's
+   account read as new with three connections at a bank
+ - a failed /item/remove orphaned a LIVE billed Item whose token was never stored; now it keeps
+   the item instead (a duplicate you can see beats one only Plaid knows about)
+ - four copy defects: a control named by POSITION ("below") on five surfaces, four of which have
+   no connection list and one of which renders it below the list; the OAuth path dropping the
+   notice entirely unless the user started from /accounts, then firing it stale later; a sentence
+   promising a combine that the triggering state guarantees will refuse; and a sibling hint still
+   threatening "makes a second copy", pinned by an e2e asserting that phrase
+D7 AMENDED to D7a and the residual recorded: there is no prompt and no remembered "keep both".
+The escape is structural (anything of its own keeps the connection), which does NOT cover a
+login whose account set is entirely shared, nor a tier-A last-4 collision. Both recoverable
+(disconnect, link again), both leave an orphaned row. That is an argued trade, written down.
+RECORDED OPEN: L.16 (the real prompt + remembered choice), L.17 (pre-#300 null institutionId
+makes layer 2 a no-op until the sweep backfills; concurrent links still both persist).
+GATE: see the PASS/FAIL block in this session's final message for the verbatim verify output.
+FAIL-OLD proven (20 assertions fail against the stashed pre-change source). Empty prisma diff.
+UNVERIFIED against live Plaid — no credentials here; every request shape runs against a mocked
+Plaid server, and the Link window itself cannot be browser-tested.
+NEXT: L.15 (the six surfaces that still render a duplicated obligation silently) or L.16.

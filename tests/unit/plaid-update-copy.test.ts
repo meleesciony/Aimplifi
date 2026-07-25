@@ -9,7 +9,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   UPDATE_PULL_FAILED_AWAY,
+  alreadyConnectedFlash,
   cannotReopenMessage,
+  linkedWithOverlapFlash,
   updatePullFailedMessage,
   updateSuccessFlash,
 } from '@/components/finance/plaid-update-copy';
@@ -112,5 +114,102 @@ describe('cannotReopenMessage', () => {
     expect(cannotReopenMessage('Chase', '', 'Give it a minute and try again.')).toMatch(
       /Give it a minute/,
     );
+  });
+});
+
+describe('alreadyConnectedFlash — the sentence shown when a link was REFUSED as redundant', () => {
+  const chase = { bank: 'Chase', matchedAccountCount: 3 };
+
+  it('says plainly what happened to the connection the user just made', () => {
+    // Invariant D9: no structural change is silent, and handing a just-made connection back
+    // to Plaid is the most structural thing this app does on its own.
+    expect(alreadyConnectedFlash(chase)).toMatch(
+      /already have Chase connected.*refreshed that connection instead of adding a second copy/i,
+    );
+  });
+
+  it('answers the fear the user actually has — that the accounts they ticked went nowhere', () => {
+    const msg = alreadyConnectedFlash(chase);
+    expect(msg).toMatch(/All 3 accounts that login shares are already here/);
+    expect(msg).toMatch(/nothing was added and nothing was lost/);
+  });
+
+  it('reads correctly for a single account rather than "1 accounts"', () => {
+    const msg = alreadyConnectedFlash({ bank: 'Chase', matchedAccountCount: 1 });
+    expect(msg).toMatch(/The account that login shares is already here/);
+    expect(msg).not.toMatch(/1 accounts/);
+  });
+
+  it('offers the way to share an account the bank has not shown yet', () => {
+    // Deliberately the update-mode control, NOT "connect it again" — connecting again is the
+    // move that produces the duplicate, and now the move that gets silently refused.
+    expect(alreadyConnectedFlash(chase)).toMatch(/Add or fix accounts/);
+  });
+
+  it('uses no positional word, because it renders on pages with no connection list at all', () => {
+    // The Connect button mounts on /cards, /settings and the dashboard onboarding panel as
+    // well as /accounts, and even on /accounts the inline notice sits UNDER the connection
+    // list — so "below" named a control that was either absent or above
+    // (docs/lessons/second-person-copy-scope.md). Found by a fresh-context critic.
+    const msg = alreadyConnectedFlash(chase);
+    expect(msg).not.toMatch(/below|above/i);
+    expect(msg).toMatch(/open Accounts and use “Add or fix accounts”/);
+  });
+
+  it('names an escape for the user the ladder is simply WRONG about', () => {
+    // Tier A proves sameness from a shared last-4 plus type, subtype and currency: strong
+    // evidence, not certainty. Someone whose real accounts were refused must have a way
+    // through, and this one works — disconnecting removes the connection row, after which
+    // the same login is no longer redundant and links normally.
+    const msg = alreadyConnectedFlash(chase);
+    expect(msg).toMatch(/If these aren’t the accounts you just signed in to, open Accounts, disconnect Chase/);
+    expect(msg).toMatch(/history stay/);
+  });
+
+  it('falls back to a neutral stand-in when the bank never resolved a name', () => {
+    expect(alreadyConnectedFlash({ bank: 'that bank', matchedAccountCount: 2 })).toMatch(
+      /You already have that bank connected/,
+    );
+  });
+});
+
+describe('linkedWithOverlapFlash — both connections kept, and the overlap said out loud', () => {
+  const both = { bank: 'Chase', matchedAccountCount: 1, newAccountCount: 2 };
+
+  it('never reads as a refusal: it states that BOTH connections were kept, and why', () => {
+    const msg = linkedWithOverlapFlash(both);
+    expect(msg).toMatch(/Both Chase connections were kept/);
+    expect(msg).toMatch(/reaches accounts the other one can’t/);
+    expect(msg).not.toMatch(/instead of adding/);
+  });
+
+  it('discloses the double-count without claiming a total is wrong', () => {
+    // The dashboard makes its own disclosure from its own data (#306). This one states the
+    // overlap at the moment it is created — it does not assert what any figure now says.
+    const msg = linkedWithOverlapFlash(both);
+    expect(msg).toMatch(/One account is on both/);
+    expect(msg).toMatch(/counted — twice/);
+  });
+
+  it('never promises combining, which the state that triggers this message makes impossible', () => {
+    // Found by a fresh-context critic: a direction is offerable only when dropping one side
+    // strands nothing (combine-connections.ts), and this message renders precisely when two
+    // logins each reach an account the other cannot — so BOTH directions strand and /accounts
+    // renders a card saying it cannot combine. Ending on that remedy sent the reader to a
+    // guaranteed refusal.
+    const msg = linkedWithOverlapFlash(both);
+    expect(msg).not.toMatch(/combine/i);
+    expect(msg).toMatch(/Open Accounts to see which accounts overlap/);
+  });
+
+  it('pluralises the overlap', () => {
+    const msg = linkedWithOverlapFlash({ bank: 'Chase', matchedAccountCount: 2, newAccountCount: 1 });
+    expect(msg).toMatch(/2 accounts are on both/);
+    expect(msg).toMatch(/Open Accounts/);
+  });
+
+  it('reads correctly when this login reaches exactly one new account', () => {
+    const msg = linkedWithOverlapFlash({ bank: 'Chase', matchedAccountCount: 1, newAccountCount: 1 });
+    expect(msg).toMatch(/reaches an account the other one can’t/);
   });
 });

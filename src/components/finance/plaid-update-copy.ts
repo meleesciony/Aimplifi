@@ -1,5 +1,6 @@
 /**
- * Every sentence the update-mode flow shows a user (TASKS L.10 layer 1).
+ * Every sentence the Plaid link flow shows a user when a connection is reopened (layer 1) or
+ * refused as redundant (layer 2) — TASKS L.10.
  *
  * A pure module owns these rather than the component, for the reason
  * `card-duplicate-view.ts` and `continued-accounts-view.ts` do: two of them make claims
@@ -79,6 +80,76 @@ export function updatePullFailedMessage(bank: string, reason?: string): string {
     // been removed. So the generic instruction appears only when nothing better is known.
     reason ?? 'Tap Sync on that bank to bring it in.',
     'Nothing was duplicated, and there’s no need to connect the bank again.',
+  ].join(' ');
+}
+
+/**
+ * What the /accounts flash says when a fresh link was REFUSED as redundant (layer 2): every
+ * account that login shares is already here, so the new connection was handed back to Plaid
+ * and the existing one refreshed instead.
+ *
+ * Three things this has to do at once, and the third is the one that is easy to forget:
+ * say plainly what happened (D9 — no structural change is silent); leave no impression that
+ * something was lost; and give a way out to the user for whom the app is simply WRONG. The
+ * ladder proves sameness from a shared last-4 plus type, subtype and currency, which is
+ * strong evidence and not a certainty, so the last sentence names the escape — and it works:
+ * disconnecting removes the connection row, after which the same login is no longer redundant
+ * and links normally.
+ */
+export function alreadyConnectedFlash(opts: {
+  /** The bank's display name, or a neutral stand-in when it has none. */
+  bank: string;
+  /** How many accounts were PROVEN to be ones the user already has. Always ≥ 1 here. */
+  matchedAccountCount: number;
+}): string {
+  const n = opts.matchedAccountCount;
+  return [
+    `You already have ${opts.bank} connected, so we refreshed that connection instead of adding a second copy of it.`,
+    // The reassurance is specific rather than "don't worry": it names the number, because the
+    // reader's actual fear is that the accounts they just ticked went nowhere.
+    n === 1
+      ? `The account that login shares is already here, so nothing was added and nothing was lost.`
+      : `All ${n} accounts that login shares are already here, so nothing was added and nothing was lost.`,
+    // No positional word ("below", "above"). This sentence renders inline under the Connect
+    // button, which mounts on /cards, /settings and the dashboard onboarding panel as well as
+    // /accounts — pages with no connection list on them at all — and on /accounts itself the
+    // inline copy sits UNDER that list, so "below" pointed upwards
+    // (docs/lessons/second-person-copy-scope.md). Naming the page works from everywhere.
+    `If ${opts.bank} has an account you don’t see yet, open Accounts and use “Add or fix accounts” on that connection.`,
+    `If these aren’t the accounts you just signed in to, open Accounts, disconnect ${opts.bank} and connect it again — your accounts and their history stay.`,
+  ].join(' ');
+}
+
+/**
+ * What the /accounts flash says when the new connection OVERLAPS one the user already has but
+ * is not redundant — the joint account visible from two logins, which is exactly the case the
+ * refusal above must never fire on.
+ *
+ * Both connections are kept, so this is a disclosure, not a decision. It states the overlap at
+ * the moment it is created rather than leaving the user to find one card listed twice later
+ * (#299/#306), and it never claims a total is wrong — the dashboard makes its own disclosure
+ * from its own data.
+ */
+export function linkedWithOverlapFlash(opts: {
+  bank: string;
+  matchedAccountCount: number;
+  newAccountCount: number;
+}): string {
+  const dupes = opts.matchedAccountCount;
+  const fresh = opts.newAccountCount;
+  return [
+    `Connected ${opts.bank}.`,
+    `Both ${opts.bank} connections were kept, because this login reaches ${fresh === 1 ? 'an account' : 'accounts'} the other one can’t.`,
+    // NOT "until you combine them", and NOT "open Accounts to combine the two connections".
+    // Combining is offered only when dropping one side strands nothing
+    // (combine-connections.ts), and the case this sentence exists for — two logins that each
+    // reach an account the other cannot — is precisely a state where BOTH directions strand,
+    // so /accounts renders a card explaining it cannot combine. Promising the remedy that the
+    // triggering state guarantees will refuse is worse than promising nothing.
+    dupes === 1
+      ? `One account is on both, so it may be listed — and counted — twice.`
+      : `${dupes} accounts are on both, so they may be listed — and counted — twice.`,
+    `Open Accounts to see which accounts overlap and what you can do about it.`,
   ].join(' ');
 }
 

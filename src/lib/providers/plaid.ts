@@ -27,6 +27,12 @@ import { stampAccountIdentity, stampConnectionIdentity } from '@/lib/providers/p
 import { decryptToken, encryptToken } from '@/lib/crypto';
 import { isDemoUser } from '@/lib/demo-user';
 import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
+import {
+  type ExistingConnection,
+  type IncomingAccount,
+  type LinkCollision,
+  detectLinkCollision,
+} from '@/lib/engine/account/link-collision';
 import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
 import { safeSyncErrorReason } from '@/lib/providers/sync-status';
 import { loadUserRules } from '@/server/rules';
@@ -275,6 +281,39 @@ export interface HoldingsSyncResult {
   withheldNonUsd: number;
 }
 
+/**
+ * What a completed exchange actually DID — the three outcomes the front door can have now that
+ * it is allowed to refuse (TASKS L.10 layer 2). Every one of them is a state the user is told
+ * about: invariant D9 says no structural change is silent, and "we threw your new connection
+ * away" is the most structural change this app makes on its own.
+ */
+export type LinkOutcome =
+  /** The ordinary link: a new connection was created. */
+  | { readonly kind: 'linked'; readonly itemId: string }
+  /**
+   * Nothing was written. Every account this login returned is one the user already has through
+   * `existingItemId`, so the new Item was handed back to Plaid and the existing one is refreshed
+   * instead — the behaviour the owner asked for by name.
+   */
+  | {
+      readonly kind: 'already-connected';
+      readonly existingItemId: string;
+      readonly institutionName: string | null;
+      readonly matchedAccountCount: number;
+    }
+  /**
+   * Both connections were kept, because this one reaches at least one account the other cannot,
+   * but they overlap — the honest middle case (a joint account visible from two logins).
+   */
+  | {
+      readonly kind: 'linked-with-overlap';
+      readonly itemId: string;
+      readonly existingItemId: string;
+      readonly institutionName: string | null;
+      readonly matchedAccountCount: number;
+      readonly newAccountCount: number;
+    };
+
 export class PlaidProvider implements DataProvider {
   today(userId?: string): ISODate {
     // Real Plaid users get the real clock; DEMO_TODAY still pins it for tests
@@ -310,7 +349,7 @@ export class PlaidProvider implements DataProvider {
   }
 
   /** Step 2: exchange the public token; store it ENCRYPTED, then pull accounts. */
-  async exchangePublicToken(userId: string, publicToken: string): Promise<void> {
+  async exchangePublicToken(userId: string, publicToken: string): Promise<LinkOutcome> {
     const result = await plaidPost<{ access_token: string; item_id: string }>(
       '/item/public_token/exchange',
       { public_token: publicToken },
@@ -330,6 +369,51 @@ export class PlaidProvider implements DataProvider {
       institutionId = resolved.institutionId;
     } catch {
       /* cosmetic + backfillable; syncInstitutions retries — never blocks the link */
+    }
+    // ---- Layer 2: collision interception (TASKS L.10, design §4) -------------------------
+    // The owner's complaint, verbatim: *"Why in the heck are you allowed to make 2 of the same
+    // accounts… when I try to link same account again, it just refreshes."* Everything before
+    // this told the copies apart after the fact. This is the door.
+    //
+    // It runs HERE — before the PlaidItem upsert, not after it as the checkpoint sketched —
+    // because the upsert is by `itemId` and may UPDATE a row that already existed. Deciding
+    // first means the redundant path writes nothing at all, so there is no row to roll back and
+    // no way to delete a connection this link did not create. Invariant D6 (no Account row
+    // before the decision) is satisfied a fortiori: no PlaidItem row either.
+    const decision = await this.classifyNewItem(
+      userId,
+      result.access_token,
+      result.item_id,
+      institutionId,
+      institution,
+    );
+    if (decision && decision.collision.kind === 'already-connected' && decision.whollyRedundant) {
+      // Every account this login returned is one the user ALREADY has through another live
+      // connection, so keeping it adds no account, no balance and no transaction source — it
+      // only bills a second Item and paints every account twice. Discard it at Plaid and
+      // refresh what they already had, which is what "it just refreshes" means.
+      //
+      // Why no "keep both?" prompt before an irreversible act (invariant D7): the escape is
+      // STRUCTURAL rather than a question. We refuse only when the new connection is wholly
+      // redundant, so a genuinely different login — the spouse's, which carries at least one
+      // account of her own — never reaches this branch and is kept automatically below. The
+      // same property re-opens the door by itself: the moment that login exposes anything new,
+      // it stops being redundant and links normally.
+      const discarded = await this.discardRedundantItem(
+        userId,
+        result.access_token,
+        result.item_id,
+        decision.collision,
+      );
+      if (discarded) {
+        return {
+          kind: 'already-connected',
+          existingItemId: decision.collision.itemId,
+          institutionName: decision.collision.institutionName ?? institution,
+          matchedAccountCount: decision.collision.matches.length,
+        };
+      }
+      // Revoke failed — fall through and keep it, so the user owns a connection they can see.
     }
     // Upsert by itemId so a link that failed AFTER the token was stored (e.g. the
     // initial account sync threw) stays retryable — re-linking refreshes the token
@@ -353,8 +437,214 @@ export class PlaidProvider implements DataProvider {
     await prisma.auditLog.create({
       data: { userId, action: 'plaid.item.link', meta: JSON.stringify({ itemId: result.item_id }) },
     });
-    // Accounts must exist before transactions can be mapped to them.
-    await this.syncAccountsForItem(userId, result.item_id);
+    // Accounts must exist before transactions can be mapped to them. Reuse the /accounts/get
+    // the collision check already paid for — Plaid bills per request, and re-fetching here
+    // would double the cost of every ordinary link. Falls back to the fetch when the check
+    // could not run (no institution id, or the call failed).
+    if (decision) await this.upsertPlaidAccounts(userId, decision.accounts, result.item_id);
+    else await this.syncAccountsForItem(userId, result.item_id);
+
+    if (decision && decision.collision.kind === 'already-connected') {
+      // A PARTIAL overlap: some accounts are provably ones they already have, at least one is
+      // not. Both connections are kept — dropping this one would strand the accounts only it
+      // can reach — but the overlap is said out loud at the moment it is created, rather than
+      // leaving the user to find the same card listed twice and wonder (#299/#306).
+      return {
+        kind: 'linked-with-overlap',
+        itemId: result.item_id,
+        existingItemId: decision.collision.itemId,
+        institutionName: decision.collision.institutionName ?? institution,
+        matchedAccountCount: decision.incoming.length - decision.newRefs.length,
+        newAccountCount: decision.newRefs.length,
+      };
+    }
+    return { kind: 'linked', itemId: result.item_id };
+  }
+
+  /**
+   * Decide what a just-exchanged item actually IS, before anything is written.
+   *
+   * Returns `null` when no decision could be made — no `ins_*` id resolved for this link (the
+   * identity ladder refuses to compare institutions by name, and rightly: distinct banks share
+   * names like "First National"), or the accounts fetch failed. Null means LINK NORMALLY. That
+   * is the deliberate failure direction: a missed collision leaves a duplicate the app already
+   * discloses (#306) and can combine (#304), while a wrong one would throw away a real
+   * connection. Never let this check fail a real link.
+   */
+  private async classifyNewItem(
+    userId: string,
+    accessToken: string,
+    newItemId: string,
+    institutionId: string | null,
+    institutionName: string | null,
+  ): Promise<{
+    readonly collision: LinkCollision;
+    /** Every account this link returned, so the caller can upsert without re-fetching. */
+    readonly accounts: readonly PlaidAccount[];
+    /** The subset this app can actually represent — an unmappable account is none of these. */
+    readonly incoming: readonly IncomingAccount[];
+    /** Accounts no existing connection at this bank can reach. What "new" honestly means. */
+    readonly newRefs: readonly string[];
+    /** True only when NOTHING in this link is new — the sole case that licenses a discard. */
+    readonly whollyRedundant: boolean;
+  } | null> {
+    if (!institutionId) return null;
+    let accounts: readonly PlaidAccount[];
+    try {
+      accounts = (
+        await plaidPost<{ accounts: PlaidAccount[] }>('/accounts/get', { access_token: accessToken })
+      ).accounts;
+    } catch {
+      return null;
+    }
+    try {
+      // An account whose `type` this app cannot map (Plaid's documented `other`) never becomes
+      // a row: it has no balance, no transactions and no surface anywhere. So it is excluded
+      // from BOTH counts rather than treated as something a connection "reaches" — counting it
+      // as new would keep a whole second Item, and duplicate every account that IS visible, to
+      // preserve access to something the user cannot see. If the mapper ever learns that type,
+      // the same account becomes genuinely new and the link stops being redundant by itself.
+      const incoming: IncomingAccount[] = [];
+      for (const a of accounts) {
+        let mapped;
+        try {
+          mapped = mapPlaidAccount(a);
+        } catch {
+          continue;
+        }
+        incoming.push({
+          ref: a.account_id,
+          identity: {
+            provider: 'plaid',
+            institutionId,
+            institutionName,
+            mask: mapped.mask,
+            type: mapped.type,
+            subtype: mapped.subtype,
+            currency: mapped.currency,
+            persistentAccountId: mapped.persistentAccountId,
+            connectionId: newItemId,
+          },
+        });
+      }
+      // The user's OTHER connections at THIS bank.
+      const items = await prisma.plaidItem.findMany({
+        where: { userId, institutionId, itemId: { not: newItemId } },
+      });
+      if (items.length === 0) {
+        return { collision: { kind: 'none' }, accounts, incoming, newRefs: [], whollyRedundant: false };
+      }
+      // Ask each candidate what it can ACTUALLY reach, right now, rather than trusting the
+      // Account rows it left behind. Both fresh-context critics broke the DB-snapshot version
+      // the same way, and the two P0s share this one cause: an irreversible `/item/remove` was
+      // being authorised by state that no longer described the connection being kept.
+      //   * A connection whose login has EXPIRED still has all its rows, so re-linking to fix
+      //     it — the commonest reason anyone re-runs Link — discarded the credential that had
+      //     just fixed it and kept the dead one, while claiming it had refreshed.
+      //   * A row the feed stopped returning (deselected in update mode, or closed at the bank
+      //     — TASKS L.14) still matched, so the only live route to that account was revoked.
+      //   * A row predating the `plaidItemId` stamp (#256) was invisible, so the app created
+      //     the very duplicate it exists to prevent.
+      // A candidate that cannot answer is not a candidate: it proves nothing, so it takes part
+      // in no match, and the new connection is kept.
+      const existing: ExistingConnection[] = [];
+      for (const item of items) {
+        let live: readonly PlaidAccount[];
+        try {
+          const token = await this.accessTokenFor(userId, item.itemId);
+          live = (await plaidPost<{ accounts: PlaidAccount[] }>('/accounts/get', {
+            access_token: token,
+          })).accounts;
+        } catch {
+          continue;
+        }
+        const identities = [];
+        for (const a of live) {
+          let mapped;
+          try {
+            mapped = mapPlaidAccount(a);
+          } catch {
+            continue;
+          }
+          identities.push({
+            provider: 'plaid',
+            institutionId: item.institutionId,
+            institutionName: item.institution,
+            mask: mapped.mask,
+            type: mapped.type,
+            subtype: mapped.subtype,
+            currency: mapped.currency,
+            persistentAccountId: mapped.persistentAccountId,
+            connectionId: item.itemId,
+          });
+        }
+        existing.push({
+          itemId: item.itemId,
+          institutionName: item.institution,
+          accounts: identities,
+        });
+      }
+      const collision = detectLinkCollision(incoming, existing);
+      // What this link reaches that NOTHING the user already has does — computed against every
+      // candidate, not just the one named in the collision. With three connections at one bank
+      // the winner's "unmatched" set includes accounts a SIBLING connection already carries, so
+      // using it would tell the user this login reaches something new while a third copy is
+      // what gets created.
+      const newRefs = incoming
+        .filter((inc) => detectLinkCollision([inc], existing).kind === 'none')
+        .map((inc) => inc.ref);
+      return {
+        collision,
+        accounts,
+        incoming,
+        newRefs,
+        whollyRedundant: collision.kind === 'already-connected' && newRefs.length === 0,
+      };
+    } catch {
+      // A DB failure here must not cost the user their link either.
+      return { collision: { kind: 'none' }, accounts, incoming: [], newRefs: [], whollyRedundant: false };
+    }
+  }
+
+  /**
+   * Hand back an Item the app decided not to keep. No row was ever written for it, so unlike
+   * `removeItem` there is nothing to delete and nothing to stamp (the identity capture that
+   * matters here belongs to the connection the user is KEEPING, which is untouched). The audit
+   * row is the record that this happened at all — without it a discarded link is invisible.
+   */
+  private async discardRedundantItem(
+    userId: string,
+    accessToken: string,
+    itemId: string,
+    collision: Extract<LinkCollision, { kind: 'already-connected' }>,
+  ): Promise<boolean> {
+    try {
+      await plaidPost('/item/remove', { access_token: accessToken });
+    } catch {
+      // The revoke failed, so the Item is still LIVE at Plaid. Returning false makes the caller
+      // fall through and persist it as an ordinary connection. That is deliberately the lesser
+      // evil: keeping it produces a duplicate the user can see, disclose and combine, whereas
+      // walking away would leave a billed Item whose access token the app has forgotten —
+      // unremovable, invisible, and minted afresh on every retry.
+      return false;
+    }
+    // Best-effort, and AFTER the revoke that it describes. The connection is already gone by
+    // this point, so a failed audit write must not surface to the user as "linking failed" and
+    // send them round a loop that burns a new Item each time.
+    await prisma.auditLog
+      .create({
+        data: {
+          userId,
+          action: 'plaid.item.link.redundant',
+          meta: JSON.stringify({
+            discardedItemId: itemId,
+            keptItemId: collision.itemId,
+            matches: collision.matches.map((m) => m.reasons.join('; ')),
+          }),
+        },
+      })
+      .catch(() => {});
+    return true;
   }
 
   /** /accounts/get → upsert Account rows (type-mapped; current balance signed). */

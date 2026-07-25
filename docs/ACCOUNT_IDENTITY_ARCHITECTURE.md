@@ -202,7 +202,8 @@ No change to `AccountReconciliation`. Nothing in this design creates a link auto
 | D4 | Balance equality never triggers an automatic action — advisory or prompt only. |
 | D5 | Differing `subtype` vetoes a match (Roth never matches Traditional). |
 | D6 | Layer 2 writes no Account row before the collision decision is made. |
-| D7 | Every collision prompt carries a "different login — keep both" escape, and choosing it is remembered. |
+| D7 | Every collision prompt carries a "different login — keep both" escape, and choosing it is remembered. **AMENDED 2026-07-24 when layer 2 shipped — read D7a; the original is NOT what was built.** |
+| D7a | **What layer 2 actually ships, and why.** There is no prompt: the exchange decides and acts in one server round-trip, so the escape is structural instead. A connection is discarded ONLY when every account it can reach is one the user already reaches through another connection *that answered over the wire in the same request* — so a different login carrying anything of its own is kept automatically, without asking. Two cases the original D7 covered and this does not: a second login whose account set is **entirely** shared (a spouse who sees only the joint account), and a tier-A collision where two genuinely different accounts share last-4, type, subtype and currency at one bank. Both end in a discarded connection with no prompt; both are recoverable — disconnect the kept connection and link again, which the flash names — and both leave an orphaned Account row behind. The residual (a real prompt with a remembered "keep both") is **TASKS L.16**. Recorded rather than dropped: an irreversible action shipped without the confirmation this invariant asked for, and that is a deliberate, argued trade, not an oversight. |
 | D8 | `demo` and `manual` rows are never subject to any of this. |
 | D9 | Every automatic refresh states what happened; no structural change is silent. |
 

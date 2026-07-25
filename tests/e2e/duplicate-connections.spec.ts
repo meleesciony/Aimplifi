@@ -320,7 +320,13 @@ test('every connection offers a way to add or fix its accounts, distinguishably'
   // The hint has to appear where the wrong move is otherwise the obvious one.
   const hint = await page.getByTestId('plaid-update-hint').innerText();
   expect(hint).toContain('Add or fix accounts');
-  expect(hint).toContain('second copy');
+  // Re-pointed for L.10 layer 2 rather than deleted: the hint used to warn that re-connecting
+  // "makes a second copy of its accounts instead", and the front door now refuses that link, so
+  // the old wording became a false threat. What must stay true is that the hint still tells the
+  // reader what re-connecting does AND still protects the different-login case from reading as
+  // a duplicate (the reason this assertion exists at all).
+  expect(hint).toContain('no longer makes a second copy');
+  expect(hint).toContain('different login');
 
   // A third control joined a row that already held two: check the row still fits a phone
   // and the new button is still a real tap target (M.2/M.3 floors).

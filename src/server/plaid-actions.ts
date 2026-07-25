@@ -11,6 +11,10 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { DEMO_CONNECT_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { PlaidProvider } from '@/lib/providers/plaid';
+import {
+  alreadyConnectedFlash,
+  linkedWithOverlapFlash,
+} from '@/components/finance/plaid-update-copy';
 import { auditLog, rateLimitDurable, requireUserId } from '@/server/authz';
 
 export interface LinkTokenResult {
@@ -30,6 +34,13 @@ export interface LinkResult {
   ok: boolean;
   added?: number;
   error?: string;
+  /**
+   * A sentence to show the user about WHAT HAPPENED to their link, when it was anything other
+   * than the ordinary "a new connection was created" (TASKS L.10 layer 2 — a redundant link
+   * refused, or an overlapping one kept). Never an error: in both states the user ends up with
+   * every account they asked for. Absent on an ordinary link, which needs no narration.
+   */
+  notice?: string;
 }
 
 /** Update-mode token mints per user per window. A tap opens a bank window, so a human
@@ -135,7 +146,7 @@ export async function linkPlaidAccount(publicToken: string): Promise<LinkResult>
     // is required_if_supported, not required), and the sandbox often lags on
     // transactions. Neither must turn a real, successful link into an error, nor
     // skip the cache revalidation that surfaces the just-linked accounts.
-    await provider.exchangePublicToken(userId, publicToken);
+    const outcome = await provider.exchangePublicToken(userId, publicToken);
     let added = 0;
     try {
       added = (await provider.syncTransactions(userId)).added;
@@ -159,6 +170,29 @@ export async function linkPlaidAccount(publicToken: string): Promise<LinkResult>
     revalidatePath('/transactions');
     revalidatePath('/dashboard');
     revalidatePath('/investments');
+    // The follow-on syncs above are user-wide, so on the refused path they refresh the
+    // connection that was KEPT — which is what "it just refreshes" has to mean to be true.
+    if (outcome.kind === 'already-connected') {
+      return {
+        ok: true,
+        added,
+        notice: alreadyConnectedFlash({
+          bank: outcome.institutionName ?? 'that bank',
+          matchedAccountCount: outcome.matchedAccountCount,
+        }),
+      };
+    }
+    if (outcome.kind === 'linked-with-overlap') {
+      return {
+        ok: true,
+        added,
+        notice: linkedWithOverlapFlash({
+          bank: outcome.institutionName ?? 'that bank',
+          matchedAccountCount: outcome.matchedAccountCount,
+          newAccountCount: outcome.newAccountCount,
+        }),
+      };
+    }
     return { ok: true, added };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Could not link your accounts.' };

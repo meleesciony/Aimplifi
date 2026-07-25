@@ -32,6 +32,8 @@ export function ConnectAccountsButton() {
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** A successful outcome that still needs saying — see the L.10 layer-2 notice below. */
+  const [notice, setNotice] = useState<string | null>(null);
   // #256: Plaid's SANDBOX rejects real-world input inside its own Link UI — without
   // this disclosure that reads as a broken app rather than test mode.
   const [sandbox, setSandbox] = useState(false);
@@ -77,6 +79,7 @@ export function ConnectAccountsButton() {
     (publicToken: string) => {
       setBusy(true);
       setError(null);
+      setNotice(null);
       // A rejected exchange must NOT silently drop the public_token — clear busy and
       // surface an error, never strand the button on "Connecting…".
       void linkPlaidAccount(publicToken)
@@ -85,7 +88,14 @@ export function ConnectAccountsButton() {
           setToken(null);
           setBusy(false);
           if (!r.ok) setError(r.error ?? 'Linking failed.');
-          else router.refresh();
+          else {
+            // A refused-as-redundant link is a SUCCESS with news: the user ticked accounts and
+            // must not be left to infer from a silent refresh that nothing happened. Rendered
+            // here rather than flashed to /accounts because this button also lives on pages
+            // that never navigate there (invariant D9).
+            if (r.notice) setNotice(r.notice);
+            router.refresh();
+          }
         })
         .catch(() => {
           clearStoredLinkToken();
@@ -115,6 +125,7 @@ export function ConnectAccountsButton() {
 
   function handleClick() {
     setError(null);
+    setNotice(null);
     if (ready) {
       // Stamp the session THIS click is about to open, so the OAuth return page resumes
       // the right token and knows this is a NEW connection (it must exchange). Must
@@ -155,6 +166,11 @@ export function ConnectAccountsButton() {
       {error && (
         <p role="alert" data-testid="connect-error" className="text-xs text-red-400">
           {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" data-testid="connect-notice" className="text-xs text-sky-300">
+          {notice}
         </p>
       )}
     </div>

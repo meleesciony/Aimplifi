@@ -132,5 +132,12 @@ export function detectLinkCollision(
  * single call — never persisted, never compared for identity, never shown to a user.
  */
 function identityKey(a: IdentityAccount): string {
-  return a.persistentAccountId ?? `${a.connectionId ?? '?'}:${a.mask ?? '?'}:${a.type}`;
+  // `subtype` is part of the fallback because without it a Roth and a Traditional at one broker
+  // collapse to one key — same connection, same last-4, both INVESTMENT — so claiming one would
+  // silently skip the other's true partner and undercount the matches the user is shown
+  // (fresh-context critic, L.10 layer 2). It is the same signal tier V vetoes on.
+  return (
+    a.persistentAccountId ??
+    `${a.connectionId ?? '?'}:${a.mask ?? '?'}:${a.type}:${a.subtype ?? '?'}`
+  );
 }

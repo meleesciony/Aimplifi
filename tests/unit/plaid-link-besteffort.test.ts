@@ -53,7 +53,9 @@ describe('linkPlaidAccount — best-effort post-exchange syncs (a real link must
     process.env.PLAID_CLIENT_ID = 'test-id';
     process.env.PLAID_SECRET = 'test-secret';
     process.env.DATA_ENCRYPTION_KEY = 'test-key';
-    h.exchange.mockReset().mockResolvedValue(undefined);
+    // The exchange now REPORTS what it did (TASKS L.10 layer 2 — it is allowed to refuse a
+    // redundant link), so the ordinary outcome is an explicit "a connection was created".
+    h.exchange.mockReset().mockResolvedValue({ kind: 'linked', itemId: 'item-1' });
     h.syncTx.mockReset().mockResolvedValue({ added: 5, modified: 0, removed: 0, nextCursor: null });
     h.syncLiab.mockReset().mockResolvedValue(undefined);
     h.revalidate.mockReset();
@@ -88,6 +90,47 @@ describe('linkPlaidAccount — best-effort post-exchange syncs (a real link must
     expect(r.ok).toBe(true);
     expect(r.added).toBe(0);
     expect(h.syncLiab).toHaveBeenCalled();
+  });
+
+  it('a REFUSED link (already connected) is a success with news, and still refreshes the bank they kept', async () => {
+    h.exchange.mockResolvedValue({
+      kind: 'already-connected',
+      existingItemId: 'item-kept',
+      institutionName: 'Chase',
+      matchedAccountCount: 2,
+    });
+    const r = await linkPlaidAccount('public-good');
+
+    expect(r.ok).toBe(true);
+    // The sentence the user reads must say what happened AND that nothing was lost — the
+    // reader's actual fear is that the accounts they just ticked went nowhere.
+    expect(r.notice).toContain('Chase');
+    expect(r.notice).toMatch(/refreshed that connection/i);
+    expect(r.notice).toMatch(/nothing was added and nothing was lost/i);
+    // "It just refreshes" is only true if something actually refreshed: the user-wide sync
+    // runs on the connection they kept, and /accounts is revalidated to show it.
+    expect(h.syncTx).toHaveBeenCalled();
+    expect(h.revalidate).toHaveBeenCalledWith('/accounts');
+  });
+
+  it('an OVERLAPPING link is kept and disclosed — never reported as a refusal', async () => {
+    h.exchange.mockResolvedValue({
+      kind: 'linked-with-overlap',
+      itemId: 'item-new',
+      existingItemId: 'item-kept',
+      institutionName: 'Chase',
+      matchedAccountCount: 1,
+      newAccountCount: 2,
+    });
+    const r = await linkPlaidAccount('public-good');
+
+    expect(r.ok).toBe(true);
+    expect(r.notice).toMatch(/Both Chase connections were kept/i);
+  });
+
+  it('an ordinary link says nothing extra — no notice to explain a thing that did not happen', async () => {
+    const r = await linkPlaidAccount('public-good');
+    expect(r.notice).toBeUndefined();
   });
 
   it('a FAILED exchange is a real failure: ok:false, no sync, no revalidate', async () => {
