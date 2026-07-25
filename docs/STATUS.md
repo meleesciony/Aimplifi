@@ -2,6 +2,111 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-25 (#311) — L.19: /calendar speaks, and a frozen LOAN can finally reach an all-clear
+
+Two of the five surfaces L.18 named open, taken together because they share one primitive: **the set
+of frozen DUES a surface prints**, which L.18 built from cards alone.
+
+**The loan gap.** `frozenSince` has ridden `LoanObligation` since L.18 — and then every surface built
+its frozen list from `result.cards` + `unknownDueDateCards`. But "You're all caught up" (dashboard)
+and "a clear week ahead" (digest) are claims about `reminders`, and `selectPaymentReminders` mixes
+loans into that list. A frozen loan's stored `dueDayOfMonth` is precisely the field the bank stopped
+confirming, so it is the likeliest reason an all-clear is wrong, and it was the one row that could
+never be qualified. `FrozenNothingDueRow.kind` is now REQUIRED, because the two claims describe
+different mechanisms and cannot share a sentence: a card's gap is a **statement** that could not
+reach us; a loan issues no statement, and its gap is a payment amount and a due day that stopped
+being confirmed.
+
+**One builder, because two hand-rolled copies are how one gap opened in two places.** The dashboard
+and the digest each built the list inline, near-identically. `frozenNothingDueRows` now builds it
+once; the ownership map stays at the call site, because only the caller knows whose scope it read.
+
+**/calendar** — the highest-consequence surface of the five, because it prints a dated amount to pay.
+Resolved against the due events the displayed **month** actually paints, so paging to a quiet month
+is silent; the title counts **accounts**, not events.
+
+**A pre-existing P1 found while mapping, and fixed because /calendar depends on it:** `frozenLoanNote`
+hardcoded "Your bank" and "Check it with your lender before paying", and `payment-reminders-card.tsx`
+was **already** calling it on a partner's shared loan — only the next step was ownership-aware.
+L.18's critic P1-1 closed exactly this for cards and left the loan branch untouched.
+
+### Critic cycle 1 — FAIL: 3 P1 + 3 P2 + 2 P3, all fixed and locked
+
+Two fresh-context critics ran in parallel (copy honesty; wiring and regressions).
+
+* **P1-1 — the calendar prints one instruction no due row accounts for.** "Projected low: $X —
+  transfer $Y by DATE to stay covered" is walked forward from the funding balance. With every card
+  and loan live but that balance frozen, the first cut returned `null` and the page disclosed
+  **nothing** — and the quiet direction is the expensive one, because a balance frozen HIGH produces
+  no dip line at all. `funding` and `shows` are now required arguments.
+* **P1-2 — on a calendar the DATE is the product, and it can be one the app manufactured.**
+  `buildObligation` clamps an already-passed due date to today, and a frozen card gets no new
+  statement to move it back. The card note qualified only the amount; `frozenLoanNote` had made the
+  date claim for loans since L.18. New `frozenCardDatesNote`, with the estimate path named
+  separately because its date comes from a different stale field.
+* **P1-3 — the dashboard dropped what the digest printed.** The frozen qualifier was appended only
+  to the clean all-clear, so a reader with an undatable card AND a frozen account was told about one
+  gap and not the other, while the email from the same rows said both.
+* **P2 —** two identically-named loans rendered two byte-identical sentences (the `nameSet`
+  collision rule was bypassed on the loan path) with duplicate React keys; the dedupe key was a bare
+  account id shared across kinds; and the all-clear repeated its remedy once per sub-list.
+
+**A fix of mine that a test caught before it shipped.** Tidying that last repetition, `joinClaims`
+dropped the trailing clause from every claim but the last — true of the coverage caveat, false of
+the **remedy**, which differs per owner. The reader's own claim comes first, so "Open Aimplifi to
+see the connection" was deleted outright, leaving a household reader told only that somebody else
+could fix somebody else's account. A tidy-up that removes the only actionable sentence is a worse
+defect than the verbosity it fixes.
+
+**Two corrections to my own comments, both from reading the engine instead of trusting a neighbouring
+comment.** The dedupe was justified by "`result.cards` holds one obligation per statement, so a card
+appears twice" — false: `computeCashNeeded` pushes exactly one `buildObligation` per card. The
+invariant is still held (a card can paint two due EVENTS in one month) but the stated reason was
+wrong, and the test asserting it is now labelled as a helper invariant rather than a live repro. The
+multi-row all-clear also said "N of the cards here" on four surfaces that render **no** list — "here"
+had no antecedent anywhere, and no test pinned the string.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **4250 unit across 273 files** / build
+clean. New e2e `calendar-frozen.spec.ts` **6/6**, including both abstentions and the frozen-funding
+case. **Fail-old proven in BOTH directions**: silencing the builders fails **23** assertions, making
+them hedge unconditionally fails **9**. **No schema change** — `git diff --stat -- prisma/` is empty,
+so the live database is untouched. DECISIONS #304; eight REGRESSION_LEDGER rows.
+
+**E2E note:** the full serialized run was 195 passed / 1 failed (`transactions.spec.ts:145`), which
+passes 18/18 in isolation — the documented #287 rotating-victim flake, on a route this slice does not
+touch.
+
+### 🟠 STILL OPEN after L.19 — ranked
+
+1. **The dashboard Today-feed nudges** — "About $X short by DATE" / "A transfer of about $X would
+   cover it", built from the frozen funding balance. Mitigated: the cash-needed and radar cards
+   directly below carry the disclosure. The nudge `Proposal` shape is a closed field set with no
+   free-text slot, so wiring it is a real change rather than a call-site edit.
+2. **The PDF/CSV export** — `netWorthReportPdf` prints balances from a 5-field payload that drops the
+   flag, and its footer asserts "Balances reflect the data source at export time", which is
+   affirmatively false for a frozen row. A durable artifact handed to a lender, carrying no way to
+   correct itself.
+3. **An UNDATABLE frozen loan still cannot reach the all-clear** (new, found by the wiring critic —
+   and it is the worst case of L.19's own thesis). `selectLoanObligations` emits nothing when
+   `dueDayOfMonth` is null or the payment is ≤ 0, so a loan frozen *before* the bank ever sent a due
+   day produces no obligation, no row, and no sentence. Cards carry the exact analogue out through
+   `unknownDueDateCards`; loans have no equivalent. Deliberately not fixed here: the fix needs
+   `feedDroppedAt` threaded into an account payload that currently drops it — the same plumbing item
+   2 above needs, so the two belong in one slice.
+4. **/investments** and the **debt-payoff path** — figures only; `DebtInput` has no frozen field, so
+   this needs a type widened rather than copy.
+5. Smaller, recorded not fixed: `frozenCardsNote`'s multi-row form says "N of these cards" on a grid
+   that also paints loans and scheduled bills; the calendar's two banners name one account
+   differently (the duplicate banner quotes the event label "Chase Sapphire due (est.)", the frozen
+   banner the identity "Chase Sapphire"); and `CardSnapshot.frozenSince` is still optional while
+   `paymentAccount.frozenSince` beside it is required (no live gap — the only production constructor
+   always sets it).
+
+**Structural note from the wiring critic, worth keeping:** `scripts/verify.sh` runs Playwright only
+under `VERIFY_E2E=1`, so a green default verify would have declared this slice done while its own new
+e2e was red against a drifted golden. The e2e was run explicitly here; the default gate cannot see
+that class of drift.
+
 ## ✅ SHIPPED 2026-07-25 (#310) — L.18: the surfaces that printed a figure from a frozen account and said nothing
 
 L.14 taught the app that an account its bank has stopped sharing keeps counting **by design**, and

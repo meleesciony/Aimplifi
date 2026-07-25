@@ -23,6 +23,7 @@ import {
   type AccountLike as SnapshotAccount,
 } from '@/lib/engine/cash-needed/assemble';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
+import { buildCashFlowCalendar } from '@/lib/engine/calendar/build';
 import { computeRadar, type RadarInput } from '@/lib/engine/radar/radar';
 import { frozenProjectionNote } from '@/lib/engine/account/feed-dropped-view';
 import { buildReminderEmail, selectPaymentReminders } from '@/lib/engine/reminders/select';
@@ -38,9 +39,13 @@ import {
 import { traceNetWorthDerivation } from '@/lib/engine/assistant/derivation';
 import { traceCashNeeded } from '@/lib/engine/glass-box/trace';
 import {
+  type FrozenCalendarRow,
+  frozenCalendarNotice,
   frozenCardsNote,
   frozenDuesEmailLines,
+  frozenLoanNote,
   frozenNothingDueNote,
+  frozenNothingDueRows,
   frozenTotalNote,
 } from '@/lib/engine/account/feed-dropped-view';
 import { prisma } from '@/lib/db';
@@ -423,8 +428,8 @@ describe('/cards — the page’s per-row note and its one instruction', () => {
     // rule is to say they cannot be told apart, never to manufacture an identifier.
     const note = frozenNothingDueNote(
       [
-        { label: 'CREDIT CARD', frozenSince: DROPPED, ownership: 'reader' },
-        { label: 'CREDIT CARD', frozenSince: DROPPED, ownership: 'reader' },
+        { label: 'CREDIT CARD', frozenSince: DROPPED, ownership: 'reader', kind: 'card' as const },
+        { label: 'CREDIT CARD', frozenSince: DROPPED, ownership: 'reader', kind: 'card' as const },
       ],
       { nextStep: 'accounts-route' },
     ) as string;
@@ -562,14 +567,15 @@ describe('the reminder email — no position, no control it does not have', () =
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 describe('the weekly digest — the dues branch and the all-clear branch make different claims', () => {
+  // TASKS L.19: through the SAME engine helper both real call sites now use, rather than a
+  // third hand-rolled copy of it — a fixture that builds the list its own way cannot catch the
+  // class of defect that put this slice in the queue.
   const frozenCardsOf = (out: ReturnType<typeof cashNeeded>) =>
-    [...out.cards, ...out.unknownDueDateCards]
-      .filter((c) => c.frozenSince != null)
-      .map((c) => ({
-        label: c.cardName,
-        frozenSince: c.frozenSince as string,
-        ownership: 'reader' as const,
-      }));
+    frozenNothingDueRows({
+      cards: [...out.cards, ...out.unknownDueDateCards],
+      loans: [],
+      partnerLabel: {},
+    });
 
   it('qualifies the listed dues, resolved against the bullets it printed', () => {
     const out = MIXED();
@@ -577,7 +583,7 @@ describe('the weekly digest — the dues branch and the all-clear branch make di
       review: null,
       reminders: selectPaymentReminders({ obligations: out.cards, today: TODAY, withinDays: 7 }),
       today: TODAY,
-      frozenCards: frozenCardsOf(out),
+      frozenDues: frozenCardsOf(out),
     })!;
     expect(digest.text).toContain('Chase Sapphire: your bank stopped sharing this account');
     expect(digest.text).not.toContain('a statement issued on it since'); // that is the OTHER branch
@@ -599,7 +605,7 @@ describe('the weekly digest — the dues branch and the all-clear branch make di
       },
       reminders: [],
       today: TODAY,
-      frozenCards: frozenCardsOf(out),
+      frozenDues: frozenCardsOf(out),
     })!;
     expect(digest.text).toContain('Nothing due in the next 7 days');
     expect(digest.text).toContain(
@@ -618,7 +624,7 @@ describe('the weekly digest — the dues branch and the all-clear branch make di
       },
       reminders: [],
       today: TODAY,
-      frozenCards: [],
+      frozenDues: [],
     })!;
     expect(digest.text).toContain('Nothing due in the next 7 days — a clear week ahead.');
     expect(digest.text).not.toContain('stopped sharing');
@@ -1150,5 +1156,646 @@ describe('/coach — qualified per figure, and NOT on the figure that reads no b
     const data = await getCoachData(V);
     expect(data.frozenBalances).toEqual({ portfolio: [], liquid: [] });
     await prisma.user.deleteMany({ where: { id: V } });
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// TASKS L.19 — the two surfaces L.18 named open that share one primitive: the set of frozen DUES a
+// surface prints. L.18 built that set from cards alone, so a frozen LOAN could not reach any
+// qualifier at all, and /calendar — the one page whose entire product is a dated amount to pay —
+// said nothing.
+//
+// Same discipline as above: driven through the real engines, abstentions in the majority, and the
+// silent cases pinned to golden literals rather than to the code's own defaults.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** A frozen mortgage: a fixed payment and a stored due day, both last confirmed on the drop date. */
+const FROZEN_LOAN = {
+  ...account({ id: 'frozen-loan', name: 'Home Mortgage', type: 'LOAN', currentBalanceCents: 31_000_000, dueDayOfMonth: 12 }),
+  minimumPaymentCents: 245_000,
+  feedDroppedAt: DROPPED,
+};
+
+const HEALTHY_LOAN = {
+  ...account({ id: 'healthy-loan', name: 'Car Loan', type: 'LOAN', currentBalanceCents: 1_800_000, dueDayOfMonth: 20 }),
+  minimumPaymentCents: 41_500,
+};
+
+const loansOf = (accounts: (SnapshotAccount & { minimumPaymentCents?: number | null })[]) =>
+  selectLoanObligations({ accounts, today: TODAY, holidays: HOL });
+
+describe('L.19 — a frozen LOAN is not told a card story, and not addressed to the wrong person', () => {
+  it('the loan note drops the second person and the imperative on a PARTNER loan', () => {
+    // The live defect this slice found: `payment-reminders-card.tsx` already called this builder on
+    // a partner's shared loan, and only the NEXT STEP was ownership-aware. The reader was told
+    // "Your bank stopped sharing ... Check it with your lender before paying" over an account they
+    // neither own nor pay — the double-payment invitation L.18's critic P1-1 closed for cards.
+    const theirs = frozenLoanNote(
+      { label: 'Home Mortgage (Sam)', frozenSince: DROPPED, ownership: 'partner' },
+      { role: 'instruction', nextStep: 'accounts-route' },
+    );
+    expect(theirs).not.toContain('Your bank');
+    expect(theirs).not.toContain('your lender');
+    expect(theirs).toContain('The bank stopped sharing Home Mortgage (Sam)');
+    expect(theirs).toContain('Only the household member who owns it can reconnect it.');
+    expect(theirs).not.toContain('Accounts shows the connection');
+  });
+
+  it('the reader OWN loan keeps both the subject and the guard', () => {
+    const mine = frozenLoanNote(
+      { label: 'Home Mortgage', frozenSince: DROPPED, ownership: 'reader' },
+      { role: 'instruction', nextStep: 'accounts-route' },
+    );
+    expect(mine).toContain('Your bank stopped sharing Home Mortgage');
+    expect(mine).toContain('Check it with your lender before paying.');
+    expect(mine).toContain('Accounts shows the connection');
+  });
+
+  it('a FIGURE drops the imperative even for the reader (role is not decorative)', () => {
+    const asFigure = frozenLoanNote(
+      { label: 'Home Mortgage', frozenSince: DROPPED, ownership: 'reader' },
+      { role: 'figure', nextStep: 'accounts-route' },
+    );
+    expect(asFigure).not.toContain('before paying');
+    // GOLDEN, not `f(x,'figure') !== f(x,'instruction')`: the silent form is pinned to the exact
+    // sentence, so a future edit cannot quietly change what silence says.
+    expect(asFigure).toBe(
+      'Your bank stopped sharing Home Mortgage on Thu, May 28, 2026, so the payment amount and due ' +
+        'date shown here are the last ones it sent — nothing about this loan has been confirmed ' +
+        'since. Accounts shows the connection and how to fix or remove it.',
+    );
+  });
+});
+
+describe('L.19 — the all-clear can finally speak about a loan, and names no set it does not render', () => {
+  const readerLoan = {
+    label: 'Home Mortgage',
+    frozenSince: DROPPED,
+    ownership: 'reader' as const,
+    kind: 'loan' as const,
+  };
+  const readerCard = {
+    label: 'Chase Sapphire',
+    frozenSince: DROPPED,
+    ownership: 'reader' as const,
+    kind: 'card' as const,
+  };
+
+  it('a frozen loan all-clear names the payment and due date, never a statement', () => {
+    const note = frozenNothingDueNote([readerLoan], { nextStep: 'accounts-route' }) as string;
+    // A loan issues no statement. The card wording would name a document that does not exist and
+    // imply the stored due day is trustworthy — and the due day is the field that decides whether
+    // "nothing due in the next 7 days" is true at all.
+    expect(note).not.toContain('statement');
+    expect(note).toContain('a change to its payment or due date since would not have reached us');
+    expect(note).toContain('this covers only what we can still see');
+  });
+
+  it('a card and a loan produce TWO claims; neither borrows the other mechanism', () => {
+    const note = frozenNothingDueNote([readerCard, readerLoan], {
+      nextStep: 'accounts-route',
+    }) as string;
+    expect(note).toContain('a statement issued on it since would not have reached us');
+    expect(note).toContain('a change to its payment or due date since would not have reached us');
+    // Cards first, deterministically — the order must not depend on the caller's input order.
+    const cardAt = note.indexOf('Chase Sapphire');
+    const loanAt = note.indexOf('Home Mortgage');
+    expect(cardAt).toBeGreaterThanOrEqual(0);
+    expect(loanAt).toBeGreaterThan(cardAt);
+  });
+
+  it('the same two rows in the OPPOSITE input order produce a byte-identical sentence', () => {
+    expect(frozenNothingDueNote([readerLoan, readerCard], { nextStep: 'accounts-route' })).toBe(
+      frozenNothingDueNote([readerCard, readerLoan], { nextStep: 'accounts-route' }),
+    );
+  });
+
+  it('the multi-row branch no longer names "the cards here" — a set no all-clear renders', () => {
+    // Every caller of this builder is inside an all-clear branch, which lists NOTHING, so "here"
+    // had no antecedent on any of the four surfaces that printed it.
+    const note = frozenNothingDueNote([readerCard, { ...readerCard, label: 'Amex Gold' }], {
+      nextStep: 'accounts-route',
+    }) as string;
+    expect(note).not.toContain('of the cards here');
+    expect(note).toContain('Your banks stopped sharing 2 cards (Chase Sapphire, Amex Gold)');
+  });
+
+  it('two frozen loans are counted as loans, not as cards', () => {
+    const note = frozenNothingDueNote([readerLoan, { ...readerLoan, label: 'Car Loan' }], {
+      nextStep: 'accounts-route',
+    }) as string;
+    expect(note).toContain('2 loans (Home Mortgage, Car Loan)');
+    expect(note).not.toContain('cards');
+    expect(note).not.toContain('statement');
+  });
+
+  it('ABSTAINS on an empty set — an all-clear with nothing frozen says only the all-clear', () => {
+    expect(frozenNothingDueNote([], { nextStep: 'accounts-route' })).toBeNull();
+  });
+});
+
+describe('L.19 — one builder for the all-clear row set, so two surfaces cannot drift apart', () => {
+  it('includes a frozen LOAN, which is the gap: the dashboard and the digest both enumerated cards', () => {
+    const out = cashNeeded({
+      accounts: [CHECKING, FROZEN_CARD, HEALTHY_CARD, FROZEN_LOAN, HEALTHY_LOAN],
+      statements: [statement('frozen-card', 217_999, '2026-06-15')],
+    });
+    const rows = frozenNothingDueRows({
+      cards: [...out.cards, ...out.unknownDueDateCards],
+      loans: loansOf([FROZEN_LOAN, HEALTHY_LOAN]),
+      partnerLabel: {},
+    });
+    expect(rows.map((r) => [r.label, r.kind])).toEqual([
+      ['Chase Sapphire', 'card'],
+      ['Home Mortgage', 'loan'],
+    ]);
+  });
+
+  it('HELPER INVARIANT: two rows for one account collapse to one (not reachable from the engine)', () => {
+    // HONEST LABEL, corrected by a critic. The first version of this test was titled as if it
+    // reproduced a live defect, and its comment claimed `result.cards` holds one obligation per
+    // STATEMENT so a card appears twice. Reading `computeCashNeeded` (engine.ts:194) shows exactly
+    // ONE `buildObligation` per card, so no real caller can produce this input. The invariant is
+    // still worth holding — the title counts accounts — but this exercises the helper, not the
+    // world, and saying otherwise is the kind of unverified claim rule 0 forbids.
+    const rows = frozenNothingDueRows({
+      cards: [
+        { cardId: 'frozen-card', cardName: 'Chase Sapphire', frozenSince: DROPPED },
+        { cardId: 'frozen-card', cardName: 'Chase Sapphire', frozenSince: DROPPED },
+      ],
+      loans: [],
+      partnerLabel: {},
+    });
+    expect(rows).toHaveLength(1);
+    const note = frozenNothingDueNote(rows, { nextStep: 'accounts-route' }) as string;
+    expect(note).not.toContain('all of them named');
+    expect(note).toContain('Your bank stopped sharing Chase Sapphire');
+  });
+
+  it('ABSTAINS on every live account — a healthy world produces no rows at all', () => {
+    const out = cashNeeded({
+      accounts: [CHECKING, HEALTHY_CARD, HEALTHY_LOAN],
+      statements: [statement('healthy-card', 40_000, '2026-06-18')],
+    });
+    expect(
+      frozenNothingDueRows({
+        cards: [...out.cards, ...out.unknownDueDateCards],
+        loans: loansOf([HEALTHY_LOAN]),
+        partnerLabel: {},
+      }),
+    ).toEqual([]);
+  });
+
+  it('marks a row the partner map names, so the all-clear cannot address the wrong person', () => {
+    const rows = frozenNothingDueRows({
+      cards: [],
+      loans: loansOf([FROZEN_LOAN]),
+      partnerLabel: { 'frozen-loan': 'Sam' },
+    });
+    expect(rows[0].ownership).toBe('partner');
+    const note = frozenNothingDueNote(rows, { nextStep: 'accounts-route' }) as string;
+    expect(note).not.toContain('Your bank');
+    expect(note).toContain('Only the household member who owns it can reconnect it.');
+  });
+});
+
+describe('L.19 — /calendar, the page whose product is a dated amount to pay', () => {
+  const row = (over: Partial<FrozenCalendarRow> & { accountId: string }): FrozenCalendarRow => ({
+    label: 'Chase Sapphire',
+    frozenSince: DROPPED,
+    ownership: 'reader',
+    kind: 'card',
+    isEstimated: false,
+    ...over,
+  });
+
+  it('counts ACCOUNTS, not events — one card can paint two due dates in one month', () => {
+    // The L.15 defect shape: a count computed over something other than what it names. A card with
+    // a current statement and a next-cycle estimate emits two events for one account.
+    const notice = frozenCalendarNotice(
+      [row({ accountId: 'frozen-card' }), row({ accountId: 'frozen-card', isEstimated: true })],
+      { nextStep: 'accounts-route', funding: null, shows: 'no-dip' },
+    )!;
+    expect(notice.title).toBe('One account behind this calendar has stopped updating');
+    // Two LINES for one account — the amount claim and the due-DATE claim (critic P1-2) — but the
+    // title counts the account once, which is the invariant this test exists for.
+    expect(notice.lines).toHaveLength(2);
+    expect(notice.lines[1]).toContain('The due date shown for it is');
+  });
+
+  it('states the loan claim that matters most HERE: the due date itself is unconfirmed', () => {
+    const notice = frozenCalendarNotice(
+      [row({ accountId: 'frozen-loan', label: 'Home Mortgage', kind: 'loan' })],
+      { nextStep: 'accounts-route', funding: null, shows: 'no-dip' },
+    )!;
+    expect(notice.lines.join(' ')).toContain(
+      'the payment amount and due date shown here are the last ones it sent',
+    );
+  });
+
+  it('a frozen card and a frozen loan each get their own sentence, and the title counts both', () => {
+    const notice = frozenCalendarNotice(
+      [
+        row({ accountId: 'frozen-card' }),
+        row({ accountId: 'frozen-loan', label: 'Home Mortgage', kind: 'loan' }),
+      ],
+      { nextStep: 'accounts-route', funding: null, shows: 'no-dip' },
+    )!;
+    expect(notice.title).toBe('2 accounts behind this calendar have stopped updating');
+    // card amounts, card dates, then the loan — the loan's own sentence already makes both claims.
+    expect(notice.lines).toHaveLength(3);
+    expect(notice.lines[0]).toContain('Chase Sapphire');
+    expect(notice.lines[1]).toContain('The due date shown for it is');
+    expect(notice.lines[2]).toContain('Home Mortgage');
+  });
+
+  it('every row here is an INSTRUCTION, so the reader own rows carry the check-first guard', () => {
+    const notice = frozenCalendarNotice([row({ accountId: 'frozen-card' })], {
+      nextStep: 'accounts-route',
+      funding: null,
+      shows: 'no-dip',
+    })!;
+    expect(notice.lines[0]).toContain('Check the card with your bank before paying.');
+  });
+
+  it('a PARTNER frozen card on the shared calendar carries no imperative at all', () => {
+    const notice = frozenCalendarNotice(
+      [row({ accountId: 'frozen-card', label: 'Chase Sapphire (Sam)', ownership: 'partner' })],
+      { nextStep: 'accounts-route', funding: null, shows: 'no-dip' },
+    )!;
+    expect(notice.lines[0]).not.toContain('before paying');
+    expect(notice.lines[0]).not.toContain('Your bank');
+    expect(notice.lines[0]).toContain('Only the household member who owns it can reconnect it.');
+  });
+
+  it('names the summary figure it qualifies, with no direction it cannot support', () => {
+    const notice = frozenCalendarNotice([row({ accountId: 'frozen-card' })], {
+      nextStep: 'accounts-route',
+      funding: null,
+      shows: 'no-dip',
+    })!;
+    expect(notice.totalNote).toBe(
+      'These payments are inside the money-out total and the count of payments due above.',
+    );
+    // A payment already made makes the total too HIGH; an estimate off a frozen balance can be
+    // wrong either way. A single directional claim would be false half the time.
+    expect(notice.totalNote).not.toContain('understates');
+    expect(notice.totalNote).not.toContain('higher');
+  });
+
+  it('ABSTAINS when the month holds no frozen due event — the whole resolution rule', () => {
+    expect(
+      frozenCalendarNotice([], { nextStep: 'accounts-route', funding: null, shows: 'no-dip' }),
+    ).toBeNull();
+  });
+});
+
+describe('L.19 — the calendar notice over the REAL engines', () => {
+  it('a frozen card and a frozen loan both reach the notice through the real obligation builders', () => {
+    const out = cashNeeded({
+      accounts: [CHECKING, FROZEN_CARD, HEALTHY_CARD, FROZEN_LOAN, HEALTHY_LOAN],
+      statements: [
+        statement('frozen-card', 217_999, '2026-06-15'),
+        statement('healthy-card', 40_000, '2026-06-18'),
+      ],
+    });
+    const loans = loansOf([FROZEN_LOAN, HEALTHY_LOAN]);
+    // The page resolves against grid events; here the equivalent set is every obligation carrying a
+    // frozen date, which is what those events are built from.
+    const rows: FrozenCalendarRow[] = [
+      ...out.cards
+        .filter((c) => c.frozenSince != null)
+        .map((c) => ({
+          accountId: c.cardId,
+          label: c.cardName,
+          frozenSince: c.frozenSince as string,
+          ownership: 'reader' as const,
+          kind: 'card' as const,
+          isEstimated: c.isEstimated,
+        })),
+      ...loans
+        .filter((l) => l.frozenSince != null)
+        .map((l) => ({
+          accountId: l.accountId,
+          label: l.accountName,
+          frozenSince: l.frozenSince as string,
+          ownership: 'reader' as const,
+          kind: 'loan' as const,
+          isEstimated: false,
+        })),
+    ];
+    const notice = frozenCalendarNotice(rows, {
+      nextStep: 'accounts-route',
+      funding: null,
+      shows: 'no-dip',
+    })!;
+    expect(notice.title).toBe('2 accounts behind this calendar have stopped updating');
+    const all = notice.lines.join(' ');
+    expect(all).toContain('Chase Sapphire');
+    expect(all).toContain('Home Mortgage');
+    // The healthy siblings are never named — the failure direction of a false hedge is a reader who
+    // discounts a figure that is perfectly current.
+    expect(all).not.toContain('Freedom Card');
+    expect(all).not.toContain('Car Loan');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// TASKS L.19 — CRITIC CYCLE 1. A fresh-context critic broke the first cut in five places; each
+// fix below is locked by the repro that found it. Two of the five were claims I had reasoned my
+// way into and never executed, which is the whole argument for a critic that has not read my
+// reasoning.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe('L.19 critic P1-1 — the calendar prints ONE instruction no due row accounts for', () => {
+  const funding = { label: 'Everyday Checking', frozenSince: DROPPED };
+
+  it('speaks when every card and loan is LIVE but the projection’s own balance is frozen', () => {
+    // The silent case, and the expensive one. The page renders "Projected low … transfer $X by
+    // DATE to stay covered" off the funding balance; the first cut only ever looked at card and
+    // loan due events, so with none frozen it returned null and the page disclosed nothing.
+    const notice = frozenCalendarNotice([], {
+      nextStep: 'accounts-route',
+      funding,
+      shows: 'a-transfer',
+    })!;
+    expect(notice).not.toBeNull();
+    expect(notice.title).toBe('One account behind this calendar has stopped updating');
+    expect(notice.lines.join(' ')).toContain(
+      'the dip comes sooner and the amount to move is larger than shown',
+    );
+  });
+
+  it('states the QUIET direction when the month shows no dip at all', () => {
+    // A balance frozen HIGH produces a clean projection over an account really heading under, and
+    // "this understates what you need to move" would be nonsense where there is nothing to move.
+    const notice = frozenCalendarNotice([], {
+      nextStep: 'accounts-route',
+      funding,
+      shows: 'no-dip',
+    })!;
+    expect(notice.lines.join(' ')).toContain(
+      'no dip here is not evidence that the account is safe',
+    );
+  });
+
+  it('does NOT claim the money-out total when only the funding account is frozen', () => {
+    // The total is a sum of due rows. With every due row live there is nothing in it to qualify,
+    // and hedging it anyway is the false-hedge failure this whole file argues against.
+    const notice = frozenCalendarNotice([], {
+      nextStep: 'accounts-route',
+      funding,
+      shows: 'a-transfer',
+    })!;
+    expect(notice.totalNote).toBeNull();
+  });
+
+  it('counts the funding account alongside the frozen dues', () => {
+    const notice = frozenCalendarNotice(
+      [
+        {
+          accountId: 'frozen-card',
+          label: 'Chase Sapphire',
+          frozenSince: DROPPED,
+          ownership: 'reader',
+          kind: 'card',
+          isEstimated: false,
+        },
+      ],
+      { nextStep: 'accounts-route', funding, shows: 'a-transfer' },
+    )!;
+    expect(notice.title).toBe('2 accounts behind this calendar have stopped updating');
+    expect(notice.totalNote).not.toBeNull();
+  });
+
+  it('ABSTAINS when nothing is frozen at all, funding included', () => {
+    expect(
+      frozenCalendarNotice([], { nextStep: 'accounts-route', funding: null, shows: 'a-transfer' }),
+    ).toBeNull();
+  });
+});
+
+describe('L.19 critic P1-2 — on a calendar the DATE is the product, and it may be one we made up', () => {
+  const cardRow = (isEstimated: boolean) => ({
+    accountId: 'frozen-card',
+    label: 'Chase Sapphire',
+    frozenSince: DROPPED,
+    ownership: 'reader' as const,
+    kind: 'card' as const,
+    isEstimated,
+  });
+
+  it('says the due date cannot move, and that a passed date is shown as due today', () => {
+    // `buildObligation` clamps an already-passed due date to today (engine.ts:158-161), so the
+    // grid can paint a date no bank ever sent — and for a frozen card no new statement can arrive
+    // to move it off today again. The card note qualified only the AMOUNT.
+    const notice = frozenCalendarNotice([cardRow(false)], {
+      nextStep: 'accounts-route',
+      funding: null,
+      shows: 'no-dip',
+    })!;
+    const all = notice.lines.join(' ');
+    expect(all).toContain('The due date shown for it is taken from the last statement the bank sent');
+    expect(all).toContain('a due date that has already passed is shown here as due today');
+  });
+
+  it('names the ESTIMATE path’s different stale field — the stored due day, not a statement', () => {
+    const notice = frozenCalendarNotice([cardRow(true)], {
+      nextStep: 'accounts-route',
+      funding: null,
+      shows: 'no-dip',
+    })!;
+    expect(notice.lines.join(' ')).toContain(
+      'worked out from the day of the month this account used to be due',
+    );
+  });
+
+  it('a LOAN gets no second date sentence — `frozenLoanNote` already makes that claim', () => {
+    const notice = frozenCalendarNotice(
+      [{ ...cardRow(false), accountId: 'l1', label: 'Home Mortgage', kind: 'loan' }],
+      { nextStep: 'accounts-route', funding: null, shows: 'no-dip' },
+    )!;
+    expect(notice.lines).toHaveLength(1);
+    expect(notice.lines[0]).toContain('the payment amount and due date shown here are the last ones it sent');
+  });
+});
+
+describe('L.19 critic P2-2 — two accounts that paint identically are not shown as two', () => {
+  it('collapses byte-identical loan sentences and says they cannot be told apart', () => {
+    // The #298 shape on the loan path: `loans.map(frozenLoanNote)` bypassed the `nameSet`
+    // collision rule that every merged-sentence builder honours, so the reader was told two
+    // accounts were affected and shown one sentence twice.
+    const loan = (accountId: string) => ({
+      accountId,
+      label: 'AUTO LOAN',
+      frozenSince: DROPPED,
+      ownership: 'reader' as const,
+      kind: 'loan' as const,
+      isEstimated: false,
+    });
+    const notice = frozenCalendarNotice([loan('a'), loan('b')], {
+      nextStep: 'accounts-route',
+      funding: null,
+      shows: 'no-dip',
+    })!;
+    expect(notice.title).toBe('2 accounts behind this calendar have stopped updating');
+    expect(notice.lines).toHaveLength(1);
+    expect(notice.lines[0]).toContain(
+      '2 accounts here match this description and nothing on this page tells them apart',
+    );
+    // No manufactured identifier — that is what the L.15 rule forbids.
+    expect(notice.lines[0]).not.toContain('1.');
+  });
+
+  it('two loans that DIFFER still get their own sentence each', () => {
+    const notice = frozenCalendarNotice(
+      [
+        { accountId: 'a', label: 'AUTO LOAN', frozenSince: DROPPED, ownership: 'reader', kind: 'loan', isEstimated: false },
+        { accountId: 'b', label: 'Home Mortgage', frozenSince: DROPPED, ownership: 'reader', kind: 'loan', isEstimated: false },
+      ],
+      { nextStep: 'accounts-route', funding: null, shows: 'no-dip' },
+    )!;
+    expect(notice.lines).toHaveLength(2);
+    expect(notice.lines.join(' ')).not.toContain('tells them apart');
+  });
+});
+
+describe('L.19 critic P2-1 — an all-clear does not repeat its remedy once per sub-list', () => {
+  it('states the coverage caveat and the remedy ONCE across a card and a loan', () => {
+    const note = frozenNothingDueNote(
+      [
+        { label: 'Chase Sapphire', frozenSince: DROPPED, ownership: 'reader', kind: 'card' },
+        { label: 'Toyota Auto Loan', frozenSince: DROPPED, ownership: 'reader', kind: 'loan' },
+      ],
+      { nextStep: 'accounts-route' },
+    ) as string;
+    // Both mechanisms still stated in full — that is the part that genuinely differs.
+    expect(note).toContain('a statement issued on it since would not have reached us');
+    expect(note).toContain('a change to its payment or due date since would not have reached us');
+    // …but the trailing clauses, which are true of the whole set, appear once.
+    expect(note.match(/this covers only what we can still see/g)).toHaveLength(1);
+    expect(note.match(/Accounts shows the connection/g)).toHaveLength(1);
+  });
+
+  it('KEEPS both remedies when they differ — the own/partner split exists because they do', () => {
+    // The bug my first cut of `joinClaims` introduced, and the reason this test is phrased as a
+    // KEEP rather than a dedupe: dropping every tail but the last deleted the reader's own
+    // remedy, because their claim comes first and the partner's last. A household reader was left
+    // told only that somebody else could fix somebody else's account.
+    const note = frozenNothingDueNote(
+      [
+        { label: 'Chase Sapphire', frozenSince: DROPPED, ownership: 'reader', kind: 'card' },
+        { label: 'Sam Amex', frozenSince: DROPPED, ownership: 'partner', kind: 'card' },
+      ],
+      { nextStep: 'open-app' },
+    ) as string;
+    expect(note.match(/Open Aimplifi to see the connection/g)).toHaveLength(1);
+    expect(note.match(/Only the household member who owns it can reconnect it/g)).toHaveLength(1);
+  });
+});
+
+describe('L.19 critic P3-3 — an unattributable loan is not ordered to be paid', () => {
+  it('drops the imperative under `unknown` ownership, as it already drops the remedy', () => {
+    const note = frozenLoanNote(
+      { label: 'Mortgage', frozenSince: DROPPED, ownership: 'unknown' },
+      { role: 'instruction', nextStep: 'accounts-route' },
+    );
+    expect(note).not.toContain('Check it with your lender before paying');
+    expect(note).toContain('The bank stopped sharing Mortgage');
+  });
+});
+
+describe('L.19 critic P2-3 — the resolution rule locked through the REAL calendar builder', () => {
+  it('names a frozen card due THIS month and stays silent in a month it does not paint', () => {
+    // The gap the critic named: the previous "real engines" test built rows from obligations and
+    // never called `buildCashFlowCalendar`, which is exactly what the page must not do — an
+    // obligation outside the displayed month emits no event and must not be named.
+    const out = cashNeeded({
+      accounts: [CHECKING, FROZEN_CARD, HEALTHY_CARD],
+      statements: [
+        statement('frozen-card', 217_999, '2026-06-15'),
+        statement('healthy-card', 40_000, '2026-06-18'),
+      ],
+    });
+    const rowsFor = (month: string): FrozenCalendarRow[] => {
+      const cal = buildCashFlowCalendar({
+        month,
+        scheduled: [],
+        cardObligations: out.cards,
+        loanObligations: [],
+      });
+      const frozenById = new Map(
+        out.cards.filter((c) => c.frozenSince != null).map((c) => [c.cardId, c] as const),
+      );
+      return cal.days
+        .flatMap((d) => d.events)
+        .flatMap((e): FrozenCalendarRow[] => {
+          const src = e.accountId ? frozenById.get(e.accountId) : undefined;
+          return src
+            ? [
+                {
+                  accountId: src.cardId,
+                  label: src.cardName,
+                  frozenSince: src.frozenSince as string,
+                  ownership: 'reader',
+                  kind: 'card',
+                  isEstimated: e.isEstimated ?? false,
+                },
+              ]
+            : [];
+        });
+    };
+
+    const speaks = frozenCalendarNotice(rowsFor('2026-06'), {
+      nextStep: 'accounts-route',
+      funding: null,
+      shows: 'no-dip',
+    });
+    expect(speaks).not.toBeNull();
+    expect(speaks!.lines.join(' ')).toContain('Chase Sapphire');
+    // The healthy card is never named.
+    expect(speaks!.lines.join(' ')).not.toContain('Freedom Card');
+
+    // A month whose grid holds no due for it: the account is still frozen, and the page is silent.
+    expect(rowsFor('2026-09')).toEqual([]);
+    expect(
+      frozenCalendarNotice(rowsFor('2026-09'), {
+        nextStep: 'accounts-route',
+        funding: null,
+        shows: 'no-dip',
+      }),
+    ).toBeNull();
+  });
+});
+
+
+describe('L.19 critic cycle 1 — P1-2 and P2-3', () => {
+  it('P2-3: a card and a loan sharing an account id both survive the dedupe', () => {
+    // Latent today (a CREDIT account cannot also be LOAN/MORTGAGE), but the failure mode of a
+    // shared key is a money disclosure silently vanishing.
+    const rows = frozenNothingDueRows({
+      cards: [{ cardId: 'same-id', cardName: 'Card X', frozenSince: DROPPED }],
+      loans: [{ accountId: 'same-id', accountName: 'Loan Y', frozenSince: DROPPED }],
+      partnerLabel: {},
+    });
+    expect(rows.map((r) => [r.label, r.kind])).toEqual([
+      ['Card X', 'card'],
+      ['Loan Y', 'loan'],
+    ]);
+  });
+
+  it('P1-2: the frozen qualifier survives alongside the UNDATED-card qualifier', () => {
+    // The dashboard reminders card appended the frozen sentence only to the clean all-clear, so a
+    // reader with both an undatable card and a frozen account was told about one gap and not the
+    // other — while the weekly digest, from the same rows through the same builder, said both.
+    // Locked here at the builder level; the card renders exactly this string.
+    const note = frozenNothingDueNote(
+      [{ label: 'Home Mortgage', frozenSince: DROPPED, ownership: 'reader', kind: 'loan' }],
+      { nextStep: 'accounts-route' },
+    );
+    expect(note).not.toBeNull();
+    const undated = `No payments coming up on what we can date — one card has no due date yet, so it isn’t included.${note ? ` ${note}` : ''}`;
+    expect(undated).toContain('no due date yet');
+    expect(undated).toContain('a change to its payment or due date since would not have reached us');
   });
 });

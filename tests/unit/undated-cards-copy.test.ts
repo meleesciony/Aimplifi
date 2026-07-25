@@ -97,7 +97,7 @@ describe('weekly digest email', () => {
   } as Parameters<typeof buildWeeklyDigest>[0]['review'];
 
   it('does NOT promise "a clear week ahead" while cards are undatable', () => {
-    const digest = buildWeeklyDigest({ frozenCards: [],
+    const digest = buildWeeklyDigest({ frozenDues: [],
       review,
       reminders: [],
       today: TODAY,
@@ -110,12 +110,12 @@ describe('weekly digest email', () => {
   });
 
   it('still promises a clear week when nothing is undatable', () => {
-    const digest = buildWeeklyDigest({ frozenCards: [], review, reminders: [], today: TODAY });
+    const digest = buildWeeklyDigest({ frozenDues: [], review, reminders: [], today: TODAY });
     expect(digest!.text).toContain('a clear week ahead');
   });
 
   it('uses singular wording for one undatable card', () => {
-    const digest = buildWeeklyDigest({ frozenCards: [],
+    const digest = buildWeeklyDigest({ frozenDues: [],
       review,
       reminders: [],
       today: TODAY,
@@ -127,7 +127,7 @@ describe('weekly digest email', () => {
   it('an undatable card alone is NOT a reason to send an email', () => {
     // Same rule as receipts: a digest with no review and nothing due stays null.
     expect(
-      buildWeeklyDigest({ frozenCards: [], review: null, reminders: [], today: TODAY, undatedCardCount: 3 }),
+      buildWeeklyDigest({ frozenDues: [], review: null, reminders: [], today: TODAY, undatedCardCount: 3 }),
     ).toBeNull();
   });
 });
@@ -157,7 +157,7 @@ describe('weekly digest email — mixed case', () => {
   } as unknown as Parameters<typeof buildWeeklyDigest>[0]['reminders'][number];
 
   it('names the undated cards even when other cards ARE due', () => {
-    const digest = buildWeeklyDigest({ frozenCards: [],
+    const digest = buildWeeklyDigest({ frozenDues: [],
       review,
       reminders: [reminder],
       today: TODAY,
@@ -169,12 +169,12 @@ describe('weekly digest email — mixed case', () => {
   });
 
   it('adds nothing when every card is datable', () => {
-    const digest = buildWeeklyDigest({ frozenCards: [], review, reminders: [reminder], today: TODAY });
+    const digest = buildWeeklyDigest({ frozenDues: [], review, reminders: [reminder], today: TODAY });
     expect(digest!.text).not.toContain('Not shown above');
   });
 
   it('uses singular wording for one undated card alongside a due', () => {
-    const digest = buildWeeklyDigest({ frozenCards: [],
+    const digest = buildWeeklyDigest({ frozenDues: [],
       review,
       reminders: [reminder],
       today: TODAY,

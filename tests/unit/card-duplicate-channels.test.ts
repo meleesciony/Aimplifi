@@ -272,21 +272,21 @@ describe('(c) the weekly digest', () => {
   const base = { review: null, today: TODAY, reminders: DUPED };
 
   it('discloses the pair inside the payments section', () => {
-    const digest = buildWeeklyDigest({ frozenCards: [], ...base, cardDuplicates: PAIR })!;
+    const digest = buildWeeklyDigest({ frozenDues: [], ...base, cardDuplicates: PAIR })!;
     expect(digest.text).toContain(CARD_DUPLICATE_TITLE);
     expect(digest.text).toContain('“Chase Sapphire”');
   });
 
   it('is byte-identical to the pre-L.15 digest when there is no pair', () => {
-    expect(buildWeeklyDigest({ frozenCards: [], ...base, cardDuplicates: [] })).toEqual(
-      buildWeeklyDigest({ frozenCards: [], ...base }),
+    expect(buildWeeklyDigest({ frozenDues: [], ...base, cardDuplicates: [] })).toEqual(
+      buildWeeklyDigest({ frozenDues: [], ...base }),
     );
   });
 
   it('says nothing when there are no dues to attach the two names to', () => {
     // With an empty reminders list the digest only sends because of a review, and there are no
     // bullets for the disclosure to point at — resolvePairs drops the pair anyway.
-    const digest = buildWeeklyDigest({ frozenCards: [],
+    const digest = buildWeeklyDigest({ frozenDues: [],
       review: {
         improvement: 'i',
         creep: 'c',
@@ -587,7 +587,7 @@ describe('critic P2-1 — a no-pair user sees the pre-L.15 output, tested agains
   // The cycle-2 critic ran a MUTANT that unconditionally appends the disclosure and found the whole
   // suite still green for these two — only three goldens existed. These are the missing pair.
   it('the weekly digest payments section is exactly the pre-L.15 text', () => {
-    const digest = buildWeeklyDigest({ frozenCards: [], review: null, reminders: [DUPED[0]], today: TODAY, cardDuplicates: [] })!;
+    const digest = buildWeeklyDigest({ frozenDues: [], review: null, reminders: [DUPED[0]], today: TODAY, cardDuplicates: [] })!;
     expect(digest.text).not.toContain(CARD_DUPLICATE_TITLE);
     expect(digest.text).toContain(
       "• CREDIT CARD: $6,679.68 due Sat, Jun 13, 2026 (in 3 days) — you'll pay $6,679.68 yourself",

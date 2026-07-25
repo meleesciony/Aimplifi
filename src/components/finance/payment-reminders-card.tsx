@@ -16,6 +16,7 @@ import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import { formatCents } from '@/lib/money';
 import {
   FROZEN_CARD_TESTID,
+  type FrozenNothingDueRow,
   frozenCardsNote,
   frozenLoanNote,
   frozenNothingDueNote,
@@ -55,7 +56,7 @@ export function PaymentRemindersCard({
   undatedCardCount = 0,
   cardDuplicates = [],
   cardIdentity = {},
-  frozenCards,
+  frozenDues,
 }: {
   reminders: PaymentReminder[];
   today: string;
@@ -85,18 +86,20 @@ export function PaymentRemindersCard({
    */
   cardIdentity?: Record<string, string>;
   /**
-   * Every card of the viewer's the bank has stopped sharing (TASKS L.18), due or not.
+   * Every account of the viewer's the bank has stopped sharing that could have appeared in this
+   * list — cards AND loans (TASKS L.18, widened in L.19), due or not.
    *
    * Used ONLY by the empty branch, whose "You're all caught up" is a positive money claim about
-   * cards whose statements can no longer arrive — the same gap `undatedCardCount` closes for a
+   * accounts whose news can no longer arrive — the same gap `undatedCardCount` closes for a
    * statement that has not arrived YET. The rows themselves need nothing extra: `frozenSince`
    * rides each reminder, so a listed payment qualifies itself.
+   *
+   * RENAMED from `frozenCards` in L.19, because the old name is what hid the gap: this list is
+   * built from the same `reminders` set the all-clear is a claim about, and `selectPaymentReminders`
+   * mixes loans into that set. A frozen loan's stored due day is the single field most likely to
+   * make "no payments coming up" false, and it was the one thing the prop could not carry.
    */
-  frozenCards: readonly {
-    label: string;
-    frozenSince: string;
-    ownership: 'reader' | 'partner';
-  }[];
+  frozenDues: readonly FrozenNothingDueRow[];
 }) {
   const t = isoDate(today);
   // The disclosure below names rows by exactly these strings, so this is the ONE expression for
@@ -113,7 +116,7 @@ export function PaymentRemindersCard({
     cardDuplicates,
     reminders.map((r) => ({ cardId: r.accountId, label: painted(r) })),
   );
-  const frozenAllClear = frozenNothingDueNote(frozenCards, { nextStep: 'accounts-route' });
+  const frozenAllClear = frozenNothingDueNote(frozenDues, { nextStep: 'accounts-route' });
   return (
     <Card data-testid="payment-reminders-card">
       <CardHeader className="pb-2">
@@ -121,7 +124,14 @@ export function PaymentRemindersCard({
         <CardDescription>
           {reminders.length === 0
             ? undatedCardCount > 0
-              ? `No payments coming up on what we can date — ${undatedCardCount === 1 ? 'one card has' : `${undatedCardCount} cards have`} no due date yet, so ${undatedCardCount === 1 ? 'it isn’t' : 'they aren’t'} included.`
+              ? // TASKS L.19 critic P1-2. The frozen qualifier used to be appended ONLY to the
+                // clean all-clear, so a reader who had both an undatable card AND a frozen account
+                // was told about the first gap and not the second — while the weekly digest, from
+                // the same row set through the same builder, pushed both. Same state, same data,
+                // and the email disclosed what the screen did not. The two gaps are siblings (a
+                // statement that has not arrived YET, and one that can no longer arrive at all),
+                // so they are stated together.
+                `No payments coming up on what we can date — ${undatedCardCount === 1 ? 'one card has' : `${undatedCardCount} cards have`} no due date yet, so ${undatedCardCount === 1 ? 'it isn’t' : 'they aren’t'} included.${frozenAllClear ? ` ${frozenAllClear}` : ''}`
               : // Critic P2-2: the first cut used `??`, which REPLACED the all-clear instead of
                 // qualifying it — leaving "…this covers only what we can still see" with no
                 // antecedent, and never telling the reader the positive half (that nothing is
@@ -202,11 +212,19 @@ export function PaymentRemindersCard({
                             stale skips a mortgage payment. */}
                         {r.obligationType === 'loan'
                           ? frozenLoanNote(
-                              { label: painted(r), frozenSince: r.frozenSince },
                               {
-                                role: 'instruction',
-                                nextStep: owner ? 'partner' : 'accounts-route',
+                                label: painted(r),
+                                frozenSince: r.frozenSince,
+                                // TASKS L.19: until now this call adjusted only the NEXT STEP for a
+                                // partner's loan, while the sentence itself still opened "Your bank"
+                                // and, being an instruction, still ordered the reader to "check it
+                                // with your lender before paying" — over an account they neither own
+                                // nor pay. The card branch below has carried ownership since L.18's
+                                // critic P1-1; the loan branch is now told the same fact and derives
+                                // the subject, the imperative and the remedy from it.
+                                ownership: owner ? 'partner' : 'reader',
                               },
+                              { role: 'instruction', nextStep: 'accounts-route' },
                             )
                           : frozenCardsNote(
                               [

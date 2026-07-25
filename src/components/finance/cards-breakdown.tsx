@@ -195,6 +195,10 @@ export function CardsBreakdown({
                     ownership: accountOwnerLabel[c.cardId]
                       ? ('partner' as const)
                       : ('reader' as const),
+                    // /cards lists cards and nothing else, so this set cannot contain a loan
+                    // (TASKS L.19). The two surfaces whose all-clear covers both are the dashboard
+                    // reminders card and the weekly digest.
+                    kind: 'card' as const,
                   })),
                 { nextStep: 'accounts-route' },
               )

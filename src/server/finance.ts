@@ -7,7 +7,7 @@ import { holidayTable, type ISODate } from '@/lib/dates';
 import { assembleCashNeededInput, netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
 import { mergeSnapshots } from '@/lib/engine/household/merge-snapshot';
-import { selectLoanObligations } from '@/lib/engine/loans/obligations';
+import { type LoanObligation, selectLoanObligations } from '@/lib/engine/loans/obligations';
 import { netWorthSeries } from '@/lib/engine/networth/series';
 import { type PaymentReminder, selectPaymentReminders } from '@/lib/engine/reminders/select';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
@@ -51,6 +51,14 @@ export interface DashboardData {
   netWorthTrend: NetWorthPoint[];
   /** Upcoming card payments this cycle (ROADMAP #6) — derived from the same obligations. */
   reminders: PaymentReminder[];
+  /**
+   * The next LOAN/MORTGAGE payments (#134), already computed here to build `reminders` and now
+   * returned as well (TASKS L.19). `reminders` is WINDOWED, so a frozen loan due outside the window
+   * is absent from it — and the all-clear is precisely the branch where that window is empty. The
+   * dashboard needs the unwindowed set to say which accounts its "you're all caught up" cannot
+   * speak for.
+   */
+  loanObligations: LoanObligation[];
   accounts: { id: string; name: string; type: string; currentBalanceCents: number; mask: string | null }[];
   /** cardId -> last-4 for the /cards identity line (#298). Covers HOUSEHOLD scope too:
    *  built from the merged snapshot the obligations are computed over, not the personal one. */
@@ -513,6 +521,7 @@ export async function getDashboardData(
     netWorthCents: cents(current),
     netWorthTrend,
     reminders,
+    loanObligations,
     accounts,
     scope,
     household,

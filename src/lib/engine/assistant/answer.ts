@@ -782,6 +782,9 @@ export function answerCashNeeded(
           // The assistant reads `getCashNeeded(userId)` at PERSONAL scope — no household merge —
           // so every card here is the asker's own.
           ownership: 'reader' as const,
+          // `CashNeededResult` carries card obligations only; loans reach a surface through
+          // `selectLoanObligations`, which this branch does not read (TASKS L.19).
+          kind: 'card' as const,
         })),
       { nextStep: 'accounts-route' },
     );

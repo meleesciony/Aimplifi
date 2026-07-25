@@ -13,6 +13,11 @@ import {
   CARD_DUPLICATE_TESTID,
   cardDuplicateCalendarView,
 } from '@/lib/engine/account/card-duplicate-view';
+import {
+  FROZEN_CALENDAR_TESTID,
+  type FrozenCalendarRow,
+  frozenCalendarNotice,
+} from '@/lib/engine/account/feed-dropped-view';
 import { addMonthsClamped, formatISODate, formatMonth, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { getCashNeeded } from '@/server/finance';
@@ -36,6 +41,7 @@ export default async function CalendarPage({
   const {
     today,
     snap,
+    input,
     result,
     loanObligations,
     scope,
@@ -59,11 +65,20 @@ export default async function CalendarPage({
   // result.cards already contains every obligation (estimates included);
   // upcoming is a SUBSET of it — spreading both double-counted (cycle-3 H1).
   // loanObligations adds the next LOAN/MORTGAGE payments as their own due events (#134).
+  // Painted ONCE, then used both to build the grid and to name the frozen disclosure below
+  // (TASKS L.19). Two separate applications of `withOwner` would be two expressions for one card's
+  // name, which is the #297/#298 drift this repo keeps paying for: the disclosure would be free to
+  // call an account something the row beside it does not.
+  const paintedCards = result.cards.map((c) => ({ ...c, cardName: withOwner(c.cardId, c.cardName) }));
+  const paintedLoans = loanObligations.map((l) => ({
+    ...l,
+    accountName: withOwner(l.accountId, l.accountName),
+  }));
   const calendar = buildCashFlowCalendar({
     month,
     scheduled: snap.scheduled.map((s) => ({ ...s, description: withOwner(s.accountId, s.description) })),
-    cardObligations: result.cards.map((c) => ({ ...c, cardName: withOwner(c.cardId, c.cardName) })),
-    loanObligations: loanObligations.map((l) => ({ ...l, accountName: withOwner(l.accountId, l.accountName) })),
+    cardObligations: paintedCards,
+    loanObligations: paintedLoans,
   });
 
   // TASKS L.15 (a). Resolved against the card-due events THIS MONTH actually holds, under the exact
@@ -78,6 +93,83 @@ export default async function CalendarPage({
         .filter((e) => e.kind === 'card-due' && e.accountId !== undefined)
         .map((e) => ({ cardId: e.accountId!, label: e.label })),
     ),
+  );
+
+  // TASKS L.19 — the frozen-account disclosure, resolved against the due events THIS MONTH actually
+  // paints, exactly as the duplicate view above is. An obligation whose effective due date falls in
+  // another month emits no event, so naming it here would qualify a row the reader cannot find.
+  //
+  // `frozenSince` is looked up per ACCOUNT (it is a fact about the connection), while `isEstimated`
+  // is read off the EVENT — a card can hold both a current statement and a next-cycle estimate, and
+  // the claim must describe the amount actually printed on this row, not the account's other one.
+  const frozenCardSource = new Map(
+    paintedCards.filter((c) => c.frozenSince != null).map((c) => [c.cardId, c] as const),
+  );
+  const frozenLoanSource = new Map(
+    paintedLoans.filter((l) => l.frozenSince != null).map((l) => [l.accountId, l] as const),
+  );
+  const frozen = frozenCalendarNotice(
+    calendar.days
+      .flatMap((d) => d.events)
+      .flatMap((e): FrozenCalendarRow[] => {
+        if (e.accountId === undefined) return [];
+        const card = e.kind === 'card-due' ? frozenCardSource.get(e.accountId) : undefined;
+        const loan = e.kind === 'loan-due' ? frozenLoanSource.get(e.accountId) : undefined;
+        if (card) {
+          return [
+            {
+              accountId: e.accountId,
+              label: card.cardName,
+              frozenSince: card.frozenSince as string,
+              ownership: (accountOwnerLabel[e.accountId] ? 'partner' : 'reader') as
+                | 'partner'
+                | 'reader',
+              kind: 'card' as const,
+              isEstimated: e.isEstimated ?? false,
+            },
+          ];
+        }
+        if (loan) {
+          return [
+            {
+              accountId: e.accountId,
+              label: loan.accountName,
+              frozenSince: loan.frozenSince as string,
+              ownership: (accountOwnerLabel[e.accountId] ? 'partner' : 'reader') as
+                | 'partner'
+                | 'reader',
+              kind: 'loan' as const,
+              // A loan's payment is a stored fixed amount the bank sent, never an estimate we
+              // derived — `LoanObligation.isEstimated` is always false for the same reason.
+              isEstimated: false,
+            },
+          ];
+        }
+        return [];
+      }),
+    {
+      nextStep: 'accounts-route',
+      // TASKS L.19 critic P1-1. This page prints one dated instruction that no due row accounts
+      // for — the "Projected low … transfer $X by DATE to stay covered" line below — and it is
+      // walked forward from the funding balance. With every card and loan live but that balance
+      // frozen, the notice used to render nothing at all, and the quiet direction is the costly
+      // one: a balance frozen HIGH produces no dip line and reassures the reader into doing nothing.
+      funding: result.fundingFrozen
+        ? // The engine deliberately does not carry the funding account's NAME on its result (a
+          // disclosure must name the row as the reader's own surface names it), and this page
+          // prints no label of its own for it — so the name comes from the very input the
+          // projection was computed from, which is the same row /accounts lists.
+          { label: input.paymentAccount.name, frozenSince: result.fundingFrozen.frozenSince }
+        : null,
+      // Read from what this run actually rendered, never from a status enum — the dip paragraph
+      // below is gated on exactly these two fields.
+      shows:
+        result.headline.shortfallDate && result.headline.recommendation
+          ? 'a-transfer'
+          : result.headline.shortfallDate
+            ? 'a-dip'
+            : 'no-dip',
+    },
   );
 
   const prev = addMonthsClamped(isoDate(`${month}-01`), -1).slice(0, 7);
@@ -158,6 +250,31 @@ export default async function CalendarPage({
                 </Link>
                 .
               </p>
+            </div>
+          )}
+          {frozen && (
+            // TASKS L.19. Same placement and the same reasoning as the duplicate banner directly
+            // above: over the grid it qualifies, under the summary line whose money-out total and
+            // payment count it names. This page's rows ARE instructions ("pay this much on this
+            // day"), which is why the builder is called with role 'instruction' — but the page
+            // itself hands out no transfer, so this is not role="alert" either.
+            <div
+              className="mb-3 rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-sm"
+              data-testid={FROZEN_CALENDAR_TESTID}
+            >
+              <p className="font-medium">{frozen.title}</p>
+              <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                {frozen.lines.map((line, i) => (
+                  // Index key, not the line itself (critic P2-2): two accounts that paint
+                  // identically once produced two byte-identical lines and therefore duplicate
+                  // React keys. The builder now collapses that case, and the key no longer
+                  // depends on the strings being distinct.
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+              {frozen.totalNote && (
+                <p className="mt-1 text-xs text-muted-foreground">{frozen.totalNote}</p>
+              )}
             </div>
           )}
           {eventDays.length === 0 ? (

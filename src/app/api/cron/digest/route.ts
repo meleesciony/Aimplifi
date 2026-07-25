@@ -36,6 +36,7 @@ import { receiptsFromOpportunities } from '@/lib/engine/receipts/receipts';
 import { getValueReceiptsSummary, recordReceipts } from '@/server/receipts';
 import { emailProviderConfigured, sendEmail } from '@/lib/email';
 import { checkCronBearer } from '@/lib/cron-auth';
+import { frozenNothingDueRows } from '@/lib/engine/account/feed-dropped-view';
 
 /** Upcoming-dues window for the digest (days). */
 const DIGEST_WINDOW_DAYS = 7;
@@ -152,18 +153,17 @@ export async function GET(request: NextRequest) {
         // deleted, and an email carries no control to correct itself (the L.15 cron rule). EVERY
         // frozen card, not just the due ones: the branch that reads this is the "nothing due" line,
         // whose claim covers cards that produced no due at all.
-        frozenCards: [...result.cards, ...result.unknownDueDateCards]
-          .filter((c) => c.frozenSince != null)
-          .map((c) => ({
-            label: c.cardName,
-            frozenSince: c.frozenSince as string,
-            // The joint digest reads a HOUSEHOLD-scoped result, so a card here may be a partner's
-            // shared one — "your bank" and "open Aimplifi to fix it" are both false of it, in a
-            // channel that cannot correct itself (critic P1-2). Same map the dues bullets use.
-            ownership: (household?.partnerAccountLabels[c.cardId] ? 'partner' : 'reader') as
-              | 'partner'
-              | 'reader',
-          })),
+        // TASKS L.19: LOANS join the set. This branch's claim is about `reminders`, and
+        // `selectPaymentReminders` mixes loans into it — a frozen mortgage's stored due day is the
+        // field the bank stopped confirming, so it is the likeliest reason "a clear week ahead" is
+        // wrong. The row-building itself moved into the engine so the dashboard and this cron
+        // cannot drift apart again; the ownership map stays here because only the caller knows
+        // whose scope it read. Same map the dues bullets use (critic P1-2).
+        frozenDues: frozenNothingDueRows({
+          cards: [...result.cards, ...result.unknownDueDateCards],
+          loans: loanObligations,
+          partnerLabel: household?.partnerAccountLabels ?? {},
+        }),
       });
 
       let sent = false;

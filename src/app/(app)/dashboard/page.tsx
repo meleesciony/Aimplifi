@@ -38,6 +38,7 @@ import { buildNudgeFeed } from '@/lib/engine/nudge/select';
 import { getReports } from '@/server/reports';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { getSpendingTrends } from '@/server/trends';
+import { frozenNothingDueRows } from '@/lib/engine/account/feed-dropped-view';
 
 export const metadata = { title: "Dashboard" };
 
@@ -263,18 +264,16 @@ export default async function DashboardPage({
         cardIdentity={cardIdentity}
         // TASKS L.18: detected per render from the live column on the same result the reminders
         // came from — every frozen card, because the branch that reads it is the all-clear.
-        frozenCards={[...data.payInFull.cards, ...data.payInFull.unknownDueDateCards]
-          .filter((c) => c.frozenSince != null)
-          .map((c) => ({
-            label: c.cardName,
-            frozenSince: c.frozenSince as string,
-            // At household scope `payInFull` is the MERGED result, so a shared card here may be a
-            // partner's — and the reader can neither reconnect it nor is the one paying it
-            // (critic P1-2).
-            ownership: (data.accountOwnerLabel[c.cardId] ? 'partner' : 'reader') as
-              | 'partner'
-              | 'reader',
-          }))}
+        // TASKS L.19: loans join the set, and the row-building moved into the engine — this prop
+        // and the weekly digest's were near-identical copies, which is how one gap (no loan could
+        // ever reach an all-clear qualifier) opened in two places at once. At household scope
+        // `payInFull` is the MERGED result, so a row here may be a partner's: the reader can
+        // neither reconnect it nor is the one paying it (critic P1-2).
+        frozenDues={frozenNothingDueRows({
+          cards: [...data.payInFull.cards, ...data.payInFull.unknownDueDateCards],
+          loans: data.loanObligations,
+          partnerLabel: data.accountOwnerLabel,
+        })}
       />
     </div>
   );

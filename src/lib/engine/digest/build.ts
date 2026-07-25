@@ -25,6 +25,7 @@ import {
   cardDuplicateEmailLines,
 } from '@/lib/engine/account/card-duplicate-view';
 import {
+  type FrozenNothingDueRow,
   frozenDuesEmailLines,
   frozenNothingDueNote,
 } from '@/lib/engine/account/feed-dropped-view';
@@ -97,7 +98,7 @@ export function buildWeeklyDigest(input: {
   cardDuplicates?: readonly CardDuplicatePairInput[];
   /**
    * Every card of the recipient's the bank has stopped sharing (TASKS L.18) — dated or not, due or
-   * not. Used ONLY by the "nothing due" branch, which is a positive money claim this email cannot
+   * not — cards AND loans (widened from cards-only in TASKS L.19). Used ONLY by the "nothing due" branch, which is a positive money claim this email cannot
    * come back and correct: a frozen card is precisely a card whose new statement could not have
    * reached us, so "a clear week ahead" may be describing a card we can no longer see.
    *
@@ -108,11 +109,14 @@ export function buildWeeklyDigest(input: {
    * REQUIRED, and the only required field on this input: an optional one would silently restore the
    * unqualified all-clear, which is the defect.
    */
-  frozenCards: readonly {
-    label: string;
-    frozenSince: string;
-    ownership: 'reader' | 'partner';
-  }[];
+  /**
+   * TASKS L.19 — `FrozenNothingDueRow` rather than a structural copy, and built by the engine's own
+   * `frozenNothingDueRows`. Its `kind` is what this branch was missing: `selectPaymentReminders`
+   * mixes LOANS into the very list the all-clear claims is empty, and a frozen loan's stored due
+   * day is the field the bank stopped confirming — the likeliest reason "a clear week ahead" is
+   * wrong, and the one kind of row the old `frozenCards` name and shape could not carry.
+   */
+  frozenDues: readonly FrozenNothingDueRow[];
 }): WeeklyDigest | null {
   const {
     review,
@@ -122,7 +126,7 @@ export function buildWeeklyDigest(input: {
     household,
     undatedCardCount = 0,
     cardDuplicates = [],
-    frozenCards,
+    frozenDues,
   } = input;
   if (!review && reminders.length === 0) return null;
 
@@ -146,7 +150,7 @@ export function buildWeeklyDigest(input: {
     // TASKS L.18 — the all-clear this email cannot take back. Beside the undated-card qualifier
     // because it is the same kind of gap through a different door: that one is a statement that has
     // not arrived yet, this one is a statement that can no longer arrive at all.
-    const clearWeekNote = frozenNothingDueNote(frozenCards, { nextStep: 'open-app' });
+    const clearWeekNote = frozenNothingDueNote(frozenDues, { nextStep: 'open-app' });
     if (clearWeekNote) parts.push(clearWeekNote);
   } else {
     for (const r of reminders) {
