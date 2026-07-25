@@ -4886,3 +4886,7 @@ FAIL-OLD proven (20 assertions fail against the stashed pre-change source). Empt
 UNVERIFIED against live Plaid — no credentials here; every request shape runs against a mocked
 Plaid server, and the Link window itself cannot be browser-tested.
 NEXT: L.15 (the six surfaces that still render a duplicated obligation silently) or L.16.
+SHIPPED LIVE: ba5a222; dpl_3n1FCpGfrTCccnw1AipjwwDQWAXP, aliased www.aimplifi.app. Three-way
+byte check, each md5 stable across 3 repeat fetches: www == the ba5a222 deployment and != the
+previous one. No public marker to grep — the connect flow is auth-gated and the notice renders
+only after a real Link session — so the evidence is the byte identity plus the local gate.
