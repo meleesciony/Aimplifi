@@ -59,6 +59,14 @@ only if those figures actually move — which also silenced a note that had been
 dip date under a header reading "Clear". Locked by a real-engine abstention suite: the pure-builder
 test hand-built its row list, so it could never have caught a wiring bug.
 
+**SHIPPED LIVE: `0a496e0`** — deployment `aimplifi-vvikbc0sf-reiforge.vercel.app`, Ready, aliased
+`www.aimplifi.app`. Verified by a marker unique to this change rather than a status code: the
+same-name sentence "Two entries are both named" (introduced by the critic-F1 fix, absent from
+`cc6de58`) is present in the chunk `www.aimplifi.app` serves, and that chunk's md5
+(`892c86100b352c6fb5165a86b9ee3480`) is byte-identical to the new deployment's, so the alias is
+pointing at this build and not the previous one. **No schema change**, so the live Neon database was
+untouched by this deploy.
+
 **Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **4078 unit / 268 files** / build clean.
 E2E 28/28 across ask / notifications / cash-needed / glass-box, plus a new calendar-disclosure spec;
 `duplicate-connections` 8/8 serialized. No schema change. DECISIONS #300; five REGRESSION_LEDGER
