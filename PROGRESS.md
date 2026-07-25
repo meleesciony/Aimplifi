@@ -5015,3 +5015,17 @@ emails + web push, and /coach all still print figures derived from a frozen bala
 GATE: verify.sh GREEN — tsc 0 / eslint 0 / 4148 unit / 272 files / build clean. New e2e 2/2.
 This slice does NOT claim a critic pass. It is a strict improvement on main with 4 P1s named.
 NEXT: L.18 (the four silent surfaces), then L.16.
+
+## L.14 — the verified deploy. 2026-07-25
+SHIPPED LIVE. Two deployments, and the distinction matters for what is actually true in prod:
+ - `5v610g1z8` (a16f9e4, THE CODE) applied the schema: "Your database is now in sync with your
+   Prisma schema. Done in 473ms" against ep-proud-sound-atpgfoct — so `Account.feedDroppedAt`
+   EXISTS in the Neon production database. "Deployment completed".
+ - `acvtwpan6` (7a6f50c, docs only) built after it, found "The database is already in sync with
+   the Prisma schema", and is the one ALIASED to www.aimplifi.app.
+Three-way byte check on /sign-in, stable across 3 repeat fetches: www == acvtwpan6
+(61dec53bdb7bbe51f5ce72fefedb149d) and != the previous deployment (85e4c0f2da381ed7ed4f2855b65ed3e3).
+No public marker to grep — the banner and the row note render only for a signed-in user who has a
+frozen account — so the evidence is byte identity plus the local gate, the same standard as L.17.
+LESSON WRITTEN: docs/lessons/failure-direction-is-per-role-not-per-value.md (+ INDEX).
+NEXT: L.18 (the four surfaces still printing a frozen figure unqualified), then L.16.
