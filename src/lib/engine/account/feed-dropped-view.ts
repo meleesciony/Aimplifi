@@ -470,6 +470,12 @@ export interface FrozenNothingDueRow {
    *    until L.20 loans had no equivalent, so this was the one row that could reach no surface.
    */
   readonly kind: 'card' | 'loan' | 'undatable-loan';
+  /**
+   * For `undatable-loan` only: WHICH field is absent (L.20 critic cycle, finding B-2). Null on the
+   * other two kinds, which are undated for no such reason. See `UndatableFrozenLoan.missing` — the
+   * sentence was wrong about this on the commonest shape a bank actually sends.
+   */
+  readonly missing: 'due-day' | 'payment' | 'both' | null;
 }
 
 /**
@@ -512,6 +518,8 @@ export function frozenNothingDueRows(params: {
     readonly accountId: string;
     readonly accountName: string;
     readonly frozenSince: string | null;
+    /** WHICH field is absent — see `UndatableFrozenLoan.missing` (L.20 critic cycle, B-2). */
+    readonly missing: 'due-day' | 'payment' | 'both';
   }[];
   /** accountId → owning partner's display name. Absent ⇒ the reader's own. At household scope the
    *  result is MERGED, so a row here may belong to someone who cannot be addressed in the second
@@ -525,6 +533,7 @@ export function frozenNothingDueRows(params: {
     label: string,
     frozenSince: string | null,
     kind: 'card' | 'loan' | 'undatable-loan',
+    missing: FrozenNothingDueRow['missing'] = null,
   ) => {
     // Keyed by KIND and id, not id alone (critic P2-3). A CREDIT account cannot also be
     // LOAN/MORTGAGE today, so a collision is latent rather than live — but the failure mode of a
@@ -544,31 +553,61 @@ export function frozenNothingDueRows(params: {
       frozenSince,
       ownership: params.partnerLabel[id] ? 'partner' : 'reader',
       kind,
+      missing,
     });
   };
   for (const c of params.cards) push(c.cardId, c.cardName, c.frozenSince, 'card');
   for (const l of params.loans) push(l.accountId, l.accountName, l.frozenSince, 'loan');
   for (const l of params.undatableLoans ?? []) {
-    push(l.accountId, l.accountName, l.frozenSince, 'undatable-loan');
+    push(l.accountId, l.accountName, l.frozenSince, 'undatable-loan', l.missing);
   }
   return out;
 }
 
-/** Fixed grouping order, so the sentence never depends on the order rows arrived in. */
-const FROZEN_DUE_KINDS = ['card', 'loan', 'undatable-loan'] as const;
+/**
+ * Fixed grouping order, so the sentence never depends on the order rows arrived in.
+ *
+ * The undatable kind is split by WHICH field is missing (L.20 critic cycle, finding B-2): rows that
+ * disagree about that cannot share a clause, any more than a card and a loan can share one.
+ */
+const FROZEN_DUE_GROUPS = [
+  { kind: 'card', missing: null },
+  { kind: 'loan', missing: null },
+  { kind: 'undatable-loan', missing: 'both' },
+  { kind: 'undatable-loan', missing: 'due-day' },
+  { kind: 'undatable-loan', missing: 'payment' },
+] as const satisfies readonly {
+  kind: FrozenNothingDueRow['kind'];
+  missing: FrozenNothingDueRow['missing'];
+}[];
 
 /**
- * The mechanism clause per kind — WHY this account's absence from the list is unreliable.
+ * The mechanism clause — WHY this account's absence from the list is unreliable.
  *
- * Three mechanisms, three sentences, because each names a different thing that stopped: a card's
- * statement, a loan's stored payment-and-due-day, and — for an undatable loan — a due date that
- * was never there to go stale. The last one is the only branch that must also say the gap cannot
- * close on its own: the other two describe a figure we hold and cannot refresh, while this one
- * describes a figure we do not hold at all, and a reader who assumes it will appear next cycle
- * misses a mortgage payment (TASKS L.20).
+ * Five clauses, because each names a different thing that stopped: a card's statement, a loan's
+ * stored payment-and-due-day, and — for an undatable loan — the field that was never there to go
+ * stale, which is a different field in each of the three cases a bank can leave us in. The
+ * undatable branches are the only ones that must also say the gap cannot close on its own: the
+ * other two describe a figure we hold and cannot refresh, while these describe a figure we do not
+ * hold at all, and a reader who assumes it will appear next cycle misses a mortgage payment.
+ *
+ * Two corrections from the L.20 critic cycle, both in the undatable wording:
+ *
+ *  · it said "we have no due date **or** payment amount" about every undatable row, which is false
+ *    whenever only one is absent — and one-absent is the COMMON shape, since a bank that reports a
+ *    loan without `next_payment_due_date` still sends the payment, and the app prints that payment
+ *    on /accounts while this sentence denied holding it (finding B-2);
+ *  · it said the row "is not counted **here**" — the positional word this very builder had
+ *    "N of the cards here" removed from it in L.19, for the same reason: every caller is inside an
+ *    all-clear branch that lists nothing, and one of them is an EMAIL. The set is named outright
+ *    instead (findings A-5 / B-10b).
+ *
+ * The closing clause states NECESSITY without sufficiency (finding A-6): while the account is not
+ * being shared, no due date can arrive — not that reconnecting will produce one. A live loan can be
+ * undatable too, which is why the two cases have separate sentences and separate remedies.
  */
 const FROZEN_DUE_MECHANISM: Record<
-  FrozenNothingDueRow['kind'],
+  string,
   { readonly noun: string; readonly one: string; readonly many: string }
 > = {
   card: {
@@ -581,12 +620,27 @@ const FROZEN_DUE_MECHANISM: Record<
     one: 'so a change to its payment or due date since would not have reached us',
     many: 'so a change to a payment or due date on any of them since would not have reached us',
   },
-  'undatable-loan': {
+  'undatable-loan:both': {
     noun: 'loans',
-    one: 'and we have no due date or payment amount for it, so it is not counted here at all, and none can reach us until that is fixed',
-    many: 'and we have no due date or payment amount for any of them, so they are not counted here at all, and none can reach us until that is fixed',
+    one: 'and we hold no due date and no payment amount for it, so it is in no payment list at all — and neither can arrive while the account is not being shared',
+    many: 'and we hold no due date and no payment amount for any of them, so they are in no payment list at all — and neither can arrive while the accounts are not being shared',
+  },
+  'undatable-loan:due-day': {
+    noun: 'loans',
+    one: 'and we hold no due date for it, so it is in no payment list at all — and one cannot arrive while the account is not being shared',
+    many: 'and we hold no due date for any of them, so they are in no payment list at all — and one cannot arrive while the accounts are not being shared',
+  },
+  'undatable-loan:payment': {
+    noun: 'loans',
+    one: 'and we hold no payment amount for it, so it is in no payment list at all — and one cannot arrive while the account is not being shared',
+    many: 'and we hold no payment amount for any of them, so they are in no payment list at all — and one cannot arrive while the accounts are not being shared',
   },
 };
+
+/** The mechanism key for a row: the kind, plus which field is missing where that differs. */
+function mechanismKey(r: FrozenNothingDueRow): string {
+  return r.kind === 'undatable-loan' ? `${r.kind}:${r.missing ?? 'both'}` : r.kind;
+}
 
 export function frozenNothingDueNote(
   /** Label, date, ownership and kind: nothing about the estimate path or an account id changes an
@@ -599,9 +653,9 @@ export function frozenNothingDueNote(
   // Split by KIND before ownership: the two claims are about different mechanisms, so they can
   // never share a sentence, and each resulting single-kind list then splits by ownership exactly
   // as before. Cards first, deterministically — the order must not depend on input order.
-  const groups = FROZEN_DUE_KINDS.map((k) => rows.filter((r) => r.kind === k)).filter(
-    (g) => g.length > 0,
-  );
+  const groups = FROZEN_DUE_GROUPS.map((g) =>
+    rows.filter((r) => r.kind === g.kind && (g.missing === null || r.missing === g.missing)),
+  ).filter((g) => g.length > 0);
   if (groups.length > 1) {
     return joinClaims(groups.map((g) => frozenNothingDueNote(g, opts)));
   }
@@ -615,7 +669,7 @@ export function frozenNothingDueNote(
   const owners = rows.map((r) => r.ownership);
   const tail = nextStepClause(resolveStep(owners, opts.nextStep), rows.length > 1);
   const opener = stoppedSharing(rows.length, owners);
-  const kind = rows[0].kind;
+  const kind = mechanismKey(rows[0]);
   if (rows.length === 1) {
     const mechanism = FROZEN_DUE_MECHANISM[kind].one;
     return `${opener} ${renderSafe(rows[0].label)} on ${formatISODate(
@@ -731,6 +785,13 @@ export const FROZEN_FEED_TESTID = 'today-feed-frozen';
  * an unrelated opportunity can sit at the top of an otherwise quiet feed; "an empty feed here"
  * would then be false on the page it was written for.
  *
+ * For the same reason the closing clause is CONDITIONAL rather than positional (L.20 critic cycle,
+ * finding B-10a). It used to read "the absence of a warning here", and "here" is a claim about the
+ * reader's position that this builder cannot make: the paragraph renders directly beneath whatever
+ * headline the feed has, which on the slice's own fixture is a payment due — a warning, sitting
+ * immediately above a sentence about the absence of one. "If neither has flagged a problem" is
+ * true whether or not something else is on screen, and it is still about the silence that matters.
+ *
  * The direction is the one that costs money, stated plainly: a balance frozen HIGH produces no
  * shortfall and no dip, so the silence the reader is being reassured by is manufactured by the
  * missing data itself.
@@ -744,7 +805,7 @@ export function frozenNoWarningNote(
   )} has not updated since ${formatISODate(
     funding.frozenSince as ISODate,
     'long',
-  )}, because your bank stopped sharing that account. Whether you are short for the cards due, and whether cash dips below $0, are both worked out from that balance — so the absence of a warning here is not evidence that the account is covered.${nextStepClause(
+  )}, because your bank stopped sharing that account. Whether you are short for the cards due, and whether cash dips below $0, are both worked out from that balance — so if neither has flagged a problem, that silence rests on a figure we cannot refresh rather than on a confirmed cushion.${nextStepClause(
     opts.nextStep,
     false,
   )}`;

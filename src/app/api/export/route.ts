@@ -10,7 +10,7 @@ import { getDashboardData } from '@/server/finance';
 import { netWorthReportPdf, netWorthToCsv, transactionsToCsv } from '@/lib/export';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
-import { getReconciliationTxnKeep } from '@/server/reconciliation';
+import { activeSupersededPredecessorIds, getReconciliationTxnKeep } from '@/server/reconciliation';
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -82,6 +82,12 @@ export async function GET(request: NextRequest) {
       asOf: data.today,
       netWorthCents: data.netWorthCents,
       accounts: data.accounts,
+      // L.20 critic cycle, finding A-1. `data.accounts` is `snap.accounts` mapped verbatim, with
+      // no superseded filter, so a reconciliation predecessor reaches this report at the $0.00
+      // the assembler zeroed it to — and the frozen note would then swear that $0.00 is "still
+      // counted" in the totals. Resolved here rather than in `getDashboardData` because the
+      // dashboard's own consumers of that payload want the unfiltered list.
+      supersededAccountIds: [...(await activeSupersededPredecessorIds([userId]))],
       trend: data.netWorthTrend,
     });
     await auditLog(userId, 'export.net-worth.pdf', {});

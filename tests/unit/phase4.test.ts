@@ -206,11 +206,13 @@ describe('PDF export', () => {
       asOf: '2026-06-10',
       netWorthCents: cents(14480474),
       accounts: seed.accounts.map((a) => ({
+        id: a.id,
         name: a.name,
         type: a.type,
         currentBalanceCents: a.currentBalanceCents,
         feedDroppedAt: null,
       })),
+      supersededAccountIds: [],
       trend: [{ date: '2026-05-31', netWorthCents: 14300000 }, { date: '2026-06-10', netWorthCents: 14480474 }],
     });
     const header = String.fromCharCode(...bytes.slice(0, 5));

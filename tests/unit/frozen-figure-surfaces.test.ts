@@ -428,8 +428,8 @@ describe('/cards — the page’s per-row note and its one instruction', () => {
     // rule is to say they cannot be told apart, never to manufacture an identifier.
     const note = frozenNothingDueNote(
       [
-        { label: 'CREDIT CARD', frozenSince: DROPPED, ownership: 'reader', kind: 'card' as const },
-        { label: 'CREDIT CARD', frozenSince: DROPPED, ownership: 'reader', kind: 'card' as const },
+        { label: 'CREDIT CARD', frozenSince: DROPPED, ownership: 'reader', kind: 'card' as const, missing: null },
+        { label: 'CREDIT CARD', frozenSince: DROPPED, ownership: 'reader', kind: 'card' as const, missing: null },
       ],
       { nextStep: 'accounts-route' },
     ) as string;
@@ -1233,12 +1233,14 @@ describe('L.19 — the all-clear can finally speak about a loan, and names no se
     frozenSince: DROPPED,
     ownership: 'reader' as const,
     kind: 'loan' as const,
+    missing: null,
   };
   const readerCard = {
     label: 'Chase Sapphire',
     frozenSince: DROPPED,
     ownership: 'reader' as const,
     kind: 'card' as const,
+    missing: null,
   };
 
   it('a frozen loan all-clear names the payment and due date, never a statement', () => {
@@ -1664,8 +1666,8 @@ describe('L.19 critic P2-1 — an all-clear does not repeat its remedy once per 
   it('states the coverage caveat and the remedy ONCE across a card and a loan', () => {
     const note = frozenNothingDueNote(
       [
-        { label: 'Chase Sapphire', frozenSince: DROPPED, ownership: 'reader', kind: 'card' },
-        { label: 'Toyota Auto Loan', frozenSince: DROPPED, ownership: 'reader', kind: 'loan' },
+        { label: 'Chase Sapphire', frozenSince: DROPPED, ownership: 'reader', kind: 'card', missing: null },
+        { label: 'Toyota Auto Loan', frozenSince: DROPPED, ownership: 'reader', kind: 'loan', missing: null },
       ],
       { nextStep: 'accounts-route' },
     ) as string;
@@ -1684,8 +1686,8 @@ describe('L.19 critic P2-1 — an all-clear does not repeat its remedy once per 
     // told only that somebody else could fix somebody else's account.
     const note = frozenNothingDueNote(
       [
-        { label: 'Chase Sapphire', frozenSince: DROPPED, ownership: 'reader', kind: 'card' },
-        { label: 'Sam Amex', frozenSince: DROPPED, ownership: 'partner', kind: 'card' },
+        { label: 'Chase Sapphire', frozenSince: DROPPED, ownership: 'reader', kind: 'card', missing: null },
+        { label: 'Sam Amex', frozenSince: DROPPED, ownership: 'partner', kind: 'card', missing: null },
       ],
       { nextStep: 'open-app' },
     ) as string;
@@ -1790,7 +1792,7 @@ describe('L.19 critic cycle 1 — P1-2 and P2-3', () => {
     // other — while the weekly digest, from the same rows through the same builder, said both.
     // Locked here at the builder level; the card renders exactly this string.
     const note = frozenNothingDueNote(
-      [{ label: 'Home Mortgage', frozenSince: DROPPED, ownership: 'reader', kind: 'loan' }],
+      [{ label: 'Home Mortgage', frozenSince: DROPPED, ownership: 'reader', kind: 'loan', missing: null }],
       { nextStep: 'accounts-route' },
     );
     expect(note).not.toBeNull();

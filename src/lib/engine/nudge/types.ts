@@ -16,7 +16,10 @@ import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { Opportunity, OpportunityKind } from '@/lib/engine/fi/insights';
 import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
 import type { IncomePauseState, PauseCadence } from '@/lib/engine/income/pause';
-import type { FrozenFundingFigure } from '@/lib/engine/account/feed-dropped-view';
+import type {
+  FrozenFundingFigure,
+  FrozenNothingDueRow,
+} from '@/lib/engine/account/feed-dropped-view';
 
 /** Suppression tiers, most urgent first. HANDLED is quiet autopay reassurance. */
 export type ProposalTier = 'critical' | 'action' | 'opportunity' | 'handled';
@@ -139,6 +142,18 @@ export interface NudgeInput {
    * the cost of forgetting it here is a frozen-balance instruction that says nothing.
    */
   paymentAccountName: string;
+  /**
+   * The frozen rows an all-clear on THIS feed cannot speak for (L.20 critic cycle, finding C-1).
+   *
+   * L.20 taught this feed to disclose a frozen FUNDING balance and nothing else, so a frozen card,
+   * a frozen dated loan, or L.20's own undatable frozen mortgage still produced a bare "Nothing
+   * needs you today." at the top of the page — while the reminders card directly below it
+   * qualified the very same all-clear. The list is the one `frozenNothingDueRows` already builds
+   * for that card; the dashboard hands both surfaces the same rows.
+   *
+   * REQUIRED, on this file's standing rule: a defaulted disclosure argument fails silent.
+   */
+  frozenDues: readonly FrozenNothingDueRow[];
   opportunities: readonly Opportunity[];
   /**
    * Per-merchant median+MAD outliers from `detectUnusualCharges` (#249). Optional so
@@ -183,8 +198,16 @@ export interface NudgeFeed {
   rest: Proposal[];
   /** headline + rest in one canonical-ordered array. */
   ordered: Proposal[];
-  /** Set when there is no headline (nothing needs the user today). */
-  emptyReason: string | null;
+  /**
+   * The all-clear sentence, with every qualifier this feed owes it already composed in — the
+   * undated cards carrying a balance, and the frozen rows it cannot speak for.
+   *
+   * ALWAYS a string (L.20 critic cycle, finding C-2). It used to be null whenever the engine found
+   * a headline, which left the client with a bare literal to fall back on when its own
+   * session-dismiss filter emptied the feed — and that literal knew none of the qualifiers. The
+   * engine composes the sentence; the surface decides whether it is shown.
+   */
+  emptyReason: string;
   /**
    * The frozen funding balance NO proposal on this feed accounts for (TASKS L.20) — null when the
    * balance is live, and null when a proposal in `ordered` already carries the same fact.

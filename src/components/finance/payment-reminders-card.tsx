@@ -117,6 +117,19 @@ export function PaymentRemindersCard({
     reminders.map((r) => ({ cardId: r.accountId, label: painted(r) })),
   );
   const frozenAllClear = frozenNothingDueNote(frozenDues, { nextStep: 'accounts-route' });
+  // L.20 critic cycle, found independently by all three critics. `frozenAllClear` above was
+  // interpolated ONLY into the two `reminders.length === 0` branches — which is right for a frozen
+  // CARD or a frozen dated LOAN, because those appear in this list when something is due and each
+  // row qualifies itself through `frozenSince`. An `undatable-loan` is the one kind that can never
+  // be a reminder — that is the entire premise of the row — so the empty branch was the only place
+  // it was ever spoken, and one unrelated card being due silenced it. The mixed case is the LIKELIER
+  // one, and the cost is a missed mortgage payment. Only that kind is repeated here: the other two
+  // stay resolved against printed bullets, per the standing rule that a claim is resolved against
+  // the set the surface renders.
+  const frozenUndatable = frozenNothingDueNote(
+    frozenDues.filter((r) => r.kind === 'undatable-loan'),
+    { nextStep: 'accounts-route' },
+  );
   return (
     <Card data-testid="payment-reminders-card">
       <CardHeader className="pb-2">
@@ -144,7 +157,7 @@ export function PaymentRemindersCard({
                 undatedCardCount > 0
                   ? ` ${undatedCardCount === 1 ? 'One card is' : `${undatedCardCount} cards are`} not shown — no due date yet.`
                   : ''
-              }`}
+              }${frozenUndatable ? ` ${frozenUndatable}` : ''}`}
         </CardDescription>
       </CardHeader>
       {reminders.length > 0 && (

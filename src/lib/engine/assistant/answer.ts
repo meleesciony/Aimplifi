@@ -785,6 +785,8 @@ export function answerCashNeeded(
           // `CashNeededResult` carries card obligations only; loans reach a surface through
           // `selectLoanObligations`, which this branch does not read (TASKS L.19).
           kind: 'card' as const,
+          // `missing` describes an undatable LOAN's absent field; a card is never one.
+          missing: null,
         })),
       { nextStep: 'accounts-route' },
     );

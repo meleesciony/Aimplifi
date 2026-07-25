@@ -199,6 +199,8 @@ export function CardsBreakdown({
                     // (TASKS L.19). The two surfaces whose all-clear covers both are the dashboard
                     // reminders card and the weekly digest.
                     kind: 'card' as const,
+                    // `missing` describes an undatable LOAN's absent field; a card is never one.
+                    missing: null,
                   })),
                 { nextStep: 'accounts-route' },
               )

@@ -105,6 +105,17 @@ export interface UndatableFrozenLoan {
   accountName: string;
   /** YYYY-MM-DD the bank stopped sharing this loan. Never null here. */
   frozenSince: string;
+  /**
+   * WHICH field is absent (L.20 critic cycle, finding B-2).
+   *
+   * The first cut carried no such flag and the sentence said "we have no due date or payment
+   * amount for it" about every row — false whenever only one of the two is missing, which is the
+   * COMMON shape: a loan reported with a payment but no `next_payment_due_date` is what Plaid
+   * returns for most issuers, and the app displays that payment on /accounts while the sentence
+   * denied holding it. A disclosure whose whole job is precision about what we do and do not hold
+   * may not be wrong about which one it is.
+   */
+  missing: 'due-day' | 'payment' | 'both';
 }
 
 /**
@@ -138,9 +149,16 @@ export function selectUndatableFrozenLoans(params: {
     // The exact negation of the two guards above, so the two lists stay disjoint by construction:
     // a loan is here precisely when it is not there. Written as one condition rather than two
     // `continue`s so that staying in step with `selectLoanObligations` is a single edit.
-    const datable = payment != null && payment > 0 && a.dueDayOfMonth != null;
+    const hasPayment = payment != null && payment > 0;
+    const hasDueDay = a.dueDayOfMonth != null;
+    const datable = hasPayment && hasDueDay;
     if (datable) continue;
-    out.push({ accountId: a.id, accountName: a.name, frozenSince });
+    out.push({
+      accountId: a.id,
+      accountName: a.name,
+      frozenSince,
+      missing: hasPayment ? 'due-day' : hasDueDay ? 'payment' : 'both',
+    });
   }
   return out.sort((x, y) => x.accountName.localeCompare(y.accountName));
 }

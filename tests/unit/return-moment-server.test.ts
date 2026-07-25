@@ -166,6 +166,14 @@ describe('getReturnMoment (integration)', () => {
         ),
       }),
     );
-    expect(m!.radar).toEqual({ kind: 'warning', onDate: '2026-07-15', daysUntil: 6, cardName: 'Amex' });
+    // `frozenStart` rides both radar states (L.20 critic cycle, B-4): this fixture's funding
+    // account is live, so the card qualifies nothing — the abstention half of that finding.
+    expect(m!.radar).toEqual({
+      kind: 'warning',
+      onDate: '2026-07-15',
+      daysUntil: 6,
+      cardName: 'Amex',
+      frozenStart: null,
+    });
   });
 });

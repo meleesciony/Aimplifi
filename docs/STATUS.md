@@ -2,6 +2,96 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-25 (#313) — L.21: the adversarial pass L.20 owed (critic cycle 1 — FAIL, all fixed)
+
+L.20 shipped verified but **without a hostile-critic pass** (the owner redirected mid-slice). This is
+that pass. **Three fresh-context critics ran in parallel** on `3139bfa` with different lenses — copy
+honesty; wiring and narrowings; the silent half — and every finding was **reproduced against the
+real code before it entered a fix**, per the standing rule that a delegated verdict is a hypothesis.
+**Verdict: FAIL — 1 P0 + 8 P1 after dedupe. All fixed and locked.**
+
+**All three critics independently found the same gap.** The `undatable-loan` sentence was
+interpolated only into the `reminders.length === 0` branches of the reminders card and the digest.
+That is right for a frozen card or a dated loan — each appears in the list when something is due and
+qualifies itself — but an undatable loan can **never** be a reminder, which is the row's entire
+premise, so the empty branch was the only place it was ever spoken and one unrelated bill silenced
+it. The mixed case is the likelier one and the cost is a missed mortgage payment. Only that kind is
+repeated in the non-empty branch; the other two stay resolved against printed bullets.
+
+**The deepest finding was a narrowing nobody had listed.** `ReturnMomentRadarInput` is a hand-built
+payload over a closed three-field type — exactly the shape L.20 went hunting for — and it dropped
+`startingBalanceFrozen`, the field L.20 itself had just added. `kind: 'clear'` is precisely
+`firstNegativeDate === null`, which is precisely what a balance frozen HIGH manufactures, so the card
+printed **"Your cash flow looks clear — no shortfall ahead on the horizon"** off a projection blind
+to its own starting account. It renders **only** for a reader returning after more than a week away:
+the population most likely to have had a feed drop while they were gone. Both radar states now carry
+the fact, in opposite directions (on `clear` the silence is the point; on `warning` the dip may come
+sooner and deeper).
+
+**Two false claims in the copy itself.** The sentence said "we have no due date **or** payment amount
+for it" about every undatable row — false whenever only one is absent, and one-absent is the
+**commonest** shape a bank sends: a loan reported with a payment and no due date, whose payment the
+app prints on /accounts. `missing: 'due-day' | 'payment' | 'both'` now rides the row and rows that
+disagree about it cannot share a clause. And it reintroduced the positional **"here"** that L.19 had
+removed from this very builder 45 lines above, on a builder one of whose callers is an **email**.
+The closing clause was also rewritten to state necessity without sufficiency: while the account is
+unshared no due date can arrive — not that reconnecting will produce one, which is false for a loan
+the bank simply never dates.
+
+**Three defects in the PDF — the one artifact that cannot correct itself.** (1) Its frozen
+disclosure was **clipped off the right edge**: measured **861.6pt against 516pt** of usable width, so
+the scope clause and the entire remedy never rendered and the visible half ended mid-word on "still
+co". `pdf-lib` does not wrap and `draw()` passed no width. Extracting the copy for testability had
+moved the assertion one layer *away* from the artifact — layout is the only failure mode unique to a
+PDF, and it was the only one untested. (2) A **MORTGAGE printed as a positive number**, so the
+account rows disagreed with the report's own net-worth headline by twice the mortgage; the line
+compared against `CREDIT || LOAN` while `netWorthCents` subtracts all four `LIABILITY_TYPES`, both
+missing types being user-creatable from the manual-account form. (3) A **superseded predecessor** was
+called "still counted in the net worth and trend in this report" three lines under printing it at
+`$0.00` — the identical defect already found, fixed and commented in three other files, missed in the
+fourth.
+
+**Two more, on the Today feed.** `emptyReason` was computed as `headline ? null : …` while the card
+recomputes `headline` client-side over its own session-dismiss filter — so dismissing the last row
+restored a bare "Nothing needs you today." over a card the engine had just said it could not date.
+It is now composed unconditionally: the engine writes the qualified sentence, the surface decides
+whether to show it. And the feed's all-clear knew about undated cards and the frozen funding account
+and **no other frozen row**, while the card below it qualified the same claim — `frozenDues` is now a
+REQUIRED `NudgeInput` field, built once and handed to both surfaces.
+
+**Gate:** `bash scripts/verify.sh` **GREEN** — tsc 0 / eslint 0 / **4280 unit across 274 files** /
+build clean. Full e2e **201/201 serialized** (the parallel run reproduced the documented
+load-induced flake — `settings-dials` corrupted-value, `duplicate-connections`, `reconcile` — and all
+three pass alone). **Fail-old proven** on the mixed-case fix by mutating it out: exactly one test,
+the new one, turns red. **No schema change** — `git diff origin/main..main -- prisma/` is empty.
+DECISIONS #306; eight REGRESSION_LEDGER rows.
+
+### 🟠 STILL OPEN after L.21
+
+1. **The radar, /forecast and /calendar omit an undatable loan from their projections entirely** and
+   say nothing — so the radar's cover transfer ("move $X by DATE"), the app's only instruction naming
+   an amount to move, is understated by that payment every cycle. Deliberately **not** fixed here:
+   it is a pre-existing omission rather than an L.20 regression (an undated loan never entered those
+   walks), and the honest fix is a new disclosure on two more engines plus a fourth mechanism
+   sentence. Same family as item 2 — they belong in one slice.
+2. **A LIVE undatable loan** still reaches no list. Its gap is a different claim with a different
+   remedy (the bank is still talking to us; the field may yet arrive), so folding it into the
+   `undatable-loan` wording would name the wrong mechanism.
+3. **/investments and the debt-payoff path** — figures only; `DebtInput` needs a widened type and
+   `getInvestments` does not select `feedDroppedAt`.
+4. **The CSV exports** — deliberately unchanged. A two-column machine format has no honest slot for
+   prose; whether to add a column or a companion note is a FORMAT decision that belongs with whoever
+   owns the export contract.
+5. Smaller, carried forward: `frozenCardsNote`'s multi-row form says "N of these cards" on a grid
+   that also paints loans; `CardSnapshot.frozenSince` is still optional while `paymentAccount.frozenSince`
+   beside it is required; and the same fact can render up to four times on one dashboard (each
+   instance correct and attached to its own figure, but never checked page-wide).
+   **Corrected here:** L.20's STATUS flagged `frozenFundingNote`/`frozenNoWarningNote` as possibly
+   saying "your bank" about a partner's account. A critic **refuted** that with an executed test —
+   the funding account is always the viewer's own, enforced by an explicit override at household
+   scope. The real residual is narrower: those two builders take no `ownership` argument while every
+   sibling does, so the guarantee lives in a call-site comment rather than in the type.
+
 ## ✅ SHIPPED 2026-07-25 (#312) — L.20: the narrowings that strip the fact, and the loan nobody could name
 
 Three of the five surfaces L.19 left open, taken together because they are **one disease**:

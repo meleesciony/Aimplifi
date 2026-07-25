@@ -73,6 +73,10 @@ export async function getReturnMoment(
       firstNegativeDate: radar.committed.firstNegativeDate,
       daysUntilFirstNegative: radar.daysUntilFirstNegative,
       collidingCardName: radar.collidingCards[0]?.cardName ?? null,
+      // L.20 critic cycle, finding B-4: this payload is a hand-built narrowing over a closed field
+      // set, and it dropped the one field that decides whether "your cash flow looks clear" is a
+      // finding or an artefact of a balance the bank stopped sending.
+      startingBalanceFrozen: radar.startingBalanceFrozen ?? null,
     },
     autoFiledCount,
     priceIncreases,

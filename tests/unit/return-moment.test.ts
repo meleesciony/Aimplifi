@@ -16,7 +16,7 @@ const REVIEW: MoneyReview = {
 };
 
 // A clear radar: no committed dip inside the horizon.
-const CLEAR = { firstNegativeDate: null, daysUntilFirstNegative: null, collidingCardName: null };
+const CLEAR = { firstNegativeDate: null, daysUntilFirstNegative: null, collidingCardName: null, startingBalanceFrozen: null };
 
 function input(over: Partial<ReturnMomentInput> = {}): ReturnMomentInput {
   return {
@@ -54,7 +54,7 @@ describe('buildReturnMoment — composition (verbatim, no new numbers)', () => {
   it('a quiet return is honest: clear radar, zero count, no fabricated highlight beyond the real review', () => {
     const m = buildReturnMoment(input({ daysSinceLastSeen: 9, autoFiledCount: 0, priceIncreases: [] }))!;
     expect(m.daysAway).toBe(9);
-    expect(m.radar).toEqual({ kind: 'clear' });
+    expect(m.radar).toEqual({ kind: 'clear', frozenStart: null });
     expect(m.autoFiledCount).toBe(0);
     expect(m.priceIncreases).toEqual([]);
     expect(m.reviewHighlight).toBe(REVIEW.improvement);
@@ -70,12 +70,12 @@ describe('buildReturnMoment — composition (verbatim, no new numbers)', () => {
         daysSinceLastSeen: 21,
         autoFiledCount: 214,
         priceIncreases,
-        radar: { firstNegativeDate: '2026-07-22' as ISODate, daysUntilFirstNegative: 4, collidingCardName: 'Amex' },
+        radar: { firstNegativeDate: '2026-07-22' as ISODate, daysUntilFirstNegative: 4, collidingCardName: 'Amex', startingBalanceFrozen: null },
       }),
     )!;
     expect(m.daysAway).toBe(21);
     expect(m.autoFiledCount).toBe(214);
-    expect(m.radar).toEqual({ kind: 'warning', onDate: '2026-07-22', daysUntil: 4, cardName: 'Amex' });
+    expect(m.radar).toEqual({ kind: 'warning', onDate: '2026-07-22', daysUntil: 4, cardName: 'Amex', frozenStart: null });
     // Deltas are the exact source cents — not summed, scaled, or reordered.
     expect(m.priceIncreases).toEqual([
       { merchant: 'Netflix', deltaCents: 200 },
@@ -86,10 +86,10 @@ describe('buildReturnMoment — composition (verbatim, no new numbers)', () => {
   it('warning with an unknown colliding card and unknown days-until degrades to nulls, not a guess', () => {
     const m = buildReturnMoment(
       input({
-        radar: { firstNegativeDate: '2026-08-01' as ISODate, daysUntilFirstNegative: null, collidingCardName: null },
+        radar: { firstNegativeDate: '2026-08-01' as ISODate, daysUntilFirstNegative: null, collidingCardName: null, startingBalanceFrozen: null },
       }),
     )!;
-    expect(m.radar).toEqual({ kind: 'warning', onDate: '2026-08-01', daysUntil: null, cardName: null });
+    expect(m.radar).toEqual({ kind: 'warning', onDate: '2026-08-01', daysUntil: null, cardName: null, frozenStart: null });
   });
 
   it('no review yet → null highlight (never invents one)', () => {

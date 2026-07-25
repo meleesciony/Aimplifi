@@ -30,6 +30,7 @@
 import type { ISODate } from '@/lib/dates';
 import type { Cents } from '@/lib/money';
 import type { MoneyReview } from '@/lib/engine/fi/coach-copy';
+import type { FrozenFundingFigure } from '@/lib/engine/account/feed-dropped-view';
 
 /** A gap strictly greater than this many days since the last dashboard view triggers the greeting. */
 export const RETURN_MOMENT_THRESHOLD_DAYS = 7;
@@ -39,6 +40,19 @@ export interface ReturnMomentRadarInput {
   firstNegativeDate: ISODate | null;
   daysUntilFirstNegative: number | null;
   collidingCardName: string | null;
+  /**
+   * The account the projection walks from, when the bank has stopped sending its balance
+   * (L.20 critic cycle, finding B-4) — REQUIRED, because a defaulted disclosure argument fails
+   * silent and this one guards the app's most confident sentence.
+   *
+   * This card is a hand-built payload over a closed three-field type: exactly the NARROWING L.20
+   * went hunting for, and the one nobody named. `kind: 'clear'` is precisely
+   * `firstNegativeDate === null`, which is precisely what a balance frozen HIGH manufactures — so
+   * the card printed "Your cash flow looks clear" off a projection that could not see the account
+   * it was projecting. It renders ONLY for a reader returning after more than a week away, which
+   * is the population most likely to have had a feed drop while they were gone.
+   */
+  startingBalanceFrozen: FrozenFundingFigure | null;
 }
 
 export interface ReturnMomentPriceIncrease {
@@ -57,10 +71,23 @@ export interface ReturnMomentInput {
   priceIncreases: readonly ReturnMomentPriceIncrease[];
 }
 
-/** The radar line, resolved to exactly one of two honest states. */
+/**
+ * The radar line, resolved to exactly one of two honest states — each carrying the frozen starting
+ * balance when there is one, so neither state can state its case without qualifying it.
+ *
+ * On `clear` the qualifier is the point: silence is what a frozen-HIGH balance produces. On
+ * `warning` it still matters, in the other direction — the dip may come sooner and be deeper than
+ * the date shown.
+ */
 export type ReturnMomentRadar =
-  | { kind: 'clear' }
-  | { kind: 'warning'; onDate: ISODate; daysUntil: number | null; cardName: string | null };
+  | { kind: 'clear'; frozenStart: FrozenFundingFigure | null }
+  | {
+      kind: 'warning';
+      onDate: ISODate;
+      daysUntil: number | null;
+      cardName: string | null;
+      frozenStart: FrozenFundingFigure | null;
+    };
 
 export interface ReturnMoment {
   daysAway: number;
@@ -91,8 +118,9 @@ export function buildReturnMoment(input: ReturnMomentInput): ReturnMoment | null
           onDate: input.radar.firstNegativeDate,
           daysUntil: input.radar.daysUntilFirstNegative,
           cardName: input.radar.collidingCardName,
+          frozenStart: input.radar.startingBalanceFrozen,
         }
-      : { kind: 'clear' };
+      : { kind: 'clear', frozenStart: input.radar.startingBalanceFrozen };
 
   return {
     daysAway: daysSinceLastSeen,

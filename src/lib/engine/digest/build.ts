@@ -177,6 +177,15 @@ export function buildWeeklyDigest(input: {
     // so the undated cards have to be named here too — not only when the list is
     // empty. The email is the surface where no in-app panel can correct it.
     if (undatedCardCount > 0) parts.push(COACH_COPY.digestUndatedAlongsideDues(undatedCardCount));
+    // L.20 critic cycle: the same mixed-case gap, in the channel that cannot correct itself. An
+    // `undatable-loan` never appears in `reminders`, so the empty branch above was the only place
+    // it was ever named, and any one bill being due removed it from the email entirely. Only that
+    // kind — a frozen card or dated loan IS in the bullets above and qualifies itself there.
+    const undatableNote = frozenNothingDueNote(
+      frozenDues.filter((r) => r.kind === 'undatable-loan'),
+      { nextStep: 'open-app' },
+    );
+    if (undatableNote) parts.push(undatableNote);
     // TASKS L.15 (c). Inside the `reminders.length > 0` branch by construction: the disclosure
     // names two of the bullets above, so where there are no bullets there is nothing for the
     // reader to attach the two names to, and `resolvePairs` would drop the pair anyway. A

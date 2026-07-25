@@ -184,6 +184,7 @@ function input(over: Partial<NudgeInput> = {}): NudgeInput {
     cashNeeded: null,
     opportunities: [],
     paymentAccountName: 'Everyday Checking',
+    frozenDues: [],
     ...over,
   };
 }
@@ -519,7 +520,10 @@ describe('nudge · criterion 3 · always-escalate floor', () => {
     expect(after.headline!.kind).toBe('cash_flow_dip');
     expect(after.headline!.tier).toBe('critical');
     expect(after.headline!.dismissed).toBe(true);
-    expect(after.emptyReason).toBeNull();
+    // `emptyReason` is now composed unconditionally (L.20 critic cycle, C-2) — it is the sentence
+    // the surface shows IF it ends up with nothing to render, and the surface decides that, not
+    // this engine. With a headline present it is simply unused.
+    expect(after.emptyReason).toBe('Nothing needs you today.');
   });
 });
 
@@ -847,7 +851,13 @@ describe('nudge · undatable cards qualify the empty-feed all-clear (#277 P2)', 
     expect(feed.emptyReason).toBe('Nothing needs you today.');
   });
 
-  it('with a headline present the qualifier is irrelevant — emptyReason stays null', () => {
+  it('with a headline present the qualifier is still COMPOSED — the surface decides, not the engine', () => {
+    // This test used to assert `emptyReason` was null here, on the reasoning that a headline makes
+    // the qualifier irrelevant. The L.20 critic cycle (C-2) falsified that: the card recomputes its
+    // own headline over a session-dismiss filter, so a reader who dismisses the last row sees the
+    // empty state even though the ENGINE found a headline — and the component's literal fallback
+    // knew nothing about the undated card. The qualifier must exist whether or not the engine
+    // expects it to be shown.
     const withHeadline: CashNeededResult = {
       ...cashNeededOf({ shortfallCents: 5000 }),
       unknownDueDateCards: [
@@ -856,7 +866,7 @@ describe('nudge · undatable cards qualify the empty-feed all-clear (#277 P2)', 
     };
     const feed = buildNudgeFeed(input({ cashNeeded: withHeadline }));
     expect(feed.headline).not.toBeNull();
-    expect(feed.emptyReason).toBeNull();
+    expect(feed.emptyReason).toContain('one card has no due date yet');
   });
 });
 
@@ -959,7 +969,7 @@ describe('nudge feed — the frozen funding balance (L.20)', () => {
     const op = oppOf({ kind: 'unused-subscription', merchant: 'GymPass', monthlyCents: 4000 });
     const feed = buildNudgeFeed(input({ cashNeeded: cn, opportunities: [op] }));
     expect(feed.headline).not.toBeNull();
-    expect(feed.emptyReason).toBeNull();
+    expect(feed.emptyReason).toBe('Nothing needs you today.'); // composed, unused while a headline shows
     expect(feed.fundingFrozen).not.toBeNull();
   });
 

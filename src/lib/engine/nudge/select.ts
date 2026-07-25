@@ -18,6 +18,7 @@ import { type CashNeededResult, undatedCardsWithBalance } from '@/lib/engine/cas
 import type { Opportunity } from '@/lib/engine/fi/insights';
 import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
 import type { IncomePauseState } from '@/lib/engine/income/pause';
+import { frozenNothingDueNote } from '@/lib/engine/account/feed-dropped-view';
 import {
   NOTIFY_DUE_WINDOW_DAYS,
   paymentNotificationKey,
@@ -402,14 +403,24 @@ export function buildNudgeFeed(input: NudgeInput): NudgeFeed {
   // statement (#277 P2, the owner-reported class). Name the gap instead. A card
   // with a ZERO balance owes nothing, so it never qualifies the all-clear (the
   // same fence as cash-needed-card's hero branch).
+  //
+  // Computed UNCONDITIONALLY, not `headline ? null : …` (L.20 critic cycle, finding C-2). The card
+  // recomputes `headline` client-side over its own session-dismissed filter, so a reader who
+  // dismissed the last row in-session fell through to the component's bare literal fallback and got
+  // "Nothing needs you today." over a card the engine had just said it could not date. A sentence
+  // whose whole job is to qualify an all-clear may not be gated on the engine's idea of whether the
+  // all-clear will be shown; deciding WHETHER to show it is the surface's business, and composing
+  // it honestly is this engine's.
   const undatedCount = cashNeeded ? undatedCardsWithBalance(cashNeeded).length : 0;
-  const emptyReason = headline
-    ? null
-    : undatedCount > 0
+  // The frozen rows this feed also cannot speak for (finding C-1) — a frozen card, a frozen dated
+  // loan, or an undatable frozen loan, none of which the funding-balance disclosure below covers.
+  const frozenDueNote = frozenNothingDueNote(input.frozenDues, { nextStep: 'accounts-route' });
+  const emptyReason =
+    (undatedCount > 0
       ? `Nothing needs you today on what we can date — ${
           undatedCount === 1 ? 'one card has' : `${undatedCount} cards have`
         } no due date yet, so ${undatedCount === 1 ? 'it isn’t' : 'they aren’t'} included.`
-      : 'Nothing needs you today.';
+      : 'Nothing needs you today.') + (frozenDueNote ? ` ${frozenDueNote}` : '');
 
   // The frozen funding balance NOBODY above accounts for (TASKS L.20).
   //

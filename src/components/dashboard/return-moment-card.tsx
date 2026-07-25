@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { type ISODate, formatISODate } from '@/lib/dates';
 import { type Cents, formatCents } from '@/lib/money';
 import type { ReturnMoment } from '@/lib/engine/return-moment/build';
+import { frozenProjectionNote } from '@/lib/engine/account/feed-dropped-view';
 import { logEngagement } from '@/server/engagement-actions';
 
 /**
@@ -97,21 +98,39 @@ export function ReturnMomentCard({ moment }: { moment: ReturnMoment }) {
 }
 
 function RadarLine({ radar }: { radar: ReturnMoment['radar'] }) {
+  // L.20 critic cycle, finding B-4. Both branches qualify, in opposite directions: on `clear` the
+  // silence itself is what a balance frozen HIGH manufactures, and on `warning` the dip may come
+  // sooner and deeper than the date printed. `shows` picks the sentence that matches the branch,
+  // and `accounts-route` because this card renders in the app, where /accounts is a real route.
+  const frozen = radar.frozenStart ? (
+    <p data-testid="return-moment-radar-frozen" className="text-muted-foreground">
+      {frozenProjectionNote(radar.frozenStart, {
+        shows: radar.kind === 'clear' ? 'no-dip' : 'a-dip',
+        nextStep: 'accounts-route',
+      })}
+    </p>
+  ) : null;
   if (radar.kind === 'clear') {
     return (
-      <p data-testid="return-moment-radar">
-        Your cash flow looks clear — no shortfall ahead on the horizon.
-      </p>
+      <>
+        <p data-testid="return-moment-radar">
+          Your cash flow looks clear — no shortfall ahead on the horizon.
+        </p>
+        {frozen}
+      </>
     );
   }
   const inDays = radar.daysUntil !== null && radar.daysUntil > 0 ? ` (in ${radar.daysUntil} days)` : '';
   const aroundCard = radar.cardName ? `, around your ${radar.cardName} payment` : '';
   return (
-    <p data-testid="return-moment-radar">
-      Heads up: your checking could dip below $0 on{' '}
-      <span className="font-medium">{formatISODate(radar.onDate as ISODate)}</span>
-      {inDays}
-      {aroundCard}. See Cash Flow Radar below for the exact cover transfer.
-    </p>
+    <>
+      <p data-testid="return-moment-radar">
+        Heads up: your checking could dip below $0 on{' '}
+        <span className="font-medium">{formatISODate(radar.onDate as ISODate)}</span>
+        {inDays}
+        {aroundCard}. See Cash Flow Radar below for the exact cover transfer.
+      </p>
+      {frozen}
+    </>
   );
 }

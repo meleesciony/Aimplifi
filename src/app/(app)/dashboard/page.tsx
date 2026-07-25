@@ -83,6 +83,25 @@ export default async function DashboardPage({
   // dismissed set feeds ONLY buildNudgeFeed — never selectPaymentReminders' upstream
   // filter (which the dashboard/cron call with no dismissedKeys), so a push candidate
   // can never be dropped from the feed's input (NUDGE_PLAN slice-2 guardrail).
+  // Built ONCE and handed to both the Today feed and the reminders card below (L.20 critic cycle,
+  // finding C-1). It used to be built inline on the card only, so the feed's all-clear — the first
+  // sentence on the page — knew about a frozen FUNDING balance and about no other frozen row,
+  // while the card twelve rows down qualified the very same claim. Two surfaces making one claim
+  // must resolve it against one list; that is the whole reason `frozenNothingDueRows` exists.
+  //
+  // TASKS L.18: detected per render from the live column on the same result the reminders came
+  // from — every frozen card, because the branch that reads it is the all-clear. TASKS L.19: loans
+  // join the set. At household scope `payInFull` is the MERGED result, so a row here may be a
+  // partner's: the reader can neither reconnect it nor is the one paying it (critic P1-2).
+  const frozenDueRows = frozenNothingDueRows({
+    cards: [...data.payInFull.cards, ...data.payInFull.unknownDueDateCards],
+    loans: data.loanObligations,
+    // TASKS L.20: the loans that reach no list at all. `loanObligations` above is every loan the
+    // engine could date; this is the complement — frozen AND undatable — and it was the one row
+    // L.19's all-clear qualifier could never be built from.
+    undatableLoans: data.undatableFrozenLoans,
+    partnerLabel: data.accountOwnerLabel,
+  });
   const nudgeInput = {
     today: radar.radar.today,
     reminders: data.reminders,
@@ -100,6 +119,7 @@ export default async function DashboardPage({
     // How THIS page names the funding account (TASKS L.20) — the same label the cash-needed card
     // above prints, so a frozen-balance qualifier in the feed names the row the reader can see.
     paymentAccountName: data.paymentAccountName,
+    frozenDues: frozenDueRows,
   } as const;
   const nudgeFeed = buildNudgeFeed({ ...nudgeInput, dismissedKeys: nudgeDismissedKeys });
   const nudgeFeedAll = buildNudgeFeed({ ...nudgeInput, dismissedKeys: new Set<string>() });
@@ -265,22 +285,8 @@ export default async function DashboardPage({
         undatedCardCount={undatedCardsWithBalance(data.payInFull).length}
         cardDuplicates={data.cardDuplicates}
         cardIdentity={cardIdentity}
-        // TASKS L.18: detected per render from the live column on the same result the reminders
-        // came from — every frozen card, because the branch that reads it is the all-clear.
-        // TASKS L.19: loans join the set, and the row-building moved into the engine — this prop
-        // and the weekly digest's were near-identical copies, which is how one gap (no loan could
-        // ever reach an all-clear qualifier) opened in two places at once. At household scope
-        // `payInFull` is the MERGED result, so a row here may be a partner's: the reader can
-        // neither reconnect it nor is the one paying it (critic P1-2).
-        frozenDues={frozenNothingDueRows({
-          cards: [...data.payInFull.cards, ...data.payInFull.unknownDueDateCards],
-          loans: data.loanObligations,
-          // TASKS L.20: the loans that reach no list at all. `loanObligations` above is every loan
-          // the engine could date; this is the complement — frozen AND undatable — and it was the
-          // one row L.19's all-clear qualifier could never be built from.
-          undatableLoans: data.undatableFrozenLoans,
-          partnerLabel: data.accountOwnerLabel,
-        })}
+        // The same rows the Today feed's all-clear is resolved against — see `frozenDueRows`.
+        frozenDues={frozenDueRows}
       />
     </div>
   );

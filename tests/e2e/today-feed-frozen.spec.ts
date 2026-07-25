@@ -168,7 +168,7 @@ test.describe('TASKS L.20 — the Today feed and a frozen funding balance', () =
     await expect(note).toBeVisible();
     await expect(note).toContainText('Everyday Checking');
     await expect(note).toContainText(
-      'the absence of a warning here is not evidence that the account is covered',
+      'if neither has flagged a problem, that silence rests on a figure we cannot refresh',
     );
     // It qualifies an absence — it must not borrow the projection sentence, which would name a
     // projection this feed does not render.
@@ -227,8 +227,39 @@ test.describe('TASKS L.20 — the Today feed and a frozen funding balance', () =
     // The positive half is still stated, then narrowed — never replaced (L.19 critic P2-2).
     await expect(card).toContainText('You’re all caught up');
     await expect(card).toContainText('Home Mortgage');
-    await expect(card).toContainText('we have no due date or payment amount for it');
+    // This fixture holds a $1,842.50 payment and no due day, so the sentence must name the due
+    // date as the thing we lack and NOT deny holding the payment (L.20 critic cycle, B-2).
+    await expect(card).toContainText('we hold no due date for it');
+    await expect(card).not.toContainText('no due date and no payment amount');
     // Not the datable-loan wording, which would describe a stored due date it does not have.
     await expect(card).not.toContainText('a change to its payment or due date since');
+  });
+
+  test('the undatable loan is still named when another payment IS due', async ({ page }) => {
+    // The gap all three L.20 critics found independently: `frozenAllClear` was interpolated only
+    // into the empty branch, and an `undatable-loan` can never be a reminder — so one unrelated
+    // card being due removed the mortgage from the only sentence that ever named it. The mixed
+    // case is the likelier one and the cost is a missed mortgage payment.
+    const email = await signUpThrowaway(page);
+    seedUndatableFrozenLoan(email, 'Home Mortgage');
+    // A wholly LIVE card with a real statement due 2026-06-25, funded well above it: the dues list
+    // is non-empty and nothing else on the page is frozen, so the only thing that can speak about
+    // the mortgage is the branch this test exists for.
+    seedFunding(email, {
+      checkingName: 'Everyday Checking',
+      checkingCents: 250_000,
+      droppedAt: null,
+    });
+    await page.goto('/dashboard');
+
+    const card = page.getByTestId('payment-reminders-card');
+    await expect(card).toBeVisible();
+    // The list is non-empty — this is the branch that used to say nothing at all.
+    await expect(card).toContainText('Upcoming card & loan payments this cycle');
+    await expect(card).toContainText('Home Mortgage');
+    await expect(card).toContainText('we hold no due date for it');
+    // The all-clear wording must NOT appear — there is something due, and the claim being made is
+    // narrower: this list is incomplete, not empty.
+    await expect(card).not.toContainText('You’re all caught up');
   });
 });

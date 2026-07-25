@@ -124,7 +124,11 @@ export function TodayFeedCard({
           />
         ) : (
           <p data-testid="today-feed-empty" className="text-muted-foreground">
-            {feed.emptyReason ?? 'Nothing needs you today.'}
+            {/* `base`, not `feed`, and no literal fallback (L.20 critic cycle, finding C-2). The
+                headline is recomputed above over this component's own session-dismiss filter, so
+                the engine's all-clear must be readable whenever that filter empties the feed —
+                and the literal that used to stand in here knew none of its qualifiers. */}
+            {base.emptyReason}
           </p>
         )}
 
