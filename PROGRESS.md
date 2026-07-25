@@ -4782,3 +4782,41 @@ completed"; three-way byte check at one instant: www == the fc9e0d5 deployment a
 previous one.
 NEXT: read the owner's next screenshot - the page now names the blocker, so the next step is
 determined by which reason it prints.
+
+
+## #306 the dashboard stops double-counting a card silently. 2026-07-24
+TASKS L.8, the half #299 recorded open, and the (B) half of the owner's own L.11 report
+("cash needed on main page makes no sense"): one real card on TWO live connections emits two
+obligations, so the hero carried +$6,679.68 he does not owe and the reminders asked him to pay
+it twice - while /cards had disclosed exactly this since #299. A CONSUMER, not a query:
+getDashboardData has computed cardDuplicates since #299; only /cards read it.
+SHIPPED: two sibling builders in card-duplicate-view.ts rather than a flag (the only thing that
+differs across the three surfaces is WHICH MONEY CLAIM IS TRUE THERE) + one page-wide identity
+pass + a pure paintedHeroCards extracted from the component.
+TWO fresh-context critics, both broke it. 3 P1 + 5 P2, all fixed:
+ - the "due dates missing" branch NAMED two cards it never painted (found by both, independently)
+ - hero and reminders printed CONTRADICTORY sentences about one pair on one screen (engine-run
+   repro: mixed real+estimated -> hero "next-cycle estimates", reminders "this cycle, two payments")
+ - two independent numbering passes on one dashboard: "1." meant the loan on one card and a credit
+   card six inches below (the #299 residual, across components instead of sections)
+ - the #299-P0 computation lived inline in a React component, so its only cover was Playwright,
+   which verify.sh skips: extracted + driven by the REAL engine, asserting counted rows sum
+   EXACTLY to headline.requiredCents in every state
+GATE: verify.sh GREEN - tsc 0 / eslint 0 / 3951 unit / 262 files / build clean; new e2e 5/5 incl.
+axe + no-overflow at 360/393/430 WITH a duplicate seeded (the passive gates run as demo, who has
+none - the #297 blind spot). FAIL-OLD 13/13. Empty prisma diff.
+FOUND: main was RED. #305 deliberately changed /accounts to render the combine card and say why
+it cannot act; duplicate-connections.spec still asserted count 0. Hidden because verify.sh skips
+Playwright AND the same spec hits the #287 DOM-duplication flake under load, so the run was
+written off as the known flake. Re-pointed at combine-connections-confirm; not deleted.
+SHIPPED LIVE: 02ad11f; dpl_9CYAdDg9um5X4cG6FrHdt4dktkp1 READY, aliased www.aimplifi.app.
+Three-way byte check, each md5 stable across 3 repeat fetches (the earlier mid-flip reads were
+NOT stable, so the method was re-validated before being trusted): www == the 02ad11f deployment
+and != the previous one.
+RECORDED OPEN as L.15: six more surfaces render the same doubled rows silently (calendar,
+reminder email, digest email, push, Ask, Glass-Box trace, + the Today feed), with file:line.
+OWNER, mid-session: "Why in the heck are you allowed to make 2 of the same accounts... when I
+try to link same account again, it just refreshes." He is right, and he said it at the start.
+Disclosure is a patch; L.10 layer 2 (collision interception on the fresh-Link door) is the fix.
+NEXT: L.10 layer 2 - intercept after the token exchange, BEFORE any row is written, and route a
+proven re-pull into update mode instead of creating a second Item.
