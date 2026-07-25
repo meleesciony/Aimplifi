@@ -35,7 +35,7 @@ import {
   cardDuplicateBalanceView,
   cardDuplicateListView,
   cardDuplicateView,
-} from '@/components/finance/card-duplicate-view';
+} from '@/lib/engine/account/card-duplicate-view';
 
 const counted = (cardId: string, label: string, cents: number): DisplayedCardForDuplicates => ({
   cardId,

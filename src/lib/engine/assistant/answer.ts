@@ -17,6 +17,11 @@ import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
+import {
+  type CardDuplicatePairInput,
+  cardDuplicateAnswerNote,
+  cardDuplicateUndatedNote,
+} from '@/lib/engine/account/card-duplicate-view';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
@@ -641,7 +646,15 @@ export function answerSafeToSpend(plan: SpendingPlan): AssistantAnswer {
 
 // ─── cash needed (pay cards this cycle) ─────────────────────────────────────
 
-export function answerCashNeeded(result: CashNeededResult, paymentAccountName: string): AssistantAnswer {
+export function answerCashNeeded(
+  result: CashNeededResult,
+  paymentAccountName: string,
+  /**
+   * Suspected same-card-twice pairs among the asker's own cards (TASKS L.15 (e)). Advisory — no
+   * figure below is adjusted. Omitted ⇒ byte-identical to the pre-L.15 answer.
+   */
+  cardDuplicates: readonly CardDuplicatePairInput[] = [],
+): AssistantAnswer {
   const s = result.headline;
   const source: AssistantSource = { label: 'See cards', href: '/cards' };
   // A card the engine could not date is absent from cardsDueCount, so "nothing is
@@ -654,12 +667,20 @@ export function answerCashNeeded(result: CashNeededResult, paymentAccountName: s
       ? [{ label: 'No due date yet', value: undated.map((c) => c.cardName).join(', ') }]
       : [];
   if (s.cardsDueCount === 0 || s.requiredCents === 0) {
+    // L.15 critic F4: this branch states a COUNT of undated cards and names them, and a duplicated
+    // pair inflates both. It was first scoped out because the pair is in no AMOUNT here — which is
+    // true, and is exactly why the note below says so rather than borrowing the counted wording.
+    const undatedNotes = cardDuplicateUndatedNote(
+      cardDuplicates,
+      undated.map((c) => ({ cardId: c.cardId, label: c.cardName })),
+    );
     return {
       kind: 'cash_needed',
       headline:
         undated.length > 0
           ? `Nothing is due on the cards I can date — but ${undated.length === 1 ? 'one card has' : `${undated.length} cards have`} no statement or due date yet, so I can’t tell you what’s due on ${undated.length === 1 ? 'it' : 'them'}.`
           : 'You have nothing due on your cards this cycle.',
+      ...(undatedNotes.length > 0 ? { detail: undatedNotes.join(' ') } : {}),
       facts: undatedFact,
       source,
     };
@@ -669,11 +690,40 @@ export function answerCashNeeded(result: CashNeededResult, paymentAccountName: s
     { label: 'From', value: paymentAccountName },
     ...undatedFact,
   ];
-  let detail: string | undefined;
+  const detailParts: string[] = [];
+  /**
+   * Resolved against the COUNTED rows only — the obligations `perDueDate` partitions, which are
+   * exactly the rows summed into `requiredCents` and counted by `cardsDueCount`. Both of the
+   * figures this answer states are therefore genuinely inflated by such a pair, which is what makes
+   * the note's claim precisely true rather than approximately so.
+   *
+   * Computed HERE, below the zero-due early return, not at the top of the function: on that branch
+   * there is no figure and no count for the note to qualify, and reaching into `perDueDate` before
+   * the guard made the whole builder throw on a result that legitimately has none.
+   *
+   * A pair whose cards are UNDATED is deliberately out of scope: it is in neither figure, so this
+   * sentence would be false about it, and the surfaces that DO name undated cards (/cards, the
+   * dashboard, now the calendar and the two emails) disclose it correctly. Recorded as a residual.
+   *
+   * Pushed BEFORE the shortfall instruction, deliberately. A shortfall is derived from
+   * `requiredCents`, so a duplicated card can manufacture one — and the instruction that follows
+   * tells the reader to move cash they may not need to move. The qualifier has to reach them first.
+   */
+  detailParts.push(
+    ...cardDuplicateAnswerNote(
+      cardDuplicates,
+      (result.perDueDate ?? []).flatMap((p) =>
+        p.cards.map((c) => ({ cardId: c.cardId, label: c.cardName })),
+      ),
+    ),
+  );
   if (s.shortfallCents > 0 && s.recommendation) {
     facts.push({ label: 'Shortfall', value: fmt(s.shortfallCents) });
-    detail = `That's more than ${paymentAccountName} holds — move ${fmt(s.recommendation.amountCents)} in by ${humanDate(s.recommendation.byDate)}.`;
+    detailParts.push(
+      `That's more than ${paymentAccountName} holds — move ${fmt(s.recommendation.amountCents)} in by ${humanDate(s.recommendation.byDate)}.`,
+    );
   }
+  const detail: string | undefined = detailParts.length > 0 ? detailParts.join(' ') : undefined;
   return {
     kind: 'cash_needed',
     // "your cards" = all of them. Only true when every card could be dated.

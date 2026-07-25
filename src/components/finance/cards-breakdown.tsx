@@ -24,7 +24,7 @@ import {
   type CardDuplicatePairInput,
   type CardMoneyRole,
   cardDuplicateView,
-} from '@/components/finance/card-duplicate-view';
+} from '@/lib/engine/account/card-duplicate-view';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
 

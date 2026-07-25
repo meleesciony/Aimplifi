@@ -8,6 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { prisma } from '@/lib/db';
 import { buildCashFlowCalendar } from '@/lib/engine/calendar/build';
+import {
+  CARD_DUPLICATE_PAIR_TESTID,
+  CARD_DUPLICATE_TESTID,
+  cardDuplicateCalendarView,
+} from '@/lib/engine/account/card-duplicate-view';
 import { addMonthsClamped, formatISODate, formatMonth, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { getCashNeeded } from '@/server/finance';
@@ -38,6 +43,7 @@ export default async function CalendarPage({
     accountOwnerLabel,
     householdWithheldCount,
     householdDuplicates,
+    cardDuplicates,
   } = await getCashNeeded(session.user.id, 'PAY_IN_FULL', requestedScope);
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? '')
     ? params.month!
@@ -59,6 +65,20 @@ export default async function CalendarPage({
     cardObligations: result.cards.map((c) => ({ ...c, cardName: withOwner(c.cardId, c.cardName) })),
     loanObligations: loanObligations.map((l) => ({ ...l, accountName: withOwner(l.accountId, l.accountName) })),
   });
+
+  // TASKS L.15 (a). Resolved against the card-due events THIS MONTH actually holds, under the exact
+  // label the grid paints (owner suffix and "(est.)" included) — so it can never name a card the
+  // reader cannot find below, and a pair whose other side falls in a different month is dropped.
+  // `getCashNeeded` computes the pairs from the viewer's OWN snapshot even at household scope, so a
+  // partner's card can never be paired with the reader's here.
+  const duplicates = cardDuplicateCalendarView(
+    cardDuplicates,
+    calendar.days.flatMap((d) =>
+      d.events
+        .filter((e) => e.kind === 'card-due' && e.accountId !== undefined)
+        .map((e) => ({ cardId: e.accountId!, label: e.label })),
+    ),
+  );
 
   const prev = addMonthsClamped(isoDate(`${month}-01`), -1).slice(0, 7);
   const next = addMonthsClamped(isoDate(`${month}-01`), 1).slice(0, 7);
@@ -114,6 +134,32 @@ export default async function CalendarPage({
           <CardTitle className="text-base">Inflows, outflows, and card due dates</CardTitle>
         </CardHeader>
         <CardContent>
+          {duplicates && (
+            // Above the grid it qualifies, and directly under the summary line whose money-out
+            // total and payment count it is about. Not role="alert", matching the reminders list:
+            // this page hands the reader no transfer instruction, and the sentence is read in
+            // document order, immediately before the events it names.
+            <div
+              className="mb-3 rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-sm"
+              data-testid={CARD_DUPLICATE_TESTID}
+            >
+              <p className="font-medium">{duplicates.title}</p>
+              <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                {duplicates.pairs.map((p) => (
+                  <li key={p.key} data-testid={`${CARD_DUPLICATE_PAIR_TESTID}-${p.key}`}>
+                    {p.sentence} {p.impact} <span className="italic">{p.basis}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {duplicates.howTo}{' '}
+                <Link href="/accounts" className="underline hover:text-foreground">
+                  Go to Accounts
+                </Link>
+                .
+              </p>
+            </div>
+          )}
           {eventDays.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No scheduled activity this month. The calendar tracks scheduled income, bills, and

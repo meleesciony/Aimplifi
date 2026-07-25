@@ -431,6 +431,43 @@ function seedDuplicateCardOnTwoConnections(email: string) {
   }
 }
 
+/**
+ * TASKS L.15 (a) — the cash-flow calendar was the sixth silent surface.
+ *
+ * `buildCashFlowCalendar` emits one event per obligation, so a card arriving through two live
+ * connections puts TWO due events on the grid and inflates both figures the month summary prints:
+ * the money going out, and the count of payments due. The page said nothing.
+ *
+ * FAIL-OLD: `cards-duplicate` did not exist on /calendar before this change.
+ *
+ * Uses the same fixture as the /cards test above — one real Chase card, two live Plaid items,
+ * a real issuer statement on each side — and pages to the month that statement is due in.
+ */
+test('the calendar discloses two due events for what may be one card', async ({ page }) => {
+  const email = await signUpThrowaway(page);
+  seedDuplicateCardOnTwoConnections(email);
+  // The seeded statements are due 2026-09-05, so that is the month whose grid carries both events.
+  await page.goto('/calendar?month=2026-09');
+
+  const warning = page.getByTestId('cards-duplicate');
+  await expect(warning).toBeVisible({ timeout: 20_000 });
+  const text = (await warning.innerText()).replace(/\s+/g, ' ');
+
+  // It names the two figures THIS surface states — never "the total above", which the calendar
+  // does not print.
+  expect(text).toContain('money-out total');
+  expect(text).toContain('count of payments due');
+  // The basis is stated inline, not asserted bare.
+  expect(text).toContain('Likely — matched on');
+  // Disclose, never adjust: both events are still on the grid, and the copy says so.
+  expect(text).toContain('has been adjusted');
+  expect(text).toContain('only you can confirm');
+
+  // And both events really are still painted — the disclosure did not remove one.
+  const due = page.getByTestId('calendar-list').getByText(/CREDIT CARD due/);
+  expect(await due.count()).toBe(2);
+});
+
 test('/cards discloses a card counted twice, and names which two entries', async ({ page }) => {
   const email = await signUpThrowaway(page);
   seedDuplicateCardOnTwoConnections(email);

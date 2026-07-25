@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       const joint = householdRead !== null;
 
       // The week's Monday is the stable once-per-week dedup key.
-      const { today, result, loanObligations } =
+      const { today, result, loanObligations, cardDuplicates } =
         householdRead ?? (await getCashNeeded(user.id, 'PAY_IN_FULL', 'mine'));
       const weekStart = addDays(today, -((dayOfWeek(today) + 6) % 7));
       const dedupKey = `weekly_digest:${weekStart}`;
@@ -142,6 +142,11 @@ export async function GET(request: NextRequest) {
         // "nothing due" line as if an obligation were withheld (L.4 #277-critic P2;
         // the shared fence the hero, nudge and reminders card all read).
         undatedCardCount: undatedCardsWithBalance(result).length,
+        // TASKS L.15 (c). Personal even inside the joint digest, and safe under BOTH reads above:
+        // `getCashNeeded` always computes this from the recipient's own pre-merge snapshot, so the
+        // household branch cannot pair a partner's card with the reader's. Detected per run rather
+        // than stored — see the reminders route for why.
+        cardDuplicates,
       });
 
       let sent = false;

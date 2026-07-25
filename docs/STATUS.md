@@ -2,6 +2,104 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-25 (#309) — L.15: the six surfaces that rendered a duplicated card and said nothing (and a seventh a critic found)
+
+/cards (#299) and the dashboard hero + reminders list (#306) already disclosed a both-live duplicate.
+Six surfaces did not, and the sharpest are the ones with no banner anywhere near them — the reader
+acts on them away from the app. All of them now say it, and **not one figure moved anywhere**
+(DISCLOSE, NEVER ADJUST — DECISIONS #289, from #192 and #221).
+
+Closed: (a) the cash-flow calendar, (b) the reminder email, (c) the weekly digest, (d) web push,
+(e) the Ask cash-needed answer, (f) the Glass-Box trace — **and (g) Cash Flow Radar**, which no one
+had enumerated.
+
+**One plumbing point, not seven.** `getCashNeeded` now returns `cardDuplicates` from a shared helper
+that always reads the viewer's OWN pre-merge snapshot, so a partner's card cannot pair with the
+reader's on any surface. It costs no database query at all for a user with no candidate pair.
+
+**Three decisions worth keeping:**
+
+1. **Detect per run, never a stored flag.** A flag written last week describes connections that may
+   since have been deleted, combined, or dismissed as "not duplicates" — and unlike a page, an email
+   carries no control to correct itself.
+2. **Copy written for a page is false in an inbox.** "the total above" / "no amount below" name a
+   position the writer of an email does not control, and the Ask answer prints a count and a total
+   but no per-card figure. One sentence per surface, because only the money claim differs.
+3. **Push discloses; it does not suppress the second notification.** Suppressing asserts the two rows
+   are one card — the claim only the user can make — and its failure direction is a MISSED PAYMENT on
+   a genuinely separate card, against one redundant notification for disclosing.
+
+**The critic cycle is the story of this slice.** Two independent fresh-context critics ran against
+cycle 1 and it FAILED with three P1s, every one reproduced by execution before anything was changed:
+
+* **The disclosure quoted labels that appear nowhere.** The positional collision breaker — written
+  for /cards, where `cardIdentityLabels` paints the ordinal into the heading — ran unconditionally,
+  so the email, the push and the Ask answer told readers to compare "1. CREDIT CARD" against
+  "2. CREDIT CARD". It fired on the DEFAULT reported shape, because two connections to one real card
+  return one provider name. Whether a surface can be pointed at positionally is now a required
+  argument, and the indistinguishable case gets its own sentence.
+* **The Ask tap-through panel was still silent** — the one the reader opens to AUDIT the figure the
+  answer had just qualified, showing both rows under a green check and a penny-perfect
+  reconciliation. Both critics found this independently; it was a defaulted argument at one caller.
+* **Cash Flow Radar was the seventh surface**, found only by a critic sweeping beyond the brief. It
+  repeats every obligation across a 90-day horizon, so the duplicate manufactured a CRITICAL
+  "checking may go negative" push that would not otherwise exist and told the owner to move
+  **$33,100 instead of $13,050** — the only surface in the app that states a move-this-much figure.
+
+**A third P1 came from the SECOND critic cycle, and it was mine.** The radar fix over-fired: it
+resolved the pair against every obligation the engine knows about instead of the rows the projection
+actually emits, so a PAID-OFF duplicated pair — in no projected cycle at all — still hedged a genuine
+overdraft warning, telling a reader facing a real dip that the amount to move might be inflated when
+it was not. That is the dangerous direction, and it is the same read-what-you-guard mistake as the
+ordinal defect one level down. Fixed to read the projected dues — and a THIRD cycle falsified that too, with the observation worth
+keeping: being in the projection is not what the sentence claims. It claims the dip date may be
+earlier and the amount to move larger, and both are fixed by the worst point of the 90-day walk. So
+the gate is now the counterfactual the sentence asserts — re-walk without one side of the pair, speak
+only if those figures actually move — which also silenced a note that had been promising an earlier
+dip date under a header reading "Clear". Locked by a real-engine abstention suite: the pure-builder
+test hand-built its row list, so it could never have caught a wiring bug.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **4078 unit / 268 files** / build clean.
+E2E 28/28 across ask / notifications / cash-needed / glass-box, plus a new calendar-disclosure spec;
+`duplicate-connections` 8/8 serialized. No schema change. DECISIONS #300; five REGRESSION_LEDGER
+rows; lesson `a-disclosure-written-for-a-page-is-false-in-an-email.md`.
+
+### 🟠 STILL OPEN — recorded from the L.15 critic cycle, not fixed
+
+1. **`personalCardDuplicates`' personal-snapshot rule is a comment, not a type.** It is now EXPORTED
+   (the radar needs it), so the old "module-private, therefore unreachable" guarantee no longer
+   covers the public API — the module comment says so plainly rather than claiming the immunity it
+   lost. Its parameter is a
+   plain `FinanceSnapshot`, identical to the household-merged one, so tsc cannot tell them apart —
+   the enforcement is a comment at each call site, which is the pattern
+   `fence-by-construction-not-per-call-site.md` rejects. A branded `PersonalSnapshot` would make the
+   claim true. No known live defect: every current call path passes the pre-merge snapshot, verified
+   by execution.
+2. **The (e)/(f) test fixture is not shaped as production emits it** — a hand-built
+   `CashNeededResult` missing 20 fields the real engine returns. A critic ran the real engine across
+   eight states and behaviour matched, so this is coverage debt rather than a latent bug, but there
+   is still no real-engine test for the Ask answer / Glass-Box on paid-off, undated, estimated-mixed
+   or autopay states.
+3. **A name that sanitizes to nothing diverges between channels**: the disclosure prints
+   "Unnamed account" (via `renderSafe`) while the plain-text email prints the raw, invisible name —
+   so the email names a row the reader cannot see. Narrow (requires a name made only of invisible
+   characters) and the same class as the ordinal defect above.
+4. **Other surfaces a duplicated card still inflates, from a critic's read-only sweep — UNVERIFIED,
+   leads not repros:** the dashboard Today-feed nudge (two anonymous CRITICAL "Payment due" rows,
+   plus a `cash_needed_shortfall` row), the /coach Automation Blueprint ("keep $X in checking" twice
+   for one card), value receipts, net worth / liabilities in three renderings plus the exported PDF,
+   Ask `account_balance`'s "$X across N accounts", and the debt-payoff path feeding /goals and two
+   Ask answers. Safe-to-spend and /forecast were checked and are NOT affected. Each needs its own
+   repro before it is called a defect.
+5. **`getCashFlowRadar` now assembles the cash-needed input twice per call** — once to detect the
+   pair, once inside `radarFromSnapshot` — including on the per-user notify cron loop. Correct, but
+   wasteful; a single assembly threaded through would fix it.
+6. **A second suspected pair is dropped from the radar's PUSH body** (the in-app card keeps both via
+   `assumptions`), a deliberate truncation so the dip date and amount are not pushed off a
+   notification, documented at the field.
+7. **A deploy-window gap (unverified):** a pair whose payment notifications already fired carries no
+   push disclosure until the next cycle mints new notification keys.
+
 ## ✅ SHIPPED 2026-07-24 (#308) — L.17: the last two paths that still created a duplicate connection
 
 Both were residuals the #307 critics **recorded without executing**, so both were reproduced before

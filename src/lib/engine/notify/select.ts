@@ -26,6 +26,10 @@ import { type Cents, ZERO, formatCents } from '@/lib/money';
 import { type ISODate, compareDates, formatISODate } from '@/lib/dates';
 import type { PaymentReminder } from '@/lib/engine/reminders/select';
 import type { RadarResult } from '@/lib/engine/radar/radar';
+import {
+  type CardDuplicatePairInput,
+  cardDuplicatePushNotes,
+} from '@/lib/engine/account/card-duplicate-view';
 
 export type NotificationKind = 'payment_due' | 'cash_flow_alert';
 /** Client-facing severity: critical = today/negative now, warning = imminent, info = fyi. */
@@ -66,6 +70,13 @@ export interface SelectNotificationsParams {
    * unaffected — their keys are stable.
    */
   radarAlertOnCooldown?: boolean;
+  /**
+   * Suspected same-card-twice pairs among the viewer's own cards (TASKS L.15 (d)). ADVISORY, and
+   * deliberately NOT a suppression input: both notifications still go out, each naming the other
+   * row. See `cardDuplicatePushNotes` for why disclosing beats dropping one. Omitted ⇒ every
+   * emitted notification is byte-identical to pre-L.15.
+   */
+  cardDuplicates?: readonly CardDuplicatePairInput[];
 }
 
 /** Stable dedup key for a payment reminder notification. */
@@ -90,8 +101,17 @@ function whenPhrase(daysUntil: number): string {
  * caller records the returned keys in NotificationSent and delivers them.
  */
 export function selectNotifications(params: SelectNotificationsParams): AppNotification[] {
-  const { reminders, radar, sentKeys, radarAlertOnCooldown } = params;
+  const { reminders, radar, sentKeys, radarAlertOnCooldown, cardDuplicates = [] } = params;
   const out: AppNotification[] = [];
+
+  // Resolved against the whole reminders list, and consulted per notification below. Built from the
+  // complete list on purpose: a pair is a fact about the reader's accounts, not about which of the
+  // two happens to clear the filters in THIS run, and `cardDuplicatePushNotes` states no claim about
+  // how many notifications arrive precisely so it stays true when only one side survives them.
+  const duplicateNotes = cardDuplicatePushNotes(
+    cardDuplicates,
+    reminders.map((r) => ({ cardId: r.accountId, label: r.accountName })),
+  );
 
   // 1. Payment reminders: actionable (money to move) + imminent.
   for (const r of reminders) {
@@ -101,12 +121,15 @@ export function selectNotifications(params: SelectNotificationsParams): AppNotif
     if (sentKeys?.has(key)) continue;
     const level: NotificationLevel = r.daysUntil <= 0 ? 'critical' : 'warning';
     const est = r.isEstimated ? ' (estimated — the statement may not have posted yet)' : '';
+    // Appended LAST so an operating system that truncates the body still shows the amount and the
+    // date — the half the reader must act on — before the advisory.
+    const dup = duplicateNotes.get(r.accountId);
     out.push({
       key,
       kind: 'payment_due',
       level,
       title: `${r.accountName} payment ${whenPhrase(r.daysUntil)}`,
-      body: `Pay ${formatCents(r.userActionCents)} yourself by ${formatISODate(r.dueDate, 'long')}${est}. Aimplifi never moves money for you.`,
+      body: `Pay ${formatCents(r.userActionCents)} yourself by ${formatISODate(r.dueDate, 'long')}${est}. Aimplifi never moves money for you.${dup ? ` ${dup}` : ''}`,
       amountCents: r.userActionCents,
       dueDate: r.dueDate,
       isEstimated: r.isEstimated,
@@ -130,12 +153,17 @@ export function selectNotifications(params: SelectNotificationsParams): AppNotif
       const est = radar.includesEstimatedDues
         ? ' Some upcoming statements are estimated.'
         : '';
+      // TASKS L.15 (critic P1-2). This alert can exist ONLY because of the duplicate — the critic's
+      // executed repro showed one connection projecting no alert at all while two projected a
+      // CRITICAL dip four weeks earlier and a $33,100 transfer instead of $13,050. The reader is
+      // being told to move money, on a channel that interrupts, so the caveat rides the same body.
+      const dupNote = radar.duplicateDisclosure ? ` ${radar.duplicateDisclosure}` : '';
       out.push({
         key,
         kind: 'cash_flow_alert',
         level,
         title: `Checking may go negative ${whenPhrase(daysUntil)}`,
-        body: `Your checking is on track to dip below $0 on ${formatISODate(radar.committed.firstNegativeDate, 'long')}${cardPhrase}.${coverPhrase}${est}`,
+        body: `Your checking is on track to dip below $0 on ${formatISODate(radar.committed.firstNegativeDate, 'long')}${cardPhrase}.${coverPhrase}${est}${dupNote}`,
         amountCents: coverCents,
         dueDate: radar.committed.firstNegativeDate,
         isEstimated: radar.includesEstimatedDues,

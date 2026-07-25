@@ -483,13 +483,20 @@ async function buildAnswer(
     case 'safe_to_spend':
       return answerSafeToSpend(await getSpendingPlan(userId));
     case 'cash_needed': {
-      const { result } = await getCashNeeded(userId);
-      const answer = answerCashNeeded(result, resolvePaymentAccount(snap).name);
+      const { result, cardDuplicates } = await getCashNeeded(userId);
+      // TASKS L.15 (e): the same advisory pair the dashboard hero carries. Ask states this figure
+      // to a reader who may never open /cards, so it qualifies it here too.
+      const answer = answerCashNeeded(result, resolvePaymentAccount(snap).name, cardDuplicates);
       // Slice 3: the trace reshapes the SAME engine result (via the dashboard
       // glass-box rows) — no headlineCents (nothing due) → no figure, no tap.
       return answer.headlineCents === undefined
         ? answer
-        : { ...answer, trace: traceCashNeededDerivation(result, answer.headlineCents) };
+        : {
+            ...answer,
+            // The pair reaches the tap-through panel too (L.15 critic P1-1): the answer says both
+            // figures may include one card twice, and this is where the reader goes to check.
+            trace: traceCashNeededDerivation(result, answer.headlineCents, cardDuplicates),
+          };
     }
     case 'debt_payoff': {
       // Same read-path + engine as the /goals planner (avalanche default, no extra)

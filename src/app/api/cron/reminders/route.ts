@@ -39,7 +39,10 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      const { today, result, loanObligations } = await getCashNeeded(user.id, 'PAY_IN_FULL');
+      const { today, result, loanObligations, cardDuplicates } = await getCashNeeded(
+        user.id,
+        'PAY_IN_FULL',
+      );
       // `result.cards` is the complete obligation set (real + estimated); `upcoming`
       // is a subset, so pass only `cards` to avoid double-counting estimated cards.
       // loanObligations adds the next LOAN/MORTGAGE payments within the window (#134).
@@ -51,7 +54,11 @@ export async function GET(request: NextRequest) {
       });
       remindersTotal += reminders.length;
 
-      const email = buildReminderEmail(reminders, today);
+      // TASKS L.15 (b). Detected per run, never read from a stored flag: a flag written last week
+      // describes connections that may since have been deleted, combined, or dismissed as "not
+      // duplicates", and an email carries no control to correct it. The live read costs nothing for
+      // a user with no candidate pair — `detectDisplayedCardDuplicates` returns before it queries.
+      const email = buildReminderEmail(reminders, today, cardDuplicates);
       let sent = false;
       let reason: string | undefined;
       if (email && user.email) {

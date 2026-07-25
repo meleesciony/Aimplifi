@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { CashNeededCard } from '@/components/finance/cash-needed-card';
-import { paintedHeroCards } from '@/components/finance/card-duplicate-view';
+import { paintedHeroCards } from '@/lib/engine/account/card-duplicate-view';
 import { dashboardCardIdentity } from '@/components/finance/card-identity-view';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { NetWorthCard } from '@/components/finance/net-worth-card';

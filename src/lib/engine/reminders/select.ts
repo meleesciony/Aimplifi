@@ -13,6 +13,10 @@ import { type Cents, cents, formatCents } from '@/lib/money';
 import { type ISODate, compareDates, daysBetween, formatISODate } from '@/lib/dates';
 import type { CardObligation } from '@/lib/engine/cash-needed/types';
 import type { LoanObligation } from '@/lib/engine/loans/obligations';
+import {
+  type CardDuplicatePairInput,
+  cardDuplicateEmailLines,
+} from '@/lib/engine/account/card-duplicate-view';
 
 export type ReminderUrgency = 'today' | 'soon' | 'upcoming';
 export type ObligationType = 'card' | 'loan';
@@ -173,6 +177,12 @@ export interface ReminderEmail {
 export function buildReminderEmail(
   reminders: readonly PaymentReminder[],
   today: ISODate,
+  /**
+   * Suspected same-card-twice pairs among the viewer's own cards (TASKS L.15 (b)). Advisory: no
+   * amount below is adjusted, exactly as on /cards and the dashboard. Omitted ⇒ byte-identical to
+   * the pre-L.15 email, so a user with no candidate pair — almost everyone — sees no change.
+   */
+  cardDuplicates: readonly CardDuplicatePairInput[] = [],
 ): ReminderEmail | null {
   if (reminders.length === 0) return null;
   const n = reminders.length;
@@ -180,10 +190,23 @@ export function buildReminderEmail(
 
   const lines = reminders.map(reminderLine);
 
+  // Resolved against the dues this email actually prints, labelled as it prints them
+  // (`accountName` is the string inside every bullet above) — so the disclosure can never name a
+  // card differently from the bullet the reader is looking at, and a pair whose other side is not
+  // in this email is dropped rather than sending them hunting for a bullet that is not there.
+  const disclosure = cardDuplicateEmailLines(
+    cardDuplicates,
+    reminders.map((r) => ({ cardId: r.accountId, label: r.accountName })),
+  );
+
   const text = [
     `Here's what's coming up as of ${formatISODate(today, 'long')}:`,
     '',
     ...lines,
+    // AFTER the bullets, not before: the disclosure names two of them, and a reader who meets it
+    // first has nothing yet to attach the two names to. `digestUndatedAlongsideDues` sits in the
+    // same place for the same reason.
+    ...(disclosure.length > 0 ? ['', ...disclosure] : []),
     '',
     `A heads-up so nothing catches you by surprise. Aimplifi never moves money for you — this is just a reminder.`,
   ].join('\n');

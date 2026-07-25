@@ -105,6 +105,12 @@ export interface RadarResult {
       })
     | null;
   includesEstimatedDues: boolean;
+  /**
+   * Set when a suspected same-card-twice pair is inside this projection (TASKS L.15, critic P1-2).
+   * Carried on the RESULT, not only in `assumptions`, because the cash_flow_alert PUSH renders its
+   * own body and never reads `assumptions` — and the push is where this alert does its damage.
+   */
+  duplicateDisclosure?: string | null;
   assumptions: string[];
 }
 

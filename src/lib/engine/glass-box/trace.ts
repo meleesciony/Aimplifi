@@ -19,6 +19,10 @@ import { type Cents, cents, sumCents } from '@/lib/money';
 import type { ISODate } from '@/lib/dates';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
+import {
+  type CardDuplicatePairInput,
+  cardDuplicateTraceBasis,
+} from '@/lib/engine/account/card-duplicate-view';
 
 export interface TraceRow {
   id: string;
@@ -55,7 +59,15 @@ export interface NumberTrace {
  * obligation list for per-row provenance (autopay split, mid-cycle payments,
  * estimate basis, due-date adjustments).
  */
-export function traceCashNeeded(result: CashNeededResult): NumberTrace {
+export function traceCashNeeded(
+  result: CashNeededResult,
+  /**
+   * Suspected same-card-twice pairs among the viewer's own cards (TASKS L.15 (f)). Advisory: no row
+   * is removed and no figure is adjusted, so `reconciles` is untouched. Omitted ⇒ byte-identical to
+   * the pre-L.15 trace.
+   */
+  cardDuplicates: readonly CardDuplicatePairInput[] = [],
+): NumberTrace {
   const notesById = new Map(result.cards.map((c) => [c.cardId, c.notes]));
   const rows: TraceRow[] = result.perDueDate.flatMap((point) =>
     point.cards.map((c, i) => ({
@@ -84,6 +96,24 @@ export function traceCashNeeded(result: CashNeededResult): NumberTrace {
       `${result.upcoming.length} card${result.upcoming.length === 1 ? '' : 's'} without a generated statement belong${result.upcoming.length === 1 ? 's' : ''} to the next cycle and ${result.upcoming.length === 1 ? 'is' : 'are'} not included in this number.`,
     );
   }
+  // TASKS L.15 (f). Resolved against the rows this trace actually lists, in their paint order and
+  // under the exact label it prints (`row.label` IS `card.cardName`) — so the sentence can never
+  // point at a row that is not on screen. Rebuilt from `perDueDate` rather than read off `rows`
+  // because `row.id` is a composite `date:index:cardId` key, which no pair id would ever match.
+  //
+  // This is the surface where silence costs the most. The reader has deliberately opened the
+  // breakdown to audit the number, and the trace reconciles to the penny; two rows for one card
+  // therefore read as CONFIRMATION that both belong. `reconciles` stays true because it is a check
+  // on the engine's internal consistency, not on whether the world has two cards — and conflating
+  // the two is exactly what this line prevents.
+  basis.push(
+    ...cardDuplicateTraceBasis(
+      cardDuplicates,
+      result.perDueDate.flatMap((point) =>
+        point.cards.map((c) => ({ cardId: c.cardId, label: c.cardName })),
+      ),
+    ),
+  );
 
   return {
     key: 'cash_needed',

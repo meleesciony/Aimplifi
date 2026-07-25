@@ -75,7 +75,10 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      const { today, result, loanObligations } = await getCashNeeded(user.id, 'PAY_IN_FULL');
+      const { today, result, loanObligations, cardDuplicates } = await getCashNeeded(
+        user.id,
+        'PAY_IN_FULL',
+      );
       const reminders = selectPaymentReminders({
         obligations: result.cards,
         loanObligations,
@@ -110,6 +113,10 @@ export async function GET(request: NextRequest) {
         today,
         sentKeys,
         radarAlertOnCooldown: radarInCooldown,
+        // TASKS L.15 (d). Advisory only: this NEVER drops a notification. Detected per run for
+        // the same reason as the two email crons — a stored flag outlives the connection it
+        // describes, and a push carries no control to correct it.
+        cardDuplicates,
       });
       candidatesTotal += notifications.length;
 

@@ -25,7 +25,11 @@ import {
   paymentAccountHistoryDays,
 } from '@/lib/engine/radar/burn';
 import { computeRadar, projectCardDues, type RadarInput, type RadarResult } from '@/lib/engine/radar/radar';
-import { cashNeededFromSnapshot, resolvePaymentAccount } from '@/server/finance';
+import { cashNeededFromSnapshot, personalCardDuplicates, resolvePaymentAccount } from '@/server/finance';
+import {
+  type CardDuplicatePairInput,
+  cardDuplicateRadarNote,
+} from '@/lib/engine/account/card-duplicate-view';
 import { getProvider } from '@/lib/providers/demo';
 import type { FinanceSnapshot } from '@/lib/providers/types';
 
@@ -42,6 +46,12 @@ export function radarFromSnapshot(
   snap: FinanceSnapshot,
   today: ISODate,
   horizonDays = RADAR_HORIZON_DAYS,
+  /**
+   * Suspected same-card-twice pairs (TASKS L.15, critic P1-2). Advisory: the projection is left
+   * exactly as computed — the radar only says why it may be pessimistic, the same way it already
+   * discloses the #134 loan overlap. Omitted ⇒ byte-identical to the pre-L.15 radar.
+   */
+  cardDuplicates: readonly CardDuplicatePairInput[] = [],
 ): { input: RadarInput; radar: RadarResult; paymentAccountName: string } {
   const year = Number(today.slice(0, 4));
   const holidays = holidayTable(year - 1, year + 1);
@@ -142,7 +152,37 @@ export function radarFromSnapshot(
     paymentAccountHistoryDays(snap.transactions, payment.id, today),
   );
 
-  const input: RadarInput = {
+  /**
+   * TASKS L.15 (g) — the duplicate disclosure for the radar, and the boundary took THREE critic
+   * cycles to get right.
+   *
+   * Cut 1 resolved the pair against `cashNeeded.cards`, so a PAID-OFF pair — in no projected cycle
+   * at all — hedged a genuine overdraft warning. Cut 2 narrowed to `dues`, the rows the projection
+   * actually repeats. A third critic falsified that too, and the falsification is the useful part:
+   * **being in the projection does not make this sentence true.** The sentence claims the dip date
+   * may be earlier and the amount to move larger than needed, and BOTH of those are fixed by the
+   * worst point of the 90-day walk — not by the presence of dues elsewhere in it. An ordinary state
+   * separates them: a real crunch this week caused by a DIFFERENT card, with the duplicated pair due
+   * next month. Removing the duplicate changes neither figure, yet the reader was told the $2,900
+   * they must move within four days might be imaginary. Acting on that hedge means overdrafting.
+   *
+   * So the gate is now the counterfactual the sentence itself asserts: re-walk the projection with
+   * one side of each pair removed, and speak ONLY if the dip date or the cover amount actually
+   * moves. `computeRadar` is pure, so this is one extra in-memory walk and no I/O, paid only by a
+   * user who has a projected duplicate at all.
+   *
+   * This also settles the `status === 'ok'` case (critic P2) without a second rule: with no dip
+   * there is no dip date and no transfer in either walk, nothing differs, and the radar stays quiet
+   * instead of printing "the dip date may be earlier" under a header reading "Clear".
+   *
+   * Nothing is ADJUSTED: the counterfactual decides only whether to speak. Every figure the radar
+   * displays comes from the real walk, duplicates included.
+   */
+  const projectedPairs = cardDuplicateRadarNote(
+    cardDuplicates,
+    dues.map((d) => ({ cardId: d.cardId, label: d.cardName })),
+  );
+  const baseInput: RadarInput = {
     today,
     horizonDays,
     startingBalanceCents,
@@ -154,13 +194,45 @@ export function radarFromSnapshot(
     burn,
     assumptions,
   };
-  return { input, radar: computeRadar(input), paymentAccountName: payment.name };
+  const radar = computeRadar(baseInput);
+
+  let duplicateNotes: string[] = [];
+  if (projectedPairs.length > 0) {
+    // Drop ONE side of every suspected pair — if they really are one card, this is what the
+    // projection would have looked like all along.
+    const shadowed = new Set(cardDuplicates.map((p) => p.bId));
+    const deduped = dues.filter((d) => !shadowed.has(d.cardId));
+    const truth = computeRadar({ ...baseInput, cardDues: deduped });
+    const dipMoved =
+      truth.committed.firstNegativeDate !== radar.committed.firstNegativeDate;
+    const coverMoved =
+      (truth.coverTransfer?.amountCents ?? null) !== (radar.coverTransfer?.amountCents ?? null);
+    if (dipMoved || coverMoved) duplicateNotes = projectedPairs;
+  }
+  assumptions.push(...duplicateNotes);
+
+  const input: RadarInput = { ...baseInput, assumptions };
+  return {
+    input,
+    // Carried on the result as well as in `assumptions`: the cash_flow_alert PUSH composes its own
+    // body and never reads `assumptions`, and the push is where this alert does its damage.
+    // First pair only (critic NEW-5): a push body is truncated by the operating system, and two
+    // stacked disclosures would push the dip date and the amount off screen. `assumptions` keeps
+    // every pair for the in-app card, which has room. Same trade as `cardDuplicatePushNotes`.
+    radar: { ...radar, duplicateDisclosure: duplicateNotes[0] ?? null },
+    paymentAccountName: payment.name,
+  };
 }
 
 export async function getCashFlowRadar(userId: string): Promise<CashFlowRadarData> {
   const provider = getProvider();
   const today = provider.today(userId);
   const snap = await provider.getFinanceSnapshot(userId);
-  const { radar, paymentAccountName } = radarFromSnapshot(snap, today);
+  // The pair is detected per run here too, from this same PERSONAL snapshot (the radar has no
+  // household scope). `cashNeededFromSnapshot` inside `radarFromSnapshot` recomputes the obligation
+  // set, so the ids line up with what the projection repeats.
+  const { result } = cashNeededFromSnapshot(snap, today, 'PAY_IN_FULL');
+  const cardDuplicates = await personalCardDuplicates(userId, snap, result);
+  const { radar, paymentAccountName } = radarFromSnapshot(snap, today, undefined, cardDuplicates);
   return { radar, paymentAccountName };
 }

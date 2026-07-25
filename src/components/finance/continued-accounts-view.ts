@@ -51,26 +51,15 @@ export const CONTINUED_COMBINES_TESTID = 'reconcile-combines-note';
 export const CONTINUED_CHAINED_TESTID = 'reconcile-chained-note';
 export const CONTINUED_UNDO_TESTID = 'reconcile-undo';
 
-/** Shown when a name sanitizes away to nothing — never an empty control face. */
-export const UNNAMED_ACCOUNT = 'Unnamed account';
-
 /**
- * Bidi overrides, zero-width and other default-ignorable characters, plus C0/C1 controls.
- *
- * Account names arrive from a bank feed unmodified (`simplefin.ts:475`, `plaid.ts:344` write the
- * provider's name straight through) and manual names are only `trim()`-ed. Two critic findings turn
- * on this: U+202E reverses the rest of a button face at render time, and U+200B / doubled spaces
- * make two byte-DIFFERENT labels paint IDENTICALLY — defeating any collision check that compares
- * raw strings. Sanitizing once, at construction, makes the rendered string equal the compared
- * string, which is what lets the uniqueness argument below hold on screen and not just in memory.
+ * The name sanitizer now lives in the engine tree (TASKS L.15): the duplicate-disclosure copy
+ * module moved there when the reminder/digest/notify engines became its consumers, and
+ * `src/lib/**` must not import from `src/components/**`. Re-exported here, unchanged, so every
+ * existing importer of this module keeps working and there is still exactly ONE sanitizer.
  */
-const INVISIBLE =
-  /[\u0000-\u001F\u007F-\u009F\u00AD\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+import { renderSafe, UNNAMED_ACCOUNT } from '@/lib/engine/account/render-safe';
 
-export function renderSafe(raw: string): string {
-  const cleaned = raw.normalize('NFC').replace(INVISIBLE, '').replace(/\s+/g, ' ').trim();
-  return cleaned === '' ? UNNAMED_ACCOUNT : cleaned;
-}
+export { renderSafe, UNNAMED_ACCOUNT };
 
 /** One old account folded into a live one. `id` is the AccountReconciliation id — the Undo target. */
 export interface ContinuedSourceView {

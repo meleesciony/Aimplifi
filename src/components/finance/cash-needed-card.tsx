@@ -24,7 +24,7 @@ import {
   cardDuplicateBalanceView,
   cardDuplicateView,
   paintedHeroCards,
-} from '@/components/finance/card-duplicate-view';
+} from '@/lib/engine/account/card-duplicate-view';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import { type CashNeededResult, undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { traceCashNeeded } from '@/lib/engine/glass-box/trace';
@@ -217,7 +217,10 @@ export function CashNeededCard({
       <CardHeader className="pb-2">
         <CardDescription>Cash needed for cards this cycle</CardDescription>
         <GlassBoxNumber
-          trace={traceCashNeeded(result)}
+          // TASKS L.15 (f): the tapped breakdown lists both rows of the pair inside the very
+          // number the disclosure below qualifies — and reconciles to the penny, which reads as
+          // confirmation that both belong unless the trace says otherwise.
+          trace={traceCashNeeded(result, cardDuplicates)}
           amountTestId="cash-needed-amount"
           amountClassName="text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl"
           engagementSubjectKey="cash-needed"

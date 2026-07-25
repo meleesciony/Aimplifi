@@ -22,6 +22,17 @@ export interface CalendarEvent {
   label: string;
   amountCents: Cents; // signed; card-due / loan-due negative (cash leaving)
   isEstimated?: boolean;
+  /**
+   * The account this event is a due for — set on 'card-due' and 'loan-due' only (TASKS L.15 (a)).
+   *
+   * Carried so a caller can say something TRUE about the events this month actually holds. The
+   * duplicate disclosure must name only cards the reader can find on the grid in front of them, and
+   * an obligation whose due date falls outside the displayed month emits no event at all — so
+   * re-deriving the set from `cardObligations` at the call site would name a card that is not there.
+   * The engine already knows the id; handing it over is cheaper and safer than a second copy of this
+   * function's own month-window and `cashRequiredCents > 0` predicates.
+   */
+  accountId?: string;
 }
 
 export interface CalendarDay {
@@ -96,6 +107,7 @@ export function buildCashFlowCalendar(params: {
         label: `${ob.cardName} due${ob.isEstimated ? ' (est.)' : ''}`,
         amountCents: cents(-ob.cashRequiredCents),
         isEstimated: ob.isEstimated,
+        accountId: ob.cardId,
       });
     }
   }
@@ -107,6 +119,7 @@ export function buildCashFlowCalendar(params: {
         kind: 'loan-due',
         label: `${ob.accountName} due`,
         amountCents: cents(-ob.paymentCents),
+        accountId: ob.accountId,
       });
     }
   }

@@ -227,6 +227,39 @@ async function detectDisplayedCardDuplicates(
 }
 
 /**
+ * THE displayed-card set a duplicate pair is resolved against — one definition, shared by
+ * `getCashNeeded` and `getDashboardData` (TASKS L.15).
+ *
+ * Two rules are enforced here rather than at each call site, because L.15 adds five more callers and
+ * a fence copied per call site will miss call sites (`docs/lessons/fence-by-construction-not-per-call-site.md`):
+ *
+ * 1. **The PERSONAL snapshot, always.** `personalSnap` is the viewer's own pre-merge snapshot even
+ *    when the RESULT was computed over a household-merged one. `detectDisplayedCardDuplicates` stays
+ *    module-private precisely so no caller can hand it `householdSnap` and have two people's separate
+ *    cards at one bank called a duplicate (scoping decision 1 on the detector). A partner's cardId
+ *    simply is not in `personalSnap.accounts`, so the merged result narrows itself.
+ * 2. **The union of both card lists**, not whichever list a given surface paints. An undated copy is
+ *    still a second row for the same card. Each surface then narrows this superset to what IT
+ *    actually shows, through `resolvePairs` in `card-duplicate-view.ts`, which drops any pair whose
+ *    two cards are not both on that surface — the proven fence, reused rather than re-derived per
+ *    channel.
+ */
+export async function personalCardDuplicates(
+  userId: string,
+  personalSnap: FinanceSnapshot,
+  result: { cards: readonly { cardId: string }[]; unknownDueDateCards: readonly { cardId: string }[] },
+): Promise<CardDuplicateIdPair[]> {
+  return detectDisplayedCardDuplicates(
+    userId,
+    personalSnap,
+    new Set([
+      ...result.cards.map((c) => c.cardId),
+      ...result.unknownDueDateCards.map((c) => c.cardId),
+    ]),
+  );
+}
+
+/**
  * THE payment-account resolution — one definition (cycle-1 H1: three pages
  * had drifted copies that could disagree about which account "the answer"
  * is computed against).
@@ -331,6 +364,7 @@ export async function getCashNeeded(
     const slices = await Promise.all(partnerIds.map((id) => getSharedSnapshotSlice(id)));
     const merged = mergeSnapshots(today, snap, slices);
     const householdSnap: FinanceSnapshot = { ...snap, ...merged };
+    const computed = cashNeededFromSnapshot(householdSnap, today, scenario, paymentAccountId);
     return {
       today,
       snap: householdSnap,
@@ -338,7 +372,9 @@ export async function getCashNeeded(
       scope,
       household,
       ...(await householdExtras(userId, viewer, partnerIds, slices)),
-      ...cashNeededFromSnapshot(householdSnap, today, scenario, paymentAccountId),
+      ...computed,
+      // `snap`, not `householdSnap` — see `personalCardDuplicates`, rule 1.
+      cardDuplicates: await personalCardDuplicates(userId, snap, computed.result),
     };
   }
 
@@ -346,13 +382,19 @@ export async function getCashNeeded(
     DashboardData,
     'accountOwnerLabel' | 'householdWithheldCount' | 'householdDuplicates'
   > = { accountOwnerLabel: {}, householdWithheldCount: 0, householdDuplicates: [] };
+  const computed = cashNeededFromSnapshot(snap, today, scenario);
   return {
     today,
     snap,
     scope,
     household,
     ...emptyExtras,
-    ...cashNeededFromSnapshot(snap, today, scenario),
+    ...computed,
+    // TASKS L.15: every `getCashNeeded` caller — the calendar page and the reminder/digest/notify
+    // crons — now receives the same advisory pair the dashboard has had since #306, so a surface
+    // the reader acts on OFFLINE can say what the app already says on screen. Costs no query for a
+    // user with no candidate pair (the detector's own early return).
+    cardDuplicates: await personalCardDuplicates(userId, snap, computed.result),
   };
 }
 
@@ -445,14 +487,7 @@ export async function getDashboardData(
   // The pair disclosure for /cards (TASKS L.6). Both lists, because an undated copy is still a
   // second row for the same card even though it is in no total — and it is the "No due date yet"
   // panel that most often holds the thin, unnamed rows a duplicate arrives as.
-  const cardDuplicates = await detectDisplayedCardDuplicates(
-    userId,
-    snap,
-    new Set([
-      ...payInFull.cards.map((c) => c.cardId),
-      ...payInFull.unknownDueDateCards.map((c) => c.cardId),
-    ]),
-  );
+  const cardDuplicates = await personalCardDuplicates(userId, snap, payInFull);
 
   return {
     today,

@@ -20,6 +20,10 @@ import { COACH_COPY, type MoneyReview } from '@/lib/engine/fi/coach-copy';
 import type { SharedMovementSummary } from '@/lib/engine/household/digest';
 import { type PaymentReminder, reminderLine, reminderWhen } from '@/lib/engine/reminders/select';
 import { receiptLines, type ValueReceiptsSummary } from '@/lib/engine/receipts/receipts';
+import {
+  type CardDuplicatePairInput,
+  cardDuplicateEmailLines,
+} from '@/lib/engine/account/card-duplicate-view';
 
 export interface WeeklyDigest {
   subject: string;
@@ -80,8 +84,23 @@ export function buildWeeklyDigest(input: {
    * the digest sends for another reason.
    */
   undatedCardCount?: number;
+  /**
+   * Suspected same-card-twice pairs among the RECIPIENT'S OWN cards (TASKS L.15 (c)) — the personal
+   * detector, not `household.duplicatePairCount`, which is the different fact of one account shared
+   * by two members. Like `undatedCardCount`, NOT a send trigger: a running advisory alone isn't
+   * news. Omitted ⇒ byte-identical to the pre-L.15 digest.
+   */
+  cardDuplicates?: readonly CardDuplicatePairInput[];
 }): WeeklyDigest | null {
-  const { review, reminders, today, receipts, household, undatedCardCount = 0 } = input;
+  const {
+    review,
+    reminders,
+    today,
+    receipts,
+    household,
+    undatedCardCount = 0,
+    cardDuplicates = [],
+  } = input;
   if (!review && reminders.length === 0) return null;
 
   const parts: string[] = [COACH_COPY.digestIntro(formatISODate(today, 'long')), ''];
@@ -126,6 +145,19 @@ export function buildWeeklyDigest(input: {
     // so the undated cards have to be named here too — not only when the list is
     // empty. The email is the surface where no in-app panel can correct it.
     if (undatedCardCount > 0) parts.push(COACH_COPY.digestUndatedAlongsideDues(undatedCardCount));
+    // TASKS L.15 (c). Inside the `reminders.length > 0` branch by construction: the disclosure
+    // names two of the bullets above, so where there are no bullets there is nothing for the
+    // reader to attach the two names to, and `resolvePairs` would drop the pair anyway. A
+    // PARTNER'S shared card is deliberately unreachable here — the pairs come from the personal
+    // detector over the recipient's own snapshot, and `reminderLine` vs `digestPartnerDue` already
+    // keeps the two kinds of bullet apart (slice-7 critic F1).
+    const duplicateLines = cardDuplicateEmailLines(
+      cardDuplicates,
+      reminders.map((r) => ({ cardId: r.accountId, label: r.accountName })),
+    );
+    // A blank line first, as the reminder email has (L.15 critic F6): without it the title ran
+    // straight on from the last bullet and read as another due.
+    if (duplicateLines.length > 0) parts.push('', ...duplicateLines);
   }
 
   if (household) {

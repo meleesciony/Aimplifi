@@ -30,6 +30,7 @@ import { netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
 import { savingsRateBps } from '@/lib/engine/fi/fi';
 import { traceCashNeeded as glassBoxCashNeeded } from '@/lib/engine/glass-box/trace';
+import type { CardDuplicatePairInput } from '@/lib/engine/account/card-duplicate-view';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { AccountLike } from './answer';
 
@@ -153,8 +154,19 @@ const CASH_NEEDED_BASIS =
  * engine's figure AND the builder's (`expectedCents`), and pins `byDate` to
  * the last row's date so the "by DATE" in the sentence is covered too.
  */
-export function traceCashNeededDerivation(result: CashNeededResult, expectedCents: number): DerivationTrace {
-  const inner = glassBoxCashNeeded(result);
+export function traceCashNeededDerivation(
+  result: CashNeededResult,
+  expectedCents: number,
+  /**
+   * Suspected same-card-twice pairs (TASKS L.15 (f), critic P1-1). The FIRST cut of L.15 wired only
+   * the dashboard's glass-box and left this one — the panel the Ask reader opens to AUDIT the figure
+   * the answer just qualified. It rendered both rows under a green check with a penny-perfect
+   * reconciliation and said nothing, which reads as confirmation that both belong. `basis` below
+   * already spreads `inner.basis`, so the disclosure flows through with the argument.
+   */
+  cardDuplicates: readonly CardDuplicatePairInput[] = [],
+): DerivationTrace {
+  const inner = glassBoxCashNeeded(result, cardDuplicates);
   const rows: DerivationRow[] = inner.rows.map((r) => ({
     label: r.label,
     amountCents: r.amountCents,

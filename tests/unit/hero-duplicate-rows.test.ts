@@ -20,7 +20,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { paintedHeroCards } from '@/components/finance/card-duplicate-view';
+import { paintedHeroCards } from '@/lib/engine/account/card-duplicate-view';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
 import type { CashNeededInput, CardSnapshot } from '@/lib/engine/cash-needed/types';
 import { isoDate } from '@/lib/dates';

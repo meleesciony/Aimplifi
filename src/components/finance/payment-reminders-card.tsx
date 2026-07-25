@@ -11,7 +11,7 @@ import {
   CARD_DUPLICATE_TESTID,
   type CardDuplicatePairInput,
   cardDuplicateListView,
-} from '@/components/finance/card-duplicate-view';
+} from '@/lib/engine/account/card-duplicate-view';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import { formatCents } from '@/lib/money';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
