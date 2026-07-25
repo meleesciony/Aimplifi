@@ -57,6 +57,34 @@ Corollaries worth keeping:
   structural escape that does not cover two named cases. That is written into the design doc as
   D7a and queued as `TASKS L.16` — not silently dropped.
 
+## Extension (L.17, the two residuals the same critics recorded but never executed)
+
+Both critics flagged two further paths *without reproducing them*, and both turned out to be real
+— reproduced in one run each before any source changed. They are two more shapes of "the guard
+read something other than the fact it needed":
+
+* **A null column is not a negative answer.** The candidate query selected connections by
+  `PlaidItem.institutionId`, so a connection linked before that column existed — null — read as
+  "a different bank" when it actually means *this row has never been asked*. The door was a silent
+  no-op at precisely the banks the owner already had, i.e. the whole population the feature was
+  built for, and nothing on any screen said the protection was off. This is
+  `an-empty-set-is-not-a-fact` applied to a guard's scoping input rather than to a money surface:
+  when a guard's input can be absent, resolve it (one billed `/item/get`, written back so it is
+  bought once) or abstain — never read absence as a negative.
+* **An invariant enforced by sequence is not enforced.** The decision read the user's connections
+  at a bank and then wrote one, with several network calls in between; two Link sessions (two
+  tabs, a double-tap) both read zero and both persisted. Invariant D1 was upheld only by the
+  ordering that usually happens to hold. The fix makes the DECISION exclusive — a lease unique on
+  `(userId, institutionId)` — and deliberately *not* the outcome, since two connections at one
+  bank are legitimate. A lock on this path must also fail OPEN (short wait, proceed unprotected)
+  because the alternative failure is timing out an exchange, which orphans a billed Item whose
+  token was never stored: the worst outcome on the path, per the bullet above.
+
+The transferable part is the audit habit: when a critic records a defect it did not execute,
+treat it as a hypothesis with a known repro cost, and pay that cost first. A repro turns "probably
+still open" into a failing assertion you can point at, and it is the only thing that proves the
+fix addressed the reported defect rather than an adjacent one.
+
 ## How it was caught
 
 Two critics in parallel, each given a different lens (irreversible data loss; claims, copy and

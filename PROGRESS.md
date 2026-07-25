@@ -4927,6 +4927,13 @@ UNVERIFIED against live Plaid -- no credentials here; the concurrency repro driv
 RESIDUAL, written down not claimed away: a link whose institution never resolves takes no lease
 (nothing to be exclusive about, and the collision check abstains on it anyway), and a claim
 leaked by a killed process is reclaimed by the next link at that bank, not by a sweep.
+SHIPPED LIVE: de1b5a4; dpl_3mKj7AoppLK9BQ1AYTHrsizLMJuG READY, target production, aliased
+www.aimplifi.app. The Neon push ran in the build ("Your database is now in sync with your Prisma
+schema. Done in 428ms" against ep-proud-sound-atpgfoct) so `PlaidLinkClaim` EXISTS in production;
+"Deployment completed". Three-way byte check, stable across 3 passes: www == the de1b5a4
+deployment (70cb917ef48c5e9ea7e267bcf00d4b7e) and != the previous one
+(14da1d22ad7bb4b2ba884d3c1598f319). No public marker to grep -- the whole change is inside an
+auth-gated server action, so byte identity plus the local gate is the evidence.
 NEXT: L.15 (the six offline surfaces that still render a duplicated obligation silently) or L.16
 (the real collision prompt with a remembered "keep both").
 SHIPPED LIVE: ba5a222; dpl_3n1FCpGfrTCccnw1AipjwwDQWAXP, aliased www.aimplifi.app. Three-way
