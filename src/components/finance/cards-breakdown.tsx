@@ -25,6 +25,14 @@ import {
   type CardMoneyRole,
   cardDuplicateView,
 } from '@/lib/engine/account/card-duplicate-view';
+import {
+  FROZEN_ALL_CLEAR_TESTID,
+  FROZEN_CARD_TESTID,
+  FROZEN_FIRST_ACTION_TESTID,
+  frozenCardsNote,
+  frozenNothingDueNote,
+  frozenQuotedBalanceNote,
+} from '@/lib/engine/account/feed-dropped-view';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
 
@@ -166,8 +174,38 @@ export function CardsBreakdown({
             return { cardId: c.cardId, label: painted(c.cardId, c.cardName), role };
           }),
         );
+        // TASKS L.18. Only on the genuine all-clear: where the page prints a total, or names
+        // undatable cards, the affected rows carry their own notes instead. This branch prints no
+        // figure at all, so what is being qualified is the ABSENCE — a card the bank stopped
+        // sharing cannot deliver a new statement, and "nothing due this cycle" would cover it
+        // silently.
+        //
+        // Built HERE rather than beside the headline (critic P1-3): `painted` is this page's one
+        // expression for what a card is called and exists only in this scope, so the first cut
+        // passed the RAW name and two cards both called "CREDIT CARD" were named twice,
+        // identically, inches from the headings that tell them apart.
+        const allClearFrozen =
+          !result.headline.byDate && result.unknownDueDateCards.length === 0
+            ? frozenNothingDueNote(
+                [...result.cards, ...result.unknownDueDateCards]
+                  .filter((c) => c.frozenSince != null)
+                  .map((c) => ({
+                    label: painted(c.cardId, c.cardName),
+                    frozenSince: c.frozenSince as string,
+                    ownership: accountOwnerLabel[c.cardId]
+                      ? ('partner' as const)
+                      : ('reader' as const),
+                  })),
+                { nextStep: 'accounts-route' },
+              )
+            : null;
         return (
           <>
+            {allClearFrozen && (
+              <p className="text-xs text-amber-500" data-testid={FROZEN_ALL_CLEAR_TESTID}>
+                {allClearFrozen}
+              </p>
+            )}
             {duplicates && (
               // Above the instruction it qualifies (TASKS L.6): "Do this first: pay CREDIT CARD
               // $6,679.68" is the sentence a double-counted card corrupts, so the reader must meet
@@ -230,6 +268,41 @@ export function CardsBreakdown({
                     {formatISODate(isoDate(firstAction.effectiveDueDate))} (
                     {formatRelativeDays(isoDate(today), isoDate(firstAction.effectiveDueDate))}).
                   </>
+                )}
+              </p>
+            )}
+            {/* TASKS L.18. THE instruction on this page gets its own qualifier when the card it
+                names is one the bank stopped sharing — a reader may act on this line alone, and it
+                sits several rows above that card's own note. Resolved against `firstAction` itself,
+                so it can never qualify an instruction about a different card, and it says nothing
+                when the first action is on a healthy card even if another card on the page is
+                frozen (that one is qualified on its own row).
+
+                Deliberately NOT a third, page-level block over `headline.requiredCents`: every
+                frozen card carries its note beside its own amounts directly below, so a total-level
+                sentence would be the same fact a third time. The L.6 duplicate block above IS
+                page-level, for a reason that does not apply here — a double-count is invisible on
+                the individual rows and shows up only in the sum. */}
+            {firstAction?.frozenSince != null && (
+              <p
+                role="alert"
+                className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-xs text-muted-foreground"
+                data-testid={FROZEN_FIRST_ACTION_TESTID}
+              >
+                {frozenCardsNote(
+                  [
+                    {
+                      cardId: firstAction.cardId,
+                      label: painted(firstAction.cardId, firstAction.cardName),
+                      frozenSince: firstAction.frozenSince,
+                      isEstimated: firstAction.isEstimated,
+                      // Critic P1-1: on a PARTNER's card the builder drops the "check it before
+                      // paying" imperative entirely — the reader is not the one paying it — and
+                      // says "the bank" rather than claiming a relationship they do not have.
+                      ownership: accountOwnerLabel[firstAction.cardId] ? 'partner' : 'reader',
+                    },
+                  ],
+                  { role: 'instruction', nextStep: 'accounts-route' },
                 )}
               </p>
             )}
@@ -338,6 +411,34 @@ export function CardsBreakdown({
                         </ul>
                       )
                     )}
+                    {/* TASKS L.18 — the row's own note, beside the four amounts it qualifies.
+                        `role: 'instruction'` because the biggest thing on this card reads "You must
+                        pay $X": on a frozen card a payment the reader has already made was never
+                        subtracted from it. Rendered for a PARTNER's card too — the amounts and the
+                        name are already on screen because the account is shared, so qualifying them
+                        discloses nothing further, and a stale figure misleads whoever reads it. */}
+                    {card.frozenSince != null && (
+                      <p
+                        className="mt-2 text-xs text-amber-500"
+                        data-testid={`${FROZEN_CARD_TESTID}-${card.cardId}`}
+                      >
+                        {frozenCardsNote(
+                          [
+                            {
+                              cardId: card.cardId,
+                              label: painted(card.cardId, card.cardName),
+                              frozenSince: card.frozenSince,
+                              isEstimated: card.isEstimated,
+                              // A PARTNER's card: this viewer's /accounts does not list that
+                              // connection (L.14 critic F-4), and they are not the one paying it
+                              // (critic P1-1). Both follow from ownership, so the builder decides.
+                              ownership: owner ? 'partner' : 'reader',
+                            },
+                          ],
+                          { role: 'instruction', nextStep: 'accounts-route' },
+                        )}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
                 );
@@ -381,6 +482,24 @@ export function CardsBreakdown({
                         {identity[c.cardId] ? ` ${identity[c.cardId]}` : ''}
                         {owner ? ` (${owner})` : ''} — balance{' '}
                         {formatCents(c.currentBalanceCents)}
+                        {/* TASKS L.18. This is the one figure on the page that is purely a
+                            BALANCE — the panel says these cards are in no total, so the claim is
+                            not about an amount due but about the number printed on this line. It
+                            gets `frozenQuotedBalanceNote`, not the card note, for that reason. The
+                            route is already named in this panel's own paragraph above, so the
+                            sentence points at nothing and does not repeat it. */}
+                        {c.frozenSince != null && (
+                          <span
+                            className="text-amber-500"
+                            data-testid={`${FROZEN_CARD_TESTID}-${c.cardId}`}
+                          >
+                            {' '}
+                            {frozenQuotedBalanceNote(
+                              { frozenSince: c.frozenSince },
+                              { nextStep: 'nothing' },
+                            )}
+                          </span>
+                        )}
                       </li>
                     );
                   })}

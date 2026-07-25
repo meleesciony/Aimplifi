@@ -18,6 +18,7 @@
 import { type Cents, cents, sumCents } from '@/lib/money';
 import type { ISODate } from '@/lib/dates';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
+import { frozenCardsNote } from '@/lib/engine/account/feed-dropped-view';
 import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
 import {
   type CardDuplicatePairInput,
@@ -67,6 +68,19 @@ export function traceCashNeeded(
    * the pre-L.15 trace.
    */
   cardDuplicates: readonly CardDuplicatePairInput[] = [],
+  /**
+   * Card ids owned by another household member (critic P1-1). The first cut hardcoded
+   * `ownership: 'reader'` here on the strength of a comment claiming both callers read a
+   * personal-scope result — false for the dashboard hero, which renders `data.payInFull`, the
+   * MERGED result, and whose own page comment says so. The panel then vouched for a partner's
+   * frozen card in the second person, naming a bank the reader has no relationship with and a
+   * connection their /accounts does not list — in the one place a reader goes precisely because
+   * they doubt the number.
+   *
+   * Defaults to empty rather than required only because this is the third positional argument on a
+   * builder with an existing defaulted one; the two production callers both pass it explicitly.
+   */
+  partnerCardIds: ReadonlySet<string> = new Set(),
 ): NumberTrace {
   const notesById = new Map(result.cards.map((c) => [c.cardId, c.notes]));
   const rows: TraceRow[] = result.perDueDate.flatMap((point) =>
@@ -114,6 +128,32 @@ export function traceCashNeeded(
       ),
     ),
   );
+
+  // TASKS L.18, and the same argument one clause down: a reader opens this panel to AUDIT the
+  // number, and every row it lists is green-checked against the headline. A card whose bank stopped
+  // sharing it is therefore vouched for here more strongly than anywhere else in the app. Resolved
+  // against the rows this trace actually lists — a frozen card in `upcoming` is in no row and in no
+  // total, so it is not named here (the line above already says why it is excluded).
+  const frozenRows = result.perDueDate
+    .flatMap((point) => point.cards.map((c) => c.cardId))
+    .filter((id, i, all) => all.indexOf(id) === i)
+    .map((id) => result.cards.find((c) => c.cardId === id))
+    .filter((c): c is NonNullable<typeof c> => c != null && c.frozenSince != null);
+  const frozenBasis = frozenCardsNote(
+    frozenRows.map((c) => ({
+      cardId: c.cardId,
+      label: c.cardName,
+      frozenSince: c.frozenSince as string,
+      isEstimated: c.isEstimated,
+      ownership: partnerCardIds.has(c.cardId) ? ('partner' as const) : ('reader' as const),
+    })),
+    // A figure, not an instruction: this panel explains a total, and the pay-by-date imperative it
+    // supports lives on the cards it came from, which carry their own guard.
+    { role: 'figure', nextStep: 'accounts-route' },
+  );
+  if (frozenBasis) basis.push(frozenBasis);
+  // `reconciles` is deliberately untouched, for the reason stated above: the rows really do sum to
+  // the headline, and failing the check would claim a drift that does not exist.
 
   return {
     key: 'cash_needed',

@@ -31,6 +31,7 @@ function reminder(p: {
   cashRequiredCents?: number;
   isEstimated?: boolean;
   obligationType?: 'card' | 'loan';
+  frozenSince?: string | null;
 }): PaymentReminder {
   const userAction = p.userActionCents ?? 5000;
   return {
@@ -45,6 +46,7 @@ function reminder(p: {
     autopayCents: cents(p.autopayCents ?? 0),
     autopayCovered: userAction === 0 && (p.autopayCents ?? 0) > 0,
     isEstimated: p.isEstimated ?? false,
+    frozenSince: p.frozenSince ?? null,
   };
 }
 

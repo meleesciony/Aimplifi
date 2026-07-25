@@ -27,10 +27,14 @@ export interface CardSnapshot {
   paymentsAppliedCents: Cents;
   /** A refund/credit that posted after statement close (informational; does not reduce this statement). */
   postCloseCreditCents?: Cents;
-  /** YYYY-MM-DD the bank stopped sharing this card, else null/absent (TASKS L.14). Carried so the
-   *  engine's `assumptions` — which /cards, the dashboard hero, the calendar, the Ask answer and
-   *  the weekly digest all render — can say that a card's figures come from a balance that has
-   *  stopped moving. The engine adjusts nothing; it stops the number being quoted as current. */
+  /** YYYY-MM-DD the bank stopped sharing this card, else null/absent (TASKS L.14).
+   *
+   *  The original of this comment claimed the engine's `assumptions` are rendered by "/cards, the
+   *  dashboard hero, the calendar, the Ask answer and the weekly digest". Only the hero and the
+   *  radar card render that array; the other four were the surfaces that stayed SILENT, which is
+   *  what L.18 exists to fix (critic P3-1 — the correction was written in engine.ts and this copy
+   *  of the false claim was left standing). Each surface now carries its own sentence, and
+   *  `CardObligation.frozenSince` is what lets them. The engine adjusts nothing either way. */
   frozenSince?: string | null;
 }
 
@@ -92,6 +96,20 @@ export interface CardObligation {
   minimumDueCents: Cents;
   isEstimated: boolean;
   notes: string[];
+  /**
+   * YYYY-MM-DD the bank stopped sharing this card, else null (TASKS L.18).
+   *
+   * Rides the OBLIGATION rather than being re-queried per surface, because every surface that
+   * prints one of the amounts above reads it from here: /cards, the payment reminders card, the
+   * reminder email, the weekly digest, web push and the radar's projected cycles. L.14 disclosed
+   * the same fact once in `assumptions` and assumed that reached them; only the dashboard hero
+   * renders `assumptions`, so the fact has to travel with the money.
+   *
+   * REQUIRED, never optional: a caller that forgets it gets silence at exactly the moment the
+   * number is least trustworthy (the L.15 defaulted-argument lesson, and L.14's own reason for
+   * making `RadarAccountLike.feedDroppedAt` required).
+   */
+  frozenSince: string | null;
 }
 
 /**
@@ -103,6 +121,10 @@ export interface UnknownDueDateCard {
   cardName: string;
   /** The card's current balance — stated as a balance, never as an amount "due". */
   currentBalanceCents: Cents;
+  /** YYYY-MM-DD the bank stopped sharing this card, else null (TASKS L.18). The surfaces that
+   *  list these cards print `currentBalanceCents` verbatim, so on a frozen card they are quoting
+   *  a number that stopped moving — the one figure here that is purely a balance. */
+  frozenSince: string | null;
 }
 
 export interface ObligationPoint {
@@ -149,6 +171,20 @@ export interface CashNeededResult {
   /** Estimated next-cycle interest cost of the minimum path via the
    *  average-daily-balance method (MINIMUM scenario only; new purchases not projected). */
   minimumPathInterestCents: Cents | null;
+  /**
+   * YYYY-MM-DD the bank stopped sharing the FUNDING account this projection walks from, else null
+   * (TASKS L.18, from L.14 critic F-1). Carried on the result because the shortfall, the by-date,
+   * the transfer recommendation and the "you're covered" verdict all rest on that one balance, and
+   * the surfaces that state them — the Ask answer, the reminder email, the weekly digest, push —
+   * compose their own copy and never read `assumptions`.
+   *
+   * The account's NAME is deliberately not carried: every surface already prints its own label for
+   * it (`paymentAccountName`), and a disclosure must name the row the way the reader sees it named.
+   * The frozen BALANCE is carried, because a surface that does not otherwise print it can then say
+   * WHICH number stopped moving instead of merely that one did — and one nullable object keeps the
+   * date and the amount from ever disagreeing about whether there is anything to disclose.
+   */
+  fundingFrozen: { readonly frozenSince: string; readonly balanceCents: Cents } | null;
   assumptions: string[];
 }
 

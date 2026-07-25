@@ -24,6 +24,10 @@ import {
   type CardDuplicatePairInput,
   cardDuplicateEmailLines,
 } from '@/lib/engine/account/card-duplicate-view';
+import {
+  frozenDuesEmailLines,
+  frozenNothingDueNote,
+} from '@/lib/engine/account/feed-dropped-view';
 
 export interface WeeklyDigest {
   subject: string;
@@ -91,6 +95,24 @@ export function buildWeeklyDigest(input: {
    * news. Omitted ⇒ byte-identical to the pre-L.15 digest.
    */
   cardDuplicates?: readonly CardDuplicatePairInput[];
+  /**
+   * Every card of the recipient's the bank has stopped sharing (TASKS L.18) — dated or not, due or
+   * not. Used ONLY by the "nothing due" branch, which is a positive money claim this email cannot
+   * come back and correct: a frozen card is precisely a card whose new statement could not have
+   * reached us, so "a clear week ahead" may be describing a card we can no longer see.
+   *
+   * The dues branch does NOT use this list. It resolves against the reminders it actually prints, so
+   * every sentence names a bullet the reader can find. Two resolutions, because the two branches
+   * make different claims: one about listed amounts, one about the absence of any.
+   *
+   * REQUIRED, and the only required field on this input: an optional one would silently restore the
+   * unqualified all-clear, which is the defect.
+   */
+  frozenCards: readonly {
+    label: string;
+    frozenSince: string;
+    ownership: 'reader' | 'partner';
+  }[];
 }): WeeklyDigest | null {
   const {
     review,
@@ -100,6 +122,7 @@ export function buildWeeklyDigest(input: {
     household,
     undatedCardCount = 0,
     cardDuplicates = [],
+    frozenCards,
   } = input;
   if (!review && reminders.length === 0) return null;
 
@@ -120,6 +143,11 @@ export function buildWeeklyDigest(input: {
         ? COACH_COPY.digestNothingDueWithUndated(undatedCardCount)
         : COACH_COPY.digestNothingDue(),
     );
+    // TASKS L.18 — the all-clear this email cannot take back. Beside the undated-card qualifier
+    // because it is the same kind of gap through a different door: that one is a statement that has
+    // not arrived yet, this one is a statement that can no longer arrive at all.
+    const clearWeekNote = frozenNothingDueNote(frozenCards, { nextStep: 'open-app' });
+    if (clearWeekNote) parts.push(clearWeekNote);
   } else {
     for (const r of reminders) {
       // A partner's shared card NEVER renders through the second-person
@@ -158,6 +186,30 @@ export function buildWeeklyDigest(input: {
     // A blank line first, as the reminder email has (L.15 critic F6): without it the title ran
     // straight on from the last bullet and read as another due.
     if (duplicateLines.length > 0) parts.push('', ...duplicateLines);
+    // TASKS L.18, and inside the same branch for the same reason: every sentence names a bullet.
+    // The flag rides each reminder, so this needs no new input and no caller can drop it.
+    //
+    // A PARTNER's shared card IS reachable here, unlike the duplicate disclosure above, and that
+    // is correct rather than an oversight: the digest has already printed that card's name and its
+    // amount under `digestPartnerDue` because the account is shared, so qualifying it discloses
+    // nothing new about the partner's finances. What stays unreachable is an UNSHARED frozen
+    // account — it has no bullet, so `reminders` never carries it (L.14 critic F-3 keeps those to a
+    // bare count on the dashboard, where the household TOTAL is what exposes them).
+    const frozenLines = frozenDuesEmailLines(
+      reminders
+        .filter((r) => r.frozenSince != null)
+        .map((r) => ({
+          label: r.accountName,
+          frozenSince: r.frozenSince as string,
+          isEstimated: r.isEstimated,
+          kind: r.obligationType,
+          // The same map that decides whether the bullet above rendered as second-person
+          // (`reminderLine`) or owner-attributed (`digestPartnerDue`) — so the remedy can never
+          // disagree with the sentence it is qualifying.
+          ownedByPartner: household?.partnerAccountLabels[r.accountId] !== undefined,
+        })),
+    );
+    if (frozenLines.length > 0) parts.push('', ...frozenLines);
   }
 
   if (household) {

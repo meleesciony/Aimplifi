@@ -25,6 +25,7 @@ const sampleReminder = (over: Partial<PaymentReminder> = {}): PaymentReminder =>
   autopayCents: cents(0),
   autopayCovered: false,
   isEstimated: false,
+  frozenSince: null,
   ...over,
 });
 
@@ -79,7 +80,20 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'reviewCreep', text: COACH_COPY.reviewCreep('Netflix', cents(250)), isProjection: false },
   { label: 'reviewCreepSpending', text: COACH_COPY.reviewCreepSpending(410), isProjection: false },
   { label: 'nextAction:cancel', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionCancelSub('LA Fitness', cents(3499))), isProjection: false },
-  { label: 'nextAction:transfer', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionTransfer(cents(105000), 'Tue, Jun 23')), isProjection: false },
+  { label: 'nextAction:transfer', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionTransfer(cents(105000), 'Tue, Jun 23', null)), isProjection: false },
+  // TASKS L.18: the frozen-funding branch is a SECOND string this function can produce, and this
+  // file claims to scan every one of them. Scanned here so the new clause cannot ship past the
+  // shame/assumption guardrails unread.
+  {
+    label: 'nextAction:transfer-frozen',
+    text: COACH_COPY.reviewNextAction(
+      COACH_COPY.nextActionTransfer(cents(105000), 'Tue, Jun 23', {
+        label: 'Everyday Checking',
+        frozenSince: '2026-06-01',
+      }),
+    ),
+    isProjection: false,
+  },
   { label: 'nextAction:automate', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionAutomate()), isProjection: false },
   { label: 'disclaimer', text: COACH_COPY.disclaimer(), isProjection: false },
   // Wave 1 principle captions

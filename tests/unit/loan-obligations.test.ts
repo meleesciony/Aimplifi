@@ -27,6 +27,7 @@ describe('selectLoanObligations', () => {
         effectiveDueDate: '2026-07-02',
         paymentCents: 38500,
         isEstimated: false,
+        frozenSince: null,
       },
     ]);
   });

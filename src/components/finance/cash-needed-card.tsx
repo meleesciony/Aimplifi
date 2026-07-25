@@ -220,7 +220,14 @@ export function CashNeededCard({
           // TASKS L.15 (f): the tapped breakdown lists both rows of the pair inside the very
           // number the disclosure below qualifies — and reconciles to the penny, which reads as
           // confirmation that both belong unless the trace says otherwise.
-          trace={traceCashNeeded(result, cardDuplicates)}
+          trace={traceCashNeeded(
+            result,
+            cardDuplicates,
+            // This card renders the HOUSEHOLD-merged result at household scope, so a row here may
+            // be a partner's — and the panel is the one a reader opens to audit the figure (critic
+            // P1-1). The same map that keeps the rows above out of second-person copy.
+            new Set(Object.keys(accountOwnerLabel)),
+          )}
           amountTestId="cash-needed-amount"
           amountClassName="text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl"
           engagementSubjectKey="cash-needed"

@@ -147,6 +147,23 @@ export async function GET(request: NextRequest) {
         // household branch cannot pair a partner's card with the reader's. Detected per run rather
         // than stored — see the reminders route for why.
         cardDuplicates,
+        // TASKS L.18. Detected per run from the live column on this same `result`, never a stored
+        // flag — a flag written last week describes cards that may since have been re-ticked or
+        // deleted, and an email carries no control to correct itself (the L.15 cron rule). EVERY
+        // frozen card, not just the due ones: the branch that reads this is the "nothing due" line,
+        // whose claim covers cards that produced no due at all.
+        frozenCards: [...result.cards, ...result.unknownDueDateCards]
+          .filter((c) => c.frozenSince != null)
+          .map((c) => ({
+            label: c.cardName,
+            frozenSince: c.frozenSince as string,
+            // The joint digest reads a HOUSEHOLD-scoped result, so a card here may be a partner's
+            // shared one — "your bank" and "open Aimplifi to fix it" are both false of it, in a
+            // channel that cannot correct itself (critic P1-2). Same map the dues bullets use.
+            ownership: (household?.partnerAccountLabels[c.cardId] ? 'partner' : 'reader') as
+              | 'partner'
+              | 'reader',
+          })),
       });
 
       let sent = false;

@@ -34,6 +34,7 @@ const reminder = (over: Partial<PaymentReminder> = {}): PaymentReminder => ({
   autopayCents: cents(23456),
   autopayCovered: false,
   isEstimated: false,
+  frozenSince: null,
   ...over,
 });
 

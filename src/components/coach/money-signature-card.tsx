@@ -61,7 +61,22 @@ function steadinessLine(s: MoneySignature['spendingSteadiness']): string {
   return COACH_COPY.signatureSteadinessMixed(s.spreadBps);
 }
 
-export function MoneySignatureCard({ signature }: { signature: MoneySignature }) {
+export function MoneySignatureCard({
+  signature,
+  frozenCashNote,
+}: {
+  signature: MoneySignature;
+  /**
+   * TASKS L.18, critic P2-1. The weather line prints the SAME runway the /coach runway card prints
+   * — cash ÷ six-month average expenses — and the state word itself ("calm" vs "strained") is
+   * computed from it, so a savings account frozen HIGH manufactures a reassurance verdict. The
+   * runway card was qualified and this one, reading the identical number, was not.
+   *
+   * REQUIRED, not optional: this is the surface where the omission is hardest to notice, because
+   * what is wrong is a mood rather than a figure.
+   */
+  frozenCashNote: string | null;
+}) {
   const { weather } = signature;
   return (
     <Card data-testid="money-signature-card">
@@ -78,6 +93,11 @@ export function MoneySignatureCard({ signature }: { signature: MoneySignature })
             weather.latestMonth === null ? null : formatMonth(weather.latestMonth),
           )}
         </p>
+        {frozenCashNote ? (
+          <p className="text-xs text-amber-500" data-testid="signature-frozen-note">
+            {frozenCashNote}
+          </p>
+        ) : null}
         <p data-testid="signature-saving">{savingLine(signature.savingHabit)}</p>
         <p data-testid="signature-steadiness">{steadinessLine(signature.spendingSteadiness)}</p>
         <p className="text-xs text-muted-foreground">{COACH_COPY.signatureBasis()}</p>

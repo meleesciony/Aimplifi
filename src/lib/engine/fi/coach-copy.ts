@@ -8,8 +8,29 @@
  */
 
 import { formatCents, type Cents } from '@/lib/money';
-import { formatMonth } from '@/lib/dates';
+import { formatISODate, formatMonth, type ISODate } from '@/lib/dates';
+import type { FrozenFunding } from '@/lib/engine/account/feed-dropped-view';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
+
+/**
+ * The cash-needed cover transfer, as the Money Review consumes it.
+ *
+ * Declared ONCE and imported by `money-review.ts` rather than re-declared there (TASKS L.18): both
+ * composers emit the same instruction through `nextActionTransfer`, and two structurally-identical
+ * local types are how one of them gains a required disclosure field and the other silently does not
+ * (`dedup-must-diff-the-copies-first.md` — here the copies were genuinely identical, so sharing is
+ * safe and the shared shape is what makes the new field unforgettable).
+ */
+export interface PendingTransfer {
+  amountCents: Cents;
+  byDate: string;
+  /**
+   * The funding account behind the amount, when its bank has stopped sharing it (TASKS L.18).
+   * REQUIRED so neither composer can omit it: a transfer figure derived from a balance that stopped
+   * updating is a floor, and this instruction is both printed on /coach and mailed in the digest.
+   */
+  frozenFunding: FrozenFunding | null;
+}
 
 const pct = (bps: number) => `${(bps / 100).toFixed(2)}%`;
 const pct1 = (bps: number) => `${(bps / 100).toFixed(1)}%`;
@@ -113,8 +134,23 @@ export const COACH_COPY = {
   // "every card" is a claim about ALL of them, and the transfer figure only ever
   // covers the cards the engine could date (critic F-10, same class as the
   // dashboard's "all N cards"). Scoped wording keeps it true either way.
-  nextActionTransfer: (amount: Cents, byDate: string) =>
-    `move ${formatCents(amount)} to checking by ${byDate} so the cards due this cycle clear in full`,
+  // TASKS L.18: `frozenFunding` is REQUIRED, and it lives on THIS string rather than on the two
+  // composers that build it. `generateMoneyReview` and `buildReviewCandidates` both emit this
+  // instruction, and it is printed by /coach's review card AND mailed in the weekly digest — a
+  // qualification added at either composer would cover half the surfaces, which is the
+  // fence-copied-per-call-site failure. Owned by the sentence, every reader inherits it.
+  //
+  // The amount is a floor when the balance behind it stopped updating: the shortfall it comes from
+  // is the difference between the cards due and a balance we can no longer see.
+  nextActionTransfer: (amount: Cents, byDate: string, frozenFunding: FrozenFunding | null) =>
+    `move ${formatCents(amount)} to checking by ${byDate} so the cards due this cycle clear in full${
+      frozenFunding
+        ? ` — though ${frozenFunding.label}'s balance stopped updating on ${formatISODate(
+            frozenFunding.frozenSince as ISODate,
+            'long',
+          )}, when your bank stopped sharing it, so treat this amount as a floor and check the account first`
+        : ''
+    }`,
 
   nextActionAutomate: () =>
     `automate one transfer on payday — pay yourself first and the streak takes care of itself`,
@@ -368,7 +404,7 @@ export function generateMoneyReview(input: {
   creep: CreepResult;
   opportunities: Opportunity[];
   runwayMonths: number;
-  pendingTransfer?: { amountCents: Cents; byDate: string } | null;
+  pendingTransfer?: PendingTransfer | null;
 }): MoneyReview {
   const { flows, creep, opportunities } = input;
   const last = flows[flows.length - 1];
@@ -389,7 +425,11 @@ export function generateMoneyReview(input: {
   const unused = opportunities.find((o) => o.kind === 'unused-subscription');
   const nextAction = input.pendingTransfer
     ? COACH_COPY.reviewNextAction(
-        COACH_COPY.nextActionTransfer(input.pendingTransfer.amountCents, input.pendingTransfer.byDate),
+        COACH_COPY.nextActionTransfer(
+          input.pendingTransfer.amountCents,
+          input.pendingTransfer.byDate,
+          input.pendingTransfer.frozenFunding,
+        ),
       )
     : unused
       ? COACH_COPY.reviewNextAction(COACH_COPY.nextActionCancelSub(unused.merchant, unused.monthlyCents))

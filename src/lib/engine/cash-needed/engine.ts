@@ -49,6 +49,7 @@ import {
   previousBusinessDay,
   priorBusinessDayIfNonBusiness,
 } from '@/lib/dates';
+import { frozenCardsNote, frozenFundingNote } from '@/lib/engine/account/feed-dropped-view';
 import type {
   CardObligation,
   CardSnapshot,
@@ -172,6 +173,9 @@ function buildObligation(
     minimumDueCents: minimumDue,
     isEstimated,
     notes,
+    // Rides out with the money (TASKS L.18). Every surface that prints one of the amounts above
+    // reads it from this object, and none of them renders `assumptions`.
+    frozenSince: card.frozenSince ?? null,
   };
 }
 
@@ -195,6 +199,7 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
         cardId: card.id,
         cardName: card.name,
         currentBalanceCents: card.currentBalanceCents,
+        frozenSince: card.frozenSince ?? null,
       });
   }
   if (unknownDueDateCards.length > 0) {
@@ -231,26 +236,62 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
   // instead, on the surface that gives the instruction, because a frozen-HIGH balance reports
   // shortfall $0 and no recommendation while the real account cannot cover the autopay.
   // The CARD side of the same problem (critics P1-6/P1-7). A card whose bank stopped sharing it
-  // still produces obligations here — from a frozen balance and, on the estimate path, a
-  // statement-substitute derived from it — and /cards would print "pay $X by DATE" with nothing
-  // said. Stated once in `assumptions`, which /cards, the dashboard hero, the calendar, the Ask
-  // answer and the weekly digest all already render, so the disclosure reaches the surfaces
-  // through the data class rather than being re-pasted onto each one.
-  const frozenCards = input.cards.filter((c) => c.frozenSince != null);
-  if (frozenCards.length > 0) {
-    assumptions.add(
-      frozenCards.length === 1
-        ? `${frozenCards[0].name}'s balance has not updated since ${frozenCards[0].frozenSince}, because your bank stopped sharing that card. Its figures here are based on the last balance we saw.`
-        : `${frozenCards.length} cards have balances that stopped updating when your bank stopped sharing them (${frozenCards
-            .map((c) => c.name)
-            .join(', ')}). Their figures here are based on the last balances we saw.`,
-    );
-  }
-  if (input.paymentAccount.frozenSince != null) {
-    assumptions.add(
-      `${input.paymentAccount.name}'s balance of ${formatCents(input.paymentAccount.balanceCents)} has not updated since ${input.paymentAccount.frozenSince}, because your bank stopped sharing that account. Every figure here is projected from it, so if the real balance is lower, this understates what you need to move.`,
-    );
-  }
+  // still produces obligations here, and the surfaces that print those amounts said nothing.
+  //
+  // TWO CORRECTIONS TO WHAT L.14 SHIPPED HERE, both found by re-reading this function rather than
+  // trusting the comment that stood in this spot (TASKS L.18):
+  //
+  //  1. The comment claimed `assumptions` is rendered by "/cards, the dashboard hero, the calendar,
+  //     the Ask answer and the weekly digest". Only the dashboard hero renders it (plus the radar
+  //     card only — /goals and /settings render a static planning string, not this array
+  //     (critic P3-11). The four surfaces it named as covered were the
+  //     four that were silent, and naming an unwired surface as covered is how a gap gets marked
+  //     closed. Every one of them now carries its OWN sentence, resolved against the rows it prints
+  //     and pointing only at what it holds; `frozenSince` rides each obligation so they can.
+  //  2. The old sentence said a frozen card's "figures here are based on the last balance we saw",
+  //     which is true only on the estimate path — with a statement, `buildObligation` reads the
+  //     statement's balance, minimum and due date and never touches `currentBalanceCents`. It named
+  //     a dependency the figure does not have while missing the two that bite: mid-cycle payments
+  //     stop arriving with the feed, so money already paid is not subtracted, and no replacement
+  //     statement arrives either. The copy module states the FEED stopping, which covers both paths.
+  //
+  // The array is rendered only in-app, so `accounts-route` is honest for every reader of it, and
+  // `role` splits per what the figure is FOR: the hero's own recommendation is an instruction.
+  //
+  // CRITIC P0-1, and it is the mistake this slice exists to correct, one level down: the first cut
+  // resolved this over `input.cards` — every card the engine was handed. A card with no statement
+  // AND no cycle days produces no obligation at all (it lands in `unknownDueDateCards`, contributes
+  // $0, and has its own "excluded from every figure here" assumption two lines above), yet it took
+  // the ESTIMATE branch and told the reader "the amount asked for here is worked out from the last
+  // balance we saw". Two assumptions in one list contradicting each other, and the louder one was
+  // false. Resolve against `due` — the exact rows summed into `requiredCents` — so the sentence
+  // describes the figures this array qualifies. A frozen card that is merely LISTED carries its own
+  // note on the row beside its own amounts.
+  //
+  // CRITIC P1-4 corrects the correction: narrowing to `due` alone dropped `upcoming`, and those are
+  // the ESTIMATE-path obligations whose amount IS the frozen balance verbatim. The hero prints them
+  // as "est. — next cycle" beside a surviving assumption that names the frozen figure and calls it
+  // "the current balance" — vouching for it. The honest set is every obligation carrying an amount
+  // a surface states, this cycle or next; a $0 card and an undatable one are still excluded,
+  // because neither is in any figure.
+  const dueIds = new Set(
+    [...due, ...upcoming.filter((o) => o.cashRequiredCents > 0)].map((o) => o.cardId),
+  );
+  const frozenCards = input.cards.filter((c) => c.frozenSince != null && dueIds.has(c.id));
+  const frozenCardsAssumption = frozenCardsNote(
+    frozenCards.map((c) => ({
+      cardId: c.id,
+      label: c.name,
+      frozenSince: c.frozenSince as string,
+      isEstimated: c.statement === null,
+      // This engine is pure and is handed a household-MERGED account list carrying no ownership,
+      // so at household scope it cannot tell whose card this is. It says "the bank" rather than
+      // asserting "your bank" over a partner's (critic P1-1).
+      ownership: 'unknown' as const,
+    })),
+    { role: 'figure', nextStep: 'accounts-route' },
+  );
+  if (frozenCardsAssumption) assumptions.add(frozenCardsAssumption);
   let startBalance = input.paymentAccount.balanceCents;
   const pendingTotal = sumCents(input.paymentAccount.pending.map((p) => p.amountCents));
   if (input.paymentAccount.pending.length > 0) {
@@ -334,6 +375,24 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
       'Transfer recommendation is the projected shortfall rounded UP to the next $50, timed one business day before the first short date.',
     );
   }
+  // The funding account's own disclosure sits HERE rather than beside the card one above, because
+  // its role depends on what this run produced (critic P2-3): the first cut hardcoded
+  // `'instruction'` and printed "Treat the amount as a floor and check the account first" on a
+  // COVERED hero — where there is no shortfall, no transfer, and no amount on screen for "the
+  // amount" to refer to. `recommendation` is the surface's own answer to "did I state one?", and it
+  // is the same rule the Ask answer applies to the same result.
+  if (input.paymentAccount.frozenSince != null) {
+    assumptions.add(
+      frozenFundingNote(
+        {
+          label: input.paymentAccount.name,
+          frozenSince: input.paymentAccount.frozenSince,
+          balanceCents: input.paymentAccount.balanceCents,
+        },
+        { role: recommendation ? 'instruction' : 'figure', nextStep: 'accounts-route' },
+      ),
+    );
+  }
 
   // ── Minimum-path interest (average-daily-balance method — see DECISIONS #29, supersedes #5/#21) ──
   // For each card not paid in full, interest accrues on the average daily balance
@@ -389,6 +448,13 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
     upcoming,
     intraPeriodMinimum: minPoint,
     minimumPathInterestCents,
+    fundingFrozen:
+      input.paymentAccount.frozenSince != null
+        ? {
+            frozenSince: input.paymentAccount.frozenSince,
+            balanceCents: input.paymentAccount.balanceCents,
+          }
+        : null,
     assumptions: [...assumptions],
   };
 }

@@ -261,6 +261,20 @@ export default async function DashboardPage({
         undatedCardCount={undatedCardsWithBalance(data.payInFull).length}
         cardDuplicates={data.cardDuplicates}
         cardIdentity={cardIdentity}
+        // TASKS L.18: detected per render from the live column on the same result the reminders
+        // came from — every frozen card, because the branch that reads it is the all-clear.
+        frozenCards={[...data.payInFull.cards, ...data.payInFull.unknownDueDateCards]
+          .filter((c) => c.frozenSince != null)
+          .map((c) => ({
+            label: c.cardName,
+            frozenSince: c.frozenSince as string,
+            // At household scope `payInFull` is the MERGED result, so a shared card here may be a
+            // partner's — and the reader can neither reconnect it nor is the one paying it
+            // (critic P1-2).
+            ownership: (data.accountOwnerLabel[c.cardId] ? 'partner' : 'reader') as
+              | 'partner'
+              | 'reader',
+          }))}
       />
     </div>
   );

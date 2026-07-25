@@ -35,6 +35,10 @@ import {
 } from '@/lib/dates';
 import { type Cents, ZERO, cents, roundUpToNext50Dollars } from '@/lib/money';
 import { computeForecast, type ForecastEvent } from '@/lib/engine/forecast/forecast';
+import {
+  frozenProjectionNote,
+  frozenRadarPushNote,
+} from '@/lib/engine/account/feed-dropped-view';
 import type { CardObligation } from '@/lib/engine/cash-needed/types';
 import type { BurnRates } from './burn';
 
@@ -115,6 +119,20 @@ export interface RadarResult {
    * own body and never reads `assumptions` — and the push is where this alert does its damage.
    */
   duplicateDisclosure?: string | null;
+  /**
+   * The PUSH-shaped sentence for a projection whose starting account the bank stopped sharing
+   * (TASKS L.18) — short, and naming no control, because a notification holds none. The in-app
+   * card's longer form is in `assumptions`; the two are deliberately different strings.
+   *
+   * Carried on the result for the same reason `duplicateDisclosure` is: the cash_flow_alert push
+   * composes its own body and never reads `assumptions`, and the push is the only message in the
+   * app that states an amount to move.
+   *
+   * L.14 taught this engine to withhold a frozen account as a transfer SOURCE, and stopped there.
+   * The starting balance is the more expensive case: sources are one line of a proposal, while the
+   * start decides whether there is a dip at all, when it lands, and how big the transfer is.
+   */
+  startingBalanceFrozenDisclosure?: string | null;
   assumptions: string[];
 }
 
@@ -362,6 +380,32 @@ export function computeRadar(input: RadarInput): RadarResult {
     firstNegativeDate !== null ? 'alert' : burn?.conservative?.firstNegativeDate ? 'watch' : 'ok';
   const daysUntilFirstNegative = firstNegativeDate ? daysBetween(today, firstNegativeDate) : null;
 
+  // ── The account the whole walk starts from (TASKS L.18) ──
+  // Read from `input.accounts`, which already REQUIRES `feedDroppedAt` for the source filter, so
+  // there is no new argument and nothing a caller can forget. Stated unconditionally, not only when
+  // there is a dip: the frozen-HIGH case produces no dip and no transfer at all, and that silent
+  // "Clear" is the expensive direction — a reader reassured by a projection that cannot see the
+  // balance it is projecting. `statesATransfer` is read from what this run actually built, so the
+  // sentence describes the figures on screen rather than the status enum's idea of them.
+  //
+  // TWO STRINGS, not one shared one. The in-app card has room and a route to point at; the push
+  // body is truncated by the operating system and holds no control, so it gets the short form with
+  // no destination in it. Reusing one sentence across those two is the L.15 mistake in miniature.
+  const startingAccount = input.accounts.find((a) => a.id === input.paymentAccountId);
+  const frozenStart =
+    startingAccount?.feedDroppedAt != null
+      ? { label: startingAccount.name, frozenSince: startingAccount.feedDroppedAt }
+      : null;
+  if (frozenStart) {
+    assumptions.add(
+      frozenProjectionNote(frozenStart, {
+        shows: coverTransfer !== null ? 'a-transfer' : firstNegativeDate ? 'a-dip' : 'no-dip',
+        nextStep: 'accounts-route',
+      }),
+    );
+  }
+  const startingBalanceFrozenDisclosure = frozenStart ? frozenRadarPushNote(frozenStart) : null;
+
   return {
     today,
     horizonDays,
@@ -379,6 +423,7 @@ export function computeRadar(input: RadarInput): RadarResult {
     coverTransfer,
     burn,
     includesEstimatedDues: input.cardDues.some((d) => d.isEstimated),
+    startingBalanceFrozenDisclosure,
     assumptions: [...assumptions],
   };
 }

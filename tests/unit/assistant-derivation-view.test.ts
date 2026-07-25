@@ -27,8 +27,8 @@ import { holidayTable, isoDate } from '@/lib/dates';
 const d = isoDate;
 
 const ACCOUNTS: AccountLike[] = [
-  { id: 'chk', name: 'Checking', type: 'CHECKING', currentBalanceCents: 500000 },
-  { id: 'cc', name: 'Card', type: 'CREDIT', currentBalanceCents: 120000 },
+  { id: 'chk', name: 'Checking', type: 'CHECKING', currentBalanceCents: 500000, feedDroppedAt: null },
+  { id: 'cc', name: 'Card', type: 'CREDIT', currentBalanceCents: 120000, feedDroppedAt: null },
 ];
 const NET = 380000;
 

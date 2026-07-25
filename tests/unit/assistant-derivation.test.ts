@@ -36,13 +36,13 @@ const HOLIDAYS = holidayTable(2025, 2027);
  *  net = 96,975.00 − 17,400.00 = 79,575.00
  */
 const ACCOUNTS: AccountLike[] = [
-  { id: 'chk', name: 'Everyday Checking', type: 'CHECKING', currentBalanceCents: 500000 },
-  { id: 'sav', name: 'Rainy Day Savings', type: 'SAVINGS', currentBalanceCents: 1200000 },
-  { id: 'inv', name: 'Brokerage', type: 'INVESTMENT', currentBalanceCents: 8000000 },
-  { id: 'ovr', name: 'Old Checking', type: 'CHECKING', currentBalanceCents: -2500 },
-  { id: 'cc', name: 'Sapphire Card', type: 'CREDIT', currentBalanceCents: 240000 },
-  { id: 'loan', name: 'Auto Loan', type: 'LOAN', currentBalanceCents: 1500000 },
-  { id: 'paid', name: 'Paid-Off Card', type: 'CREDIT', currentBalanceCents: 0 },
+  { id: 'chk', name: 'Everyday Checking', type: 'CHECKING', currentBalanceCents: 500000, feedDroppedAt: null },
+  { id: 'sav', name: 'Rainy Day Savings', type: 'SAVINGS', currentBalanceCents: 1200000, feedDroppedAt: null },
+  { id: 'inv', name: 'Brokerage', type: 'INVESTMENT', currentBalanceCents: 8000000, feedDroppedAt: null },
+  { id: 'ovr', name: 'Old Checking', type: 'CHECKING', currentBalanceCents: -2500, feedDroppedAt: null },
+  { id: 'cc', name: 'Sapphire Card', type: 'CREDIT', currentBalanceCents: 240000, feedDroppedAt: null },
+  { id: 'loan', name: 'Auto Loan', type: 'LOAN', currentBalanceCents: 1500000, feedDroppedAt: null },
+  { id: 'paid', name: 'Paid-Off Card', type: 'CREDIT', currentBalanceCents: 0, feedDroppedAt: null },
 ];
 const NET = 7957500;
 
@@ -136,8 +136,8 @@ describe('1 — traceNetWorthDerivation: assets − liabilities, lockstep with n
 
   it('a negative net worth reconciles (honest, never clamped)', () => {
     const under: AccountLike[] = [
-      { id: 'c', name: 'Checking', type: 'CHECKING', currentBalanceCents: 100000 },
-      { id: 'l', name: 'Big Loan', type: 'LOAN', currentBalanceCents: 500000 },
+      { id: 'c', name: 'Checking', type: 'CHECKING', currentBalanceCents: 100000, feedDroppedAt: null },
+      { id: 'l', name: 'Big Loan', type: 'LOAN', currentBalanceCents: 500000, feedDroppedAt: null },
     ];
     const tt = traceNetWorthDerivation(under, -400000);
     expect(tt.reconciled).toBe(true);

@@ -22,6 +22,14 @@ import {
   cardDuplicateAnswerNote,
   cardDuplicateUndatedNote,
 } from '@/lib/engine/account/card-duplicate-view';
+import {
+  frozenCardsNote,
+  frozenFundingNote,
+  frozenListedBalancesNote,
+  frozenNothingDueNote,
+  frozenQuotedBalanceNote,
+  frozenTotalNote,
+} from '@/lib/engine/account/feed-dropped-view';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
@@ -146,6 +154,55 @@ export interface AccountLike {
   name: string;
   type: string;
   currentBalanceCents: number;
+  /**
+   * YYYY-MM-DD the bank stopped sharing this account, else null (TASKS L.18).
+   *
+   * The snapshot has carried this since L.14 and this narrow re-declaration was where it was lost:
+   * every balance the assistant quotes comes through here, so a shape that cannot see the flag is a
+   * surface that cannot qualify its own figures. REQUIRED rather than optional for that reason — an
+   * omitted flag reads as "this balance is live", which is the claim being corrected.
+   */
+  feedDroppedAt: string | null;
+}
+
+/**
+ * The snapshot's account shape carries `feedDroppedAt` as OPTIONAL (older fixtures omit it); the
+ * assistant's carries it as required. Normalize once, here, rather than at each `buildAnswer` case —
+ * the `server/radar.ts` boundary precedent, and the reason is `fence-by-construction`: a conversion
+ * copied per call site is a conversion some future call site will not copy.
+ */
+export function assistantAccounts(
+  accounts: readonly (Omit<AccountLike, 'feedDroppedAt'> & { feedDroppedAt?: string | null })[],
+  /**
+   * `FinanceSnapshot.supersededAccountIds` — the predecessor side of an active reconciliation.
+   *
+   * REQUIRED, because of critic P0-2: `applyReconciliationBoundary` zeroes such a row's balance and
+   * keeps every other field, `feedDroppedAt` included. Reading the flag raw made the assistant say
+   * a $0.00 row's "last figure is still counted in your net worth" — on the very panel a reader
+   * opens to audit the number, three lines under that row printing $0.00. It is not counted; the
+   * boundary already removed it. Clearing the stamp here means no builder downstream can make the
+   * claim, which is the same fix `/coach` carries (server/coach.ts) and the same defect L.14's own
+   * critic P0-1 found on the dashboard banner.
+   */
+  supersededIds: ReadonlySet<string>,
+): AccountLike[] {
+  return accounts.map((a) => ({
+    ...a,
+    feedDroppedAt: supersededIds.has(a.id) ? null : (a.feedDroppedAt ?? null),
+  }));
+}
+
+/** The frozen rows among a set the answer is about to quote, labelled as the answer names them. */
+function frozenRowsOf(accounts: readonly AccountLike[]): { label: string; frozenSince: string }[] {
+  return accounts
+    .filter((a) => a.feedDroppedAt != null)
+    .map((a) => ({ label: a.name, frozenSince: a.feedDroppedAt as string }));
+}
+
+/** Appends a disclosure to a `detail` that may or may not already carry one. */
+function withDetail(base: string | undefined, note: string | null): string | undefined {
+  if (!note) return base;
+  return base === undefined ? note : `${base} ${note}`;
 }
 // Liability classification uses the canonical isLiabilityType (CREDIT/LOAN/
 // MORTGAGE/OTHER_LIABILITY) — the SAME predicate netWorthCents and /accounts use —
@@ -179,7 +236,17 @@ export function answerNetWorth(accounts: readonly AccountLike[]): AssistantAnswe
     // No accounts → no computed figure, no tap (slice-3 critic F6): "$0.00" with
     // an empty formula panel behind it is a hollow reconciliation, not a real one.
     ...(accounts.length > 0 ? { headlineCents: net } : {}),
-    detail: "Everything you own minus everything you owe, across every account you've linked or added.",
+    // TASKS L.18. The headline is a total over every account, so a frozen one is inside it by
+    // definition — there is no counterfactual to check here, unlike a duplicate. The trace behind
+    // this figure carries the same fact as a basis line; the reconciliation itself is untouched,
+    // because the rows really do sum to the headline whether or not a balance is current.
+    detail: withDetail(
+      "Everything you own minus everything you owe, across every account you've linked or added.",
+      frozenTotalNote(frozenRowsOf(accounts), {
+        figureLabel: 'your net worth',
+        nextStep: 'accounts-route',
+      }),
+    ) as string,
     facts: [
       { label: 'Assets', value: fmt(assets) },
       { label: 'Liabilities', value: fmt(liabilities) },
@@ -237,11 +304,21 @@ export function answerAccountBalance(
       ? `${foldedFrom.join(' and ')} was combined into its connected account, so it counts once.`
       : undefined;
 
+  // TASKS L.18. Resolved against the accounts each BRANCH actually quotes, not against the whole
+  // snapshot: the no-match branch lists `visible`, the single branch quotes exactly one row, and
+  // the multi branch sums `matches`. A frozen account nowhere in the answer is nowhere in the
+  // disclosure either — the reader would have no figure to attach it to.
   if (matches.length === 0) {
     return {
       kind: 'account_balance',
       headline: "I couldn't find an account matching that.",
-      detail: 'Here are the accounts I can see.',
+      detail: withDetail(
+        'Here are the accounts I can see.',
+        // This branch LISTS balances rather than summing them, so a frozen row is not "counted in"
+        // anything (critic P3-5) — it is one of the figures on the list. Named per row, with the
+        // account named because the list has several.
+        frozenListedBalancesNote(frozenRowsOf(visible)),
+      ) as string,
       facts: visible.map((a) => ({ label: a.name, value: fmt(a.currentBalanceCents) })),
       source: { label: 'See accounts', href: '/accounts' },
     };
@@ -249,19 +326,34 @@ export function answerAccountBalance(
   if (matches.length === 1) {
     const a = matches[0];
     const owed = isLiabilityType(a.type);
+    // The figure IS this account's balance, so the claim is not "a stale number is inside a total"
+    // but "this number is the last one we saw" — a different sentence, deliberately.
+    const detail = withDetail(
+      foldNote,
+      a.feedDroppedAt != null
+        ? frozenQuotedBalanceNote({ frozenSince: a.feedDroppedAt }, { nextStep: 'accounts-route' })
+        : null,
+    );
     return {
       kind: 'account_balance',
       headline: `${a.name} ${owed ? 'has a balance of' : 'has'} ${fmt(a.currentBalanceCents)}${owed ? ' owed' : ''}.`,
-      ...(foldNote !== undefined ? { detail: foldNote } : {}),
+      ...(detail !== undefined ? { detail } : {}),
       facts: [{ label: a.name, value: fmt(a.currentBalanceCents) }],
       source: { label: 'See accounts', href: '/accounts' },
     };
   }
   const total = matches.reduce((s, a) => s + a.currentBalanceCents, 0);
+  const detail = withDetail(
+    foldNote,
+    frozenTotalNote(frozenRowsOf(matches), {
+      figureLabel: 'this total',
+      nextStep: 'accounts-route',
+    }),
+  );
   return {
     kind: 'account_balance',
     headline: `${fmt(total)} across ${matches.length} accounts.`,
-    ...(foldNote !== undefined ? { detail: foldNote } : {}),
+    ...(detail !== undefined ? { detail } : {}),
     facts: matches.map((a) => ({ label: a.name, value: fmt(a.currentBalanceCents) })),
     source: { label: 'See accounts', href: '/accounts' },
   };
@@ -674,13 +766,36 @@ export function answerCashNeeded(
       cardDuplicates,
       undated.map((c) => ({ cardId: c.cardId, label: c.cardName })),
     );
+    /**
+     * TASKS L.18, and the most expensive claim in the slice: this branch is an ALL-CLEAR. A card
+     * whose bank stopped sharing it is exactly a card whose new statement could not have arrived,
+     * so a paid-off frozen card and a card with a fresh unseen statement produce the identical
+     * silence here. Resolved over EVERY frozen card the result knows about — dated and undated
+     * alike — because the claim this branch makes is about all of them, not about a printed row.
+     */
+    const nothingDueNote = frozenNothingDueNote(
+      [...result.cards, ...undated]
+        .filter((c) => c.frozenSince != null)
+        .map((c) => ({
+          label: c.cardName,
+          frozenSince: c.frozenSince as string,
+          // The assistant reads `getCashNeeded(userId)` at PERSONAL scope — no household merge —
+          // so every card here is the asker's own.
+          ownership: 'reader' as const,
+        })),
+      { nextStep: 'accounts-route' },
+    );
+    const zeroDueDetail = withDetail(
+      undatedNotes.length > 0 ? undatedNotes.join(' ') : undefined,
+      nothingDueNote,
+    );
     return {
       kind: 'cash_needed',
       headline:
         undated.length > 0
           ? `Nothing is due on the cards I can date — but ${undated.length === 1 ? 'one card has' : `${undated.length} cards have`} no statement or due date yet, so I can’t tell you what’s due on ${undated.length === 1 ? 'it' : 'them'}.`
           : 'You have nothing due on your cards this cycle.',
-      ...(undatedNotes.length > 0 ? { detail: undatedNotes.join(' ') } : {}),
+      ...(zeroDueDetail !== undefined ? { detail: zeroDueDetail } : {}),
       facts: undatedFact,
       source,
     };
@@ -717,10 +832,60 @@ export function answerCashNeeded(
       ),
     ),
   );
+  /**
+   * TASKS L.18 — the frozen CARDS behind the two figures this answer states, resolved against the
+   * same counted set the duplicate note uses (`perDueDate`, i.e. exactly what `requiredCents` sums
+   * and `cardsDueCount` counts) and read off `result.cards` for the flag and the estimate path.
+   * `role: 'instruction'` (critic P2-8): the headline is an amount AND a by-date — "You need
+   * $2,179.99 by Jun 15 to pay your cards in full" is something the reader acts on, and /cards
+   * qualifies the same `requiredCents`-derived figure the same way. This answer is also the surface
+   * most likely to be read on its own.
+   */
+  const countedIds = new Set((result.perDueDate ?? []).flatMap((p) => p.cards.map((c) => c.cardId)));
+  detailParts.push(
+    ...[
+      frozenCardsNote(
+        result.cards
+          .filter((c) => c.frozenSince != null && countedIds.has(c.cardId))
+          .map((c) => ({
+            cardId: c.cardId,
+            label: c.cardName,
+            frozenSince: c.frozenSince as string,
+            isEstimated: c.isEstimated,
+            ownership: 'reader' as const,
+          })),
+        { role: 'instruction', nextStep: 'accounts-route' },
+      ),
+    ].filter((n): n is string => n !== null),
+  );
   if (s.shortfallCents > 0 && s.recommendation) {
     facts.push({ label: 'Shortfall', value: fmt(s.shortfallCents) });
     detailParts.push(
       `That's more than ${paymentAccountName} holds — move ${fmt(s.recommendation.amountCents)} in by ${humanDate(s.recommendation.byDate)}.`,
+    );
+  }
+  /**
+   * The funding account, named with the label THIS answer prints for it (the "From" fact), and
+   * placed last so it sits beside the transfer instruction it qualifies when there is one.
+   *
+   * Stated whether or not a shortfall is shown, because the silent case is the dangerous one: a
+   * balance frozen HIGH produces no shortfall and no transfer at all, and the reader is told what
+   * they need by a date with no hint that the account may not hold it. `role` follows what this
+   * answer actually printed, not the engine's opinion of it.
+   */
+  if (result.fundingFrozen) {
+    detailParts.push(
+      frozenFundingNote(
+        {
+          label: paymentAccountName,
+          frozenSince: result.fundingFrozen.frozenSince,
+          balanceCents: result.fundingFrozen.balanceCents,
+        },
+        {
+          role: s.shortfallCents > 0 && s.recommendation ? 'instruction' : 'figure',
+          nextStep: 'accounts-route',
+        },
+      ),
     );
   }
   const detail: string | undefined = detailParts.length > 0 ? detailParts.join(' ') : undefined;

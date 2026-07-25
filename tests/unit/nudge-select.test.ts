@@ -60,6 +60,7 @@ function reminder(o: {
     autopayCents: cents(autopay),
     autopayCovered: o.autopayCovered ?? autopay > 0,
     isEstimated: o.isEstimated ?? false,
+    frozenSince: null,
   };
 }
 
@@ -136,6 +137,7 @@ function cashNeededOf(o: {
             : null,
       recommendation: null,
     },
+    fundingFrozen: null,
     perDueDate,
     cards: [],
     unknownDueDateCards: [],
@@ -801,6 +803,7 @@ describe('nudge · undatable cards qualify the empty-feed all-clear (#277 P2)', 
       cardId: c.id,
       cardName: c.name,
       currentBalanceCents: cents(c.balance),
+      frozenSince: null,
     })),
   });
 
@@ -840,7 +843,7 @@ describe('nudge · undatable cards qualify the empty-feed all-clear (#277 P2)', 
     const withHeadline: CashNeededResult = {
       ...cashNeededOf({ shortfallCents: 5000 }),
       unknownDueDateCards: [
-        { cardId: 'u1', cardName: 'Sapphire', currentBalanceCents: cents(184267) },
+        { cardId: 'u1', cardName: 'Sapphire', currentBalanceCents: cents(184267), frozenSince: null },
       ],
     };
     const feed = buildNudgeFeed(input({ cashNeeded: withHeadline }));

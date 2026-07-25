@@ -30,6 +30,7 @@ import {
   type CardDuplicatePairInput,
   cardDuplicatePushNotes,
 } from '@/lib/engine/account/card-duplicate-view';
+import { frozenCardPushNote } from '@/lib/engine/account/feed-dropped-view';
 
 export type NotificationKind = 'payment_due' | 'cash_flow_alert';
 /** Client-facing severity: critical = today/negative now, warning = imminent, info = fyi. */
@@ -124,12 +125,23 @@ export function selectNotifications(params: SelectNotificationsParams): AppNotif
     // Appended LAST so an operating system that truncates the body still shows the amount and the
     // date — the half the reader must act on — before the advisory.
     const dup = duplicateNotes.get(r.accountId);
+    // TASKS L.18, appended AFTER the duplicate advisory (critic P2-7). The first cut spliced it
+    // between the amount and `dup`, which pushed the duplicate warning 120 characters further into
+    // a body an operating system truncates — silently demoting a shipped decision. Both are
+    // advisories, and the duplicate one warns that a payment is being asked for TWICE, which is the
+    // one a reader can act wrongly on immediately; this one qualifies an amount. Disclosed, never
+    // suppressed — withholding the notification would assert the amount is wrong, which is not
+    // known, and its failure direction is a missed payment (the L.15 push decision).
+    const frozen =
+      r.frozenSince != null
+        ? ` ${frozenCardPushNote({ frozenSince: r.frozenSince, kind: r.obligationType })}`
+        : '';
     out.push({
       key,
       kind: 'payment_due',
       level,
       title: `${r.accountName} payment ${whenPhrase(r.daysUntil)}`,
-      body: `Pay ${formatCents(r.userActionCents)} yourself by ${formatISODate(r.dueDate, 'long')}${est}. Aimplifi never moves money for you.${dup ? ` ${dup}` : ''}`,
+      body: `Pay ${formatCents(r.userActionCents)} yourself by ${formatISODate(r.dueDate, 'long')}${est}. Aimplifi never moves money for you.${dup ? ` ${dup}` : ''}${frozen}`,
       amountCents: r.userActionCents,
       dueDate: r.dueDate,
       isEstimated: r.isEstimated,
@@ -158,12 +170,22 @@ export function selectNotifications(params: SelectNotificationsParams): AppNotif
       // CRITICAL dip four weeks earlier and a $33,100 transfer instead of $13,050. The reader is
       // being told to move money, on a channel that interrupts, so the caveat rides the same body.
       const dupNote = radar.duplicateDisclosure ? ` ${radar.duplicateDisclosure}` : '';
+      // TASKS L.18. The whole projection walks from the payment account's balance, so when THAT
+      // account is frozen every figure in this body — the dip date and the amount to move — rests
+      // on a number that stopped updating. Appended LAST, after the duplicate note (critic P2-2):
+      // the first cut put it in between and pushed the duplicate advisory 154 characters further
+      // into a body the operating system truncates, which is the demotion P2-7 had just fixed one
+      // branch above. Both advisories qualify the same amount to move, and the duplicate one warns
+      // that the amount may be DOUBLE — the sharper of the two, so it survives truncation first.
+      const frozenNote = radar.startingBalanceFrozenDisclosure
+        ? ` ${radar.startingBalanceFrozenDisclosure}`
+        : '';
       out.push({
         key,
         kind: 'cash_flow_alert',
         level,
         title: `Checking may go negative ${whenPhrase(daysUntil)}`,
-        body: `Your checking is on track to dip below $0 on ${formatISODate(radar.committed.firstNegativeDate, 'long')}${cardPhrase}.${coverPhrase}${est}${dupNote}`,
+        body: `Your checking is on track to dip below $0 on ${formatISODate(radar.committed.firstNegativeDate, 'long')}${cardPhrase}.${coverPhrase}${est}${dupNote}${frozenNote}`,
         amountCents: coverCents,
         dueDate: radar.committed.firstNegativeDate,
         isEstimated: radar.includesEstimatedDues,

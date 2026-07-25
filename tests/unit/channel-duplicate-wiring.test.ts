@@ -171,7 +171,7 @@ describe('L.15 wiring — the duplicated card reaches the offline channels', () 
       withinDays: WIDE_DAYS,
     });
     expect(reminders.length).toBe(2);
-    const digest = buildWeeklyDigest({ review: null, reminders, today, cardDuplicates })!;
+    const digest = buildWeeklyDigest({ frozenCards: [], review: null, reminders, today, cardDuplicates })!;
     expect(digest).not.toBeNull();
     expect(digest.text).toContain(CARD_DUPLICATE_TITLE);
     expect(digest.text).toContain('in this email');

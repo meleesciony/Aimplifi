@@ -5,6 +5,7 @@ import { AutomationBlueprintCard } from '@/components/coach/automation-blueprint
 import { FICard } from '@/components/coach/fi-card';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { withheldInlineNote } from '@/lib/providers/currency';
+import { FROZEN_RUNWAY_TESTID, frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
 import { LifeEnergyCard } from '@/components/coach/life-energy-card';
 import { MoneySignatureCard } from '@/components/coach/money-signature-card';
 import { HabitStreaksCard } from '@/components/coach/habit-streaks-card';
@@ -72,11 +73,28 @@ export default async function CoachPage() {
             data.flows.length ? formatMonth(data.flows[data.flows.length - 1].month) : undefined
           }
           currencyNote={withheldInlineNote(withheld)}
+          // TASKS L.18 — only the INVESTMENT rows, because only they are inside the portfolio the
+          // projections start from. `figureLabel` names this card's own figures rather than a
+          // position on it: the note sits under years-to-FI but the Coast line and the slider run
+          // off the same number, and a sentence saying "below" would go stale the moment the card
+          // is reordered.
+          frozenPortfolioNote={frozenTotalNote(data.frozenBalances.portfolio, {
+            figureLabel: 'the portfolio these projections start from',
+            nextStep: 'accounts-route',
+          })}
         />
       </div>
 
       {/* #252 Money Signature — habit patterns + this-month weather, facts inline */}
-      <MoneySignatureCard signature={data.signature} />
+      <MoneySignatureCard
+        signature={data.signature}
+        // The weather line is the runway wearing a mood, so it takes the same CASH-side note the
+        // runway card does — one figure, one claim, two places it is printed (critic P2-1).
+        frozenCashNote={frozenTotalNote(data.frozenBalances.liquid, {
+          figureLabel: 'the cash behind this reading',
+          nextStep: 'accounts-route',
+        })}
+      />
 
       {/* #254 Habit streaks — cleared-in-full + no-subscription-creep, basis inline */}
       <HabitStreaksCard cardCleared={data.streaks.cardCleared} noCreep={data.streaks.noCreep} />
@@ -176,6 +194,19 @@ export default async function CoachPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">{COACH_COPY.runway(data.runwayMonths)}</p>
+            {/* TASKS L.18 — the CHECKING/SAVINGS rows only: runway is cash ÷ average expenses, so a
+                frozen brokerage does not touch it and a frozen savings account is most of it. */}
+            {(() => {
+              const note = frozenTotalNote(data.frozenBalances.liquid, {
+                figureLabel: 'the cash side of this estimate',
+                nextStep: 'accounts-route',
+              });
+              return note ? (
+                <p className="mt-1 text-xs text-amber-500" data-testid={FROZEN_RUNWAY_TESTID}>
+                  {note}
+                </p>
+              ) : null;
+            })()}
           </CardContent>
         </Card>
       </div>

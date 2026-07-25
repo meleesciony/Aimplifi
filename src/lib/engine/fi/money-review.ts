@@ -18,8 +18,7 @@
  */
 
 import { formatMonth } from '@/lib/dates';
-import type { Cents } from '@/lib/money';
-import { COACH_COPY } from './coach-copy';
+import { COACH_COPY, type PendingTransfer } from './coach-copy';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
 
 export type ReviewRole = 'improvement' | 'watch' | 'action';
@@ -69,7 +68,7 @@ export interface ReviewCandidateInput {
   creep: CreepResult;
   opportunities: readonly Opportunity[];
   runwayMonths: number;
-  pendingTransfer?: { amountCents: Cents; byDate: string } | null;
+  pendingTransfer?: PendingTransfer | null;
 }
 
 /** Trailing count of months (up to and including the last) with a strictly positive savings rate. */
@@ -197,7 +196,11 @@ export function buildReviewCandidates(input: ReviewCandidateInput): ReviewCandid
       priority: 100,
       material: true, // the cash-needed cover-transfer — pinned, never reorderable out of the recap
       line: COACH_COPY.reviewNextAction(
-        COACH_COPY.nextActionTransfer(pendingTransfer.amountCents, pendingTransfer.byDate),
+        COACH_COPY.nextActionTransfer(
+          pendingTransfer.amountCents,
+          pendingTransfer.byDate,
+          pendingTransfer.frozenFunding,
+        ),
       ),
     });
   }

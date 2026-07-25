@@ -25,6 +25,7 @@ import {
   answerNetWorth,
   answerSpendByCategory,
   answerSpendTotal,
+  assistantAccounts,
   largestPurchases,
   merchantSpend,
   type PurchaseRow,
@@ -62,7 +63,11 @@ const LAST_MONTH: Timeframe = { fromYm: '2026-05', toYm: '2026-05', label: 'last
 describe('net worth answer == netWorthCents engine', () => {
   it('ties exactly', () => {
     const expected = netWorthCents(seed.accounts);
-    expect(answerNetWorth(seed.accounts).headline).toBe(`Your net worth is ${fmt(expected)}.`);
+    // `assistantAccounts` is the one boundary conversion (TASKS L.18) — the seed rows carry no
+    // frozen stamp, so this asserts the untouched path: same headline as before the disclosure.
+    expect(answerNetWorth(assistantAccounts(seed.accounts, new Set())).headline).toBe(
+      `Your net worth is ${fmt(expected)}.`,
+    );
   });
 });
 

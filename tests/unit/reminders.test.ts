@@ -23,6 +23,7 @@ function loanOb(p: {
   paymentCents: number;
   accountType?: 'LOAN' | 'MORTGAGE';
   dueDate?: string;
+  frozenSince?: string | null;
 }): LoanObligation {
   return {
     accountId: p.accountId,
@@ -32,6 +33,7 @@ function loanOb(p: {
     effectiveDueDate: isoDate(p.effectiveDueDate),
     paymentCents: cents(p.paymentCents),
     isEstimated: false,
+    frozenSince: p.frozenSince ?? null,
   };
 }
 
@@ -47,6 +49,7 @@ function ob(p: {
   minimumDueCents?: number;
   isEstimated?: boolean;
   notes?: string[];
+  frozenSince?: string | null;
 }): CardObligation {
   return {
     cardId: p.cardId,
@@ -60,6 +63,7 @@ function ob(p: {
     minimumDueCents: cents(p.minimumDueCents ?? 0),
     isEstimated: p.isEstimated ?? false,
     notes: p.notes ?? [],
+    frozenSince: p.frozenSince ?? null,
   };
 }
 

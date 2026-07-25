@@ -111,8 +111,8 @@ describe('headlineCents — the slice-3 boundary: TRACED derivation kinds set it
   // the tap they gain is honored (assistant-derivation.test.ts locks that side).
   it('net_worth sets headlineCents, and the headline string shows exactly that figure', () => {
     const accounts: AccountLike[] = [
-      { id: 'a1', name: 'Checking', type: 'CHECKING', currentBalanceCents: 100000 },
-      { id: 'a2', name: 'Card', type: 'CREDIT', currentBalanceCents: 30000 },
+      { id: 'a1', name: 'Checking', type: 'CHECKING', currentBalanceCents: 100000, feedDroppedAt: null },
+      { id: 'a2', name: 'Card', type: 'CREDIT', currentBalanceCents: 30000, feedDroppedAt: null },
     ];
     const a = answerNetWorth(accounts);
     expect(a.headlineCents).toBe(70000);

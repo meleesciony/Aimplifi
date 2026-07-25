@@ -31,6 +31,7 @@ import { isLiabilityType } from '@/lib/engine/transactions/query';
 import { savingsRateBps } from '@/lib/engine/fi/fi';
 import { traceCashNeeded as glassBoxCashNeeded } from '@/lib/engine/glass-box/trace';
 import type { CardDuplicatePairInput } from '@/lib/engine/account/card-duplicate-view';
+import { frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { AccountLike } from './answer';
 
@@ -131,6 +132,27 @@ export function traceNetWorthDerivation(accounts: readonly AccountLike[], expect
   });
   const sum = rows.reduce((s, r) => s + r.amountCents, 0);
   const net = netWorthCents([...accounts]);
+  /**
+   * TASKS L.18. This is the panel a reader opens specifically TO audit the figure, and it green-
+   * checks every line — so an account whose balance stopped updating was being vouched for here
+   * more strongly than anywhere else in the app.
+   *
+   * The RECONCILIATION IS UNTOUCHED, deliberately: the rows really do sum to the headline, and
+   * whether each balance is current is a different question from whether the arithmetic holds.
+   * Failing the check would claim a drift that does not exist and would hide the tap behind an
+   * unreconciled banner (`derivationView` gates on the sum), removing the very audit trail this
+   * disclosure belongs to. It rides `basis` — where this panel already states what its numbers
+   * mean — which is the same place the duplicate disclosure reaches the cash-needed trace.
+   */
+  const frozen = frozenTotalNote(
+    accounts
+      .filter((a) => a.feedDroppedAt != null)
+      .map((a) => ({ label: a.name, frozenSince: a.feedDroppedAt as string })),
+    // No position: `BasisList` renders after the totals in `NetWorthDerivation` and before them in
+    // the row-sum panel, so "the total below" would be false in one of the two places this string
+    // can appear. Name the figure, never where it sits (L.15).
+    { figureLabel: 'the net worth this panel explains', nextStep: 'accounts-route' },
+  );
   return {
     kind: 'derivation',
     intentKind: 'net_worth',
@@ -138,7 +160,7 @@ export function traceNetWorthDerivation(accounts: readonly AccountLike[], expect
     sumCents: sum,
     netCents: net,
     reconciled: sum === net && net === expectedCents,
-    basis: [...NET_WORTH_BASIS],
+    basis: frozen ? [...NET_WORTH_BASIS, frozen] : [...NET_WORTH_BASIS],
   };
 }
 
@@ -166,7 +188,8 @@ export function traceCashNeededDerivation(
    */
   cardDuplicates: readonly CardDuplicatePairInput[] = [],
 ): DerivationTrace {
-  const inner = glassBoxCashNeeded(result, cardDuplicates);
+  // The assistant reads a personal-scope result, so no row here is a partner's.
+  const inner = glassBoxCashNeeded(result, cardDuplicates, new Set());
   const rows: DerivationRow[] = inner.rows.map((r) => ({
     label: r.label,
     amountCents: r.amountCents,

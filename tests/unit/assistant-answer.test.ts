@@ -34,10 +34,10 @@ const THIS_MONTH: Timeframe = { fromYm: '2026-06', toYm: '2026-06', label: 'this
 const LAST_MONTH: Timeframe = { fromYm: '2026-05', toYm: '2026-05', label: 'last month' };
 
 const ACCOUNTS: AccountLike[] = [
-  { id: 'a1', name: 'Everyday Checking', type: 'CHECKING', currentBalanceCents: 100000 },
-  { id: 'a2', name: 'High-Yield Savings', type: 'SAVINGS', currentBalanceCents: 50000 },
-  { id: 'a3', name: 'Freedom Card', type: 'CREDIT', currentBalanceCents: 30000 },
-  { id: 'a4', name: 'Auto Loan', type: 'LOAN', currentBalanceCents: 200000 },
+  { id: 'a1', name: 'Everyday Checking', type: 'CHECKING', currentBalanceCents: 100000, feedDroppedAt: null },
+  { id: 'a2', name: 'High-Yield Savings', type: 'SAVINGS', currentBalanceCents: 50000, feedDroppedAt: null },
+  { id: 'a3', name: 'Freedom Card', type: 'CREDIT', currentBalanceCents: 30000, feedDroppedAt: null },
+  { id: 'a4', name: 'Auto Loan', type: 'LOAN', currentBalanceCents: 200000, feedDroppedAt: null },
 ];
 
 describe('answerNetWorth', () => {
@@ -56,9 +56,9 @@ describe('answerNetWorth', () => {
   // liabilities and the facts always reconcile to the headline net worth.
   it('classifies MORTGAGE + OTHER_LIABILITY as liabilities (facts reconcile to the headline)', () => {
     const accts: AccountLike[] = [
-      { id: 'c', name: 'Checking', type: 'CHECKING', currentBalanceCents: 500000 },
-      { id: 'm', name: 'Home Mortgage', type: 'MORTGAGE', currentBalanceCents: 30000000 },
-      { id: 'o', name: 'Personal Note', type: 'OTHER_LIABILITY', currentBalanceCents: 250000 },
+      { id: 'c', name: 'Checking', type: 'CHECKING', currentBalanceCents: 500000, feedDroppedAt: null },
+      { id: 'm', name: 'Home Mortgage', type: 'MORTGAGE', currentBalanceCents: 30000000, feedDroppedAt: null },
+      { id: 'o', name: 'Personal Note', type: 'OTHER_LIABILITY', currentBalanceCents: 250000, feedDroppedAt: null },
     ];
     const a = answerNetWorth(accts);
     // assets 500000 − liabilities (30000000+250000) = −29750000
@@ -72,7 +72,7 @@ describe('answerNetWorth', () => {
     ]);
   });
   it('a mortgage balance reads as owed', () => {
-    const accts: AccountLike[] = [{ id: 'm', name: 'Home Mortgage', type: 'MORTGAGE', currentBalanceCents: 30000000 }];
+    const accts: AccountLike[] = [{ id: 'm', name: 'Home Mortgage', type: 'MORTGAGE', currentBalanceCents: 30000000, feedDroppedAt: null }];
     expect(answerAccountBalance(accts, 'how much is left on my mortgage').headline).toBe('Home Mortgage has a balance of $300,000.00 owed.');
   });
 });
@@ -90,7 +90,7 @@ describe('answerAccountBalance', () => {
     expect(a.facts).toHaveLength(4);
   });
   it('multiple matches sum', () => {
-    const two = [...ACCOUNTS, { id: 'a5', name: 'Joint Checking', type: 'CHECKING', currentBalanceCents: 20000 }];
+    const two = [...ACCOUNTS, { id: 'a5', name: 'Joint Checking', type: 'CHECKING', currentBalanceCents: 20000, feedDroppedAt: null }];
     const a = answerAccountBalance(two, 'how much in checking');
     expect(a.headline).toBe('$1,200.00 across 2 accounts.');
   });

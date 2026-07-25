@@ -26,6 +26,10 @@ export interface LoanAccountLike {
   minimumPaymentCents?: number | null;
   /** Day-of-month the payment is due. Plaid: day component of next_payment_due_date. */
   dueDayOfMonth: number | null;
+  /** YYYY-MM-DD the bank stopped sharing this loan (Account.feedDroppedAt), else null/absent.
+   *  Optional on the INPUT because this interface is a structural subset of an Account row and
+   *  older fixtures omit it, exactly as `minimumPaymentCents` is; REQUIRED on the output. */
+  feedDroppedAt?: string | null;
 }
 
 export interface LoanObligation {
@@ -41,6 +45,13 @@ export interface LoanObligation {
   /** Always false today (the payment is issuer-reported, not estimated) — kept for a
    *  uniform shape with card obligations when both feed the reminder selector. */
   isEstimated: boolean;
+  /**
+   * YYYY-MM-DD the bank stopped sharing this loan, else null (TASKS L.18). REQUIRED for the same
+   * reason it is on `CardObligation`: the reminder email and the weekly digest print this payment
+   * beside a card's, and a frozen loan's `minimumPaymentCents` and due day are exactly as stale as
+   * a frozen card's statement — the bank stopped confirming both on the same day.
+   */
+  frozenSince: string | null;
 }
 
 const LOAN_TYPES: ReadonlySet<string> = new Set(['LOAN', 'MORTGAGE']);
@@ -74,6 +85,7 @@ export function selectLoanObligations(params: {
       effectiveDueDate,
       paymentCents: cents(payment),
       isEstimated: false,
+      frozenSince: a.feedDroppedAt ?? null,
     });
   }
   return out.sort(

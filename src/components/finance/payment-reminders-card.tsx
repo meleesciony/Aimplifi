@@ -14,6 +14,12 @@ import {
 } from '@/lib/engine/account/card-duplicate-view';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import { formatCents } from '@/lib/money';
+import {
+  FROZEN_CARD_TESTID,
+  frozenCardsNote,
+  frozenLoanNote,
+  frozenNothingDueNote,
+} from '@/lib/engine/account/feed-dropped-view';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import type { PaymentReminder, ReminderUrgency } from '@/lib/engine/reminders/select';
 
@@ -49,6 +55,7 @@ export function PaymentRemindersCard({
   undatedCardCount = 0,
   cardDuplicates = [],
   cardIdentity = {},
+  frozenCards,
 }: {
   reminders: PaymentReminder[];
   today: string;
@@ -77,6 +84,19 @@ export function PaymentRemindersCard({
    * a critic across components. One pass, one page, one meaning.
    */
   cardIdentity?: Record<string, string>;
+  /**
+   * Every card of the viewer's the bank has stopped sharing (TASKS L.18), due or not.
+   *
+   * Used ONLY by the empty branch, whose "You're all caught up" is a positive money claim about
+   * cards whose statements can no longer arrive — the same gap `undatedCardCount` closes for a
+   * statement that has not arrived YET. The rows themselves need nothing extra: `frozenSince`
+   * rides each reminder, so a listed payment qualifies itself.
+   */
+  frozenCards: readonly {
+    label: string;
+    frozenSince: string;
+    ownership: 'reader' | 'partner';
+  }[];
 }) {
   const t = isoDate(today);
   // The disclosure below names rows by exactly these strings, so this is the ONE expression for
@@ -93,6 +113,7 @@ export function PaymentRemindersCard({
     cardDuplicates,
     reminders.map((r) => ({ cardId: r.accountId, label: painted(r) })),
   );
+  const frozenAllClear = frozenNothingDueNote(frozenCards, { nextStep: 'accounts-route' });
   return (
     <Card data-testid="payment-reminders-card">
       <CardHeader className="pb-2">
@@ -101,7 +122,12 @@ export function PaymentRemindersCard({
           {reminders.length === 0
             ? undatedCardCount > 0
               ? `No payments coming up on what we can date — ${undatedCardCount === 1 ? 'one card has' : `${undatedCardCount} cards have`} no due date yet, so ${undatedCardCount === 1 ? 'it isn’t' : 'they aren’t'} included.`
-              : 'You’re all caught up — no payments coming up.'
+              : // Critic P2-2: the first cut used `??`, which REPLACED the all-clear instead of
+                // qualifying it — leaving "…this covers only what we can still see" with no
+                // antecedent, and never telling the reader the positive half (that nothing is
+                // currently known to be due). The sibling branch above states the claim first and
+                // then narrows it; so does the digest, through this same builder.
+                `You’re all caught up — no payments coming up.${frozenAllClear ? ` ${frozenAllClear}` : ''}`
             : `Upcoming card & loan payments this cycle. Aimplifi never moves money for you — this is just a heads-up.${
                 // The mixed case (cycle-2 critic P2-1): a list of what's due reads as
                 // complete unless what's missing is named next to it.
@@ -161,6 +187,43 @@ export function PaymentRemindersCard({
                       due {formatISODate(isoDate(r.dueDate))} · {formatRelativeDays(t, isoDate(r.dueDate))}
                       {howLine(r, owner)}
                     </div>
+                    {/* TASKS L.18 — this row is an instruction ("$X due DATE"), and on a frozen
+                        card a payment already made was never subtracted from it. Named with the
+                        SAME painted label the row above uses, so the two cannot disagree. */}
+                    {r.frozenSince != null && (
+                      <p
+                        className="mt-0.5 text-xs text-amber-500"
+                        data-testid={`${FROZEN_CARD_TESTID}-${r.accountId}`}
+                      >
+                        {/* A LOAN goes stale differently from a card and gets its own sentence
+                            (critic P1-3): nothing subtracts payments from a loan obligation, so
+                            "a payment you already made is not in these figures" would name a
+                            mechanism that does not exist — and a reader who reads the reminder as
+                            stale skips a mortgage payment. */}
+                        {r.obligationType === 'loan'
+                          ? frozenLoanNote(
+                              { label: painted(r), frozenSince: r.frozenSince },
+                              {
+                                role: 'instruction',
+                                nextStep: owner ? 'partner' : 'accounts-route',
+                              },
+                            )
+                          : frozenCardsNote(
+                              [
+                                {
+                                  cardId: r.accountId,
+                                  label: painted(r),
+                                  frozenSince: r.frozenSince,
+                                  isEstimated: r.isEstimated,
+                                  // Critic P1-1: a partner's card drops the imperative and the
+                                  // "your bank" subject, both of which are false for this reader.
+                                  ownership: owner ? 'partner' : 'reader',
+                                },
+                              ],
+                              { role: 'instruction', nextStep: 'accounts-route' },
+                            )}
+                      </p>
+                    )}
                   </div>
                   <div className="shrink-0 tabular-nums">{formatCents(r.cashRequiredCents)}</div>
                 </li>

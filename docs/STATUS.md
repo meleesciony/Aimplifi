@@ -2,6 +2,136 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ SHIPPED 2026-07-25 (#310) — L.18: the surfaces that printed a figure from a frozen account and said nothing
+
+L.14 taught the app that an account its bank has stopped sharing keeps counting **by design**, and
+disclosed that on /accounts and the dashboard. It disclosed the two *dependent* cases — a card's own
+obligation and the funding account the whole projection rests on — once, in the cash-needed engine's
+`assumptions`, under a comment claiming that array reached "/cards, the dashboard hero, the calendar,
+the Ask answer and the weekly digest".
+
+**Two surfaces render that array.** The four it named as covered were four of the ones still
+printing "pay $X by DATE", a net worth, an FI projection and a runway from balances that had stopped
+moving.
+
+**The fix is structural, not a sentence pasted six times.** `frozenSince` now rides the OBLIGATION
+(`CardObligation`, `UnknownDueDateCard`, `LoanObligation`, `PaymentReminder`) and `fundingFrozen`
+rides `CashNeededResult` — all REQUIRED, so the fact travels with the money to every consumer with
+no new query and no argument a caller can forget. Each surface then states **its own** claim, with
+three things as required arguments because guessing any of them has already shipped a defect here:
+`role` (a figure the reader weighs vs an instruction they act on), `nextStep` (what this surface can
+honestly point at — an email controls no position and holds no button), and `ownership`
+(`reader`/`partner`/`unknown`).
+
+Closed: **/cards** (per-row note, a qualifier on the one "Do this first" instruction, the undated
+panel's bare balance, and the all-clear headline), the **dashboard payment-reminders card**, the
+**reminder email** and **weekly digest**, **web push** (payment-due and the radar alert), **Cash
+Flow Radar**, **/forecast**, the **Ask answer** and **both audit traces**, and **/coach**.
+
+**Three corrections came out of re-reading the code rather than the comments:**
+
+1. A frozen card **with a statement** does not derive its figures from the frozen balance — the
+   engine reads the statement and never touches `currentBalanceCents`. What is actually missing is
+   everything since the drop, *including a payment already made*, which is the claim that covers
+   both paths.
+2. `requiredCents` never reads the funding balance, so "every figure here is projected from it" named
+   a dependency that does not exist. It names the shortfall and the transfer now, which do.
+3. **The brief itself was wrong**: L.18 said the frozen balance drives the FI number. It does not —
+   `fiNumberCents(annualExpenses, swrBps)` reads no balance at all. A test holds a frozen brokerage
+   worth $4,210.55 beside an FI number of $0.00. /coach qualifies the portfolio-derived and
+   cash-derived figures and deliberately leaves that one alone.
+
+**And the gap L.14 left open, found by sweeping rather than by reading the brief:** `computeRadar`
+withheld a frozen account as a transfer *source* and said nothing about the balance its entire
+90-day walk **starts** from — the number that decides whether there is a dip at all, when it lands,
+and how large the transfer is. Its frozen-HIGH case produces no alert whatsoever, which is the
+quiet, expensive direction. Now disclosed in both states, with a different sentence for each, and
+/forecast (structurally the same walk, with nothing else on the page to qualify it) alongside it.
+
+### Critic cycle 1 — FAIL: 2 P0 + 4 P1 + 6 P2/P3, all fixed and locked
+
+Two fresh-context critics ran in parallel. Both P0s are the same mistake this slice exists to
+correct, one level down:
+
+* **P0-1** the engine's frozen-card sentence was resolved over every card it was *handed*, so an
+  undatable card — in no figure at all, two lines under its own "excluded from every figure here"
+  assumption — was announced as the source of "the amount asked for here". Now resolved against the
+  rows summed into `requiredCents`.
+* **P0-2** `applyReconciliationBoundary` zeroes a superseded predecessor's balance and keeps every
+  *other* field, so the Ask answer said a $0.00 row's last figure was "still counted in your net
+  worth" — on the panel a reader opens to audit that number. /coach had the guard; the assistant did
+  not.
+
+The P1s were all one class — a sentence true on the surface it was written for and false on another:
+a **partner's** shared card told the viewer "Your bank … check the card with your bank before
+paying" and then "only the household member who owns it can reconnect it"; the digest and dashboard
+all-clear built their lists from a **household-scoped** result and used own-scope copy; a frozen
+**loan** was told a card's story about payments nothing subtracts; and /cards' all-clear passed the
+**raw** card name where every other note passes the painted one, so two cards both called "CREDIT
+CARD" were named twice, identically, inches from the headings that tell them apart.
+
+**Found by my own abstention test, not by a critic:** after making the per-row email sentence
+partner-safe, the block's title and closing line still said "your bank". The test that asserts what
+the copy must **not** say is what caught it.
+
+### Critic cycle 2 — my own fixes broke three things
+
+A third fresh-context critic re-executed every cycle-1 fix and hunted for what they broke. It
+confirmed six of them closed (including the superseded guard in both directions and the loan claim
+across all three channels) and found that **the P0-1 fix over-shot**: narrowing to the rows summed
+into `requiredCents` dropped `upcoming`, and those are the estimate-path obligations whose amount
+*is* the frozen balance verbatim — the hero prints them as "est. — next cycle" beside a surviving
+assumption that names that figure and calls it "the current balance". Before the fix that card was
+named; after it, it was not. It also caught `traceCashNeeded` hardcoding `ownership: 'reader'` on
+the strength of a comment (the dashboard hero renders the *merged* result), a mixed own/partner list
+re-enabling every reader-only clause, and — in the same pass that fixed the push-ordering demotion
+for payment reminders — the identical demotion introduced one branch down on the radar alert.
+
+**This slice does not claim a critic pass.** Two cycles ran; the surfaces below are named open.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **4213 unit / 273 files** / build
+clean. New lock `frozen-figure-surfaces.test.ts` drives the real engines end to end plus real Prisma
+for /coach; new e2e 2/2. **Fail-old proven in BOTH directions**, because a disclosure can fail by
+silence or by false hedging: silencing the builders fails 19 assertions, making them speak
+unconditionally fails 6. **No schema change** — `git diff --stat -- prisma/` is empty, so the live
+database is untouched by this deploy. DECISIONS #303; six REGRESSION_LEDGER rows.
+
+**E2E note:** the full run reports 186–187 passing with 3–4 failures that are a *different set each
+run* (budget-targets, combined-accounts, reconcile, feed-dropped-account). Every one passes
+serialized in isolation, and `combined-accounts.spec.ts:84` reproduces **identically on a stashed
+clean HEAD** — the documented #287 /accounts DOM-duplication flake. New information for that entry:
+isolated and serialized, that one test now fails consistently rather than intermittently.
+
+### 🟠 STILL OPEN — surfaces that still print a balance-derived figure unqualified
+
+Named rather than silently skipped, ranked by money consequence:
+
+1. **/calendar** — the highest-consequence one still silent, because it prints a dated amount to
+   pay: `result.cards` (estimates included, i.e. amounts derived straight from the frozen balance)
+   and `loanObligations`, both of which now carry `frozenSince`. It already renders the L.15
+   duplicate disclosure, so the placement and the plumbing exist.
+2. **The dashboard Today-feed nudges** — "About $X short by DATE" and "A transfer of about $X would
+   cover it", built from the frozen funding balance, above the fold. Mitigated: the cash-needed card
+   and the radar card *directly below them on the same page* both carry the disclosure, so unlike an
+   email the reader is not left without it. The nudge `Proposal` shape is a closed field set with no
+   free-text note, so wiring it is a real change rather than a call-site edit.
+3. **The PDF/CSV export** — `netWorthReportPdf` prints every account's balance from the 5-field
+   payload that drops the flag, and its footer asserts "Balances reflect the data source at export
+   time", which is affirmatively false for a frozen row. A durable artifact a user hands to a lender,
+   and one that carries no way to correct itself.
+4. **A frozen LOAN can never reach an all-clear qualifier** — both the digest's and the reminders
+   card's frozen lists are built from cards only, and `frozenNothingDueNote` says "of the cards
+   here". A loan's stored due day is exactly the field the bank stopped confirming, so "nothing due
+   in the next 7 days" is the claim most at risk.
+5. **/investments** and the **debt-payoff path** feeding /goals and two Ask answers — both report
+   figures. /investments is L.14 F-2's residual: the holdings prune is skipped for a dropped
+   brokerage, so its positions still show, and the page never says why.
+
+Also open, from the critics and not fixed here: `CardSnapshot.frozenSince` is optional while
+`paymentAccount.frozenSince` beside it is required with the defaulted-argument lesson quoted as the
+reason — one file, one argument, two answers (no live gap: the only production constructor always
+sets it).
+
 ## ✅ SHIPPED 2026-07-25 (#309) — L.15: the six surfaces that rendered a duplicated card and said nothing (and a seventh a critic found)
 
 /cards (#299) and the dashboard hero + reminders list (#306) already disclosed a both-live duplicate.

@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { FROZEN_COACH_TESTID } from '@/lib/engine/account/feed-dropped-view';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { monthsToFI } from '@/lib/engine/fi/fi';
 import { type Cents, cents, formatCents } from '@/lib/money';
@@ -32,9 +33,18 @@ export function FICard({
   latestMonthRateBps,
   latestMonthLabel,
   currencyNote,
+  frozenPortfolioNote,
 }: {
   fiNumberCents: Cents;
   annualExpensesCents: Cents;
+  /**
+   * TASKS L.18 — set when an INVESTMENT account the bank stopped sharing is inside
+   * `portfolioCents`. Rendered beside years-to-FI and NOT under the FI number, because the FI
+   * number is `annualExpenses ÷ the withdrawal rate` and touches no balance at all: a note there
+   * would qualify a figure this account does not feed. The projections below it, the Coast line and
+   * the slider all start from the portfolio, so they are what the sentence is about.
+   */
+  frozenPortfolioNote?: string | null;
   /** Latest FULL month's savings rate (can differ from the 6-mo average the slider uses). */
   latestMonthRateBps?: number | null;
   latestMonthLabel?: string;
@@ -87,6 +97,11 @@ export function FICard({
             ? COACH_COPY.yearsToFI(Math.floor(monthsToFINow / 12), monthsToFINow % 12, expectedReturnBps)
             : COACH_COPY.notOnTrack()}
         </p>
+        {frozenPortfolioNote ? (
+          <p className="text-xs text-amber-500" data-testid={FROZEN_COACH_TESTID}>
+            {frozenPortfolioNote}
+          </p>
+        ) : null}
         {monthsToFINow !== null && (
           <p className="text-sm text-emerald-600 dark:text-emerald-400" data-testid="freedom-dividend">
             {COACH_COPY.freedomDividend(Math.floor(monthsToFINow / 12))}

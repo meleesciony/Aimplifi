@@ -29,6 +29,7 @@ function reminder(p: {
   userActionCents?: number;
   autopayCents?: number;
   isEstimated?: boolean;
+  frozenSince?: string | null;
 }): PaymentReminder {
   const userAction = p.userActionCents ?? 45000;
   return {
@@ -43,13 +44,14 @@ function reminder(p: {
     autopayCents: cents(p.autopayCents ?? 0),
     autopayCovered: userAction === 0 && (p.autopayCents ?? 0) > 0,
     isEstimated: p.isEstimated ?? false,
+    frozenSince: p.frozenSince ?? null,
   };
 }
 
 describe('buildWeeklyDigest', () => {
   it('composes the review + dues verbatim, reusing the shared reminder line', () => {
     const dues = [reminder({ accountId: 'a1', accountName: 'Sapphire', dueDate: '2026-06-15', daysUntil: 5 })];
-    const digest = buildWeeklyDigest({ review: REVIEW, reminders: dues, today: TODAY });
+    const digest = buildWeeklyDigest({ frozenCards: [], review: REVIEW, reminders: dues, today: TODAY });
     expect(digest).not.toBeNull();
     expect(digest!.subject).toBe('Your week with Aimplifi');
     // Review lines copied verbatim (no recomputation).
@@ -63,14 +65,14 @@ describe('buildWeeklyDigest', () => {
   });
 
   it('shows a clear-week line when nothing is due', () => {
-    const digest = buildWeeklyDigest({ review: REVIEW, reminders: [], today: TODAY });
+    const digest = buildWeeklyDigest({ frozenCards: [], review: REVIEW, reminders: [], today: TODAY });
     expect(digest!.text).toContain('Nothing due in the next 7 days');
     expect(digest!.text).not.toContain('•');
   });
 
   it('still sends with dues even when there is no review', () => {
     const dues = [reminder({ accountId: 'a1', accountName: 'Freedom', dueDate: '2026-06-12', daysUntil: 2 })];
-    const digest = buildWeeklyDigest({ review: null, reminders: dues, today: TODAY });
+    const digest = buildWeeklyDigest({ frozenCards: [], review: null, reminders: dues, today: TODAY });
     expect(digest).not.toBeNull();
     expect(digest!.text).toContain('Freedom');
     // No review → no improvement/creep lines.
@@ -78,12 +80,12 @@ describe('buildWeeklyDigest', () => {
   });
 
   it('returns null when there is genuinely nothing to say', () => {
-    expect(buildWeeklyDigest({ review: null, reminders: [], today: TODAY })).toBeNull();
+    expect(buildWeeklyDigest({ frozenCards: [], review: null, reminders: [], today: TODAY })).toBeNull();
   });
 
   it('marks an estimated due', () => {
     const dues = [reminder({ accountId: 'a1', accountName: 'Store Card', dueDate: '2026-06-14', daysUntil: 4, isEstimated: true })];
-    const digest = buildWeeklyDigest({ review: REVIEW, reminders: dues, today: TODAY });
+    const digest = buildWeeklyDigest({ frozenCards: [], review: REVIEW, reminders: dues, today: TODAY });
     expect(digest!.text).toContain('[estimated]');
   });
 
@@ -97,7 +99,7 @@ describe('buildWeeklyDigest', () => {
       priceIncreaseCount: 1,
       priceIncreaseMonthlyCents: cents(250),
     };
-    const digest = buildWeeklyDigest({ review: REVIEW, reminders: [], today: TODAY, receipts });
+    const digest = buildWeeklyDigest({ frozenCards: [], review: REVIEW, reminders: [], today: TODAY, receipts });
     expect(digest!.text).toContain('running tally of what Aimplifi has caught');
     expect(digest!.text).toContain('2 payment reminders delivered, covering $1,734.56 in payments due.');
     expect(digest!.text).toContain('1 early warning before checking was projected to dip below $0.');
@@ -113,10 +115,10 @@ describe('buildWeeklyDigest', () => {
       priceIncreaseCount: 0,
       priceIncreaseMonthlyCents: cents(0),
     };
-    const withZero = buildWeeklyDigest({ review: REVIEW, reminders: [], today: TODAY, receipts: zero });
+    const withZero = buildWeeklyDigest({ frozenCards: [], review: REVIEW, reminders: [], today: TODAY, receipts: zero });
     expect(withZero!.text).not.toContain('caught');
     // No review + nothing due → null even with a non-zero tally (a tally alone isn't news).
-    const tallyOnly = buildWeeklyDigest({
+    const tallyOnly = buildWeeklyDigest({ frozenCards: [],
       review: null,
       reminders: [],
       today: TODAY,
@@ -154,7 +156,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
 
   it('household context flips the subject and dues header, and states its assumptions inline', () => {
     const dues = [reminder({ accountId: 'a1', accountName: "Partner's Sapphire", dueDate: '2026-06-15', daysUntil: 5 })];
-    const digest = buildWeeklyDigest({ review: REVIEW, reminders: dues, today: TODAY, household: HOUSEHOLD });
+    const digest = buildWeeklyDigest({ frozenCards: [], review: REVIEW, reminders: dues, today: TODAY, household: HOUSEHOLD });
 
     expect(digest!.subject).toBe("Your household's week with Aimplifi");
     expect(digest!.text).toContain('Coming up in the next 7 days across your household:');
@@ -169,14 +171,14 @@ describe('buildWeeklyDigest — joint household digest', () => {
   });
 
   it('names no merchant and no partner — descriptive, never a verdict on a partner (§4.5)', () => {
-    const digest = buildWeeklyDigest({ review: REVIEW, reminders: [], today: TODAY, household: HOUSEHOLD });
+    const digest = buildWeeklyDigest({ frozenCards: [], review: REVIEW, reminders: [], today: TODAY, household: HOUSEHOLD });
     const shared = digest!.text.slice(digest!.text.indexOf('Shared in'));
     // The movement block is a count and two totals. Nothing else about the rows.
     expect(shared).not.toMatch(/spent|overspent|too much|your partner spent/i);
   });
 
   it('a quiet week on shared accounts says so, without rendering "0 shared accounts"', () => {
-    const digest = buildWeeklyDigest({
+    const digest = buildWeeklyDigest({ frozenCards: [],
       review: REVIEW,
       reminders: [],
       today: TODAY,
@@ -187,7 +189,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
   });
 
   it('partners but nothing shared: says the email counts only your own accounts', () => {
-    const digest = buildWeeklyDigest({
+    const digest = buildWeeklyDigest({ frozenCards: [],
       review: REVIEW,
       reminders: [],
       today: TODAY,
@@ -203,7 +205,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
 
   it('household context is NEVER a send trigger on its own (parity with receipts)', () => {
     expect(
-      buildWeeklyDigest({ review: null, reminders: [], today: TODAY, household: HOUSEHOLD }),
+      buildWeeklyDigest({ frozenCards: [], review: null, reminders: [], today: TODAY, household: HOUSEHOLD }),
     ).toBeNull();
   });
 
@@ -224,7 +226,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
     const withPartner = { ...HOUSEHOLD, partnerAccountLabels: { 'partner-card': 'Sam' } };
 
     it('names the owner and never says the reader will pay it', () => {
-      const digest = buildWeeklyDigest({
+      const digest = buildWeeklyDigest({ frozenCards: [],
         review: REVIEW,
         reminders: [partnerDue],
         today: TODAY,
@@ -244,7 +246,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
 
     it('autopay on a partner card points at THEIR account, not the reader\'s', () => {
       const covered = { ...partnerDue, userActionCents: cents(0), autopayCents: cents(60_000), autopayCovered: true };
-      const digest = buildWeeklyDigest({
+      const digest = buildWeeklyDigest({ frozenCards: [],
         review: REVIEW,
         reminders: [covered],
         today: TODAY,
@@ -258,7 +260,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
 
     it("the reader's OWN card in the same digest keeps the personal line verbatim", () => {
       const mine = reminder({ accountId: 'my-card', accountName: 'Freedom', dueDate: '2026-06-13', daysUntil: 3 });
-      const digest = buildWeeklyDigest({
+      const digest = buildWeeklyDigest({ frozenCards: [],
         review: REVIEW,
         reminders: [mine, partnerDue],
         today: TODAY,
@@ -270,7 +272,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
   });
 
   it('a currency-withheld shared account is disclosed, never silently dropped (critic F3)', () => {
-    const onlyForeign = buildWeeklyDigest({
+    const onlyForeign = buildWeeklyDigest({ frozenCards: [],
       review: REVIEW,
       reminders: [],
       today: TODAY,
@@ -285,7 +287,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
     expect(onlyForeign!.text).not.toContain('No accounts are shared');
     expect(onlyForeign!.text).toContain("1 shared account isn't counted above");
 
-    const alsoForeign = buildWeeklyDigest({
+    const alsoForeign = buildWeeklyDigest({ frozenCards: [],
       review: REVIEW,
       reminders: [],
       today: TODAY,
@@ -309,7 +311,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
       daysUntil: 5,
       userActionCents: 120_000,
     });
-    const digest = buildWeeklyDigest({
+    const digest = buildWeeklyDigest({ frozenCards: [],
       review: REVIEW,
       reminders: [loanDue],
       today: TODAY,
@@ -327,7 +329,7 @@ describe('buildWeeklyDigest — joint household digest', () => {
   });
 
   it('F-5: a suspected twice-connected account is disclosed in the same email that mails the figures', () => {
-    const digest = buildWeeklyDigest({
+    const digest = buildWeeklyDigest({ frozenCards: [],
       review: REVIEW,
       reminders: [],
       today: TODAY,
@@ -335,15 +337,15 @@ describe('buildWeeklyDigest — joint household digest', () => {
     });
     expect(digest!.text).toContain('look like the same real account connected twice');
     // …and absent when nothing is suspected (the baseline fixture).
-    const clean = buildWeeklyDigest({ review: REVIEW, reminders: [], today: TODAY, household: HOUSEHOLD });
+    const clean = buildWeeklyDigest({ frozenCards: [], review: REVIEW, reminders: [], today: TODAY, household: HOUSEHOLD });
     expect(clean!.text).not.toContain('connected twice');
   });
 
   it('T6: without household context the digest is byte-identical to the personal one', () => {
     const dues = [reminder({ accountId: 'a1', accountName: 'Sapphire', dueDate: '2026-06-15', daysUntil: 5 })];
-    const personal = buildWeeklyDigest({ review: REVIEW, reminders: dues, today: TODAY });
+    const personal = buildWeeklyDigest({ frozenCards: [], review: REVIEW, reminders: dues, today: TODAY });
     for (const absent of [undefined, null] as const) {
-      const same = buildWeeklyDigest({ review: REVIEW, reminders: dues, today: TODAY, household: absent });
+      const same = buildWeeklyDigest({ frozenCards: [], review: REVIEW, reminders: dues, today: TODAY, household: absent });
       expect(same).toEqual(personal);
     }
     expect(personal!.text).not.toContain('Shared in');

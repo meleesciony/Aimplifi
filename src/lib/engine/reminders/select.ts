@@ -17,6 +17,7 @@ import {
   type CardDuplicatePairInput,
   cardDuplicateEmailLines,
 } from '@/lib/engine/account/card-duplicate-view';
+import { frozenDuesEmailLines } from '@/lib/engine/account/feed-dropped-view';
 
 export type ReminderUrgency = 'today' | 'soon' | 'upcoming';
 export type ObligationType = 'card' | 'loan';
@@ -37,6 +38,16 @@ export interface PaymentReminder {
   /** True when autopay covers the user's whole part — they only need funds present. */
   autopayCovered: boolean;
   isEstimated: boolean;
+  /**
+   * YYYY-MM-DD the bank stopped sharing this card/loan, else null (TASKS L.18). Carried verbatim
+   * from the obligation so the reminder email, the weekly digest and web push can each qualify the
+   * amount in their own words — none of them reads the cash-needed engine's `assumptions`, and a
+   * per-surface re-query would be a second source of truth for the same fact.
+   *
+   * REQUIRED: a reminder that silently loses the flag is a payment instruction with the one caveat
+   * that matters stripped off it.
+   */
+  frozenSince: string | null;
 }
 
 /** Stable dedup/dismiss key for a reminder (account + the date funds are needed). */
@@ -64,6 +75,7 @@ interface NormalizedObligation {
   userActionCents: Cents;
   autopayCents: Cents;
   isEstimated: boolean;
+  frozenSince: string | null;
 }
 
 /**
@@ -86,6 +98,7 @@ export function selectPaymentReminders(params: SelectRemindersParams): PaymentRe
         userActionCents: o.userActionCents,
         autopayCents: o.autopayCents,
         isEstimated: o.isEstimated,
+        frozenSince: o.frozenSince,
       }),
     ),
     ...(loanObligations ?? []).map(
@@ -98,6 +111,7 @@ export function selectPaymentReminders(params: SelectRemindersParams): PaymentRe
         userActionCents: o.paymentCents, // no loan-autopay model → the whole payment is the user's
         autopayCents: cents(0),
         isEstimated: o.isEstimated,
+        frozenSince: o.frozenSince,
       }),
     ),
   ];
@@ -128,6 +142,7 @@ export function selectPaymentReminders(params: SelectRemindersParams): PaymentRe
       autopayCents: o.autopayCents,
       autopayCovered: o.userActionCents === 0 && o.autopayCents > 0,
       isEstimated: o.isEstimated,
+      frozenSince: o.frozenSince,
     });
   }
   return out.sort(
@@ -199,10 +214,32 @@ export function buildReminderEmail(
     reminders.map((r) => ({ cardId: r.accountId, label: r.accountName })),
   );
 
+  // TASKS L.18. Resolved against the reminders this email actually prints and labelled with the
+  // same `accountName` the bullet uses, so a reader can attach the sentence to a line they can see.
+  // No new parameter: the flag rides each reminder, so this email cannot be built without it and
+  // there is no caller left to forget it.
+  const frozen = frozenDuesEmailLines(
+    reminders
+      .filter((r) => r.frozenSince != null)
+      .map((r) => ({
+        label: r.accountName,
+        frozenSince: r.frozenSince as string,
+        isEstimated: r.isEstimated,
+        kind: r.obligationType,
+        // This email is composed per user at PERSONAL scope (`getCashNeeded(user.id,
+        // 'PAY_IN_FULL')`), so every bullet is a due on the reader's own account. The joint digest
+        // is the surface that can carry a partner's, and it decides per row.
+        ownedByPartner: false,
+      })),
+  );
+
   const text = [
     `Here's what's coming up as of ${formatISODate(today, 'long')}:`,
     '',
     ...lines,
+    // Same placement rule as the duplicate disclosure below: after the bullets, because the
+    // sentences name them.
+    ...(frozen.length > 0 ? ['', ...frozen] : []),
     // AFTER the bullets, not before: the disclosure names two of them, and a reader who meets it
     // first has nothing yet to attach the two names to. `digestUndatedAlongsideDues` sits in the
     // same place for the same reason.

@@ -102,6 +102,7 @@ describe('loan payments surface on the calendar + reminders, not the cash headli
         effectiveDueDate: '2026-07-02', // Sun→Sat→Fri(observed Jul-4 holiday)→Thu
         paymentCents: 38500,
         isEstimated: false,
+        frozenSince: null,
       },
     ]);
   });

@@ -115,6 +115,7 @@ describe('loanObligationsToScheduledFlows (#134 — loan payments in the balance
     effectiveDueDate: isoDate('2026-07-03'), // business-day-shifted — the mapper must IGNORE this
     paymentCents: cents(38500),
     isEstimated: false,
+    frozenSince: null,
     ...over,
   });
 

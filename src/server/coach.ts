@@ -8,7 +8,7 @@
  */
 import { isoDate, addMonthsClamped } from '@/lib/dates';
 import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
-import { cashNeededFromSnapshot } from '@/server/finance';
+import { cashNeededFromSnapshot, resolvePaymentAccount } from '@/server/finance';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { buildAutomationBlueprint, type BlueprintStep, type PayCadence } from '@/lib/engine/automation/blueprint';
 import { coastFI, fiNumberCents, monthsToFI } from '@/lib/engine/fi/fi';
@@ -84,6 +84,29 @@ export interface CoachData {
   streaks: { cardCleared: CardClearedStreakResult; noCreep: NoCreepStreakResult };
   creep: CreepResult;
   runwayMonths: number;
+  /**
+   * Accounts whose bank stopped sharing them, split by WHICH figure on this page each one feeds
+   * (TASKS L.18) — because the answer differs per figure and a page-wide banner would make claims
+   * that are false of most of it:
+   *
+   *  · `portfolio` — the INVESTMENT rows summed into `fi.portfolioCents`, which drives months-to-FI,
+   *    Coast FI and the slider.
+   *  · `liquid` — the CHECKING/SAVINGS rows summed into the runway, which also drives the Money
+   *    Signature's weather line.
+   *
+   * The FI NUMBER is deliberately absent from both, and this corrects the L.18 brief rather than
+   * implementing it: `fiNumberCents(annualExpenses, swrBps)` reads no balance at all, so qualifying
+   * it would attach a caveat to a figure the frozen account does not touch — the same over-claim the
+   * L.15 cycle-2 critic caught one level down.
+   *
+   * Each list is built from the SAME filter as the sum it describes, minus superseded predecessors
+   * (whose balances the reconciliation boundary has already zeroed — announcing one as "still
+   * counted" is L.14's own critic P0-1).
+   */
+  frozenBalances: {
+    portfolio: { label: string; frozenSince: string }[];
+    liquid: { label: string; frozenSince: string }[];
+  };
   lifeEnergy: { merchant: string; amountCents: number; hours: number; date: string }[];
   hourlyWageCents: number;
   moneyDials: string[];
@@ -134,14 +157,25 @@ export async function getCoachData(
   const monthlySavings = roundHalfAwayFromZero((income6 - expenses6) / Math.max(1, last6.length));
   const monthlyIncome = roundHalfAwayFromZero(income6 / Math.max(1, last6.length));
 
-  const portfolio = cents(
-    snap.accounts.filter((a) => a.type === 'INVESTMENT').reduce((s, a) => s + a.currentBalanceCents, 0),
+  const portfolioAccounts = snap.accounts.filter((a) => a.type === 'INVESTMENT');
+  const liquidAccounts = snap.accounts.filter(
+    (a) => a.type === 'CHECKING' || a.type === 'SAVINGS',
   );
-  const liquid = cents(
-    snap.accounts
-      .filter((a) => a.type === 'CHECKING' || a.type === 'SAVINGS')
-      .reduce((s, a) => s + a.currentBalanceCents, 0),
-  );
+  const portfolio = cents(portfolioAccounts.reduce((s, a) => s + a.currentBalanceCents, 0));
+  const liquid = cents(liquidAccounts.reduce((s, a) => s + a.currentBalanceCents, 0));
+  // TASKS L.18 — read off the SAME two arrays the sums above are built from, so a disclosure can
+  // never describe a set the figure does not contain. Superseded predecessors are dropped: the
+  // boundary already zeroed their balances, so they are in neither sum, and saying otherwise is
+  // exactly what L.14's critic P0-1 caught on the dashboard banner.
+  const superseded = new Set(snap.supersededAccountIds ?? []);
+  const frozenRows = (rows: typeof snap.accounts) =>
+    rows
+      .filter((a) => a.feedDroppedAt != null && !superseded.has(a.id))
+      .map((a) => ({ label: a.name, frozenSince: a.feedDroppedAt as string }));
+  const frozenBalances = {
+    portfolio: frozenRows(portfolioAccounts),
+    liquid: frozenRows(liquidAccounts),
+  };
 
   const fiTarget = fiNumberCents(annualExpenses, user.swrBps);
   const months = monthsToFI(portfolio, monthlySavings, user.expectedReturnBps, fiTarget);
@@ -255,6 +289,20 @@ export async function getCoachData(
     ? {
         amountCents: cash.headline.recommendation.amountCents,
         byDate: formatISODate(isoDate(cash.headline.recommendation.byDate)),
+        // TASKS L.18. The recommendation is the shortfall rounded up, and the shortfall is the gap
+        // between the cards due and this account's balance — so when the bank has stopped sharing
+        // the account, the amount is a floor rather than the answer. Labelled with the payment
+        // account's own name, the same label /cards and the Ask answer print for it.
+        // Named through the SAME resolver the engine used to pick the account (which applies the
+        // reconciliation remap and the CHECKING fallback), never a guessed label — `snap
+        // .paymentAccountId` can be null, and inventing "checking" for an account the reader calls
+        // something else is a small fabrication in a sentence about trusting a number.
+        frozenFunding: cash.fundingFrozen
+          ? {
+              label: resolvePaymentAccount(snap).name,
+              frozenSince: cash.fundingFrozen.frozenSince,
+            }
+          : null,
       }
     : null;
   // The 3-field object stays UNCHANGED — dashboard, return-moment, and the digest email
@@ -308,6 +356,7 @@ export async function getCoachData(
     streaks,
     creep,
     runwayMonths: runway,
+    frozenBalances,
     lifeEnergy,
     hourlyWageCents: wage,
     moneyDials: parseStoredDials(user.moneyDials),

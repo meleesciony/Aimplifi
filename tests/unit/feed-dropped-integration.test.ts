@@ -223,7 +223,10 @@ describe('critic F-1 — the payment account itself can be frozen', () => {
     const out = computeCashNeeded(input('2026-07-04'));
     const said = out.assumptions.join(' ');
     expect(said).toContain('Everyday Checking');
-    expect(said).toContain('has not updated since 2026-07-04');
+    // TASKS L.18 renders the date the way every other user-facing string in this module does
+    // ('Sat, Jul 4, 2026'), not as the raw ISO stamp this assertion originally pinned.
+    expect(said).toContain('has not updated since Sat, Jul 4, 2026');
+    expect(said).not.toContain('2026-07-04');
     expect(said).toContain('your bank stopped sharing that account');
   });
 

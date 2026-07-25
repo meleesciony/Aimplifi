@@ -58,7 +58,7 @@ const INPUTS: Record<string, ReviewCandidateInput> = {
     creep: NO_CREEP,
     opportunities: [oppOf('price-increase', 'Netflix', 300)],
     runwayMonths: 5,
-    pendingTransfer: { amountCents: cents(42000), byDate: '2026-06-14' },
+    pendingTransfer: { amountCents: cents(42000), byDate: '2026-06-14', frozenFunding: null },
   },
   rateDownCreepUnused: {
     flows: [flow('2026-04', 800000, 500000, 3750), flow('2026-05', 800000, 700000, 1250)],

@@ -88,7 +88,14 @@ describe('cash-needed: a card with nothing knowable is reported, not silently dr
     // The fix: the card is carried out so no surface can render silence as
     // "nothing is due".
     expect(result.unknownDueDateCards).toEqual([
-      { cardId: 'card-chase', cardName: 'Chase Sapphire', currentBalanceCents: cents(184267) },
+      {
+        cardId: 'card-chase',
+        cardName: 'Chase Sapphire',
+        currentBalanceCents: cents(184267),
+        // TASKS L.18: the flag rides out with the card, so the surfaces that print this balance
+        // can say when it stopped moving. Null here — this card is undatable, not unshared.
+        frozenSince: null,
+      },
     ]);
   });
 

@@ -14,10 +14,14 @@ import {
   type ScheduledFlow,
 } from '@/lib/engine/forecast/forecast';
 import { selectLoanObligations } from '@/lib/engine/loans/obligations';
+import { frozenProjectionNote } from '@/lib/engine/account/feed-dropped-view';
 import { holidayTable } from '@/lib/dates';
 import { getProvider } from '@/lib/providers/demo';
 
 export interface CashFlowForecastData {
+  /** Set when the account this projection starts from is one the bank stopped sharing (L.18).
+   *  REQUIRED: a second reader of this shape that forgets it prints an unqualified projection. */
+  frozenNote: string | null;
   forecast: Forecast;
   accountName: string;
   horizonDays: number;
@@ -76,5 +80,24 @@ export async function getCashFlowForecast(
     events,
   });
 
-  return { forecast, accountName: payment?.name ?? 'your account', horizonDays };
+  return {
+    forecast,
+    accountName: payment?.name ?? 'your account',
+    horizonDays,
+    // TASKS L.18. This page walks forward from ONE balance and prints "dips below $0 on DATE" and a
+    // lowest point off it, which is structurally the radar's claim with no transfer attached — and
+    // unlike the radar or the dashboard, nothing else on /forecast qualifies it. The frozen-HIGH
+    // case is the quiet one: no dip is projected at all, so the reader is reassured by a projection
+    // that cannot see the account it is projecting.
+    frozenNote:
+      payment?.feedDroppedAt != null
+        ? frozenProjectionNote(
+            { label: payment.name, frozenSince: payment.feedDroppedAt },
+            {
+              shows: forecast.firstNegativeDate ? 'a-dip' : 'no-dip',
+              nextStep: 'accounts-route',
+            },
+          )
+        : null,
+  };
 }

@@ -60,6 +60,7 @@ import {
   answerSubscriptions,
   answerTopCategories,
   answerUnknown,
+  assistantAccounts,
   largestPurchases,
   merchantSpend,
   toPurchaseRows as enginePurchaseRows,
@@ -408,25 +409,28 @@ async function buildAnswer(
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
 ): Promise<AssistantAnswer> {
+  // TASKS L.18: one normalization of the snapshot rows into the assistant's shape, so every answer
+  // and trace below sees `feedDroppedAt` and none of them can quote a frozen balance as a live one.
+  const accounts = assistantAccounts(snap.accounts, new Set(snap.supersededAccountIds ?? []));
   switch (intent.kind) {
     case 'net_worth': {
       // Slice 3: derivation traces are attached HERE, where the engine inputs
       // are live (composeAnswer's row-sum attach recomputes from transactions,
       // which these formulas don't read). `headlineCents`/`headlineBps` is the
       // builder's own figure, so the trace's equality is a real drift gate.
-      const answer = answerNetWorth(snap.accounts);
+      const answer = answerNetWorth(accounts);
       return answer.headlineCents === undefined
         ? answer
-        : { ...answer, trace: traceNetWorthDerivation(snap.accounts, answer.headlineCents) };
+        : { ...answer, trace: traceNetWorthDerivation(accounts, answer.headlineCents) };
     }
     case 'account_balance':
       // Slice-6 critic C-5: fold a matched superseded predecessor onto its live successor —
       // the boundary zeroes the predecessor, so answering it raw said "$0.00" for a real,
       // funded account and counted one real account as two in type totals.
       return answerAccountBalance(
-        snap.accounts,
+        accounts,
         intent.query,
-        terminalSuccessorMap(snap.accounts, await getActiveReconciliations(userId)),
+        terminalSuccessorMap(accounts, await getActiveReconciliations(userId)),
       );
     case 'spend_total':
       // Exact /reports parity — pass the snapshot rows straight to the same engine.

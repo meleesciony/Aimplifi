@@ -246,7 +246,7 @@ describe('monthly Money Review narrative from seed data', () => {
       creep: detectLifestyleCreep(seed.transactions, isoDate('2026-06-10')),
       opportunities: findOpportunities(series, 700),
       runwayMonths: 3.2,
-      pendingTransfer: { amountCents: cents(105_000), byDate: 'Tue, Jun 23' },
+      pendingTransfer: { amountCents: cents(105_000), byDate: 'Tue, Jun 23', frozenFunding: null },
     });
     expect(review.improvement.length).toBeGreaterThan(10);
     expect(review.creep).toMatch(/Netflix|crept|discretionary/i);

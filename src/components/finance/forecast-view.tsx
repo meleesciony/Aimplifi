@@ -45,6 +45,14 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
           </span>{' '}
           from {formatCents(cents(f.startingBalanceCents))} in {data.accountName} today
         </p>
+        {/* TASKS L.18 — beside the starting balance the whole projection walks from, because that
+            is the number the sentence is about. Nothing else on this page qualifies it: unlike the
+            dashboard, /forecast renders no assumptions block and no radar card. */}
+        {data.frozenNote && (
+          <p className="mt-2 text-xs text-amber-500" data-testid="forecast-frozen-note">
+            {data.frozenNote}
+          </p>
+        )}
         <div
           data-testid="forecast-lowest"
           className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
