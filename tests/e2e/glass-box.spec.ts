@@ -89,11 +89,11 @@ test('spending plan: the breakdown lines sum to "Guilt-free to spend" exactly', 
   await expect(page.getByTestId('spending-plan-hero')).toBeVisible();
 
   const rowTexts = await page.getByTestId('plan-row-amount').allTextContents();
-  // The SUM is the invariant; the count is not. A sixth row appears whenever a
+  // The SUM is the invariant; the count is not. A fifth row appears whenever a
   // card is dated past the month's edge (L.11(D)) — the demo user has none, so
-  // a hardcoded 5 would pass here forever and break on the first real user who
+  // a hardcoded 4 would pass here forever and break on the first real user who
   // did, which is a golden that cannot observe the feature it sits next to.
-  expect(rowTexts.length).toBeGreaterThanOrEqual(5);
+  expect(rowTexts.length).toBeGreaterThanOrEqual(4);
   const rowSum = rowTexts.reduce((acc, t) => acc + textToCents(t), 0);
   const totalCents = textToCents((await page.getByTestId('plan-total').textContent()) ?? '');
   expect(rowSum).toBe(totalCents);

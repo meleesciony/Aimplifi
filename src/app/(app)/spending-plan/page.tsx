@@ -18,9 +18,37 @@ export default async function SpendingPlanPage() {
 
   const p = await getSpendingPlan(userId);
   const positive = !p.overspent;
+  // The dashboard card's empty state, mirrored: with no pattern and no obligations there is
+  // no figure, so the page must not print "$0.00" beside "matched to the penny" (cycle-2 P2-4).
+  const noData =
+    p.patternIncomeCents === 0 &&
+    p.fixedExpensesCents === 0 &&
+    p.cardObligationsCents === 0 &&
+    p.obligationsBeyondMonthCents === 0 &&
+    p.plannedSavingsCents === 0;
+  if (noData) {
+    return (
+      <div className="mx-auto max-w-xl space-y-4">
+        <h1 className="sr-only">Spending plan</h1>
+        <section
+          data-testid="spending-plan-hero"
+          className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-sm"
+        >
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Guilt-free to spend
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground" data-testid="spending-plan-empty">
+            Once we can see your income — a complete month posted, or a recurring paycheck
+            detected — your guilt-free spending amount shows up here, with every line of the
+            arithmetic behind it.
+          </p>
+        </section>
+      </div>
+    );
+  }
 
-  // Bar segments (of expected income): spent / upcoming bills / card payments / savings / left.
-  const total = Math.max(1, p.expectedIncomeCents);
+  // Bar segments (of pattern income): fixed / card payments / savings / left.
+  const total = Math.max(1, p.patternIncomeCents);
   const pct = (n: number) => `${Math.max(0, Math.min(100, (n / total) * 100))}%`;
   const leftWidth = pct(Math.max(0, p.leftToSpendCents));
   const d = p.disclosures;
@@ -71,12 +99,12 @@ export default async function SpendingPlanPage() {
         <p className="mt-2 text-sm text-muted-foreground">
           {positive ? (
             <>
-              ≈ <span className="font-semibold text-foreground">{formatCents(cents(p.perDayCents))}/day</span> for{' '}
-              the {p.daysLeftInMonth} day{p.daysLeftInMonth === 1 ? '' : 's'} left
+              your monthly allocation after fixed costs, card payments, and savings — the{' '}
+              <em>I Will Teach You to Be Rich</em> guilt-free figure
             </>
           ) : (
-            <>Nothing is guilt-free for the {p.daysLeftInMonth} day{p.daysLeftInMonth === 1 ? '' : 's'} left —
-            this month&apos;s income is more than spoken for. One tight month is weather, not climate.</>
+            <>Your income pattern is more than spoken for by fixed costs, card payments, and
+            savings — the plan below shows which line drives it.</>
           )}
         </p>
         {/* L.11(D). The reader is looking at a number far below what the five
@@ -93,14 +121,13 @@ export default async function SpendingPlanPage() {
         ) : null}
 
         {/* allocation bar + visible legend (ROADMAP ALSO CONSIDER / #186) —
-            title= tooltips alone are invisible on touch; label the five segments. */}
+            title= tooltips alone are invisible on touch; label the segments. */}
         <div
           className="mt-5 flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
           role="img"
-          aria-label={`Allocation of expected income: spent, upcoming bills, card payments, savings, ${p.reservesBeyondMonth ? 'card payments due after this month, ' : ''}guilt-free`}
+          aria-label={`Allocation of monthly income: fixed expenses, card payments, savings, ${p.reservesBeyondMonth ? 'card payments due after this month, ' : ''}guilt-free`}
         >
-          <div className="bg-rose-400/80" style={{ width: pct(p.spentSoFarCents) }} title="Spent" />
-          <div className="bg-amber-400/80" style={{ width: pct(p.upcomingBillsCents) }} title="Upcoming bills" />
+          <div className="bg-amber-400/80" style={{ width: pct(p.fixedExpensesCents) }} title="Fixed expenses" />
           <div className="bg-violet-400/80" style={{ width: pct(p.cardObligationsCents) }} title="Card payments" />
           <div className="bg-sky-400/80" style={{ width: pct(p.plannedSavingsCents) }} title="Savings" />
           {/* L.11(D): its own segment, or the bar would stop being an
@@ -119,8 +146,7 @@ export default async function SpendingPlanPage() {
         >
           {(
             [
-              { swatch: 'bg-rose-400/80', label: 'Spent' },
-              { swatch: 'bg-amber-400/80', label: 'Upcoming bills' },
+              { swatch: 'bg-amber-400/80', label: 'Fixed expenses' },
               { swatch: 'bg-violet-400/80', label: 'Card payments' },
               { swatch: 'bg-sky-400/80', label: 'Savings' },
               ...(p.reservesBeyondMonth
@@ -181,13 +207,13 @@ export default async function SpendingPlanPage() {
           </p>
         ))}
         <p className="mt-3 text-xs text-muted-foreground">
-          Income left after what you&apos;ve spent outside your credit cards, the recurring
-          bills still due this month, the card payments due this month, anything already dated
-          just past it, and your savings — spending in the{' '}
+          Your monthly income pattern minus fixed and recurring expenses, the card payments due
+          this month, anything already dated just past it, and your savings — in the{' '}
           <em>I Will Teach You to Be Rich</em> sense: once those are covered, what&apos;s left is
-          yours to spend without guilt. Card purchases count when their statement&apos;s payment
-          comes due, not again at purchase time, and each card is assumed paid in full. Set a
-          savings target in Settings to reserve a share of income first.
+          yours to spend without guilt. Income is a trailing pattern, not what has posted so far;
+          discretionary spending is never subtracted. Card purchases count when their
+          statement&apos;s payment comes due, not again at purchase time, and each card is assumed
+          paid in full. Set a savings target in Settings to reserve a share of income first.
         </p>
       </section>
 

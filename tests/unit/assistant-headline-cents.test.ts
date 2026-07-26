@@ -29,6 +29,7 @@ import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
 import type { SpendingBreakdown } from '@/lib/engine/reports/reports';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
 import type { Timeframe } from '@/lib/engine/assistant/intent';
+import { isoDate } from '@/lib/dates';
 import { formatCents, type Cents } from '@/lib/money';
 
 const THIS_MONTH: Timeframe = { fromYm: '2026-06', toYm: '2026-06', label: 'this month' };
@@ -125,9 +126,14 @@ describe('headlineCents — the slice-3 boundary: TRACED derivation kinds set it
     expect(
       answerSafeToSpend(
         {
-          expectedIncomeCents: 650000,
-          spentSoFarCents: 200000,
-          upcomingBillsCents: 100000,
+          today: isoDate('2026-06-23'),
+          trailingMonthlyIncomeCents: [650000],
+          scheduledIncome: [],
+          scheduledFixed: [],
+          patternIncomeCents: 650000,
+          incomeBasis: 'trailing-median',
+          incomeMonths: 1,
+          fixedExpensesCents: 300000,
           cardObligationsCents: 0,
           goalContributionsCents: 50000,
           savingsTargetBps: null,
@@ -135,9 +141,11 @@ describe('headlineCents — the slice-3 boundary: TRACED derivation kinds set it
           savingsSource: 'goals',
           unallocatedSavingsCents: 0,
           cardObligationsEstimated: false,
+          obligationsBeyondMonthCents: 0,
+          obligationsBeyondMonthThroughDate: null,
+          obligationsBeyondMonthEstimated: false,
+          reservesBeyondMonth: false,
           leftToSpendCents: 300000,
-          perDayCents: 10000,
-          daysLeftInMonth: 30,
           overspent: false,
         } as SpendingPlan,
         { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [] },

@@ -1,20 +1,21 @@
 /**
- * getSpendingPlan — the #295 guilt-free reframe, driven through the REAL
- * server path against a throwaway user (a pure-builder test cannot catch a
- * wiring bug — the L.15 lesson). Locks the claims the reframe makes, plus the
- * critic-cycle fixes:
+ * getSpendingPlan — the L.22 pattern re-spec (owner instruction 2026-07-26),
+ * driven through the REAL server path against a throwaway user (a pure-builder
+ * test cannot catch a wiring bug — the L.15 lesson). Locks the claims the
+ * re-spec makes, plus the critic-cycle fixes that survive it:
  *
- *  1. THE CASH SPLIT: a credit-card purchase is NOT in `spentSoFarCents`,
- *     while a checking-account expense IS — and (critic F5) a credit-card
- *     POSITIVE (cashback / statement credit) is not income either, since it
- *     already shrinks the next statement.
- *  2. THE MONTH WINDOW (critic F1): only obligations DUE THIS CALENDAR MONTH
+ *  1. THE PATTERN: income is the median of complete PRIOR months over
+ *     non-credit accounts — the current month's own paycheck is deliberately
+ *     NOT in it, a one-time spike is median-immune, and (critic F5) a
+ *     credit-card POSITIVE (cashback / statement credit) is not income either.
+ *  2. NO OCCURRENCE MATH: a scheduled biweekly paycheck series does not move
+ *     the pattern (the F4 windowing the owner hit is gone from the plan; the
+ *     walk survives only in the L.11(D) beyond-month reservation).
+ *  3. THE MONTH WINDOW (critic F1): only obligations DUE THIS CALENDAR MONTH
  *     are subtracted — a statement due next month is reserved against next
  *     month's income, never two months'.
- *  3. THE SETTINGS WIRING: `User.savingsTargetBps` reaches the engine, is a
+ *  4. THE SETTINGS WIRING: `User.savingsTargetBps` reaches the engine, is a
  *     FLOOR over goals (never a sum), and its unallocated reserve is carried.
- *  4. SCHEDULED CADENCE (critic F4): a BIWEEKLY paycheck with two paydays
- *     left this month counts twice, not once.
  *  5. DISCLOSURES: an undatable OWING card is excluded from the term and
  *     NAMED (the dangerous direction); an overpaid undated card is NOT named
  *     under that claim (critic F8); a statement-pending card due this month
@@ -31,7 +32,7 @@ import { prisma } from '@/lib/db';
 
 const TODAY = '2026-06-10';
 
-describe('getSpendingPlan — guilt-free spending (#295), real server path', () => {
+describe('getSpendingPlan — guilt-free spending (L.22), real server path', () => {
   const uid = `gfs-${Date.now()}-${process.pid}`;
   let checkingId = '';
   let cardId = '';
@@ -70,16 +71,19 @@ describe('getSpendingPlan — guilt-free spending (#295), real server path', () 
       },
     });
     cardId = card.id;
-    // Income lands in checking; a cash expense posts from checking; a card
-    // PURCHASE posts on the credit account (must not count as cash spend);
-    // a card CASHBACK posts positive on the credit account (must not count
-    // as income — critic F5).
+    // Income lands in checking in the two COMPLETE months (the pattern's basis)
+    // AND in the current one (deliberately NOT in the pattern — L.22). A card
+    // PURCHASE posts on the credit account (no term for it anywhere), and a
+    // card CASHBACK posts positive on the credit account in May (must not
+    // count as income — critic F5).
     await prisma.transaction.createMany({
       data: [
+        { accountId: checkingId, date: '2026-04-03', amountCents: 500000, rawDescriptor: 'ACME PAYROLL', categoryId: 'income', confidenceBps: 9900, needsReview: false },
+        { accountId: checkingId, date: '2026-05-03', amountCents: 500000, rawDescriptor: 'ACME PAYROLL', categoryId: 'income', confidenceBps: 9900, needsReview: false },
         { accountId: checkingId, date: '2026-06-03', amountCents: 500000, rawDescriptor: 'ACME PAYROLL', categoryId: 'income', confidenceBps: 9900, needsReview: false },
         { accountId: checkingId, date: '2026-06-05', amountCents: -40000, rawDescriptor: 'GROCERY MART', categoryId: 'groceries', confidenceBps: 9000, needsReview: false },
         { accountId: cardId, date: '2026-06-06', amountCents: -25000, rawDescriptor: 'BIG BOX STORE', categoryId: 'shopping', confidenceBps: 9000, needsReview: false },
-        { accountId: cardId, date: '2026-06-07', amountCents: 5000, rawDescriptor: 'CASHBACK REWARD', categoryId: null, confidenceBps: 0, needsReview: false },
+        { accountId: cardId, date: '2026-05-07', amountCents: 5000, rawDescriptor: 'CASHBACK REWARD', categoryId: null, confidenceBps: 0, needsReview: false },
       ],
     });
     // The card's generated statement: $300.00 due June 25 → due THIS month.
@@ -102,20 +106,24 @@ describe('getSpendingPlan — guilt-free spending (#295), real server path', () 
     vi.stubEnv('DEMO_TODAY', TODAY);
   });
 
-  it('cash split (both directions) + the this-month obligation term', async () => {
+  it('the pattern reads complete months only — current-month income, card spend, and cashback are all out of it', async () => {
     const plan = await getSpendingPlan(uid);
 
-    // (1) Only the checking expense counts as spent-so-far…
-    expect(plan.spentSoFarCents).toBe(40000);
-    // …and the card cashback is NOT income (critic F5): income is the paycheck alone.
-    expect(plan.expectedIncomeCents).toBe(500000);
-    // (2) The statement due June 25 is this month's obligation.
+    // (1) The median of April + May — the June paycheck is deliberately NOT in
+    // the pattern, and the May cashback on the CARD is not income (critic F5:
+    // if it were, May would read $5,050 and the median would move).
+    expect(plan.trailingMonthlyIncomeCents).toEqual([500000, 500000]);
+    expect(plan.patternIncomeCents).toBe(500000);
+    expect(plan.incomeBasis).toBe('trailing-median');
+    expect(plan.incomeMonths).toBe(2);
+    // No detected recurring series in this fixture → no fixed term.
+    expect(plan.fixedExpensesCents).toBe(0);
+    // (3) The statement due June 25 is this month's obligation.
     expect(plan.cardObligationsCents).toBe(30000);
     expect(plan.cardObligationsEstimated).toBe(false);
-    // Full identity: 5000 − 400 − 0 (bills) − 300 (card) − 0 (savings) = 4300.
-    expect(plan.upcomingBillsCents).toBe(0);
+    // Full identity: 5000 (pattern) − 0 (fixed) − 300 (card) − 0 (savings).
     expect(plan.plannedSavingsCents).toBe(0);
-    expect(plan.leftToSpendCents).toBe(430000);
+    expect(plan.leftToSpendCents).toBe(470000);
     // No suspected duplicates, nothing frozen, nothing excluded.
     expect(plan.disclosures.duplicatePairs).toEqual([]);
     expect(plan.disclosures.frozenCards).toEqual([]);
@@ -165,20 +173,24 @@ describe('getSpendingPlan — guilt-free spending (#295), real server path', () 
     });
     try {
       const plan = await getSpendingPlan(uid);
-      // 20% of $5,000 = $1,000 > $500 goal contribution → the target wins.
+      // 20% of $5,000 pattern = $1,000 > $500 goal contribution → the target wins.
       expect(plan.savingsTargetBps).toBe(2000);
       expect(plan.goalContributionsCents).toBe(50000);
       expect(plan.plannedSavingsCents).toBe(100000);
       expect(plan.savingsSource).toBe('target');
       expect(plan.unallocatedSavingsCents).toBe(50000); // the reserve beyond named goals (critic F3)
-      expect(plan.leftToSpendCents).toBe(330000); // 430000 − 100000
+      expect(plan.leftToSpendCents).toBe(370000); // 470000 − 100000
     } finally {
       await prisma.goal.deleteMany({ where: { userId: uid } });
       await prisma.user.update({ where: { id: uid }, data: { savingsTargetBps: null } });
     }
   });
 
-  it('a BIWEEKLY paycheck with two paydays left counts twice (critic F4)', async () => {
+  it('NO OCCURRENCE MATH: a scheduled biweekly paycheck series does not move the pattern (L.22)', async () => {
+    // The F4 windowing the owner hit — a series counted once per remaining
+    // occurrence — is gone from the plan's income term. The series below would
+    // have added $5,000 under the old model; under the pattern it changes
+    // nothing (it feeds only the no-history fallback and the L.11(D) walk).
     await prisma.scheduledTransaction.create({
       data: {
         accountId: checkingId,
@@ -191,10 +203,41 @@ describe('getSpendingPlan — guilt-free spending (#295), real server path', () 
     });
     try {
       const plan = await getSpendingPlan(uid);
-      // Received 5000 + (2500 on Jun 12 AND 2500 on Jun 26) = 10000.
-      expect(plan.expectedIncomeCents).toBe(1000000);
+      expect(plan.patternIncomeCents).toBe(500000); // unchanged — the median rules
+      expect(plan.incomeBasis).toBe('trailing-median');
     } finally {
       await prisma.scheduledTransaction.deleteMany({ where: { accountId: checkingId } });
+    }
+  });
+
+  it('the detected-series fallback engages only when NO complete month exists', async () => {
+    // New user, no history, one detected paycheck series: income is the series
+    // at a monthly rate — not zero, and not "this month so far".
+    const fresh = `${uid}-fresh`;
+    await prisma.user.create({ data: { id: fresh, email: `${fresh}@test.local` } });
+    const chk = await prisma.account.create({
+      data: { userId: fresh, provider: 'manual', providerRef: `${fresh}-chk`, name: 'Checking', type: 'CHECKING', currentBalanceCents: 100000, currency: 'USD' },
+    });
+    await prisma.user.update({ where: { id: fresh }, data: { paymentAccountId: chk.id } });
+    await prisma.scheduledTransaction.create({
+      data: {
+        accountId: chk.id,
+        description: 'ACME PAYROLL',
+        amountCents: 250000,
+        nextDate: '2026-06-12',
+        cadence: 'BIWEEKLY',
+        source: 'payroll-detected',
+      },
+    });
+    try {
+      const plan = await getSpendingPlan(fresh);
+      // 250000 × 26/12 = 541666.67 → 541667, half-up.
+      expect(plan.patternIncomeCents).toBe(541667);
+      expect(plan.incomeBasis).toBe('detected-series');
+      expect(plan.incomeMonths).toBe(0);
+    } finally {
+      await prisma.account.deleteMany({ where: { userId: fresh } });
+      await prisma.user.delete({ where: { id: fresh } });
     }
   });
 
@@ -309,16 +352,15 @@ describe("getSpendingPlan — card payments dated past the month's edge (L.11(D)
         currency: 'USD',
       },
     });
-    await prisma.transaction.create({
-      data: {
-        accountId: checking.id,
-        date: '2026-07-03',
-        amountCents: 1000000,
-        rawDescriptor: 'ACME PAYROLL',
-        categoryId: 'income',
-        confidenceBps: 9900,
-        needsReview: false,
-      },
+    // Income in the two COMPLETE months (the pattern's basis) and in July
+    // (deliberately NOT in the pattern — the July paycheck no longer arrives
+    // in the plan's income at all).
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: checking.id, date: '2026-05-03', amountCents: 1000000, rawDescriptor: 'ACME PAYROLL', categoryId: 'income', confidenceBps: 9900, needsReview: false },
+        { accountId: checking.id, date: '2026-06-03', amountCents: 1000000, rawDescriptor: 'ACME PAYROLL', categoryId: 'income', confidenceBps: 9900, needsReview: false },
+        { accountId: checking.id, date: '2026-07-03', amountCents: 1000000, rawDescriptor: 'ACME PAYROLL', categoryId: 'income', confidenceBps: 9900, needsReview: false },
+      ],
     });
     // Due FIVE DAYS after the month this plan describes ends — the owner's shape.
     await prisma.statement.create({
@@ -350,7 +392,7 @@ describe("getSpendingPlan — card payments dated past the month's edge (L.11(D)
     expect(plan.obligationsBeyondMonthCents).toBe(900000);
     expect(plan.reservesBeyondMonth).toBe(true);
     expect(plan.obligationsBeyondMonthThroughDate).toBe('Wed, Aug 5');
-    expect(plan.leftToSpendCents).toBe(100000); // $10,000 income − $9,000 dated
+    expect(plan.leftToSpendCents).toBe(100000); // $10,000 pattern − $9,000 dated
     expect(plan.overspent).toBe(false);
   });
 
@@ -360,7 +402,7 @@ describe("getSpendingPlan — card payments dated past the month's edge (L.11(D)
     // plan subtracts. Same rows, one filter, opposite sides.
     expect(cash.result.headline.requiredCents).toBe(900000);
     expect(plan.obligationsBeyondMonthCents).toBe(cash.result.headline.requiredCents);
-    expect(plan.leftToSpendCents).toBeLessThan(plan.expectedIncomeCents);
+    expect(plan.leftToSpendCents).toBeLessThan(plan.patternIncomeCents);
   });
 
   it('splits the SAME set at the boundary — neither side may swallow the other', async () => {
@@ -404,6 +446,31 @@ describe("getSpendingPlan — card payments dated past the month's edge (L.11(D)
     }
   });
 
+  it('a LIVE anchor before the window is stepped INTO it — the walk is not blind to mid-month paydays (L.22 money critic P1-1)', async () => {
+    // FAIL-OLD: the old call passed endOfMonth as the counter's `today`, so this weekly
+    // paycheck — anchored Jul 28, landing Aug 4, one day before the Aug 5 statement — read
+    // as "stale" and contributed ZERO: the full $9,000 was reserved (900000 / 100000)
+    // instead of the part the arriving income does not cover (300000 / 700000).
+    const payday = await prisma.scheduledTransaction.create({
+      data: {
+        accountId: checkingEdgeId,
+        description: 'ACME PAYROLL',
+        amountCents: 600000,
+        nextDate: '2026-07-28', // live vs the pinned Jul 26 today; steps to Aug 4 inside the window
+        cadence: 'WEEKLY',
+        source: 'payroll-detected',
+      },
+    });
+    try {
+      const plan = await getSpendingPlan(uid);
+      expect(plan.obligationsBeyondMonthCents).toBe(300000); // 900000 − 600000 arriving Aug 4
+      expect(plan.leftToSpendCents).toBe(700000);
+      expect(plan.obligationsBeyondMonthThroughDate).toBe('Wed, Aug 5');
+    } finally {
+      await prisma.scheduledTransaction.delete({ where: { id: payday.id } });
+    }
+  });
+
   it('reserves only what next month’s income has not arrived in time to cover', async () => {
     // The gross version reserved a full statement every month, permanently, for
     // anyone paid before their cards come due — the same double-reservation
@@ -423,7 +490,7 @@ describe("getSpendingPlan — card payments dated past the month's edge (L.11(D)
       expect(plan.obligationsBeyondMonthCents).toBe(300000);
       expect(plan.leftToSpendCents).toBe(700000);
       // …and the August income is NOT also counted as this month's income.
-      expect(plan.expectedIncomeCents).toBe(1000000);
+      expect(plan.patternIncomeCents).toBe(1000000);
     } finally {
       await prisma.scheduledTransaction.delete({ where: { id: payday.id } });
     }

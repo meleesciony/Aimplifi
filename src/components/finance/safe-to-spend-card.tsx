@@ -25,14 +25,13 @@ export function SafeToSpendCard({
   plan: SpendingPlan;
   disclosures: SpendingPlanDisclosures;
 }) {
-  // "No data yet" only when the month has NO financial activity at all — never
+  // "No data yet" only when there is NO pattern and NO obligations at all — never
   // mislabel a real $0-left (overspent / fully committed) as empty.
   const noData =
-    plan.expectedIncomeCents === 0 &&
-    plan.spentSoFarCents === 0 &&
-    plan.upcomingBillsCents === 0 &&
+    plan.patternIncomeCents === 0 &&
+    plan.fixedExpensesCents === 0 &&
     plan.cardObligationsCents === 0 &&
-    // The sixth term counts here too (cycle-2 P1): a card-only user whose whole
+    // The beyond-month term counts here too (cycle-2 P1): a card-only user whose whole
     // obligation is dated past the month's edge was overspent by $14,000 AND
     // told "once this month has income or spending we can count" — the two were
     // simultaneously true, which they never were before this term existed.
@@ -71,8 +70,8 @@ export function SafeToSpendCard({
       {noData ? (
         <>
           <p className="mt-1.5 text-sm text-muted-foreground" data-testid="dashboard-safe-to-spend-empty">
-            Once this month has income or spending we can count, your guilt-free spending amount
-            shows up here.
+            Once we can see your income — a complete month posted, or a recurring paycheck
+            detected — your guilt-free spending amount shows up here.
           </p>
           {excludedNote}
         </>
@@ -90,12 +89,9 @@ export function SafeToSpendCard({
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {ok ? (
-              <>
-                ≈ {formatCents(cents(plan.perDayCents))}/day · {plan.daysLeftInMonth} day
-                {plan.daysLeftInMonth === 1 ? '' : 's'} left
-              </>
+              <>this month, after fixed costs, card payments &amp; savings</>
             ) : (
-              <>guilt-free is $0 · {plan.daysLeftInMonth} day{plan.daysLeftInMonth === 1 ? '' : 's'} left</>
+              <>guilt-free is $0 this month</>
             )}
           </p>
           {excludedNote}

@@ -1,13 +1,20 @@
 /**
- * Spending Plan engine known-answer tests (DECISIONS #66, reframed #295 —
- * guilt-free spending). Hand-verified to the cent.
+ * Spending Plan engine known-answer tests (DECISIONS #66; #295 reframe; L.22
+ * pattern re-spec, owner instruction 2026-07-26). Hand-verified to the cent.
+ *
+ * The owner's formula: guilt-free = pattern income (all sources) − savings % −
+ * fixed & recurring expenses − card obligations. The locks here are mostly
+ * about what is NOT in the number anymore: this month's received income, any
+ * remaining-occurrence count, discretionary spending, and the per-day framing.
  */
 import { describe, expect, it } from 'vitest';
 import {
   computeSpendingPlan,
   daysInMonth,
+  monthlyRateCents,
   savingsTargetCents,
-  scheduledOccurrencesInWindow,
+  scheduledOccurrencesBetween,
+  type SpendingPlanInput,
 } from '@/lib/engine/spending-plan/plan';
 import { isoDate } from '@/lib/dates';
 
@@ -35,215 +42,240 @@ describe('savingsTargetCents', () => {
   });
 });
 
-describe('scheduledOccurrencesInWindow (critic F4 — a biweekly paycheck with two paydays left counts twice)', () => {
+describe('scheduledOccurrencesBetween — longer windows with the REAL stale gate (L.22 money critic P1-1)', () => {
   const today = isoDate('2026-06-10');
   const eom = '2026-06-30';
+  // In-month form: windowStart === today (the old scheduledOccurrencesInWindow shape).
+  const inMonth = (nextDate: string, cadence: string | null) =>
+    scheduledOccurrencesBetween(nextDate, cadence, today, today, eom);
 
   it('BIWEEKLY with two remaining paydays counts 2; with one counts 1', () => {
-    expect(scheduledOccurrencesInWindow('2026-06-12', 'BIWEEKLY', today, eom)).toBe(2); // 12th + 26th
-    expect(scheduledOccurrencesInWindow('2026-06-20', 'BIWEEKLY', today, eom)).toBe(1); // 20th only (Jul 4 is out)
+    expect(inMonth('2026-06-12', 'BIWEEKLY')).toBe(2);
+    expect(inMonth('2026-06-20', 'BIWEEKLY')).toBe(1);
   });
 
   it('WEEKLY steps by 7 days inside the window', () => {
-    expect(scheduledOccurrencesInWindow('2026-06-12', 'WEEKLY', today, eom)).toBe(3); // 12, 19, 26
+    expect(inMonth('2026-06-12', 'WEEKLY')).toBe(3);
   });
 
-  it('MONTHLY / ANNUAL / IRREGULAR / null contribute at most the one dated occurrence', () => {
-    expect(scheduledOccurrencesInWindow('2026-06-12', 'MONTHLY', today, eom)).toBe(1);
-    expect(scheduledOccurrencesInWindow('2026-06-12', 'ANNUAL', today, eom)).toBe(1);
-    expect(scheduledOccurrencesInWindow('2026-06-12', 'IRREGULAR', today, eom)).toBe(1);
-    expect(scheduledOccurrencesInWindow('2026-06-12', null, today, eom)).toBe(1);
+  it('MONTHLY / ANNUAL / IRREGULAR / null contribute at most the one dated occurrence within one month', () => {
+    expect(inMonth('2026-06-12', 'MONTHLY')).toBe(1);
+    expect(inMonth('2026-06-12', 'ANNUAL')).toBe(1);
+    expect(inMonth('2026-06-12', 'IRREGULAR')).toBe(1);
+    expect(inMonth('2026-06-12', null)).toBe(1);
   });
 
   it('a stale (past-dated) anchor is never extrapolated forward, and out-of-month dates count 0', () => {
-    expect(scheduledOccurrencesInWindow('2026-06-01', 'BIWEEKLY', today, eom)).toBe(0); // past anchor
-    expect(scheduledOccurrencesInWindow('2026-06-10', 'WEEKLY', today, eom)).toBe(0); // today itself is not "still to come"
-    expect(scheduledOccurrencesInWindow('2026-07-01', 'MONTHLY', today, eom)).toBe(0); // next month
+    expect(inMonth('2026-06-01', 'BIWEEKLY')).toBe(0);
+    expect(inMonth('2026-06-10', 'WEEKLY')).toBe(0);
+    expect(inMonth('2026-07-01', 'MONTHLY')).toBe(0);
+  });
+
+  it('a LIVE anchor before the window is stepped forward into it — the executed critic case', () => {
+    // Anchor 2026-06-12 BIWEEKLY, real today 2026-06-10, window (2026-06-30, 2026-08-05]:
+    // occurrences 07-10 and 07-24 — the old call counted 0 and reserved a full statement
+    // against income it could not see.
+    expect(scheduledOccurrencesBetween('2026-06-12', 'BIWEEKLY', today, '2026-06-30', '2026-08-05')).toBe(2);
+    // WEEKLY: 07-03, 07-10, 07-17, 07-24, 07-31 = 5
+    expect(scheduledOccurrencesBetween('2026-06-12', 'WEEKLY', today, '2026-06-30', '2026-08-05')).toBe(5);
+  });
+
+  it('the stale gate is the REAL today, never the window start', () => {
+    expect(scheduledOccurrencesBetween('2026-06-08', 'BIWEEKLY', today, '2026-06-30', '2026-08-05')).toBe(0);
+    // An anchor inside the window needs no stepping (the L.11(D) locked shapes are unchanged).
+    expect(scheduledOccurrencesBetween('2026-08-01', 'MONTHLY', today, '2026-06-30', '2026-08-05')).toBe(1);
+  });
+
+  it('MONTHLY steps by clamped calendar months across the boundary', () => {
+    // Anchor 06-15 monthly, window (06-30, 08-31]: 07-15 and 08-15 (not 08-31).
+    expect(scheduledOccurrencesBetween('2026-06-15', 'MONTHLY', today, '2026-06-30', '2026-08-31')).toBe(2);
+    // Clamped chain: anchor 01-31 monthly steps 02-28 → 03-28 → 04-28 (addMonthsClamped never
+    // returns to the 31st after a short month — a recorded bound, not a bug in the count).
+    expect(scheduledOccurrencesBetween('2026-01-31', 'MONTHLY', isoDate('2026-01-10'), '2026-01-31', '2026-04-30')).toBe(3);
+    // …and the drift gap is honest: ending the window Mar 30 sees the Mar 28 occurrence,
+    // though the "true" month-end date (Mar 31) lands after it.
+    expect(scheduledOccurrencesBetween('2026-01-31', 'MONTHLY', isoDate('2026-01-10'), '2026-01-31', '2026-03-30')).toBe(2);
+  });
+
+  it('IRREGULAR / null contribute the one dated occurrence only when it falls inside', () => {
+    expect(scheduledOccurrencesBetween('2026-07-04', 'IRREGULAR', today, '2026-06-30', '2026-08-05')).toBe(1);
+    expect(scheduledOccurrencesBetween('2026-06-20', 'IRREGULAR', today, '2026-06-30', '2026-08-05')).toBe(0);
+    expect(scheduledOccurrencesBetween('2026-09-01', null, today, '2026-06-30', '2026-08-05')).toBe(0);
   });
 });
 
-describe('computeSpendingPlan', () => {
-  const base = {
-    today: isoDate('2026-06-10'),
-    expectedIncomeCents: 600000,
-    spentSoFarCents: 150000,
-    upcomingBillsCents: 120000,
+describe('monthlyRateCents — the pattern rate', () => {
+  it('normalizes each cadence to a monthly rate, half-up rounded', () => {
+    expect(monthlyRateCents(10000, 'WEEKLY')).toBe(Math.round((10000 * 52) / 12)); // 43333
+    expect(monthlyRateCents(10000, 'BIWEEKLY')).toBe(Math.round((10000 * 26) / 12)); // 21667
+    expect(monthlyRateCents(120000, 'ANNUAL')).toBe(10000); // an annual bill costs every month
+    expect(monthlyRateCents(250000, 'MONTHLY')).toBe(250000);
+  });
+
+  it('IRREGULAR / null count at face ×1 — the safe direction, never understated fixed costs', () => {
+    expect(monthlyRateCents(9999, 'IRREGULAR')).toBe(9999);
+    expect(monthlyRateCents(9999, null)).toBe(9999);
+  });
+});
+
+function input(over: Partial<SpendingPlanInput>): SpendingPlanInput {
+  return {
+    today: isoDate('2026-07-26'),
+    trailingMonthlyIncomeCents: [],
+    scheduledIncome: [],
+    scheduledFixed: [],
     cardObligationsCents: 0,
     cardObligationsEstimated: false,
     obligationsBeyondMonthCents: 0,
     obligationsBeyondMonthThroughDate: null,
     obligationsBeyondMonthEstimated: false,
-    goalContributionsCents: 80000,
+    goalContributionsCents: 0,
     savingsTargetBps: null,
+    ...over,
   };
+}
 
-  it('guilt-free = income − cash spent − upcoming bills − card payments − savings; per-day over days left', () => {
-    // June (30 days), the 10th → 21 days left incl. today. $6000 income, $1500
-    // cash spend, $1200 bills still coming, $800 goal savings → $2500 left, $119/day.
-    const p = computeSpendingPlan(base);
-    expect(p.plannedSavingsCents).toBe(80000);
-    expect(p.savingsSource).toBe('goals');
-    expect(p.leftToSpendCents).toBe(250000);
-    expect(p.daysLeftInMonth).toBe(21);
-    expect(p.perDayCents).toBe(Math.floor(250000 / 21)); // 11904
+describe('computeSpendingPlan — the L.22 pattern model', () => {
+  it('income is the MEDIAN of up to the last 3 complete months — a one-time spike touches no month but its own', () => {
+    // THE owner-case lock: a $18,000 one-time inflow in June does not inflate the pattern.
+    const p = computeSpendingPlan(input({ trailingMonthlyIncomeCents: [490000, 490000, 1800000] }));
+    expect(p.patternIncomeCents).toBe(490000);
+    expect(p.incomeBasis).toBe('trailing-median');
+    expect(p.incomeMonths).toBe(3);
+    expect(p.leftToSpendCents).toBe(490000);
+  });
+
+  it('fewer than 3 months medians what exists (2 months average, half-up; 1 month is itself)', () => {
+    expect(computeSpendingPlan(input({ trailingMonthlyIncomeCents: [490001, 490002] })).patternIncomeCents).toBe(490002);
+    // (490001 + 490002) / 2 = 490001.5 → Math.round → 490002
+    expect(computeSpendingPlan(input({ trailingMonthlyIncomeCents: [525000] })).patternIncomeCents).toBe(525000);
+    expect(computeSpendingPlan(input({ trailingMonthlyIncomeCents: [525000] })).incomeMonths).toBe(1);
+  });
+
+  it('only the last 3 months are read', () => {
+    const p = computeSpendingPlan(input({ trailingMonthlyIncomeCents: [999999, 400000, 500000, 600000] }));
+    expect(p.patternIncomeCents).toBe(500000); // median of [400000, 500000, 600000]; the 999999 is out of window
+    expect(p.incomeMonths).toBe(3);
+  });
+
+  it('falls back to detected income series at a monthly rate when no complete month exists', () => {
+    const p = computeSpendingPlan(
+      input({
+        scheduledIncome: [
+          { amountCents: 212500, cadence: 'BIWEEKLY' }, // 212500 × 26/12 = 460416.67 → 460417
+          { amountCents: 50000, cadence: 'MONTHLY' },
+        ],
+      }),
+    );
+    expect(p.patternIncomeCents).toBe(460417 + 50000);
+    expect(p.incomeBasis).toBe('detected-series');
+    expect(p.incomeMonths).toBe(0);
+  });
+
+  it('with neither history nor series, income is 0 and basis says so — nothing is invented', () => {
+    const p = computeSpendingPlan(input({}));
+    expect(p.patternIncomeCents).toBe(0);
+    expect(p.incomeBasis).toBe('none');
+    expect(p.leftToSpendCents).toBe(0);
     expect(p.overspent).toBe(false);
   });
 
-  it('subtracts this-cycle card obligations (the #295 term)', () => {
-    const p = computeSpendingPlan({ ...base, cardObligationsCents: 90000 });
-    expect(p.leftToSpendCents).toBe(160000); // 250000 − 90000
+  it('guilt-free = pattern income − fixed − card payments − savings; NO discretionary term exists', () => {
+    // $6,000 pattern income; fixed: $250/week streaming (25000×52/12=108333) + $1,200/yr
+    // insurance (120000/12=10000) + $2,200 rent = 338333; cards $900; goals $800.
+    const p = computeSpendingPlan(
+      input({
+        trailingMonthlyIncomeCents: [600000, 600000, 600000],
+        scheduledFixed: [
+          { amountCents: -25000, cadence: 'WEEKLY' },
+          { amountCents: -120000, cadence: 'ANNUAL' },
+          { amountCents: -220000, cadence: 'MONTHLY' },
+        ],
+        cardObligationsCents: 90000,
+        goalContributionsCents: 80000,
+      }),
+    );
+    expect(p.fixedExpensesCents).toBe(108333 + 10000 + 220000);
+    expect(p.leftToSpendCents).toBe(600000 - 338333 - 90000 - 80000);
     expect(p.overspent).toBe(false);
   });
 
-  it('a card obligation alone can drive the plan overspent — the shortfall and this figure now agree in direction', () => {
-    const p = computeSpendingPlan({ ...base, cardObligationsCents: 300000 });
-    expect(p.leftToSpendCents).toBe(-50000);
+  it('a card obligation alone can drive the plan overspent — the shortfall and this figure agree in direction', () => {
+    const p = computeSpendingPlan(
+      input({ trailingMonthlyIncomeCents: [600000], cardObligationsCents: 700000 }),
+    );
+    expect(p.leftToSpendCents).toBe(-100000);
     expect(p.overspent).toBe(true);
-    expect(p.perDayCents).toBe(0);
   });
 
   it('savings target is a floor: the larger of goals and income×bps wins, never the sum', () => {
-    // 20% of $6,000 = $1,200 > $800 goals → target wins.
-    const target = computeSpendingPlan({ ...base, savingsTargetBps: 2000 });
-    expect(target.plannedSavingsCents).toBe(120000);
+    const target = computeSpendingPlan(
+      input({ trailingMonthlyIncomeCents: [600000], goalContributionsCents: 80000, savingsTargetBps: 2000 }),
+    );
+    expect(target.plannedSavingsCents).toBe(120000); // 20% of $6,000 > $800 goals
     expect(target.savingsSource).toBe('target');
-    expect(target.leftToSpendCents).toBe(210000); // 600000 − 150000 − 120000 − 0 − 120000
+    expect(target.unallocatedSavingsCents).toBe(40000);
+    expect(target.leftToSpendCents).toBe(480000); // 600000 − 120000
 
-    // 10% of $6,000 = $600 < $800 goals → goals win.
-    const goals = computeSpendingPlan({ ...base, savingsTargetBps: 1000 });
+    const goals = computeSpendingPlan(
+      input({ trailingMonthlyIncomeCents: [600000], goalContributionsCents: 80000, savingsTargetBps: 1000 }),
+    );
     expect(goals.plannedSavingsCents).toBe(80000);
     expect(goals.savingsSource).toBe('goals');
-    expect(goals.leftToSpendCents).toBe(250000);
-  });
-
-  it('unallocatedSavingsCents is the target reserve beyond goals — 0 whenever goals decide (critic F3)', () => {
-    const target = computeSpendingPlan({ ...base, savingsTargetBps: 2000 }); // $1,200 target > $800 goals
-    expect(target.unallocatedSavingsCents).toBe(40000); // 120000 − 80000
-    const goals = computeSpendingPlan({ ...base, savingsTargetBps: 1000 }); // goals win
     expect(goals.unallocatedSavingsCents).toBe(0);
-    expect(computeSpendingPlan(base).unallocatedSavingsCents).toBe(0); // no target set
+    expect(goals.leftToSpendCents).toBe(520000);
   });
 
   it('an exact tie between goals and target reads as goals (the concrete label)', () => {
-    // 80000 = 600000 × 1333.33…bps has no exact bps; use income 800000 × 1000bps = 80000.
-    const p = computeSpendingPlan({ ...base, expectedIncomeCents: 800000, savingsTargetBps: 1000 });
+    const p = computeSpendingPlan(
+      input({ trailingMonthlyIncomeCents: [800000], goalContributionsCents: 80000, savingsTargetBps: 1000 }),
+    );
     expect(savingsTargetCents(800000, 1000)).toBe(80000);
-    expect(p.plannedSavingsCents).toBe(80000);
     expect(p.savingsSource).toBe('goals');
   });
 
-  it('flags overspending and reports $0/day (never negative per-day)', () => {
-    const p = computeSpendingPlan({
-      today: isoDate('2026-06-28'),
-      expectedIncomeCents: 300000,
-      spentSoFarCents: 280000,
-      upcomingBillsCents: 60000,
-      cardObligationsCents: 0,
-      cardObligationsEstimated: false,
-      obligationsBeyondMonthCents: 0,
-      obligationsBeyondMonthThroughDate: null,
-      obligationsBeyondMonthEstimated: false,
-      goalContributionsCents: 0,
-      savingsTargetBps: null,
-    });
-    expect(p.leftToSpendCents).toBe(-40000);
-    expect(p.overspent).toBe(true);
-    expect(p.daysLeftInMonth).toBe(3); // 30 − 28 + 1
-    expect(p.perDayCents).toBe(0);
-  });
-
-  it('last day of month → 1 day left (never divides by zero)', () => {
-    const p = computeSpendingPlan({
-      today: isoDate('2026-06-30'),
-      expectedIncomeCents: 100000,
-      spentSoFarCents: 50000,
-      upcomingBillsCents: 0,
-      cardObligationsCents: 0,
-      cardObligationsEstimated: false,
-      obligationsBeyondMonthCents: 0,
-      obligationsBeyondMonthThroughDate: null,
-      obligationsBeyondMonthEstimated: false,
-      goalContributionsCents: 0,
-      savingsTargetBps: null,
-    });
-    expect(p.daysLeftInMonth).toBe(1);
-    expect(p.perDayCents).toBe(50000);
-  });
-
-  it('a zero-income month with a savings target reserves nothing (no fabricated negative savings)', () => {
-    const p = computeSpendingPlan({
-      today: isoDate('2026-06-10'),
-      expectedIncomeCents: 0,
-      spentSoFarCents: 20000,
-      upcomingBillsCents: 0,
-      cardObligationsCents: 0,
-      cardObligationsEstimated: false,
-      obligationsBeyondMonthCents: 0,
-      obligationsBeyondMonthThroughDate: null,
-      obligationsBeyondMonthEstimated: false,
-      goalContributionsCents: 0,
-      savingsTargetBps: 2000,
-    });
+  it('a zero-income pattern with a savings target reserves nothing (no fabricated negative savings)', () => {
+    const p = computeSpendingPlan(input({ savingsTargetBps: 2000, scheduledFixed: [{ amountCents: -20000, cadence: 'MONTHLY' }] }));
     expect(p.plannedSavingsCents).toBe(0);
     expect(p.leftToSpendCents).toBe(-20000);
+    expect(p.overspent).toBe(true);
   });
 });
 
 /**
- * TASKS L.11(D) — the month's edge. Regression tests for the owner's report of
- * 2026-07-25, "It's worse now", reproduced from his three screenshots to the cent.
- * FAIL-OLD: before this term the same inputs returned $22,254.09 at $3,709.01/day,
- * because all seven of his cards are dated five days past the end of the window.
+ * TASKS L.11(D) — the month's edge, carried into the pattern model. Regression
+ * tests from the owner's report of 2026-07-25, "It's worse now".
+ * FAIL-OLD: before L.11(D) the same inputs returned $22,254.09 at $3,709.01/day;
+ * before L.22 the income term itself was the $22,254.09 he does not have.
  */
 describe("computeSpendingPlan — card payments dated past the month's edge", () => {
-  const OWNER = {
+  const OWNER = input({
     // His dashboard read: 7 cards, $18,814.14 needed by Wed Aug 5, while the
-    // plan beneath it offered the whole month's income, because every one of
-    // those cards falls outside July.
-    today: isoDate('2026-07-26'),
-    expectedIncomeCents: 2225409,
-    spentSoFarCents: 0,
-    upcomingBillsCents: 0,
-    cardObligationsCents: 0,
-    cardObligationsEstimated: false,
-    goalContributionsCents: 0,
-    savingsTargetBps: null,
+    // plan beneath it offered the whole month's income — and the old income
+    // term itself was $22,254.09 he does not have. His pattern income here:
+    // three ordinary months.
+    trailingMonthlyIncomeCents: [650000, 640000, 645000],
     obligationsBeyondMonthCents: 1881414,
     obligationsBeyondMonthThroughDate: 'Wed, Aug 5',
-    obligationsBeyondMonthEstimated: false,
-  };
+  });
 
-  it('reserves a dated statement from the moment it is known, not from the 1st of its month', () => {
+  it('reserves a dated statement from the moment it is known, against the PATTERN income', () => {
     const p = computeSpendingPlan(OWNER);
-    expect(p.leftToSpendCents).toBe(343995); // 22,254.09 − 18,814.14
+    expect(p.patternIncomeCents).toBe(645000); // the median — never the $22,254.09 spike
+    expect(p.leftToSpendCents).toBe(645000 - 1881414);
     expect(p.reservesBeyondMonth).toBe(true);
-    expect(p.daysLeftInMonth).toBe(6);
-    expect(p.perDayCents).toBe(57332); // $573.32/day, not $3,709.01
-    expect(p.overspent).toBe(false);
+    expect(p.overspent).toBe(true); // honestly over plan — not a $3,709/day invitation
   });
 
   it('changes nothing for the ordinary month, where every card is due inside it', () => {
-    const p = computeSpendingPlan({
-      ...OWNER,
-      obligationsBeyondMonthCents: 0,
-      obligationsBeyondMonthThroughDate: null,
-      obligationsBeyondMonthEstimated: false,
-    });
-    expect(p.leftToSpendCents).toBe(2225409);
+    const p = computeSpendingPlan(input({ trailingMonthlyIncomeCents: [645000] }));
+    expect(p.leftToSpendCents).toBe(645000);
     expect(p.reservesBeyondMonth).toBe(false);
   });
 
   it('composes with the in-month term rather than replacing it — neither statement is counted twice', () => {
     const p = computeSpendingPlan({ ...OWNER, cardObligationsCents: 500000 });
-    // Two different statements, two lines: 22,254.09 − 5,000 − 18,814.14.
-    expect(p.leftToSpendCents).toBe(-156005);
-    expect(p.overspent).toBe(true);
-    expect(p.perDayCents).toBe(0);
-  });
-
-  it('can drive the month overspent, and says so rather than reporting a calm $0.00', () => {
-    const p = computeSpendingPlan({ ...OWNER, obligationsBeyondMonthCents: 3000000 });
-    expect(p.leftToSpendCents).toBe(-774591);
+    expect(p.leftToSpendCents).toBe(645000 - 1881414 - 500000);
     expect(p.overspent).toBe(true);
   });
 });

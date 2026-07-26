@@ -166,32 +166,31 @@ export function traceCashNeeded(
 }
 
 /**
- * Rows behind the guilt-free-spending headline: the six-term identity
- * left = income − cash spent − upcoming bills − card payments − planned
- * savings, carried as SIGNED rows so the same plain-summation invariant
- * holds. All six fields live on the SpendingPlan result itself (it extends
- * its input), so nothing is re-derived here.
+ * Rows behind the guilt-free-spending headline: the identity
+ * left = pattern income − fixed expenses − card payments − planned savings
+ * (− card payments already dated past this month), carried as SIGNED rows so
+ * the same plain-summation invariant holds. All fields live on the
+ * SpendingPlan result itself (it extends its input), so nothing is re-derived.
  */
 export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
+  const incomeLabel =
+    plan.incomeBasis === 'trailing-median'
+      ? `Income (median of last ${plan.incomeMonths} month${plan.incomeMonths === 1 ? '' : 's'})`
+      : plan.incomeBasis === 'detected-series'
+        ? 'Income (detected recurring, monthly)'
+        : 'Income (no pattern yet)';
   const rows: TraceRow[] = [
     {
       id: 'income',
-      label: 'Expected income',
-      amountCents: cents(plan.expectedIncomeCents),
+      label: incomeLabel,
+      amountCents: cents(plan.patternIncomeCents),
       isEstimated: false,
       notes: [],
     },
     {
-      id: 'spent',
-      label: 'Spent so far (cash accounts)',
-      amountCents: cents(-plan.spentSoFarCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
-      isEstimated: false,
-      notes: [],
-    },
-    {
-      id: 'bills',
-      label: 'Bills still coming',
-      amountCents: cents(-plan.upcomingBillsCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
+      id: 'fixed',
+      label: 'Fixed & recurring expenses (monthly pattern)',
+      amountCents: cents(-plan.fixedExpensesCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
       isEstimated: false,
       notes: [],
     },
@@ -243,18 +242,29 @@ export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
     sumCents: sum,
     reconciles: sum === plan.leftToSpendCents,
     basis: [
-      'Expected income counts what has already arrived this month plus what is still scheduled; bills still coming are your detected recurring bills that have not posted yet.',
-      'Spending on credit cards is counted when its statement’s payment comes due, not again at purchase time. The card-payments line covers your own cards due this month, assumes each is paid in full, and comes from the same obligation rows as the cash-needed answer. Spent so far covers spending outside your credit cards.',
+      plan.incomeBasis === 'trailing-median'
+        ? `Income is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of income across everything that arrived in your checking and savings accounts — a pattern, so the figure does not swing with what has posted so far this month. ${
+            plan.incomeMonths >= 3
+              ? 'A one-time deposit touches only its own month; the median ignores it.'
+              : 'With fewer than three complete months behind it, a one-time deposit can still count — the pattern steadies as the third month arrives.'
+          }`
+        : plan.incomeBasis === 'detected-series'
+          ? 'Income is your detected recurring income at a monthly rate — there is no complete month of history to take the pattern from yet.'
+          : 'There is no income pattern yet — nothing here is invented; once a complete month of income posts, the figure comes from that pattern.',
+      'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month. An annual bill entered by you counts 1/12; a DETECTED annual bill is not projected yet, so a yearly premium you never entered yourself is not in this figure. Discretionary spending is never subtracted: guilt-free is the month’s allocation after fixed costs and savings, not what is left of it today.',
+      'Spending on credit cards is counted when its statement’s payment comes due, not again at purchase time. The card-payments line covers your own cards due this month, assumes each is paid in full, and comes from the same obligation rows as the cash-needed answer.',
       ...(plan.cardObligationsEstimated
         ? [
             'No statement has been generated yet, so the card-payments line is estimated from current balances.',
           ]
         : []),
       // Why a monthly plan is quoting a figure smaller than its own arithmetic.
-      // Two facts a reader needs and cannot see: the money is not gone (it is
-      // reserved for a payment already dated), and the projection this rests on
-      // walks ONE account — the one the cash-needed answer funds from — so it
-      // says nothing about cash held elsewhere (the L.11(C) account-set rule).
+      // The fact a reader needs and cannot see: the money is not gone (it is
+      // reserved for a payment already dated). The reservation's income side
+      // reads every scheduled income series (user rows on any account,
+      // detected rows scoped to the payment account) — never a balance — so
+      // the figure says nothing about cash held elsewhere (the L.11(C)
+      // account-set rule).
       ...(plan.obligationsBeyondMonthCents > 0
         ? [
             `A statement can come due after the month it belongs to, and one dated ${plan.obligationsBeyondMonthThroughDate} would otherwise sit in no plan you can see — this month would call it next month's business, and next month's plan would arrive after the money was spent. Only the part your scheduled income does not arrive in time to cover is set aside here, so a payment your next paycheck already pays for is not reserved twice. Whatever is set aside will also appear in next month's card-payments line until it is paid.`,

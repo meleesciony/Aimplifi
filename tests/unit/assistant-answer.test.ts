@@ -206,100 +206,84 @@ describe('answerIncome', () => {
 
 describe('answerSafeToSpend', () => {
   const NO_DISCLOSURES = { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [] };
-  it('guilt-free to spend + per day', () => {
-    const plan: SpendingPlan = {
-      today: '2026-06-23' as SpendingPlan['today'],
-      expectedIncomeCents: 500000,
-      spentSoFarCents: 200000,
-      upcomingBillsCents: 100000,
-      cardObligationsCents: 0,
-      goalContributionsCents: 50000,
-      savingsTargetBps: null,
-      plannedSavingsCents: 50000,
-      savingsSource: 'goals',
-      unallocatedSavingsCents: 0,
-      cardObligationsEstimated: false,
-      obligationsBeyondMonthCents: 0,
-      obligationsBeyondMonthThroughDate: null,
-      obligationsBeyondMonthEstimated: false,
-      reservesBeyondMonth: false,
-      leftToSpendCents: 150000,
-      daysLeftInMonth: 8,
-      perDayCents: 18750,
-      overspent: false,
-    };
-    const a = answerSafeToSpend(plan, NO_DISCLOSURES);
-    expect(a.headline).toBe('You have $1,500.00 guilt-free to spend this month — about $187.50/day for the next 8 days.');
+  const BASE_PLAN = {
+    today: '2026-06-23' as SpendingPlan['today'],
+    trailingMonthlyIncomeCents: [500000],
+    scheduledIncome: [],
+    scheduledFixed: [],
+    patternIncomeCents: 500000,
+    incomeBasis: 'trailing-median' as const,
+    incomeMonths: 1,
+    fixedExpensesCents: 300000,
+    cardObligationsCents: 0,
+    goalContributionsCents: 50000,
+    savingsTargetBps: null,
+    plannedSavingsCents: 50000,
+    savingsSource: 'goals' as const,
+    unallocatedSavingsCents: 0,
+    cardObligationsEstimated: false,
+    obligationsBeyondMonthCents: 0,
+    obligationsBeyondMonthThroughDate: null,
+    obligationsBeyondMonthEstimated: false,
+    reservesBeyondMonth: false,
+    leftToSpendCents: 150000,
+    overspent: false,
+  };
+  it('guilt-free to spend this month — a monthly allocation, no per-day framing (L.22)', () => {
+    const a = answerSafeToSpend(BASE_PLAN, NO_DISCLOSURES);
+    expect(a.headline).toBe('Your guilt-free allocation this month is $1,500.00.');
+    expect(a.headline).not.toContain('/day');
+    expect(a.facts).toContainEqual({ label: 'Income (median of last 1 month)', value: '$5,000.00' });
+    expect(a.facts).toContainEqual({ label: 'Fixed & recurring expenses (monthly pattern)', value: '$3,000.00' });
     expect(a.facts).toContainEqual({ label: 'Card payments due this month', value: '$0.00' });
     expect(a.facts).toContainEqual({ label: 'Planned savings (goals)', value: '$500.00' });
+    // The detail states the pattern basis inline (the coaching guardrail).
+    expect(a.detail).toContain('median of your last 1 complete month');
+  });
+  it('the one-time-deposit claim is qualified by how many months the median actually has (critic P1)', () => {
+    // At 3 months the immunity is real; at 1-2 the same sentence was FALSE (a $18k spike
+    // month became the income while the detail claimed it could not happen).
+    const three = answerSafeToSpend({ ...BASE_PLAN, incomeMonths: 3 }, NO_DISCLOSURES);
+    expect(three.detail).toContain('A one-time deposit is not income here');
+    const one = answerSafeToSpend({ ...BASE_PLAN, incomeMonths: 1 }, NO_DISCLOSURES);
+    expect(one.detail).not.toContain('A one-time deposit is not income here');
+    expect(one.detail).toContain('a one-time deposit can still count');
   });
   it('overspent', () => {
-    const plan = {
-      today: '2026-06-23',
-      expectedIncomeCents: 100000,
-      spentSoFarCents: 130000,
-      upcomingBillsCents: 0,
-      cardObligationsCents: 0,
-      goalContributionsCents: 0,
-      savingsTargetBps: null,
-      plannedSavingsCents: 0,
-      savingsSource: 'goals',
-      unallocatedSavingsCents: 0,
-      cardObligationsEstimated: false,
-      obligationsBeyondMonthCents: 0,
-      obligationsBeyondMonthThroughDate: null,
-      obligationsBeyondMonthEstimated: false,
-      leftToSpendCents: -30000,
-      daysLeftInMonth: 8,
-      perDayCents: 0,
-      overspent: true,
-    } as SpendingPlan;
+    const plan = { ...BASE_PLAN, leftToSpendCents: -30000, overspent: true };
     expect(answerSafeToSpend(plan, NO_DISCLOSURES).headline).toBe("You're $300.00 over your plan for this month.");
   });
   it('a winning savings target relabels the savings fact', () => {
     const plan = {
-      today: '2026-06-23',
-      expectedIncomeCents: 500000,
-      spentSoFarCents: 0,
-      upcomingBillsCents: 0,
-      cardObligationsCents: 0,
-      goalContributionsCents: 0,
+      ...BASE_PLAN,
       savingsTargetBps: 2000,
       plannedSavingsCents: 100000,
-      savingsSource: 'target',
-      unallocatedSavingsCents: 0,
-      cardObligationsEstimated: false,
-      obligationsBeyondMonthCents: 0,
-      obligationsBeyondMonthThroughDate: null,
-      obligationsBeyondMonthEstimated: false,
-      leftToSpendCents: 400000,
-      daysLeftInMonth: 8,
-      perDayCents: 50000,
-      overspent: false,
-    } as SpendingPlan;
+      savingsSource: 'target' as const,
+      leftToSpendCents: 100000,
+    };
     const a = answerSafeToSpend(plan, NO_DISCLOSURES);
     expect(a.facts).toContainEqual({ label: 'Savings target (Settings)', value: '$1,000.00' });
   });
+  it('the income fact names a detected-series or empty basis honestly', () => {
+    const series = answerSafeToSpend(
+      { ...BASE_PLAN, incomeBasis: 'detected-series' as const, incomeMonths: 0, patternIncomeCents: 541667, leftToSpendCents: 191667 },
+      NO_DISCLOSURES,
+    );
+    expect(series.facts).toContainEqual({ label: 'Income (detected recurring, monthly)', value: '$5,416.67' });
+    expect(series.detail).toContain('detected recurring income at a monthly rate');
+    const none = answerSafeToSpend(
+      { ...BASE_PLAN, incomeBasis: 'none' as const, incomeMonths: 0, patternIncomeCents: 0, leftToSpendCents: -350000, overspent: true },
+      NO_DISCLOSURES,
+    );
+    expect(none.facts).toContainEqual({ label: 'Income (no pattern yet)', value: '$0.00' });
+  });
   const QUALIFIER_PLAN = (over: Partial<SpendingPlan>): SpendingPlan =>
     ({
-      today: '2026-06-23' as SpendingPlan['today'],
-      expectedIncomeCents: 500000,
-      spentSoFarCents: 200000,
-      upcomingBillsCents: 100000,
+      ...BASE_PLAN,
       cardObligationsCents: 120000,
-      goalContributionsCents: 0,
-      savingsTargetBps: null,
       plannedSavingsCents: 0,
-      savingsSource: 'goals',
-      unallocatedSavingsCents: 0,
-      cardObligationsEstimated: false,
-      obligationsBeyondMonthCents: 0,
-      obligationsBeyondMonthThroughDate: null,
-      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
       leftToSpendCents: 80000,
-      daysLeftInMonth: 8,
-      perDayCents: 10000,
-      overspent: false,
       ...over,
     }) as SpendingPlan;
   const FULL_DISCLOSURES = {
@@ -338,7 +322,7 @@ describe('answerSafeToSpend', () => {
 
   it('qualifiers FLIP with the overspent branch, whose rendered figure is the overage (critic P1-1)', () => {
     const a = answerSafeToSpend(
-      QUALIFIER_PLAN({ leftToSpendCents: -50000, perDayCents: 0, overspent: true }),
+      QUALIFIER_PLAN({ leftToSpendCents: -50000, overspent: true }),
       FULL_DISCLOSURES,
     );
     expect(a.headline).toBe("You're $500.00 over your plan for this month.");

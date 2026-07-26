@@ -1,9 +1,11 @@
 /**
- * Conscious Spending lens (P0.4, DECISIONS #93; #295 card-obligations term).
+ * Conscious Spending lens (P0.4, DECISIONS #93; L.22 pattern re-spec).
  * The cardinal property: the buckets are a strict re-partition of
  * computeSpendingPlan's quantities, so they must ALWAYS sum back to
- * expectedIncomeCents — there is no second spend definition. Anchored on the
- * real engine output, never on hand-built plans.
+ * patternIncomeCents — there is no second spend definition. Anchored on the
+ * real engine output, never on hand-built plans. Under L.22 the partition IS
+ * the owner's formula: fixed = recurring bills at a monthly rate + card
+ * payments, with no discretionary term anywhere.
  */
 import { describe, expect, it } from 'vitest';
 import { isoDate } from '@/lib/dates';
@@ -13,14 +15,14 @@ import { mapToConsciousBuckets } from '@/lib/engine/spending-plan/conscious';
 const plan = (over: Partial<Parameters<typeof computeSpendingPlan>[0]> = {}) =>
   computeSpendingPlan({
     today: isoDate('2026-06-25'),
-    expectedIncomeCents: 500_000,
-    spentSoFarCents: 250_000,
-    upcomingBillsCents: 50_000,
+    trailingMonthlyIncomeCents: [500_000],
+    scheduledIncome: [],
+    scheduledFixed: [{ amountCents: -300_000, cadence: 'MONTHLY' }],
     cardObligationsCents: 0,
-      cardObligationsEstimated: false,
-      obligationsBeyondMonthCents: 0,
-      obligationsBeyondMonthThroughDate: null,
-      obligationsBeyondMonthEstimated: false,
+    cardObligationsEstimated: false,
+    obligationsBeyondMonthCents: 0,
+    obligationsBeyondMonthThroughDate: null,
+    obligationsBeyondMonthEstimated: false,
     goalContributionsCents: 50_000,
     savingsTargetBps: null,
     ...over,
@@ -30,16 +32,16 @@ const sumCents = (b: ReturnType<typeof mapToConsciousBuckets>) =>
   b.buckets.reduce((s, x) => s + x.cents, 0);
 
 describe('mapToConsciousBuckets — provably equal re-partition', () => {
-  it('the three buckets sum exactly to expected income', () => {
+  it('the three buckets sum exactly to pattern income', () => {
     const b = mapToConsciousBuckets(plan());
-    expect(sumCents(b)).toBe(b.expectedIncomeCents);
+    expect(sumCents(b)).toBe(b.patternIncomeCents);
     expect(sumCents(b)).toBe(500_000);
   });
 
   it('maps the plan quantities to the right buckets with correct shares', () => {
-    const b = mapToConsciousBuckets(plan()); // left = 500k - (250k+50k+0+50k) = 150k
+    const b = mapToConsciousBuckets(plan()); // left = 500k - (300k fixed + 0 cards + 50k savings) = 150k
     const byKey = Object.fromEntries(b.buckets.map((x) => [x.key, x]));
-    expect(byKey.fixed.cents).toBe(300_000); // spent 250k + upcoming bills 50k + card obligations 0
+    expect(byKey.fixed.cents).toBe(300_000); // recurring bills at a monthly rate + card obligations 0
     expect(byKey.savings.cents).toBe(50_000); // planned savings (goals)
     expect(byKey.guiltFree.cents).toBe(150_000); // left to spend
     expect(byKey.fixed.shareBps).toBe(6000); // 60%
@@ -49,10 +51,10 @@ describe('mapToConsciousBuckets — provably equal re-partition', () => {
     expect(b.investingTracked).toBe(false);
   });
 
-  it('card obligations land in the fixed bucket and the partition still holds (#295)', () => {
+  it('card obligations land in the fixed bucket and the partition still holds', () => {
     const b = mapToConsciousBuckets(plan({ cardObligationsCents: 100_000 }));
     const byKey = Object.fromEntries(b.buckets.map((x) => [x.key, x]));
-    expect(byKey.fixed.cents).toBe(400_000); // 250k + 50k + 100k card payments
+    expect(byKey.fixed.cents).toBe(400_000); // 300k bills + 100k card payments
     expect(byKey.guiltFree.cents).toBe(50_000); // 150k − 100k
     expect(sumCents(b)).toBe(500_000);
   });
@@ -68,22 +70,26 @@ describe('mapToConsciousBuckets — provably equal re-partition', () => {
 
   it('stays a strict partition when overspent (guilt-free goes negative)', () => {
     const b = mapToConsciousBuckets(
-      plan({ expectedIncomeCents: 300_000, spentSoFarCents: 280_000, upcomingBillsCents: 30_000, goalContributionsCents: 20_000 }),
+      plan({
+        trailingMonthlyIncomeCents: [300_000],
+        scheduledFixed: [{ amountCents: -310_000, cadence: 'MONTHLY' }],
+        goalContributionsCents: 20_000,
+      }),
     ); // committed 330k > income 300k -> left = -30k
     const byKey = Object.fromEntries(b.buckets.map((x) => [x.key, x]));
     expect(b.overspent).toBe(true);
     expect(byKey.guiltFree.cents).toBe(-30_000);
     expect(byKey.guiltFree.shareBps).toBe(-1000); // -10%
-    expect(sumCents(b)).toBe(b.expectedIncomeCents); // partition still holds
+    expect(sumCents(b)).toBe(b.patternIncomeCents); // partition still holds
     expect(sumCents(b)).toBe(300_000);
   });
 
   it('never divides by zero when there is no income', () => {
     const b = mapToConsciousBuckets(
-      plan({ expectedIncomeCents: 0, spentSoFarCents: 100_000, upcomingBillsCents: 0, goalContributionsCents: 0 }),
+      plan({ trailingMonthlyIncomeCents: [], scheduledFixed: [{ amountCents: -100_000, cadence: 'MONTHLY' }], goalContributionsCents: 0 }),
     );
     for (const bucket of b.buckets) expect(bucket.shareBps).toBe(0);
-    expect(sumCents(b)).toBe(0); // 100k fixed + 0 savings - 100k guilt-free
+    expect(sumCents(b)).toBe(0); // 100k fixed + 0 savings − 100k guilt-free
   });
 
   it('every bucket carries Sethi target bands and the canonical order', () => {

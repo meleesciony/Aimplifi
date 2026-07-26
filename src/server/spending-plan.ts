@@ -1,29 +1,32 @@
 /**
- * Spending Plan data (DECISIONS #66; #295 guilt-free reframe). Derives this
- * month's expected income, cash spending so far, upcoming recurring bills,
- * this-cycle card obligations, and planned savings from the same snapshot
- * every other view uses, then runs the pure engine.
+ * Spending Plan data (DECISIONS #66; #295 guilt-free reframe; L.22 pattern
+ * re-spec, owner instruction 2026-07-26). Derives the trailing income pattern,
+ * the fixed-expense pattern, this-cycle card obligations, and planned savings
+ * from the same snapshot every other view uses, then runs the pure engine.
  *
- * THE CASH-MONTH MODEL (#295, see plan.ts header): income and expenses both
- * count from NON-CREDIT accounts (critic F5: a cashback/uncategorized positive
- * on a card must not count as income while also shrinking the next statement —
- * a card row affects this plan only through its obligation); card spending
- * enters once, in the calendar month its statement's payment comes due — the
- * cash-needed engine's own obligation rows with an effective due date in this
- * month, from the SAME personal snapshot (this snapshot is never
- * household-merged; the dashboard hero at household scope shows the MERGED
- * cash-needed figure, which this personal plan does not claim to equal).
+ * THE PATTERN MODEL (why there is no this-month income or spending term here):
+ * the owner reported "i don't have 22k or so income coming in" over a July plan
+ * whose received+remaining-occurrence income term read $22,254.09. Income is
+ * now the MEDIAN of the last three complete months' income over NON-CREDIT
+ * accounts (all sources that actually arrived; a one-time inflow touches no
+ * month but its own), and fixed expenses are the detected recurring series at a
+ * monthly rate. A credit-card row still reaches this plan only through its
+ * obligation term (#295 critic F5: a cashback must not count as income while
+ * shrinking the next statement); card payments/transfers are excluded by
+ * monthlyFlows' isTransfer rule either way.
  *
- * L.11(D) adds the other side of that filter: a payment the engine has DATED
- * past the month's edge is in no plan the reader can see, so what next month's
- * scheduled income has not arrived in time to cover is reserved here.
+ * L.11(D) stands: a payment the engine has DATED past the month's edge is in
+ * no pattern the reader can see, so what next month's scheduled income has not
+ * arrived in time to cover is reserved here — the one term that still windows
+ * by occurrences, because it compares dated flows against dated income, not a
+ * pattern against a stock.
  */
 import { prisma } from '@/lib/db';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
 import {
   computeSpendingPlan,
   daysInMonth,
-  scheduledOccurrencesInWindow,
+  scheduledOccurrencesBetween,
   type SpendingPlan,
   type SpendingPlanDisclosures,
 } from '@/lib/engine/spending-plan/plan';
@@ -46,37 +49,32 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const ym = today.slice(0, 7);
   const snap = await provider.getFinanceSnapshot(userId);
 
-  // Income AND expenses this month — both over NON-CREDIT accounts (#295,
-  // critic F5). A credit-card row reaches this plan only through the
-  // obligation term below: a purchase would otherwise be charged twice
-  // (posted month + statement month), and a cashback/statement credit would
-  // otherwise be double-benefited (counted as income AND shrinking the next
-  // statement). Card payments/transfers are excluded by monthlyFlows'
-  // isTransfer rule either way.
+  // Income pattern: complete prior months' income over NON-CREDIT accounts,
+  // newest three, oldest → newest (the engine medians them). A card row still
+  // never counts as income here (#295 critic F5) — it reaches the plan only
+  // through the obligation term below.
   const creditAccountIds = new Set(snap.accounts.filter((a) => a.type === 'CREDIT').map((a) => a.id));
-  const cashMonth = monthlyFlows(
-    creditAccountIds.size ? snap.transactions.filter((t) => !creditAccountIds.has(t.accountId)) : snap.transactions,
-  ).find((f) => f.month === ym);
-  const receivedIncomeCents = cashMonth?.incomeCents ?? 0;
-  const spentSoFarCents = cashMonth?.expensesCents ?? 0;
+  const nonCreditTxns = creditAccountIds.size
+    ? snap.transactions.filter((t) => !creditAccountIds.has(t.accountId))
+    : snap.transactions;
+  const trailingMonthlyIncomeCents = monthlyFlows(nonCreditTxns)
+    .filter((f) => f.month < ym)
+    .slice(-3)
+    .map((f) => f.incomeCents);
 
-  // Scheduled items still to come this month: bills (out) and income (in),
-  // each counted ONCE PER REMAINING OCCURRENCE — a BIWEEKLY paycheck with two
-  // paydays left contributes both (critic F4: reading only `nextDate`
-  // half-counted income and biweekly bills alike). Detected recurring LOAN
-  // payments (the auto-loan exception in detectRecurring) arrive HERE — which
-  // is why loanObligations is not a term of this plan: adding it would
-  // double-count them. A loan with NO detected series is counted zero times —
-  // recorded in docs/STATUS.md §L.11(C).
+  // The recurring series, split by sign: income feeds only the no-history
+  // fallback (and the L.11(D) walk below); expenses feed the fixed term at a
+  // monthly rate. Detected recurring LOAN payments arrive here — which is why
+  // loanObligations is not a term of this plan (adding it would double-count
+  // them; a loan with NO detected series is counted zero times — recorded in
+  // docs/STATUS.md §L.11(C)).
+  const scheduledIncome = snap.scheduled
+    .filter((s) => s.amountCents > 0)
+    .map((s) => ({ amountCents: s.amountCents, cadence: s.cadence }));
+  const scheduledFixed = snap.scheduled
+    .filter((s) => s.amountCents < 0)
+    .map((s) => ({ amountCents: s.amountCents, cadence: s.cadence }));
   const endOfMonth = `${ym}-${String(daysInMonth(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)))).padStart(2, '0')}`;
-  let upcomingBillsCents = 0;
-  let remainingIncomeCents = 0;
-  for (const s of snap.scheduled) {
-    const occurrences = scheduledOccurrencesInWindow(s.nextDate, s.cadence, today, endOfMonth);
-    if (occurrences === 0) continue;
-    if (s.amountCents < 0) upcomingBillsCents += -s.amountCents * occurrences;
-    else remainingIncomeCents += s.amountCents * occurrences;
-  }
 
   // Card obligations DUE THIS CALENDAR MONTH (critic F1: subtracting the
   // whole open cycle reserved a statement against two months' income when it
@@ -121,7 +119,10 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     let sum = 0;
     for (const s of snap.scheduled) {
       if (s.amountCents <= 0) continue;
-      sum += s.amountCents * scheduledOccurrencesInWindow(s.nextDate, s.cadence, isoDate(endOfMonth), through);
+      // The REAL today gates the stale-anchor rule — never the window's start
+      // (L.22 money critic P1-1: passing endOfMonth read every live anchor that
+      // landed before the window as "stale", and the walk saw no income at all).
+      sum += s.amountCents * scheduledOccurrencesBetween(s.nextDate, s.cadence, today, endOfMonth, through);
     }
     return sum;
   };
@@ -144,15 +145,15 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   // Provenance rides the money (the rule the in-month term above already obeys):
   // when every card is dated past the edge, `cardObligationsEstimated` is false
   // by construction, so without this a figure that is 100% guesswork off current
-  // balances would be printed with the authority of a generated statement.
+  // balances would print with the authority of a generated statement.
   const obligationsBeyondMonthEstimated =
     worstGapCents > 0 && beyondMonthPoints.some((p) => p.cards.some((c) => c.isEstimated));
 
   const plan = computeSpendingPlan({
     today,
-    expectedIncomeCents: receivedIncomeCents + remainingIncomeCents,
-    spentSoFarCents,
-    upcomingBillsCents,
+    trailingMonthlyIncomeCents,
+    scheduledIncome,
+    scheduledFixed,
     cardObligationsCents,
     cardObligationsEstimated,
     goalContributionsCents,

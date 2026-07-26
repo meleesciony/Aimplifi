@@ -730,9 +730,16 @@ export function answerSafeToSpend(
 ): AssistantAnswer {
   const source: AssistantSource = { label: 'Open spending plan', href: '/spending-plan' };
   const facts: AssistantFact[] = [
-    { label: 'Expected income', value: fmt(plan.expectedIncomeCents) },
-    { label: 'Spent so far (outside credit cards)', value: fmt(plan.spentSoFarCents) },
-    { label: 'Bills still due', value: fmt(plan.upcomingBillsCents) },
+    {
+      label:
+        plan.incomeBasis === 'trailing-median'
+          ? `Income (median of last ${plan.incomeMonths} month${plan.incomeMonths === 1 ? '' : 's'})`
+          : plan.incomeBasis === 'detected-series'
+            ? 'Income (detected recurring, monthly)'
+            : 'Income (no pattern yet)',
+      value: fmt(plan.patternIncomeCents),
+    },
+    { label: 'Fixed & recurring expenses (monthly pattern)', value: fmt(plan.fixedExpensesCents) },
     {
       label: plan.cardObligationsEstimated
         ? 'Card payments due this month (estimated)'
@@ -809,16 +816,28 @@ export function answerSafeToSpend(
     // not a hedge about accuracy, it is a fact about which payments the figure
     // already holds back — and Ask has no breakdown page to carry it instead.
     qualifiers.unshift(
-      `${fmt(plan.obligationsBeyondMonthCents)} of this month's income was set aside before that figure, for card payments dated after this month (through ${plan.obligationsBeyondMonthThroughDate}) — only the part your scheduled income does not arrive in time to cover.`,
+      `${fmt(plan.obligationsBeyondMonthCents)} was set aside before that figure, for card payments dated after this month (through ${plan.obligationsBeyondMonthThroughDate}) — only the part your scheduled income does not arrive in time to cover.`,
     );
   }
   const withQualifiers = (base: string) => [base, ...qualifiers].join(' ');
   if (plan.overspent) {
+    // The basis rides this branch too (cycle-2 critic: Ask has no breakdown page, and an
+    // inflated one-month pattern UNDERSTATES the overage — the dangerous direction).
+    const basis =
+      plan.incomeBasis === 'trailing-median'
+        ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of income across everything that arrived in your checking and savings accounts, minus fixed and recurring expenses, the card payments due this month, and your planned savings. ${
+            plan.incomeMonths >= 3
+              ? ''
+              : 'With fewer than three complete months behind it, a one-time deposit can still count — the real overage may be smaller as the pattern steadies. '
+          }`
+        : plan.incomeBasis === 'detected-series'
+          ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses, the card payments due this month, and your planned savings. '
+          : 'There is no income pattern yet — nothing here is invented. ';
     return {
       kind: 'safe_to_spend',
       headline: `You're ${fmt(-plan.leftToSpendCents)} over your plan for this month.`,
       detail: withQualifiers(
-        'That counts what you have left after spending outside your cards, bills still due, card payments due this month, and planned savings.',
+        `${basis}Discretionary spending is never subtracted — guilt-free is the month’s allocation, not what is left of it today.`,
       ),
       facts,
       source,
@@ -826,9 +845,17 @@ export function answerSafeToSpend(
   }
   return {
     kind: 'safe_to_spend',
-    headline: `You have ${fmt(plan.leftToSpendCents)} guilt-free to spend this month — about ${fmt(plan.perDayCents)}/day for the next ${plan.daysLeftInMonth} days.`,
+    headline: `Your guilt-free allocation this month is ${fmt(plan.leftToSpendCents)}.`,
     detail: withQualifiers(
-      'After the bills still due this month, the card payments due this month, and your planned savings. Card purchases count when their statement’s payment comes due, not again at purchase time.',
+      plan.incomeBasis === 'trailing-median'
+        ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of income across everything that arrived in your checking and savings accounts, minus fixed and recurring expenses, the card payments due this month, and your planned savings. ${
+            plan.incomeMonths >= 3
+              ? 'A one-time deposit is not income here — the median ignores the month it landed in.'
+              : 'With fewer than three complete months behind it, a one-time deposit can still count — the pattern steadies as the third month arrives.'
+          } Discretionary spending is never subtracted. Card purchases count when their statement’s payment comes due, not again at purchase time.`
+        : plan.incomeBasis === 'detected-series'
+          ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses, the card payments due this month, and your planned savings. Card purchases count when their statement’s payment comes due, not again at purchase time.'
+          : 'There is no income pattern yet — nothing here is invented. Once a complete month of income posts, the figure comes from that pattern.',
     ),
     facts,
     source,
@@ -1068,7 +1095,7 @@ function savingsReserveNote(unallocatedSavingsCents: number, requiredMonthlyCent
   // $50 reserve and a $900 requirement overstated affordability — the
   // dangerous direction).
   const covers = unallocatedSavingsCents >= requiredMonthlyCents;
-  return ` Your savings target in Settings already sets aside ${fmt(unallocatedSavingsCents)} of this month's income that isn't committed to a named goal — ${covers ? 'this monthly amount can come out of that reserve first' : `the first ${fmt(unallocatedSavingsCents)} of this monthly amount can come out of that reserve`}.`;
+  return ` Your savings target in Settings already sets aside ${fmt(unallocatedSavingsCents)} of your monthly income pattern that isn't committed to a named goal — ${covers ? 'this monthly amount can come out of that reserve first' : `the first ${fmt(unallocatedSavingsCents)} of this monthly amount can come out of that reserve`}.`;
 }
 
 export function answerDebtFreeByDate(

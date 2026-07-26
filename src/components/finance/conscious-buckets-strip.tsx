@@ -23,9 +23,9 @@ const clampPct = (bps: number) => Math.min(100, Math.max(0, Math.round(bps / 100
 const pctLabel = (bps: number) => Math.round(bps / 100);
 
 export function ConsciousBucketsStrip({ plan }: { plan: SpendingPlan }) {
-  const { buckets, expectedIncomeCents, overspent } = mapToConsciousBuckets(plan);
-  // No income this month → a percentage-of-income lens has nothing meaningful to show.
-  if (expectedIncomeCents <= 0) return null;
+  const { buckets, patternIncomeCents, overspent } = mapToConsciousBuckets(plan);
+  // No income pattern → a percentage-of-income lens has nothing meaningful to show.
+  if (patternIncomeCents <= 0) return null;
 
   const share = (k: ConsciousBucketKey) => buckets.find((b) => b.key === k)!.shareBps;
 

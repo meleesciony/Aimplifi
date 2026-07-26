@@ -192,13 +192,13 @@ describe('G7 — a doctored (internally inconsistent) result is REPORTED, not hi
   });
 });
 
-describe('S — guilt-free-spending trace: the five-term identity as signed rows', () => {
-  it('S1 normal month: +$5,000.00 − $1,234.56 − $789.00 − $0.00 − $500.00 = $2,476.44', () => {
+describe('S — guilt-free-spending trace: the pattern-model identity as signed rows (L.22)', () => {
+  it('S1 normal month: +$5,000.00 − $2,023.56 − $0.00 − $500.00 = $2,476.44', () => {
     const plan = computeSpendingPlan({
       today: d('2026-06-10'),
-      expectedIncomeCents: 500000,
-      spentSoFarCents: 123456,
-      upcomingBillsCents: 78900,
+      trailingMonthlyIncomeCents: [500000, 500000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -202356, cadence: 'MONTHLY' }],
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -209,23 +209,22 @@ describe('S — guilt-free-spending trace: the five-term identity as signed rows
     });
     const trace = traceSafeToSpend(plan);
     expect(trace.rows.map((r) => r.label)).toEqual([
-      'Expected income',
-      'Spent so far (cash accounts)',
-      'Bills still coming',
+      'Income (median of last 2 months)',
+      'Fixed & recurring expenses (monthly pattern)',
       'Card payments due this month',
       'Planned savings (goals)',
     ]);
-    expect(trace.rows.map((r) => r.amountCents)).toEqual([500000, -123456, -78900, 0, -50000]);
+    expect(trace.rows.map((r) => r.amountCents)).toEqual([500000, -202356, 0, -50000]);
     expect(trace.sumCents).toBe(247644);
     expect(trace.headlineCents).toBe(247644);
     expect(trace.reconciles).toBe(true);
   });
-  it('S1b card obligations appear as their own signed row and the identity still reconciles (#295)', () => {
+  it('S1b card obligations appear as their own signed row and the identity still reconciles', () => {
     const plan = computeSpendingPlan({
       today: d('2026-06-10'),
-      expectedIncomeCents: 500000,
-      spentSoFarCents: 123456,
-      upcomingBillsCents: 78900,
+      trailingMonthlyIncomeCents: [500000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -202356, cadence: 'MONTHLY' }],
       cardObligationsCents: 90000,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -235,7 +234,7 @@ describe('S — guilt-free-spending trace: the five-term identity as signed rows
       savingsTargetBps: null,
     });
     const trace = traceSafeToSpend(plan);
-    expect(trace.rows.map((r) => r.amountCents)).toEqual([500000, -123456, -78900, -90000, -50000]);
+    expect(trace.rows.map((r) => r.amountCents)).toEqual([500000, -202356, -90000, -50000]);
     expect(trace.sumCents).toBe(157644);
     expect(trace.headlineCents).toBe(157644);
     expect(trace.reconciles).toBe(true);
@@ -243,9 +242,9 @@ describe('S — guilt-free-spending trace: the five-term identity as signed rows
   it('S1c a winning savings target renames the savings row so the label matches the deciding input', () => {
     const plan = computeSpendingPlan({
       today: d('2026-06-10'),
-      expectedIncomeCents: 500000,
-      spentSoFarCents: 0,
-      upcomingBillsCents: 0,
+      trailingMonthlyIncomeCents: [500000],
+      scheduledIncome: [],
+      scheduledFixed: [],
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -255,17 +254,48 @@ describe('S — guilt-free-spending trace: the five-term identity as signed rows
       savingsTargetBps: 2000, // 20% of $5,000 = $1,000 > $500 goals
     });
     const trace = traceSafeToSpend(plan);
-    const savings = trace.rows[4];
+    const savings = trace.rows[3];
     expect(savings.label).toBe('Savings target (from Settings)');
     expect(savings.amountCents).toBe(-100000);
     expect(trace.reconciles).toBe(true);
   });
+  it('S1d the income row names the basis it actually used — median, detected series, or none', () => {
+    const series = computeSpendingPlan({
+      today: d('2026-06-10'),
+      trailingMonthlyIncomeCents: [],
+      scheduledIncome: [{ amountCents: 500000, cadence: 'MONTHLY' }],
+      scheduledFixed: [],
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(traceSafeToSpend(series).rows[0].label).toBe('Income (detected recurring, monthly)');
+    expect(traceSafeToSpend(series).rows[0].amountCents).toBe(500000);
+    const none = computeSpendingPlan({
+      today: d('2026-06-10'),
+      trailingMonthlyIncomeCents: [],
+      scheduledIncome: [],
+      scheduledFixed: [],
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(traceSafeToSpend(none).rows[0].label).toBe('Income (no pattern yet)');
+  });
   it('S2 overspent month reconciles to a negative headline', () => {
     const plan = computeSpendingPlan({
       today: d('2026-06-10'),
-      expectedIncomeCents: 100000,
-      spentSoFarCents: 150000,
-      upcomingBillsCents: 0,
+      trailingMonthlyIncomeCents: [100000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -150000, cadence: 'MONTHLY' }],
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -279,12 +309,12 @@ describe('S — guilt-free-spending trace: the five-term identity as signed rows
     expect(trace.headlineCents).toBe(-50000);
     expect(trace.reconciles).toBe(true);
   });
-  it('S3 empty month: five $0 rows, $0, reconciled', () => {
+  it('S3 empty month: four $0 rows, $0, reconciled', () => {
     const plan = computeSpendingPlan({
       today: d('2026-06-10'),
-      expectedIncomeCents: 0,
-      spentSoFarCents: 0,
-      upcomingBillsCents: 0,
+      trailingMonthlyIncomeCents: [],
+      scheduledIncome: [],
+      scheduledFixed: [],
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -294,7 +324,7 @@ describe('S — guilt-free-spending trace: the five-term identity as signed rows
       savingsTargetBps: null,
     });
     const trace = traceSafeToSpend(plan);
-    expect(trace.rows).toHaveLength(5);
+    expect(trace.rows).toHaveLength(4);
     expect(trace.sumCents).toBe(0);
     expect(trace.reconciles).toBe(true);
   });
@@ -308,9 +338,9 @@ describe('S4 — a doctored (inconsistent) plan is REPORTED, not hidden', () => 
     // survives any future engine refactor that breaks that symmetry.
     const plan = computeSpendingPlan({
       today: d('2026-06-10'),
-      expectedIncomeCents: 500000,
-      spentSoFarCents: 123456,
-      upcomingBillsCents: 78900,
+      trailingMonthlyIncomeCents: [500000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -202356, cadence: 'MONTHLY' }],
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -332,9 +362,9 @@ describe("S6 — a card dated past the month's edge is a ROW, not an adjustment 
     traceSafeToSpend(
       computeSpendingPlan({
         today: d('2026-07-26'),
-        expectedIncomeCents: 1000000,
-        spentSoFarCents: 0,
-        upcomingBillsCents: 0,
+        trailingMonthlyIncomeCents: [1000000],
+        scheduledIncome: [],
+        scheduledFixed: [],
         cardObligationsCents: 0,
         cardObligationsEstimated: false,
         obligationsBeyondMonthCents,
@@ -345,18 +375,18 @@ describe("S6 — a card dated past the month's edge is a ROW, not an adjustment 
       }),
     );
 
-  it('adds a sixth row the panel can actually falsify, and reconciles to it', () => {
+  it('adds a fifth row the panel can actually falsify, and reconciles to it', () => {
     const trace = beyond(900000);
-    expect(trace.rows).toHaveLength(6);
-    expect(trace.rows[5].label).toBe(
+    expect(trace.rows).toHaveLength(5);
+    expect(trace.rows[4].label).toBe(
       'Card payments already dated, due after this month (through Wed, Aug 5)',
     );
-    expect(trace.rows[5].amountCents).toBe(-900000);
+    expect(trace.rows[4].amountCents).toBe(-900000);
     expect(trace.sumCents).toBe(100000);
     expect(trace.headlineCents).toBe(100000);
     expect(trace.reconciles).toBe(true);
     // The date reads in the product's own voice, never as a raw ISO string.
-    expect(trace.rows[5].label).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(trace.rows[4].label).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     expect(trace.basis.some((b) => b.includes('would otherwise sit in no plan you can see'))).toBe(true);
     // And it states the cost it accepts rather than hiding it.
     expect(trace.basis.some((b) => b.includes("next month's card-payments line"))).toBe(true);
@@ -364,7 +394,7 @@ describe("S6 — a card dated past the month's edge is a ROW, not an adjustment 
 
   it('adds no row and no sentence when every card is due inside the month', () => {
     const trace = beyond(0);
-    expect(trace.rows).toHaveLength(5);
+    expect(trace.rows).toHaveLength(4);
     expect(trace.reconciles).toBe(true);
     expect(trace.basis.some((b) => b.includes('no plan you can see'))).toBe(false);
   });

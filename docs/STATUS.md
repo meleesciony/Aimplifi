@@ -2,6 +2,90 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-26 — L.22: guilt-free spending becomes the owner's formula (DECISIONS #311)
+
+Owner instruction 2026-07-26, verbatim: *"your logic on guilt free spending is broken, for one i
+don't have 22k or so income coming in...that number should be taken from patterns you've detected
+over months of income. Expenses are also based on patterns or had set in settings. so guilt free
+spend = income (all sources, investment, salary, etc..) - savings % of total income (saved in
+settings) - fixed and recurring expenses (not discretionary or budgeted for) = guilt free"*
+
+The cash-month model (this month's received income + detected series × remaining occurrences −
+spent-so-far − windowed bills) is replaced whole-hog by the pattern model: **income = the MEDIAN
+of up to the last three complete months' income over non-credit accounts** (fallback: detected
+income series at a monthly rate; fallback: 0 with `incomeBasis: 'none'` — nothing is invented);
+**fixed expenses = recurring outflows at a monthly rate** (weekly ×52/12, biweekly ×26/12,
+annual /12, irregular ×1 safe-direction); card terms (this-month + the L.11(D) beyond-month
+reservation) and the savings max(goals, bps × pattern income) carried unchanged. Both
+inflation mechanisms behind his $22,254.09 are dead by construction: an uncategorized
+transfer-in counts only in the month it landed (and a 3-month median ignores that month), and
+no series is ever multiplied by remaining occurrences. The per-day framing that divided the
+month into a $3,709.01/day invitation is deleted everywhere. The demo stays an honest revolver
+under the new model: trailing [528000, 528000, 735000] → median **$5,280.00** (the seed's own
+one-time spike month is median-ignored), fixed $2,300.00, cards $5,412.33 → **Over plan by
+$2,432.33** (deliberate, as L.11(C)'s "Over plan by $2,468.83" was).
+
+**Two critic cycles, both FAIL, all fixed.** Cycle 1 (fresh-context money-math + copy critics):
+3 P1 + 4 P2 (money) and 3 P1 + 4 P2 (copy). Headlines: the L.11(D) beyond-month walk passed
+`endOfMonth` as the occurrence counter's `today`, so every live payday anchor landing before the
+window read as STALE and contributed zero income — a $9,000 statement reserved in full against a
+paycheck arriving twice before it, every month, permanently (fixed by
+`scheduledOccurrencesBetween`: the stale gate is the REAL today, live anchors step forward by
+cadence including MONTHLY/ANNUAL clamped months; fail-old proven 900000/100000 → 300000/700000);
+"a one-time deposit is not income here" was false at `incomeMonths < 3` (executed: $23,000 from
+one spike month while claiming it cannot happen) — qualified everywhere; two stale "of this
+month's income" qualifiers named a quantity the engine no longer has; the overspent hero's
+subject and weather clause were written for the dead model. Cycle 2 (one fresh-context critic
+aimed at the fixes): 1 P1 + 4 P2 — the trace's annual-coverage basis line claimed coverage the
+detector can't project (now qualified), the overspent Ask branch carried no basis clause, the
+dead in-month counter and two stale JSDoc/comments removed, /spending-plan gained the empty
+branch the dashboard card already had. The walk fix survived every attack the cycle-2 critic
+ran (6/6 boundary cases + 6/6 server-path cases). Cycle-2's P2-2 ("checking and savings
+accounts" mis-sets the figure) was REFUTED by direct read: every provider delegates
+`getFinanceSnapshot` to the DemoProvider, whose transaction query is
+`type in SPENDING_ACCOUNT_TYPES` at the database (demo.ts:49) — INVESTMENT/LOAN rows never
+reach the snapshot; investment income reaches the pattern exactly how it reaches the user: as
+deposits into checking/savings.
+
+### 🟠 OPEN after L.22 — recorded residuals
+
+1. **A DETECTED annual/quarterly bill is counted ZERO times in the fixed term** (cycle-1 money
+   P1-2, dangerous direction). `toScheduledTransactions` projects only WEEKLY/BIWEEKLY/MONTHLY,
+   and `detectRecurring` drops IRREGULAR, so the detector's ANNUAL series never reach
+   `snap.scheduled` — a detected $1,200/yr premium overstates guilt-free by $100/month, every
+   month. The `/12` branch is live only for user-entered/seeded annual rows, and the trace's
+   basis line now says so. The passthrough is its own slice: it also moves the radar's
+   projections and possibly the demo golden, so it needs its own verify + critic.
+2. **A job LOSS over-reads income for up to ~2 months** (cycle-1 money P1-3b): the median holds
+   the pre-loss months until zero months dominate the window. The income-pause radar flags the
+   state on the same dashboard, but the plan number itself is high — the dangerous direction.
+   Follow-up: wire the confirmed-pause predicate into the pattern basis (the machinery exists in
+   `refreshRecurringForUser`; the plan must not re-derive it).
+3. **At `incomeMonths < 3` the spike immunity does not hold** (cycle-1 money P1-3a): a median
+   of one IS that month — the owner's own phantom-income class through the new-user door,
+   bounded at two months. The copy now qualifies the claim by `incomeMonths` everywhere; the
+   figure keeps the median (the alternative — min(median, series rate) — understates real
+   income for under-detected users, and "safe but persistently wrong" is the L.11(D) cap
+   lesson). Recorded as a deliberate window, not a bug.
+4. **A refund-shaped positive series pollutes every trailing month** (cycle-1 money P2-1):
+   uncategorized positives count as income by the #166 rule, so a monthly $30 refund inflates
+   the pattern by $30 — pre-existing classification, L.12's categorization work is the real fix.
+5. **Completed goals keep reserving** (cycle-1 money P2-4): `goalContributionsCents` has no
+   completion filter (the Goal model has no active flag) — a fully-funded goal still subtracts
+   its monthly contribution. Safe direction; pre-existing term the max() rule inherits.
+6. **The addMonthsClamped chain drifts off 29/30/31-day anchors after a short month** (cycle-2
+   P2-1): Jan 31 → Feb 28 → Mar 28, never back to the 31st — an income can count in the walk up
+   to ~3 days early, bounded at one occurrence of one series per short-month crossing, and the
+   same chain the detector itself steps. Recorded in the function's docblock.
+7. **The owner's $22,254.09 attribution stays UNVERIFIED** (no live DB here): both inflation
+   mechanisms are dead in the new model by construction, but which one produced HIS figure is
+   unknowable from this environment. The plan's breakdown now names the income basis inline, so
+   the next anomalous figure is self-diagnosing on its own surface.
+8. Carried forward unchanged: L.11(C) residual 2 (a scheduled "auto-transfer to savings" is
+   counted as a fixed expense AND reserved again by the savings target — the demo carries it);
+   the accepted L.11(D) cost (a statement is reserved twice for the first days of its due
+   month — the safe direction, self-clearing when it posts).
+
 ## ✅ BUILT 2026-07-26 — L.9: the registration veto, the ambiguity carry-out, and four critic cycles (DECISIONS #310)
 
 Owner-reported 2026-07-24 with a /accounts screenshot: the Continue-an-account card offered his

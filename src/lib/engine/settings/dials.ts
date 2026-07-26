@@ -74,7 +74,7 @@ export interface RawDials {
   endAge: string;
   /** Percent, e.g. "2.5". Empty string = use the default inflation assumption. */
   inflation: string;
-  /** Percent of expected income to save first, e.g. "15". Empty string = unset (goals only). */
+  /** Percent of the monthly income pattern to save first, e.g. "15". Empty string = unset (goals only). */
   savingsTarget: string;
 }
 
@@ -89,7 +89,7 @@ export interface NormalizedDials {
   retirementAge: number | null;
   endAge: number | null;
   inflationBps: number | null;
-  /** Pay-yourself-first target, bps of expected income; null = unset (goals only). */
+  /** Pay-yourself-first target, bps of the monthly income pattern; null = unset (goals only). */
   savingsTargetBps: number | null;
 }
 

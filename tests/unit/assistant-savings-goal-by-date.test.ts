@@ -221,7 +221,7 @@ describe('answerSavingsGoalByDate — honest copy per outcome', () => {
       requiredMonthlyCents: 65_455, monthsToGoal: 11, shareOfSafeToSpendBps: 32_700, withinSafeToSpend: false,
     };
     const withReserve = answerSavingsGoalByDate(r, 'July 2027', '2027-07-31', '2026-06-10', 100_000);
-    expect(withReserve.detail).toContain('sets aside $1,000.00 of this month');
+    expect(withReserve.detail).toContain('sets aside $1,000.00 of your monthly income pattern');
     // Reserve ($1,000) covers required ($654.55) → the whole amount can come from it.
     expect(withReserve.detail).toContain('this monthly amount can come out of that reserve first');
     // Reserve ($50) covers only part of required ($654.55) → the sentence may

@@ -5753,3 +5753,110 @@ income is wrong for him; formula re-spec: income(all sources) - savings% - fixed
 expenses only, no discretionary). Diagnose the income term against the engine first (no live DB
 here — read the code, enumerate what could produce $22,254.09 for July, and say what is and
 isn't verifiable).
+
+## L.22 OPENED — owner's guilt-free re-spec. 2026-07-26
+Owner mid-session: "your logic on guilt free spending is broken, for one i don't have 22k or so
+income coming in...that number should be taken from patterns you've detected over months of
+income. Expenses are also based on patterns or had set in settings. so guilt free = income (all
+sources, investment, salary, etc..) - savings % of total income (saved in settings) - fixed and
+recurring expenses (not discretionary or budgeted for) = guilt free"
+DIAGNOSIS (from the code, live DB unavailable here so HIS attribution stays UNVERIFIED):
+the income term is `receivedIncomeCents + remainingIncomeCents` (spending-plan.ts:153) — July's
+posted income PLUS detected series x remaining occurrences. Inflation vectors, in likely order:
+(a) an unpaired TRANSFER-IN counts as income whenever it has no category (insights.ts:43-46:
+a positive with no/unknown category IS income) — a large brokerage-to-checking movement the
+±3-day opposite-amount pairing missed inflates the month it lands; the SAME detector's two
+failure directions fit his screen at once: expenses $0.00 (over-flagged) beside income $22k
+(under-flagged); (b) a phantom recurring income series detected off repeated one-time inflows,
+counted again per remaining occurrence. His $0.00 lines remain L.11(D) OPEN residual #1.
+THE RE-SPEC (owner's formula, decisions mine to record): guilt-free = pattern income (all
+sources) − savings % of that income (Settings) − fixed/recurring expenses (pattern) − card
+obligations. The received+remaining-occurrence income term and the spent-so-far subtraction
+die; the per-day framing that produced "$3,709.01/day" dies.
+DECISIONS TO RECORD: income = MEDIAN of the last 3 COMPLETE months' non-credit income
+(monthlyFlows; immune to a single one-time spike, includes every source that actually arrived);
+fallback = detected income series monthly-normalized when no complete month exists; fallback =
+0 + "no income pattern yet". Fixed expenses = detected recurring outflows monthly-normalized
+(weekly 52/12, biweekly 26/12, semimonthly x2, quarterly /3, annual /12 — an annual insurance
+premium finally costs every month, fixing the 11-month understatement). Cards: keep this-month
+obligations + the L.11(D) beyond-month reservation (real fixed commitments). Savings: keep
+max(goals, bps x income) — equals his formula whenever goals <= target; never overstates.
+Discretionary: no subtraction anywhere. Surfaces: /spending-plan, dashboard card, Ask,
+conscious-spending view, Glass-Box trace + the three inverse solvers (leftToSpend survives).
+NEXT: engine-first + tests, then surfaces, then hostile critic (money-math), then ship.
+
+## L.22 BUILT — the pattern model; critic cycle 1 (money + copy) both FAILED, all fixed. 2026-07-26
+THE BUILD (engine-first): plan.ts rewritten — income = MEDIAN of up to the last 3 complete
+months' income over non-credit accounts (fallback detected-series at a monthly rate, fallback
+0/'none'); fixed expenses = recurring outflows at a monthly rate (monthlyRateCents: weekly
+52/12, biweekly 26/12, annual /12, irregular x1 safe-direction); card terms + savings max()
+carried unchanged; spentSoFar/upcomingBills/perDay/daysLeft DELETED. Surfaces: /spending-plan
+(hero, bar, legend, explainer), dashboard card, Ask answer, Glass-Box trace, conscious buckets
+(now exactly the owner's formula — the old spentSoFar departure note dissolves), COACH_COPY
+caption, money-dials hint, schema comment. Demo under the new model (computed against the real
+seed): trailing [528000, 528000, 735000] -> median $5,280.00 (the seed's own one-time spike
+month is median-ignored — the mechanism validating itself on real-shaped data); fixed $2,300;
+cards $5,412.33; guilt-free **Over plan by $2,432.33** — the demo stays an honest revolver.
+CRITIC CYCLE 1 (two fresh-context critics, money-math lens + copy-honesty lens), both FAIL:
+ MONEY P1-1  the L.11(D) beyond-month walk passed endOfMonth as the counter's `today`, so a
+     live weekly/biweekly anchor landing before the window read as STALE and contributed ZERO
+     income — a $9,000 statement reserved in full against a paycheck arriving twice before it,
+     every month, permanently (the exact gross failure the walk exists to kill). FIXED:
+     scheduledOccurrencesBetween — the stale gate is the REAL today; live anchors step forward
+     by cadence (incl. MONTHLY/ANNUAL via addMonthsClamped, a blindness the in-month counter
+     never had to know). Locks: the critic's executed case at engine AND real-server level
+     (fail-old proven: old code 900000/100000, fixed 300000/700000).
+ MONEY P1-2  the ANNUAL /12 branch is dead for DETECTOR rows (toScheduledTransactions filters
+     W/B/M only) — a detected annual premium counts ZERO (dangerous direction). Comment
+     corrected; the passthrough is its own slice (it also moves the radar + demo golden).
+ MONEY P1-3  the median's safety claims were one-sided (incomeMonths<3 spike; job loss).
+     Copy qualified everywhere; the figure decisions recorded as OPEN residuals.
+ COPY P1-1  "a one-time deposit is not income here" false at incomeMonths<3 (executed:
+     $23,000 from one spike month while claiming it cannot happen) — qualified by
+     incomeMonths in the assistant detail, the trace basis, and the plan.ts header.
+ COPY P1-2  two stale "of this month's income" qualifiers (the beyond-month qualifier and
+     savingsReserveNote) named a quantity the engine no longer has — reworded.
+ COPY P1-3  the overspent hero said "This month's income is more than spoken for" + a
+     weather-not-climate clause that is only true of a one-off — replaced.
+ P2s fixed: "across every source" -> "checking and savings accounts" (investment dividends
+     never reach the snapshot; cashback excluded by design); the empty-state promise was
+     wrong in both directions; the money-dials hint said "expected monthly income"; the
+     headline's present-possession framing -> "Your guilt-free allocation this month is $X".
+GATE SO FAR (real output): full vitest 281 files / 4428 tests ALL PASS; plan-adjacent e2e
+32/32 serialized (ask, spending-plan, month-edge, glass-box, phase1, auth). The owner's own
+attribution of the $22,254.09 stays UNVERIFIED (no live DB here) — but both inflation
+mechanisms (uncategorized transfer-in as income; phantom series x occurrences) are dead in
+the new model by construction.
+IN FLIGHT: critic cycle 2 aimed at the walk fix + qualified copy.
+NEXT: cycle-2 verdict -> fixes -> verify.sh -> DECISIONS/STATUS/TASKS/ledger -> ship.
+OPEN residuals to record: detector ANNUAL passthrough (P1-2); job-loss lag (pause-radar
+mitigation; wiring the pause predicate into the basis is follow-up); incomeMonths<3 spike
+window (copy-qualified; kept median, recorded); refund-shaped series polluting income
+(pre-existing classification, L.12 territory); completed goals keep reserving (pre-existing);
+savings-transfer double-count (already L.11(C) residual 2); cross-month double reservation
+(already accepted L.11(D) cost).
+
+## L.22 — critic cycle 2, gate green, docs done. 2026-07-26
+CYCLE 2 (fresh-context, aimed at the fixes): FAIL — 1 P1 + 4 P2, all fixed. The walk fix
+survived every attack (6/6 boundary + 6/6 server-path). Fixed: the trace's unconditional
+annual-coverage basis line (now "an annual bill entered by you counts 1/12; a DETECTED annual
+bill is not projected yet"); the overspent Ask branch carried no basis clause (now prepended,
+with the <3-months qualifier stating the overage may shrink); the dead in-month counter +
+two stale JSDoc/comments removed; /spending-plan gained the empty branch the dashboard card
+already had ("$0.00 matched to the penny" can no longer render); my own test comment claimed
+clamped dates the code does not produce (02-28/03-28/04-28 — comment corrected, drift recorded
+in the docblock). REFUTED by my direct read: cycle-2's P2-2 ("checking and savings" mis-sets
+the figure) — every provider delegates getFinanceSnapshot to DemoProvider, whose transaction
+query filters SPENDING_ACCOUNT_TYPES at the database (demo.ts:49), so INVESTMENT/LOAN rows
+never reach the snapshot; investment income reaches the pattern as deposits into
+checking/savings, exactly how it reaches the user.
+One stale test caught by the gate: savings-goal-by-date asserted the pre-reword reserve note —
+re-pointed at "of your monthly income pattern" (deliberate change, assertion follows).
+GATE (real output this session): bash scripts/verify.sh -> VERIFY GREEN, tsc 0, eslint 0,
+**281 files / 4434 tests**, build clean. E2E serialized 32/32: ask, spending-plan,
+spending-plan-month-edge, glass-box, phase1-cash-needed, auth.
+DOCS: DECISIONS #311 (+index), STATUS section L.22 (built + 8 OPEN residuals), TASKS row,
+4 REGRESSION_LEDGER rows. No schema change (schema comment only — prisma diff is text).
+NEXT: commit, push, deploy-verify. Then the open queue: L.16 (keep-both prompt), L.13 (owner
+screenshot), the L.9 OPEN proven-ambiguity carry-out (cycle-4 P1, fix sketch recorded), the
+L.22 residuals (sharpest: detector ANNUAL passthrough).

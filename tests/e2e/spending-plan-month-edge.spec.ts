@@ -46,8 +46,11 @@ function openDb() {
 }
 
 /**
- * One checking account holding a June paycheck, and one card whose only statement is due in JULY.
+ * One checking account holding paychecks, and one card whose only statement is due in JULY.
  * `dueDate` is the whole fixture: move it inside June and this spec is measuring nothing.
+ * L.22: the paychecks land in the two COMPLETE months (April + May — the trailing pattern's
+ * basis); a June paycheck is present too and deliberately changes nothing (the pattern does
+ * not read the current month).
  */
 function seedCardDueNextMonth(email: string) {
   const db = openDb();
@@ -69,11 +72,14 @@ function seedCardDueNextMonth(email: string) {
        VALUES (?, ?, 'manual', ?, 'Travel Card', 'CREDIT', '4321', ?, 'USD')`,
     ).run(cardId, uid, `ref-pe-card-${stamp}`, STATEMENT_CENTS);
 
-    db.prepare(
+    const insTxn = db.prepare(
       // "Transaction" is a reserved word in SQLite — it must be quoted here.
       `INSERT INTO "Transaction" (id, accountId, date, amountCents, rawDescriptor, categoryId, confidenceBps, needsReview, status, isTransfer, isSplitParent)
-       VALUES (?, ?, '2026-06-03', ?, 'ACME PAYROLL', 'income', 9900, 0, 'POSTED', 0, 0)`,
-    ).run(`e2e-pe-txn-${stamp}`, chkId, INCOME_CENTS);
+       VALUES (?, ?, ?, ?, 'ACME PAYROLL', 'income', 9900, 0, 'POSTED', 0, 0)`,
+    );
+    insTxn.run(`e2e-pe-txn-apr-${stamp}`, chkId, '2026-04-03', INCOME_CENTS);
+    insTxn.run(`e2e-pe-txn-may-${stamp}`, chkId, '2026-05-03', INCOME_CENTS);
+    insTxn.run(`e2e-pe-txn-jun-${stamp}`, chkId, '2026-06-03', INCOME_CENTS);
 
     db.prepare(
       `INSERT INTO Statement (id, accountId, cycleStart, cycleEnd, dueDate, statementBalanceCents, minimumPaymentCents, isEstimated)
@@ -111,9 +117,10 @@ test('a card dated past the month’s edge is reserved, shown as its own line, a
   await expect(page.getByTestId('plan-held-note')).toContainText(DUE_LABEL);
   await expect(page.getByTestId('plan-held-note')).not.toContainText(DUE_DATE);
 
-  // …and the panel still certifies its own arithmetic, now over six lines.
+  // …and the panel still certifies its own arithmetic, now over five lines
+  // (income, fixed, card payments, savings, the beyond-month row).
   await expect(page.getByTestId('plan-reconciled')).toContainText('matched to the penny');
-  await expect(page.getByTestId('plan-reconciled')).toContainText('These 6 lines');
+  await expect(page.getByTestId('plan-reconciled')).toContainText('These 5 lines');
   await expect(page.getByTestId('plan-total')).toHaveText('$1,000.00');
 
   // The dashboard card is the surface most readers ever see: it must carry the fact too, or the
