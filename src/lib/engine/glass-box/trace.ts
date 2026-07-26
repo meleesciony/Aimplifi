@@ -166,11 +166,11 @@ export function traceCashNeeded(
 }
 
 /**
- * Rows behind the safe-to-spend headline: the four-term identity
- * left = income − spent − upcoming bills − planned savings, carried as SIGNED
- * rows so the same plain-summation invariant holds. All four fields live on
- * the SpendingPlan result itself (it extends its input), so nothing is
- * re-derived here.
+ * Rows behind the guilt-free-spending headline: the five-term identity
+ * left = income − cash spent − upcoming bills − card payments − planned
+ * savings, carried as SIGNED rows so the same plain-summation invariant
+ * holds. All five fields live on the SpendingPlan result itself (it extends
+ * its input), so nothing is re-derived here.
  */
 export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
   const rows: TraceRow[] = [
@@ -183,22 +183,34 @@ export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
     },
     {
       id: 'spent',
-      label: 'Spent so far',
-      amountCents: cents(-plan.spentSoFarCents),
+      label: 'Spent so far (cash accounts)',
+      amountCents: cents(-plan.spentSoFarCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
       isEstimated: false,
       notes: [],
     },
     {
       id: 'bills',
       label: 'Bills still coming',
-      amountCents: cents(-plan.upcomingBillsCents),
+      amountCents: cents(-plan.upcomingBillsCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
       isEstimated: false,
       notes: [],
     },
     {
+      id: 'card-payments',
+      label: 'Card payments due this month',
+      amountCents: cents(-plan.cardObligationsCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
+      // True in the all-estimate state (no card has a generated statement) —
+      // the fact rides the plan so this row cannot claim statement provenance
+      // it does not have (critic P1-3).
+      isEstimated: plan.cardObligationsEstimated,
+      notes: [],
+    },
+    {
       id: 'savings',
-      label: 'Planned savings',
-      amountCents: cents(-plan.plannedSavingsCents),
+      // The resolved figure is max(goal contributions, the savings-% target),
+      // so the label must name the side that actually decided it (#295).
+      label: plan.savingsSource === 'target' ? 'Savings target (from Settings)' : 'Planned savings (goals)',
+      amountCents: cents(-plan.plannedSavingsCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
       isEstimated: false,
       notes: [],
     },
@@ -213,6 +225,17 @@ export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
     reconciles: sum === plan.leftToSpendCents,
     basis: [
       'Expected income counts what has already arrived this month plus what is still scheduled; bills still coming are your detected recurring bills that have not posted yet.',
+      'Spending on credit cards is counted once, in the month its statement’s payment is due — not again at purchase time. The card-payments line covers your own cards due this month, assumes each is paid in full, and comes from the same obligation rows as the cash-needed answer. Spent so far covers spending outside your credit cards.',
+      ...(plan.cardObligationsEstimated
+        ? [
+            'No statement has been generated yet, so the card-payments line is estimated from current balances.',
+          ]
+        : []),
+      ...(plan.savingsTargetBps != null
+        ? [
+            'Planned savings takes the larger of your goal contributions and the savings target set in Settings — they express the same pay-yourself-first intent, so they are never added together.',
+          ]
+        : []),
     ],
   };
 }

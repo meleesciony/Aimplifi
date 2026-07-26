@@ -484,8 +484,12 @@ async function buildAnswer(
             ),
           };
     }
-    case 'safe_to_spend':
-      return answerSafeToSpend(await getSpendingPlan(userId));
+    case 'safe_to_spend': {
+      // The disclosures ride the plan out of the server (L.18 discipline) and
+      // are already resolved against the set the card-payments term sums.
+      const plan = await getSpendingPlan(userId);
+      return answerSafeToSpend(plan, plan.disclosures);
+    }
     case 'cash_needed': {
       const { result, cardDuplicates } = await getCashNeeded(userId);
       // TASKS L.15 (e): the same advisory pair the dashboard hero carries. Ask states this figure
@@ -523,7 +527,7 @@ async function buildAnswer(
         today: today as ISODate,
         safeToSpendCents: plan.leftToSpendCents,
       });
-      return answerDebtFreeByDate(result, intent.label, intent.targetDate, today);
+      return answerDebtFreeByDate(result, intent.label, intent.targetDate, today, plan.unallocatedSavingsCents);
     }
     case 'savings_goal_by_date': {
       // Inverse savings planner (DECISIONS #126): the user STATED the amount + date; we
@@ -539,7 +543,7 @@ async function buildAnswer(
         today: today as ISODate,
         safeToSpendCents: plan.leftToSpendCents,
       });
-      return answerSavingsGoalByDate(result, intent.label, intent.targetDate, today);
+      return answerSavingsGoalByDate(result, intent.label, intent.targetDate, today, plan.unallocatedSavingsCents);
     }
     case 'retire_at_age': {
       // Inverse retirement planner (DECISIONS #131): the user STATED the age; we re-derive the
@@ -568,7 +572,7 @@ async function buildAnswer(
         inflationBps: planRow?.inflationBps ?? RETIREMENT_ASSUMPTIONS.inflationBps,
         safeToSpendCents: plan.leftToSpendCents,
       });
-      return answerRetireAtAge(result, intent.label);
+      return answerRetireAtAge(result, intent.label, plan.unallocatedSavingsCents);
     }
     case 'subscriptions':
       return answerSubscriptions((await getRecurring(userId)).summary);

@@ -205,19 +205,29 @@ describe('answerIncome', () => {
 });
 
 describe('answerSafeToSpend', () => {
-  it('left to spend + per day', () => {
+  const NO_DISCLOSURES = { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [] };
+  it('guilt-free to spend + per day', () => {
     const plan: SpendingPlan = {
       today: '2026-06-23' as SpendingPlan['today'],
       expectedIncomeCents: 500000,
       spentSoFarCents: 200000,
       upcomingBillsCents: 100000,
+      cardObligationsCents: 0,
+      goalContributionsCents: 50000,
+      savingsTargetBps: null,
       plannedSavingsCents: 50000,
+      savingsSource: 'goals',
+      unallocatedSavingsCents: 0,
+      cardObligationsEstimated: false,
       leftToSpendCents: 150000,
       daysLeftInMonth: 8,
       perDayCents: 18750,
       overspent: false,
     };
-    expect(answerSafeToSpend(plan).headline).toBe('You have $1,500.00 left to spend this month — about $187.50/day for the next 8 days.');
+    const a = answerSafeToSpend(plan, NO_DISCLOSURES);
+    expect(a.headline).toBe('You have $1,500.00 guilt-free to spend this month — about $187.50/day for the next 8 days.');
+    expect(a.facts).toContainEqual({ label: 'Card payments due this month', value: '$0.00' });
+    expect(a.facts).toContainEqual({ label: 'Planned savings (goals)', value: '$500.00' });
   });
   it('overspent', () => {
     const plan = {
@@ -225,13 +235,107 @@ describe('answerSafeToSpend', () => {
       expectedIncomeCents: 100000,
       spentSoFarCents: 130000,
       upcomingBillsCents: 0,
+      cardObligationsCents: 0,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
       plannedSavingsCents: 0,
+      savingsSource: 'goals',
+      unallocatedSavingsCents: 0,
+      cardObligationsEstimated: false,
       leftToSpendCents: -30000,
       daysLeftInMonth: 8,
       perDayCents: 0,
       overspent: true,
     } as SpendingPlan;
-    expect(answerSafeToSpend(plan).headline).toBe("You're $300.00 over your plan for this month.");
+    expect(answerSafeToSpend(plan, NO_DISCLOSURES).headline).toBe("You're $300.00 over your plan for this month.");
+  });
+  it('a winning savings target relabels the savings fact', () => {
+    const plan = {
+      today: '2026-06-23',
+      expectedIncomeCents: 500000,
+      spentSoFarCents: 0,
+      upcomingBillsCents: 0,
+      cardObligationsCents: 0,
+      goalContributionsCents: 0,
+      savingsTargetBps: 2000,
+      plannedSavingsCents: 100000,
+      savingsSource: 'target',
+      unallocatedSavingsCents: 0,
+      cardObligationsEstimated: false,
+      leftToSpendCents: 400000,
+      daysLeftInMonth: 8,
+      perDayCents: 50000,
+      overspent: false,
+    } as SpendingPlan;
+    const a = answerSafeToSpend(plan, NO_DISCLOSURES);
+    expect(a.facts).toContainEqual({ label: 'Savings target (Settings)', value: '$1,000.00' });
+  });
+  const QUALIFIER_PLAN = (over: Partial<SpendingPlan>): SpendingPlan =>
+    ({
+      today: '2026-06-23' as SpendingPlan['today'],
+      expectedIncomeCents: 500000,
+      spentSoFarCents: 200000,
+      upcomingBillsCents: 100000,
+      cardObligationsCents: 120000,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+      plannedSavingsCents: 0,
+      savingsSource: 'goals',
+      unallocatedSavingsCents: 0,
+      cardObligationsEstimated: false,
+      leftToSpendCents: 80000,
+      daysLeftInMonth: 8,
+      perDayCents: 10000,
+      overspent: false,
+      ...over,
+    }) as SpendingPlan;
+  const FULL_DISCLOSURES = {
+    undatedCards: [{ cardName: 'Venture', frozenSince: null }],
+    statementPendingCards: [{ cardName: 'Bonvoy', dueDate: '2026-06-28' }],
+    duplicatePairs: [{ aName: 'CREDIT CARD', bName: 'CREDIT CARD', confidence: 'high' as const }],
+    frozenCards: [{ label: 'Freedom', frozenSince: '2026-06-01' }],
+  };
+
+  it('qualifiers state their own directions on the positive branch (the figure is guilt-free-left)', () => {
+    const a = answerSafeToSpend(QUALIFIER_PLAN({}), FULL_DISCLOSURES);
+    expect(a.detail).toContain('no due date yet (Venture)');
+    expect(a.detail).toContain('not been generated yet for Bonvoy (due around 2026-06-28)');
+    // Excluded obligations → the shown amount is too generous → real spendable LOWER.
+    expect(a.detail).toContain('the real amount free to spend may be lower than shown');
+    expect(a.detail).toContain('look like the same card counted twice');
+    // Inflated obligations → real spendable HIGHER.
+    expect(a.detail).toContain('the real amount free to spend is higher than shown');
+    expect(a.detail).toContain('No amount was adjusted');
+    expect(a.detail).toContain('stopped sharing one card behind the card-payments figure (Freedom)');
+    expect(a.detail).not.toContain('overage');
+  });
+
+  it('the all-estimate state is disclosed HERE — this answer is untraced, so the trace basis can never reach the reader (cycle-2 F2-1)', () => {
+    const a = answerSafeToSpend(
+      QUALIFIER_PLAN({ cardObligationsEstimated: true }),
+      { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [] },
+    );
+    expect(a.facts).toContainEqual({ label: 'Card payments due this month (estimated)', value: '$1,200.00' });
+    expect(a.detail).toContain('estimated from current balances');
+    // And absent when the term is statement-backed.
+    const real = answerSafeToSpend(QUALIFIER_PLAN({}), { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [] });
+    expect(real.detail).not.toContain('estimated from current balances');
+    expect(real.facts).toContainEqual({ label: 'Card payments due this month', value: '$1,200.00' });
+  });
+
+  it('qualifiers FLIP with the overspent branch, whose rendered figure is the overage (critic P1-1)', () => {
+    const a = answerSafeToSpend(
+      QUALIFIER_PLAN({ leftToSpendCents: -50000, perDayCents: 0, overspent: true }),
+      FULL_DISCLOSURES,
+    );
+    expect(a.headline).toBe("You're $500.00 over your plan for this month.");
+    // Excluded obligations → the overage shown is too SMALL → real overage HIGHER.
+    expect(a.detail).toContain('the real overage may be higher than shown');
+    // Inflated obligations → real overage SMALLER.
+    expect(a.detail).toContain('the real overage is smaller than shown');
+    // The positive-branch phrasings must not leak onto this branch.
+    expect(a.detail).not.toContain('free to spend may be lower');
+    expect(a.detail).not.toContain('free to spend is higher');
   });
 });
 

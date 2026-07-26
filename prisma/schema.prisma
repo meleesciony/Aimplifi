@@ -41,6 +41,12 @@ model User {
   retirementAge     Int? // planned retirement age; null → default 65
   endAge            Int? // plan-through age; null → default 95
   inflationBps      Int? // long-run inflation assumption, bps; null → default 250 (2.50%)
+  // Pay-yourself-first savings target as bps of expected monthly income (L.11(C) /
+  // DECISIONS #295 — the Conscious Spending Plan allocation set in Settings). Nullable:
+  // null = unset, planned savings falls back to goal contributions alone, so existing
+  // and demo users compute identically until they opt in. The engine takes
+  // max(goal contributions, income × this) — a floor, never a sum.
+  savingsTargetBps  Int? // 0–9000 enforced at the dials boundary
   // Calendar date (YYYY-MM-DD, provider "today") of the user's last dashboard view,
   // for the return-moment greeting (TASKS 1.1). A CALENDAR DATE, not a timestamp, per
   // the date-discipline rule — so the gap is measured in the same civil-date domain as

@@ -13,7 +13,7 @@ import { type Cents, formatCents } from '@/lib/money';
 import { netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
 import type { SpendingBreakdown } from '@/lib/engine/reports/reports';
-import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
+import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
@@ -708,29 +708,92 @@ export function answerIncome(incomeCents: number, tf: Timeframe): AssistantAnswe
   };
 }
 
-// ─── safe to spend ──────────────────────────────────────────────────────────
+// ─── guilt-free spending (formerly "safe to spend") ─────────────────────────
 
-export function answerSafeToSpend(plan: SpendingPlan): AssistantAnswer {
+/**
+ * `disclosures` is REQUIRED, not defaulted (the L.15 lesson: a defaulted
+ * disclosure argument fails silent at exactly the caller that forgets it).
+ * The server resolves each against the set the card-payments term sums.
+ */
+export function answerSafeToSpend(
+  plan: SpendingPlan,
+  disclosures: SpendingPlanDisclosures,
+): AssistantAnswer {
   const source: AssistantSource = { label: 'Open spending plan', href: '/spending-plan' };
   const facts: AssistantFact[] = [
     { label: 'Expected income', value: fmt(plan.expectedIncomeCents) },
-    { label: 'Spent so far', value: fmt(plan.spentSoFarCents) },
+    { label: 'Spent so far (outside credit cards)', value: fmt(plan.spentSoFarCents) },
     { label: 'Bills still due', value: fmt(plan.upcomingBillsCents) },
-    { label: 'Planned savings', value: fmt(plan.plannedSavingsCents) },
+    {
+      label: plan.cardObligationsEstimated
+        ? 'Card payments due this month (estimated)'
+        : 'Card payments due this month',
+      value: fmt(plan.cardObligationsCents),
+    },
+    {
+      label: plan.savingsSource === 'target' ? 'Savings target (Settings)' : 'Planned savings (goals)',
+      value: fmt(plan.plannedSavingsCents),
+    },
   ];
+  // Each qualifier states its own DIRECTION, and states it for THE FIGURE THIS
+  // BRANCH RENDERS (critic P1-1: the overspent branch shows the OVERAGE — the
+  // negation of leftToSpend — so every "lower/higher" flips with it).
+  // Directions never share a sentence (a-disclosure-is-several-claims lesson).
+  const over = plan.overspent;
+  const qualifiers: string[] = [];
+  // The all-estimate state (cycle-2 critic F2-1): this answer is untraced, so
+  // the trace's estimate basis can never reach the reader — the qualifier must
+  // live here, or Ask claims statement provenance the term does not have.
+  if (plan.cardObligationsEstimated) {
+    qualifiers.push(
+      'No statement has been generated yet, so the card-payments figure is estimated from current balances.',
+    );
+  }
+  if (disclosures.undatedCards.length > 0) {
+    const names = disclosures.undatedCards.map((c) => c.cardName).join(', ');
+    const one = disclosures.undatedCards.length === 1;
+    qualifiers.push(
+      `${one ? 'One card has' : `${disclosures.undatedCards.length} cards have`} a balance but no due date yet (${names}) — ${one ? 'its payment is' : 'their payments are'} not in the card-payments figure, so ${over ? 'the real overage may be higher than shown' : 'the real amount free to spend may be lower than shown'}.`,
+    );
+  }
+  if (disclosures.statementPendingCards.length > 0) {
+    const parts = disclosures.statementPendingCards
+      .map((c) => `${c.cardName} (due around ${c.dueDate})`)
+      .join('; ');
+    qualifiers.push(
+      `${disclosures.statementPendingCards.length === 1 ? 'A statement has' : 'Statements have'} not been generated yet for ${parts}, so ${disclosures.statementPendingCards.length === 1 ? 'that payment is' : 'those payments are'} not counted — ${over ? 'the real overage may be higher than shown' : 'the real amount free to spend may be lower than shown'}.`,
+    );
+  }
+  if (disclosures.duplicatePairs.length > 0) {
+    const pairLines = disclosures.duplicatePairs.map((p) => `${p.aName} and ${p.bName}`).join('; ');
+    qualifiers.push(
+      `Two cards behind the card-payments figure (${pairLines}) look like the same card counted twice. If so, that figure is higher than you owe and ${over ? 'the real overage is smaller than shown' : 'the real amount free to spend is higher than shown'}. No amount was adjusted — only you can confirm it, on Accounts.`,
+    );
+  }
+  if (disclosures.frozenCards.length > 0) {
+    const names = disclosures.frozenCards.map((c) => c.label).join(', ');
+    qualifiers.push(
+      `The bank stopped sharing ${disclosures.frozenCards.length === 1 ? 'one card behind the card-payments figure' : `${disclosures.frozenCards.length} cards behind the card-payments figure`} (${names}), so ${disclosures.frozenCards.length === 1 ? 'its amount' : 'their amounts'} may be stale.`,
+    );
+  }
+  const withQualifiers = (base: string) => [base, ...qualifiers].join(' ');
   if (plan.overspent) {
     return {
       kind: 'safe_to_spend',
       headline: `You're ${fmt(-plan.leftToSpendCents)} over your plan for this month.`,
-      detail: 'That counts what you have left after bills still due and planned savings.',
+      detail: withQualifiers(
+        'That counts what you have left after spending outside your cards, bills still due, card payments due this month, and planned savings.',
+      ),
       facts,
       source,
     };
   }
   return {
     kind: 'safe_to_spend',
-    headline: `You have ${fmt(plan.leftToSpendCents)} left to spend this month — about ${fmt(plan.perDayCents)}/day for the next ${plan.daysLeftInMonth} days.`,
-    detail: 'After the bills still due this month and your planned savings.',
+    headline: `You have ${fmt(plan.leftToSpendCents)} guilt-free to spend this month — about ${fmt(plan.perDayCents)}/day for the next ${plan.daysLeftInMonth} days.`,
+    detail: withQualifiers(
+      'After the bills still due this month, the card payments due this month, and your planned savings. Card purchases count once, in the month their statement’s payment is due — not again at purchase time.',
+    ),
     facts,
     source,
   };
@@ -956,11 +1019,37 @@ function pctFromBps(bps: number): string {
  * and phrases them (no math), so it cannot originate a number. Copy follows the coaching
  * guardrails: illustration not advice, assumptions inline, no shame on a stretch target.
  */
+/**
+ * One sentence naming the Settings savings-target reserve (critic F3), or ''
+ * when there is none. Appended wherever a required monthly is weighed against
+ * guilt-free spending: that figure is NET of this reserve, and a new plan is
+ * exactly what the reserve exists to fund, so the comparison must name it.
+ */
+function savingsReserveNote(unallocatedSavingsCents: number, requiredMonthlyCents: number): string {
+  if (unallocatedSavingsCents <= 0) return '';
+  // The sentence may claim only what the reserve actually covers (cycle-2
+  // critic F2-3: "this monthly amount can come out of that reserve" over a
+  // $50 reserve and a $900 requirement overstated affordability — the
+  // dangerous direction).
+  const covers = unallocatedSavingsCents >= requiredMonthlyCents;
+  return ` Your savings target in Settings already sets aside ${fmt(unallocatedSavingsCents)} of this month's income that isn't committed to a named goal — ${covers ? 'this monthly amount can come out of that reserve first' : `the first ${fmt(unallocatedSavingsCents)} of this monthly amount can come out of that reserve`}.`;
+}
+
 export function answerDebtFreeByDate(
   result: DebtFreeByDateResult,
   label: string,
   targetDate: string,
   today: string,
+  /**
+ * The Settings savings target's reserve beyond named goals (critic F3):
+ * `plan.unallocatedSavingsCents`. REQUIRED, never defaulted (the L.15
+ * lesson) — the share/affordability below compares a required monthly
+ * against a figure that is NET of this reserve, and a new savings,
+ * investing, or debt plan is exactly what pay-yourself-first money exists
+ * to fund, so an answer that cannot name the reserve declares "beyond
+ * budget" over money the user already set aside.
+ */
+  unallocatedSavingsCents: number,
 ): AssistantAnswer {
   if (result.outcome === 'already-debt-free') {
     return {
@@ -1011,7 +1100,7 @@ export function answerDebtFreeByDate(
     { label: 'Total debt', value: fmt(result.totalBalanceCents) },
     { label: 'Extra needed', value: `${fmt(required)}/mo` },
     { label: 'Debt-free by', value: byMonth },
-    ...(sharePct ? [{ label: 'Share of safe-to-spend', value: sharePct }] : []),
+    ...(sharePct ? [{ label: 'Share of guilt-free spending', value: sharePct }] : []),
   ];
 
   if (sharePct === null) {
@@ -1020,7 +1109,7 @@ export function answerDebtFreeByDate(
     return {
       kind: 'debt_free_by_date',
       headline: `To be debt-free by ${label} you'd add about ${fmt(required)}/mo on top of your minimums — but you're over your monthly plan right now, so that's budget you don't have yet.`,
-      detail: 'A later date would ask less each month. Illustration, not advice — assumes the least-interest (avalanche) order and APRs as entered.',
+      detail: `A later date would ask less each month.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — assumes the least-interest (avalanche) order and APRs as entered.`,
       facts,
       source: DEBT_PLAN_SOURCE,
       action,
@@ -1030,8 +1119,8 @@ export function answerDebtFreeByDate(
   if (result.withinSafeToSpend === false) {
     return {
       kind: 'debt_free_by_date',
-      headline: `Being debt-free by ${label} would take about ${fmt(required)}/mo extra — about ${sharePct} of your safe-to-spend, beyond a single month's budget.`,
-      detail: 'A later date would ask less of your budget each month. Illustration, not advice — assumes the least-interest (avalanche) order and APRs as entered.',
+      headline: `Being debt-free by ${label} would take about ${fmt(required)}/mo extra — about ${sharePct} of your guilt-free spending, beyond a single month's budget.`,
+      detail: `A later date would ask less of your budget each month.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — assumes the least-interest (avalanche) order and APRs as entered.`,
       facts,
       source: DEBT_PLAN_SOURCE,
       action,
@@ -1040,8 +1129,8 @@ export function answerDebtFreeByDate(
 
   return {
     kind: 'debt_free_by_date',
-    headline: `To be debt-free by ${label}, add about ${fmt(required)}/mo on top of your minimums — about ${sharePct} of your safe-to-spend.`,
-    detail: `That clears everything around ${byMonth} at the least-interest (avalanche) order. Illustration, not advice — assumes APRs as entered and steady payments.`,
+    headline: `To be debt-free by ${label}, add about ${fmt(required)}/mo on top of your minimums — about ${sharePct} of your guilt-free spending.`,
+    detail: `That clears everything around ${byMonth} at the least-interest (avalanche) order.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — assumes APRs as entered and steady payments.`,
     facts,
     source: DEBT_PLAN_SOURCE,
     action,
@@ -1079,6 +1168,16 @@ export function answerSavingsGoalByDate(
   label: string,
   targetDate: string,
   today: string,
+  /**
+ * The Settings savings target's reserve beyond named goals (critic F3):
+ * `plan.unallocatedSavingsCents`. REQUIRED, never defaulted (the L.15
+ * lesson) — the share/affordability below compares a required monthly
+ * against a figure that is NET of this reserve, and a new savings,
+ * investing, or debt plan is exactly what pay-yourself-first money exists
+ * to fund, so an answer that cannot name the reserve declares "beyond
+ * budget" over money the user already set aside.
+ */
+  unallocatedSavingsCents: number,
 ): AssistantAnswer {
   if (result.outcome === 'already-funded') {
     return {
@@ -1118,7 +1217,7 @@ export function answerSavingsGoalByDate(
     { label: 'Goal amount', value: fmt(result.goalAmountCents) },
     { label: 'Monthly savings', value: `${fmt(required)}/mo` },
     { label: 'Funded by', value: byMonth },
-    ...(sharePct ? [{ label: 'Share of safe-to-spend', value: sharePct }] : []),
+    ...(sharePct ? [{ label: 'Share of guilt-free spending', value: sharePct }] : []),
   ];
 
   if (sharePct === null) {
@@ -1127,7 +1226,7 @@ export function answerSavingsGoalByDate(
     return {
       kind: 'savings_goal_by_date',
       headline: `To save ${fmt(result.goalAmountCents)} by ${label}, you'd set aside about ${fmt(required)}/mo — but you're over your monthly plan right now, so that's budget you don't have yet.`,
-      detail: 'A later date would ask less each month. Illustration, not advice — assumes steady saving, no investment growth.',
+      detail: `A later date would ask less each month.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — assumes steady saving, no investment growth.`,
       facts,
       source: GOALS_SOURCE,
       action,
@@ -1137,8 +1236,8 @@ export function answerSavingsGoalByDate(
   if (result.withinSafeToSpend === false) {
     return {
       kind: 'savings_goal_by_date',
-      headline: `Saving ${fmt(result.goalAmountCents)} by ${label} would take about ${fmt(required)}/mo — about ${sharePct} of your safe-to-spend, beyond a single month's budget.`,
-      detail: 'A later date would ask less of your budget each month. Illustration, not advice — assumes steady saving, no investment growth.',
+      headline: `Saving ${fmt(result.goalAmountCents)} by ${label} would take about ${fmt(required)}/mo — about ${sharePct} of your guilt-free spending, beyond a single month's budget.`,
+      detail: `A later date would ask less of your budget each month.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — assumes steady saving, no investment growth.`,
       facts,
       source: GOALS_SOURCE,
       action,
@@ -1147,8 +1246,8 @@ export function answerSavingsGoalByDate(
 
   return {
     kind: 'savings_goal_by_date',
-    headline: `To save ${fmt(result.goalAmountCents)} by ${label}, set aside about ${fmt(required)}/mo — about ${sharePct} of your safe-to-spend.`,
-    detail: `That reaches your goal around ${byMonth}. Illustration, not advice — assumes steady saving, no investment growth.`,
+    headline: `To save ${fmt(result.goalAmountCents)} by ${label}, set aside about ${fmt(required)}/mo — about ${sharePct} of your guilt-free spending.`,
+    detail: `That reaches your goal around ${byMonth}.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — assumes steady saving, no investment growth.`,
     facts,
     source: GOALS_SOURCE,
     action,
@@ -1167,7 +1266,20 @@ const RETIREMENT_SOURCE: AssistantSource = { label: 'Open retirement outlook', h
  * a number. Copy follows the coaching guardrails: illustration not advice, the today's-dollars
  * (after-inflation) assumption stated inline, no shame on a stretch target.
  */
-export function answerRetireAtAge(result: RetireAtAgeResult, label: string): AssistantAnswer {
+export function answerRetireAtAge(
+  result: RetireAtAgeResult,
+  label: string,
+  /**
+ * The Settings savings target's reserve beyond named goals (critic F3):
+ * `plan.unallocatedSavingsCents`. REQUIRED, never defaulted (the L.15
+ * lesson) — the share/affordability below compares a required monthly
+ * against a figure that is NET of this reserve, and a new savings,
+ * investing, or debt plan is exactly what pay-yourself-first money exists
+ * to fund, so an answer that cannot name the reserve declares "beyond
+ * budget" over money the user already set aside.
+ */
+  unallocatedSavingsCents: number,
+): AssistantAnswer {
   const age = result.retirementAge;
 
   if (result.outcome === 'unreachable') {
@@ -1213,7 +1325,7 @@ export function answerRetireAtAge(result: RetireAtAgeResult, label: string): Ass
     { label: 'Retirement age', value: String(age) },
     { label: 'Extra needed', value: `${fmt(required)}/mo` },
     { label: 'Projected nest egg', value: fmt(result.balanceAtRetirementCents) },
-    ...(sharePct ? [{ label: 'Share of safe-to-spend', value: sharePct }] : []),
+    ...(sharePct ? [{ label: 'Share of guilt-free spending', value: sharePct }] : []),
   ];
 
   if (sharePct === null) {
@@ -1222,7 +1334,7 @@ export function answerRetireAtAge(result: RetireAtAgeResult, label: string): Ass
     return {
       kind: 'retire_at_age',
       headline: `To retire at ${age}, you'd add about ${fmt(required)}/mo to your investing — but you're over your monthly plan right now, so that's budget you don't have yet.`,
-      detail: "A later age would ask less each month. Illustration, not advice — in today's dollars, after-inflation growth.",
+      detail: `A later age would ask less each month.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — in today's dollars, after-inflation growth.`,
       facts,
       source: RETIREMENT_SOURCE,
       action,
@@ -1232,8 +1344,8 @@ export function answerRetireAtAge(result: RetireAtAgeResult, label: string): Ass
   if (result.withinSafeToSpend === false) {
     return {
       kind: 'retire_at_age',
-      headline: `Retiring at ${age} would take about ${fmt(required)}/mo more into investments — about ${sharePct} of your safe-to-spend, beyond a single month's budget.`,
-      detail: "A later age would ask less of your budget each month. Illustration, not advice — in today's dollars, after-inflation growth.",
+      headline: `Retiring at ${age} would take about ${fmt(required)}/mo more into investments — about ${sharePct} of your guilt-free spending, beyond a single month's budget.`,
+      detail: `A later age would ask less of your budget each month.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — in today's dollars, after-inflation growth.`,
       facts,
       source: RETIREMENT_SOURCE,
       action,
@@ -1242,8 +1354,8 @@ export function answerRetireAtAge(result: RetireAtAgeResult, label: string): Ass
 
   return {
     kind: 'retire_at_age',
-    headline: `To retire at ${age}, add about ${fmt(required)}/mo to your investing — about ${sharePct} of your safe-to-spend.`,
-    detail: "That's projected to make your savings last through your plan-through age. Illustration, not advice — in today's dollars, after-inflation growth.",
+    headline: `To retire at ${age}, add about ${fmt(required)}/mo to your investing — about ${sharePct} of your guilt-free spending.`,
+    detail: `That's projected to make your savings last through your plan-through age.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — in today's dollars, after-inflation growth.`,
     facts,
     source: RETIREMENT_SOURCE,
     action,
@@ -1359,7 +1471,7 @@ export function answerSavingsRate(input: {
 export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'What is my net worth?',
   'How much did I spend on groceries last month?',
-  'How much can I safely spend this month?',
+  'How much is guilt-free to spend this month?',
   'How much did I spend at Costco this month?',
   'What subscriptions am I paying for?',
   'Will I run out of money in the next 90 days?',
@@ -1375,7 +1487,7 @@ export function answerUnknown(): AssistantAnswer {
     kind: 'unknown',
     headline: 'I can answer questions grounded in your own accounts and transactions.',
     detail:
-      'Try asking about net worth, spending by category, month, or a specific store, safe-to-spend, what you owe on your cards, subscriptions, your 90-day forecast, income, or savings rate.',
+      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, what you owe on your cards, subscriptions, your 90-day forecast, income, or savings rate.',
     facts: [],
     suggestions: [...ASSISTANT_SUGGESTIONS],
   };

@@ -1426,9 +1426,17 @@ export function parseAssistantQuery(
     return { kind: 'cash_needed' };
   }
 
-  // Safe to spend (present/conditional) — before the past-tense spend total.
+  // Guilt-free / safe to spend (present/conditional) — before the past-tense
+  // spend total. "safe to spend" stays a permanent alias (#295): users keep
+  // the phrase long after a relabel, and dropping it would silently demote a
+  // routed question to the LLM. The guilt-free alias is GATED off past-tense
+  // questions (critic P1-4, executed repro): "guilt free" is a real merchant
+  // and food-marketing phrase, so "how much did I spend at Guilt Free Bakery
+  // in June?" must fall through to the merchant/total parsers instead of
+  // answering with this month's plan figure.
   if (
     /\b(safe to spend|left to spend|spending plan)\b/.test(q) ||
+    (/\bguilt[- ]?free\b/.test(q) && !/\b(did|spent)\b/.test(q)) ||
     /\bhow much (can|could|should) i (safely |comfortably )?spend\b/.test(q) ||
     /\bcan i (afford|safely spend|spend)\b/.test(q) ||
     /\bafford\b/.test(q)

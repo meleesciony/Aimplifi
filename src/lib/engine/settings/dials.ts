@@ -46,6 +46,12 @@ export const DIAL_LIMITS = {
   retirementAge: { min: 18, max: 110 },
   endAge: { min: 19, max: 120 },
   inflationBps: { min: 0, max: 1000 }, // 0.00% – 10.00%
+  // Pay-yourself-first savings target (#295 / L.11(C)): % of expected monthly
+  // income reserved before guilt-free spending. 0% is a valid explicit "goals
+  // only"; the ceiling is deliberately generous (a FIRE-style saver may target
+  // well past Sethi's 20%) but stops short of 100%, where the plan would claim
+  // every future dollar is spoken for from a number that is itself an estimate.
+  savingsTargetBps: { min: 0, max: 9000 }, // 0.00% – 90.00%
 } as const;
 
 /** Account types from which a card payment may legitimately be drawn. */
@@ -68,6 +74,8 @@ export interface RawDials {
   endAge: string;
   /** Percent, e.g. "2.5". Empty string = use the default inflation assumption. */
   inflation: string;
+  /** Percent of expected income to save first, e.g. "15". Empty string = unset (goals only). */
+  savingsTarget: string;
 }
 
 export interface NormalizedDials {
@@ -81,6 +89,8 @@ export interface NormalizedDials {
   retirementAge: number | null;
   endAge: number | null;
   inflationBps: number | null;
+  /** Pay-yourself-first target, bps of expected income; null = unset (goals only). */
+  savingsTargetBps: number | null;
 }
 
 export type DialField = keyof RawDials;
@@ -264,6 +274,20 @@ export function validateDials(
     }
   }
 
+  // ── savings target (optional; empty = unset, goals alone decide savings) ──
+  let savingsTargetBps: number | null = null;
+  const stRaw = raw.savingsTarget.trim();
+  if (stRaw !== '') {
+    const st = bpsFromPercentString(stRaw);
+    if (st === null) {
+      errors.savingsTarget = 'Enter a percentage like 15 or 12.5.';
+    } else if (st < DIAL_LIMITS.savingsTargetBps.min || st > DIAL_LIMITS.savingsTargetBps.max) {
+      errors.savingsTarget = 'Savings target must be between 0% and 90%.';
+    } else {
+      savingsTargetBps = st;
+    }
+  }
+
   // ── cross-field ordering (only when each age that's set parsed cleanly) ──
   // Resolve each age to its EFFECTIVE value (entered value, else the default the read
   // path will use) so a partially-filled plan is checked against what it actually runs
@@ -293,6 +317,7 @@ export function validateDials(
       retirementAge: ra.value,
       endAge: ea.value,
       inflationBps,
+      savingsTargetBps,
     },
   };
 }

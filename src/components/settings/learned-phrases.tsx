@@ -23,7 +23,7 @@ const KIND_LABEL: Record<string, string> = {
   top_categories: 'your biggest categories',
   largest_purchases: 'your largest purchases',
   income: 'your income',
-  safe_to_spend: 'what’s safe to spend',
+  safe_to_spend: 'what’s guilt-free to spend',
   cash_needed: 'the cash you need for your cards',
   debt_payoff: 'your debt payoff plan',
   debt_free_by_date: 'being debt-free by a date',

@@ -158,7 +158,7 @@ describe('answerSavingsGoalByDate — honest copy per outcome', () => {
       withinSafeToSpend: true,
       remainingCents: 0,
     };
-    const a = answerSavingsGoalByDate(r, 'December 2028', '2028-12-31', '2026-06-10');
+    const a = answerSavingsGoalByDate(r, 'December 2028', '2028-12-31', '2026-06-10', 0);
     expect(a.headline).toMatch(/already set aside .* funded/i);
     expect(a.action).toBeUndefined();
   });
@@ -168,9 +168,9 @@ describe('answerSavingsGoalByDate — honest copy per outcome', () => {
       ...base, outcome: 'unreachable', targetMonths: 0,
       requiredMonthlyCents: null, monthsToGoal: null, shareOfSafeToSpendBps: null, withinSafeToSpend: null,
     };
-    expect(answerSavingsGoalByDate(soon, 'June 2026', '2026-06-30', '2026-06-10').headline).toMatch(/too soon/i);
+    expect(answerSavingsGoalByDate(soon, 'June 2026', '2026-06-30', '2026-06-10', 0).headline).toMatch(/too soon/i);
     const past: SavingsGoalByDateResult = { ...soon };
-    const a = answerSavingsGoalByDate(past, 'the end of 2020', '2020-12-31', '2026-06-10');
+    const a = answerSavingsGoalByDate(past, 'the end of 2020', '2020-12-31', '2026-06-10', 0);
     expect(a.headline).toMatch(/already behind us/i);
     expect(a.headline).not.toMatch(/too soon/i);
     expect(a.action).toBeUndefined();
@@ -181,11 +181,11 @@ describe('answerSavingsGoalByDate — honest copy per outcome', () => {
       ...base, outcome: 'reachable',
       requiredMonthlyCents: 50_000, monthsToGoal: 12, shareOfSafeToSpendBps: 2_500, withinSafeToSpend: true,
     };
-    const a = answerSavingsGoalByDate(r, 'June 2027', '2027-06-30', '2026-06-10');
+    const a = answerSavingsGoalByDate(r, 'June 2027', '2027-06-30', '2026-06-10', 0);
     expect(a.headline).toMatch(/save \$6,000\.00 by June 2027/);
     expect(a.headline).toMatch(/\$500\.00\/mo/);
-    expect(a.headline).toMatch(/25% of your safe-to-spend/);
-    expect(a.facts).toContainEqual({ label: 'Share of safe-to-spend', value: '25%' });
+    expect(a.headline).toMatch(/25% of your guilt-free spending/);
+    expect(a.facts).toContainEqual({ label: 'Share of guilt-free spending', value: '25%' });
     expect(a.action).toEqual({ kind: 'save_savings_goal', targetDate: '2027-06-30', label: 'June 2027', goalAmountCents: 600_000 });
   });
 
@@ -194,11 +194,11 @@ describe('answerSavingsGoalByDate — honest copy per outcome', () => {
       ...base, goalAmountCents: 1_200_000, remainingCents: 1_200_000, targetMonths: 2, outcome: 'reachable',
       requiredMonthlyCents: 600_000, monthsToGoal: 2, shareOfSafeToSpendBps: 120_000, withinSafeToSpend: false,
     };
-    const a = answerSavingsGoalByDate(r, 'August 2026', '2026-08-31', '2026-06-10');
+    const a = answerSavingsGoalByDate(r, 'August 2026', '2026-08-31', '2026-06-10', 0);
     expect(a.headline).toMatch(/\$6,000\.00\/mo/);
-    expect(a.headline).toMatch(/1200% of your safe-to-spend/);
+    expect(a.headline).toMatch(/1200% of your guilt-free spending/);
     expect(a.headline).toMatch(/beyond a single month/i);
-    expect((a.headline.match(/safe-to-spend/g) ?? []).length).toBe(1);
+    expect((a.headline.match(/guilt-free spending/g) ?? []).length).toBe(1);
     expect(a.action?.kind).toBe('save_savings_goal');
   });
 
@@ -207,12 +207,31 @@ describe('answerSavingsGoalByDate — honest copy per outcome', () => {
       ...base, outcome: 'reachable',
       requiredMonthlyCents: 50_000, monthsToGoal: 12, shareOfSafeToSpendBps: null, withinSafeToSpend: null,
     };
-    const a = answerSavingsGoalByDate(r, 'June 2027', '2027-06-30', '2026-06-10');
+    const a = answerSavingsGoalByDate(r, 'June 2027', '2027-06-30', '2026-06-10', 0);
     expect(a.headline).toMatch(/\$500\.00\/mo/);
     expect(a.headline).toMatch(/budget you don't have yet/i);
     expect(a.headline).not.toMatch(/%/);
-    expect(a.facts.some((f) => f.label === 'Share of safe-to-spend')).toBe(false);
+    expect(a.facts.some((f) => f.label === 'Share of guilt-free spending')).toBe(false);
     expect(a.action?.kind).toBe('save_savings_goal');
+  });
+
+  it('the Settings savings-target reserve is NAMED when it exists — "beyond budget" must not hide money already set aside (critic F3)', () => {
+    const r: SavingsGoalByDateResult = {
+      ...base, goalAmountCents: 720_000, remainingCents: 720_000, targetMonths: 11, outcome: 'reachable',
+      requiredMonthlyCents: 65_455, monthsToGoal: 11, shareOfSafeToSpendBps: 32_700, withinSafeToSpend: false,
+    };
+    const withReserve = answerSavingsGoalByDate(r, 'July 2027', '2027-07-31', '2026-06-10', 100_000);
+    expect(withReserve.detail).toContain('sets aside $1,000.00 of this month');
+    // Reserve ($1,000) covers required ($654.55) → the whole amount can come from it.
+    expect(withReserve.detail).toContain('this monthly amount can come out of that reserve first');
+    // Reserve ($50) covers only part of required ($654.55) → the sentence may
+    // claim only what the reserve covers (cycle-2 critic F2-3).
+    const partial = answerSavingsGoalByDate(r, 'July 2027', '2027-07-31', '2026-06-10', 5_000);
+    expect(partial.detail).toContain('the first $50.00 of this monthly amount can come out of that reserve');
+    expect(partial.detail).not.toContain('reserve first');
+    // No reserve → no claim about one.
+    const without = answerSavingsGoalByDate(r, 'July 2027', '2027-07-31', '2026-06-10', 0);
+    expect(without.detail).not.toContain('reserve');
   });
 
   it('every reachable answer states the no-growth assumption (guardrail: assumptions inline)', () => {
@@ -220,7 +239,7 @@ describe('answerSavingsGoalByDate — honest copy per outcome', () => {
       ...base, outcome: 'reachable',
       requiredMonthlyCents: 50_000, monthsToGoal: 12, shareOfSafeToSpendBps: 2_500, withinSafeToSpend: true,
     };
-    const a = answerSavingsGoalByDate(r, 'June 2027', '2027-06-30', '2026-06-10');
+    const a = answerSavingsGoalByDate(r, 'June 2027', '2027-06-30', '2026-06-10', 0);
     expect(`${a.detail}`).toMatch(/no investment growth/i);
     expect(`${a.detail}`).toMatch(/illustration, not advice/i);
   });
@@ -238,8 +257,8 @@ describe('share rounding (non-divisible) — engine + formatter', () => {
     });
     expect(r.requiredMonthlyCents).toBe(50_000);
     expect(r.shareOfSafeToSpendBps).toBe(1_333); // round(50000/375000*10000) = round(1333.33)
-    const a = answerSavingsGoalByDate(r, 'June 2027', '2027-06-30', '2026-06-10');
-    expect(a.headline).toMatch(/13% of your safe-to-spend/);
+    const a = answerSavingsGoalByDate(r, 'June 2027', '2027-06-30', '2026-06-10', 0);
+    expect(a.headline).toMatch(/13% of your guilt-free spending/);
   });
 });
 

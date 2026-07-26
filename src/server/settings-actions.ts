@@ -51,6 +51,7 @@ export async function updateMoneyDials(
     retirementAge: String(formData.get('retirementAge') ?? ''),
     endAge: String(formData.get('endAge') ?? ''),
     inflation: String(formData.get('inflation') ?? ''),
+    savingsTarget: String(formData.get('savingsTarget') ?? ''),
   };
 
   const result = validateDials(raw, eligible);
@@ -66,6 +67,7 @@ export async function updateMoneyDials(
     retirementAge,
     endAge,
     inflationBps,
+    savingsTargetBps,
   } = result.value;
   await prisma.user.update({
     where: { id: userId },
@@ -81,6 +83,8 @@ export async function updateMoneyDials(
       retirementAge,
       endAge,
       inflationBps,
+      // Null = unset: planned savings falls back to goal contributions alone (#295).
+      savingsTargetBps,
     },
   });
 
@@ -92,6 +96,7 @@ export async function updateMoneyDials(
     paymentAccountId,
     hasRetirementPlan:
       currentAge !== null || retirementAge !== null || endAge !== null || inflationBps !== null,
+    hasSavingsTarget: savingsTargetBps !== null,
   });
 
   // Re-derive everything that depends on these dials.
@@ -101,6 +106,8 @@ export async function updateMoneyDials(
   revalidatePath('/cards');
   revalidatePath('/accounts');
   revalidatePath('/investments'); // the retirement outlook reads the planning dials
+  revalidatePath('/spending-plan'); // guilt-free spending reads the savings target (#295)
+  revalidatePath('/budgets'); // the conscious-buckets strip re-partitions the same plan
 
   return { ok: true };
 }

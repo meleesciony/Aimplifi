@@ -29,7 +29,7 @@ export function redactTraceForShare(trace: NumberTrace): NumberTrace {
 
 const HEADLINE: Record<NumberTrace['key'], string> = {
   cash_needed: 'Cash needed',
-  safe_to_spend: 'Left to spend',
+  safe_to_spend: 'Guilt-free to spend',
 };
 
 /**

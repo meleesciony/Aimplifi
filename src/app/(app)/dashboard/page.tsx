@@ -259,7 +259,7 @@ export default async function DashboardPage({
       {/* at-a-glance summaries: this month's safe-to-spend + savings rate.
           Each links through to its full view (Plan / Coach). */}
       <div className="grid gap-5 sm:grid-cols-2">
-        <SafeToSpendCard plan={plan} />
+        <SafeToSpendCard plan={plan} disclosures={plan.disclosures} />
         <SavingsRateCard flows={coach.flows} currentRateBps={coach.currentRateBps} />
       </div>
 

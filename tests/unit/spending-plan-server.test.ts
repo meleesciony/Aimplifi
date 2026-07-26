@@ -1,0 +1,260 @@
+/**
+ * getSpendingPlan — the #295 guilt-free reframe, driven through the REAL
+ * server path against a throwaway user (a pure-builder test cannot catch a
+ * wiring bug — the L.15 lesson). Locks the claims the reframe makes, plus the
+ * critic-cycle fixes:
+ *
+ *  1. THE CASH SPLIT: a credit-card purchase is NOT in `spentSoFarCents`,
+ *     while a checking-account expense IS — and (critic F5) a credit-card
+ *     POSITIVE (cashback / statement credit) is not income either, since it
+ *     already shrinks the next statement.
+ *  2. THE MONTH WINDOW (critic F1): only obligations DUE THIS CALENDAR MONTH
+ *     are subtracted — a statement due next month is reserved against next
+ *     month's income, never two months'.
+ *  3. THE SETTINGS WIRING: `User.savingsTargetBps` reaches the engine, is a
+ *     FLOOR over goals (never a sum), and its unallocated reserve is carried.
+ *  4. SCHEDULED CADENCE (critic F4): a BIWEEKLY paycheck with two paydays
+ *     left this month counts twice, not once.
+ *  5. DISCLOSURES: an undatable OWING card is excluded from the term and
+ *     NAMED (the dangerous direction); an overpaid undated card is NOT named
+ *     under that claim (critic F8); a statement-pending card due this month
+ *     is named with its own mechanism (critic F2).
+ *
+ * NOTE liability balances are stored POSITIVE-owing (seed convention).
+ */
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { getSpendingPlan } from '@/server/spending-plan';
+import { prisma } from '@/lib/db';
+
+const TODAY = '2026-06-10';
+
+describe('getSpendingPlan — guilt-free spending (#295), real server path', () => {
+  const uid = `gfs-${Date.now()}-${process.pid}`;
+  let checkingId = '';
+  let cardId = '';
+
+  const wipe = async () => {
+    await prisma.goal.deleteMany({ where: { userId: uid } });
+    await prisma.account.deleteMany({ where: { userId: uid } }); // cascades transactions/statements/scheduled
+    await prisma.user.deleteMany({ where: { id: uid } });
+  };
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: uid, email: `${uid}@test.local` } });
+    const checking = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-chk`,
+        name: 'Everyday Checking',
+        type: 'CHECKING',
+        currentBalanceCents: 800000,
+        currency: 'USD',
+      },
+    });
+    checkingId = checking.id;
+    await prisma.user.update({ where: { id: uid }, data: { paymentAccountId: checkingId } });
+    const card = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-card`,
+        name: 'Rewards Card',
+        type: 'CREDIT',
+        currentBalanceCents: 30000, // owes $300 (stored positive)
+        currency: 'USD',
+      },
+    });
+    cardId = card.id;
+    // Income lands in checking; a cash expense posts from checking; a card
+    // PURCHASE posts on the credit account (must not count as cash spend);
+    // a card CASHBACK posts positive on the credit account (must not count
+    // as income — critic F5).
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: checkingId, date: '2026-06-03', amountCents: 500000, rawDescriptor: 'ACME PAYROLL', categoryId: 'income', confidenceBps: 9900, needsReview: false },
+        { accountId: checkingId, date: '2026-06-05', amountCents: -40000, rawDescriptor: 'GROCERY MART', categoryId: 'groceries', confidenceBps: 9000, needsReview: false },
+        { accountId: cardId, date: '2026-06-06', amountCents: -25000, rawDescriptor: 'BIG BOX STORE', categoryId: 'shopping', confidenceBps: 9000, needsReview: false },
+        { accountId: cardId, date: '2026-06-07', amountCents: 5000, rawDescriptor: 'CASHBACK REWARD', categoryId: null, confidenceBps: 0, needsReview: false },
+      ],
+    });
+    // The card's generated statement: $300.00 due June 25 → due THIS month.
+    await prisma.statement.create({
+      data: {
+        accountId: cardId,
+        cycleStart: '2026-05-06',
+        cycleEnd: '2026-06-05',
+        dueDate: '2026-06-25',
+        statementBalanceCents: 30000,
+        minimumPaymentCents: 3500,
+      },
+    });
+  });
+  afterAll(async () => {
+    await wipe();
+    vi.unstubAllEnvs();
+  });
+  beforeEach(() => {
+    vi.stubEnv('DEMO_TODAY', TODAY);
+  });
+
+  it('cash split (both directions) + the this-month obligation term', async () => {
+    const plan = await getSpendingPlan(uid);
+
+    // (1) Only the checking expense counts as spent-so-far…
+    expect(plan.spentSoFarCents).toBe(40000);
+    // …and the card cashback is NOT income (critic F5): income is the paycheck alone.
+    expect(plan.expectedIncomeCents).toBe(500000);
+    // (2) The statement due June 25 is this month's obligation.
+    expect(plan.cardObligationsCents).toBe(30000);
+    expect(plan.cardObligationsEstimated).toBe(false);
+    // Full identity: 5000 − 400 − 0 (bills) − 300 (card) − 0 (savings) = 4300.
+    expect(plan.upcomingBillsCents).toBe(0);
+    expect(plan.plannedSavingsCents).toBe(0);
+    expect(plan.leftToSpendCents).toBe(430000);
+    // No suspected duplicates, nothing frozen, nothing excluded.
+    expect(plan.disclosures.duplicatePairs).toEqual([]);
+    expect(plan.disclosures.frozenCards).toEqual([]);
+    expect(plan.disclosures.undatedCards).toEqual([]);
+    expect(plan.disclosures.statementPendingCards).toEqual([]);
+  });
+
+  it('a statement due NEXT month is not reserved against this month (critic F1)', async () => {
+    const border = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-border`,
+        name: 'Border Card',
+        type: 'CREDIT',
+        currentBalanceCents: 90000,
+        currency: 'USD',
+      },
+    });
+    await prisma.statement.create({
+      data: {
+        accountId: border.id,
+        cycleStart: '2026-05-16',
+        cycleEnd: '2026-06-15',
+        dueDate: '2026-07-10', // next month
+        statementBalanceCents: 90000,
+        minimumPaymentCents: 3500,
+      },
+    });
+    try {
+      const plan = await getSpendingPlan(uid);
+      // June's plan reserves only the June-due $300 — the $900 due July 10 is
+      // July's income's problem, not June's AND July's (the F1 double-reserve).
+      expect(plan.cardObligationsCents).toBe(30000);
+      // It is not "excluded and silent" either: it is simply next month's due,
+      // which no disclosure needs to apologize for (it has a real statement).
+      expect(plan.disclosures.statementPendingCards).toEqual([]);
+    } finally {
+      await prisma.account.delete({ where: { id: border.id } });
+    }
+  });
+
+  it('the Settings savings target reaches the engine, is a FLOOR over goals, and carries its reserve', async () => {
+    await prisma.user.update({ where: { id: uid }, data: { savingsTargetBps: 2000 } });
+    await prisma.goal.create({
+      data: { userId: uid, name: 'Emergency fund', targetCents: 1000000, savedCents: 0, monthlyContributionCents: 50000 },
+    });
+    try {
+      const plan = await getSpendingPlan(uid);
+      // 20% of $5,000 = $1,000 > $500 goal contribution → the target wins.
+      expect(plan.savingsTargetBps).toBe(2000);
+      expect(plan.goalContributionsCents).toBe(50000);
+      expect(plan.plannedSavingsCents).toBe(100000);
+      expect(plan.savingsSource).toBe('target');
+      expect(plan.unallocatedSavingsCents).toBe(50000); // the reserve beyond named goals (critic F3)
+      expect(plan.leftToSpendCents).toBe(330000); // 430000 − 100000
+    } finally {
+      await prisma.goal.deleteMany({ where: { userId: uid } });
+      await prisma.user.update({ where: { id: uid }, data: { savingsTargetBps: null } });
+    }
+  });
+
+  it('a BIWEEKLY paycheck with two paydays left counts twice (critic F4)', async () => {
+    await prisma.scheduledTransaction.create({
+      data: {
+        accountId: checkingId,
+        description: 'ACME PAYROLL',
+        amountCents: 250000,
+        nextDate: '2026-06-12',
+        cadence: 'BIWEEKLY',
+        source: 'payroll-detected',
+      },
+    });
+    try {
+      const plan = await getSpendingPlan(uid);
+      // Received 5000 + (2500 on Jun 12 AND 2500 on Jun 26) = 10000.
+      expect(plan.expectedIncomeCents).toBe(1000000);
+    } finally {
+      await prisma.scheduledTransaction.deleteMany({ where: { accountId: checkingId } });
+    }
+  });
+
+  it('an undatable OWING card is excluded from the term AND named; an OVERPAID one is not (critic F8)', async () => {
+    const ghost = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-ghost`,
+        name: 'Ghost Card',
+        type: 'CREDIT',
+        currentBalanceCents: 50000, // owes $500, no statement, no cycle days
+        currency: 'USD',
+      },
+    });
+    const overpaid = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-overpaid`,
+        name: 'Overpaid Card',
+        type: 'CREDIT',
+        currentBalanceCents: -2000, // credit balance — owes nothing
+        currency: 'USD',
+      },
+    });
+    try {
+      const plan = await getSpendingPlan(uid);
+      expect(plan.cardObligationsCents).toBe(30000); // unchanged — nothing invented
+      // Only the owing card may drive "the real figure may be lower".
+      expect(plan.disclosures.undatedCards.map((c) => c.cardName)).toEqual(['Ghost Card']);
+    } finally {
+      await prisma.account.delete({ where: { id: ghost.id } });
+      await prisma.account.delete({ where: { id: overpaid.id } });
+    }
+  });
+
+  it('a statement-pending card due this month is excluded from the term and named with its own mechanism (critic F2)', async () => {
+    // Cycle days but no generated statement → the estimate path; with the
+    // Rewards Card's REAL statement present, the engine parks the estimate in
+    // `upcoming` — excluded from the term even though it is due this month.
+    const pending = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-pending`,
+        name: 'Pending Card',
+        type: 'CREDIT',
+        currentBalanceCents: 80000,
+        currency: 'USD',
+        dueDayOfMonth: 24,
+        cycleCloseDayOfMonth: 11,
+      },
+    });
+    try {
+      const plan = await getSpendingPlan(uid);
+      expect(plan.cardObligationsCents).toBe(30000); // the estimate is NOT summed
+      expect(plan.disclosures.statementPendingCards.map((c) => c.cardName)).toEqual(['Pending Card']);
+      // …and it is NOT misfiled under the no-dates-at-all mechanism.
+      expect(plan.disclosures.undatedCards).toEqual([]);
+    } finally {
+      await prisma.account.delete({ where: { id: pending.id } });
+    }
+  });
+});

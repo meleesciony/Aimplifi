@@ -43,6 +43,15 @@ describe('parseAssistantQuery — routing', () => {
     ["what's safe to spend right now", 'safe_to_spend'],
     ['can I afford to spend more this week', 'safe_to_spend'],
     ['how much do I have left to spend', 'safe_to_spend'],
+    // guilt-free alias (#295) — present-tense plan questions route…
+    ['How much is guilt-free to spend this month?', 'safe_to_spend'],
+    ['what can I spend guilt-free?', 'safe_to_spend'],
+    ["what's my guilt free spending", 'safe_to_spend'],
+    // …but the alias is GATED off past-tense spend questions (critic P1-4):
+    // "Guilt Free" is a real merchant/product phrase, and a past-month
+    // merchant total must never be answered with this month's plan figure.
+    ['How much did I spend at Guilt Free Bakery in June?', 'merchant_spend'],
+    ['how much did i spend at guilt free desserts last month', 'merchant_spend'],
     // largest purchases
     ['what was my biggest purchase this month?', 'largest_purchases'],
     ['show my most expensive transactions last month', 'largest_purchases'],

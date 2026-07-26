@@ -48,6 +48,7 @@ export function MoneyDialsForm({
     retirementAge: number | null;
     endAge: number | null;
     inflationBps: number | null;
+    savingsTargetBps: number | null;
   };
   accounts: { id: string; name: string }[];
 }) {
@@ -217,6 +218,28 @@ export function MoneyDialsForm({
               commas or new lines. Up to 12, used to frame your spending, never to judge it.
             </span>
             <FieldError id="dials-error-moneyDials" message={err('moneyDials')} />
+          </label>
+
+          {/* savings target — the guilt-free-spending allocation (#295 / L.11C) */}
+          <label className="block space-y-1">
+            <span className="text-sm font-medium">Savings target (% of income, optional)</span>
+            <input
+              name="savingsTarget"
+              inputMode="decimal"
+              autoComplete="off"
+              placeholder="e.g. 15"
+              defaultValue={current.savingsTargetBps != null ? bpsToPercentInput(current.savingsTargetBps) : ''}
+              data-testid="dials-savings-target"
+              aria-invalid={err('savingsTarget') ? true : undefined}
+              aria-describedby={describedBy('savingsTarget', 'dials-hint-savings-target')}
+              className={fieldClass}
+            />
+            <span id="dials-hint-savings-target" className="text-xs text-muted-foreground">
+              Pay yourself first: this share of your expected monthly income is set aside
+              before guilt-free spending is counted. We reserve the larger of this and your
+              goal contributions — never both. Leave blank to use your goals alone.
+            </span>
+            <FieldError id="dials-error-savingsTarget" message={err('savingsTarget')} />
           </label>
 
           {/* ── retirement plan (optional; blank = our default assumption) ── */}

@@ -11,7 +11,9 @@ import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
 import { cents, formatCents } from '@/lib/money';
 
 const META: Record<ConsciousBucketKey, { label: string; bar: string; text: string }> = {
-  fixed: { label: 'Bills & spending', bar: 'bg-slate-400/80 dark:bg-slate-500/80', text: 'text-slate-600 dark:text-slate-300' },
+  // #295: the fixed bucket now also holds this month's card payments, so the
+  // label must not claim bills+spending alone (critic P3-13).
+  fixed: { label: 'Fixed costs', bar: 'bg-slate-400/80 dark:bg-slate-500/80', text: 'text-slate-600 dark:text-slate-300' },
   savings: { label: 'Savings & investing', bar: 'bg-sky-400/80', text: 'text-sky-600 dark:text-sky-400' },
   guiltFree: { label: 'Guilt-free', bar: 'bg-emerald-500/80', text: 'text-emerald-600 dark:text-emerald-400' },
 };

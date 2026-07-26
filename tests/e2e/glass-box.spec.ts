@@ -83,13 +83,13 @@ test('share snapshot is redacted and stays client-side', async ({ page, context 
   await expect(page.getByTestId('glass-box-share-status')).toContainText(/Copied|Saved/i);
 });
 
-test('spending plan: the four breakdown lines sum to "Left to spend" exactly', async ({ page }) => {
+test('spending plan: the five breakdown lines sum to "Guilt-free to spend" exactly', async ({ page }) => {
   await signIn(page);
   await page.goto('/spending-plan');
   await expect(page.getByTestId('spending-plan-hero')).toBeVisible();
 
   const rowTexts = await page.getByTestId('plan-row-amount').allTextContents();
-  expect(rowTexts).toHaveLength(4);
+  expect(rowTexts).toHaveLength(5);
   const rowSum = rowTexts.reduce((acc, t) => acc + textToCents(t), 0);
   const totalCents = textToCents((await page.getByTestId('plan-total').textContent()) ?? '');
   expect(rowSum).toBe(totalCents);

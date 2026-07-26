@@ -43,6 +43,7 @@ const SEED_DIALS: RawDials = {
   retirementAge: '',
   endAge: '',
   inflation: '',
+  savingsTarget: '',
 };
 
 describe('bpsFromPercentString', () => {
@@ -131,6 +132,8 @@ describe('validateDials — happy paths', () => {
       retirementAge: null,
       endAge: null,
       inflationBps: null,
+      // Empty savings target = unset (goals alone decide planned savings, #295).
+      savingsTargetBps: null,
     });
   });
 
@@ -253,6 +256,7 @@ describe('validateDials — rejections', () => {
         retirementAge: 'nope', // malformed
         endAge: '200', // above the 120 maximum
         inflation: '50', // above the 10% maximum
+        savingsTarget: '95', // above the 90% maximum
       },
       ELIGIBLE,
     );
@@ -267,10 +271,48 @@ describe('validateDials — rejections', () => {
         'moneyDials',
         'paymentAccountId',
         'retirementAge',
+        'savingsTarget',
         'swr',
         'wage',
       ].sort(),
     );
+  });
+});
+
+describe('validateDials — savings target (#295 / L.11C)', () => {
+  it('empty = null (unset — goals alone decide planned savings)', () => {
+    const r = validateDials(SEED_DIALS, ELIGIBLE);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.savingsTargetBps).toBeNull();
+  });
+
+  it('accepts 15 → 1500 bps and decimals → exact bps', () => {
+    const r = validateDials({ ...SEED_DIALS, savingsTarget: '15' }, ELIGIBLE);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.savingsTargetBps).toBe(1500);
+    const r2 = validateDials({ ...SEED_DIALS, savingsTarget: '12.5' }, ELIGIBLE);
+    expect(r2.ok && r2.value.savingsTargetBps === 1250).toBe(true);
+  });
+
+  it('accepts the boundaries: 0% (explicit goals-only) and 90%', () => {
+    const zero = validateDials({ ...SEED_DIALS, savingsTarget: '0' }, ELIGIBLE);
+    expect(zero.ok && zero.value.savingsTargetBps === 0).toBe(true);
+    const max = validateDials({ ...SEED_DIALS, savingsTarget: '90' }, ELIGIBLE);
+    expect(max.ok && max.value.savingsTargetBps === 9000).toBe(true);
+  });
+
+  it.each([
+    ['90.01'], // above max
+    ['100'], // above max
+    ['-5'], // malformed (no sign)
+    ['abc'], // malformed
+  ])('rejects savingsTarget = %s', (value) => {
+    const r = validateDials({ ...SEED_DIALS, savingsTarget: value }, ELIGIBLE);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors.savingsTarget).toBeTruthy();
   });
 });
 

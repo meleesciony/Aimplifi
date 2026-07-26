@@ -75,7 +75,7 @@ test('answers typed questions grounded in the seed', async ({ page }) => {
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/transactions');
 
   await ask(page, 'How much can I safely spend this month?');
-  await expect(page.getByTestId('ask-headline')).toContainText(/left to spend|over your plan/);
+  await expect(page.getByTestId('ask-headline')).toContainText(/guilt-free to spend|over your plan/);
   await expect(page.getByTestId('ask-source')).toBeVisible();
 
   // savings_rate delegates to the Coach read-path (same value as /coach)
@@ -248,7 +248,7 @@ test('Glass-Box 3: an UNTRACED derivation figure (safe-to-spend) stays a plain, 
   await page.goto('/ask');
   await ask(page, 'How much can I safely spend this month?');
   const headline = page.getByTestId('ask-headline');
-  await expect(headline).toContainText(/left to spend|over your plan/);
+  await expect(headline).toContainText(/guilt-free to spend|over your plan/);
   await expect(headline).toHaveJSProperty('tagName', 'P'); // a paragraph, not a button
   await expect(page.getByTestId('ask-trace')).toHaveCount(0);
 });

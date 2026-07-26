@@ -123,16 +123,25 @@ describe('headlineCents — the slice-3 boundary: TRACED derivation kinds set it
   // no tap: the UI must never offer an explanation slice 3 didn't build.
   it('safe_to_spend carries no headlineCents', () => {
     expect(
-      answerSafeToSpend({
-        expectedIncomeCents: 650000,
-        spentSoFarCents: 200000,
-        upcomingBillsCents: 100000,
-        plannedSavingsCents: 50000,
-        leftToSpendCents: 300000,
-        perDayCents: 10000,
-        daysLeftInMonth: 30,
-        overspent: false,
-      } as SpendingPlan).headlineCents,
+      answerSafeToSpend(
+        {
+          expectedIncomeCents: 650000,
+          spentSoFarCents: 200000,
+          upcomingBillsCents: 100000,
+          cardObligationsCents: 0,
+          goalContributionsCents: 50000,
+          savingsTargetBps: null,
+          plannedSavingsCents: 50000,
+          savingsSource: 'goals',
+          unallocatedSavingsCents: 0,
+          cardObligationsEstimated: false,
+          leftToSpendCents: 300000,
+          perDayCents: 10000,
+          daysLeftInMonth: 30,
+          overspent: false,
+        } as SpendingPlan,
+        { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [] },
+      ).headlineCents,
     ).toBeUndefined();
   });
 });

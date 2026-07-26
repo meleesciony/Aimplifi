@@ -2,6 +2,77 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-25 — L.11(C): Safe-to-Spend becomes guilt-free spending (DECISIONS #295/#307)
+
+The owner-decided IWT reframe. New formula: guilt-free = expected income − spending outside
+credit cards − upcoming bills (per remaining OCCURRENCE — a biweekly paycheck with two paydays
+left counts twice) − card obligations DUE THIS CALENDAR MONTH (the cash-needed engine's own
+`perDueDate` rows, month-filtered) − max(goal contributions, the new Settings savings-% target
+`User.savingsTargetBps`, nullable additive — the one schema change). Income and expenses BOTH
+exclude credit accounts: a card row reaches the plan only through its obligation, so a purchase
+is never charged twice and a cashback is never double-benefited. Four disclosure kinds ride the
+plan (undated OWING cards / statement-pending cards due this month / both-live duplicate pairs /
+frozen cards), resolved against the summed row set, rendered on the dashboard card, /spending-plan
+and the Ask answer with every direction word stated for THE FIGURE THE BRANCH RENDERS (the
+overspent branch shows the overage, so "lower/higher" flips with it). The Glass-Box trace is a
+five-term identity; `cardObligationsEstimated` rides the plan so no surface can claim statement
+provenance over the estimate path. The three inverse planners take the target's
+`unallocatedSavingsCents` (REQUIRED) and name the reserve instead of declaring "beyond budget"
+over money already set aside — claiming only the fraction the reserve actually covers. Parser:
+"safe to spend" stays a permanent alias; the new guilt-free alias is gated off past-tense
+questions ("Guilt Free Bakery" is a merchant).
+
+**Three critic cycles, all pre-ship.** Cycle 1 (two parallel fresh-context critics: money-math /
+copy honesty): FAIL — cross-month double-reservation of a statement; an estimate-path card due
+this month excluded from the term AND every disclosure; the solvers double-reserving the savings
+target; the demo's biweekly income half-counted (pre-existing, sign-deciding); cashback counted
+as income while shrinking the statement; direction-inverted qualifiers on the overspent branch;
+false statement provenance; the alias mis-route; an overpaid undated card given the wrong
+direction. ALL fixed + 8 REGRESSION_LEDGER rows. Cycle 2 (fresh context, aimed at the fixes):
+1 P1 (the Ask answer — the one untraced surface — dropped the estimate flag) + 2 fixable P2s
+(dashboard frozen note missing; the reserve sentence overstating coverage), all fixed + 2 more
+ledger rows; the window boundary, occurrence math, direction matrix and demo numbers were
+hand-verified to the cent and held.
+
+**Decided deliberately: the demo now opens on "Over plan by $2,468.83"** (June-due statements
+$5,412.33 vs $4,900 income). The math is hand-verified; the seeded dataset is a realistic
+revolver; hiding the state would re-create the exact contradiction this slice removes. The hero
+beside it still shows the balance-based question (covered but ~$1,012 short at the worst point) —
+different windows, each stated on its surface.
+
+**Gate:** `bash scripts/verify.sh` GREEN; full vitest **275+ files / 4300+ tests** (exact count
+in the final verify below); affected e2e serialized (spending-plan, glass-box, ask) **24/24** on
+a fresh build, including the five-line reconciliation.
+
+### 🟠 STILL OPEN after L.11(C) — recorded residuals
+
+1. **A loan/mortgage payment with NO detected recurring series is counted ZERO times** in this
+   plan (the demo's auto-loan ACH and any real loan whose checking-side series was never
+   detected). Where a series IS detected it arrives via `upcomingBillsCents` (the auto-loan
+   exception); adding `loanObligations` blindly would double-count those, so the honest fix
+   needs series↔obligation matching. Guilt-free is overstated by such payments.
+2. **A scheduled "auto-transfer to savings" is a bill until it posts, then nothing** (cycle-2
+   F2-8, pre-existing): the posted transfer is excluded as `isTransfer`, so guilt-free jumps by
+   the transfer amount the day it clears; and a user who ALSO sets a savings-% target counts the
+   same intent twice (the max() dedup covers goals-vs-target only). Real ingest paths cannot
+   create such a scheduled row today (the detector drops transfers), so this is seed/manual-row
+   territory — recorded, not fixed.
+3. **Stale-anchor edges** (cycle-2 F2-5/6, bounded by the recurring refresh that runs on every
+   sync): a stale-anchored bill leaves every term; an early-posting biweekly paycheck can count
+   once as received and once from its anchor. Documented on `scheduledOccurrencesInWindow`.
+4. **The non-credit filter excludes only CREDIT accounts** (cycle-2 F2-9): a positive on a LOAN
+   account that the transfer pair-detector misses would count as income; INVESTMENT-account
+   dividends counting as income may even be intended. No real-path fixture produced the loan case.
+5. **The reserve is this month's income × bps presented beside multi-year monthlies** (cycle-2
+   F2-11) — an approximation, mitigated by "Illustration, not advice" and now phrased "of this
+   month's income".
+6. **The dashboard card's three disclosure notes have no unit/e2e coverage** (the demo has no
+   undated/duplicate/frozen card, so the passive gates never render them) — the Ask builder and
+   the server disclosures are locked; the card's JSX branches are type-checked only.
+7. **At household scope the dashboard hero shows the MERGED cash-needed figure** while this plan
+   is personal by construction; coherence is claimed only against the viewer's own rows, and the
+   trace basis says so — a household-scope guilt-free view is future work.
+
 ## ✅ SHIPPED 2026-07-25 (#313) — L.21: the adversarial pass L.20 owed (critic cycle 1 — FAIL, all fixed)
 
 L.20 shipped verified but **without a hostile-critic pass** (the owner redirected mid-slice). This is

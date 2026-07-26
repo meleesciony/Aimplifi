@@ -77,13 +77,13 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
       return take([
         'How much did I spend this month?',
         "What's my savings rate?",
-        'How much can I safely spend this month?',
+        'How much is guilt-free to spend this month?',
       ]);
 
     case 'account_balance':
       return take([
         'What is my net worth?',
-        'How much can I safely spend this month?',
+        'How much is guilt-free to spend this month?',
         'How much do I need to pay my cards?',
       ]);
 
@@ -97,7 +97,7 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
     case 'cash_needed':
       return take([
         'Will I run out of money in the next 90 days?',
-        'How much can I safely spend this month?',
+        'How much is guilt-free to spend this month?',
         'When will I be debt-free?',
       ]);
 
@@ -111,7 +111,7 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
     case 'debt_free_by_date':
       return take([
         'When will I be debt-free?',
-        'How much can I safely spend this month?',
+        'How much is guilt-free to spend this month?',
         'What is my net worth?',
       ]);
 
@@ -120,7 +120,7 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
         intent.targetCents == null
           ? 'Can I save $20,000 by December 2028?'
           : "What's my savings rate?",
-        'How much can I safely spend this month?',
+        'How much is guilt-free to spend this month?',
         'What is my net worth?',
       ]);
 
@@ -134,14 +134,14 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
     case 'subscriptions':
       return take([
         'How much did I spend this month?',
-        'How much can I safely spend this month?',
+        'How much is guilt-free to spend this month?',
         'Will I run out of money in the next 90 days?',
       ]);
 
     case 'forecast':
       return take([
         'How much do I need to pay my cards?',
-        'How much can I safely spend this month?',
+        'How much is guilt-free to spend this month?',
         'What subscriptions am I paying for?',
       ]);
 
@@ -149,7 +149,7 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
       return take([
         'How much did I spend this month?',
         'What is my net worth?',
-        'How much can I safely spend this month?',
+        'How much is guilt-free to spend this month?',
       ]);
   }
 }

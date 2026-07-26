@@ -10,11 +10,13 @@
  *     balance (a stock), not a per-month contribution (a flow) — see
  *     src/server/coach.ts:92-94 — so there is no honest per-month investing
  *     number to show, and we never invent one.
- *   - "Fixed" combines bills + already-posted spend. `spentSoFarCents` mixes
- *     fixed and variable (plan.ts:15); the plan only isolates FUTURE bills
- *     (`upcomingBillsCents`). Re-deriving a fixed/discretionary split from
- *     categories would not reconcile to `spentSoFarCents` (different scoping +
- *     refund netting), so we present the provably-equal partition instead.
+ *   - "Fixed" combines bills + already-posted cash spend + this-cycle card
+ *     payments. `spentSoFarCents` mixes fixed and variable (plan.ts); the plan
+ *     only isolates FUTURE bills (`upcomingBillsCents`) and card obligations
+ *     (`cardObligationsCents`, #295). Re-deriving a fixed/discretionary split
+ *     from categories would not reconcile to `spentSoFarCents` (different
+ *     scoping + refund netting), so we present the provably-equal partition
+ *     instead.
  *
  * Pure: integer cents in, buckets out. No I/O, no `new Date()`, no rounding of
  * money — only `shareBps` (a display ratio, not a materialized cent) is rounded.
@@ -62,18 +64,20 @@ function shareBps(cents: number, incomeCents: number): number {
 
 /**
  * Re-partition a SpendingPlan into the conscious-spending buckets. The identity
- * preserved (from plan.ts:40-41):
- *   expectedIncome = spentSoFar + upcomingBills + plannedSavings + leftToSpend
+ * preserved (from plan.ts, #295 cash-month model):
+ *   expectedIncome = spentSoFar + upcomingBills + cardObligations + plannedSavings + leftToSpend
  * maps to:
- *   fixed     = spentSoFar + upcomingBills   (bills + already-posted spend)
- *   savings   = plannedSavings               (goal contributions; investing folded in)
+ *   fixed     = spentSoFar + upcomingBills + cardObligations
+ *               (cash spend + bills still coming + this-cycle card payments)
+ *   savings   = plannedSavings               (max of goal contributions and the
+ *                                             savings-% target; investing folded in)
  *   guiltFree = leftToSpend                  (the discretionary remainder; <0 when overspent)
  * so `fixed + savings + guiltFree === expectedIncome` by construction.
  */
 export function mapToConsciousBuckets(plan: SpendingPlan): ConsciousBuckets {
   const income = plan.expectedIncomeCents;
   const cellsByKey: Record<ConsciousBucketKey, number> = {
-    fixed: plan.spentSoFarCents + plan.upcomingBillsCents,
+    fixed: plan.spentSoFarCents + plan.upcomingBillsCents + plan.cardObligationsCents,
     savings: plan.plannedSavingsCents,
     guiltFree: plan.leftToSpendCents,
   };

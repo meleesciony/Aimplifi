@@ -1,23 +1,54 @@
 import { Gauge } from 'lucide-react';
 import { cents, formatCents } from '@/lib/money';
-import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
+import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
 /**
- * Dashboard summary of the Spending Plan (DECISIONS #66) — the "safe to spend"
- * number at a glance, linking through to the full plan. Tappable card, so the
- * whole thing is the affordance (no nested interactive elements).
+ * Dashboard summary of the Spending Plan (DECISIONS #66; #295 guilt-free
+ * reframe) — the "guilt-free spending" number at a glance, linking through to
+ * the full plan. Tappable card, so the whole thing is the affordance (no
+ * nested interactive elements).
+ *
+ * `disclosures` is REQUIRED (the L.15 lesson: a defaulted disclosure argument
+ * fails silent). Every direction word below is stated for THE FIGURE THIS
+ * BRANCH RENDERS: the overspent branch shows the OVERAGE — the negation of
+ * leftToSpend — so "lower/higher" flips with it (critic P1-2). The excluded
+ * cards note also renders on the noData branch (critic P2-8: the user whose
+ * ONLY data is an undatable card is the one for whom the disclosure is the
+ * only fact).
  */
-export function SafeToSpendCard({ plan }: { plan: SpendingPlan }) {
+export function SafeToSpendCard({
+  plan,
+  disclosures,
+}: {
+  plan: SpendingPlan;
+  disclosures: SpendingPlanDisclosures;
+}) {
   // "No data yet" only when the month has NO financial activity at all — never
   // mislabel a real $0-left (overspent / fully committed) as empty.
   const noData =
     plan.expectedIncomeCents === 0 &&
     plan.spentSoFarCents === 0 &&
     plan.upcomingBillsCents === 0 &&
+    plan.cardObligationsCents === 0 &&
     plan.plannedSavingsCents === 0;
   const ok = !plan.overspent;
+  // Both exclusion mechanisms share one direction claim, so they share one note.
+  const excludedCount = disclosures.undatedCards.length + disclosures.statementPendingCards.length;
+  const hasDuplicate = disclosures.duplicatePairs.length > 0;
+  const excludedNote =
+    excludedCount > 0 ? (
+      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400" data-testid="safe-to-spend-undated-note">
+        Doesn&rsquo;t count {excludedCount === 1 ? 'a card' : `${excludedCount} cards`} with a
+        balance but no statement or due date yet —{' '}
+        {noData
+          ? 'so there is no figure to show for it here.'
+          : ok
+            ? 'the real amount free to spend may be lower.'
+            : 'the real overage may be higher.'}
+      </p>
+    ) : null;
   return (
     <TrackedActedLink
       href="/spending-plan"
@@ -28,13 +59,18 @@ export function SafeToSpendCard({ plan }: { plan: SpendingPlan }) {
       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         <Gauge className="size-3.5" aria-hidden />
         {/* ROADMAP COPY-1 / #186: when overspent, the header itself must not
-            still say "Safe to spend" above an overage — reframe both label and amount. */}
-        {ok || noData ? 'Safe to spend' : 'Over plan'}
+            still claim spending is guilt-free above an overage — reframe both
+            label and amount. */}
+        {ok || noData ? 'Guilt-free to spend' : 'Over plan'}
       </div>
       {noData ? (
-        <p className="mt-1.5 text-sm text-muted-foreground" data-testid="dashboard-safe-to-spend-empty">
-          Once this month has some income and spending, your safe-to-spend amount shows up here.
-        </p>
+        <>
+          <p className="mt-1.5 text-sm text-muted-foreground" data-testid="dashboard-safe-to-spend-empty">
+            Once this month has income or spending we can count, your guilt-free spending amount
+            shows up here.
+          </p>
+          {excludedNote}
+        </>
       ) : (
         <>
           <p
@@ -54,9 +90,25 @@ export function SafeToSpendCard({ plan }: { plan: SpendingPlan }) {
                 {plan.daysLeftInMonth === 1 ? '' : 's'} left
               </>
             ) : (
-              <>safe to spend is $0 · {plan.daysLeftInMonth} day{plan.daysLeftInMonth === 1 ? '' : 's'} left</>
+              <>guilt-free is $0 · {plan.daysLeftInMonth} day{plan.daysLeftInMonth === 1 ? '' : 's'} left</>
             )}
           </p>
+          {excludedNote}
+          {hasDuplicate && (
+            <p className="mt-1 text-xs text-muted-foreground" data-testid="safe-to-spend-duplicate-note">
+              Two of the cards behind this figure may be the same card twice; if so{' '}
+              {ok ? 'the real amount free to spend is higher' : 'the real overage is smaller'} than
+              shown. Nothing was adjusted.
+            </p>
+          )}
+          {disclosures.frozenCards.length > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground" data-testid="safe-to-spend-frozen-note">
+              {disclosures.frozenCards.length === 1
+                ? 'A card behind this figure'
+                : `${disclosures.frozenCards.length} cards behind this figure`}{' '}
+              stopped being shared by the bank, so the card-payments amount may be stale.
+            </p>
+          )}
         </>
       )}
     </TrackedActedLink>

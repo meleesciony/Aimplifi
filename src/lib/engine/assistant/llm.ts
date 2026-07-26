@@ -42,7 +42,7 @@ export function buildIntentPrompt(question: string): string {
     '- top_categories: the biggest spending categories',
     '- largest_purchases: the single biggest individual purchases',
     '- income: money earned over a period',
-    '- safe_to_spend: how much is safe to spend this month',
+    '- safe_to_spend: how much is guilt-free (safe) to spend this month',
     '- cash_needed: how much is owed on credit cards and by when',
     '- debt_payoff: when the user will be debt-free / how to pay off loans and debts at their current payments, with NO specific deadline (snowball vs avalanche)',
     '- debt_free_by_date: whether the user can be debt-free by a SPECIFIC date they name (e.g. "by December 2027", "in 3 years") and what extra payment it would take',

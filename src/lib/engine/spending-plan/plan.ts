@@ -1,27 +1,139 @@
 /**
- * Spending Plan engine (DECISIONS #66) — the "safe to spend" answer, Simplifi's
- * signature view, surpassed by being exact: of this month's expected income,
- * after what you've already spent, the bills still coming, and your planned
- * savings, here's what's genuinely left — and what that is per remaining day.
+ * Spending Plan engine (DECISIONS #66, reframed by #295/L.11(C)) — the
+ * "guilt-free spending" answer in the I Will Teach You to Be Rich sense: of
+ * this month's expected income, after what you've already spent from cash
+ * accounts, the bills still coming, the card payments due this cycle, and your
+ * planned savings, here's what's genuinely free to spend — and what that is
+ * per remaining day.
+ *
+ * THE CASH-MONTH MODEL (why `spentSoFarCents` excludes credit cards): card
+ * PAYMENTS are transfers and never count as spend (`monthlyFlows` excludes
+ * `isTransfer` rows), so before #295 card PURCHASES counted at post time and
+ * the payment obligation was ignored — which is exactly the contradiction the
+ * owner reported (a "safe to spend" beside a cash-needed shortfall). Counting
+ * purchases AND subtracting the obligation would charge every card dollar
+ * twice (once when posted, once when its statement is paid), so the reframe
+ * moves whole-hog to cash: spending outside your credit cards counts when it
+ * posts, and card spending counts in the CALENDAR MONTH its statement's
+ * payment comes due — `cardObligationsCents` is the sum of the cash-needed
+ * engine's obligation rows whose effective due date falls in this month
+ * (critic F1: subtracting the WHOLE open cycle reserved the same statement
+ * against two months' income whenever it was due early in a month; a monthly
+ * plan may reserve a bill only against its due month). The rows are the
+ * engine's own — a subset of the exact set the cash-needed headline sums —
+ * so the two figures cannot disagree about what a card demands, only about
+ * the window they describe, and each states its window.
+ *
+ * Loan/mortgage payments are deliberately NOT a term here: where a recurring
+ * loan ACH is DETECTED it already arrives via `upcomingBillsCents`
+ * (detectRecurring keeps the auto-loan exception), and adding
+ * `loanObligations` on top would double-count those. A loan paid with no
+ * detected series — including the seeded demo user's, whose recurring
+ * detection never runs — is counted ZERO times: a known, recorded gap
+ * (docs/STATUS.md §L.11(C)), not a silent term.
  *
  * Pure: integer cents in, integer cents out, no I/O, no `new Date()`.
  */
-import type { ISODate } from '@/lib/dates';
+import { addDays, type ISODate } from '@/lib/dates';
 
 export interface SpendingPlanInput {
   today: ISODate;
   /** Expected income for the whole month = received so far + still-scheduled. */
   expectedIncomeCents: number;
-  /** Expenses already posted this month (bills + variable), as positive cents. */
+  /**
+   * Expenses already posted this month FROM CASH (non-credit) ACCOUNTS, as
+   * positive cents. Card purchases are excluded on purpose — they enter
+   * through `cardObligationsCents` when their statement's payment comes due
+   * (see the cash-month model above).
+   */
   spentSoFarCents: number;
   /** Recurring bills scheduled to post later this month (not yet spent). */
   upcomingBillsCents: number;
-  /** Planned savings this month (sum of goal monthly contributions). */
-  plannedSavingsCents: number;
+  /**
+   * Card payment obligations whose effective due date falls in THIS calendar
+   * month — the sum of the cash-needed engine's own `perDueDate` rows with
+   * `date <= end of month`, so each statement is reserved against exactly one
+   * month's income (its due month) and the rows can never disagree with the
+   * cash-needed answer about what a card demands.
+   */
+  cardObligationsCents: number;
+  /**
+   * True when any obligation summed into `cardObligationsCents` is the
+   * engine's ESTIMATE (no generated statement — the all-estimate state).
+   * Required so no surface can claim the term came from statements when it
+   * did not (critic P1-3: the fact must ride the money).
+   */
+  cardObligationsEstimated: boolean;
+  /** Sum of active goals' monthly contributions. */
+  goalContributionsCents: number;
+  /**
+   * Pay-yourself-first target as basis points of expected income (a Conscious
+   * Spending Plan allocation, set in Settings). null = unset.
+   */
+  savingsTargetBps: number | null;
+}
+
+/** Which input decided `plannedSavingsCents` — for honest labeling only. */
+export type SavingsSource = 'goals' | 'target';
+
+/**
+ * The facts a surface printing this plan's figure must be able to qualify it
+ * with (the L.18 discipline: the fact rides the money, so no surface can lose
+ * it). DATA, never copy — each surface builds its own sentence (the L.15
+ * lesson). All three are resolved by the SERVER against the set the
+ * card-payments term actually sums; the engine only carries the shape.
+ */
+export interface SpendingPlanDisclosures {
+  /**
+   * Cards OWING a balance (stored positive — critic F8: a credit-balance /
+   * overpaid card owes nothing and must not drive an "overstated" claim) that
+   * the cash-needed engine could not date — EXCLUDED from the card-payments
+   * term, so guilt-free may be OVERSTATED (the dangerous direction: the
+   * reader spends money a real card will demand).
+   */
+  undatedCards: { cardName: string; frozenSince: string | null }[];
+  /**
+   * Cards whose ESTIMATED obligation falls due this month but is excluded
+   * from the term because another card has a real statement (the engine's
+   * `upcoming` set — critic F2: excluded from the term AND from every other
+   * disclosure, the exact overstated-and-silent state the disclosures exist
+   * for). Same direction as `undatedCards`; different mechanism (the
+   * statement has not been generated yet), so a different sentence.
+   */
+  statementPendingCards: { cardName: string; dueDate: string }[];
+  /**
+   * Suspected same-card-twice pairs where BOTH sides are inside the
+   * card-payments term — if real, the term is inflated and guilt-free is
+   * UNDERSTATED. Advisory: no figure is adjusted (#192/#299 stance).
+   */
+  duplicatePairs: { aName: string; bName: string; confidence: 'high' | 'medium' }[];
+  /**
+   * Cards inside the card-payments term whose bank stopped sharing them —
+   * the subtracted amount rests on a statement/balance that stopped updating.
+   */
+  frozenCards: { label: string; frozenSince: string }[];
 }
 
 export interface SpendingPlan extends SpendingPlanInput {
-  /** Income − (spent + upcoming bills + savings). Can be negative (overspent). */
+  /**
+   * Resolved planned savings: the LARGER of goal contributions and the
+   * savings-% target applied to expected income. A floor, never a sum — the
+   * target and the goals both express "pay yourself first", so adding them
+   * would count the same intent twice.
+   */
+  plannedSavingsCents: number;
+  /** Which side won the max(). Ties (and a null target) read as 'goals'. */
+  savingsSource: SavingsSource;
+  /**
+   * The slice of `plannedSavingsCents` the savings-% target reserves BEYOND
+   * what named goals already claim (0 unless the target won). Critic F3: the
+   * inverse planners compare a required monthly against `leftToSpendCents`,
+   * which is net of this reserve — but a new savings/investing/debt plan is
+   * exactly what this reserve exists to fund, so the answers must be able to
+   * name it instead of declaring the plan "beyond budget".
+   */
+  unallocatedSavingsCents: number;
+  /** Income − (spent + upcoming bills + card payments + savings). Negative = overspent. */
   leftToSpendCents: number;
   /** Calendar days remaining this month, including today (≥ 1). */
   daysLeftInMonth: number;
@@ -36,8 +148,63 @@ export function daysInMonth(year: number, month: number): number {
   return [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
 }
 
+/**
+ * How many times a scheduled item lands inside (today, endOfMonth], given its
+ * next occurrence and cadence (critic F4: reading only `nextDate` half-counts
+ * a BIWEEKLY paycheck — and a biweekly bill — whenever two occurrences remain
+ * in the month). Rules:
+ *  - a `nextDate` outside the window (past-dated stale anchor, or beyond the
+ *    month) contributes 0 — a stale anchor is never extrapolated forward.
+ *    KNOWN CONSEQUENCES, accepted and recorded (cycle-2 critic F2-4/5/6): an
+ *    item dated TODAY is in no term for the rest of the day (`> today`
+ *    matches the posted/spent split — including it would double-count once
+ *    it posts); and until the recurring refresh advances a stale anchor, a
+ *    stale-anchored BILL leaves every term (overstates guilt-free) while a
+ *    stale-anchored PAYCHECK that posted early can count once as received
+ *    and again from its anchor — both bounded by the refresh that runs on
+ *    every sync;
+ *  - WEEKLY / BIWEEKLY step by 7 / 14 days while inside the window;
+ *  - every other cadence (MONTHLY, ANNUAL, IRREGULAR, null) contributes at
+ *    most the one dated occurrence — a monthly item cannot recur within one
+ *    month, and an irregular one has no interval to extrapolate.
+ */
+export function scheduledOccurrencesInWindow(
+  nextDate: string,
+  cadence: string | null,
+  today: ISODate,
+  endOfMonth: string,
+): number {
+  if (!(nextDate > today && nextDate <= endOfMonth)) return 0;
+  const stepDays = cadence === 'WEEKLY' ? 7 : cadence === 'BIWEEKLY' ? 14 : null;
+  if (stepDays === null) return 1;
+  let count = 0;
+  let d = nextDate as ISODate;
+  while (d > today && d <= endOfMonth) {
+    count += 1;
+    d = addDays(d, stepDays);
+  }
+  return count;
+}
+
+/**
+ * The savings-% target in cents. Math.round (half-up) — the rounding decision
+ * is named here on purpose (dedup lesson): a one-cent bias either way is
+ * immaterial, but every caller must share the SAME one.
+ */
+export function savingsTargetCents(expectedIncomeCents: number, savingsTargetBps: number | null): number {
+  if (savingsTargetBps == null || savingsTargetBps <= 0 || expectedIncomeCents <= 0) return 0;
+  return Math.round((expectedIncomeCents * savingsTargetBps) / 10000);
+}
+
 export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
-  const committed = input.spentSoFarCents + input.upcomingBillsCents + input.plannedSavingsCents;
+  const targetCents = savingsTargetCents(input.expectedIncomeCents, input.savingsTargetBps);
+  const plannedSavingsCents = Math.max(input.goalContributionsCents, targetCents);
+  const savingsSource: SavingsSource = targetCents > input.goalContributionsCents ? 'target' : 'goals';
+  const unallocatedSavingsCents =
+    savingsSource === 'target' ? plannedSavingsCents - input.goalContributionsCents : 0;
+
+  const committed =
+    input.spentSoFarCents + input.upcomingBillsCents + input.cardObligationsCents + plannedSavingsCents;
   const leftToSpendCents = input.expectedIncomeCents - committed;
 
   const year = Number(input.today.slice(0, 4));
@@ -49,6 +216,9 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
 
   return {
     ...input,
+    plannedSavingsCents,
+    savingsSource,
+    unallocatedSavingsCents,
     leftToSpendCents,
     daysLeftInMonth,
     perDayCents,

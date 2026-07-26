@@ -5241,3 +5241,120 @@ reusable) and over the Today-feed nudge `Proposal` shape (STATUS says it is a cl
 no free-text slot, so wiring it is a shape change). Then build /calendar first. Money-display copy
 over a data-integrity fact => Fable build + hostile critic, and per the L.18 lesson prove fail-old
 in BOTH directions: silencing the builder AND making it speak unconditionally.
+
+## L.11(C) guilt-free spending (DECISIONS #295) — design checkpoint, session 2026-07-25 (Fable)
+SCOPE: the owner-decided reframe: Safe-to-Spend -> "guilt-free spending" (IWT/Sethi): income minus
+fixed bills, minus THIS-CYCLE card obligations from the cash-needed engine, minus a savings-%% goal
+set in Settings. No commit anywhere builds it yet (verified: git log grep conscious/guilt).
+VERIFIED FACTS THE DESIGN RESTS ON (all read this session, file:line in chat):
+ - monthlyFlows counts card PURCHASES as expenses (accrual) and excludes card PAYMENTS
+   (isTransfer: pair-detector, TRANSFER_DESCRIPTOR normalize.ts:20-21, Plaid TRANSFER_IN/OUT,
+   seed). So naively subtracting obligations on top double-counts every card dollar across two
+   months (posted month + statement month).
+ - detectRecurring (detect.ts:96) skips transfers EXCEPT auto-loan ACH -> upcomingBills can never
+   contain a card-payment series (no overlap with card obligations) but DOES carry auto-loan
+   payments -> loanObligations must NOT be subtracted (would double-count CARMAX-class loans).
+ - cashNeededFromSnapshot(snap, today) is pure over the personal snapshot -> {result,...};
+   headline.requiredCents sums CYCLE obligations only (L.15: estimated/paid-off rows inflate
+   nothing). personalCardDuplicates(userId, snap, result) is exported (finance.ts:294).
+DESIGN:
+ 1. Cash-month model: spentSoFar = expenses from NON-CREDIT accounts only (two monthlyFlows
+    calls: full set for income, non-credit set for expenses); card purchases enter via the
+    obligation when their statement arrives. committed = cashSpent + upcomingBills +
+    cardObligations(headline.requiredCents, same figure the hero prints) + plannedSavings.
+ 2. Savings: engine takes goalContributionsCents + savingsTargetBps (null = unset); planned =
+    max(goals, round(income*bps/10000)) — the %% is a pay-yourself-first FLOOR, summing would
+    double-count the same intent; output names the winning source for honest labeling.
+ 3. Loan/mortgage payments outside a detected series remain un-subtracted — PRE-EXISTING
+    overstatement, recorded open in STATUS, not widened here (owner asked for CARD obligations).
+ 4. Schema: additive nullable User.savingsTargetBps; dials.ts validation (0-9000 bps) + settings
+    form field + updateMoneyDials write path.
+ 5. Disclosures the new figure inherits from cash-needed (#250 lesson): balance-carrying
+    undatable cards (overstatement — the dangerous direction), both-live duplicates resolved
+    against the CYCLE-obligation set (understatement), frozen obligations. Disclose, never adjust.
+ 6. Sweep: SafeToSpendCard, /spending-plan hero+legend(+card-payments segment)+explainer,
+    traceSafeToSpend 5/6-term identity, redact label, Ask answer/llm/intent(keep "safe to spend"
+    as parse alias, add guilt-free phrasings)/follow-ups/learned-phrases, solver share-of copy,
+    COACH_COPY.consciousSpending; conscious.ts fixed bucket gains cardObligations (identity holds).
+ 7. data-testids stay unchanged (safe-to-spend etc.) — copy changes, ids don't.
+GATE PLAN: engine tests first; verify.sh; spending-plan/ask/glass-box e2e explicitly; fresh-context
+hostile critic (money surface); DECISIONS/REGRESSION/STATUS/TASKS; commit+push+deploy-verify.
+
+## L.11(C) BUILT — checkpoint before critic verdicts. 2026-07-25
+IMPLEMENTED (all uncommitted, working tree):
+ - engine plan.ts: inputs {cardObligationsCents, goalContributionsCents, savingsTargetBps}; output
+   {plannedSavingsCents = max(goals, round(income*bps/1e4)), savingsSource, ...}; committed gains
+   the card-obligations term. savingsTargetCents() exported, Math.round named.
+ - conscious.ts: fixed bucket gains cardObligations; partition identity preserved.
+ - server/spending-plan.ts: income over ALL accounts, expenses over NON-CREDIT accounts (two
+   monthlyFlows calls); cardObligations = cashNeededFromSnapshot(snap).result.headline.requiredCents
+   (same snapshot -> personal scope + coherence by construction; guarded for account-less users);
+   savingsTargetBps from prisma.user; disclosures {undatedCards, duplicatePairs(resolved against
+   perDueDate-flattened summed set), frozenCards} ride the plan (SpendingPlanWithNotes).
+ - glass-box trace: 5-term identity + savings-source label + 3 basis sentences; -0 normalized;
+   redact headline 'Guilt-free to spend'.
+ - answerSafeToSpend(plan, disclosures REQUIRED): guilt-free copy + per-direction qualifiers.
+ - schema: User.savingsTargetBps Int? (additive); dials.ts savingsTarget field (0-9000 bps),
+   settings action persists + audits + revalidates /spending-plan + /budgets; form field added.
+ - UI: SafeToSpendCard relabeled + REQUIRED disclosures prop + undated/duplicate notes;
+   /spending-plan hero/5-segment bar/legend/breakdown/explainer + "What this figure can't see".
+ - copy sweep: solver share-of copy, suggestion line, chips (9 sites), llm.ts, learned-phrases,
+   COACH_COPY.consciousSpending, intent.ts alias guilt[- ]?free (safe-to-spend kept as alias).
+ - tests: spending-plan/conscious/glass-box/assistant-answer/headline-cents/settings-dials updated;
+   NEW tests/unit/spending-plan-server.test.ts (real Prisma throwaway user: cash split, coherence
+   with cashNeededFromSnapshot, savings-target floor wiring, undatable-card disclosure).
+GATES RUN (real output in session): bash scripts/verify.sh -> VERIFY GREEN (exit 0).
+Affected e2e serialized: spending-plan + glass-box + ask -> 24/24 passed (incl. the new five-line
+reconciliation "Guilt-free to spend" and guilt-free headline regexes).
+IN FLIGHT: full vitest count re-run; 2 parallel fresh-context critics (money-math/wiring lens;
+copy-honesty lens) — their findings must be RE-EXECUTED here before any fix (subagent-green lesson).
+NEXT: critic verdicts -> fixes -> re-verify -> DECISIONS #307 + REGRESSION_LEDGER + STATUS + TASKS
+row -> commit, push (schema diff IS present: prisma db push will run on deploy — additive nullable
+only) -> verify deploy READY + live check.
+
+## L.11(C) CRITIC CYCLE 1 — FAIL, all findings fixed and locked. 2026-07-25
+Two parallel fresh-context critics (money-math/wiring; copy honesty). Verdict FAIL. Fixed, with
+every money finding re-locked by an executed test (8 REGRESSION_LEDGER rows, DECISIONS #307):
+ F1 cross-month double-reservation -> obligations now MONTH-WINDOWED from perDueDate (p.date <=
+   endOfMonth); F2 estimate-path card due this month -> new statementPendingCards disclosure;
+ F3 solver double-reserve of the savings target -> unallocatedSavingsCents rides the plan,
+   REQUIRED on all three inverse-planner builders, reserve named in the answer; F4 BIWEEKLY
+   half-count -> scheduledOccurrencesInWindow (pure, stale anchors never extrapolated) — demo June
+   income now 490000 not 245000; F5 card cashback double-benefit -> income AND expenses both
+   non-credit; F8 overpaid undated card -> owing-only filter; P1-1/P1-2 overspent-branch direction
+   inversion -> every qualifier flips with the branch, all three surfaces; P1-3 false statement
+   provenance -> cardObligationsEstimated REQUIRED on the plan, trace row + basis + page
+   "(estimated)"; P1-4 guilt-free alias mis-route -> gated off /\b(did|spent)\b/; P2-5 conditional
+   savings basis; P2-6 wording "outside your credit cards"; P2-7 hero/breakdown unification;
+   P2-8 noData branch renders the excluded-cards note; P2-9 scope-qualified coherence claims;
+   P3-11/12/13 copy nits. ACCEPTED-NOT-CHANGED: P2-10 next-month estimates are legitimately out
+   of window (each surface states its window); F7 scheduled savings-transfer-as-bill is
+   unreachable from real ingest paths (detector drops transfers; demo row day-1 stale anchor) —
+   recorded; F9 pay-in-full assumption now STATED in explainer + basis rather than changed.
+DEMO STATE (executed probe): income 490000 / spent 15650 / bills 180000 / cards 541233 (June-due,
+not estimated) / left -246883 -> "Over plan by $2,468.83" — honest for the seeded revolver; the
+hero's balance-based question still reads covered; windows stated per surface.
+GATES RE-RUN, real output in session: tsc 0; full vitest 275 files / 4318 tests ALL PASS (alone);
+bash scripts/verify.sh -> VERIFY GREEN; affected e2e serialized (spending-plan, glass-box, ask)
+24/24 on the FRESH build.
+IN FLIGHT: critic cycle 2 (fresh context, aimed at the fixes: window boundary, cadence edges,
+direction matrix, alias gate, reserve honesty). NEXT: cycle-2 verdict -> STATUS + TASKS row ->
+commit/push (prisma diff = one nullable column -> db push on deploy) -> deploy verify.
+
+## L.11(C) CRITIC CYCLE 2 — 1 P1 + 2 P2 on the fixes, all fixed; slice COMPLETE. 2026-07-25
+Cycle-2 fresh-context critic (aimed at the cycle-1 fixes): F2-1 P1 the Ask answer (the one
+UNTRACED surface) dropped cardObligationsEstimated -> estimate qualifier + "(estimated)" fact
+label now composed in answerSafeToSpend, locked; F2-2 P2 dashboard card had no frozen note ->
+added (safe-to-spend-frozen-note); F2-3 P2 the reserve sentence overstated coverage -> claims
+only min(required, reserve), locked with the partial-coverage case. 2 more ledger rows (10
+total). ACCEPTED + RECORDED (STATUS §STILL OPEN after L.11(C)): today-boundary exclusivity,
+stale-anchor edges, savings-transfer-as-bill, CREDIT-only refilter scope, reserve /mo stability,
+dashboard-note e2e gap, household-scope hero. DECIDED DELIBERATELY: demo opens "Over plan by
+$2,468.83" (hand-verified to the cent by the critic; recorded in DECISIONS #307 + STATUS).
+Critic's window-boundary probe (Sat-due walk-back), occurrence math, direction matrix: SOUND.
+FINAL GATES (real output in session): bash scripts/verify.sh -> VERIFY GREEN, full vitest 275
+files / 4319 tests; e2e spending-plan+glass-box+ask serialized 24/24 on the final build.
+DOCS: DECISIONS #307 (+index), 10 REGRESSION_LEDGER rows, STATUS §L.11(C) (+7 residuals),
+TASKS L.11 row -> [x] DONE.
+NEXT: commit, push (prisma diff = ONE additive nullable column User.savingsTargetBps -> db push
+runs against live Neon on deploy), verify deployment READY + aliases.

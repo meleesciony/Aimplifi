@@ -8,7 +8,7 @@ import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-style
  * nav icon (the 380px bar is full at 7 — #71/#74). Whole-card link, matching the
  * Trends / Recurring dashboard cards.
  */
-const EXAMPLES = ['What can I safely spend?', 'Spending on groceries last month?', 'Any subscriptions to cut?'];
+const EXAMPLES = ['What can I spend guilt-free?', 'Spending on groceries last month?', 'Any subscriptions to cut?'];
 
 export function AskAimplifiCard() {
   return (

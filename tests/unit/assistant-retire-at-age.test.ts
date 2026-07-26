@@ -140,11 +140,11 @@ describe('answerRetireAtAge — honest copy per outcome', () => {
       withinSafeToSpend: true,
       unreachableReason: null,
     };
-    const a = answerRetireAtAge(r, 'age 60');
+    const a = answerRetireAtAge(r, 'age 60', 0);
     expect(a.headline).toMatch(/To retire at 60/);
     expect(a.headline).toMatch(/\$300\.00\/mo/);
-    expect(a.headline).toMatch(/15% of your safe-to-spend/);
-    expect(a.facts).toContainEqual({ label: 'Share of safe-to-spend', value: '15%' });
+    expect(a.headline).toMatch(/15% of your guilt-free spending/);
+    expect(a.facts).toContainEqual({ label: 'Share of guilt-free spending', value: '15%' });
     expect(a.action).toEqual({ kind: 'save_retirement_age', targetAge: 60, label: 'age 60' });
     expect(a.source).toEqual({ label: 'Open retirement outlook', href: '/investments' });
   });
@@ -159,11 +159,11 @@ describe('answerRetireAtAge — honest copy per outcome', () => {
       withinSafeToSpend: false,
       unreachableReason: null,
     };
-    const a = answerRetireAtAge(r, 'age 60');
+    const a = answerRetireAtAge(r, 'age 60', 0);
     expect(a.headline).toMatch(/\$7,000\.00\/mo/);
-    expect(a.headline).toMatch(/350% of your safe-to-spend/);
+    expect(a.headline).toMatch(/350% of your guilt-free spending/);
     expect(a.headline).toMatch(/beyond a single month/i);
-    expect((a.headline.match(/safe-to-spend/g) ?? []).length).toBe(1);
+    expect((a.headline.match(/guilt-free spending/g) ?? []).length).toBe(1);
     expect(a.action?.kind).toBe('save_retirement_age');
   });
 
@@ -177,11 +177,11 @@ describe('answerRetireAtAge — honest copy per outcome', () => {
       withinSafeToSpend: null,
       unreachableReason: null,
     };
-    const a = answerRetireAtAge(r, 'age 60');
+    const a = answerRetireAtAge(r, 'age 60', 0);
     expect(a.headline).toMatch(/\$300\.00\/mo/);
     expect(a.headline).toMatch(/budget you don't have yet/i);
     expect(a.headline).not.toMatch(/%/);
-    expect(a.facts.some((f) => f.label === 'Share of safe-to-spend')).toBe(false);
+    expect(a.facts.some((f) => f.label === 'Share of guilt-free spending')).toBe(false);
     expect(a.action?.kind).toBe('save_retirement_age');
   });
 
@@ -195,7 +195,7 @@ describe('answerRetireAtAge — honest copy per outcome', () => {
       withinSafeToSpend: true,
       unreachableReason: null,
     };
-    const a = answerRetireAtAge(r, 'age 60');
+    const a = answerRetireAtAge(r, 'age 60', 0);
     expect(a.headline).toMatch(/on track to retire at 60/i);
     expect(a.facts).toContainEqual({ label: 'Extra needed', value: '$0.00/mo' });
     expect(a.action?.kind).toBe('save_retirement_age');
@@ -216,17 +216,18 @@ describe('answerRetireAtAge — honest copy per outcome', () => {
       ...over,
     });
 
-    const past = answerRetireAtAge(u({ retirementAge: 39, unreachableReason: 'age-in-past' }), 'age 39');
+    const past = answerRetireAtAge(u({ retirementAge: 39, unreachableReason: 'age-in-past' }), 'age 39', 0);
     expect(past.headline).toMatch(/at or before your age today/i);
     expect(past.action).toBeUndefined();
 
-    const after = answerRetireAtAge(u({ retirementAge: 100, unreachableReason: 'age-after-end' }), 'age 100');
+    const after = answerRetireAtAge(u({ retirementAge: 100, unreachableReason: 'age-after-end' }), 'age 100', 0);
     expect(after.headline).toMatch(/past the age your plan runs through/i);
     expect(after.action).toBeUndefined();
 
     const cannot = answerRetireAtAge(
       u({ retirementAge: 40, unreachableReason: 'cannot-sustain', plannedAnnualWithdrawalCents: 1_200_000 }),
       'age 40',
+      0,
     );
     expect(cannot.headline).toMatch(/can't cover about \$12,000\.00\/yr/);
     expect(cannot.action).toBeUndefined();
@@ -242,7 +243,7 @@ describe('answerRetireAtAge — honest copy per outcome', () => {
       withinSafeToSpend: true,
       unreachableReason: null,
     };
-    const a = answerRetireAtAge(r, 'age 60');
+    const a = answerRetireAtAge(r, 'age 60', 0);
     expect(`${a.detail}`).toMatch(/illustration, not advice/i);
     expect(`${a.detail}`).toMatch(/today's dollars|after-inflation/i);
   });

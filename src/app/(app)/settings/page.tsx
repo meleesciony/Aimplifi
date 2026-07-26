@@ -54,6 +54,7 @@ export default async function SettingsPage() {
           retirementAge: true,
           endAge: true,
           inflationBps: true,
+          savingsTargetBps: true,
         },
       }),
       prisma.account.findMany({
@@ -124,6 +125,7 @@ export default async function SettingsPage() {
           retirementAge: user.retirementAge,
           endAge: user.endAge,
           inflationBps: user.inflationBps,
+          savingsTargetBps: user.savingsTargetBps,
         }}
         accounts={eligibleAccounts}
       />
