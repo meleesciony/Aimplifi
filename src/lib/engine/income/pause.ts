@@ -143,6 +143,11 @@ function seriesResumed(s: RecurringSeriesResult, today: ISODate): boolean {
  *     canonical (vanished from detection, or cadence drifted to ANNUAL/none):
  *     nothing is projected for it, so nothing is excluded, no row renders, and
  *     the confirmation is KEPT (deleting on absence-of-evidence is F1's bug).
+ *     The ANNUAL half of that rests on a decision, not on the cadence list:
+ *     `toScheduledTransactions` projects annual EXPENSES but deliberately not
+ *     annual INCOME (L.23, and the reason is written there). A slice that ever
+ *     projects annual income must revisit this branch and `isPauseCadence` with
+ *     it — an annual paycheck cannot be judged late by a monthly grace window.
  */
 export function confirmedPauseState(
   series: readonly RecurringSeriesResult[],

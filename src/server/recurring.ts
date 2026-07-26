@@ -181,10 +181,13 @@ export async function refreshRecurringForUser(
       });
     }
   }
-  const scheduledRows = paymentAccountId ? toScheduledTransactions(projectable, paymentAccountId) : [];
+  const scheduledRows = paymentAccountId ? toScheduledTransactions(projectable, paymentAccountId, today) : [];
 
-  // Full replace, atomically. Only the DETECTED scheduled rows are swapped — the
-  // user's own / autopay / seed scheduled rows are left intact.
+  // Full replace, atomically. Only the DETECTED scheduled rows are swapped — a
+  // SEEDED row is left intact. (The 'user' and 'autopay' sources the column
+  // documents have no writer anywhere in the app; the filter would spare them,
+  // but no comment here should imply they exist — L.23 copy critic P2-1, the same
+  // mistake as the "an annual bill entered by you" clause this slice deleted.)
   await prisma.$transaction([
     prisma.recurringSeries.deleteMany({ where: { userId } }),
     prisma.recurringSeries.createMany({ data: seriesRows }),

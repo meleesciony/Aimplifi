@@ -219,65 +219,85 @@ export default async function SpendingPlanPage() {
 
       {/* What this figure cannot see — each claim states its own direction, for the
           quantity itself (anchor-free — the hero shows the overage when overspent),
-          and no figure above was adjusted (#192/#299 stance). */}
-      {(d.undatedCards.length > 0 ||
-        d.statementPendingCards.length > 0 ||
-        d.duplicatePairs.length > 0 ||
-        d.frozenCards.length > 0) && (
-        <section
-          className="rounded-2xl border bg-card p-5 shadow-sm"
-          data-testid="spending-plan-disclosures"
-        >
-          <h2 className="mb-2 text-sm font-semibold">What this figure can&apos;t see</h2>
-          <ul className="space-y-2 text-xs text-muted-foreground">
-            {d.undatedCards.length > 0 && (
-              <li data-testid="plan-undated-note">
-                {d.undatedCards.length === 1 ? 'One card has' : `${d.undatedCards.length} cards have`} a
-                balance but no due date yet ({d.undatedCards.map((c) => c.cardName).join(', ')}) —{' '}
-                {d.undatedCards.length === 1 ? 'its payment is' : 'their payments are'} not in the
-                card-payments line, so{' '}
-                {positive
-                  ? 'the real amount free to spend may be lower than shown'
-                  : 'the real overage may be higher than shown'}
-                .
-              </li>
-            )}
-            {d.statementPendingCards.length > 0 && (
-              <li data-testid="plan-statement-pending-note">
-                {d.statementPendingCards.length === 1 ? 'A statement has' : 'Statements have'} not
-                been generated yet for{' '}
-                {d.statementPendingCards.map((c) => `${c.cardName} (due around ${c.dueDate})`).join('; ')}, so{' '}
-                {d.statementPendingCards.length === 1 ? 'that payment is' : 'those payments are'} not in
-                the card-payments line —{' '}
-                {positive
-                  ? 'the real amount free to spend may be lower than shown'
-                  : 'the real overage may be higher than shown'}
-                .
-              </li>
-            )}
-            {d.duplicatePairs.map((pair, i) => (
-              <li key={i} data-testid="plan-duplicate-note">
-                {pair.aName} and {pair.bName} in the card-payments line look like the same card
-                counted twice ({pair.confidence === 'high' ? 'strong match' : 'possible match'}).
-                If so, that line is higher than you owe and{' '}
-                {positive
-                  ? 'the real amount free to spend is higher than shown'
-                  : 'the real overage is smaller than shown'}
-                . No amount was adjusted — only you can confirm it, on Accounts.
-              </li>
-            ))}
-            {d.frozenCards.length > 0 && (
-              <li data-testid="plan-frozen-note">
-                The bank stopped sharing{' '}
-                {d.frozenCards.length === 1
-                  ? `one card in the card-payments line (${d.frozenCards[0].label}, since ${d.frozenCards[0].frozenSince})`
-                  : `${d.frozenCards.length} cards in the card-payments line (${d.frozenCards.map((c) => c.label).join(', ')})`}
-                , so {d.frozenCards.length === 1 ? 'its amount' : 'their amounts'} may be stale.
-              </li>
-            )}
-          </ul>
-        </section>
-      )}
+          and no figure above was adjusted (#192/#299 stance).
+
+          Unconditional since L.23: the first two items below are properties of the
+          DETECTOR rather than of any one card, so they hold for every reader — and
+          both point the same way (a bill nobody counted makes the figure too
+          generous). The per-card items keep their own gates. */}
+      <section
+        className="rounded-2xl border bg-card p-5 shadow-sm"
+        data-testid="spending-plan-disclosures"
+      >
+        <h2 className="mb-2 text-sm font-semibold">What this figure can&apos;t see</h2>
+        <ul className="space-y-2 text-xs text-muted-foreground">
+          <li data-testid="plan-unrecognized-cadence-note">
+            A bill that repeats on a rhythm we don&apos;t recognize yet — every ten days, every
+            three weeks, every six weeks, every couple of months, quarterly, or twice a year — is
+            not counted as a recurring bill at all, so{' '}
+            {positive
+              ? 'the real amount free to spend may be lower than shown'
+              : 'the real overage may be higher than shown'}
+            . We recognize weekly, every-two-weeks, monthly and yearly rhythms.
+          </li>
+          {!p.scheduledFixed.some((s) => s.cadence === 'ANNUAL') && (
+            <li data-testid="plan-annual-precondition-note">
+              A yearly bill has to have been charged three times at a steady price before the
+              pattern is visible — roughly two years of history — and a premium that rises every
+              year never becomes visible. Until then a yearly bill counts as $0 here, so{' '}
+              {positive
+                ? 'the real amount free to spend may be lower than shown'
+                : 'the real overage may be higher than shown'}
+              .
+            </li>
+          )}
+          {d.undatedCards.length > 0 && (
+            <li data-testid="plan-undated-note">
+              {d.undatedCards.length === 1 ? 'One card has' : `${d.undatedCards.length} cards have`} a
+              balance but no due date yet ({d.undatedCards.map((c) => c.cardName).join(', ')}) —{' '}
+              {d.undatedCards.length === 1 ? 'its payment is' : 'their payments are'} not in the
+              card-payments line, so{' '}
+              {positive
+                ? 'the real amount free to spend may be lower than shown'
+                : 'the real overage may be higher than shown'}
+              .
+            </li>
+          )}
+          {d.statementPendingCards.length > 0 && (
+            <li data-testid="plan-statement-pending-note">
+              {d.statementPendingCards.length === 1 ? 'A statement has' : 'Statements have'} not
+              been generated yet for{' '}
+              {d.statementPendingCards.map((c) => `${c.cardName} (due around ${c.dueDate})`).join('; ')}, so{' '}
+              {d.statementPendingCards.length === 1 ? 'that payment is' : 'those payments are'} not in
+              the card-payments line —{' '}
+              {positive
+                ? 'the real amount free to spend may be lower than shown'
+                : 'the real overage may be higher than shown'}
+              .
+            </li>
+          )}
+          {d.duplicatePairs.map((pair, i) => (
+            <li key={i} data-testid="plan-duplicate-note">
+              {pair.aName} and {pair.bName} in the card-payments line look like the same card
+              counted twice ({pair.confidence === 'high' ? 'strong match' : 'possible match'}).
+              If so, that line is higher than you owe and{' '}
+              {positive
+                ? 'the real amount free to spend is higher than shown'
+                : 'the real overage is smaller than shown'}
+              . No amount was adjusted — only you can confirm it, on Accounts.
+            </li>
+          ))}
+          {d.frozenCards.length > 0 && (
+            <li data-testid="plan-frozen-note">
+              The bank stopped sharing{' '}
+              {d.frozenCards.length === 1
+                ? `one card in the card-payments line (${d.frozenCards[0].label}, since ${d.frozenCards[0].frozenSince})`
+                : `${d.frozenCards.length} cards in the card-payments line (${d.frozenCards.map((c) => c.label).join(', ')})`}
+              , so {d.frozenCards.length === 1 ? 'its amount' : 'their amounts'} may be stale.
+            </li>
+          )}
+        </ul>
+      </section>
     </div>
   );
 }

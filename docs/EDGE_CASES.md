@@ -2432,3 +2432,53 @@ discloses (docs/PRIVACY.md: name, type, last-4 mask, current balance).
 never sets it and a manual account hardcodes null (`networth-actions.ts:52`), and the demo seed writes
 none. So a SimpleFIN-only or manual-only user gets the numbering fallback rather than real last-4s,
 and demo mode exercises the fallback only.
+
+## §Recurring cadence → monthly rate, and the projection window (L.23, hand-verified)
+
+**A. The monthly rate of each cadence.** `monthlyRateCents` on a $120.00/wk, $120.00/2wk,
+$250.00/mo and $1,200.00/yr bill: weekly `round(12000 × 52 / 12)` = **$520.00**; biweekly
+`round(12000 × 26 / 12)` = **$260.00**; monthly **$250.00** unchanged; annual
+`round(120000 / 12)` = **$100.00**. IRREGULAR and a null cadence count at face ×1 — the safe
+direction for the least predictable shape the detector emits.
+
+**B. Which cadences reach the money at all.** `toScheduledTransactions` projects WEEKLY,
+BIWEEKLY, MONTHLY, and ANNUAL **for expenses only, and only while the series is still charging**.
+An annual INCOME series is held out (a bonus dated from one 365-day gap would offset a projected
+dip and silence a warning — the failure direction differs by role). Every other rhythm reaches
+nothing, because `cadenceFromGap`'s windows are 5–9, 12–16, 26–35 and 350–380 days and
+`detectRecurring` drops IRREGULAR before the filter is reached — executed, the dropped set
+includes 10-day, 21-day (three-weekly), 42-day (six-weekly), 61-day (bi-monthly), 91-day
+(quarterly), 182-day (semiannual) and 548-day rhythms, and the annual window's own edges are
+sharp: a 349-day gap is dropped, 350 and 380 are ANNUAL, 381 is dropped.
+
+**B2. What an annual series costs to detect.** Three sightings at a stable amount: two points give
+one gap and no median to infer a cadence from, and three distinct amounts (a premium that rises
+every year) fail the two-plateau stability rule. Three yearly sightings span **731 days**, so an
+annual bill is invisible until roughly two years of history exist — which is why the audit
+panel's yearly-bill clause is gated on one actually being in the figure, and why the
+"What this figure can't see" list states the precondition when it is not.
+
+**B3. When a series stops counting.** `isSeriesActive` — silence longer than `CADENCE_DAYS ×
+1.5`, rounded — is shared by the projection filter and the `/recurring` summary, so a lapsed
+series cannot be $0/month on one surface and a full monthly rate on the other. At ANNUAL that is
+548 days: last seen 2025-01-01 is still charging on 2026-07-03 (548) and not on 2026-07-04 (549).
+The gate is applied to ANNUAL only; a MONTHLY series silent for a year is still projected
+(recorded in docs/STATUS.md §L.23 OPEN #6).
+
+**C. One occurrence per sub-year window.** A $1,200.00 premium next due 2026-08-15, today
+2026-06-10: the forecast expands **one** occurrence at a 90-day horizon (window ends 2026-09-08)
+and **zero** at 60 days (ends 2026-08-09); the cash-needed assembler, whose default horizon is
+60 days, likewise sees zero and sees one at 90. Across an 800-day window (ends 2028-08-18) it
+expands **three**: 2026-08-15, 2027-08-15, 2028-08-15 — the explicit 12-month step. No *horizon*
+caller exercises it (cash-needed 60, forecast 90, `RADAR_HORIZON_DAYS` 90), but the calendar's
+month view is a URL query param with prev/next links, so a window a year or more ahead is twelve
+clicks away. The second occurrence appears at ~431 days here, NOT at 366: the bound depends on
+the anchor's phase within the window, so "identical below 366 days" is the wrong way to state it.
+The step also self-heals a row whose `nextDate` is already in the past — that difference is
+date-scoped, not window-scoped.
+
+**D. What the plan does with it.** A detected $1,200.00/yr premium subtracts **$100.00** from
+guilt-free spending every month, including the month the full $1,200.00 actually leaves the
+account — eleven months are $100.00 conservative and the twelfth is $1,100.00 optimistic. That
+is the smoothing the owner's formula asks for ("expenses are also based on patterns"), disclosed
+on the audit panel rather than left implicit, and recorded in docs/STATUS.md §L.23 OPEN #3.

@@ -107,6 +107,19 @@ export function SafeToSpendCard({
               {plan.obligationsBeyondMonthThroughDate}.
             </p>
           )}
+          {/* L.23, for the same reason as the note above it: in the month a yearly
+              bill actually lands, the cash-needed answer on this same screen counts
+              the whole of it while this figure ever counted a twelfth. A reader who
+              never opens /spending-plan would have no way to learn that. Gated on an
+              annual bill being IN the term — unconditionally it would name a
+              mechanism that did not act, and the detector sees an annual bill only
+              after three sightings at a steady price. */}
+          {plan.scheduledFixed.some((s) => s.cadence === 'ANNUAL') && (
+            <p className="mt-1 text-xs text-muted-foreground" data-testid="safe-to-spend-annual-note">
+              A yearly bill is counted here a twelfth at a time, so the month it actually leaves
+              your account will cost more than this figure allows for.
+            </p>
+          )}
           {hasDuplicate && (
             <p className="mt-1 text-xs text-muted-foreground" data-testid="safe-to-spend-duplicate-note">
               Two of the cards behind this figure may be the same card twice; if so{' '}

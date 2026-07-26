@@ -8,7 +8,7 @@
  * from the source (never computed here).
  */
 import { describe, expect, it } from 'vitest';
-import { cents } from '@/lib/money';
+import { ZERO, cents } from '@/lib/money';
 import { isoDate } from '@/lib/dates';
 import type { PaymentReminder } from '@/lib/engine/reminders/select';
 import type { RadarResult } from '@/lib/engine/radar/radar';
@@ -71,7 +71,15 @@ function radar(p: Partial<RadarResult> & { pushWorthy: boolean }): RadarResult {
     coverTransfer:
       'coverTransfer' in p
         ? p.coverTransfer ?? null
-        : { amountCents: cents(30000), byDate: isoDate('2026-06-13'), sources: [] },
+        : {
+            amountCents: cents(30000),
+            byDate: isoDate('2026-06-13'),
+            // The worst dip IS the first short date here — nothing to split (L.23).
+            worstDipDate: isoDate('2026-06-14'),
+            firstShortCents: ZERO,
+            worstDipEvents: [],
+            sources: [],
+          },
     burn: p.burn ?? null,
     includesEstimatedDues: p.includesEstimatedDues ?? false,
     assumptions: p.assumptions ?? [],

@@ -177,30 +177,117 @@ export function detectRecurring(
   return results.sort((a, b) => a.merchantCanonical.localeCompare(b.merchantCanonical));
 }
 
+/** The cadences a detected series is projected under. IRREGULAR never reaches
+ *  here (detectRecurring drops it); ANNUAL reaches it for EXPENSES only — see
+ *  `toScheduledTransactions`. */
+export type ProjectedCadence = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL';
+
+/** Nominal cadence length in days — the basis of the active/lapsed cutoff.
+ *  Lives here, with the detector that assigns the cadence, so the projection
+ *  filter and the /recurring summary share ONE rule instead of two copies that
+ *  can drift (`summarizeRecurring` imports it). */
+export const CADENCE_DAYS: Record<Cadence, number> = {
+  WEEKLY: 7,
+  BIWEEKLY: 14,
+  MONTHLY: 30,
+  ANNUAL: 365,
+  IRREGULAR: 0,
+};
+
+/**
+ * Is this series still charging? False once it is overdue by more than half a
+ * cadence again — the exact rule /recurring uses to file a series under "no
+ * longer charging" and to drop it out of the monthly-spend headline.
+ *
+ * Shared, not copied, because the two callers must agree by construction: when
+ * they disagreed, a lapsed series read $0/month on /recurring and a full
+ * monthly rate inside the spending plan (found independently by both L.23
+ * critics). Cadence-scaled on purpose — the cutoff is ~45 days on a monthly
+ * bill and ~548 on an annual one, because that is how long silence takes to
+ * become evidence at each rhythm.
+ */
+export function isSeriesActive(
+  series: Pick<RecurringSeriesResult, 'cadence' | 'lastSeenAt'>,
+  today: ISODate,
+): boolean {
+  return daysBetween(series.lastSeenAt, today) <= Math.round(CADENCE_DAYS[series.cadence] * 1.5);
+}
+
 /**
  * Map detected recurring series on the payment account to ScheduledTransaction
  * rows — this is how Phase 2 feeds the Phase 1 cash-needed projection.
+ *
+ * WHY ANNUAL EXPENSES ARE PROJECTED (L.23, the L.22 money-critic P1-2 residual).
+ * While this filter was W/B/M only, a detected annual bill reached NO surface
+ * that projects money: `src/server/recurring.ts` is the only writer of the
+ * ScheduledTransaction table in the app, so the spending plan's `/12` rule —
+ * written for exactly that bill — was dead for every row in production, and a
+ * $1,200/yr premium overstated guilt-free spending by $100 every month. The
+ * /recurring page's own headline already normalized the same series at 1/12
+ * (summary.ts PER_MONTH), so two surfaces disagreed about one fact.
+ *
+ * WHY ANNUAL INCOME IS NOT — the failure direction differs by ROLE, not by
+ * class of value (the L.14 lesson). An annual BILL can only ask the reader to
+ * hold more cash: in the plan it raises fixed expenses, and in the ≤90-day
+ * projections it lands as one dated outflow. An annual BONUS does the opposite
+ * — projected on a date inferred from a 365-day gap, it offsets a dip and can
+ * silence a warning the reader would otherwise act on, and an annual event's
+ * date moves by weeks where a paycheck's moves by days. The plan does not need
+ * it either: the trailing median already saw the month a bonus arrived in, and
+ * dividing it into the no-history fallback would manufacture monthly income
+ * that never arrives monthly — the phantom-income class the L.22 re-spec
+ * exists to kill. So it stays out until a slice can date it from better
+ * evidence than one gap.
+ *
+ * AND ONLY WHILE IT IS STILL CHARGING. `detectRecurring` reads all of history
+ * with no staleness gate, and `nextExpectedAt` steps a dormant anchor forward
+ * until it is in the future — so a policy last charged in 2021 detects today
+ * with `nextExpectedAt` next August. Both L.23 critics found this independently
+ * and executed it: /recurring files that series under "no longer charging" and
+ * counts it $0, while the plan counted a full $100/month forever and the
+ * calendar printed a dated −$1,200 for a cancelled policy. The lapse gate is
+ * `isSeriesActive` — the SAME predicate /recurring files by, so the two surfaces
+ * agree by construction. It is applied to ANNUAL only: at 365 days the silence
+ * needed to prove death is ~18 months, where a monthly bill's is ~45 days, and
+ * widening the gate to every cadence would change what is projected for every
+ * existing user (recorded in docs/STATUS.md instead).
+ *
+ * NOT PROJECTED AT ALL, recorded in docs/STATUS.md: a QUARTERLY or SEMIANNUAL
+ * bill, because `cadenceFromGap` classifies a ~91/182-day gap as IRREGULAR and
+ * `detectRecurring` drops it before this function sees it. And the agreement
+ * with /recurring holds only for series on the PAYMENT account, which is the
+ * only account this function projects: an annual premium autopaid from savings
+ * is still $100/month on /recurring and $0 in the plan.
  */
 export function toScheduledTransactions(
   series: readonly RecurringSeriesResult[],
   paymentAccountId: string,
+  today: ISODate,
 ): {
   accountId: string;
   description: string;
   amountCents: number;
   nextDate: string;
-  cadence: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | null;
+  // Never null: the filter above admits exactly the four projected cadences, so
+  // this function cannot emit the one-off shape the DB column also allows.
+  cadence: ProjectedCadence;
   source: string;
 }[] {
   return series
     .filter((s) => s.accountId === paymentAccountId)
-    .filter((s) => s.cadence === 'WEEKLY' || s.cadence === 'BIWEEKLY' || s.cadence === 'MONTHLY')
+    .filter(
+      (s) =>
+        s.cadence === 'WEEKLY' ||
+        s.cadence === 'BIWEEKLY' ||
+        s.cadence === 'MONTHLY' ||
+        (s.cadence === 'ANNUAL' && !s.isIncome && isSeriesActive(s, today)),
+    )
     .map((s) => ({
       accountId: s.accountId,
       description: s.merchantCanonical,
       amountCents: s.typicalAmountCents,
       nextDate: s.nextExpectedAt,
-      cadence: s.cadence as 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY',
+      cadence: s.cadence as ProjectedCadence,
       source: s.isIncome ? 'payroll-detected' : 'recurring',
     }));
 }

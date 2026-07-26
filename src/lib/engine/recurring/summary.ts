@@ -8,6 +8,7 @@
  * Pure: integer cents in/out, ISO dates, no I/O, no `new Date()`.
  */
 import { daysBetween, isoDate } from '@/lib/dates';
+import { isSeriesActive } from './detect';
 import type { Cadence, RecurringSeriesResult } from './detect';
 
 /** Charges per month, for monthly-equivalent normalization. */
@@ -19,14 +20,10 @@ const PER_MONTH: Record<Cadence, number> = {
   IRREGULAR: 0,
 };
 
-/** Nominal cadence length in days, for the active/lapsed cutoff. */
-const CADENCE_DAYS: Record<Cadence, number> = {
-  WEEKLY: 7,
-  BIWEEKLY: 14,
-  MONTHLY: 30,
-  ANNUAL: 365,
-  IRREGULAR: 0,
-};
+// The active/lapsed cutoff lives in detect.ts as `isSeriesActive` (L.23): the
+// projection filter needs the identical rule, and when the two disagreed a
+// lapsed series read $0/month here and a full monthly rate inside the spending
+// plan. Same arithmetic as before — cadence days × 1.5, rounded.
 
 export interface RecurringItem extends RecurringSeriesResult {
   /** Magnitude (always positive) normalized to a per-month figure. */
@@ -60,7 +57,7 @@ export function summarizeRecurring(
   const items: RecurringItem[] = series.map((s) => {
     const monthlyEquivalentCents = Math.round(Math.abs(s.typicalAmountCents) * PER_MONTH[s.cadence]);
     const daysSinceLast = daysBetween(isoDate(s.lastSeenAt), t);
-    const active = daysSinceLast <= Math.round(CADENCE_DAYS[s.cadence] * 1.5);
+    const active = isSeriesActive(s, t);
     return { ...s, monthlyEquivalentCents, active, daysSinceLast };
   });
 

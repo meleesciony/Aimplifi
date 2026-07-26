@@ -30,10 +30,11 @@ import {
   addMonthsClamped,
   compareDates,
   daysBetween,
+  formatISODate,
   priorBusinessDayIfNonBusiness,
   previousBusinessDay,
 } from '@/lib/dates';
-import { type Cents, ZERO, cents, roundUpToNext50Dollars } from '@/lib/money';
+import { type Cents, ZERO, cents, formatCents, roundUpToNext50Dollars } from '@/lib/money';
 import { accountLabel } from '@/lib/engine/account/display-name';
 import { computeForecast, type ForecastEvent } from '@/lib/engine/forecast/forecast';
 import {
@@ -107,8 +108,28 @@ export interface RadarResult {
   /** The committed events that land ON the dip date (what tips the balance under). */
   dipEvents: { label: string; amountCents: number }[];
   coverTransfer: {
+    /** The whole-horizon cover: the worst projected dip, rounded UP to $50. */
     amountCents: Cents;
+    /** One business day before the FIRST short date — moving `amountCents` by
+     *  then keeps every day of the horizon covered, so it is sufficient. */
     byDate: ISODate;
+    /**
+     * The date the worst dip actually falls on (L.23). Equal to the first short
+     * date in the common case; LATER when a single large outflow deepens the dip
+     * long after the first shortfall — which a detected ANNUAL bill is the first
+     * cadence able to do. A reader shown one amount and one date reads them as a
+     * pair, so when these two dates differ the surface must say so: the money is
+     * not all needed by `byDate`, and the card's own "the smallest move" framing
+     * was false (money critic P1-2, executed: "move $1,250.00 by Fri, Jun 12"
+     * where $50.00 was what Jun 12 needed and $1,200.00 was for August).
+     */
+    worstDipDate: ISODate;
+    /** What the FIRST short date alone needs, rounded UP to $50 the same way —
+     *  0 when it is the worst dip too (nothing to split). */
+    firstShortCents: Cents;
+    /** The committed outflows landing on `worstDipDate`, so a split instruction
+     *  can name what the later half is for instead of demanding it unexplained. */
+    worstDipEvents: { label: string; amountCents: number }[];
     sources: RadarTransferSource[];
   } | null;
   burn:
@@ -364,10 +385,35 @@ export function computeRadar(input: RadarInput): RadarResult {
       // `id` after the name (TASKS L.7 critic F12): the name here is the user's own label, so a
       // rename must not silently reorder which account a transfer instruction names first.
       .sort((a, b) => b.balanceCents - a.balanceCents || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
-    coverTransfer = { amountCents, byDate, sources };
+    // The worst dip and the FIRST shortfall are not always the same day (L.23).
+    // Splitting them out here rather than in the component: the amount and the
+    // date are one instruction, and only the walk knows whether they belong to
+    // the same event.
+    const worstDipDate = (committed.lowest.date as ISODate) ?? firstNegativeDate;
+    const firstShortBalance =
+      committed.days.find((day) => day.date === firstNegativeDate)?.balanceCents ?? 0;
+    const firstShortCents =
+      compareDates(worstDipDate, firstNegativeDate) > 0 && firstShortBalance < 0
+        ? roundUpToNext50Dollars(cents(-firstShortBalance))
+        : ZERO;
+    const worstDipEvents =
+      compareDates(worstDipDate, firstNegativeDate) > 0
+        ? (committed.days.find((day) => day.date === worstDipDate)?.events.filter((e) => e.amountCents < 0) ?? [])
+        : [];
+    coverTransfer = { amountCents, byDate, worstDipDate, firstShortCents, worstDipEvents, sources };
     assumptions.add(
       'Transfer proposal is the worst projected dip rounded UP to the next $50, timed one business day before the first short date. Sources are checking/savings accounts only.',
     );
+    if (firstShortCents > 0 && firstShortCents < amountCents) {
+      // Sufficient is not the same as needed-by-then. Without this the reader is
+      // shown one figure and one date and reasonably reads the whole amount as
+      // due by that date.
+      assumptions.add(
+        `Only ${formatCents(firstShortCents)} of that is needed by ${formatISODate(byDate)} — the rest covers ${
+          worstDipEvents[0]?.label ?? 'a later outflow'
+        } on ${formatISODate(worstDipDate)}, so it can be moved in two steps.`,
+      );
+    }
     // Withholding a source silently would be its own defect (invariant D9): the reader may know
     // perfectly well that the account is still theirs and wonder why the app is ignoring it.
     const frozenSources = input.accounts.filter(

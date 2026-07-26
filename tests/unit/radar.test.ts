@@ -316,3 +316,57 @@ describe('computeRadar — misc invariants', () => {
     expect(est.includesEstimatedDues).toBe(true);
   });
 });
+
+describe('a later, larger outflow splits the cover transfer from its deadline (L.23)', () => {
+  // The money critic's executed probe. Before L.23 no cadence could produce this
+  // shape: `coverTransfer.amountCents` is the worst dip over the WHOLE horizon
+  // while `byDate` is one business day before the FIRST short day, and a detected
+  // ANNUAL bill is the first thing that can drop a large lump 80 days out with a
+  // small dip before it. The card was rendering "move $1,250.00 by Fri, Jun 12"
+  // when $50.00 was what Jun 12 needed, with nothing explaining the other $1,200 —
+  // and calling it "the smallest move that keeps the whole 90 days covered".
+  const lateLump = () =>
+    computeRadar(
+      baseInput({
+        horizonDays: 90,
+        startingBalanceCents: cents(100000),
+        committedEvents: [
+          { date: d('2026-06-15'), amountCents: -105000, label: 'Rent' },
+          { date: d('2026-08-29'), amountCents: -120000, label: 'Allstate Insurance Premium' },
+        ],
+      }),
+    );
+
+  it('names what the first short day needs, and what the rest is for', () => {
+    const r = lateLump();
+    expect(r.committed.firstNegativeDate).toBe('2026-06-15');
+    // The whole-horizon cover is unchanged — it is sufficient, and shrinking it
+    // would be the dangerous direction.
+    expect(r.coverTransfer?.amountCents).toBe(125000);
+    expect(r.coverTransfer?.byDate).toBe('2026-06-12');
+    // FAIL-OLD: these three fields did not exist, so no surface could tell the
+    // reader that 96% of the demand belongs to a date eleven weeks later.
+    expect(r.coverTransfer?.worstDipDate).toBe('2026-08-29');
+    expect(r.coverTransfer?.firstShortCents).toBe(5000);
+    expect(r.coverTransfer?.worstDipEvents.map((e) => e.label)).toEqual(['Allstate Insurance Premium']);
+    expect([...r.assumptions]).toContain(
+      'Only $50.00 of that is needed by Fri, Jun 12 — the rest covers Allstate Insurance Premium on Sat, Aug 29, so it can be moved in two steps.',
+    );
+  });
+
+  it('says nothing about a split when the worst dip IS the first short day', () => {
+    const r = computeRadar(
+      baseInput({
+        horizonDays: 90,
+        startingBalanceCents: cents(100000),
+        committedEvents: [{ date: d('2026-06-15'), amountCents: -105000, label: 'Rent' }],
+      }),
+    );
+    expect(r.coverTransfer?.worstDipDate).toBe('2026-06-15');
+    // Zero, not the amount: a split sentence on the ordinary shape would invent a
+    // two-step instruction where one step is the whole truth.
+    expect(r.coverTransfer?.firstShortCents).toBe(0);
+    expect(r.coverTransfer?.worstDipEvents).toEqual([]);
+    expect([...r.assumptions].some((a) => a.startsWith('Only '))).toBe(false);
+  });
+});

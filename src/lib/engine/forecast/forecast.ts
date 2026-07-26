@@ -10,7 +10,9 @@
 import { addDays, addMonthsClamped, compareDates, isoDate, type ISODate } from '@/lib/dates';
 import type { LoanObligation } from '@/lib/engine/loans/obligations';
 
-export type ScheduledCadence = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | null;
+/** ANNUAL is included since L.23 (a detected annual bill is projected — see
+ *  `toScheduledTransactions`); null = a one-off with a single dated occurrence. */
+export type ScheduledCadence = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL' | null;
 
 export interface ScheduledFlow {
   description: string;
@@ -67,9 +69,15 @@ export function expandScheduled(
   };
   for (const row of rows) {
     const start = isoDate(row.nextDate);
-    if (row.cadence === 'MONTHLY') {
+    // MONTHLY steps 1 calendar month, ANNUAL steps 12 (L.23 — a detected annual
+    // bill now reaches this forecast). Within the horizons this engine is called
+    // with (≤90 days) an ANNUAL row has at most one occurrence, so this is
+    // behaviour-identical to the single-occurrence `else` below; stepping it
+    // explicitly is what stays correct past a year.
+    const monthStep = row.cadence === 'MONTHLY' ? 1 : row.cadence === 'ANNUAL' ? 12 : 0;
+    if (monthStep > 0) {
       for (let i = 0; ; i++) {
-        const occ = addMonthsClamped(start, i);
+        const occ = addMonthsClamped(start, i * monthStep);
         if (compareDates(occ, horizon) > 0) break;
         push(occ, row);
       }

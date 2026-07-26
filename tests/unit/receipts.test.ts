@@ -17,7 +17,7 @@ import { paymentNotificationKey, radarNotificationKey } from '@/lib/engine/notif
 import type { PaymentReminder } from '@/lib/engine/reminders/select';
 import type { RadarResult } from '@/lib/engine/radar/radar';
 import type { Opportunity } from '@/lib/engine/fi/insights';
-import { cents } from '@/lib/money';
+import { ZERO, cents } from '@/lib/money';
 import { isoDate } from '@/lib/dates';
 
 const TODAY = isoDate('2026-06-10');
@@ -63,6 +63,10 @@ const radar = (over: Partial<RadarResult> = {}): RadarResult => ({
   coverTransfer: {
     amountCents: cents(50000),
     byDate: isoDate('2026-06-13'),
+    // Worst dip on the first short date — the unsplit shape (L.23).
+    worstDipDate: isoDate('2026-06-14'),
+    firstShortCents: ZERO,
+    worstDipEvents: [],
     sources: [],
   },
   burn: null,

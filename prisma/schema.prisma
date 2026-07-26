@@ -496,8 +496,8 @@ model ScheduledTransaction {
   description String
   amountCents Int // signed: outflow negative, inflow positive
   nextDate    String // YYYY-MM-DD
-  cadence     String? // WEEKLY | BIWEEKLY | MONTHLY | null = one-off
-  source      String // 'payroll-detected' | 'user' | 'autopay' | 'recurring' | 'seed'
+  cadence     String? // WEEKLY | BIWEEKLY | MONTHLY | ANNUAL (expenses only, L.23) | null = one-off
+  source      String // 'payroll-detected' + 'recurring' (written by server/recurring.ts) | 'seed' (seeder) | 'autopay' / 'user' have no writer today
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 

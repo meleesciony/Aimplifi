@@ -16,7 +16,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { cents } from '@/lib/money';
+import { ZERO, cents } from '@/lib/money';
 import { addDays, isoDate } from '@/lib/dates';
 import type { PaymentReminder, ReminderUrgency } from '@/lib/engine/reminders/select';
 import type { RadarResult } from '@/lib/engine/radar/radar';
@@ -92,7 +92,15 @@ function radarOf(o: {
     coverTransfer:
       o.coverCents === undefined
         ? null
-        : { amountCents: cents(o.coverCents), byDate: isoDate(o.coverByDate ?? '2026-06-13'), sources: [] },
+        : {
+            amountCents: cents(o.coverCents),
+            byDate: isoDate(o.coverByDate ?? '2026-06-13'),
+            // Worst dip on the first short date — the unsplit shape (L.23).
+            worstDipDate: isoDate(o.coverByDate ?? '2026-06-13'),
+            firstShortCents: ZERO,
+            worstDipEvents: [],
+            sources: [],
+          },
     burn: null,
     includesEstimatedDues: o.includesEstimatedDues ?? false,
     startingBalanceFrozen: o.frozenStart ?? null,

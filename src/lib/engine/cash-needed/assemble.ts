@@ -193,9 +193,17 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
   for (const row of p.scheduled) {
     if (row.accountId !== p.paymentAccountId) continue;
     const start = isoDate(row.nextDate);
-    if (row.cadence === 'MONTHLY') {
+    // Calendar-month cadences step by whole months: MONTHLY by 1, ANNUAL by 12
+    // (L.23 — a detected annual bill now reaches this projection). At every
+    // horizon this engine is called with (60 days by default, 90 at the widest)
+    // an ANNUAL row has at most ONE occurrence in the window, so this loop is
+    // behaviour-identical to the single-occurrence `else` it used to fall
+    // through; stepping it explicitly is what stays correct if a caller ever
+    // asks for a horizon longer than a year.
+    const monthStep = row.cadence === 'MONTHLY' ? 1 : row.cadence === 'ANNUAL' ? 12 : 0;
+    if (monthStep > 0) {
       for (let i = 0; ; i++) {
-        const occ = addMonthsClamped(start, i);
+        const occ = addMonthsClamped(start, i * monthStep);
         if (compareDates(occ, horizon) > 0) break;
         if (compareDates(occ, p.today) >= 0) {
           scheduled.push({ date: occ, amountCents: cents(row.amountCents), description: row.description });

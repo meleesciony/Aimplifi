@@ -41,17 +41,16 @@
  *    `incomeBasis: 'none'` fact — a surface may not invent an income.
  *  - Fixed/recurring expenses are the recurring outflows at a monthly
  *    rate (`monthlyRateCents`): weekly ×52/12, biweekly ×26/12, annual /12 — so
- *    an annual bill costs every month instead of none for eleven. KNOWN GAP,
- *    recorded in docs/STATUS.md §L.22: the recurring DETECTOR only projects
- *    WEEKLY/BIWEEKLY/MONTHLY rows (`toScheduledTransactions`), so a detected
- *    ANNUAL premium currently contributes ZERO — the dangerous direction, for
- *    exactly the annual-bill population the /12 rule exists for. The branch is
- *    live for user-entered and seeded annual rows; wiring the detector's
- *    ANNUAL series through is its own slice (it also touches the radar's
- *    projections and the demo golden). A purchase that is not a detected
- *    recurring series is NEVER fixed — discretionary spending subtracts
- *    nowhere in this plan (the owner's formula: "not discretionary or
- *    budgeted for").
+ *    an annual bill costs every month instead of none for eleven. The detected
+ *    ANNUAL series reach this term since L.23 (`toScheduledTransactions` now
+ *    projects annual EXPENSES; annual INCOME stays out, and the reason is
+ *    written at that function). REMAINING GAP, recorded in docs/STATUS.md: a
+ *    QUARTERLY or SEMIANNUAL bill contributes ZERO, because a ~91/182-day gap
+ *    classifies as IRREGULAR in `cadenceFromGap` and `detectRecurring` drops
+ *    it — the dangerous direction, and a new detection class rather than a
+ *    passthrough. A purchase that is not a detected recurring series is NEVER
+ *    fixed — discretionary spending subtracts nowhere in this plan (the owner's
+ *    formula: "not discretionary or budgeted for").
  *  - Card payments stay REAL: the cash-needed engine's own obligation rows due
  *    this month, plus the L.11(D) beyond-month reservation for payments already
  *    dated past its edge. These are fixed commitments too, but they are actual

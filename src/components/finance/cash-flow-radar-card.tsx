@@ -46,7 +46,14 @@ export function CashFlowRadarCard({
       chip: 'Heads-up',
       chipCls: 'border-amber-900/50 bg-amber-950/40 text-amber-300',
       desc: dip
-        ? `${paymentAccountName} is projected to dip below $0 ${formatRelativeDays(today, isoDate(dip))} (${formatISODate(isoDate(dip))}). Here’s the smallest move that keeps the whole ${radar.horizonDays} days covered.`
+        ? // NOT "the smallest move" (L.23 money critic P1-2, executed): the amount is
+          // the worst dip over the whole horizon while the date is the FIRST short
+          // day, and a single large outflow late in the window — which a detected
+          // annual bill is the first cadence able to produce — decouples them. It
+          // was rendering "move $1,250.00 by Fri, Jun 12" where $50.00 was what
+          // Jun 12 needed. One move that covers everything is what it is; the split
+          // is stated below when the two dates differ.
+          `${paymentAccountName} is projected to dip below $0 ${formatRelativeDays(today, isoDate(dip))} (${formatISODate(isoDate(dip))}). Here’s one move that keeps the whole ${radar.horizonDays} days covered.`
         : '',
     },
   }[radar.status];
@@ -94,6 +101,16 @@ export function CashFlowRadarCard({
                   Stay covered for the full {radar.horizonDays} days: move {fmt(radar.coverTransfer.amountCents)} to{' '}
                   {paymentAccountName} by {formatISODate(isoDate(radar.coverTransfer.byDate))}
                 </div>
+                {radar.coverTransfer.firstShortCents > 0 &&
+                  radar.coverTransfer.firstShortCents < radar.coverTransfer.amountCents && (
+                    <div className="mt-1 text-xs" data-testid="radar-cover-split">
+                      Only {fmt(radar.coverTransfer.firstShortCents)} of that is needed by{' '}
+                      {formatISODate(isoDate(radar.coverTransfer.byDate))} — the rest covers{' '}
+                      {radar.coverTransfer.worstDipEvents[0]?.label ?? 'a later outflow'} on{' '}
+                      {formatISODate(isoDate(radar.coverTransfer.worstDipDate))}, so you can move it in two
+                      steps.
+                    </div>
+                  )}
                 <div className="mt-1 text-xs text-muted-foreground">
                   {topSource
                     ? `e.g. from ${topSource.name} (${fmt(topSource.balanceCents)} available${topSource.sufficient ? '' : ' — not enough on its own'})`

@@ -249,9 +249,37 @@ export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
               : 'With fewer than three complete months behind it, a one-time deposit can still count — the pattern steadies as the third month arrives.'
           }`
         : plan.incomeBasis === 'detected-series'
-          ? 'Income is your detected recurring income at a monthly rate — there is no complete month of history to take the pattern from yet.'
+          ? // The annual-income exclusion is disclosed HERE and nowhere else it
+            // matters, because this is the only basis that reads detected series
+            // as the income figure (L.23 copy critic P1-4): /recurring counts an
+            // annual deposit at a twelfth a month while this counts $0, and until
+            // this sentence they were both described as "detected recurring income
+            // at a monthly rate" — two surfaces, one fact, apart. The trailing
+            // median needs no such clause: it counts a bonus in the month it
+            // actually arrived.
+            'Income is your detected recurring income at a monthly rate — there is no complete month of history to take the pattern from yet. A deposit that arrives once a year is not counted here: one yearly gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows it at a twelfth a month; this figure leaves it out.'
           : 'There is no income pattern yet — nothing here is invented; once a complete month of income posts, the figure comes from that pattern.',
-      'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month. An annual bill entered by you counts 1/12; a DETECTED annual bill is not projected yet, so a yearly premium you never entered yourself is not in this figure. Discretionary spending is never subtracted: guilt-free is the month’s allocation after fixed costs and savings, not what is left of it today.',
+      // BIWEEKLY is named too (L.23 copy critic P2-4): ×26/12 is the largest
+      // multiplier in the table and the commonest real cadence in this app.
+      'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12. Discretionary spending is never subtracted: guilt-free is the month’s allocation after fixed costs and savings, not what is left of it today.',
+      // Only when an annual bill is actually IN the term. Unconditional, this told
+      // every reader their yearly premium was handled at a twelfth a month, when
+      // the detector needs three sightings at a steady price — about two years of
+      // history — to see one at all, and a premium that rises every year is never
+      // detected. That is this function's own rule 35 lines above ("a $0 row would
+      // name a mechanism that did not act"), applied to a cadence instead of a
+      // card (L.23 copy critic P1-2). What the reader gets when the clause is
+      // absent lives in /spending-plan's "What this figure can't see".
+      //
+      // And it may not say the money is SET ASIDE (P1-1): `computeSpendingPlan` is
+      // stateless per month and carries nothing forward, while "set aside" already
+      // means the L.11(D) reservation — a real carried term with its own visible
+      // row — three paragraphs down and on the dashboard card.
+      ...(plan.scheduledFixed.some((s) => s.cadence === 'ANNUAL')
+        ? [
+            'A yearly bill is spread across the year: this figure subtracts a twelfth of it every month. Nothing is actually moved or set aside for you — in the month the bill leaves your account the whole amount goes out while this figure only ever counted a twelfth, so that month needs its own plan.',
+          ]
+        : []),
       'Spending on credit cards is counted when its statement’s payment comes due, not again at purchase time. The card-payments line covers your own cards due this month, assumes each is paid in full, and comes from the same obligation rows as the cash-needed answer.',
       ...(plan.cardObligationsEstimated
         ? [

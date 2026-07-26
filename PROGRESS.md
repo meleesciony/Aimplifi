@@ -5874,3 +5874,146 @@ flip + stability + the local gate (the L.18 standard).
 NEXT: the open queue — L.16 (keep-both prompt), L.13 (owner screenshot), the L.9 OPEN
 proven-ambiguity carry-out (cycle-4 P1, fix sketch in STATUS), the L.22 residuals (sharpest:
 detector ANNUAL passthrough; job-loss pause-predicate wiring).
+
+## L.23 OPENED — the detector's ANNUAL passthrough (L.22 OPEN residual #1). 2026-07-26
+THE DEFECT (verified, not assumed): `toScheduledTransactions` (detect.ts:197) filters detected
+series to WEEKLY/BIWEEKLY/MONTHLY, so a detected ANNUAL series never reaches
+`ScheduledTransaction` — and the ONLY writer of that table in the whole app is
+`src/server/recurring.ts:194` (sources 'payroll-detected' | 'recurring'), plus the seeder
+(3 rows, all BIWEEKLY/MONTHLY). Grepped every `scheduledTransaction.create*` call site: there
+is no user-facing form and no autopay writer. So `monthlyRateCents`'s ANNUAL /12 branch is
+DEAD FOR EVERY ROW IN PRODUCTION, not just detected ones — which falsifies two live claims
+shipped last slice: plan.ts's "The branch is live for user-entered and seeded annual rows" and
+the glass-box trace's "An annual bill entered by you counts 1/12" (there is no way to enter
+one). Meanwhile /recurring's own headline ALREADY normalizes ANNUAL at 1/12
+(summary.ts PER_MONTH) — so two surfaces disagree about one fact by $100/month on a $1,200/yr
+premium, and the spending plan is the one in the dangerous direction (fixed understated →
+guilt-free overstated).
+BLAST RADIUS (mapped by two explorers, then verified by reading the code myself — the
+explorer's "CRITICAL 12x underestimate" classification was WRONG): the three expanders
+(cash-needed/assemble.ts:196, forecast/forecast.ts:70, calendar/build.ts:72) send an unknown
+cadence down an `else` that pushes the ONE dated occurrence clamped to the window. Every
+horizon in the app is <= 90 days (cash-needed 60 default, forecast 90, radar 10-90; grepped
+every concrete horizonDays), so for ANNUAL that branch is already CORRECT — one occurrence per
+window is the truth. Latent bound only at a horizon >= 366 days, which nothing uses.
+Prisma: `cadence String?` (schema.prisma:499) — no enum, NO DDL needed.
+THE DECISION: pass ANNUAL EXPENSES through; hold ANNUAL INCOME out. Failure direction per ROLE
+(L.14): an annual bill can only ask the reader to hold MORE cash, but an annual bonus projected
+on a date guessed from a 365-day gap offsets a dip and can SUPPRESS a warning — and the plan
+does not need it (the trailing median already saw the month it arrived in; /12-ing it into the
+no-history fallback is the phantom-income class the owner complained about).
+Make ANNUAL EXPLICIT in all three expanders (months-step 12 instead of the catch-all else) —
+behaviour-identical at every window the app uses, and it removes the >=366-day latent bound.
+NOT IN SCOPE, recorded: QUARTERLY/SEMIANNUAL bills still count ZERO (a ~91-day gap classifies
+as IRREGULAR at cadenceFromGap and detectRecurring drops it) — that is a NEW detection class
+that moves every user's detected set and needs its own golden + critic pass.
+DEMO IMPACT: NONE, verified by probe — the seed's 12 detected series are 1 BIWEEKLY + 11
+MONTHLY, zero ANNUAL, so no demo golden moves. Locks must therefore be synthetic (engine) plus
+a real-server path test through refreshRecurringForUser.
+NEXT: implement (detect.ts filter+type, 3 expanders explicit, schema comment, trace copy,
+plan.ts docblock) -> tests -> verify.sh -> hostile critic (money-math) -> ship.
+
+## L.23 BUILT — the ANNUAL passthrough; gate green; two critics in flight. 2026-07-26
+THE BUILD (5 source files, all small): detect.ts `toScheduledTransactions` admits ANNUAL when
+`!s.isIncome` (return type narrowed to a non-null `ProjectedCadence` — the filter admits exactly
+four cadences, so this function cannot emit the one-off shape the DB column allows); the three
+expanders (cash-needed/assemble.ts, forecast/forecast.ts, calendar/build.ts) step calendar-month
+cadences by `i * monthStep` with monthStep 1 for MONTHLY and 12 for ANNUAL; ScheduledCadence
+gained 'ANNUAL'; the Prisma cadence + source comments corrected (comment-only, `git diff --stat
+-- prisma/` = 2 lines, NO DDL); the glass-box basis line rewritten; plan.ts's KNOWN GAP
+paragraph replaced by the remaining quarterly/semiannual gap.
+SELF-CRITIQUE FINDING (not from a critic, fixed before they reported): a smoothed 1/12 is
+$100 conservative for eleven months and $1,100 OPTIMISTIC in the twelfth, when the whole premium
+actually leaves the account. The basis line now says a twelfth is set aside "rather than the
+whole of it in the month it lands, so the month it does land will feel larger than this figure",
+and it is recorded as STATUS L.23 OPEN #3 rather than shipped silently.
+LOCKS: tests/unit/annual-recurring-passthrough.test.ts, 13 tests — the filter both directions,
+golden-literal monthly rates (the existing spending-plan.test.ts assertions write the formula
+under test as their own expectation, so they cannot fail; these are hand-verified literals), the
+three expanders once-per-window plus the multi-year step, the REAL server path (detector ->
+ScheduledTransaction -> snapshot -> getSpendingPlan, fixedExpensesCents 0 -> 10000), and a
+rendered-copy lock on the basis over a real plan carrying a real annual bill.
+FAIL-OLD, EXECUTED: with the four source files stashed, 6 of 13 locks fail and 7 pass — and the
+7 include the two single-occurrence-per-window locks, which is the EXECUTED proof that the
+expanders' catch-all `else` was already correct for an annual row at every horizon the app uses
+(every concrete horizon in src/ is <= 90 days: cash-needed 60 default with one caller,
+forecast 90 default, RADAR_HORIZON_DAYS 90 — grepped including computed assignments).
+GATE (real output this session): `bash scripts/verify.sh` -> VERIFY GREEN, tsc 0, eslint 0,
+**282 files / 4445 tests**, build clean (that run predates the last 2 test additions + the copy
+tweak; the final gate re-runs after the critics). E2E serialized 16/16: glass-box, spending-plan,
+spending-plan-month-edge, forecast, recurring, calendar-frozen. docs:lint clean (87 files).
+CONTENTION OBSERVED, not a defect: one run of the new file failed a PURE-function calendar
+assertion (Aug-2027 window) that passed the run before and the run after, with `git diff`
+confirming calendar/build.ts unchanged — the documented #287-family signature while two critic
+agents were running beside it. The final gate is run ALONE (serialize for proving).
+DOCS SO FAR: STATUS (new BUILT section + 3 OPEN items; the old L.22 residual #1 struck through
+and its own false claim about "user-entered/seeded annual rows" corrected), TASKS L.23 row
+(status cell to fill), EDGE_CASES new hand-verified section, 2 REGRESSION_LEDGER rows, lesson
+a-dead-branch-is-a-claim-that-something-is-handled.md (+INDEX).
+IN FLIGHT: two fresh-context hostile critics (money-math lens; copy/live-claims lens).
+NEXT: critic verdicts -> fixes -> verify.sh ALONE -> DECISIONS #312 + TASKS status -> ship.
+
+## L.23 — two critics, both FAIL, every finding fixed; gate green. 2026-07-26
+CRITIC 1 (money-math lens): 2 P1 + 2 P2. CRITIC 2 (copy/live-claims lens): 5 P1 + 6 P2. They
+CONVERGED INDEPENDENTLY on the same P1, which is the finding that mattered most:
+ P1 (both)  A LAPSED annual series subtracts money forever. detectRecurring reads all history
+     with no staleness gate and nextExpectedAt steps a dormant anchor forward, so a policy last
+     charged in 2021 detects today with a next date in August: /recurring filed it under "no
+     longer charging" at $0/month while the plan counted $100/month and the calendar printed a
+     dated -$1,200 for a cancelled policy — the disagreement this slice exists to fix, INVERTED.
+     FIXED by sharing ONE predicate: the active/lapsed rule moved into detect.ts as
+     `isSeriesActive` and summarizeRecurring now imports it (its local CADENCE_DAYS deleted), so
+     the surfaces agree by construction. ANNUAL-only, and the asymmetry is pinned by a test.
+ MONEY P1-2  The radar's cover transfer pairs a WHOLE-HORIZON amount with the FIRST shortfall's
+     deadline; an annual bill is the first cadence able to decouple them. Executed: "move
+     $1,250.00 by Fri, Jun 12" where $50.00 was what Jun 12 needed, collidingCards empty so
+     nothing explained the other 96%, under the header "the smallest move". The amount is
+     SUFFICIENT — which is why no overdraft test caught it. FIXED: worstDipDate +
+     firstShortCents + worstDipEvents on the result, an assumption line, a radar-cover-split row
+     on the card, "the smallest move" -> "one move". Locked both ways (the critic's exact probe,
+     and the ordinary shape asserting silence).
+ MONEY P2-1  Mutation testing (10 mutations) proved assemble.ts could be REVERTED ENTIRELY with
+     my file still green: the 90/60-day pair is satisfied by the old catch-all `else` too. Now
+     locked by a multi-year assertion — the one expander feeding the dashboard hero.
+ MONEY P2-2  "behaviour-identical at every window the app uses" was wrong in two reachable ways
+     (a calendar MONTH view is 12 clicks from a >=1-year window; a stale-anchor row self-heals
+     forward, which is date-scoped not window-scoped) and the ">=366 days" bound is wrong — the
+     second occurrence needs ~431 days, the bound depends on the anchor's phase. All three
+     comments + EDGE_CASES + STATUS corrected.
+ COPY P1-1  "a twelfth is SET ASIDE every month" names a mechanism that does not exist (the plan
+     is stateless per month) AND reuses a phrase that already means the L.11(D) reservation on
+     the same page. Reworded: "this figure subtracts a twelfth of it every month. Nothing is
+     actually moved or set aside for you — ... the whole amount goes out while this figure only
+     ever counted a twelfth".
+ COPY P1-2  the annual clause was UNCONDITIONAL while the only intake needs 3 sightings at a
+     steady price (731 days; a premium that rises yearly is never detected). Gated on
+     `plan.scheduledFixed.some(cadence === 'ANNUAL')` — this trace's own convention 35 lines
+     above it. The precondition moved to /spending-plan's "What this figure can't see".
+ COPY P1-3  the quarterly clause named 2 of 8+ dropped rhythms with no direction. Rewritten and
+     moved: the dropped set (10-day, 3-weekly, 6-weekly, bi-monthly, quarterly, semiannual) with
+     "the real amount free to spend may be lower than shown".
+ COPY P1-4  the annual-INCOME asymmetry was undisclosed while /recurring renders the same
+     $5,000/yr bonus as "Recurring income $416.67/mo" — disclosed on the detected-series basis
+     and BOTH Ask branches.
+ COPY P1-5  the dashboard card said nothing while cash-needed on the same screen counts the full
+     bill in its month — gated safe-to-spend-annual-note added.
+ P2s fixed: server/recurring.ts's comment naming 'user'/'autopay' rows no writer can create;
+     detect.ts's docblock now states the payment-account scope of the /recurring agreement;
+     pause.ts's ANNUAL branch says the reason is now a DECISION, not a cadence fact; the basis
+     names the biweekly rate (26/12, the largest multiplier, previously omitted); the test
+     docblock's over-claims corrected; the pure quarterly test moved out of the DB describe.
+ REFUTED / could not break (money critic, executed): double counting anywhere (perDueDate sums
+ card cashRequired only; the L.11(D) walk filters positives; the demo hero moved only by money
+ that really leaves), every other cadence consumer (coach blueprint -> null, pause guarded,
+ today-feed-copy unreachable at the type level), and MONTHLY equivalence (i*1 is an identity).
+GATE (real output, run ALONE): bash scripts/verify.sh -> VERIFY GREEN, tsc 0, eslint 0,
+**282 files / 4457 tests**, build clean. E2E 24/24 serialized: cash-flow-radar, spending-plan,
+spending-plan-month-edge, glass-box, recurring, forecast, calendar-frozen, phase1-cash-needed,
+dashboard-duplicate-disclosure — plus the extended spending-plan spec re-run (1/1) asserting the
+rendered disclosure section AND that the yearly-bill clause does NOT render for the demo.
+docs:lint clean (87 files). Prisma diff comment-only -> no DDL on deploy.
+DOCS: DECISIONS #312 (+index regenerated, 305 entries), STATUS §L.23 (critic paragraph + 6 OPEN),
+TASKS L.23 row done, EDGE_CASES §B/B2/B3/C corrected + extended, 4 REGRESSION_LEDGER rows, the
+L.22 ledger row + DECISIONS #311 + the L.22 TASKS row all marked superseded in place, lesson
+extended with what the critics added (+INDEX).
+NEXT: commit, push, deploy-verify.

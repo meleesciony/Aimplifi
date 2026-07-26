@@ -64,7 +64,7 @@ describe('recurring detection on seed data', () => {
 
 describe('wiring back into the Phase 1 engine (acceptance #6)', () => {
   it('DETECTED payroll (replacing the seeded payroll row) reproduces the golden headline exactly', () => {
-    const detected = toScheduledTransactions(series, 'acct-checking');
+    const detected = toScheduledTransactions(series, 'acct-checking', isoDate('2026-06-10'));
     const detectedPayroll = detected.find((d) => d.source === 'payroll-detected')!;
     expect(detectedPayroll).toMatchObject({
       amountCents: 245000,

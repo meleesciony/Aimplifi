@@ -831,7 +831,7 @@ export function answerSafeToSpend(
               : 'With fewer than three complete months behind it, a one-time deposit can still count — the real overage may be smaller as the pattern steadies. '
           }`
         : plan.incomeBasis === 'detected-series'
-          ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses, the card payments due this month, and your planned savings. '
+          ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses, the card payments due this month, and your planned savings. A deposit that arrives once a year is not counted here — one yearly gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows it at a twelfth a month; this figure leaves it out. '
           : 'There is no income pattern yet — nothing here is invented. ';
     return {
       kind: 'safe_to_spend',
@@ -854,7 +854,7 @@ export function answerSafeToSpend(
               : 'With fewer than three complete months behind it, a one-time deposit can still count — the pattern steadies as the third month arrives.'
           } Discretionary spending is never subtracted. Card purchases count when their statement’s payment comes due, not again at purchase time.`
         : plan.incomeBasis === 'detected-series'
-          ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses, the card payments due this month, and your planned savings. Card purchases count when their statement’s payment comes due, not again at purchase time.'
+          ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses, the card payments due this month, and your planned savings. A deposit that arrives once a year is not counted here — one yearly gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows it at a twelfth a month; this figure leaves it out. Card purchases count when their statement’s payment comes due, not again at purchase time.'
           : 'There is no income pattern yet — nothing here is invented. Once a complete month of income posts, the figure comes from that pattern.',
     ),
     facts,

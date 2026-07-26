@@ -2,6 +2,120 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-26 — L.23: a detected annual bill reaches the money (DECISIONS #312)
+
+Closes the sharpest L.22 residual. `toScheduledTransactions` projected only
+WEEKLY/BIWEEKLY/MONTHLY, and `src/server/recurring.ts` is the **only writer of the
+ScheduledTransaction table in the app** (sources `payroll-detected` / `recurring`), plus the
+seeder, whose three rows are BIWEEKLY/MONTHLY. So a detected annual bill reached no surface
+that projects money and the spending plan's ANNUAL `/12` rule was **dead for every row in
+production** — a detected $1,200/yr premium overstated guilt-free spending by $100 every month,
+while `/recurring`'s own headline already normalized the same series at 1/12 (summary.ts
+`PER_MONTH`). Two surfaces, one fact, $100 apart.
+
+**Two fresh-context hostile critics, both FAIL, every finding fixed.** The money-math critic
+(2 P1 + 2 P2) and the copy/claims critic (5 P1 + 6 P2) **independently found the same P1**: a
+LAPSED annual series. `detectRecurring` reads all of history with no staleness gate and
+`nextExpectedAt` steps a dormant anchor forward, so a policy last charged in 2021 detected today
+with a next date in August — /recurring filed it under "no longer charging" at $0/month while the
+plan counted $100/month forever and the calendar printed a dated −$1,200 for a cancelled policy.
+Fixed by sharing ONE predicate (`isSeriesActive`, moved into detect.ts and imported by
+`summarizeRecurring`) so the two surfaces agree by construction; ANNUAL-only, because at 365 days
+proving death takes ~18 months where a monthly bill's takes ~45, and widening the gate to every
+cadence would change what is projected for every existing user. The money critic also found the
+radar's **cover-transfer instruction decoupled from its deadline**: the amount is the worst dip
+over the whole horizon while the date is one business day before the FIRST shortfall, and an
+annual bill is the first cadence able to drop a lump 80 days out — executed, it rendered "move
+**$1,250.00** by Fri, Jun 12" where **$50.00** was what Jun 12 needed, with nothing explaining
+the rest, under the header "the smallest move". The amount is unchanged (it is sufficient, and
+shrinking it is the dangerous direction); the engine now carries `worstDipDate`,
+`firstShortCents` and `worstDipEvents`, the card states the split, and the header no longer claims
+"smallest". The copy critic's other P1s were all coverage claims: "is set aside" named a mechanism
+that does not exist (the plan is stateless per month, and "set aside" already means the L.11(D)
+reservation on the same page), the annual clause was unconditional when the detector needs three
+sightings at a steady price to see one at all, the quarterly clause enumerated two of eight-plus
+dropped rhythms with no direction named, the annual-income asymmetry was undisclosed while
+/recurring shows the same deposit at a twelfth a month, and the dashboard card said nothing.
+Mutation testing (money critic, 10 mutations) proved the cash-needed expander could be reverted
+entirely with the file still green — now locked by a multi-year assertion.
+
+Shipped: (1) annual **EXPENSES** are projected; annual **INCOME** is deliberately not — the
+failure direction differs by ROLE (L.14), since an annual bill can only ask the reader to hold
+more cash while an annual bonus dated from one 365-day gap offsets a projected dip and can
+silence a warning, and the plan does not need it (the trailing median already saw the month a
+bonus arrived in; dividing it into the no-history fallback would manufacture the phantom
+monthly income the L.22 re-spec exists to kill). (2) The three cadence expanders
+(`cash-needed/assemble.ts`, `forecast/forecast.ts`, `calendar/build.ts`) step ANNUAL explicitly
+by 12 calendar months instead of falling through their catch-all `else`. That `else` was
+**already correct** at every window the app uses — every horizon in the codebase is ≤ 90 days,
+so an annual bill has at most one occurrence in one — and the executed fail-old run proves it
+(those locks pass on the old code). The explicit step differs in exactly two reachable ways, both
+in the correct direction and both named by the money critic: a window spanning a year or more
+(a calendar MONTH view is a query param with prev/next links, so twelve clicks away) now yields
+the later occurrences, and a row whose `nextDate` is already in the past self-heals forward
+instead of being dropped. That second one is date-scoped, not window-scoped, so "identical
+except past 366 days" was the wrong claim in two ways — the second occurrence needs ~431 days,
+not 366, because the bound depends on the anchor's phase. (3) A lapse gate, above. (4) The radar
+split, above. (5) `ScheduledCadence` gained `'ANNUAL'`; the Prisma comment documents it
+(`String?`, no DDL). (6) The copy: the basis line's rates now name biweekly too, its annual
+clause is gated on an annual bill being in the term and no longer claims money is "set aside",
+/spending-plan's "What this figure can't see" states the unrecognized-rhythm gap and the
+~2-year precondition with their direction named, the dashboard card carries the smoothing note,
+and the annual-income exclusion is disclosed on the trace and both Ask branches.
+
+Demo impact: **none**, verified by probe — the seed's twelve detected series are one BIWEEKLY
+and eleven MONTHLY, so no demo golden moves and the locks are synthetic plus a real-server path
+test (detector → ScheduledTransaction → snapshot → `getSpendingPlan`). **Whether the owner's own
+data contains a detected annual series is UNVERIFIABLE from this environment** (no live DB here):
+what is proven is that the rule now fires for any annual expense the detector finds, where before
+it could fire for none. It needs three sightings roughly a year apart at a stable amount, so a
+premium that changed price twice, or one only two years old, is still invisible.
+
+### 🟠 OPEN after L.23
+
+1. **A QUARTERLY or SEMIANNUAL bill is still counted ZERO times** (dangerous direction). A
+   ~91/182-day gap classifies as IRREGULAR in `cadenceFromGap`, and `detectRecurring` drops
+   IRREGULAR before the projection filter is reached — so a quarterly water bill is absent from
+   the plan, the projections AND `/recurring`. This is a new detection CLASS, not a
+   passthrough: adding it moves every user's detected set and needs its own golden + critic
+   pass. Pinned by a test in `tests/unit/annual-recurring-passthrough.test.ts` so the day it
+   changes, that file says so.
+2. **A detected annual INCOME series is projected nowhere** — unchanged by this slice and now
+   deliberate (see above), but the asymmetry IS visible: `/recurring` renders a $5,000/yr detected
+   bonus as "Recurring income $416.67/mo" (`summarizeRecurring`'s `PER_MONTH`) beside a bills
+   figure that now DOES include annual at 1/12, while the plan's detected-series income basis
+   counts $0. The copy critic executed the pair. Disclosed rather than reconciled: the trace's
+   detected-series basis and both Ask branches now say a once-a-year deposit is not counted here
+   and that the recurring list shows it at a twelfth a month. Reconciling the figures needs a way
+   to date an annual deposit better than one 365-day gap.
+3. **An annual series needs THREE sightings at a stable amount, so it needs ~2 years of
+   history** — `detectRecurring` requires 3+ occurrences (2 points give one gap and no median to
+   infer a cadence from) and at most two amount plateaus. A Plaid feed typically carries ~24
+   months, so in practice only a long-standing, price-stable annual bill is detected at all: the
+   passthrough makes the rule *able* to fire, it does not make annual bills generally covered.
+   Relaxing the sighting floor for ANNUAL is a detection-class change like item 1, not a
+   passthrough, and would trade a real cadence inference for a guess off a single gap.
+4. **In the month an annual bill actually falls, the plan reserves only 1/12 of it** — the
+   accepted cost of a smoothed pattern (the owner's own formula: "expenses are also based on
+   patterns"). Eleven months are $100 conservative and the twelfth is $1,100 optimistic unless
+   the reader banked the difference, which is what the smoothing is for. Found by self-critique,
+   not shipped silently, and re-worded after the copy critic showed "set aside" names a mechanism
+   the stateless plan does not have: the basis now says *this figure subtracts a twelfth of it
+   every month. Nothing is actually moved or set aside for you — in the month the bill leaves your
+   account the whole amount goes out while this figure only ever counted a twelfth*, and the
+   dashboard card carries a short form of the same fact. The cash-needed/forecast/radar projections, which do carry the full amount on
+   its date, are the surfaces that show the lump — they and the plan answer different questions
+   over different windows (the L.11(C) rule), and neither is a term of the other.
+5. **The agreement with `/recurring` holds only on the PAYMENT account** (copy critic P2-2).
+   `toScheduledTransactions` projects that account alone, while `summarizeRecurring` reads every
+   account — so a $1,200/yr premium autopaid from savings is still $100/month on `/recurring` and
+   $0 in the plan. Pre-existing for every cadence; this slice narrows it to non-payment accounts
+   rather than closing it.
+6. **The lapse gate is ANNUAL-only** — a MONTHLY series silent for a year is still projected
+   (~45-day cutoff on `/recurring`, no cutoff at all in the projection). Deliberate: widening it
+   would change what is projected for every existing user, in the direction of dropping bills.
+   Pinned by a test, so the asymmetry is visible rather than assumed.
+
 ## ✅ BUILT 2026-07-26 — L.22: guilt-free spending becomes the owner's formula (DECISIONS #311)
 
 Owner instruction 2026-07-26, verbatim: *"your logic on guilt free spending is broken, for one i
@@ -49,13 +163,12 @@ deposits into checking/savings.
 
 ### 🟠 OPEN after L.22 — recorded residuals
 
-1. **A DETECTED annual/quarterly bill is counted ZERO times in the fixed term** (cycle-1 money
-   P1-2, dangerous direction). `toScheduledTransactions` projects only WEEKLY/BIWEEKLY/MONTHLY,
-   and `detectRecurring` drops IRREGULAR, so the detector's ANNUAL series never reach
-   `snap.scheduled` — a detected $1,200/yr premium overstates guilt-free by $100/month, every
-   month. The `/12` branch is live only for user-entered/seeded annual rows, and the trace's
-   basis line now says so. The passthrough is its own slice: it also moves the radar's
-   projections and possibly the demo golden, so it needs its own verify + critic.
+1. ~~**A DETECTED annual/quarterly bill is counted ZERO times in the fixed term**~~ — the ANNUAL
+   half is **FIXED in L.23 below**; the QUARTERLY/SEMIANNUAL half remains open and is restated
+   as its own item there. (The original entry also said the `/12` branch was "live only for
+   user-entered/seeded annual rows"; that was wrong — L.23 established that no user-entered
+   scheduled rows can exist and no seeded row is annual, so the branch was dead for every row
+   in production.)
 2. **A job LOSS over-reads income for up to ~2 months** (cycle-1 money P1-3b): the median holds
    the pre-loss months until zero months dominate the window. The income-pause radar flags the
    state on the same dashboard, but the plan number itself is high — the dangerous direction.

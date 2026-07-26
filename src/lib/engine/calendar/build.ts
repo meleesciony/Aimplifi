@@ -69,9 +69,16 @@ export function expandScheduled(
         });
       }
     };
-    if (row.cadence === 'MONTHLY') {
+    // MONTHLY steps 1 calendar month, ANNUAL steps 12 (L.23 — a detected annual
+    // bill now reaches the calendar). A month view can hold at most one
+    // occurrence of either an annual or a one-off row, so this is
+    // behaviour-identical to the single-occurrence `else` below for every window
+    // this builder is called with; the explicit step is what keeps a wider
+    // window honest.
+    const monthStep = row.cadence === 'MONTHLY' ? 1 : row.cadence === 'ANNUAL' ? 12 : 0;
+    if (monthStep > 0) {
       for (let i = 0; ; i++) {
-        const occ = addMonthsClamped(start, i);
+        const occ = addMonthsClamped(start, i * monthStep);
         if (compareDates(occ, to) > 0) break;
         push(occ);
       }
