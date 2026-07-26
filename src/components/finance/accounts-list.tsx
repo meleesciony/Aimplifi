@@ -20,7 +20,6 @@ import {
   cardOffersDisconnect,
   connectionsById,
   duplicateCardView,
-  providerMask,
   visibleAccountsByItem,
   DUPLICATE_HOWTO,
   DUPLICATE_HOWTO_TESTID,
@@ -46,6 +45,15 @@ import {
   CONTINUED_SOURCE_TESTID,
   CONTINUED_UNDO_TESTID,
 } from '@/components/finance/continued-accounts-view';
+import {
+  reconcileAmbiguityView,
+  reconcileSideLabel,
+  RECONCILE_AMBIGUITIES_TESTID,
+  RECONCILE_AMBIGUITY_HOWTO_TESTID,
+  RECONCILE_AMBIGUITY_INTRO,
+  RECONCILE_AMBIGUITY_MATCHES_TESTID,
+  RECONCILE_AMBIGUITY_TESTID,
+} from '@/components/finance/reconcile-candidates-view';
 import {
   ManualCardStatementForm,
   type ManualStatementFormValues,
@@ -384,6 +392,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
           )
         }
       />
+      <ReconciliationAmbiguitiesCard ambiguities={data.reconciliationAmbiguities} />
       <ContinuedAccountsCard
         reconciliations={data.reconciliations}
         pending={pending}
@@ -778,6 +787,56 @@ function ReconciliationCandidatesCard({
   );
 }
 
+function ReconciliationAmbiguitiesCard({
+  ambiguities,
+}: {
+  ambiguities: AccountsView['reconciliationAmbiguities'];
+}) {
+  if (ambiguities.length === 0) return null;
+  return (
+    <Card data-testid={RECONCILE_AMBIGUITIES_TESTID} className="border-amber-900/50 bg-amber-950/30">
+      <CardHeader className="pb-2">
+        <CardDescription className="text-amber-300">Same account, new connection?</CardDescription>
+        <CardTitle className="text-base">It matches more than one account</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p className="text-muted-foreground">{RECONCILE_AMBIGUITY_INTRO}</p>
+        <ul className="space-y-3" role="list">
+          {ambiguities.map((g) => {
+            const view = reconcileAmbiguityView(g);
+            return (
+              <li
+                key={g.predecessor.id}
+                data-testid={RECONCILE_AMBIGUITY_TESTID}
+                className="rounded-md border border-amber-900/40 px-3 py-2"
+              >
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-medium">{view.predecessor.name}</span>
+                  <span className="text-xs text-muted-foreground">({view.predecessor.qualifier})</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground" data-testid={RECONCILE_AMBIGUITY_MATCHES_TESTID}>
+                  {view.matchesSentence}{' '}
+                  {view.successors.map((s, i) => (
+                    <span key={s.id}>
+                      {i > 0 ? '; ' : ''}
+                      <strong className="text-foreground">{s.name}</strong>{' '}
+                      <span className="text-muted-foreground">({s.qualifier})</span>
+                    </span>
+                  ))}
+                  .
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground" data-testid={RECONCILE_AMBIGUITY_HOWTO_TESTID}>
+                  {view.howto}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 function CandidateRow({
   candidate,
   today,
@@ -796,6 +855,10 @@ function CandidateRow({
   const span = candidate.predecessorTxnSpan;
   const [cutover, setCutover] = useState(span?.last ?? today);
   const { predecessor, successor } = candidate;
+  // L.9: labels come from the view module — a name that doubles its own trailing number collapses
+  // to one copy, and the qualifier drops a mask the name already shows (each number prints once).
+  const predLabel = reconcileSideLabel(predecessor);
+  const succLabel = reconcileSideLabel(successor);
   // What the engine will actually claim for the predecessor: [first, min(cutover, last)].
   // ISO YYYY-MM-DD strings compare correctly as strings.
   const claimEnd = span !== null ? (cutover < span.last ? cutover : span.last) : null;
@@ -803,13 +866,13 @@ function CandidateRow({
   return (
     <li data-testid="reconcile-candidate" className="rounded-md border border-sky-900/40 px-3 py-2">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="font-medium">{predecessor.name}</span>
-        <span className="text-xs text-muted-foreground">({providerMask(predecessor)})</span>
+        <span className="font-medium">{predLabel.name}</span>
+        <span className="text-xs text-muted-foreground">({predLabel.qualifier})</span>
         <span aria-hidden className="text-muted-foreground">
           →
         </span>
-        <span className="font-medium">{successor.name}</span>
-        <span className="text-xs text-muted-foreground">({providerMask(successor)})</span>
+        <span className="font-medium">{succLabel.name}</span>
+        <span className="text-xs text-muted-foreground">({succLabel.qualifier})</span>
         <span
           className={`ml-auto rounded px-1.5 py-0.5 text-xs ${candidate.confidence === 'high' ? 'bg-sky-900/60 text-sky-100' : 'bg-sky-900/30 text-sky-200'}`}
         >
@@ -848,14 +911,14 @@ function CandidateRow({
           engine uses, never a paraphrase of the default. */}
       {span !== null && claimEnd !== null ? (
         <p className="mt-2 text-xs text-muted-foreground" data-testid="reconcile-span-disclosure">
-          We’ll keep <strong>{predecessor.name}</strong>’s records from {span.first} through {claimEnd} —
-          inside that window they replace anything <strong>{successor.name}</strong> re-imported.{' '}
-          <strong>{successor.name}</strong> counts everywhere else, including older history it brought
+          We’ll keep <strong>{predLabel.name}</strong>’s records from {span.first} through {claimEnd} —
+          inside that window they replace anything <strong>{succLabel.name}</strong> re-imported.{' '}
+          <strong>{succLabel.name}</strong> counts everywhere else, including older history it brought
           back.{cedesTail ? (
             <>
               {' '}
-              <strong>{predecessor.name}</strong>’s records after {claimEnd} stop counting —{' '}
-              <strong>{successor.name}</strong>’s version of those days counts instead.
+              <strong>{predLabel.name}</strong>’s records after {claimEnd} stop counting —{' '}
+              <strong>{succLabel.name}</strong>’s version of those days counts instead.
             </>
           ) : null}{' '}
           If the two banks dated the same purchase differently right at the boundary, it can briefly
@@ -863,8 +926,8 @@ function CandidateRow({
         </p>
       ) : (
         <p className="mt-2 text-xs text-muted-foreground" data-testid="reconcile-span-disclosure">
-          <strong>{predecessor.name}</strong> has no recorded transactions, so its balance simply stops
-          counting and <strong>{successor.name}</strong> counts everything. You can undo this anytime.
+          <strong>{predLabel.name}</strong> has no recorded transactions, so its balance simply stops
+          counting and <strong>{succLabel.name}</strong> counts everything. You can undo this anytime.
         </p>
       )}
     </li>

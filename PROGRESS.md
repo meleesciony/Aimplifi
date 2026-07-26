@@ -5503,6 +5503,21 @@ gate (the L.18 standard).
 NEXT: L.9 — the Continue-an-account card offering one predecessor against two successors, one of
 them the wrong retirement registration (Fable build + hostile critic).
 
+## L.9 PARKED mid-build for an owner-reported live defect. 2026-07-25
+Owner sent three screenshots of the LIVE app: "It's worse now."
+ - Dashboard: "Cash needed for cards this cycle $18,814.14 ... by Wed, Aug 5 to pay all 7 cards".
+ - Same dashboard, lower: "GUILT-FREE TO SPEND $22,254.09 = $3,709.01/day, 6 days left".
+ - /plan "How we got there": Expected income +$22,254.09; Spent so far (cash accounts) -$0.00;
+   Bills still coming -$0.00; Card payments due this month -$0.00; Planned savings -$0.00;
+   Guilt-free to spend $22,254.09.
+The two figures on one screen contradict: the plan invites him to spend, at $3,709/day, money the
+cash-needed answer says he needs in 11 days. Three of the five subtraction lines are exactly $0.00.
+L.9 work in progress is STASHED (git stash, message below), tree clean for the diagnosis.
+STASHED SO FAR: engine/account/registration.ts (new, the Roth-vs-pretax veto), duplicates.ts
+(subtype field + veto + detectReconciliationCandidates -> {candidates, ambiguous} + excludePair),
+transactions.ts/finance.ts/household-finance.ts subtype threading + the ambiguity view field.
+Not yet done on L.9: reconcile-candidates-view.ts, the UI, all tests.
+
 ## L.11(D) BUILT — the cushion cap. Checkpoint before the gate. 2026-07-25
 THE REPORT: three screenshots, "It's worse now" (see the parked-L.9 entry above for the figures).
 DIAGNOSIS, from the code and confirmed against the screenshots (not a guess): the card-payments
@@ -5628,3 +5643,113 @@ NEXT: L.9 is STASHED and unfinished (git stash@{0}) — the registration veto + 
 carry-out for the Continue-an-account card. Then the open queue: L.16 (the keep-both prompt),
 L.13 (blocked on an owner screenshot), and the L.11(D) residuals in STATUS, sharpest of which is
 that a LOAN payment dated past the month's edge is still in no term at all.
+
+## L.9 RESUMED — built, gate green locally, critics in flight. 2026-07-26
+Resumed from stash@{0} (parked 2026-07-25 for the L.11(D) live defect). The stash pop restored
+everything INCLUDING the untracked engine/account/registration.ts (stash had been created with -u);
+PROGRESS.md conflicted (both sides appended at EOF) — resolved chronologically (the PARKED entry
+predates the L.11(D) entries, which reference it). Stash entry KEPT undeleted until ship.
+WHAT THE STASH ALREADY HAD (kept): registration.ts (Roth-vs-pretax veto, INVESTMENT-only, both
+sides must resolve, Roth evidence beats an unspecialised `ira` subtype); the veto wired into
+duplicateSignals (shared by personal + household + reconciliation + displayed-card detection);
+detectReconciliationCandidates -> {candidates, ambiguous} + excludePair (applied BEFORE grouping,
+so dismissing the wrong pair releases the survivor — a guard reads what it guards); subtype
+threading in finance.ts / household-finance.ts / transactions.ts; the reconciliationAmbiguities
+view field.
+BUILT THIS SESSION: account-registration.test.ts (13 locks, abstention-majority); the candidates
+test updated to the new return type + 10 new L.9 locks (the owner case dissolving to ONE candidate,
+ambiguity carry-out, excludePair release, two-preds-one-succ stays offerable, veto never off
+INVESTMENT / never on unresolved sides / never Roth-Roth); reconcile-candidates-view.ts (labels:
+bank-doubled trailing number collapsed end-anchored, qualifier drops the mask the name already
+shows, ambiguity INTRO/HOWTO/matchesSentence) + 13 locks; ReconciliationAmbiguitiesCard on
+/accounts (disclosure, NO Combine control) + CandidateRow/span-disclosure labels through the view;
+e2e x2 (the vetoed owner case; the ambiguity state + the resolution path's warning present).
+STALE LOCK RE-POINTED: reconcile-surfaces C-8 pre-link asserted BOTH twins offered — the exact
+behaviour L.9 removes; now locks candidates=0 + one ambiguity group, PLUS the dismissal-release
+path through real getAccountsView (excludePair wired, not just the engine option).
+GATE SO FAR (real output): full vitest 281 files / 4403 tests ALL PASS (4366 -> +37);
+reconcile.spec 4/4 serialized; account-deletion + account-rename + combined-accounts +
+duplicate-connections + mobile-overflow 29/29; dashboard-duplicate-disclosure + feed-dropped 7/7.
+One mobile-380 ambiguity-spec failure mid-run was the DOCUMENTED #287 whole-page DOM-duplication
+flake (strict-mode "resolved to 2 elements" on /accounts) — passed clean on isolated retry, no
+hydration/pageerror lines captured by the armed observer.
+IN FLIGHT: three fresh-context critics (veto misfire direction / ambiguity semantics / copy).
+NEXT: critic findings -> fixes -> verify.sh -> DECISIONS/STATUS/TASKS/ledger -> commit/push/deploy.
+Prisma diff expected EMPTY (subtype column shipped in #300).
+
+## L.9 — critic cycles 1+2 both FAILED, all findings fixed and locked. 2026-07-26
+CYCLE 1 (three fresh-context critics, parallel: veto misfire / ambiguity semantics / copy):
+verdicts FAIL — 3 P1 + 9 P2 after dedupe, every one reproduced by the critic's own execution
+before entering a fix.
+ P1  veto misfire: "Jill Roth - Traditional IRA" resolved roth (bank names embed the HOLDER'S
+     name) and the veto hid a REAL pair — the silent-double-count #292 direction, worse than
+     never vetoing. FIXED: name evidence needs an IRA context AND abstains when a name carries
+     both token classes; subtype stays unconditional (never contains a surname).
+ P1  folded-live-again successor: excludePair guarded only the predecessor role, so a
+     superseded row that came back LIVE was named inside an ambiguity group as "one of your
+     live accounts" — a row not on screen — and the how-to steered the user into releasing a
+     candidate whose confirm auto-undid his earlier combine (net worth went UP from a
+     "combine"). FIXED: the successor role is excluded too; FOLD lock in reconcile-surfaces.
+ P1  the how-to named a dismiss control that does not exist for identity-proven pairs (they
+     fire no heuristic signal, so they're on no notice) and promised singular release that
+     fails for 3+ successors. FIXED then SIMPLIFIED by cycle 2 (see below).
+ P2s fixed: a PROVEN pair downgraded into "we cannot tell" by a name-token guess (a proven
+     pair is now hoisted OUT of a group as the offer); proven-partner count ignored exclusions
+     (a dismissed proven pair never released); byte-identical labels (positional suffix,
+     unforgeable); feed-name sort orders (painted re-sorts, F8 rule); maskFromName first-match
+     (all-matches nameShowsDigits); nickname collapse (userNamed skips it); TIAA/"Roth Capital"
+     (ira-context requirement); 401k/employer plans (RECORDED LIMIT, documented).
+GATE after cycle 1 fixes: full vitest 281/4420; reconcile.spec 4/4.
+CYCLE 2 (one fresh-context critic aimed at the fixes): verdict FAIL — 1 P1 + 6 P2.
+ P1  a DEAD proven partner deadlocked a fold: X proven-same to live Y AND to dead Z got "two
+     partners", so X→Y was withheld by a pair that can never compete (both-dead has no
+     direction) — two stale rows double-counted against Y with no offer and no statement, and
+     no user path out (a dead partner has no combine surface). FIXED: role-based counting — a
+     directed proven pair counts only against its DEAD side (competing successor choices), a
+     both-live pair counts each live side (unresolved combine), both-dead counts nothing; the
+     deadlock releases as X→Y AND Z→Y (the #297-valid shape). Critic validated the patch shape
+     against all six locked cases by execution before I implemented it.
+ P2-3 name↔subtype CONTRADICTION resolved instead of abstaining ({Roth IRA + subtype
+     traditional} -> pretax -> vetoed a REAL Roth↔Roth pair). FIXED: conflicting evidence is
+     an absence, one level up.  P2-4 a 3-digit mask column printed twice (nameShowsDigits now
+     \d{3,}).  P2-5 the off-notice sentence/plumbing was unreachable (proven pairs leave groups
+     via the hoist; every notice filter is mirrored in excludePair) AND its Delete claim was
+     wrong — REMOVED the dead branch and locked the invariant it defended instead (every pair
+     in a rendered group IS on the notice, end-to-end in reconcile-surfaces).  P2-1/P2-2
+     recorded limits documented ('iras' plural context added; "Roth Conversion Traditional
+     IRA"-class abstentions named deliberate).  P2-6 cross-group order now painted.
+GATE after cycle 2 fixes: full vitest 281 files / 4422 tests ALL PASS (alone, no agents);
+tsc 0; eslint 0; next build clean; e2e serialized 26/26 across reconcile + duplicate-connections
++ combined-accounts + account-deletion + account-rename + dashboard-duplicate-disclosure.
+One flake note: combined-accounts "two old accounts" failed twice with the DOCUMENTED #287
+whole-page-DOM-duplication signature ("resolved to 2 elements") under post-suite load, then
+passed isolated AND in the full 26/26 sweep — the fixture provably renders no L.9 card (its
+folded shape produces no candidates/groups), so the change cannot be the cause; CI arbitrates.
+IN FLIGHT: cycle-3 critic (final, aimed at the counting semantics + contradiction rule).
+NEXT: cycle-3 verdict -> (fixes if any) -> verify.sh -> DECISIONS/STATUS/TASKS/ledger -> ship.
+
+## L.9 — cycle 4 (cap), OPEN items recorded, gate green, docs done. 2026-07-26
+CYCLE 4 (final, cap): FAIL — 1 P1 + 3 P2. The P1 is NOT a regression: a withheld PROVEN
+ambiguity whose two live rows do not themselves ladder-prove (card reissue → contradictory
+evidence, or subtype split) is carried out NOWHERE — pre-existing silence the heuristic
+carry-out did not extend to; advisory direction, no wrong action offered. Per the 4-cycle cap:
+recorded in STATUS §L.9 OPEN #1 with the critic's fix sketch (a proven-successor ambiguity
+group + a how-to variant; needs its own critic cycle). Fixed within the cycle: the stale
+provenPartners comment reference, and the residual-window doc-line's false "both feed names
+print" defense. P2-3 (a heuristic dismissal while a tangle stands is a dead end) recorded with
+the OPEN item. Cycle-3's F-1 fix was verified correct-and-complete by the cycle-4 critic
+("verified by execution… attacked, failed to break").
+GATE (real output this session): bash scripts/verify.sh -> VERIFY GREEN (tsc 0, eslint 0,
+**281 files / 4423 tests**, build clean). E2E serialized: 26/26 across reconcile +
+duplicate-connections + combined-accounts + account-deletion + account-rename +
+dashboard-duplicate-disclosure, incl. the two new L.9 specs. combined-accounts flaked twice on
+the DOCUMENTED #287 whole-page-DOM-duplication signature under post-suite load; passed isolated
+and in the full sweep; the fixture renders no L.9 card, so the change cannot be the cause.
+DOCS: DECISIONS #310 (+index), STATUS §L.9 (built + 5 OPEN residuals), TASKS row flipped,
+5 REGRESSION_LEDGER rows, lesson proof-outranks-guess-and-conflict-is-absence.md (+INDEX).
+NEXT: commit, push, deploy-verify. Prisma diff EMPTY (confirmed before the gate).
+THEN: the owner's mid-session report — guilt-free spending income term ($22,254.09 expected
+income is wrong for him; formula re-spec: income(all sources) - savings% - fixed+recurring
+expenses only, no discretionary). Diagnose the income term against the engine first (no live DB
+here — read the code, enumerate what could produce $22,254.09 for July, and say what is and
+isn't verifiable).

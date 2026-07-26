@@ -105,6 +105,79 @@ test.beforeEach(({ page }) => {
   });
 });
 
+/** L.9: one stale SimpleFIN Roth IRA + TWO live Plaid IRAs (Roth ····5351, Traditional ····1548). */
+function seedRetirementTrio(email: string) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
+    if (!user) throw new Error(`seedRetirementTrio: user ${email} not found`);
+    const uid = user.id;
+    const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    // Stale SimpleFIN predecessor — the owner's exact row, bank-doubled number and all.
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, name, type, mask, currentBalanceCents, currency)
+       VALUES (?, ?, 'simplefin', ?, 'Charles Schwab US Roth Contributory IRA ...396 (396)', 'INVESTMENT', NULL, 500000, 'USD')`,
+    ).run(`e2e-l9-pred-${suffix}`, uid, `sf-${suffix}`);
+    // Two live Plaid items, one Roth and one Traditional, each named like the owner's rows.
+    for (const [n, itemSuffix] of [
+      ['Roth IRA Brokerage Account - ****5351', 'roth'],
+      ['Traditional IRA Brokerage Account - ****1548', 'trad'],
+    ] as const) {
+      const itemId = `e2e-l9-item-${itemSuffix}-${suffix}`;
+      db.prepare(`INSERT INTO PlaidItem (id, userId, itemId, accessToken) VALUES (?, ?, ?, 'ct-e2e')`).run(
+        `e2e-l9-itemrow-${itemSuffix}-${suffix}`,
+        uid,
+        itemId,
+      );
+      db.prepare(
+        `INSERT INTO Account (id, userId, provider, providerRef, plaidItemId, name, type, subtype, mask, currentBalanceCents, currency)
+         VALUES (?, ?, 'plaid', ?, ?, ?, 'INVESTMENT', ?, ?, 510000, 'USD')`,
+      ).run(
+        `e2e-l9-succ-${itemSuffix}-${suffix}`,
+        uid,
+        `pl-${itemSuffix}-${suffix}`,
+        itemId,
+        n,
+        itemSuffix === 'roth' ? 'roth' : 'ira',
+        itemSuffix === 'roth' ? '5351' : '1548',
+      );
+    }
+  } finally {
+    db.close();
+  }
+}
+
+/** L.9: one stale SimpleFIN checking row + two live Plaid checking twins (the ambiguity shape). */
+function seedAmbiguousTrio(email: string) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
+    if (!user) throw new Error(`seedAmbiguousTrio: user ${email} not found`);
+    const uid = user.id;
+    const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, name, type, mask, currentBalanceCents, currency)
+       VALUES (?, ?, 'simplefin', ?, 'BofA Checking (old)', 'CHECKING', '5678', 100000, 'USD')`,
+    ).run(`e2e-amb-pred-${suffix}`, uid, `sf-${suffix}`);
+    for (const which of ['b', 'c'] as const) {
+      const itemId = `e2e-amb-item-${which}-${suffix}`;
+      db.prepare(`INSERT INTO PlaidItem (id, userId, itemId, accessToken) VALUES (?, ?, ?, 'ct-e2e')`).run(
+        `e2e-amb-itemrow-${which}-${suffix}`,
+        uid,
+        itemId,
+      );
+      db.prepare(
+        `INSERT INTO Account (id, userId, provider, providerRef, plaidItemId, name, type, mask, currentBalanceCents, currency)
+         VALUES (?, ?, 'plaid', ?, ?, 'BofA Checking', 'CHECKING', '5678', 100000, 'USD')`,
+      ).run(`e2e-amb-succ-${which}-${suffix}`, uid, `pl-${which}-${suffix}`, itemId);
+    }
+  } finally {
+    db.close();
+  }
+}
+
 test('reconciling a stale account with its live twin stops net worth from doubling, and undo restores it', async ({
   page,
 }) => {
@@ -155,4 +228,49 @@ test('slice 6: the register agrees with the dashboard after combining — overla
   await expect(page.getByTestId('reconcile-combined')).toBeVisible({ timeout: 20_000 });
   await page.goto('/transactions');
   await expect(page.getByTestId('summary-out')).toContainText('150.00', { timeout: 20_000 });
+});
+
+test('L.9: a Roth is never offered against a Traditional — the wrong pair is vetoed, the right one offered', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedRetirementTrio(email);
+  await page.goto('/accounts');
+
+  // The veto dissolves the owner's ambiguity into ONE offerable candidate: the Roth→Roth pair.
+  // No ambiguity card (the Traditional is not "one we can't tell apart" — it is provably a
+  // different account), and no Traditional anywhere in the candidate rows.
+  await expect(page.getByTestId('reconcile-candidates')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('reconcile-candidate')).toHaveCount(1);
+  await expect(page.getByTestId('reconcile-candidate')).toContainText('Roth IRA Brokerage Account');
+  await expect(page.getByTestId('reconcile-candidate')).not.toContainText('Traditional');
+  await expect(page.getByTestId('reconcile-ambiguities')).toHaveCount(0);
+
+  // Each number prints exactly once: the bank-doubled "...396 (396)" collapses, and the Plaid
+  // qualifier drops the "····5351" the name already shows.
+  const row = page.getByTestId('reconcile-candidate');
+  // (toContainText concatenates sibling elements without a space: name span + qualifier span.)
+  await expect(row).toContainText('Charles Schwab US Roth Contributory IRA ...396(SimpleFIN)');
+  await expect(row).not.toContainText('(396)');
+  await expect(row).toContainText('(Plaid)');
+  await expect(row).not.toContainText('····5351');
+});
+
+test('L.9: one stale row matching two live accounts offers NEITHER — stated, with no Combine control', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedAmbiguousTrio(email);
+  await page.goto('/accounts');
+
+  // The withheld conclusion renders as a disclosure, never silence and never a Combine button.
+  await expect(page.getByTestId('reconcile-ambiguities')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('reconcile-ambiguity')).toHaveCount(1);
+  await expect(page.getByTestId('reconcile-ambiguity-matches')).toContainText('Looks like 2 of your live accounts:');
+  await expect(page.getByTestId('reconcile-candidates')).toHaveCount(0);
+  await expect(page.getByTestId('reconcile-confirm')).toHaveCount(0);
+
+  // The resolution path the how-to names exists: both pairs are on the possible-duplicate
+  // notice (an ambiguous pair is never candidate-suppressed).
+  await expect(page.getByTestId('duplicate-accounts-warning')).toBeVisible();
 });

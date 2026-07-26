@@ -2,6 +2,65 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-26 — L.9: the registration veto, the ambiguity carry-out, and four critic cycles (DECISIONS #310)
+
+Owner-reported 2026-07-24 with a /accounts screenshot: the Continue-an-account card offered his
+SimpleFIN `Charles Schwab US Roth Contributory IRA ...396 (396)` against BOTH his Plaid Roth IRA
+(····5351) and his Plaid Traditional IRA (····1548) at the same "possible" badge — one tap from
+folding a Roth's history into a Traditional — with each account's number printed twice.
+
+Shipped: (1) `engine/account/registration.ts` — a Roth is never a Traditional across providers
+(the one veto that survives the boundary a last-4 cannot cross), scoped INVESTMENT-only,
+both-sides-resolve, Roth evidence beating an unspecialised subtype, name evidence requiring an
+IRA context and abstaining on any conflict. The veto rides the shared `duplicateSignals`, so it
+covers the personal detector, household duplicates, reconciliation candidates, and the /cards +
+dashboard disclosure at once. (2) `detectReconciliationCandidates` → `{candidates, ambiguous}`
+with `excludePair` applied before grouping — one stale row matching ≥2 live accounts is offered
+as NEITHER and stated on a new disclosure card (no Combine control); dismissing the wrong pair
+on the duplicate notice releases the survivor. (3) Proven identity outranks heuristics: a proven
+pair is hoisted out of a group as the offer; proven partners are counted by role; a withheld
+proven predecessor's heuristic rivals are never offered. (4) Labels: each number prints exactly
+once; identical labels get an unforgeable positional suffix; user-chosen names never edited.
+
+**Four hostile-critic cycles (the cap), every finding executed by the critic before a fix.**
+Cycle 1 (three fresh-context critics) FAIL — 3 P1 + 9 P2: the surname-Roth misfire ("Jill Roth -
+Traditional IRA" vetoed a REAL pair into a silent double-count); a folded-but-live-again row
+named as a successor whose released candidate auto-undid the user's earlier combine; the how-to
+naming a dismiss control that does not exist for proven pairs. Cycle 2 FAIL — 1 P1 + 6 P2: a
+DEAD proven partner deadlocking a fold (role-based counting, validated by the critic against all
+six locked shapes first). Cycle 3 FAIL — 1 P1 + 2 P2: a withheld proven fold released its lone
+heuristic rival as a clean wrong-fold offer (suppressed — the app's own proof outranks a guess).
+Cycle 4 FAIL at the cap — see OPEN below. Gate: `bash scripts/verify.sh` GREEN — tsc 0 / eslint
+0 / **281 files / 4423 tests** / build clean; e2e **26/26** serialized across the account-surface
+specs (2 new L.9 specs); 5 REGRESSION_LEDGER rows; no schema change.
+
+### 🟠 OPEN after L.9 — recorded residuals
+
+1. **A withheld PROVEN ambiguity with no both-live tangle is carried out nowhere** (cycle-4 P1,
+   cap reached — recorded, not fixed). Shape: one real account on three Plaid connections (one
+   disconnected) where the two live rows do NOT ladder-prove each other (card reissued between
+   re-links → persistent ids equal, masks differ → contradictory → unproven; or subtypes differ).
+   The stale row's folds are withheld (correct), its heuristic rivals are suppressed (correct),
+   and NOTHING renders anywhere: no candidate, no group, no warning, no combine card — while the
+   stale balance double-counts and the app holds tier-P proof. Advisory direction (no wrong
+   action is offered), and pre-existing: the pre-L.9 code was silent in this shape too (the
+   heuristic carry-out this slice added is an improvement, not a regression). **Fix sketch
+   (cycle-4 critic's, for the follow-up slice):** emit an ambiguity group naming the proven
+   successors ("we can prove it is one of these, we cannot tell which") with a how-to VARIANT —
+   the notice's dismiss control does not apply to proven pairs (not on the notice), so the
+   remedy is disconnecting the connection it isn't, which releases the fold; and the how-to must
+   not promise a heuristic dismissal releases anything while the tangle stands (cycle-4 P2-3).
+   Needs its own critic cycle — the copy names connections and remedies.
+2. **The surname-Roth residual window is irreducible** ("Jill Roth - IRA", cycle-3, recorded in
+   the module): token-identical to a real "Roth IRA"; in the veto direction the pair prints
+   nowhere (cycle-4). Narrow (one naming shape × a surname coincidence), advisory surface.
+3. **Employer-plan registrations are out of scope** ("Roth 401k" vs "401k" can still be offered
+   as a wrong fold — user-confirmed, both feed names printed; recorded in the module).
+4. **Name↔subtype contradiction abstains** — a bank that writes a contradictory subtype gets no
+   veto either way (deliberate: conflicting evidence is an absence).
+5. **The demo golden is unchanged** (provider-excluded by construction; locked in
+   reconcile-surfaces).
+
 ## ✅ BUILT 2026-07-25 — L.11(C): Safe-to-Spend becomes guilt-free spending (DECISIONS #295/#307)
 
 The owner-decided IWT reframe. New formula: guilt-free = expected income − spending outside

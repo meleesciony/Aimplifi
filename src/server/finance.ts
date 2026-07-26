@@ -240,6 +240,7 @@ async function detectDisplayedCardDuplicates(
         provider?: string;
         mask?: string | null;
         currency?: string | null;
+        subtype?: string | null;
         plaidItemId?: string | null;
       },
   );
@@ -253,6 +254,8 @@ async function detectDisplayedCardDuplicates(
       mask: row.mask ?? null,
       currentBalanceCents: row.currentBalanceCents,
       currency: row.currency ?? null,
+      // L.9: the registration veto — absent here it still reads the names, which these rows carry.
+      subtype: row.subtype ?? null,
       // Same-bank-relinked both-live pairs are the reported case (C-10): without this the
       // detector's blanket same-provider skip would hide exactly the pair we are here for.
       plaidItemId: row.plaidItemId ?? null,

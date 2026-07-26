@@ -21,6 +21,7 @@
  */
 
 import { compareAccountIdentity, type IdentityAccount } from '@/lib/engine/account/identity';
+import { registrationsConflict } from '@/lib/engine/account/registration';
 
 export interface DuplicateAccountCandidate {
   id: string;
@@ -35,6 +36,10 @@ export interface DuplicateAccountCandidate {
    *  two plaid accounts from DIFFERENT items can be the same real account. Optional —
    *  callers that omit it keep the blanket same-provider skip. */
   plaidItemId?: string | null;
+  /** The provider's raw subtype ('roth', 'ira', 'checking', …), when it wrote one — Plaid does,
+   *  SimpleFIN and manual rows never do (TASKS L.9). Read ONLY by the registration veto below,
+   *  which also reads the name, so a caller that omits this keeps the veto working on names. */
+  subtype?: string | null;
 }
 
 export interface DuplicateAccountRef {
@@ -42,6 +47,12 @@ export interface DuplicateAccountRef {
   name: string;
   provider: string;
   mask: string | null;
+  /** True when `name` is the USER'S chosen nickname, not the feed's string (TASKS L.7/L.9).
+   *  Display rules that repair bank formatting (the doubled-number collapse in
+   *  reconcile-candidates-view.ts) must never edit the name the user chose — L.7's whole point
+   *  is that he matches a card entry to a row by his own words. Optional: engine-constructed
+   *  refs leave it unset; the server attaches it when it maps display names. */
+  userNamed?: boolean;
 }
 
 export type DuplicateConfidence = 'high' | 'medium';
@@ -112,7 +123,7 @@ function normalizeCurrency(c: string | null): string {
  * a veto the same mis-read would SILENTLY HIDE a real duplicate and let a balance double-count,
  * which is why #292 removed it from the veto path. Positive = safe, negative = dangerous.
  */
-function maskFromName(name: string): string | null {
+export function maskFromName(name: string): string | null {
   const paren = /\((\d{4})\)/.exec(name);
   if (paren) return paren[1];
   // No 'x' here on purpose: the x in "Amex 2019" over-matched a year (critic F2).
@@ -162,6 +173,14 @@ function duplicateSignals(
   // A genuine duplicate is the same account: same type and same currency are hard prerequisites.
   if (lo.type !== hi.type) return null;
   if (normalizeCurrency(lo.currency) !== normalizeCurrency(hi.currency)) return null;
+  // A Roth is never a Traditional, whatever their names, balances or numbers agree on (TASKS L.9,
+  // owner-reported: one SimpleFIN Roth IRA was offered against BOTH a Plaid Roth and a Plaid
+  // Traditional, at the same badge). This is the one veto that survives the provider boundary a
+  // last-4 cannot cross — a mask is an identifier convention, a registration is a fact about the
+  // account — and it is scoped hard so its misfire direction (hiding a real duplicate, #292)
+  // stays closed: INVESTMENT rows only, both sides must resolve, and evidence of a Roth always
+  // beats an unspecialised subtype. See engine/account/registration.ts for the whole argument.
+  if (registrationsConflict(lo, hi)) return null;
   // A different last-4 means different CARDS — but NOT necessarily different ACCOUNTS: one account
   // can carry several cards (an authorized-user card for a spouse) with different numbers yet ONE
   // shared balance. So a differing last-4 disqualifies only the WEAK name signal (a shared surname
@@ -371,6 +390,49 @@ export interface ReconciliationCandidate {
   confidence: DuplicateConfidence;
   matchSignal: ReconciliationMatchSignal;
   reasons: string[];
+  /** True only for the same-provider identity-ladder path (a tier-P or mask-tier PROOF from
+   *  identity.ts), never for a heuristic signal. A proven pair outranks heuristic rivals inside
+   *  an ambiguity group: withholding it would say "we cannot tell which" about a pair the app
+   *  can prove (critic P2-3). */
+  provenIdentity?: boolean;
+}
+
+/**
+ * One stale row that resembles SEVERAL live accounts, carried out rather than dropped (TASKS L.9).
+ * A predecessor is the continuation of exactly one real account, so two proposals for one row are
+ * not two chances to be right — they are the app saying "it is one of these" while badging both
+ * identically, and confirming the wrong one folds the wrong history. The offer is withheld and the
+ * caller states the ambiguity: a filter that discards an unknown must carry it out
+ * (docs/lessons/an-empty-set-is-not-a-fact-about-money.md).
+ */
+export interface AmbiguousReconciliationGroup {
+  predecessor: DuplicateAccountRef;
+  /** The live accounts it matched, ≥2, deterministically ordered. */
+  successors: DuplicateAccountRef[];
+}
+
+export interface ReconciliationCandidateSet {
+  /** Offerable: exactly one live account matched this predecessor. */
+  candidates: ReconciliationCandidate[];
+  /** Not offerable, and not silent either. */
+  ambiguous: AmbiguousReconciliationGroup[];
+}
+
+export interface ReconciliationDetectOptions {
+  /**
+   * Pairs the caller has already resolved — reconciled, dismissed as "not a duplicate", or whose
+   * predecessor is already inside an effective link. Passed IN rather than filtered out afterwards
+   * because the ambiguity rule above has to be decided over the set that will actually render: a
+   * predecessor matching two successors, one of which the user already dismissed, is not ambiguous
+   * at all, and withholding the survivor would strand him (a guard must read what it guards).
+   *
+   * CONTRACT: the callback must be ORDER-INDEPENDENT — `excludePair(a, b) === excludePair(b, a)`
+   * for every pair (cycle-3 critic P2: the proven-partner counting loop probes both orders while
+   * the candidate filter probes role order, so a direction-sensitive callback can land two proven
+   * pairs for one predecessor in a single group — the state this module declares impossible).
+   * The one production caller builds it from sorted pair-keys and membership sets, which hold.
+   */
+  excludePair?: (predecessorId: string, successorId: string) => boolean;
 }
 
 /**
@@ -384,21 +446,42 @@ export interface ReconciliationCandidate {
  */
 export function detectReconciliationCandidates(
   accounts: ReconciliationAccountCandidate[],
-): ReconciliationCandidate[] {
+  options: ReconciliationDetectOptions = {},
+): ReconciliationCandidateSet {
   const sorted = [...accounts].sort(order);
-  // How many DIFFERENT rows each account is proven identical to. A row proven "the same account"
-  // as two others has proven nothing about either — offering both would put two identically
-  // badged Combine cards on screen, one of which folds the wrong account (critic P2-4; the same
-  // shape as TASKS L.9's open finding (4), closed here for the proven path).
-  const provenPartners = new Map<string, number>();
+  const exclude = options.excludePair ?? (() => false);
+  // Proven-identity partner counts, by ROLE (cycle-2 critic P1, executed): liveness decides what
+  // a proven pair can compete for, and counting every pair against both sides deadlocked the L.10
+  // re-link shape — X proven-same to a live Y and a DEAD Z had "two partners", so X→Y was
+  // withheld by a pair (X↔Z) that can never compete for a fold (both-dead has no direction, R3),
+  // leaving two stale rows double-counting against Y with no offer and no statement.
+  //   - deadChoices:   a DIRECTED proven pair counts only against its DEAD side — those are the
+  //                    competing successor choices for that row's fold (the L.9 ambiguity rule's
+  //                    proven counterpart).
+  //   - liveTangles:   a BOTH-LIVE proven pair counts against each live side — an unresolved
+  //                    combine. A successor tangled in one is not a clean fold target (the P2-2
+  //                    corollary: resolve the both-live pair first, then the stale fold releases).
+  //   - both-dead:     counts against nothing — no direction, no fold competition.
+  // Counted over pairs that SURVIVE the caller's exclusion, so dismissing/resolving a pair
+  // releases the survivor exactly as it releases a heuristic one (critic P2-2 — a guard must
+  // read what it guards).
+  const deadChoices = new Map<string, number>();
+  const liveTangles = new Map<string, number>();
+  const withheldProvenPredecessors = new Set<string>();
+  const bump = (m: Map<string, number>, id: string) => m.set(id, (m.get(id) ?? 0) + 1);
   for (let i = 0; i < sorted.length; i++) {
     for (let j = i + 1; j < sorted.length; j++) {
       const lo = sorted[i];
       const hi = sorted[j];
       if (lo.provider !== hi.provider || !lo.identity || !hi.identity) continue;
       if (compareAccountIdentity(lo.identity, hi.identity).verdict !== 'same') continue;
-      provenPartners.set(lo.id, (provenPartners.get(lo.id) ?? 0) + 1);
-      provenPartners.set(hi.id, (provenPartners.get(hi.id) ?? 0) + 1);
+      if (exclude(lo.id, hi.id) || exclude(hi.id, lo.id)) continue;
+      if (lo.hasLiveConnection && hi.hasLiveConnection) {
+        bump(liveTangles, lo.id);
+        bump(liveTangles, hi.id);
+      } else if (lo.hasLiveConnection !== hi.hasLiveConnection) {
+        bump(deadChoices, lo.hasLiveConnection ? hi.id : lo.id);
+      }
     }
   }
 
@@ -422,7 +505,26 @@ export function detectReconciliationCandidates(
         // supply no identity keep the original blanket skip.
         const proven = lo.identity && hi.identity ? compareAccountIdentity(lo.identity, hi.identity) : null;
         if (!proven || proven.verdict !== 'same') continue;
-        if ((provenPartners.get(lo.id) ?? 0) > 1 || (provenPartners.get(hi.id) ?? 0) > 1) continue;
+        // Role-based guard (the counts above): a stale row with SEVERAL live proven choices has
+        // proven nothing about any one of them — withhold rather than badge two folds identically;
+        // and a successor tangled in an unresolved BOTH-LIVE proven pair is not a clean fold
+        // target — the combine card owns that pair, and resolving it releases this one.
+        if (lo.hasLiveConnection !== hi.hasLiveConnection) {
+          const deadId = lo.hasLiveConnection ? hi.id : lo.id;
+          const liveId = lo.hasLiveConnection ? lo.id : hi.id;
+          if ((deadChoices.get(deadId) ?? 0) > 1 || (liveTangles.get(liveId) ?? 0) > 0) {
+            // …and remember the withheld stale row (cycle-3 critic P1, executed): a predecessor
+            // whose PROVEN folds are withheld must never see its HEURISTIC rivals offered either —
+            // a lone name-match would otherwise surface as a clean sole candidate, an offer the
+            // app can prove is the wrong account. The app's own proof outranks a guess: the
+            // heuristic pairs stay ordinary dismissable warnings on the duplicate notice, and the
+            // proven tangle stays owned by the combine card, whose resolution releases the stale
+            // fold. (Deliberately NOT an ambiguity group: naming the heuristic rivals as "the ones
+            // it might be" would mislead beside the proven tangle the combine card already states.)
+            withheldProvenPredecessors.add(deadId);
+            continue;
+          }
+        }
         confidence = 'high';
         matchSignal = proven.tier === 'P' ? 'persistent' : 'mask';
         reasons = [...proven.reasons];
@@ -444,14 +546,60 @@ export function detectReconciliationCandidates(
         confidence,
         matchSignal,
         reasons,
+        provenIdentity: lo.provider === hi.provider,
       });
     }
   }
   const rank: Record<DuplicateConfidence, number> = { high: 0, medium: 1 };
-  return out.sort(
+  const ranked = out
+    // Withheld-proven predecessors never reach the offer/group stage at all (see the guard).
+    .filter((c) => !withheldProvenPredecessors.has(c.predecessor.id) && !exclude(c.predecessor.id, c.successor.id))
+    .sort(
+      (p, q) =>
+        rank[p.confidence] - rank[q.confidence] ||
+        p.successor.name.localeCompare(q.successor.name) ||
+        p.predecessor.name.localeCompare(q.predecessor.name),
+    );
+
+  // One predecessor, several live matches → offer none of them and say so. Grouped by the
+  // PREDECESSOR only: two old rows folding into one live account is valid data the app already
+  // supports (#297, one successor supersedes several), while one old row continuing into two
+  // different live accounts is impossible. The one exception: a PROVEN-identity pair (the bank's
+  // own cross-item id) outranks heuristic rivals — withholding it would say "we cannot tell
+  // which" about a pair the app can prove (critic P2-3). The withheld rivals still warn on the
+  // duplicate notice, where the user can dismiss them; at most one proven pair can exist per
+  // predecessor (two live proven choices is exactly what the deadChoices guard withholds above).
+  const groups = new Map<string, ReconciliationCandidate[]>();
+  for (const c of ranked) {
+    const list = groups.get(c.predecessor.id);
+    if (list) list.push(c);
+    else groups.set(c.predecessor.id, [c]);
+  }
+  const candidates: ReconciliationCandidate[] = [];
+  const ambiguous: AmbiguousReconciliationGroup[] = [];
+  for (const list of groups.values()) {
+    const proven = list.filter((c) => c.provenIdentity === true);
+    if (list.length === 1) {
+      candidates.push(list[0]);
+      continue;
+    }
+    if (proven.length === 1) {
+      candidates.push(proven[0]);
+      continue;
+    }
+    ambiguous.push({
+      predecessor: list[0].predecessor,
+      successors: list
+        .map((o) => o.successor)
+        .sort((x, y) => x.name.localeCompare(y.name) || x.id.localeCompare(y.id)),
+    });
+  }
+  // The proven hoist can interleave the confidence order the contract documents — re-apply it.
+  candidates.sort(
     (p, q) =>
       rank[p.confidence] - rank[q.confidence] ||
       p.successor.name.localeCompare(q.successor.name) ||
       p.predecessor.name.localeCompare(q.predecessor.name),
   );
+  return { candidates, ambiguous };
 }

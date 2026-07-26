@@ -15,6 +15,7 @@ import { type PredictionSource, describeProvenance } from '@/lib/engine/categori
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type NetWorthSeriesPoint, netWorthSeries } from '@/lib/engine/networth/series';
 import {
+  type AmbiguousReconciliationGroup,
   type ReconciliationCandidate,
   type SuspectedDuplicatePair,
   detectDuplicateAccounts,
@@ -323,6 +324,10 @@ export interface AccountsView extends AccountsSummary {
   /** Cross-provider "continue this account?" proposals (R3): exactly one live side, not yet linked.
    *  Empty unless a duplicate pair has one connected + one disconnected provider. */
   reconciliationCandidates: ReconciliationCandidateView[];
+  /** Stale rows that matched MORE THAN ONE live account, so no proposal was offered (TASKS L.9).
+   *  Rendered as a disclosure with no Confirm control: the app has concluded something — "it is
+   *  one of these and we cannot tell which" — and rendering nothing would read as no conclusion. */
+  reconciliationAmbiguities: AmbiguousReconciliationGroup[];
   /** BOTH-live duplicate connections at one bank (TASKS L.6 / L.10): two Plaid connections
    *  pulling the same proven account, which R3 can never propose because neither side is stale.
    *  The card offers to disconnect one and continue the account on the other. Empty for the
@@ -571,8 +576,11 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   // account row itself. Applied AFTER detection: every comparison above compares feed names.
   const labelById = new Map(supported.map((a) => [a.id, accountLabel(a)]));
   const displayLabel = (id: string, fallback: string) => labelById.get(id) ?? fallback;
+  // L.9: whether the painted name is the USER'S nickname (display rules that repair bank
+  // formatting must not edit it — critic P2-3).
+  const userNamedById = new Map(supported.map((a) => [a.id, a.displayName != null]));
 
-  const reconciliationCandidates: ReconciliationCandidateView[] = detectReconciliationCandidates(
+  const detected = detectReconciliationCandidates(
     supported.map((a) => ({
       id: a.id,
       provider: a.provider,
@@ -581,29 +589,61 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       mask: a.mask,
       currentBalanceCents: a.currentBalanceCents,
       currency: a.currency,
+      // L.9: the registration veto reads the provider's own subtype where there is one, so a
+      // Plaid Roth can never be proposed against a Plaid Traditional even if both names are bare.
+      subtype: a.subtype,
       plaidItemId: a.plaidItemId, // C-10: two items' rows for the same bank are eligible pairs
       hasLiveConnection: isAccountLive({ provider: a.provider, plaidItemId: a.plaidItemId }, conns),
       // L.10: lets a SAME-provider pair (two connections at one bank, one now disconnected) be
       // proposed on proven identity — the state a half-finished combine leaves behind.
       identity: identityOf(a),
     })),
-  )
-    .filter(
-      (c) =>
-        !reconciledPairKeys.has(pairKey(c.predecessor.id, c.successor.id)) &&
-        !effectivePredIds.has(c.predecessor.id) &&
+    {
+      // Passed INTO the engine (TASKS L.9) rather than filtered out here, because the engine's
+      // one-predecessor-many-successors rule has to see the set that will actually render:
+      // dismissing the wrong pair is precisely how the user resolves an ambiguity, and a
+      // post-filter would leave the survivor withheld forever.
+      excludePair: (predecessorId, successorId) =>
+        reconciledPairKeys.has(pairKey(predecessorId, successorId)) ||
+        effectivePredIds.has(predecessorId) ||
+        // …and the SUCCESSOR role too (critic P1, executed): an effective predecessor is zeroed,
+        // folded and client-filtered off the account list, so it is never a continuation target —
+        // its terminal successor is. Without this, a folded row that came back LIVE (its provider
+        // reconnected) could be named inside an ambiguity group as "one of your live accounts" —
+        // a row that is not on screen — and dismissing the rival would release a candidate whose
+        // confirm auto-undoes the user's earlier combine.
+        effectivePredIds.has(successorId) ||
         // A pair the user dismissed as "not a duplicate" must not re-surface as a combine
         // candidate once one side goes non-live — the candidate card is "the actionable version
         // of the same message", so an explicit "these are different" judgment binds BOTH surfaces
         // (dup-veto critic DUP-DISMISS-1). Same key + sort as the duplicates-warning filter.
-        !dismissedDupKeys.has(duplicatePairDismissKey(c.predecessor.id, c.successor.id)),
-    )
-    .map((c) => ({
-      ...c,
-      predecessor: { ...c.predecessor, name: displayLabel(c.predecessor.id, c.predecessor.name) },
-      successor: { ...c.successor, name: displayLabel(c.successor.id, c.successor.name) },
-      predecessorTxnSpan: spanByAccount.get(c.predecessor.id) ?? null,
-    }));
+        dismissedDupKeys.has(duplicatePairDismissKey(predecessorId, successorId)),
+    },
+  );
+  const reconciliationCandidates: ReconciliationCandidateView[] = detected.candidates.map((c) => ({
+    ...c,
+    predecessor: {
+      ...c.predecessor,
+      name: displayLabel(c.predecessor.id, c.predecessor.name),
+      userNamed: userNamedById.get(c.predecessor.id) === true,
+    },
+    successor: {
+      ...c.successor,
+      name: displayLabel(c.successor.id, c.successor.name),
+      userNamed: userNamedById.get(c.successor.id) === true,
+    },
+    predecessorTxnSpan: spanByAccount.get(c.predecessor.id) ?? null,
+  }));
+  // Within a confidence rank, order by the PAINTED names (the F8 rule): the engine sorted by the
+  // feed's strings, which a rename leaves behind.
+  const confidenceRank: Record<string, number> = { high: 0, medium: 1 };
+  reconciliationCandidates.sort(
+    (p, q) =>
+      (confidenceRank[p.confidence] ?? 1) - (confidenceRank[q.confidence] ?? 1) ||
+      p.successor.name.localeCompare(q.successor.name) ||
+      p.predecessor.name.localeCompare(q.predecessor.name) ||
+      p.successor.id.localeCompare(q.successor.id),
+  );
   const candidatePairKeys = new Set(reconciliationCandidates.map((c) => pairKey(c.predecessor.id, c.successor.id)));
 
   // Both-live duplicate connections (TASKS L.6 / L.10). Suppressed for a pair the user has
@@ -675,6 +715,74 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     ];
   });
 
+  // Advisory duplicate warning. Suppressed for a pair that is already reconciled (R6 — resolved,
+  // not a warning) OR that has a live continue-candidate (the candidate card is the actionable
+  // version of the same message; showing both would double-message one pair). A both-live genuine
+  // duplicate has no candidate and still warns. Undoing a link brings its pair back here next load.
+  const duplicatesList = detectDuplicateAccounts(
+    supported.map((a) => ({
+      id: a.id,
+      provider: a.provider,
+      name: a.name,
+      type: a.type,
+      mask: a.mask,
+      currentBalanceCents: a.currentBalanceCents,
+      currency: a.currency,
+      subtype: a.subtype, // L.9: a Roth and a Traditional are never one account, so never warn
+      plaidItemId: a.plaidItemId, // C-10: same-bank-relinked (two items) both-live pairs warn
+    })),
+  ).map((d) => ({
+    ...d,
+    a: { ...d.a, name: displayLabel(d.a.id, d.a.name) },
+    b: { ...d.b, name: displayLabel(d.b.id, d.b.name) },
+  })).sort(
+    // Re-sorted on the PAINTED name (critic F8): the detector orders pairs by the feed's
+    // string, so once a rename makes the two diverge the list order stops matching the list.
+    (p, q) => p.a.name.localeCompare(q.a.name) || p.b.name.localeCompare(q.b.name) || p.a.id.localeCompare(q.a.id),
+  ).filter((d) => {
+    const k = pairKey(d.a.id, d.b.id);
+    // A pair involving an EFFECTIVE predecessor never warns (slice-6, with C-8): that row is
+    // zeroed and folded, so it cannot double-count with anyone — a warning about it would be
+    // noise about an already-resolved account (undo restores it, and then the warning too).
+    return (
+      !reconciledPairKeys.has(k) &&
+      !candidatePairKeys.has(k) &&
+      !combinablePairKeys.has(k) &&
+      !effectivePredIds.has(d.a.id) &&
+      !effectivePredIds.has(d.b.id) &&
+      // …and not a pair the user has explicitly dismissed as "not a duplicate" (owner-reported:
+      // the warning had no cancel). Order-independent key, same sort as pairKey.
+      !dismissedDupKeys.has(duplicatePairDismissKey(d.a.id, d.b.id))
+    );
+  });
+
+  // L.9 ambiguity groups, mapped to view models. Every pair in a RENDERED group is on the
+  // duplicate notice above by construction — every notice filter is mirrored in the engine's
+  // excludePair (a dismissed/reconciled/folded pair never reaches a group), and an
+  // identity-proven pair (which fires no heuristic signal and so has no notice) is hoisted OUT
+  // of groups as an offer — so the card's how-to may name the notice's "Not a duplicate"
+  // control without per-pair membership plumbing (cycle-2 critic P2-5 verified the invariant
+  // unreachable to break; it is locked in reconcile-surfaces.test.ts).
+  const reconciliationAmbiguities: AmbiguousReconciliationGroup[] = detected.ambiguous
+    .map((g) => ({
+      predecessor: {
+        ...g.predecessor,
+        name: displayLabel(g.predecessor.id, g.predecessor.name),
+        userNamed: userNamedById.get(g.predecessor.id) === true,
+      },
+      successors: g.successors
+        .map((s) => ({
+          ...s,
+          name: displayLabel(s.id, s.name),
+          userNamed: userNamedById.get(s.id) === true,
+        }))
+        // Painted-name order (the F8 rule, applied to the card whose job is telling accounts
+        // apart): the engine sorted by the FEED's string.
+        .sort((x, y) => x.name.localeCompare(y.name) || x.id.localeCompare(y.id)),
+    }))
+    // …and the groups themselves order by the predecessor's painted name (cycle-2 critic P2-6).
+    .sort((p, q) => p.predecessor.name.localeCompare(q.predecessor.name) || p.predecessor.id.localeCompare(q.predecessor.id));
+
   return {
     ...groupAccounts(adjustedViews),
     // The boundary-remapped id (slice-6 critic A-F7): if the designated funding account is a
@@ -709,47 +817,10 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     // The unfiltered rows are already in hand, so the disclosure costs no extra query.
     withheld: summarizeWithheldAccounts(accounts),
     canRename: !isDemoUser(userId),
-    // Advisory duplicate warning. Suppressed for a pair that is already reconciled (R6 — resolved,
-    // not a warning) OR that has a live continue-candidate (the candidate card is the actionable
-    // version of the same message; showing both would double-message one pair). A both-live genuine
-    // duplicate has no candidate and still warns. Undoing a link brings its pair back here next load.
-    duplicates: detectDuplicateAccounts(
-      supported.map((a) => ({
-        id: a.id,
-        provider: a.provider,
-        name: a.name,
-        type: a.type,
-        mask: a.mask,
-        currentBalanceCents: a.currentBalanceCents,
-        currency: a.currency,
-        plaidItemId: a.plaidItemId, // C-10: same-bank-relinked (two items) both-live pairs warn
-      })),
-    ).map((d) => ({
-      ...d,
-      a: { ...d.a, name: displayLabel(d.a.id, d.a.name) },
-      b: { ...d.b, name: displayLabel(d.b.id, d.b.name) },
-    })).sort(
-      // Re-sorted on the PAINTED name (critic F8): the detector orders pairs by the feed's
-      // string, so once a rename makes the two diverge the list order stops matching the list.
-      (p, q) => p.a.name.localeCompare(q.a.name) || p.b.name.localeCompare(q.b.name) || p.a.id.localeCompare(q.a.id),
-    ).filter((d) => {
-      const k = pairKey(d.a.id, d.b.id);
-      // A pair involving an EFFECTIVE predecessor never warns (slice-6, with C-8): that row is
-      // zeroed and folded, so it cannot double-count with anyone — a warning about it would be
-      // noise about an already-resolved account (undo restores it, and then the warning too).
-      return (
-        !reconciledPairKeys.has(k) &&
-        !candidatePairKeys.has(k) &&
-        !combinablePairKeys.has(k) &&
-        !effectivePredIds.has(d.a.id) &&
-        !effectivePredIds.has(d.b.id) &&
-        // …and not a pair the user has explicitly dismissed as "not a duplicate" (owner-reported:
-        // the warning had no cancel). Order-independent key, same sort as pairKey.
-        !dismissedDupKeys.has(duplicatePairDismissKey(d.a.id, d.b.id))
-      );
-    }),
+    duplicates: duplicatesList,
     reconciliations,
     reconciliationCandidates,
+    reconciliationAmbiguities,
     combinableConnections,
     uncombinableConnections,
   };

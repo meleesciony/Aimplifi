@@ -27,17 +27,22 @@ import { getReconciliationTxnKeep, refuseManualWriteToSuperseded } from '@/serve
 import { answerAccountBalance } from '@/lib/engine/assistant/answer';
 import { terminalSuccessorMap } from '@/lib/engine/account/reconcile-boundary';
 import { detectDuplicateAccounts } from '@/lib/engine/account/duplicates';
+import { duplicatePairDismissKey } from '@/server/duplicate-dismissal';
 
 const STAMP = `${Date.now()}-${process.pid}`;
 const OWNER = `sx-owner-${STAMP}`; // register + fence + payment-remap fixture
 const TRIO = `sx-trio-${STAMP}`; // C-8 fixture: one stale pred, TWO live twins
-const ALL_USERS = [OWNER, TRIO];
+const FOLD = `sx-fold-${STAMP}`; // L.9 critic P1: a folded predecessor that came back LIVE
+const ALL_USERS = [OWNER, TRIO, FOLD];
 
 let ownerPred = '';
 let ownerSucc = '';
 let trioPred = '';
 let trioLiveB = '';
 let trioLiveC = '';
+let foldP = ''; // simplefin — reconnected, so LIVE, and an effective predecessor of foldS
+let foldS = ''; // plaid live successor
+let foldX = ''; // manual stale row matching both
 
 async function wipe() {
   await prisma.user.deleteMany({ where: { id: { in: ALL_USERS } } });
@@ -92,10 +97,32 @@ beforeAll(async () => {
       data: { userId: TRIO, provider: 'plaid', providerRef: 'pl-c', plaidItemId: `sx3-c-${STAMP}`, name: 'BofA Checking', type: 'CHECKING', mask: '5678', currency: 'USD', currentBalanceCents: 100_000 },
     })
   ).id;
+
+  // FOLD (L.9 critic P1-1, executed there first): P was reconciled into S while stale, then its
+  // SimpleFIN connection was re-added — so P is LIVE AGAIN while remaining zeroed, folded, and
+  // client-filtered off the account list. X is a still-older manual copy matching both.
+  await prisma.simpleFinConnection.create({ data: { userId: FOLD, accessUrl: 'ct-fold' } });
+  foldP = (
+    await prisma.account.create({
+      data: { userId: FOLD, provider: 'simplefin', providerRef: 'sf-fold', name: 'Chase Checking (old)', type: 'CHECKING', mask: '1234', currency: 'USD', currentBalanceCents: 240_000 },
+    })
+  ).id;
+  await prisma.plaidItem.create({ data: { userId: FOLD, itemId: `sx-fold-item-${STAMP}`, accessToken: 'ct-folds' } });
+  foldS = (
+    await prisma.account.create({
+      data: { userId: FOLD, provider: 'plaid', providerRef: 'pl-fold', plaidItemId: `sx-fold-item-${STAMP}`, name: 'Chase Checking', type: 'CHECKING', mask: '1234', currency: 'USD', currentBalanceCents: 250_000 },
+    })
+  ).id;
+  foldX = (
+    await prisma.account.create({
+      data: { userId: FOLD, provider: 'manual', providerRef: 'man-fold', name: 'Chase Checking (older)', type: 'CHECKING', mask: null, currency: 'USD', currentBalanceCents: 230_000 },
+    })
+  ).id;
 });
 
 afterEach(async () => {
   await prisma.accountReconciliation.deleteMany({ where: { userId: { in: ALL_USERS } } });
+  await prisma.nudgeDismissal.deleteMany({ where: { userId: { in: ALL_USERS } } });
 });
 
 afterAll(wipe);
@@ -155,11 +182,41 @@ describe('B-F2/C-4 — manual writes to a superseded predecessor are refused', (
 });
 
 describe('C-8 — an already-linked predecessor is never re-offered (and its pairs never warn)', () => {
-  it('pre-link: BOTH live twins are offered as candidates for the stale predecessor', async () => {
+  it('pre-link: one stale row matching TWO live accounts offers NEITHER — the group is carried out as ambiguous (L.9)', async () => {
+    // This assertion previously locked the OLD behaviour ("BOTH live twins are offered as
+    // candidates") — the exact shape TASKS L.9 was opened to remove: two identically-badged
+    // Combine cards, one tap away from folding the wrong history. The pair is now withheld
+    // and stated instead (a filter that discards an unknown must carry it out).
     const view = await getAccountsView(TRIO);
-    const preds = view.reconciliationCandidates.map((c) => c.predecessor.id);
-    expect(preds).toEqual([trioPred, trioPred]);
-    expect(new Set(view.reconciliationCandidates.map((c) => c.successor.id))).toEqual(new Set([trioLiveB, trioLiveC]));
+    expect(view.reconciliationCandidates).toHaveLength(0);
+    expect(view.reconciliationAmbiguities).toHaveLength(1);
+    expect(view.reconciliationAmbiguities[0].predecessor.id).toBe(trioPred);
+    expect(new Set(view.reconciliationAmbiguities[0].successors.map((s) => s.id))).toEqual(
+      new Set([trioLiveB, trioLiveC]),
+    );
+    // The invariant the card's how-to rests on (cycle-2 P2-5): EVERY pair in a rendered group is
+    // on the duplicate notice, so the "Not a duplicate" control it names exists for each of them.
+    // Proven pairs leave groups via the offer hoist; every notice filter is mirrored in the
+    // engine's excludePair — so this holds by construction, and this lock proves it end-to-end.
+    const noticePairs = new Set(view.duplicates.map((d) => [d.a.id, d.b.id].sort().join('|')));
+    for (const s of view.reconciliationAmbiguities[0].successors) {
+      expect(noticePairs.has([trioPred, s.id].sort().join('|'))).toBe(true);
+    }
+  });
+
+  it('pre-link: dismissing the WRONG twin releases the survivor as the single candidate (L.9 excludePair)', async () => {
+    // The user's resolution path: the ambiguous pairs still fire the #192 warning (no candidate
+    // suppresses them), so the duplicate-warning card offers "Not a duplicate" per pair. Dismissing
+    // pred↔C must release pred↔B — a post-filter would leave B withheld forever.
+    expect((await getAccountsView(TRIO)).duplicates.length).toBeGreaterThan(0);
+    await prisma.nudgeDismissal.create({
+      data: { userId: TRIO, dismissKey: duplicatePairDismissKey(trioPred, trioLiveC) },
+    });
+    const view = await getAccountsView(TRIO);
+    expect(view.reconciliationAmbiguities).toHaveLength(0);
+    expect(view.reconciliationCandidates).toHaveLength(1);
+    expect(view.reconciliationCandidates[0].predecessor.id).toBe(trioPred);
+    expect(view.reconciliationCandidates[0].successor.id).toBe(trioLiveB);
   });
 
   it('with pred→B active: no A→C candidate (one tap must not silently re-target a confirmed link)', async () => {
@@ -171,6 +228,35 @@ describe('C-8 — an already-linked predecessor is never re-offered (and its pai
     // The folded predecessor's pairs never warn; the two LIVE twins (C-10) still do.
     expect(view.duplicates).toHaveLength(1);
     expect(new Set([view.duplicates[0].a.id, view.duplicates[0].b.id])).toEqual(new Set([trioLiveB, trioLiveC]));
+  });
+});
+
+describe('L.9 critic P1-1 — a folded row that came back LIVE is never named a successor', () => {
+  it('the live-again predecessor stays out of every candidate and ambiguity group; X continues into the terminal successor', async () => {
+    // Executed by the fresh-context critic before the fix: P (folded into S, then reconnected, so
+    // live again yet zeroed + hidden) appeared in an ambiguity group as "one of your live
+    // accounts" — a row not on screen — and following the card's own how-to released a candidate
+    // whose confirm silently auto-undid the user's earlier P→S combine while net worth went UP.
+    await prisma.accountReconciliation.create({
+      data: { userId: FOLD, predecessorAccountId: foldP, successorAccountId: foldS, cutoverDate: '2026-06-30', matchSignal: 'mask', confidence: 'high' },
+    });
+    const view = await getAccountsView(FOLD);
+
+    // The earlier combine stands, disclosed; P is zeroed by the boundary.
+    expect(view.reconciliations).toHaveLength(1);
+    const foldPRow = [...view.assets.accounts, ...view.liabilities.accounts].find((a) => a.id === foldP);
+    expect(foldPRow?.currentBalanceCents ?? 0).toBe(0);
+
+    // No ambiguity group names P, and no candidate targets it. X's only offer is the TERMINAL
+    // successor S — chain-consistent with #297.
+    expect(view.reconciliationAmbiguities).toHaveLength(0);
+    expect(view.reconciliationCandidates).toHaveLength(1);
+    expect(view.reconciliationCandidates[0].predecessor.id).toBe(foldX);
+    expect(view.reconciliationCandidates[0].successor.id).toBe(foldS);
+
+    // Nothing about P re-warns either (it is folded, resolved), and net worth counts P zero.
+    expect(view.duplicates).toHaveLength(0);
+    expect(view.netWorthCents).toBe(250_000 + 230_000); // S + the still-unlinked manual X
   });
 });
 

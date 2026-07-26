@@ -127,6 +127,9 @@ export async function getHouseholdDuplicateCandidates(
     displayName: true,
     type: true,
     mask: true,
+    // Bank data, never user-typed: the L.9 registration veto reads it so a partner's Roth is never
+    // advised as a duplicate of the viewer's Traditional. Nothing prints it.
+    subtype: true,
     currentBalanceCents: true,
     currency: true,
   } as const;
@@ -153,6 +156,7 @@ export async function getHouseholdDuplicateCandidates(
       name: a.name,
       type: a.type,
       mask: a.mask,
+      subtype: a.subtype,
       currentBalanceCents: a.currentBalanceCents,
       currency: a.currency,
     }));
