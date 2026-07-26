@@ -13,6 +13,10 @@
  * month, from the SAME personal snapshot (this snapshot is never
  * household-merged; the dashboard hero at household scope shows the MERGED
  * cash-needed figure, which this personal plan does not claim to equal).
+ *
+ * L.11(D) adds the other side of that filter: a payment the engine has DATED
+ * past the month's edge is in no plan the reader can see, so what next month's
+ * scheduled income has not arrived in time to cover is reserved here.
  */
 import { prisma } from '@/lib/db';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
@@ -26,6 +30,7 @@ import {
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance';
 import { getProvider } from '@/lib/providers/demo';
+import { formatISODate, isoDate } from '@/lib/dates';
 
 export interface SpendingPlanWithNotes extends SpendingPlan {
   /**
@@ -93,6 +98,56 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   ]);
   const goalContributionsCents = goals.reduce((sum, g) => sum + (g.monthlyContributionCents ?? 0), 0);
 
+  // The other side of the same filter (L.11(D)): obligations the engine HAS
+  // dated, falling past this month's edge. A payment dated on the 5th of next
+  // month is otherwise in no plan the reader can see — this month excludes it,
+  // and next month's plan arrives after the money is gone.
+  //
+  // NET OF THE INCOME THAT ARRIVES FIRST, which is the whole difference between
+  // this and the version two critics rejected. Widening the EXPENSE window past
+  // the month's edge without widening the INCOME window re-draws one column of
+  // a two-column flow — the corollary this slice's own lesson already records.
+  // Left gross, it reserved a full statement every month, permanently, for the
+  // commonest issuer pattern (paid the 1st, cards due the 3rd), and reserved a
+  // payment dated 30 days out that next month's plan would have shown on its
+  // first day. What this month's income must actually cover is the part its
+  // successor's income has not arrived in time to pay.
+  //
+  // Walked point by point rather than netted in one lump: income landing after
+  // an earlier payment cannot pay it, so the reservation is the WORST running
+  // gap, never the end-state difference. Flows only — no balance enters here.
+  const beyondMonthPoints = (computed?.result.perDueDate ?? []).filter((p) => p.date > endOfMonth);
+  const scheduledIncomeThrough = (through: string): number => {
+    let sum = 0;
+    for (const s of snap.scheduled) {
+      if (s.amountCents <= 0) continue;
+      sum += s.amountCents * scheduledOccurrencesInWindow(s.nextDate, s.cadence, isoDate(endOfMonth), through);
+    }
+    return sum;
+  };
+  let cumulativeBeyond = 0;
+  let worstGapCents = 0;
+  let worstGapDate: string | null = null;
+  for (const p of beyondMonthPoints) {
+    cumulativeBeyond += p.dayTotalCents;
+    const gap = cumulativeBeyond - scheduledIncomeThrough(p.date);
+    if (gap > worstGapCents) {
+      worstGapCents = gap;
+      worstGapDate = p.date;
+    }
+  }
+  const obligationsBeyondMonthCents = worstGapCents;
+  // Formatted here, in the product's own date voice: every other date a reader
+  // sees reads "Wed, Aug 5", never "2026-08-05". Names the payment day the
+  // reservation is actually FOR — the point that set the worst gap.
+  const obligationsBeyondMonthThroughDate = worstGapDate ? formatISODate(isoDate(worstGapDate)) : null;
+  // Provenance rides the money (the rule the in-month term above already obeys):
+  // when every card is dated past the edge, `cardObligationsEstimated` is false
+  // by construction, so without this a figure that is 100% guesswork off current
+  // balances would be printed with the authority of a generated statement.
+  const obligationsBeyondMonthEstimated =
+    worstGapCents > 0 && beyondMonthPoints.some((p) => p.cards.some((c) => c.isEstimated));
+
   const plan = computeSpendingPlan({
     today,
     expectedIncomeCents: receivedIncomeCents + remainingIncomeCents,
@@ -102,6 +157,9 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     cardObligationsEstimated,
     goalContributionsCents,
     savingsTargetBps: user?.savingsTargetBps ?? null,
+    obligationsBeyondMonthCents,
+    obligationsBeyondMonthThroughDate,
+    obligationsBeyondMonthEstimated,
   });
 
   return { ...plan, disclosures: await buildDisclosures(userId, snap, computed, endOfMonth) };
@@ -125,9 +183,11 @@ async function buildDisclosures(
   }
   const result = computed.result;
 
-  const summedIds = new Set(
-    result.perDueDate.filter((p) => p.date <= endOfMonth).flatMap((p) => p.cards.map((c) => c.cardId)),
-  );
+  // Every card inside the figure — BOTH terms. Filtering to the month here (as
+  // this did before L.11(D) widened the figure) left a frozen or duplicated card
+  // driving a subtraction that no surface could qualify: resolve a claim about a
+  // computed set against THAT set, and the set is now both sides of the filter.
+  const summedIds = new Set(result.perDueDate.flatMap((p) => p.cards.map((c) => c.cardId)));
   const byId = new Map(result.cards.map((c) => [c.cardId, c]));
 
   const frozenCards: SpendingPlanDisclosures['frozenCards'] = [];

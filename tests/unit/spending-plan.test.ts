@@ -69,7 +69,10 @@ describe('computeSpendingPlan', () => {
     spentSoFarCents: 150000,
     upcomingBillsCents: 120000,
     cardObligationsCents: 0,
-      cardObligationsEstimated: false,
+    cardObligationsEstimated: false,
+    obligationsBeyondMonthCents: 0,
+    obligationsBeyondMonthThroughDate: null,
+    obligationsBeyondMonthEstimated: false,
     goalContributionsCents: 80000,
     savingsTargetBps: null,
   };
@@ -137,6 +140,9 @@ describe('computeSpendingPlan', () => {
       upcomingBillsCents: 60000,
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
       goalContributionsCents: 0,
       savingsTargetBps: null,
     });
@@ -154,6 +160,9 @@ describe('computeSpendingPlan', () => {
       upcomingBillsCents: 0,
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
       goalContributionsCents: 0,
       savingsTargetBps: null,
     });
@@ -169,10 +178,72 @@ describe('computeSpendingPlan', () => {
       upcomingBillsCents: 0,
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
       goalContributionsCents: 0,
       savingsTargetBps: 2000,
     });
     expect(p.plannedSavingsCents).toBe(0);
     expect(p.leftToSpendCents).toBe(-20000);
+  });
+});
+
+/**
+ * TASKS L.11(D) — the month's edge. Regression tests for the owner's report of
+ * 2026-07-25, "It's worse now", reproduced from his three screenshots to the cent.
+ * FAIL-OLD: before this term the same inputs returned $22,254.09 at $3,709.01/day,
+ * because all seven of his cards are dated five days past the end of the window.
+ */
+describe("computeSpendingPlan — card payments dated past the month's edge", () => {
+  const OWNER = {
+    // His dashboard read: 7 cards, $18,814.14 needed by Wed Aug 5, while the
+    // plan beneath it offered the whole month's income, because every one of
+    // those cards falls outside July.
+    today: isoDate('2026-07-26'),
+    expectedIncomeCents: 2225409,
+    spentSoFarCents: 0,
+    upcomingBillsCents: 0,
+    cardObligationsCents: 0,
+    cardObligationsEstimated: false,
+    goalContributionsCents: 0,
+    savingsTargetBps: null,
+    obligationsBeyondMonthCents: 1881414,
+    obligationsBeyondMonthThroughDate: 'Wed, Aug 5',
+    obligationsBeyondMonthEstimated: false,
+  };
+
+  it('reserves a dated statement from the moment it is known, not from the 1st of its month', () => {
+    const p = computeSpendingPlan(OWNER);
+    expect(p.leftToSpendCents).toBe(343995); // 22,254.09 − 18,814.14
+    expect(p.reservesBeyondMonth).toBe(true);
+    expect(p.daysLeftInMonth).toBe(6);
+    expect(p.perDayCents).toBe(57332); // $573.32/day, not $3,709.01
+    expect(p.overspent).toBe(false);
+  });
+
+  it('changes nothing for the ordinary month, where every card is due inside it', () => {
+    const p = computeSpendingPlan({
+      ...OWNER,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+    });
+    expect(p.leftToSpendCents).toBe(2225409);
+    expect(p.reservesBeyondMonth).toBe(false);
+  });
+
+  it('composes with the in-month term rather than replacing it — neither statement is counted twice', () => {
+    const p = computeSpendingPlan({ ...OWNER, cardObligationsCents: 500000 });
+    // Two different statements, two lines: 22,254.09 − 5,000 − 18,814.14.
+    expect(p.leftToSpendCents).toBe(-156005);
+    expect(p.overspent).toBe(true);
+    expect(p.perDayCents).toBe(0);
+  });
+
+  it('can drive the month overspent, and says so rather than reporting a calm $0.00', () => {
+    const p = computeSpendingPlan({ ...OWNER, obligationsBeyondMonthCents: 3000000 });
+    expect(p.leftToSpendCents).toBe(-774591);
+    expect(p.overspent).toBe(true);
   });
 });

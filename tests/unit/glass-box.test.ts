@@ -201,6 +201,9 @@ describe('S — guilt-free-spending trace: the five-term identity as signed rows
       upcomingBillsCents: 78900,
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
       goalContributionsCents: 50000,
       savingsTargetBps: null,
     });
@@ -225,6 +228,9 @@ describe('S — guilt-free-spending trace: the five-term identity as signed rows
       upcomingBillsCents: 78900,
       cardObligationsCents: 90000,
       cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
       goalContributionsCents: 50000,
       savingsTargetBps: null,
     });
@@ -242,6 +248,9 @@ describe('S — guilt-free-spending trace: the five-term identity as signed rows
       upcomingBillsCents: 0,
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
       goalContributionsCents: 50000,
       savingsTargetBps: 2000, // 20% of $5,000 = $1,000 > $500 goals
     });
@@ -259,6 +268,9 @@ describe('S — guilt-free-spending trace: the five-term identity as signed rows
       upcomingBillsCents: 0,
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
       goalContributionsCents: 0,
       savingsTargetBps: null,
     });
@@ -275,6 +287,9 @@ describe('S — guilt-free-spending trace: the five-term identity as signed rows
       upcomingBillsCents: 0,
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
       goalContributionsCents: 0,
       savingsTargetBps: null,
     });
@@ -298,6 +313,9 @@ describe('S4 — a doctored (inconsistent) plan is REPORTED, not hidden', () => 
       upcomingBillsCents: 78900,
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
       goalContributionsCents: 50000,
       savingsTargetBps: null,
     });
@@ -306,5 +324,48 @@ describe('S4 — a doctored (inconsistent) plan is REPORTED, not hidden', () => 
     expect(trace.reconciles).toBe(false);
     expect(trace.sumCents).toBe(247644);
     expect(trace.headlineCents).toBe(247645);
+  });
+});
+
+describe("S6 — a card dated past the month's edge is a ROW, not an adjustment (L.11(D))", () => {
+  const beyond = (obligationsBeyondMonthCents: number) =>
+    traceSafeToSpend(
+      computeSpendingPlan({
+        today: d('2026-07-26'),
+        expectedIncomeCents: 1000000,
+        spentSoFarCents: 0,
+        upcomingBillsCents: 0,
+        cardObligationsCents: 0,
+        cardObligationsEstimated: false,
+        obligationsBeyondMonthCents,
+        obligationsBeyondMonthThroughDate: obligationsBeyondMonthCents > 0 ? 'Wed, Aug 5' : null,
+        obligationsBeyondMonthEstimated: false,
+        goalContributionsCents: 0,
+        savingsTargetBps: null,
+      }),
+    );
+
+  it('adds a sixth row the panel can actually falsify, and reconciles to it', () => {
+    const trace = beyond(900000);
+    expect(trace.rows).toHaveLength(6);
+    expect(trace.rows[5].label).toBe(
+      'Card payments already dated, due after this month (through Wed, Aug 5)',
+    );
+    expect(trace.rows[5].amountCents).toBe(-900000);
+    expect(trace.sumCents).toBe(100000);
+    expect(trace.headlineCents).toBe(100000);
+    expect(trace.reconciles).toBe(true);
+    // The date reads in the product's own voice, never as a raw ISO string.
+    expect(trace.rows[5].label).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(trace.basis.some((b) => b.includes('would otherwise sit in no plan you can see'))).toBe(true);
+    // And it states the cost it accepts rather than hiding it.
+    expect(trace.basis.some((b) => b.includes("next month's card-payments line"))).toBe(true);
+  });
+
+  it('adds no row and no sentence when every card is due inside the month', () => {
+    const trace = beyond(0);
+    expect(trace.rows).toHaveLength(5);
+    expect(trace.reconciles).toBe(true);
+    expect(trace.basis.some((b) => b.includes('no plan you can see'))).toBe(false);
   });
 });

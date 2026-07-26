@@ -32,6 +32,11 @@ export function SafeToSpendCard({
     plan.spentSoFarCents === 0 &&
     plan.upcomingBillsCents === 0 &&
     plan.cardObligationsCents === 0 &&
+    // The sixth term counts here too (cycle-2 P1): a card-only user whose whole
+    // obligation is dated past the month's edge was overspent by $14,000 AND
+    // told "once this month has income or spending we can count" — the two were
+    // simultaneously true, which they never were before this term existed.
+    plan.obligationsBeyondMonthCents === 0 &&
     plan.plannedSavingsCents === 0;
   const ok = !plan.overspent;
   // Both exclusion mechanisms share one direction claim, so they share one note.
@@ -94,6 +99,18 @@ export function SafeToSpendCard({
             )}
           </p>
           {excludedNote}
+          {/* L.11(D). This card sits on the same screen as the cash-needed
+              answer, which was announcing a payment this figure did not hold
+              back. It does now — and a reader who never opens /spending-plan
+              would otherwise have no way to learn that a line he cannot see
+              is already inside the number. */}
+          {plan.reservesBeyondMonth && (
+            <p className="mt-1 text-xs text-muted-foreground" data-testid="safe-to-spend-held-note">
+              {formatCents(cents(plan.obligationsBeyondMonthCents))} of your income is already set
+              aside for card payments dated after this month, through{' '}
+              {plan.obligationsBeyondMonthThroughDate}.
+            </p>
+          )}
           {hasDuplicate && (
             <p className="mt-1 text-xs text-muted-foreground" data-testid="safe-to-spend-duplicate-note">
               Two of the cards behind this figure may be the same card twice; if so{' '}

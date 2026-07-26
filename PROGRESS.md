@@ -5502,3 +5502,113 @@ NO PUBLIC MARKER, checked not assumed: the rename control and every string L.7 t
 gate (the L.18 standard).
 NEXT: L.9 — the Continue-an-account card offering one predecessor against two successors, one of
 them the wrong retirement registration (Fable build + hostile critic).
+
+## L.11(D) BUILT — the cushion cap. Checkpoint before the gate. 2026-07-25
+THE REPORT: three screenshots, "It's worse now" (see the parked-L.9 entry above for the figures).
+DIAGNOSIS, from the code and confirmed against the screenshots (not a guess): the card-payments
+term is windowed to the CALENDAR MONTH — `spending-plan.ts` keeps only `perDueDate` rows with
+`date <= endOfMonth`. Every one of his seven cards is dated Aug 5. July's endOfMonth is Jul 31, so
+the term is exactly $0.00, the plan hands back the whole month's income, and the per-day figure
+invites $3,709.01/day for six days against $18,814.14 due eleven days out. L.11(C) fixed the
+opposite error (one statement reserved against two months' income) and this is its mirror: a
+statement reserved against NO month the reader can see.
+WHAT I COULD NOT VERIFY: the other two $0.00 lines (Spent so far / Bills still coming). No live DB
+credentials in this environment (.env is local SQLite), so his data is UNVERIFIED — recorded as
+open, not explained away. Both are consistent with a July that has no posted non-card rows yet,
+which the savings-rate card's last bar (Jun '26) weakly corroborates and does not prove.
+THE FIX — a CAP, not a sixth subtraction: guilt-free = min(month's allocation, projected cushion),
+where the cushion is `intraPeriodMinimum.balanceCents` from the SAME PAY_IN_FULL cash-needed result
+whose rows the card term sums — the identical field the dashboard prints as "projected low point
+... every due date clears". Spending a dollar today lowers every later projected balance by a
+dollar, so the cushion IS the arithmetic limit. The two figures on that screen can no longer
+contradict each other by construction rather than by two windows happening to agree.
+DIRECTION: the cap only ever lowers the answer. A wrong cushion makes the reader under-spend; the
+state it removes made him miss a payment.
+CARRIED, so no surface can lose it: `allocatedLeftToSpendCents` (what the five monthly lines still
+reach), `heldForDatedObligationsCents`, `cushionBinds`, `cushionThroughDate`.
+SURFACES (every consumer of leftToSpendCents was greped, not assumed):
+ - glass-box trace: a SIXTH ROW, present only when it binds, so `reconciles` stays true and the
+   page's "these N lines add up to exactly" sentence stays a real claim (it now counts rows).
+ - /spending-plan: hero note, a bar segment + legend entry, aria-label.
+ - dashboard safe-to-spend card: its own note (a reader who never opens /plan sees the cap).
+ - Ask: a sixth FACT row + a qualifier on BOTH branches (Ask has no breakdown page to explain a gap).
+ - conscious buckets: held money moved to `fixed`, or the bucket identity would have restored the
+   overstatement inside that view.
+TESTS: 5 pure known-answer cases at his exact figures (incl. cushion null / cushion <= 0 / an
+already-overspent month / cap composing with an in-month card term), plus TWO real-server cases —
+one asserting the old dangerous figure is still what the month's lines reach (the vacuity guard),
+one cross-checking the cap against `getCashNeeded`'s own intraPeriodMinimum.
+FAIL-OLD: structural — the old engine had no cushion input; same inputs returned $22,254.09 where
+the lock now asserts $817.29.
+NEXT: full verify (in flight), then TWO fresh-context critics in parallel (money-display
+instruction), then docs + commit + push + deploy-verify. Prisma diff expected EMPTY.
+
+## L.11(D) — critic cycle 1 FAILED, and the design was replaced. 2026-07-25
+Two fresh-context critics, different lenses, both said FAIL. Neither had seen the other. Both
+independently killed the CAP design in the same terms, and one pointed at the fix that shipped.
+ P0  the cushion was `intraPeriodMinimum` — the minimum over EVERY day of the balance walk, and
+     the walk records its minimum on day ONE. So the cap became "never more than what is in
+     checking right now" for anyone whose balance dips before payday: on a $200 float with $6,000
+     landing on the 31st and one $1,000 card, it held back $6,000 and reported $28.57/day, with
+     copy blaming cards for a date carrying no obligation. I had already narrowed the cushion to
+     payment days only when the second critic arrived and rejected the whole instrument.
+ P0  the subtracted amount was a RESIDUAL (allocation − balance), so it absorbed savings sweeps,
+     unarrived income, other accounts and last month's opening balance — while five surfaces
+     printed it as "held for card payments". Verbatim value, different meaning.
+ P0  where the projection was already SHORT, the copy said holding money would make the payments
+     clear. It would not; the account is short and the remedy is a transfer.
+ P1  the raw ISO date printed into sentences ("through 2026-08-05") where the whole product says
+     "Wed, Aug 5"; the conscious-buckets view read 98% fixed against a 50-60% target band and
+     coached on it; the three inverse solvers took the capped figure as a MONTHLY capacity.
+THE REPLACEMENT (shipped): the cap is gone. `obligationsBeyondMonthCents` — the same `perDueDate`
+rows from the other side of the same `date <= endOfMonth` filter — is a SIXTH SUBTRACTION. A flow
+bounded by flows. It dissolved every finding above rather than patching them, which is the sign
+the boundary is right: no balance enters, so there is no stock/flow mix, no residual to mislabel,
+no shortfall claim, no solver distortion, and the buckets file it under FIXED where a card payment
+belongs. Accepted cost, stated in the copy: a statement is reserved twice for the first days of its
+due month — the safe direction, self-clearing when it posts.
+GATE (real output this session): bash scripts/verify.sh -> VERIFY GREEN, tsc 0, eslint 0,
+**279 files / 4360 tests**, build clean. E2E serialized: spending-plan + glass-box +
+phase1-cash-needed **6/6** (demo unchanged — its cards are all due inside its month).
+One intermediate verify FAILED on 4 assertions: my own copy revert had left the fact label as
+"Share of your guilt-free spending" instead of the original. Fixed and re-run clean.
+DOCS corrected in place (they described the rejected cap): STATUS §L.11(D) rewritten, TASKS row,
+REGRESSION_LEDGER row, and the lesson now records the WRONG fix as the transferable half.
+NEXT: critic cycle 2 (two fresh critics, in flight) on the replacement; then DECISIONS #309,
+commit, push, deploy-verify. Prisma diff EMPTY — no schema change in this slice.
+
+## L.11(D) — critic cycle 2 also FAILED, and every finding is in the shipped code. 2026-07-25
+Two more fresh-context critics, different lenses, both EXECUTING repros. 1 P0 + 6 P1.
+ P0  the new row hardcoded `isEstimated: false`, and `cardObligationsEstimated` is false BY
+     CONSTRUCTION whenever every card is dated past the edge (its own term is empty) — so a figure
+     that was 100% estimate off current balances printed with the authority of a statement, under
+     the page's own sentence "a line marked estimated says so". FIXED: its own flag, threaded to
+     the row, the Ask fact label and the basis; locked by a fixture with NO statement anywhere
+     (the estimate can only reach `perDueDate` when no real statement exists — which is why it
+     needed a separate user, and is itself worth knowing).
+ P1  BOTH critics, independently: the gross term re-committed L.11(C)'s error with the sign
+     flipped — the EXPENSE window was widened past the month's edge and the INCOME window was not.
+     Left gross it reserves a full statement every month, permanently, for anyone paid before his
+     cards come due, and reserves a payment dated 30 days out that next month's plan shows on its
+     first day. FIXED: the term is now the WORST RUNNING GAP, walked point by point, net of income
+     scheduled before each payment — income landing after a payment cannot pay it. Four locks.
+ P1  `summedIds` still filtered to the in-month half of a figure that now sums both, so a frozen
+     or duplicated card inside it was undisclosed everywhere. One-line fix; the set is the figure.
+ P1  Ask said "$18,814.14 of that is already reserved" where "that" is the $3,439.95 headline the
+     reservation was already taken out of — and on the other branch, out of an OVERAGE. "before
+     that figure", not "of it".
+ P1  three surfaces still claimed card spending "counts once, in the month its statement's payment
+     is due" — false the moment a payment is reserved in two months.
+ P1  the dashboard card's `noData` test omitted the sixth term: a card-only user overspent by
+     $14,000 was told "once this month has income or spending we can count".
+ Also: a stale golden re-pointed (`glass-box.spec` asserted exactly 5 breakdown rows on a page
+ that can now render 6 — the sum is the invariant, the count is not), and three dead cycle-1
+ comments describing the rejected cap removed.
+MY OWN E2E CAUGHT A RENDERING BUG no unit test could: `These {rows.length} lines` rendered as
+"These 6lines". The string was testable and the RENDERING was not, which is the L.20 lesson.
+GATE (real output this session): bash scripts/verify.sh -> VERIFY GREEN, tsc 0, eslint 0,
+**279 files / 4366 tests**, build clean. E2E serialized: spending-plan-month-edge (new) +
+spending-plan + glass-box + ask -> **25/25**.
+DOCS: DECISIONS #309 (+index), STATUS §L.11(D) rewritten twice (it described the rejected cap),
+TASKS row, REGRESSION_LEDGER row, lesson extended with the WRONG fix as the transferable half.
+NEXT: commit, push, deploy-verify. Prisma diff EMPTY.

@@ -7180,3 +7180,86 @@ identity on `/sign-in` (www == the new deployment, stable across a repeat fetch,
 production deployment). The build's `prisma db push` applied `Account.displayName` to live Neon.
 Every string L.7 touched is behind auth, so there is no public marker to grep — checked, not assumed.
 
+
+## 2026-07-25 — L.11(D) a window has an edge, and money does not reset when it is crossed
+
+**Owner-reported 2026-07-25, three screenshots, "It's worse now."** The dashboard said
+`$18,814.14` was needed in Investor Checking by Wed, Aug 5 to pay all 7 cards, and directly beneath
+it offered **`$22,254.09` guilt-free to spend, ≈ `$3,709.01`/day for the 6 days left**. `/plan`'s
+"How we got there" showed why: *Card payments due this month − $0.00*.
+
+**Cause (read in the code, confirmed against the screenshots).** `getSpendingPlan` sums only the
+cash-needed obligation rows with `date <= endOfMonth`. Every one of his cards is dated Aug 5 —
+five days past July 31 — so the term was exactly zero and the month's entire income read as free.
+L.11(C) had fixed the mirror error (one statement reserved against two months' income); this is
+its other side: a statement reserved against **no month the reader can see**, because this month
+calls it next month's business and next month arrives after the money is gone.
+
+**Fix.** The same `perDueDate` rows, taken from the other side of the same filter, become a sixth
+term — `obligationsBeyondMonthCents`. A payment the engine has already DATED is reserved from the
+moment it is known rather than from the first of the month it falls in. Same rows, same units,
+both flows, which is what keeps the six lines an allocation the Glass-Box panel can genuinely
+falsify. Surfaces: a sixth trace row, a bar segment and legend entry, an /accounts-style note on
+the hero, a note on the dashboard card, a sixth Ask fact plus a qualifier on both branches, and
+the conscious-spending view files it under **fixed** — a card payment belongs on that side
+whichever side of a month boundary its due date fell on.
+
+**Accepted cost, recorded rather than hidden:** between the 1st of next month and that due date the
+same statement is reserved twice — here and in next month's own term. That is the mirror of the
+L.11(C) error, it is the safe direction (it understates one month for a few days where the
+alternative overstated another by a whole statement), and it clears itself the moment the payment
+posts and the obligation leaves `due`.
+
+**Cycle 1 FAILED and the design was replaced.** The first version instead CAPPED the answer at the
+funding account's projected low point (`intraPeriodMinimum`). Two fresh-context critics broke it
+independently and both were right: it caps a **flow** (a month's income) with a **stock** (one
+account's worst balance); the projection records its minimum on day one, so the cap collapsed to
+"never more than what is in checking right now" for everyone whose balance dips before payday —
+$6,000 held against a $1,000 card, reported as $28.57/day, with the copy blaming cards for a date
+that carried none; the subtracted residual absorbed savings sweeps, unarrived income and money in
+other accounts while being printed as "held for card payments"; and where the projection was
+already short, the copy claimed that holding money would make the payments clear. One critic
+pointed at the fix that shipped: *the rows were already in hand*. Recorded because the shape
+recurs — **when a figure is a flow, bound it with flows.**
+
+### Critic cycle 2 also FAILED, and its findings are in the shipped code
+
+Two more fresh-context critics, different lenses, both executing repros. Verdict FAIL: 1 P0 and
+6 P1s. Every one is fixed above except where noted below. The P0 and the sharpest P1s: the new row
+hardcoded `isEstimated: false` while `cardObligationsEstimated` is false by construction whenever
+every card is dated past the edge, so a figure that was 100% estimate printed as statement-derived;
+the disclosure set still resolved against the in-month half of a figure that now sums both halves,
+so a frozen or duplicated card inside it was undisclosed on every surface; Ask said "$18,814.14 of
+that is already reserved" where "that" is the $3,439.95 headline the reservation had already been
+taken out of (and the overage, on the other branch); three surfaces still claimed card spending
+"counts once, in the month its statement's payment is due"; and the dashboard card's `noData` test
+omitted the sixth term, so a card-only user overspent by $14,000 was told "once this month has
+income or spending we can count".
+
+### OPEN after L.11(D)
+
+1. **The other two `$0.00` lines are UNVERIFIED** — *Spent so far (cash accounts)* and *Bills
+   still coming* both read `$0.00` on his screen. There are no live-database credentials in this
+   environment, so his data could not be inspected. A critic enumerated and ranked the candidates;
+   the two most likely are benign-but-mislabelled (with seven cards his non-card cash spending may
+   genuinely be ~$0, which the line renders as "you have spent nothing") and over-flagged transfers
+   (`detectTransfers` pairs any opposite amounts across two of his own accounts within ±3 days, and
+   a transfer-flagged outflow is in no term at all). One query settles most of it: July non-credit
+   transactions grouped by `status` and `isTransfer`. **Correction to an earlier claim in this
+   file:** the savings-rate card's last bar reading "Jun '26" is NOT evidence either way —
+   `src/server/coach.ts` deliberately drops the current month, so it reads June in July regardless.
+2. **A loan or mortgage payment dated just past month-end is still in no term** unless a recurring
+   series was detected for it — the same edge this slice closed for cards, still open for
+   everything that is not a card. Same money consequence; the sharpest thing left here.
+3. **`upcoming` (next-cycle estimate) obligations sit outside `perDueDate`**, so a card whose only
+   obligation is an estimate is in neither term, and `statementPendingCards` discloses only those
+   due inside the month — the disclosure's window no longer matches the figure's.
+4. **The conscious-spending strip and the three inverse solvers consume the figure without the new
+   fact.** `/budgets` files the reserved money under *fixed* and captions it "this month"; the
+   debt-free / savings-goal / retire-at-age solvers read `leftToSpendCents` as a recurring monthly
+   capacity. Netting shrinks both distortions to the part this month's income genuinely must cover,
+   which is why they are recorded rather than blocking, but neither surface can say a reservation
+   was made.
+5. **Household scope still contradicts** — `getSpendingPlan` is personal-only (documented in its
+   header) while the dashboard hero at `?scope=household` renders the merged cash-needed figure.
+   Pre-existing; the new note carries no scope qualifier.

@@ -79,18 +79,38 @@ export default async function SpendingPlanPage() {
             this month&apos;s income is more than spoken for. One tight month is weather, not climate.</>
           )}
         </p>
+        {/* L.11(D). The reader is looking at a number far below what the five
+            monthly lines reach, and the reason is a payment dated outside this
+            month's window — which no line above can show. Says what was held
+            and why, on the surface that prints the figure. */}
+        {p.reservesBeyondMonth ? (
+          <p className="mt-2 text-xs text-amber-500" data-testid="plan-held-note">
+            {formatCents(cents(p.obligationsBeyondMonthCents))} of your income is set aside for
+            card payments dated after this month, through {p.obligationsBeyondMonthThroughDate} —
+            only the part your scheduled income does not arrive in time to cover. Without it a
+            statement due just past this month would sit in no plan you can see.
+          </p>
+        ) : null}
 
         {/* allocation bar + visible legend (ROADMAP ALSO CONSIDER / #186) —
             title= tooltips alone are invisible on touch; label the five segments. */}
         <div
           className="mt-5 flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
           role="img"
-          aria-label="Allocation of expected income: spent, upcoming bills, card payments, savings, guilt-free"
+          aria-label={`Allocation of expected income: spent, upcoming bills, card payments, savings, ${p.reservesBeyondMonth ? 'card payments due after this month, ' : ''}guilt-free`}
         >
           <div className="bg-rose-400/80" style={{ width: pct(p.spentSoFarCents) }} title="Spent" />
           <div className="bg-amber-400/80" style={{ width: pct(p.upcomingBillsCents) }} title="Upcoming bills" />
           <div className="bg-violet-400/80" style={{ width: pct(p.cardObligationsCents) }} title="Card payments" />
           <div className="bg-sky-400/80" style={{ width: pct(p.plannedSavingsCents) }} title="Savings" />
+          {/* L.11(D): its own segment, or the bar would stop being an
+              allocation of the whole income and the legend would not explain
+              the gap. */}
+          <div
+            className="bg-slate-400/80"
+            style={{ width: pct(p.obligationsBeyondMonthCents) }}
+            title="Card payments due after this month"
+          />
           <div className="bg-emerald-500/80" style={{ width: leftWidth }} title="Guilt-free" />
         </div>
         <ul
@@ -103,6 +123,9 @@ export default async function SpendingPlanPage() {
               { swatch: 'bg-amber-400/80', label: 'Upcoming bills' },
               { swatch: 'bg-violet-400/80', label: 'Card payments' },
               { swatch: 'bg-sky-400/80', label: 'Savings' },
+              ...(p.reservesBeyondMonth
+                ? ([{ swatch: 'bg-slate-400/80', label: 'Cards due after this month' }] as const)
+                : []),
               { swatch: 'bg-emerald-500/80', label: 'Guilt-free' },
             ] as const
           ).map((item) => (
@@ -138,10 +161,13 @@ export default async function SpendingPlanPage() {
         </dl>
         {trace.reconciles ? (
           <p className="mt-3 text-xs text-muted-foreground" data-testid="plan-reconciled">
-            These five lines add up to exactly the &ldquo;Guilt-free to spend&rdquo; amount —
-            matched to the penny from your own data. A line marked &ldquo;estimated&rdquo; says
-            so; every other line comes straight from your transactions, detected bills, card
-            obligations, and savings plan.
+            {/* The space before "lines" is explicit: an interpolation followed by a plain
+                space renders as "6lines" here, which the e2e caught and no unit test could. */}
+            These {rows.length}{' '}
+            lines add up to exactly the &ldquo;Guilt-free to spend&rdquo;
+            amount — matched to the penny from your own data. A line marked
+            &ldquo;estimated&rdquo; says so; every other line comes straight from your
+            transactions, detected bills, card obligations, and savings plan.
           </p>
         ) : (
           <p className="mt-3 text-xs" data-testid="plan-mismatch">
@@ -156,12 +182,12 @@ export default async function SpendingPlanPage() {
         ))}
         <p className="mt-3 text-xs text-muted-foreground">
           Income left after what you&apos;ve spent outside your credit cards, the recurring
-          bills still due this month, the card payments due this month, and your savings —
-          spending in the <em>I Will Teach You to Be Rich</em> sense: once those are covered,
-          what&apos;s left is yours to spend without guilt. Card purchases count once, in the
-          month their statement&apos;s payment is due — not again at purchase time — and each
-          card is assumed paid in full. Set a savings target in Settings to reserve a share of
-          income first.
+          bills still due this month, the card payments due this month, anything already dated
+          just past it, and your savings — spending in the{' '}
+          <em>I Will Teach You to Be Rich</em> sense: once those are covered, what&apos;s left is
+          yours to spend without guilt. Card purchases count when their statement&apos;s payment
+          comes due, not again at purchase time, and each card is assumed paid in full. Set a
+          savings target in Settings to reserve a share of income first.
         </p>
       </section>
 

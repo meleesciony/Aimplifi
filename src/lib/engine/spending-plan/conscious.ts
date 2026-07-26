@@ -68,7 +68,11 @@ function shareBps(cents: number, incomeCents: number): number {
  *   expectedIncome = spentSoFar + upcomingBills + cardObligations + plannedSavings + leftToSpend
  * maps to:
  *   fixed     = spentSoFar + upcomingBills + cardObligations
- *               (cash spend + bills still coming + this-cycle card payments)
+ *                           + obligationsBeyondMonth
+ *               (cash spend + bills still coming + this-cycle card payments +
+ *                card payments already dated past the month's edge, L.11(D) —
+ *                a card payment belongs on the FIXED side whichever side of a
+ *                month boundary its due date fell on)
  *   savings   = plannedSavings               (max of goal contributions and the
  *                                             savings-% target; investing folded in)
  *   guiltFree = leftToSpend                  (the discretionary remainder; <0 when overspent)
@@ -77,7 +81,11 @@ function shareBps(cents: number, incomeCents: number): number {
 export function mapToConsciousBuckets(plan: SpendingPlan): ConsciousBuckets {
   const income = plan.expectedIncomeCents;
   const cellsByKey: Record<ConsciousBucketKey, number> = {
-    fixed: plan.spentSoFarCents + plan.upcomingBillsCents + plan.cardObligationsCents,
+    fixed:
+      plan.spentSoFarCents +
+      plan.upcomingBillsCents +
+      plan.cardObligationsCents +
+      plan.obligationsBeyondMonthCents,
     savings: plan.plannedSavingsCents,
     guiltFree: plan.leftToSpendCents,
   };

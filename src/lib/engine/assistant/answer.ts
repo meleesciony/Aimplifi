@@ -743,6 +743,20 @@ export function answerSafeToSpend(
       label: plan.savingsSource === 'target' ? 'Savings target (Settings)' : 'Planned savings (goals)',
       value: fmt(plan.plannedSavingsCents),
     },
+    // L.11(D). Without this row the facts add to a number that is not the
+    // headline, and Ask is the one surface with no breakdown page to explain
+    // the gap — the reader would be told a smaller figure and shown the
+    // arithmetic for a larger one.
+    ...(plan.obligationsBeyondMonthCents > 0
+      ? [
+          {
+            label: plan.obligationsBeyondMonthEstimated
+              ? `Card payments due after this month, estimated (through ${plan.obligationsBeyondMonthThroughDate})`
+              : `Card payments due after this month (through ${plan.obligationsBeyondMonthThroughDate})`,
+            value: fmt(plan.obligationsBeyondMonthCents),
+          },
+        ]
+      : []),
   ];
   // Each qualifier states its own DIRECTION, and states it for THE FIGURE THIS
   // BRANCH RENDERS (critic P1-1: the overspent branch shows the OVERAGE — the
@@ -785,6 +799,19 @@ export function answerSafeToSpend(
       `The bank stopped sharing ${disclosures.frozenCards.length === 1 ? 'one card behind the card-payments figure' : `${disclosures.frozenCards.length} cards behind the card-payments figure`} (${names}), so ${disclosures.frozenCards.length === 1 ? 'its amount' : 'their amounts'} may be stale.`,
     );
   }
+  // A fact about how the figure was reached, not a hedge about accuracy, so it
+  // is stated on BOTH branches and before the uncertainty qualifiers. The
+  // preposition is load-bearing: the money was set aside BEFORE the headline,
+  // never "of" it — "$18,814.14 of that" said $18,814.14 was inside $3,439.95
+  // on the positive branch, and inside an OVERAGE on the other (cycle-2 P1).
+  if (plan.reservesBeyondMonth) {
+    // Stated on BOTH branches, and before the uncertainty qualifiers: this is
+    // not a hedge about accuracy, it is a fact about which payments the figure
+    // already holds back — and Ask has no breakdown page to carry it instead.
+    qualifiers.unshift(
+      `${fmt(plan.obligationsBeyondMonthCents)} of this month's income was set aside before that figure, for card payments dated after this month (through ${plan.obligationsBeyondMonthThroughDate}) — only the part your scheduled income does not arrive in time to cover.`,
+    );
+  }
   const withQualifiers = (base: string) => [base, ...qualifiers].join(' ');
   if (plan.overspent) {
     return {
@@ -801,7 +828,7 @@ export function answerSafeToSpend(
     kind: 'safe_to_spend',
     headline: `You have ${fmt(plan.leftToSpendCents)} guilt-free to spend this month — about ${fmt(plan.perDayCents)}/day for the next ${plan.daysLeftInMonth} days.`,
     detail: withQualifiers(
-      'After the bills still due this month, the card payments due this month, and your planned savings. Card purchases count once, in the month their statement’s payment is due — not again at purchase time.',
+      'After the bills still due this month, the card payments due this month, and your planned savings. Card purchases count when their statement’s payment comes due, not again at purchase time.',
     ),
     facts,
     source,

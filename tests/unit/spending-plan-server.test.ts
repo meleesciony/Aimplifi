@@ -25,6 +25,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getSpendingPlan } from '@/server/spending-plan';
+import { getCashNeeded } from '@/server/finance';
+import { traceSafeToSpend } from '@/lib/engine/glass-box/trace';
 import { prisma } from '@/lib/db';
 
 const TODAY = '2026-06-10';
@@ -256,5 +258,320 @@ describe('getSpendingPlan — guilt-free spending (#295), real server path', () 
     } finally {
       await prisma.account.delete({ where: { id: pending.id } });
     }
+  });
+});
+
+/**
+ * TASKS L.11(D) through the real server path — the owner's 2026-07-25 report,
+ * "It's worse now", reduced to its shape: every card dated just past the end of
+ * this month, so the month's card term was $0.00 and the plan handed back the
+ * whole month's income while the dashboard, on the same screen, said that money
+ * was needed within days.
+ *
+ * A pure-engine test cannot catch this: the bug was never in the arithmetic, it
+ * was in which rows reached it.
+ */
+describe("getSpendingPlan — card payments dated past the month's edge (L.11(D))", () => {
+  const uid = `gfs-edge-${Date.now()}-${process.pid}`;
+  const TODAY_JULY = '2026-07-26';
+  let checkingEdgeId = '';
+
+  const wipe = async () => {
+    await prisma.goal.deleteMany({ where: { userId: uid } });
+    await prisma.account.deleteMany({ where: { userId: uid } });
+    await prisma.user.deleteMany({ where: { id: uid } });
+  };
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: uid, email: `${uid}@test.local` } });
+    const checking = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-chk`,
+        name: 'Investor Checking',
+        type: 'CHECKING',
+        currentBalanceCents: 980000,
+        currency: 'USD',
+      },
+    });
+    checkingEdgeId = checking.id;
+    await prisma.user.update({ where: { id: uid }, data: { paymentAccountId: checking.id } });
+    const card = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-card`,
+        name: 'Travel Card',
+        type: 'CREDIT',
+        currentBalanceCents: 900000,
+        currency: 'USD',
+      },
+    });
+    await prisma.transaction.create({
+      data: {
+        accountId: checking.id,
+        date: '2026-07-03',
+        amountCents: 1000000,
+        rawDescriptor: 'ACME PAYROLL',
+        categoryId: 'income',
+        confidenceBps: 9900,
+        needsReview: false,
+      },
+    });
+    // Due FIVE DAYS after the month this plan describes ends — the owner's shape.
+    await prisma.statement.create({
+      data: {
+        accountId: card.id,
+        cycleStart: '2026-06-06',
+        cycleEnd: '2026-07-05',
+        dueDate: '2026-08-05',
+        statementBalanceCents: 900000,
+        minimumPaymentCents: 3500,
+      },
+    });
+  });
+  afterAll(async () => {
+    await wipe();
+    vi.unstubAllEnvs();
+  });
+  beforeEach(() => {
+    vi.stubEnv('DEMO_TODAY', TODAY_JULY);
+  });
+
+  it('reserves the beyond-month statement as its own term, and names its date in the product’s voice', async () => {
+    const plan = await getSpendingPlan(uid);
+
+    // The month's own term is still empty — that filter is unchanged, and this
+    // is the vacuity guard: it is exactly what the old code left as the whole
+    // answer, so a term that silently stopped applying would fail below.
+    expect(plan.cardObligationsCents).toBe(0);
+    expect(plan.obligationsBeyondMonthCents).toBe(900000);
+    expect(plan.reservesBeyondMonth).toBe(true);
+    expect(plan.obligationsBeyondMonthThroughDate).toBe('Wed, Aug 5');
+    expect(plan.leftToSpendCents).toBe(100000); // $10,000 income − $9,000 dated
+    expect(plan.overspent).toBe(false);
+  });
+
+  it('holds back exactly what the cash-needed answer demands — the two cannot disagree', async () => {
+    const [plan, cash] = await Promise.all([getSpendingPlan(uid), getCashNeeded(uid)]);
+    // The figure the hero prints as "needed by Wed, Aug 5" is the figure this
+    // plan subtracts. Same rows, one filter, opposite sides.
+    expect(cash.result.headline.requiredCents).toBe(900000);
+    expect(plan.obligationsBeyondMonthCents).toBe(cash.result.headline.requiredCents);
+    expect(plan.leftToSpendCents).toBeLessThan(plan.expectedIncomeCents);
+  });
+
+  it('splits the SAME set at the boundary — neither side may swallow the other', async () => {
+    // The whole slice is one filter, and with a single beyond-month card the
+    // suite could not tell a working filter from no filter at all (cycle-2
+    // critic). Two cards, one each side of the edge, and the two terms must
+    // partition exactly what the cash-needed answer demands.
+    const inMonth = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-inmonth`,
+        name: 'Everyday Card',
+        type: 'CREDIT',
+        currentBalanceCents: 120000,
+        currency: 'USD',
+      },
+    });
+    await prisma.statement.create({
+      data: {
+        accountId: inMonth.id,
+        cycleStart: '2026-06-21',
+        cycleEnd: '2026-07-20',
+        dueDate: '2026-07-31', // the LAST day of the month: in-month, not beyond
+        statementBalanceCents: 120000,
+        minimumPaymentCents: 2500,
+      },
+    });
+    try {
+      const [plan, cash] = await Promise.all([getSpendingPlan(uid), getCashNeeded(uid)]);
+      expect(plan.cardObligationsCents).toBe(120000);
+      expect(plan.obligationsBeyondMonthCents).toBe(900000);
+      // Exact partition, neither side zero — the assertion a single-card
+      // fixture cannot make.
+      expect(plan.cardObligationsCents + plan.obligationsBeyondMonthCents).toBe(
+        cash.result.headline.requiredCents,
+      );
+      expect(plan.leftToSpendCents).toBe(1000000 - 120000 - 900000);
+    } finally {
+      await prisma.account.delete({ where: { id: inMonth.id } });
+    }
+  });
+
+  it('reserves only what next month’s income has not arrived in time to cover', async () => {
+    // The gross version reserved a full statement every month, permanently, for
+    // anyone paid before their cards come due — the same double-reservation
+    // L.11(C) existed to kill, with the sign flipped (cycle-2, both critics).
+    const payday = await prisma.scheduledTransaction.create({
+      data: {
+        accountId: checkingEdgeId,
+        description: 'ACME PAYROLL',
+        amountCents: 600000,
+        nextDate: '2026-08-01', // lands BEFORE the Aug 5 statement
+        source: 'user',
+      },
+    });
+    try {
+      const plan = await getSpendingPlan(uid);
+      // $9,000 due Aug 5, $6,000 arriving Aug 1 → this month must cover $3,000.
+      expect(plan.obligationsBeyondMonthCents).toBe(300000);
+      expect(plan.leftToSpendCents).toBe(700000);
+      // …and the August income is NOT also counted as this month's income.
+      expect(plan.expectedIncomeCents).toBe(1000000);
+    } finally {
+      await prisma.scheduledTransaction.delete({ where: { id: payday.id } });
+    }
+  });
+
+  it('reserves nothing when the income arrives first and covers it whole', async () => {
+    const payday = await prisma.scheduledTransaction.create({
+      data: {
+        accountId: checkingEdgeId,
+        description: 'ACME PAYROLL',
+        amountCents: 1200000,
+        nextDate: '2026-08-03',
+        source: 'user',
+      },
+    });
+    try {
+      const plan = await getSpendingPlan(uid);
+      expect(plan.obligationsBeyondMonthCents).toBe(0);
+      expect(plan.reservesBeyondMonth).toBe(false);
+      expect(plan.obligationsBeyondMonthThroughDate).toBeNull();
+      expect(plan.leftToSpendCents).toBe(1000000);
+    } finally {
+      await prisma.scheduledTransaction.delete({ where: { id: payday.id } });
+    }
+  });
+
+  it('income landing AFTER a payment cannot pay it — the worst running gap wins', async () => {
+    const late = await prisma.scheduledTransaction.create({
+      data: {
+        accountId: checkingEdgeId,
+        description: 'ACME PAYROLL',
+        amountCents: 1200000,
+        nextDate: '2026-08-20', // after the Aug 5 due date
+        source: 'user',
+      },
+    });
+    try {
+      const plan = await getSpendingPlan(uid);
+      expect(plan.obligationsBeyondMonthCents).toBe(900000); // unchanged
+      expect(plan.obligationsBeyondMonthThroughDate).toBe('Wed, Aug 5');
+    } finally {
+      await prisma.scheduledTransaction.delete({ where: { id: late.id } });
+    }
+  });
+
+  it('is a FLOW, not a balance: a thin account before payday changes nothing', async () => {
+    // The first attempt at this capped the answer at the funding account's
+    // projected low point, which is recorded on day one of the walk — so a
+    // reader whose balance dips before payday was told a $200 float was all he
+    // could spend, and a $1,000 card was blamed for $6,000 of it. Drop the
+    // balance to $200 with the same income and the same card: the answer must
+    // not move, because nothing about what he EARNS or OWES has changed.
+    const before = await getSpendingPlan(uid);
+    await prisma.account.update({ where: { id: checkingEdgeId }, data: { currentBalanceCents: 20000 } });
+    try {
+      const after = await getSpendingPlan(uid);
+      expect(after.leftToSpendCents).toBe(before.leftToSpendCents);
+      expect(after.obligationsBeyondMonthCents).toBe(before.obligationsBeyondMonthCents);
+      // And the cash-needed answer DOES move — proving the fixture really is a
+      // case where a balance-based cap would have collapsed (a vacuity guard).
+      const cash = await getCashNeeded(uid);
+      expect(cash.result.intraPeriodMinimum?.balanceCents).toBe(-880000);
+    } finally {
+      await prisma.account.update({ where: { id: checkingEdgeId }, data: { currentBalanceCents: 980000 } });
+    }
+  });
+});
+
+/**
+ * The estimate half, in its own fixture because it cannot coexist with the one
+ * above: the cash-needed engine uses estimates ONLY when no card has a real
+ * statement (`real.length > 0 ? real : estimated`), so a single real statement
+ * anywhere parks every estimate in `upcoming`, outside `perDueDate` entirely.
+ */
+describe('getSpendingPlan — a beyond-month term made entirely of estimates (L.11(D))', () => {
+  const uid = `gfs-est-${Date.now()}-${process.pid}`;
+
+  const wipe = async () => {
+    await prisma.account.deleteMany({ where: { userId: uid } });
+    await prisma.user.deleteMany({ where: { id: uid } });
+  };
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: uid, email: `${uid}@test.local` } });
+    const checking = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-chk`,
+        name: 'Everyday Checking',
+        type: 'CHECKING',
+        currentBalanceCents: 500000,
+        currency: 'USD',
+      },
+    });
+    await prisma.user.update({ where: { id: uid }, data: { paymentAccountId: checking.id } });
+    await prisma.transaction.create({
+      data: {
+        accountId: checking.id,
+        date: '2026-07-03',
+        amountCents: 1000000,
+        rawDescriptor: 'ACME PAYROLL',
+        categoryId: 'income',
+        confidenceBps: 9900,
+        needsReview: false,
+      },
+    });
+    // No Statement row anywhere: the cycle closes on the 28th and the payment is
+    // due on the 20th, so the engine estimates an obligation dated in AUGUST.
+    await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-est`,
+        name: 'No Statement Card',
+        type: 'CREDIT',
+        currentBalanceCents: 500000,
+        currency: 'USD',
+        dueDayOfMonth: 20,
+        cycleCloseDayOfMonth: 28,
+      },
+    });
+  });
+  afterAll(async () => {
+    await wipe();
+    vi.unstubAllEnvs();
+  });
+  beforeEach(() => {
+    vi.stubEnv('DEMO_TODAY', '2026-07-26');
+  });
+
+  it('marks the beyond-month term estimated on its own, not on the in-month flag', async () => {
+    const plan = await getSpendingPlan(uid);
+    expect(plan.obligationsBeyondMonthCents).toBeGreaterThan(0);
+    expect(plan.obligationsBeyondMonthEstimated).toBe(true);
+    // The in-month flag is false BY CONSTRUCTION here — its own term is empty —
+    // which is exactly why a second flag had to exist.
+    expect(plan.cardObligationsCents).toBe(0);
+    expect(plan.cardObligationsEstimated).toBe(false);
+  });
+
+  it('the trace row says "estimated" and the panel still reconciles', async () => {
+    const plan = await getSpendingPlan(uid);
+    const trace = traceSafeToSpend(plan);
+    const row = trace.rows.find((r) => r.id === 'card-payments-next');
+    expect(row).toBeDefined();
+    expect(row?.isEstimated).toBe(true);
+    expect(trace.reconciles).toBe(true);
   });
 });

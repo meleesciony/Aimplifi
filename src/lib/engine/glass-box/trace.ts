@@ -166,10 +166,10 @@ export function traceCashNeeded(
 }
 
 /**
- * Rows behind the guilt-free-spending headline: the five-term identity
+ * Rows behind the guilt-free-spending headline: the six-term identity
  * left = income − cash spent − upcoming bills − card payments − planned
  * savings, carried as SIGNED rows so the same plain-summation invariant
- * holds. All five fields live on the SpendingPlan result itself (it extends
+ * holds. All six fields live on the SpendingPlan result itself (it extends
  * its input), so nothing is re-derived here.
  */
 export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
@@ -214,6 +214,25 @@ export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
       isEstimated: false,
       notes: [],
     },
+    // Card payments already dated but falling past this month's edge (L.11(D)).
+    // A real subtraction, in the same units as every row above it, so this
+    // panel's claim — that its lines add up to the number above — stays a
+    // claim that could fail. Present only when such a payment exists: a $0 row
+    // would name a mechanism that did not act, for a reader who owns no cards.
+    ...(plan.obligationsBeyondMonthCents > 0
+      ? [
+          {
+            id: 'card-payments-next',
+            label: `Card payments already dated, due after this month (through ${plan.obligationsBeyondMonthThroughDate})`,
+            amountCents: cents(-plan.obligationsBeyondMonthCents),
+            // Its own flag: when every card is dated past the edge the in-month
+            // one is false by construction, and this row would then claim
+            // statement provenance for a figure that is entirely an estimate.
+            isEstimated: plan.obligationsBeyondMonthEstimated,
+            notes: [],
+          },
+        ]
+      : []),
   ];
   const sum = sumCents(rows.map((r) => r.amountCents));
 
@@ -225,10 +244,20 @@ export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
     reconciles: sum === plan.leftToSpendCents,
     basis: [
       'Expected income counts what has already arrived this month plus what is still scheduled; bills still coming are your detected recurring bills that have not posted yet.',
-      'Spending on credit cards is counted once, in the month its statement’s payment is due — not again at purchase time. The card-payments line covers your own cards due this month, assumes each is paid in full, and comes from the same obligation rows as the cash-needed answer. Spent so far covers spending outside your credit cards.',
+      'Spending on credit cards is counted when its statement’s payment comes due, not again at purchase time. The card-payments line covers your own cards due this month, assumes each is paid in full, and comes from the same obligation rows as the cash-needed answer. Spent so far covers spending outside your credit cards.',
       ...(plan.cardObligationsEstimated
         ? [
             'No statement has been generated yet, so the card-payments line is estimated from current balances.',
+          ]
+        : []),
+      // Why a monthly plan is quoting a figure smaller than its own arithmetic.
+      // Two facts a reader needs and cannot see: the money is not gone (it is
+      // reserved for a payment already dated), and the projection this rests on
+      // walks ONE account — the one the cash-needed answer funds from — so it
+      // says nothing about cash held elsewhere (the L.11(C) account-set rule).
+      ...(plan.obligationsBeyondMonthCents > 0
+        ? [
+            `A statement can come due after the month it belongs to, and one dated ${plan.obligationsBeyondMonthThroughDate} would otherwise sit in no plan you can see — this month would call it next month's business, and next month's plan would arrive after the money was spent. Only the part your scheduled income does not arrive in time to cover is set aside here, so a payment your next paycheck already pays for is not reserved twice. Whatever is set aside will also appear in next month's card-payments line until it is paid.`,
           ]
         : []),
       ...(plan.savingsTargetBps != null
