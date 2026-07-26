@@ -31,6 +31,8 @@ import { duplicatePairDismissKey, getDismissedDuplicateKeys } from '@/server/dup
 import { isAccountLive } from '@/server/reconciliation';
 import { prisma } from '@/lib/db';
 import type { PartnerSnapshotSlice } from '@/lib/engine/household/merge-snapshot';
+import { accountLabel } from '@/lib/engine/account/display-name';
+import { renderSafe } from '@/lib/engine/account/render-safe';
 
 /** Cash-needed scope (TASKS 4.2 slice 4): 'mine' is byte-identical to pre-household
  *  behavior; 'household' folds in every LIVE partner's shared-account obligations. */
@@ -169,11 +171,20 @@ async function householdExtras(
   );
   const ownerLabelOf = (ownerId: string) =>
     ownerId === userId ? 'yours' : `${memberNames[ownerId] || 'Partner'}'s`;
+  // TASKS L.7: his own name on his own row, the bank's name on a partner's. One rule, stated
+  // once, so the two sides of a pair can never drift apart in how they were decided.
+  const householdRefName = (ref: { name: string; ownerId: string; displayName?: string | null }, viewerId: string) =>
+    ref.ownerId === viewerId ? accountLabel(ref) : renderSafe(ref.name);
   const householdDuplicates = detectHouseholdDuplicateAccounts(
     await getHouseholdDuplicateCandidates(userId, partnerIds),
   ).map((p) => ({
-    a: { name: p.a.name, ownerLabel: ownerLabelOf(p.a.ownerId) },
-    b: { name: p.b.name, ownerLabel: ownerLabelOf(p.b.ownerId) },
+    // The viewer's OWN row reads the way he named it — the rest of this page already does, and
+    // an advisory asking him to compare two accounts is the last place that should use a name
+    // he no longer recognizes (critic F2). A PARTNER's row keeps the bank's name: his nickname
+    // is his own (critic F1), which is also why both sides can still read identically here —
+    // `ownerLabel` is what separates them, exactly as #298 intended.
+    a: { name: householdRefName(p.a, userId), ownerLabel: ownerLabelOf(p.a.ownerId) },
+    b: { name: householdRefName(p.b, userId), ownerLabel: ownerLabelOf(p.b.ownerId) },
     confidence: p.confidence,
   }));
   return { accountOwnerLabel, householdWithheldCount, householdFeedDroppedCount, householdDuplicates };
@@ -518,7 +529,7 @@ export async function getDashboardData(
 
   const accounts = snap.accounts.map((a) => ({
     id: a.id,
-    name: a.name,
+    name: accountLabel(a),
     type: a.type,
     currentBalanceCents: a.currentBalanceCents,
     mask: (a as { mask?: string | null }).mask ?? null,
@@ -547,7 +558,7 @@ export async function getDashboardData(
     today,
     cardMask,
     cardDuplicates,
-    paymentAccountName: paymentAccount.name,
+    paymentAccountName: accountLabel(paymentAccount),
     paymentAccountId: snap.paymentAccountId,
     payInFull,
     minimum,

@@ -272,10 +272,17 @@ export function hasSuspectedDuplicates(accounts: DuplicateAccountCandidate[]): b
 export interface HouseholdDuplicateAccountCandidate extends DuplicateAccountCandidate {
   /** The member who owns this account row (viewer or a partner). */
   ownerId: string;
+  /** The owner's own name for the row (TASKS L.7), when he set one. Carried for LABELLING only:
+   *  every comparison in this module reads `name`, and the caller may print this one only for
+   *  the VIEWER's own rows — a partner's nickname never crosses to another member. */
+  displayName?: string | null;
 }
 
 export interface HouseholdDuplicateRef extends DuplicateAccountRef {
   ownerId: string;
+  /** Carried through for the CALLER to decide with (TASKS L.7): it may print this for the
+   *  viewer's own row and must not for a partner's. Nothing in this module reads it. */
+  displayName?: string | null;
 }
 
 export interface SuspectedHouseholdDuplicatePair {
@@ -315,8 +322,8 @@ export function detectHouseholdDuplicateAccounts(
       const signals = duplicateSignals(lo, hi);
       if (!signals) continue;
       pairs.push({
-        a: { ...toRef(lo), ownerId: lo.ownerId },
-        b: { ...toRef(hi), ownerId: hi.ownerId },
+        a: { ...toRef(lo), ownerId: lo.ownerId, displayName: lo.displayName ?? null },
+        b: { ...toRef(hi), ownerId: hi.ownerId, displayName: hi.displayName ?? null },
         confidence: signals.confidence,
         reasons: signals.reasons,
       });

@@ -13,6 +13,7 @@
 import { getProvider } from '@/lib/providers/demo';
 import { roundHalfAwayFromZero } from '@/lib/money';
 import type { DebtInput } from '@/lib/engine/debt/payoff';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 /** $35 floor — mirrors estimateMinimumPayment in the Cash-Needed engine. */
 const CARD_MIN_FLOOR_CENTS = 3500;
@@ -31,7 +32,7 @@ export async function loadDebtAccounts(userId: string): Promise<DebtInput[]> {
     .filter((a) => (a.type === 'CREDIT' || a.type === 'LOAN') && a.currentBalanceCents > 0)
     .map((a) => ({
       id: a.id,
-      name: a.name,
+      name: accountLabel(a),
       balanceCents: a.currentBalanceCents,
       aprBps: a.aprBps ?? 0,
       minimumPaymentCents: minimumFor(a.type, a.currentBalanceCents, a.minimumPaymentCents),

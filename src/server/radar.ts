@@ -32,6 +32,7 @@ import {
 } from '@/lib/engine/account/card-duplicate-view';
 import { getProvider } from '@/lib/providers/demo';
 import type { FinanceSnapshot } from '@/lib/providers/types';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 /** Same horizon as /forecast — the "90-day walk" the plan calls for. */
 export const RADAR_HORIZON_DAYS = 90;
@@ -222,7 +223,7 @@ export function radarFromSnapshot(
     // stacked disclosures would push the dip date and the amount off screen. `assumptions` keeps
     // every pair for the in-app card, which has room. Same trade as `cardDuplicatePushNotes`.
     radar: { ...radar, duplicateDisclosure: duplicateNotes[0] ?? null },
-    paymentAccountName: payment.name,
+    paymentAccountName: accountLabel(payment),
   };
 }
 

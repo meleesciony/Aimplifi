@@ -31,7 +31,30 @@ export async function getSharedSnapshotSlice(partnerId: string): Promise<Partner
   // Mirrors DemoProvider.getFinanceSnapshot's query shapes exactly (parity with
   // the personal path) — only the `where` scope differs (partner + share flag).
   const [accounts, autopays, statements, cardPayments, transactions, scheduled] = await Promise.all([
-    prisma.account.findMany({ where: sharedWhere, orderBy: { id: 'asc' } }),
+    prisma.account.findMany({
+      where: sharedWhere,
+      // An explicit column list, not a bare read (TASKS L.7 critic F6): the first fix for the
+      // nickname leak fetched every column and deleted one by name, which is the
+      // fetch-full-then-filter shape this file's own header forbids three lines above. A
+      // `select` fails CLOSED — the next user-authored column added to `Account` (a note, a
+      // tag, a goal label) does not silently join a partner's snapshot the way `displayName`
+      // did. `displayName` is absent BY CONSTRUCTION, so it never reaches process memory.
+      select: {
+        id: true,
+        name: true,
+        provider: true,
+        type: true,
+        mask: true,
+        currency: true,
+        currentBalanceCents: true,
+        aprBps: true,
+        minimumPaymentCents: true,
+        dueDayOfMonth: true,
+        cycleCloseDayOfMonth: true,
+        feedDroppedAt: true,
+      },
+      orderBy: { id: 'asc' },
+    }),
     prisma.autopayConfig.findMany({ where: ownedByShared }),
     prisma.statement.findMany({ where: ownedByShared, orderBy: { cycleEnd: 'asc' } }),
     prisma.cardPayment.findMany({ where: { statement: { account: sharedWhere } } }),
@@ -65,6 +88,13 @@ export async function getSharedSnapshotSlice(partnerId: string): Promise<Partner
 
   return {
     today: partnerToday,
+    // TASKS L.7, found by a fresh-context critic. A partner's private nickname never enters
+    // this slice — see the `select` above, which omits it by construction. That is deliberately
+    // the ONLY fence: `displayName` is a label its author typed for himself ("Divorce lawyer
+    // card"), and sharing an account shares its money, not the words he chose in private. Every
+    // household-scope label therefore falls back to the bank's own name by the ordinary
+    // `accountLabel` rule, with nothing per-surface to forget — cards, loans, reminders,
+    // /calendar, the digest email and push all read this one slice.
     accounts: supportedAccounts,
     autopays: autopays.filter((a) => supportedIds.has(a.accountId)),
     statements: supportedStatements,
@@ -92,6 +122,9 @@ export async function getHouseholdDuplicateCandidates(
     userId: true,
     provider: true,
     name: true,
+    // Labelling only, and only ever printed back for the VIEWER's own rows (TASKS L.7 critic
+    // F2). The detector below compares `name`; a partner's nickname is dropped by the caller.
+    displayName: true,
     type: true,
     mask: true,
     currentBalanceCents: true,

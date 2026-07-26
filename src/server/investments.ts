@@ -23,6 +23,7 @@ import {
 import { getCoachData } from '@/server/coach';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { auditLog, requireUserId } from '@/server/authz';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 export interface InvestmentAccountView {
   accountId: string;
@@ -81,6 +82,7 @@ export async function getInvestments(): Promise<InvestmentsView> {
     select: {
       id: true,
       name: true,
+      displayName: true,
       currency: true,
       currentBalanceCents: true,
       holdings: {
@@ -101,7 +103,7 @@ export async function getInvestments(): Promise<InvestmentsView> {
 
   const views: InvestmentAccountView[] = accounts.map((a) => ({
     accountId: a.id,
-    accountName: a.name,
+    accountName: accountLabel(a),
     accountBalanceCents: a.currentBalanceCents,
     portfolio: summarizePortfolio(a.holdings.map(toEngineHolding)),
   }));

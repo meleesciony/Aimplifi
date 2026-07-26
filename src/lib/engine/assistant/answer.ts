@@ -48,6 +48,7 @@ import type { AnswerTrace } from './trace';
 // from this module's graph (no cycle). Shared so the savings-rate headline and
 // the derivation panel format the same bps through the same function (slice 3).
 import { bpsToPct1dp } from './trace-view';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 export interface AssistantFact {
   label: string;
@@ -196,7 +197,7 @@ export function assistantAccounts(
 function frozenRowsOf(accounts: readonly AccountLike[]): { label: string; frozenSince: string }[] {
   return accounts
     .filter((a) => a.feedDroppedAt != null)
-    .map((a) => ({ label: a.name, frozenSince: a.feedDroppedAt as string }));
+    .map((a) => ({ label: accountLabel(a), frozenSince: a.feedDroppedAt as string }));
 }
 
 /** Appends a disclosure to a `detail` that may or may not already carry one. */
@@ -276,7 +277,7 @@ export function answerAccountBalance(
     for (const a of raw) {
       const succId = successorOf.get(a.id);
       const target = succId !== undefined ? (byId.get(succId) ?? a) : a;
-      if (succId !== undefined && byId.has(succId)) foldedFrom.push(a.name);
+      if (succId !== undefined && byId.has(succId)) foldedFrom.push(accountLabel(a));
       if (!seen.has(target.id)) {
         seen.add(target.id);
         folded.push(target);
@@ -289,6 +290,14 @@ export function answerAccountBalance(
   let rawMatches: AccountLike[] = [];
   if (typeHit) rawMatches = accounts.filter((a) => a.type === typeHit.type);
   if (rawMatches.length === 0) {
+    // The FEED name only, deliberately (TASKS L.7 critic F3). Matching the user's own nickname
+    // too is the better product, but the branch below sums every match with no
+    // `isLiabilityType` handling — so a second, short, user-chosen string reaching this matcher
+    // can turn one correct answer into a total that ADDS money owed to money held and states
+    // it as a balance (executed by the critic: a card renamed "Everyday Card" alongside
+    // "Everyday Checking" answered "$6,348.11 across 2 accounts"). The mixed-kind total is a
+    // pre-existing defect; widening the matcher into it is not. Nickname matching returns with
+    // that fix, recorded in STATUS.
     rawMatches = accounts.filter((a) =>
       a.name
         .toLowerCase()
@@ -319,7 +328,7 @@ export function answerAccountBalance(
         // account named because the list has several.
         frozenListedBalancesNote(frozenRowsOf(visible)),
       ) as string,
-      facts: visible.map((a) => ({ label: a.name, value: fmt(a.currentBalanceCents) })),
+      facts: visible.map((a) => ({ label: accountLabel(a), value: fmt(a.currentBalanceCents) })),
       source: { label: 'See accounts', href: '/accounts' },
     };
   }
@@ -336,9 +345,9 @@ export function answerAccountBalance(
     );
     return {
       kind: 'account_balance',
-      headline: `${a.name} ${owed ? 'has a balance of' : 'has'} ${fmt(a.currentBalanceCents)}${owed ? ' owed' : ''}.`,
+      headline: `${accountLabel(a)} ${owed ? 'has a balance of' : 'has'} ${fmt(a.currentBalanceCents)}${owed ? ' owed' : ''}.`,
       ...(detail !== undefined ? { detail } : {}),
-      facts: [{ label: a.name, value: fmt(a.currentBalanceCents) }],
+      facts: [{ label: accountLabel(a), value: fmt(a.currentBalanceCents) }],
       source: { label: 'See accounts', href: '/accounts' },
     };
   }
@@ -354,7 +363,7 @@ export function answerAccountBalance(
     kind: 'account_balance',
     headline: `${fmt(total)} across ${matches.length} accounts.`,
     ...(detail !== undefined ? { detail } : {}),
-    facts: matches.map((a) => ({ label: a.name, value: fmt(a.currentBalanceCents) })),
+    facts: matches.map((a) => ({ label: accountLabel(a), value: fmt(a.currentBalanceCents) })),
     source: { label: 'See accounts', href: '/accounts' },
   };
 }

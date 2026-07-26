@@ -32,6 +32,7 @@ import { prisma } from '@/lib/db';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { isDemoUser } from '@/lib/demo-user';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 export const metadata = { title: "Settings" };
 
@@ -85,7 +86,7 @@ export default async function SettingsPage() {
   const supersededFunding = await activeSupersededPredecessorIds([userId]);
   const eligibleAccounts = accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type) && !supersededFunding.has(a.id))
-    .map((a) => ({ id: a.id, name: a.name }));
+    .map((a) => ({ id: a.id, name: accountLabel(a) }));
 
   const vapidPublicKey = getVapidPublicKey();
 

@@ -75,6 +75,7 @@ import {
 } from '@/lib/engine/assistant/derivation';
 import { CORRECTABLE_KINDS } from '@/lib/engine/assistant/trace-view';
 import { applyCategory, undoCorrections } from '@/server/triage-actions';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 const MONTH_TITLE = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const ymLabel = (ym: string) => `${MONTH_TITLE[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
@@ -494,7 +495,7 @@ async function buildAnswer(
       const { result, cardDuplicates } = await getCashNeeded(userId);
       // TASKS L.15 (e): the same advisory pair the dashboard hero carries. Ask states this figure
       // to a reader who may never open /cards, so it qualifies it here too.
-      const answer = answerCashNeeded(result, resolvePaymentAccount(snap).name, cardDuplicates);
+      const answer = answerCashNeeded(result, accountLabel(resolvePaymentAccount(snap)), cardDuplicates);
       // Slice 3: the trace reshapes the SAME engine result (via the dashboard
       // glass-box rows) — no headlineCents (nothing due) → no figure, no tap.
       return answer.headlineCents === undefined

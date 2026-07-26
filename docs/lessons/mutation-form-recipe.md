@@ -95,3 +95,25 @@ Two tells worth generalizing:
   `mobile-380` and only for the search whose result set was empty (the URL was unchanged either way, so a
   non-empty result masked it). Don't dismiss a mobile-380-only failure as the viewport flake — that flake's
   signature is `intercepts pointer events`, nothing else.
+
+## A `'use server'` file may export ONLY async functions (L.7, 2026-07-25)
+
+Costs a whole gate cycle to learn, and `tsc`, `eslint` and `vitest` all pass first. A new action
+module exported its action plus one string constant the error copy needed:
+
+```ts
+'use server';
+export const ACCOUNT_NOT_FOUND = 'That account is no longer here.';   // ← poison
+export async function renameAccount(...) { ... }
+```
+
+`next build` then failed with **"The export renameAccount was not found… The module has no exports
+at all"** — pointing at the importer, not at the constant, and naming the export that *is* legal.
+The whole module is rejected, so the message describes a symptom two files away from the cause.
+
+Rule: a `'use server'` module exports async functions and nothing else. TypeScript `interface` and
+`type` exports are fine (they are erased before the check ever runs — `networth-actions.ts` has
+exported `ManualResult` since #39). Any VALUE the action and its callers share — copy strings,
+constants, parsers — belongs in a plain module the action imports, which is where it should have
+been anyway: a constant in a leaf module can be asserted by a unit test without pulling a server
+action into it.

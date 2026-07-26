@@ -40,6 +40,7 @@ import { formatISODate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 export interface CoachData {
   today: string;
@@ -171,7 +172,7 @@ export async function getCoachData(
   const frozenRows = (rows: typeof snap.accounts) =>
     rows
       .filter((a) => a.feedDroppedAt != null && !superseded.has(a.id))
-      .map((a) => ({ label: a.name, frozenSince: a.feedDroppedAt as string }));
+      .map((a) => ({ label: accountLabel(a), frozenSince: a.feedDroppedAt as string }));
   const frozenBalances = {
     portfolio: frozenRows(portfolioAccounts),
     liquid: frozenRows(liquidAccounts),
@@ -299,7 +300,7 @@ export async function getCoachData(
         // something else is a small fabrication in a sentence about trusting a number.
         frozenFunding: cash.fundingFrozen
           ? {
-              label: resolvePaymentAccount(snap).name,
+              label: accountLabel(resolvePaymentAccount(snap)),
               frozenSince: cash.fundingFrozen.frozenSince,
             }
           : null,

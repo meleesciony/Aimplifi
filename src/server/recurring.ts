@@ -22,6 +22,7 @@ import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getProvider } from '@/lib/providers/demo';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 export interface RecurringData {
   summary: RecurringSummary;
@@ -68,7 +69,7 @@ export async function getRecurring(userId: string): Promise<RecurringData> {
   const renewals = upcomingRenewals(summary.items, today);
 
   const accountNames: Record<string, string> = {};
-  for (const a of snap.accounts) accountNames[a.id] = a.name;
+  for (const a of snap.accounts) accountNames[a.id] = accountLabel(a);
 
   // Resolve each category once through the merged meta (custom + system) so a
   // recurring series filed under a custom category shows its name (DECISIONS #111).

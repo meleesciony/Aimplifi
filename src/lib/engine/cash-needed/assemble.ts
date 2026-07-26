@@ -12,12 +12,18 @@
 
 import { type Cents, cents } from '@/lib/money';
 import { type ISODate, addDays, addMonthsClamped, compareDates, isoDate, nextDayOfMonth } from '@/lib/dates';
+import { accountLabel } from '@/lib/engine/account/display-name';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
 import type { CardSnapshot, CashNeededInput, PendingTx, Scenario, ScheduledItem } from './types';
 
 export interface AccountLike {
   id: string;
+  /** The FEED's name. Every comparison reads this one — see engine/account/display-name.ts. */
   name: string;
+  /** The user's own name for this account (TASKS L.7), null/absent when he never set one.
+   *  Carried on the snapshot shape itself, exactly like `feedDroppedAt` below, because the
+   *  label leaves this assembler for ~20 surfaces and only the assembler can resolve it. */
+  displayName?: string | null;
   type: string;
   currentBalanceCents: number;
   aprBps: number | null;
@@ -159,7 +165,11 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
 
       return {
         id: card.id,
-        name: card.name,
+        // The label, resolved ONCE here (TASKS L.7) — the same reason `feedDroppedAt` is
+        // carried on this shape: the string flows from this assembler to ~20 surfaces
+        // (dashboard hero, reminders, calendar, digest, push, receipts, Ask), and a
+        // surface that can't see the user's own name for a card prints the bank's.
+        name: accountLabel(card),
         aprBps: card.aprBps ?? 0,
         autopay,
         statement: current
@@ -206,7 +216,7 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
   return {
     today: p.today,
     paymentAccount: {
-      name: paymentAccount.name,
+      name: accountLabel(paymentAccount),
       balanceCents: cents(paymentAccount.currentBalanceCents),
       pending,
       // The projection's whole starting point. If the bank stopped sharing THIS account, the

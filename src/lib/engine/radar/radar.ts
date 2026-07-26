@@ -34,6 +34,7 @@ import {
   previousBusinessDay,
 } from '@/lib/dates';
 import { type Cents, ZERO, cents, roundUpToNext50Dollars } from '@/lib/money';
+import { accountLabel } from '@/lib/engine/account/display-name';
 import { computeForecast, type ForecastEvent } from '@/lib/engine/forecast/forecast';
 import {
   frozenProjectionNote,
@@ -60,6 +61,10 @@ export interface RadarCardDue {
 export interface RadarAccountLike {
   id: string;
   name: string;
+  /** The user's own name for this account (TASKS L.7), absent/null when he never set one.
+   *  Optional for the same reason the fields around it are: this interface is a structural
+   *  subset of an Account row and older fixtures omit it. `accountLabel()` resolves it. */
+  displayName?: string | null;
   type: string;
   currentBalanceCents: number;
   /** YYYY-MM-DD the bank stopped sharing this account (Account.feedDroppedAt), else null.
@@ -352,11 +357,13 @@ export function computeRadar(input: RadarInput): RadarResult {
       )
       .map((a) => ({
         id: a.id,
-        name: a.name,
+        name: accountLabel(a),
         balanceCents: a.currentBalanceCents,
         sufficient: a.currentBalanceCents >= amountCents,
       }))
-      .sort((a, b) => b.balanceCents - a.balanceCents || a.name.localeCompare(b.name));
+      // `id` after the name (TASKS L.7 critic F12): the name here is the user's own label, so a
+      // rename must not silently reorder which account a transfer instruction names first.
+      .sort((a, b) => b.balanceCents - a.balanceCents || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
     coverTransfer = { amountCents, byDate, sources };
     assumptions.add(
       'Transfer proposal is the worst projected dip rounded UP to the next $50, timed one business day before the first short date. Sources are checking/savings accounts only.',
@@ -417,7 +424,7 @@ export function computeRadar(input: RadarInput): RadarResult {
   const frozenStart =
     startingAccount?.feedDroppedAt != null
       ? {
-          label: startingAccount.name,
+          label: accountLabel(startingAccount),
           frozenSince: startingAccount.feedDroppedAt,
           balanceCents: startingAccount.currentBalanceCents,
         }

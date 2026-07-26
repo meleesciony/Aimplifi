@@ -23,7 +23,17 @@ export const UNNAMED_ACCOUNT = 'Unnamed account';
 const INVISIBLE =
   /[\u0000-\u001F\u007F-\u009F\u00AD\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
 
+/**
+ * The cleaning step on its own — identical normalization, WITHOUT the `Unnamed account`
+ * fallback. The nickname parser (TASKS L.7) needs to SEE an empty result so it can treat
+ * "the user cleared the box" as clearing the nickname rather than storing the placeholder
+ * as a name. Everything else should keep calling `renderSafe`.
+ */
+export function sanitizeName(raw: string): string {
+  return raw.normalize('NFC').replace(INVISIBLE, '').replace(/\s+/g, ' ').trim();
+}
+
 export function renderSafe(raw: string): string {
-  const cleaned = raw.normalize('NFC').replace(INVISIBLE, '').replace(/\s+/g, ' ').trim();
+  const cleaned = sanitizeName(raw);
   return cleaned === '' ? UNNAMED_ACCOUNT : cleaned;
 }

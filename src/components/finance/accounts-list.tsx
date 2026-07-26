@@ -57,12 +57,15 @@ import { MANUAL_ASSET_TYPES, MANUAL_LIABILITY_TYPES } from '@/lib/engine/networt
 import type { SuspectedDuplicatePair } from '@/lib/engine/account/duplicates';
 import { freshnessMessage } from '@/lib/engine/sync/health';
 import { FEED_DROPPED_ROW_TESTID, feedDroppedRowNote } from '@/lib/engine/account/feed-dropped-view';
+import { MAX_NICKNAME_LENGTH } from '@/lib/engine/account/display-name';
+import { renderSafe } from '@/lib/engine/account/render-safe';
 import {
   addManualAccount,
   deleteDisconnectedSyncedAccount,
   deleteManualAccount,
   updateManualAccountValue,
 } from '@/server/networth-actions';
+import { renameAccount } from '@/server/account-rename-actions';
 import { clearManualCardStatement, setManualCardStatement } from '@/server/card-actions';
 import { confirmReconciliation, undoReconciliation } from '@/server/reconciliation-actions';
 import { combineDuplicateConnections } from '@/server/combine-connections-actions';
@@ -213,6 +216,8 @@ export function AccountsList({ data }: { data: AccountsView }) {
   const [adding, setAdding] = useState<null | 'asset' | 'liability'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [statementCardId, setStatementCardId] = useState<string | null>(null);
+  // Which row's name box is open (TASKS L.7). One at a time, like `editingId`.
+  const [renamingId, setRenamingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   // Deliberately NOT useTransition (#167, the #164/#166 recipe): the pending
@@ -434,6 +439,13 @@ export function AccountsList({ data }: { data: AccountsView }) {
         editingId={editingId}
         statementCardId={statementCardId}
         pending={pending}
+        renamingId={renamingId}
+        canRename={data.canRename}
+        onRename={(id) => { setRenamingId(id); setError(null); setSuccess(null); }}
+        onCancelRename={() => setRenamingId(null)}
+        onSaveName={(accountId, name) =>
+          refreshAfter(() => renameAccount({ accountId, name }), 'Name saved.')
+        }
         onEdit={setEditingId}
         onSaveValue={(accountId, value) => refreshAfter(() => updateManualAccountValue({ accountId, value }))}
         onDelete={(accountId) => refreshAfter(() => deleteManualAccount(accountId))}
@@ -452,6 +464,13 @@ export function AccountsList({ data }: { data: AccountsView }) {
         editingId={editingId}
         statementCardId={statementCardId}
         pending={pending}
+        renamingId={renamingId}
+        canRename={data.canRename}
+        onRename={(id) => { setRenamingId(id); setError(null); setSuccess(null); }}
+        onCancelRename={() => setRenamingId(null)}
+        onSaveName={(accountId, name) =>
+          refreshAfter(() => renameAccount({ accountId, name }), 'Name saved.')
+        }
         onEdit={setEditingId}
         onSaveValue={(accountId, value) => refreshAfter(() => updateManualAccountValue({ accountId, value }))}
         onDelete={(accountId) => refreshAfter(() => deleteManualAccount(accountId))}
@@ -950,8 +969,13 @@ function Group({
   paymentAccountId,
   cardBilling,
   editingId,
+  renamingId,
+  canRename,
   statementCardId,
   pending,
+  onRename,
+  onCancelRename,
+  onSaveName,
   onEdit,
   onSaveValue,
   onDelete,
@@ -967,8 +991,13 @@ function Group({
   paymentAccountId: string | null;
   cardBilling: Record<string, ManualCardBilling>;
   editingId: string | null;
+  renamingId: string | null;
+  canRename: boolean;
   statementCardId: string | null;
   pending: boolean;
+  onRename: (id: string) => void;
+  onCancelRename: () => void;
+  onSaveName: (id: string, name: string) => void;
   onEdit: (id: string) => void;
   onSaveValue: (id: string, value: string) => void;
   onDelete: (id: string) => void;
@@ -1000,8 +1029,13 @@ function Group({
                 isLiability={isLiability}
                 billing={cardBilling[a.id]}
                 editing={editingId === a.id}
+                renaming={renamingId === a.id}
+                canRename={canRename}
                 statementOpen={statementCardId === a.id}
                 pending={pending}
+                onRename={() => onRename(a.id)}
+                onCancelRename={onCancelRename}
+                onSaveName={(name) => onSaveName(a.id, name)}
                 onEdit={() => onEdit(a.id)}
                 onSave={(value) => onSaveValue(a.id, value)}
                 onDelete={() => onDelete(a.id)}
@@ -1022,7 +1056,12 @@ function Group({
                 // SERVER-side with the same predicate the delete action enforces
                 // (#253/#256, account-delete.ts syncedDeleteBlockReason).
                 deletable={a.deletable ?? false}
+                renaming={renamingId === a.id}
+                canRename={canRename}
                 pending={pending}
+                onRename={() => onRename(a.id)}
+                onCancelRename={onCancelRename}
+                onSaveName={(name) => onSaveName(a.id, name)}
                 onDelete={() => onDeleteSynced(a.id)}
               />
             ),
@@ -1033,19 +1072,111 @@ function Group({
   );
 }
 
+/**
+ * The inline name box (TASKS L.7). One control for both row kinds. Clearing it is a real
+ * instruction — "go back to the name my bank sends" — so the helper line says that outright
+ * rather than leaving it to be discovered.
+ */
+function RenameForm({
+  account,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  account: AccountView;
+  pending: boolean;
+  onSave: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(account.displayName ?? '');
+  const bankName = account.feedName ? renderSafe(account.feedName) : account.name;
+  const inputId = `account-rename-${account.id}`;
+  return (
+    <div className="min-w-0 flex-1 px-3 py-2" data-testid="account-rename-form">
+      <label htmlFor={inputId} className="text-xs text-muted-foreground">
+        Name for this account
+      </label>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <input
+          id={inputId}
+          type="text"
+          value={name}
+          placeholder={bankName}
+          maxLength={MAX_NICKNAME_LENGTH}
+          autoFocus
+          onChange={(e) => setName(e.target.value)}
+          data-testid="account-rename-input"
+          className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm"
+        />
+        <button
+          type="button"
+          data-testid="account-rename-save"
+          disabled={pending}
+          onClick={() => onSave(name)}
+          className="tap-target inline-flex items-center justify-center rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          data-testid="account-rename-cancel"
+          disabled={pending}
+          onClick={onCancel}
+          className="tap-target inline-flex items-center justify-center rounded px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Up to {MAX_NICKNAME_LENGTH} characters. Only you see this name.{' '}
+        {account.manual
+          ? `You added this account as ${bankName}.`
+          : `Its synced name stays ${bankName}.`}{' '}
+        Leave the box empty to go back to that name.
+      </p>
+    </div>
+  );
+}
+
+/** The button that opens the box, shared by both row kinds. */
+function RenameButton({ account, pending, onRename }: { account: AccountView; pending: boolean; onRename: () => void }) {
+  return (
+    <button
+      type="button"
+      data-testid="account-rename"
+      aria-label={`Rename ${account.name}`}
+      disabled={pending}
+      onClick={onRename}
+      className="tap-target mr-1 inline-flex shrink-0 items-center justify-center rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
+    >
+      Rename
+    </button>
+  );
+}
+
 function LinkedRow({
   account,
   isLiability,
   isPaymentAccount,
   deletable,
+  renaming,
+  canRename,
   pending,
+  onRename,
+  onCancelRename,
+  onSaveName,
   onDelete,
 }: {
   account: AccountView;
   isLiability: boolean;
   isPaymentAccount: boolean;
   deletable: boolean;
+  renaming: boolean;
+  canRename: boolean;
   pending: boolean;
+  onRename: () => void;
+  onCancelRename: () => void;
+  onSaveName: (name: string) => void;
   onDelete: () => void;
 }) {
   // #253: two-tap confirm, same pattern as ManualRow. The cluster is a SIBLING of
@@ -1076,6 +1207,12 @@ function LinkedRow({
   // #160: carry the account id so /investments narrows to THIS account's holdings for a
   // multi-brokerage user (inert with one account — the demo lands on the full portfolio).
   const href = isInvestment ? `/investments?account=${account.id}` : `/transactions?account=${account.id}`;
+  // TASKS L.7. Once the user renames a row, the bank's own name still has to be readable
+  // somewhere on it: it is what he sees in his bank's app, and it is the string every
+  // duplicate / continue-an-account card on this page is reasoning about. Printed only when
+  // the two actually differ, so an un-renamed row is byte-identical to before.
+  const bankName =
+    account.feedName && renderSafe(account.feedName) !== account.name ? renderSafe(account.feedName) : null;
   return (
     // min-w-0 down the whole flex chain so a long synced name TRUNCATES instead
     // of pushing the balance + Delete off the right edge. Chromium shrinks a
@@ -1090,6 +1227,12 @@ function LinkedRow({
     // on this page that may not be truncated.
     <li className="min-w-0">
       <div className="flex min-w-0 items-center">
+        {renaming ? (
+          // The box REPLACES the row's link line while it is open: a text input and its two
+          // buttons cannot live inside an <a>, and a half-row of link plus a half-row of form
+          // is the kind of ambiguous target this file has already been burned by.
+          <RenameForm account={account} pending={pending} onSave={onSaveName} onCancel={onCancelRename} />
+        ) : (
         <Link
           href={href}
           data-testid="account-row"
@@ -1105,6 +1248,7 @@ function LinkedRow({
             <div className="text-xs text-muted-foreground">
               {typeLabel(account.type)}
               {account.mask ? ` ····${account.mask}` : ''}
+              {bankName && <span data-testid="account-feed-name"> · synced as {bankName}</span>}
               {isInvestment && <span data-testid="account-row-investment-cue"> · View holdings →</span>}
             </div>
             {account.freshness && (
@@ -1125,7 +1269,10 @@ function LinkedRow({
             {formatCents(cents(account.currentBalanceCents))}
           </div>
         </Link>
-        {deletable &&
+        )}
+        {!renaming && canRename && <RenameButton account={account} pending={pending} onRename={onRename} />}
+        {!renaming &&
+          deletable &&
           (!confirm.isArmed('delete') ? (
             <button
               type="button"
@@ -1167,8 +1314,13 @@ function ManualRow({
   isLiability,
   billing,
   editing,
+  renaming,
+  canRename,
   statementOpen,
   pending,
+  onRename,
+  onCancelRename,
+  onSaveName,
   onEdit,
   onSave,
   onDelete,
@@ -1182,8 +1334,13 @@ function ManualRow({
   isLiability: boolean;
   billing?: ManualCardBilling;
   editing: boolean;
+  renaming: boolean;
+  canRename: boolean;
   statementOpen: boolean;
   pending: boolean;
+  onRename: () => void;
+  onCancelRename: () => void;
+  onSaveName: (name: string) => void;
   onEdit: () => void;
   onSave: (value: string) => void;
   onDelete: () => void;
@@ -1198,6 +1355,9 @@ function ManualRow({
   const isCard = account.type === 'CREDIT' && billing !== undefined;
   return (
     <li className="px-3 py-2" data-testid="manual-account-row">
+      {renaming ? (
+        <RenameForm account={account} pending={pending} onSave={onSaveName} onCancel={onCancelRename} />
+      ) : (
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate font-medium">{account.name}</div>
@@ -1209,6 +1369,7 @@ function ManualRow({
               {isLiability ? '−' : ''}
               {formatCents(cents(account.currentBalanceCents))}
             </span>
+            {canRename && <RenameButton account={account} pending={pending} onRename={onRename} />}
             <button type="button" data-testid="manual-edit" disabled={pending} onClick={onEdit} className="tap-target inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50">Edit</button>
             {!confirm.isArmed('delete') ? (
               <button type="button" data-testid="manual-delete" disabled={pending} onClick={() => confirm.arm('delete')} className="tap-target inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-accent disabled:opacity-50">Delete</button>
@@ -1239,6 +1400,7 @@ function ManualRow({
           </div>
         )}
       </div>
+      )}
 
       {isCard && (
         <div className="mt-1.5" data-testid="manual-card-billing">

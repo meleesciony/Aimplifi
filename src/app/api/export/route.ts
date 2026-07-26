@@ -11,6 +11,7 @@ import { netWorthReportPdf, netWorthToCsv, transactionsToCsv } from '@/lib/expor
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { activeSupersededPredecessorIds, getReconciliationTxnKeep } from '@/server/reconciliation';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
       where: { account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
       // Join the category so a custom category exports its real name (#111); system
       // rows are unchanged (DB name == static name), null categoryId → no category.
-      include: { account: { select: { name: true } }, merchant: true, category: { select: { name: true } } },
+      include: { account: { select: { name: true, displayName: true } }, merchant: true, category: { select: { name: true } } },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
     });
     // Reconciliation boundary (slice-6 critic C-2): the exported ledger must match the
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
     const csv = transactionsToCsv(
       txns.map((t) => ({
         date: t.date,
-        account: t.account.name,
+        account: accountLabel(t.account),
         rawDescriptor: t.rawDescriptor,
         merchant: t.merchant?.canonical ?? null,
         category: t.category?.name ?? (t.categoryId ? categoryName(t.categoryId) : null),

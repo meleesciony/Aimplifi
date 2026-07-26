@@ -64,6 +64,8 @@ import {
   sortByDateDesc,
   summarizeTransactions,
 } from '@/lib/engine/transactions/query';
+import { isDemoUser } from '@/lib/demo-user';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 /** Merchant Pattern Lens view (AI plan §Later #19, DECISIONS #250): rendered
  *  narration for the merchant the register is filtered to. Null when the
@@ -112,7 +114,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     // Join the category row so a CUSTOM category resolves to its real name; system
     // rows are identical (their DB name == the static name), so this is a no-op for
     // them and a fix for customs without threading a meta map here (DECISIONS #111).
-    include: { account: { select: { id: true, name: true } }, merchant: true, category: { select: { name: true } } },
+    include: { account: { select: { id: true, name: true, displayName: true } }, merchant: true, category: { select: { name: true } } },
     orderBy: [{ date: 'desc' }, { id: 'desc' }],
   });
 
@@ -147,7 +149,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     id: t.id,
     date: t.date,
     accountId: t.accountId,
-    accountName: t.account.name,
+    accountName: accountLabel(t.account),
     merchantName: t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical,
     rawDescriptor: t.rawDescriptor,
     categoryId: t.categoryId ?? 'uncategorized',
@@ -305,6 +307,11 @@ export interface AccountsView extends AccountsSummary {
   };
   /** What the currency guard withheld — drives the disclosure banner (#135 residual). */
   withheld: WithheldAccountSummary;
+  /** Whether the Rename control may render (TASKS L.7). False for the shared demo user, whose
+   *  rows every visitor sees: `renameAccount` refuses him server-side, and a control that is
+   *  always refused — under copy reading "only you see this name" on a row nobody owns — is
+   *  worse than no control. The fence stays on the server; this hides the door. */
+  canRename: boolean;
   /** Suspected same-account-via-two-providers pairs (DECISIONS #192). Advisory only — the
    *  app has no cross-provider dedup, so these double-count until the user disconnects one.
    *  A pair with an ACTIVE reconciliation is suppressed here (R6) — it is resolved, not a warning. */
@@ -393,7 +400,11 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   };
   const views: AccountView[] = supported.map((a) => ({
     id: a.id,
-    name: a.name,
+    // The label the reader sees (TASKS L.7). `feedName` below keeps the bank's own string
+    // for the identity surfaces on this same page, which are asking a question about it.
+    name: accountLabel(a),
+    feedName: a.name,
+    displayName: a.displayName,
     type: a.type,
     mask: a.mask,
     currentBalanceCents: a.currentBalanceCents,
@@ -423,6 +434,10 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     // just bring the row back.
     plaidItemId: a.provider === 'plaid' ? a.plaidItemId ?? null : null,
   }));
+  // Sorted by the label the reader sees, not by the feed's name (TASKS L.7): the query
+  // orders by `name`, so a renamed account would otherwise sit in the alphabetical slot of a
+  // string no longer on screen. `id` breaks ties so the order stays deterministic.
+  views.sort((x, y) => x.type.localeCompare(y.type) || x.name.localeCompare(y.name) || x.id.localeCompare(y.id));
 
   // Newest statement per account (orderBy cycleEnd desc → first seen wins).
   const newestStatement = new Map<string, (typeof statements)[number]>();
@@ -546,6 +561,17 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       connectionId: a.plaidItemId ?? null,
     };
   };
+  // TASKS L.7. The three views below ask an identity question ("are these the same account?").
+  // They print the name the USER chose — otherwise he cannot match the sentence to a row on
+  // this page — and they identify the account by the provider + last-4 they already carry,
+  // which is the evidence the question actually rests on. An earlier version appended the
+  // bank's own name to each label; it stacked two parentheticals inside prompts and aria
+  // labels ("Delete X (your bank calls this Y) (Plaid ····0977)?") and asserted a bank for
+  // MANUAL rows, which have none (critic F5). The bank's string is disclosed once, on the
+  // account row itself. Applied AFTER detection: every comparison above compares feed names.
+  const labelById = new Map(supported.map((a) => [a.id, accountLabel(a)]));
+  const displayLabel = (id: string, fallback: string) => labelById.get(id) ?? fallback;
+
   const reconciliationCandidates: ReconciliationCandidateView[] = detectReconciliationCandidates(
     supported.map((a) => ({
       id: a.id,
@@ -572,7 +598,12 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
         // (dup-veto critic DUP-DISMISS-1). Same key + sort as the duplicates-warning filter.
         !dismissedDupKeys.has(duplicatePairDismissKey(c.predecessor.id, c.successor.id)),
     )
-    .map((c) => ({ ...c, predecessorTxnSpan: spanByAccount.get(c.predecessor.id) ?? null }));
+    .map((c) => ({
+      ...c,
+      predecessor: { ...c.predecessor, name: displayLabel(c.predecessor.id, c.predecessor.name) },
+      successor: { ...c.successor, name: displayLabel(c.successor.id, c.successor.name) },
+      predecessorTxnSpan: spanByAccount.get(c.predecessor.id) ?? null,
+    }));
   const candidatePairKeys = new Set(reconciliationCandidates.map((c) => pairKey(c.predecessor.id, c.successor.id)));
 
   // Both-live duplicate connections (TASKS L.6 / L.10). Suppressed for a pair the user has
@@ -638,8 +669,8 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       {
         id,
         cutoverDate: l.cutoverDate,
-        predecessor: { id: p.id, name: p.name, mask: p.mask, provider: p.provider },
-        successor: { id: s.id, name: s.name, mask: s.mask, provider: s.provider },
+        predecessor: { id: p.id, name: accountLabel(p), mask: p.mask, provider: p.provider },
+        successor: { id: s.id, name: accountLabel(s), mask: s.mask, provider: s.provider },
       },
     ];
   });
@@ -672,11 +703,12 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
         lastSyncedAt: item.lastSyncedAt,
         accounts: accounts
           .filter((a) => a.plaidItemId === item.itemId)
-          .map((a) => ({ name: a.name, mask: a.mask })),
+          .map((a) => ({ name: accountLabel(a), mask: a.mask })),
       })),
     },
     // The unfiltered rows are already in hand, so the disclosure costs no extra query.
     withheld: summarizeWithheldAccounts(accounts),
+    canRename: !isDemoUser(userId),
     // Advisory duplicate warning. Suppressed for a pair that is already reconciled (R6 — resolved,
     // not a warning) OR that has a live continue-candidate (the candidate card is the actionable
     // version of the same message; showing both would double-message one pair). A both-live genuine
@@ -692,6 +724,14 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
         currency: a.currency,
         plaidItemId: a.plaidItemId, // C-10: same-bank-relinked (two items) both-live pairs warn
       })),
+    ).map((d) => ({
+      ...d,
+      a: { ...d.a, name: displayLabel(d.a.id, d.a.name) },
+      b: { ...d.b, name: displayLabel(d.b.id, d.b.name) },
+    })).sort(
+      // Re-sorted on the PAINTED name (critic F8): the detector orders pairs by the feed's
+      // string, so once a rename makes the two diverge the list order stops matching the list.
+      (p, q) => p.a.name.localeCompare(q.a.name) || p.b.name.localeCompare(q.b.name) || p.a.id.localeCompare(q.a.id),
     ).filter((d) => {
       const k = pairKey(d.a.id, d.b.id);
       // A pair involving an EFFECTIVE predecessor never warns (slice-6, with C-8): that row is

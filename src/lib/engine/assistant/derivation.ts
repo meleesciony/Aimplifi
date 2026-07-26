@@ -34,6 +34,7 @@ import type { CardDuplicatePairInput } from '@/lib/engine/account/card-duplicate
 import { frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import type { AccountLike } from './answer';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -123,7 +124,7 @@ export function traceNetWorthDerivation(accounts: readonly AccountLike[], expect
   const rows: DerivationRow[] = accounts.map((a) => {
     const liability = isLiabilityType(a.type);
     return {
-      label: a.name,
+      label: accountLabel(a),
       // `|| 0` normalizes the -0 a negated $0 balance produces — a payload
       // value must round-trip JSON and strict equality cleanly.
       amountCents: liability ? -a.currentBalanceCents || 0 : a.currentBalanceCents,
@@ -147,7 +148,7 @@ export function traceNetWorthDerivation(accounts: readonly AccountLike[], expect
   const frozen = frozenTotalNote(
     accounts
       .filter((a) => a.feedDroppedAt != null)
-      .map((a) => ({ label: a.name, frozenSince: a.feedDroppedAt as string })),
+      .map((a) => ({ label: accountLabel(a), frozenSince: a.feedDroppedAt as string })),
     // No position: `BasisList` renders after the totals in `NetWorthDerivation` and before them in
     // the row-sum panel, so "the total below" would be false in one of the two places this string
     // can appear. Name the figure, never where it sits (L.15).

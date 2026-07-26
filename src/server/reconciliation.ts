@@ -148,11 +148,11 @@ export async function confirmReconciliationFor(
     const [pred, succ] = await Promise.all([
       tx.account.findFirst({
         where: { id: predecessorAccountId, userId },
-        select: { id: true, provider: true, plaidItemId: true, type: true, currency: true },
+        select: { id: true, provider: true, plaidItemId: true, type: true, currency: true, displayName: true },
       }),
       tx.account.findFirst({
         where: { id: successorAccountId, userId },
-        select: { id: true, provider: true, plaidItemId: true, type: true, currency: true },
+        select: { id: true, provider: true, plaidItemId: true, type: true, currency: true, displayName: true },
       }),
     ]);
     // Either id not owned by this user → generic not-found (R10: no cross-user oracle).
@@ -263,6 +263,16 @@ export async function confirmReconciliationFor(
         confirmedByUserAt: new Date(),
       },
     });
+    // The user's own name follows the ACCOUNT, not the connection (TASKS L.7, critic F5) —
+    // the rule the combine transaction already applies to autopay. The predecessor's row stops
+    // counting, so a nickname left on it is orphaned: the surviving row would revert to the
+    // string the bank sends, which is precisely the name he renamed away from, while the
+    // "Combined accounts" card beneath it still shows the name he chose. Carried only onto a
+    // successor with none of its own — his own name on the live row always wins.
+    if (pred.displayName && !succ.displayName) {
+      await tx.account.update({ where: { id: succ.id }, data: { displayName: pred.displayName } });
+    }
+
     return { ok: true, id: row.id, autoUndoneReverseId: reverse?.id ?? null };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (e) {

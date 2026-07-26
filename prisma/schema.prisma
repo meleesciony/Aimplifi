@@ -183,7 +183,8 @@ model Account {
   userId                String
   provider              String // 'demo' | 'plaid'
   providerRef           String?
-  name                  String
+  name                  String // the FEED's own name, verbatim, rewritten on every sync. Every comparison (duplicate detection, reconciliation matching, the identity tokenizer) reads THIS — two cards are the same card because of what the bank says, never because of what their owner called them.
+  displayName           String? // the user's own name for this account (TASKS L.7), null = he never set one. No ingest path writes it, which is why it survives a sync; `accountLabel()` in engine/account/display-name.ts is the single rule for when it wins.
   type                  String // CHECKING | SAVINGS | CREDIT | INVESTMENT | LOAN
   mask                  String? // last 4 only — never full numbers
   subtype               String? // the PROVIDER's raw subtype, verbatim ('checking' | 'credit card' | 'roth' | 'traditional' | …); null = the provider gave none. Identity only — `type` above is what every engine reads. Exists so a Roth can never be matched against a Traditional (docs/ACCOUNT_IDENTITY_ARCHITECTURE.md §5 tiers A/V, TASKS L.9).

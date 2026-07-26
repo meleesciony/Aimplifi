@@ -43,7 +43,7 @@ export const HOUSEHOLD_COPY = {
   noAccountsToShare: () => `Connect or add an account first — then you can share it here.`,
 
   shareYourAccountsDisclosure: () =>
-    `Sharing shows an account's name, type, last 4 digits, balance, and transactions (read-only, labeled with your name on their register) to everyone in your household, updated as it syncs. You can stop sharing anytime, and leaving the household unshares everything.`,
+    `Sharing shows an account's name, type, last 4 digits, balance, and transactions (read-only, labeled with your name on their register) to everyone in your household, updated as it syncs. They see the name your bank sends, not any name you've given it yourself. You can stop sharing anytime, and leaving the household unshares everything.`,
 
   // ── src/components/finance/shared-transaction-list.tsx — /transactions ─────
   sharedTxnDisclosure: () =>

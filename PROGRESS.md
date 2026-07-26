@@ -5373,3 +5373,117 @@ NEXT: open queue per TASKS — L.7 (rename accounts, owner-requested), L.9 (Roth
 wrong-pair), L.16 (keep-both prompt), L.13 (blocked on owner screenshot), STATUS §STILL OPEN
 residuals (sharpest: an undetected loan payment is in NO plan term; radar/forecast/calendar
 omit an undatable loan).
+
+## L.7 BUILT — rename an account. Checkpoint before the gate. 2026-07-25
+DECISIONS TAKEN (the four the TASKS row required, recorded here + DECISIONS #308):
+ (a) SURVIVAL: a second column `Account.displayName` (additive nullable), never written by any
+     ingest path — so a nickname survives every sync. A flag on `name` would be reverted by the
+     next cron, which is the failure the row predicted.
+ (b) WHICH NAME WINS: `name` stays the feed's string EVERYWHERE by default, and display sites
+     ask for the label explicitly via `accountLabel()`. The direction is the safety property: a
+     display site nobody updated shows the bank's name (stale, not wrong), while a MATCHING site
+     nobody updated keeps comparing what the bank sent — a nickname must never reach duplicate
+     detection, reconciliation matching, or the identity tokenizer.
+ (c) TYPE: deliberately OUT of scope even though Quicken Simplifi edits name+type together —
+     type drives the net-worth classifier and the cash-needed engine, so it is a money change
+     wearing a label's clothes. Recorded as a follow-up, not shipped silently.
+ (d) The last-4 identity line (#298) is untouched; a nickname is never the only distinguisher.
+IMPLEMENTED (uncommitted):
+ - NEW pure `engine/account/display-name.ts`: accountLabel / hasNickname / accountEvidenceLabel /
+   parseAccountNickname (empty box = clear, 60 code points, sanitized through render-safe).
+   `render-safe.ts` gained `sanitizeName` (the cleaning step without the placeholder fallback);
+   `renderSafe` is byte-identical in behaviour.
+ - schema: Account.displayName String? (additive nullable) + a comment on `name` naming it the
+   comparison column. `npm run db:push` applied locally.
+ - NEW `server/account-rename-actions.ts`: renameAccount — requireUserId, demo fence,
+   ownership IN THE WHERE CLAUSE, parse, single-column update, audit row that records THAT he
+   renamed and whether he cleared it but never the string, revalidate ×7.
+ - propagation at the server/assembler boundary (engines untouched): AccountLike gains
+   displayName and `assemble.ts` resolves card + payment-account labels once (the feedDroppedAt
+   precedent); loans/obligations + radar resolve theirs; transactions/triage/household/export
+   selects carry displayName and their mappers resolve; investments/recurring/forecast/finance/
+   radar/coach/assistant resolve at their mappers. AccountView gains `name` (label), `feedName`,
+   `displayName`; /accounts rows re-sort by the painted label.
+ - UI: RenameForm + RenameButton on both row kinds of /accounts; a renamed LINKED row prints
+   "· your bank calls it X" (testid account-feed-name) so the evidence stays on screen.
+ - tests: NEW account-display-name.test.ts (16) + account-rename-server.test.ts (7, real Prisma,
+   incl. the survives-a-sync case and the nickname-never-reaches-duplicate-detection invariant)
+   + NEW e2e account-rename.spec.ts (open → save → re-sort → clear → original name back).
+GATES SO FAR (real output in session): tsc 0 errors; eslint 0 on the touched files; the two new
+unit files 23/23 pass.
+NEXT: full `bash scripts/verify.sh`; then the evidence surfaces still to decide (duplicate /
+continue-an-account / combined-accounts cards still print the FEED name only — accountEvidenceLabel
+exists for them but is not yet wired); then fresh-context critic; DECISIONS/REGRESSION/STATUS/TASKS;
+commit + push + deploy-verify (prisma diff = ONE additive nullable column → db push on deploy).
+
+## L.7 — critic finding 1: the household nickname leak, fixed and locked. 2026-07-25
+A fresh-context critic broke the first version on the PRIVACY axis and it reproduced: a partner
+who renames his SHARED card "Divorce lawyer card" had that string printed to the OTHER member at
+household scope. Cause: L.7 resolved the label inside the ENGINES (assemble.ts, loans/obligations),
+which sit DOWNSTREAM of the household merge, so `displayName` rode the partner's shared rows into
+the viewer's snapshot and out through cards, loans, reminders, /calendar, digest and push alike.
+The `household.ts` shared-transaction path had been fenced by hand; the snapshot path had not —
+per-surface fences are exactly the failure mode L.15/L.20 record.
+FIX (one boundary, not N surfaces): `getSharedSnapshotSlice` now strips `displayName` from the
+partner's rows as they enter the viewer's process — same defense class as the share-scoped `where`
+above it, so the nickname never reaches process memory and every household label falls back to the
+bank's name by the ordinary accountLabel rule.
+LOCK: NEW tests/unit/household-nickname-scope.test.ts, 4 cases against the REAL server path
+(getCashNeeded + getDashboardData over real Prisma): partner nickname absent at household scope AND
+the partner's money still present under the FEED name (an absence-only assertion would also pass if
+the merge silently broke); the viewer keeps his OWN nickname on the same screen; personal scope
+unchanged. 4/4 pass.
+ALSO: the critic left a throwaway repro (tests/unit/zzz-critic-repro-l7.test.ts) in the tree — read,
+judged, superseded by the real regression test, deleted.
+GATE STATE: verify run #2 FAILED on 3 tests — 1 was the critic's own throwaway; the other 2 plus 2
+file-level errors were PrismaClientKnownRequestError ("database is locked" / FK violation) from the
+two critic subagents running vitest against the SAME SQLite test DB concurrently with the gate.
+Environment contention, the documented flake class — must be RE-RUN with nothing else touching the
+DB before any claim of green. NOT yet claimed.
+
+## L.7 — critic cycle 1 verdict and every fix. 2026-07-25
+TWO fresh-context critics in parallel (wiring/comparisons; privacy/copy/honesty). BOTH said FAIL.
+Deduped: 1 P0, 5 P1, plus P2/P3. Every finding was RE-EXECUTED here before fixing.
+ P0  combine planner fed the LABEL -> `accountsOf` sorts by name, `planDirection` is
+     order-dependent through `claimed`, so a rename inverted which Plaid connection the card
+     recommends DISCONNECTING (confirm revokes the item). FIXED: mapper passes `a.name`; the
+     type + select dropped the column so it cannot come back by accident. LOCKED with a
+     two-run equality test PLUS a vacuity guard (the planner must still be feed-name-sensitive,
+     else the equality proves nothing — the guard caught my own first fixture, which produced
+     [] on both sides).
+ P1  household leak (both critics, independently) -> fixed at the merge boundary; the first fix
+     was a fetch-then-strip, which the second critic correctly called out as the shape that file's
+     own header forbids, so it is now an explicit `select` that omits the column. PRIVACY.md +
+     shareYourAccountsDisclosure updated. 5-case lock incl. the shared register.
+ P1  Ask matcher widened by `accountSearchNames` -> a renamed card + a checking account answered
+     "$6,348.11 across 2 accounts", adding money OWED to money HELD. WITHDRAWN (matcher back to
+     the feed name); the mixed-kind total is recorded as the prerequisite.
+ P1  derivation panel printed two names for one account -> both lines use accountLabel.
+ P1  "your bank calls it X" false for MANUAL rows and for SimpleFIN names the app composes ->
+     copy branches on manual; the row note reads "synced as"; accountEvidenceLabel WITHDRAWN.
+ P1  combine/reconcile ORPHANED the nickname (survivor reverted to the bank string while the
+     disclosure card still showed the chosen name) -> carried to the survivor in both paths,
+     following the autopay-carry precedent in the same transaction.
+ P2  household duplicate advisory named the VIEWER's own row by the feed string -> per-owner rule
+     in one named helper (his label / the partner's bank name).
+ P2  no scalar guard on a POST-able action; no rate limit; demo showed an always-refused control;
+     duplicate list sorted by feed name but painted by label; radar tie-break nickname-ordered.
+     All fixed. P3 maxLength on the box.
+ Also: `hasNickname` (dead) removed; PROGRESS's earlier claim about unwired evidence labels was
+ stale and is superseded by this entry.
+DOCS: DECISIONS #308 rewritten post-cycle (+index), 6 REGRESSION_LEDGER rows, STATUS §L.7 with 4
+residuals, TASKS L.7 -> [x], PRIVACY.md, lessons (use-server exports).
+NEXT: clean verify (in flight), the rename e2e, then commit + push + deploy verify. Prisma diff =
+ONE additive nullable column (User schema untouched; Account.displayName) -> db push on deploy.
+
+## L.7 — GATE GREEN. 2026-07-25
+bash scripts/verify.sh -> VERIFY GREEN: tsc 0, eslint 0, **279 test files / 4351 tests**, next
+build clean. (Runs 2 and 3 failed on MY OWN test scaffolding, not the app: the rate limiter broke
+the rename test's authz mock, then the new invariance test's fixture missed two fields of
+CombineItemRow. Run 1's failures were SQLite contention from two critic subagents running vitest
+against the same test DB — re-run clean, as the flake lesson prescribes.)
+E2E serialized (--workers=1): account-rename + account-deletion + combined-accounts + household
+-> **14/14 passed**, incl. the new rename round-trip (open -> save -> re-sort by the painted
+label -> clear -> original name back).
+NEXT: commit, push (prisma diff = ONE additive nullable column, Account.displayName -> db push
+runs against live Neon on deploy), verify READY + aliases.

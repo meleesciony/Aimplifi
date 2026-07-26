@@ -14,6 +14,7 @@ import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { loadCorrectionInputs, loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { getCategoryMeta } from '@/server/category-meta';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 export interface TriageItem {
   id: string;
@@ -94,7 +95,7 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
         OR: [{ isTransfer: false }, { reviewPinned: true }],
         account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
       },
-      include: { account: { select: { name: true } }, merchant: true },
+      include: { account: { select: { name: true, displayName: true } }, merchant: true },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
     }).then(async (rows) => {
       // Reconciliation boundary (slice-6 critic C-9): a successor backfill's copies of
@@ -159,7 +160,7 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
       merchantCanonical: t.merchant?.canonical ?? out.merchantCanonical,
       merchantId: t.merchantId,
       amountCents: t.amountCents,
-      accountName: t.account.name,
+      accountName: accountLabel(t.account),
       status: t.status,
       suggestedCategoryId: suggested,
       suggestedCategoryName: categoryName(suggested, meta),
@@ -205,7 +206,7 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
         OR: [{ isTransfer: false }, { reviewPinned: true }],
         account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
       },
-      include: { account: { select: { name: true } }, merchant: true },
+      include: { account: { select: { name: true, displayName: true } }, merchant: true },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
     }).then(async (rows) => {
       // Reconciliation boundary (slice-6 critic C-9) — same exclusion as getTriageItems.
@@ -231,7 +232,7 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
       rawDescriptor: t.rawDescriptor,
       amountCents: t.amountCents,
       date: t.date,
-      accountName: t.account.name,
+      accountName: accountLabel(t.account),
       status: t.status,
       aggregate: normalizeMerchant(t.rawDescriptor).aggregate,
       suggestedCategoryId: out.categoryId === 'uncategorized' ? null : out.categoryId,

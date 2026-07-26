@@ -17,6 +17,7 @@ import { selectLoanObligations } from '@/lib/engine/loans/obligations';
 import { frozenProjectionNote } from '@/lib/engine/account/feed-dropped-view';
 import { holidayTable } from '@/lib/dates';
 import { getProvider } from '@/lib/providers/demo';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 export interface CashFlowForecastData {
   /** Set when the account this projection starts from is one the bank stopped sharing (L.18).
@@ -82,7 +83,7 @@ export async function getCashFlowForecast(
 
   return {
     forecast,
-    accountName: payment?.name ?? 'your account',
+    accountName: payment ? accountLabel(payment) : 'your account',
     horizonDays,
     // TASKS L.18. This page walks forward from ONE balance and prints "dips below $0 on DATE" and a
     // lowest point off it, which is structurally the radar's claim with no transfer attached — and

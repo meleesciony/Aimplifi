@@ -191,7 +191,16 @@ export const SPENDING_ACCOUNT_TYPES: readonly string[] = ['CHECKING', 'SAVINGS',
 
 export interface AccountView {
   id: string;
+  /** What the reader sees: the user's own name for the account when he set one, else the
+   *  feed's (TASKS L.7 — resolved by `accountLabel` at the server boundary, never here). */
   name: string;
+  /** The bank's own string, when the surface needs it as EVIDENCE (the duplicate and
+   *  continue-an-account cards) or to prefill the rename box. Absent on surfaces that
+   *  build an AccountView without one — they simply have nothing to disclose. */
+  feedName?: string;
+  /** The user's stored nickname, null when he never set one. Drives the rename control's
+   *  "reset to my bank's name" affordance; NEVER an input to any comparison. */
+  displayName?: string | null;
   type: string; // CHECKING | SAVINGS | CREDIT | INVESTMENT | LOAN | REAL_ESTATE | VEHICLE | CASH | OTHER_ASSET | MORTGAGE | OTHER_LIABILITY
   mask: string | null;
   currentBalanceCents: number; // stored positive

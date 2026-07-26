@@ -7124,3 +7124,51 @@ Residuals that fail toward the pre-existing behaviour, never toward a false drop
 `plaidItemId` predates #256 is out of scope (it cannot be proven to belong to the connection), and
 SimpleFIN is unwired. **UNVERIFIED against live Plaid** — no credentials in this environment;
 every request shape runs against a mocked Plaid server with real Prisma.
+
+## 2026-07-25 — L.7 rename an account (critic cycle 1: 1 P0 + 5 P1, all fixed and locked)
+
+**Owner-requested 2026-07-24:** *"there should be a way to edit name of accounts myself. Similar
+to simplifi.com."* His screen carries three cards the feed calls `CREDIT CARD` and two called
+`Venture`. Three prior slices (#296/#297/#298) taught surfaces to tell same-named rows apart; none
+could improve the data. He can.
+
+Additive nullable `Account.displayName`, written by one new server action and by no ingest path,
+so a rename survives every sync. One pure rule decides which string a surface prints
+(`accountLabel`), and the DEFAULT points at the feed: a display site nobody updated reads stale
+rather than wrong, and a comparison nobody updated still compares what the bank sent. Resolution
+happens once per boundary — `assemble.ts` for the ~20 surfaces downstream of cash-needed (the
+`feedDroppedAt` precedent), then each server mapper. The control is on both row kinds of
+/accounts; a renamed linked row also prints its synced name.
+
+**Two fresh-context critics ran in parallel and both broke it. Cycle 1 verdict: FAIL — 1 P0 and 5
+P1s, every one fixed and locked by an executed test (6 REGRESSION_LEDGER rows, DECISIONS #308).**
+The P0: `buildCombineInputs` handed the combine planner the LABEL, the planner sorts by name and
+its direction is order-dependent, so a cosmetic rename inverted which Plaid connection the card
+recommended disconnecting — and confirming that revokes a Plaid item. The sharpest P1, found
+independently by both critics: a partner's private nickname printed to the other household member
+on the dashboard, /cards, /calendar and in the weekly digest email, because the label was resolved
+in engines that sit downstream of the household merge. Fixed at the one boundary that owns it (an
+explicit `select` that omits the column), not with per-surface fences.
+
+### Withdrawn deliberately, each with the prerequisite it is waiting on
+
+1. **`accountEvidenceLabel`** — appending *(your bank calls this "X")* to identity-card labels.
+   Stacked two parentheticals inside prompts and aria labels, asserted a bank for MANUAL rows,
+   and attributed to the bank a SimpleFIN string this app composes itself. Returns if a surface
+   needs provenance in a form that is true for every provider.
+2. **`accountSearchNames`** — letting Ask match the nickname as well as the feed name. The branch
+   it feeds sums every match with no `isLiabilityType` handling, so a second short user-chosen
+   string could turn one right answer into a total that ADDS money owed to money held (the critic
+   executed it: "$6,348.11 across 2 accounts"). **Prerequisite: fix that mixed-kind total** — a
+   pre-existing defect, now written down.
+
+### STILL OPEN after L.7
+
+1. **The combine-connections card prints the feed's name**, because the planner must be fed it.
+   The honest fix post-maps the planner's OUTPUT by account id; recorded, not done.
+2. **The `· synced as X` note has no e2e**: it renders only on a LINKED row, and the rename spec
+   drives a throwaway user who has none. The owner's own motivating case is unit-covered only.
+3. **A nickname may still impersonate `Unnamed account`** (P3, self-inflicted only).
+4. **No inline error in the rename form** — a refusal renders in the page-level banner, which on a
+   380px screen is above the fold (P3; the box now enforces the length cap client-side).
+

@@ -93,6 +93,8 @@ export interface CombineItemRow {
 /** The `Account` columns the planner reads. */
 export interface CombineAccountRow {
   id: string;
+  /** The FEED's name. A nickname must never enter this mapper — the planner downstream sorts
+   *  by it and its direction is order-dependent (TASKS L.7 critic F1). */
   name: string;
   provider: string;
   plaidItemId: string | null;
@@ -125,6 +127,15 @@ export function buildCombineInputs(items: readonly CombineItemRow[], accounts: r
     const item = a.plaidItemId ? institutionByItem.get(a.plaidItemId) : undefined;
     return {
       id: a.id,
+      // The FEED's name, deliberately — TASKS L.7 critic F1 (P0). The identity LADDER never
+      // reads a name, but the planner around it does: `accountsOf` sorts rows by name, and
+      // `planDirection` is order-dependent through its `claimed` set, so a row that is
+      // ambiguous when iterated first becomes unambiguous when iterated second. Feeding it a
+      // nickname made a cosmetic rename invert which connection the card recommends
+      // DISCONNECTING — and confirming that revokes a Plaid item, an irreversible external
+      // side effect. A label may not decide that. The card still identifies each account by
+      // the last-4 it prints (#298); rendering the user's own name here is a display-layer
+      // follow-up, recorded in STATUS, and must post-map the planner's OUTPUT.
       name: a.name,
       provider: a.provider,
       plaidItemId: a.plaidItemId,
@@ -455,6 +466,20 @@ export async function combineDuplicateConnectionsFor(
                 mode: fromDropped.mode,
                 fixedAmountCents: fromDropped.fixedAmountCents,
               },
+            });
+          }
+          // The NAME follows the account too (TASKS L.7, critic F5) — same rule, same reason.
+          // Without this the survivor reverts to the string the bank sends, which is the exact
+          // name the user renamed away from, while the disclosure card beneath it still shows
+          // the name he chose. Carried only onto a survivor with none of its own.
+          const [droppedName, survivorName] = await Promise.all([
+            tx.account.findUnique({ where: { id: pair.predecessorAccountId }, select: { displayName: true } }),
+            tx.account.findUnique({ where: { id: pair.successorAccountId }, select: { displayName: true } }),
+          ]);
+          if (droppedName?.displayName && !survivorName?.displayName) {
+            await tx.account.update({
+              where: { id: pair.successorAccountId },
+              data: { displayName: droppedName.displayName },
             });
           }
         }

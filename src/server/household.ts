@@ -20,6 +20,7 @@ import {
   inviteEffectiveStatus,
   type HouseholdRole,
 } from '@/lib/engine/household/membership';
+import { accountLabel } from '@/lib/engine/account/display-name';
 
 /** Cap for the shared-register section (personal register paginates separately). */
 const SHARED_TXN_CAP = 100;
@@ -102,6 +103,7 @@ export async function getAccountSharingView(): Promise<AccountSharingView> {
       select: {
         id: true,
         name: true,
+        displayName: true,
         type: true,
         mask: true,
         sharedToHousehold: true,
@@ -139,7 +141,8 @@ export async function getAccountSharingView(): Promise<AccountSharingView> {
     // surfaces withhold. (Partner-side display below stays currency-guarded.)
     mine: mine.map((a) => ({
       id: a.id,
-      name: a.name,
+      // His own rows, so his own names (TASKS L.7).
+      name: accountLabel(a),
       type: a.type,
       mask: a.mask,
       sharedToHousehold: a.sharedToHousehold,
@@ -251,6 +254,10 @@ export async function getSharedTransactionsView(): Promise<SharedTransactionsVie
       id: t.id,
       date: t.date,
       accountId: t.accountId,
+      // A partner's account keeps the BANK's name here, never its owner's nickname (TASKS L.7):
+      // a nickname is a personal label its author typed for himself, and sharing an account
+      // shares its money, not the words he chose in private. Both members see the one name the
+      // bank supplies, which is also the name they can both check against the bank's own app.
       accountName: t.account.name,
       merchantName: t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical,
       categoryId: t.categoryId ?? 'uncategorized',

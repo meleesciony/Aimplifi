@@ -67,7 +67,13 @@ fictional dataset; everything below applies fully once Plaid is connected.
   member, partners see that account's **name, type, last-4 mask, current balance,
   and transactions** (read-only on /transactions, owner-badged; no triage or
   recategorize until a later slice) — no connection or sync controls, and no
-  credentials cross users. Category *names* on shared rows resolve only for the
+  credentials cross users. "Name" here means the string the PROVIDER supplies
+  (`Account.name`). A nickname the owner types himself (`Account.displayName`,
+  TASKS L.7) is **never shared**: `getSharedSnapshotSlice` omits the column from its
+  `select`, so it does not enter another member's process at all, and every
+  household-scope surface — cards, loans, reminders, /calendar, the weekly digest
+  email, push — falls back to the provider's name. Sharing an account shares its
+  money, not the words its owner chose for it in private. Category *names* on shared rows resolve only for the
   category ids that appear on those rows (the partner's full category vocabulary
   is never loaded into personal surfaces). Visibility requires BOTH the flag AND
   a live membership, so leaving/removal ends it immediately; every widened read

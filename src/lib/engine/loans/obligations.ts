@@ -13,6 +13,7 @@
  * reminders pick it up. No I/O; money is integer cents; dates via dates.ts.
  */
 import { type Cents, cents } from '@/lib/money';
+import { accountLabel } from '@/lib/engine/account/display-name';
 import { type ISODate, compareDates, nextDayOfMonth, priorBusinessDayIfNonBusiness } from '@/lib/dates';
 
 export type LoanAccountType = 'LOAN' | 'MORTGAGE';
@@ -21,6 +22,10 @@ export type LoanAccountType = 'LOAN' | 'MORTGAGE';
 export interface LoanAccountLike {
   id: string;
   name: string;
+  /** The user's own name for this account (TASKS L.7), absent/null when he never set one.
+   *  Optional for the same reason the fields around it are: this interface is a structural
+   *  subset of an Account row and older fixtures omit it. `accountLabel()` resolves it. */
+  displayName?: string | null;
   type: string;
   /** Fixed monthly payment (cents). Plaid: mortgage next_monthly_payment / student minimum_payment_amount. */
   minimumPaymentCents?: number | null;
@@ -79,7 +84,7 @@ export function selectLoanObligations(params: {
     if (compareDates(effectiveDueDate, today) < 0) effectiveDueDate = today;
     out.push({
       accountId: a.id,
-      accountName: a.name,
+      accountName: accountLabel(a),
       accountType: a.type as LoanAccountType,
       dueDate,
       effectiveDueDate,
@@ -155,7 +160,7 @@ export function selectUndatableFrozenLoans(params: {
     if (datable) continue;
     out.push({
       accountId: a.id,
-      accountName: a.name,
+      accountName: accountLabel(a),
       frozenSince,
       missing: hasPayment ? 'due-day' : hasDueDay ? 'payment' : 'both',
     });
