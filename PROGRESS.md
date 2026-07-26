@@ -5612,3 +5612,19 @@ spending-plan + glass-box + ask -> **25/25**.
 DOCS: DECISIONS #309 (+index), STATUS §L.11(D) rewritten twice (it described the rejected cap),
 TASKS row, REGRESSION_LEDGER row, lesson extended with the WRONG fix as the transferable half.
 NEXT: commit, push, deploy-verify. Prisma diff EMPTY.
+
+## L.11(D) — the verified deploy. 2026-07-25
+SHIPPED LIVE as 9de3a6a. Deployment aimplifi-bs4poe0eo-reiforge.vercel.app
+(dpl_4PdCKoFFe3aMjizUtwHKNbGpq7zw), Ready, production, created 22:49:02 — seven seconds after the
+commit's own timestamp (22:48:55) — aliased to www.aimplifi.app.
+Verified by three-way byte identity on /sign-in: www == the new deployment
+(cb7c17f6ba4b3093cd63643609d24962, stable across a repeat fetch) and != the previous production
+deployment 5xeg829ew (5d9ec8b58062a4325678f3e7b24fbc6c).
+SCHEMA: none. `git diff --cached --stat -- prisma/` was empty, so no `prisma db push` touched Neon.
+NO PUBLIC MARKER, checked not assumed: every string this slice touched is behind /spending-plan,
+/dashboard or /ask, all auth-gated, so the evidence is the READY aliases + byte identity + the
+local gate (the L.18 standard).
+NEXT: L.9 is STASHED and unfinished (git stash@{0}) — the registration veto + the ambiguity
+carry-out for the Continue-an-account card. Then the open queue: L.16 (the keep-both prompt),
+L.13 (blocked on an owner screenshot), and the L.11(D) residuals in STATUS, sharpest of which is
+that a LOAN payment dated past the month's edge is still in no term at all.

@@ -7263,3 +7263,11 @@ income or spending we can count".
 5. **Household scope still contradicts** — `getSpendingPlan` is personal-only (documented in its
    header) while the dashboard hero at `?scope=household` renders the merged cash-needed figure.
    Pre-existing; the new note carries no scope qualifier.
+
+### L.11(D) shipped live
+
+`9de3a6a` is the deployment `www.aimplifi.app` serves — `aimplifi-bs4poe0eo-reiforge.vercel.app`,
+Ready, production, aliased, created seven seconds after the commit. Verified by three-way byte
+identity on `/sign-in` (www == the new deployment, stable across a repeat fetch, and != the previous
+production deployment). No schema change, so nothing ran against Neon. Every string this slice
+touched is behind auth, so there is no public marker to grep — checked, not assumed.
