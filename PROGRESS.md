@@ -5358,3 +5358,18 @@ DOCS: DECISIONS #307 (+index), 10 REGRESSION_LEDGER rows, STATUS §L.11(C) (+7 r
 TASKS L.11 row -> [x] DONE.
 NEXT: commit, push (prisma diff = ONE additive nullable column User.savingsTargetBps -> db push
 runs against live Neon on deploy), verify deployment READY + aliases.
+
+## L.11(C) — the verified deploy. 2026-07-25
+SHIPPED LIVE as b969f41. Deployment aimplifi-ff9a8gmv9-reiforge.vercel.app, Ready, production,
+built 1m, aliased to www.aimplifi.app + aimplifi.app. Verified by three-way byte identity on
+/sign-in: www == the new deployment (85db6f15ed0882e4defc40f968278046, stable across repeat
+fetches) and != the previous deployment 1yzb0ts70 (117555edf0330354f6406a605b01aa04).
+SCHEMA: the deploy's prisma db push applied User.savingsTargetBps (additive nullable) to live
+Neon — the build succeeding is the proof the push ran clean.
+NO PUBLIC MARKER, checked not assumed: every changed string is auth-gated or demo-gated, so the
+evidence is the READY aliases + byte identity + the local gate (the L.18 standard).
+LESSON WRITTEN: docs/lessons/a-borrowed-total-imports-its-window.md (+ INDEX).
+NEXT: open queue per TASKS — L.7 (rename accounts, owner-requested), L.9 (Roth/Traditional
+wrong-pair), L.16 (keep-both prompt), L.13 (blocked on owner screenshot), STATUS §STILL OPEN
+residuals (sharpest: an undetected loan payment is in NO plan term; radar/forecast/calendar
+omit an undatable loan).
