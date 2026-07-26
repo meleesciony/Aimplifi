@@ -5487,3 +5487,18 @@ E2E serialized (--workers=1): account-rename + account-deletion + combined-accou
 label -> clear -> original name back).
 NEXT: commit, push (prisma diff = ONE additive nullable column, Account.displayName -> db push
 runs against live Neon on deploy), verify READY + aliases.
+
+## L.7 — the verified deploy. 2026-07-25
+SHIPPED LIVE as 2d3854c. Deployment aimplifi-fjd4y7xkm-reiforge.vercel.app (dpl_EaoFmSqTh2YHneZi1cqTS7xW2EZG),
+Ready, production, built 1m, created 21:27:36 — eight seconds after the commit's own timestamp
+(21:27:28), aliased to www.aimplifi.app + aimplifi.app + aimplifi-git-main-reiforge.
+Verified by three-way byte identity on /sign-in: www == the new deployment
+(ab64b9eed93bd4a2cde2f531d6655509, stable across a repeat fetch) and != the previous production
+deployment its4fshd3 (b03ce52773e1eeb33372c7954fe92475).
+SCHEMA: the deploy's prisma db push applied Account.displayName (additive nullable) to live Neon —
+the build succeeding is the proof the push ran clean.
+NO PUBLIC MARKER, checked not assumed: the rename control and every string L.7 touched live behind
+/accounts, which is auth-gated, so the evidence is the READY aliases + byte identity + the local
+gate (the L.18 standard).
+NEXT: L.9 — the Continue-an-account card offering one predecessor against two successors, one of
+them the wrong retirement registration (Fable build + hostile critic).

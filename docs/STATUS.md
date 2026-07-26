@@ -7172,3 +7172,11 @@ explicit `select` that omits the column), not with per-surface fences.
 4. **No inline error in the rename form** — a refusal renders in the page-level banner, which on a
    380px screen is above the fold (P3; the box now enforces the length cap client-side).
 
+### L.7 shipped live
+
+`2d3854c` is the deployment `www.aimplifi.app` serves — `aimplifi-fjd4y7xkm-reiforge.vercel.app`,
+Ready, production, aliased, created eight seconds after the commit. Verified by three-way byte
+identity on `/sign-in` (www == the new deployment, stable across a repeat fetch, and != the previous
+production deployment). The build's `prisma db push` applied `Account.displayName` to live Neon.
+Every string L.7 touched is behind auth, so there is no public marker to grep — checked, not assumed.
+
