@@ -5860,3 +5860,17 @@ DOCS: DECISIONS #311 (+index), STATUS section L.22 (built + 8 OPEN residuals), T
 NEXT: commit, push, deploy-verify. Then the open queue: L.16 (keep-both prompt), L.13 (owner
 screenshot), the L.9 OPEN proven-ambiguity carry-out (cycle-4 P1, fix sketch recorded), the
 L.22 residuals (sharpest: detector ANNUAL passthrough).
+
+## L.22 — the verified deploy. 2026-07-26
+SHIPPED LIVE as 5788ec2. www.aimplifi.app/sign-in hash flipped from the L.9 deploy's
+942055795f8da46da8b11a6bf805ef07 to 6098a30b1928854319ace13aef50cc96 (stable across a repeat
+fetch, HTTP 200) ~75s after the push; exactly one commit separated the two pushes.
+SCHEMA: `git diff --cached --stat -- prisma/` was ONE COMMENT LINE (savingsTargetBps doc) — no
+DDL, so the deploy's `prisma db push` was a no-op against Neon; the build succeeding is the
+proof it ran clean.
+NO PUBLIC MARKER, checked not assumed: every string this slice touched lives behind
+/spending-plan, /dashboard, /ask or /settings — all auth-gated — so the evidence is the hash
+flip + stability + the local gate (the L.18 standard).
+NEXT: the open queue — L.16 (keep-both prompt), L.13 (owner screenshot), the L.9 OPEN
+proven-ambiguity carry-out (cycle-4 P1, fix sketch in STATUS), the L.22 residuals (sharpest:
+detector ANNUAL passthrough; job-loss pause-predicate wiring).
