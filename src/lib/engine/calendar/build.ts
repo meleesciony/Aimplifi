@@ -70,11 +70,13 @@ export function expandScheduled(
       }
     };
     // MONTHLY steps 1 calendar month, ANNUAL steps 12 (L.23 — a detected annual
-    // bill now reaches the calendar). A month view can hold at most one
-    // occurrence of either an annual or a one-off row, so this is
-    // behaviour-identical to the single-occurrence `else` below for every window
-    // this builder is called with; the explicit step is what keeps a wider
-    // window honest.
+    // bill now reaches the calendar). A month view holds at most one occurrence
+    // of an annual row, so within one month this matches the single-occurrence
+    // `else` below. It is NOT equivalent in general, and the difference is
+    // reachable here rather than hypothetical: `month` is a URL query param with
+    // prev/next links, so a reader is twelve clicks from a month the old `else`
+    // would have left empty — the explicit step is what puts the premium on next
+    // August's grid. A row dated in the past also steps forward now.
     const monthStep = row.cadence === 'MONTHLY' ? 1 : row.cadence === 'ANNUAL' ? 12 : 0;
     if (monthStep > 0) {
       for (let i = 0; ; i++) {

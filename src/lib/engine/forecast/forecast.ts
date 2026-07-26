@@ -71,9 +71,11 @@ export function expandScheduled(
     const start = isoDate(row.nextDate);
     // MONTHLY steps 1 calendar month, ANNUAL steps 12 (L.23 — a detected annual
     // bill now reaches this forecast). Within the horizons this engine is called
-    // with (≤90 days) an ANNUAL row has at most one occurrence, so this is
-    // behaviour-identical to the single-occurrence `else` below; stepping it
-    // explicitly is what stays correct past a year.
+    // with (≤90 days) an ANNUAL row has at most one occurrence, so this matches
+    // the single-occurrence `else` below — except across a window of a year or
+    // more, and for a row whose nextDate is already past, which now steps
+    // forward instead of being dropped (a date-scoped difference, not a
+    // window-scoped one; the second yearly occurrence needs ~431 days, not 366).
     const monthStep = row.cadence === 'MONTHLY' ? 1 : row.cadence === 'ANNUAL' ? 12 : 0;
     if (monthStep > 0) {
       for (let i = 0; ; i++) {

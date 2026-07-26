@@ -263,9 +263,12 @@ describe('confirmedPauseState (#251 critic F1) — only date-fresh evidence reti
   it('P14c: a vanished or non-projectable series is INERT — consent kept, nothing excluded', () => {
     // No series at all under the canonical.
     expect(confirmedPauseState([], TODAY, 'Stripe Payout').status).toBe('inert');
-    // Cadence drifted to ANNUAL: never projected by toScheduledTransactions, so
-    // there is nothing to exclude and no state row to render — but the consent is
-    // NOT deleted (absence of evidence is not resumption).
+    // Cadence drifted to ANNUAL: an annual INCOME series is not projected by
+    // toScheduledTransactions — a DECISION since L.23, not a fact about the
+    // cadence list (annual EXPENSES are projected) — so there is nothing to
+    // exclude and no state row to render, but the consent is NOT deleted (absence
+    // of evidence is not resumption). If a slice ever projects annual income,
+    // this expectation and isPauseCadence both have to be revisited.
     const annual = series({ cadence: 'ANNUAL' });
     expect(confirmedPauseState([annual], TODAY, 'Stripe Payout').status).toBe('inert');
     // An expense series under the same canonical is not an income pause subject.

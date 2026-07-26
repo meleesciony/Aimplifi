@@ -196,10 +196,14 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
     // Calendar-month cadences step by whole months: MONTHLY by 1, ANNUAL by 12
     // (L.23 — a detected annual bill now reaches this projection). At every
     // horizon this engine is called with (60 days by default, 90 at the widest)
-    // an ANNUAL row has at most ONE occurrence in the window, so this loop is
-    // behaviour-identical to the single-occurrence `else` it used to fall
-    // through; stepping it explicitly is what stays correct if a caller ever
-    // asks for a horizon longer than a year.
+    // an ANNUAL row has at most ONE occurrence in the window, so this loop
+    // matches the single-occurrence `else` it used to fall through — with two
+    // deliberate exceptions, both in the safe direction and both executed by the
+    // L.23 money critic: a window spanning a year or more yields the later
+    // occurrences (the second needs ~431 days here, NOT 366 — the bound depends
+    // on the anchor's phase in the window), and a row whose nextDate is already
+    // in the past steps forward instead of being dropped, which is date-scoped
+    // rather than window-scoped.
     const monthStep = row.cadence === 'MONTHLY' ? 1 : row.cadence === 'ANNUAL' ? 12 : 0;
     if (monthStep > 0) {
       for (let i = 0; ; i++) {
