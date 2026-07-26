@@ -6017,3 +6017,29 @@ TASKS L.23 row done, EDGE_CASES §B/B2/B3/C corrected + extended, 4 REGRESSION_L
 L.22 ledger row + DECISIONS #311 + the L.22 TASKS row all marked superseded in place, lesson
 extended with what the critics added (+INDEX).
 NEXT: commit, push, deploy-verify.
+
+## L.23 — the verified deploy. 2026-07-26
+SHIPPED LIVE in two commits. 3928d93 (the slice) is proven by a HASH FLIP: www.aimplifi.app/sign-in
+moved from the L.22 deploy's 6098a30b1928854319ace13aef50cc96 to
+7cb2bb70d0c5cf1495769c1eb8870741 (HTTP 200), so the new bundle is being served.
+dfeb95c (corrected comments) is proven by the DEPLOYMENT RECORD instead, and the reason is a
+method finding worth keeping: a comment-only commit deploys to a BYTE-IDENTICAL page, because
+comments are stripped before the chunk hash is computed — /sign-in stayed at 7cb2bb70…, which is
+consistent with both "deployed" and "not deployed" and therefore proves nothing either way. The
+Vercel CLI is authenticated in this checkout: `npx vercel ls aimplifi --yes` shows the newest
+production deployment ● Ready (created 18:06:48, ~1 min after the push, the only one newer than
+3928d93's), and `npx vercel inspect` confirms it carries the www.aimplifi.app alias — i.e. it is
+the deployment serving traffic. Recorded as an extension to docs/lessons/committed-is-not-shipped.md.
+SCHEMA: `git diff --cached --stat -- prisma/` was TWO COMMENT LINES (the cadence and source
+legends) — no DDL, so the deploy's `prisma db push` was a no-op against Neon.
+NO PUBLIC MARKER, checked not assumed: every string this slice touched lives behind
+/spending-plan, /dashboard or /ask, all auth-gated (the L.18 standard).
+NOT VERIFIABLE FROM HERE, stated rather than assumed: (a) whether the owner's own data contains a
+detected annual series — no live DB in this environment, and the detector needs three sightings
+~a year apart at a stable amount (731 days) to see one; (b) the GitHub Actions run for these two
+commits — `gh` is not authenticated in this checkout, so CI's own e2e verdict is unread. The local
+gate and the serialized e2e are the evidence.
+NEXT: the open queue — L.16 (keep-both prompt), L.13 (owner screenshot), the L.9 OPEN
+proven-ambiguity carry-out (cycle-4 P1, fix sketch in STATUS), and the L.23 residuals (sharpest:
+the unrecognized-rhythm detection class — quarterly/semiannual/bi-monthly bills count zero,
+which is the same dangerous direction this slice just closed for annual).

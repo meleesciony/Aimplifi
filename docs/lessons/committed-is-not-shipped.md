@@ -41,3 +41,14 @@ git log --oneline origin/main..main
 4. **Check `git diff origin/main..main --stat -- prisma/` before pushing.** A schema
    diff means `prisma db push` runs against the live database on deploy; no diff
    means the push is code-only.
+5. **The page-hash method has a blind spot: a comment-only commit deploys to an
+   identical page.** L.23 shipped in two commits — code, then corrected comments —
+   and the second left `md5sum` of `/sign-in` unchanged at `7cb2bb70…`, because
+   comments are stripped before the chunk hash is computed. An unchanged hash is
+   therefore consistent with BOTH "deployed" and "not deployed", so it cannot be
+   read either way. Use the deployment record for that case: `npx vercel ls
+   aimplifi --yes` is authenticated in this checkout and prints Age / Status
+   (`● Building` → `● Ready`) per production deployment, which is the state rule 5
+   of `CLAUDE.md` actually asks for. Keep the hash flip for commits that change
+   emitted code — it proves the new bundle is being served, which a Ready status
+   alone does not.
