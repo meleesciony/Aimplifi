@@ -2,6 +2,45 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ VERIFIED LIVE 2026-07-27 — L.26 is deployed and correct; it has not run yet
+
+No code changed this session. It answered one question with measurement: **is the L.26 fix working
+on the owner's live data?** Answer: the fix is deployed and provably correct, and it has simply not
+executed yet — the last production sync ran **35 minutes before** the deploy.
+
+**Deployed, proven twice.** `npx vercel inspect` shows the newest production deployment carrying the
+`https://www.aimplifi.app` alias, and its build log reads
+`2026-07-27T02:12:53.113Z Cloning github.com/meleesciony/Aimplifi (Branch: main, Commit: 17fed6f)` —
+i.e. the traffic-serving build IS L.26.
+
+**Correct, proven by replay.** Replaying the deployed `refreshRecurringForUser` against the
+production database read-only reproduces the persisted state exactly (21 series detected, 20 with a
+Merchant row = the 20 `RecurringSeries` rows production holds) and computes **8 scheduled rows**:
+the $176.79/mo student loan, the $146.40/mo insurance premium, the $166.67 biweekly retirement
+contribution, four income series and an ATM-fee rebate. A write probe then ran all four statements
+of the real `$transaction` against production inside a deliberate rollback — `createMany → 20` and
+`createMany → 8`, committed nothing, row counts unchanged. **The compute and the write are both
+sound.**
+
+**Not yet run, which is the whole explanation.** The owner's last full Plaid sync was
+`2026-07-27 01:37:46 UTC`; the deploy was `02:12:53 UTC`. Nothing has synced in the 35 minutes
+since. `ScheduledTransaction` is therefore still empty and `/spending-plan` still reads
+"Fixed & recurring expenses — $0.00" — correctly, given no sync has happened.
+
+**The methodology trap this session fell into and caught** is now
+`docs/lessons/a-driver-parsed-timestamp-is-not-the-stored-value.md`: every `DateTime` column here is
+`timestamp without time zone`, so node-pg re-reads it in the probing machine's local zone. From
+UTC−4 that made the 01:37 sync read as `05:37Z` — *after* the deploy — and produced a fully
+reasoned, entirely false P0 ("the fixed code ran twice in production and wrote nothing, and
+`plaid.ts:1509`'s bare `catch {}` hid it"). It was caught because a `WHERE "createdAt" > …` filter
+returned zero rows while an unfiltered listing of the same table showed rows past that instant; the
+two readings could not both be true. Probe timestamps as `::text`.
+
+**Next verification (no code required):** after the owner's next sync — the nightly cron at ~11:4x
+UTC, or simply his next full page load — re-run
+`node scripts/audit-probes/l26-did-the-number-move.mjs`. Expect `ScheduledTransaction` rows for
+`cmqisanqh…` to go 0 → 8. That is the moment "fixed & recurring expenses" becomes $684.31/mo.
+
 ## ✅ BUILT 2026-07-26 — L.26: a bill on a RE-LINKED account reaches the money (DECISIONS #315)
 
 **The owner's $0.00, finally measured instead of theorised.** Three sessions (L.23, L.24, L.25) each
@@ -44,9 +83,14 @@ $684.31/mo**, plus 4 income series ($956.09/mo at a monthly rate) restored to th
    how this defect survived three sessions of the owner looking straight at it. A zero that means
    "nothing qualifies" should say so; a zero that means "you haven't set this up" should offer the
    control. Not fixed here — copy/UI slice.
-2. **`ScheduledTransaction` only refills on a sync.** The fix is inert until
-   `refreshRecurringForUser` next runs (Plaid sync, `/api/cron/sync` at 11:00 UTC daily, or a manual
-   sync). No page load recomputes it.
+2. **`ScheduledTransaction` only refills on a sync — MEASURED 2026-07-27, and the "no page load"
+   half was wrong.** The fix is inert until `refreshRecurringForUser` next runs, but three events
+   trigger it, not one: the nightly `/api/cron/sync` (`0 11 * * *`, observed firing 11:4x UTC), an
+   explicit Sync button, **and a full page load** — `AutoSync` (mounted in the app layout) calls
+   `syncPlaidNow` on a 15-minute throttle, which runs `PlaidProvider.syncTransactions` and so reaches
+   the refresh at `plaid.ts:1508`. The owner's own production audit trail shows exactly this: Plaid
+   sync bursts at 19:21, 20:07, 23:52 and 01:37 UTC, none of them a cron. So the number moves on his
+   next sync, whichever comes first — it does not require waiting for the cron.
 3. **A card-charged bill is still invisible as a bill.** 12 of the owner's 21 series are on cards, and
    they are inside the card obligation only as an undifferentiated statement balance — correct
    arithmetic, but the reader cannot see State Farm ($370.01) or YouTube TV ($91.29) as recurring

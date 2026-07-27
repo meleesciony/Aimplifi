@@ -6177,3 +6177,44 @@ NEXT: the owner's live "Fixed & recurring expenses $0.00" report — awaiting hi
 screenshot, which distinguishes the payment-account scope (STATUS L.24 OPEN #4) from a detection
 failure. Then the open queue: L.16 (keep-both prompt), L.13 (owner screenshot), the L.9 OPEN
 proven-ambiguity carry-out, and the L.24 residuals.
+
+## L.27 — L.26 verified live, verified correct, and verified NOT YET RUN. 2026-07-27
+NO CODE CHANGED. One question, answered by measurement rather than reasoning: is the L.26 fix
+working on the owner's live data? It is deployed and provably correct, and it has not executed yet.
+DEPLOY, proven two ways: `npx vercel inspect` shows the newest production deployment holds the
+`https://www.aimplifi.app` alias, and its build log line reads `2026-07-27T02:12:53.113Z Cloning
+github.com/meleesciony/Aimplifi (Branch: main, Commit: 17fed6f)` — the traffic-serving build IS
+L.26. (`main` was already level with `origin/main`; L.25 and L.26 were pushed, only the deploy
+verification step was missing.)
+CORRECT, proven by a read-only replay of the deployed `refreshRecurringForUser` against the
+PRODUCTION database: 2556 POSTED txns → 1344 after the reconciliation keep rule → 21 series → 20
+re-keyed onto live successors → **8 scheduled rows**. Fidelity check passes: 20 of the 21 series
+have a Merchant row, which is exactly the 20 `RecurringSeries` rows production holds. The 8 rows are
+the $176.79/mo Mohela student loan, the $146.40/mo Principal insurance premium, the $166.67 biweekly
+Schwab retirement contribution, four Cardone income series and a $4.00 ATM-fee rebate.
+WRITE, proven safe: a probe ran all four statements of the real `$transaction` against production
+inside an interactive transaction ending in a deliberate rollback — `recurringSeries.createMany -> 20`,
+`scheduledTransaction.createMany -> 8`, then rolled back; before/after counts identical
+(RecurringSeries=20, ScheduledTransaction=0). Compute and persistence are both sound.
+NOT YET RUN — the whole explanation: the owner's last full Plaid sync was `2026-07-27 01:37:46 UTC`;
+the deploy landed `02:12:53 UTC`. Nothing has synced in the 35 minutes since, so the empty
+`ScheduledTransaction` table and the live "$0.00" are correct given no sync has happened.
+THE TRAP, fallen into and caught: every `DateTime` column here is Postgres `timestamp without time
+zone`, and node-pg re-reads it in the probing machine's local zone — from UTC−4 the 01:37 sync read
+as `05:37Z`, i.e. AFTER the deploy. That produced a complete, well-evidenced and entirely FALSE P0
+(the fixed code ran twice in production and wrote nothing, hidden by the bare `catch {}` at
+plaid.ts:1509). Caught only because a `WHERE "createdAt" > <deploy>` filter returned zero rows while
+an unfiltered listing of the same table showed rows past that instant — two readings that cannot both
+be true. Fix: read timestamps as `::text`. Lesson recorded.
+STATUS CORRECTION: L.26 OPEN #2 claimed "No page load recomputes it." False. `AutoSync` (app layout)
+calls `syncPlaidNow` on a 15-minute throttle → `PlaidProvider.syncTransactions` → the refresh at
+plaid.ts:1508. The owner's audit trail shows precisely this — sync bursts at 19:21, 20:07, 23:52 and
+01:37 UTC, none of them a cron. The number moves on his NEXT SYNC, whichever comes first; he does not
+have to wait for the 11:00 UTC cron.
+TOOLING KEPT: `scripts/audit-probes/l26-*.{mjs,ts}` — the replay is what answered a question three
+prior sessions guessed at, so it is committed rather than discarded. All are read-only except the
+write probe, which is rollback-bounded and prints its before/after counts.
+NOTE: PROGRESS.md carries no entries for L.25 or L.26; their record lives in the commit messages,
+docs/STATUS.md and DECISIONS #314/#315.
+NEXT: after the owner's next sync, re-run `node scripts/audit-probes/l26-did-the-number-move.mjs` —
+expect ScheduledTransaction 0 → 8 and "fixed & recurring expenses" $0.00 → $684.31/mo.
