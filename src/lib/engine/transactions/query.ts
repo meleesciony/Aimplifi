@@ -28,6 +28,16 @@ export interface TxnView {
   amountCents: number; // signed: outflow negative, inflow positive
   status: string; // PENDING | POSTED
   isTransfer: boolean;
+  /**
+   * The row's own review flag, straight from the stored column — REQUIRED, not
+   * optional, because an optional one would read as "not flagged" at exactly the
+   * caller that forgot to set it, which is the direction that hides work from the
+   * reader (owner request, 2026-07-27: "make it easier to see unclassified items
+   * in activity").
+   *
+   * NOT the whole of "unclassified" on its own — see `isUnclassifiedTxn`.
+   */
+  needsReview: boolean;
   /** Owning merchant row id, if known — needed for "always for this merchant". */
   merchantId?: string | null;
   /** False for aggregate pseudo-merchants (Zelle/checks) — no merchant-wide rule. */
@@ -57,6 +67,29 @@ export interface TxnFilter {
   type?: FlowType;
   from?: string | null; // inclusive YYYY-MM-DD lower bound
   to?: string | null; // inclusive YYYY-MM-DD upper bound
+  /** Show ONLY rows that still need a category decision (`isUnclassifiedTxn`).
+   *  A separate axis from `type` and from `categoryId` on purpose: it is a question
+   *  about whether the app has decided, not about what it decided. */
+  unclassified?: boolean;
+}
+
+/**
+ * Does this row still need a category decision from the reader?
+ *
+ * THE UNION IS THE POINT. `needsReview` and "sitting in the uncategorized
+ * placeholder" are provably DIFFERENT populations in this codebase — `backfill.ts`
+ * has to union all three states (`needsReview: true`, `categoryId: null`,
+ * `categoryId: 'uncategorized'`) and `tests/unit/backfill.test.ts` locks a row that
+ * is uncategorized WITHOUT being flagged. A filter offering only one of them would
+ * quietly hide the other, which is the same failure the owner reported: work he
+ * cannot see. (`categoryId` is normalized to 'uncategorized' by the server read, so
+ * the null case arrives here already folded in.)
+ *
+ * Exported and shared so the register's filter, its count and any future surface
+ * ask ONE question rather than three that can drift apart.
+ */
+export function isUnclassifiedTxn(t: Pick<TxnView, 'needsReview' | 'categoryId'>): boolean {
+  return t.needsReview || t.categoryId === 'uncategorized';
 }
 
 export interface TxnSummary {
@@ -101,6 +134,7 @@ export function filterTransactions(rows: readonly TxnView[], filter: TxnFilter =
 
   return rows.filter((t) => {
     if (!matchesType(t, type)) return false;
+    if (filter.unclassified && !isUnclassifiedTxn(t)) return false;
     if (filter.accountId && t.accountId !== filter.accountId) return false;
     if (filter.categoryId && t.categoryId !== filter.categoryId) return false;
     if (merchant && t.merchantName.toLowerCase() !== merchant) return false;

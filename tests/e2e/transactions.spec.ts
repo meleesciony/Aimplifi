@@ -560,3 +560,55 @@ test('register write-in sub-form Escape from the group select also steps back on
   await expect(page.getByTestId('category-menu')).toBeVisible();
   await expect(page.getByTestId('cat-search')).toBeVisible();
 });
+
+/**
+ * Owner request 2026-07-27, verbatim: "Please make it easier to see unclassified
+ * items in activity". "Activity" is this route — it is the nav label for
+ * /transactions (app-nav.tsx), even though the page's own h1 says "Transactions".
+ *
+ * Before this, the register had NO control for review state: not a filter, not a
+ * sort, and the category dropdown could never supply one, because the
+ * 'uncategorized' placeholder is deliberately stripped from every assignable list
+ * (categorize/assign.ts). A reader could only find these rows by scrolling.
+ *
+ * Driven on the page rather than left to the unit test, because the pure filter
+ * being right says nothing about whether the control REACHES the reader — the
+ * L.20 lesson (extracting logic makes the logic testable and leaves the rendering
+ * untested).
+ */
+test('the register can isolate items that still need a category, and says how many (owner request)', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto('/transactions');
+  await expect(page.getByTestId('txn-list')).toBeVisible();
+
+  // THE FIXTURE'S HARD CASE, asserted present so this can never pass vacuously
+  // (the L.29 no-op-lock finding): the demo seed leaves rows needing review, so the
+  // control must be here with a real count. If the seed ever stops producing them
+  // this fails loudly instead of silently measuring an absent control.
+  const toggle = page.getByTestId('txn-filter-unclassified');
+  await expect(toggle).toBeVisible();
+  const count = Number((await page.getByTestId('txn-unclassified-count').textContent())?.trim());
+  expect(count).toBeGreaterThan(0);
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+  const unfilteredRows = await page.getByTestId('txn-row').count();
+  expect(unfilteredRows).toBeGreaterThan(count);
+
+  // Turning it on narrows the register to exactly that population, and the state is
+  // both in the URL (shareable, survives reload) and on the control.
+  await toggle.click();
+  await expect(page).toHaveURL(/unclassified=1/);
+  await expect(page.getByTestId('txn-filter-unclassified')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('txn-row')).toHaveCount(count);
+
+  // The count is over the WHOLE register, not the filtered page, so it still reads
+  // the same from inside the filter — otherwise it would just restate the page.
+  expect(Number((await page.getByTestId('txn-unclassified-count').textContent())?.trim())).toBe(count);
+
+  // And it is reversible from inside: a reader who filters must never be stranded.
+  await page.getByTestId('txn-filter-unclassified').click();
+  await expect(page).not.toHaveURL(/unclassified=1/);
+  await expect(page.getByTestId('txn-row')).toHaveCount(unfilteredRows);
+});

@@ -38,6 +38,12 @@ export default async function TransactionsPage({
   const type = (VALID_TYPES as string[]).includes(typeRaw) ? (typeRaw as FlowType) : 'all';
   const from = str(sp.from);
   const to = str(sp.to);
+  // Owner request 2026-07-27 ("make it easier to see unclassified items in
+  // activity"). Its own axis, not a value of `type` or `category`: it asks whether
+  // the app has DECIDED, not what it decided — and the category dropdown cannot
+  // express it at all, because the 'uncategorized' placeholder is deliberately
+  // stripped from every assignable list (categorize/assign.ts).
+  const unclassified = str(sp.unclassified) === '1';
   const page = Math.max(1, parseInt(str(sp.page), 10) || 1);
 
   const filter: TxnFilter = {
@@ -48,13 +54,14 @@ export default async function TransactionsPage({
     type,
     from: from || null,
     to: to || null,
+    unclassified,
   };
   // Same predicate as TransactionFilters.hasFilters — empty-register copy
   // branches on it (ROADMAP ALSO CONSIDER / #186).
   const hasFilters =
-    !!(search || account || category || merchant || from || to) || type !== 'all';
+    !!(search || account || category || merchant || from || to) || type !== 'all' || unclassified;
 
-  const [{ rows, summary, accountOptions, pageInfo, lens }, categoryGroups, withheld, shared] =
+  const [{ rows, summary, accountOptions, pageInfo, lens, unclassifiedCount }, categoryGroups, withheld, shared] =
     await Promise.all([
       getTransactions(session.user.id, filter, page),
       getVisibleGroups(session.user.id),
@@ -98,7 +105,8 @@ export default async function TransactionsPage({
       <TransactionFilters
         accountOptions={accountOptions}
         categoryOptions={categoryGroups.flatMap((g) => g.categories)}
-        current={{ search, account, category, merchant, type, from, to }}
+        current={{ search, account, category, merchant, type, from, to, unclassified }}
+        unclassifiedCount={unclassifiedCount}
       />
 
       {/* Merchant Pattern Lens (§Later #19, DECISIONS #250): deterministic

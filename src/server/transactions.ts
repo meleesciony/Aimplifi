@@ -60,6 +60,7 @@ import {
   type TxnView,
   SPENDING_ACCOUNT_TYPES,
   filterTransactions,
+  isUnclassifiedTxn,
   groupAccounts,
   paginate,
   sortByDateDesc,
@@ -89,6 +90,20 @@ export interface TransactionsResult {
   /** Set only when the filter names a merchant AND the profile has something
    *  honest to say (viewer-only: computed from the viewer's own rows). */
   lens: MerchantLensView | null;
+  /**
+   * How many of the register's rows still need a category decision
+   * (`isUnclassifiedTxn`), counted over the WHOLE register and deliberately NOT
+   * through `filter` — the control that offers this filter has to be able to say
+   * what it would find while the reader is standing outside it, and has to keep
+   * saying it once the filter is on (where a post-filter count would just restate
+   * the page's own length).
+   *
+   * Rows, not merchant groups. The nav badge counts GROUPS (server/triage.ts), so a
+   * reader with 40 loose rows across 3 merchants sees "3" there; on the register,
+   * where the rows themselves are the thing being looked at, the row count is the
+   * number that matches what the reader is scrolling past.
+   */
+  unclassifiedCount: number;
 }
 
 /** Rows per register page. */
@@ -158,6 +173,9 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     amountCents: t.amountCents,
     status: t.status,
     isTransfer: t.isTransfer,
+    // The stored flag, verbatim. Half of "unclassified" (see `isUnclassifiedTxn`);
+    // the other half is the row sitting in the 'uncategorized' placeholder above.
+    needsReview: t.needsReview,
     merchantId: t.merchantId,
     ruleEligible: isRuleEligibleMerchant(t.rawDescriptor),
     merchantCount: t.merchantId ? merchantCounts.get(t.merchantId) : undefined,
@@ -251,7 +269,12 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   for (const r of rows) if (!seen.has(r.accountId)) seen.set(r.accountId, r.accountName);
   const accountOptions = [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => (a.name < b.name ? -1 : 1));
 
-  return { rows: items, summary, accountOptions, pageInfo: info, lens };
+  // Over `rows` (the whole register after the reconciliation boundary), never over
+  // `filtered` — see the field's docblock: the control has to state what it would
+  // find from outside itself, and stay legible once it is on.
+  const unclassifiedCount = rows.filter(isUnclassifiedTxn).length;
+
+  return { rows: items, summary, accountOptions, pageInfo: info, lens, unclassifiedCount };
 }
 
 /**
