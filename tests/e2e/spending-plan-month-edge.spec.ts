@@ -92,6 +92,78 @@ function seedCardDueNextMonth(email: string) {
   }
 }
 
+/**
+ * A repeating bill the projection RECORDED as uncountable — the L.26 signature,
+ * frozen as a fixture. `projectionStatus: 'off-scope'` with no ScheduledTransaction
+ * row is exactly the state the owner's live data was in for four sessions: a real
+ * charging bill, detected and stored, reaching no projection, printing $0.00.
+ *
+ * Seeded rather than driven through a re-link because the RENDERING is what no unit
+ * test can see (the L.20 lesson) — the unit suite proves the classifier assigns
+ * 'off-scope', and this proves the page turns it into a sentence.
+ */
+function seedUncountedRecurringSeries(email: string) {
+  const db = openDb();
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
+    if (!user) throw new Error(`spending-plan-month-edge: user ${email} not found`);
+    // Merchant rows are global (keyed by canonical, not by user), so reuse one the
+    // seed already created rather than inventing a column set this spec would have
+    // to keep in step with the schema.
+    const merchant = db.prepare('SELECT id FROM Merchant LIMIT 1').get() as { id: string } | undefined;
+    if (!merchant) throw new Error('spending-plan-month-edge: no Merchant row to attach a series to');
+    db.prepare(
+      `INSERT INTO RecurringSeries (id, userId, merchantId, cadence, typicalAmountCents, lastAmountCents,
+                                    possiblyUnused, lastSeenAt, nextExpectedAt, isSubscription, projectionStatus)
+       VALUES (?, ?, ?, 'MONTHLY', -17679, -17679, 0, '2026-06-06', '2026-07-06', 0, 'off-scope')`,
+    ).run(`e2e-pe-series-${Date.now()}`, user.id, merchant.id);
+  } finally {
+    db.close();
+  }
+}
+
+test('a repeating bill the projection could not count is named — a broken zero does not read as a true one (L.30)', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedCardDueNextMonth(email);
+  seedUncountedRecurringSeries(email);
+
+  await page.goto('/spending-plan');
+  await expect(page.getByTestId('spending-plan-hero')).toBeVisible({ timeout: 20_000 });
+
+  // THE FIXTURE'S HARD CASE, asserted present so this can never pass vacuously
+  // (the L.29 no-op-lock finding): the fixed row must really be at $0.00, or the
+  // label under test is not the one being rendered.
+  const labels = await page.getByTestId('plan-row-label').allTextContents();
+  const amounts = await page.getByTestId('plan-row-amount').allTextContents();
+  expect(amounts[1]).toContain('$0.00');
+
+  // FAIL-OLD: before L.30 this identical state printed "Fixed & recurring expenses
+  // (none counted)" with a link — the same line a reader with genuinely no bills
+  // saw, which is how the defect survived being looked at.
+  expect(labels[1]).toContain('Fixed & recurring expenses (1 bill found, none counted here)');
+  expect(labels[1]).not.toContain('no repeating bills found yet');
+  const action = page.getByTestId('plan-row-action').filter({ hasText: 'See your recurring bills' });
+  await expect(action).toHaveAttribute('href', '/recurring');
+
+  // …and the direction is stated in prose, on the surface, not left to be inferred
+  // from a parenthetical: this figure is too generous, and by how much is knowable
+  // only from the list.
+  await expect(page.getByTestId('spending-plan-hero')).toBeVisible();
+  await expect(page.locator('body')).toContainText(
+    'One repeating bill we found is not in the fixed-expenses line',
+  );
+  await expect(page.locator('body')).toContainText('the real amount free to spend is smaller than shown');
+
+  // The same fact reaches /budgets, which re-partitions the same plan into
+  // percentages against a target — a split it would otherwise certify as correct.
+  await page.goto('/budgets');
+  await expect(page.getByTestId('conscious-fixed-uncounted')).toContainText(
+    'not in the fixed-expenses line',
+  );
+});
+
 test('a card dated past the month’s edge is reserved, shown as its own line, and named on the page', async ({
   page,
 }) => {
@@ -131,14 +203,23 @@ test('a card dated past the month’s edge is reserved, shown as its own line, a
   // FAIL-OLD, per label: the card row read "Card payments due this month", the fixed
   // row "Fixed & recurring expenses (monthly pattern)", the savings row "Planned
   // savings (goals)" — and neither control existed.
+  //
+  // L.30 re-derives the FIXED label on this same fixture rather than deleting the
+  // assertion: this reader has no repeating bill at all, and that is now PROVABLE
+  // from the recorded reasons, so the line says so instead of L.29's cautious
+  // "(none counted)" — which had to stand for four different facts because nothing
+  // downstream knew which one it was. A correct zero carries no control, so the
+  // action count drops to one (the savings target) and /recurring is not offered:
+  // a link beside a figure that is right reads as a correction.
   const labels = await page.getByTestId('plan-row-label').allTextContents();
-  expect(labels[1]).toContain('Fixed & recurring expenses (none counted)');
+  expect(labels[1]).toContain('Fixed & recurring expenses (no repeating bills found yet)');
   expect(labels[2]).toContain('Card payments (none due until after this month)');
   expect(labels[3]).toContain('Planned savings (no monthly amount set)');
   // Each control is a real link to a route that offers the input it names.
-  await expect(page.getByTestId('plan-row-action')).toHaveCount(2);
-  await expect(page.getByTestId('plan-row-action').nth(0)).toHaveAttribute('href', '/recurring');
-  await expect(page.getByTestId('plan-row-action').nth(1)).toHaveAttribute('href', '/settings');
+  await expect(page.getByTestId('plan-row-action')).toHaveCount(1);
+  await expect(page.getByTestId('plan-row-action').nth(0)).toHaveAttribute('href', '/settings');
+  // The empty case may NOT borrow the alarm's wording — that is the whole point.
+  expect(labels[1]).not.toContain('none counted here');
   // No control is offered beside a working figure — income and the dated card row.
   expect(labels[0]).not.toContain('http');
   // …and the reconciliation claim is untouched by any of it (no non-money text

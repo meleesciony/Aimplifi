@@ -446,14 +446,126 @@ export function isSeriesActive(
  * the card obligation; the handover is one cycle, in the safe direction (it is
  * never counted in both places at once).
  */
+/** Where a projection may read money from. The two scopes are deliberately
+ *  different and NOT symmetric — see this function's docblock (L.25). */
+export interface ProjectionScope {
+  /** Where INCOME may be projected from. Null when the user has no cash account. */
+  paymentAccountId: string | null;
+  /** Where EXPENSES may be projected from: every CHECKING/SAVINGS, minus superseded. */
+  cashAccountIds: ReadonlySet<string>;
+}
+
+/**
+ * WHY A SERIES IS OR IS NOT PROJECTED — the closed set of reasons (L.30).
+ *
+ * The two filters below used to throw this away: a series was dropped and the
+ * reason died with the predicate that dropped it. That is how "Fixed & recurring
+ * expenses — $0.00" came to mean four different things and print one pixel, and
+ * it is why the L.26 defect — every bill re-keyed onto a superseded predecessor
+ * this scope excludes — survived four sessions of the owner looking straight at
+ * that line. A true zero and a broken zero were indistinguishable downstream
+ * because nothing downstream was ever told them apart.
+ *
+ * This is not a second opinion about the filters: `toScheduledTransactions` is
+ * implemented IN TERMS of this function, so a projected row and its recorded
+ * reason cannot disagree. Same fence-by-construction rule L.23 applied to the
+ * lapse predicate — share the predicate, never re-derive the arithmetic.
+ */
+export type SeriesProjectionStatus =
+  /** Projected: this series became a ScheduledTransaction row. */
+  | 'counted'
+  /** Not projected: the charge lands on a CREDIT account, so the card-payment
+   *  term already holds it. A CORRECT absence. */
+  | 'on-card'
+  /** Not projected: a long-rhythm series that has stopped charging
+   *  (`isSeriesActive`). A CORRECT absence. */
+  | 'lapsed'
+  /** Not projected: income at a rhythm longer than monthly — deliberate, and
+   *  asymmetric with expenses for the reason the docblock above gives. */
+  | 'long-cadence-income'
+  /** Not projected: the account this series charges is not one the projection
+   *  reads, and it is not a credit card either. For an EXPENSE this is the
+   *  ALARM — the L.26 signature — and it also catches the auto-loan ACH that
+   *  must stay on the payment account. For INCOME it is the deliberate L.25
+   *  asymmetry (a deposit landing in savings). */
+  | 'off-scope'
+  /** Not projected: no CHECKING or SAVINGS account exists to project from. */
+  | 'no-cash-account'
+  /** Not projected: the reader has CONFIRMED that this income has paused (#251).
+   *  Decided by consent in `src/server/recurring.ts`, not by this pure function,
+   *  which never sees a confirmation row — it is in this union because the stored
+   *  column has to be able to say so. */
+  | 'income-paused'
+  /** Not projected: a rhythm none of the six projected cadences covers.
+   *  `detectRecurring` drops IRREGULAR before this function ever sees it, so no
+   *  STORED row can carry this and nothing downstream branches on it. It exists
+   *  because a total function may not pretend a case away. */
+  | 'unrecognized-rhythm';
+
+export function classifySeriesProjection(
+  series: RecurringSeriesResult,
+  scope: ProjectionScope & {
+    /**
+     * The user's CREDIT accounts. Needed only to NAME an absence: a bill charged
+     * to a card is correctly absent from the fixed term, a bill charged to an
+     * account the projection cannot read is not, and those two facts must not
+     * share a label.
+     */
+    creditAccountIds: ReadonlySet<string>;
+  },
+  today: ISODate,
+): SeriesProjectionStatus {
+  if (scope.cashAccountIds.size === 0) return 'no-cash-account';
+  // CADENCE gate first, ACCOUNT gate second. Where both apply, the honest reason
+  // is the cadence one: a series that is not due to be counted at all cannot be
+  // the victim of a scope defect, so reporting it as one would be a false alarm.
+  // Safe because the lapse gate reaches only the LONG cadences — a MONTHLY bill
+  // sitting on a ghost account can never be masked by it, and that is the case
+  // the alarm exists for.
+  if (LONG_CADENCES.has(series.cadence)) {
+    if (series.isIncome) return 'long-cadence-income';
+    if (!isSeriesActive(series, today)) return 'lapsed';
+  } else if (
+    series.cadence !== 'WEEKLY' &&
+    series.cadence !== 'BIWEEKLY' &&
+    series.cadence !== 'MONTHLY'
+  ) {
+    return 'unrecognized-rhythm';
+  }
+  const inScope = widensToEveryCashAccount(series)
+    ? scope.cashAccountIds.has(series.accountId)
+    : series.accountId === scope.paymentAccountId;
+  if (inScope) return 'counted';
+  return scope.creditAccountIds.has(series.accountId) ? 'on-card' : 'off-scope';
+}
+
+/** The ScheduledTransaction shape one admitted series becomes. Split out so the
+ *  admission decision (above) and the mapping (here) are separately reusable by
+ *  the one writer, which needs both halves in a single pass. */
+export function toScheduledRow(series: RecurringSeriesResult): {
+  accountId: string;
+  description: string;
+  amountCents: number;
+  nextDate: string;
+  cadence: ProjectedCadence;
+  source: string;
+} {
+  return {
+    accountId: series.accountId,
+    description: series.merchantCanonical,
+    amountCents: series.typicalAmountCents,
+    nextDate: series.nextExpectedAt,
+    // Never null: `classifySeriesProjection` returns 'counted' only for the six
+    // projected cadences (W/B/M plus the three LONG ones L.23/L.24 added), so
+    // this cannot emit the one-off shape the DB column also allows.
+    cadence: series.cadence as ProjectedCadence,
+    source: series.isIncome ? 'payroll-detected' : 'recurring',
+  };
+}
+
 export function toScheduledTransactions(
   series: readonly RecurringSeriesResult[],
-  scope: {
-    /** Where INCOME may be projected from. Null when the user has no cash account. */
-    paymentAccountId: string | null;
-    /** Where EXPENSES may be projected from: every CHECKING/SAVINGS, minus superseded. */
-    cashAccountIds: ReadonlySet<string>;
-  },
+  scope: ProjectionScope,
   today: ISODate,
 ): {
   accountId: string;
@@ -466,23 +578,13 @@ export function toScheduledTransactions(
   cadence: ProjectedCadence;
   source: string;
 }[] {
+  // An EMPTY credit set is passed on purpose. It changes only which NAME an
+  // absence gets ('on-card' against 'off-scope'), and this function reads no
+  // name — it keeps exactly the rows `=== 'counted'` admits, which is the same
+  // set both filters admitted before. The one caller that consumes the reason
+  // (`src/server/recurring.ts`) passes the real set.
+  const scopeWithoutReasons = { ...scope, creditAccountIds: new Set<string>() };
   return series
-    .filter((s) =>
-      widensToEveryCashAccount(s)
-        ? scope.cashAccountIds.has(s.accountId)
-        : s.accountId === scope.paymentAccountId,
-    )
-    .filter((s) =>
-      LONG_CADENCES.has(s.cadence)
-        ? !s.isIncome && isSeriesActive(s, today)
-        : s.cadence === 'WEEKLY' || s.cadence === 'BIWEEKLY' || s.cadence === 'MONTHLY',
-    )
-    .map((s) => ({
-      accountId: s.accountId,
-      description: s.merchantCanonical,
-      amountCents: s.typicalAmountCents,
-      nextDate: s.nextExpectedAt,
-      cadence: s.cadence as ProjectedCadence,
-      source: s.isIncome ? 'payroll-detected' : 'recurring',
-    }));
+    .filter((s) => classifySeriesProjection(s, scopeWithoutReasons, today) === 'counted')
+    .map(toScheduledRow);
 }

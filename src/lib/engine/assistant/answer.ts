@@ -14,7 +14,7 @@ import { netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
 import type { SpendingBreakdown } from '@/lib/engine/reports/reports';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
-import { planRowLabels } from '@/lib/engine/spending-plan/row-labels';
+import { planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
@@ -776,6 +776,14 @@ export function answerSafeToSpend(
       'No statement has been generated yet, so the card-payments figure is estimated from current balances.',
     );
   }
+  // A repeating bill the projection did not count (L.30). Ask needs this for the
+  // same reason it needs the estimate qualifier above: this answer is UNTRACED, so
+  // the /spending-plan basis list that carries the sentence can never reach a
+  // reader who asked here. Authored in `row-labels.ts` with the labels; the
+  // direction argument is this branch's own fact — `over` renders the OVERAGE, and
+  // an uncounted bill makes an overage bigger where it makes room to spend smaller.
+  const fixedShortfall = uncountedFixedNote(disclosures, over ? 'overage' : 'left-to-spend');
+  if (fixedShortfall) qualifiers.push(fixedShortfall);
   if (disclosures.undatedCards.length > 0) {
     const names = disclosures.undatedCards.map((c) => c.cardName).join(', ');
     const one = disclosures.undatedCards.length === 1;

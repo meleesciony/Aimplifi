@@ -89,6 +89,7 @@ const TRACE_DISCLOSURES = {
   creditCardCount: 0,
   creditCardsOutsideFigure: 0,
   cardsDatedAfterThisMonth: 0,
+  fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 },
 };
 const BONUS_DESC = 'ACME ANALYTICS ANNUAL BONUS';
 

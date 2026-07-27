@@ -21,7 +21,7 @@ import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { frozenCardsNote } from '@/lib/engine/account/feed-dropped-view';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
-import { planRowLabels } from '@/lib/engine/spending-plan/row-labels';
+import { planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
 import {
   type CardDuplicatePairInput,
   cardDuplicateTraceBasis,
@@ -192,6 +192,7 @@ export function traceSafeToSpend(
   disclosures: SpendingPlanDisclosures,
 ): NumberTrace {
   const labels = planRowLabels(plan, disclosures);
+  const fixedShortfallNote = uncountedFixedNote(disclosures, 'left-to-spend');
   const rows: TraceRow[] = [
     {
       id: 'income',
@@ -293,6 +294,11 @@ export function traceSafeToSpend(
             'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12.',
           ]
         : []),
+      // The understated NON-ZERO figure, which no label can reach (L.30) —
+      // authored once in `row-labels.ts` beside the labels, and printed by the Ask
+      // answer too. 'left-to-spend' because this panel's headline is always
+      // `plan.leftToSpendCents`, negative and all, never the overage Ask renders.
+      ...(fixedShortfallNote ? [fixedShortfallNote] : []),
       'Discretionary spending is never subtracted: guilt-free is the month’s allocation after fixed costs and savings, not what is left of it today.',
       // Only when an annual bill is actually IN the term. Unconditional, this told
       // every reader their yearly premium was handled at a twelfth a month, when

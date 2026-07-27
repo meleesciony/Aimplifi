@@ -7,7 +7,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { mapToConsciousBuckets, type ConsciousBucketKey } from '@/lib/engine/spending-plan/conscious';
-import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
+import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
+import { uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
 import { cents, formatCents } from '@/lib/money';
 
 const META: Record<ConsciousBucketKey, { label: string; bar: string; text: string }> = {
@@ -22,8 +23,22 @@ const META: Record<ConsciousBucketKey, { label: string; bar: string; text: strin
 const clampPct = (bps: number) => Math.min(100, Math.max(0, Math.round(bps / 100)));
 const pctLabel = (bps: number) => Math.round(bps / 100);
 
-export function ConsciousBucketsStrip({ plan }: { plan: SpendingPlan }) {
+export function ConsciousBucketsStrip({
+  plan,
+  disclosures,
+}: {
+  plan: SpendingPlan;
+  /**
+   * REQUIRED (L.30, and the L.15 defaulted-argument rule). This strip
+   * re-partitions the SAME plan, so a repeating bill the projection lost makes the
+   * fixed bucket too small and the guilt-free bucket too big HERE TOO — and a
+   * percentage split is read as a verdict on how the reader is doing. Optional,
+   * this argument would have been forgotten at exactly the caller that needed it.
+   */
+  disclosures: SpendingPlanDisclosures;
+}) {
   const { buckets, patternIncomeCents, overspent } = mapToConsciousBuckets(plan);
+  const fixedShortfall = uncountedFixedNote(disclosures, overspent ? 'overage' : 'left-to-spend');
   // No income pattern → a percentage-of-income lens has nothing meaningful to show.
   if (patternIncomeCents <= 0) return null;
 
@@ -78,6 +93,16 @@ export function ConsciousBucketsStrip({ plan }: { plan: SpendingPlan }) {
           <p className="text-xs text-muted-foreground" data-testid="conscious-savings-unset">
             Savings is $0 because no savings target and no monthly goal amount is set yet — not
             because nothing was saved. Set a target in Settings and this bucket fills in.
+          </p>
+        )}
+        {/* L.30. A bill the projection lost shrinks the FIXED bucket and inflates
+            GUILT-FREE, and this strip states each as a percentage against a target
+            — so silence here does not merely omit a figure, it certifies a split.
+            Same author as the /spending-plan basis line and the Ask qualifier; the
+            direction follows THIS surface's overspent state. */}
+        {fixedShortfall && (
+          <p className="text-xs text-amber-600 dark:text-amber-400" data-testid="conscious-fixed-uncounted">
+            {fixedShortfall}
           </p>
         )}
         {overspent && (

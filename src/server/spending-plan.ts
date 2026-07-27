@@ -27,9 +27,11 @@ import {
   computeSpendingPlan,
   daysInMonth,
   scheduledOccurrencesBetween,
+  type FixedSeriesCensus,
   type SpendingPlan,
   type SpendingPlanDisclosures,
 } from '@/lib/engine/spending-plan/plan';
+import type { SeriesProjectionStatus } from '@/lib/engine/recurring/detect';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance';
 import { getProvider } from '@/lib/providers/demo';
@@ -97,7 +99,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
 
   // Planned savings inputs: active goals' monthly contributions, and the
   // pay-yourself-first % target from Settings (#295). The engine takes the max.
-  const [goals, user, linkedCreditCardCount] = await Promise.all([
+  const [goals, user, linkedCreditCardCount, fixedSeriesByStatus] = await Promise.all([
     prisma.goal.findMany({ where: { userId }, select: { monthlyContributionCents: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { savingsTargetBps: true } }),
     // The LINKAGE fact, for the one label that asserts an absence of cards (L.29
@@ -105,8 +107,31 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     // snapshot withholds every non-USD account (DECISIONS #135), so a reader with a
     // CAD card would have been told in words that no card is linked.
     prisma.account.count({ where: { userId, type: 'CREDIT' } }),
+    // What became of every repeating EXPENSE the detector found (L.30). Read from
+    // the stored reason the writer records in the same pass that decides the
+    // projected rows, because at read time the reason is not re-derivable: a
+    // `RecurringSeries` row carries no accountId, so nothing here could tell a bill
+    // charged to a credit card (correctly absent) from a bill charged to an account
+    // the projection cannot read (the defect). EXPENSES only — `typicalAmountCents`
+    // is signed, and an income deposit landing in savings is a deliberate absence
+    // that must not read as a missing bill.
+    prisma.recurringSeries.groupBy({
+      by: ['projectionStatus'],
+      where: { userId, typicalAmountCents: { lt: 0 } },
+      _count: { _all: true },
+    }),
   ]);
   const goalContributionsCents = goals.reduce((sum, g) => sum + (g.monthlyContributionCents ?? 0), 0);
+  const fixedSeriesCount = (status: SeriesProjectionStatus): number =>
+    fixedSeriesByStatus.find((g) => g.projectionStatus === status)?._count._all ?? 0;
+  const fixedSeries: FixedSeriesCensus = {
+    detected: fixedSeriesByStatus.reduce((sum, g) => sum + g._count._all, 0),
+    counted: fixedSeriesCount('counted'),
+    onCard: fixedSeriesCount('on-card'),
+    lapsed: fixedSeriesCount('lapsed'),
+    uncounted: fixedSeriesCount('off-scope'),
+    noCashAccount: fixedSeriesCount('no-cash-account'),
+  };
 
   // The other side of the same filter (L.11(D)): obligations the engine HAS
   // dated, falling past this month's edge. A payment dated on the 5th of next
@@ -191,6 +216,8 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
       // month's pay covers the payment, which is the commonest issuer pattern of all.
       cardsDatedAfterThisMonth: new Set(beyondMonthPoints.flatMap((p) => p.cards.map((c) => c.cardId)))
         .size,
+      // The same job for the fixed-expense line (L.30): which $0.00 this is.
+      fixedSeries,
     }),
   };
 }
@@ -207,11 +234,14 @@ async function buildDisclosures(
   snap: Parameters<typeof cashNeededFromSnapshot>[0],
   computed: ReturnType<typeof cashNeededFromSnapshot> | null,
   endOfMonth: string,
-  /** The zero-basis counts (L.29), resolved by the caller from the sources that own them. */
+  /** The zero-basis counts (L.29/L.30), resolved by the caller from the sources
+   *  that own them. Spread into BOTH returns below, so the account-less branch
+   *  cannot silently lose a basis the label needs. */
   counts: {
     creditCardCount: number;
     creditCardsOutsideFigure: number;
     cardsDatedAfterThisMonth: number;
+    fixedSeries: FixedSeriesCensus;
   },
 ): Promise<SpendingPlanDisclosures> {
   if (!computed) {

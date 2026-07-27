@@ -205,7 +205,7 @@ describe('answerIncome', () => {
 });
 
 describe('answerSafeToSpend', () => {
-  const NO_DISCLOSURES = { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0 };
+  const NO_DISCLOSURES = { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0, fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 } };
   const BASE_PLAN = {
     today: '2026-06-23' as SpendingPlan['today'],
     trailingMonthlyIncomeCents: [500000],
@@ -300,7 +300,38 @@ describe('answerSafeToSpend', () => {
     creditCardCount: 4,
     creditCardsOutsideFigure: 0,
     cardsDatedAfterThisMonth: 0,
+    fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 },
   };
+
+  it('an uncounted repeating bill flips direction with the figure Ask renders (L.30)', () => {
+    // Ask needs this sentence at all because this answer is UNTRACED: the
+    // /spending-plan basis list that carries it cannot reach a reader who asked here.
+    //
+    // And it must flip. The overspent branch renders the OVERAGE — the negation of
+    // left-to-spend — so one missing bill makes that figure BIGGER while it makes
+    // room-to-spend SMALLER. The first draft of this sentence said "too generous"
+    // unconditionally, which is backwards for every overspent reader; `headline` is
+    // a required argument so no caller can inherit the wrong direction by default.
+    const short = {
+      ...NO_DISCLOSURES,
+      fixedSeries: { detected: 4, counted: 3, onCard: 0, lapsed: 0, uncounted: 1, noCashAccount: 0 },
+    };
+    const positive = answerSafeToSpend(QUALIFIER_PLAN({}), short);
+    expect(positive.detail).toContain(
+      'One repeating bill we found is not in the fixed-expenses line, so your real fixed costs are higher than it shows and the real amount free to spend is smaller than shown by that much. Your recurring list shows every bill we found, including it.',
+    );
+    const over = answerSafeToSpend(QUALIFIER_PLAN({ leftToSpendCents: -50000, overspent: true }), short);
+    expect(over.detail).toContain(
+      'One repeating bill we found is not in the fixed-expenses line, so your real fixed costs are higher than it shows and the real overage is bigger than shown by that much. Your recurring list shows every bill we found, including it.',
+    );
+    // Neither surface may claim the wrong direction, so pin the absence too.
+    expect(positive.detail).not.toContain('overage is bigger');
+    expect(over.detail).not.toContain('free to spend is smaller');
+    // Silent when there is nothing to disclose.
+    expect(answerSafeToSpend(QUALIFIER_PLAN({}), NO_DISCLOSURES).detail).not.toContain(
+      'not in the fixed-expenses line',
+    );
+  });
 
   it('qualifiers state their own directions on the positive branch (the figure is guilt-free-left)', () => {
     const a = answerSafeToSpend(QUALIFIER_PLAN({}), FULL_DISCLOSURES);
@@ -319,12 +350,12 @@ describe('answerSafeToSpend', () => {
   it('the all-estimate state is disclosed HERE — this answer is untraced, so the trace basis can never reach the reader (cycle-2 F2-1)', () => {
     const a = answerSafeToSpend(
       QUALIFIER_PLAN({ cardObligationsEstimated: true }),
-      { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0 },
+      { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0, fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 } },
     );
     expect(a.facts).toContainEqual({ label: 'Card payments due this month (estimated)', value: '$1,200.00' });
     expect(a.detail).toContain('estimated from current balances');
     // And absent when the term is statement-backed.
-    const real = answerSafeToSpend(QUALIFIER_PLAN({}), { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0 });
+    const real = answerSafeToSpend(QUALIFIER_PLAN({}), { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0, fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 } });
     expect(real.detail).not.toContain('estimated from current balances');
     expect(real.facts).toContainEqual({ label: 'Card payments due this month', value: '$1,200.00' });
   });

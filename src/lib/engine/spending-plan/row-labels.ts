@@ -58,7 +58,7 @@ export function planRowLabels(
 ): PlanRowLabels {
   return {
     income: { label: incomeLabel(plan) },
-    fixed: fixedLabel(plan),
+    fixed: fixedLabel(plan, disclosures),
     cardPayments: { label: cardPaymentsLabel(plan, disclosures) },
     savings: savingsLabel(plan),
   };
@@ -88,27 +88,136 @@ function incomeLabel(plan: SpendingPlan): string {
 }
 
 /**
- * Zero here means no repeating bill reached this month's figure. It may NOT be
- * read back as "you have no repeating bills": a bill charged to a credit card is
- * correctly absent (it arrives through the card-payments line instead), a
- * long-rhythm series that has stopped charging is correctly absent, and a
- * projection that lost every row — L.26, on the owner's live data — is
- * indistinguishable from both here. So the label states the mechanism it can
- * prove ("none counted") and hands the reader the list that shows what the app
- * did detect, which is the one place the three cases look different.
+ * Zero here meant four different things and printed one line (L.30). L.29 could
+ * only say "none counted", because at that point nothing downstream of the
+ * projection knew WHY a series had not become a projected row — the two filters
+ * that decided it threw the reason away. Now `disclosures.fixedSeries` carries
+ * the reason for every repeating expense the detector found, recorded by the
+ * same pass that admits the rows, and each of these zeros is a different fact:
  *
- * The non-zero label is unchanged, and a non-empty `scheduledFixed` keeps it
- * even at a zero total: a series list that rounds to nothing is a rounding
- * artifact, and "none counted" would be false while rows exist.
+ *  - no repeating expense was found at all — the honest empty case, and the one
+ *    L.29 was careful never to assert without proof;
+ *  - every one of them charges to a CREDIT card, so the card-payments line holds
+ *    them and this $0.00 is exactly right;
+ *  - every one of them has stopped charging;
+ *  - one or more charges on an account this projection does not read — the L.26
+ *    signature, where the figure is simply WRONG and too low.
+ *
+ * ORDERED BY FAILURE DIRECTION, not by likelihood. Every branch here is a $0 the
+ * reader may spend against, so the two that mean "this number is missing money"
+ * are asserted first: a reader shown "all charged to a card" when a bill was in
+ * fact dropped has been told his zero is correct, which is the false all-clear
+ * this whole thread exists to remove. The reverse mistake — hedging a genuinely
+ * empty line — only sends him to a list that shows nothing.
+ *
+ * THE ALARM DOES NOT DIAGNOSE. It says the bills were found and are not in this
+ * figure, and points at the list; it does not name a mechanism, because two
+ * different mechanisms reach it (a series re-keyed onto an account the projection
+ * cannot read, and an auto-loan ACH that must stay on the payment account) and a
+ * sentence naming one would be false for the other. What they SHARE is the only
+ * thing the reader needs and the only thing this may assert: the money is real
+ * and it is not in the line. Checked rather than assumed — `SpendingPlanInput`
+ * has no loan term of any kind, so an auto-loan ACH dropped by the payment-account
+ * rule is missing from this plan outright, not held by some other line. Neither
+ * case is benign here.
+ *
+ * WHAT IS DELIBERATELY NOT SEPARATED: a mixture of correct absences (some on a
+ * card, some lapsed) falls through to L.29's "none counted", because a sentence
+ * naming one mechanism would be false about the other rows, and a reader whose
+ * zero is correct for two different correct reasons needs the list, not a
+ * taxonomy. Rows whose reason was never recorded (stored before this shipped, or
+ * seeded) land there too: an unrecorded reason may never be read as a good one.
+ *
+ * The non-zero label is unchanged, and a non-empty `scheduledFixed` keeps it even
+ * at a zero total: a series list that rounds to nothing is a rounding artifact,
+ * and "none counted" would be false while rows exist. An UNDERSTATED non-zero
+ * figure is disclosed too, but in the basis sentence beside the row rather than
+ * in the label — see `traceSafeToSpend`.
  */
-function fixedLabel(plan: SpendingPlan): PlanRowLabel {
+function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): PlanRowLabel {
   if (plan.fixedExpensesCents !== 0 || plan.scheduledFixed.length > 0) {
     return { label: 'Fixed & recurring expenses (monthly pattern)' };
+  }
+  const seen = disclosures.fixedSeries;
+  const absent = seen.detected - seen.counted;
+  if (seen.uncounted > 0) {
+    return {
+      label: `Fixed & recurring expenses (${bills(seen.detected)} found, none counted here)`,
+      action: { label: 'See your recurring bills', href: '/recurring' },
+    };
+  }
+  if (seen.noCashAccount > 0) {
+    return {
+      label: 'Fixed & recurring expenses (no checking or savings account linked)',
+      action: { label: 'Link an account', href: '/accounts' },
+    };
+  }
+  // No control on either correct-absence branch: a link beside a figure that is
+  // right reads as a correction (the L.29 rule).
+  if (absent > 0 && seen.onCard === absent) {
+    return { label: 'Fixed & recurring expenses (all charged to a card)' };
+  }
+  if (absent > 0 && seen.lapsed === absent) {
+    return { label: 'Fixed & recurring expenses (none still charging)' };
+  }
+  if (seen.detected === 0) {
+    return { label: 'Fixed & recurring expenses (no repeating bills found yet)' };
   }
   return {
     label: 'Fixed & recurring expenses (none counted)',
     action: { label: 'See your recurring bills', href: '/recurring' },
   };
+}
+
+/** "1 bill" / "3 bills" — pluralized here so the two surfaces that print this
+ *  count cannot disagree about it. */
+function bills(n: number): string {
+  return `${n} bill${n === 1 ? '' : 's'}`;
+}
+
+/**
+ * THE CASE NO LABEL CAN REACH: a NON-ZERO fixed-expenses figure that is short.
+ *
+ * `fixedLabel` speaks only when the line is $0.00, so a reader with four counted
+ * bills and a fifth the projection lost sees a confident number with no hint that
+ * it is missing money — the same direction as the broken zero and considerably
+ * quieter. This sentence is therefore gated on the FACT rather than on the figure,
+ * and fires in both states.
+ *
+ * Authored here, beside the label, because two surfaces print it (the /spending-plan
+ * basis list and the Ask answer's qualifiers) and L.29 was paid for by exactly this
+ * mistake: the four labels were two copies and had already drifted.
+ *
+ * It names no cause — two mechanisms reach this count and a sentence naming one
+ * would be false for the other (see `fixedLabel`) — and no AMOUNT, because the
+ * census counts series and never sums them. A dollar figure here would be one the
+ * panel below cannot reconcile against its own rows.
+ *
+ * Returns null when there is nothing to disclose, so a caller cannot print an
+ * empty qualifier.
+ *
+ * `headline` IS REQUIRED, and it is not decoration. A missing bill makes the
+ * amount free to spend SMALLER and an overage BIGGER — the same fact pointing in
+ * opposite directions — and the two surfaces do not render the same figure: the
+ * trace always carries left-to-spend (negative when overspent), while the Ask
+ * answer's overspent branch renders the OVERAGE, the negation of it. The first
+ * draft of this sentence said "too generous" unconditionally, which is backwards
+ * for every overspent reader on Ask. Every sibling qualifier in `answer.ts`
+ * already flips on exactly this, so the direction is the caller's fact to state,
+ * never a default this module can pick (the L.15 defaulted-argument rule).
+ */
+export function uncountedFixedNote(
+  disclosures: SpendingPlanDisclosures,
+  headline: 'left-to-spend' | 'overage',
+): string | null {
+  const n = disclosures.fixedSeries.uncounted;
+  if (n <= 0) return null;
+  const subject = n === 1 ? 'One repeating bill we found is' : `${n} repeating bills we found are`;
+  const direction =
+    headline === 'overage'
+      ? 'the real overage is bigger than shown by that much'
+      : 'the real amount free to spend is smaller than shown by that much';
+  return `${subject} not in the fixed-expenses line, so your real fixed costs are higher than it shows and ${direction}. Your recurring list shows every bill we found, including ${n === 1 ? 'it' : 'these'}.`;
 }
 
 /**

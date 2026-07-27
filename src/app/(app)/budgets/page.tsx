@@ -81,7 +81,7 @@ export default async function BudgetsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Spending this month</h1>
-      <ConsciousBucketsStrip plan={plan} />
+      <ConsciousBucketsStrip plan={plan} disclosures={plan.disclosures} />
       <Card>
         <CardHeader className="pb-2">
           <CardDescription>{month} · transfers excluded</CardDescription>

@@ -30,6 +30,9 @@ const disclosures = (over: Partial<SpendingPlanDisclosures> = {}): SpendingPlanD
   creditCardCount: 0,
   creditCardsOutsideFigure: 0,
   cardsDatedAfterThisMonth: 0,
+  // L.30: the census that separates a true fixed-expenses zero from a broken one.
+  // Default is the empty reader (nothing detected at all); the L.30 cases override it.
+  fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 },
   ...over,
 });
 /** A reader with no linked cards and no goals — so a $0 row here means "nothing
@@ -490,17 +493,96 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
     expect(due.action).toBeUndefined();
   });
 
-  it('the fixed-expenses zero says "none counted", never "none detected", and offers the list', () => {
-    const zero = rowById('fixed');
-    expect(zero.label).toBe('Fixed & recurring expenses (none counted)');
-    expect(zero.label).not.toMatch(/detect/i);
-    expect(zero.action).toEqual({ label: 'See your recurring bills', href: '/recurring' });
+  it('the fixed-expenses zero names WHICH zero it is, from the recorded reason (L.30)', () => {
+    // L.29 could only ever say "none counted" here, because nothing downstream of
+    // the projection knew WHY a series had not become a row. `fixedSeries` records
+    // it, so each of these four zeros is now a different sentence. Written as a
+    // matrix on purpose: the failure that started this thread was four facts
+    // sharing one pixel.
+    const census = (over: Partial<SpendingPlanDisclosures['fixedSeries']>) =>
+      rowById('fixed', planWith(), disclosures({ fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0, ...over } }));
+
+    // (a) THE ALARM: a bill was found and is not in the figure. Named first
+    // because it is the only branch where the $0.00 is WRONG, and it carries the
+    // list. It states the count and points at the list; it names no cause,
+    // because two mechanisms reach it.
+    const broken = census({ detected: 3, uncounted: 1 });
+    expect(broken.label).toBe('Fixed & recurring expenses (3 bills found, none counted here)');
+    expect(broken.action).toEqual({ label: 'See your recurring bills', href: '/recurring' });
+    expect(census({ detected: 1, uncounted: 1 }).label).toBe(
+      'Fixed & recurring expenses (1 bill found, none counted here)',
+    );
+
+    // (b) nothing to project FROM — a different fact with a different control.
+    const noCash = census({ detected: 2, noCashAccount: 2 });
+    expect(noCash.label).toBe('Fixed & recurring expenses (no checking or savings account linked)');
+    expect(noCash.action).toEqual({ label: 'Link an account', href: '/accounts' });
+
+    // (c) and (d) are CORRECT zeros, so neither offers a control: a link beside a
+    // figure that is right reads as a correction (the L.29 rule).
+    const onCard = census({ detected: 2, onCard: 2 });
+    expect(onCard.label).toBe('Fixed & recurring expenses (all charged to a card)');
+    expect(onCard.action).toBeUndefined();
+    const lapsed = census({ detected: 2, lapsed: 2 });
+    expect(lapsed.label).toBe('Fixed & recurring expenses (none still charging)');
+    expect(lapsed.action).toBeUndefined();
+
+    // (e) the genuinely empty reader. L.29 refused to assert this without proof;
+    // `detected: 0` IS the proof, and the wording stays "found" — a claim about
+    // our records — rather than a claim about the detector's reach, which the
+    // page's own limitations paragraph covers.
+    const empty = census({});
+    expect(empty.label).toBe('Fixed & recurring expenses (no repeating bills found yet)');
+    expect(empty.action).toBeUndefined();
+
+    // (f) THE FALLBACK, and the L.29 invariant that must survive: where the reason
+    // is mixed or was never recorded, no good reason may be asserted. A mixture of
+    // two correct absences gets no single mechanism named…
+    expect(census({ detected: 2, onCard: 1, lapsed: 1 }).label).toBe(
+      'Fixed & recurring expenses (none counted)',
+    );
+    // …and a row stored before this shipped (null reason: counted in `detected`
+    // and in nothing else) may never be read as either a true or a broken zero.
+    const unrecorded = census({ detected: 1 });
+    expect(unrecorded.label).toBe('Fixed & recurring expenses (none counted)');
+    expect(unrecorded.action).toEqual({ label: 'See your recurring bills', href: '/recurring' });
+
     // Series exist but round to nothing: "none counted" would be false while rows
     // are in the term, so the pattern label stays and no control is offered.
     const rounded = rowById('fixed', planWith({ scheduledFixed: [{ amountCents: -5, cadence: 'ANNUAL' }] }));
     expect(rounded.amountCents).toBe(0);
     expect(rounded.label).toBe('Fixed & recurring expenses (monthly pattern)');
     expect(rounded.action).toBeUndefined();
+  });
+
+  it('an UNDERSTATED non-zero fixed line is disclosed too — the case no label can reach (L.30)', () => {
+    // The quiet half of the same defect: four bills counted, a fifth lost. The
+    // label returns early on a non-zero figure, so without this sentence the
+    // reader sees a confident number and no hint that it is short.
+    const withBills = planWith({ scheduledFixed: [{ amountCents: -120000, cadence: 'MONTHLY' }] });
+    const short = disclosures({
+      fixedSeries: { detected: 5, counted: 4, onCard: 0, lapsed: 0, uncounted: 1, noCashAccount: 0 },
+    });
+    const trace = traceSafeToSpend(withBills, short);
+    expect(trace.rows.find((r) => r.id === 'fixed')!.label).toBe(
+      'Fixed & recurring expenses (monthly pattern)',
+    );
+    const note = trace.basis.find((b) => b.includes('not in the fixed-expenses line'));
+    expect(note).toBe(
+      'One repeating bill we found is not in the fixed-expenses line, so your real fixed costs are higher than it shows and the real amount free to spend is smaller than shown by that much. Your recurring list shows every bill we found, including it.',
+    );
+    // No amount is named: the census counts series and never sums them, so a
+    // dollar figure here would be one this panel cannot reconcile to its rows.
+    expect(note).not.toMatch(/\$/);
+    // Plural, and silent when there is nothing to disclose — a caller must never
+    // be able to print an empty qualifier.
+    expect(
+      traceSafeToSpend(
+        withBills,
+        disclosures({ fixedSeries: { detected: 6, counted: 4, onCard: 0, lapsed: 0, uncounted: 2, noCashAccount: 0 } }),
+      ).basis.some((b) => b.includes('2 repeating bills we found are not in the fixed-expenses line')),
+    ).toBe(true);
+    expect(traceSafeToSpend(withBills, NO_CARDS_OR_GOALS).basis.some((b) => b.includes('not in the fixed-expenses line'))).toBe(false);
   });
 
   it('the savings zero names the missing input and offers a control that EXISTS', () => {

@@ -11,8 +11,10 @@ import { type ISODate, isoDate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import {
   type RecurringTxn,
+  type SeriesProjectionStatus,
+  classifySeriesProjection,
   detectRecurring,
-  toScheduledTransactions,
+  toScheduledRow,
 } from '@/lib/engine/recurring/detect';
 import { confirmedPauseState } from '@/lib/engine/income/pause';
 import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurring/summary';
@@ -189,22 +191,6 @@ export async function refreshRecurringForUser(
     : [];
   const merchantId = new Map(merchants.map((m) => [m.canonical, m.id]));
 
-  const seriesRows = series
-    .filter((s) => merchantId.has(s.merchantCanonical))
-    .map((s) => ({
-      userId,
-      merchantId: merchantId.get(s.merchantCanonical)!,
-      cadence: s.cadence,
-      typicalAmountCents: s.typicalAmountCents,
-      lastAmountCents: s.lastAmountCents,
-      previousAmountCents: s.previousAmountCents,
-      possiblyUnused: s.possiblyUnused,
-      priceChangedAt: s.priceChangedAt,
-      lastSeenAt: s.lastSeenAt,
-      nextExpectedAt: s.nextExpectedAt,
-      isSubscription: s.isSubscription,
-    }));
-
   // Two scopes, deliberately different (L.25 — see toScheduledTransactions' docblock
   // for why they are not symmetric).
   //
@@ -250,6 +236,11 @@ export async function refreshRecurringForUser(
       .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type) && !superseded.has(a.id))
       .map((a) => a.id),
   );
+  // Read ONLY to name an absence, never to admit a row (L.30): a bill charged to
+  // a card is correctly outside the fixed-expense term because the card-payment
+  // term holds it, and a bill charged to an account the projection cannot read is
+  // not correctly outside anything. Those two $0.00 lines were the same pixel.
+  const creditAccountIds = new Set(accounts.filter((a) => a.type === 'CREDIT').map((a) => a.id));
   // The same resolution order this function has always used, now only for income.
   const paymentAccountId =
     (user?.paymentAccountId && cashAccountIds.has(user.paymentAccountId) ? user.paymentAccountId : null) ??
@@ -277,20 +268,19 @@ export async function refreshRecurringForUser(
     where: { userId },
     select: { merchantCanonical: true },
   });
-  let projectable = series;
+  /** Income canonicals the reader has confirmed as paused — excluded from the
+   *  projections below, and recorded as `income-paused` rather than silently
+   *  dropped (L.30). */
+  const pausedIncome = new Set<string>();
   let retiredConfirmations = 0;
   /** Queued for the replace transaction below, so consent and rows commit together. */
   let retireConfirmations: Prisma.PrismaPromise<unknown> | null = null;
   if (confirmations.length > 0) {
-    const excluded = new Set<string>();
     const resumed: string[] = [];
     for (const c of confirmations) {
       const state = confirmedPauseState(series, today, c.merchantCanonical);
-      if (state.status === 'paused') excluded.add(c.merchantCanonical);
+      if (state.status === 'paused') pausedIncome.add(c.merchantCanonical);
       else if (state.status === 'resumed') resumed.push(c.merchantCanonical);
-    }
-    if (excluded.size > 0) {
-      projectable = series.filter((s) => !(s.isIncome && excluded.has(s.merchantCanonical)));
     }
     if (resumed.length > 0) {
       // Retiring a confirmation is not visible in the digest below — it lives in a
@@ -328,15 +318,43 @@ export async function refreshRecurringForUser(
   // re-keys a predecessor's stored scheduled rows onto (F6). It cannot widen scope
   // by type: an effective link is same-type by construction, so a CREDIT predecessor
   // maps to a CREDIT successor and stays out of the cash set exactly as before.
-  const onLiveAccounts = terminalOf.size
-    ? projectable.map((s) => {
-        const to = terminalOf.get(s.accountId);
-        return to === undefined || to === s.accountId ? s : { ...s, accountId: to };
-      })
-    : projectable;
-  const scheduledRows = cashAccountIds.size
-    ? toScheduledTransactions(onLiveAccounts, { paymentAccountId, cashAccountIds }, today)
-    : [];
+  //
+  // ONE PASS, so a stored series and the projected rows can never tell different
+  // stories (L.30). Both the row set and the per-series REASON come from
+  // `classifySeriesProjection`; the two `.filter`s this used to call threw the
+  // reason away, which is how a $0.00 fixed-expense line came to mean four
+  // different things and print one pixel.
+  const classified = series.map((s) => {
+    const to = terminalOf.get(s.accountId);
+    const onLive = to === undefined || to === s.accountId ? s : { ...s, accountId: to };
+    const status: SeriesProjectionStatus =
+      onLive.isIncome && pausedIncome.has(onLive.merchantCanonical)
+        ? 'income-paused'
+        : classifySeriesProjection(onLive, { paymentAccountId, cashAccountIds, creditAccountIds }, today);
+    return { series: onLive, status };
+  });
+  const scheduledRows = classified.filter((c) => c.status === 'counted').map((c) => toScheduledRow(c.series));
+
+  // RecurringSeries.merchantId is required; series whose merchant has no row are
+  // skipped (mirrors the seed). Built from the SAME classified list as the rows
+  // above so `projectionStatus` describes the account the projection actually
+  // read — the re-keyed one, not the superseded predecessor the charge landed on.
+  const seriesRows = classified
+    .filter((c) => merchantId.has(c.series.merchantCanonical))
+    .map(({ series: s, status }) => ({
+      userId,
+      merchantId: merchantId.get(s.merchantCanonical)!,
+      cadence: s.cadence,
+      typicalAmountCents: s.typicalAmountCents,
+      lastAmountCents: s.lastAmountCents,
+      previousAmountCents: s.previousAmountCents,
+      possiblyUnused: s.possiblyUnused,
+      priceChangedAt: s.priceChangedAt,
+      lastSeenAt: s.lastSeenAt,
+      nextExpectedAt: s.nextExpectedAt,
+      isSubscription: s.isSubscription,
+      projectionStatus: status,
+    }));
 
   // Full replace, atomically. Only the DETECTED scheduled rows are swapped — a
   // SEEDED row is left intact. (The 'user' and 'autopay' sources the column

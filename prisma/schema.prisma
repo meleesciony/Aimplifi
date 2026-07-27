@@ -483,6 +483,21 @@ model RecurringSeries {
   lastSeenAt          String // YYYY-MM-DD — drives "unused 90+ days"
   nextExpectedAt      String? // YYYY-MM-DD
   isSubscription      Boolean
+  /// WHY this series is or is not inside the forward projections (L.30) — one of
+  /// `SeriesProjectionStatus` in src/lib/engine/recurring/detect.ts: 'counted' |
+  /// 'on-card' | 'lapsed' | 'long-cadence-income' | 'off-scope' |
+  /// 'no-cash-account' | 'income-paused' | 'unrecognized-rhythm'. Written by the
+  /// same pass that decides the ScheduledTransaction rows, so the two can never
+  /// disagree. ('income-paused' is decided by consent in server/recurring.ts, not
+  /// by the pure classifier; 'unrecognized-rhythm' cannot reach a stored row,
+  /// because detectRecurring drops IRREGULAR before persisting.)
+  ///
+  /// NULLABLE, and null means "reason not recorded" — a row written before this
+  /// column shipped, or by the seeder. It may never be read as 'counted': that
+  /// would restate, as a fact, the false all-clear the column exists to remove.
+  /// Every refresh replaces every row for the user, so the null window closes on
+  /// the next sync.
+  projectionStatus    String?
 
   merchant Merchant @relation(fields: [merchantId], references: [id])
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)

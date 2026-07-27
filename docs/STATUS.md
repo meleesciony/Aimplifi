@@ -2,6 +2,76 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-27 — L.30: a broken zero names its cause (DECISIONS #318)
+
+**L.29 gave every zero a label; this gives the fixed-expenses zero a REASON.** L.29 could only
+say `(none counted)` there, and said so deliberately, because nothing downstream of the projection
+knew *why* a detected bill had not become a projected row: `toScheduledTransactions` decided
+admission with two `.filter`s and threw the reason away. So "Fixed & recurring expenses — $0.00"
+stood for four different facts — no repeating bills; all of them charged to a credit card; all of
+them lapsed; or the projection lost them (the L.26 signature) — and printed one identical line.
+
+**The reason is now recorded by the same pass that admits the rows.** New pure
+`classifySeriesProjection` returns a closed set of reasons, and `toScheduledTransactions` is
+implemented *in terms of it*, so a projected row and its recorded reason cannot disagree by
+construction. `refreshRecurringForUser` runs ONE pass producing both the rows and the statuses
+(it previously built two independent lists), and persists the reason to an additive nullable
+`RecurringSeries.projectionStatus`. Null means *reason not recorded* — a row written before this
+shipped, or by the seeder — and may never be read as `'counted'`.
+
+**What each fixed-expenses zero says now** (`fixedLabel`, ordered by failure direction):
+
+| at zero, when | label | control |
+|---|---|---|
+| a bill was found and is not in the figure | `Fixed & recurring expenses (N bills found, none counted here)` | /recurring |
+| no checking or savings is linked | `(no checking or savings account linked)` | /accounts |
+| every absent bill charges to a card | `(all charged to a card)` | none |
+| every absent bill has stopped charging | `(none still charging)` | none |
+| nothing was detected at all — now provable | `(no repeating bills found yet)` | none |
+| mixed, or a reason never recorded | `(none counted)` — L.29's wording | /recurring |
+
+The two branches meaning *this number is missing money* are asserted FIRST. Telling a reader "all
+charged to a card" when a bill was in fact dropped is the false all-clear this whole L.26→L.30
+thread exists to remove; hedging a genuinely empty line only sends him to a list showing nothing.
+
+**And the case no label can reach:** an UNDERSTATED non-zero figure. `fixedLabel` returns early
+above $0.00, so a reader with four counted bills and a fifth lost saw a confident number and no
+hint it was short — the same direction, quieter. `uncountedFixedNote` is gated on the fact instead
+of the figure and prints on /spending-plan's basis list, the Ask answer's qualifiers, and
+/budgets' conscious-buckets strip (which states each bucket as a percentage against a target, so
+silence there certifies a split rather than merely omitting a figure).
+
+**Two defects caught in my own drafts before they shipped:**
+1. **The direction was backwards on Ask's overspent branch.** The shared sentence said the
+   guilt-free figure was "too generous" unconditionally — but that branch renders the OVERAGE, and
+   a missing bill makes an overage BIGGER while it makes room-to-spend SMALLER. `headline` is now a
+   required argument, locked in both directions and both absences.
+2. **A rationale the code did not support.** A comment claimed an auto-loan ACH dropped by the
+   payment-account rule was "already held by the linked loan's obligation". `SpendingPlanInput` has
+   no loan term of any kind, so it is missing from the plan outright. Checked, then corrected.
+
+**Gate:** `VERIFY_E2E=1 bash scripts/verify.sh` — tsc 0 / eslint 0 / **286 files / 4535 tests** /
+build clean; full e2e **207/207 serialized** (the parallel run failed
+`duplicate-connections.spec.ts:164` twice with the documented #287 strict-mode DOM-duplication
+signature, and that spec passes 12/12 alone — read the signature, serialize to prove).
+**Schema: additive nullable column only**, no existing column touched.
+
+**Not yet done: the hostile-critic pass.** Money-display copy over a data-integrity fact owes one
+per CLAUDE.md; it had not run when the owner sent three live feature requests mid-session (Wave O),
+which take priority. The adversarial pass is OWED, exactly as L.20's was.
+
+### 🟠 OPEN after L.30
+
+1. **The seeder writes no `projectionStatus`**, so every demo `RecurringSeries` row reads as
+   "reason not recorded". Harmless today — the demo's fixed term is non-zero, so no zero branch
+   renders — and it self-heals for real users on the next sync. Worth setting in the seed so the
+   demo can exercise the new branches.
+2. **`unrecognized-rhythm` is unreachable for a stored row** by design (`detectRecurring` drops
+   IRREGULAR before storing), so no census field branches on it. Pinned by a test rather than
+   assumed, so a future change that starts storing irregular series fails loudly.
+3. **The dashboard's SafeToSpendCard still prints no per-line labels**, carried forward from L.29
+   #5: the L.30 distinction lives on /spending-plan, /budgets and Ask.
+
 ## ✅ BUILT 2026-07-27 — L.29: a zero says which zero it is (DECISIONS #317)
 
 **The defect this closes is a reading defect, not an arithmetic one.** On /spending-plan's
@@ -111,7 +181,8 @@ kills both plan specs). No schema change.
 
 ### 🟠 OPEN after L.29
 
-1. **A broken fixed-expenses zero is still not distinguishable from a true one.** `(none counted)`
+1. **[CLOSED by L.30, above — see §BUILT 2026-07-27 L.30.]** A broken fixed-expenses zero is still
+   not distinguishable from a true one. `(none counted)`
    is honest but it does not separate "you have no repeating bills", "your bills are charged to a
    credit card", "your series have lapsed" and "the projection dropped them" (the L.26 signature).
    A count of `RecurringSeries` rows would produce false alarms — a subscription charged to a card

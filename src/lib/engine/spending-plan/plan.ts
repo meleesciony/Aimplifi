@@ -184,6 +184,52 @@ export interface SpendingPlanDisclosures {
    * that state "none due this month" (L.29 critic P1-1, executed).
    */
   cardsDatedAfterThisMonth: number;
+  /**
+   * What became of every repeating EXPENSE the detector found (L.30). Like
+   * `creditCardCount` above, this qualifies no figure — it is what separates the
+   * meanings of a $0.00 "Fixed & recurring expenses" line, which rendered are one
+   * identical pixel whether the reader has no bills, has bills that all charge to
+   * a card, has bills that stopped charging, or has bills the projection lost
+   * (the L.26 signature, which read $0.00 through four sessions of the owner
+   * looking straight at it).
+   *
+   * Counted from the stored `RecurringSeries.projectionStatus`, written by the
+   * same pass that decides the projected rows, so this census and the figure it
+   * explains cannot disagree.
+   */
+  fixedSeries: FixedSeriesCensus;
+}
+
+/**
+ * A census of repeating EXPENSE series by what the projection did with each one.
+ * Expenses only: the fixed-expense line never speaks about income, and folding
+ * income in would let a deposit landing in savings — a deliberate, correct
+ * absence (L.25) — read as a missing bill.
+ *
+ * Every field is branched on by `fixedLabel`. There is deliberately no field for
+ * the statuses that cannot reach a stored expense row ('unrecognized-rhythm',
+ * which `detectRecurring` drops before storing, and the two income statuses):
+ * a census field nothing can populate is a claim that a case is handled when it
+ * is not (the L.22 dead-branch lesson).
+ */
+export interface FixedSeriesCensus {
+  /** Repeating expense series stored for this reader, whatever became of them. */
+  detected: number;
+  /** In the figure. */
+  counted: number;
+  /** Absent CORRECTLY: charged to a credit card, so the card-payments line holds it. */
+  onCard: number;
+  /** Absent CORRECTLY: the series has stopped charging. */
+  lapsed: number;
+  /**
+   * Absent INCORRECTLY: the account the bill charges is not one this projection
+   * reads. The alarm. `detected - counted - onCard - lapsed - uncounted` is the
+   * remainder whose reason was never recorded (a row stored before L.30, or by
+   * the seeder), which may never be read as either a true or a broken zero.
+   */
+  uncounted: number;
+  /** Absent because no CHECKING or SAVINGS account is linked to project from. */
+  noCashAccount: number;
 }
 
 export interface SpendingPlan extends SpendingPlanInput {
