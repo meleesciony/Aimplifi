@@ -8,7 +8,7 @@
 import Link from 'next/link';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
-import { categoryMonthRegisterHref } from '@/lib/engine/transactions/links';
+import { CATEGORY_LINK_CLASS, categoryMonthRegisterHref } from '@/lib/engine/transactions/links';
 import { cents, formatCents } from '@/lib/money';
 import { withheldInlineNote, type WithheldAccountSummary } from '@/lib/providers/currency';
 import type { ReportsData } from '@/server/reports';
@@ -113,7 +113,10 @@ export function ReportsView({
         ) : (
           <div className="space-y-2.5" data-testid="category-breakdown">
             {top.map((c, i) => {
-              const href = categoryMonthRegisterHref(c.categoryId, data.ym, linkable);
+              const href = categoryMonthRegisterHref(
+                { categoryId: c.categoryId, month: data.ym, amountCents: c.amountCents },
+                linkable,
+              );
               return (
               <div key={c.categoryId}>
                 {/* O.5: the figure is the link. The href carries THIS card's window
@@ -159,12 +162,20 @@ export function ReportsView({
                     // text (WCAG 2.5.3) — an aria-label replaces it, and dropping
                     // "· Food & Dining" made voice control unable to match on it.
                     aria-label={`${c.name} · ${c.group}: ${formatCents(cents(c.amountCents))} in ${monthLabel(data.ym)} — view these transactions`}
-                    className="flex items-baseline justify-between rounded-sm text-sm hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="flex items-baseline justify-between rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
                   >
                     <span className="min-w-0 truncate">
                       {c.name} <span className="text-xs text-muted-foreground">· {c.group}</span>
                     </span>
-                    <span className="ml-2 shrink-0 tabular-nums">{formatCents(cents(c.amountCents))}</span>
+                    {/* O.6 critic P1-1: the affordance rides the FIGURE, not the whole
+                        row — a dotted underline stretched across a space-between flex
+                        would underline the gap. Same constant the other two surfaces
+                        use, so the "money you can tap" cue is one gesture app-wide;
+                        previously this row's only cue was `hover:underline`, which a
+                        phone does not have. */}
+                    <span className={`ml-2 shrink-0 tabular-nums ${CATEGORY_LINK_CLASS}`}>
+                      {formatCents(cents(c.amountCents))}
+                    </span>
                   </Link>
                 )}
                 <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">

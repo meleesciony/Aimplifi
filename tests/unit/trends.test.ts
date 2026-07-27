@@ -6,13 +6,17 @@ import { describe, expect, it } from 'vitest';
 import { buildSeedData } from '@/lib/seed/build';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { computeSpendingTrends, type TrendTxn } from '@/lib/engine/trends/trends';
+import { toTrendTxns } from '@/server/trends';
 
 const T = (
   date: string,
   amountCents: number,
   categoryId: string | null,
   extra: Partial<TrendTxn> = {},
-): TrendTxn => ({ date, amountCents, categoryId, ...extra });
+  // O.6 made `status` required on TrendTxn so no production caller can omit it.
+  // Existing fixtures predate the split and are all settled rows, so the factory
+  // supplies POSTED and a pending case opts in with `{ status: 'PENDING' }`.
+): TrendTxn => ({ date, amountCents, categoryId, status: 'POSTED', ...extra });
 
 const TODAY = '2026-06-10'; // asOf June; last completed = May; baseline = Apr/Mar/Feb
 
@@ -201,19 +205,22 @@ describe('computeSpendingTrends on the seed (real-volume, default normalization)
   // recurring-summary seed test: exercises the engine end-to-end on real volume.
   // Numbers are observed-then-pinned to lock regressions.
   const seed = buildSeedData('2026-06-10');
-  const txns: TrendTxn[] = seed.transactions
-    .filter((t) => t.status === 'POSTED')
-    .map((t) => {
-      const m = normalizeMerchant(t.rawDescriptor);
-      return {
-        date: t.date,
-        amountCents: t.amountCents,
-        categoryId: m.categoryId,
-        isTransfer: t.isTransfer,
-        merchant: m.canonical,
-        aggregateMerchant: m.aggregate,
-      };
-    });
+  // O.6: no POSTED pre-filter — the server stopped doing that, and the engine now
+  // owns the split (every row feeds the category figures; only the row-naming
+  // insights read settled rows). Passing the pending rows through is what makes
+  // this test exercise that split instead of hiding it.
+  const txns: TrendTxn[] = seed.transactions.map((t) => {
+    const m = normalizeMerchant(t.rawDescriptor);
+    return {
+      date: t.date,
+      amountCents: t.amountCents,
+      categoryId: m.categoryId,
+      status: t.status,
+      isTransfer: t.isTransfer,
+      merchant: m.canonical,
+      aggregateMerchant: m.aggregate,
+    };
+  });
   const r = computeSpendingTrends({ txns, today: '2026-06-10' });
 
   it('anchors on the in-progress month, last completed month, and 3-month baseline', () => {
@@ -227,9 +234,16 @@ describe('computeSpendingTrends on the seed (real-volume, default normalization)
       daysElapsed: 10,
       daysInMonth: 30,
       // #249: the engineered Blue Bottle anomaly (−$214.36 on 2026-06-02) joined the
-      // current partial month: 73929 + 21436 = 95365; projection re-verified by hand.
-      spentSoFarCents: 95365,
-      projectedCents: 286095, // round(95365 / 10 * 30)
+      // current partial month: 73929 + 21436 = 95365.
+      //
+      // O.6 moved this pin DELIBERATELY, by exactly the seed's three pending rows —
+      // the whole point of the slice, so the number had to move or the fix did
+      // nothing. Hand-verified: 95365 + 25000 (ZELLE lawn care, build.ts:539)
+      // + 675 (Blue Bottle, :540) + 4318 (Amazon, :541) = 125358, i.e. +$299.93.
+      // Failure direction is the safe one: pace now projects HIGHER, because money
+      // already committed but not yet settled is money the reader cannot spend twice.
+      spentSoFarCents: 125358,
+      projectedCents: 376074, // round(125358 / 10 * 30)
       priorMonthCents: 458700,
     });
     expect(r.pace!.projectedCents).toBe(
@@ -287,9 +301,9 @@ describe('computeSpendingTrends — integrated with normalizeMerchant (server pa
   // Builds TrendTxns the way src/server/trends.ts does — merchant + aggregate
   // flag DERIVED from normalizeMerchant(rawDescriptor), not stubbed — so this
   // exercises the real wiring the critic flagged (FIN-1/#74).
-  const fromRaw = (date: string, amountCents: number, raw: string): TrendTxn => {
+  const fromRaw = (date: string, amountCents: number, raw: string, status = 'POSTED'): TrendTxn => {
     const m = normalizeMerchant(raw);
-    return { date, amountCents, categoryId: m.categoryId, merchant: m.canonical, aggregateMerchant: m.aggregate };
+    return { date, amountCents, categoryId: m.categoryId, status, merchant: m.canonical, aggregateMerchant: m.aggregate };
   };
 
   it('excludes genuine aggregates (Zelle/Check) but keeps a real new merchant', () => {
@@ -323,5 +337,159 @@ describe('computeSpendingTrends — degenerate input', () => {
     expect(r.movers).toEqual([]);
     expect(r.largest).toEqual([]);
     expect(r.newMerchants).toEqual([]);
+  });
+});
+
+/**
+ * O.6 — /trends asks two questions of one row set, and they take different bases.
+ *
+ * The category figures (movers, pace) count PENDING rows, because a pending charge
+ * has already reduced what the reader can spend and every other spending surface
+ * in the app counts it — that agreement is what makes a mover figure safe to link
+ * to the register. The two insights that NAME an individual row as a settled fact
+ * (largest purchases, new merchants) do not, because a pending amount is
+ * provisional. Both halves are asserted here so neither can drift onto the other's
+ * basis unnoticed.
+ */
+describe('O.6 — pending rows count as spending, but are never named as settled facts', () => {
+  const TODAY = '2026-06-10';
+  // May is the compared month; a pending May row must reach the movers.
+  const txns: TrendTxn[] = [
+    T('2026-05-04', -10000, 'dining'),
+    T('2026-05-05', -6000, 'dining', { status: 'PENDING' }),
+    T('2026-04-04', -2000, 'dining'),
+    T('2026-03-04', -2000, 'dining'),
+    T('2026-02-04', -2000, 'dining'),
+    // In-progress June: a big PENDING purchase at a merchant never seen before.
+    T('2026-06-02', -90000, 'shopping', { status: 'PENDING', merchant: 'Provisional Motors' }),
+    T('2026-06-03', -1500, 'shopping', { merchant: 'Settled Corner Store' }),
+  ];
+  const r = computeSpendingTrends({ txns, today: TODAY });
+
+  it('counts a PENDING row in the category mover it belongs to', () => {
+    const dining = r.movers.find((m) => m.categoryId === 'dining');
+    expect(dining).toBeDefined();
+    // 100.00 posted + 60.00 pending = 160.00 against a 20.00 baseline.
+    expect(dining!.currentCents).toBe(16000);
+  });
+
+  it('counts a PENDING row in the pace projection', () => {
+    // June so far = 900.00 pending + 15.00 posted.
+    expect(r.pace!.spentSoFarCents).toBe(91500);
+  });
+
+  it('does NOT name a PENDING row as the biggest purchase', () => {
+    // $900 pending outranks everything, and is still refused: "your biggest
+    // purchase" is a claim about a settled amount. The $15 posted row wins.
+    expect(r.largest.map((l) => l.amountCents)).not.toContain(90000);
+    expect(r.largest[0].amountCents).toBe(1500);
+  });
+
+  it('does NOT announce a new merchant on the strength of a PENDING row', () => {
+    const names = r.newMerchants.map((m) => m.merchant);
+    expect(names).not.toContain('Provisional Motors');
+    expect(names).toContain('Settled Corner Store'); // anti-vacuity: the list is not simply empty
+  });
+
+  it('the pending row is doing the work — stripping it moves the mover (anti-vacuity)', () => {
+    const withoutPending = computeSpendingTrends({
+      txns: txns.filter((t) => t.status !== 'PENDING'),
+      today: TODAY,
+    });
+    expect(withoutPending.movers.find((m) => m.categoryId === 'dining')!.currentCents).toBe(10000);
+  });
+});
+
+/**
+ * O.6 — the stored category is the only category.
+ *
+ * `src/server/trends.ts` used to fall back to `normalizeMerchant(...).categoryId`
+ * for a row with no stored category. That guess is not what the register filters
+ * on, so a mover figure named rows the destination could not show. The population
+ * is real: undoing a split restores a row with `isSplitParent: false` and
+ * `categoryId: null` (src/server/triage-actions.ts:641), left `needsReview: true`
+ * precisely so the reader re-files it.
+ */
+describe('O.6 — an unfiled row is Uncategorized here, exactly as everywhere else', () => {
+  const TODAY = '2026-06-10';
+  const txns: TrendTxn[] = [
+    // A recognisable grocery descriptor with NO stored category — the shape the
+    // normalizer used to file as `groceries` on this surface alone.
+    T('2026-05-04', -40000, null, { merchant: 'Safeway' }),
+    T('2026-05-05', -9000, 'dining'),
+    T('2026-04-05', -1000, 'dining'),
+    T('2026-03-05', -1000, 'dining'),
+  ];
+  const r = computeSpendingTrends({ txns, today: TODAY });
+
+  it('does not invent a category bucket for a row nobody filed', () => {
+    // The movers list skips the non-actionable group, which includes
+    // uncategorized — so the $400 lands nowhere rather than inflating groceries.
+    expect(r.movers.map((m) => m.categoryId)).not.toContain('groceries');
+    expect(r.movers.map((m) => m.categoryId)).not.toContain('uncategorized');
+    expect(r.movers.map((m) => m.categoryId)).toContain('dining'); // anti-vacuity
+  });
+
+  it('mutation guard: filing that same row DOES produce the grocery mover', () => {
+    // Proves the assertion above is about the missing category and not about the
+    // fixture failing to reach the movers at all.
+    const filed = computeSpendingTrends({
+      txns: txns.map((t) => (t.categoryId === null ? { ...t, categoryId: 'groceries' } : t)),
+      today: TODAY,
+    });
+    expect(filed.movers.find((m) => m.categoryId === 'groceries')!.currentCents).toBe(40000);
+  });
+});
+
+/**
+ * O.6 critic P1-4 — the intake itself, which nothing could previously fail on.
+ *
+ * `src/server/trends.ts` held BOTH narrowings this slice removed, and no test in
+ * the repo imported it: the demo seed's only pending rows sit in the in-progress
+ * month (movers compare the month before it) and it holds zero null-category
+ * rows, so re-adding `.filter(t => t.status === 'POSTED')` or restoring
+ * `stored ?? m.categoryId` left the entire suite green. These assertions are the
+ * fail-old lock — each one breaks if its narrowing comes back.
+ */
+describe('toTrendTxns — the /trends intake (O.6 fail-old lock)', () => {
+  const row = (over: Partial<Parameters<typeof toTrendTxns>[0][number]> & { categoryId?: string | null } = {}) => ({
+    date: '2026-05-04',
+    amountCents: -4000,
+    rawDescriptor: 'SAFEWAY #1234',
+    status: 'POSTED',
+    isTransfer: false,
+    isSplitParent: false,
+    ...over,
+  });
+
+  it('does NOT drop pending rows — re-adding the status filter fails here', () => {
+    const out = toTrendTxns([row({ status: 'PENDING' }), row()]);
+    expect(out).toHaveLength(2);
+    expect(out.map((t) => t.status)).toEqual(['PENDING', 'POSTED']);
+  });
+
+  it('carries the STORED category verbatim, including a null one', () => {
+    // "SAFEWAY #1234" normalizes to a real category, so a fallback would show up
+    // here as a non-null value — which is exactly the bug this pins.
+    const [unfiled] = toTrendTxns([row({ categoryId: null })]);
+    expect(unfiled.categoryId).toBeNull();
+
+    const [filed] = toTrendTxns([row({ categoryId: 'dining' })]);
+    expect(filed.categoryId).toBe('dining');
+  });
+
+  it('carries the merchant-table category in its OWN field, never merged into categoryId', () => {
+    // The P0 the first draft shipped ran in the other direction: dropping this
+    // field entirely made an unfiled row vanish from "biggest purchases", because
+    // `uncategorized` is in the non-actionable group.
+    const [t] = toTrendTxns([row({ categoryId: null })]);
+    expect(t.merchantCategoryId).toBe('groceries');
+    expect(t.categoryId).toBeNull();
+  });
+
+  it('still derives the merchant fields from the shared normalizer', () => {
+    const [t] = toTrendTxns([row({ rawDescriptor: 'ZELLE PAYMENT TO ALEX' })]);
+    expect(t.aggregateMerchant).toBe(true);
+    expect(t.merchant).toBeTruthy();
   });
 });

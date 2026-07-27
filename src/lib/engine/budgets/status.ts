@@ -34,8 +34,15 @@ export function isBudgetable(categoryId: string): boolean {
  * signed amounts per category (outflow negative + refund positive) and keeps
  * only categories whose net is an outflow, as a positive spend figure. A return
  * that offsets a purchase therefore lowers the category's spend — so the budget
- * bar reflects what you actually spent, not the gross of every charge. Callers
- * pass already-scoped transactions (non-transfer, non-split, posted, this month).
+ * bar reflects what you actually spent, not the gross of every charge.
+ *
+ * Callers pass already-scoped transactions: non-transfer, non-split, this month,
+ * on SPENDING account types, and PASSED THROUGH `isSpendRow` (O.6). No longer
+ * "posted" — pending charges count, because this page's output is an instruction
+ * ("$87.70 left this month") and money already committed cannot be spent twice.
+ * This function decides purely on SIGN, so it cannot itself exclude the Income
+ * group or the `transfer` category id; that is why the caller shares the reports
+ * engine's per-row predicate rather than only its query.
  */
 export function netSpendByCategory(
   txns: readonly { categoryId: string | null; amountCents: number }[],

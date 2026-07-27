@@ -45,6 +45,38 @@ export const NEW_MERCHANT_LOOKBACK_MONTHS = 6;
 const NON_ACTIONABLE_GROUP = 'Transfers & Other';
 
 export interface TrendTxn extends ReportTxn {
+  /**
+   * 'POSTED' | 'PENDING'. REQUIRED (O.6) rather than defaulted, because a silent
+   * default here is a wrong answer that looks like no answer: this page asks two
+   * different questions of the same rows, and only one of them wants pending.
+   * The category figures (movers, pace) count pending — a pending charge has
+   * genuinely reduced what you can spend, and every other spending surface counts
+   * it. The two insights that NAME an individual row as a settled fact (largest
+   * purchases, new merchants) do not, because a pending amount is provisional: a
+   * fuel pre-authorisation posts at $1 and settles at $60, so "your biggest
+   * purchase" and "you shopped somewhere new" would be sentences about a figure
+   * that has not happened yet. `computeSpendingTrends` is the single place that
+   * split is applied, so the two bases cannot drift apart per-insight.
+   */
+  status: string;
+  /**
+   * The merchant table's category for this row, used ONLY by the two row-naming
+   * insights (largest purchases, new merchants) and only as a fallback when
+   * `categoryId` is null.
+   *
+   * Why a second field rather than folding it into `categoryId` (O.6): the two
+   * are different claims. `categoryId` is the bucket a category FIGURE sums into,
+   * and a mover figure is now a clickable claim that the register shows the same
+   * rows — so it must be the stored column the register filters on, never a
+   * derived value the destination cannot reproduce. The label beside a NAMED
+   * merchant makes no such claim, and suppressing it does real harm: everything
+   * in the `Transfers & Other` group is rejected as non-actionable, `uncategorized`
+   * is in that group, so a null-category row with no fallback is dropped from the
+   * insight entirely rather than labelled honestly. Ask's `toPurchaseRows` applies
+   * the identical `stored ?? merchant` rule, which is what makes `computeLargest`'s
+   * documented byte-parity with it true.
+   */
+  merchantCategoryId?: string | null;
   /** Display/canonical merchant — used for largest + new-merchant insights. */
   merchant?: string | null;
   /**
@@ -117,11 +149,28 @@ const groupOf = (id: string | null | undefined, meta: ReadonlyMap<string, Catego
 const catName = (id: string | null | undefined, meta: ReadonlyMap<string, CategoryMeta>) =>
   (id ? meta.get(id)?.name : undefined) ?? 'Uncategorized';
 
-/** One spend row = a real outflow that the reports engine would count. */
+/**
+ * The category a row-NAMING insight labels this row with: the stored column when
+ * the reader has filed it, otherwise the merchant table's mapping (O.6). Never
+ * used by a category FIGURE — see `TrendTxn.merchantCategoryId` for why the two
+ * must not share a field, and `answer.ts` `toPurchaseRows` for the identical rule
+ * that keeps the two surfaces byte-identical.
+ */
+const namedCategoryId = (t: TrendTxn): string | null | undefined => t.categoryId ?? t.merchantCategoryId;
+
+/**
+ * One spend row = a real outflow that the reports engine would count.
+ *
+ * Reads the NAMED category (stored, else the merchant table) because its only
+ * caller is `isPurchaseRow`, and Ask's `toPurchaseRows` hands its own copy of this
+ * predicate an already-merged `categoryId` — evaluating the transfer/Income
+ * exclusions on a different value than Ask does is exactly how the documented
+ * byte-parity between the two surfaces would rot (O.6).
+ */
 function isSpendRow(t: TrendTxn, meta: ReadonlyMap<string, CategoryMeta>): boolean {
   if (t.isSplitParent || t.isTransfer) return false;
   if (t.amountCents >= 0) return false; // refunds/inflows are not "purchases"
-  const id = t.categoryId ?? 'uncategorized';
+  const id = namedCategoryId(t) ?? 'uncategorized';
   if (id === 'transfer') return false;
   if (meta.get(id)?.group === 'Income') return false;
   return true;
@@ -129,7 +178,7 @@ function isSpendRow(t: TrendTxn, meta: ReadonlyMap<string, CategoryMeta>): boole
 
 /** A spend row in an actionable category (excludes cash/transfer/cc-payment/uncategorized). */
 function isPurchaseRow(t: TrendTxn, meta: ReadonlyMap<string, CategoryMeta>): boolean {
-  return isSpendRow(t, meta) && groupOf(t.categoryId, meta) !== NON_ACTIONABLE_GROUP;
+  return isSpendRow(t, meta) && groupOf(namedCategoryId(t), meta) !== NON_ACTIONABLE_GROUP;
 }
 
 /** Per-leaf-category spend for a single month, via the shared reports engine. */
@@ -254,7 +303,7 @@ function computeLargest(
     .map((t) => ({
       date: t.date,
       merchant: t.merchant?.trim() || 'Unknown merchant',
-      categoryName: catName(t.categoryId, meta),
+      categoryName: catName(namedCategoryId(t), meta),
       amountCents: -t.amountCents,
     }))
     // amount desc, then date, then merchant — fully deterministic on ties.
@@ -300,7 +349,7 @@ function computeNewMerchants(
     } else {
       thisMonth.set(key, {
         merchant: t.merchant.trim(),
-        categoryName: catName(t.categoryId, meta),
+        categoryName: catName(namedCategoryId(t), meta),
         amountCents: -t.amountCents,
         firstDate: t.date,
       });
@@ -318,13 +367,18 @@ export function computeSpendingTrends(
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): SpendingTrends {
   const { comparedYm, baselineMonths, movers } = computeMovers(txns, today, meta);
+  // O.6 — the one place the two bases part company; see `TrendTxn.status`.
+  // Category figures read every row; the row-naming insights read settled rows
+  // only, which is also what Ask's `toPurchaseRows` reads, preserving the
+  // documented "matches /trends computeLargest EXACTLY" parity on both axes.
+  const settled = txns.filter((t) => t.status === 'POSTED');
   return {
     asOfYm: monthKey(today),
     comparedYm,
     baselineMonths,
     pace: computePace(txns, today, meta),
     movers,
-    largest: computeLargest(txns, today, meta),
-    newMerchants: computeNewMerchants(txns, today, meta),
+    largest: computeLargest(settled, today, meta),
+    newMerchants: computeNewMerchants(settled, today, meta),
   };
 }

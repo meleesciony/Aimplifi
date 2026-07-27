@@ -51,3 +51,20 @@ export async function getVisibleGroups(
   ]);
   return visibleGroups(hidden, custom);
 }
+
+/**
+ * The `linkable` set every `categoryRegisterHref` caller must pass (O.5/O.6) —
+ * exactly the ids the register's own category `<select>` can DISPLAY, which is
+ * the flattened register picker above.
+ *
+ * One author, because this is a fence and a fence copied per call site misses
+ * call sites. /reports flattened `getVisibleGroups` inline; O.6 adds two more
+ * surfaces, and three inline copies of the same flatMap is precisely how the
+ * hidden-category hole (O.5 critic F-3) would reopen on one page and not the
+ * others. Callers pass the returned array straight to a client component, so it
+ * is a plain array rather than a Set — the component builds the Set.
+ */
+export async function getLinkableCategoryIds(userId: string): Promise<string[]> {
+  const groups = await getVisibleGroups(userId);
+  return groups.flatMap((g) => g.categories.map((c) => c.id));
+}

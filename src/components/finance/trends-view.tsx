@@ -10,6 +10,7 @@ import { ArrowDownRight, ArrowUpRight, Gauge, Receipt, Sparkles, Store } from 'l
 import { formatISODate, formatMonth, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import { CATEGORY_LINK_CLASS, categoryMonthRegisterHref } from '@/lib/engine/transactions/links';
 import type { CategoryMover, SpendingTrends } from '@/lib/engine/trends/trends';
 import type { BalanceMoveView } from '@/server/balance-move';
 
@@ -27,7 +28,49 @@ function baselineLabel(months: string[]): string {
   return `${oldest}–${newest}`;
 }
 
-function MoverRow({ m, isDial = false }: { m: CategoryMover; isDial?: boolean }) {
+/**
+ * O.6 — which number on this row may carry the link.
+ *
+ * A mover prints THREE figures and only one of them is a set of rows the
+ * register can show: `currentCents` is one calendar month (`comparedYm`) summed
+ * by the same engine on the same basis, so it reconciles. `baselineCents` is an
+ * AVERAGE over up to three months — no window exists that adds up to it — and
+ * `deltaCents` is a difference between the two, which is not a sum of anything.
+ * The delta is the biggest, boldest number on the row, which is exactly why the
+ * link is nailed to the one figure that can honour it and the accessible name
+ * says which month it opens.
+ */
+function MoverRow({
+  m,
+  href,
+  monthLabel,
+  isDial = false,
+}: {
+  m: CategoryMover;
+  href: string | null;
+  /** The compared month, spelled out for the accessible name (e.g. "May"). */
+  monthLabel: string;
+  isDial?: boolean;
+}) {
+  const current = money(m.currentCents);
+  const currentFigure =
+    href === null ? (
+      current
+    ) : (
+      <Link
+        href={href}
+        data-testid={`mover-category-link-${m.categoryId}`}
+        // The month is load-bearing HERE and nowhere else: this is the one card
+        // whose link opens a DIFFERENT month from the page's own headline, so a
+        // screen-reader user who is not told "May" lands somewhere unannounced
+        // (O.6 critic P1-5 — the previous label omitted it while the docblock
+        // above claimed it was there).
+        aria-label={`${m.name}: ${current} in ${monthLabel} — view these transactions`}
+        className={CATEGORY_LINK_CLASS}
+      >
+        {current}
+      </Link>
+    );
   const tone =
     m.direction === 'down'
       ? 'text-emerald-600 dark:text-emerald-400'
@@ -44,10 +87,18 @@ function MoverRow({ m, isDial = false }: { m: CategoryMover; isDial?: boolean })
           <span className="truncate text-sm font-medium">{m.name}</span>
           {isDial && <Gauge className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />}
         </div>
-        <div className="truncate text-xs text-muted-foreground">
-          {m.direction === 'new'
-            ? `new this period · ${money(m.currentCents)}`
-            : `${money(m.currentCents)} vs ${money(m.baselineCents)} usual`}
+        {/* Not `truncate`: this line now holds a LINK, and truncation clips from
+            the end — the O.5 critic already found ~45px of an inbox link clipped
+            out of a truncating span at 380px. A short line that wraps cannot
+            overflow, so wrapping is the safe direction. */}
+        <div className="text-xs text-muted-foreground">
+          {m.direction === 'new' ? (
+            <>new this period · {currentFigure}</>
+          ) : (
+            <>
+              {currentFigure} vs {money(m.baselineCents)} usual
+            </>
+          )}
         </div>
         {isDial && (
           <div className="text-xs text-emerald-600 dark:text-emerald-400" data-testid="dial-tag">
@@ -72,15 +123,26 @@ export function TrendsView({
   trends,
   dials = [],
   balanceMove = null,
+  linkableCategoryIds = [],
 }: {
   trends: SpendingTrends;
   dials?: string[];
   balanceMove?: BalanceMoveView | null;
+  /** O.6: the register's own category option list — see getLinkableCategoryIds. */
+  linkableCategoryIds?: string[];
 }) {
   const { pace, movers, largest, newMerchants, comparedYm, baselineMonths } = trends;
   const paceUp = pace ? pace.deltaVsPriorCents > 0 : false;
   // money dials are user-configured category labels; tag a mover when its category is one
   const dialSet = new Set(dials.map((d) => d.toLowerCase()));
+  const linkable = new Set(linkableCategoryIds);
+  // O.6: `comparedYm` is the month `currentCents` was summed over — the movers
+  // block only renders when it is non-null, but the builder needs a string, so
+  // the null case yields no links rather than a link to a guessed month.
+  const moverHref = (m: CategoryMover) =>
+    comparedYm === null
+      ? null
+      : categoryMonthRegisterHref({ categoryId: m.categoryId, month: comparedYm, amountCents: m.currentCents }, linkable);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -115,6 +177,10 @@ export function TrendsView({
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
             Assumes spending continues at the current daily rate — a projection, not a prediction.
+            {/* O.6: this figure MOVED (pending charges now count), so it states its
+                basis for the same reason /budgets does — a reader comparing pages
+                otherwise has no way to know which rows each one summed. */}{' '}
+            <span data-testid="trends-pace-basis">Includes pending charges.</span>
           </p>
         </section>
       )}
@@ -129,6 +195,12 @@ export function TrendsView({
             </span>
           )}
         </div>
+        {/* O.6 / L.29: these figures moved too, and unlike Pace they are also the
+            ones carrying links — so the basis a reader would need in order to
+            check them against the register belongs beside them. */}
+        <p className="mb-2 text-xs text-muted-foreground" data-testid="trends-movers-basis">
+          Totals include pending charges. Tap a month&rsquo;s figure to see the transactions behind it.
+        </p>
         {balanceMove?.sentence && (
           <p className="mb-2 text-sm text-muted-foreground" data-testid="balance-move-explainer">
             {balanceMove.sentence}
@@ -152,7 +224,13 @@ export function TrendsView({
         ) : (
           <ul className="divide-y">
             {movers.map((m) => (
-              <MoverRow key={m.categoryId} m={m} isDial={dialSet.has(m.name.toLowerCase())} />
+              <MoverRow
+                key={m.categoryId}
+                m={m}
+                href={moverHref(m)}
+                monthLabel={comparedYm ? shortMonth(comparedYm) : 'that month'}
+                isDial={dialSet.has(m.name.toLowerCase())}
+              />
             ))}
           </ul>
         )}
@@ -164,6 +242,16 @@ export function TrendsView({
           <Receipt className="size-3.5 text-muted-foreground" aria-hidden />
           <h2 className="text-sm font-semibold">Biggest purchases this month</h2>
         </div>
+        {/* O.6 (L.29 — put the basis in the label): this page deliberately answers
+            two different questions on two bases, and only the reader can tell they
+            disagree, so the one that differs says so. The earlier wording said a
+            pending charge "counts toward the totals above", which was imprecise in
+            a way a critic caught: a THIS-month pending charge counts toward Pace,
+            but the movers describe the previous month, so it cannot count there. */}
+        <p className="mb-2 text-xs text-muted-foreground" data-testid="trends-largest-basis">
+          Settled purchases only — a pending charge can still change amount, so it counts
+          toward the Pace total above but is not named here until it posts.
+        </p>
         {largest.length === 0 ? (
           <p className="py-5 text-center text-sm text-muted-foreground">No purchases yet this month.</p>
         ) : (
@@ -190,6 +278,12 @@ export function TrendsView({
             <Store className="size-3.5 text-muted-foreground" aria-hidden />
             <h2 className="text-sm font-semibold">New this month</h2>
           </div>
+          {/* Same settled-only basis as Biggest purchases, and stated for the same
+              reason (O.6 / L.29): "you shopped somewhere new" is a claim about an
+              event, and a pending authorisation has not finished being one. */}
+          <p className="mb-2 text-xs text-muted-foreground" data-testid="trends-new-merchants-basis">
+            Settled purchases only — a pending charge appears here once it posts.
+          </p>
           <ul className="divide-y">
             {newMerchants.map((n) => (
               <li key={n.merchant} className="flex items-center justify-between gap-3 py-2">

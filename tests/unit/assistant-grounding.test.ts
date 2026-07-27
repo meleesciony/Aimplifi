@@ -17,6 +17,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
 import { computeSpendingTrends, type TrendTxn } from '@/lib/engine/trends/trends';
+import { toTrendTxns } from '@/server/trends';
 import { parseAssistantQuery, type Timeframe } from '@/lib/engine/assistant/intent';
 import {
   answerIncome,
@@ -122,13 +123,19 @@ describe('F3 regression — full rows net refunds and exclude split parents', ()
 
 describe('largest purchases == /trends computeLargest (POSTED only), pinned', () => {
   it('matches the trends engine exactly and excludes pending charges', () => {
-    // Build the trends input the SAME way the /trends server does: POSTED only.
-    const trendTxns: TrendTxn[] = seed.transactions
-      .filter((t) => t.status === 'POSTED')
-      .map((t) => {
-        const m = normalizeMerchant(t.rawDescriptor);
-        return { date: t.date, amountCents: t.amountCents, categoryId: m.categoryId, isTransfer: t.isTransfer, isSplitParent: false, merchant: m.canonical, aggregateMerchant: m.aggregate } as TrendTxn;
-      });
+    // Build the trends input the SAME way the /trends server does — and after O.6
+    // that is `toTrendTxns` itself rather than a hand-rolled copy of it, which is
+    // the point: a critic found this fixture still passing the normalizer's
+    // category as `categoryId` while production had moved to the stored column,
+    // so the two sides of the parity assertion were reading different bases and
+    // the test could not fail on the difference.
+    //
+    // Note also there is NO status pre-filter here: every row is handed to the
+    // engine, which narrows to settled rows for `largest` itself. Feeding the
+    // pending rows in is what makes the assertion meaningful, because it is now
+    // the engine's own split — not this test's filter — keeping the pending
+    // Amazon row out of both sides.
+    const trendTxns: TrendTxn[] = toTrendTxns(seed.transactions);
     const trendsLargest = computeSpendingTrends({ txns: trendTxns, today: '2026-06-10' }).largest;
     const mine = largestPurchases(purchaseRows, THIS_MONTH, trendsLargest.length || 5, '2026-06-10');
     expect(mine).toEqual(trendsLargest); // byte-for-byte parity with /trends (same window, <= today, tie-break)

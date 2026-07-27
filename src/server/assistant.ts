@@ -441,7 +441,16 @@ async function buildAnswer(
     case 'top_categories':
       return answerTopCategories(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.timeframe, intent.limit);
     case 'largest_purchases':
-      // POSTED-only, mirroring /trends exactly (pending charges aren't "purchases").
+      // POSTED-only (pending charges aren't "purchases"). This no longer "mirrors
+      // /trends", which O.6 moved onto the shared POSTED+PENDING basis — the line
+      // is now deliberate rather than inherited, and the principle is the one O.6
+      // settled: an AGGREGATE over a window includes pending, because a pending
+      // charge has genuinely reduced what you can spend and omitting it understates
+      // by the full amount; a statement NAMING one row as a settled fact excludes
+      // it, because a pending amount is provisional (a $1 fuel pre-authorisation
+      // that later posts at $60 is a false sentence, not merely an imprecise sum).
+      // `merchantSpend` below is an aggregate but shares this row builder, so it
+      // inherits the stricter rule — see the O.6 follow-up in TASKS.md.
       // The optional merchant scope (TASKS 2.7) threads through verbatim.
       return answerLargest(
         largestPurchases(toPurchaseRows(snap), intent.timeframe, intent.limit, today, meta, intent.merchant),

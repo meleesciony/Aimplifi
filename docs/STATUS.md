@@ -8634,3 +8634,131 @@ A critic reported "working tree restored" and it had not been — it left `isUnc
 status` caught it. A subagent's claim about the TREE is a hypothesis exactly like its claim about a result;
 verify the tree before running any gate downstream of a delegated review. Recorded in
 `docs/lessons/a-subagents-green-is-a-hypothesis.md`.
+
+
+## 2026-07-27 — O.6 one basis for "spending by category", and the two links it unblocks (verify green)
+
+**The gap was found by a critic, not a reader, and that is the point.** Three surfaces answered the
+same question three ways and nobody could see it, because the surfaces are never shown side by side.
+Verified at source rather than inferred:
+
+| surface | status filter | account-type filter | category |
+|---|---|---|---|
+| `/reports` + Ask (snapshot -> `spendingByCategory`) | none (POSTED+PENDING) | spending accounts | stored |
+| the register (`server/transactions.ts`) — every link's DESTINATION | none | spending accounts | stored |
+| `/trends` (`server/trends.ts`) | **POSTED only** | spending accounts | **guessed from the descriptor** |
+| `/budgets` (`budgets/page.tsx`) | **POSTED only** | **none at all** | stored |
+
+That divergence is why O.5 could link `/reports` and had to refuse the other two: with one pending
+charge, a reader clicks a figure and lands on a bigger one.
+
+### The decision: the register's basis wins everywhere
+
+Spending accounts, USD, past the reconciliation boundary, split parents excluded, **both POSTED and
+PENDING**, bucketed by the **stored** category. Two of the five surfaces already used it and it is what
+every link lands on, so unification meant deleting two narrowings, not inventing a third rule. (Precise
+about the destination, since an earlier draft of this line overstated it: the register excludes transfers
+from its SUMMARY rather than its row list, and applies no income-category rule at all — which is why the
+reconciliation assertion is against the Net tile, and why /budgets had to adopt the reports engine's
+`isSpendRow` predicate rather than only its query.)
+
+Pending counts because of failure direction (L.14), not symmetry. A `/budgets` row prints
+`$412.30 / $500.00` and then `$87.70 left this month` — an INSTRUCTION. Money already committed but
+unsettled cannot be spent again, so omitting it makes the remainder too generous and the failure is an
+overspend. On `/trends` the harm was worse than an offset: baselines are long settled while the compared
+month may still hold pending charges, so the shortfall landed on ONE side of a comparison, biasing every
+mover downward and manufacturing a "you spent less than usual" story exactly at month-end. A pending
+amount can still move ($1 fuel pre-auth -> $60), but including it errs by the DIFFERENCE where excluding
+it errs by the WHOLE amount.
+
+The missing account-type clause on `/budgets` was a plain defect, not a basis choice — DECISIONS #62
+already excludes a brokerage's trades and a loan's interest postings from spending everywhere else.
+
+### The change broke a documented invariant, and that set the scope
+
+`computeLargest` carries a comment that it matches Ask's `largestPurchases` EXACTLY. Lifting the status
+filter broke that on one axis; dropping the category guess broke it on the other. Both sides moved
+together instead: `toPurchaseRows` also stopped guessing, and `TrendTxn.status` became REQUIRED so
+`computeSpendingTrends` applies the settled-only split in ONE place.
+
+`/trends` now runs two bases on purpose: category figures (movers, pace) count pending; the two insights
+that NAME a row as a settled fact (biggest purchases, new merchants) do not. O.6's sin is one question
+answered differently on different PAGES, not different questions on one page — and each of those two
+sections now states its basis inline (L.29).
+
+### Shipped
+
+`getLinkableCategoryIds` (one author for the fence, three readers). The link builder gained a REQUIRED
+`amountCents` — a mover row prints a delta, a three-month baseline AVERAGE and the month total, and only
+the last is a set of rows any window reproduces — and now refuses a figure of `<= 0`, because `/budgets`
+prints `$0.00 / $500.00` for an unspent target and a true zero looks identical to one produced by an
+upstream defect. `categoryMonthRegisterHref` takes an object so two same-typed strings cannot transpose.
+
+### What the locks actually lock
+
+The unit suite's "basis divergence that blocks linking" block was FLIPPED, not deleted: the $80 pending
+row stays, a fail-old test reconstructs the POSTED-only intake and asserts it disagrees, and the three
+surfaces are asserted equal through TWO different engines (`spendingByCategory` and `netSpendByCategory`)
+so it tests the BASIS rather than one function called twice. The e2e assertion that the movers card held
+NO category link became its inverse.
+
+**One demo golden moved, by exactly the right amount.** Trends pace `spentSoFarCents` 95365 -> 125358 =
+the seed's three pending rows ($250.00 + $6.75 + $43.18 = $299.93) to the cent, projecting higher.
+
+**Correction recorded.** An early read of `prisma/seed.ts` concluded the demo held no pending rows and
+therefore no golden could move. Wrong file — the dataset is built by `src/lib/seed/build.ts:539-541`, and
+the typechecker dragged me through the test that proved it. The claim was wrong for two minutes and would
+have been wrong in the writeup.
+
+**Residual, recorded not fixed (TASKS O.7):** during a Plaid sync, a posted row whose payload carries no
+`pending_transaction_id` coexists with its pending twin until the buffered `removed` refs are applied at
+end-of-sync (`plaid.ts:1430-1434`). The linked case cannot double-count — the transplant deletes the
+predecessor inside the same serializable transaction that creates the successor — and the unlinked
+window fails safe (spend reads HIGH, so a budget remainder reads LOW). Pre-existing for /reports, the
+register and Ask; O.6 extends it to /trends and /budgets.
+
+Gate: tsc + eslint clean, `next build` clean, **4612 unit / 291 files**, **213 e2e — VERIFY GREEN**.
+
+### Critic cycle — two fresh-context critics, both FAIL, all P0/P1 fixed (DECISIONS #328)
+
+**They converged independently on the same P0.** Removing the merchant-table category fallback from
+Ask's `toPurchaseRows` did not relabel unfiled rows — it deleted them. `isPurchaseRow` rejects the whole
+`Transfers & Other` group and `uncategorized` is in it, so a −$2,400 Chipotle row with `categoryId: null`
+vanished from "biggest purchases" and `merchantSpend` answered **"No spending at Chipotle"** with the
+charge sitting in the register. A flat denial about money the reader can see is a worse failure than the
+over-confident label the change was removing, and the fallback was never a guess (9600bps, `known: true`,
+the same table the categorize pipeline files rows with). Fixed by reverting it and splitting the two
+meanings apart: `TrendTxn.merchantCategoryId` is CARRIED, never merged — the stored column feeds the
+category FIGURES that must reconcile with the register, the merchant table feeds the row-NAMING insights
+that must match Ask.
+
+**The most valuable finding was about the tests, not the code.** Both /trends narrowings and the new
+/budgets account-type clause were REVERT-SAFE against the whole green suite: nothing imported
+`src/server/trends.ts`, the demo's only pending rows sit in the in-progress month while movers compare
+the month before it, it holds zero null-category rows, and it has zero transactions on a non-spending
+account. Closed by extracting `toTrendTxns` as a pure exported function (mutation-proven: restoring the
+status filter fails one assertion, re-merging the category fails two) and by
+`tests/e2e/budgets-basis.spec.ts` — a throwaway user whose grocery total is $65.00 only if BOTH clauses
+hold. Deleting the account-type clause produces exactly the predicted `Groceries$155.00`.
+
+**The zero-refusal was reversed.** Refusing to link a $0.00 figure cited L.29 — a true zero and a
+defect-produced zero look identical. That has it backwards: the register is the source of truth the
+figure derives from, so following the link is how the two get COMPARED, and a surface reading $0.00 over
+a register holding rows is a defect the reader has just found. A critic supplied the cost by rendering
+the page: "Travel · $0.00 vs $489.98 usual" is the most interesting row on the movers card and was the
+only dead one.
+
+**Also fixed:** the links had no visual affordance at 380px (measured — no underline, no colour or weight
+delta; the only cue was `:hover`, which a phone does not have), now one shared `CATEGORY_LINK_CLASS`;
+/budgets still disagreed with /reports on the Income group and the `transfer` id, so it now shares the
+`isSpendRow` PREDICATE rather than only the query; the /trends aria-label omitted the month on the one
+card whose link opens a different month than the page headline; and the `amountCents` docblock claimed to
+prevent a caller naming the wrong figure when passing any value yields the same URL — it is a
+declaration, and now says so.
+
+**Open, escalated with the correct mechanism (TASKS O.7):** SimpleFIN's accepted **≤32-day**
+pending/posted double-count residual (`simplefin.ts:145-151`, DECISIONS #128/#148) — far larger than the
+seconds-long Plaid window this slice first recorded, and unifying the basis extended its reach to /trends
+and /budgets. It is pre-existing and now has one place to be fixed instead of two hiding places.
+
+Final gate: tsc + eslint clean, `next build` clean, **4616 unit / 291 files**, **214 e2e — VERIFY GREEN**.

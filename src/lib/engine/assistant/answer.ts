@@ -487,6 +487,26 @@ export function toPurchaseRows(txns: readonly SnapshotTxnLike[]): PurchaseRow[] 
       return {
         date: t.date,
         amountCents: t.amountCents,
+        // Stored category, falling back to the merchant table's mapping.
+        //
+        // O.6 briefly made this stored-ONLY and that was a P0, caught by a critic
+        // and reverted here. The fallback is not decoration: `isPurchaseRow` below
+        // rejects anything in the `Transfers & Other` group, and `uncategorized`
+        // lives in that group (categories.ts:141), so a null-category row does not
+        // become an honestly-labelled purchase — it VANISHES. Executed: a −$2,400
+        // "CHIPOTLE 1234 AUSTIN TX" row with `categoryId: null` disappeared from
+        // largest_purchases, and merchant_spend answered "No spending at Chipotle"
+        // with that charge sitting in the register. A flat denial about money the
+        // reader can see is far worse than the over-confident label the change was
+        // trying to remove, and this is not a guess — `normalizeMerchant` returns
+        // fast-food at 9600bps `known: true` from the same merchant table the
+        // categorize pipeline files rows with.
+        //
+        // The category FIGURES that must reconcile with the register read the
+        // stored column only (that is O.6's actual subject); the row-NAMING
+        // insights here may label a known merchant. /trends applies exactly this
+        // split via `TrendTxn.merchantCategoryId`, which is what keeps this
+        // builder's documented parity with `computeLargest` true on both axes.
         categoryId: t.categoryId ?? m.categoryId,
         isTransfer: t.isTransfer,
         isSplitParent: t.isSplitParent ?? false,

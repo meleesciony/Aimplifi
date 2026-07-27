@@ -1,8 +1,10 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CATEGORIES, categoryName, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
+import { isSpendRow } from '@/lib/engine/reports/reports';
 import { isBudgetable, netSpendByCategory, summarizeBudgets } from '@/lib/engine/budgets/status';
 import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { cents, formatCents } from '@/lib/money';
@@ -11,6 +13,9 @@ import { prisma } from '@/lib/db';
 import { BudgetTargetForm } from '@/components/finance/budget-target-form';
 import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
 import { getCustomCategories } from '@/server/category-meta';
+import { getLinkableCategoryIds } from '@/server/categories';
+import { CATEGORY_LINK_CLASS, categoryMonthRegisterHref } from '@/lib/engine/transactions/links';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { ConsciousBucketsStrip } from '@/components/finance/conscious-buckets-strip';
@@ -37,18 +42,37 @@ export default async function BudgetsPage() {
   // target can't be set before any account exists).
   if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
-  const [txns, budgets, user, plan, custom] = await Promise.all([
-    // All non-transfer, non-split, posted activity this month (BOTH signs) so the
-    // engine can net refunds against spend — outflow-only would overstate it.
+  const [txns, budgets, user, plan, custom, linkableCategoryIds] = await Promise.all([
+    // All non-transfer, non-split activity this month (BOTH signs) so the engine
+    // can net refunds against spend — outflow-only would overstate it.
     prisma.transaction.findMany({
-      // Currency guard (DECISIONS #135): exclude non-USD accounts so per-category budget spend
-      // matches /reports + /trends (which read the filtered snapshot) — no 1:1 foreign sum.
+      // O.6 — this where clause is the BASIS, and it is deliberately the register's.
+      // Two clauses moved here because /budgets figures became clickable and a link
+      // is a claim that the destination adds up to the figure clicked:
+      //
+      //  * `type in SPENDING_ACCOUNT_TYPES` was MISSING, and that was a plain defect
+      //    rather than a basis choice: DECISIONS #62 says a brokerage's buys/sells and
+      //    a loan's interest postings are not cash spending, and every other spending
+      //    surface excludes them (the snapshot filters them at source, the register
+      //    filters them in Prisma). Without it an investment- or loan-account charge
+      //    carrying a spending category landed in a budget figure.
+      //  * `status: 'POSTED'` is GONE. A pending charge has already reduced what the
+      //    reader can spend, and this page's output is an instruction — "$87.70 left
+      //    this month" — not a figure to weigh (L.14). Omitting pending made that
+      //    remainder too generous, and its failure direction is an overspend against
+      //    the reader's own target. /reports, Ask and the register have always counted
+      //    both; this page was one of the two outliers.
+      //
+      // Currency guard (DECISIONS #135): exclude non-USD accounts — no 1:1 foreign sum.
       where: {
-        account: { userId, OR: [{ currency: null }, { currency: 'USD' }] },
+        account: {
+          userId,
+          type: { in: [...SPENDING_ACCOUNT_TYPES] },
+          OR: [{ currency: null }, { currency: 'USD' }],
+        },
         date: { startsWith: month },
         isTransfer: false,
         isSplitParent: false,
-        status: 'POSTED',
       },
       select: { categoryId: true, amountCents: true, accountId: true, date: true },
     }),
@@ -58,7 +82,11 @@ export default async function BudgetsPage() {
     // Custom categories (DECISIONS #111): selectable as targets and resolved to
     // their real name in the spend list instead of falling back to "Uncategorized".
     getCustomCategories(userId),
+    // O.6: the register's own option list — the fence that decides which rows may
+    // become links. Same call /reports and /transactions make.
+    getLinkableCategoryIds(userId),
   ]);
+  const linkable = new Set(linkableCategoryIds);
 
   const meta = mergeCategoryMeta(custom);
   const dials = new Set<string>(parseStoredDials(user?.moneyDials));
@@ -68,7 +96,24 @@ export default async function BudgetsPage() {
   // raw month query counted every category's spend twice — while /reports showed it once.
   // Same shared R1 rule as the register/export.
   const keepsReconciled = await getReconciliationTxnKeep(userId);
-  const spendByCategory = netSpendByCategory(txns.filter((t) => keepsReconciled(t.accountId, t.date)));
+  // O.6 critic F-5: the Prisma clause above is only PART of the basis. `isSpendRow`
+  // is the reports engine's own per-row predicate and it excludes two populations
+  // this page never did — the whole Income GROUP and the `transfer` category id —
+  // while `netSpendByCategory` decides purely on sign. A payroll clawback or a
+  // reversed reimbursement is a negative row in an income category, so it rendered
+  // here as spending (executed: `paycheck −$500` became a $500.00 budget row) and
+  // /reports never showed it. Harmless while nothing linked; a lie once the figure
+  // is a claim that the register agrees. Sharing the PREDICATE, not just the query,
+  // is what makes "one basis" true rather than nearly true.
+  const spendRange = { fromYm: month, toYm: month };
+  const spendByCategory = netSpendByCategory(
+    txns.filter(
+      (t) =>
+        keepsReconciled(t.accountId, t.date) &&
+        // isTransfer/isSplitParent are already false — the Prisma clause excluded them.
+        isSpendRow({ ...t, isTransfer: false, isSplitParent: false }, spendRange, meta),
+    ),
+  );
 
   // Custom categories are spending by definition (never income/transfer/uncategorized).
   const categoryOptions = [...SYSTEM_BUDGETABLE, ...custom.filter((c) => isBudgetable(c.id))];
@@ -84,12 +129,25 @@ export default async function BudgetsPage() {
       <ConsciousBucketsStrip plan={plan} disclosures={plan.disclosures} />
       <Card>
         <CardHeader className="pb-2">
-          <CardDescription>{month} · transfers excluded</CardDescription>
+          {/* O.6: the basis belongs in the label (L.29). "Pending included" is the
+              clause that changed, and it is the one a reader could otherwise only
+              discover by adding the rows up by hand. */}
+          <CardDescription>{month} · transfers excluded · pending included</CardDescription>
           <CardTitle className="text-base">By category</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2" data-testid="budget-list">
-            {rows.map((row) => (
+            {rows.map((row) => {
+              // O.6: the SPENT figure is the link — never the target beside it, which
+              // is a number the reader chose rather than a set of rows, and never the
+              // pair, which would claim the register adds up to "$412.30 / $500.00".
+              // `amountCents` is what makes that explicit at the call site.
+              const href = categoryMonthRegisterHref(
+                { categoryId: row.categoryId, month, amountCents: row.spentCents },
+                linkable,
+              );
+              const spent = formatCents(cents(row.spentCents));
+              return (
               <li key={row.categoryId} className="space-y-1" data-testid={`budget-row-${row.categoryId}`}>
                 <div className="flex items-baseline justify-between gap-2 text-sm">
                   <span>
@@ -101,8 +159,36 @@ export default async function BudgetsPage() {
                     )}
                   </span>
                   <span className="flex items-baseline gap-2">
+                    {/* O.6 critic P2-8: with every other row now tappable, the
+                        uncategorized row was the one dead figure on the card and
+                        said nothing about why. /reports already solved this — send
+                        it to the inbox that drains it, which is the destination
+                        that can actually act on it (the register's category select
+                        cannot even display the placeholder, which is why the href
+                        builder refuses it). */}
+                    {href === null && row.categoryId === 'uncategorized' && (
+                      <Link
+                        href="/triage"
+                        className="whitespace-nowrap text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      >
+                        review in Inbox →
+                      </Link>
+                    )}
                     <span className="tabular-nums">
-                      {formatCents(cents(row.spentCents))}
+                      {href === null ? (
+                        spent
+                      ) : (
+                        <Link
+                          href={href}
+                          data-testid={`budget-category-link-${row.categoryId}`}
+                          // WCAG 2.5.3: the visible label is the amount alone, so the
+                          // accessible name must contain that same string verbatim.
+                          aria-label={`${row.name}: ${spent} spent this month — view these transactions`}
+                          className={CATEGORY_LINK_CLASS}
+                        >
+                          {spent}
+                        </Link>
+                      )}
                       {row.budgetCents !== null && (
                         <span className="text-muted-foreground"> / {formatCents(cents(row.budgetCents))}</span>
                       )}
@@ -135,7 +221,8 @@ export default async function BudgetsPage() {
                   </>
                 )}
               </li>
-            ))}
+              );
+            })}
             {rows.length === 0 && (
               <p className="text-sm text-muted-foreground">No spending recorded yet this month.</p>
             )}

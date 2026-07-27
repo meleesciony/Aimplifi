@@ -72,7 +72,16 @@ test('Reports: a category figure links to a register that nets to the same amoun
   await expect(page.getByTestId('txn-filter-category')).not.toHaveValue('');
 });
 
-test('Trends: category movers are deliberately NOT deep-linked (basis mismatch)', async ({ page }) => {
+/**
+ * O.6 — the inverse of the assertion that used to live here.
+ *
+ * This test previously asserted the movers card held NO category link, because
+ * `src/server/trends.ts` fed it POSTED-only rows and re-derived a null category
+ * from the descriptor, so a figure here could exceed what the register shows.
+ * O.6 removed both narrowings, which is exactly the confrontation that assertion
+ * existed to force — so it is replaced by its opposite rather than deleted.
+ */
+test('Trends: a category mover deep-links to the month it was summed over', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
@@ -82,16 +91,81 @@ test('Trends: category movers are deliberately NOT deep-linked (basis mismatch)'
 
   const movers = page.getByTestId('trends-movers');
   await expect(movers).toBeVisible();
-  // Anti-vacuity: the card must actually be showing movers, or "no link" is
-  // trivially true and this lock would rot into an assertion about an empty box.
+  // Anti-vacuity: the card must actually be showing movers, or every assertion
+  // below passes over an empty box.
   await expect(movers.locator('li')).not.toHaveCount(0);
 
-  // `src/server/trends.ts:22` feeds the movers POSTED rows only (and re-derives a
-  // null category from the descriptor at :32), while the register filters neither
-  // way — so a month figure here can exceed what the register would show, and a
-  // link would land the reader on a DIFFERENT number than the one they clicked.
-  // /budgets is excluded for the same POSTED-only reason. Re-adding a link here
-  // means first making the two bases agree (which changes displayed money and
-  // needs its own slice), so this assertion is the thing that must be confronted.
-  await expect(movers.locator('a[href*="/transactions?category="]')).toHaveCount(0);
+  // EVERY mover row carries a link — no dead rows (O.6 critic P1-2). The builder
+  // briefly refused a figure of $0.00, and on this card that lands on the single
+  // most surprising row: a category that fell to nothing is on the page BECAUSE it
+  // moved, and sorts first by absolute delta, so it rendered dead beside four live
+  // ones. The demo has exactly that row ("Travel · $0.00 vs $489.98 usual"), which
+  // is why this count equality is not a formality.
+  const rowCount = await movers.locator('li').count();
+  await expect(movers.locator('[data-testid^="mover-category-link-"]')).toHaveCount(rowCount);
+
+  // For the reconciliation itself, pick a row with money in it: a $0.00 mover is
+  // legitimately linkable but its destination is an empty register, which cannot
+  // discriminate a right window from a wrong one.
+  const links = await movers.locator('[data-testid^="mover-category-link-"]').all();
+  let link = links[0];
+  let clickedCents = 0;
+  for (const candidate of links) {
+    const value = parseCents(await candidate.innerText());
+    if (value > 0) {
+      link = candidate;
+      clickedCents = value;
+      break;
+    }
+  }
+  // The link is nailed to `currentCents` — the month total — and NOT to the delta,
+  // which is the biggest number on the row and is a difference between two months
+  // rather than a sum of any rows.
+  expect(clickedCents).toBeGreaterThan(0); // anti-vacuity: a real figure was read
+
+  // The window must be the COMPARED month (the last completed one), not the
+  // in-progress month the rest of the page is about. Carrying the wrong month is
+  // the one mistake here that still produces a plausible-looking register.
+  const href = new URL((await link.getAttribute('href'))!, 'http://localhost');
+  const from = href.searchParams.get('from')!;
+  expect(href.searchParams.get('to')!.slice(0, 7)).toBe(from.slice(0, 7));
+  // The demo clock is pinned (business-today.ts: DEMO_USER_ID → DEFAULT_AS_OF =
+  // 2026-06-10), so the last COMPLETED month is May and the link must say so. An
+  // in-progress-month window here would be the wrong rows under a right-looking
+  // URL, which is why this is pinned rather than merely shape-matched.
+  expect(from).toBe('2026-05-01');
+
+  await link.click();
+  await page.waitForURL('**/transactions?category=**');
+  const netCents = parseCents(await page.getByTestId('summary-net').innerText());
+  expect(-netCents).toBe(clickedCents);
+  await expect(page.getByTestId('txn-filter-category')).not.toHaveValue('');
+});
+
+test('Budgets: a spend figure links to a register that nets to the same amount', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+
+  await clickMoreNav(page, 'nav-budgets');
+  await page.waitForURL('**/budgets');
+
+  // Selected by testid, not positionally: a row whose figure is $0.00 (a target
+  // with no spend yet) is deliberately NOT a link, and rows are sorted by spend
+  // so the linkable ones lead — but the testid is what makes that non-accidental.
+  const link = page.locator('[data-testid^="budget-category-link-"]').first();
+  await expect(link).toBeVisible();
+  const clickedCents = parseCents(await link.innerText());
+  expect(clickedCents).toBeGreaterThan(0);
+
+  const href = new URL((await link.getAttribute('href'))!, 'http://localhost');
+  expect(href.searchParams.get('from')).toMatch(/^\d{4}-\d{2}-01$/);
+
+  await link.click();
+  await page.waitForURL('**/transactions?category=**');
+  // The whole point of O.6: this equality was FALSE before the basis was unified,
+  // by the value of any pending charge in the month.
+  const netCents = parseCents(await page.getByTestId('summary-net').innerText());
+  expect(-netCents).toBe(clickedCents);
+  await expect(page.getByTestId('txn-filter-category')).not.toHaveValue('');
 });

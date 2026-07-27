@@ -27,19 +27,57 @@ import { monthWindow } from '@/lib/dates';
 export const REGISTER_PATH = '/transactions';
 
 /**
+ * The one visual treatment for a figure that drills into the register (O.6
+ * critic P1-1).
+ *
+ * These shipped for one critic cycle as `hover:underline` only. Measured at 380px
+ * on the golden viewport: no underline, no colour delta and no weight delta
+ * against the plain text beside them — the sole affordance was `:hover`, which
+ * does not exist on a phone. The owner's request was that a category figure be
+ * clickable; a link nobody can see is indistinguishable from not shipping it, and
+ * the /trends target is a 39×16px amount inside a line of ordinary text.
+ *
+ * A dotted underline is the affordance rather than a solid one because these are
+ * inline money figures inside sentences and totals, not navigation: it reads as
+ * "inspectable" without turning every amount on the page into link-blue. It stays
+ * visible on hover (solid) and keeps the focus ring for keyboard users.
+ *
+ * Exported from here, beside the builder, so the three surfaces cannot drift into
+ * three different affordances — the same reason the href has one author.
+ */
+export const CATEGORY_LINK_CLASS =
+  'rounded-sm underline decoration-dotted decoration-muted-foreground/70 underline-offset-2 ' +
+  'hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2';
+
+/**
  * A category figure and the inclusive day window it was summed over. Both dates
  * are REQUIRED: an href carrying a category but no window lands on the register's
  * default (all history), whose total is larger than any month figure that could
  * have been clicked — the failure this whole module exists to prevent. Making the
  * window a required part of the type means a caller with no window cannot build
  * the link at all, and has to come here and say why.
+ *
+ * `amountCents` is the figure the link ASSERTS the destination adds up to. Be
+ * precise about what it is and is not, because the first draft of this comment
+ * overclaimed and a critic executed the counter-example: passing 1, 48998 or
+ * 999999999 yields a byte-identical URL. It is a DECLARATION, not a guard, and it
+ * cannot catch a caller that names the wrong figure. What it buys is that the
+ * caller must name one at all, on two surfaces where the choice is genuinely
+ * ambiguous — a /trends mover row prints a delta (the largest, boldest number on
+ * the row), a baseline AVERAGE over up to three months, and the month's own total,
+ * and only the last is a set of rows any window can reproduce; a /budgets row
+ * prints spend AND a target. What actually catches a wrong choice is the
+ * per-surface reconciliation test, which reads the figure the page RENDERS and
+ * compares it against the register's own summary.
  */
-export interface CategoryWindow {
+export interface CategoryFigure {
   categoryId: string;
   /** Inclusive lower bound, YYYY-MM-DD. */
   from: string;
   /** Inclusive upper bound, YYYY-MM-DD. */
   to: string;
+  /** The figure clicked, in cents, as a spend amount (0 is legitimate — see below). */
+  amountCents: number;
 }
 
 /**
@@ -73,6 +111,21 @@ export interface CategoryWindow {
  * required argument rather than an optional one for the same reason a defaulted
  * fence fails silent.
  *
+ * A ZERO figure is NOT refused, and the reasoning is worth keeping because O.6
+ * shipped the opposite for one critic cycle. The argument for refusing was L.29:
+ * a true zero and a zero produced by an upstream defect look identical, so
+ * offering an empty register as "confirmation" seemed like the unsafe direction.
+ * That has it backwards. The register is the source of truth the figure is
+ * derived from, so following the link is exactly how the two get compared: if
+ * the surface says $0.00 and the register shows $300 of rows, the reader has
+ * just FOUND the defect. Refusing the link is what hides it.
+ *
+ * A critic then found the concrete cost of refusing: a /trends mover is on the
+ * page BECAUSE it moved, sorts first by absolute delta, and a category that fell
+ * to nothing ("Travel · $0.00 vs $489.98 usual") is the most interesting row
+ * there — it was rendered dead, unexplained, beside four live ones. An empty
+ * destination is a real answer to "did I really spend nothing on travel".
+ *
  * Param names are the ones `transactions/page.tsx` reads (`category`, `from`,
  * `to`). `URLSearchParams` handles encoding, which matters for CUSTOM category
  * ids — system ids are slugs like `groceries`, but a user-created category's id
@@ -80,10 +133,11 @@ export interface CategoryWindow {
  * the far side.
  */
 export function categoryRegisterHref(
-  { categoryId, from, to }: CategoryWindow,
+  { categoryId, from, to, amountCents }: CategoryFigure,
   linkable: ReadonlySet<string>,
 ): string | null {
   if (!linkable.has(categoryId)) return null;
+  void amountCents; // declared by the caller, not used to build the string — see above
   const params = new URLSearchParams({ category: categoryId, from, to });
   return `${REGISTER_PATH}?${params.toString()}`;
 }
@@ -91,16 +145,22 @@ export function categoryRegisterHref(
 /**
  * The register, filtered to one category over one calendar month ("YYYY-MM").
  *
- * The common case by far: `/reports`, the dashboard breakdown and the trends
- * movers all sum whole calendar months (`spendingByCategory` windows by month
- * key), so they hand over the month they displayed and the day boundaries are
- * derived by the tested date module instead of at each call site.
+ * The common case by far — after O.6 it is every case: `/reports`, `/trends`
+ * movers and `/budgets` rows all sum whole calendar months
+ * (`spendingByCategory` windows by month key), so they hand over the month they
+ * displayed and the day boundaries are derived by the tested date module
+ * instead of at each call site.
+ *
+ * Takes an object rather than positional arguments deliberately: `categoryId`
+ * and `month` are both strings, so a positional signature accepts them
+ * transposed without a type error, and the resulting link would filter by a
+ * category named "2026-06" over a window derived from a category id — an empty
+ * register, no error anywhere.
  */
 export function categoryMonthRegisterHref(
-  categoryId: string,
-  month: string,
+  { categoryId, month, amountCents }: { categoryId: string; month: string; amountCents: number },
   linkable: ReadonlySet<string>,
 ): string | null {
   const { from, to } = monthWindow(month);
-  return categoryRegisterHref({ categoryId, from, to }, linkable);
+  return categoryRegisterHref({ categoryId, from, to, amountCents }, linkable);
 }
