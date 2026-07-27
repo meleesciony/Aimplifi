@@ -31,8 +31,9 @@ export class DemoProvider implements DataProvider {
   }
 
   async syncTransactions(): Promise<SyncResult> {
-    // Demo data is static; nothing to sync.
-    return { added: 0, modified: 0, removed: 0, nextCursor: null };
+    // Demo data is static; nothing to sync — and nothing derived is recomputed either,
+    // so there is never anything for the caller to re-render (L.28).
+    return { added: 0, modified: 0, removed: 0, nextCursor: null, derivedChanged: false };
   }
 
   async getFinanceSnapshot(userId: string): Promise<FinanceSnapshot> {

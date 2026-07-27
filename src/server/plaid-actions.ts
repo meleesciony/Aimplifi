@@ -8,6 +8,8 @@
  * preserving the zero-credential demo.
  */
 import { revalidatePath } from 'next/cache';
+import { accountShapeDigest } from '@/server/sync-change-digest';
+import { revalidateAfterSync } from '@/server/sync-revalidate';
 import { prisma } from '@/lib/db';
 import { DEMO_CONNECT_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { PlaidProvider } from '@/lib/providers/plaid';
@@ -166,10 +168,13 @@ export async function linkPlaidAccount(publicToken: string): Promise<LinkResult>
     } catch {
       // no Investments product or not yet generated — non-fatal
     }
-    revalidatePath('/accounts');
-    revalidatePath('/transactions');
-    revalidatePath('/dashboard');
-    revalidatePath('/investments');
+    // The SAME list every other sync path uses (critic P1-1). This was a third
+    // hand-maintained set of four paths, and first link is the one moment a user goes
+    // from ZERO detected scheduled projections to N — so `/spending-plan`, the page
+    // whose guilt-free breakdown is summed from exactly those rows, was left stale by
+    // the code path that first fills it, along with /forecast, /calendar, /cards,
+    // /coach, /recurring and the rest.
+    revalidateAfterSync();
     // The follow-on syncs above are user-wide, so on the refused path they refresh the
     // connection that was KEPT — which is what "it just refreshes" has to mean to be true.
     if (outcome.kind === 'already-connected') {
@@ -255,6 +260,26 @@ export async function updatePlaidWebhooksNow(): Promise<WebhookBackfillResult> {
 
 export interface PlaidSyncNowResult {
   ok: boolean;
+  /**
+   * Did this sync move ANYTHING the server render shows? (L.28.)
+   *
+   * `AutoSync` runs on every full page load and re-renders only when this is true, so
+   * a mutation missing from this answer is a page that goes on painting a stale
+   * figure. The predicate used to live in that client component and read `added` and
+   * `statementsWritten` alone — every other thing a sync writes was invisible to it.
+   * The owner's live syncs reported `added: 0, statementsWritten: 0` while L.26's
+   * re-keying rewrote his detected scheduled projections from 0 rows to 8
+   * ($684.31/month), so the very load that repaired his guilt-free breakdown
+   * re-painted the stale $0.00 and only the NEXT load showed the money.
+   *
+   * It is computed HERE, not in the client, for two reasons: this is where every
+   * count is in scope, and this is where a test can reach it — `auto-sync.tsx` is a
+   * `'use client'` component with no test in the repo, so a side-effect added to the
+   * sync below is now one `||` away from being seen instead of needing a matching
+   * edit in a file nothing guards. REQUIRED, so no return path can omit it and
+   * inherit the old silence by default.
+   */
+  changed: boolean;
   /** Transactions ingested this run. Undefined ONLY when the half never ran. */
   added?: number;
   /**
@@ -297,18 +322,18 @@ const SYNC_WINDOW_MS = 60_000;
 export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult> {
   try {
     const userId = await requireUserId();
-    if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
-    if (!plaidConfigured()) return { ok: false, error: 'Bank linking isn’t configured yet.' };
+    if (isDemoUser(userId)) return { ok: false, changed: false, error: DEMO_CONNECT_BLOCKED };
+    if (!plaidConfigured()) return { ok: false, changed: false, error: 'Bank linking isn’t configured yet.' };
     // A server-action argument is attacker-controlled: TypeScript's `string` is
     // erased at the boundary, so a crafted POST can send any JSON. Unvalidated,
     // `itemId = {not:'x'}` reached the Prisma `where` verbatim, matched EVERY item,
     // passed the ownership gate, and turned "sync this one bank" into "sync all of
     // them" (critic P1-1, executed). Scalar-validate at the boundary, like #271.
     if (itemId !== undefined && (typeof itemId !== 'string' || itemId.trim() === '')) {
-      return { ok: false, error: 'That bank isn’t connected.' };
+      return { ok: false, changed: false, error: 'That bank isn’t connected.' };
     }
     if (!(await rateLimitDurable(`plaid-sync:${userId}`, SYNC_LIMIT, SYNC_WINDOW_MS))) {
-      return { ok: false, error: 'Too many syncs — give it a minute and try again.' };
+      return { ok: false, changed: false, error: 'Too many syncs — give it a minute and try again.' };
     }
     // Scoped count doubles as the ownership check for a per-connection sync: a
     // foreign itemId counts 0 and is refused, never silently syncing nothing.
@@ -316,15 +341,39 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
       where: { userId, ...(itemId ? { itemId } : {}) },
     });
     if (items === 0) {
-      return { ok: false, error: itemId ? 'That bank isn’t connected.' : 'No Plaid banks are connected.' };
+      return { ok: false, changed: false, error: itemId ? 'That bank isn’t connected.' : 'No Plaid banks are connected.' };
     }
 
     const provider = new PlaidProvider();
+    // Accumulates across every half below. Each `= true` marks a write this sync made
+    // to something a page renders; see PlaidSyncNowResult.changed for why it is summed
+    // here rather than in the caller.
+    let changed = false;
+    // The account rows as they stand BEFORE any half runs. Counters cannot see the
+    // biggest writer in the sync — `syncAccountsForItem` rewrites every balance and
+    // creates new rows returning `void`, and `syncLiabilities` writes APR, due day,
+    // cycle-close day and loan minimums while counting only statements — so the rows
+    // are compared instead of the writers enumerated (critic P0-1; see
+    // sync-change-digest.ts). Best-effort: a digest read must never fail a sync, and
+    // failing to read it simply leaves the other signals to answer.
+    let accountsBefore: string | null = null;
+    try {
+      accountsBefore = await accountShapeDigest(userId);
+    } catch {
+      /* the counters below still answer for everything they cover */
+    }
     let added: number | undefined;
     let txError: string | undefined;
     try {
       const sync = await provider.syncTransactions(userId, { itemId });
       added = sync.added;
+      // Not just `added`. A pending row turning posted (`modified`) or vanishing
+      // (`removed`) rewrites the register and the balances it feeds while adding
+      // nothing, and `derivedChanged` carries the transfer flags plus the recurring
+      // series and scheduled projections recomputed at the tail of the ingest.
+      if (sync.added > 0 || sync.modified > 0 || sync.removed > 0 || sync.derivedChanged) {
+        changed = true;
+      }
       // A per-item failure is ISOLATED inside the provider — audited, recorded on the
       // item, and stepped over so one bad bank can't cost the others their data. That
       // isolation used to end the story: the caller saw `added: 0` and no error, so the
@@ -357,6 +406,7 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
     try {
       const liab = await provider.syncLiabilities(userId, { itemId });
       statementsWritten = liab.statementsWritten;
+      if (liab.statementsWritten > 0) changed = true;
       // Unsupported items (depository-only — the issuer's own "no liability data
       // here") are not failures: a checking-only bank must not paint the Sync
       // button red every tap (#277 P2). Failed = every item that COULD have
@@ -374,6 +424,8 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
     // starts working. NEVER fatal: a webhook-registration problem must not turn a
     // successful data pull into a red error.
     try {
+      // Deliberately NOT folded into `changed`: a webhook URL is plumbing, rendered on
+      // no page, so registering one is not a reason to re-render anything.
       await provider.updateWebhooks(userId, { itemId });
     } catch {
       /* provider isolates + audits per-item failures; a total failure is non-fatal here */
@@ -384,7 +436,10 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
     // are looked up, so a normal Sync tap labels Chase/Capital One the first time and
     // costs nothing thereafter. Cosmetic: never turns a successful data pull into an error.
     try {
-      await provider.syncInstitutions(userId, { itemId });
+      const inst = await provider.syncInstitutions(userId, { itemId });
+      // The bank's name IS rendered — this backfill is what turns "Connected bank"
+      // into "Chase" on /accounts — so the load that fills it in should show it.
+      if (inst.updated > 0) changed = true;
     } catch {
       /* provider isolates + audits per-item failures; a total failure is non-fatal here */
     }
@@ -394,24 +449,44 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
     // holdings hiccup must never turn a successful transaction/statement sync into a red
     // error. The /investments revalidation below then surfaces any updated positions.
     try {
-      await provider.syncHoldings(userId, { itemId });
+      const holdings = await provider.syncHoldings(userId, { itemId });
+      // Positions written or sold off change /investments and the net-worth total.
+      // `skipped` and `withheldNonUsd` are deliberately excluded: nothing was stored,
+      // so there is nothing new to paint.
+      if (holdings.upserted > 0 || holdings.removed > 0) changed = true;
     } catch {
       /* provider isolates + audits per-item failures; a total failure is non-fatal here */
     }
 
-    revalidatePath('/accounts');
-    revalidatePath('/dashboard');
-    revalidatePath('/transactions');
-    revalidatePath('/cards');
-    revalidatePath('/investments');
+    // Balances, new account rows, APRs, due days, cycle-close days and loan minimums —
+    // everything the counters above are blind to. Read AFTER every half, including the
+    // ones that threw: a half can write rows and then fail, and those rows are on the
+    // page either way.
+    if (accountsBefore !== null) {
+      try {
+        if ((await accountShapeDigest(userId)) !== accountsBefore) changed = true;
+      } catch {
+        /* leave `changed` to the other signals rather than guessing */
+      }
+    }
+
+    // Never let a revalidation blip discard a `changed` that was truthfully earned:
+    // this is the one unguarded statement after the writes, so an unguarded throw here
+    // would land in the outer catch and return `changed: false` over a real write.
+    try {
+      revalidateAfterSync();
+    } catch {
+      /* cache marking is best-effort; the client re-render is driven by `changed` */
+    }
 
     // Only a BOTH-halves failure is a failed sync; either half succeeding is real
     // progress the user should see rather than a red error.
     if (txError !== undefined && liabilitiesFailed) {
-      return { ok: false, error: 'Sync failed — please try again in a minute.' };
+      return { ok: false, changed, error: 'Sync failed — please try again in a minute.' };
     }
     return {
       ok: true,
+      changed,
       added,
       transactionsFailed: txError !== undefined,
       statementsWritten,
@@ -422,7 +497,14 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
     // `e.message` — and a Prisma validation error carries the deploy's absolute
     // paths, four lines of server source, the model shape and the raw userId, all
     // of which the UI renders verbatim in a role="alert" (critic P1-2, executed).
-    return { ok: false, error: 'Could not sync your banks — please try again in a minute.' };
+    // `changed: false` here means "we cannot say", not "nothing was written" — an
+    // earlier draft of this comment claimed the latter and a critic falsified it. Every
+    // half of the sync is individually guarded, and so now are the digest read and the
+    // revalidation that follow them, so the throws that can actually land here are the
+    // pre-sync ones (auth, the item count) which run before any write. It is stated as
+    // a limit rather than a guarantee because the accumulator is out of scope by the
+    // time we get here, and a false `changed: true` is the cheaper of the two errors.
+    return { ok: false, changed: false, error: 'Could not sync your banks — please try again in a minute.' };
   }
 }
 

@@ -64,6 +64,28 @@ export interface SyncResult {
    * (docs/lessons/an-empty-set-is-not-a-fact-about-money.md).
    */
   itemsFailed?: number;
+  /**
+   * True when this sync rewrote DERIVED rows the app renders — transfer flags, the
+   * recurring series, the detected scheduled projections — even though `added`,
+   * `modified` and `removed` may all be zero.
+   *
+   * Required, not optional, on purpose (L.28). The whole defect this closes was a
+   * change nobody had a field for: the caller re-renders the page only when a sync
+   * reports movement, and a sync that ingests no transaction can still rewrite every
+   * figure on the guilt-free breakdown — on the owner's live data L.26's re-keying
+   * turned 0 stored scheduled rows into 8 while reporting `added: 0`, so the very page
+   * load that repaired his data re-painted the stale $0.00. Optional would let a new
+   * provider omit it and inherit that silence, and the direction of that silence is a
+   * reader acting on a number the app has already superseded.
+   *
+   * Scope of that guarantee, since an earlier draft of this comment overstated it
+   * (critic P2-4): `required` binds real implementers and every literal construction
+   * site, which tsc checks. It does NOT bind test doubles — a `vi.fn()` erases the type
+   * at the mock boundary, so a partial `SyncResult` in a test still compiles and reads
+   * as `undefined` here. This field is therefore a contract for providers, not a
+   * guarantee about the fixtures that stand in for them.
+   */
+  derivedChanged: boolean;
 }
 
 export interface DataProvider {

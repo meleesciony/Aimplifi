@@ -6,6 +6,7 @@
  * persist them (full replace). Pure detection lives in engine/recurring/detect.ts;
  * this is the thin server-side persist.
  */
+import type { Prisma } from '@/generated/prisma/client';
 import { type ISODate, isoDate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import {
@@ -84,10 +85,82 @@ export async function getRecurring(userId: string): Promise<RecurringData> {
 /** Scheduled-row sources that are DERIVED from detection (and so safe to replace). */
 const DETECTED_SCHEDULED_SOURCES = ['payroll-detected', 'recurring'];
 
+/**
+ * A stable, id-free digest of the derived rows this function replaces — the input to
+ * "did this refresh actually move anything a reader can see?" (L.28).
+ *
+ * Each row's OWN `id` is excluded deliberately. The write below is a full
+ * delete-then-create, so every row is minted a new cuid on every single sync; an
+ * id-bearing comparison would answer "changed" every time, which is exactly as useless
+ * as never answering it, just in the opposite direction. The FOREIGN keys — `merchantId`
+ * and `accountId` — are INCLUDED and must stay so: they are stable across the replace,
+ * and a series re-keyed from a superseded predecessor onto the live account is the
+ * exact change L.26 exists to make (an earlier draft of this sentence said "ids are
+ * excluded", which would have told the next maintainer to delete that signal).
+ *
+ * Everything selected is a plain scalar — the four date-typed columns here
+ * (`priceChangedAt`, `lastSeenAt`, `nextExpectedAt`, `nextDate`) are all `String`
+ * YYYY-MM-DD, not `DateTime` — so this is an exact value comparison with no driver
+ * coercion sitting in the middle of it (the L.27 lesson: a driver-parsed value is not
+ * the stored value).
+ *
+ * Read on both sides of the write rather than diffing the built rows against the
+ * stored ones, so both halves come back through the same driver in the same shape and
+ * an `undefined` where the column holds `null` cannot masquerade as a change.
+ */
+async function derivedProjectionDigest(userId: string): Promise<string> {
+  const [series, scheduled] = await Promise.all([
+    prisma.recurringSeries.findMany({
+      where: { userId },
+      select: {
+        merchantId: true,
+        cadence: true,
+        typicalAmountCents: true,
+        lastAmountCents: true,
+        previousAmountCents: true,
+        possiblyUnused: true,
+        priceChangedAt: true,
+        lastSeenAt: true,
+        nextExpectedAt: true,
+        isSubscription: true,
+      },
+    }),
+    prisma.scheduledTransaction.findMany({
+      where: { account: { userId }, source: { in: DETECTED_SCHEDULED_SOURCES } },
+      select: {
+        accountId: true,
+        description: true,
+        amountCents: true,
+        nextDate: true,
+        cadence: true,
+        source: true,
+      },
+    }),
+  ]);
+  // Sorted, so a pure re-ordering of identical rows is not reported as a change.
+  return [...series.map((r) => JSON.stringify(r)), ...scheduled.map((r) => JSON.stringify(r))]
+    .sort()
+    .join('\n');
+}
+
 export async function refreshRecurringForUser(
   userId: string,
   today: ISODate,
-): Promise<{ series: number; scheduled: number }> {
+): Promise<{
+  series: number;
+  scheduled: number;
+  /**
+   * True when this run left the stored derived rows DIFFERENT from how it found them
+   * — a new bill detected, an amount moved, a projected date rolled forward, a series
+   * lapsed out, or a resumed income pause retired.
+   *
+   * It exists because a sync that ingests no transaction can still rewrite every
+   * figure on the guilt-free breakdown: on the owner's live data L.26's re-keying
+   * turned 0 stored scheduled rows into 8 ($684.31/month) during a sync that reported
+   * `added: 0`, and the page had no way to know it should re-render.
+   */
+  changed: boolean;
+}> {
   const txns = await prisma.transaction.findMany({
     // Spending accounts only — don't detect "recurring" from brokerage/loan activity (#62).
     where: {
@@ -158,10 +231,16 @@ export async function refreshRecurringForUser(
   // bill" — was FALSE and cost the owner every cash-paid bill on the guilt-free
   // breakdown: re-linking an account does not retire its bills, it moves them. They
   // are re-keyed onto the live successor below (L.26) rather than dropped.
-  const [user, accounts, terminalOf] = await Promise.all([
+  const [user, accounts, terminalOf, digestBefore] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, select: { id: true, type: true } }),
     activeTerminalSuccessorMap(userId),
+    // Read here because this is the last point in the function before anything is
+    // written. It is not free: the digest is two `findMany` calls and it runs again
+    // after the write, so the signal costs four queries per refresh over the user's
+    // own series and detected scheduled rows (tens of rows). Joining this `Promise.all`
+    // saves the before-read a sequential await, not the queries.
+    derivedProjectionDigest(userId),
   ]);
   // The key set IS `activeSupersededPredecessorIds` (same links, same effectiveness
   // rule) — read once, used for both halves of the boundary below.
@@ -199,6 +278,9 @@ export async function refreshRecurringForUser(
     select: { merchantCanonical: true },
   });
   let projectable = series;
+  let retiredConfirmations = 0;
+  /** Queued for the replace transaction below, so consent and rows commit together. */
+  let retireConfirmations: Prisma.PrismaPromise<unknown> | null = null;
   if (confirmations.length > 0) {
     const excluded = new Set<string>();
     const resumed: string[] = [];
@@ -211,9 +293,19 @@ export async function refreshRecurringForUser(
       projectable = series.filter((s) => !(s.isIncome && excluded.has(s.merchantCanonical)));
     }
     if (resumed.length > 0) {
-      await prisma.incomePauseConfirmation.deleteMany({
+      // Retiring a confirmation is not visible in the digest below — it lives in a
+      // third table — but it changes what the feed's HANDLED row says, so it counts.
+      //
+      // It is DEFERRED into the replace transaction rather than committed here (critic
+      // P2-1). Standing alone it committed on its own, so a throw anywhere after this
+      // point — inside `toScheduledTransactions`, or an FK/lock failure inside the
+      // `$transaction` — left the user's consent retired for good while the caller's
+      // catch reported that nothing had changed. It is now the same all-or-nothing as
+      // the rows it accompanies, which is what the providers' catch comments assert.
+      retireConfirmations = prisma.incomePauseConfirmation.deleteMany({
         where: { userId, merchantCanonical: { in: resumed } },
       });
+      retiredConfirmations = resumed.length;
     }
   }
   // RE-KEY A SERIES OFF A SUPERSEDED PREDECESSOR ONTO THE LIVE ACCOUNT (L.26).
@@ -258,7 +350,15 @@ export async function refreshRecurringForUser(
       where: { account: { userId }, source: { in: DETECTED_SCHEDULED_SOURCES } },
     }),
     prisma.scheduledTransaction.createMany({ data: scheduledRows }),
+    // Retiring a resumed income-pause confirmation rides along, so the user's consent
+    // and the projections it governs can never disagree after a partial failure.
+    ...(retireConfirmations ? [retireConfirmations] : []),
   ]);
 
-  return { series: seriesRows.length, scheduled: scheduledRows.length };
+  const digestAfter = await derivedProjectionDigest(userId);
+  return {
+    series: seriesRows.length,
+    scheduled: scheduledRows.length,
+    changed: digestAfter !== digestBefore || retiredConfirmations > 0,
+  };
 }

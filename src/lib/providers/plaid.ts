@@ -1499,18 +1499,33 @@ export class PlaidProvider implements DataProvider {
     // Re-derive isTransfer across the user's full set (descriptor + pair
     // matching), filing still-in-review pairs — shared helper, one
     // implementation for every sync source (#165).
-    await refreshTransferFlags(userId);
+    // GUARDED, like the recurring refresh below (critic P2-3). This runs after every
+    // transaction has committed, and it was the one unprotected step left: a throw here
+    // propagated out of a sync whose ingest had already succeeded, so the caller lost
+    // both the row counts and the change signal for work that is on the page.
+    let derivedChanged = false;
+    try {
+      const transfers = await refreshTransferFlags(userId);
+      // Honest counts: refreshTransferFlags returns what its guarded writes actually
+      // mutated, not what the stale read planned — so this is a real change, not a plan.
+      if (transfers.flagged + transfers.filed > 0) derivedChanged = true;
+    } catch {
+      // a derived re-classification; the ingest already succeeded
+    }
 
     // Recompute recurring series + the detected scheduled projections from the
     // freshly-ingested data (DECISIONS #22 tail). Best-effort: a derived-projection
     // failure must never fail the ingest itself.
     try {
-      await refreshRecurringForUser(userId, this.today(userId));
+      const refreshed = await refreshRecurringForUser(userId, this.today(userId));
+      if (refreshed.changed) derivedChanged = true;
     } catch {
-      // detection is a derived view; the ingest already succeeded
+      // detection is a derived view; the ingest already succeeded. Nothing was written
+      // either — the refresh replaces its rows in ONE transaction — so leaving
+      // `derivedChanged` alone here reports the truth rather than an unknown.
     }
 
-    return { added, modified, removed, nextCursor: lastCursor, itemsFailed };
+    return { added, modified, removed, nextCursor: lastCursor, itemsFailed, derivedChanged };
   }
 
   /**

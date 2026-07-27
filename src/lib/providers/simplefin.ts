@@ -355,7 +355,7 @@ export async function syncFromSimplefin(
   opts: { fullLookbackDays?: number } = {},
 ): Promise<SyncResult> {
   const conn = await prisma.simpleFinConnection.findUnique({ where: { userId } });
-  if (!conn) return { added: 0, modified: 0, removed: 0, nextCursor: null };
+  if (!conn) return { added: 0, modified: 0, removed: 0, nextCursor: null, derivedChanged: false };
 
   let result: SyncResult;
   try {
@@ -694,12 +694,24 @@ async function runSimplefinSync(
   // Cross-account transfer PAIRING (parity with Plaid; Hostile Critic CQ-5):
   // shared helper — flags opposite-amount pairs across the user's own accounts
   // (only ever ADDING flags) and files still-in-review pairs as 'transfer' (#165).
-  await refreshTransferFlags(userId);
+  // GUARDED, like the recurring refresh below (critic P2-3): this runs after the ingest
+  // has committed, so a throw here must not cost the caller a successful sync's counts.
+  let derivedChanged = false;
+  try {
+    const transfers = await refreshTransferFlags(userId);
+    // Same contract as the Plaid path: these are rows the guarded writes actually
+    // mutated, so they are a change the reader can see and should re-render for.
+    if (transfers.flagged + transfers.filed > 0) derivedChanged = true;
+  } catch {
+    // a derived re-classification; the ingest already succeeded
+  }
 
   try {
-    await refreshRecurringForUser(userId, today);
+    const refreshed = await refreshRecurringForUser(userId, today);
+    if (refreshed.changed) derivedChanged = true;
   } catch {
-    // derived projection — never fail the sync over it
+    // derived projection — never fail the sync over it. A throw means the replace
+    // transaction rolled back, so nothing changed and the flag stands as it is.
   }
   // Health bookkeeping (lastSyncedAt / lastSyncError) is done by the caller AFTER this
   // returns, so a bookkeeping-write blip is never misrecorded as a sync failure (see
@@ -710,5 +722,6 @@ async function runSimplefinSync(
     removed: pendingRemoved,
     nextCursor: null,
     holdings: { upserted: holdingsUpserted, removed: holdingsRemoved, skipped: holdingsSkipped, withheldNonUsd: holdingsWithheldNonUsd },
+    derivedChanged,
   };
 }

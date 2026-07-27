@@ -4,9 +4,14 @@
  * Auto-sync on page load (DECISIONS #91). Mounted once in the app layout, so it
  * runs on a full page load / refresh but NOT on client-side (soft) navigations —
  * the layout doesn't remount on those. That matches "sync whenever the site is
- * opened or refreshed". It calls the real SimpleFIN sync server action in the
- * background (never blocking render) and refreshes the server-rendered data only
- * if the sync actually ingested new rows.
+ * opened or refreshed". It calls the real sync server actions in the background
+ * (never blocking render) and refreshes the server-rendered data whenever a sync
+ * reports that it CHANGED something.
+ *
+ * That last clause used to read "only if the sync actually ingested new rows", which
+ * is precisely the bug L.28 fixed: a sync can ingest nothing and still rewrite the
+ * recurring series, the scheduled projections, every account balance, a card's due
+ * day and a bank's name. See the note above `router.refresh()` below.
  *
  * A short sessionStorage throttle coalesces rapid reloads / multiple tabs so a
  * refresh-happy user can't hammer the SimpleFIN bridge into a rate-limit (which
@@ -59,7 +64,7 @@ export function AutoSync({ enabled, plaid = false }: { enabled: boolean; plaid?:
         stampNow(STAMP_KEY);
         try {
           const r = await syncSimplefinNow();
-          if (r.ok && (r.added ?? 0) > 0) changed = true;
+          if (r.changed) changed = true;
         } catch {
           // best-effort background refresh — never surface a failure to the user
         }
@@ -71,13 +76,27 @@ export function AutoSync({ enabled, plaid = false }: { enabled: boolean; plaid?:
         stampNow(PLAID_STAMP_KEY);
         try {
           const r = await syncPlaidNow();
-          if (r.ok && ((r.added ?? 0) > 0 || (r.statementsWritten ?? 0) > 0)) changed = true;
+          if (r.changed) changed = true;
         } catch {
           // same contract as above
         }
       }
       // Only re-fetch server data when something actually changed — a no-change
       // sync shouldn't trigger a full re-render on every load.
+      //
+      // The two actions above answer that in ONE field each, computed server-side over
+      // every write the sync made (L.28). This used to be decided here, from `added`
+      // and `statementsWritten`, and everything else a sync writes was invisible to it:
+      // the owner's live syncs reported both as zero while L.26's re-keying rewrote his
+      // detected scheduled projections from 0 rows to 8, so the very load that repaired
+      // his guilt-free breakdown re-painted the stale $0.00 and only the NEXT load
+      // showed the money. Keep the enumeration on the server, where a test can reach it
+      // — this file is the one place in the chain nothing can assert on.
+      //
+      // `changed` is read WITHOUT an `ok` guard on purpose: it is a claim about what
+      // was written, and a sync whose transaction half failed can still have stored a
+      // card statement or a bank name. Both actions set it to false on every path that
+      // wrote nothing.
       if (!cancelled && changed) router.refresh();
     })();
 

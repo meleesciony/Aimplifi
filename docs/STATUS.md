@@ -42,25 +42,113 @@ UTC, or simply his next full page load — re-run
 `cmqisanqh…` to go 0 → 8. That is the moment "fixed & recurring expenses" becomes $684.31/mo
 (verified arithmetic: $176.79 + $146.40 + $166.67 × 26 ÷ 12 = $684.31).
 
-### 🟠 OPEN — the page that triggers the fix will not show it (found reading `auto-sync.tsx`)
+### ~~🟠 OPEN — the page that triggers the fix will not show it~~ → **FIXED 2026-07-27 (L.28, below)**
 
-`AutoSync` (`src/components/auto-sync.tsx:70-81`) fires `syncPlaidNow()` on a full page load, which
-runs the refresh and writes the 8 rows — and then re-renders **only** when something "changed":
+The finding stands as written: `changed` counted newly ingested transactions and statements and
+nothing else, so the load that finally wrote the owner's 8 scheduled rows would still have painted
+the stale **$0.00**, and only the *next* load would have shown $684.31. It is now closed — every
+sync reports a single `changed` field computed server-side over every write it made. The interim
+advice ("reload once more") is no longer needed once the fix is deployed.
 
-```ts
-if (r.ok && ((r.added ?? 0) > 0 || (r.statementsWritten ?? 0) > 0)) changed = true;
-…
-if (!cancelled && changed) router.refresh();
-```
+## ✅ BUILT 2026-07-27 — L.28: a sync that rewrites a figure tells the page to re-render
 
-`changed` counts newly ingested transactions and statements. It does **not** count the derived
-projections `refreshRecurringForUser` rewrites in the same call. The owner's recent syncs all report
-`addedTransactions: 0, statementsWritten: 0`, so `changed` will be false: the load that finally
-fixes his data will still paint the stale server render — **$0.00** — and only the *next* load shows
-$684.31. Four sessions of "did it work?" end in a page that says no on the very load that made it
-yes. A sync that rewrites a figure the page displays is a change the page should re-render for;
-`syncPlaidNow`'s result carries no signal for it today. Not fixed here — needs a slice, and the
-honest interim answer to "I opened it and it still says $0.00" is **reload once more**.
+**What was wrong.** The re-render predicate lived in `auto-sync.tsx`, a `'use client'` file with no
+test in the repo, and read two numbers out of the sync result. Everything else a sync writes was
+invisible to it — most importantly the derived `RecurringSeries` + `ScheduledTransaction` rows that
+`refreshRecurringForUser` full-replaces at the tail of every ingest, which are what the
+/spending-plan guilt-free breakdown, /forecast, /calendar and the cash radar are summed from.
+
+**The shape of the fix.** The question "did this sync move anything the page shows?" is now answered
+once, on the server, as a required `changed: boolean` on both sync actions:
+
+- `refreshRecurringForUser` returns `changed` by comparing an **id-free digest of the stored derived
+  rows** read before the write against one read after. Ids are excluded because the write is a full
+  delete-then-create, so an id-bearing comparison would answer "changed" every time. Both sides are
+  read through the same driver, so an `undefined` where the column holds `null` cannot pose as a
+  change. Every column of both models is in the digest except `id` and the constant `userId`.
+- `SyncResult.derivedChanged` is **required, not optional** — the whole defect was a change nobody
+  had a field for, and an optional field lets a new provider inherit that silence by default.
+- `syncPlaidNow` / `syncSimplefinNow` accumulate `changed` across every half: transactions
+  (including `modified`/`removed`, which rewrite the register while adding nothing and were dropped
+  at this boundary before), statements, holdings actually stored, and the institution-name backfill
+  that turns "Connected bank" into "Chase". Webhook registration is deliberately excluded — it is
+  rendered nowhere.
+- `auto-sync.tsx` now reads `r.changed` and nothing else, **without** an `r.ok` guard: `changed` is
+  a claim about what was written, and a sync whose transaction half failed can still have stored a
+  card statement. Both actions report `false` on every path that wrote nothing.
+- `src/server/sync-revalidate.ts` replaces two drifted `revalidatePath` lists with one. The Plaid
+  path never revalidated `/calendar` or `/coach`, and **neither list contained `/spending-plan`** —
+  the exact page the owner was watching report $0.00.
+
+**A defect I introduced and caught before the critics did.** The first draft of that shared list was
+still a *judgement* about which pages a sync touches, and the judgement was wrong twice in a row:
+`/settings` was excluded as "nothing a sync writes" while rendering the eligible-account list for
+the payment-account selector plus live transaction and statement counts, and `/trust` was excluded
+while rendering a categorization-accuracy sample that ingested rows feed. Both are the same defect
+this whole slice exists to close — an enumeration someone has to remember. The list is now every
+route under `src/app/(app)`, and `tests/unit/sync-revalidate.test.ts` walks that directory and fails
+in **both** directions: a page added without an entry, or an entry naming a route that does not
+exist.
+
+**Why a value digest rather than the cheaper count comparison** (the alternative the task named): a
+bill whose amount moves changes every figure on the page while changing no row count at all. That
+case is a test, and mutating the digest down to row counts turns it red on its own.
+
+### Critic cycle 1 — both critics FAIL: 2 P0 (one shared) + 3 P1 + 9 P2, all fixed and locked
+
+Two fresh-context critics, different lenses (wiring/narrowings; claims/failure-direction). They
+converged independently on the same P0, and each found one the other missed.
+
+**P0-A — the biggest writer in the sync was still invisible, proven by probe.** `syncAccountsForItem`
+rewrites `currentBalanceCents`, `availableBalanceCents`, `creditLimitCents`, `name`, `type`, `mask`,
+`subtype` and `currency` on EVERY sync, and creates whole new `Account` rows, and returns `void`.
+An INVESTMENT or LOAN account has **no transactions at all** — its balance is the only thing that
+ever moves — so net worth, /dashboard, /accounts, /trends and /reports would have stayed stale for a
+full page load, which is the exact failure this slice exists to end. The counter-summing design was
+the defect: it enumerated writers, and this slice began as proof that people forget. Fixed by
+`accountShapeDigest` — the same before/after technique, over `Account` with **no `select` at all**,
+so every current column and every column added later is covered without anyone remembering. That
+subsumes the critic's separate P1 about `syncLiabilities` writing APR, cycle-close day, due day and
+loan minimums while counting only statements.
+
+**P0-B — a resumed income-pause confirmation was retired outside the transaction.** Both critics
+found it; one proved it by probe. The `deleteMany` committed on its own BEFORE the replace
+transaction, so a throw at or after it destroyed the user's consent permanently while both
+providers' catch blocks asserted the opposite ("a throw means the replace transaction rolled back,
+so nothing changed") and reported no change to the page. It now rides inside the same
+`$transaction`, so consent and the projections it governs can never disagree.
+
+**P1 — a THIRD drifted `revalidatePath` list**, in `linkPlaidAccount`, 270 lines above one of the
+two already replaced, in the same file. First link is the one moment a user goes from zero scheduled
+projections to N, and it had the shortest list of the three.
+
+**P1 — `auto-sync.tsx`'s own module docblock still stated the retired contract** ("refreshes the
+server-rendered data only if the sync actually ingested new rows") eighty lines above the new
+comment saying the opposite; `docs/DECISIONS.md` #91 carried the same dead mechanism. Both
+re-derived.
+
+**P2s worth recording, all in claims I wrote:** "all six of these dates" (there are four); "costs no
+extra round trip" (it is four queries per refresh); "ids are excluded deliberately" (the FOREIGN
+keys are included and must be — a re-keyed `accountId` is exactly L.26's signal, so that sentence
+would have told the next maintainer to delete it); an over-claim that `required` binds test doubles
+(a `vi.fn()` erases the type, so it binds providers only); a test comment citing a case its body
+never reached (`ok:false` with `changed:true` was asserted by nothing); a test **named** for
+pre-sync refusals whose body failed both halves mid-sync, leaving all five hand-edited refusal
+returns uncovered; and a latent trap where a future `[param]` route would make the mechanical route
+test go green over an entry that marks nothing.
+
+**One critic claim I did NOT accept as stated, and softened instead of amplifying:** that the missing
+`/spending-plan` revalidation caused the owner's stale render. Every `(app)` route is authenticated
+and dynamic, so a missing entry cannot by itself produce a stale render on a full page load. The
+re-render fix is `changed` → `router.refresh()`; the list consolidation is hygiene. The critic
+flagged this as an unverified hypothesis and it is now written down as scope, not as a cause.
+
+**The vacuous-test trap I walked into and caught.** My first lock for P0-B passed — and passed
+against the OLD code too, because the fixture's confirmation resolved to `inert` (no income series
+under that canonical), so the retirement branch never ran. Rebuilt with four monthly $2,500 deposits
+whose last occurrence makes `confirmedPauseState` return `resumed`; it now fails on the old code
+with `expected +0 to be 1`, i.e. consent destroyed. A green test is a hypothesis until the mutation
+kills it.
 
 ## ✅ BUILT 2026-07-26 — L.26: a bill on a RE-LINKED account reaches the money (DECISIONS #315)
 
