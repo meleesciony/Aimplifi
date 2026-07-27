@@ -28,6 +28,19 @@ export interface TxnView {
   amountCents: number; // signed: outflow negative, inflow positive
   status: string; // PENDING | POSTED
   isTransfer: boolean;
+  /**
+   * The reader's own memo, verbatim, or null. REQUIRED rather than optional: a row
+   * shape that can silently omit it would let a surface render "no note" for a row
+   * that has one, and the note exists precisely so a charge is not a mystery.
+   */
+  note: string | null;
+  /**
+   * The tax drawer the reader put this row in — a `TaxClass` slug, or null when
+   * untagged. Stored and carried as a plain string; every surface narrows it through
+   * `isTaxClass` (src/lib/engine/tax/classes.ts) so an unrecognized value reads as
+   * untagged rather than as a class it is not.
+   */
+  taxClass: string | null;
   /** Owning merchant row id, if known — needed for "always for this merchant". */
   merchantId?: string | null;
   /** False for aggregate pseudo-merchants (Zelle/checks) — no merchant-wide rule. */

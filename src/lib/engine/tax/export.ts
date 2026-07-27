@@ -27,7 +27,17 @@
  *    Paying a credit card is the commonest example: the deductible charge is the
  *    purchase on the card, and counting the card payment too would double it.
  *
- * 4. THE YEAR IS THE TRANSACTION DATE, inclusive of both ends, on the calendar
+ * 4. A SPLIT PARENT IS A CONTAINER, NOT A CHARGE. When a reader splits a $300
+ *    pharmacy charge into $200 medical and $100 household, the app keeps the
+ *    original row as an `isSplitParent` container and the children carry the real
+ *    amounts. Counting the parent as well would report the money twice — the same
+ *    rule the register and the cash-needed assembler already enforce. Excluded and
+ *    counted (`excludedSplitParents`), never silently dropped. (Added when the
+ *    persistence half of this slice landed: the register hides split parents, so
+ *    nothing tagged one by hand, but the export reads the whole table and a row
+ *    tagged BEFORE it was split would otherwise have double-counted in silence.)
+ *
+ * 5. THE YEAR IS THE TRANSACTION DATE, inclusive of both ends, on the calendar
  *    date the app already stores (YYYY-MM-DD strings, no timezones — the
  *    `driver-parsed-timestamp` lesson). No settlement-date reasoning: the app has
  *    one business date per row and inventing a second would be a fabrication.
@@ -52,6 +62,11 @@ export interface TaxExportRow {
   status: string;
   /** True for a move between the reader's own accounts — see decision 3. */
   isTransfer: boolean;
+  /** True for the container row left behind by a split — see decision 4. REQUIRED,
+   *  not optional with a `false` default: a caller that does not know whether its
+   *  rows can contain split parents has to go and find out, and a default would let
+   *  the one caller that reads the raw table double-count in silence. */
+  isSplitParent: boolean;
   /** The reader's tag. Anything unrecognized reads as untagged (`isTaxClass`). */
   taxClass: string | null;
   /** The reader's own note, carried VERBATIM. Never parsed, never summed. */
@@ -87,6 +102,7 @@ export interface TaxExport {
   /** Tagged rows the year excluded, by reason, so a short total is explainable. */
   excludedPending: number;
   excludedTransfers: number;
+  excludedSplitParents: number;
   /** Sentences that must travel with the figures. */
   disclosures: string[];
 }
@@ -103,6 +119,7 @@ export function buildTaxExport(rows: readonly TaxExportRow[], year: number): Tax
 
   let excludedPending = 0;
   let excludedTransfers = 0;
+  let excludedSplitParents = 0;
   const byClass = new Map<TaxClass, TaxExportLine[]>();
 
   for (const r of rows) {
@@ -112,6 +129,12 @@ export function buildTaxExport(rows: readonly TaxExportRow[], year: number): Tax
     if (r.date < from || r.date > to) continue;
     // Counted BEFORE the status/transfer gates so an excluded row is reported
     // rather than vanishing; a reader whose total looks short can see why.
+    // Split parents first: a container is not a charge at all, so it is not a
+    // transfer question or a pending question.
+    if (r.isSplitParent) {
+      excludedSplitParents += 1;
+      continue;
+    }
     if (r.isTransfer) {
       excludedTransfers += 1;
       continue;
@@ -170,6 +193,11 @@ export function buildTaxExport(rows: readonly TaxExportRow[], year: number): Tax
       `${excludedTransfers} tagged ${excludedTransfers === 1 ? 'row is a transfer' : 'rows are transfers'} between your own accounts and ${excludedTransfers === 1 ? 'is' : 'are'} not counted — a transfer pays nobody, and the charge it covers is already counted where it was made.`,
     );
   }
+  if (excludedSplitParents > 0) {
+    disclosures.push(
+      `${excludedSplitParents} tagged ${excludedSplitParents === 1 ? 'row was split' : 'rows were split'} into parts, so the original ${excludedSplitParents === 1 ? 'is' : 'are'} not counted — the parts carry the amounts, and counting both would report the money twice. Tag the parts instead.`,
+    );
+  }
   if (groups.length < TAX_CLASSES.length) {
     disclosures.push(
       'Only the groups you tagged something into appear. A group missing here means nothing was tagged to it, not that nothing qualified.',
@@ -183,6 +211,30 @@ export function buildTaxExport(rows: readonly TaxExportRow[], year: number): Tax
     totalRefundedCents,
     excludedPending,
     excludedTransfers,
+    excludedSplitParents,
     disclosures,
   };
+}
+
+/**
+ * The years this reader can actually export, most recent first.
+ *
+ * Deliberately computed with the SAME predicate `buildTaxExport` counts by — tagged,
+ * posted, not a transfer, not a split container — rather than "any row with a tag".
+ * A year offered in a list must produce a report with something in it; offering 2024
+ * and then handing back a page of disclosures and no groups is the empty-state
+ * failure the L.29 rule exists to prevent, and here it would arrive as a downloaded
+ * file the reader has to open to discover is blank.
+ */
+export function taxYearsWithTags(rows: readonly TaxExportRow[]): number[] {
+  const years = new Set<number>();
+  for (const r of rows) {
+    if (!isTaxClass(r.taxClass)) continue;
+    if (r.isSplitParent || r.isTransfer || r.status !== 'POSTED') continue;
+    // Every date here is a validated YYYY-MM-DD calendar date, so the year is its
+    // first four characters — no Date object, no timezone, no parse.
+    const year = Number(r.date.slice(0, 4));
+    if (Number.isInteger(year)) years.add(year);
+  }
+  return [...years].sort((a, b) => b - a);
 }

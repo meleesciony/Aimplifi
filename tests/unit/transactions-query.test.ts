@@ -57,6 +57,8 @@ function txn(over: Partial<TxnView> & Pick<TxnView, 'id' | 'date' | 'amountCents
     rawDescriptor: 'TEST',
     categoryId: 'shopping',
     categoryName: 'Shopping',
+    note: null,
+    taxClass: null,
     status: 'POSTED',
     isTransfer: false,
     provenance: { kind: 'merchant-default', label: 'Known merchant', needsConfirm: false },

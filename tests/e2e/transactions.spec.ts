@@ -560,3 +560,58 @@ test('register write-in sub-form Escape from the group select also steps back on
   await expect(page.getByTestId('category-menu')).toBeVisible();
   await expect(page.getByTestId('cat-search')).toBeVisible();
 });
+
+test('tag a transaction for tax, then export that year from settings (O.1)', async ({ page }) => {
+  // The whole slice in one flow, because that is what makes the columns real: a
+  // control that writes them, a row that reads them back, and a file that groups
+  // them. Throwaway user (#244) on its OWN manual row — the demo account is fenced
+  // out of this feature on purpose (one visitor's note would greet the next).
+  await signUpThrowaway(page);
+  await addManualAsset(page, 'E2E Tax Wallet', 'CHECKING', '1000');
+  await page.goto('/transactions/new');
+  const label = 'E2E Tax Pharmacy';
+  await page.getByTestId('txn-descriptor').fill(label);
+  await page.getByTestId('txn-amount').fill('42.10');
+  await page.getByTestId('txn-category').selectOption('pharmacy');
+  await page.getByTestId('txn-submit').click();
+  await page.waitForURL('**/transactions');
+
+  await page.getByTestId('txn-search').fill(label);
+  await page.getByTestId('txn-search').press('Enter');
+  const row = page.getByTestId('txn-row').filter({ hasText: label });
+  await expect(row).toBeVisible({ timeout: 20000 });
+
+  // Untagged rows advertise the control without asserting anything about the row.
+  const trigger = row.getByTestId('txn-tax-trigger');
+  await expect(trigger).toHaveAttribute('data-tagged', 'no');
+
+  await trigger.click();
+  await page.getByTestId('txn-tax-panel').waitFor();
+  await page.getByTestId('txn-tax-class').selectOption('medical');
+  await page.getByTestId('txn-tax-note').fill('Annual check-up, paid out of pocket');
+  await page.getByTestId('txn-tax-save').click();
+
+  // Assert on the TRIGGER, not the row: while the save is in flight the open panel
+  // still shows the selected option, so a row-level text assertion would pass before
+  // anything persisted (the same race the #36 recat spec documents).
+  const tagged = page.getByTestId('txn-row').filter({ hasText: label }).getByTestId('txn-tax-trigger');
+  await expect(tagged).toHaveAttribute('data-tagged', 'yes', { timeout: 20000 });
+  await expect(tagged).toContainText('Medical & dental', { timeout: 20000 });
+
+  // The year the reader just created now exists to export, and the file contains
+  // their line, their note, and the sentence that says this is not tax advice.
+  await page.goto('/settings');
+  const link = page.getByTestId('export-tax-year').first();
+  await expect(link).toBeVisible({ timeout: 20000 });
+  const href = await link.getAttribute('href');
+  expect(href).toContain('format=tax-year-csv');
+
+  const res = await page.request.get(href!);
+  expect(res.status()).toBe(200);
+  expect(res.headers()['content-disposition']).toContain('aimplifi-tax-');
+  const csv = await res.text();
+  expect(csv).toContain('Medical & dental');
+  expect(csv).toContain('Annual check-up, paid out of pocket');
+  expect(csv).toContain('not tax advice');
+  expect(csv).toContain('-42.10');
+});

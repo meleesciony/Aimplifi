@@ -27,6 +27,7 @@ import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getThresholdTuning } from '@/server/tuning';
 import { getLatestSelfAuditSnapshot } from '@/server/self-audit';
 import { listLearnedPhrases } from '@/server/vocab';
+import { getTaxYears } from '@/server/tax';
 import { LearnedPhrases } from '@/components/settings/learned-phrases';
 import { prisma } from '@/lib/db';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
@@ -41,7 +42,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/sign-in');
 
   const userId = session.user.id;
-  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy, tuning, selfAudit, learnedPhrases] =
+  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy, tuning, selfAudit, learnedPhrases, taxYears] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -74,6 +75,7 @@ export default async function SettingsPage() {
       getThresholdTuning(userId),
       getLatestSelfAuditSnapshot(userId),
       listLearnedPhrases(userId),
+      getTaxYears(userId),
     ]);
   const householdView = await getHouseholdView();
   if (!user) redirect('/sign-in');
@@ -161,6 +163,43 @@ export default async function SettingsPage() {
           >
             Net worth report (PDF)
           </a>
+        </CardContent>
+        {/* Tax-year export (O.1). One link per year the reader has actually tagged
+            something into, computed with the SAME predicate the report totals by —
+            never a year picker offering 2019, because a link that downloads an empty
+            file is a question the reader has to open a spreadsheet to answer. */}
+        <CardContent className="space-y-2 border-t pt-3" data-testid="tax-export">
+          <div>
+            <p className="text-sm font-medium">Tax year</p>
+            <p className="text-xs text-muted-foreground">
+              Everything you tagged — medical, child care, charitable and the rest — grouped by
+              category with a total for each. It&apos;s a record of your own tagging, not tax advice,
+              and Aimplifi decides nothing about what you can claim.
+            </p>
+          </div>
+          {taxYears.length === 0 ? (
+            <p className="text-xs text-muted-foreground" data-testid="tax-export-empty">
+              Nothing tagged yet. Open any transaction&apos;s tag on the{' '}
+              <Link href="/transactions" className="underline underline-offset-2">
+                transactions page
+              </Link>{' '}
+              to file it under a tax category, and the years you tag will appear here.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {taxYears.map((year) => (
+                <a
+                  key={year}
+                  href={`/api/export?format=tax-year-csv&year=${year}`}
+                  className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  data-testid="export-tax-year"
+                  data-year={year}
+                >
+                  {year} taxes (CSV)
+                </a>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

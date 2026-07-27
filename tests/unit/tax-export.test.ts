@@ -10,13 +10,14 @@
  * excluded and REPORTED, and the year is the transaction's own calendar date.
  */
 import { describe, expect, it } from 'vitest';
-import { buildTaxExport, type TaxExportRow } from '@/lib/engine/tax/export';
+import { buildTaxExport, taxYearsWithTags, type TaxExportRow } from '@/lib/engine/tax/export';
 import { TAX_CLASSES, TAX_CLASS_LABELS, isTaxClass, taxClassLabel } from '@/lib/engine/tax/classes';
 
 const row = (over: Partial<TaxExportRow> & Pick<TaxExportRow, 'date' | 'amountCents'>): TaxExportRow => ({
   description: 'Test Merchant',
   status: 'POSTED',
   isTransfer: false,
+  isSplitParent: false,
   taxClass: 'medical',
   note: null,
   ...over,
@@ -246,5 +247,74 @@ describe('what the export refuses to claim', () => {
     expect(out.totalPaidCents).toBe(0);
     expect(out.excludedPending).toBe(0);
     expect(out.disclosures[0]).toMatch(/not tax advice/i);
+  });
+});
+
+/**
+ * Added with the persistence half of the slice (O.1 part 2), when the export started
+ * reading the real table instead of a hand-built fixture.
+ */
+describe('decision 4 — a split parent is a container, not a charge', () => {
+  it('excludes the container and counts it, so the split is never double-counted', () => {
+    // A $300 pharmacy charge the reader split into $200 medical + $100 household.
+    // All three rows exist in the table; only the CHILD carries deductible money.
+    const x = buildTaxExport(
+      [
+        row({ date: '2025-03-01', amountCents: -30_000, isSplitParent: true, description: 'Walgreens' }),
+        row({ date: '2025-03-01', amountCents: -20_000, description: 'Walgreens' }),
+      ],
+      2025,
+    );
+    // $200.00 — the child alone. Counting the parent too would report $500.00.
+    expect(x.groups).toHaveLength(1);
+    expect(x.groups[0]?.paidCents).toBe(20_000);
+    expect(x.totalPaidCents).toBe(20_000);
+    expect(x.excludedSplitParents).toBe(1);
+    // Excluded is never silent: the reader whose total looks short can read why.
+    expect(x.disclosures.some((d) => d.includes('split into parts'))).toBe(true);
+  });
+
+  it('counts the container BEFORE the transfer and pending gates', () => {
+    // A split parent that is also pending is reported once, as a split parent —
+    // the reason a reader would act on ("tag the parts") is the useful one.
+    const x = buildTaxExport(
+      [row({ date: '2025-05-05', amountCents: -1_000, isSplitParent: true, status: 'PENDING' })],
+      2025,
+    );
+    expect(x.excludedSplitParents).toBe(1);
+    expect(x.excludedPending).toBe(0);
+    expect(x.groups).toHaveLength(0);
+  });
+});
+
+describe('taxYearsWithTags — the years worth offering', () => {
+  it('lists only years that would actually produce a group, most recent first', () => {
+    const years = taxYearsWithTags([
+      row({ date: '2023-06-01', amountCents: -1_000 }), // real
+      row({ date: '2025-01-02', amountCents: -2_500 }), // real
+      row({ date: '2025-12-31', amountCents: -100 }), // same year again
+      row({ date: '2024-04-04', amountCents: -900, status: 'PENDING' }), // nothing survives
+      row({ date: '2022-04-04', amountCents: -900, isTransfer: true }), // nothing survives
+      row({ date: '2021-04-04', amountCents: -900, isSplitParent: true }), // nothing survives
+      row({ date: '2020-04-04', amountCents: -900, taxClass: null }), // untagged
+      row({ date: '2019-04-04', amountCents: -900, taxClass: 'not-a-class' }), // unrecognized
+    ]);
+    expect(years).toEqual([2025, 2023]);
+  });
+
+  it('offers nothing when nothing is tagged, rather than the current year', () => {
+    expect(taxYearsWithTags([row({ date: '2025-02-02', amountCents: -500, taxClass: null })])).toEqual([]);
+  });
+
+  it('agrees with buildTaxExport: every year it offers has at least one group', () => {
+    // The contract that keeps a settings link from downloading an empty file.
+    const rows = [
+      row({ date: '2024-07-07', amountCents: -4_242 }),
+      row({ date: '2025-08-08', amountCents: -100, status: 'PENDING' }),
+    ];
+    for (const y of taxYearsWithTags(rows)) {
+      expect(buildTaxExport(rows, y).groups.length).toBeGreaterThan(0);
+    }
+    expect(taxYearsWithTags(rows)).toEqual([2024]);
   });
 });

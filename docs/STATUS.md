@@ -2,6 +2,73 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ⛔ OPEN BLOCKER 2026-07-27 — the e2e suite is flaky on `main`, so `verify.sh` cannot exit 0
+
+**Measured, not suspected, and it is NOT caused by the O.1 slice below.** Running the full gate
+on a *stashed clean tree* (no O.1 changes, full `next build`, quiet machine) fails **5** e2e specs;
+running it with the O.1 slice applied fails **2**. Across four full-suite runs the failing set
+rotated every time and never repeated:
+
+| run | tree | failures |
+|---|---|---|
+| 1 | O.1 applied | 6 (combined-accounts ×2, duplicate-connections ×3, reconcile ×1) |
+| 2 | O.1 applied | 1 (duplicate-connections) |
+| 3 | O.1 applied | 2 (combine-connections, combined-accounts) |
+| 4 | **clean `main`** | **5** (combine-connections, combined-accounts, duplicate-connections ×2, reconcile) |
+
+**Every failure is in the same family** — the /accounts reconciliation cards — and every one has the
+same signature: `getByTestId('reconcile-*')` resolves to **2 elements, both `hidden`**. The same
+spec files pass **16/16 in isolation**. Nothing in the O.1 diff touches /accounts, reconciliation,
+or connections.
+
+**Working hypothesis, NOT yet confirmed** (labelled per rule 0): Playwright runs 4 workers against
+one SQLite file, and these specs seed rows and then immediately `page.goto('/accounts')`; under
+write contention the page renders before the seed is visible, so both responsive copies of the card
+stay hidden. Confirming it means instrumenting one failing spec, which is its own task — see
+TASKS O.3.
+
+**Two things this costs, stated plainly:** (1) no slice can currently satisfy the Definition of
+Done's "verify green" on this machine, so the gate has stopped discriminating; (2) a real
+regression in those four spec files would now be invisible inside the noise. Do not weaken or
+retitle any of these specs to go green — they guard live defects (#296, L.9, slice-6).
+
+## ✅ BUILT 2026-07-27 — O.1 part 2: the tax columns, their control, and the tax-year file (DECISIONS #320)
+
+**Part 1 built the pure engine and stopped before the columns on purpose** — a persisted field with
+no editing control is the L.22 dead branch. Part 2 lands the rest of the path, together:
+
+- **Schema:** additive nullable `Transaction.note` and `Transaction.taxClass`. Free Strings, not
+  enums, so a class can be added later without migrating rows people have already tagged;
+  `isTaxClass` makes an unrecognized value read as UNTAGGED rather than land in the wrong total.
+- **The only writer:** `setTransactionTax` (`src/server/tax-actions.ts`). Validates the class,
+  normalizes the note through one pure `normalizeNote`, writes both fields together (so "I cleared
+  the note" and "I didn't touch it" cannot be the same message), and does ownership and write in
+  one `updateMany` so there is no window between the check and the write.
+- **The control:** a per-row panel on the register, opened from a compact trigger that sits on the
+  SAME line as the category chip. A second, independent controller — not a third mode inside the
+  category menu, whose #136/#167 two-step-confirm behaviour a note draft has no business sharing.
+- **The file:** `taxExportToCsv` + `/api/export?format=tax-year-csv&year=YYYY`, and a settings card
+  offering one link per year the reader has actually tagged into.
+
+**A fifth money decision the real table forced.** A SPLIT PARENT is a container, not a charge. The
+register hides split parents so nothing tags one by hand, but the export reads the whole table, and
+a row tagged BEFORE it was split would have counted the parent AND its children. `isSplitParent` is
+now REQUIRED on `TaxExportRow`, excluded and COUNTED, with its own disclosure.
+
+**The demo account is fenced out.** `recategorize`, the neighbouring register write, has no demo
+fence — but `demo-user.ts` states the rule: anything that accumulates a user's OWN input and shows
+it back is opted out, because every anonymous visitor is the same row. "Mum's prescription" typed
+by one visitor would greet the next. The panel still OPENS for a demo visitor, so the refusal
+explains the feature instead of hiding it. The note's TEXT is never audit-logged — only its length.
+
+**Verified:** `tsc` clean, `eslint` clean, **4579 unit tests / 289 files** (+32 tests, +2 files),
+`next build` clean, e2e **206 passed / 2 failed** — both failures the pre-existing flake above, on
+specs this slice does not touch. The new register→export e2e passes.
+
+**Still open from part 1, deliberately not built:** whether a tax class also derives from the
+CATEGORY as a default with a per-transaction override. Nobody should tag 200 pharmacy rows by hand,
+but a default that silently tags is worse than no default, so it needs its own slice.
+
 ## ✅ BUILT 2026-07-27 — L.30: a broken zero names its cause (DECISIONS #318)
 
 **L.29 gave every zero a label; this gives the fixed-expenses zero a REASON.** L.29 could only

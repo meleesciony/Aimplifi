@@ -3,6 +3,7 @@
  * auth + audit logging. Money is formatted at this boundary only.
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
+import { csvField } from '@/lib/csv';
 import { type Cents, cents, formatCents } from '@/lib/money';
 import { frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
@@ -15,18 +16,6 @@ export interface ExportTxn {
   category: string | null;
   amountCents: number;
   status: string;
-}
-
-/**
- * RFC-4180 quoting + spreadsheet-formula-injection neutralization: fields
- * beginning with = + - @ or a tab/CR get a leading apostrophe so Excel/Sheets
- * treats them as text, never as a formula (final critic finding P2-1).
- */
-function csvField(value: string): string {
-  const neutralized = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  return /[",\n\r]/.test(neutralized)
-    ? `"${neutralized.replace(/"/g, '""')}"`
-    : neutralized;
 }
 
 export function transactionsToCsv(rows: readonly ExportTxn[]): string {

@@ -158,6 +158,8 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     amountCents: t.amountCents,
     status: t.status,
     isTransfer: t.isTransfer,
+    note: t.note,
+    taxClass: t.taxClass,
     merchantId: t.merchantId,
     ruleEligible: isRuleEligibleMerchant(t.rawDescriptor),
     merchantCount: t.merchantId ? merchantCounts.get(t.merchantId) : undefined,

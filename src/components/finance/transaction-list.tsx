@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Check, Pencil, Receipt } from 'lucide-react';
+import { Check, Pencil, Receipt, Tag } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
@@ -24,7 +24,10 @@ import {
   CUSTOM_CATEGORY_GROUPS,
   filterCategoryOptions,
 } from '@/lib/engine/categorize/assign';
+import { TAX_CLASSES, TAX_CLASS_LABELS, taxClassLabel } from '@/lib/engine/tax/classes';
+import { TXN_NOTE_MAX_CHARS } from '@/lib/engine/tax/note';
 import { createCustomCategory } from '@/server/custom-category-actions';
+import { setTransactionTax } from '@/server/tax-actions';
 import { recategorize } from '@/server/triage-actions';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
@@ -34,6 +37,19 @@ import {
   provenanceBadgeView,
 } from '@/components/finance/provenance-badge';
 import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
+
+/**
+ * What the row's note/tax control says without being opened.
+ *
+ * The tag wins over the note because the tag is the thing a report groups by — a
+ * reader scanning for "did I tag this" needs to see the answer, and the note's
+ * contents are the reader's own prose, which has no business being printed into a
+ * dense register row it might not fit in. `taxClassLabel` returns null for a value
+ * this build does not recognize, which correctly reads as untagged.
+ */
+function taxTriggerLabel(t: TxnView): string {
+  return taxClassLabel(t.taxClass) ?? (t.note ? 'Note' : 'Tag');
+}
 
 function amountClass(t: TxnView): string {
   if (t.isTransfer) return 'text-muted-foreground';
@@ -101,6 +117,71 @@ export function TransactionList({
   const [newCatError, setNewCatError] = useState<string | null>(null);
   // Wraps the OPEN row's chip + menu so a mousedown outside it dismisses the picker.
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // --- Note + tax tag (O.1) ----------------------------------------------------
+  // A SECOND, independent controller rather than a third mode inside the category
+  // menu above: that menu carries the #136/#167 two-step-confirm behaviour and its
+  // own e2e locks, and threading an unrelated editor through `chosen`/`newCatOpen`
+  // would put a note draft one state transition away from a mis-file. Same
+  // single-open-row discipline, same deadline+reload write recipe, zero overlap.
+  const [taxOpenId, setTaxOpenId] = useState<string | null>(null);
+  const [taxDropUp, setTaxDropUp] = useState(false);
+  const [taxDraft, setTaxDraft] = useState<{ taxClass: string; note: string }>({ taxClass: '', note: '' });
+  const [taxBusy, setTaxBusy] = useState(false);
+  const [taxError, setTaxError] = useState<string | null>(null);
+  const taxRef = useRef<HTMLDivElement>(null);
+
+  const closeTax = useCallback(() => {
+    setTaxOpenId(null);
+    setTaxError(null);
+  }, []);
+
+  useEffect(() => {
+    if (taxOpenId == null) return;
+    function onDocMouseDown(e: MouseEvent) {
+      // Never abandon a half-typed note because of a stray outside click while the
+      // save is in flight — same rule the category menu follows.
+      if (taxBusy) return;
+      if (taxRef.current && !taxRef.current.contains(e.target as Node)) closeTax();
+    }
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [taxOpenId, closeTax, taxBusy]);
+
+  /** Save the note + tag together. Both fields always travel: the panel edits them
+   *  as one thing, so "cleared" and "untouched" must not be the same message. */
+  async function saveTax(t: TxnView) {
+    if (taxBusy) return;
+    setTaxError(null);
+    setTaxBusy(true);
+    let res;
+    try {
+      res = await withDeadline(
+        setTransactionTax({
+          transactionId: t.id,
+          taxClass: taxDraft.taxClass === '' ? null : taxDraft.taxClass,
+          note: taxDraft.note,
+        }),
+        FORM_ACTION_DEADLINE_MS,
+      );
+    } catch (e) {
+      if (e instanceof ActionDeadline) {
+        window.location.reload(); // write usually committed — re-sync (#164 rule)
+        return;
+      }
+      setTaxError('Could not save — nothing was changed. Try again.');
+      setTaxBusy(false);
+      return;
+    }
+    if (!res.ok) {
+      setTaxError(res.error);
+      setTaxBusy(false);
+      return;
+    }
+    // Full reload, never router.refresh(): the re-rendered row is the confirmation
+    // that can't lie (#167). `taxBusy` stays true until the new page arrives.
+    window.location.reload();
+  }
 
   const close = useCallback(() => {
     setOpenId(null);
@@ -306,6 +387,7 @@ export function TransactionList({
               {g.items.map((t) => {
                 const canAlways = Boolean(t.ruleEligible && t.merchantId);
                 const open = openId === t.id;
+                const taxOpen = taxOpenId === t.id;
                 const pv = provenanceBadgeView(t.provenance);
                 return (
                   <li
@@ -396,7 +478,136 @@ export function TransactionList({
                           {t.categoryName}
                           <Pencil className="size-3 opacity-50" aria-hidden />
                         </button>{' '}
-                        · <span className="break-all">{t.accountName}</span>
+                        · <span className="break-all">{t.accountName}</span>{' '}
+                        {/* Note + tax tag (O.1). Sits on the SAME line as the category
+                            chip on purpose: a control on its own line would add a line
+                            to every row in the register, and a uniform row-height shift
+                            is what broke the #136 confirm lock once already. Truncated
+                            rather than wrapping, so a long class label cannot grow the
+                            row either. */}
+                        <span ref={taxOpen ? taxRef : undefined} className="relative inline-block">
+                          <button
+                            type="button"
+                            data-testid="txn-tax-trigger"
+                            data-tagged={t.taxClass ? 'yes' : 'no'}
+                            aria-haspopup="dialog"
+                            aria-expanded={taxOpen}
+                            aria-label={`Note and tax tag for ${t.merchantName}`}
+                            className="tap-target inline-flex max-w-[9rem] items-center gap-1 rounded align-middle underline decoration-dotted decoration-muted-foreground/50 underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                            onClick={(e) => {
+                              if (taxOpen) {
+                                closeTax();
+                                return;
+                              }
+                              close(); // never leave the category picker open behind this
+                              setTaxDropUp(
+                                e.currentTarget.getBoundingClientRect().top > window.innerHeight * 0.55,
+                              );
+                              // The draft is seeded from the ROW, every time it opens, so
+                              // it can never inherit another row's half-typed note.
+                              setTaxDraft({ taxClass: t.taxClass ?? '', note: t.note ?? '' });
+                              setTaxError(null);
+                              setTaxOpenId(t.id);
+                            }}
+                          >
+                            <Tag className="size-3 shrink-0 opacity-50" aria-hidden />
+                            <span className="truncate">{taxTriggerLabel(t)}</span>
+                          </button>
+
+                          {taxOpen && (
+                            <div
+                              role="dialog"
+                              aria-label="Note and tax tag"
+                              data-testid="txn-tax-panel"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  const trigger = taxRef.current?.querySelector<HTMLButtonElement>(
+                                    '[data-testid="txn-tax-trigger"]',
+                                  );
+                                  closeTax();
+                                  trigger?.focus();
+                                }
+                              }}
+                              className={`absolute left-0 z-50 w-72 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-card p-2 text-left text-foreground shadow-lg ring-1 ring-foreground/10 ${
+                                taxDropUp ? 'bottom-full mb-1' : 'mt-1'
+                              }`}
+                            >
+                              <div>
+                                <label
+                                  className="mb-1 block text-[11px] font-medium text-muted-foreground"
+                                  htmlFor={`tax-class-${t.id}`}
+                                >
+                                  Tax category
+                                </label>
+                                <select
+                                  id={`tax-class-${t.id}`}
+                                  data-testid="txn-tax-class"
+                                  value={taxDraft.taxClass}
+                                  disabled={taxBusy}
+                                  onChange={(e) => setTaxDraft((d) => ({ ...d, taxClass: e.target.value }))}
+                                  className="w-full rounded-md border bg-background px-2 py-1.5 text-sm disabled:opacity-50"
+                                >
+                                  <option value="">Not tagged</option>
+                                  {TAX_CLASSES.map((c) => (
+                                    <option key={c} value={c}>
+                                      {TAX_CLASS_LABELS[c]}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label
+                                  className="mb-1 block text-[11px] font-medium text-muted-foreground"
+                                  htmlFor={`tax-note-${t.id}`}
+                                >
+                                  Note
+                                </label>
+                                <textarea
+                                  id={`tax-note-${t.id}`}
+                                  data-testid="txn-tax-note"
+                                  rows={2}
+                                  maxLength={TXN_NOTE_MAX_CHARS}
+                                  value={taxDraft.note}
+                                  disabled={taxBusy}
+                                  onChange={(e) => setTaxDraft((d) => ({ ...d, note: e.target.value }))}
+                                  placeholder="What was this? e.g. Mum's prescription"
+                                  className="w-full rounded-md border bg-background px-2 py-1.5 text-sm disabled:opacity-50"
+                                />
+                              </div>
+                              {taxError && (
+                                <p role="alert" className="text-xs text-red-400" data-testid="txn-tax-error">
+                                  {taxError}
+                                </p>
+                              )}
+                              <div className="flex gap-1.5">
+                                <button
+                                  type="button"
+                                  data-testid="txn-tax-save"
+                                  disabled={taxBusy}
+                                  className="tap-target inline-flex items-center justify-center rounded bg-primary px-2 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
+                                  onClick={() => saveTax(t)}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  data-testid="txn-tax-cancel"
+                                  disabled={taxBusy}
+                                  className="tap-target inline-flex items-center justify-center rounded px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
+                                  onClick={closeTax}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                              {/* The claim this feature refuses to make, said where the
+                                  tagging happens rather than only in the export. */}
+                              <p className="text-[11px] text-muted-foreground">
+                                Your own filing — Aimplifi doesn&apos;t decide what&apos;s deductible. Export a
+                                whole tax year from Settings.
+                              </p>
+                            </div>
+                          )}
+                        </span>
 
                         {open && (
                           <div

@@ -343,6 +343,16 @@ model Transaction {
   // user's own merchant rule silently auto-file it one cron interval later. The preserve
   // predicate respects this flag; every USER filing action clears it.
   reviewPinned  Boolean @default(false)
+  // The reader's own memo ("mum's prescription"). Free prose, carried VERBATIM
+  // everywhere — never parsed, never summed, never used to decide anything. Capped
+  // and trimmed at the write boundary by `normalizeNote` (src/lib/engine/tax/note.ts).
+  note          String?
+  // A tax-relevant drawer the READER put this row in — one of the closed set in
+  // src/lib/engine/tax/classes.ts, stored as its slug. A free String, not an enum, so a
+  // class can be added without migrating rows people have already tagged; anything
+  // unrecognized reads back as UNTAGGED via `isTaxClass` rather than landing in the
+  // wrong drawer's total. Encodes NO tax rule — see that module's header.
+  taxClass      String?
 
   account  Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   merchant Merchant? @relation(fields: [merchantId], references: [id])

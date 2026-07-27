@@ -12,6 +12,8 @@ import { categoryName } from '@/lib/engine/categorize/categories';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { activeSupersededPredecessorIds, getReconciliationTxnKeep } from '@/server/reconciliation';
 import { accountLabel } from '@/lib/engine/account/display-name';
+import { getTaxExport } from '@/server/tax';
+import { taxExportFilename, taxExportToCsv } from '@/lib/engine/tax/csv';
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -56,6 +58,34 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': 'attachment; filename="aimplifi-transactions.csv"',
+      },
+    });
+  }
+
+  // Tax-year export (O.1): the reader's own tags, grouped and totalled by class.
+  // The YEAR is required and never defaulted — guessing which year someone meant on a
+  // file they may hand to a preparer is exactly the kind of silent assumption this app
+  // does not make. The settings page offers one link per year that actually has data.
+  if (format === 'tax-year-csv') {
+    const rawYear = request.nextUrl.searchParams.get('year');
+    const year = Number(rawYear);
+    // 1900–2999 is not a tax rule, just a sane band that rejects a typo or a probe
+    // before it reaches a query; the engine does plain string date comparison, so a
+    // non-integer year would silently match nothing rather than fail.
+    if (rawYear == null || !/^\d{4}$/.test(rawYear) || year < 1900 || year > 2999) {
+      return NextResponse.json({ error: 'A four-digit `year` is required, e.g. ?year=2025' }, { status: 400 });
+    }
+    const report = await getTaxExport(userId, year);
+    const csv = taxExportToCsv(report);
+    await auditLog(userId, 'export.tax-year.csv', {
+      year,
+      groups: report.groups.length,
+      lines: report.groups.reduce((n, g) => n + g.lines.length, 0),
+    });
+    return new NextResponse(csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${taxExportFilename(year)}"`,
       },
     });
   }
