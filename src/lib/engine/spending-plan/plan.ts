@@ -40,15 +40,18 @@
  *    recurring income series at a monthly rate; with neither, 0 and the
  *    `incomeBasis: 'none'` fact — a surface may not invent an income.
  *  - Fixed/recurring expenses are the recurring outflows at a monthly
- *    rate (`monthlyRateCents`): weekly ×52/12, biweekly ×26/12, annual /12 — so
- *    an annual bill costs every month instead of none for eleven. The detected
- *    ANNUAL series reach this term since L.23 (`toScheduledTransactions` now
- *    projects annual EXPENSES; annual INCOME stays out, and the reason is
- *    written at that function). REMAINING GAP, recorded in docs/STATUS.md: a
- *    QUARTERLY or SEMIANNUAL bill contributes ZERO, because a ~91/182-day gap
- *    classifies as IRREGULAR in `cadenceFromGap` and `detectRecurring` drops
- *    it — the dangerous direction, and a new detection class rather than a
- *    passthrough. A purchase that is not a detected recurring series is NEVER
+ *    rate (`monthlyRateCents`): weekly ×52/12, biweekly ×26/12, quarterly /3,
+ *    twice-a-year /6, annual /12 — so a bill that arrives once a year costs
+ *    something every month instead of nothing for eleven. ANNUAL series reach
+ *    this term since L.23 and QUARTERLY/SEMIANNUAL since L.24; all three are
+ *    projected as EXPENSES only and only while still charging, and INCOME on
+ *    those rhythms stays out — the reasons are written at
+ *    `toScheduledTransactions`. REMAINING GAP, recorded in docs/STATUS.md: every
+ *    rhythm still classified IRREGULAR — bi-monthly (~61 days), six-weekly,
+ *    three-weekly, ten-day, and any gap in 36–83, 99–174, 191–349 or 381+ days —
+ *    contributes ZERO, which is the dangerous direction. Each would be a new
+ *    detection class of its own, not a passthrough. A purchase that is not a
+ *    detected recurring series is NEVER
  *    fixed — discretionary spending subtracts nowhere in this plan (the owner's
  *    formula: "not discretionary or budgeted for").
  *  - Card payments stay REAL: the cash-needed engine's own obligation rows due
@@ -73,6 +76,7 @@
  */
 import { addDays, addMonthsClamped, type ISODate } from '@/lib/dates';
 import { median } from '@/lib/stats';
+import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 
 /** Where the plan's income figure came from — every surface states it inline. */
 export type IncomeBasis = 'trailing-median' | 'detected-series' | 'none';
@@ -196,7 +200,8 @@ export function daysInMonth(year: number, month: number): number {
  *  - `nextDate <= today` contributes 0: the stale-anchor rule is unchanged and
  *    still anchored at the REAL today, never at the window's start;
  *  - a live anchor is then stepped forward by its cadence into the window —
- *    WEEKLY 7 days, BIWEEKLY 14, MONTHLY / ANNUAL by clamped calendar months
+ *    WEEKLY 7 days, BIWEEKLY 14, and MONTHLY / QUARTERLY / SEMIANNUAL / ANNUAL
+ *    by clamped calendar months (`monthsPerCadence`, the shared table)
  *    (a monthly income has an occurrence in EVERY month, which the in-month
  *    counter never had to know). KNOWN BOUND, recorded: the clamped chain
  *    drifts off 29/30/31-day anchors after a short month (Jan 31 → Feb 28 →
@@ -214,16 +219,15 @@ export function scheduledOccurrencesBetween(
   windowEnd: string,
 ): number {
   if (nextDate <= today) return 0;
+  const months = monthsPerCadence(cadence);
   const step = (d: ISODate): ISODate | null =>
     cadence === 'WEEKLY'
       ? addDays(d, 7)
       : cadence === 'BIWEEKLY'
         ? addDays(d, 14)
-        : cadence === 'MONTHLY'
-          ? addMonthsClamped(d, 1)
-          : cadence === 'ANNUAL'
-            ? addMonthsClamped(d, 12)
-            : null;
+        : months > 0
+          ? addMonthsClamped(d, months)
+          : null;
   let d = nextDate as ISODate;
   if (step(d) === null) {
     return d > windowStart && d <= windowEnd ? 1 : 0;
@@ -239,13 +243,22 @@ export function scheduledOccurrencesBetween(
 
 /**
  * A detected recurring amount at a MONTHLY rate: WEEKLY ×52/12, BIWEEKLY
- * ×26/12, MONTHLY ×1, ANNUAL /12 — the "pattern" the owner asked expenses to
- * be read from, so an annual premium costs every month. IRREGULAR/null counts
+ * ×26/12, MONTHLY ×1, QUARTERLY /3, SEMIANNUAL /6, ANNUAL /12 — the "pattern"
+ * the owner asked expenses to be read from, so an annual premium and a
+ * quarterly water bill each cost something every month. IRREGULAR/null counts
  * at face ×1: an unstable-gap series is the least predictable shape the
  * detector emits, and charging it whole is the SAFE direction (it can only
  * understate guilt-free; excluding it could tell someone to spend money a real
  * bill will demand). Math.round (half-up) — the same named rounding as the
  * savings target below; integer cents in, integer cents out.
+ *
+ * The SAME per-month factors live in `summary.ts`'s PER_MONTH, which feeds
+ * /recurring's headline. The two are NOT shared, on purpose: they disagree
+ * about IRREGULAR (0 there, ×1 here) and this one keeps its exact integer form
+ * (`amountCents × 52 / 12`, not `× 4.333…`) so no existing figure moves by a
+ * rounding ulp. They are held together by a test instead — a lock, not an
+ * abstraction — because L.23's defect was exactly two surfaces disagreeing
+ * about one recurring fact.
  */
 export function monthlyRateCents(amountCents: number, cadence: string | null): number {
   switch (cadence) {
@@ -253,11 +266,73 @@ export function monthlyRateCents(amountCents: number, cadence: string | null): n
       return Math.round((amountCents * 52) / 12);
     case 'BIWEEKLY':
       return Math.round((amountCents * 26) / 12);
+    case 'QUARTERLY':
+      return Math.round(amountCents / 3);
+    case 'SEMIANNUAL':
+      return Math.round(amountCents / 6);
     case 'ANNUAL':
       return Math.round(amountCents / 12);
     default:
       return amountCents;
   }
+}
+
+/**
+ * The cadences this plan SMOOTHS — each counted at a fraction of itself every
+ * month — with the reader-facing words for that fraction.
+ *
+ * ONE table because two surfaces disclose the smoothing (the glass-box basis
+ * and the dashboard's safe-to-spend card) and a third names the preconditions
+ * (/spending-plan). If they named different fractions for the same bill, that
+ * is the L.23 defect returning as copy instead of arithmetic. The `share` words
+ * must match what `monthlyRateCents` actually divides by — locked by a test,
+ * because a wrong fraction here is a false claim about the reader's money.
+ *
+ * `landing` / `cardLanding` / `planLine` exist because the L.24 copy critic
+ * caught the generalization lifting ANNUAL's wording wholesale: "in THE MONTH
+ * the bill leaves your account" is exactly right once a year and wrong four
+ * times a year, and a reader budgeting for one lump would under-plan for three
+ * more. The ANNUAL entries reproduce the L.23 sentences byte-for-byte.
+ */
+export const LONG_CADENCE_WORDS = {
+  QUARTERLY: {
+    adjective: 'quarterly',
+    period: 'quarter',
+    share: 'a third',
+    landing: 'in each of the four months a year the bill actually lands',
+    cardLanding: 'each of the four months a year it actually leaves your account',
+    planLine: 'those four months need their own plan',
+  },
+  SEMIANNUAL: {
+    adjective: 'twice-a-year',
+    period: 'half-year',
+    share: 'a sixth',
+    landing: 'in each of the two months a year the bill actually lands',
+    cardLanding: 'each of the two months a year it actually leaves your account',
+    planLine: 'those two months need their own plan',
+  },
+  ANNUAL: {
+    adjective: 'yearly',
+    period: 'year',
+    share: 'a twelfth',
+    landing: 'in the month the bill leaves your account',
+    cardLanding: 'the month it actually leaves your account',
+    planLine: 'that month needs its own plan',
+  },
+} as const;
+
+export type LongCadence = keyof typeof LONG_CADENCE_WORDS;
+
+/**
+ * The smoothed rhythms actually present in a plan's fixed term, shortest first.
+ * Empty is the gate both disclosure surfaces use: a clause about a bill that is
+ * not in the figure would name a mechanism that did not act — this engine's own
+ * rule, applied to a cadence rather than a card (L.23 copy critic P1-2).
+ */
+export function longCadencesInTerm(rows: readonly { cadence: string | null }[]): LongCadence[] {
+  return (['QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const).filter((c) =>
+    rows.some((r) => r.cadence === c),
+  );
 }
 
 /**

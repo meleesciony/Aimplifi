@@ -9,10 +9,24 @@
  */
 import { addDays, addMonthsClamped, compareDates, isoDate, type ISODate } from '@/lib/dates';
 import type { LoanObligation } from '@/lib/engine/loans/obligations';
+import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 
 /** ANNUAL is included since L.23 (a detected annual bill is projected — see
  *  `toScheduledTransactions`); null = a one-off with a single dated occurrence. */
-export type ScheduledCadence = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL' | null;
+/** The cadence a ScheduledTransaction row can carry. Widened in L.24 with
+ *  QUARTERLY and SEMIANNUAL — and this type is REACHED BY AN UNCHECKED `as`
+ *  CAST from the DB string in server/forecast.ts and server/radar.ts, so
+ *  leaving it narrow would not have raised a type error: a quarterly row would
+ *  have been cast to an impossible value and then silently taken the one-off
+ *  branch in `expandScheduled`, rendering once and never recurring. */
+export type ScheduledCadence =
+  | 'WEEKLY'
+  | 'BIWEEKLY'
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'SEMIANNUAL'
+  | 'ANNUAL'
+  | null;
 
 export interface ScheduledFlow {
   description: string;
@@ -69,14 +83,20 @@ export function expandScheduled(
   };
   for (const row of rows) {
     const start = isoDate(row.nextDate);
-    // MONTHLY steps 1 calendar month, ANNUAL steps 12 (L.23 — a detected annual
-    // bill now reaches this forecast). Within the horizons this engine is called
-    // with (≤90 days) an ANNUAL row has at most one occurrence, so this matches
-    // the single-occurrence `else` below — except across a window of a year or
-    // more, and for a row whose nextDate is already past, which now steps
-    // forward instead of being dropped (a date-scoped difference, not a
-    // window-scoped one; the second yearly occurrence needs ~431 days, not 366).
-    const monthStep = row.cadence === 'MONTHLY' ? 1 : row.cadence === 'ANNUAL' ? 12 : 0;
+    // MONTHLY 1 calendar month, QUARTERLY 3, SEMIANNUAL 6, ANNUAL 12 — from the
+    // ONE table in detect.ts (L.23 admitted ANNUAL, L.24 the two middle
+    // cadences; four expanders carried this chain and a missed branch is silent,
+    // falling through to the one-occurrence `else` below). Within the horizons
+    // this engine is called with (≤90 days) an ANNUAL row has at most one
+    // occurrence, so for ANNUAL this matches that `else` — except across a
+    // window of a year or more, and for a row whose nextDate is already past,
+    // which now steps forward instead of being dropped (a date-scoped
+    // difference, not a window-scoped one; the second yearly occurrence needs
+    // ~431 days, not 366). The same two exceptions carry the two cadences L.24
+    // added: a quarterly PERIOD is 91–92 days, LONGER than the 90-day widest
+    // horizon here, so a quarterly row likewise appears at most once — measured,
+    // not assumed, after a draft comment claimed otherwise and a test disproved it.
+    const monthStep = monthsPerCadence(row.cadence);
     if (monthStep > 0) {
       for (let i = 0; ; i++) {
         const occ = addMonthsClamped(start, i * monthStep);

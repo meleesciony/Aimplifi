@@ -20,6 +20,7 @@ import type { ISODate } from '@/lib/dates';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { frozenCardsNote } from '@/lib/engine/account/feed-dropped-view';
 import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
+import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
 import {
   type CardDuplicatePairInput,
   cardDuplicateTraceBasis,
@@ -251,13 +252,14 @@ export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
         : plan.incomeBasis === 'detected-series'
           ? // The annual-income exclusion is disclosed HERE and nowhere else it
             // matters, because this is the only basis that reads detected series
-            // as the income figure (L.23 copy critic P1-4): /recurring counts an
-            // annual deposit at a twelfth a month while this counts $0, and until
+            // as the income figure (L.23 copy critic P1-4, widened by the L.24 copy
+            // critic P1-3 to the two cadences L.24 added): /recurring counts a
+            // long-rhythm deposit at a share of a month while this counts $0, and until
             // this sentence they were both described as "detected recurring income
             // at a monthly rate" — two surfaces, one fact, apart. The trailing
             // median needs no such clause: it counts a bonus in the month it
             // actually arrived.
-            'Income is your detected recurring income at a monthly rate — there is no complete month of history to take the pattern from yet. A deposit that arrives once a year is not counted here: one yearly gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows it at a twelfth a month; this figure leaves it out.'
+            'Income is your detected recurring income at a monthly rate — there is no complete month of history to take the pattern from yet. A deposit on a rhythm longer than monthly — quarterly, twice a year, or yearly — is not counted here: one long gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows such a deposit at a share of a month; this figure leaves it out.'
           : 'There is no income pattern yet — nothing here is invented; once a complete month of income posts, the figure comes from that pattern.',
       // BIWEEKLY is named too (L.23 copy critic P2-4): ×26/12 is the largest
       // multiplier in the table and the commonest real cadence in this app.
@@ -275,11 +277,16 @@ export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
       // stateless per month and carries nothing forward, while "set aside" already
       // means the L.11(D) reservation — a real carried term with its own visible
       // row — three paragraphs down and on the dashboard card.
-      ...(plan.scheduledFixed.some((s) => s.cadence === 'ANNUAL')
-        ? [
-            'A yearly bill is spread across the year: this figure subtracts a twelfth of it every month. Nothing is actually moved or set aside for you — in the month the bill leaves your account the whole amount goes out while this figure only ever counted a twelfth, so that month needs its own plan.',
-          ]
-        : []),
+      //
+      // L.24 generalized the clause to the two cadences it added. The template
+      // below reproduces the ANNUAL sentence above BYTE-FOR-BYTE — the wording
+      // the L.23 copy critic arrived at — and the fractions come from the same
+      // table `monthlyRateCents` divides by, so the sentence cannot claim a
+      // third while the arithmetic takes a twelfth.
+      ...longCadencesInTerm(plan.scheduledFixed).map(
+        (c) =>
+          `A ${LONG_CADENCE_WORDS[c].adjective} bill is spread across the ${LONG_CADENCE_WORDS[c].period}: this figure subtracts ${LONG_CADENCE_WORDS[c].share} of it every month. Nothing is actually moved or set aside for you — ${LONG_CADENCE_WORDS[c].landing} the whole amount goes out while this figure only ever counted ${LONG_CADENCE_WORDS[c].share}, so ${LONG_CADENCE_WORDS[c].planLine}.`,
+      ),
       'Spending on credit cards is counted when its statement’s payment comes due, not again at purchase time. The card-payments line covers your own cards due this month, assumes each is paid in full, and comes from the same obligation rows as the cash-needed answer.',
       ...(plan.cardObligationsEstimated
         ? [

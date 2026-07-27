@@ -1,7 +1,9 @@
 /**
  * Recurring / subscription detection (Phase 2):
  *  - groups transactions by canonical merchant
- *  - infers cadence from the median gap between occurrences
+ *  - infers cadence from the median gap between occurrences (the two long
+ *    cadences added in L.24, QUARTERLY and SEMIANNUAL, additionally require
+ *    EVERY gap to fall in the band — see `cadenceFromGaps`)
  *  - tracks price changes (stable old amount → stable new amount)
  *  - flags possibly-unused subscriptions (fitness memberships with no other
  *    activity ≥90 days — a heuristic, surfaced as a question, never a scold)
@@ -21,7 +23,14 @@ export interface RecurringTxn {
   isTransfer?: boolean;
 }
 
-export type Cadence = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL' | 'IRREGULAR';
+export type Cadence =
+  | 'WEEKLY'
+  | 'BIWEEKLY'
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'SEMIANNUAL'
+  | 'ANNUAL'
+  | 'IRREGULAR';
 
 export interface RecurringSeriesResult {
   merchantCanonical: string;
@@ -41,12 +50,63 @@ export interface RecurringSeriesResult {
 }
 
 
-function cadenceFromGap(gapDays: number): Cadence {
-  if (gapDays >= 5 && gapDays <= 9) return 'WEEKLY';
-  if (gapDays >= 12 && gapDays <= 16) return 'BIWEEKLY';
-  if (gapDays >= 26 && gapDays <= 35) return 'MONTHLY';
-  if (gapDays >= 350 && gapDays <= 380) return 'ANNUAL';
-  return 'IRREGULAR';
+/** The day-gap window each recognized cadence is inferred from. Ordered short →
+ *  long; the windows do not overlap, so at most one can match. */
+const CADENCE_BANDS: readonly { cadence: Exclude<Cadence, 'IRREGULAR'>; min: number; max: number }[] = [
+  { cadence: 'WEEKLY', min: 5, max: 9 },
+  { cadence: 'BIWEEKLY', min: 12, max: 16 },
+  { cadence: 'MONTHLY', min: 26, max: 35 },
+  { cadence: 'QUARTERLY', min: 84, max: 98 },
+  { cadence: 'SEMIANNUAL', min: 175, max: 190 },
+  { cadence: 'ANNUAL', min: 350, max: 380 },
+];
+
+/**
+ * The cadences that must be earned by every gap AND by the gaps' agreement with
+ * each other, not merely by their median (L.24). A median is an average once
+ * there are only two gaps, so a merchant visited 30 then 150 days apart has a
+ * median of 90 and would read as a quarterly bill on the median alone. The
+ * existing four cadences keep the median-only rule deliberately: raising their
+ * evidence bar would change what is detected for every existing user, which is
+ * a different slice from adding two cadences that are detected for nobody today.
+ */
+const EVERY_GAP_CADENCES: ReadonlySet<Cadence> = new Set<Cadence>(['QUARTERLY', 'SEMIANNUAL']);
+
+/**
+ * How far the longest gap may exceed the shortest before a long-cadence series
+ * is refused. Band membership ALONE is not evidence of a rhythm, which the L.24
+ * money critic proved with the smallest possible counterexample: the quarterly
+ * band is 15 days wide, so three haircuts 84 and 98 days apart put BOTH gaps
+ * inside it and the every-gap rule passed them — a discretionary purchase
+ * became a projected bill with a date on the calendar. The gaps must also agree
+ * with EACH OTHER. Executed against real anchors, genuine bills cluster far
+ * tighter than this: calendar-quarter billing runs 89–92 days (spread 3),
+ * first-business-day-of-quarter 90–92 (spread 2), a real Jan 31 / Apr 30 /
+ * Jul 31 / Oct 31 water bill 89–92 (spread 3), semiannual 181–184 (spread 3).
+ */
+const LONG_CADENCE_MAX_SPREAD_DAYS = 7;
+
+/**
+ * Infer a cadence from the gaps between a series' occurrences.
+ *
+ * Takes the whole gap list rather than a pre-computed median so the
+ * every-gap licence above cannot be skipped by a caller that only has the
+ * median — the classification and the evidence bar it requires live together.
+ */
+export function cadenceFromGaps(gaps: readonly number[]): Cadence {
+  if (gaps.length === 0) return 'IRREGULAR';
+  const med = Math.round(median(gaps));
+  const band = CADENCE_BANDS.find((b) => med >= b.min && med <= b.max);
+  if (!band) return 'IRREGULAR';
+  if (EVERY_GAP_CADENCES.has(band.cadence)) {
+    // Two independent conditions, and the second is the one that matters at the
+    // three-sighting floor: every gap inside the band, AND the gaps within a
+    // week of one another. Band membership alone admits the whole 15-day window
+    // as if it were a rhythm.
+    if (!gaps.every((g) => g >= band.min && g <= band.max)) return 'IRREGULAR';
+    if (Math.max(...gaps) - Math.min(...gaps) > LONG_CADENCE_MAX_SPREAD_DAYS) return 'IRREGULAR';
+  }
+  return band.cadence;
 }
 
 /**
@@ -62,10 +122,44 @@ export function nextDate(last: ISODate, cadence: Cadence): ISODate {
       return addDays(last, 14);
     case 'MONTHLY':
       return addMonthsClamped(last, 1);
+    case 'QUARTERLY':
+      return addMonthsClamped(last, 3);
+    case 'SEMIANNUAL':
+      return addMonthsClamped(last, 6);
     case 'ANNUAL':
       return addMonthsClamped(last, 12);
     default:
       return addMonthsClamped(last, 1);
+  }
+}
+
+/**
+ * Whole calendar months between two occurrences of a cadence, or 0 for the
+ * cadences that do not step by months at all (WEEKLY/BIWEEKLY step by days;
+ * IRREGULAR and a null DB cadence are one-offs).
+ *
+ * ONE table, because FOUR expanders — cash-needed/assemble, forecast, calendar
+ * and the spending plan's `scheduledOccurrencesBetween` — each carried their
+ * own copy of the same ternary chain, and L.24 had to add the same two branches
+ * to all four. A missed branch there is silent by construction: the value falls
+ * through to the one-occurrence `else`, so a quarterly bill would render once
+ * and never again, with nothing failing.
+ *
+ * Takes `string | null` because the ScheduledTransaction rows these expanders
+ * read carry the DB column's type, not the `Cadence` union.
+ */
+export function monthsPerCadence(cadence: string | null | undefined): number {
+  switch (cadence) {
+    case 'MONTHLY':
+      return 1;
+    case 'QUARTERLY':
+      return 3;
+    case 'SEMIANNUAL':
+      return 6;
+    case 'ANNUAL':
+      return 12;
+    default:
+      return 0;
   }
 }
 
@@ -116,7 +210,7 @@ export function detectRecurring(
     for (let i = 1; i < sorted.length; i++) {
       gaps.push(daysBetween(isoDate(sorted[i - 1].date), isoDate(sorted[i].date)));
     }
-    const cadence = cadenceFromGap(Math.round(median(gaps)));
+    const cadence = cadenceFromGaps(gaps);
     if (cadence === 'IRREGULAR') continue;
 
     // Amount stability: a series is recurring when amounts cluster tightly.
@@ -178,9 +272,16 @@ export function detectRecurring(
 }
 
 /** The cadences a detected series is projected under. IRREGULAR never reaches
- *  here (detectRecurring drops it); ANNUAL reaches it for EXPENSES only — see
+ *  here (detectRecurring drops it); QUARTERLY, SEMIANNUAL and ANNUAL reach it
+ *  for EXPENSES only, and only while still charging — see
  *  `toScheduledTransactions`. */
-export type ProjectedCadence = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL';
+export type ProjectedCadence = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL';
+
+/** Cadences longer than a month: projected for expenses only, and only while
+ *  the series is still charging. One list, so the rule L.23 established for
+ *  ANNUAL and L.24 extended to the two new cadences cannot be applied to one
+ *  and forgotten on another. */
+const LONG_CADENCES: ReadonlySet<Cadence> = new Set<Cadence>(['QUARTERLY', 'SEMIANNUAL', 'ANNUAL']);
 
 /** Nominal cadence length in days — the basis of the active/lapsed cutoff.
  *  Lives here, with the detector that assigns the cadence, so the projection
@@ -190,6 +291,8 @@ export const CADENCE_DAYS: Record<Cadence, number> = {
   WEEKLY: 7,
   BIWEEKLY: 14,
   MONTHLY: 30,
+  QUARTERLY: 91,
+  SEMIANNUAL: 182,
   ANNUAL: 365,
   IRREGULAR: 0,
 };
@@ -247,17 +350,31 @@ export function isSeriesActive(
  * counts it $0, while the plan counted a full $100/month forever and the
  * calendar printed a dated −$1,200 for a cancelled policy. The lapse gate is
  * `isSeriesActive` — the SAME predicate /recurring files by, so the two surfaces
- * agree by construction. It is applied to ANNUAL only: at 365 days the silence
- * needed to prove death is ~18 months, where a monthly bill's is ~45 days, and
- * widening the gate to every cadence would change what is projected for every
- * existing user (recorded in docs/STATUS.md instead).
+ * agree by construction. It is applied to the LONG cadences only: at 365 days
+ * the silence needed to prove death is ~18 months, at 182 ~9, at 91 ~4.5, where
+ * a monthly bill's is ~45 days — and widening the gate to WEEKLY/BIWEEKLY/
+ * MONTHLY would change what is projected for every existing user, in the
+ * direction of dropping bills (recorded in docs/STATUS.md instead).
  *
- * NOT PROJECTED AT ALL, recorded in docs/STATUS.md: a QUARTERLY or SEMIANNUAL
- * bill, because `cadenceFromGap` classifies a ~91/182-day gap as IRREGULAR and
- * `detectRecurring` drops it before this function sees it. And the agreement
- * with /recurring holds only for series on the PAYMENT account, which is the
- * only account this function projects: an annual premium autopaid from savings
- * is still $100/month on /recurring and $0 in the plan.
+ * QUARTERLY AND SEMIANNUAL JOINED ANNUAL IN L.24, under exactly the same two
+ * conditions (expenses only, still charging) — which is why the three share one
+ * `LONG_CADENCES` list rather than three copies of the same pair of clauses.
+ * Until then a ~91/182-day gap classified as IRREGULAR and `detectRecurring`
+ * dropped it before this function saw it, so a quarterly water bill was counted
+ * ZERO times: absent from the plan, from the projections and from /recurring
+ * alike, which is the same direction as the annual gap L.23 closed (guilt-free
+ * spending overstated by the bill's whole monthly share). Adding them is a
+ * detection-CLASS change, not a passthrough — see `cadenceFromGaps`, whose
+ * every-gap licence exists because a false quarterly does not merely mis-state
+ * a figure: it prints a dated outflow on /calendar and can raise a radar
+ * "move $X by <date>" instruction for a bill that does not exist.
+ *
+ * STILL NOT PROJECTED, recorded in docs/STATUS.md: every rhythm between and
+ * around those bands — 10-day, three-weekly, six-weekly, bi-monthly (~61 days),
+ * and anything from 99 to 174 or 191 to 349 days — all still IRREGULAR. And the
+ * agreement with /recurring holds only for series on the PAYMENT account, which
+ * is the only account this function projects: an annual premium autopaid from
+ * savings is still $100/month on /recurring and $0 in the plan.
  */
 export function toScheduledTransactions(
   series: readonly RecurringSeriesResult[],
@@ -275,12 +392,10 @@ export function toScheduledTransactions(
 }[] {
   return series
     .filter((s) => s.accountId === paymentAccountId)
-    .filter(
-      (s) =>
-        s.cadence === 'WEEKLY' ||
-        s.cadence === 'BIWEEKLY' ||
-        s.cadence === 'MONTHLY' ||
-        (s.cadence === 'ANNUAL' && !s.isIncome && isSeriesActive(s, today)),
+    .filter((s) =>
+      LONG_CADENCES.has(s.cadence)
+        ? !s.isIncome && isSeriesActive(s, today)
+        : s.cadence === 'WEEKLY' || s.cadence === 'BIWEEKLY' || s.cadence === 'MONTHLY',
     )
     .map((s) => ({
       accountId: s.accountId,

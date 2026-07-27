@@ -2,6 +2,138 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-26 — L.24: a quarterly or twice-a-year bill reaches the money (DECISIONS #313)
+
+Closes the sharpest L.23 residual, in the same dangerous direction and one step further out.
+`cadenceFromGap` recognized four windows (5–9, 12–16, 26–35, 350–380 days), so a ~91-day or
+~182-day gap classified as IRREGULAR and `detectRecurring` dropped the series **before** the
+projection filter was ever reached. A quarterly water bill was therefore counted **zero times**
+— absent from the spending plan's fixed term, from the cash-needed projection, the forecast, the
+calendar AND from `/recurring` — and guilt-free spending was overstated by its whole monthly
+share. Unlike L.23 (which admitted a cadence the detector already assigned) this is a detection
+**CLASS** change: it can only move a user's detected set toward MORE series, and a false positive
+does not merely mis-state a figure — it prints a dated outflow on `/calendar` and can raise a
+radar "move $X by <date>" instruction for a bill that does not exist.
+
+**Shipped.** (1) Two bands — QUARTERLY 84–98 days, SEMIANNUAL 175–190 — in a `CADENCE_BANDS`
+table. (2) A positive-licence **every-gap rule** for those two cadences only: every gap in the
+whole history must itself fall inside the band, not merely their median, because with three
+sightings the median of two gaps IS their mean and `[30, 150]` would otherwise read as a
+quarterly bill. The four older cadences keep the median-only rule deliberately — raising their
+bar would re-detect every existing user. (3) Both are projected as **expenses only and only
+while still charging**, which generalized L.23's ANNUAL rule into one shared `LONG_CADENCES`
+list so the rule cannot be applied to one cadence and forgotten on another. (4) `monthsPerCadence`
+replaced the same four-branch ternary that had been copy-pasted into four expanders
+(cash-needed/assemble, forecast, calendar/build, plan's `scheduledOccurrencesBetween`) — a missed
+branch there is silent by construction, since the row falls through to the one-occurrence `else`.
+(5) Monthly rates /3 and /6, matching `/recurring`'s own `PER_MONTH` (two tables held together by
+a test rather than merged, because they disagree about IRREGULAR on purpose and the plan's exact
+integer form must not move by a rounding ulp).
+
+**Demo impact: none, verified by probe rather than assumed.** Of 47 merchant groups in the seed,
+four have a median gap inside the new bands — Costco Gas 89, Zelle Payment 91, Etsy 86, Kroger 97
+— and all four are killed by the EXISTING amount-stability filter (5–7 distinct amounts against a
+limit of 2). Those four names are also exactly the shape the false-positive risk takes: sparse
+variable real-world spending that happens to average a quarter apart. The seed still detects one
+BIWEEKLY and eleven MONTHLY series, and the probe is kept as a test.
+
+**Mutation testing (4 mutations, all killed).** Neutering `monthsPerCadence`'s two new branches
+killed exactly the three expander locks; emptying `EVERY_GAP_CADENCES` killed the two licence
+tests; shrinking `LONG_CADENCES` back to ANNUAL-only killed the projection and lapse locks;
+widening the spread cap to 999 killed the two rhythm-agreement locks.
+
+**Two fresh-context hostile critics, both FAIL, every finding executed and every P1 fixed.**
+
+The **money-math critic** (1 P1, 3 P2, 4 P3) broke the every-gap licence with the smallest
+possible counterexample: the quarterly band is 15 days wide, so three haircuts **84 and 98 days
+apart** put BOTH gaps inside it, the licence passed them, and a discretionary purchase became a
+projected bill with a date on the calendar and a $15.00/month charge against guilt-free spending
+— including via the two-plateau price-change path (three vet visits at $100/$100/$250). Fixed by
+requiring the gaps to agree with EACH OTHER as well as with the band: `max - min <= 7` days,
+which costs no genuine bill (real anchors cluster within 3). It also found that
+`monthlyRateCents` and `/recurring`'s `PER_MONTH` **disagreed by a cent on BIWEEKLY** at 120,989
+amounts under $20k — `Math.round(a*26/12)` against `Math.round(a*(26/12))`, since 26/12 is
+inexact in binary — including a $2,307.69 paycheck, i.e. an ordinary $60k salary; worse, the new
+"two tables, one fact" lock passed anyway because every amount it probed divided its factor
+exactly. `PER_MONTH` is now an exact numerator/denominator pair and the lock fuzzes residues. Two
+bounds it found are recorded rather than fixed (EDGE_CASES §C3/§C4): a bill at a band EDGE is
+under-counted by up to ~8.7% because the rate is a flat 1/3, in the dangerous direction and
+pre-existing for ANNUAL; and month-end anchors drift a day per clamp. It could NOT break
+`monthsPerCadence` equivalence (7,938-case sweep, 0 differences), the lapse gate (80-case sweep,
+0 differences), double counting anywhere, the new cadences' rate tables (2,000,000 amounts), any
+real-world anchor, or golden safety (12 seed series at three different `asOf` dates).
+
+The **copy/claims critic** returned **FAIL — 4 P1, 4 P2, 6 P3**, every finding executed, and
+every P1 plus every actionable P2/P3 fixed: the disclosure
+list had become a *closed world* that was false (seven IRREGULAR ranges survive, and the copy
+named four of them — a four-monthly utility bill, a real US billing period, was covered by
+nothing); the new precondition sentence promised a recovery path that does not exist ("we don't
+count it **yet**" — the every-gap rule reads ALL of history with no lookback window, so a
+13-sighting quarterly bill with one 14-day-late cycle two years back is $0 **permanently** and no
+future on-time cycle brings it back); the quarterly/semiannual INCOME asymmetry L.23 had
+disclosed for ANNUAL was reintroduced undisclosed at all three sites; and the smoothing sentence
+lifted ANNUAL's "in **the month** the bill leaves your account", which is right once a year and
+wrong four times a year — a reader budgeting one lump for a $300 quarterly bill under-plans by
+3 × $200. The critic also caught a **false comment** claiming an e2e bound a testid that nothing
+binds (now bound), an early cycle being undisclosed while only lateness was named, and this file
+itself contradicting the code in three places (fixed above). It could NOT break the fractions,
+the ANNUAL byte-identity, the history figures, the gating logic, or any expander.
+
+Also corrected during the build, by a test rather than by review: three source comments claimed a
+quarterly row "genuinely CAN recur inside a 90-day horizon". It cannot — a quarterly period is
+91–92 days, longer than the widest horizon in the app — so in forecast and cash-needed it appears
+at most once, exactly like an annual bill. The reachable differences are the calendar's
+multi-month windows (three clicks) and a stale anchor self-healing forward.
+
+### 🟠 OPEN after L.24
+
+1. **Every rhythm between and beyond the six bands still counts ZERO** (dangerous direction, and
+   the narrowed remainder of L.23 OPEN #1). Executed, the surviving IRREGULAR ranges are 1–4,
+   10–11, 17–25, 36–83, **99–174**, **191–349** and **381+** days — so ten-day, three-weekly,
+   six-weekly, bi-monthly (~61), **four-monthly (~122, a real US utility period)**, five-monthly,
+   eight-to-eleven-monthly and every-18-months bills are all absent from the plan, the projections
+   and `/recurring`. Each further band is its own detection-class change. Now disclosed on
+   /spending-plan rather than implied away.
+2. **The every-gap licence is permanent and unforgiving** — one cycle more than ~a week off in
+   either direction keeps a quarterly/semiannual series out **forever**, because detection reads
+   all of history and later on-time cycles cannot retire the bad gap. Deliberate (a missed
+   detection leaves the status quo; a false positive invents a dated obligation), disclosed in
+   those words, but a windowed or tolerant variant is the obvious follow-up.
+3. **A quarterly bill goes uncounted after ~137 days of silence** (the lapse gate, `91 × 1.5`).
+   That is an ordinary meter-reading slip, where ANNUAL's 548-day equivalent is rarely reachable.
+   Disclosed on /spending-plan; whether the multiplier should scale differently per cadence is
+   open.
+4. **The agreement with `/recurring` still holds only on the PAYMENT account** (inherited, L.23
+   OPEN #5, unchanged by this slice): `toScheduledTransactions` projects that one account, while
+   `summarizeRecurring` reads every account — so a bill autopaid from savings, or charged to a
+   card, is a monthly rate on `/recurring` and $0 in the plan's fixed term. **Owner-reported
+   2026-07-26 on live data** ("Fixed & recurring expenses — $0.00" against $21,117.48 of income):
+   the cause is UNCONFIRMED pending a `/recurring` screenshot, and this scope is the leading
+   candidate. Note the tension — bills on a card are already inside the card-payments term, so
+   counting them here too would double-count; the honest fix has to separate "paid from
+   checking" from "charged to a card", not simply widen the filter.
+5. **Three vocabularies for one rhythm** (copy critic P3-2): "quarterly" on /spending-plan and the
+   dashboard, "/3mo" on /recurring, "every three months" in the merchant lens. Each is true; a
+   reader visiting all three sees three names. Cosmetic, recorded rather than churned.
+6. **A bill at a band EDGE is under-counted by up to ~8.7%** (money critic P2-3): the band admits
+   84–98 days but the rate is a flat 1/3, so a bill every 84 days charges 4.35×/yr and is counted
+   4×. Direction: raises guilt-free spending. Pre-existing for ANNUAL (350-day rhythm, same
+   shape); recorded in EDGE_CASES §C3. Fixing it means rating by observed median gap, a new
+   rating model for every cadence.
+7. **A latent seed-vs-detected double count** (money critic P3-5, pre-existing and currently
+   UNREACHABLE): `refreshRecurringForUser` replaces only `source in ('payroll-detected',
+   'recurring')` rows while `getSpendingPlan` sums every negative scheduled row, so a user with
+   BOTH seed rows and detected rows would count rent twice ($1,800/mo phantom on the demo). Every
+   caller is demo-fenced and a real user has no `seed` rows, but L.24 adds two more cadences that
+   ride the same path — worth a guard.
+8. **`today-feed-copy.ts` still has an unconverted cadence ternary** that would print "monthly"
+   for a long cadence (money critic P3-7). Verified unreachable — `isPauseCadence` gates the
+   pause detector to W/B/M — but it is the one chain L.24 did not convert, and it is precisely
+   the silent-fallthrough class `monthsPerCadence` exists to prevent.
+9. **In the month a long bill actually lands, the plan has reserved only its share** — unchanged
+   from L.23 OPEN #4 and now true four times a year rather than once, which is why the copy had
+   to stop saying "the month".
+
 ## ✅ BUILT 2026-07-26 — L.23: a detected annual bill reaches the money (DECISIONS #312)
 
 Closes the sharpest L.22 residual. `toScheduledTransactions` projected only
@@ -73,13 +205,10 @@ premium that changed price twice, or one only two years old, is still invisible.
 
 ### 🟠 OPEN after L.23
 
-1. **A QUARTERLY or SEMIANNUAL bill is still counted ZERO times** (dangerous direction). A
-   ~91/182-day gap classifies as IRREGULAR in `cadenceFromGap`, and `detectRecurring` drops
-   IRREGULAR before the projection filter is reached — so a quarterly water bill is absent from
-   the plan, the projections AND `/recurring`. This is a new detection CLASS, not a
-   passthrough: adding it moves every user's detected set and needs its own golden + critic
-   pass. Pinned by a test in `tests/unit/annual-recurring-passthrough.test.ts` so the day it
-   changes, that file says so.
+1. ~~**A QUARTERLY or SEMIANNUAL bill is still counted ZERO times**~~ — **CLOSED in L.24**
+   (§L.24 above). The two bands are recognized, projected as expenses only and only while still
+   charging. What remains of this item is narrower and restated as L.24 OPEN #1: every rhythm
+   between and beyond the six recognized bands still counts zero.
 2. **A detected annual INCOME series is projected nowhere** — unchanged by this slice and now
    deliberate (see above), but the asymmetry IS visible: `/recurring` renders a $5,000/yr detected
    bonus as "Recurring income $416.67/mo" (`summarizeRecurring`'s `PER_MONTH`) beside a bills
@@ -111,10 +240,11 @@ premium that changed price twice, or one only two years old, is still invisible.
    account — so a $1,200/yr premium autopaid from savings is still $100/month on `/recurring` and
    $0 in the plan. Pre-existing for every cadence; this slice narrows it to non-payment accounts
    rather than closing it.
-6. **The lapse gate is ANNUAL-only** — a MONTHLY series silent for a year is still projected
-   (~45-day cutoff on `/recurring`, no cutoff at all in the projection). Deliberate: widening it
-   would change what is projected for every existing user, in the direction of dropping bills.
-   Pinned by a test, so the asymmetry is visible rather than assumed.
+6. **The lapse gate applies to the LONG cadences only** (was ANNUAL-only; L.24 extended it to
+   QUARTERLY at 137 days and SEMIANNUAL at 273) — a MONTHLY series silent for a year is still
+   projected (~45-day cutoff on `/recurring`, no cutoff at all in the projection). Deliberate:
+   widening it to W/B/M would change what is projected for every existing user, in the direction
+   of dropping bills. Pinned by a test, so the asymmetry is visible rather than assumed.
 
 ## ✅ BUILT 2026-07-26 — L.22: guilt-free spending becomes the owner's formula (DECISIONS #311)
 
@@ -163,9 +293,8 @@ deposits into checking/savings.
 
 ### 🟠 OPEN after L.22 — recorded residuals
 
-1. ~~**A DETECTED annual/quarterly bill is counted ZERO times in the fixed term**~~ — the ANNUAL
-   half is **FIXED in L.23 below**; the QUARTERLY/SEMIANNUAL half remains open and is restated
-   as its own item there. (The original entry also said the `/12` branch was "live only for
+1. ~~**A DETECTED annual/quarterly bill is counted ZERO times in the fixed term**~~ — **CLOSED
+   in full**: the ANNUAL half in L.23, the QUARTERLY/SEMIANNUAL half in L.24 (both below). (The original entry also said the `/12` branch was "live only for
    user-entered/seeded annual rows"; that was wrong — L.23 established that no user-entered
    scheduled rows can exist and no seeded row is annual, so the branch was dead for every row
    in production.)

@@ -20,6 +20,8 @@ const CADENCE_SUFFIX: Record<Cadence, string> = {
   WEEKLY: '/wk',
   BIWEEKLY: '/2wk',
   MONTHLY: '/mo',
+  QUARTERLY: '/3mo',
+  SEMIANNUAL: '/6mo',
   ANNUAL: '/yr',
   IRREGULAR: '',
 };
@@ -168,6 +170,19 @@ export function RecurringView({
           {plural(s.activeSubscriptionCount, 'subscription')} · {plural(s.bills.length, 'bill')} · ≈{' '}
           {formatCents(cents(s.monthlyRecurringSpendCents * 12))}/yr
         </p>
+        {/* L.24 copy critic P3-4: this headline silently normalizes anything longer
+            than monthly into a per-month share (PER_MONTH), which was reachable
+            only for a yearly bill before L.24 added two more cadences. A reader
+            comparing this figure with what actually leaves their account each
+            month deserves to know which rows are averages rather than charges. */}
+        {s.items.some(
+          (i) => i.active && (i.cadence === 'QUARTERLY' || i.cadence === 'SEMIANNUAL' || i.cadence === 'ANNUAL'),
+        ) && (
+          <p className="mt-2 text-xs text-muted-foreground" data-testid="recurring-smoothing-note">
+            Bills that arrive less often than monthly (marked /3mo, /6mo or /yr) are counted here
+            at their monthly share, not on the month they actually charge.
+          </p>
+        )}
         {s.priceIncreases.length > 0 && (
           <p className="mt-3 inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400">
             <TrendingUp className="size-3.5" aria-hidden />
@@ -236,7 +251,8 @@ export function RecurringView({
       {!hasAny ? (
         <p className="rounded-2xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground shadow-sm">
           No recurring charges detected yet. Subscriptions and bills appear here once they&apos;ve
-          billed a couple of times.
+          billed three times at a steady price — which for a quarterly bill is about six months,
+          and for a yearly one about two years.
         </p>
       ) : (
         <>

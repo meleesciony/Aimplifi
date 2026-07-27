@@ -37,13 +37,16 @@
  *     one is in the figure. Plus the annual-INCOME exclusion, disclosed on the
  *     one basis that reads detected series as income.
  *
- * NOT fixed, deliberately (recorded in docs/STATUS.md): every rhythm
- * `cadenceFromGap` does not recognize — quarterly, semiannual, bi-monthly,
- * six-weekly, three-weekly, ten-day — counts zero times, because those gaps
- * classify as IRREGULAR and `detectRecurring` drops them. That is a new
- * detection class, not a passthrough. The tests at the bottom pin the whole
- * dropped set, and the ~2-year/steady-price precondition an annual series needs,
- * so the day either changes this file says so.
+ * L.24 CLOSED HALF OF WHAT THIS FILE PINNED AS OPEN. Quarterly (84–98 days) and
+ * semiannual (175–190) are now recognized cadences, projected under the same two
+ * conditions as annual — expenses only, and only while still charging. The pins
+ * below were written so that "the day either changes this file says so", and
+ * that day was L.24: the two tests that asserted `[]` for a quarterly and a
+ * semiannual series now assert the cadence, the projected row and the monthly
+ * rate instead. STILL open and still pinned here (docs/STATUS.md): bi-monthly
+ * (~61 days), six-weekly, three-weekly and ten-day rhythms, plus everything from
+ * 99–174, 191–349 and 381+ days, all still IRREGULAR and all still counted zero
+ * times; and the ~2-year/steady-price precondition an annual series needs.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -53,13 +56,20 @@ import {
   detectRecurring,
   isSeriesActive,
   toScheduledTransactions,
+  type RecurringSeriesResult,
   type RecurringTxn,
 } from '@/lib/engine/recurring/detect';
 import { summarizeRecurring } from '@/lib/engine/recurring/summary';
 import { expandScheduled as expandForecast } from '@/lib/engine/forecast/forecast';
 import { expandScheduled as expandCalendar } from '@/lib/engine/calendar/build';
 import { assembleCashNeededInput } from '@/lib/engine/cash-needed/assemble';
-import { computeSpendingPlan, monthlyRateCents } from '@/lib/engine/spending-plan/plan';
+import {
+  LONG_CADENCE_WORDS,
+  computeSpendingPlan,
+  longCadencesInTerm,
+  monthlyRateCents,
+  type LongCadence,
+} from '@/lib/engine/spending-plan/plan';
 import { buildSeedData } from '@/lib/seed/build';
 import { traceSafeToSpend } from '@/lib/engine/glass-box/trace';
 import { refreshRecurringForUser } from '@/server/recurring';
@@ -70,7 +80,26 @@ const TODAY = '2026-06-10';
 const PREMIUM_DESC = 'ALLSTATE INSURANCE PREMIUM';
 const BONUS_DESC = 'ACME ANALYTICS ANNUAL BONUS';
 
-/** Three same-amount charges one clamped year apart — the shape `cadenceFromGap`
+/** A detected-series shape whose non-cadence fields are irrelevant to the rate
+ *  under test — every rate assertion overrides cadence, amount and lastSeenAt. */
+const seriesShape = {
+  merchantCanonical: 'Anything',
+  categoryId: 'utilities',
+  cadence: 'MONTHLY',
+  typicalAmountCents: -1000,
+  lastAmountCents: -1000,
+  previousAmountCents: null,
+  priceChangedAt: null,
+  lastSeenAt: isoDate(TODAY),
+  nextExpectedAt: isoDate(TODAY),
+  occurrences: 3,
+  isSubscription: false,
+  isIncome: false,
+  possiblyUnused: false,
+  accountId: 'acct-checking',
+} satisfies RecurringSeriesResult;
+
+/** Three same-amount charges one clamped year apart — the shape `cadenceFromGaps`
  *  reads as ANNUAL (median gap 366 days, inside the 350–380 window). */
 function annualSeriesTxns(descriptor: string, amountCents: number, firstDate: string): RecurringTxn[] {
   return [0, 1, 2].map((i) => ({
@@ -141,6 +170,44 @@ describe('monthlyRateCents — the hand-verified rates of docs/EDGE_CASES.md §R
     expect(monthlyRateCents(9999, 'IRREGULAR')).toBe(9999);
     expect(monthlyRateCents(9999, null)).toBe(9999);
   });
+
+  it('L.24 rates: quarterly $300.00 → $100.00, semiannual $600.00 → $100.00', () => {
+    expect(monthlyRateCents(30000, 'QUARTERLY')).toBe(10000);
+    expect(monthlyRateCents(60000, 'SEMIANNUAL')).toBe(10000);
+    // Half-up rounding, named at the call site, on a figure that does not divide.
+    expect(monthlyRateCents(10000, 'QUARTERLY')).toBe(3333);
+    expect(monthlyRateCents(10001, 'SEMIANNUAL')).toBe(1667);
+  });
+
+  it('the plan and /recurring agree on every recognized cadence — two tables, one fact', () => {
+    // The L.23 defect in miniature: `monthlyRateCents` (the plan) and PER_MONTH
+    // (summarizeRecurring, /recurring's headline) encode the same per-month
+    // factors in two files. They are deliberately NOT shared — they disagree
+    // about IRREGULAR and the plan keeps an exact integer form — so this lock is
+    // what stops them drifting the way the two annual surfaces once did.
+    // FUZZED over residues, not spot-checked on divisible amounts (L.24 money
+    // critic P2-2): the first version of this lock used -12000/-25000/-30000/
+    // -60000/-120000, every one of which divides its factor exactly, so it
+    // asserted a property that was FALSE for BIWEEKLY at 120,989 amounts under
+    // $20k and passed regardless. $999.99 biweekly was $2,166.65 in the plan and
+    // $2,166.64 on /recurring; $2,307.69 — a $60k salary — was a cent apart too.
+    const amounts = [1, 3, 27, 99, 999, 4501, 99999, 100001, 216665, 230769, 999999, 1234567];
+    for (const cadence of ['WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const) {
+      for (const magnitude of amounts) {
+        const viaPlan = monthlyRateCents(magnitude, cadence);
+        const [item] = summarizeRecurring(
+          [{ ...seriesShape, cadence, typicalAmountCents: -magnitude, lastSeenAt: isoDate(TODAY) }],
+          isoDate(TODAY),
+        ).items;
+        expect(`${cadence}@${magnitude}:${item?.monthlyEquivalentCents}`).toBe(
+          `${cadence}@${magnitude}:${viaPlan}`,
+        );
+      }
+    }
+    // The two exact cases the critic executed, as literals.
+    expect(monthlyRateCents(99999, 'BIWEEKLY')).toBe(216665);
+    expect(monthlyRateCents(230769, 'BIWEEKLY')).toBe(500000);
+  });
 });
 
 describe('the three expanders project an ANNUAL row once per sub-year window (L.23)', () => {
@@ -206,6 +273,249 @@ describe('the three expanders project an ANNUAL row once per sub-year window (L.
     expect(
       multiYear.scheduled.filter((s) => s.description === annualRow.description).map((s) => s.date),
     ).toEqual(['2026-08-15', '2027-08-15', '2028-08-15']);
+  });
+});
+
+describe('L.24 — the every-gap licence a QUARTERLY/SEMIANNUAL classification must earn', () => {
+  const gapsToTxns = (label: string, gaps: readonly number[]): RecurringTxn[] => {
+    let date = isoDate('2024-01-10');
+    const out: RecurringTxn[] = [
+      { id: `${label}-0`, accountId: 'acct-checking', date, amountCents: -30000, rawDescriptor: label },
+    ];
+    gaps.forEach((g, i) => {
+      date = addDays(date, g);
+      out.push({ id: `${label}-${i + 1}`, accountId: 'acct-checking', date, amountCents: -30000, rawDescriptor: label });
+    });
+    return out;
+  };
+  const cadenceOf = (label: string, gaps: readonly number[]) =>
+    detectRecurring(gapsToTxns(label, gaps), isoDate(TODAY))[0]?.cadence ?? null;
+
+  it('a real quarterly rhythm is QUARTERLY; a real semiannual one is SEMIANNUAL', () => {
+    // Calendar-quarter billing drifts 89–92 days by month length alone.
+    expect(cadenceOf('CITY WATER', [91, 89, 92])).toBe('QUARTERLY');
+    // Band-edge gaps are fine INDIVIDUALLY; what they may not do is disagree
+    // with each other by more than a week (see the spread-cap test below —
+    // [84, 98, 91] was accepted before the money critic broke it).
+    expect(cadenceOf('CITY WATER EDGE', [84, 90, 91])).toBe('QUARTERLY');
+    expect(cadenceOf('CITY WATER EDGE 2', [84, 98, 91])).toBe(null);
+    expect(cadenceOf('TERM LIFE', [182, 181, 184])).toBe('SEMIANNUAL');
+  });
+
+  it('two wild gaps whose MEDIAN lands in the band are NOT a quarterly bill (fail-old: median-only said they were)', () => {
+    // The whole reason the licence exists. With three sightings there are two
+    // gaps and their median is their mean, so 30 and 150 days average to 90.
+    // Same amount every time, so the amount-stability filter does not save us.
+    expect(cadenceOf('COINCIDENCE', [30, 150])).toBe(null);
+    expect(cadenceOf('COINCIDENCE 2', [10, 172])).toBe(null);
+    expect(cadenceOf('HALF YEAR COINCIDENCE', [90, 274])).toBe(null);
+  });
+
+  it('two gaps that merely sit INSIDE the band are not a rhythm (fail-old: the money critic broke this)', () => {
+    // The smallest counterexample to band-membership-alone, and the one that
+    // matters: the quarterly band is 15 days wide, so three haircuts 84 and 98
+    // days apart put BOTH gaps inside it. Every-gap passed them; a discretionary
+    // purchase became a projected bill with a date on the calendar.
+    expect(cadenceOf('BARBER SHOP', [84, 98])).toBe(null);
+    expect(cadenceOf('BARBER SHOP REVERSED', [98, 84])).toBe(null);
+    expect(cadenceOf('TERM LIFE WIDE', [175, 190])).toBe(null);
+    // …including through the two-plateau price-change path, which admits a,a,b
+    // at exactly three sightings (the critic's vet-visit repro).
+    const vet: RecurringTxn[] = [
+      ['2025-06-15', -10000],
+      ['2025-09-07', -10000],
+      ['2025-12-14', -25000],
+    ].map(([date, amountCents], i) => ({
+      id: `vet${i}`,
+      accountId: 'acct-checking',
+      date: isoDate(date as string),
+      amountCents: amountCents as number,
+      rawDescriptor: 'VET CLINIC',
+    }));
+    expect(detectRecurring(vet, isoDate(TODAY))).toEqual([]);
+  });
+
+  it('real-world quarterly anchors still detect — the spread cap costs no genuine bill', () => {
+    // Every one of these was executed against a real calendar by the money
+    // critic: their gaps cluster within 3 days, far inside the 7-day cap.
+    expect(cadenceOf('CALENDAR QUARTER', [90, 91, 92])).toBe('QUARTERLY');
+    expect(cadenceOf('MONTH END WATER', [89, 92, 92, 92])).toBe('QUARTERLY');
+    expect(cadenceOf('FIRST BUSINESS DAY', [90, 92, 91])).toBe('QUARTERLY');
+    expect(cadenceOf('SEMI REAL', [181, 184, 182])).toBe('SEMIANNUAL');
+  });
+
+  it('one late cycle drops the series rather than inventing a rhythm — strictness is the safe direction', () => {
+    // A gap outside the band means the reader gets the STATUS QUO (an uncounted
+    // bill), where a false positive would put a dated outflow on /calendar and
+    // could raise a radar "move $X by <date>" for a bill that does not exist.
+    expect(cadenceOf('LATE ONCE', [91, 91, 120])).toBe(null);
+  });
+
+  it('the four existing cadences keep the median-only rule — this slice does not re-detect anybody', () => {
+    // Deliberate asymmetry: raising the bar for WEEKLY/BIWEEKLY/MONTHLY/ANNUAL
+    // would change what is detected for every existing user. A monthly series
+    // with one skipped month still reads MONTHLY, exactly as it did before L.24.
+    expect(cadenceOf('MONTHLY WITH A SKIP', [30, 61, 30])).toBe('MONTHLY');
+    expect(cadenceOf('WEEKLY WITH A SKIP', [7, 14, 7])).toBe('WEEKLY');
+  });
+});
+
+describe('L.24 — a QUARTERLY row recurs inside the windows the app actually uses', () => {
+  const quarterlyRow = {
+    accountId: 'acct-checking',
+    description: 'City Water',
+    amountCents: -30000,
+    nextDate: '2026-06-15',
+    cadence: 'QUARTERLY' as const,
+  };
+
+  // WHERE THE EXPLICIT STEP ACTUALLY DIFFERS, measured rather than assumed. A
+  // quarterly PERIOD is 91–92 days, which is LONGER than the 90-day horizon that
+  // is the widest this app forecasts — so inside forecast/cash-needed a
+  // quarterly row still has at most one occurrence, exactly like annual, and the
+  // 90-day assertions alone would pass on the pre-L.24 code. (The first draft of
+  // this file claimed the opposite in three source comments; the executed test
+  // is what corrected them.) The two reachable differences are the calendar's
+  // multi-month windows and a stale anchor self-healing forward.
+  const cashNeeded = (horizonDays: number, row: typeof quarterlyRow) => {
+    const seed = buildSeedData(TODAY);
+    const params = {
+      today: isoDate(TODAY),
+      scenario: 'PAY_IN_FULL' as const,
+      paymentAccountId: 'acct-checking',
+      accounts: seed.accounts,
+      autopays: seed.autopays,
+      statements: seed.statements,
+      cardPayments: seed.cardPayments,
+      transactions: seed.transactions,
+      scheduled: [{ ...row, id: 'sched-quarterly', source: 'recurring' }],
+      holidayTable: holidayTable(2024, 2029),
+      horizonDays,
+    };
+    return assembleCashNeededInput(params)
+      .scheduled.filter((s) => s.description === 'City Water')
+      .map((s) => s.date);
+  };
+
+  it('calendar: on the grid three months later, absent from the two months between (fail-old: absent from both later months)', () => {
+    // The sharpest of the three: `month` is a URL query param with prev/next
+    // links, so this is three clicks away, not a hypothetical window.
+    expect(expandCalendar([quarterlyRow], isoDate('2026-07-01'), isoDate('2026-08-31'))).toEqual([]);
+    expect(expandCalendar([quarterlyRow], isoDate('2026-09-01'), isoDate('2026-09-30')).map((e) => e.date)).toEqual([
+      '2026-09-15',
+    ]);
+    expect(expandCalendar([quarterlyRow], isoDate('2026-12-01'), isoDate('2026-12-31'))).toHaveLength(1);
+  });
+
+  it('forecast and cash-needed: every quarter across a window longer than one (fail-old: one occurrence total)', () => {
+    const expected = ['2026-06-15', '2026-09-15', '2026-12-15', '2027-03-15', '2027-06-15'];
+    expect(expandForecast([quarterlyRow], TODAY, 400).map((e) => e.date)).toEqual(expected);
+    expect(cashNeeded(400, quarterlyRow)).toEqual(expected);
+  });
+
+  it('a stale anchor self-heals forward into a 90-day window (fail-old: dropped entirely)', () => {
+    // The difference that IS reachable at the horizons the app really uses, and
+    // the realistic one: the row is written once and `today` moves past it.
+    const stale = { ...quarterlyRow, nextDate: '2026-01-15' };
+    expect(expandForecast([stale], TODAY, 90).map((e) => e.date)).toEqual(['2026-07-15']);
+    expect(cashNeeded(90, stale)).toEqual(['2026-07-15']);
+  });
+
+  it('inside a 90-day horizon a quarterly row appears ONCE — the honest bound', () => {
+    expect(expandForecast([quarterlyRow], TODAY, 90).map((e) => e.date)).toEqual(['2026-06-15']);
+    expect(cashNeeded(90, quarterlyRow)).toEqual(['2026-06-15']);
+  });
+});
+
+describe('L.24 — the long-cadence rules apply to the two new cadences, not just to ANNUAL', () => {
+  const base = { ...seriesShape, accountId: 'acct-checking' };
+
+  it('a quarterly/semiannual INCOME series is projected nowhere (the L.14 role asymmetry)', () => {
+    for (const cadence of ['QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const) {
+      const income = { ...base, cadence, isIncome: true, typicalAmountCents: 500000 };
+      expect(toScheduledTransactions([income], 'acct-checking', isoDate(TODAY))).toEqual([]);
+    }
+  });
+
+  it('a LAPSED quarterly/semiannual expense is projected nowhere, at each cadence’s own cutoff', () => {
+    // isSeriesActive scales with the cadence: ~137 days for quarterly, ~273 for
+    // semiannual. Silence long enough to be evidence at one rhythm is routine at
+    // another, which is why the cutoff cannot be a single constant.
+    const lapsedQuarterly = { ...base, cadence: 'QUARTERLY' as const, lastSeenAt: isoDate('2025-06-10') };
+    expect(toScheduledTransactions([lapsedQuarterly], 'acct-checking', isoDate(TODAY))).toEqual([]);
+    expect(isSeriesActive(lapsedQuarterly, isoDate(TODAY))).toBe(false);
+    // …while the SAME 365-day silence leaves a semiannual series still charging.
+    const quietSemiannual = { ...base, cadence: 'SEMIANNUAL' as const, lastSeenAt: isoDate('2026-03-10') };
+    expect(isSeriesActive(quietSemiannual, isoDate(TODAY))).toBe(true);
+    expect(toScheduledTransactions([quietSemiannual], 'acct-checking', isoDate(TODAY))).toHaveLength(1);
+  });
+
+  it('the fraction the copy names is the fraction the engine divides by', () => {
+    // A wrong word here is a false claim about the reader's money, and it is the
+    // kind that no arithmetic test catches: the plan could take a twelfth while
+    // the sentence says "a third" and every money assertion would still pass.
+    for (const [cadence, share, whole] of [
+      ['QUARTERLY', 'a third', 3],
+      ['SEMIANNUAL', 'a sixth', 6],
+      ['ANNUAL', 'a twelfth', 12],
+    ] as const) {
+      expect(LONG_CADENCE_WORDS[cadence].share).toBe(share);
+      // $1,200.00 at this cadence must be exactly 1/whole per month.
+      expect(monthlyRateCents(120000, cadence)).toBe(120000 / whole);
+    }
+  });
+
+  it('the rendered smoothing sentences are plural-safe and keep the ANNUAL wording byte-identical', () => {
+    // L.24 copy critic P1-4 + P2-1: the generalization lifted ANNUAL's "in THE
+    // MONTH the bill leaves your account", which is right once a year and wrong
+    // four times a year — and NOTHING in the suite bound these strings, so the
+    // whole family could drift silently. It is bound here now.
+    const sentence = (c: LongCadence) =>
+      `A ${LONG_CADENCE_WORDS[c].adjective} bill is spread across the ${LONG_CADENCE_WORDS[c].period}: this figure subtracts ${LONG_CADENCE_WORDS[c].share} of it every month. Nothing is actually moved or set aside for you — ${LONG_CADENCE_WORDS[c].landing} the whole amount goes out while this figure only ever counted ${LONG_CADENCE_WORDS[c].share}, so ${LONG_CADENCE_WORDS[c].planLine}.`;
+
+    // The L.23 copy critic's exact wording, as a literal, not as the template.
+    expect(sentence('ANNUAL')).toBe(
+      'A yearly bill is spread across the year: this figure subtracts a twelfth of it every month. Nothing is actually moved or set aside for you — in the month the bill leaves your account the whole amount goes out while this figure only ever counted a twelfth, so that month needs its own plan.',
+    );
+    // A quarterly bill lands FOUR times a year; the sentence must not say "the month".
+    expect(sentence('QUARTERLY')).toContain('in each of the four months a year the bill actually lands');
+    expect(sentence('QUARTERLY')).toContain('those four months need their own plan');
+    expect(sentence('SEMIANNUAL')).toContain('in each of the two months a year the bill actually lands');
+    for (const c of ['QUARTERLY', 'SEMIANNUAL'] as const) {
+      expect(LONG_CADENCE_WORDS[c].cardLanding).toContain('months a year');
+      // The singular that was wrong may not survive anywhere on the short surfaces.
+      expect(LONG_CADENCE_WORDS[c].cardLanding.startsWith('the month')).toBe(false);
+    }
+    expect(LONG_CADENCE_WORDS.ANNUAL.cardLanding).toBe('the month it actually leaves your account');
+  });
+
+  it('the disclosure speaks only for the rhythms actually in the term', () => {
+    const rows = [{ cadence: 'MONTHLY' }, { cadence: 'QUARTERLY' }, { cadence: null }];
+    expect(longCadencesInTerm(rows)).toEqual(['QUARTERLY']);
+    expect(longCadencesInTerm([{ cadence: 'MONTHLY' }])).toEqual([]);
+    // Shortest first, so a reader with several reads them in a sensible order.
+    expect(
+      longCadencesInTerm([{ cadence: 'ANNUAL' }, { cadence: 'SEMIANNUAL' }, { cadence: 'QUARTERLY' }]),
+    ).toEqual(['QUARTERLY', 'SEMIANNUAL', 'ANNUAL']);
+  });
+
+  it('the demo seed detects NO quarterly or semiannual series, so no demo golden moves', () => {
+    // The probe that gated this slice, kept as a lock. Four seed merchants have a
+    // median gap inside the new bands (Costco Gas 89, Zelle Payment 91, Etsy 86,
+    // Kroger 97) and all four are variable-amount spending killed by the existing
+    // amount-stability filter — the exact shape the false-positive risk takes.
+    const seed = buildSeedData(TODAY);
+    const detected = detectRecurring(
+      seed.transactions.map((t) => ({
+        id: t.id,
+        accountId: t.accountId,
+        date: t.date,
+        amountCents: t.amountCents,
+        rawDescriptor: t.rawDescriptor ?? '',
+      })),
+      isoDate(TODAY),
+    );
+    expect(detected.filter((s) => s.cadence === 'QUARTERLY' || s.cadence === 'SEMIANNUAL')).toEqual([]);
   });
 });
 
@@ -324,11 +634,18 @@ describe('the annual clause speaks only when an annual bill is IN the figure (L.
         obligationsBeyondMonthEstimated: false,
       }),
     ).basis.join(' ');
-    expect(detectedBasis).toContain('A deposit that arrives once a year is not counted here');
+    // L.24 widened this from "arrives once a year" to the whole long-cadence
+    // family: `LONG_CADENCES` excludes quarterly and semiannual INCOME too, and
+    // /recurring renders those at 1/3 and 1/6 a month, so a clause naming only
+    // the yearly case left the two new asymmetries undisclosed (copy critic P1-3).
+    expect(detectedBasis).toContain(
+      'A deposit on a rhythm longer than monthly — quarterly, twice a year, or yearly — is not counted here',
+    );
+    expect(detectedBasis).toContain('Your recurring list shows such a deposit at a share of a month');
     // The trailing median needs no such clause — it counted the bonus in the month
     // it actually arrived, so claiming an exclusion there would be false.
     const medianBasis = traceSafeToSpend(planWith([])).basis.join(' ');
-    expect(medianBasis).not.toContain('arrives once a year');
+    expect(medianBasis).not.toContain('rhythm longer than monthly');
   });
 });
 
@@ -344,13 +661,19 @@ describe('the cadences that reach nothing at all — pinned, not assumed (L.23)'
       rawDescriptor: label,
     }));
 
-  it('quarterly, semiannual, bi-monthly, six-weekly and three-weekly bills are all dropped as IRREGULAR', () => {
-    // cadenceFromGap recognizes ONLY 5–9, 12–16, 26–35 and 350–380 day gaps, so
-    // the reader-facing copy may not enumerate two shapes as if they were the
-    // whole set (copy critic P1-3). Every one of these counts $0 everywhere.
+  it('quarterly and semiannual are now RECOGNIZED (L.24); bi-monthly, six-weekly, three-weekly and ten-day are still dropped', () => {
+    // L.24 added two bands: 84–98 → QUARTERLY, 175–190 → SEMIANNUAL. The rest of
+    // the dropped set is unchanged and still counts $0 everywhere, so the
+    // reader-facing copy may not enumerate the gap as closed (copy critic P1-3
+    // was written about exactly this list).
+    for (const [label, gap, expected] of [
+      ['QUARTERLY WATER', 91, 'QUARTERLY'],
+      ['SEMIANNUAL PREMIUM', 182, 'SEMIANNUAL'],
+    ] as const) {
+      const [series] = detectRecurring(everyNDays(label, gap), isoDate(TODAY));
+      expect(series?.cadence).toBe(expected);
+    }
     for (const [label, gap] of [
-      ['QUARTERLY WATER', 91],
-      ['SEMIANNUAL PREMIUM', 182],
       ['BI-MONTHLY BILL', 61],
       ['SIX WEEKLY LAWN', 42],
       ['THREE WEEKLY THING', 21],
@@ -477,10 +800,10 @@ describe('the real server path: a detected annual bill reaches the spending plan
     expect(basis).not.toContain('is set aside every month');
   });
 
-  it('leaves a QUARTERLY bill counted zero times — the recorded remaining gap', async () => {
-    // ~91-day gaps classify as IRREGULAR in cadenceFromGap, and detectRecurring
-    // drops IRREGULAR before the projection filter is reached. If this ever
-    // starts detecting, the gap in docs/STATUS.md is closed and this test says so.
+  it('a QUARTERLY bill is detected and projected at a third a month (L.24 closed the recorded gap)', async () => {
+    // Was: counted zero times, because ~91-day gaps classified as IRREGULAR and
+    // detectRecurring dropped them before the projection filter. L.24 added the
+    // band, so the same fixture that asserted `[]` now has to state the money.
     const quarterly: RecurringTxn[] = [0, 1, 2, 3].map((i) => ({
       id: `q${i}`,
       accountId: 'acct-checking',
@@ -488,6 +811,114 @@ describe('the real server path: a detected annual bill reaches the spending plan
       amountCents: -30000,
       rawDescriptor: 'CITY WATER QUARTERLY',
     }));
-    expect(detectRecurring(quarterly, isoDate(TODAY))).toEqual([]);
+    const [series] = detectRecurring(quarterly, isoDate(TODAY));
+    expect(series?.cadence).toBe('QUARTERLY');
+    // It reaches the projection as an EXPENSE on the payment account…
+    const rows = toScheduledTransactions([series!], 'acct-checking', isoDate(TODAY));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.cadence).toBe('QUARTERLY');
+    // …and the plan charges a third of it every month: $300.00 / 3 = $100.00.
+    expect(monthlyRateCents(30000, 'QUARTERLY')).toBe(10000);
+    // /recurring normalizes the SAME series to the same figure — the agreement
+    // by construction that L.23 was built to guarantee for annual.
+    const summary = summarizeRecurring([series!], isoDate(TODAY));
+    expect(summary.items[0]?.monthlyEquivalentCents).toBe(10000);
+  });
+});
+describe('the real server path: a detected QUARTERLY bill reaches the spending plan (L.24)', () => {
+  // L.24 money critic P2-4: the slice asserted the quarterly passthrough with
+  // PURE functions only, inside a describe whose name promised the server path.
+  // A pure test cannot catch a wiring bug (the L.15 lesson), and this cadence
+  // travels the same four hops the annual one does: detectRecurring ->
+  // refreshRecurringForUser -> ScheduledTransaction -> snapshot -> getSpendingPlan.
+  const uid = `quarterly-${Date.now()}-${process.pid}`;
+  let checkingId = '';
+
+  const wipe = async () => {
+    await prisma.account.deleteMany({ where: { userId: uid } });
+    await prisma.recurringSeries.deleteMany({ where: { userId: uid } });
+    await prisma.user.deleteMany({ where: { id: uid } });
+  };
+
+  beforeAll(async () => {
+    vi.stubEnv('DEMO_TODAY', TODAY);
+    await wipe();
+    await prisma.user.create({ data: { id: uid, email: `${uid}@test.local` } });
+    const chk = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-chk`,
+        name: 'Everyday Checking',
+        type: 'CHECKING',
+        currentBalanceCents: 800000,
+        currency: 'USD',
+      },
+    });
+    checkingId = chk.id;
+    await prisma.user.update({ where: { id: uid }, data: { paymentAccountId: checkingId } });
+
+    // A $300/quarter water bill (four sightings, 3 clamped months apart) and a
+    // $600 twice-a-year term-life premium (three sightings, 6 months apart).
+    for (const [descriptor, amountCents, first, stepMonths, count] of [
+      ['CITY WATER QUARTERLY', -30000, '2025-06-15', 3, 4],
+      ['TERM LIFE SEMIANNUAL', -60000, '2024-09-20', 6, 3],
+    ] as const) {
+      const canonical = normalizeMerchant(descriptor).canonical;
+      const merchant = await prisma.merchant.upsert({
+        where: { canonical },
+        create: { canonical, defaultCategoryId: null },
+        update: {},
+      });
+      for (let i = 0; i < count; i++) {
+        await prisma.transaction.create({
+          data: {
+            accountId: checkingId,
+            date: addMonthsClamped(isoDate(first), i * stepMonths),
+            amountCents,
+            rawDescriptor: descriptor,
+            merchantId: merchant.id,
+            status: 'POSTED',
+          },
+        });
+      }
+    }
+    await refreshRecurringForUser(uid, isoDate(TODAY));
+  }, 60_000);
+
+  afterAll(async () => {
+    await wipe();
+    vi.unstubAllEnvs();
+  });
+
+  it('persists both as ScheduledTransaction rows with their own cadences', async () => {
+    const rows = await prisma.scheduledTransaction.findMany({
+      where: { accountId: checkingId },
+      select: { description: true, amountCents: true, cadence: true, nextDate: true, source: true },
+      orderBy: { description: 'asc' },
+    });
+    expect(rows).toEqual([
+      {
+        description: 'City Water Quarterly',
+        amountCents: -30000,
+        cadence: 'QUARTERLY',
+        nextDate: '2026-06-15',
+        source: 'recurring',
+      },
+      {
+        description: 'Term Life Semiannual',
+        amountCents: -60000,
+        cadence: 'SEMIANNUAL',
+        nextDate: '2026-09-20',
+        source: 'recurring',
+      },
+    ]);
+  });
+
+  it('the plan charges a third and a sixth a month — FAIL-OLD: fixedExpensesCents was 0', async () => {
+    const plan = await getSpendingPlan(uid);
+    // $300/3 = $100.00, $600/6 = $100.00.
+    expect(plan.fixedExpensesCents).toBe(20000);
+    expect(plan.scheduledFixed.map((s) => s.cadence).sort()).toEqual(['QUARTERLY', 'SEMIANNUAL']);
   });
 });

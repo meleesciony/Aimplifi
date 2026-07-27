@@ -58,7 +58,9 @@ function main() {
   const subs = series.filter((s) => s.isSubscription);
   const unused = series.filter((s) => s.possiblyUnused);
   const priceChanges = series.filter((s) => s.priceChangedAt);
-  const ANNUAL: Record<Cadence, number> = { WEEKLY: 52, BIWEEKLY: 26, MONTHLY: 12, ANNUAL: 1, IRREGULAR: 0 };
+  const ANNUAL: Record<Cadence, number> = {
+    WEEKLY: 52, BIWEEKLY: 26, MONTHLY: 12, QUARTERLY: 4, SEMIANNUAL: 2, ANNUAL: 1, IRREGULAR: 0,
+  };
   const annualSubCost = subs.reduce((s, x) => s + Math.abs(x.typicalAmountCents) * ANNUAL[x.cadence], 0);
   console.log('2. RECURRING / SUBSCRIPTIONS SURFACED');
   console.log(`   • Recurring series detected: ${series.length}`);

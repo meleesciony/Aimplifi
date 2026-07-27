@@ -16,7 +16,8 @@
  * radar #249): "your income seems to have paused" is an alarming claim, so a false
  * positive shouts while a false negative stays quiet. Every gate errs quiet:
  *   • income series only (positive amounts), cadence WEEKLY/BIWEEKLY/MONTHLY —
- *     ANNUAL income (a yearly bonus) is too sparse to call "paused" with one miss;
+ *     Income on a cadence longer than monthly (QUARTERLY, SEMIANNUAL, ANNUAL —
+ *     a yearly bonus, a quarterly dividend) is too sparse to call "paused" with one miss;
  *   • occurrences ≥ MIN_OCCURRENCES (4 — three confirmed cadence gaps, one more
  *     than detectRecurring's own floor);
  *   • typicalAmountCents ≥ MIN_AMOUNT_CENTS ($100 — a lapsed $10 deposit is not an
@@ -44,7 +45,9 @@ import {
   type RecurringSeriesResult,
 } from '@/lib/engine/recurring/detect';
 
-/** Cadences an income pause can be called on. ANNUAL is deliberately absent. */
+/** Cadences an income pause can be called on. The three LONG cadences
+ *  (QUARTERLY, SEMIANNUAL, ANNUAL) are deliberately absent — one miss on a
+ *  rhythm that long is not evidence of a pause. */
 export type PauseCadence = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 
 /**
@@ -140,10 +143,10 @@ function seriesResumed(s: RecurringSeriesResult, today: ISODate): boolean {
  *     deposit: project normally; the caller deletes the stale confirmation
  *     (fresh evidence, and only fresh evidence, retires consent).
  *   • 'inert'   — no income series with a projectable cadence under this
- *     canonical (vanished from detection, or cadence drifted to ANNUAL/none):
+ *     canonical (vanished from detection, or cadence drifted to a long cadence/none):
  *     nothing is projected for it, so nothing is excluded, no row renders, and
  *     the confirmation is KEPT (deleting on absence-of-evidence is F1's bug).
- *     The ANNUAL half of that rests on a decision, not on the cadence list:
+ *     The long-cadence half of that rests on a decision, not on the cadence list:
  *     `toScheduledTransactions` projects annual EXPENSES but deliberately not
  *     annual INCOME (L.23, and the reason is written there). A slice that ever
  *     projects annual income must revisit this branch and `isPauseCadence` with

@@ -15,6 +15,7 @@ import {
 import type { CardObligation } from '@/lib/engine/cash-needed/types';
 import type { ScheduledLike } from '@/lib/engine/cash-needed/assemble';
 import type { LoanObligation } from '@/lib/engine/loans/obligations';
+import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 
 export interface CalendarEvent {
   date: ISODate;
@@ -69,15 +70,20 @@ export function expandScheduled(
         });
       }
     };
-    // MONTHLY steps 1 calendar month, ANNUAL steps 12 (L.23 — a detected annual
-    // bill now reaches the calendar). A month view holds at most one occurrence
-    // of an annual row, so within one month this matches the single-occurrence
-    // `else` below. It is NOT equivalent in general, and the difference is
-    // reachable here rather than hypothetical: `month` is a URL query param with
-    // prev/next links, so a reader is twelve clicks from a month the old `else`
-    // would have left empty — the explicit step is what puts the premium on next
-    // August's grid. A row dated in the past also steps forward now.
-    const monthStep = row.cadence === 'MONTHLY' ? 1 : row.cadence === 'ANNUAL' ? 12 : 0;
+    // MONTHLY 1 calendar month, QUARTERLY 3, SEMIANNUAL 6, ANNUAL 12 — from the
+    // ONE table in detect.ts (L.23 admitted ANNUAL, L.24 the two middle
+    // cadences; a missed branch here is silent, falling through to the
+    // single-occurrence `else` below). A month view holds at most one occurrence
+    // of any of them, so within one month this matches that `else`. It is NOT
+    // equivalent in general, and the difference is reachable here rather than
+    // hypothetical: `month` is a URL query param with prev/next links, so a
+    // reader is three clicks from the quarterly bill's next appearance and
+    // twelve from the annual premium's — months the old `else` left empty. This
+    // is the expander where the explicit step earns the most: forecast and
+    // cash-needed cap at a 90-day horizon, which is SHORTER than a quarterly
+    // period, so there the difference is only a multi-year window or a stale
+    // anchor. A row dated in the past also steps forward now.
+    const monthStep = monthsPerCadence(row.cadence);
     if (monthStep > 0) {
       for (let i = 0; ; i++) {
         const occ = addMonthsClamped(start, i * monthStep);

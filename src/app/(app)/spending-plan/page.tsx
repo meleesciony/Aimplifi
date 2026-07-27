@@ -232,25 +232,40 @@ export default async function SpendingPlanPage() {
         <h2 className="mb-2 text-sm font-semibold">What this figure can&apos;t see</h2>
         <ul className="space-y-2 text-xs text-muted-foreground">
           <li data-testid="plan-unrecognized-cadence-note">
-            A bill that repeats on a rhythm we don&apos;t recognize yet — every ten days, every
-            three weeks, every six weeks, every couple of months, quarterly, or twice a year — is
-            not counted as a recurring bill at all, so{' '}
+            We recognize six rhythms: weekly, every two weeks, monthly, quarterly, twice a year
+            and yearly. A bill that repeats on any rhythm between or beyond them — every ten
+            days, every three weeks, every six weeks, every couple of months, every four or five
+            months, or every year and a half — is not counted as a recurring bill at all, so{' '}
             {positive
               ? 'the real amount free to spend may be lower than shown'
               : 'the real overage may be higher than shown'}
-            . We recognize weekly, every-two-weeks, monthly and yearly rhythms.
+            .
           </li>
-          {!p.scheduledFixed.some((s) => s.cadence === 'ANNUAL') && (
-            <li data-testid="plan-annual-precondition-note">
-              A yearly bill has to have been charged three times at a steady price before the
-              pattern is visible — roughly two years of history — and a premium that rises every
-              year never becomes visible. Until then a yearly bill counts as $0 here, so{' '}
-              {positive
-                ? 'the real amount free to spend may be lower than shown'
-                : 'the real overage may be higher than shown'}
-              .
-            </li>
-          )}
+          <li data-testid="plan-long-cadence-precondition-note">
+            A bill on one of the longer rhythms has to have been charged three times at a steady
+            price before the pattern is visible — roughly six months of history for a quarterly
+            bill, a year for a twice-a-year one, two years for a yearly one — and one whose price
+            rises every time never becomes visible. A quarterly or twice-a-year bill also has to
+            have kept a steady rhythm every time we can see, not just the first three: if the gaps
+            between its charges differ by more than about a week, we leave the whole series out
+            rather than guess at a rhythm, and later on-time charges don&apos;t bring it back.
+            Anything we can&apos;t see counts as $0 here, so{' '}
+            {positive
+              ? 'the real amount free to spend may be lower than shown'
+              : 'the real overage may be higher than shown'}
+            .
+          </li>
+          <li data-testid="plan-long-cadence-overdue-note">
+            And a long-rhythm bill we were counting stops counting once it is more than half a
+            cycle overdue — about four and a half months for a quarterly bill, nine for a
+            twice-a-year one, eighteen for a yearly one. That is how we tell a cancelled policy
+            from a late one, but a bill that is merely running late drops out of this figure
+            until it charges again, so{' '}
+            {positive
+              ? 'the real amount free to spend may be lower than shown'
+              : 'the real overage may be higher than shown'}
+            .
+          </li>
           {d.undatedCards.length > 0 && (
             <li data-testid="plan-undated-note">
               {d.undatedCards.length === 1 ? 'One card has' : `${d.undatedCards.length} cards have`} a

@@ -1,6 +1,7 @@
 import { Gauge } from 'lucide-react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
+import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
@@ -113,13 +114,25 @@ export function SafeToSpendCard({
               never opens /spending-plan would have no way to learn that. Gated on an
               annual bill being IN the term — unconditionally it would name a
               mechanism that did not act, and the detector sees an annual bill only
-              after three sightings at a steady price. */}
-          {plan.scheduledFixed.some((s) => s.cadence === 'ANNUAL') && (
-            <p className="mt-1 text-xs text-muted-foreground" data-testid="safe-to-spend-annual-note">
-              A yearly bill is counted here a twelfth at a time, so the month it actually leaves
-              your account will cost more than this figure allows for.
+              after three sightings at a steady price. L.24: the same clause now
+              speaks for the quarterly and twice-a-year rhythms it added, each
+              naming its OWN fraction from the shared table, still gated on being
+              in the term, and each carrying data-cadence so a test can bind ONE of
+              them — the testid repeats per cadence, which a strict locator would
+              otherwise trip over (L.24 copy critic P2-1; the earlier comment here
+              claimed an e2e lock on this testid that does not exist). */}
+          {longCadencesInTerm(plan.scheduledFixed).map((c) => (
+            <p
+              key={c}
+              className="mt-1 text-xs text-muted-foreground"
+              data-testid="safe-to-spend-annual-note"
+              data-cadence={c}
+            >
+              A {LONG_CADENCE_WORDS[c].adjective} bill is counted here {LONG_CADENCE_WORDS[c].share}{' '}
+              at a time, so {LONG_CADENCE_WORDS[c].cardLanding} will cost more than this figure
+              allows for.
             </p>
-          )}
+          ))}
           {hasDuplicate && (
             <p className="mt-1 text-xs text-muted-foreground" data-testid="safe-to-spend-duplicate-note">
               Two of the cards behind this figure may be the same card twice; if so{' '}

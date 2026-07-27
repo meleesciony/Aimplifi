@@ -19,10 +19,13 @@
 import { cents, formatCents } from '@/lib/money';
 import { formatISODate, formatMonth, isoDate } from '@/lib/dates';
 import { LENS_MIN_PATTERN_SAMPLE, type MerchantProfile, type LensWindow } from './profile';
+import type { Cadence } from '@/lib/engine/recurring/detect';
 
-/** Narrow cadence input the server maps from an ACTIVE RecurringItem. */
+/** Cadence input the server maps from an ACTIVE RecurringItem. Was a narrowed
+ *  copy of the union; L.24 pointed it at `Cadence` itself so a new cadence can
+ *  never be silently unassignable here. */
 export interface LensCadence {
-  cadence: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL' | 'IRREGULAR';
+  cadence: Cadence;
   /** SIGNED, as detectRecurring emits it (negative for expense series). The
    *  copy renders the MAGNITUDE — a lens describing charges must never print
    *  "typically −$1,800.00" against the typical line's positive figure
@@ -50,6 +53,8 @@ const CADENCE_WORD: Record<Exclude<LensCadence['cadence'], 'IRREGULAR'>, string>
   WEEKLY: 'weekly',
   BIWEEKLY: 'every two weeks',
   MONTHLY: 'monthly',
+  QUARTERLY: 'every three months',
+  SEMIANNUAL: 'twice a year',
   ANNUAL: 'yearly',
 };
 

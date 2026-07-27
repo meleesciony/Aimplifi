@@ -14,6 +14,7 @@ import { type Cents, cents } from '@/lib/money';
 import { type ISODate, addDays, addMonthsClamped, compareDates, isoDate, nextDayOfMonth } from '@/lib/dates';
 import { accountLabel } from '@/lib/engine/account/display-name';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
+import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 import type { CardSnapshot, CashNeededInput, PendingTx, Scenario, ScheduledItem } from './types';
 
 export interface AccountLike {
@@ -193,18 +194,25 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
   for (const row of p.scheduled) {
     if (row.accountId !== p.paymentAccountId) continue;
     const start = isoDate(row.nextDate);
-    // Calendar-month cadences step by whole months: MONTHLY by 1, ANNUAL by 12
-    // (L.23 — a detected annual bill now reaches this projection). At every
+    // Calendar-month cadences step by whole months: MONTHLY 1, QUARTERLY 3,
+    // SEMIANNUAL 6, ANNUAL 12 — from the ONE table in detect.ts, because this
+    // chain existed in four copies and a missed branch is silent (the row falls
+    // through to the single-occurrence `else` and renders once, forever).
+    // (L.23 admitted ANNUAL here; L.24 the two middle cadences.) At every
     // horizon this engine is called with (60 days by default, 90 at the widest)
-    // an ANNUAL row has at most ONE occurrence in the window, so this loop
-    // matches the single-occurrence `else` it used to fall through — with two
-    // deliberate exceptions, both in the safe direction and both executed by the
-    // L.23 money critic: a window spanning a year or more yields the later
-    // occurrences (the second needs ~431 days here, NOT 366 — the bound depends
-    // on the anchor's phase in the window), and a row whose nextDate is already
-    // in the past steps forward instead of being dropped, which is date-scoped
-    // rather than window-scoped.
-    const monthStep = row.cadence === 'MONTHLY' ? 1 : row.cadence === 'ANNUAL' ? 12 : 0;
+    // an ANNUAL row has at most ONE occurrence in the window, so for ANNUAL this
+    // loop matches the `else` it used to fall through — with two deliberate
+    // exceptions, both in the safe direction and both executed by the L.23 money
+    // critic: a window spanning a year or more yields the later occurrences (the
+    // second needs ~431 days here, NOT 366 — the bound depends on the anchor's
+    // phase in the window), and a row whose nextDate is already in the past
+    // steps forward instead of being dropped, which is date-scoped rather than
+    // window-scoped. Both exceptions apply unchanged to the two cadences L.24
+    // added — and note that a QUARTERLY PERIOD (91–92 days) is LONGER than this
+    // engine's widest horizon, so a quarterly row also has at most one
+    // occurrence here. Measured, not assumed: a draft comment claimed it could
+    // recur inside 90 days and the executed test disproved it.
+    const monthStep = monthsPerCadence(row.cadence);
     if (monthStep > 0) {
       for (let i = 0; ; i++) {
         const occ = addMonthsClamped(start, i * monthStep);

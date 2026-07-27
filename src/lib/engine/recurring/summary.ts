@@ -11,13 +11,29 @@ import { daysBetween, isoDate } from '@/lib/dates';
 import { isSeriesActive } from './detect';
 import type { Cadence, RecurringSeriesResult } from './detect';
 
-/** Charges per month, for monthly-equivalent normalization. */
-const PER_MONTH: Record<Cadence, number> = {
-  WEEKLY: 52 / 12,
-  BIWEEKLY: 26 / 12,
-  MONTHLY: 1,
-  ANNUAL: 1 / 12,
-  IRREGULAR: 0,
+/**
+ * Charges per month, for monthly-equivalent normalization — as an exact
+ * NUMERATOR/DENOMINATOR pair, never a float.
+ *
+ * `52 / 12` is inexact in binary, so `amount × (26/12)` and `amount × 26 / 12`
+ * are not the same number: at $999.99 biweekly the first lands just under a .5
+ * boundary and rounds down, giving $2,166.64 here against the spending plan's
+ * $2,166.65 for the same series. The L.24 money critic brute-forced every
+ * amount to 2,000,000 cents and found 120,989 such amounts — every
+ * `cents ≡ 3 (mod 6)` — including a $2,307.69 paycheck, i.e. an ordinary
+ * $60k salary. One cent, but two surfaces disagreeing about one fact is the
+ * L.23 defect in miniature, and the plan's integer form is the correct one.
+ * The pairs match `monthlyRateCents`' divisors exactly; a test fuzzes the
+ * agreement across residues rather than trusting divisible examples.
+ */
+const PER_MONTH: Record<Cadence, readonly [number, number]> = {
+  WEEKLY: [52, 12],
+  BIWEEKLY: [26, 12],
+  MONTHLY: [1, 1],
+  QUARTERLY: [1, 3],
+  SEMIANNUAL: [1, 6],
+  ANNUAL: [1, 12],
+  IRREGULAR: [0, 1],
 };
 
 // The active/lapsed cutoff lives in detect.ts as `isSeriesActive` (L.23): the
@@ -55,7 +71,8 @@ export function summarizeRecurring(
   const t = isoDate(today);
 
   const items: RecurringItem[] = series.map((s) => {
-    const monthlyEquivalentCents = Math.round(Math.abs(s.typicalAmountCents) * PER_MONTH[s.cadence]);
+    const [num, den] = PER_MONTH[s.cadence];
+    const monthlyEquivalentCents = Math.round((Math.abs(s.typicalAmountCents) * num) / den);
     const daysSinceLast = daysBetween(isoDate(s.lastSeenAt), t);
     const active = isSeriesActive(s, t);
     return { ...s, monthlyEquivalentCents, active, daysSinceLast };
