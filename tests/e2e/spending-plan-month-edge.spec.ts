@@ -142,8 +142,9 @@ test('a repeating bill the projection could not count is named — a broken zero
   // FAIL-OLD: before L.30 this identical state printed "Fixed & recurring expenses
   // (none counted)" with a link — the same line a reader with genuinely no bills
   // saw, which is how the defect survived being looked at.
-  expect(labels[1]).toContain('Fixed & recurring expenses (1 bill found, none counted here)');
-  expect(labels[1]).not.toContain('no repeating bills found yet');
+  expect(labels[1]).toContain('Fixed & recurring expenses (1 bill found, not counted here)');
+  // …and it is NOT the unproven-zero wording a reader with no known bills gets.
+  expect(labels[1]).not.toBe('Fixed & recurring expenses (none counted)');
   const action = page.getByTestId('plan-row-action').filter({ hasText: 'See your recurring bills' });
   await expect(action).toHaveAttribute('href', '/recurring');
 
@@ -158,9 +159,15 @@ test('a repeating bill the projection could not count is named — a broken zero
 
   // The same fact reaches /budgets, which re-partitions the same plan into
   // percentages against a target — a split it would otherwise certify as correct.
+  // /budgets gets the SURFACE'S OWN NOUN, not this page's: it prints no
+  // fixed-expenses line at all, only a "Fixed costs" bucket that also holds card
+  // payments, so naming a line there would point at nothing (copy critic P2-3).
   await page.goto('/budgets');
   await expect(page.getByTestId('conscious-fixed-uncounted')).toContainText(
-    'not in the fixed-expenses line',
+    'not in your fixed costs',
+  );
+  await expect(page.getByTestId('conscious-fixed-uncounted')).not.toContainText(
+    'fixed-expenses line',
   );
 });
 
@@ -204,22 +211,24 @@ test('a card dated past the month’s edge is reserved, shown as its own line, a
   // row "Fixed & recurring expenses (monthly pattern)", the savings row "Planned
   // savings (goals)" — and neither control existed.
   //
-  // L.30 re-derives the FIXED label on this same fixture rather than deleting the
-  // assertion: this reader has no repeating bill at all, and that is now PROVABLE
-  // from the recorded reasons, so the line says so instead of L.29's cautious
-  // "(none counted)" — which had to stand for four different facts because nothing
-  // downstream knew which one it was. A correct zero carries no control, so the
-  // action count drops to one (the savings target) and /recurring is not offered:
-  // a link beside a figure that is right reads as a correction.
+  // L.30 keeps this reader on "(none counted)", and that is a deliberate LIMIT
+  // rather than an oversight. The first cut printed "(no repeating bills found yet)"
+  // here, on the strength of the stored table being empty — and both L.30 critics
+  // executed the case that breaks it: a series is stored only when its merchant has
+  // a Merchant row, which the manual-entry and CSV-import writers never create, so
+  // an empty table also describes a reader who typed his bills in himself. An empty
+  // table is not an empty world, so the branch was removed rather than narrowed.
   const labels = await page.getByTestId('plan-row-label').allTextContents();
-  expect(labels[1]).toContain('Fixed & recurring expenses (no repeating bills found yet)');
+  expect(labels[1]).toContain('Fixed & recurring expenses (none counted)');
   expect(labels[2]).toContain('Card payments (none due until after this month)');
   expect(labels[3]).toContain('Planned savings (no monthly amount set)');
   // Each control is a real link to a route that offers the input it names.
-  await expect(page.getByTestId('plan-row-action')).toHaveCount(1);
-  await expect(page.getByTestId('plan-row-action').nth(0)).toHaveAttribute('href', '/settings');
-  // The empty case may NOT borrow the alarm's wording — that is the whole point.
-  expect(labels[1]).not.toContain('none counted here');
+  await expect(page.getByTestId('plan-row-action')).toHaveCount(2);
+  await expect(page.getByTestId('plan-row-action').nth(0)).toHaveAttribute('href', '/recurring');
+  await expect(page.getByTestId('plan-row-action').nth(1)).toHaveAttribute('href', '/settings');
+  // An unproven zero may NOT borrow the alarm's wording: this reader has no bill we
+  // know of, which is not the same claim as "we found one and lost it".
+  expect(labels[1]).not.toContain('not counted here');
   // No control is offered beside a working figure — income and the dated card row.
   expect(labels[0]).not.toContain('http');
   // …and the reconciliation claim is untouched by any of it (no non-money text

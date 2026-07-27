@@ -515,13 +515,21 @@ export function classifySeriesProjection(
   },
   today: ISODate,
 ): SeriesProjectionStatus {
-  if (scope.cashAccountIds.size === 0) return 'no-cash-account';
-  // CADENCE gate first, ACCOUNT gate second. Where both apply, the honest reason
-  // is the cadence one: a series that is not due to be counted at all cannot be
-  // the victim of a scope defect, so reporting it as one would be a false alarm.
-  // Safe because the lapse gate reaches only the LONG cadences — a MONTHLY bill
-  // sitting on a ghost account can never be masked by it, and that is the case
-  // the alarm exists for.
+  // ORDER: cadence gate, then the card, then the cash gap, then scope.
+  //
+  // CADENCE FIRST. Where both a cadence reason and an account reason apply, the
+  // honest one is the cadence: a series that is not due to be counted at all cannot
+  // be the victim of a scope defect, so reporting it as one would be a false alarm.
+  // Safe because the lapse gate reaches only the LONG cadences — a MONTHLY bill on
+  // a ghost account can never be masked by it, and that is the case the alarm
+  // exists for. It also keeps a LAPSED card bill reported as lapsed: nothing is
+  // charging, so no line "holds" it and 'on-card' would over-claim.
+  //
+  // THEN THE CARD, ahead of the cash gap (critic P2-1, executed): a reader who has
+  // linked only credit cards, with every bill charged to them, was told "no checking
+  // or savings account linked" — literally true, not the operative mechanism, and
+  // printed beside a control that provably cannot move the figure, because the
+  // card-payment term is what holds those bills.
   if (LONG_CADENCES.has(series.cadence)) {
     if (series.isIncome) return 'long-cadence-income';
     if (!isSeriesActive(series, today)) return 'lapsed';
@@ -532,6 +540,8 @@ export function classifySeriesProjection(
   ) {
     return 'unrecognized-rhythm';
   }
+  if (!series.isIncome && scope.creditAccountIds.has(series.accountId)) return 'on-card';
+  if (scope.cashAccountIds.size === 0) return 'no-cash-account';
   const inScope = widensToEveryCashAccount(series)
     ? scope.cashAccountIds.has(series.accountId)
     : series.accountId === scope.paymentAccountId;

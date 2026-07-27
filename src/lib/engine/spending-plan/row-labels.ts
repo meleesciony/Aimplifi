@@ -21,13 +21,19 @@
  * ('Income (no pattern yet)'), and a zero that means "you have not set this up"
  * carries the CONTROL that sets it up.
  *
- * WHAT IT DELIBERATELY DOES NOT CLAIM. The fixed-expenses zero says "none
- * counted" and never "none detected": this module cannot tell an empty detector
- * from a projection that dropped every row (the L.26 signature), and asserting
- * the first would restate the very false all-clear the slice exists to remove.
- * Distinguishing those two needs the account-scope predicate that decides which
- * detected series become projected rows, not a count — recorded as an open
- * residual in docs/STATUS.md §L.29 rather than guessed at here.
+ * WHAT L.30 ADDS, AND WHAT IT STILL WILL NOT CLAIM. `disclosures.fixedSeries`
+ * carries WHY each repeating expense is or is not in the figure, recorded by the
+ * same pass that admits the projected rows, so a zero can now name the alarm
+ * (a bill found and not counted) and the two correct absences.
+ *
+ * It still never says "nothing was found". `detected` counts STORED
+ * `RecurringSeries` rows, and a series is only stored if its merchant has a
+ * `Merchant` row — which the Plaid and SimpleFIN ingests create but the manual-add
+ * and CSV-import writers do not. So `detected === 0` has two causes, and reading it
+ * as proof of absence told a reader who had TYPED IN three monthly charges that no
+ * repeating bill was found, while /recurring listed them. Both L.30 critics
+ * reproduced that independently, by execution. An empty table is not an empty
+ * world; the residual is recorded in docs/STATUS.md §OPEN after L.30.
  *
  * Pure: strings in, strings out; no I/O, no Date, no money arithmetic — every
  * figure these labels sit beside is computed by the engine and copied verbatim.
@@ -38,9 +44,15 @@ import type { SpendingPlan, SpendingPlanDisclosures } from './plan';
 export interface PlanRowLabel {
   label: string;
   /**
-   * Where a reader can act on a zero that means "you have not set this up"
-   * (never on a zero that means "nothing qualified"). Absent on every non-zero
-   * row: a control offered beside a working figure reads as a correction.
+   * Where a reader can act on this zero. Absent on every non-zero row, and on a
+   * zero this module can PROVE is correct — a control offered beside a working
+   * figure reads as a correction.
+   *
+   * It is present on two kinds of zero, not one (critic P3-2 corrected the earlier
+   * wording, which claimed only the first): a zero meaning "you have not set this
+   * up", and a zero whose basis is unproven or mixed, where the link is how the
+   * reader finds out what the app actually has. What it is never offered beside is
+   * a figure asserted to be right.
    */
   action?: { label: string; href: string };
 }
@@ -95,10 +107,8 @@ function incomeLabel(plan: SpendingPlan): string {
  * the reason for every repeating expense the detector found, recorded by the
  * same pass that admits the rows, and each of these zeros is a different fact:
  *
- *  - no repeating expense was found at all — the honest empty case, and the one
- *    L.29 was careful never to assert without proof;
- *  - every one of them charges to a CREDIT card, so the card-payments line holds
- *    them and this $0.00 is exactly right;
+ *  - every one of them charges to a CREDIT card AND that card's payment is really
+ *    in the card-payments term, so this $0.00 is exactly right;
  *  - every one of them has stopped charging;
  *  - one or more charges on an account this projection does not read — the L.26
  *    signature, where the figure is simply WRONG and too low.
@@ -107,8 +117,10 @@ function incomeLabel(plan: SpendingPlan): string {
  * reader may spend against, so the two that mean "this number is missing money"
  * are asserted first: a reader shown "all charged to a card" when a bill was in
  * fact dropped has been told his zero is correct, which is the false all-clear
- * this whole thread exists to remove. The reverse mistake — hedging a genuinely
- * empty line — only sends him to a list that shows nothing.
+ * this whole thread exists to remove. The reverse mistake — hedging a line that is
+ * genuinely fine — only sends him to a list, which costs him a look and nothing else.
+ * There is no "nothing was found" branch at all, for the reason the module header
+ * gives: the stored table cannot prove an empty world.
  *
  * THE ALARM DOES NOT DIAGNOSE. It says the bills were found and are not in this
  * figure, and points at the list; it does not name a mechanism, because two
@@ -140,9 +152,19 @@ function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): P
   }
   const seen = disclosures.fixedSeries;
   const absent = seen.detected - seen.counted;
+  const unexplained: PlanRowLabel = {
+    label: 'Fixed & recurring expenses (none counted)',
+    action: { label: 'See your recurring bills', href: '/recurring' },
+  };
   if (seen.uncounted > 0) {
+    // The count is `uncounted`, NOT `detected` (critic P2-2/P2-4, found by both
+    // critics): on a branch reserved for "this figure is missing money", naming
+    // every detected bill invites the reader to add back bills that are correctly
+    // elsewhere. A reader with 3 detected, 2 on a card and 1 lost was told "3 bills
+    // found" beside a sentence that said one — two answers to one question, on one
+    // page, which is the drift this module exists to prevent.
     return {
-      label: `Fixed & recurring expenses (${bills(seen.detected)} found, none counted here)`,
+      label: `Fixed & recurring expenses (${bills(seen.uncounted)} found, not counted here)`,
       action: { label: 'See your recurring bills', href: '/recurring' },
     };
   }
@@ -152,21 +174,31 @@ function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): P
       action: { label: 'Link an account', href: '/accounts' },
     };
   }
-  // No control on either correct-absence branch: a link beside a figure that is
-  // right reads as a correction (the L.29 rule).
+  // A CORRECT absence gets no control: a link beside a figure that is right reads
+  // as a correction (the L.29 rule).
+  //
+  // "All charged to a card" is a claim about ANOTHER LINE holding the money, so it
+  // is only true while that line is actually acting (critic P1-2, executed). When
+  // a card has no due date yet, or no statement generated, or is currency-withheld,
+  // its obligation is excluded from `cardObligationsCents` ENTIRELY — `detect.ts`
+  // says so out loud — so those bills are in NO term of this plan and BOTH lines
+  // print $0.00. Asserting the card line holds them would be the false all-clear
+  // this thread exists to remove, on the panel that removed it.
+  const cardTermActs =
+    plan.cardObligationsCents !== 0 &&
+    disclosures.undatedCards.length === 0 &&
+    disclosures.statementPendingCards.length === 0 &&
+    disclosures.creditCardsOutsideFigure === 0;
   if (absent > 0 && seen.onCard === absent) {
-    return { label: 'Fixed & recurring expenses (all charged to a card)' };
+    return cardTermActs ? { label: 'Fixed & recurring expenses (all charged to a card)' } : unexplained;
   }
   if (absent > 0 && seen.lapsed === absent) {
     return { label: 'Fixed & recurring expenses (none still charging)' };
   }
-  if (seen.detected === 0) {
-    return { label: 'Fixed & recurring expenses (no repeating bills found yet)' };
-  }
-  return {
-    label: 'Fixed & recurring expenses (none counted)',
-    action: { label: 'See your recurring bills', href: '/recurring' },
-  };
+  // NO "nothing was found" BRANCH, deliberately — see the note above about what
+  // `detected === 0` can and cannot prove. Both critics reproduced the same false
+  // claim from it, so it is gone rather than narrowed.
+  return unexplained;
 }
 
 /** "1 bill" / "3 bills" — pluralized here so the two surfaces that print this
@@ -209,6 +241,15 @@ function bills(n: number): string {
 export function uncountedFixedNote(
   disclosures: SpendingPlanDisclosures,
   headline: 'left-to-spend' | 'overage',
+  /**
+   * What THIS surface calls the thing the bill is missing from — also required,
+   * for the same reason as `headline`. /spending-plan and Ask both print a line
+   * called "Fixed & recurring expenses"; /budgets prints no such line at all, only
+   * a "Fixed costs" bucket that also contains card payments, so naming a line
+   * there points at nothing (critic P2-3, executed against the component's own
+   * labels).
+   */
+  lineName: 'the fixed-expenses line' | 'your fixed costs',
 ): string | null {
   const n = disclosures.fixedSeries.uncounted;
   if (n <= 0) return null;
@@ -217,7 +258,7 @@ export function uncountedFixedNote(
     headline === 'overage'
       ? 'the real overage is bigger than shown by that much'
       : 'the real amount free to spend is smaller than shown by that much';
-  return `${subject} not in the fixed-expenses line, so your real fixed costs are higher than it shows and ${direction}. Your recurring list shows every bill we found, including ${n === 1 ? 'it' : 'these'}.`;
+  return `${subject} not in ${lineName}, so your real fixed costs are higher than shown and ${direction}. Your recurring list shows every bill we found, including ${n === 1 ? 'it' : 'these'}.`;
 }
 
 /**

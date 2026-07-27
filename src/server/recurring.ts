@@ -125,6 +125,13 @@ async function derivedProjectionDigest(userId: string): Promise<string> {
         lastSeenAt: true,
         nextExpectedAt: true,
         isSubscription: true,
+        // L.30, and L.28's own defect class reintroduced without it (critic P2-5,
+        // executed twice): the label beside the fixed-expenses figure is DERIVED
+        // from this column, so a sync that changes only the reason rewrites the
+        // panel — including the first post-deploy sync, which closes the null
+        // window for every existing row. Omitted, the digest reported
+        // `changed: false` and the page repainted the stale sentence.
+        projectionStatus: true,
       },
     }),
     prisma.scheduledTransaction.findMany({

@@ -223,9 +223,14 @@ export interface FixedSeriesCensus {
   lapsed: number;
   /**
    * Absent INCORRECTLY: the account the bill charges is not one this projection
-   * reads. The alarm. `detected - counted - onCard - lapsed - uncounted` is the
-   * remainder whose reason was never recorded (a row stored before L.30, or by
-   * the seeder), which may never be read as either a true or a broken zero.
+   * reads. The alarm.
+   *
+   * The unrecorded remainder is
+   * `detected - counted - onCard - lapsed - uncounted - noCashAccount` — the
+   * earlier version of this sentence omitted the last term and so reported four
+   * RECORDED `no-cash-account` rows as unrecorded (critic P3-3, executed). A row in
+   * that remainder was stored before L.30 or by the seeder, and may never be read
+   * as either a true or a broken zero.
    */
   uncounted: number;
   /** Absent because no CHECKING or SAVINGS account is linked to project from. */

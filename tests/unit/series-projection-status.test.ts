@@ -132,17 +132,31 @@ describe('classifySeriesProjection — the closed set of reasons', () => {
       ),
     ).toBe('off-scope');
   });
-
-  it("'no-cash-account': nothing to project FROM outranks every other reason", () => {
+  it("'no-cash-account' is for a bill that WOULD have needed a cash account", () => {
     const noCash = { paymentAccountId: null, cashAccountIds: new Set<string>(), creditAccountIds: new Set([CARD]) };
     expect(classifySeriesProjection(series(), noCash, TODAY)).toBe('no-cash-account');
-    // Even for a series on a card, where 'on-card' would otherwise be true: with
-    // no cash account the reader's whole plan rests on nothing, and that is the
-    // fact worth surfacing.
-    expect(classifySeriesProjection(series({ accountId: CARD }), noCash, TODAY)).toBe('no-cash-account');
+
+    // ...but NOT for a bill charged to a card, even with no cash account anywhere.
+    // The first cut let 'no-cash-account' outrank everything, so a reader who had
+    // linked only credit cards, with every bill charged to them, was told "no
+    // checking or savings account linked" beside a control that provably cannot move
+    // the figure: literally true, wrong mechanism, since the card-payment term is
+    // what holds those bills (copy critic P2-1, executed).
+    expect(classifySeriesProjection(series({ accountId: CARD }), noCash, TODAY)).toBe('on-card');
+
+    // And a LAPSED card bill stays 'lapsed', not 'on-card': nothing is charging, so
+    // no line holds it and 'on-card' would over-claim. That is why the cadence gate
+    // still runs before the card check.
+    expect(
+      classifySeriesProjection(
+        series({ accountId: CARD, cadence: 'ANNUAL', lastSeenAt: isoDate('2021-03-01') }),
+        noCash,
+        TODAY,
+      ),
+    ).toBe('lapsed');
   });
 
-  it("'unrecognized-rhythm' exists so the function is total, and no stored row can carry it", () => {
+    it("'unrecognized-rhythm' exists so the function is total, and no stored row can carry it", () => {
     // `detectRecurring` drops IRREGULAR before this function ever sees one, which
     // is why no census field branches on it. Pinned so a future change that DOES
     // start storing irregular series fails here rather than silently landing in a

@@ -318,11 +318,11 @@ describe('answerSafeToSpend', () => {
     };
     const positive = answerSafeToSpend(QUALIFIER_PLAN({}), short);
     expect(positive.detail).toContain(
-      'One repeating bill we found is not in the fixed-expenses line, so your real fixed costs are higher than it shows and the real amount free to spend is smaller than shown by that much. Your recurring list shows every bill we found, including it.',
+      'One repeating bill we found is not in the fixed-expenses line, so your real fixed costs are higher than shown and the real amount free to spend is smaller than shown by that much. Your recurring list shows every bill we found, including it.',
     );
     const over = answerSafeToSpend(QUALIFIER_PLAN({ leftToSpendCents: -50000, overspent: true }), short);
     expect(over.detail).toContain(
-      'One repeating bill we found is not in the fixed-expenses line, so your real fixed costs are higher than it shows and the real overage is bigger than shown by that much. Your recurring list shows every bill we found, including it.',
+      'One repeating bill we found is not in the fixed-expenses line, so your real fixed costs are higher than shown and the real overage is bigger than shown by that much. Your recurring list shows every bill we found, including it.',
     );
     // Neither surface may claim the wrong direction, so pin the absence too.
     expect(positive.detail).not.toContain('overage is bigger');

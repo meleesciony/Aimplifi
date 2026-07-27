@@ -782,7 +782,11 @@ export function answerSafeToSpend(
   // reader who asked here. Authored in `row-labels.ts` with the labels; the
   // direction argument is this branch's own fact — `over` renders the OVERAGE, and
   // an uncounted bill makes an overage bigger where it makes room to spend smaller.
-  const fixedShortfall = uncountedFixedNote(disclosures, over ? 'overage' : 'left-to-spend');
+  const fixedShortfall = uncountedFixedNote(
+    disclosures,
+    over ? 'overage' : 'left-to-spend',
+    'the fixed-expenses line',
+  );
   if (fixedShortfall) qualifiers.push(fixedShortfall);
   if (disclosures.undatedCards.length > 0) {
     const names = disclosures.undatedCards.map((c) => c.cardName).join(', ');

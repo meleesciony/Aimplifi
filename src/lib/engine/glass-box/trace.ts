@@ -192,7 +192,7 @@ export function traceSafeToSpend(
   disclosures: SpendingPlanDisclosures,
 ): NumberTrace {
   const labels = planRowLabels(plan, disclosures);
-  const fixedShortfallNote = uncountedFixedNote(disclosures, 'left-to-spend');
+  const fixedShortfallNote = uncountedFixedNote(disclosures, 'left-to-spend', 'the fixed-expenses line');
   const rows: TraceRow[] = [
     {
       id: 'income',

@@ -50,27 +50,88 @@ silence there certifies a split rather than merely omitting a figure).
    payment-account rule was "already held by the linked loan's obligation". `SpendingPlanInput` has
    no loan term of any kind, so it is missing from the plan outright. Checked, then corrected.
 
-**Gate:** `VERIFY_E2E=1 bash scripts/verify.sh` — tsc 0 / eslint 0 / **286 files / 4535 tests** /
-build clean; full e2e **207/207 serialized** (the parallel run failed
-`duplicate-connections.spec.ts:164` twice with the documented #287 strict-mode DOM-duplication
-signature, and that spec passes 12/12 alone — read the signature, serialize to prove).
+**Gate (after the critic fixes):** tsc 0 / eslint 0 / **286 files / 4535 tests** / build clean;
+full e2e **207/207 serialized**. The parallel e2e run failed 8 tests across the reconcile/accounts
+family with the documented #287 strict-mode DOM-duplication signature; all 20 of those specs pass
+serialized, and the one real failure among them was my own /budgets assertion still expecting the
+pre-fix noun. Read the signature, serialize to prove.
 **Schema: additive nullable column only**, no existing column touched.
 
-**Not yet done: the hostile-critic pass.** Money-display copy over a data-integrity fact owes one
-per CLAUDE.md; it had not run when the owner sent three live feature requests mid-session (Wave O),
-which take priority. The adversarial pass is OWED, exactly as L.20's was.
+### Critic cycle 1 — BOTH critics FAIL: 3 P1 + 3 P2 + 3 P3, all executed, all fixed (DECISIONS #319)
 
-### 🟠 OPEN after L.30
+Two fresh-context critics, different lenses (copy honesty; wiring and sweep completeness). They
+converged independently on two findings, which is what separates a real defect from a plausible one.
 
-1. **The seeder writes no `projectionStatus`**, so every demo `RecurringSeries` row reads as
-   "reason not recorded". Harmless today — the demo's fixed term is non-zero, so no zero branch
-   renders — and it self-heals for real users on the next sync. Worth setting in the seed so the
-   demo can exercise the new branches.
-2. **`unrecognized-rhythm` is unreachable for a stored row** by design (`detectRecurring` drops
+* **P1 (both critics). The "nothing was found" branch rested on a proof that does not hold, and is
+  now DELETED rather than narrowed.** `detected` counts STORED `RecurringSeries` rows, and a series
+  is stored only when its merchant has a `Merchant` row — which the Plaid and SimpleFIN ingests
+  create but manual-add and CSV-import never do. Both critics executed a reader who had TYPED IN a
+  monthly bill and was told no repeating bill was found, while /recurring listed it. L.29 refused to
+  make that claim without proof; L.30 thought it had the proof, and the proof was a table whose
+  emptiness has two causes. The label falls back to L.29's `(none counted)`.
+* **P1 (copy critic). "All charged to a card" asserted another line held money that was in no
+  line.** An undated, statement-pending or currency-withheld card's obligation is excluded from
+  `cardObligationsCents` entirely — so both the fixed line and the card line printed $0.00 while the
+  fixed line said the card line had it covered. That branch now requires the card term to be ACTING.
+* **P1 (copy critic). I reintroduced the direction bug I had just fixed, one caller later.**
+  /budgets renders `plan.leftToSpendCents` itself — negative in an overspent month — and was handed
+  Ask's rule (`overspent ? 'overage' : ...`), so it told an overspent reader the real overage was
+  *bigger* than a figure that in fact gets *smaller*. My own docblock claimed the direction was
+  "locked both ways"; it was locked at the TYPE, not at the third caller. A required argument makes
+  a caller answer, never answer correctly. The discriminator is which figure the surface prints.
+* **P2. The label and its own note printed two different counts of one fact, on one page** — the
+  alarm said "3 bills found" where the note said one, inviting the reader to add back money that is
+  correctly elsewhere. The alarm now prints `uncounted`.
+* **P2. The note named a line /budgets does not have.** That surface prints only a "Fixed costs"
+  bucket, which also holds card payments, so `lineName` is a required argument too.
+* **P2. A cards-only reader was told "no checking or savings account linked"** beside a control that
+  provably cannot move the figure. A CREDIT-charged bill is now named for its card first — while the
+  cadence gate still runs before that, so a LAPSED card bill stays `lapsed` rather than claiming a
+  line holds a charge that stopped.
+* **P2. `derivedProjectionDigest` did not select `projectionStatus`**, so L.28's own defect came
+  straight back for the new field: the first post-deploy sync — the one that closes the null window
+  for every existing row — reported `changed: false` and the page repainted the stale sentence.
+* **P3 x3.** A module header still disclaiming the slice's own behaviour, an `action` docblock
+  claiming one kind of zero carries a control when two do, and a census-remainder formula that
+  omitted `noCashAccount` and so reported four RECORDED reasons as unrecorded.
+
+**Recorded rather than fixed** (below): the root cause behind the first P1, the three Ask solvers
+that print an affordability verdict off the same figure, and /recurring's inability to mark the bill
+the plan lost.
+
+### 🟠 OPEN after L.30 (ranked by money consequence)
+
+1. **A detected series whose merchant has no `Merchant` row is invisible to the whole reason ledger
+   — the root cause behind critic P1-1, closed only at the copy.** `refreshRecurringForUser` drops
+   those series before storing, and the manual-add and CSV-import writers create transactions with
+   no `Merchant` upsert, so for a hand-entering reader the census is permanently all-zero: the L.26
+   alarm and the understatement note have **zero coverage**, and /recurring lists bills the census
+   never saw. Fix is one of: upsert the merchant in those two writers (which also makes their bills
+   visible to /recurring's own totals), or persist the census from `classified` inside the writer,
+   where the merchant-less series is still present. Until then the label is honest but silent there.
+2. **Three Ask solvers print an affordability VERDICT off the same figure with no disclosure in
+   scope.** `answerDebtFreeByDate`, `answerSavingsGoalByDate` and `answerRetireAtAge` take no
+   `SpendingPlanDisclosures`, yet each prints "about X% of your guilt-free spending" and branches on
+   `withinSafeToSpend` — so an uncounted bill can SUPPRESS the "beyond a single month's budget"
+   warning, and the app tells the reader a payment fits when it does not. `plan.disclosures` is in
+   hand at all three call sites. Worse, `goal-actions.ts` PERSISTS a monthly contribution derived
+   from `leftToSpendCents`, and the stored number outlives any disclosure.
+3. **/recurring cannot answer the question the label's own link raises.** "See your recurring bills"
+   lands on a page that re-detects live from the snapshot, never reads `projectionStatus`, and marks
+   nothing as the bill the plan lost — and its own monthly total can exceed the plan's fixed line
+   with nothing reconciling them.
+4. **The seeder writes no `projectionStatus`**, so every demo `RecurringSeries` row reads as "reason
+   not recorded" and `counted: 0` sits beside a counted $2,300.00. Harmless today (the demo's fixed
+   term is non-zero, so no zero branch renders) but it means demo mode — first-class per CLAUDE.md
+   §4 — cannot exercise a single new branch. `scripts/audit-probes/l26-write-probe.ts` has the same
+   gap and would re-open the null window if re-run against production.
+5. **The dashboard's SafeToSpendCard still prints no per-line labels**, carried forward from L.29
+   #5. The wiring critic's sharper version: that card already receives `disclosures` as a REQUIRED
+   prop and already discloses five other mechanisms, so the NOTE (not the label) belongs there with
+   zero plumbing.
+6. **`unrecognized-rhythm` is unreachable for a stored row** by design (`detectRecurring` drops
    IRREGULAR before storing), so no census field branches on it. Pinned by a test rather than
    assumed, so a future change that starts storing irregular series fails loudly.
-3. **The dashboard's SafeToSpendCard still prints no per-line labels**, carried forward from L.29
-   #5: the L.30 distinction lives on /spending-plan, /budgets and Ask.
 
 ## ✅ BUILT 2026-07-27 — L.29: a zero says which zero it is (DECISIONS #317)
 

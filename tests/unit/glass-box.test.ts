@@ -506,11 +506,16 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
     // because it is the only branch where the $0.00 is WRONG, and it carries the
     // list. It states the count and points at the list; it names no cause,
     // because two mechanisms reach it.
+    // The count is UNCOUNTED, not detected. Both critics found the first cut
+    // printing "3 bills found" beside a note that said one: two of those three are
+    // correctly elsewhere, so naming all three invited the reader to add back money
+    // that is not missing -- two answers to one question, on one page.
     const broken = census({ detected: 3, uncounted: 1 });
-    expect(broken.label).toBe('Fixed & recurring expenses (3 bills found, none counted here)');
+    expect(broken.label).toBe('Fixed & recurring expenses (1 bill found, not counted here)');
+    expect(broken.label).not.toContain('3 bills');
     expect(broken.action).toEqual({ label: 'See your recurring bills', href: '/recurring' });
-    expect(census({ detected: 1, uncounted: 1 }).label).toBe(
-      'Fixed & recurring expenses (1 bill found, none counted here)',
+    expect(census({ detected: 4, uncounted: 2 }).label).toBe(
+      'Fixed & recurring expenses (2 bills found, not counted here)',
     );
 
     // (b) nothing to project FROM — a different fact with a different control.
@@ -520,20 +525,53 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
 
     // (c) and (d) are CORRECT zeros, so neither offers a control: a link beside a
     // figure that is right reads as a correction (the L.29 rule).
-    const onCard = census({ detected: 2, onCard: 2 });
+    //
+    // "All charged to a card" claims ANOTHER line holds the money, so it requires
+    // that line to be acting: a non-zero card term with no card excluded from it.
+    // Otherwise an undated or statement-pending card's bills sit in NO term and both
+    // lines read $0.00 -- the false all-clear this thread exists to remove (copy
+    // critic P1-2, executed).
+    const cardHolds = { cardObligationsCents: 45000 };
+    const censusOnCard = { detected: 2, counted: 0, onCard: 2, lapsed: 0, uncounted: 0, noCashAccount: 0 };
+    const onCard = rowById(
+      'fixed',
+      planWith(cardHolds),
+      disclosures({ creditCardCount: 1, fixedSeries: censusOnCard }),
+    );
     expect(onCard.label).toBe('Fixed & recurring expenses (all charged to a card)');
     expect(onCard.action).toBeUndefined();
+    // FAIL-OLD, every exclusion mechanism: the bills are on cards and nothing holds
+    // them, so the reassuring sentence may not be printed.
+    const excludedShapes: Partial<SpendingPlanDisclosures>[] = [
+      { undatedCards: [{ cardName: 'Sapphire', frozenSince: null }] },
+      { statementPendingCards: [{ cardName: 'Bonvoy', dueDate: '2026-07-28' }] },
+      { creditCardsOutsideFigure: 1 },
+    ];
+    for (const excluded of excludedShapes) {
+      const notHeld = rowById(
+        'fixed',
+        planWith(cardHolds),
+        disclosures({ creditCardCount: 2, ...excluded, fixedSeries: censusOnCard }),
+      );
+      expect(notHeld.label).toBe('Fixed & recurring expenses (none counted)');
+    }
+    // ...and with no card term at all, the same rule.
+    expect(
+      rowById('fixed', planWith(), disclosures({ creditCardCount: 1, fixedSeries: censusOnCard })).label,
+    ).toBe('Fixed & recurring expenses (none counted)');
+
     const lapsed = census({ detected: 2, lapsed: 2 });
     expect(lapsed.label).toBe('Fixed & recurring expenses (none still charging)');
     expect(lapsed.action).toBeUndefined();
 
-    // (e) the genuinely empty reader. L.29 refused to assert this without proof;
-    // `detected: 0` IS the proof, and the wording stays "found" — a claim about
-    // our records — rather than a claim about the detector's reach, which the
-    // page's own limitations paragraph covers.
+    // (e) THERE IS NO "nothing was found" BRANCH, and this pins its absence.
+    // `detected` counts STORED rows, and a series is stored only when its merchant
+    // has a Merchant row -- which manual entry and CSV import never create. Both
+    // critics executed a reader who had TYPED IN a monthly bill and was told none
+    // was found, while /recurring listed it. An empty table is not an empty world.
     const empty = census({});
-    expect(empty.label).toBe('Fixed & recurring expenses (no repeating bills found yet)');
-    expect(empty.action).toBeUndefined();
+    expect(empty.label).toBe('Fixed & recurring expenses (none counted)');
+    expect(empty.label).not.toMatch(/no repeating bills|none detected/i);
 
     // (f) THE FALLBACK, and the L.29 invariant that must survive: where the reason
     // is mixed or was never recorded, no good reason may be asserted. A mixture of
@@ -569,7 +607,7 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
     );
     const note = trace.basis.find((b) => b.includes('not in the fixed-expenses line'));
     expect(note).toBe(
-      'One repeating bill we found is not in the fixed-expenses line, so your real fixed costs are higher than it shows and the real amount free to spend is smaller than shown by that much. Your recurring list shows every bill we found, including it.',
+      'One repeating bill we found is not in the fixed-expenses line, so your real fixed costs are higher than shown and the real amount free to spend is smaller than shown by that much. Your recurring list shows every bill we found, including it.',
     );
     // No amount is named: the census counts series and never sums them, so a
     // dollar figure here would be one this panel cannot reconcile to its rows.

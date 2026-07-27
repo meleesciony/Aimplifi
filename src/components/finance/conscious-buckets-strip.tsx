@@ -38,7 +38,14 @@ export function ConsciousBucketsStrip({
   disclosures: SpendingPlanDisclosures;
 }) {
   const { buckets, patternIncomeCents, overspent } = mapToConsciousBuckets(plan);
-  const fixedShortfall = uncountedFixedNote(disclosures, overspent ? 'overage' : 'left-to-spend');
+  // 'left-to-spend' UNCONDITIONALLY, and 'your fixed costs' for the noun. This
+  // strip renders `plan.leftToSpendCents` itself — sign and all, "-$1,000.00 · -20%"
+  // in an overspent month — so it never shows an overage, and `overspent` is not the
+  // discriminator. WHICH FIGURE THE SURFACE PRINTS is. Passing Ask's rule here told
+  // an overspent reader a number was bigger than a figure that in fact gets smaller
+  // (critic P1-1, executed): the same direction defect I had just fixed in Ask,
+  // reintroduced one caller later.
+  const fixedShortfall = uncountedFixedNote(disclosures, 'left-to-spend', 'your fixed costs');
   // No income pattern → a percentage-of-income lens has nothing meaningful to show.
   if (patternIncomeCents <= 0) return null;
 
