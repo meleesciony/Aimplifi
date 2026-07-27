@@ -50,6 +50,12 @@ only in the database-strategy branch.
 against a built server): signed in `16:55:21 UTC`, cookie returned `Expires=Mon, 27 Jul 2026 17:25:21
 GMT` — 30 minutes to the second, `HttpOnly`, `SameSite=Lax`.
 
+**VERIFIED LIVE 2026-07-27 17:09 UTC** — deployment `aimplifi-8yvunj1j7` ● Ready;
+`www.aimplifi.app/sign-in` carries the `session-timeout-notice` marker and the 30-minute copy; and a
+real demo sign-in against **production** returned `__Secure-authjs.session-token` with
+`Expires=Mon, 27 Jul 2026 17:39:17 GMT` (signed in 17:09:15), `HttpOnly; Secure; SameSite=Lax`. The
+fix is not merely deployed, it is enforcing.
+
 Gate: `bash scripts/verify.sh` **GREEN** — tsc 0 / eslint 0 / **290 files / 4585 tests** / build clean.
 E2E not run for this slice (blocked by the flake above, unrelated); `tests/unit/session-timeout.test.ts`
 bounds the window to 5–30 min and was mutation-proven fail-old. No schema change. Also shipped:
