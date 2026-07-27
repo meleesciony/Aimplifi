@@ -8,6 +8,7 @@
 import Link from 'next/link';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { categoryMonthRegisterHref } from '@/lib/engine/transactions/links';
 import { cents, formatCents } from '@/lib/money';
 import { withheldInlineNote, type WithheldAccountSummary } from '@/lib/providers/currency';
 import type { ReportsData } from '@/server/reports';
@@ -21,10 +22,18 @@ const PALETTE = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa', '#fb923c
 export function ReportsView({
   data,
   withheld,
+  linkableCategoryIds,
 }: {
   data: ReportsData;
   withheld: WithheldAccountSummary;
+  /**
+   * Ids the register's category control can display (see `categoryRegisterHref`).
+   * Required, not defaulted: an omitted set would silently render every row
+   * unlinked, which looks like the feature was never built rather than like a bug.
+   */
+  linkableCategoryIds: string[];
 }) {
+  const linkable = new Set(linkableCategoryIds);
   const chartData = data.months.map((m) => ({
     name: monthLabel(m.month),
     income: m.incomeCents / 100,
@@ -103,24 +112,61 @@ export function ReportsView({
           <p className="py-6 text-center text-sm text-muted-foreground">No spending this month yet.</p>
         ) : (
           <div className="space-y-2.5" data-testid="category-breakdown">
-            {top.map((c, i) => (
+            {top.map((c, i) => {
+              const href = categoryMonthRegisterHref(c.categoryId, data.ym, linkable);
+              return (
               <div key={c.categoryId}>
-                <div className="flex items-baseline justify-between text-sm">
-                  <span className="truncate">
-                    {c.name} <span className="text-xs text-muted-foreground">· {c.group}</span>
-                    {/* #166: "Uncategorized" topping the list with no path to fix it
-                        reads as broken — link straight to the inbox that drains it. */}
-                    {c.categoryId === 'uncategorized' && (
-                      <>
-                        {' '}
-                        <Link href="/triage" className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+                {/* O.5: the figure is the link. The href carries THIS card's window
+                    (data.ym) so the register it lands on nets to exactly the amount
+                    printed here — a landing page summing to a different number would
+                    be worse than no link.
+
+                    EXCEPT the uncategorized bucket. The register would filter those
+                    rows correctly, but its category <select> deliberately omits the
+                    placeholder (categorize/assign.ts:19 — "uncategorized" is the
+                    absence of a decision, not a filing target), so the control would
+                    read "All categories" over a filtered list, and the reader's next
+                    filter change would silently drop the category. That bucket
+                    already has the better destination — the inbox that drains it. */}
+                {href === null ? (
+                  <div className="flex items-baseline justify-between text-sm">
+                    <span className="min-w-0 truncate">
+                      {c.name} <span className="text-xs text-muted-foreground">· {c.group}</span>
+                      {/* #166: "Uncategorized" topping the list with no path to fix it
+                          reads as broken — link straight to the inbox that drains it.
+                          OUTSIDE the truncating span: inside it, `overflow:hidden` +
+                          `nowrap` clipped ~45px of this 98px link at 380px (O.5 critic
+                          F-6), hiding the arrow and half the words — and it is the only
+                          affordance this row has, now that the row itself is not a link. */}
+                    </span>
+                    <span className="ml-2 flex shrink-0 items-baseline gap-2">
+                      {c.categoryId === 'uncategorized' && (
+                        <Link
+                          href="/triage"
+                          className="whitespace-nowrap text-xs text-muted-foreground underline-offset-2 hover:underline"
+                        >
                           review in Inbox →
                         </Link>
-                      </>
-                    )}
-                  </span>
-                  <span className="ml-2 shrink-0 tabular-nums">{formatCents(cents(c.amountCents))}</span>
-                </div>
+                      )}
+                      <span className="tabular-nums">{formatCents(cents(c.amountCents))}</span>
+                    </span>
+                  </div>
+                ) : (
+                  <Link
+                    href={href}
+                    data-testid={`category-link-${c.categoryId}`}
+                    // Includes the group so the accessible name CONTAINS the visible
+                    // text (WCAG 2.5.3) — an aria-label replaces it, and dropping
+                    // "· Food & Dining" made voice control unable to match on it.
+                    aria-label={`${c.name} · ${c.group}: ${formatCents(cents(c.amountCents))} in ${monthLabel(data.ym)} — view these transactions`}
+                    className="flex items-baseline justify-between rounded-sm text-sm hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  >
+                    <span className="min-w-0 truncate">
+                      {c.name} <span className="text-xs text-muted-foreground">· {c.group}</span>
+                    </span>
+                    <span className="ml-2 shrink-0 tabular-nums">{formatCents(cents(c.amountCents))}</span>
+                  </Link>
+                )}
                 <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-2 rounded-full"
@@ -128,7 +174,8 @@ export function ReportsView({
                   />
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

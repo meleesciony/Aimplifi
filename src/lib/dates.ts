@@ -232,6 +232,28 @@ export function addMonthsToMonthKey(month: string, months: number): string {
 }
 
 /**
+ * The inclusive first/last calendar dates of a "YYYY-MM" month key.
+ *
+ * Exists because a monthly FIGURE and the day-granular row FILTER that has to
+ * reproduce it are computed by different code: the spending engines window by
+ * `monthKey` prefix (`ym >= fromYm && ym <= toYm`), while the transactions
+ * register windows by inclusive `from`/`to` dates. Linking a category figure to
+ * its own rows means translating one into the other, and getting the last day
+ * wrong by one silently drops or adds a day's spending on the destination —
+ * which is exactly the "landing page sums to a different number" failure a
+ * money link must not have. So the translation is done ONCE, here, next to the
+ * `daysInMonth` leap-year rule it depends on, rather than as a `new Date(y, m,
+ * 0)` in a component (CLAUDE.md rule 3).
+ *
+ * Throws on a malformed key via `isoDate`, matching `addMonthsToMonthKey`.
+ */
+export function monthWindow(month: string): { from: ISODate; to: ISODate } {
+  const from = isoDate(`${month}-01`);
+  const { y, m } = parts(from);
+  return { from, to: fromParts(y, m, daysInMonth(y, m)) };
+}
+
+/**
  * Next calendar date with the given day-of-month, on/after `from` (clamped to
  * the month's length, so day 31 in a 30-day month lands on the 30th). The single
  * tested home for this rule — shared by the cash-needed assembler (card cycle/due

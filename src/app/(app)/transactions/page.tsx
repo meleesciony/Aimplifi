@@ -85,10 +85,25 @@ export default async function TransactionsPage({
           </Link>
         </div>
       </div>
+      {/* O.5 critic F-10: this sentence claimed "every transaction across all your
+          accounts" unconditionally, which is false the moment the reader arrives
+          filtered — and arriving filtered stopped being rare once a category figure
+          became a link into this page. The filter controls below already show WHAT
+          is applied; what the standing copy owed the reader was to stop asserting
+          the opposite. */}
       <p className="text-sm text-muted-foreground">
-        Every transaction across all your accounts — checking, savings, credit,
-        and more. Cash and other purchases not pulled automatically can be added
-        by hand.
+        {hasFilters ? (
+          <>
+            Showing a filtered slice of your transactions — the controls below say
+            which. Clear them to see every account.
+          </>
+        ) : (
+          <>
+            Every transaction across all your accounts — checking, savings, credit,
+            and more. Cash and other purchases not pulled automatically can be added
+            by hand.
+          </>
+        )}
       </p>
 
       {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
