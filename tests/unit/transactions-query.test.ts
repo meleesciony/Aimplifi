@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   type AccountView,
   type TxnView,
+  countUnclassified,
   filterTransactions,
   groupAccounts,
   isLiabilityType,
+  isUnclassifiedTxn,
   paginate,
   sortByDateDesc,
   summarizeTransactions,
@@ -55,6 +57,9 @@ function txn(over: Partial<TxnView> & Pick<TxnView, 'id' | 'date' | 'amountCents
     accountName: 'Everyday Checking',
     merchantName: 'Test Merchant',
     rawDescriptor: 'TEST',
+    // Default: a decided row. The unclassified tests below override it, so the
+    // fixture never silently supplies the state under test.
+    needsReview: false,
     categoryId: 'shopping',
     categoryName: 'Shopping',
     note: null,
@@ -119,6 +124,90 @@ describe('filterTransactions', () => {
     const out = filterTransactions(ROWS, { categoryId: 'dining' });
     expect(out.map((t) => t.id)).toEqual(['t2', 't4']);
     expect(summarizeTransactions(out).outflowCents).toBe(5750);
+  });
+
+  // Owner request 2026-07-27: "make it easier to see unclassified items in activity".
+  // The register had no control for this at all — and the category dropdown could
+  // never have supplied one, because the 'uncategorized' placeholder is deliberately
+  // stripped from every assignable list.
+  describe('the unclassified filter (owner request 2026-07-27)', () => {
+    // THE UNION IS THE POINT: these are provably different populations here. A row
+    // can sit in 'uncategorized' without ever being flagged (backfill.ts unions all
+    // three states, and tests/unit/backfill.test.ts locks exactly that divergence),
+    // so a filter reading either one alone would hide the other — the same "work I
+    // cannot see" the request is about.
+    const flaggedOnly = txn({ id: 'u1', date: '2026-06-07', amountCents: -500, needsReview: true });
+    const placeholderOnly = txn({ id: 'u2', date: '2026-06-08', amountCents: -600, categoryId: 'uncategorized' });
+    const both = txn({ id: 'u3', date: '2026-06-09', amountCents: -700, needsReview: true, categoryId: 'uncategorized' });
+    const rows = [...ROWS, flaggedOnly, placeholderOnly, both];
+
+    it('finds a flagged row, a placeholder row, and one that is both — and nothing else', () => {
+      expect(filterTransactions(rows, { unclassified: true }).map((t) => t.id).sort()).toEqual(['u1', 'u2', 'u3']);
+      // FAIL-OLD in the direction that matters: reading `needsReview` alone would
+      // drop u2, reading the category alone would drop u1.
+      expect(rows.filter((t) => t.needsReview).map((t) => t.id)).toEqual(['u1', 'u3']);
+      expect(rows.filter((t) => t.categoryId === 'uncategorized').map((t) => t.id)).toEqual(['u2', 'u3']);
+    });
+
+    it('is off by default and composes with the other filters rather than replacing them', () => {
+      // Absent/false must be a no-op: a filter that silently narrows when unset
+      // would hide decided rows from every existing caller.
+      expect(filterTransactions(rows, {}).length).toBe(rows.length);
+      expect(filterTransactions(rows, { unclassified: false }).length).toBe(rows.length);
+      // AND semantics with an unrelated axis (u1 is on acct-A, u2/u3 too — narrow by date).
+      expect(
+        filterTransactions(rows, { unclassified: true, from: '2026-06-08' }).map((t) => t.id).sort(),
+      ).toEqual(['u2', 'u3']);
+      // It is a different axis from `type`: every one of these is an expense, so
+      // type='income' plus unclassified is legitimately empty, not a bug.
+      expect(filterTransactions(rows, { unclassified: true, type: 'income' })).toEqual([]);
+    });
+
+    it('isUnclassifiedTxn is the ONE question, so a count and a filter cannot drift', () => {
+      expect(isUnclassifiedTxn(flaggedOnly)).toBe(true);
+      expect(isUnclassifiedTxn(placeholderOnly)).toBe(true);
+      expect(isUnclassifiedTxn(both)).toBe(true);
+      // A decided row is not unclassified merely for being a transfer or pending.
+      expect(isUnclassifiedTxn(txn({ id: 'd1', date: '2026-06-10', amountCents: -100, isTransfer: true }))).toBe(false);
+      expect(rows.filter(isUnclassifiedTxn).length).toBe(
+        filterTransactions(rows, { unclassified: true }).length,
+      );
+    });
+
+    // The count is the button's PROMISE, and pressing the button is how the promise
+    // is kept — so the only defensible count is the size of the set the press
+    // produces. Counting over the unfiltered register printed a global figure onto a
+    // filtered view: the control read "16" while pressing it yielded one row, and
+    // under a category filter it read "16" directly above "No transactions match
+    // these filters". Not an edge case — O.5's `categoryRegisterHref` sends readers
+    // into this register pre-filtered by category AND month.
+    it('countUnclassified equals what pressing the control actually delivers, under every other filter', () => {
+      // The whole point: a narrowing filter must move the COUNT too.
+      const windowed = { from: '2026-06-08' };
+      expect(countUnclassified(rows, windowed)).toBe(2); // u2, u3 — NOT the global 3
+      expect(countUnclassified(rows, windowed)).toBe(
+        filterTransactions(rows, { ...windowed, unclassified: true }).length,
+      );
+
+      // The self-contradiction case: a filter that admits no unclassified row must
+      // report zero, so the control can never sit above an empty list claiming rows.
+      expect(countUnclassified(rows, { type: 'income' })).toBe(0);
+      expect(countUnclassified(rows, { categoryId: 'dining' })).toBe(0);
+
+      // FAIL-OLD: the pre-fix expression ignored the filter and would answer 3 to
+      // all three of the assertions above.
+      expect(rows.filter(isUnclassifiedTxn).length).toBe(3);
+
+      // ...while still not collapsing to the page's own length once the control is
+      // ON — dropping the `unclassified` axis is what keeps it legible from inside.
+      expect(countUnclassified(rows, { ...windowed, unclassified: true })).toBe(
+        countUnclassified(rows, windowed),
+      );
+
+      // Unfiltered, the new basis and the old one agree — so this is a fix to the
+      // filtered case only, not a change to what the reader normally sees.
+      expect(countUnclassified(rows, {})).toBe(rows.filter(isUnclassifiedTxn).length);
+    });
   });
 
   it('filters by account', () => {

@@ -50,3 +50,27 @@ silently degrade into measuring only short labels that would fit anything.
   spec in the suite.
 - A lock whose fixture can drift into a trivially-passing case needs an assertion on the FIXTURE
   (here: the long name is present), not just on the invariant.
+
+## Recurrence 2026-07-27 (O.2) — the demo-fixture half of this lesson repeated verbatim
+
+The order-dependence warned about here bit again, in a slice written after it. O.2's e2e signed in as the
+shared demo account and asserted the seed's review queue was non-empty (`needsReview: 17`). It passed in
+isolation and failed in the full suite with the control simply absent.
+
+What makes it worth re-recording is how cheaply it was settled and how badly it reads if it isn't. The
+failure message is "element not found", which looks like a rendering regression in the feature under test.
+It is not: the control is deliberately hidden at a count of zero, so the register was correct and the
+ASSERTION was describing a world that no longer existed. One query against the e2e SQLite file — which
+still holds the end-state of the run that just failed — showed demo at 847 transactions with `needsReview=0`
+and `uncategorized=0`. That is the whole diagnosis, and it cost one query rather than a hunt through 56 spec
+files for whichever one drains the queue.
+
+Two transferable points beyond "use a throwaway user":
+
+- **The end-state of the e2e database is evidence, and it survives the run.** Before theorising about which
+  spec mutated shared state, ask the database what the state actually was. `Transaction` has no `userId`
+  here — join through `Account` — and the demo row is `user-demo`.
+- **Owning the fixture buys exact numbers, which is a second win.** The rewrite imports its own three rows
+  (two with an empty category column, one filed to `shopping`), so the counts became literals — 2 of 3 —
+  instead of "greater than zero" against whatever the seed holds. The classified third row is the control
+  group: without it, a filter that returned EVERYTHING would still pass.

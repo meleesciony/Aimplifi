@@ -382,7 +382,41 @@ test('register write-in: a create resolving after a row switch never puts the co
 
   // Mid-flight: switch to row B's menu (the chip is deliberately not
   // pending-gated).
-  await rows.nth(1).getByTestId('category-chip').click();
+  //
+  // Row B is chosen by MEASUREMENT, not by index. The menu is an `absolute z-50`
+  // overlay up to `max-h-72` (288px) anchored inside row A's own <li>, and which
+  // side it opens on is decided one-shot at click time from
+  // `chipRect.top > innerHeight * 0.55` — so it paints over whichever neighbours
+  // it happens to span, above OR below. `nth(1)` was never safe here, only lucky:
+  // it depended on the register's absolute scroll position. Adding one line to
+  // the filter bar (O.2) pushed row 0's chip far enough down that Playwright had
+  // to scroll it into view before clicking, and that scroll put the chip ABOVE
+  // the 0.55 threshold — flipping the menu from opening upward to opening
+  // downward across rows 1 and 2, whose chips it then swallowed. That click can
+  // never recover: `onDocMouseDown` returns early while `pending`, so the
+  // in-flight create pins the offending menu open for the full timeout.
+  //
+  // Measuring keeps the scenario identical (a DIFFERENT row, switched to
+  // mid-flight) while making it independent of layout above the register.
+  const menuBox = await page.getByTestId('category-menu').boundingBox();
+  expect(menuBox, 'row A menu must be laid out before choosing row B').not.toBeNull();
+  const rowCount = await rows.count();
+  let switchTo = -1;
+  for (let i = 1; i < rowCount; i++) {
+    const chipBox = await rows.nth(i).getByTestId('category-chip').boundingBox();
+    if (!chipBox) continue;
+    // Vertical-only: the menu is 288px wide over an 89px chip at the same left
+    // edge, so any row it spans vertically is covered horizontally too.
+    const clear =
+      chipBox.y > menuBox!.y + menuBox!.height || chipBox.y + chipBox.height < menuBox!.y;
+    if (clear) {
+      switchTo = i;
+      break;
+    }
+  }
+  expect(switchTo, "a row whose chip row A's open menu does not cover").toBeGreaterThan(0);
+
+  await rows.nth(switchTo).getByTestId('category-chip').click();
   await page.getByTestId('category-menu').waitFor();
 
   // When the delayed create resolves, `chosen` is bound to ROW A — row B's open
@@ -614,4 +648,131 @@ test('tag a transaction for tax, then export that year from settings (O.1)', asy
   expect(csv).toContain('Annual check-up, paid out of pocket');
   expect(csv).toContain('not tax advice');
   expect(csv).toContain('-42.10');
+});
+
+/**
+ * Owner request 2026-07-27, verbatim: "Please make it easier to see unclassified
+ * items in activity". "Activity" is this route — it is the nav label for
+ * /transactions (app-nav.tsx), even though the page's own h1 says "Transactions".
+ *
+ * Before this, the register had NO control for review state: not a filter, not a
+ * sort, and the category dropdown could never supply one, because the
+ * 'uncategorized' placeholder is deliberately stripped from every assignable list
+ * (categorize/assign.ts). A reader could only find these rows by scrolling.
+ *
+ * Driven on the page rather than left to the unit test, because the pure filter
+ * being right says nothing about whether the control REACHES the reader — the
+ * L.20 lesson (extracting logic makes the logic testable and leaves the rendering
+ * untested).
+ *
+ * A THROWAWAY user carrying its own rows, not the shared demo account. The first
+ * cut of this test signed in as demo and asserted the seed's review queue was
+ * non-empty; it passed alone and failed in the full suite, because other specs
+ * file that queue. Measured at the end of a full run: demo held 847 transactions
+ * and ZERO in either population (the seed lays down 17), so the control was
+ * correctly hidden and this test failed on its fixture rather than on the
+ * behaviour. Owning the rows makes both populations and the classified control
+ * group exact — which also lets the counts below be literals instead of
+ * whatever the seed happens to contain.
+ */
+test('the register can isolate items that still need a category, and says how many (owner request)', async ({
+  page,
+}) => {
+  await signUpThrowaway(page);
+  await addManualAsset(page, 'E2E Unclassified Wallet', 'CHECKING', '1000');
+
+  // THE FIXTURE CARRIES THE DIVERGENCE, not just the easy case. `isUnclassifiedTxn`
+  // is a UNION of two populations, and a first cut of this test imported two rows
+  // that were BOTH flagged AND placeholder — the intersection — so stripping the
+  // union down to `return t.needsReview` left the e2e green (a critic proved it by
+  // executing exactly that mutation). Naming the category `uncategorized` explicitly
+  // makes the importer honour it verbatim, which yields the divergent half:
+  //
+  //   Alpha  categoryId=uncategorized  needsReview=1   (both)
+  //   Beta   categoryId=uncategorized  needsReview=0   (placeholder, NOT flagged)
+  //   Gamma  categoryId=shopping       needsReview=0   (the control group)
+  //
+  // Gamma is why a filter that returned EVERYTHING would fail. Beta is why a filter
+  // reading only the flag would fail — verified: that mutation now fails here with
+  // "Expected 2, Received 1". NOT covered by this fixture, honestly: the third
+  // state, flagged WHILE carrying a real category, which no import path can produce
+  // (`pipeline.ts` forces `uncategorized` whenever it flags) and which only the
+  // undo-a-correction path writes. The unit suite locks that half.
+  await page.goto('/transactions/import');
+  const csv = [
+    'date,description,amount,category',
+    '2026-06-02,E2E Needs Category Alpha,-11.00,',
+    '2026-06-03,E2E Needs Category Beta,-12.00,uncategorized',
+    '2026-06-04,E2E Filed Gamma,-13.00,shopping',
+  ].join('\n');
+  await page.getByTestId('import-csv-text').fill(csv);
+  await page.getByTestId('import-submit').click();
+  await expect(page.getByTestId('import-result')).toContainText('Imported 3');
+
+  await page.goto('/transactions');
+  await expect(page.getByTestId('txn-list')).toBeVisible();
+
+  // THE FIXTURE'S HARD CASE, asserted present so this can never pass vacuously
+  // (the L.29 no-op-lock finding): the control is HIDDEN at zero, so a fixture
+  // that stopped producing unclassified rows would otherwise make this test
+  // measure an absent control instead of failing.
+  const toggle = page.getByTestId('txn-filter-unclassified');
+  await expect(toggle).toBeVisible();
+  const count = Number((await page.getByTestId('txn-unclassified-count').textContent())?.trim());
+  expect(count, 'the two rows imported with no category').toBe(2);
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+  // The iOS touch floor, asserted HERE because this is the only fixture that
+  // guarantees the control is rendered at all. `tap-targets.spec.ts` covers only
+  // /sign-in and /accounts, and the two gates that do load /transactions run as the
+  // shared demo account — whose unclassified count other specs drive to zero, at
+  // which point the control is correctly absent and those gates certify nothing
+  // about it (measured: fresh seed 16, after phase2-triage 0).
+  const box = await toggle.boundingBox();
+  expect(box!.height, 'touch target floor (#140)').toBeGreaterThanOrEqual(44);
+
+  const unfilteredRows = await page.getByTestId('txn-row').count();
+  expect(unfilteredRows, 'both populations are present, so the filter excludes something').toBe(3);
+
+  // Turning it on narrows the register to exactly that population, and the state is
+  // both in the URL (shareable, survives reload) and on the control.
+  await toggle.click();
+  await expect(page).toHaveURL(/unclassified=1/);
+  await expect(page.getByTestId('txn-filter-unclassified')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('txn-row')).toHaveCount(count);
+
+  // The count drops only the `unclassified` axis, so it still reads the same from
+  // inside the filter — otherwise it would just restate the page's own length.
+  expect(Number((await page.getByTestId('txn-unclassified-count').textContent())?.trim())).toBe(count);
+
+  // And it is reversible from inside: a reader who filters must never be stranded.
+  await page.getByTestId('txn-filter-unclassified').click();
+  await expect(page).not.toHaveURL(/unclassified=1/);
+  await expect(page.getByTestId('txn-row')).toHaveCount(unfilteredRows);
+
+  // THE COUNT IS THE BUTTON'S PROMISE, and pressing it is how the promise is kept —
+  // so it must move when another filter narrows the register. Arriving pre-filtered
+  // is the designed path, not an edge case: O.5's category figures link into this
+  // register with `category`, `from` and `to` already set. Before this was fixed the
+  // count was taken over the unfiltered register, so it kept printing the global
+  // figure over a narrowed list, and under a filter admitting no unclassified row it
+  // sat above "No transactions match these filters" still claiming rows.
+  //
+  // from=2026-06-03 admits Beta (06-03) and Gamma (06-04) but not Alpha (06-02), so
+  // exactly one of the two unclassified rows survives.
+  await page.goto('/transactions?from=2026-06-03');
+  const windowedToggle = page.getByTestId('txn-filter-unclassified');
+  await expect(windowedToggle).toBeVisible();
+  expect(
+    Number((await page.getByTestId('txn-unclassified-count').textContent())?.trim()),
+    'the count follows the date filter instead of restating the global figure',
+  ).toBe(1);
+  await windowedToggle.click();
+  await expect(page.getByTestId('txn-row')).toHaveCount(1);
+
+  // The self-contradiction case: a filter admitting NO unclassified row must hide the
+  // control rather than offer a number over an empty list.
+  await page.goto('/transactions?category=shopping');
+  await expect(page.getByTestId('txn-row')).toHaveCount(1); // Gamma, the filed row
+  await expect(page.getByTestId('txn-filter-unclassified')).toHaveCount(0);
 });

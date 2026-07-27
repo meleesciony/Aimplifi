@@ -141,6 +141,11 @@ const asTxnViews = (rows: Row[]): TxnView[] =>
       isTransfer: r.isTransfer ?? false,
       note: null,
       taxClass: null,
+      // Every row here carries a real category and none is flagged, so the O.2
+      // unclassified filter is a no-op over this fixture — which is what these
+      // reconciliation assertions want: the link's arithmetic must agree with the
+      // register's UNFILTERED totals.
+      needsReview: false,
       provenance: { kind: 'merchant-default', label: 'Known merchant', needsConfirm: false },
     }));
 

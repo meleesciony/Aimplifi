@@ -18,6 +18,28 @@
 > else (strict-mode, assertion, timeout on a non-nav element) is a real bug. That reflex is
 > exactly what masked the auth regression for three sessions.
 
+> **CORRECTION 2026-07-27 (O.2):** two claims in this file are falsified by measurement.
+>
+> **(1) `intercepts pointer events` is NOT a reliable signature of this flake.** The correction above tells
+> the reader that this signature IS the environment artifact and "anything else is a real bug". A failure
+> carrying exactly that signature — `transactions.spec.ts:357`, the #136 lock — was a real, deterministic,
+> in-app geometry collision: it reproduced at `--workers=1` on a quiet machine and disappeared the moment one
+> line was removed from the filter bar. The register's category menu is an `absolute z-50` overlay up to 288px
+> tall (about four rows) whose open direction is chosen one-shot from `chipRect.top > window.innerHeight *
+> 0.55`, so a spec clicking a row ADJACENT to the open menu is a hostage to the page's scroll position, and
+> therefore to everything rendered above the register. The correct reflex is neither "flake" nor "real bug"
+> from the signature alone — it is to PROBE: print the two boxes and ask `document.elementFromPoint` what is
+> actually on top. One throwaway spec settled in a single run what a session of argument had not, and it
+> falsified BOTH standing hypotheses (the prior session's "the menu covers the next row", and mine that the
+> panel was in normal flow pushing rows down — it displaces nothing).
+>
+> **(2) The ~425×895 scaling claim did not hold on this machine on this date.** The probe printed
+> `window.innerWidth/innerHeight` = **380/800** with `scrollY` 0 — the configured viewport exactly, no
+> scale-up. So `0.55 * innerHeight` is **440**, not the ~492 the 425×895 figure implies. Whatever produced the
+> original 11.8% mismatch is not present now. Do not carry those numbers into geometry arithmetic: measure
+> `innerHeight` in the run you are debugging, because the whole lesson of this episode is that the geometry is
+> knife-edge and a stale constant points you at the wrong side of the threshold.
+
 **One-line summary:** on this Windows dev machine, the `mobile-380` Playwright project
 (`devices['Pixel 5']` + `viewport: {width:380, height:800}`) actually renders at ~425×895 CSS
 px — an ~11.8% mismatch — which makes clicks on the fixed bottom-nav bar and other

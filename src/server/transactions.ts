@@ -59,6 +59,7 @@ import {
   type TxnSummary,
   type TxnView,
   SPENDING_ACCOUNT_TYPES,
+  countUnclassified,
   filterTransactions,
   groupAccounts,
   paginate,
@@ -89,6 +90,21 @@ export interface TransactionsResult {
   /** Set only when the filter names a merchant AND the profile has something
    *  honest to say (viewer-only: computed from the viewer's own rows). */
   lens: MerchantLensView | null;
+  /**
+   * How many rows the "Needs a category" control would show if the reader pressed
+   * it right now — see `countUnclassified` for why that is the only number it may
+   * print. Counted through `filter` with the `unclassified` axis dropped, so it
+   * agrees with the click while still saying something the page does not already
+   * show once the control is on.
+   *
+   * Rows, not merchant groups. The nav badge counts GROUPS (server/triage.ts), so a
+   * reader with 40 loose rows across 3 merchants sees "3" there; on the register,
+   * where the rows themselves are the thing being looked at, the row count is the
+   * number that matches what the reader is scrolling past. The two figures are
+   * allowed to differ because each is reachable by pressing the thing that prints
+   * it — which is precisely the property the pre-filter count failed.
+   */
+  unclassifiedCount: number;
 }
 
 /** Rows per register page. */
@@ -160,6 +176,9 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     isTransfer: t.isTransfer,
     note: t.note,
     taxClass: t.taxClass,
+    // The stored flag, verbatim. Half of "unclassified" (see `isUnclassifiedTxn`);
+    // the other half is the row sitting in the 'uncategorized' placeholder above.
+    needsReview: t.needsReview,
     merchantId: t.merchantId,
     ruleEligible: isRuleEligibleMerchant(t.rawDescriptor),
     merchantCount: t.merchantId ? merchantCounts.get(t.merchantId) : undefined,
@@ -253,7 +272,13 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   for (const r of rows) if (!seen.has(r.accountId)) seen.set(r.accountId, r.accountName);
   const accountOptions = [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => (a.name < b.name ? -1 : 1));
 
-  return { rows: items, summary, accountOptions, pageInfo: info, lens };
+  // Through the caller's filter with the `unclassified` axis dropped — see
+  // `countUnclassified`. Not over `rows`: a global figure printed on a filtered
+  // view is a promise the click cannot keep. Not over `filtered` either, or it
+  // would just restate the page's own length once the control is on.
+  const unclassifiedCount = countUnclassified(rows, filter);
+
+  return { rows: items, summary, accountOptions, pageInfo: info, lens, unclassifiedCount };
 }
 
 /**

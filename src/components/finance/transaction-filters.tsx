@@ -22,12 +22,18 @@ export function TransactionFilters({
   accountOptions,
   categoryOptions,
   current,
+  unclassifiedCount,
 }: {
   accountOptions: { id: string; name: string }[];
   /** Category dropdown options — the user's visible assignable set incl. customs
    *  (DECISIONS #111). Hidden categories are still findable via the search box. */
   categoryOptions: { id: string; name: string }[];
-  current: { search: string; account: string; category: string; merchant: string; type: string; from: string; to: string };
+  current: { search: string; account: string; category: string; merchant: string; type: string; from: string; to: string; unclassified: boolean };
+  /** How many rows in the register still need a category decision, BEFORE this
+   *  filter is applied — so the toggle can say what it would find, and can say so
+   *  while it is already on. Zero hides the control: a filter that can only ever
+   *  return nothing is not a control, it is a dead end. */
+  unclassifiedCount: number;
 }) {
   const router = useRouter();
 
@@ -43,13 +49,15 @@ export function TransactionFilters({
     if (merged.type && merged.type !== 'all') q.set('type', merged.type);
     if (merged.from) q.set('from', merged.from);
     if (merged.to) q.set('to', merged.to);
+    if (merged.unclassified) q.set('unclassified', '1');
     const qs = q.toString();
     router.push(qs ? `/transactions?${qs}` : '/transactions');
   }
 
   const hasFilters =
     !!(current.search || current.account || current.category || current.merchant || current.from || current.to) ||
-    current.type !== 'all';
+    current.type !== 'all' ||
+    current.unclassified;
 
   return (
     <div className="space-y-2" data-testid="txn-filters">
@@ -87,6 +95,39 @@ export function TransactionFilters({
       </form>
 
       <div className="flex flex-wrap items-center gap-2">
+        {/* Owner request 2026-07-27: "make it easier to see unclassified items in
+            activity". FIRST in the row, and the only control here that carries a
+            count, because it is the only one that names work waiting to be done
+            rather than a way of slicing work already done.
+
+            Hidden at zero on purpose: an always-present "0 need a category" chip
+            trains the reader to ignore the one place this number appears, and a
+            filter that can only return an empty list is a dead end rather than a
+            control. When it is ON it stays visible whatever the count, so the
+            reader is never stranded inside a filter with no way to read its state.
+
+            `aria-pressed` rather than a checkbox: this is a view toggle, and the
+            count belongs in the accessible name so a screen reader hears the same
+            thing the eye sees. */}
+        {(unclassifiedCount > 0 || current.unclassified) && (
+          <button
+            type="button"
+            aria-pressed={current.unclassified}
+            onClick={() => commit({ unclassified: !current.unclassified })}
+            data-testid="txn-filter-unclassified"
+            className={`tap-target inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm transition ${
+              current.unclassified
+                ? 'border-amber-500 bg-amber-50 font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
+                : 'border-amber-500/60 bg-background text-amber-700 hover:bg-accent dark:text-amber-300'
+            }`}
+          >
+            Needs a category
+            <span className="tabular-nums" data-testid="txn-unclassified-count">
+              {unclassifiedCount}
+            </span>
+          </button>
+        )}
+
         <select
           aria-label="Type"
           value={current.type}

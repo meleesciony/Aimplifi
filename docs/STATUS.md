@@ -8559,3 +8559,78 @@ Ready, production, aliased, created seven seconds after the commit. Verified by 
 identity on `/sign-in` (www == the new deployment, stable across a repeat fetch, and != the previous
 production deployment). No schema change, so nothing ran against Neon. Every string this slice
 touched is behind auth, so there is no public marker to grep — checked, not assumed.
+
+## 2026-07-27 — O.2 lands: the register isolates what still needs a category (verify green)
+
+Gate: `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**, exit 0 read directly rather than through a
+pipe. **4603 unit / 291 files**, **212 e2e**. (The first run of this gate reported exit 0 while its output said
+`VERIFY FAILED`, because the command was piped to `tail` and the pipeline returns tail's status. Worth
+remembering: capture the exit code of `verify.sh` itself.)
+
+The feature was built a session earlier and held on `feature/unclassified-filter`. Landing it meant fixing
+three separate test-and-truthfulness defects, none of them in the feature as designed, and in every case the
+first confident explanation was wrong and a measurement settled it.
+
+### What the reader gets
+
+A "Needs a category" toggle in the register's filter bar with a count beside it. `isUnclassifiedTxn` UNIONS
+two provably different populations here (`needsReview`, and rows sitting in the `uncategorized` placeholder);
+reading either alone hides the other. The control is hidden at zero — a filter that can only return an empty
+list is a dead end — and stays visible while ON so nobody is stranded inside it.
+
+### Defect 1 — the #136 lock was a hostage to layout above the register
+
+`transactions.spec.ts:357` guards a real bug: a category create resolving after a row switch must not file the
+WRONG row. The held note said the new filter line "makes an open category menu cover the next row's chip". A
+probe measured it and falsified both standing hypotheses, including mine that the panel was in normal flow
+pushing rows down — it is an `absolute z-50` overlay that displaces nothing. What actually happens: the extra
+line moved row 0's chip from y≈700 to y=747, far enough that Playwright must scroll it into view first, and
+that scroll landed it at y=352, below the 440px threshold in `chipRect.top > innerHeight * 0.55` — flipping
+the menu from opening UPWARD (harmless) to opening DOWNWARD across rows 1 and 2, whose chips sit at y=487 and
+y=613 inside its 288px box. Adjacency was never safe, only lucky, and the luck was a property of everything
+rendered above the register. It failed deterministically rather than flakily because `onDocMouseDown` returns
+early while `pending`, pinning the offending menu open. The spec now picks its switch row by MEASUREMENT;
+mutation-proven fail-old against the `chosen.rowId` binding. No locator loosened, nothing retitled.
+
+### Defect 2 — the slice's own e2e was built on the shared demo account
+
+Passed 20/20 alone, failed in the suite. Queried against the e2e SQLite file at the end of a run: demo held
+847 transactions and ZERO rows in either population (the seed lays down 17), because other specs file that
+queue. The control was correctly hidden and the test was asserting a world that no longer existed. Rewritten
+onto a throwaway user importing its own rows.
+
+### Defect 3 — the count was a promise the click could not keep (both critics, independently)
+
+`unclassifiedCount` was computed over the UNFILTERED register while the filter it advertises ANDs with every
+other axis. Measured: with a date range applied the control read **16** and pressing it produced **1** row;
+under `?category=income` it read **16** directly above the register's own *"No transactions match these
+filters"*. This is the designed entry path, not an edge case — O.5, the commit immediately before it, made
+every category figure link into `/transactions?category=…&from=…&to=…`, so the two slices composed into a
+contradiction neither contains alone. Fixed with a pure `countUnclassified(rows, filter)` that drops exactly
+one axis: keeping the rest makes the number equal what the press delivers; dropping `unclassified` itself is
+what keeps it legible from inside the filter. A filter-scoped count is also the only one consistent with the
+page, whose summary tiles were already filter-scoped.
+
+The same cycle proved the e2e held only the INTERSECTION of the union it claimed to lock — both its rows were
+flagged AND placeholder, so stripping `isUnclassifiedTxn` to the flag alone left it green. Naming the CSV
+category `uncategorized` explicitly makes the importer honour it verbatim, yielding placeholder-without-flag;
+that mutation now fails 2-vs-1.
+
+### Open, recorded rather than fixed
+
+Each measured at zero occurrences in the seed: `isUnclassifiedTxn` omits the `isTransfer`/`reviewPinned` guard
+triage carries per DECISIONS #165, so a pair-flagged wedged transfer would be counted here and refused there;
+the undo-a-correction path can leave a row flagged while carrying a real category, where the words "Needs a
+category" overstate the predicate; `?unclassified=` accepts only the literal `'1'`. Dark-mode contrast on the
+amber states is UNVERIFIED — Playwright renders light only. And the row marker for an unclassified row still
+renders in the same muted grey as every settled origin, because `provenance-badge.ts` couples the `attention`
+tone to the confirm control on purpose, with a locking test; changing it means widening that invariant
+deliberately. Separately, the nav says "Activity" while the page's h1 says "Transactions".
+
+### Process finding worth more than any single bug
+
+A critic reported "working tree restored" and it had not been — it left `isUnclassifiedTxn` stripped to
+`return t.needsReview`, union destroyed, docblock still explaining that the union is the point. Only `git
+status` caught it. A subagent's claim about the TREE is a hypothesis exactly like its claim about a result;
+verify the tree before running any gate downstream of a delegated review. Recorded in
+`docs/lessons/a-subagents-green-is-a-hypothesis.md`.

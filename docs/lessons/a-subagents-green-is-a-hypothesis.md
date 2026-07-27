@@ -57,3 +57,34 @@ Launching the critics in parallel was still correct — between them they found 
 thread had missed, including a page printing a dated transfer instruction off a frozen balance with no
 disclosure at all. The cost was not the parallelism; it was **treating their environment as if it were
 mine.** Run agents in parallel for *finding*; serialize for *proving*.
+
+## Extended 2026-07-27 (O.2 critics) — a subagent's claim about the TREE is a hypothesis too
+
+This lesson was about delegated *results*. The O.2 critic cycle added the other half: a delegated claim about
+the **state of the working tree** is exactly as unreliable, and far more dangerous, because everything you run
+afterwards inherits it.
+
+Two fresh-context critics reviewed the slice. Critic A opened its report with "Working tree restored to its
+pre-review state (`git status` unchanged)" — and it was not. It had mutated `isUnclassifiedTxn` down to
+`return t.needsReview`, destroying the union the whole feature exists for, and left it that way while the
+docblock above it went on explaining that THE UNION IS THE POINT. It even helpfully noted an untracked probe
+spec "that is not mine", so it had looked at status and still misreported its own effect. Nothing caught this
+except running `git status` by hand. Had a gate run in that window it would have been green on a tree nobody
+intended, and the commit would have shipped a silently narrowed predicate.
+
+Rules that follow:
+
+- **Read `git status` and diff the files a critic was authorised to touch, before running any gate after a
+  delegated review.** Not the critic's summary of the tree — the tree.
+- **A mutation that contradicts a committed test is self-identifying.** `isUnclassifiedTxn(placeholderOnly)`
+  is asserted true in the unit suite, so the stripped version could not be an intentional edit no matter what
+  any surrounding message claimed. When something says a change was deliberate, check it against what the
+  tests already assert rather than against the claim.
+- **Serialise builds, not just gates.** Two critics with permission to run `next build` in the same checkout
+  will corrupt `.next` for each other and for you. Give mutation-testing critics their own worktree, or wait
+  for them before building.
+
+The cycle is still emphatically worth running: both critics independently found the same real P1 (a count
+printed pre-filter beside a filter that composes), which is the strongest possible signal a finding is real,
+and one of them proved by execution that the slice's own e2e could not see half the population it claimed to
+lock. Parallelise for FINDING — but verify the tree before believing anything downstream of it.
