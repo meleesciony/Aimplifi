@@ -39,7 +39,28 @@ two readings could not both be true. Probe timestamps as `::text`.
 **Next verification (no code required):** after the owner's next sync — the nightly cron at ~11:4x
 UTC, or simply his next full page load — re-run
 `node scripts/audit-probes/l26-did-the-number-move.mjs`. Expect `ScheduledTransaction` rows for
-`cmqisanqh…` to go 0 → 8. That is the moment "fixed & recurring expenses" becomes $684.31/mo.
+`cmqisanqh…` to go 0 → 8. That is the moment "fixed & recurring expenses" becomes $684.31/mo
+(verified arithmetic: $176.79 + $146.40 + $166.67 × 26 ÷ 12 = $684.31).
+
+### 🟠 OPEN — the page that triggers the fix will not show it (found reading `auto-sync.tsx`)
+
+`AutoSync` (`src/components/auto-sync.tsx:70-81`) fires `syncPlaidNow()` on a full page load, which
+runs the refresh and writes the 8 rows — and then re-renders **only** when something "changed":
+
+```ts
+if (r.ok && ((r.added ?? 0) > 0 || (r.statementsWritten ?? 0) > 0)) changed = true;
+…
+if (!cancelled && changed) router.refresh();
+```
+
+`changed` counts newly ingested transactions and statements. It does **not** count the derived
+projections `refreshRecurringForUser` rewrites in the same call. The owner's recent syncs all report
+`addedTransactions: 0, statementsWritten: 0`, so `changed` will be false: the load that finally
+fixes his data will still paint the stale server render — **$0.00** — and only the *next* load shows
+$684.31. Four sessions of "did it work?" end in a page that says no on the very load that made it
+yes. A sync that rewrites a figure the page displays is a change the page should re-render for;
+`syncPlaidNow`'s result carries no signal for it today. Not fixed here — needs a slice, and the
+honest interim answer to "I opened it and it still says $0.00" is **reload once more**.
 
 ## ✅ BUILT 2026-07-26 — L.26: a bill on a RE-LINKED account reaches the money (DECISIONS #315)
 
