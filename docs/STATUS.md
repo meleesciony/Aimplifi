@@ -2365,7 +2365,9 @@ the latter verified to fail against the reverted pre-#296 build.
 ## 🟠 OPEN — intermittent DOM duplication on /accounts (surfaces as a strict-mode e2e failure)
 
 Found 2026-07-24 (~03:00 local) while gating #279, then narrowed with a temporary probe (deleted).
-**NOT DIAGNOSED — do not act on the hypothesis below before running its check.**
+**ROOT CAUSE ESTABLISHED 2026-07-27 (O.3) — read "The mechanism, read out of the shipped React"
+at the bottom of this section. No fix has been proven; the sections between here and there are the
+2026-07-24 narrowing, kept because every elimination in them still holds.**
 
 **Symptom.** `tests/e2e/reconcile.spec.ts:89` fails with a Playwright strict-mode violation:
 `getByTestId('reconcile-candidates')` resolves to 2 elements, one `hidden`.
@@ -2432,6 +2434,85 @@ server/client divergence (or the Suspense boundary), deterministically.
 It nominally guards Wave 4.6's money boundary, but Wave 4.6 is COMPLETE (#275) and 48 clean
 renders show the markup is hydration-sound, so this is a flaky-gate hardening item, not a live
 money-correctness risk.
+
+### The mechanism, read out of the shipped React (O.3, 2026-07-27)
+
+**The reveal of a streamed Suspense boundary is deferred behind `requestAnimationFrame`, and the
+frame never arrives.** This is not a hydration mismatch, not a seeding race, and not an app bug.
+
+The evidence is the failing response body itself. Playwright's `trace: 'retain-on-failure'` stores
+every response it captured, so the HTML the browser actually received on the failing load was
+already on disk (`trace.zip` → `resources/<sha1>.html`, 44,951 bytes, `200`, complete through
+`</body></html>`). It ends with React's own reveal machinery:
+
+```js
+$RC=function(a,b){ if(b=document.getElementById(b))
+  (a=document.getElementById(a))
+    ? (a.previousSibling.data="$~", $RB.push(a,b),
+       2===$RB.length && ("number"!==typeof $RT
+         ? requestAnimationFrame($RV.bind(null,$RB))
+         : setTimeout($RV.bind(null,$RB), …)))
+    : b.parentNode.removeChild(b) };
+$RC("B:0","S:0")
+```
+
+`$RC` does **not** reveal inline. It marks the boundary pending (`previousSibling.data="$~"`),
+queues the pair on `$RB`, and defers the actual move to `$RV` via `requestAnimationFrame`. When the
+renderer is starved of frames, `$RV` never runs, the content stays in `div#S:0[hidden]`, and React's
+client render fills `#content` from the RSC payload instead — so the page holds the content twice.
+That is the whole failure, and it explains every previously unexplained observation: why no
+hydration error is ever logged (nothing mismatched), why the duplicate persists the full 20s (the
+frame is not late, it is absent), why the `load` event fires with the content still staged (the
+reveal is deferred *by design*), and why the accessibility snapshot looks normal (`hidden` prunes it).
+
+**Confirmed by the trace's DOM snapshots**, which name the two copies exactly — at `goto` the
+content exists only in the staging container, and by the failing assertion it exists in both:
+
+```
+after@call@1929:  BODY > DIV#S:0[HIDDEN] > … > DIV[testid=reconcile-candidates]
+after@call@1931:  BODY > DIV > MAIN#content > … > DIV[testid=reconcile-candidates]
+                  BODY > DIV#S:0[HIDDEN]  > … > DIV[testid=reconcile-candidates]
+```
+
+The orphan is **outside `#content` and after it in document order**, so it is invisible to the
+reader, invisible to assistive tech, and never wins a `getElementById`. Production impact is one
+wasted DOM copy on a starved renderer; there is no money- or correctness-risk here.
+
+**Hypotheses killed this session, each by execution, so nobody pays for them again:**
+
+1. **The TASKS O.3 hypothesis — SQLite write contention letting the page render before the seed is
+   visible — is dead.** The seeded card renders fine; it renders *twice*. Nothing is missing.
+2. **`(app)/loading.tsx` is not the source.** The obvious structural fix (delete the route-group
+   Suspense boundary) was A/B'd: removed it, re-added a forced 1500ms delay, rebuilt, and the hidden
+   staging container was still present on 6/6 loads, identical to the A-side. Streaming here does not
+   depend on that file. **This would have shipped as a confident fix and a reversed product decision
+   (#81) for nothing.**
+3. **The Chromium backgrounding flags are already on.** `--disable-background-timer-throttling`,
+   `--disable-backgrounding-occluded-windows` and `--disable-renderer-backgrounding` look like the
+   exact cure, and Playwright already passes all three by default (`playwright-core/lib/coreBundle.js`).
+   Adding them to `launchOptions` was measured and is a no-op — the full suite failed 6 with them
+   explicitly set, inside the 1–6 baseline. Reverted rather than shipped.
+
+**What could NOT be reproduced in isolation** (so the trigger is genuinely whole-suite load, and any
+future fix must be measured against a full run, never a targeted one): the four /accounts specs alone
+passed **18/18**; a forced-slow /accounts passed **4/4** at `--workers=1`; and an instrumented probe
+that drove /accounts under CPU throttling (rate 20), network throttling (30 KB/s, 300 ms latency) and
+a forced streaming delay produced **zero duplications in 96 loads**, including 24 under genuine 4-way
+worker concurrency. Full-suite runs on the same tree, meanwhile, failed **5, then 1, then 6**.
+
+**Next step — the sharpest remaining lead.** Read `$RV` and the `$RB` batching in
+`react-dom@19.1.0`'s shipped client bundle. `$RC` schedules a reveal only when `2===$RB.length`; a
+push that lands while `$RV` is draining (it ends with `a.length=0`) rides a queue that is about to be
+wiped and never schedules a reveal of its own, which would orphan that boundary permanently and is
+exactly the kind of race that only shows up when many boundaries resolve at once. If that is it, the
+fix is a react-dom upgrade, not app code. Check React's changelog for the `$RV`/`$RB` reveal batching
+before writing anything.
+
+**Do NOT "fix" this by loosening the strict locators.** A genuine duplicate render would put both
+copies inside `#content` and must keep failing. Note also that scoping assertions to `#content` is
+not a per-spec change: **19 spec files** load /accounts and the four failing ones alone hold 121
+locator call sites, so any assertion-side fix has to be central or it will rot (L: a fence copied per
+call site will miss call sites).
 
 ## 🔴→✅ Plaid connections showed no bank name — "Connected bank" for every link (#288, 2026-07-23) — owner-reported, FIXED
 
