@@ -277,6 +277,31 @@ export function detectRecurring(
  *  `toScheduledTransactions`. */
 export type ProjectedCadence = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL';
 
+/**
+ * Whether a series may be projected from EVERY cash account (L.25), or must stay
+ * on the payment account as it always has. The widening admits only series that
+ * NO other term already counts — otherwise it would spread an existing double
+ * count onto accounts that never had one:
+ *
+ *  - INCOME is not merely a figure; the L.11(D) reservation nets scheduled income
+ *    against card payments that must leave the PAYMENT account, so a deposit
+ *    landing in savings would shrink it on the assumption the reader moves the
+ *    money (L.25 claims critic P1-1, measured by the money critic at $4,000.00 of
+ *    guilt-free spending on a single fixture).
+ *  - An AUTO-LOAN ACH is the one `isTransfer` class detection deliberately keeps
+ *    (see `detectRecurring`), and the same payment is ALSO painted from the linked
+ *    LOAN account's obligation. That double count is the accepted #134 residual —
+ *    disclosed on the radar, and only for the payment account. Widening it would
+ *    have put the same $385.00 on /calendar twice on the same day for a second
+ *    checking, with no surface disclosing it (L.25 money critic P1-2, executed).
+ *
+ * CREDIT-account series need no clause here: they are excluded by the caller's
+ * cash set, for the same "already inside another term" reason.
+ */
+function widensToEveryCashAccount(s: RecurringSeriesResult): boolean {
+  return !s.isIncome && s.categoryId !== 'auto-loan';
+}
+
 /** Cadences longer than a month: projected for expenses only, and only while
  *  the series is still charging. One list, so the rule L.23 established for
  *  ANNUAL and L.24 extended to the two new cadences cannot be applied to one
@@ -317,8 +342,10 @@ export function isSeriesActive(
 }
 
 /**
- * Map detected recurring series on the payment account to ScheduledTransaction
- * rows — this is how Phase 2 feeds the Phase 1 cash-needed projection.
+ * Map detected recurring series to ScheduledTransaction rows — this is how
+ * Phase 2 feeds the Phase 1 cash-needed projection. EXPENSES come from any of
+ * the user's cash accounts; INCOME only from the payment account (see the
+ * account-scope section below, which is the asymmetry, not an oversight).
  *
  * WHY ANNUAL EXPENSES ARE PROJECTED (L.23, the L.22 money-critic P1-2 residual).
  * While this filter was W/B/M only, a detected annual bill reached NO surface
@@ -371,27 +398,80 @@ export function isSeriesActive(
  *
  * STILL NOT PROJECTED, recorded in docs/STATUS.md: every rhythm between and
  * around those bands — 10-day, three-weekly, six-weekly, bi-monthly (~61 days),
- * and anything from 99 to 174 or 191 to 349 days — all still IRREGULAR. And the
- * agreement with /recurring holds only for series on the PAYMENT account, which
- * is the only account this function projects: an annual premium autopaid from
- * savings is still $100/month on /recurring and $0 in the plan.
+ * and anything from 99 to 174 or 191 to 349 days — all still IRREGULAR.
+ *
+ * EVERY CASH ACCOUNT FOR EXPENSES, THE PAYMENT ACCOUNT FOR INCOME (L.25).
+ * This filtered EVERYTHING to the single resolved PAYMENT account, so a bill
+ * autopaid from a second checking or from savings was projected NOWHERE:
+ * $100/month on /recurring and $0 in the plan, the same uncounted-bill
+ * direction as the L.23/L.24 gaps. That filter was also in the wrong place —
+ * the three consumers that walk ONE account's running balance (`assemble.ts`
+ * cash-needed, `forecast.ts`, `radar.ts`) each re-filter to the payment account
+ * at their own read site, so narrowing here protected nothing they did not
+ * already protect, and starved the two consumers that legitimately span
+ * accounts: the spending plan's fixed term and the calendar.
+ *
+ * The two directions are NOT symmetric, and the first L.25 draft got this wrong
+ * by widening both (caught by the claims critic, P1-1). An EXPENSE anywhere is
+ * money that leaves: wherever it is charged, it reduces what the reader may
+ * spend, so widening it can only make the plan more complete. INCOME is an
+ * INSTRUCTION's input, not just a figure — the L.11(D) beyond-month reservation
+ * nets scheduled income against card payments that must leave the PAYMENT
+ * account, so counting a deposit that lands in savings would shrink the
+ * reservation on the assumption the reader will move it, which is the
+ * figure-vs-instruction error L.14 records. Income therefore keeps exactly the
+ * scope it has always had, and this slice changes nothing about it. (The LONG
+ * cadences exclude income outright, above; this asymmetry is what governs the
+ * WEEKLY/BIWEEKLY/MONTHLY branch, where detected payroll lives.)
+ *
+ * The general rule both exceptions instance — see `widensToEveryCashAccount` —
+ * is that only a series NO OTHER TERM already counts may widen. Income is one
+ * case; the auto-loan ACH, which the linked LOAN account also paints, is the
+ * other.
+ *
+ * The caller passes the user's CASH accounts (CHECKING/SAVINGS, minus any
+ * superseded predecessor). CREDIT is deliberately excluded and must stay so: a
+ * subscription charged to a card is already inside the plan's card-obligation
+ * term whenever that card's payment is itself in the term, so counting it here
+ * too would double-count it, and the calendar would paint it twice — once as
+ * its own row and once inside the card's due amount. (When the card is UNDATED
+ * its obligation is excluded entirely, so its subscriptions are uncounted as
+ * well — recorded in docs/STATUS.md, not fixed by widening into a double count.)
+ * The set is the caller's to resolve because "which accounts are cash" is a fact
+ * about the user's accounts, which this pure module never sees.
+ *
+ * A series' `accountId` is `last.accountId` — the account of its most recent
+ * charge, not a scope. A bill that MIGRATED from checking to a card is therefore
+ * counted here only until its first card charge lands, and from then on only via
+ * the card obligation; the handover is one cycle, in the safe direction (it is
+ * never counted in both places at once).
  */
 export function toScheduledTransactions(
   series: readonly RecurringSeriesResult[],
-  paymentAccountId: string,
+  scope: {
+    /** Where INCOME may be projected from. Null when the user has no cash account. */
+    paymentAccountId: string | null;
+    /** Where EXPENSES may be projected from: every CHECKING/SAVINGS, minus superseded. */
+    cashAccountIds: ReadonlySet<string>;
+  },
   today: ISODate,
 ): {
   accountId: string;
   description: string;
   amountCents: number;
   nextDate: string;
-  // Never null: the filter above admits exactly the four projected cadences, so
-  // this function cannot emit the one-off shape the DB column also allows.
+  // Never null: the filter above admits exactly the six projected cadences (the
+  // three W/B/M plus the three LONG ones L.23/L.24 added), so this function
+  // cannot emit the one-off shape the DB column also allows.
   cadence: ProjectedCadence;
   source: string;
 }[] {
   return series
-    .filter((s) => s.accountId === paymentAccountId)
+    .filter((s) =>
+      widensToEveryCashAccount(s)
+        ? scope.cashAccountIds.has(s.accountId)
+        : s.accountId === scope.paymentAccountId,
+    )
     .filter((s) =>
       LONG_CADENCES.has(s.cadence)
         ? !s.isIncome && isSeriesActive(s, today)

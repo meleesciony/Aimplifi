@@ -51,7 +51,7 @@ describe('refreshRecurringForUser (post-ingest re-detection)', () => {
   });
   afterAll(wipe);
 
-  it('detects the recurring series + a scheduled projection on the payment account', async () => {
+  it('detects the recurring series + a scheduled projection on a cash account', async () => {
     const r = await refreshRecurringForUser(USER, isoDate('2026-06-01'));
     expect(r.series).toBeGreaterThanOrEqual(1);
 

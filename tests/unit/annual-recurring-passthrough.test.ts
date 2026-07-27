@@ -121,7 +121,7 @@ describe('toScheduledTransactions — the ANNUAL passthrough, both directions (L
     expect(series[0].nextExpectedAt).toBe('2026-08-15');
 
     // FAIL-OLD: the pre-L.23 filter kept only W/B/M, so this array was empty.
-    const rows = toScheduledTransactions(series, 'acct-checking', isoDate(TODAY));
+    const rows = toScheduledTransactions(series, { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate(TODAY));
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       accountId: 'acct-checking',
@@ -139,7 +139,7 @@ describe('toScheduledTransactions — the ANNUAL passthrough, both directions (L
     expect(series[0].isIncome).toBe(true);
     // An annual bonus dated from one 365-day gap would offset a projected dip and
     // could silence a warning the reader would act on. Held out on purpose.
-    expect(toScheduledTransactions(series, 'acct-checking', isoDate(TODAY))).toEqual([]);
+    expect(toScheduledTransactions(series, { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate(TODAY))).toEqual([]);
   });
 
   it('still projects the monthly and biweekly cadences it always did, income included', () => {
@@ -148,7 +148,7 @@ describe('toScheduledTransactions — the ANNUAL passthrough, both directions (L
       seed.transactions.filter((t) => t.status === 'POSTED'),
       isoDate(TODAY),
     );
-    const rows = toScheduledTransactions(detected, 'acct-checking', isoDate(TODAY));
+    const rows = toScheduledTransactions(detected, { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate(TODAY));
     expect(rows.some((r) => r.cadence === 'BIWEEKLY' && r.source === 'payroll-detected')).toBe(true);
     expect(rows.some((r) => r.cadence === 'MONTHLY' && r.source === 'recurring')).toBe(true);
     // The demo's own detected set carries NO annual series, so no demo figure
@@ -433,7 +433,7 @@ describe('L.24 — the long-cadence rules apply to the two new cadences, not jus
   it('a quarterly/semiannual INCOME series is projected nowhere (the L.14 role asymmetry)', () => {
     for (const cadence of ['QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const) {
       const income = { ...base, cadence, isIncome: true, typicalAmountCents: 500000 };
-      expect(toScheduledTransactions([income], 'acct-checking', isoDate(TODAY))).toEqual([]);
+      expect(toScheduledTransactions([income], { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate(TODAY))).toEqual([]);
     }
   });
 
@@ -442,12 +442,12 @@ describe('L.24 — the long-cadence rules apply to the two new cadences, not jus
     // semiannual. Silence long enough to be evidence at one rhythm is routine at
     // another, which is why the cutoff cannot be a single constant.
     const lapsedQuarterly = { ...base, cadence: 'QUARTERLY' as const, lastSeenAt: isoDate('2025-06-10') };
-    expect(toScheduledTransactions([lapsedQuarterly], 'acct-checking', isoDate(TODAY))).toEqual([]);
+    expect(toScheduledTransactions([lapsedQuarterly], { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate(TODAY))).toEqual([]);
     expect(isSeriesActive(lapsedQuarterly, isoDate(TODAY))).toBe(false);
     // …while the SAME 365-day silence leaves a semiannual series still charging.
     const quietSemiannual = { ...base, cadence: 'SEMIANNUAL' as const, lastSeenAt: isoDate('2026-03-10') };
     expect(isSeriesActive(quietSemiannual, isoDate(TODAY))).toBe(true);
-    expect(toScheduledTransactions([quietSemiannual], 'acct-checking', isoDate(TODAY))).toHaveLength(1);
+    expect(toScheduledTransactions([quietSemiannual], { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate(TODAY))).toHaveLength(1);
   });
 
   it('the fraction the copy names is the fraction the engine divides by', () => {
@@ -542,7 +542,7 @@ describe('a LAPSED annual series is projected nowhere — the two surfaces agree
     expect(summary.monthlyRecurringSpendCents).toBe(0);
     // FAIL-OLD (of the fix, not of the slice): without the lapse gate this was
     // one row worth $100/month.
-    expect(toScheduledTransactions(series, 'acct-checking', isoDate(TODAY))).toEqual([]);
+    expect(toScheduledTransactions(series, { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate(TODAY))).toEqual([]);
   });
 
   it('is exactly the /recurring rule, at the cadence-scaled boundary', () => {
@@ -571,7 +571,7 @@ describe('a LAPSED annual series is projected nowhere — the two surfaces agree
     const series = detectRecurring(stale, isoDate(TODAY));
     expect(series[0].cadence).toBe('MONTHLY');
     expect(summarizeRecurring(series, TODAY).inactive).toHaveLength(1);
-    expect(toScheduledTransactions(series, 'acct-checking', isoDate(TODAY))).toHaveLength(1);
+    expect(toScheduledTransactions(series, { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate(TODAY))).toHaveLength(1);
   });
 });
 
@@ -813,8 +813,9 @@ describe('the real server path: a detected annual bill reaches the spending plan
     }));
     const [series] = detectRecurring(quarterly, isoDate(TODAY));
     expect(series?.cadence).toBe('QUARTERLY');
-    // It reaches the projection as an EXPENSE on the payment account…
-    const rows = toScheduledTransactions([series!], 'acct-checking', isoDate(TODAY));
+    // It reaches the projection as an EXPENSE on a cash account (here the payment
+    // account; since L.25 any CHECKING/SAVINGS would do)…
+    const rows = toScheduledTransactions([series!], { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate(TODAY));
     expect(rows).toHaveLength(1);
     expect(rows[0]?.cadence).toBe('QUARTERLY');
     // …and the plan charges a third of it every month: $300.00 / 3 = $100.00.

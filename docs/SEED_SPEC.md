@@ -65,7 +65,10 @@ exercises same-day aggregation; one due date in history falls on a weekend ✔).
   acct-savings DELIBERATELY: SAVINGS is a spending-type account (the radar and
   /recurring see the series) but not the demo payment account, so
   `toScheduledTransactions` never projects it and the cash-needed/§Seed-headline
-  arithmetic is untouched by construction. Fixed amounts after every RNG-consuming
+  arithmetic is untouched by construction. **Narrowed in L.25:** the projection now
+  admits EXPENSES from any cash account, savings included, so this holds specifically
+  because the series is INCOME (+$380) and income alone is still payment-account-scoped.
+  Re-engineering this pause as an outflow would move the headline. Fixed amounts after every RNG-consuming
   block (byte-identical stream); the known ripple is monthlyFlows income for
   2026-01..04 (two-payday months now 2×245000 + 38000 = $5,280.00 —
   insights.test.ts re-hand-verified). The engine's seed lock

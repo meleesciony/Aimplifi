@@ -1188,9 +1188,12 @@ remaps predecessor→successor, forecast/radar/cash-needed all pin their schedul
 id, so a row still keyed to the predecessor silently falls out (a dropped income/bill). The boundary
 re-keys each predecessor scheduled row to the terminal successor (following chains, like the payment
 remap). Reversible: undo clears the link, re-key vanishes, rows count on the predecessor exactly as
-before (a write-time re-key could not be undone without storing the original id). Double-count-safe
-because detected scheduled rows are FULL-REPLACED to a single payment account (`refreshRecurringForUser`),
-so a re-keyed predecessor row never collides with an equivalent successor row. Fixture: a MONTHLY
+before (a write-time re-key could not be undone without storing the original id). Double-count-safe —
+re-derived in L.25, which retired the original reason (rows are no longer full-replaced to a SINGLE
+payment account; expenses now come from every cash account). It holds instead because detection groups
+by MERCHANT, so one merchant yields one series and at most one row, and because `refreshRecurringForUser`
+deletes every detected row for the USER (not per account) before rewriting, leaving no stale sibling for a
+re-keyed row to collide with; superseded predecessors are additionally excluded from the writer outright. Fixture: a MONTHLY
 Paycheck (+500 000¢) keyed to the stale funding account re-keys to the live one; the forecast (anchored
 on the successor) projects `totalInflowCents ≥ 500 000` where without the re-key the income vanished.
 
@@ -1952,7 +1955,10 @@ Hand-verified cases:
   monthly (2026-01-10..04-10) on **acct-savings**, which is deliberately NOT the
   demo payment account (acct-checking): the paused series can never reach
   `toScheduledTransactions`, so the cash-needed/§Seed-headline arithmetic is
-  untouched by construction. The known ripple: monthlyFlows income for
+  untouched by construction. **L.25 narrowed the mechanism:** expenses now project
+  from every cash account, so what keeps this series out is that it is INCOME, which
+  alone remains payment-account-scoped — not merely that savings isn't the payment
+  account. The known ripple: monthlyFlows income for
   2026-01..04 is now 2×245000 + 38000 = **528000**/month for two-payday months
   (insights.test.ts re-hand-verified). Payroll (biweekly, current at asOf) never
   flags.

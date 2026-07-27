@@ -55,9 +55,17 @@
  *    the predecessor silently falls out of the projection (a dropped income/bill).
  *    Re-keying at READ time keeps it reversible: undo clears the link and the rows
  *    count on the predecessor exactly as before (a write-time re-key could not be
- *    undone without storing the original id). Double-count-safe because detected
- *    scheduled rows are full-replaced to a SINGLE payment account, so a re-keyed
- *    predecessor row never collides with an equivalent successor row.
+ *    undone without storing the original id). Double-count-safe — but NOT for the
+ *    reason this comment gave until L.25, which was that detected rows are
+ *    full-replaced to a SINGLE payment account. They are not: since L.25 the writer
+ *    emits expense rows for every cash account. Re-derived, the guarantee now rests
+ *    on two facts, both in `detectRecurring`/`refreshRecurringForUser`: detection
+ *    groups by MERCHANT, so one merchant yields exactly one series and therefore at
+ *    most one row (its `accountId` is `last.accountId`, one account by construction);
+ *    and the full replace deletes every detected row for the USER, not per account,
+ *    so no stale sibling survives a refresh to collide with a re-keyed one. In
+ *    addition `refreshRecurringForUser` now excludes superseded predecessors
+ *    outright, so after any refresh there is no predecessor row left to re-key.
  *
  * Defensive inertness (never drop money on bad input): a link is IGNORED — both
  * sides count fully, exactly today's behavior — when either side is absent from

@@ -18,7 +18,7 @@ import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurrin
 import { upcomingRenewals, type UpcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCategoryMeta } from '@/server/category-meta';
-import { getReconciliationTxnKeep } from '@/server/reconciliation';
+import { activeSupersededPredecessorIds, getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getProvider } from '@/lib/providers/demo';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
@@ -132,14 +132,42 @@ export async function refreshRecurringForUser(
       isSubscription: s.isSubscription,
     }));
 
-  // Payment account for the projection: the stored choice, else a checking/savings.
-  const [user, accounts] = await Promise.all([
+  // Two scopes, deliberately different (L.25 — see toScheduledTransactions' docblock
+  // for why they are not symmetric).
+  //
+  // EXPENSES: every CHECKING/SAVINGS account, not the one resolved payment account.
+  // Projecting only the payment account meant a bill autopaid from a second checking
+  // or from savings reached no projection at all — a monthly rate on /recurring and $0
+  // in the spending plan's fixed term, which overstates guilt-free spending by the
+  // bill's whole share. The three consumers that walk a SINGLE account's balance
+  // (cash-needed's assemble, forecast, radar) re-filter to the payment account
+  // themselves, so widening here cannot leak a savings-paid bill into a checking
+  // balance walk.
+  //
+  // INCOME: the payment account alone, exactly as before. A deposit landing in savings
+  // must not shrink the L.11(D) reservation held against card payments that leave
+  // checking (the claims critic's P1-1 on the first draft of this slice).
+  //
+  // CREDIT is excluded on purpose: a subscription charged to a card is already inside
+  // the plan's card-obligation term and on the calendar inside that card's due amount.
+  //
+  // Superseded predecessors are excluded for the same reason resolvePaymentAccount
+  // excludes them — a reconciled-away account's series is a dead bill, and unlike the
+  // long cadences the WEEKLY/BIWEEKLY/MONTHLY rows carry no lapse gate to catch it.
+  const [user, accounts, superseded] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, select: { id: true, type: true } }),
+    activeSupersededPredecessorIds([userId]),
   ]);
+  const cashAccountIds = new Set(
+    accounts
+      .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type) && !superseded.has(a.id))
+      .map((a) => a.id),
+  );
+  // The same resolution order this function has always used, now only for income.
   const paymentAccountId =
-    accounts.find((a) => a.id === user?.paymentAccountId)?.id ??
-    accounts.find((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))?.id ??
+    (user?.paymentAccountId && cashAccountIds.has(user.paymentAccountId) ? user.paymentAccountId : null) ??
+    accounts.find((a) => cashAccountIds.has(a.id))?.id ??
     null;
   // Income-Pause confirmations (#251, AI plan §Later #20): a pause the user has
   // CONFIRMED excludes its income series from the detected projections — this is the
@@ -181,7 +209,9 @@ export async function refreshRecurringForUser(
       });
     }
   }
-  const scheduledRows = paymentAccountId ? toScheduledTransactions(projectable, paymentAccountId, today) : [];
+  const scheduledRows = cashAccountIds.size
+    ? toScheduledTransactions(projectable, { paymentAccountId, cashAccountIds }, today)
+    : [];
 
   // Full replace, atomically. Only the DETECTED scheduled rows are swapped — a
   // SEEDED row is left intact. (The 'user' and 'autopay' sources the column

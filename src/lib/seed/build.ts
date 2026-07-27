@@ -517,7 +517,12 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
   // On acct-savings DELIBERATELY: SAVINGS is a spending-type account (so /recurring
   // and the radar see the series) but NOT the demo payment account (acct-checking),
   // so toScheduledTransactions never projects it — the cash-needed/seed-headline
-  // arithmetic is untouched by construction. Fixed amounts placed after every
+  // arithmetic is untouched by construction. NOTE (L.25) the mechanism this rests
+  // on narrowed: since L.25 the projection admits EXPENSES from any cash account,
+  // savings included, and it is specifically because this series is INCOME (+$380)
+  // that "not the payment account" still keeps it out. Were it re-engineered as an
+  // outflow, it WOULD project from savings and the headline would move.
+  // Fixed amounts placed after every
   // randInt-consuming block (the #249 precedent), so the RNG stream — and every
   // other seeded value — is byte-identical; only income-derived aggregates
   // (monthlyFlows income for Jan–Apr, savings rate, FI) shift, re-hand-verified in

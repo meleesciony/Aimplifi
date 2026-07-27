@@ -3,7 +3,9 @@
  * refreshRecurringForUser + the confirmation store against a throwaway user whose
  * PAYCHECK lands on the payment account (unlike the demo seed, which parks the
  * engineered pause on savings precisely so projections are untouched — this test
- * exercises the path the demo deliberately avoids).
+ * exercises the path the demo deliberately avoids). Since L.25 that parking works
+ * because INCOME alone stays payment-account-scoped; expenses project from any cash
+ * account, savings included.
  *
  * The contract under test (AI plan §Later #20's confirmation-gated mutation):
  *   1. an UNCONFIRMED lapse still projects — the radar alone never mutates;

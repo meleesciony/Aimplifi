@@ -2,6 +2,127 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-26 — L.25: a bill paid from any cash account reaches the money (DECISIONS #314)
+
+Closes the L.24 OPEN #4 / L.23 OPEN #5 residual, and it turned out to be a defect **inside one
+subtraction**: `/spending-plan` summed income over **every non-credit account** while its fixed
+term summed the detected scheduled rows, which `toScheduledTransactions` filtered to **the single
+resolved payment account**. Neither figure was wrong alone; the subtraction was, and no single term
+could see it. A bill autopaid from savings or a second checking was therefore counted **zero times**
+— a monthly rate on `/recurring` and $0.00 in the plan — overstating guilt-free spending by its
+whole monthly share, the same direction as the L.23/L.24 gaps.
+
+**The narrowing was also in the wrong place, which is what made the fix small.** The obvious
+objection to widening is that these rows feed a projection that walks the payment account's balance.
+That objection is already handled at the read sites: `assemble.ts:195`, `forecast.ts:51` and
+`radar.ts:88/107/132` each re-filter to the payment account themselves. The writer's filter was
+redundant for every consumer that needed it and was the only thing starving the two that
+legitimately span accounts — the plan's fixed term, and the calendar, which has no balance walk at
+all and simply paints dated events.
+
+**Shipped.** `toScheduledTransactions` takes a scope `{ paymentAccountId, cashAccountIds }`.
+EXPENSES project from every CHECKING/SAVINGS minus `activeSupersededPredecessorIds` — a
+reconciled-away account's bills are dead, and unlike the long cadences the W/B/M rows carry no lapse
+gate to catch them. CREDIT stays excluded: a card-charged subscription is already inside the
+card-obligation term whenever that card's payment is itself in the term. INCOME keeps the payment
+account alone.
+
+Two exceptions keep the payment account's scope, and they instance one rule — **only a series that
+NO OTHER TERM already counts may widen** (`widensToEveryCashAccount`). Income is one. The other is
+the **auto-loan ACH**, the single `isTransfer` class detection deliberately keeps, whose payment the
+linked LOAN account also paints: that double count is the accepted #134 residual, disclosed on the
+radar and only for the payment account.
+
+**Mutation testing (6 mutations, all killed).** Reverting the writer to one-account semantics killed
+4 locks; deleting `assemble.ts:195`'s re-filter killed the balance-walk lock; dropping the superseded
+exclusion killed that lock; reverting the income scoping killed exactly the income lock; removing the
+auto-loan clause killed exactly that lock; and collapsing the predicate to "nothing widens" killed
+the same 4 as the full revert.
+
+**Hostile MONEY-MATH critic — FAIL, 1 live P1, every attack executed.** It reviewed across the
+income fix and reported both versions, which made it an independent check on the claims critic: its
+**P0-1 is the same income defect, measured** — on a fixture with a $14,000 statement due Aug 5 and a
+side-gig paying into savings that had already stopped, the first draft moved guilt-free spending by
+**$4,000.00** in the spend-more direction, compounding two errors (savings cannot pay a card that
+debits checking, and `isSeriesActive` gates only the LONG cadences, so a MONTHLY income `/recurring`
+files as dead still projected forever). Two critics, different lenses, same root cause. It re-ran the
+fixture against the shipped code and confirmed it dead.
+
+Its live **P1-2** was the auto-loan double-paint above — executed end to end, showing the same
+$385.00 painted twice on one `/calendar` day with the radar's `loanOverlap` disclosure silent because
+it requires `s.accountId === payment.id`. Fixed as described and locked.
+
+It could NOT break: the demo/golden figures (old vs new scope over `buildSeedData` at three `asOf`
+dates — 4 rows each, nothing added or removed), the three re-filters, the CREDIT exclusion (7 seed
+card series, none emitted), transfers (an unpaired checking↔savings pair yields a phantom **+$500
+income** row under the first draft and only the expense leg under the shipped code), the superseded
+exclusion, the migration handover (a bill moving checking→card is never in both terms at once), or
+OPEN #7's "unreachable" claim, which it verified caller by caller rather than assuming.
+
+**Hostile CLAIMS/COPY critic — FAIL, 7 P1 + 4 P2, every finding executed.** P1-1 was a real defect
+rather than a wording problem, and it is the reason this slice is not symmetric: the W/B/M branch
+carries **no `isIncome` test** (only the LONG branch does), so widening the ACCOUNT filter silently
+widened income too, and a detected deposit landing in savings became a `payroll-detected` row
+shrinking the L.11(D) reservation held against card payments that must leave checking — the
+guilt-free-RAISING direction, while every comment in the change said "a bill". An expense anywhere
+is a FIGURE (money that leaves); income elsewhere is an INSTRUCTION's input (it funds the obligation
+only if the reader moves it), which is the L.14 axis one level down. Income was scoped back, so its
+behaviour is byte-identical to before this slice.
+
+P1-2..P1-5 and P2-8..P2-10 were live claims the widening falsified **while their conclusions
+survived** — the dangerous kind, because nothing fails: the reconciliation boundary's
+double-count-safety argument rested on "full-replaced to a SINGLE payment account" (re-derived from
+merchant-grouping plus the per-USER full replace, and rewritten where the re-key lives); the demo
+seed's "untouched by construction" rationale in three docs (true now only because that series is
+INCOME); two OPEN items in this file describing the closed gap as open; the changed docblock's own
+one-line summary; and three stale test titles. All corrected.
+
+### 🟠 OPEN after L.25
+
+1. **`$0.00` is still rendered as a fact, and the exclusions panel names 3 of 10 classes.** Both
+   PRE-EXISTING, both surfaced by the claims critic (P1-6/P1-7), and deliberately NOT half-fixed
+   here — the L.24 lesson is that an edited-down disclosure is worse than none, so this gets its own
+   slice and its own critic. `traceSafeToSpend` emits the fixed row with no `> 0` gate (unlike the
+   beyond-month row, which IS gated with the comment "a $0 row would name a mechanism that did not
+   act"), so a reader sees "Fixed & recurring expenses — $0.00" directly above "matched to the penny
+   from your own data", and the basis line says the term **is** "your recurring bills". "We detected
+   none" and "you have none" render identically. Re-derived by execution, the classes that actually
+   count zero are: variable-amount bills, fewer than 3 sightings, the IRREGULAR bands, a lapsed long
+   cadence, long-cadence income, series on INVESTMENT/LOAN/MORTGAGE accounts, non-USD accounts, a
+   user with no CHECKING/SAVINGS at all, `isTransfer`-flagged rows, and a loan with no detected ACH.
+   The panel names three. It also mis-scopes the 3-sighting and steady-price preconditions to the
+   LONG cadences, implying by contrast that a monthly bill needs neither — both are unconditional.
+2. **The likeliest cause of the owner's live `$0.00` is NOT this slice's fix** (claims critic; then
+   verified here by execution). The amount-stability rule drops any series with three distinct
+   amounts — four monthly power-bill charges at four different amounts detect as **nothing at all**,
+   on every account — so every variable utility bill is invisible to `/recurring` and to the plan
+   alike. Reaching $0.00 by account scope alone would need EVERY bill to sit off the payment
+   account; reaching it by amount variability needs only that the bills look like ordinary bills.
+   Still UNCONFIRMED against the owner's data (no live DB reachable from here); the distinguishing
+   evidence is a `/recurring` screenshot — an empty page points at detection, a populated one points
+   at scope.
+3. **A subscription on an UNDATED card is counted zero times** (claims critic P2-8). CREDIT is
+   excluded from the fixed term because the card obligation covers it, but an undated card's
+   obligation is itself excluded, so both halves are missing. The disclosure names the missing
+   payment, never the subscriptions riding on it.
+4. **`summarizeRecurring` still reads every account for INCOME**, so `/recurring` and the plan can
+   still disagree about a detected income series on savings — deliberate, and now the only surviving
+   half of the old "agreement holds only on the payment account" item.
+5. **The writer's income anchor and the readers' payment account can diverge** (money critic P1-3,
+   PRE-EXISTING — it verified the old code resolved the same set in the same order, so this slice
+   did not introduce it, but it re-touched the resolution). `refreshRecurringForUser` anchors income
+   to the first CHECKING **or SAVINGS** in creation order, while `resolvePaymentAccount` prefers
+   `type === 'CHECKING'`. Executed: with savings created before checking and no stored
+   `paymentAccountId`, **no income row is written at all** and `/forecast` anchors on checking with
+   zero income events. Direction: projections too LOW — a false "dips below $0" on the forecast and
+   the radar, and an overstated cash-needed figure. Fixing it changes which account income projects
+   from for existing users, so it is its own slice.
+6. **A MONTHLY series `/recurring` files as dead still projects forever.** `isSeriesActive` gates
+   only the LONG cadences (STATUS §L.24 OPEN, restated here because the money critic's P0-1 fixture
+   showed it compounding: the stopped side-gig was still projecting). Unchanged by this slice and
+   deliberate — widening the gate to W/B/M would drop bills for every existing user — but it is the
+   reason a stale income series is worth more than a stale bill.
+
 ## ✅ BUILT 2026-07-26 — L.24: a quarterly or twice-a-year bill reaches the money (DECISIONS #313)
 
 Closes the sharpest L.23 residual, in the same dangerous direction and one step further out.
@@ -103,15 +224,17 @@ multi-month windows (three clicks) and a stale anchor self-healing forward.
    That is an ordinary meter-reading slip, where ANNUAL's 548-day equivalent is rarely reachable.
    Disclosed on /spending-plan; whether the multiplier should scale differently per cadence is
    open.
-4. **The agreement with `/recurring` still holds only on the PAYMENT account** (inherited, L.23
-   OPEN #5, unchanged by this slice): `toScheduledTransactions` projects that one account, while
-   `summarizeRecurring` reads every account — so a bill autopaid from savings, or charged to a
-   card, is a monthly rate on `/recurring` and $0 in the plan's fixed term. **Owner-reported
-   2026-07-26 on live data** ("Fixed & recurring expenses — $0.00" against $21,117.48 of income):
-   the cause is UNCONFIRMED pending a `/recurring` screenshot, and this scope is the leading
-   candidate. Note the tension — bills on a card are already inside the card-payments term, so
-   counting them here too would double-count; the honest fix has to separate "paid from
-   checking" from "charged to a card", not simply widen the filter.
+4. ~~**The agreement with `/recurring` still holds only on the PAYMENT account**~~ — **the
+   cash-account half CLOSED in L.25** (§L.25 above), which made exactly the separation this item
+   asked for: expenses project from every CHECKING/SAVINGS, income stays on the payment account,
+   and CREDIT stays out because a card-charged subscription is already inside the card-payments
+   term. What remains is the CARD half — a subscription on a card whose obligation is itself
+   excluded (an UNDATED card) is still counted zero times — plus the classes in L.25 OPEN #1.
+   **Owner-reported 2026-07-26 on live data** ("Fixed & recurring expenses — $0.00" against
+   $21,117.48 of income): still UNCONFIRMED, and L.25's claims critic argued account scope is
+   *not* the likeliest cause — reaching $0.00 by scope alone needs every bill to sit off the
+   payment account, where the amount-stability rule excludes every variable utility bill on its
+   own. See L.25 OPEN #1.
 5. **Three vocabularies for one rhythm** (copy critic P3-2): "quarterly" on /spending-plan and the
    dashboard, "/3mo" on /recurring, "every three months" in the merchant lens. Each is true; a
    reader visiting all three sees three names. Cosmetic, recorded rather than churned.
@@ -235,11 +358,12 @@ premium that changed price twice, or one only two years old, is still invisible.
    dashboard card carries a short form of the same fact. The cash-needed/forecast/radar projections, which do carry the full amount on
    its date, are the surfaces that show the lump — they and the plan answer different questions
    over different windows (the L.11(C) rule), and neither is a term of the other.
-5. **The agreement with `/recurring` holds only on the PAYMENT account** (copy critic P2-2).
-   `toScheduledTransactions` projects that account alone, while `summarizeRecurring` reads every
-   account — so a $1,200/yr premium autopaid from savings is still $100/month on `/recurring` and
-   $0 in the plan. Pre-existing for every cadence; this slice narrows it to non-payment accounts
-   rather than closing it.
+5. ~~**The agreement with `/recurring` holds only on the PAYMENT account**~~ (copy critic P2-2) —
+   **CLOSED for EXPENSES in L.25**: the $1,200/yr premium autopaid from savings that this item
+   used as its worked example now counts $100/month in the plan, the same as on `/recurring`.
+   Income deliberately still projects from the payment account alone (L.25 §the asymmetry), and
+   `summarizeRecurring` still reads every account, so the two surfaces can still disagree about a
+   detected INCOME series on savings.
 6. **The lapse gate applies to the LONG cadences only** (was ANNUAL-only; L.24 extended it to
    QUARTERLY at 137 days and SEMIANNUAL at 273) — a MONTHLY series silent for a year is still
    projected (~45-day cutoff on `/recurring`, no cutoff at all in the projection). Deliberate:
