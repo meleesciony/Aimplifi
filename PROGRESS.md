@@ -6152,3 +6152,28 @@ PAYMENT-ACCOUNT SCOPE (STATUS L.24 OPEN #4) — UNVERIFIED, awaiting a /recurrin
 noted there is a genuine double-count tension because bills on a card are already inside the
 card-payments term.
 NEXT: commit, push, deploy-verify.
+
+## L.24 — the verified deploy. 2026-07-26
+SHIPPED LIVE as ce494de. Proven by the DEPLOYMENT RECORD, the method the L.23 lesson established:
+`npx vercel ls aimplifi --yes` shows the newest production deployment
+(aimplifi-iwk60o3a7-reiforge.vercel.app) created 20:27:46, ~1 min after the push, built in 1m and
+now ● Ready — and `npx vercel inspect` on it prints `Aliases: https://www.aimplifi.app`, i.e. it is
+the deployment serving traffic. Corroborating: /sign-in returns HTTP 200 and its page hash moved
+from the L.23 deploy's 7cb2bb70d0c5cf1495769c1eb8870741 to 33e02f8c8568ef7afaefb49e40776c22.
+SCHEMA: the staged prisma diff was TWO COMMENT LINES (the cadence legends on RecurringSeries and
+ScheduledTransaction) — no DDL, so the deploy's `prisma db push` was a no-op against Neon.
+NO PUBLIC MARKER, checked rather than assumed: every string this slice touched lives behind
+/spending-plan, /dashboard, /recurring or /ask, all auth-gated (the L.18 standard). The deployment
+record is therefore the evidence, not a grep of public HTML.
+NOT VERIFIABLE FROM HERE, stated rather than assumed: (a) whether the owner's own data contains a
+detected quarterly or semiannual series — no live DB in this environment, and the detector needs
+three sightings on a steady rhythm (~6 months for quarterly) to see one; (b) the GitHub Actions run
+for this commit — `gh` is not authenticated in this checkout, so CI's own verdict is unread. The
+local gate and the 19/19 serialized e2e are the evidence.
+LESSON: docs/lessons/closing-a-gap-shrinks-the-disclosure-that-described-it.md (+INDEX) — the copy
+critic's P1-1 generalized: fixing half a disclosed limitation makes the disclosure that described
+it false unless the remainder is RE-DERIVED from the code.
+NEXT: the owner's live "Fixed & recurring expenses $0.00" report — awaiting his /recurring
+screenshot, which distinguishes the payment-account scope (STATUS L.24 OPEN #4) from a detection
+failure. Then the open queue: L.16 (keep-both prompt), L.13 (owner screenshot), the L.9 OPEN
+proven-ambiguity carry-out, and the L.24 residuals.
