@@ -2,6 +2,35 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅✅ MEASURED LIVE 2026-07-27 11:02 UTC — the owner's number MOVED: $0.00 → $684.31/mo
+
+**Four sessions of "did it work?" are closed by measurement.** The nightly `sync.cron.plaid` ran at
+`11:01:46–11:02:01 UTC` and L.26 wrote the rows: the owner's `ScheduledTransaction` count went
+**0 → 8** and `RecurringSeries` reads 20. Summed at a monthly rate, the EXPENSE rows are exactly the
+**$684.31/mo** the L.27 read-only replay predicted, from the same three bills:
+
+| cadence | amount | monthly | next |
+|---|---|---|---|
+| MONTHLY | −$176.79 | −$176.79 | 2026-08-06 (Mohela student loan) |
+| BIWEEKLY | −$166.67 | −$361.12 | 2026-07-27 (Schwab retirement contribution) |
+| MONTHLY | −$146.40 | −$146.40 | 2026-07-30 (Principal insurance premium) |
+
+The other four rows are `payroll-detected` INCOME (three Cardone equity funds, an ATM fee rebate) and
+correctly do not enter the fixed-expense term. `/spending-plan` should now read
+**"Fixed & recurring expenses — $684.31"** instead of $0.00.
+
+**The alarm that surfaced this was a FALSE POSITIVE, and the reason is worth keeping.** The L.27
+watcher fired `STILL-0` — "activity after the deploy, yet ScheduledTransaction is still 0" — which is
+the exact shape of the false P0 that session nearly shipped. It was not a timestamp bug this time
+(the probe correctly reads `::text`); it was a **race**. The watcher's trigger is `max("createdAt")`
+over ANY `AuditLog` row, and it polled inside the ~15 seconds between the cron's
+`ai.categorize.replied` row at `11:01:52` and `refreshRecurringForUser` committing at ~`11:02:01`. It
+caught the system mid-write and reported the pre-write count beside the mid-write timestamp. Its own
+text hedged correctly ("**IF** that activity was a Plaid sync"), and reading the actual `action`
+column answered it in one query. **A watcher whose trigger and whose measurement come from different
+tables can straddle a write** — the trigger must be the same fact as the claim, or the alarm needs a
+re-read after a settle delay. Probes kept at `scripts/audit-probes/l28-*`.
+
 ## ✅ VERIFIED LIVE 2026-07-27 — L.26 is deployed and correct; it has not run yet
 
 No code changed this session. It answered one question with measurement: **is the L.26 fix working
