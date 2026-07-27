@@ -9,7 +9,7 @@
  * card itself AND in the "Do this first" instruction, which is the line a reader actually acts on.
  */
 import Database from 'better-sqlite3';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
 async function signUpThrowaway(page: Page): Promise<string> {

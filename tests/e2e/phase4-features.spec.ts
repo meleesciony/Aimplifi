@@ -2,7 +2,7 @@
  * Phase 4 golden flows (380×800): cash-flow calendar, goals with FI impact,
  * budgets, exports (CSV + PDF with audit), PWA manifest, security headers.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 import { clickMoreNav } from './helpers/more-nav';
 
 async function signIn(page: Page) {

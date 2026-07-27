@@ -12,7 +12,7 @@
  * action-apply stall (STATUS #16/#17).
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('an unmatched URL renders the branded 404 with a 404 status and a working recovery', async ({
   page,

@@ -3,7 +3,7 @@
  * links could overflow into Sign out. Locks non-overlap via bounding boxes at
  * a desktop viewport (e2e project is mobile-380 by default — resize in-test).
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('desktop header: Settings and Sign out do not overlap', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });

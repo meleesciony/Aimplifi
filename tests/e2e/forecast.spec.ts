@@ -3,7 +3,7 @@
  * then a 90-day projected balance line with milestones and the lowest-point
  * read — all from the seed's scheduled flows, zero credentials.
  */
-import { type Page, expect, test } from '@playwright/test';
+import { type Page, expect, test } from './helpers/test';
 
 async function signIn(page: Page) {
   await page.goto('/');

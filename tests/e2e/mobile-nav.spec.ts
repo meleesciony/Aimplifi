@@ -6,7 +6,7 @@
  * new assertions — see docs/lessons/mobile-380-viewport-scaling-flake.md.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 import { clickMoreNav, openMoreNav } from './helpers/more-nav';
 
 async function signIn(page: Page) {

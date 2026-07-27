@@ -18,7 +18,7 @@
  * measuring an empty page.
  */
 import Database from 'better-sqlite3';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
 /** The e2e server pins `DEMO_TODAY=2026-06-10` for EVERY user (businessToday precedence 1), the

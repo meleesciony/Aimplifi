@@ -8,7 +8,7 @@
  * load is carried by tests/unit/household-actions.test.ts (real actions
  * against throwaway users).
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 import AxeBuilder from '@axe-core/playwright';
 
 async function signIn(page: Page) {

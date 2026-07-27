@@ -13,7 +13,7 @@
  * seeing the number" is the PHASES.md <10s benchmark expressed structurally,
  * not as a stopwatch assertion.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('signup → Step 1 inlined connect → manual account → Steps 2/3 together → confirm → flow complete', async ({
   page,

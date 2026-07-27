@@ -46,6 +46,47 @@ React's client render fills `#content` from the RSC payload. Two copies, no hydr
    loads) are worth more to the next session than a fifth hypothesis, because each one is a session
    somebody else no longer spends.
 
+## The fix half (2026-07-27) — and the two leads it killed
+
+The diagnosis above named a next step: read `$RV`/`$RB` batching, on the theory that a push landing
+while `$RV` drains rides a queue about to be wiped, and that the fix would then be a react-dom
+upgrade. **Both halves of that lead were wrong, and one grep each killed them.**
+
+7. **Read the whole function before believing a race you inferred from one line.** `$RV` is
+   synchronous — it walks the queue and ends with `a.length = 0` — and nothing can push into `$RB`
+   mid-walk, because DOM mutation runs no script synchronously. There is no interleaving race. The
+   real fragility is plainer and was in the same expression all along: `$RC` picks its scheduler with
+   `"number" !== typeof $RT ? requestAnimationFrame(…) : setTimeout(…)`, and `$RT` is assigned on the
+   *first line of `$RV`*. So exactly one reveal per document — the first — is frame-dependent, and
+   everything after it runs on a timer that needs no frames. A renderer that never paints therefore
+   strands the first boundary permanently and only the first. The suspected race was exotic; the
+   actual defect was a bootstrap condition sitting in plain sight.
+8. **"The fix is an upstream upgrade" is a claim to check before it is a plan.** React's experimental
+   channel (`next/dist/compiled/react-dom-experimental`) ships this instruction set **byte-identical**
+   to the stable one. There is no version to upgrade to, and an upgrade attempt would have burned a
+   session and changed nothing. Diffing the canary against the stable bundle costs one command.
+9. **A mechanism you can starve deliberately does not need the flake to reproduce.** Every attempt to
+   reproduce this by *load* failed (96 instrumented loads, zero duplications). Reproducing it by
+   *cause* took one page load: replace `requestAnimationFrame` with a no-op and `/accounts` leaves
+   `$RT === undefined` and `$RB.length === 2` with the whole card parked in `div[hidden][id^="S:"]`,
+   while an unstarved load leaves `$RT` a number and `$RB` empty. Once the mechanism is named, stop
+   trying to trigger the environment that produces it and construct the condition it needs — the
+   result is deterministic, and it doubles as the regression lock. `$RT`'s *type* is the whole
+   measurement: it is written by the code you are asking about, so `undefined` proves non-execution
+   rather than merely suggesting it.
+10. **A test-harness fix still has to hold by construction.** The drain that stands in for the missing
+    frame had to reach 56 spec files. Remembered per spec it is the fence-copied-per-call-site defect
+    with 56 chances to be forgotten; so it lives in one module (`tests/e2e/helpers/test.ts`), is
+    patched onto `browser.newContext` so specs building their own context inherit it, and an eslint
+    `no-restricted-imports` rule makes importing Playwright's `test` directly an error. The fence is
+    then a property of the repo, not of anyone's memory.
+11. **Say plainly when a fix is in the harness and not the product**, and why that is legitimate: a
+    real browser paints, the orphan sits outside `#content` where no reader, screen reader or
+    `getElementById` can reach it, and the drain does exactly what React's own rAF callback would
+    have done. What makes it safe rather than a locator loosening is that it cannot hide the defect
+    the specs exist to catch — a genuine duplicate render puts both copies *inside* `#content`, where
+    every strict locator still sees two.
+
 ## The reproduction asymmetry worth remembering
 
 The four specs passed 18/18 alone. A forced-slow page passed 4/4 at `--workers=1`. A probe under CPU

@@ -17,7 +17,7 @@
  * modest figures and so cannot by itself reproduce the reported overflow.
  */
 import Database from 'better-sqlite3';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
 // Narrowest common Android, iPhone 15/16, and Pro Max — all below Tailwind `sm`

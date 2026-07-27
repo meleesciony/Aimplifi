@@ -11,7 +11,7 @@
  */
 import { execSync } from 'node:child_process';
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
 test('demo user (no linked feed) sees no staleness banner; /accounts shows the connect front-door', async ({ page }) => {

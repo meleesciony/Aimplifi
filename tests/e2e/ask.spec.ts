@@ -7,7 +7,7 @@
  */
 import { execSync } from 'node:child_process';
 import AxeBuilder from '@axe-core/playwright';
-import { type Page, expect, test } from '@playwright/test';
+import { type Page, expect, test } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
 async function signIn(page: Page) {

@@ -25,7 +25,7 @@
  * and are NOT a hydration barrier; re-clicking until the expected reaction
  * appears is.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('attach a statement to a manual credit card, then clear + delete (extends #45)', async ({ page }) => {
   // Throwaway user — full isolation from the demo goldens.

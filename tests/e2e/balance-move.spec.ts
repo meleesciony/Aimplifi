@@ -5,7 +5,7 @@
  * money figure it names must also appear in the movers list (it cannot drift).
  */
 import AxeBuilder from '@axe-core/playwright';
-import { type Page, expect, test } from '@playwright/test';
+import { type Page, expect, test } from './helpers/test';
 
 const BANNED = /\b(because|due to|driven by|wasted|splurge|doubled|tripled|surged|skyrocket|most of)\b/i;
 

@@ -12,7 +12,7 @@
  * (real getReturnMoment against a throwaway user) — it can't be seeded on the
  * shared, fixed-today demo user under fullyParallel without racing the auto-stamp.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('demo dashboard renders normally and shows no return-moment greeting', async ({ page }) => {
   await page.goto('/sign-in');

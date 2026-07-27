@@ -22,7 +22,7 @@
  * emulator and the floor must move to unconditional — but that is a real signal,
  * not a flake.
  */
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator } from './helpers/test';
 
 // iOS HIG asks 44pt; Android 48dp. The token floors at 44px (min-height: 2.75rem);
 // assert the border-box height clears it. -0.5 absorbs sub-pixel rounding only.

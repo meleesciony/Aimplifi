@@ -12,7 +12,7 @@
  * dodged the bug because tests outran SW activation; this spec explicitly
  * WAITS for the SW to control the page before driving the action.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 
 async function signIn(page: Page) {
   await page.goto('/sign-in');

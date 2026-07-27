@@ -3,7 +3,7 @@
  * The dashboard shows upcoming card payments (derived from the same obligations as
  * the headline), and the reminder cron route is secret-guarded like sync.
  */
-import { type Page, expect, test } from '@playwright/test';
+import { type Page, expect, test } from './helpers/test';
 
 async function signIn(page: Page) {
   await page.goto('/');

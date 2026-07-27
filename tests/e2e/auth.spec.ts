@@ -3,7 +3,7 @@
  * on first-run onboarding (no accounts yet) with NO "demo dataset" banner, signs
  * out, and signs back in. The one-click demo remains covered by the other specs.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('email/password sign-up → empty onboarding → sign out → sign back in', async ({ page }) => {
   const email = `e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;

@@ -10,7 +10,7 @@
  * tests/unit/account-deletion.test.ts). The demo spec asserts the honest
  * shared-account notes render INSTEAD of the controls.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 
 async function signInDemo(page: Page) {
   await page.goto('/sign-in');

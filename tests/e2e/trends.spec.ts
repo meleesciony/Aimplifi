@@ -4,7 +4,7 @@
  * from the seed with zero credentials. Includes a WCAG-AA axe scan on the page.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { type Page, expect, test } from '@playwright/test';
+import { type Page, expect, test } from './helpers/test';
 
 async function signIn(page: Page) {
   await page.goto('/sign-in');

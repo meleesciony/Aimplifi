@@ -5,7 +5,7 @@
  *
  * Expected strings derive from docs/EDGE_CASES.md §Seed-headline.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('demo sign-in lands on the dashboard with the cash-needed answer above the fold', async ({ page }) => {
   await page.goto('/');

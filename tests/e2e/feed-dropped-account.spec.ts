@@ -17,7 +17,7 @@
  * a spec that writes into it leaks into whatever runs next (the shared-demo lesson).
  */
 import Database from 'better-sqlite3';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
 async function signUpThrowaway(page: Page): Promise<string> {

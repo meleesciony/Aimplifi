@@ -19,7 +19,7 @@
  * A throwaway signup user, never the shared demo row (which is fenced out of this feature).
  */
 import Database from 'better-sqlite3';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
 async function signUpThrowaway(page: Page): Promise<string> {

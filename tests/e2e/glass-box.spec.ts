@@ -4,7 +4,7 @@
  * REAL: the test parses the rendered row amounts off the DOM, sums them, and
  * compares against the rendered headline — end to end, not a trusted flag.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 import AxeBuilder from '@axe-core/playwright';
 
 /** "$5,412.33" / "− $1,234.56" / "-$0.50" → signed integer cents. */

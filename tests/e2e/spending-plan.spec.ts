@@ -4,7 +4,7 @@
  * breakdown. The exact cents come from the seed, so we assert a money-shaped
  * value + the breakdown structure rather than a brittle pinned number.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 import { clickMoreNav } from './helpers/more-nav';
 
 test('Spending Plan: guilt-free headline + breakdown render for the demo user', async ({ page }) => {

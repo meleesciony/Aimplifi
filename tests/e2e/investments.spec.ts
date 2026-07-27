@@ -4,7 +4,7 @@
  * with zero credentials. Includes a WCAG-AA axe scan.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { type Page, expect, test } from '@playwright/test';
+import { type Page, expect, test } from './helpers/test';
 import { clickMoreNav } from './helpers/more-nav';
 
 async function signIn(page: Page) {

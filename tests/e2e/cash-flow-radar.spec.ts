@@ -11,7 +11,7 @@
  * deterministic); dates on their stable formatted parts.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('demo dashboard shows the radar heads-up: dip date, colliding cards, minimum timed cover', async ({ page }) => {
   await page.goto('/sign-in');

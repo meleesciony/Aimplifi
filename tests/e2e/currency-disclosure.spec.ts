@@ -11,7 +11,7 @@
  */
 import { execSync } from 'node:child_process';
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
 test('all-USD demo user sees no disclosure banner anywhere (zero-render lock)', async ({ page }) => {

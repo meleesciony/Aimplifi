@@ -8,7 +8,7 @@
  * Visibility only — clicking connect would hit Plaid, which e2e never configures.
  */
 import { execSync } from 'node:child_process';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
 test('cards empty state and settings connections card offer live connect affordances', async ({ page }) => {

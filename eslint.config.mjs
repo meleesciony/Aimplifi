@@ -18,6 +18,28 @@ const eslintConfig = [
       ".audit/**",
     ],
   },
+  {
+    // O.3: every e2e spec must take `test` from the shared harness module, which installs the
+    // streamed-reveal drain (tests/e2e/helpers/test.ts explains why). A spec importing Playwright's
+    // `test` directly would opt out silently and reintroduce the flake — so the fence is enforced
+    // here rather than remembered at 56 call sites. Type-only imports are unaffected.
+    files: ["tests/e2e/**/*.spec.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@playwright/test",
+              importNames: ["test", "expect"],
+              message:
+                "Import { test, expect } from './helpers/test' instead — it installs the streamed-reveal drain (O.3).",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
 
 export default eslintConfig;

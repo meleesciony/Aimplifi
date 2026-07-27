@@ -9,7 +9,7 @@
  * perturbs no golden value, and no other spec asserts a budget target.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 
 async function signIn(page: Page) {
   await page.goto('/sign-in');

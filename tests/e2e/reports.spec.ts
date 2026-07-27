@@ -2,7 +2,7 @@
  * Reports (DECISIONS #67): demo sign-in → Reports → income-vs-expense chart +
  * spending-by-category breakdown render.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 import { clickMoreNav } from './helpers/more-nav';
 
 test('Reports: income/expense chart + category breakdown render for the demo user', async ({ page }) => {

@@ -15,7 +15,7 @@
  * undisturbed (the #166/#39 lesson). The fence itself has its own spec below.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { type Page, expect, test } from '@playwright/test';
+import { type Page, expect, test } from './helpers/test';
 
 async function signIn(page: Page) {
   await page.goto('/');

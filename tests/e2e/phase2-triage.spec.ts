@@ -20,7 +20,7 @@
  *       structural claim: cost scales with DECISIONS, never with rows.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 
 test.describe.configure({ mode: 'serial' });
 

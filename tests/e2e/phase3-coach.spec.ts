@@ -3,7 +3,7 @@
  * FI card with the live slider, opportunities, creep, runway, life-energy
  * toggle, and the monthly Money Review.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('coach page: savings rate, FI slider moves the date live, life-energy toggle, money review', async ({ page }) => {
   await page.goto('/sign-in');

@@ -9,7 +9,7 @@
  * only ever written back at their seed values here, so the golden cash-needed /
  * FI numbers other specs assert are never perturbed.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/test';
 import AxeBuilder from '@axe-core/playwright';
 
 async function signIn(page: Page) {

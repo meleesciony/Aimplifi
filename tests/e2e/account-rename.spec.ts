@@ -14,7 +14,7 @@
  * recipe confirms each write with window.location.reload(), and the first click after a reload
  * can land on pre-hydration HTML, which React does not replay.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('rename a manual account, then clear the name to get the original back', async ({ page }) => {
   const email = `e2e-rename-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;

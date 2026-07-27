@@ -12,7 +12,7 @@
  * which persists to the shared demo DB. Only this spec touches provenance.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { type Page, expect, test } from '@playwright/test';
+import { type Page, expect, test } from './helpers/test';
 
 test.describe.configure({ mode: 'serial' });
 

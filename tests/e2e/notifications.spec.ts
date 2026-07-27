@@ -5,7 +5,7 @@
  * is unchanged. Live push delivery needs real VAPID keys + a real push service and is
  * proven at the unit/integration level (push.test.ts, cron-notify.test.ts).
  */
-import { type Page, expect, test } from '@playwright/test';
+import { type Page, expect, test } from './helpers/test';
 
 async function signIn(page: Page) {
   await page.goto('/');

@@ -9,7 +9,7 @@
  * then GETs) — not subject to the environmental action-apply stall.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 import { AI_TOUCHPOINTS } from '@/lib/engine/ai-audit/describe';
 

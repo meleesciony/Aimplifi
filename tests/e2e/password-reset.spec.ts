@@ -6,7 +6,7 @@
  * (middleware must NOT bounce them to /sign-in), the enumeration-neutral
  * confirmation, and the bogus-token refusal.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('sign-in offers a forgot-password link that reaches the public request page', async ({ page }) => {
   await page.goto('/sign-in');

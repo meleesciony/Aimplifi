@@ -15,7 +15,7 @@
  * asset satisfies the gate and still leaves the review pile empty (a typed
  * balance creates no transactions), so the assertion below is unchanged.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/test';
 
 test('re-run categorizer reports honestly on an empty review pile', async ({ page }) => {
   const email = `e2e-backfill-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
