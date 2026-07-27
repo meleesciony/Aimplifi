@@ -50,7 +50,20 @@ the stale **$0.00**, and only the *next* load would have shown $684.31. It is no
 sync reports a single `changed` field computed server-side over every write it made. The interim
 advice ("reload once more") is no longer needed once the fix is deployed.
 
-## ✅ BUILT 2026-07-27 — L.28: a sync that rewrites a figure tells the page to re-render
+## ✅ BUILT + DEPLOYED 2026-07-27 — L.28: a sync that rewrites a figure tells the page to re-render
+
+**Shipped and verified live**, not merely pushed: commit `0972cd2`, and the production deployment
+carrying the `https://www.aimplifi.app` alias reads `● Ready` with a build log of
+`2026-07-27T10:24:03.803Z Cloning github.com/meleesciony/Aimplifi (Branch: main, Commit: 0972cd2)`.
+No schema change anywhere in the slice, so the live Neon database was untouched by this deploy.
+
+**What the owner should now see, and the one link NOT proven here.** On his next full page load the
+Plaid auto-sync runs `refreshRecurringForUser`, which writes the 8 scheduled rows ($684.31/mo), and
+`changed` is now true on that same call — so `router.refresh()` fires and the guilt-free breakdown
+repaints on the load that repaired it, instead of on the one after. What this slice tested is that
+the signal is computed correctly and reaches the client; that `router.refresh()` then repaints a
+server component is pre-existing app behaviour (since #91) and was NOT re-proven end-to-end here.
+If the figure still lags a load, that is where to look next — not at the `changed` predicate.
 
 **What was wrong.** The re-render predicate lived in `auto-sync.tsx`, a `'use client'` file with no
 test in the repo, and read two numbers out of the sync result. Everything else a sync writes was
