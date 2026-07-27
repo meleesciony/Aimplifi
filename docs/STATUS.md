@@ -2,6 +2,138 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-27 — L.29: a zero says which zero it is (DECISIONS #317)
+
+**The defect this closes is a reading defect, not an arithmetic one.** On /spending-plan's
+"How we got there" breakdown, every line that came to zero printed the same thing — `− $0.00` —
+whether the reader owned no credit cards, owned cards whose statements all fall past the month's
+edge, had set up no savings at all, or had lost every detected bill to the L.26 projection defect.
+Those are four different facts and one pixel, which is how "Fixed & recurring expenses — $0.00"
+survived four sessions of the owner looking straight at it.
+
+**What each zero says now** (authored once in `src/lib/engine/spending-plan/row-labels.ts`):
+
+| line | at zero, when | label |
+|---|---|---|
+| Income | a complete month exists but nothing arrived in it | `Income (none arrived in the last N months)` |
+| Fixed & recurring | nothing reached the term | `Fixed & recurring expenses (none counted)` + "See your recurring bills" → /recurring |
+| Card payments | no card is linked at all | `Card payments (no credit cards linked)` |
+| Card payments | a card exists that the figure could not count or could not see | `Card payments (none counted this month)` |
+| Card payments | every card is accounted for and one is dated later | `Card payments (none due until after this month)` |
+| Card payments | every card is accounted for and none owes anything | `Card payments (none due this month)` |
+| Planned savings | no target and no monthly goal amount | `Planned savings (no monthly amount set)` + "Set a savings target" → /settings |
+| Planned savings | a target IS set (0% or no income yet) | `Savings target (from Settings)` |
+
+A zero meaning *nothing qualified* gets no control: a link beside a correct figure reads as a
+correction. A zero meaning *you have not set this up* gets one — and only ever one the app really
+has (see critic P1-2 below).
+
+**Verified on the running app**, not only in unit tests: the demo user's panel renders
+`Planned savings (no monthly amount set)` with a "Set a savings target" link to /settings beside
+`− $0.00`.
+
+**Three things fixed on the way to the first cut:**
+1. **A live drift.** The four labels were two copies — `traceSafeToSpend` (the panel) and
+   `answerSafeToSpend` (Ask) — and had already diverged: Ask said `Savings target (Settings)`,
+   the panel `Savings target (from Settings)`. One author now, locked by a test that renders both
+   surfaces and compares them label for label.
+2. **A savings mislabel.** `savingsSource` resolves a tie to `'goals'`, so a reader whose only
+   savings input is a Settings target, with no income pattern yet (every figure zero), was told his
+   goals decided the line. The zero branch now asks `savingsTargetBps` directly.
+3. **Two basis sentences that named a mechanism which did not act** — the monthly-rate explanation
+   ("a weekly bill counts 52/12 each month") and the paid-in-full assumption — now stay silent when
+   no bill and no card is in scope. The discretionary-spending clause was SPLIT OUT of the first and
+   kept unconditional: it is true for every reader, and it is what stops a $0 fixed line being read
+   as "nothing I spend is counted anywhere".
+
+### Critic cycle 1 — both critics FAIL: 3 P1 + 4 P2 + 2 P3, all fixed and locked
+
+Two fresh-context critics, different lenses (copy honesty; wiring and sweep completeness). They
+converged on the same row from opposite directions.
+
+* **P1-1 (both critics, executed). The card-payments zero branched on a FIGURE that merely
+  correlates with the fact it named.** `obligationsBeyondMonthCents` is the worst running gap NET
+  of scheduled income, so it is zero exactly when next month's pay covers the payment — the
+  commonest issuer pattern in the product's own words (paid the 1st, cards due the 3rd). A reader
+  with a $1,000 statement dated three days away was told **"Card payments (none due this month)"**,
+  and got no beyond-month row either, because both were gated on that same net figure. Separately,
+  the copy critic executed the case where a card is EXCLUDED from the figure (no due date yet, or
+  no statement generated): the same "none due this month" contradicted the page's own sentence,
+  twelve lines lower, saying that payment is missing from the line. Fix: a count of the cards
+  actually DATED past the edge (`cardsDatedAfterThisMonth`), and an honest "(none counted this
+  month)" whenever any card could not be counted — the strongest claim, "none due", is now
+  reachable only after every way of not knowing has been ruled out.
+* **P1-2 (copy critic, verified by reading the destination). The control offered on the savings
+  zero did not exist.** The first cut split that zero by a goal COUNT and sent the "goals
+  contributing nothing" reader to /goals to "Set a monthly amount on a goal" — but
+  `goal-actions.ts` creates and deletes goals and nothing updates one, so the reader would have
+  found no such field, on the figure most likely to be too generous. The wiring critic
+  independently showed the count could not carry the claim either (a saved debt-freedom plan is a
+  `Goal` row with no monthly amount; a fully-funded goal never leaves the table). Fix: one zero
+  branch, `Planned savings (no monthly amount set)`, pointing at the Settings savings target — true
+  in both states, and a control that exists and really moves the line. `goalCount` is gone.
+* **P1-3 (copy critic). "No credit cards linked" was false for a withheld card.** The count came
+  from the snapshot, and the snapshot drops every non-USD account (DECISIONS #135) — so a reader
+  with a CAD card was told in words that he has no card, on the one route that does not print the
+  withheld-accounts summary. Fix: the count is now a `prisma.account.count` over linked CREDIT rows
+  (all currencies), and the difference between linked and visible (`creditCardsOutsideFigure`)
+  routes that reader to "(none counted this month)".
+* **P2-4. The gate was defeated by a second copy of the sentence.** /spending-plan's closing
+  paragraph reprinted "each card is assumed paid in full" and "Set a savings target in Settings"
+  unconditionally, one paragraph below the gated versions. Both are now conditional.
+* **P2-5. `Income (median of last 3 months) — $0.00`** — `incomeBasis` is `'trailing-median'`
+  whenever any complete month exists, three months of zeros included, so a reader whose pay stopped
+  read a median where he should read an absence. Now `Income (none arrived in the last N months)`.
+* **P2-6 (wiring critic). A surface the sweep never visited:** `/budgets`' `ConsciousBucketsStrip`
+  re-partitions the SAME plan and printed "Savings & investing — $0.00 · 0% (target 5–10%)", which
+  reads as a shortfall the reader is failing at rather than a control he has not used. It now says
+  which zero it is; no plumbing was needed, because the two deciding facts already ride the plan.
+* **P2-7 (wiring critic). The new e2e was a no-op lock.** The demo user has exactly ONE zero row,
+  and its pre-L.29 label (`Planned savings (goals)`) also matches the parenthetical assertion — so
+  the test could not fail on a revert. Worse, `spending-plan-month-edge.spec.ts`, the fixture that
+  renders THREE of the new labels at once, got no assertion at all. Both fixed and
+  **mutation-proven at the e2e level**: reverting the savings label now fails both specs.
+* **P3-8/P3-9.** Two comments that asserted what the code reads (the beyond-month row "holds" the
+  payment — not when the term nets to zero; and `SpendingPlanWithNotes`' contract saying the object
+  is "never resolved against every card the user owns", which the new linkage count deliberately
+  is). Both re-derived where the code lives.
+
+**Refuted rather than adopted** (recorded, not fixed): the hypothesis that a doubled parenthetical
+`"Card payments (…) (estimated)"` can print — the cash-needed engine filters the due set to
+`cashRequiredCents > 0`, so a zero in-month term implies `cardObligationsEstimated === false`.
+Verified by execution by the copy critic, and pinned by a test.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **285 files / 4523 tests** / build
+clean; full e2e **206/206 serialized**. Mutations run: 4 at unit level in both directions (the
+pre-L.29 savings label kills 2; the unexplained card zero kills 3; ungating either basis sentence
+kills 1; offering the control unconditionally kills 2) and 1 at e2e level (the savings-label revert
+kills both plan specs). No schema change.
+
+### 🟠 OPEN after L.29
+
+1. **A broken fixed-expenses zero is still not distinguishable from a true one.** `(none counted)`
+   is honest but it does not separate "you have no repeating bills", "your bills are charged to a
+   credit card", "your series have lapsed" and "the projection dropped them" (the L.26 signature).
+   A count of `RecurringSeries` rows would produce false alarms — a subscription charged to a card
+   is legitimately detected and legitimately unprojected — so the real check has to re-run the
+   account-scope predicate inside `toScheduledTransactions` and report the rows it discarded and
+   why. That is its own slice; until it exists, the label points the reader at /recurring, which is
+   the one surface where the four cases look different.
+2. **There is no way to edit an existing goal's monthly contribution.** Found by the L.29 copy
+   critic while checking that an offered control exists (`goal-actions.ts` creates and deletes;
+   `goal-form.tsx` is create-only). A reader who created a goal without a monthly amount can only
+   delete and re-create it. Pre-existing, not an L.29 regression — and the reason the savings zero
+   now points at Settings instead.
+3. **`creditCardCount` counts a reconciled predecessor row twice** (the boundary keeps the row).
+   Harmless today: it can only move the count away from zero, and every branch except `=== 0`
+   speaks about payments rather than about how many cards exist.
+4. **The new control is an inline text link, not a 44px tap target** (`docs/MOBILE_UI_BRIEF.md`).
+   It follows the precedent of every other inline prose link in the app, and `tap-targets.spec.ts`
+   does not cover /spending-plan — recorded for Wave M rather than fixed one-off here.
+5. **The dashboard's SafeToSpendCard prints no per-line labels**, so a reader who never opens
+   /spending-plan sees only the headline. Deliberate (it is a summary card), but it means the L.29
+   distinction lives on /spending-plan, /budgets and Ask.
+
 ## ✅✅ MEASURED LIVE 2026-07-27 11:02 UTC — the owner's number MOVED: $0.00 → $684.31/mo
 
 **Four sessions of "did it work?" are closed by measurement.** The nightly `sync.cron.plaid` ran at
@@ -227,13 +359,13 @@ $684.31/mo**, plus 4 income series ($956.09/mo at a monthly rate) restored to th
 
 ### 🟠 OPEN after L.26
 
-1. **The other two $0.00 lines on that same card are TRUE, and read as defects.** "Card payments due
-   this month — $0.00" is correct (every statement is due Aug 5, past the July edge; the $18,814.14
-   is the beyond-month line right below it), and "Planned savings (goals) — $0.00" is correct
-   (no goals, `savingsTargetBps` null). A true zero and a broken zero are visually identical, which is
-   how this defect survived three sessions of the owner looking straight at it. A zero that means
-   "nothing qualifies" should say so; a zero that means "you haven't set this up" should offer the
-   control. Not fixed here — copy/UI slice.
+1. ~~**The other two $0.00 lines on that same card are TRUE, and read as defects.**~~ → **FIXED
+   2026-07-27 (L.29, top of this file).** Those two lines now read `Card payments (none due until
+   after this month)` — which also points at the beyond-month line that holds them — and
+   `Planned savings (none set)` with a "Set a savings target" link. Every zero on the panel names
+   its own basis, and only a zero meaning "you have not set this up" carries a control. The one
+   case still not separated is a BROKEN fixed-expenses zero (the L.26 signature) from a true one —
+   carried forward as OPEN after L.29 #1.
 2. **`ScheduledTransaction` only refills on a sync — MEASURED 2026-07-27, and the "no page load"
    half was wrong.** The fix is inert until `refreshRecurringForUser` next runs, but three events
    trigger it, not one: the nightly `/api/cron/sync` (`0 11 * * *`, observed firing 11:4x UTC), an

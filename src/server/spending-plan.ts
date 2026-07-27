@@ -37,8 +37,15 @@ import { formatISODate, isoDate } from '@/lib/dates';
 
 export interface SpendingPlanWithNotes extends SpendingPlan {
   /**
-   * Resolved by `buildDisclosures` against the SET THE FIGURE SUMS (the cycle
-   * obligations the headline counts), never against every card the user owns.
+   * The four LISTS are resolved by `buildDisclosures` against the SET THE FIGURE
+   * SUMS (the cycle obligations the headline counts), never against every card the
+   * user owns — a pair or a frozen flag on a card outside the total may not qualify
+   * a figure it is not inside.
+   *
+   * The three COUNTS added by L.29 are deliberately the other thing: they exist so a
+   * $0 line can say why it is zero, and "no credit cards linked" is a claim about
+   * every card the user owns, which is exactly what the lists may not read. Two
+   * scopes in one object, each documented on its own field.
    */
   disclosures: SpendingPlanDisclosures;
 }
@@ -90,9 +97,14 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
 
   // Planned savings inputs: active goals' monthly contributions, and the
   // pay-yourself-first % target from Settings (#295). The engine takes the max.
-  const [goals, user] = await Promise.all([
+  const [goals, user, linkedCreditCardCount] = await Promise.all([
     prisma.goal.findMany({ where: { userId }, select: { monthlyContributionCents: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { savingsTargetBps: true } }),
+    // The LINKAGE fact, for the one label that asserts an absence of cards (L.29
+    // critic P1-3). Counted here rather than off `snap.accounts` because the
+    // snapshot withholds every non-USD account (DECISIONS #135), so a reader with a
+    // CAD card would have been told in words that no card is linked.
+    prisma.account.count({ where: { userId, type: 'CREDIT' } }),
   ]);
   const goalContributionsCents = goals.reduce((sum, g) => sum + (g.monthlyContributionCents ?? 0), 0);
 
@@ -163,7 +175,24 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     obligationsBeyondMonthEstimated,
   });
 
-  return { ...plan, disclosures: await buildDisclosures(userId, snap, computed, endOfMonth) };
+  return {
+    ...plan,
+    disclosures: await buildDisclosures(userId, snap, computed, endOfMonth, {
+      // The three facts that separate one $0 card-payments line from another (L.29).
+      // Each is about a different way of not owing money this month, and each is
+      // read off the thing it names rather than off a figure that correlates with
+      // it — the mistake both critics found in the first cut.
+      creditCardCount: linkedCreditCardCount,
+      // Linked minus visible: a non-USD card is in neither the obligation result nor
+      // any exclusion list, because the snapshot dropped it before the engine ran.
+      creditCardsOutsideFigure: Math.max(0, linkedCreditCardCount - creditAccountIds.size),
+      // DATED past the edge — the population, not the money. `obligationsBeyondMonthCents`
+      // is the worst running gap NET of scheduled income and is 0 whenever next
+      // month's pay covers the payment, which is the commonest issuer pattern of all.
+      cardsDatedAfterThisMonth: new Set(beyondMonthPoints.flatMap((p) => p.cards.map((c) => c.cardId)))
+        .size,
+    }),
+  };
 }
 
 /**
@@ -178,9 +207,24 @@ async function buildDisclosures(
   snap: Parameters<typeof cashNeededFromSnapshot>[0],
   computed: ReturnType<typeof cashNeededFromSnapshot> | null,
   endOfMonth: string,
+  /** The zero-basis counts (L.29), resolved by the caller from the sources that own them. */
+  counts: {
+    creditCardCount: number;
+    creditCardsOutsideFigure: number;
+    cardsDatedAfterThisMonth: number;
+  },
 ): Promise<SpendingPlanDisclosures> {
   if (!computed) {
-    return { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [] };
+    // The account-less branch still carries the counts: this branch is reached when
+    // the SNAPSHOT has no accounts, which is not the same as the reader having no
+    // card — a single non-USD card lands here with `creditCardCount` 1.
+    return {
+      undatedCards: [],
+      statementPendingCards: [],
+      duplicatePairs: [],
+      frozenCards: [],
+      ...counts,
+    };
   }
   const result = computed.result;
 
@@ -227,5 +271,5 @@ async function buildDisclosures(
     .filter((c) => c.effectiveDueDate <= endOfMonth && c.cashRequiredCents > 0)
     .map((c) => ({ cardName: c.cardName, dueDate: c.effectiveDueDate }));
 
-  return { undatedCards, statementPendingCards, duplicatePairs, frozenCards };
+  return { undatedCards, statementPendingCards, duplicatePairs, frozenCards, ...counts };
 }

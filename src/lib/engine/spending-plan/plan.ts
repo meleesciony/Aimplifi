@@ -151,6 +151,39 @@ export interface SpendingPlanDisclosures {
   /** Cards inside the card term whose bank stopped sharing them — the
    *  subtracted amount rests on a statement/balance that stopped updating. */
   frozenCards: { label: string; frozenSince: string }[];
+  /**
+   * How many credit cards the reader has LINKED — counted from the account table,
+   * every currency, so the claim "no credit cards linked" is about linkage rather
+   * than about what this month's snapshot happened to contain (L.29 critic P1-3:
+   * the snapshot withholds non-USD accounts entirely, so counting there told a
+   * reader with a CAD card, in words, that he had no card).
+   *
+   * NOT a qualification of a figure like the four lists above — it is what separates
+   * the meanings of a $0 card-payments line, which rendered as $0.00 are the same
+   * pixel (docs/lessons/three-sessions-of-hypothesis-one-query-of-evidence.md).
+   *
+   * KNOWN and harmless: a reconciled predecessor row survives the boundary, so one
+   * physical card can count twice. It only ever moves the count away from 0, and
+   * every branch except `=== 0` speaks about payments rather than about how many
+   * cards exist.
+   */
+  creditCardCount: number;
+  /**
+   * Linked credit cards this month's figure could not see AT ALL (currency-withheld
+   * — DECISIONS #135). Not "excluded from the total": those have their own lists
+   * above. A card here is invisible to every term, so no zero may be called "none
+   * due" while one exists.
+   */
+  creditCardsOutsideFigure: number;
+  /**
+   * Distinct cards carrying a payment the engine HAS DATED past this month's edge.
+   * Deliberately a count of dated points, not `obligationsBeyondMonthCents > 0`:
+   * that figure is the worst running gap NET of scheduled income, so in the
+   * commonest issuer pattern (paid the 1st, cards due the 3rd) it nets to zero
+   * while a real statement is dated days away — and a label branching on it called
+   * that state "none due this month" (L.29 critic P1-1, executed).
+   */
+  cardsDatedAfterThisMonth: number;
 }
 
 export interface SpendingPlan extends SpendingPlanInput {

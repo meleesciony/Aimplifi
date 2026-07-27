@@ -100,3 +100,36 @@ test('spending plan: the breakdown lines sum to "Guilt-free to spend" exactly', 
 
   await expect(page.getByTestId('plan-reconciled')).toContainText('matched to the penny');
 });
+
+test('spending plan: every $0.00 line says WHICH zero it is (TASKS L.29)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/spending-plan');
+  await expect(page.getByTestId('spending-plan-hero')).toBeVisible();
+
+  const rows = await page.getByTestId('plan-row').all();
+  expect(rows.length).toBeGreaterThanOrEqual(4);
+  let zeros = 0;
+  for (const row of rows) {
+    const amount = (await row.getByTestId('plan-row-amount').textContent()) ?? '';
+    const label = (await row.getByTestId('plan-row-label').textContent()) ?? '';
+    if (textToCents(amount) !== 0) continue;
+    zeros += 1;
+    // The whole point of the slice: rendered as bare "$0.00" a true zero and a
+    // broken zero are the same pixel, which is how the L.26 defect survived four
+    // sessions of the owner reading this panel.
+    expect(label, `a $0.00 line printed no reason: "${label}"`).toMatch(/\(.+\)/);
+  }
+  // The lock may not quietly degrade into measuring nothing (the L.19 corollary:
+  // assert the fixture's hard case is actually present).
+  expect(zeros).toBeGreaterThanOrEqual(1);
+
+  // …and the parenthesis test alone is too weak to fail on a revert: the demo's one
+  // zero row read 'Planned savings (goals)' before L.29, which also has a
+  // parenthesis (critic P1-2). So pin the demo's actual zero, and its control.
+  const savings = page.getByTestId('plan-row').filter({ hasText: 'Planned savings' });
+  await expect(savings.getByTestId('plan-row-label')).toContainText(
+    'Planned savings (no monthly amount set)',
+  );
+  await expect(savings.getByTestId('plan-row-amount')).toHaveText(/\$0\.00/);
+  await expect(savings.getByTestId('plan-row-action')).toHaveAttribute('href', '/settings');
+});

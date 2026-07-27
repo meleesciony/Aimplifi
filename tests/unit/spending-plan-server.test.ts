@@ -635,7 +635,7 @@ describe('getSpendingPlan — a beyond-month term made entirely of estimates (L.
 
   it('the trace row says "estimated" and the panel still reconciles', async () => {
     const plan = await getSpendingPlan(uid);
-    const trace = traceSafeToSpend(plan);
+    const trace = traceSafeToSpend(plan, plan.disclosures);
     const row = trace.rows.find((r) => r.id === 'card-payments-next');
     expect(row).toBeDefined();
     expect(row?.isEstimated).toBe(true);

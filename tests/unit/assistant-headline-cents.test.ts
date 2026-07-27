@@ -148,7 +148,7 @@ describe('headlineCents — the slice-3 boundary: TRACED derivation kinds set it
           leftToSpendCents: 300000,
           overspent: false,
         } as SpendingPlan,
-        { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [] },
+        { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0 },
       ).headlineCents,
     ).toBeUndefined();
   });

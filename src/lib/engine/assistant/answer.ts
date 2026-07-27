@@ -14,6 +14,7 @@ import { netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
 import type { SpendingBreakdown } from '@/lib/engine/reports/reports';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
+import { planRowLabels } from '@/lib/engine/spending-plan/row-labels';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
@@ -729,27 +730,23 @@ export function answerSafeToSpend(
   disclosures: SpendingPlanDisclosures,
 ): AssistantAnswer {
   const source: AssistantSource = { label: 'Open spending plan', href: '/spending-plan' };
+  // Authored once for both surfaces that print these four lines (L.29). Before
+  // this they were two copies, already drifted ('Savings target (Settings)' here
+  // against '(from Settings)' in the trace), and neither said which kind of zero
+  // a $0 line was. Ask carries no control, so an actionable zero's `action` is
+  // dropped here — the label still names the missing input, and this answer's
+  // source link opens the panel that offers it.
+  const labels = planRowLabels(plan, disclosures);
   const facts: AssistantFact[] = [
-    {
-      label:
-        plan.incomeBasis === 'trailing-median'
-          ? `Income (median of last ${plan.incomeMonths} month${plan.incomeMonths === 1 ? '' : 's'})`
-          : plan.incomeBasis === 'detected-series'
-            ? 'Income (detected recurring, monthly)'
-            : 'Income (no pattern yet)',
-      value: fmt(plan.patternIncomeCents),
-    },
-    { label: 'Fixed & recurring expenses (monthly pattern)', value: fmt(plan.fixedExpensesCents) },
+    { label: labels.income.label, value: fmt(plan.patternIncomeCents) },
+    { label: labels.fixed.label, value: fmt(plan.fixedExpensesCents) },
     {
       label: plan.cardObligationsEstimated
-        ? 'Card payments due this month (estimated)'
-        : 'Card payments due this month',
+        ? `${labels.cardPayments.label} (estimated)`
+        : labels.cardPayments.label,
       value: fmt(plan.cardObligationsCents),
     },
-    {
-      label: plan.savingsSource === 'target' ? 'Savings target (Settings)' : 'Planned savings (goals)',
-      value: fmt(plan.plannedSavingsCents),
-    },
+    { label: labels.savings.label, value: fmt(plan.plannedSavingsCents) },
     // L.11(D). Without this row the facts add to a number that is not the
     // headline, and Ask is the one surface with no breakdown page to explain
     // the gap — the reader would be told a smaller figure and shown the

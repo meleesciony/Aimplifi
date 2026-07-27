@@ -123,6 +123,28 @@ test('a card dated past the month’s edge is reserved, shown as its own line, a
   await expect(page.getByTestId('plan-reconciled')).toContainText('These 5 lines');
   await expect(page.getByTestId('plan-total')).toHaveText('$1,000.00');
 
+  // TASKS L.29, on the one fixture in the suite that renders three of the new zero
+  // labels at once (the demo user renders one). This reader's card IS dated — past
+  // the edge — his fixed term is empty and he has no savings input, so all three of
+  // his $0.00 lines used to be indistinguishable from the L.26 defect.
+  //
+  // FAIL-OLD, per label: the card row read "Card payments due this month", the fixed
+  // row "Fixed & recurring expenses (monthly pattern)", the savings row "Planned
+  // savings (goals)" — and neither control existed.
+  const labels = await page.getByTestId('plan-row-label').allTextContents();
+  expect(labels[1]).toContain('Fixed & recurring expenses (none counted)');
+  expect(labels[2]).toContain('Card payments (none due until after this month)');
+  expect(labels[3]).toContain('Planned savings (no monthly amount set)');
+  // Each control is a real link to a route that offers the input it names.
+  await expect(page.getByTestId('plan-row-action')).toHaveCount(2);
+  await expect(page.getByTestId('plan-row-action').nth(0)).toHaveAttribute('href', '/recurring');
+  await expect(page.getByTestId('plan-row-action').nth(1)).toHaveAttribute('href', '/settings');
+  // No control is offered beside a working figure — income and the dated card row.
+  expect(labels[0]).not.toContain('http');
+  // …and the reconciliation claim is untouched by any of it (no non-money text
+  // entered the amount cells).
+  await expect(page.getByTestId('plan-total')).toHaveText('$1,000.00');
+
   // The dashboard card is the surface most readers ever see: it must carry the fact too, or the
   // figure arrives with no way to learn that a line the reader cannot see is inside it.
   await page.goto('/dashboard');

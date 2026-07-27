@@ -205,7 +205,7 @@ describe('answerIncome', () => {
 });
 
 describe('answerSafeToSpend', () => {
-  const NO_DISCLOSURES = { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [] };
+  const NO_DISCLOSURES = { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0 };
   const BASE_PLAN = {
     today: '2026-06-23' as SpendingPlan['today'],
     trailingMonthlyIncomeCents: [500000],
@@ -235,7 +235,9 @@ describe('answerSafeToSpend', () => {
     expect(a.headline).not.toContain('/day');
     expect(a.facts).toContainEqual({ label: 'Income (median of last 1 month)', value: '$5,000.00' });
     expect(a.facts).toContainEqual({ label: 'Fixed & recurring expenses (monthly pattern)', value: '$3,000.00' });
-    expect(a.facts).toContainEqual({ label: 'Card payments due this month', value: '$0.00' });
+    // L.29: NO_DISCLOSURES carries creditCardCount 0, so the $0 card line names
+    // the reason it is zero instead of printing an unexplained "$0.00".
+    expect(a.facts).toContainEqual({ label: 'Card payments (no credit cards linked)', value: '$0.00' });
     expect(a.facts).toContainEqual({ label: 'Planned savings (goals)', value: '$500.00' });
     // The detail states the pattern basis inline (the coaching guardrail).
     expect(a.detail).toContain('median of your last 1 complete month');
@@ -262,7 +264,10 @@ describe('answerSafeToSpend', () => {
       leftToSpendCents: 100000,
     };
     const a = answerSafeToSpend(plan, NO_DISCLOSURES);
-    expect(a.facts).toContainEqual({ label: 'Savings target (Settings)', value: '$1,000.00' });
+    // L.29 killed the drift this assertion had pinned: Ask said "Savings target
+    // (Settings)" while the /spending-plan panel said "(from Settings)" for the
+    // same line of the same figure. Both now come from `planRowLabels`.
+    expect(a.facts).toContainEqual({ label: 'Savings target (from Settings)', value: '$1,000.00' });
   });
   it('the income fact names a detected-series or empty basis honestly', () => {
     const series = answerSafeToSpend(
@@ -291,6 +296,10 @@ describe('answerSafeToSpend', () => {
     statementPendingCards: [{ cardName: 'Bonvoy', dueDate: '2026-06-28' }],
     duplicatePairs: [{ aName: 'CREDIT CARD', bName: 'CREDIT CARD', confidence: 'high' as const }],
     frozenCards: [{ label: 'Freedom', frozenSince: '2026-06-01' }],
+    // Four cards are named above, so this reader plainly has cards linked (L.29).
+    creditCardCount: 4,
+    creditCardsOutsideFigure: 0,
+    cardsDatedAfterThisMonth: 0,
   };
 
   it('qualifiers state their own directions on the positive branch (the figure is guilt-free-left)', () => {
@@ -310,12 +319,12 @@ describe('answerSafeToSpend', () => {
   it('the all-estimate state is disclosed HERE — this answer is untraced, so the trace basis can never reach the reader (cycle-2 F2-1)', () => {
     const a = answerSafeToSpend(
       QUALIFIER_PLAN({ cardObligationsEstimated: true }),
-      { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [] },
+      { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0 },
     );
     expect(a.facts).toContainEqual({ label: 'Card payments due this month (estimated)', value: '$1,200.00' });
     expect(a.detail).toContain('estimated from current balances');
     // And absent when the term is statement-backed.
-    const real = answerSafeToSpend(QUALIFIER_PLAN({}), { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [] });
+    const real = answerSafeToSpend(QUALIFIER_PLAN({}), { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0 });
     expect(real.detail).not.toContain('estimated from current balances');
     expect(real.facts).toContainEqual({ label: 'Card payments due this month', value: '$1,200.00' });
   });

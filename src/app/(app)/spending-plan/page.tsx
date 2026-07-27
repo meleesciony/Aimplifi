@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
@@ -56,9 +57,12 @@ export default async function SpendingPlanPage() {
   // Glass-Box (DECISIONS #178): the breakdown rows come from the tested trace
   // engine — the same signed rows whose plain sum IS the headline — so the
   // reconciliation line below is a real, engine-checked claim, not decoration.
-  const trace = traceSafeToSpend(p);
+  const trace = traceSafeToSpend(p, d);
   const rows = trace.rows.map((r) => ({
     label: r.isEstimated ? `${r.label} (estimated)` : r.label,
+    // L.29: only a $0 row meaning "you have not set this up" carries one, and the
+    // engine decides which those are — so this page and the Ask answer agree.
+    action: r.action,
     cents: Math.abs(r.amountCents),
     tone: r.id === 'income' ? 'text-emerald-500' : 'text-foreground',
     // Sign from the VALUE (so the rendered lines can never contradict the
@@ -168,9 +172,27 @@ export default async function SpendingPlanPage() {
         <h2 className="mb-3 text-sm font-semibold">How we got there</h2>
         <dl className="divide-y text-sm">
           {rows.map((r) => (
-            <div key={r.label} className="flex items-center justify-between py-2">
-              <dt className="text-muted-foreground">{r.label}</dt>
-              <dd className={`tabular-nums ${r.tone}`} data-testid="plan-row-amount">
+            <div key={r.label} className="flex items-center justify-between gap-3 py-2" data-testid="plan-row">
+              <dt className="min-w-0 text-muted-foreground" data-testid="plan-row-label">
+                {r.label}
+                {/* The control for a zero that means "you have not set this up"
+                    (L.29). Deliberately in the LABEL cell: `plan-row-amount` is
+                    parsed as money by the reconciliation e2e, so nothing but a
+                    figure may enter it. */}
+                {r.action ? (
+                  <>
+                    {' '}
+                    <Link
+                      href={r.action.href}
+                      className="whitespace-nowrap underline underline-offset-2 hover:text-foreground"
+                      data-testid="plan-row-action"
+                    >
+                      {r.action.label}
+                    </Link>
+                  </>
+                ) : null}
+              </dt>
+              <dd className={`shrink-0 tabular-nums ${r.tone}`} data-testid="plan-row-amount">
                 {r.sign} {formatCents(cents(r.cents))}
               </dd>
             </div>
@@ -206,14 +228,29 @@ export default async function SpendingPlanPage() {
             {b}
           </p>
         ))}
+        {/* L.29 critic P2-4: this paragraph reprinted, unconditionally, the two
+            claims the trace had just gated — so a reader with no card still read
+            "each card is assumed paid in full" one paragraph below a line saying no
+            card is linked, and a reader who HAS set a savings target (or who is
+            being offered the link two inches above) was still told to go set one.
+            A gate on a shared sentence is worth nothing while a second copy of the
+            sentence is unconditional. */}
         <p className="mt-3 text-xs text-muted-foreground">
           Your monthly income pattern minus fixed and recurring expenses, the card payments due
           this month, anything already dated just past it, and your savings — in the{' '}
           <em>I Will Teach You to Be Rich</em> sense: once those are covered, what&apos;s left is
           yours to spend without guilt. Income is a trailing pattern, not what has posted so far;
-          discretionary spending is never subtracted. Card purchases count when their
-          statement&apos;s payment comes due, not again at purchase time, and each card is assumed
-          paid in full. Set a savings target in Settings to reserve a share of income first.
+          discretionary spending is never subtracted.
+          {d.creditCardCount > 0 ? (
+            <>
+              {' '}
+              Card purchases count when their statement&apos;s payment comes due, not again at
+              purchase time, and each card is assumed paid in full.
+            </>
+          ) : null}
+          {p.savingsTargetBps == null && p.plannedSavingsCents > 0 ? (
+            <> Set a savings target in Settings to reserve a share of income first.</>
+          ) : null}
         </p>
       </section>
 

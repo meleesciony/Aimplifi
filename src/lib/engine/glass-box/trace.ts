@@ -19,8 +19,9 @@ import { type Cents, cents, sumCents } from '@/lib/money';
 import type { ISODate } from '@/lib/dates';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { frozenCardsNote } from '@/lib/engine/account/feed-dropped-view';
-import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
+import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
+import { planRowLabels } from '@/lib/engine/spending-plan/row-labels';
 import {
   type CardDuplicatePairInput,
   cardDuplicateTraceBasis,
@@ -38,6 +39,13 @@ export interface TraceRow {
   isEstimated: boolean;
   /** Engine-authored provenance sentences for this row (already formatted). */
   notes: string[];
+  /**
+   * The control a $0 row meaning "you have not set this up" offers (L.29).
+   * Present only on such a row — a control beside a working figure reads as a
+   * correction. Authored by `planRowLabels`, so the two surfaces that print
+   * these rows cannot disagree about which zeros are actionable.
+   */
+  action?: { label: string; href: string };
 }
 
 export interface NumberTrace {
@@ -173,31 +181,36 @@ export function traceCashNeeded(
  * the same plain-summation invariant holds. All fields live on the
  * SpendingPlan result itself (it extends its input), so nothing is re-derived.
  */
-export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
-  const incomeLabel =
-    plan.incomeBasis === 'trailing-median'
-      ? `Income (median of last ${plan.incomeMonths} month${plan.incomeMonths === 1 ? '' : 's'})`
-      : plan.incomeBasis === 'detected-series'
-        ? 'Income (detected recurring, monthly)'
-        : 'Income (no pattern yet)';
+export function traceSafeToSpend(
+  plan: SpendingPlan,
+  /**
+   * REQUIRED, not defaulted (the L.15 lesson: a defaulted disclosure argument fails
+   * silent at exactly the caller that forgets it). Two of its fields are what
+   * separate a zero row that means "nothing qualified" from one that means "you
+   * have not set this up" — see `planRowLabels`.
+   */
+  disclosures: SpendingPlanDisclosures,
+): NumberTrace {
+  const labels = planRowLabels(plan, disclosures);
   const rows: TraceRow[] = [
     {
       id: 'income',
-      label: incomeLabel,
+      label: labels.income.label,
       amountCents: cents(plan.patternIncomeCents),
       isEstimated: false,
       notes: [],
     },
     {
       id: 'fixed',
-      label: 'Fixed & recurring expenses (monthly pattern)',
+      label: labels.fixed.label,
       amountCents: cents(-plan.fixedExpensesCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
       isEstimated: false,
       notes: [],
+      action: labels.fixed.action,
     },
     {
       id: 'card-payments',
-      label: 'Card payments due this month',
+      label: labels.cardPayments.label,
       amountCents: cents(-plan.cardObligationsCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
       // True in the all-estimate state (no card has a generated statement) —
       // the fact rides the plan so this row cannot claim statement provenance
@@ -208,11 +221,13 @@ export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
     {
       id: 'savings',
       // The resolved figure is max(goal contributions, the savings-% target),
-      // so the label must name the side that actually decided it (#295).
-      label: plan.savingsSource === 'target' ? 'Savings target (from Settings)' : 'Planned savings (goals)',
+      // so the label must name the side that actually decided it (#295) — and at
+      // $0 name which of the two is missing, with the control that sets it (L.29).
+      label: labels.savings.label,
       amountCents: cents(-plan.plannedSavingsCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
       isEstimated: false,
       notes: [],
+      action: labels.savings.action,
     },
     // Card payments already dated but falling past this month's edge (L.11(D)).
     // A real subtraction, in the same units as every row above it, so this
@@ -263,7 +278,22 @@ export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
           : 'There is no income pattern yet — nothing here is invented; once a complete month of income posts, the figure comes from that pattern.',
       // BIWEEKLY is named too (L.23 copy critic P2-4): ×26/12 is the largest
       // multiplier in the table and the commonest real cadence in this app.
-      'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12. Discretionary spending is never subtracted: guilt-free is the month’s allocation after fixed costs and savings, not what is left of it today.',
+      //
+      // L.29 splits the sentence in two, because its halves have different truth
+      // conditions. The RATE half describes what the fixed term did to rows it
+      // holds — this function's own rule ("a $0 row would name a mechanism that
+      // did not act") applied to the sentence beside the row instead of the row:
+      // told to a reader whose term is empty, it explains an arithmetic that ran
+      // on nothing, next to a line that now says so. The DISCRETIONARY half is a
+      // property of the formula itself and is true for every reader, including
+      // the one with no bills at all — it is what stops "$0 fixed" being read as
+      // "nothing I spend is counted anywhere".
+      ...(plan.scheduledFixed.length > 0
+        ? [
+            'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12.',
+          ]
+        : []),
+      'Discretionary spending is never subtracted: guilt-free is the month’s allocation after fixed costs and savings, not what is left of it today.',
       // Only when an annual bill is actually IN the term. Unconditional, this told
       // every reader their yearly premium was handled at a twelfth a month, when
       // the detector needs three sightings at a steady price — about two years of
@@ -287,7 +317,17 @@ export function traceSafeToSpend(plan: SpendingPlan): NumberTrace {
         (c) =>
           `A ${LONG_CADENCE_WORDS[c].adjective} bill is spread across the ${LONG_CADENCE_WORDS[c].period}: this figure subtracts ${LONG_CADENCE_WORDS[c].share} of it every month. Nothing is actually moved or set aside for you — ${LONG_CADENCE_WORDS[c].landing} the whole amount goes out while this figure only ever counted ${LONG_CADENCE_WORDS[c].share}, so ${LONG_CADENCE_WORDS[c].planLine}.`,
       ),
-      'Spending on credit cards is counted when its statement’s payment comes due, not again at purchase time. The card-payments line covers your own cards due this month, assumes each is paid in full, and comes from the same obligation rows as the cash-needed answer.',
+      // Gated on a card existing at all (L.29, same rule as the clause above):
+      // "assumes each is paid in full" and "comes from the same obligation rows"
+      // describe a mechanism that cannot have acted for a reader with no linked
+      // card, beside a row that now says exactly that. A reader who HAS cards
+      // still gets it whether or not any is due this month — the assumption is
+      // what makes a $0 in-month line readable.
+      ...(disclosures.creditCardCount > 0 || plan.cardObligationsCents !== 0
+        ? [
+            'Spending on credit cards is counted when its statement’s payment comes due, not again at purchase time. The card-payments line covers your own cards due this month, assumes each is paid in full, and comes from the same obligation rows as the cash-needed answer.',
+          ]
+        : []),
       ...(plan.cardObligationsEstimated
         ? [
             'No statement has been generated yet, so the card-payments line is estimated from current balances.',

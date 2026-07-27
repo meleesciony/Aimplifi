@@ -78,6 +78,18 @@ import { prisma } from '@/lib/db';
 
 const TODAY = '2026-06-10';
 const PREMIUM_DESC = 'ALLSTATE INSURANCE PREMIUM';
+/** Only the trace's `basis` sentences are under test here, and no basis sentence
+ *  reads these counts — they decide the L.29 zero-row LABELS, asserted in
+ *  tests/unit/glass-box.test.ts §S7. */
+const TRACE_DISCLOSURES = {
+  undatedCards: [],
+  statementPendingCards: [],
+  duplicatePairs: [],
+  frozenCards: [],
+  creditCardCount: 0,
+  creditCardsOutsideFigure: 0,
+  cardsDatedAfterThisMonth: 0,
+};
 const BONUS_DESC = 'ACME ANALYTICS ANNUAL BONUS';
 
 /** A detected-series shape whose non-cadence fields are irrelevant to the rate
@@ -597,7 +609,7 @@ describe('the annual clause speaks only when an annual bill is IN the figure (L.
     });
 
   it('speaks when the term holds an ANNUAL row', () => {
-    const basis = traceSafeToSpend(planWith([{ amountCents: -120000, cadence: 'ANNUAL' }])).basis.join(' ');
+    const basis = traceSafeToSpend(planWith([{ amountCents: -120000, cadence: 'ANNUAL' }]), TRACE_DISCLOSURES).basis.join(' ');
     expect(basis).toContain('A yearly bill is spread across the year');
     expect(basis).toContain('Nothing is actually moved or set aside for you');
   });
@@ -608,6 +620,7 @@ describe('the annual clause speaks only when an annual bill is IN the figure (L.
         { amountCents: -180000, cadence: 'MONTHLY' },
         { amountCents: -12000, cadence: 'WEEKLY' },
       ]),
+      TRACE_DISCLOSURES,
     ).basis.join(' ');
     expect(basis).not.toContain('yearly');
     expect(basis).not.toContain('twelfth');
@@ -633,6 +646,7 @@ describe('the annual clause speaks only when an annual bill is IN the figure (L.
         obligationsBeyondMonthThroughDate: null,
         obligationsBeyondMonthEstimated: false,
       }),
+      TRACE_DISCLOSURES,
     ).basis.join(' ');
     // L.24 widened this from "arrives once a year" to the whole long-cadence
     // family: `LONG_CADENCES` excludes quarterly and semiannual INCOME too, and
@@ -644,7 +658,7 @@ describe('the annual clause speaks only when an annual bill is IN the figure (L.
     expect(detectedBasis).toContain('Your recurring list shows such a deposit at a share of a month');
     // The trailing median needs no such clause — it counted the bonus in the month
     // it actually arrived, so claiming an exclusion there would be false.
-    const medianBasis = traceSafeToSpend(planWith([])).basis.join(' ');
+    const medianBasis = traceSafeToSpend(planWith([]), TRACE_DISCLOSURES).basis.join(' ');
     expect(medianBasis).not.toContain('rhythm longer than monthly');
   });
 });
@@ -785,7 +799,7 @@ describe('the real server path: a detected annual bill reaches the spending plan
 
   it("the audit panel's basis describes the coverage the figure now has, and no longer claims a user can enter one", async () => {
     const plan = await getSpendingPlan(uid);
-    const basis = traceSafeToSpend(plan).basis.join(' ');
+    const basis = traceSafeToSpend(plan, plan.disclosures).basis.join(' ');
     // FAIL-OLD: the shipped line read "An annual bill entered by you counts 1/12;
     // a DETECTED annual bill is not projected yet" — one clause describing a
     // capability no code path offers, one describing a gap now closed.
