@@ -1,0 +1,188 @@
+/**
+ * Tax-year export engine (owner request 2026-07-27: *"so easy to export that data
+ * during tax time"*).
+ *
+ * Pure: rows in, grouped rows and integer-cent totals out. No I/O, no `new Date()`,
+ * no floats. The reader's own tags decide membership; this only adds them up.
+ *
+ * THE FOUR MONEY DECISIONS, because each one is a claim the export makes:
+ *
+ * 1. A REFUND SUBTRACTS FROM ITS CLASS. Amounts here are the app's signed cents
+ *    (outflow negative, inflow positive), and a reimbursed prescription or a
+ *    returned textbook is a positive row. Summing magnitudes would report money
+ *    the reader did not spend — the overstating direction, and the dangerous one
+ *    for a figure that may reach a return. So each class total is the NET paid:
+ *    outflows minus anything that came back. A class can therefore legitimately
+ *    total zero or below, and `netCents` is reported signed rather than clamped,
+ *    because clamping would hide exactly the case worth seeing.
+ *
+ * 2. POSTED ONLY. A pending charge has not been paid, and a tax year is a
+ *    statement about money that actually moved. Pending rows are counted out and
+ *    the count is REPORTED (`excludedPending`), never silently dropped: a reader
+ *    tagging in early January needs to know a charge is missing rather than
+ *    wonder why a total is short.
+ *
+ * 3. TRANSFERS ARE NOT PAYMENTS. A move between the reader's own accounts pays
+ *    nobody, so a tagged transfer is excluded and counted (`excludedTransfers`).
+ *    Paying a credit card is the commonest example: the deductible charge is the
+ *    purchase on the card, and counting the card payment too would double it.
+ *
+ * 4. THE YEAR IS THE TRANSACTION DATE, inclusive of both ends, on the calendar
+ *    date the app already stores (YYYY-MM-DD strings, no timezones — the
+ *    `driver-parsed-timestamp` lesson). No settlement-date reasoning: the app has
+ *    one business date per row and inventing a second would be a fabrication.
+ *
+ * WHAT IT REFUSES TO DO. It computes no deduction, applies no threshold or limit,
+ * and produces no "you can claim" figure. `disclosures` carries the sentences that
+ * say so, and they are part of the return value rather than the caller's job,
+ * because a total that travels without them reads as an entitlement.
+ */
+import { type TaxClass, TAX_CLASSES, TAX_CLASS_LABELS, isTaxClass } from './classes';
+
+/** One transaction as this engine consumes it — the fields an export needs and
+ *  nothing else, so no caller can hand it a row shape that hides a status. */
+export interface TaxExportRow {
+  /** Calendar date, YYYY-MM-DD. */
+  date: string;
+  /** What the reader sees in the register (merchant name or cleaned descriptor). */
+  description: string;
+  /** SIGNED cents: outflow negative, inflow positive. */
+  amountCents: number;
+  /** 'POSTED' | 'PENDING' — see decision 2. */
+  status: string;
+  /** True for a move between the reader's own accounts — see decision 3. */
+  isTransfer: boolean;
+  /** The reader's tag. Anything unrecognized reads as untagged (`isTaxClass`). */
+  taxClass: string | null;
+  /** The reader's own note, carried VERBATIM. Never parsed, never summed. */
+  note: string | null;
+}
+
+export interface TaxExportLine {
+  date: string;
+  description: string;
+  /** Signed, exactly as stored — the sign is what makes a refund legible. */
+  amountCents: number;
+  note: string | null;
+}
+
+export interface TaxExportGroup {
+  taxClass: TaxClass;
+  label: string;
+  lines: TaxExportLine[];
+  /** Net paid: outflows minus refunds, signed. Reported as a POSITIVE number for
+   *  ordinary spending, because `paidCents` is the magnitude of money that left. */
+  paidCents: number;
+  /** What came back inside this class (magnitude, 0 when nothing did). Printed
+   *  beside `paidCents` so a netted total can never look like a raw one. */
+  refundedCents: number;
+}
+
+export interface TaxExport {
+  year: number;
+  groups: TaxExportGroup[];
+  /** Sum of every group's `paidCents`. NOT a deductible amount — see disclosures. */
+  totalPaidCents: number;
+  totalRefundedCents: number;
+  /** Tagged rows the year excluded, by reason, so a short total is explainable. */
+  excludedPending: number;
+  excludedTransfers: number;
+  /** Sentences that must travel with the figures. */
+  disclosures: string[];
+}
+
+/**
+ * Group a reader's tagged transactions into a tax year's report.
+ *
+ * `rows` may be the reader's whole history: the year filter lives here so no
+ * caller can pass an already-narrowed set and lose the excluded counts.
+ */
+export function buildTaxExport(rows: readonly TaxExportRow[], year: number): TaxExport {
+  const from = `${year}-01-01`;
+  const to = `${year}-12-31`;
+
+  let excludedPending = 0;
+  let excludedTransfers = 0;
+  const byClass = new Map<TaxClass, TaxExportLine[]>();
+
+  for (const r of rows) {
+    if (!isTaxClass(r.taxClass)) continue;
+    // Inclusive both ends, on plain string comparison — safe because every date
+    // here is a zero-padded YYYY-MM-DD calendar date.
+    if (r.date < from || r.date > to) continue;
+    // Counted BEFORE the status/transfer gates so an excluded row is reported
+    // rather than vanishing; a reader whose total looks short can see why.
+    if (r.isTransfer) {
+      excludedTransfers += 1;
+      continue;
+    }
+    if (r.status !== 'POSTED') {
+      excludedPending += 1;
+      continue;
+    }
+    const lines = byClass.get(r.taxClass) ?? [];
+    lines.push({ date: r.date, description: r.description, amountCents: r.amountCents, note: r.note });
+    byClass.set(r.taxClass, lines);
+  }
+
+  const groups: TaxExportGroup[] = [];
+  for (const taxClass of TAX_CLASSES) {
+    const lines = byClass.get(taxClass);
+    // A class the reader tagged nothing into gets NO group: an empty drawer is not
+    // a fact about the year, and printing "$0.00" beside a class name would read
+    // as "nothing qualified" when it means "you tagged nothing" (the L.29 rule,
+    // and the reason this engine reports absence by omission plus a disclosure).
+    if (!lines || lines.length === 0) continue;
+    lines.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.description < b.description ? -1 : 1));
+    let outflow = 0;
+    let refunded = 0;
+    for (const l of lines) {
+      if (l.amountCents < 0) outflow += -l.amountCents;
+      else refunded += l.amountCents;
+    }
+    groups.push({
+      taxClass,
+      label: TAX_CLASS_LABELS[taxClass],
+      lines,
+      paidCents: outflow - refunded,
+      refundedCents: refunded,
+    });
+  }
+
+  const totalPaidCents = groups.reduce((s, g) => s + g.paidCents, 0);
+  const totalRefundedCents = groups.reduce((s, g) => s + g.refundedCents, 0);
+
+  const disclosures: string[] = [
+    'These totals are what you tagged, added up. Aimplifi does not decide what is deductible, applies no limits or thresholds, and this is not tax advice — check it against your own records before it goes near a return.',
+  ];
+  if (totalRefundedCents > 0) {
+    disclosures.push(
+      'Where money came back — a refund or a reimbursement — it is subtracted from its own group, so each total is what you actually paid out over the year rather than the sum of the charges.',
+    );
+  }
+  if (excludedPending > 0) {
+    disclosures.push(
+      `${excludedPending} tagged ${excludedPending === 1 ? 'charge has' : 'charges have'} not posted yet, so ${excludedPending === 1 ? 'it is' : 'they are'} not counted here — money that has not moved is not part of a tax year.`,
+    );
+  }
+  if (excludedTransfers > 0) {
+    disclosures.push(
+      `${excludedTransfers} tagged ${excludedTransfers === 1 ? 'row is a transfer' : 'rows are transfers'} between your own accounts and ${excludedTransfers === 1 ? 'is' : 'are'} not counted — a transfer pays nobody, and the charge it covers is already counted where it was made.`,
+    );
+  }
+  if (groups.length < TAX_CLASSES.length) {
+    disclosures.push(
+      'Only the groups you tagged something into appear. A group missing here means nothing was tagged to it, not that nothing qualified.',
+    );
+  }
+
+  return {
+    year,
+    groups,
+    totalPaidCents,
+    totalRefundedCents,
+    excludedPending,
+    excludedTransfers,
+    disclosures,
+  };
+}
