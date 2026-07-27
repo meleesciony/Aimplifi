@@ -2,6 +2,61 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-26 — L.26: a bill on a RE-LINKED account reaches the money (DECISIONS #315)
+
+**The owner's $0.00, finally measured instead of theorised.** Three sessions (L.23, L.24, L.25) each
+closed a real uncounted-bill gap on the hypothesis that it explained the dashboard reading
+"Fixed & recurring expenses (monthly pattern) — $0.00" under $21,117.48 of income. None of them did.
+A read-only replay of the exact `refreshRecurringForUser` pipeline against the **production Neon
+database** (2026-07-26) returned the answer in one run: **21 series detected, 0 scheduled rows
+written**, and `ScheduledTransaction` empty for the owner across the whole table.
+
+**Cause.** A series' `accountId` is the account of its most recent KEPT charge, and the
+reconciliation keep rule bounds a superseded predecessor at its cutover. The owner re-linked their
+Schwab checking on 2026-07-21 (confirmed 07-24). Every bill whose last charge predated that cutover
+therefore carried the **dead predecessor's id**, which the projection scope excludes — expenses
+because it is not in `cashAccountIds`, income because it is not the payment account. Uncounted:
+a $176.79/mo student loan, a $146.40/mo insurance premium, a $166.67 biweekly retirement
+contribution, and five detected income series. The remaining 12 series sit on CREDIT cards and are
+excluded by design (they belong to the card-obligation term).
+
+**The false claim this rested on** was written into `refreshRecurringForUser` by L.25 and repeated in
+its test: *"a reconciled-away account's series is a dead bill."* It is not. A reconciliation is the
+same real-world account reconnected — **re-linking a bank does not retire its bills, it moves them.**
+
+**Shipped.** `activeTerminalSuccessorMap` (same links, same effectiveness rule, same key set as
+`activeSupersededPredecessorIds`) re-keys each detected series onto its terminal live successor
+before projection — exactly as `applyReconciliationBoundary` already re-keys a predecessor's stored
+scheduled rows (F6). Re-keyed, never admitted: a row on the boundary-zeroed ghost would still be
+dropped by the three consumers that walk a live balance. It cannot widen scope by type, since an
+effective link is same-type by construction, so a CREDIT predecessor still maps to a CREDIT successor
+and stays out of the cash set (locked by its own test).
+
+**Measured on the owner's real data, before and after:** fixed & recurring expenses **$0.00 →
+$684.31/mo**, plus 4 income series ($956.09/mo at a monthly rate) restored to the L.11(D) walk.
+
+### 🟠 OPEN after L.26
+
+1. **The other two $0.00 lines on that same card are TRUE, and read as defects.** "Card payments due
+   this month — $0.00" is correct (every statement is due Aug 5, past the July edge; the $18,814.14
+   is the beyond-month line right below it), and "Planned savings (goals) — $0.00" is correct
+   (no goals, `savingsTargetBps` null). A true zero and a broken zero are visually identical, which is
+   how this defect survived three sessions of the owner looking straight at it. A zero that means
+   "nothing qualifies" should say so; a zero that means "you haven't set this up" should offer the
+   control. Not fixed here — copy/UI slice.
+2. **`ScheduledTransaction` only refills on a sync.** The fix is inert until
+   `refreshRecurringForUser` next runs (Plaid sync, `/api/cron/sync` at 11:00 UTC daily, or a manual
+   sync). No page load recomputes it.
+3. **A card-charged bill is still invisible as a bill.** 12 of the owner's 21 series are on cards, and
+   they are inside the card obligation only as an undifferentiated statement balance — correct
+   arithmetic, but the reader cannot see State Farm ($370.01) or YouTube TV ($91.29) as recurring
+   commitments in the plan. Unchanged from L.25; recorded because it is now the largest remaining
+   share of what "fixed & recurring" would mean to the reader.
+4. **The amount-stability rule remains a real narrowing** (`detect.ts` drops any series with 3+
+   distinct amounts, so a variable utility bill is never detected). L.25 named it the likeliest cause
+   of the $0.00; measurement says it was not the cause here, but it is still a live gap in the
+   guilt-free-overstating direction.
+
 ## ✅ BUILT 2026-07-26 — L.25: a bill paid from any cash account reaches the money (DECISIONS #314)
 
 Closes the L.24 OPEN #4 / L.23 OPEN #5 residual, and it turned out to be a defect **inside one

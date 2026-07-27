@@ -19,7 +19,11 @@ import { prisma } from '@/lib/db';
 import { type ISODate, compareDates, isoDate } from '@/lib/dates';
 import { DEMO_RECONCILE_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import type { DuplicateConfidence, ReconciliationMatchSignal } from '@/lib/engine/account/duplicates';
-import { effectiveReconciliationLinks, reconciliationTxnKeepFilter } from '@/lib/engine/account/reconcile-boundary';
+import {
+  effectiveReconciliationLinks,
+  reconciliationTxnKeepFilter,
+  terminalSuccessorMap,
+} from '@/lib/engine/account/reconcile-boundary';
 import { isSupportedCurrency } from '@/lib/providers/currency';
 
 export interface ConfirmReconciliationInput {
@@ -356,6 +360,33 @@ export async function activeSupersededPredecessorIds(userIds: readonly string[])
   if (links.length === 0) return new Set();
   const supported = accounts.filter((a) => isSupportedCurrency(a.currency));
   return new Set(effectiveReconciliationLinks(supported, links).map((l) => l.predecessorAccountId));
+}
+
+/**
+ * Superseded predecessor id → the LIVE account that carries its money now, on the
+ * exact same effectiveness basis as `activeSupersededPredecessorIds` above (its
+ * key set is identical, so a caller needing both reads one query pair, not two).
+ *
+ * Exists because excluding a predecessor is only half a boundary (L.26): a row
+ * DERIVED from the predecessor's history — a detected recurring series, whose
+ * account is the account of its most recent kept charge — is not a ghost to drop
+ * but a live obligation to re-key, exactly as `applyReconciliationBoundary` re-keys
+ * a predecessor's scheduled rows onto its terminal successor (F6). Dropped instead,
+ * it becomes an uncounted bill: see refreshRecurringForUser.
+ */
+export async function activeTerminalSuccessorMap(userId: string): Promise<Map<string, string>> {
+  const [links, accounts] = await Promise.all([
+    prisma.accountReconciliation.findMany({
+      where: { userId, undoneAt: null },
+      select: { predecessorAccountId: true, successorAccountId: true, cutoverDate: true },
+    }),
+    prisma.account.findMany({
+      where: { userId },
+      select: { id: true, type: true, currency: true, currentBalanceCents: true },
+    }),
+  ]);
+  if (links.length === 0) return new Map();
+  return terminalSuccessorMap(accounts.filter((a) => isSupportedCurrency(a.currency)), links);
 }
 
 /**

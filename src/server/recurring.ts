@@ -18,7 +18,7 @@ import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurrin
 import { upcomingRenewals, type UpcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCategoryMeta } from '@/server/category-meta';
-import { activeSupersededPredecessorIds, getReconciliationTxnKeep } from '@/server/reconciliation';
+import { activeTerminalSuccessorMap, getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getProvider } from '@/lib/providers/demo';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
@@ -151,14 +151,21 @@ export async function refreshRecurringForUser(
   // CREDIT is excluded on purpose: a subscription charged to a card is already inside
   // the plan's card-obligation term and on the calendar inside that card's due amount.
   //
-  // Superseded predecessors are excluded for the same reason resolvePaymentAccount
-  // excludes them — a reconciled-away account's series is a dead bill, and unlike the
-  // long cadences the WEEKLY/BIWEEKLY/MONTHLY rows carry no lapse gate to catch it.
-  const [user, accounts, superseded] = await Promise.all([
+  // Superseded predecessors stay out of the SCOPE for the same reason
+  // resolvePaymentAccount excludes them: a boundary-zeroed ghost funds nothing, and
+  // the consumers that walk a live balance would drop a row landed there anyway.
+  // What this once claimed — that "a reconciled-away account's series is a dead
+  // bill" — was FALSE and cost the owner every cash-paid bill on the guilt-free
+  // breakdown: re-linking an account does not retire its bills, it moves them. They
+  // are re-keyed onto the live successor below (L.26) rather than dropped.
+  const [user, accounts, terminalOf] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, select: { id: true, type: true } }),
-    activeSupersededPredecessorIds([userId]),
+    activeTerminalSuccessorMap(userId),
   ]);
+  // The key set IS `activeSupersededPredecessorIds` (same links, same effectiveness
+  // rule) — read once, used for both halves of the boundary below.
+  const superseded = new Set(terminalOf.keys());
   const cashAccountIds = new Set(
     accounts
       .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type) && !superseded.has(a.id))
@@ -209,8 +216,34 @@ export async function refreshRecurringForUser(
       });
     }
   }
+  // RE-KEY A SERIES OFF A SUPERSEDED PREDECESSOR ONTO THE LIVE ACCOUNT (L.26).
+  //
+  // A series' `accountId` is the account of its most recent KEPT charge. After a
+  // re-link, the reconciliation keep rule bounds the predecessor at its cutover and
+  // the successor starts there — so every bill whose last charge predates the
+  // cutover carries the PREDECESSOR's id, which the scope filters immediately below
+  // exclude (expenses: not in `cashAccountIds`; income: not the payment account).
+  // The bill is real, it is still charging, and it was projected NOWHERE: the owner's
+  // production data on 2026-07-26 detected 21 series and wrote 0 scheduled rows,
+  // reading "Fixed & recurring expenses — $0.00" on the guilt-free breakdown while
+  // a student loan, an insurance premium and a retirement contribution were all
+  // charging on the re-linked checking account.
+  //
+  // Re-keying, not admitting: a scheduled row on the boundary-zeroed predecessor
+  // would still be dropped by the three consumers that walk ONE live account's
+  // balance (cash-needed, forecast, radar), so the money must arrive on the account
+  // that actually carries it — the same terminal successor `applyReconciliationBoundary`
+  // re-keys a predecessor's stored scheduled rows onto (F6). It cannot widen scope
+  // by type: an effective link is same-type by construction, so a CREDIT predecessor
+  // maps to a CREDIT successor and stays out of the cash set exactly as before.
+  const onLiveAccounts = terminalOf.size
+    ? projectable.map((s) => {
+        const to = terminalOf.get(s.accountId);
+        return to === undefined || to === s.accountId ? s : { ...s, accountId: to };
+      })
+    : projectable;
   const scheduledRows = cashAccountIds.size
-    ? toScheduledTransactions(projectable, { paymentAccountId, cashAccountIds }, today)
+    ? toScheduledTransactions(onLiveAccounts, { paymentAccountId, cashAccountIds }, today)
     : [];
 
   // Full replace, atomically. Only the DETECTED scheduled rows are swapped — a

@@ -7,13 +7,14 @@
  * fixed term. Same direction as the L.23/L.24 gaps — an uncounted bill overstates
  * guilt-free spending by its whole monthly share.
  *
- * NOT a diagnosis of the owner's live "Fixed & recurring expenses $0.00" against
- * $21,117.48 of income (2026-07-26). That remains UNVERIFIED — no live DB is
- * reachable from here. Account scope is one candidate and, per the L.25 claims
- * critic, not the likeliest: reaching $0.00 by scope alone needs EVERY bill to sit
- * off the payment account, whereas the amount-stability rule (`detect.ts` drops any
- * series with 3+ distinct amounts) silently excludes every variable utility bill,
- * which is the ordinary shape of a household's bills. Recorded in docs/STATUS.md.
+ * THE OWNER'S $0.00 IS NOW DIAGNOSED, and it was neither of the two candidates this
+ * header used to name. Read-only replay of this pipeline against production
+ * (2026-07-26) returned 21 detected series and 0 scheduled rows: 12 sat on CREDIT
+ * cards (excluded by design — they belong to the card-obligation term), and every
+ * remaining one, income included, resolved to a SUPERSEDED predecessor after the
+ * checking account was re-linked on 2026-07-21. Fixed in L.26 (see the re-key block
+ * at the foot of this file); the amount-stability rule this header guessed at is a
+ * real narrowing but was not the cause. Recorded in docs/STATUS.md.
  *
  * The narrowing was also in the WRONG PLACE. The three consumers that walk ONE
  * account's running balance re-filter to the payment account at their own read
@@ -323,7 +324,29 @@ describe('the real server path: a bill autopaid from SAVINGS reaches the plan (L
   });
 });
 
-describe('a SUPERSEDED cash account does not resurrect its bills (L.25)', () => {
+describe('a bill on a RE-LINKED cash account is re-keyed, not dropped (L.26)', () => {
+  /**
+   * This block asserted the OPPOSITE until L.26, on a claim that measurement
+   * disproved: "a reconciled-away account's series is a dead bill." It is not. A
+   * reconciliation is the same real-world account reconnected — the bills did not
+   * stop, they moved to the new connection's id. Because a series' account is the
+   * account of its most recent KEPT charge, and the keep rule bounds a predecessor
+   * at its cutover, EVERY bill last charged before the cutover carried the dead id
+   * and was projected nowhere.
+   *
+   * Measured on the owner's production data (2026-07-26, read-only replay of this
+   * exact pipeline): 21 series detected, 0 scheduled rows written. Their Schwab
+   * checking had been re-linked on 2026-07-21, so a $176.79 student loan, a $146.40
+   * insurance premium and a $166.67 biweekly retirement contribution — plus five
+   * detected income series — all resolved to the superseded id. The dashboard read
+   * "Fixed & recurring expenses — $0.00" under $21,117.48 of income, the exact
+   * uncounted-bill direction (guilt-free OVERSTATED) that L.23/L.24/L.25 each closed
+   * one other way into.
+   *
+   * The old risk this block guarded — projecting a genuinely stopped bill — survives
+   * only in the SAFE direction (a bill counted that no longer charges understates
+   * guilt-free), and it is the same risk every series carries between occurrences.
+   */
   const uid = `cashscope-sup-${Date.now()}-${process.pid}`;
 
   const wipe = async () => {
@@ -344,7 +367,7 @@ describe('a SUPERSEDED cash account does not resurrect its bills (L.25)', () => 
     vi.unstubAllEnvs();
   });
 
-  it('drops a bill whose charges are on a reconciled-away predecessor', async () => {
+  it('re-keys a bill whose charges are on a reconciled-away predecessor onto the live account', async () => {
     const oldChk = await prisma.account.create({
       data: {
         userId: uid, provider: 'manual', providerRef: `${uid}-old`, name: 'Old Checking',
@@ -374,7 +397,8 @@ describe('a SUPERSEDED cash account does not resurrect its bills (L.25)', () => 
       });
     }
     // The old account is superseded by the new one, cutover AFTER the charges so the
-    // rows themselves survive the reconciliation keep — the account is what is dead.
+    // rows themselves survive the reconciliation keep — this is the owner's shape:
+    // a live bill whose last kept charge sits on the replaced connection.
     await prisma.accountReconciliation.create({
       data: {
         userId: uid,
@@ -387,10 +411,76 @@ describe('a SUPERSEDED cash account does not resurrect its bills (L.25)', () => 
     });
 
     await refreshRecurringForUser(uid, isoDate(TODAY));
-    const rows = await prisma.scheduledTransaction.findMany({ where: { account: { userId: uid } } });
-    // Widening to "every CHECKING/SAVINGS" would otherwise have started projecting a
-    // dead account's bills. WEEKLY/BIWEEKLY/MONTHLY rows carry no lapse gate, so
-    // nothing downstream would have caught it.
-    expect(rows).toEqual([]);
+    const rows = await prisma.scheduledTransaction.findMany({
+      where: { account: { userId: uid } },
+      select: { accountId: true, amountCents: true, cadence: true, source: true },
+    });
+    // FAIL-OLD: []. The bill charged, the user could not see it, and $45.00 a month
+    // of it was inside "guilt-free to spend".
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      accountId: newChk.id, // the LIVE account, never the boundary-zeroed ghost
+      amountCents: -4500,
+      cadence: 'MONTHLY',
+      source: 'recurring',
+    });
+
+    // …and it reaches the money, which is the whole point of the row existing.
+    const plan = await getSpendingPlan(uid);
+    expect(plan.fixedExpensesCents).toBe(4500);
+  });
+
+  it('does not re-key across account TYPES — a card predecessor stays out of the cash set', async () => {
+    // The re-key rides `effectiveReconciliationLinks`, which refuses cross-type
+    // pairs, so a CREDIT predecessor can only ever map to a CREDIT successor and is
+    // still excluded from `cashAccountIds`. Without that, a subscription charged to
+    // a re-linked card would be subtracted twice — once here, once inside the card's
+    // statement obligation — and painted twice on the calendar.
+    const oldCard = await prisma.account.create({
+      data: {
+        userId: uid, provider: 'manual', providerRef: `${uid}-oldcard`, name: 'Old Card',
+        type: 'CREDIT', currentBalanceCents: 0, currency: 'USD',
+      },
+    });
+    const newCard = await prisma.account.create({
+      data: {
+        userId: uid, provider: 'manual', providerRef: `${uid}-newcard`, name: 'New Card',
+        type: 'CREDIT', currentBalanceCents: 120000, currency: 'USD',
+      },
+    });
+    const desc = 'STREAMFLIX SUBSCRIPTION';
+    const canonical = normalizeMerchant(desc).canonical;
+    const merchant = await prisma.merchant.upsert({
+      where: { canonical },
+      create: { canonical, defaultCategoryId: null },
+      update: {},
+    });
+    for (const date of ['2026-03-12', '2026-04-12', '2026-05-12']) {
+      await prisma.transaction.create({
+        data: {
+          accountId: oldCard.id, date, amountCents: -1599, rawDescriptor: desc,
+          merchantId: merchant.id, categoryId: null, status: 'POSTED',
+        },
+      });
+    }
+    await prisma.accountReconciliation.create({
+      data: {
+        userId: uid,
+        predecessorAccountId: oldCard.id,
+        successorAccountId: newCard.id,
+        cutoverDate: '2026-06-01',
+        matchSignal: 'mask',
+        confidence: 'high',
+      },
+    });
+
+    await refreshRecurringForUser(uid, isoDate(TODAY));
+    const rows = await prisma.scheduledTransaction.findMany({
+      where: { account: { userId: uid } },
+      select: { accountId: true, amountCents: true },
+    });
+    // Only the checking bill from the previous test survives; the card's does not.
+    expect(rows.some((r) => r.amountCents === -1599)).toBe(false);
+    expect(rows).toHaveLength(1);
   });
 });
