@@ -24,6 +24,33 @@ import { DEMO_USER_ID } from '@/lib/demo-user';
 
 export { DEMO_USER_ID };
 
+/**
+ * How long a session survives with NO activity, in seconds. Once the window
+ * elapses the next request carries no session and lands on /sign-in.
+ *
+ * Why this is an IDLE timeout and not a hard cap on the session: under the `jwt`
+ * strategy Auth.js re-signs the token and re-sets the cookie with a fresh
+ * `expires` on EVERY session read (@auth/core `lib/actions/session.js` — the JWT
+ * branch does this unconditionally), and next-auth's middleware wrapper copies
+ * those Set-Cookie headers onto the response it returns (`lib/index.js`,
+ * "Preserve cookies from the session response"). Our middleware runs on every
+ * app route, so each page load rolls the window forward and someone actively
+ * using the app is never signed out mid-task.
+ *
+ * `session.updateAge` is deliberately NOT set: Auth.js only consults it in the
+ * DATABASE-strategy branch, so on `jwt` it is a no-op and setting it would imply
+ * a throttle that does not exist.
+ *
+ * Before this existed the config set no `maxAge`, so Auth.js's default of 30 DAYS
+ * applied to both the token and the cookie's `Expires` attribute. A 30-day
+ * `Expires` makes it a persistent cookie: the browser writes it to disk, so it
+ * survived closing the browser and shutting the machine down — for a month.
+ */
+export const SESSION_IDLE_TIMEOUT_SECONDS = 30 * 60;
+
+/** The same window in whole minutes, for user-facing copy (single source of truth). */
+export const SESSION_IDLE_TIMEOUT_MINUTES = SESSION_IDLE_TIMEOUT_SECONDS / 60;
+
 const googleProviders =
   process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
     ? [
@@ -36,7 +63,7 @@ const googleProviders =
 
 export const authConfig = {
   trustHost: true,
-  session: { strategy: 'jwt' },
+  session: { strategy: 'jwt', maxAge: SESSION_IDLE_TIMEOUT_SECONDS },
   pages: { signIn: '/sign-in' },
   providers: [
     Credentials({

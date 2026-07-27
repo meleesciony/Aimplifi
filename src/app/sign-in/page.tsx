@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { SESSION_IDLE_TIMEOUT_MINUTES } from '@/auth.config';
 import { DEMO_USER_ID, auth, signIn } from '@/auth';
 import { EmailPasswordForm } from '@/components/auth/email-password-form';
 import { Button } from '@/components/ui/button';
@@ -57,6 +58,14 @@ export default async function SignInPage() {
           <p className="text-xs text-muted-foreground">
             The demo uses a realistic seeded dataset — fictional accounts, no sign-up. Create an account
             to track your own money; connect your banks, cards, and brokerages to get started.
+          </p>
+          <p
+            className="text-[11px] leading-relaxed text-muted-foreground"
+            data-testid="session-timeout-notice"
+          >
+            For your security, Aimplifi signs you out after{' '}
+            {SESSION_IDLE_TIMEOUT_MINUTES} minutes without activity, so a closed laptop or a
+            shared computer doesn&rsquo;t stay signed in. Using the app keeps you signed in.
           </p>
           <p className="text-[11px] leading-relaxed text-muted-foreground" data-testid="consent-notice">
             By creating an account or continuing, you agree to our{' '}

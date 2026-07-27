@@ -32,6 +32,41 @@ Done's "verify green" on this machine, so the gate has stopped discriminating; (
 regression in those four spec files would now be invisible inside the noise. Do not weaken or
 retitle any of these specs to go green — they guard live defects (#296, L.9, slice-6).
 
+## ✅ BUILT 2026-07-27 — O.4: sessions expire after 30 minutes idle, not 30 days (DECISIONS #321)
+
+Owner-reported: *"The password appears persistent despite shutting down computer. This is dangerous."*
+Correct. `src/auth.config.ts` set `session: { strategy: 'jwt' }` and no `maxAge`, so Auth.js's **30-day**
+default (`@auth/core/lib/init.js:38`) governed both the JWT and the session cookie's `Expires`. A 30-day
+`Expires` is a *persistent* cookie the browser writes to disk — browser-close and power-off both
+preserved the sign-in for a month, on any shared or stolen machine.
+
+Now `maxAge: SESSION_IDLE_TIMEOUT_SECONDS` (30 min), which is a **rolling idle** window: the `jwt`
+branch of `@auth/core/lib/actions/session.js` re-signs and re-sets the cookie on every session read,
+and `next-auth/lib/index.js` forwards those Set-Cookie headers out of middleware (which matches every
+app route), so active use never signs anyone out. `updateAge` deliberately unset — Auth.js consults it
+only in the database-strategy branch.
+
+**Live behavioural proof, not inference** (`bash scripts/probe-session-cookie.sh`, a real demo sign-in
+against a built server): signed in `16:55:21 UTC`, cookie returned `Expires=Mon, 27 Jul 2026 17:25:21
+GMT` — 30 minutes to the second, `HttpOnly`, `SameSite=Lax`.
+
+Gate: `bash scripts/verify.sh` **GREEN** — tsc 0 / eslint 0 / **290 files / 4585 tests** / build clean.
+E2E not run for this slice (blocked by the flake above, unrelated); `tests/unit/session-timeout.test.ts`
+bounds the window to 5–30 min and was mutation-proven fail-old. No schema change. Also shipped:
+`docs/LOGIN_AND_SESSIONS.md` (the written procedure), the policy stated on the sign-in page from the
+same constant, and a PRIVACY.md security-measures line.
+
+**Open residual:** 30 minutes of idle mid-form still discards a draft, because nothing warns before
+expiry. A pre-expiry warning is the natural follow-up if the window proves short in practice. Also
+unbuilt by choice: an absolute session cap, and a "remember this device" opt-in (not expressible
+through Auth.js cookie config — the callsite hardcodes `expires` and spreads it over the configured
+options, so it needs a custom cookie writer).
+
+**Environment note for the next session:** the first gate run failed 11 tests and the build on
+`Unknown argument taxClass` — a **stale generated Prisma client**, not a defect. `src/generated/prisma`
+is gitignored, so a checkout whose schema moved ahead of its generated client fails this way. Fix is
+`npx prisma generate`.
+
 ## ✅ BUILT 2026-07-27 — O.1 part 2: the tax columns, their control, and the tax-year file (DECISIONS #320)
 
 **Part 1 built the pure engine and stopped before the columns on purpose** — a persisted field with

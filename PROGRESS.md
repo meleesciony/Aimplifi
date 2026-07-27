@@ -1,5 +1,34 @@
 # PROGRESS.md — session resume log
 
+## 2026-07-27 — O.4 DONE (#321) — sessions now expire after 30 min idle (was 30 DAYS)
+
+Owner: *"Please put standard login procedures for this app. The password appears persistent despite
+shutting down computer. This is dangerous."* Correct, and worse than it looked. `src/auth.config.ts`
+had `session: { strategy: 'jwt' }` with **no `maxAge`**, so Auth.js's 30-DAY default
+(`@auth/core/lib/init.js:38`) governed both the JWT and the cookie's `Expires` — and a 30-day
+`Expires` makes it a **persistent** cookie the browser writes to disk. Browser-close and power-off
+both preserved the sign-in for a month.
+
+Fix is one line — `maxAge: SESSION_IDLE_TIMEOUT_SECONDS` (30 min) — but the number was only safe
+after verifying in the installed dependency source that it rolls: the `jwt` branch of
+`@auth/core/lib/actions/session.js` re-signs the token and re-sets the cookie `expires` on EVERY
+session read, unconditionally; `updateAge` is consulted ONLY in the database-strategy branch (so it
+is a no-op here and was deliberately left unset); and `next-auth/lib/index.js` `handleAuth` forwards
+those Set-Cookie headers out of middleware, which matches every app route. Net: active use never
+signs you out, 30 minutes of inactivity does.
+
+Also shipped: sign-in page states the policy (`data-testid="session-timeout-notice"`, minutes derived
+from the same constant so copy and cookie cannot drift); `docs/LOGIN_AND_SESSIONS.md` (the written
+procedure — three sign-in methods, sign-out, sign-out-everywhere, shared-computer steps, and a
+maintainer section with the dependency-source citations); PRIVACY.md security-measures line;
+`tests/unit/session-timeout.test.ts` bounding the window to 5–30 min, mutation-proven fail-old
+(removing `maxAge` ⇒ "expected undefined to be defined"). No schema change. Playwright exposure
+checked before choosing 30 min: no spec uses `storageState`, 60 s per-test budget.
+
+Deliberately NOT built: an absolute session cap; a "remember this device" opt-in (not expressible via
+Auth.js cookie config — the callsite hardcodes `expires` and spreads it OVER the configured options).
+A pre-expiry warning modal is the natural follow-up if 30 min proves short in practice.
+
 ## 2026-07-24 — L.12 (a)+(b) DONE (#303) — Plaid's category → a one-tap inbox suggestion
 
 Shipped both slices. `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **3846 unit across 257 files** /
