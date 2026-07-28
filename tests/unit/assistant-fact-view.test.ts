@@ -29,7 +29,7 @@ import {
   answerTopCategories,
   largestPurchases,
   merchantSpend,
-  toPurchaseRows,
+  toAskTxnRows,
 } from '@/lib/engine/assistant/answer';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
 import type { SpendTarget, Timeframe } from '@/lib/engine/assistant/intent';
@@ -83,7 +83,7 @@ describe('builders tag category facts with traceKey + cents', () => {
   });
 
   it('answerLargest: runner-up facts are NOT tagged (constraint (b) — not in the trace)', () => {
-    const largest = largestPurchases(toPurchaseRows(TXNS), JUNE, 3, TODAY, CATEGORY_BY_ID);
+    const largest = largestPurchases(toAskTxnRows(TXNS), JUNE, 3, TODAY, CATEGORY_BY_ID);
     const a = answerLargest(largest, JUNE);
     expect(a.facts.length).toBeGreaterThan(1);
     for (const f of a.facts) {
@@ -211,7 +211,7 @@ describe('trace rows carry txnId exactly where the correction chip is offered', 
   });
 
   it('merchant_spend and income rows carry none (no chip — a category change does not move those figures the same way)', () => {
-    const m = traceMerchantSpend(merchantSpend(toPurchaseRows(TXNS), JUNE, 'kroger', TODAY, CATEGORY_BY_ID));
+    const m = traceMerchantSpend(merchantSpend(toAskTxnRows(TXNS), JUNE, 'kroger', TODAY, CATEGORY_BY_ID));
     expect(m.rows.length).toBeGreaterThan(0);
     for (const r of m.rows) expect(r.txnId).toBeUndefined();
     const inc = traceIncome(monthlyFlows(TXNS), TXNS, JUNE);

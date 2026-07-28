@@ -2,35 +2,24 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
-## ⛔ OPEN BLOCKER 2026-07-27 — the e2e suite is flaky on `main`, so `verify.sh` cannot exit 0
+## ✅ RESOLVED 2026-07-27 — the e2e flake that blocked `verify.sh` (was an OPEN BLOCKER here)
 
-**Measured, not suspected, and it is NOT caused by the O.1 slice below.** Running the full gate
-on a *stashed clean tree* (no O.1 changes, full `next build`, quiet machine) fails **5** e2e specs;
-running it with the O.1 slice applied fails **2**. Across four full-suite runs the failing set
-rotated every time and never repeated:
+**Fixed by O.3 (DECISIONS #322) and re-confirmed by execution during O.7: `VERIFY_E2E=1 bash scripts/verify.sh`
+→ 214 passed, ✅ VERIFY GREEN.** This section used to carry a standing "no slice can satisfy the Definition
+of Done on this machine" banner, measured across four full-suite runs that failed 5, 1, 2 and 6 specs with a
+rotating failing set. It is retired here rather than left standing, because a stale blocker at the top of the
+one status home tells every later session the gate is untrustworthy when it is not.
 
-| run | tree | failures |
-|---|---|---|
-| 1 | O.1 applied | 6 (combined-accounts ×2, duplicate-connections ×3, reconcile ×1) |
-| 2 | O.1 applied | 1 (duplicate-connections) |
-| 3 | O.1 applied | 2 (combine-connections, combined-accounts) |
-| 4 | **clean `main`** | **5** (combine-connections, combined-accounts, duplicate-connections ×2, reconcile) |
-
-**Every failure is in the same family** — the /accounts reconciliation cards — and every one has the
-same signature: `getByTestId('reconcile-*')` resolves to **2 elements, both `hidden`**. The same
-spec files pass **16/16 in isolation**. Nothing in the O.1 diff touches /accounts, reconciliation,
-or connections.
-
-**Working hypothesis, NOT yet confirmed** (labelled per rule 0): Playwright runs 4 workers against
-one SQLite file, and these specs seed rows and then immediately `page.goto('/accounts')`; under
-write contention the page renders before the seed is visible, so both responsive copies of the card
-stay hidden. Confirming it means instrumenting one failing spec, which is its own task — see
-TASKS O.3.
-
-**Two things this costs, stated plainly:** (1) no slice can currently satisfy the Definition of
-Done's "verify green" on this machine, so the gate has stopped discriminating; (2) a real
-regression in those four spec files would now be invisible inside the noise. Do not weaken or
-retitle any of these specs to go green — they guard live defects (#296, L.9, slice-6).
+The recorded working hypothesis (SQLite write contention across 4 Playwright workers) was **wrong**, and so
+was the follow-up lead. The real cause was a bootstrap condition in React's shipped `$RC`: it defers a streamed
+Suspense reveal behind `requestAnimationFrame` whenever `typeof $RT !== 'number'`, which is true for exactly ONE
+reveal per document — the first. Starve that frame and the staged copy is never moved into place while the
+client render fills `#content`, so the page holds the content twice and `getByTestId('reconcile-*')` resolves to
+two hidden elements. The fix is a 32ms drain in `tests/e2e/helpers/test.ts` doing what React's own rAF callback
+would have done, fenced by construction and locked by `tests/e2e/streamed-reveal.spec.ts`. No locator was
+loosened and no spec retitled — the four /accounts specs still guard #296, L.9 and slice-6. Full history,
+including the three candidate fixes that were executed and killed, is in DECISIONS #322 and
+`docs/lessons/the-evidence-was-in-the-trace.md`.
 
 ## ✅ BUILT 2026-07-27 — O.4: sessions expire after 30 minutes idle, not 30 days (DECISIONS #321)
 
@@ -8762,3 +8751,70 @@ seconds-long Plaid window this slice first recorded, and unifying the basis exte
 and /budgets. It is pre-existing and now has one place to be fixed instead of two hiding places.
 
 Final gate: tsc + eslint clean, `next build` clean, **4616 unit / 291 files**, **214 e2e — VERIFY GREEN**.
+
+## 2026-07-27 — O.7: `merchantSpend` is an aggregate, so it reads the aggregate basis (verify green)
+
+**The gap.** Ask answered two spending questions on two different bases, twenty-five lines apart in the
+same `switch`. `spend_total` / `spend_by_category` / `top_categories` ran `spendingByCategory` — the O.6
+register basis, POSTED **and** PENDING, refunds netted. `merchant_spend` ran `merchantSpend` over a
+POSTED-only, GROSS purchase predicate. If one merchant is a category's only member those two questions
+describe *identical money*, so this is O.6's sin living inside a single surface rather than across two
+pages — which is exactly why four sessions on O.6 never saw it: the two answers are never rendered side
+by side.
+
+**The decision.** An AGGREGATE over a window reads the register basis; a statement that NAMES one row as
+a settled fact does not. `merchantSpend` now uses the reports engine's own exported `isSpendRow` /
+`spendContributionCents`; `largestPurchases` keeps the settled-only rule and applies the `POSTED` filter
+**itself**. The shared builder narrows nothing any more and was renamed `toPurchaseRows` → `toAskTxnRows`
+(`PurchaseRow` → `AskTxnRow`), because the old name was the trap: a builder called "purchase rows" reads
+as a licence to inherit the purchase rule. `status`, `merchantCategoryId` and `aggregateMerchant` are
+REQUIRED fields, so `tsc` enumerated all eight construction sites. This reverses #168's accepted "GROSS by
+design" P2 (see DECISIONS #329 for why its stated grounds no longer decide the question).
+
+**One divergence from `spendingByCategory` survives on purpose:** the `<= today` guard. /reports has none,
+so a manually-entered future-dated row counts toward a category figure; "you spent" is a claim about money
+already gone, and unlike a pending charge — committed, merely unsettled — a future-dated row has not moved
+at all. Stated in the basis line and asserted in a test that prints both numbers.
+
+**What the critics caught (two fresh-context, both FAIL, converging INDEPENDENTLY on the same P1).** The
+predicate I removed was doing a second job nobody had named: `isPurchaseRow`'s `Transfers & Other`
+exclusion was also the pseudo-merchant guard. Moving to `isSpendRow` — which admits that group correctly,
+since `uncategorized` lives there and O.6's P0 was unfiled rows *vanishing* — made Ask answer **"You spent
+$49.27 at ATM Withdrawal this month"** on the demo seed, and net an Apple Cash send against an Apple Cash
+receipt into **"Refunds at Apple Cash exceeded purchases by $60.00"**. I had enumerated that admission and
+cleared it on the wrong axis ("the register shows these rows too"): true of the ROWS, false of the NAME.
+Restored by name — `AskTxnRow.aggregateMerchant`, carried from `normalizeMerchant().aggregate`, the signal
+/trends already gates on — with an honest abstention rather than the pre-O.7 "No spending at Atm", which
+denied money the reader can see. Second P1: my own fixture change had made the seed-grounding test *less*
+faithful than the one it replaced.
+
+**Two corrections to my own work, both before shipping.** I wrote a basis line claiming credit-card
+payments are excluded, copied from the neighbouring `NET_SPEND_BASIS` — then verified it and found it
+false (`isSpendRow` excludes transfer-*flagged* rows and the `transfer` id, not the `credit-card-payment`
+category Plaid assigns directly, `plaid-map.ts:420`); corrected in my line and both pre-existing copies.
+And an e2e run falsified my claim that the demo answered "No spending at Amazon": that phrasing never
+reaches this intent, because `resolveSpendTarget` runs first and the deliberate Amazon→shopping synonym
+(#168) routes it to a category answer. The reachable demo case is **Blue Bottle, $239.38 → $246.13**, now
+asserted on the rendered page together with its "Includes $6.75 still pending" disclosure.
+
+**O.7's second half — the provider pending/posted double-count — is DECLINED with evidence, not deferred
+vaguely.** Both windows self-heal without user action: a Plaid sync applies its buffered removes before
+advancing the cursor, and a *failed* sync leaves the cursor unadvanced so the next success replays the
+same removes; SimpleFIN's is the narrower "hold drifts past the 5-day overlap then re-posts under a new
+id" class, ageing out at `PENDING_MAX_AGE_DAYS = 32`. Both were accepted after their own critic cycles
+(#128 / #148), both fail in the safe direction on a figure, and both candidate fixes are rejected in the
+source with reasons. O.7 extends the exposure to one more READ surface, and the new pending disclosure is
+what gives a reader seeing a doubled figure the thread to pull.
+
+**Open, recorded as TASKS O.8, each verified at source rather than suspected:** /trends `newMerchants` is
+a merchant-scoped aggregate still on the old settled-only/gross basis, so it will print different dollars
+than Ask for the same merchant and month; the `credit-card-payment` CATEGORY counts as spending in
+`isSpendRow` and therefore on four surfaces, while /budgets separately excludes it via `NON_BUDGETABLE`;
+and `merchantSpend`'s top-5 facts sort contribution-desc, so a refund is always the first row truncated
+(disclosed in the detail clause and fully cited in the trace, but the visible rows are now biased one way).
+
+**Gate (real output, this session):** `npx tsc --noEmit` clean · `npx eslint .` clean · `npx next build`
+clean · `npx vitest run` → **4641 unit / 291 files** · `VERIFY_E2E=1 bash scripts/verify.sh` → **214
+passed, ✅ VERIFY GREEN**. Every lock mutation-proven: deleting the aggregate filter fails 2, restoring
+the category merge fails 1, reverting the basis fails 15, dropping `<= today` fails 2, reverting the
+display-name rule fails 1.

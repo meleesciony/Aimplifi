@@ -57,6 +57,13 @@ const MERCHANT: MerchantSpendResult = {
   merchant: 'Costco',
   totalCents: 15844,
   count: 1,
+  purchaseCount: 1,
+  purchaseCents: 15844,
+  refundCount: 0,
+  refundCents: 0,
+  pendingPurchaseCents: 0,
+  pendingRefundCents: 0,
+  excludedAggregateCount: 0,
   items: [{ date: '2026-06-10', merchant: 'Costco', amountCents: 15844 }],
 };
 
@@ -98,7 +105,10 @@ describe('headlineCents — absent when there is no figure to reconcile', () => 
     expect(answerLargest([], THIS_MONTH).headlineCents).toBeUndefined();
   });
   it('empty merchant_spend omits it', () => {
-    expect(answerMerchantSpend({ merchant: 'Costco', totalCents: 0, count: 0, items: [] }, THIS_MONTH).headlineCents).toBeUndefined();
+    expect(answerMerchantSpend(
+        { merchant: 'Costco', totalCents: 0, count: 0, purchaseCount: 0, purchaseCents: 0, refundCount: 0, refundCents: 0, pendingPurchaseCents: 0, pendingRefundCents: 0, excludedAggregateCount: 0, items: [] },
+        THIS_MONTH,
+      ).headlineCents).toBeUndefined();
   });
   it('zero-amount category omits it', () => {
     const a = answerSpendByCategory(BREAKDOWN, { type: 'category', categoryId: 'coffee', label: 'Coffee Shops' }, THIS_MONTH);

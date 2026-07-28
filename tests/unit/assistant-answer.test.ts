@@ -21,7 +21,7 @@ import {
   answerUnknown,
   largestPurchases,
   type AccountLike,
-  type PurchaseRow,
+  type AskTxnRow,
 } from '@/lib/engine/assistant/answer';
 import type { SpendingBreakdown } from '@/lib/engine/reports/reports';
 import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
@@ -162,15 +162,15 @@ describe('answerSpend*', () => {
 });
 
 describe('largestPurchases + answerLargest', () => {
-  const rows: PurchaseRow[] = [
-    { date: '2026-06-05', amountCents: -10000, categoryId: 'dining', merchant: 'A' },
-    { date: '2026-06-06', amountCents: -25000, categoryId: 'groceries', merchant: 'B' },
-    { date: '2026-06-07', amountCents: 5000, categoryId: 'refund', merchant: 'C' }, // inflow excluded
-    { date: '2026-06-08', amountCents: -3000, categoryId: 'income', merchant: 'D' }, // income group excluded
-    { date: '2026-06-09', amountCents: -8000, isTransfer: true, categoryId: 'groceries', merchant: 'E' }, // transfer excluded
-    { date: '2026-05-30', amountCents: -99999, categoryId: 'shopping', merchant: 'OLD' }, // out of month excluded
-    { date: '2026-06-02', amountCents: -5000, categoryId: 'shopping', merchant: 'Z' },
-    { date: '2026-06-01', amountCents: -5000, categoryId: 'shopping', merchant: 'Y' },
+  const rows: AskTxnRow[] = [
+    { date: '2026-06-05', amountCents: -10000, categoryId: 'dining', merchant: 'A', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+    { date: '2026-06-06', amountCents: -25000, categoryId: 'groceries', merchant: 'B', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+    { date: '2026-06-07', amountCents: 5000, categoryId: 'refund', merchant: 'C', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false }, // inflow excluded
+    { date: '2026-06-08', amountCents: -3000, categoryId: 'income', merchant: 'D', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false }, // income group excluded
+    { date: '2026-06-09', amountCents: -8000, isTransfer: true, categoryId: 'groceries', merchant: 'E', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false }, // transfer excluded
+    { date: '2026-05-30', amountCents: -99999, categoryId: 'shopping', merchant: 'OLD', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false }, // out of month excluded
+    { date: '2026-06-02', amountCents: -5000, categoryId: 'shopping', merchant: 'Z', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+    { date: '2026-06-01', amountCents: -5000, categoryId: 'shopping', merchant: 'Y', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
   ];
   it('filters, ranks, tie-breaks by date then merchant', () => {
     const top = largestPurchases(rows, THIS_MONTH, 5, '2026-06-30');
@@ -182,10 +182,10 @@ describe('largestPurchases + answerLargest', () => {
     ]);
   });
   it('excludes future-dated rows (<= today) and ties by code-point merchant (trends parity)', () => {
-    const r: PurchaseRow[] = [
-      { date: '2026-06-20', amountCents: -99999, categoryId: 'shopping', merchant: 'FUTURE' }, // after today → excluded
-      { date: '2026-06-05', amountCents: -5000, categoryId: 'shopping', merchant: 'apple' },
-      { date: '2026-06-05', amountCents: -5000, categoryId: 'shopping', merchant: 'Banana' },
+    const r: AskTxnRow[] = [
+      { date: '2026-06-20', amountCents: -99999, categoryId: 'shopping', merchant: 'FUTURE', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false }, // after today → excluded
+      { date: '2026-06-05', amountCents: -5000, categoryId: 'shopping', merchant: 'apple', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+      { date: '2026-06-05', amountCents: -5000, categoryId: 'shopping', merchant: 'Banana', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
     ];
     const top = largestPurchases(r, THIS_MONTH, 5, '2026-06-10');
     // FUTURE excluded by the <= today guard; tie → code-point order ('B' 66 < 'a' 97), NOT localeCompare.

@@ -53,9 +53,11 @@ construction, not by a re-derivation that can drift.
   reconciliation, since net-≤0 categories are dropped from the total) → rows. Do NOT flat-sum all
   spend rows (would include dropped net-refund categories and fail to reconcile).
 - `top_categories`: same as spend_by_category per listed category.
-- `merchant_spend`: cite the matched purchase rows (`merchantSpend` filter: POSTED, isPurchaseRow,
-  whole-word prefix merchant match; GROSS — returns not netted). Reuse `merchantSpend`'s own row
-  selection, same lockstep rule.
+- `merchant_spend`: cite the matched rows (`merchantSpend` filter, O.7: `isSpendRow` — the same
+  predicate `spendingByCategory` uses, so POSTED **and** PENDING and refunds NETTED — plus a
+  `<= today` guard, a whole-word prefix merchant match, and an `aggregateMerchant` exclusion so a
+  pseudo-merchant like ATM Withdrawal is refused rather than totalled). Reuse `merchantSpend`'s own
+  row selection, same lockstep rule.
 - `income`: cite the income rows (`monthlyFlows` income filter).
 - `largest_purchases`: cite the single row(s) the engine already returns — trivially reconciled.
 
@@ -75,7 +77,10 @@ honest fallback, never a wrong number.
 2. `spend_total` reconciles hierarchically: `sum(groups.amountCents) === totalCents`, and each
    group's rows sum to its amount — INCLUDING a seeded category that nets to a refund (must be
    excluded from the total exactly as `spendingByCategory` excludes it).
-3. `merchant_spend` cites only POSTED purchase rows for the matched merchant and reconciles gross.
+3. `merchant_spend` cites the matched merchant's rows on the SAME basis `spendingByCategory`
+   uses (O.7 — POSTED **and** PENDING, refunds cited as negative contributions and netted into
+   the headline), and reconciles. It is an aggregate over a window, so it follows O.6's rule;
+   `largest_purchases`, which names one row as a settled fact, stays POSTED-only.
 4. A DERIVATION intent (`net_worth`, `forecast`, `cash_needed`, `savings_rate`) is NOT offered a
    row-sum trace (the engine returns a non-row-sum marker / the UI does not make it tappable).
 5. False-negative guard: a deliberately drifted predicate makes the equality test FAIL (proving

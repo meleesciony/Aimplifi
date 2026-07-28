@@ -67,7 +67,7 @@ describe('validateIntent custom-id gating', () => {
 
 describe('largestPurchases resolves custom names via meta', () => {
   const rows = [
-    { date: '2026-06-10', amountCents: -9000, categoryId: 'cust_golf', merchant: 'Bear Creek GC' },
+    { date: '2026-06-10', amountCents: -9000, categoryId: 'cust_golf', merchant: 'Bear Creek GC', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
   ];
   const tf = { fromYm: '2026-06', toYm: '2026-06', label: 'this month' };
   it('shows the custom name with the merged meta', () => {

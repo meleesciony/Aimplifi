@@ -12,7 +12,11 @@
 import { type Cents, formatCents } from '@/lib/money';
 import { netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
-import type { SpendingBreakdown } from '@/lib/engine/reports/reports';
+import {
+  isSpendRow,
+  spendContributionCents,
+  type SpendingBreakdown,
+} from '@/lib/engine/reports/reports';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
@@ -381,7 +385,9 @@ export function answerSpendTotal(breakdown: SpendingBreakdown, tf: Timeframe): A
     kind: 'spend_total',
     headline: `You spent ${fmt(breakdown.totalCents)} ${tf.label}.`,
     headlineCents: breakdown.totalCents,
-    detail: 'Purchases only — transfers, credit-card payments, and income are excluded.',
+    // Same correction as NET_SPEND_BASIS (O.7): the `credit-card-payment`
+    // CATEGORY is not excluded by `isSpendRow` — only transfer-FLAGGED rows are.
+    detail: 'Purchases only — transfers and income are excluded.',
     // Tagged (slice 2b): each top category is a trace group, so its figure is
     // independently tappable. traceKey/cents come from the SAME breakdown entry.
     facts: breakdown.byCategory
@@ -453,10 +459,58 @@ export function answerTopCategories(breakdown: SpendingBreakdown, tf: Timeframe,
 
 // ─── largest purchases ──────────────────────────────────────────────────────
 
-export interface PurchaseRow {
+/**
+ * One snapshot transaction in the shape Ask's merchant intents read, with a
+ * canonical merchant derived once. Deliberately UNNARROWED — it is the whole
+ * universe the snapshot handed us, and each consumer states its own narrowing.
+ *
+ * O.7: this used to be `PurchaseRow`, built by a POSTED-only `toPurchaseRows`,
+ * and the name was the trap. `largestPurchases` NAMES a row as a settled fact
+ * and must be POSTED-only; `merchantSpend` SUMS a window and (per O.6) must
+ * count pending, because a pending charge has already reduced what you can
+ * spend. Sharing one pre-narrowed builder silently gave the aggregate the
+ * statement's rule, so Ask answered "at Whole Foods" on a different basis than
+ * "on groceries" 25 lines away in the same switch. The builder is now universal
+ * and the narrowings live at the two consumers.
+ */
+export interface AskTxnRow {
   date: string;
   amountCents: number; // signed; negative = spend
-  categoryId?: string | null;
+  status: string; // PENDING | POSTED — narrowed by the consumer, never the builder
+  /** The STORED category, verbatim. Null means unfiled — never silently relabelled. */
+  categoryId: string | null;
+  /**
+   * The merchant table's mapping for this descriptor, CARRIED rather than merged
+   * into `categoryId` (O.6's `TrendTxn.merchantCategoryId` precedent, DECISIONS
+   * #327). Merging the two was an O.6 P0: `uncategorized` lives in the
+   * `Transfers & Other` group, which `isPurchaseRow` rejects, so an unfiled
+   * −$2,400 Chipotle row VANISHED from largest-purchases instead of being
+   * labelled. Carrying them separately lets the row-NAMING consumer label a
+   * known merchant while the SUMMING consumer buckets by the stored column,
+   * which is what reconciles with the register.
+   */
+  merchantCategoryId: string | null;
+  /**
+   * True when `merchant` is an AGGREGATE pseudo-merchant — one canonical name
+   * covering many unrelated payees (Zelle, Venmo, Check, Cash App, Apple Cash,
+   * PayPal Transfer, ATM Withdrawal, Account Transfer, Card Payment, Unknown
+   * Merchant). Mirrors `TrendTxn.aggregateMerchant`, straight from
+   * `normalizeMerchant().aggregate`.
+   *
+   * REQUIRED, and carried for a reason both O.7 critics found independently.
+   * The old `isPurchaseRow` rejected the whole `Transfers & Other` group, and
+   * that exclusion was quietly doing a SECOND job: keeping merchant answers off
+   * pseudo-merchants. `isSpendRow` — correctly, for a category figure — admits
+   * that group, so moving `merchantSpend` onto it made Ask answer "You spent
+   * $49.27 at ATM Withdrawal this month" on the demo seed, and net an Apple
+   * Cash send against an Apple Cash receipt into "refunds exceeded purchases".
+   * The basis change was right; the collateral guard had to be replaced by
+   * name rather than inherited by accident.
+   *
+   * Note "Store Card Purchase" is deliberately NOT aggregate here — it is a
+   * rule-eligible real merchant (trends.ts:87-89) — so it stays answerable.
+   */
+  aggregateMerchant: boolean;
   isTransfer?: boolean;
   isSplitParent?: boolean;
   merchant: string;
@@ -475,45 +529,37 @@ export interface SnapshotTxnLike {
   categoryId?: string | null;
 }
 
-/** POSTED-only purchase rows with a derived canonical merchant — the shared input
- *  for both merchant intents (largest_purchases + merchant_spend) AND the
- *  Glass-Box trace, so all three read the same universe of purchases and can't
- *  diverge. (Moved from the server orchestrator for that lockstep.) */
-export function toPurchaseRows(txns: readonly SnapshotTxnLike[]): PurchaseRow[] {
-  return txns
-    .filter((t) => t.status === 'POSTED')
-    .map((t) => {
-      const m = normalizeMerchant(t.rawDescriptor);
-      return {
-        date: t.date,
-        amountCents: t.amountCents,
-        // Stored category, falling back to the merchant table's mapping.
-        //
-        // O.6 briefly made this stored-ONLY and that was a P0, caught by a critic
-        // and reverted here. The fallback is not decoration: `isPurchaseRow` below
-        // rejects anything in the `Transfers & Other` group, and `uncategorized`
-        // lives in that group (categories.ts:141), so a null-category row does not
-        // become an honestly-labelled purchase — it VANISHES. Executed: a −$2,400
-        // "CHIPOTLE 1234 AUSTIN TX" row with `categoryId: null` disappeared from
-        // largest_purchases, and merchant_spend answered "No spending at Chipotle"
-        // with that charge sitting in the register. A flat denial about money the
-        // reader can see is far worse than the over-confident label the change was
-        // trying to remove, and this is not a guess — `normalizeMerchant` returns
-        // fast-food at 9600bps `known: true` from the same merchant table the
-        // categorize pipeline files rows with.
-        //
-        // The category FIGURES that must reconcile with the register read the
-        // stored column only (that is O.6's actual subject); the row-NAMING
-        // insights here may label a known merchant. /trends applies exactly this
-        // split via `TrendTxn.merchantCategoryId`, which is what keeps this
-        // builder's documented parity with `computeLargest` true on both axes.
-        categoryId: t.categoryId ?? m.categoryId,
-        isTransfer: t.isTransfer,
-        isSplitParent: t.isSplitParent ?? false,
-        merchant: m.canonical,
-      };
-    });
+/**
+ * The snapshot rows with a canonical merchant attached — the shared input for
+ * both merchant intents (largest_purchases + merchant_spend) AND the Glass-Box
+ * trace, so all three read the same UNIVERSE and the trace can never cite rows
+ * the answer did not see. (Moved from the server orchestrator for that lockstep.)
+ *
+ * It applies NO filter of its own. Every narrowing that used to live here now
+ * lives at the consumer that needs it — see `AskTxnRow` for why.
+ */
+export function toAskTxnRows(txns: readonly SnapshotTxnLike[]): AskTxnRow[] {
+  return txns.map((t) => {
+    const m = normalizeMerchant(t.rawDescriptor);
+    return {
+      date: t.date,
+      amountCents: t.amountCents,
+      status: t.status,
+      categoryId: t.categoryId ?? null,
+      merchantCategoryId: m.categoryId ?? null,
+      aggregateMerchant: m.aggregate,
+      isTransfer: t.isTransfer,
+      isSplitParent: t.isSplitParent ?? false,
+      merchant: m.canonical,
+    };
+  });
 }
+
+/** The category a row-NAMING insight may label this row with: the stored column
+ *  first, then the merchant table. Only the naming side resolves it this way —
+ *  the summing side buckets by the stored column alone, because that is what the
+ *  register and /reports bucket by. */
+const namedCategoryId = (t: AskTxnRow): string => t.categoryId ?? t.merchantCategoryId ?? 'uncategorized';
 
 /** Non-actionable money movement — cash/ATM, transfers, card payments, and
  *  uncategorized — that the trends "largest" list also excludes (one definition
@@ -526,10 +572,10 @@ const NON_ACTIONABLE_GROUP = 'Transfers & Other';
  * purchase" across the app — the grounding test pins this to the seed's real
  * biggest June buy (Costco) to catch any drift.
  */
-function isPurchaseRow(t: PurchaseRow, meta: ReadonlyMap<string, CategoryMeta>): boolean {
+function isPurchaseRow(t: AskTxnRow, meta: ReadonlyMap<string, CategoryMeta>): boolean {
   if (t.isSplitParent || t.isTransfer) return false;
   if (t.amountCents >= 0) return false;
-  const id = t.categoryId ?? 'uncategorized';
+  const id = namedCategoryId(t);
   if (id === 'transfer') return false;
   const group = meta.get(id)?.group;
   if (group === 'Income' || group === NON_ACTIONABLE_GROUP) return false;
@@ -544,7 +590,7 @@ function isPurchaseRow(t: PurchaseRow, meta: ReadonlyMap<string, CategoryMeta>):
  * disagree, on the demo or on live data.
  */
 export function largestPurchases(
-  rows: readonly PurchaseRow[],
+  rows: readonly AskTxnRow[],
   tf: Timeframe,
   limit: number,
   today: string,
@@ -560,6 +606,13 @@ export function largestPurchases(
     .filter((t) => {
       const ym = t.date.slice(0, 7);
       return (
+        // POSTED-only, and stated HERE rather than inherited from the row builder
+        // (O.7). This sentence NAMES one row as a settled fact, so a provisional
+        // amount makes it false rather than merely imprecise: a $1 fuel
+        // pre-authorisation that later posts at $60 would be reported as the
+        // purchase it is not. `merchantSpend` is an aggregate and deliberately
+        // does NOT carry this line.
+        t.status === 'POSTED' &&
         ym >= tf.fromYm &&
         ym <= tf.toYm &&
         t.date <= today &&
@@ -570,7 +623,7 @@ export function largestPurchases(
     .map((t) => ({
       date: t.date,
       merchant: t.merchant,
-      categoryName: meta.get(t.categoryId ?? 'uncategorized')?.name ?? 'Uncategorized',
+      categoryName: meta.get(namedCategoryId(t))?.name ?? 'Uncategorized',
       amountCents: -t.amountCents,
     }))
     .sort(
@@ -619,9 +672,33 @@ export interface MerchantSpendResult {
    *  properly cased — "McDonald's", "Home Depot" — from the merchant table), or
    *  the title-cased query when nothing matched. */
   merchant: string;
-  totalCents: number; // positive
+  /** NET spend: purchases less refunds, matching `spendingByCategory`. May be zero
+   *  or negative when returns met or exceeded purchases — the caller must not read
+   *  a non-positive value as "nothing happened here" (see `answerMerchantSpend`). */
+  totalCents: number;
+  /** Every COUNTED row — purchases AND refunds. Not a purchase count; see below.
+   *  Excludes aggregate pseudo-merchant rows, which are reported separately. */
   count: number;
-  /** Matched purchases, amount-desc then most-recent-first; amounts positive. */
+  purchaseCount: number;
+  /** Gross purchases, positive. */
+  purchaseCents: number;
+  refundCount: number;
+  /** Gross refunds, positive magnitude. `purchaseCents - refundCents === totalCents`. */
+  refundCents: number;
+  /** Pending money, split by direction — carried so the answer can state its own
+   *  basis inline (O.6/L.29) instead of quietly counting unsettled rows. Split
+   *  rather than netted because Plaid emits pending CREDITS, and a single netted
+   *  figure made the copy call a pending refund a "pending charge". */
+  pendingPurchaseCents: number;
+  pendingRefundCents: number;
+  /** Rows whose name matched but that are aggregate pseudo-merchants, so they are
+   *  NOT counted (see `AskTxnRow.aggregateMerchant`). Non-zero with `count === 0`
+   *  means "you asked about something that isn't a store" — a different fact from
+   *  "you spent nothing there", and the answer says so rather than denying. */
+  excludedAggregateCount: number;
+  /** Matched rows, contribution-desc then most-recent-first. SIGNED: a purchase is
+   *  positive, a refund negative, so `items` always sums to `totalCents` — which is
+   *  what the Glass-Box trace asserts at runtime. */
   items: { date: string; merchant: string; amountCents: number }[];
 }
 
@@ -661,33 +738,72 @@ function merchantMatches(canonical: string, q: string): boolean {
 }
 
 /**
- * Sum a single merchant's purchases in [fromYm,toYm] up to `today`, reusing the
- * exact `isPurchaseRow` definition largest/trends use (so a Zelle/ATM/transfer
- * pseudo-merchant can never be counted). Pure: rows in, totals out — the server
- * derives `rows` from the same snapshot the other spending intents read.
+ * Sum one merchant's spending in [fromYm,toYm] up to `today`. Pure: rows in,
+ * totals out — the server derives `rows` from the same snapshot every other
+ * spending intent reads.
  *
- * GROSS by design (#168 critic P2, accepted): this counts purchases, not net
- * spend — a return/refund is not subtracted, matching the sibling "purchase"
- * surfaces (/trends `largest`, which share `toPurchaseRows`) and the /transactions
- * activity list this answer links to. It therefore reads gross where
- * `spend_by_category` reads net; the facts list every counted purchase, so the
- * headline always equals the sum the user can see, never a netted figure that
- * wouldn't reconcile against the listed rows.
+ * BASIS (O.7 — changed deliberately, and this reverses #168 critic P2):
+ * this is an AGGREGATE over a window, so it reads the SAME rows
+ * `spendingByCategory` does, via that engine's own exported `isSpendRow` /
+ * `spendContributionCents` rather than a predicate of its own. Concretely it
+ * now counts PENDING rows and nets refunds, where it used to be POSTED-only
+ * and gross.
+ *
+ * Why the reversal. #168 accepted "gross" on two stated grounds, and O.6
+ * (DECISIONS #327) killed the load-bearing one: gross was said to match
+ * "the sibling purchase surfaces and the /transactions activity list this
+ * answer links to". The register's summary does print a gross **Money out**
+ * tile, so that was not wrong — but it also prints **Net**, and O.5 established
+ * that Net is the tile a category figure reconciles against. What actually
+ * settles it is that Ask answers the same question two ways: "how much did I
+ * spend on groceries this month" runs `spendingByCategory` (net, pending
+ * included) and "how much did I spend at Whole Foods this month" ran this
+ * function (gross, posted only) — same verb, same window, same reader, same
+ * page, and if Whole Foods is the only grocer the two figures describe the
+ * identical money. That is precisely the divergence O.6 unified everywhere
+ * else, and this function is one consumer against five on the other basis, so
+ * this one moves.
+ *
+ * `largestPurchases` deliberately does NOT move: it names a row as a settled
+ * fact, and `isPurchaseRow`'s extra exclusions (the non-actionable group) exist
+ * so an ATM withdrawal cannot win "your biggest purchase". Naming and summing
+ * are now the two sides of O.6's rule rather than two callers of one narrowing.
+ *
+ * ONE divergence from `spendingByCategory` survives on purpose: the `<= today`
+ * guard. `spendingByCategory` has none, so a manually-entered future-dated row
+ * (nothing in `prepareManualTransaction` rejects one) counts toward a /reports
+ * category figure. "You spent" is a claim about money already gone, and unlike a
+ * pending charge — committed, merely not settled — a future-dated row has not
+ * moved at all. Kept, and stated in the answer's basis line.
  */
 export function merchantSpend(
-  rows: readonly PurchaseRow[],
+  rows: readonly AskTxnRow[],
   tf: Timeframe,
   query: string,
   today: string,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): MerchantSpendResult {
   const q = query.trim().toLowerCase();
-  const matched = rows.filter((t) => {
-    const ym = t.date.slice(0, 7);
-    return ym >= tf.fromYm && ym <= tf.toYm && t.date <= today && isPurchaseRow(t, meta) && merchantMatches(t.merchant, q);
-  });
+  // `isSpendRow` carries the window itself; `<= today` and the merchant scope are ours.
+  const named = rows.filter(
+    (t) => t.date <= today && isSpendRow(t, tf, meta) && merchantMatches(t.merchant, q),
+  );
+  // The aggregate split, NOT part of the money basis: it decides which NAMES are
+  // answerable as a store, never which rows belong to a category total. That is
+  // why excluding them cannot make this figure disagree with /reports — no
+  // category is called "ATM Withdrawal", so no reader can put the two side by side.
+  const matched = named.filter((t) => !t.aggregateMerchant);
+  const aggregateRows = named.filter((t) => t.aggregateMerchant);
+
+  // Display name: the canonical form with the largest matched MAGNITUDE. Magnitude,
+  // not net — a net-negative merchant (returns exceeded purchases) must still be
+  // named properly, and on refund-free data the two rules pick the same string.
+  // Falls back to the aggregate rows so the refusal below can name what it found
+  // ("ATM Withdrawal") instead of echoing the reader's typed "atm".
   const byCanonical = new Map<string, number>();
-  for (const t of matched) byCanonical.set(t.merchant, (byCanonical.get(t.merchant) ?? 0) - t.amountCents);
+  for (const t of matched.length > 0 ? matched : aggregateRows) {
+    byCanonical.set(t.merchant, (byCanonical.get(t.merchant) ?? 0) + Math.abs(t.amountCents));
+  }
   let display = '';
   let best = -1;
   for (const [name, amt] of byCanonical) {
@@ -696,28 +812,154 @@ export function merchantSpend(
       display = name;
     }
   }
+
+  let purchaseCount = 0;
+  let purchaseCents = 0;
+  let refundCount = 0;
+  let refundCents = 0;
+  let pendingPurchaseCents = 0;
+  let pendingRefundCents = 0;
+  for (const t of matched) {
+    const c = spendContributionCents(t); // −amountCents: purchases positive, refunds negative
+    // A ZERO row is neither. Banks post $0 verification holds (fuel, hotels), and
+    // counting one as a purchase made the answer say "fully offset by refunds"
+    // about a merchant with no refunds at all.
+    if (c > 0) {
+      purchaseCount += 1;
+      purchaseCents += c;
+      if (t.status === 'PENDING') pendingPurchaseCents += c;
+    } else if (c < 0) {
+      refundCount += 1;
+      refundCents += -c;
+      if (t.status === 'PENDING') pendingRefundCents += -c;
+    }
+  }
+
   const items = matched
-    .map((t) => ({ date: t.date, merchant: t.merchant, amountCents: -t.amountCents }))
+    .map((t) => ({ date: t.date, merchant: t.merchant, amountCents: spendContributionCents(t) }))
     .sort((a, b) => b.amountCents - a.amountCents || (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
   return {
     merchant: display || titleCaseTerm(query),
-    totalCents: items.reduce((s, i) => s + i.amountCents, 0),
-    count: items.length,
+    totalCents: purchaseCents - refundCents,
+    count: matched.length,
+    purchaseCount,
+    purchaseCents,
+    refundCount,
+    refundCents,
+    pendingPurchaseCents,
+    pendingRefundCents,
+    excludedAggregateCount: aggregateRows.length,
     items,
   };
 }
 
+/** The pending clause, or '' — stated inline because O.6 made every surface that
+ *  counts unsettled money say so (L.29: a figure names the basis it was summed on). */
+function pendingClause(res: MerchantSpendResult): string {
+  // Split by direction, because a pending row can move money either way (Plaid
+  // emits pending credits) and calling a pending refund a "pending charge" would
+  // be false. This clause is the sentence a reader trusts when the total
+  // disagrees with their bank statement, so every word of it has to hold.
+  const { pendingPurchaseCents: p, pendingRefundCents: r } = res;
+  if (p > 0 && r > 0) return ` Includes ${fmt(p)} in pending charges and ${fmt(r)} in pending refunds.`;
+  if (p > 0) return ` Includes ${fmt(p)} still pending.`;
+  if (r > 0) return ` Includes ${fmt(r)} in pending refunds.`;
+  return ''; // a $0 pending hold moves nothing and is not worth a sentence
+}
+
+/** Aggregate rows matched the name but were not counted — say so beside a figure
+ *  they are absent from, or the reader reconciling against activity finds rows
+ *  the total does not explain. */
+function excludedAggregateClause(res: MerchantSpendResult): string {
+  if (res.excludedAggregateCount === 0) return '';
+  const n = res.excludedAggregateCount;
+  return ` ${n} ${n === 1 ? 'row' : 'rows'} under a shared name like Zelle, Check or ATM ${n === 1 ? 'was' : 'were'} left out — those cover many payees.`;
+}
+
 export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): AssistantAnswer {
-  if (res.count === 0 || res.totalCents <= 0) {
+  const rowFacts = res.items
+    .slice(0, 5)
+    .map((i) => ({ label: `${i.merchant} · ${humanDate(i.date)}`, value: fmt(i.amountCents) }));
+
+  // Five distinct facts, five sentences — never one shared "no spending" (L.29:
+  // "you asked about a non-store", "nothing matched", "only $0 holds matched",
+  // "everything came back" and "returns beat purchases" are different claims,
+  // and the reader can only act on the one they are actually in).
+  if (res.count === 0 && res.excludedAggregateCount > 0) {
+    // The reader asked about a name that is not a store. Denying spending here
+    // would be false — the money is real and sitting in their activity — but
+    // totalling it under this name would invent a merchant. Say which it is.
+    return {
+      kind: 'merchant_spend',
+      headline: `${res.merchant} isn't a single store, so there's no merchant total for it ${tf.label}.`,
+      detail:
+        'Cash withdrawals, transfers, checks and app-to-app payments all share one name like this, covering many different payees. Open activity to see the individual rows.',
+      facts: [],
+      source: ACTIVITY_SOURCE,
+    };
+  }
+
+  if (res.count === 0) {
+    // Nothing matched at all. The only branch where "no spending" is true.
     return { kind: 'merchant_spend', headline: `No spending at ${res.merchant} ${tf.label}.`, facts: [], source: ACTIVITY_SOURCE };
   }
-  const noun = res.count === 1 ? 'purchase' : 'purchases';
+
+  if (res.purchaseCents === 0 && res.refundCents === 0) {
+    // Only zero-amount rows (a $0 verification hold). Nothing moved, so "no
+    // spending" is true — and the refund branches below would be false.
+    return { kind: 'merchant_spend', headline: `No spending at ${res.merchant} ${tf.label}.`, facts: [], source: ACTIVITY_SOURCE };
+  }
+
+  if (res.purchaseCents === 0) {
+    // Refunds only — money moved, and it moved TOWARD the reader.
+    return {
+      kind: 'merchant_spend',
+      headline: `No purchases at ${res.merchant} ${tf.label}.`,
+      detail: `${fmt(res.refundCents)} came back in refunds.${pendingClause(res)}${excludedAggregateClause(res)}`,
+      facts: rowFacts,
+      source: ACTIVITY_SOURCE,
+    };
+  }
+
+  if (res.totalCents <= 0) {
+    // Purchases exist but refunds met or beat them. `headlineCents` is deliberately
+    // absent here and on every branch above.
+    //
+    // NOT because the rows could not reconcile — a critic checked, and they can:
+    // `-totalCents` is exactly `-sum(items)`, so `assemble()` would return
+    // `reconciled: true`. The reason is that `headlineCents` is what the UI makes
+    // TAPPABLE, and the number printed in these sentences is a positive magnitude
+    // of a NEGATIVE net. Tapping "$30.00" to open a panel headed "-$30.00" is a
+    // reconciliation the reader cannot follow, which is the same contract read
+    // one level up: never offer a tap we cannot honor.
+    const bothFigures = `${fmt(res.purchaseCents)} spent, ${fmt(res.refundCents)} returned.${pendingClause(res)}${excludedAggregateClause(res)}`;
+    return {
+      kind: 'merchant_spend',
+      headline:
+        res.totalCents === 0
+          ? `Your purchases at ${res.merchant} ${tf.label} were fully offset by refunds.`
+          : `Refunds at ${res.merchant} ${tf.label} exceeded purchases by ${fmt(-res.totalCents)}.`,
+      detail: bothFigures,
+      facts: rowFacts,
+      source: ACTIVITY_SOURCE,
+    };
+  }
+
+  const noun = res.purchaseCount === 1 ? 'purchase' : 'purchases';
+  // With no refunds this is byte-identical to the pre-O.7 sentence, so every
+  // refund-free golden holds; with refunds it names both figures, because the
+  // headline is now a NET number and the listed rows are the purchases.
+  const detail =
+    res.refundCount > 0
+      ? `Across ${res.purchaseCount} ${noun} totalling ${fmt(res.purchaseCents)}, less ${fmt(res.refundCents)} returned.${pendingClause(res)}${excludedAggregateClause(res)}`
+      : `Across ${res.purchaseCount} ${noun}.${pendingClause(res)}${excludedAggregateClause(res)}`;
   return {
     kind: 'merchant_spend',
     headline: `You spent ${fmt(res.totalCents)} at ${res.merchant} ${tf.label}.`,
     headlineCents: res.totalCents,
-    detail: `Across ${res.count} ${noun}.`,
-    facts: res.items.slice(0, 5).map((i) => ({ label: `${i.merchant} · ${humanDate(i.date)}`, value: fmt(i.amountCents) })),
+    detail,
+    facts: rowFacts,
     source: ACTIVITY_SOURCE,
   };
 }

@@ -37,7 +37,7 @@ import type { LargestTxn } from '@/lib/engine/trends/trends';
 import {
   largestPurchases,
   merchantSpend,
-  toPurchaseRows,
+  toAskTxnRows,
   type MerchantSpendResult,
 } from './answer';
 import type { AssistantIntent, SpendTarget, Timeframe } from './intent';
@@ -140,8 +140,22 @@ export const ROW_SUM_KINDS: ReadonlySet<AssistantIntent['kind']> = new Set<Assis
 
 // ─── shared row selection (the lockstep core) ────────────────────────────────
 
+/**
+ * The basis line the /reports-family traces print.
+ *
+ * O.7 removed a false clause. It used to say "credit-card payments" were
+ * excluded; `isSpendRow` excludes rows FLAGGED as transfers and the `transfer`
+ * category, but not the `credit-card-payment` category, which Plaid assigns
+ * directly (plaid-map.ts:420). Most card payments do get transfer-flagged
+ * because the detector pairs them with the card's own credit — but a payment to
+ * a card this app does not hold has no counterpart, stays unflagged, and IS
+ * counted. Whether it SHOULD be is a five-surface money question (it would
+ * double-count against the charges it settles, and /budgets already excludes it
+ * separately via NON_BUDGETABLE) — logged as TASKS O.8(b); until that lands, the
+ * sentence describes what the code actually does.
+ */
 const NET_SPEND_BASIS =
-  'Purchases only — transfers, credit-card payments, and income are excluded; refunds count against their category.';
+  'Purchases only — transfers and income are excluded; refunds count against their category.';
 const DROPPED_CATEGORY_BASIS =
   'Categories whose refunds exceed their purchases this period are left out, matching your reports view.';
 
@@ -286,14 +300,28 @@ export function traceTopCategories(
 }
 
 /** merchant_spend: a pure RESHAPE of the engine result — its `items` already
- *  list every counted purchase, so they are the rows, verbatim. */
+ *  list every counted row, purchases AND refunds (the latter with a negative
+ *  contribution since O.7), so they are the rows, verbatim. */
 export function traceMerchantSpend(res: MerchantSpendResult): RowSumTrace {
   return assemble(
     'merchant_spend',
     res.totalCents,
     res.items.map((i) => ({ date: i.date, merchant: i.merchant, contributionCents: i.amountCents })),
     [
-      'Purchases at this merchant only, from posted transactions. Returns are not subtracted here — this counts what you bought, matching your activity view.',
+      // O.7: this line moved with the basis. It used to read "from posted
+      // transactions. Returns are not subtracted here" — both clauses are now
+      // false, and a stale basis line is worse than none, because it is the one
+      // sentence a reader consults to check the number.
+      //
+      // It deliberately does NOT borrow NET_SPEND_BASIS's "credit-card payments
+      // are excluded" clause: `isSpendRow` excludes the `transfer` category and
+      // any row flagged as a transfer, but NOT the `credit-card-payment`
+      // category, which Plaid assigns directly from its LOAN_PAYMENTS_CREDIT_
+      // CARD_PAYMENT taxonomy (plaid-map.ts:420). A card payment out of checking
+      // to a card this app does not hold has no counterpart for the transfer
+      // detector to pair, so it stays unflagged and IS counted. See NET_SPEND_BASIS.
+      'Spending at this merchant only — transfers and income are excluded, and refunds count against the total. Charges still pending are included, the same way your reports and budgets count them.',
+      'Anything dated after today is left out, so this is money already gone.',
     ],
   );
 }
@@ -400,13 +428,13 @@ function traceForKind(intent: AssistantIntent, input: TraceInput): AnswerTrace {
         meta,
       );
     case 'merchant_spend':
-      return traceMerchantSpend(merchantSpend(toPurchaseRows(txns), intent.timeframe, intent.merchant, input.today, meta));
+      return traceMerchantSpend(merchantSpend(toAskTxnRows(txns), intent.timeframe, intent.merchant, input.today, meta));
     case 'income':
       // TraceTxn extends TxnLike (compile-time assert below) — no cast needed.
       return traceIncome(monthlyFlows(txns), txns, intent.timeframe);
     case 'largest_purchases':
       return traceLargest(
-        largestPurchases(toPurchaseRows(txns), intent.timeframe, intent.limit, input.today, meta, intent.merchant),
+        largestPurchases(toAskTxnRows(txns), intent.timeframe, intent.limit, input.today, meta, intent.merchant),
         intent.merchant,
       );
     default:

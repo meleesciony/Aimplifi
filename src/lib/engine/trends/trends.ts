@@ -72,7 +72,7 @@ export interface TrendTxn extends ReportTxn {
    * merchant makes no such claim, and suppressing it does real harm: everything
    * in the `Transfers & Other` group is rejected as non-actionable, `uncategorized`
    * is in that group, so a null-category row with no fallback is dropped from the
-   * insight entirely rather than labelled honestly. Ask's `toPurchaseRows` applies
+   * insight entirely rather than labelled honestly. Ask's `toAskTxnRows` applies
    * the identical `stored ?? merchant` rule, which is what makes `computeLargest`'s
    * documented byte-parity with it true.
    */
@@ -153,7 +153,7 @@ const catName = (id: string | null | undefined, meta: ReadonlyMap<string, Catego
  * The category a row-NAMING insight labels this row with: the stored column when
  * the reader has filed it, otherwise the merchant table's mapping (O.6). Never
  * used by a category FIGURE — see `TrendTxn.merchantCategoryId` for why the two
- * must not share a field, and `answer.ts` `toPurchaseRows` for the identical rule
+ * must not share a field, and `answer.ts` `namedCategoryId` for the identical rule
  * that keeps the two surfaces byte-identical.
  */
 const namedCategoryId = (t: TrendTxn): string | null | undefined => t.categoryId ?? t.merchantCategoryId;
@@ -162,10 +162,13 @@ const namedCategoryId = (t: TrendTxn): string | null | undefined => t.categoryId
  * One spend row = a real outflow that the reports engine would count.
  *
  * Reads the NAMED category (stored, else the merchant table) because its only
- * caller is `isPurchaseRow`, and Ask's `toPurchaseRows` hands its own copy of this
- * predicate an already-merged `categoryId` — evaluating the transfer/Income
- * exclusions on a different value than Ask does is exactly how the documented
- * byte-parity between the two surfaces would rot (O.6).
+ * caller is `isPurchaseRow`, and Ask resolves the identical rule in its own
+ * `namedCategoryId`. O.7 moved that merge OUT of Ask's row builder —
+ * `toAskTxnRows` now carries the stored and merchant categories side by side,
+ * exactly as `TrendTxn` does, and merges them at the predicate — so both
+ * surfaces still evaluate the transfer/Income exclusions on the SAME value.
+ * Evaluating them on different values is exactly how the documented byte-parity
+ * between the two surfaces would rot (O.6).
  */
 function isSpendRow(t: TrendTxn, meta: ReadonlyMap<string, CategoryMeta>): boolean {
   if (t.isSplitParent || t.isTransfer) return false;
@@ -369,7 +372,8 @@ export function computeSpendingTrends(
   const { comparedYm, baselineMonths, movers } = computeMovers(txns, today, meta);
   // O.6 — the one place the two bases part company; see `TrendTxn.status`.
   // Category figures read every row; the row-naming insights read settled rows
-  // only, which is also what Ask's `toPurchaseRows` reads, preserving the
+  // only, which is also what Ask's `largestPurchases` reads (O.7 moved that filter off
+  // the shared builder and into the one consumer that needs it), preserving the
   // documented "matches /trends computeLargest EXACTLY" parity on both axes.
   const settled = txns.filter((t) => t.status === 'POSTED');
   return {

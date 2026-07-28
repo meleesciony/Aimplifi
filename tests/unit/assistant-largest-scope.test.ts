@@ -18,7 +18,7 @@ import { isoDate } from '@/lib/dates';
 import { parseAssistantQuery, validateIntent } from '@/lib/engine/assistant/intent';
 import { intentFromKind } from '@/lib/engine/assistant/llm';
 import { frameFromIntent, resolveEllipsis } from '@/lib/engine/assistant/frame';
-import { answerLargest, largestPurchases, type PurchaseRow } from '@/lib/engine/assistant/answer';
+import { answerLargest, largestPurchases, type AskTxnRow } from '@/lib/engine/assistant/answer';
 
 const TODAY = isoDate('2026-07-14');
 
@@ -238,11 +238,11 @@ describe('conversation frame', () => {
 });
 
 describe('answer engine: merchant-filtered ranking', () => {
-  const rows: PurchaseRow[] = [
-    { date: '2026-07-02', amountCents: -12000, categoryId: 'groceries', merchant: 'Costco' },
-    { date: '2026-07-03', amountCents: -25000, categoryId: 'electronics', merchant: 'Best Buy' },
-    { date: '2026-07-05', amountCents: -8000, categoryId: 'groceries', merchant: 'Costco Gas' },
-    { date: '2026-07-08', amountCents: -30000, categoryId: 'travel', merchant: 'Delta' },
+  const rows: AskTxnRow[] = [
+    { date: '2026-07-02', amountCents: -12000, categoryId: 'groceries', merchant: 'Costco', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+    { date: '2026-07-03', amountCents: -25000, categoryId: 'electronics', merchant: 'Best Buy', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+    { date: '2026-07-05', amountCents: -8000, categoryId: 'groceries', merchant: 'Costco Gas', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+    { date: '2026-07-08', amountCents: -30000, categoryId: 'travel', merchant: 'Delta', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
   ];
   const tf = { fromYm: '2026-07', toYm: '2026-07', label: 'this month' };
 

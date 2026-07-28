@@ -29,7 +29,7 @@ import {
   assistantAccounts,
   largestPurchases,
   merchantSpend,
-  type PurchaseRow,
+  type AskTxnRow,
 } from '@/lib/engine/assistant/answer';
 
 const TODAY = isoDate('2026-06-10'); // the pinned demo date
@@ -43,20 +43,34 @@ const reportTxns: ReportTxn[] = seed.transactions.map((t) => ({
   isTransfer: t.isTransfer,
   isSplitParent: false,
 }));
-// POSTED-only, mirroring the server's largest path (F4) and the /trends server.
-const purchaseRows: PurchaseRow[] = seed.transactions
-  .filter((t) => t.status === 'POSTED')
-  .map((t) => {
-    const m = normalizeMerchant(t.rawDescriptor);
-    return {
-      date: t.date,
-      amountCents: t.amountCents,
-      categoryId: m.categoryId,
-      isTransfer: t.isTransfer,
-      isSplitParent: false,
-      merchant: m.canonical,
-    };
-  });
+// The FULL universe, unnarrowed — `toAskTxnRows`'s own shape (O.7). It is no
+// longer POSTED-filtered here: `largestPurchases` applies that itself, and
+// `merchantSpend` deliberately does not.
+const purchaseRows: AskTxnRow[] = seed.transactions.map((t) => {
+  const m = normalizeMerchant(t.rawDescriptor);
+  return {
+    date: t.date,
+    amountCents: t.amountCents,
+    status: t.status,
+    // BOTH fields carry the merchant category, because that is what production
+    // holds: the seed builder emits no stored category, but `prisma/seed.ts`
+    // runs `categorize()` before writing, so a persisted row's `categoryId` is
+    // never null — worst case it is the string 'uncategorized'.
+    //
+    // An O.7 critic caught this fixture set to `categoryId: null` and executed
+    // the consequence: `merchantSpend` buckets by the STORED column alone, so a
+    // null made every row bucket as 'uncategorized' and `isSpendRow`'s
+    // Income-group exclusion never fired. The seed's 11 payroll rows became
+    // "count 11, −$26,950.00" — a merchant answer production cannot produce, in
+    // the one test whose job is grounding Ask against the real dataset.
+    categoryId: m.categoryId ?? null,
+    merchantCategoryId: m.categoryId ?? null,
+    aggregateMerchant: m.aggregate,
+    isTransfer: t.isTransfer,
+    isSplitParent: false,
+    merchant: m.canonical,
+  };
+});
 
 const THIS_MONTH: Timeframe = { fromYm: '2026-06', toYm: '2026-06', label: 'this month' };
 const LAST_MONTH: Timeframe = { fromYm: '2026-05', toYm: '2026-05', label: 'last month' };
@@ -162,15 +176,18 @@ describe('merchant_spend == summed seed purchases for that merchant (#168), pinn
     if (i.kind !== 'merchant_spend') return;
     expect(i.merchant).toBe('costco');
     const res = merchantSpend(purchaseRows, i.timeframe, i.merchant, '2026-06-10');
-    // Independent recomputation over the SAME rows (Costco is groceries, so no
-    // Income/Transfers group exclusion bites) — merchantSpend must tie to this.
+    // Independent recomputation over the SAME rows — and it mirrors the O.7
+    // basis, so it stays a real check rather than agreeing by luck: no status
+    // filter (pending counts) and no sign filter (a refund nets). These rows
+    // carry no stored category, so they bucket as `uncategorized`, whose group
+    // is neither Income nor `transfer` — nothing here is group-excluded.
     const expected = purchaseRows.filter((t) => {
       const c = t.merchant.toLowerCase();
       return (
         t.date.slice(0, 7) === '2026-06' &&
         t.date <= '2026-06-10' &&
         !t.isTransfer &&
-        t.amountCents < 0 &&
+        !t.isSplitParent &&
         (c === 'costco' || c.startsWith('costco '))
       );
     });
@@ -182,6 +199,42 @@ describe('merchant_spend == summed seed purchases for that merchant (#168), pinn
     // The seed's biggest June purchase ($158.44 at Costco) is one of these.
     expect(res.totalCents).toBeGreaterThanOrEqual(15844);
     expect(answerMerchantSpend(res, THIS_MONTH).headline).toBe(`You spent ${fmt(res.totalCents)} at Costco this month.`);
+  });
+
+  it('O.7: the seed\'s pending Amazon charge is counted, not dropped', () => {
+    // The demo's only June Amazon row on or before today is PENDING (−$43.18,
+    // build.ts:541), so under the old POSTED-only basis this engine returned
+    // ZERO rows for a charge sitting in the register. Reverting the basis makes
+    // count 0 and this fails.
+    //
+    // Scope of the claim, corrected after an e2e run falsified the first version:
+    // this is an ENGINE fact, not a user-visible one. "How much did I spend at
+    // Amazon" never reaches `merchant_spend` — `resolveSpendTarget` runs first
+    // and the deliberate Amazon→shopping synonym (#168) routes it to a category
+    // answer. The user-visible version of this change is locked on Blue Bottle
+    // in ask.spec.ts, which does route here.
+    const res = merchantSpend(purchaseRows, THIS_MONTH, 'amazon', '2026-06-10');
+    expect(res.count).toBe(1);
+    expect(res.totalCents).toBe(4318);
+    expect(res.pendingPurchaseCents).toBe(4318);
+    const a = answerMerchantSpend(res, THIS_MONTH);
+    expect(a.headline).toBe('You spent $43.18 at Amazon this month.');
+    // …and it says WHY it disagrees with a bank statement, rather than counting
+    // unsettled money silently.
+    expect(a.detail).toBe('Across 1 purchase. Includes $43.18 still pending.');
+  });
+
+  it('O.7: the seed\'s Blue Bottle total is the one a reader can actually reach', () => {
+    // This IS parser-reachable (no category synonym intercepts it), so it is the
+    // demo figure that visibly moved: $239.38 POSTED-only → $246.13 with the
+    // seeded pending $6.75 (build.ts:540). ask.spec.ts asserts the same two
+    // strings against the rendered page.
+    const res = merchantSpend(purchaseRows, THIS_MONTH, 'blue bottle', '2026-06-10');
+    expect(res.totalCents).toBe(24613);
+    expect(res.pendingPurchaseCents).toBe(675);
+    const a = answerMerchantSpend(res, THIS_MONTH);
+    expect(a.headline).toBe('You spent $246.13 at Blue Bottle Coffee this month.');
+    expect(a.detail).toContain('Includes $6.75 still pending.');
   });
 
   it('an apostrophe-less "trader joes" matches the possessive seed canonical (#168 P1)', () => {

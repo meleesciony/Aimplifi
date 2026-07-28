@@ -63,9 +63,9 @@ import {
   assistantAccounts,
   largestPurchases,
   merchantSpend,
-  toPurchaseRows as enginePurchaseRows,
+  toAskTxnRows as engineAskTxnRows,
+  type AskTxnRow,
   type AssistantAnswer,
-  type PurchaseRow,
 } from '@/lib/engine/assistant/answer';
 import { ROW_SUM_KINDS, traceAnswer, type TraceTxn } from '@/lib/engine/assistant/trace';
 import {
@@ -399,9 +399,10 @@ export async function undoAskCorrection(input: {
 
 type FinanceSnapshot = Awaited<ReturnType<ReturnType<typeof getProvider>['getFinanceSnapshot']>>;
 
-// toPurchaseRows moved into the answer engine (GLASSBOX_PLAN slice 1) so the
-// merchant intents and the Glass-Box trace share one purchase universe.
-const toPurchaseRows = (snap: FinanceSnapshot): PurchaseRow[] => enginePurchaseRows(snap.transactions);
+// The row builder lives in the answer engine (GLASSBOX_PLAN slice 1) so the
+// merchant intents and the Glass-Box trace share one universe. It narrows
+// nothing (O.7) — each intent below states its own basis.
+const toAskTxnRows = (snap: FinanceSnapshot): AskTxnRow[] => engineAskTxnRows(snap.transactions);
 
 async function buildAnswer(
   intent: AssistantIntent,
@@ -441,26 +442,21 @@ async function buildAnswer(
     case 'top_categories':
       return answerTopCategories(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.timeframe, intent.limit);
     case 'largest_purchases':
-      // POSTED-only (pending charges aren't "purchases"). This no longer "mirrors
-      // /trends", which O.6 moved onto the shared POSTED+PENDING basis — the line
-      // is now deliberate rather than inherited, and the principle is the one O.6
-      // settled: an AGGREGATE over a window includes pending, because a pending
-      // charge has genuinely reduced what you can spend and omitting it understates
-      // by the full amount; a statement NAMING one row as a settled fact excludes
-      // it, because a pending amount is provisional (a $1 fuel pre-authorisation
-      // that later posts at $60 is a false sentence, not merely an imprecise sum).
-      // `merchantSpend` below is an aggregate but shares this row builder, so it
-      // inherits the stricter rule — see the O.6 follow-up in TASKS.md.
+      // NAMES a row as a settled fact ⇒ POSTED-only, applied inside
+      // `largestPurchases` itself. See O.6's rule, and O.7 for why this is no
+      // longer shared with `merchant_spend` below.
       // The optional merchant scope (TASKS 2.7) threads through verbatim.
       return answerLargest(
-        largestPurchases(toPurchaseRows(snap), intent.timeframe, intent.limit, today, meta, intent.merchant),
+        largestPurchases(toAskTxnRows(snap), intent.timeframe, intent.limit, today, meta, intent.merchant),
         intent.timeframe,
         intent.merchant,
       );
     case 'merchant_spend':
-      // Same POSTED-only purchase rows as largest_purchases (shared builder so the
-      // two merchant surfaces can't drift), summed for the one queried merchant.
-      return answerMerchantSpend(merchantSpend(toPurchaseRows(snap), intent.timeframe, intent.merchant, today, meta), intent.timeframe);
+      // SUMS a window ⇒ the same basis the three category intents above use
+      // (`isSpendRow`: POSTED **and** PENDING, refunds netted). O.7 moved it off
+      // the purchase predicate so "how much did I spend at Whole Foods" and "how
+      // much did I spend on groceries" cannot answer the same money differently.
+      return answerMerchantSpend(merchantSpend(toAskTxnRows(snap), intent.timeframe, intent.merchant, today, meta), intent.timeframe);
     case 'income': {
       // Full snapshot rows (incl. categoryId + isSplitParent at runtime) → same as
       // /reports & /coach: refunds net against spend, split parents excluded.

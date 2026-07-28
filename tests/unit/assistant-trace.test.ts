@@ -24,7 +24,7 @@ import {
   type SpendingBreakdown,
 } from '@/lib/engine/reports/reports';
 import { isIncomeFlowRow, monthlyFlows } from '@/lib/engine/fi/insights';
-import { largestPurchases, merchantSpend, toPurchaseRows } from '@/lib/engine/assistant/answer';
+import { largestPurchases, merchantSpend, toAskTxnRows } from '@/lib/engine/assistant/answer';
 import type { AssistantIntent, Timeframe } from '@/lib/engine/assistant/intent';
 import {
   ROW_SUM_KINDS,
@@ -66,7 +66,10 @@ const T = (
  * byCategory: groceries 8000; dining 8000−2000+2500 = 8500; shopping
  * 7000(pending)+4000+2600−1500 = 12100; entertainment 1000−3000 = −2000 → DROPPED.
  * total = 28600. Income (flows): 400000 only — the 'refund' leaf nets expenses.
- * Merchant 'amazon' (gross, POSTED, ≤ today): 4000+2600 = 6600 across 2.
+ * Merchant 'amazon' — O.7: the SAME basis as the shopping category above, so it
+ * reads 7000(pending)+4000+2600−1500 = 12100 across 4 rows and the two figures
+ * agree (every shopping row here is an Amazon row). It was 6600 across 2 while
+ * merchant_spend was POSTED-only and gross.
  * Largest global: Chipotle 8000. Largest at amazon: 4000.
  */
 const TXNS: TraceTxn[] = [
@@ -80,12 +83,12 @@ const TXNS: TraceTxn[] = [
   T('2026-06-08', 1500, 'refund', 'MISC REFUND'), // Income-group 'refund' leaf: NOT income, NOT spend
   T('2026-06-10', -10000, null, 'ONLINE TRANSFER', { isTransfer: true }),
   T('2026-06-11', -1000, 'groceries', 'KROGER #529', { isSplitParent: true }),
-  T('2026-06-12', -7000, 'shopping', 'AMZN Mktp US*PEND1', { status: 'PENDING' }), // in spend; not in merchant/largest
+  T('2026-06-12', -7000, 'shopping', 'AMZN Mktp US*PEND1', { status: 'PENDING' }), // in spend AND merchant (O.7); not in largest
   T('2026-06-20', -2500, 'dining', 'CHIPOTLE 1122'), // future vs today: in spend; not in largest/merchant
   T('2026-05-30', -9999, 'groceries', 'KROGER #529'), // out of range
   T('2026-06-03', -4000, 'shopping', 'AMZN Mktp US*1A2B3'),
   T('2026-06-06', -2600, 'shopping', 'AMZN Mktp US*9Z8Y7'),
-  T('2026-06-04', 1500, 'shopping', 'AMZN Mktp US*RET99'), // return: nets spend, excluded from gross merchant
+  T('2026-06-04', 1500, 'shopping', 'AMZN Mktp US*RET99'), // return: nets spend AND merchant (O.7)
 ];
 
 const INPUT = { transactions: TXNS, today: TODAY, meta: CATEGORY_BY_ID };
@@ -153,11 +156,11 @@ describe('C1 — every ROW-SUM intent reconciles on the fixture', () => {
     expect(t.groups?.map((g) => g.amountCents)).toEqual([12100, 8500, 8000]);
   });
 
-  it('merchant_spend (amazon): gross $66.00 across the two POSTED purchases', () => {
+  it('merchant_spend (amazon): net $121.00 — two posted, one pending, one returned', () => {
     const t = asRowSum({ kind: 'merchant_spend', timeframe: JUNE, merchant: 'amazon' });
-    expect(t.headlineCents).toBe(6600);
-    expect(t.rows.length).toBe(2);
-    expect(rowSum(t)).toBe(6600);
+    expect(t.headlineCents).toBe(12100);
+    expect(t.rows.length).toBe(4);
+    expect(rowSum(t)).toBe(12100);
     expect(t.reconciled).toBe(true);
   });
 
@@ -222,23 +225,43 @@ describe('C2 — spend_total reconciles hierarchically, net-refund category excl
   });
 });
 
-// ── Criterion 3: merchant_spend cites only POSTED purchases, gross ──────────
+// ── Criterion 3: merchant_spend cites the SAME rows the category figure does ──
+//
+// O.7 flipped this block deliberately. It used to assert POSTED-only and gross;
+// those were the executable statement of the divergence, so closing the gap has
+// to change them (per O.6: "closing it should flip those tests deliberately").
+// Every Amazon row here: −4000 and −2600 posted, −7000 pending, +1500 returned.
 
-describe('C3 — merchant_spend trace: POSTED purchases only, gross', () => {
+describe('C3 — merchant_spend trace: the aggregate basis, netted', () => {
   const t = asRowSum({ kind: 'merchant_spend', timeframe: JUNE, merchant: 'amazon' });
 
-  it('the PENDING amazon row is not cited (POSTED only)', () => {
-    expect(t.rows.some((r) => r.contributionCents === 7000)).toBe(false);
+  it('the PENDING amazon row IS cited — a committed charge has reduced what you can spend', () => {
+    expect(t.rows.some((r) => r.contributionCents === 7000)).toBe(true);
   });
 
-  it('the return is not cited or netted (gross by design), and the basis says so', () => {
-    expect(t.rows.some((r) => r.contributionCents < 0)).toBe(false);
-    expect(t.headlineCents).toBe(6600); // NOT 6600 − 1500
-    expect(t.basis.join(' ')).toMatch(/return|refund/i);
+  it('the return is cited as a negative contribution and nets the headline', () => {
+    expect(t.rows.some((r) => r.contributionCents === -1500)).toBe(true);
+    expect(t.headlineCents).toBe(12100); // 7000 + 4000 + 2600 − 1500
+    expect(t.basis.join(' ')).toMatch(/refund/i);
+    // The basis line must also declare the pending inclusion, or the reader has
+    // no way to know why this disagrees with a bank statement.
+    expect(t.basis.join(' ')).toMatch(/pending/i);
+  });
+
+  it('and it now equals the category figure over the same money (the point of O.7)', () => {
+    // Every `shopping` row in the fixture is an Amazon row, so these two answers
+    // are claims about identical transactions. Before O.7 they read $66.00 and
+    // $121.00 on the same page.
+    const byCategory = asRowSum({
+      kind: 'spend_by_category',
+      timeframe: JUNE,
+      target: { type: 'category', categoryId: 'shopping', label: 'Shopping' },
+    });
+    expect(t.headlineCents).toBe(byCategory.headlineCents);
   });
 
   it('matches merchantSpend’s own result exactly (lockstep, not re-derivation)', () => {
-    const res = merchantSpend(toPurchaseRows(TXNS), JUNE, 'amazon', TODAY);
+    const res = merchantSpend(toAskTxnRows(TXNS), JUNE, 'amazon', TODAY);
     expect(t.headlineCents).toBe(res.totalCents);
     expect(t.rows.length).toBe(res.count);
   });
@@ -275,7 +298,7 @@ describe('C5 — false-negative guard: drift is caught, doctored results are rep
   });
 
   it('a doctored merchant result → reconciled: false', () => {
-    const res = merchantSpend(toPurchaseRows(TXNS), JUNE, 'amazon', TODAY);
+    const res = merchantSpend(toAskTxnRows(TXNS), JUNE, 'amazon', TODAY);
     const t = traceMerchantSpend({ ...res, totalCents: res.totalCents + 1 });
     expect(t.reconciled).toBe(false);
   });
@@ -361,9 +384,9 @@ describe('F2 — expectedHeadlineCents: input drift between answer and tap fails
   it('the drift check also guards the reshape kinds (merchant_spend)', () => {
     const trace = traceAnswer(
       { kind: 'merchant_spend', timeframe: JUNE, merchant: 'amazon' },
-      { ...INPUT, expectedHeadlineCents: 6600 + 100 },
+      { ...INPUT, expectedHeadlineCents: 12100 + 100 },
     ) as RowSumTrace;
-    expect(trace.headlineCents).toBe(6600);
+    expect(trace.headlineCents).toBe(12100);
     expect(trace.reconciled).toBe(false);
   });
 });
@@ -469,7 +492,7 @@ describe('Seed grounding — every ROW-SUM intent reconciles on the demo dataset
 
   it('merchant_spend (costco) reconciles to merchantSpend', () => {
     const t = seedTrace({ kind: 'merchant_spend', timeframe: THIS_MONTH, merchant: 'costco' });
-    const res = merchantSpend(toPurchaseRows(seedTxns), THIS_MONTH, 'costco', SEED_TODAY);
+    const res = merchantSpend(toAskTxnRows(seedTxns), THIS_MONTH, 'costco', SEED_TODAY);
     expect(t.headlineCents).toBe(res.totalCents);
     expect(t.headlineCents).toBeGreaterThan(0);
     expect(t.reconciled).toBe(true);
@@ -487,7 +510,7 @@ describe('Seed grounding — every ROW-SUM intent reconciles on the demo dataset
 
   it('largest_purchases reconciles to the engine’s top row', () => {
     const t = seedTrace({ kind: 'largest_purchases', timeframe: THIS_MONTH, limit: 3 });
-    const top = largestPurchases(toPurchaseRows(seedTxns), THIS_MONTH, 3, SEED_TODAY)[0];
+    const top = largestPurchases(toAskTxnRows(seedTxns), THIS_MONTH, 3, SEED_TODAY)[0];
     expect(t.headlineCents).toBe(top.amountCents);
     expect(t.reconciled).toBe(true);
   });
