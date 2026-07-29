@@ -65,6 +65,25 @@ export interface TxnView {
    * only kind routed to a visible confirm affordance.
    */
   provenance: ProvenanceVerdict;
+  /**
+   * The inbox's suggestion ladder, mirrored per row (TASKS O.9d / DECISIONS
+   * #333): what the app thinks an UNFILED row is — our pipeline's verdict, else
+   * Plaid's persisted guess, else a proposal from the reader's own correction
+   * history — rendered as a labelled chip with a one-tap `✓ Confirm`. Null for
+   * a row that already has a category (it answers the question itself) and for
+   * rows the inbox's own gates skip. REQUIRED, not optional, for the same
+   * reason as `needsReview`: an optional field would read as "nothing to
+   * suggest" at exactly the caller that forgot to compute it.
+   *
+   * `reason` is the evidence sentence (history proposals only) — a proposal
+   * that cannot be checked is a guess wearing a confident face.
+   */
+  suggestion: {
+    kind: 'ruleset' | 'provider' | 'history';
+    categoryId: string;
+    categoryName: string;
+    reason: string | null;
+  } | null;
 }
 
 export type FlowType = 'all' | 'income' | 'expense' | 'transfer';

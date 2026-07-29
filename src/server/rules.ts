@@ -56,6 +56,14 @@ export function toRuleLike(
 
 /** The user's EXPLICIT stored rules ("Always" / register merchant-scope). */
 export async function loadExplicitUserRules(userId: string): Promise<RuleLike[]> {
+  // SHARED-DEMO FENCE (O.9d critic F4, same class as loadCorrectionInputs below):
+  // every anonymous visitor is the same `user-demo` row, so a rule one visitor
+  // mints with "Always" would steer the pipeline verdict — and now the register's
+  // one-tap suggestion chip — shown to the NEXT visitor. The demo seed writes no
+  // rules (it categorizes with rules=[]), so goldens are untouched; a demo
+  // visitor's "Always" still re-files the rows it matched at creation time, the
+  // rule just never speaks again on a later read.
+  if (isDemoUser(userId)) return [];
   const rules = await prisma.categorizationRule.findMany({ where: { userId } });
   const merchantIds = [...new Set(rules.map((r) => r.merchantId).filter((x): x is string => !!x))];
   const merchants = merchantIds.length

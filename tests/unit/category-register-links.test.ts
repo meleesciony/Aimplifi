@@ -158,6 +158,7 @@ const asTxnViews = (rows: Row[]): TxnView[] =>
       // register's UNFILTERED totals.
       needsReview: false,
       provenance: { kind: 'merchant-default', label: 'Known merchant', needsConfirm: false },
+      suggestion: null,
     }));
 
 /** What the register shows after following the href, as the page would build it. */

@@ -223,8 +223,10 @@ export function TransactionList({
   }
 
   /** Create the category, then hand it to the EXISTING two-step confirm
-   *  ("File as X? · once / always") — the register never files in one tap
-   *  (DECISIONS #121), so the write-in must not either. */
+   *  ("File as X? · once / always") — the register's PICKER never files in one
+   *  tap (DECISIONS #121; a menu tap selects, it doesn't assert), so the
+   *  write-in must not either. The O.9d suggestion chip is the deliberate
+   *  exception (#333): its proposition is rendered before the tap. */
   async function createAndChoose(t: TxnView) {
     const trimmed = newCatName.trim().replace(/\s+/g, ' '); // server-normalization parity
     if (!trimmed || pending) return;
@@ -302,6 +304,39 @@ export function TransactionList({
     try {
       await withDeadline(
         recategorize({ transactionId: t.id, categoryId: t.categoryId, scope: 'one' }),
+        FORM_ACTION_DEADLINE_MS,
+      );
+      window.location.reload();
+    } catch (e) {
+      if (e instanceof ActionDeadline) {
+        window.location.reload(); // write usually committed — re-sync (#164 rule)
+        return;
+      }
+      setConfirmError({ id: t.id, msg: e instanceof Error ? e.message : 'Could not confirm — nothing was changed.' });
+      setPending(false);
+    }
+  }
+
+  /**
+   * Confirm the suggestion chip (O.9d / DECISIONS #333): file the UNFILED row as
+   * the category the chip already states. One tap is licensed here — unlike the
+   * picker's two-step #121 rule — because the proposition (category + its origin
+   * label, plus the evidence sentence for history proposals) is rendered BEFORE
+   * the tap; the tap asserts it rather than selecting it. Same correction path
+   * as every other recategorization (`scope: 'one'` — confirming one charge is
+   * not "always for this merchant"), so the filing feeds the learner and the
+   * row reloads as user-set.
+   */
+  async function confirmSuggestion(t: TxnView) {
+    if (!t.suggestion || pending) return;
+    setConfirmError(null);
+    setPending(true);
+    try {
+      await withDeadline(
+        // expectUnfiled: the tap asserts "this row is still unfiled" — the server
+        // re-proves it in-transaction so a stale chip can never overwrite a
+        // category chosen since the page loaded (another tab, a partner, triage).
+        recategorize({ transactionId: t.id, categoryId: t.suggestion.categoryId, scope: 'one', expectUnfiled: true }),
         FORM_ACTION_DEADLINE_MS,
       );
       window.location.reload();
@@ -439,7 +474,48 @@ export function TransactionList({
                             Confirm
                           </button>
                         )}
+                        {/* Suggestion ladder chip (O.9d): what the app thinks this
+                            UNFILED row is, with its origin, + a one-tap confirm.
+                            Same labels as the inbox (triage-inbox.tsx) — the two
+                            surfaces answer one question from one ladder. */}
+                        {t.suggestion && (
+                          <>
+                            <Badge
+                              variant="outline"
+                              data-testid="register-suggestion"
+                              data-kind={t.suggestion.kind}
+                              className="shrink-0 text-[10px] text-muted-foreground"
+                            >
+                              {t.suggestion.categoryName}
+                              <span className="ml-1 font-normal">
+                                {t.suggestion.kind === 'provider'
+                                  ? '· Plaid’s guess'
+                                  : t.suggestion.kind === 'history'
+                                    ? '· from your history'
+                                    : '· suggested'}
+                              </span>
+                            </Badge>
+                            <button
+                              type="button"
+                              data-testid="register-suggestion-confirm"
+                              disabled={pending}
+                              onClick={() => confirmSuggestion(t)}
+                              aria-label={`File ${t.merchantName} as the suggested category ${t.suggestion.categoryName}`}
+                              className="tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium hover:bg-accent disabled:opacity-50"
+                            >
+                              ✓ Confirm
+                            </button>
+                          </>
+                        )}
                       </div>
+                      {t.suggestion?.reason && (
+                        <p
+                          className="mt-0.5 text-[11px] text-muted-foreground"
+                          data-testid="register-suggestion-reason"
+                        >
+                          {t.suggestion.reason}
+                        </p>
+                      )}
                       {confirmError?.id === t.id && (
                         <p
                           role="alert"

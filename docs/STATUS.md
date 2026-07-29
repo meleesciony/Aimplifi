@@ -43,10 +43,23 @@ without a session id and every action goes through `requireUserId()`. It was my 
 Gate: tsc + eslint clean, `next build` clean, **4699 unit / 294 files**, VERIFY GREEN. Both locks
 mutation-proven (removing the proposal fails 4; disabling the demo fence fails 1). No schema change.
 
-**OPEN, recorded as TASKS O.9d–f:** the REGISTER still offers no proposal (only the triage inbox
-does), the slice has had **no hostile-critic pass** (Fable, money + shared-account lenses — the four
-#161 regressions caught in-flight are evidence this area punishes confidence), and there is **no
-e2e** driving a reader through seeing and confirming a proposal.
+**O.9d SHIPPED 2026-07-29 (DECISIONS #333), owner re-reported the register gap the same day with
+screenshots.** The register now carries the inbox's whole suggestion ladder per row — pipeline
+verdict `· suggested`, else Plaid's guess `· Plaid's guess` (never on aggregate rows), else the
+history proposal `· from your history` with its evidence sentence — each with a one-tap `✓ Confirm`
+that files through an `expectUnfiled` compare-and-set (#121 scoped to the picker). A fresh-context
+critic FAILed the first cut with two P1s (cross-surface aggregate/provider contradiction; stale-chip
+overwrite of a concurrent decision); both fixed and locked in
+`tests/unit/register-suggestion{,-server}.test.ts`. `loadExplicitUserRules` gained the #332-class
+demo fence.
+
+**OPEN, recorded as TASKS O.9e–f:** the O.9a–c slices have had **no hostile-critic pass** (O.9d had
+its own, above — a–c still owe the Fable money + shared-account pass), and there is **no e2e**
+driving a reader through seeing and confirming a proposal. **O.9d residuals:** suggestion cost is
+O(unfiledRows × corrections) per register load — fine at owner scale, collapsible by precomputing
+per-correction keys if a CSV power user ever hits it; register chips are per-row while inbox cards
+are per-group (unanimity), so a mixed group can honestly show "you decide" on the card beside
+chipped rows — different questions (file N vs file 1), never two one-tap categories for one row.
 
 ## ✅ RESOLVED 2026-07-27 — the e2e flake that blocked `verify.sh` (was an OPEN BLOCKER here)
 

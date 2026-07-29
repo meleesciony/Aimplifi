@@ -13,6 +13,13 @@ import { summarizeRecurring } from '@/lib/engine/recurring/summary';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { type PredictionSource, describeProvenance } from '@/lib/engine/categorize/provenance';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { categorize } from '@/lib/engine/categorize/pipeline';
+import { proposalReason } from '@/lib/engine/categorize/propose';
+import { registerSuggestionFor } from '@/lib/engine/categorize/register-suggestion';
+import { loadCorrectionInputs, loadUserRules } from '@/server/rules';
+import { getThresholdTuning } from '@/server/tuning';
+import { getCategoryMeta } from '@/server/category-meta';
+import { cents, formatCents } from '@/lib/money';
 import { type NetWorthSeriesPoint, netWorthSeries } from '@/lib/engine/networth/series';
 import {
   type AmbiguousReconciliationGroup,
@@ -156,11 +163,62 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   // the 1:1 record of HOW each category was decided. One query, keyed by
   // transactionId; a row with no prediction (user-dictated / pre-#190 history)
   // resolves to an honest 'user-set' / 'not-recorded' — never a guessed origin.
-  const predictions = await prisma.categoryPrediction.findMany({
-    where: { userId },
-    select: { transactionId: true, source: true, predictedCategoryId: true, labeledAt: true },
-  });
+  //
+  // Rules/tuning/meta/corrections feed the per-row suggestion ladder (O.9d) —
+  // the SAME loaders getTriageGroups uses, so the register and the inbox can
+  // never answer the "what is this row?" question from different inputs.
+  // `loadCorrectionInputs` is demo-fenced at its own definition (#332).
+  const [predictions, userRules, tuning, meta, corrections] = await Promise.all([
+    prisma.categoryPrediction.findMany({
+      where: { userId },
+      select: { transactionId: true, source: true, predictedCategoryId: true, labeledAt: true },
+    }),
+    loadUserRules(userId),
+    getThresholdTuning(userId),
+    getCategoryMeta(userId),
+    loadCorrectionInputs(userId),
+  ]);
   const predByTxn = new Map(predictions.map((p) => [p.transactionId, p]));
+
+  /** The O.9d chip for one row, or null — see registerSuggestionFor for the ladder. */
+  function suggestionFor(t: (typeof txns)[number]): TxnView['suggestion'] {
+    // Cost gate only — the engine re-checks both conditions. A filed row never
+    // needs the pipeline run, and the full register can hold thousands of rows.
+    if ((t.categoryId ?? 'uncategorized') !== 'uncategorized') return null;
+    if (t.isTransfer && !t.reviewPinned) return null;
+    const out = categorize(
+      { rawDescriptor: t.rawDescriptor, amountCents: t.amountCents, date: t.date, accountId: t.accountId },
+      userRules,
+      { flaggedBps: tuning.flaggedBps },
+    );
+    const s = registerSuggestionFor(
+      {
+        currentCategoryId: t.categoryId ?? 'uncategorized',
+        isTransfer: t.isTransfer,
+        reviewPinned: t.reviewPinned,
+        pipelineCategoryId: out.categoryId,
+        providerCategoryId: t.providerCategoryId,
+        txn: { rawDescriptor: t.rawDescriptor, amountCents: t.amountCents },
+      },
+      corrections,
+    );
+    if (s === null) return null;
+    const label = categoryName(s.categoryId, meta);
+    return {
+      kind: s.kind,
+      categoryId: s.categoryId,
+      categoryName: label,
+      reason: s.proposal
+        ? proposalReason(s.proposal, {
+            categoryLabel: label,
+            amount:
+              s.proposal.matchedAmountCents === null
+                ? null
+                : formatCents(cents(Math.abs(s.proposal.matchedAmountCents))),
+          })
+        : null,
+    };
+  }
 
   const rows: TxnView[] = txns.map((t) => ({
     id: t.id,
@@ -195,6 +253,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
       predictedCategoryId: predByTxn.get(t.id)?.predictedCategoryId ?? null,
       currentCategoryId: t.categoryId ?? null,
     }),
+    suggestion: suggestionFor(t),
   }));
 
   // Merchant Pattern Lens (DECISIONS #250): computed from the viewer's FULL row

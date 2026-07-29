@@ -105,6 +105,17 @@ export async function applyCategory(input: {
   categoryId: string;
   /** "Always" → durable merchant rule, with provenance back to the correction. */
   always?: boolean;
+  /**
+   * The register's one-tap suggestion confirm (O.9d) asserts a PREMISE — "this
+   * row is still unfiled" — not a choice, so its write must re-prove the premise
+   * inside the transaction: between render and tap the row can be filed by the
+   * same user's inbox tab, a household partner, or (shared demo) another
+   * visitor, and silently re-filing THEIR decision to a stale chip is the
+   * multi-actor overwrite class (critic F2). Deliberate pickers (the two-step
+   * menu) omit this — there the user chose a category on purpose, whatever the
+   * row held.
+   */
+  expectUnfiled?: boolean;
 }): Promise<ApplyResult> {
   const userId = await requireUserId();
   await ensureCategories(); // new subcategory ids need a Category row (FK) (#65)
@@ -123,6 +134,12 @@ export async function applyCategory(input: {
       where: { id: input.transactionId, account: { userId } },
     });
     if (!fresh) throw new Error('Transaction not found');
+    // Compare-and-set on the confirm's own premise (O.9d, critic F2): a chip
+    // rendered for an unfiled row may not overwrite a category someone has
+    // since chosen. Fails loud; the register shows the message inline.
+    if (input.expectUnfiled && fresh.categoryId !== null && fresh.categoryId !== 'uncategorized') {
+      throw new Error('This row was categorized since the page loaded — reload to see the latest.');
+    }
     const created = await tx.correction.create({
       data: {
         userId,
@@ -482,6 +499,8 @@ export async function recategorize(input: {
   transactionId: string;
   categoryId: string;
   scope: 'one' | 'merchant';
+  /** One-tap suggestion confirms only (O.9d) — see applyCategory.expectUnfiled. */
+  expectUnfiled?: boolean;
 }): Promise<ApplyResult> {
   const userId = await requireUserId();
   await assertOwnedCategory(userId, input.categoryId); // system id or a custom this user owns (#111)
@@ -494,7 +513,11 @@ export async function recategorize(input: {
 
   if (!merchantWide) {
     // Single row: reuse the triage single-apply path (correction + update, no rule).
-    return applyCategory({ transactionId: input.transactionId, categoryId: input.categoryId });
+    return applyCategory({
+      transactionId: input.transactionId,
+      categoryId: input.categoryId,
+      expectUnfiled: input.expectUnfiled,
+    });
   }
 
   // Target fetch INSIDE the serializable tx (cycle-2 P1: an outside read let a
