@@ -2,6 +2,52 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-29 — O.9: categorization learns through notation drift, and proposes where it may not file (DECISIONS #331/#332)
+
+Owner, live: *"i've already inputed many and the system still doesn't recognize that the others are
+the same, perhaps by small differences in how it's notated … for venmo and other checks that are
+repetitive in value, there should be a guess at category and ask for confirmation … It's very dumb
+right now."*
+
+**The root cause was reproduced, not theorised.** Run against the real engines before any code
+changed: three visits to one restaurant (`SQ *JOES PIZZA #221 ATLANTA GA`, `#443`, and the same row
+with no store number) are **3 distinct descriptor signatures and 1 merchant canonical**, so three
+corrections derived **zero** learned rules. Identical shape for a utility whose REF number moves and
+a gym whose auth code moves. `computeDescriptorSignature` keeps every identity number on purpose;
+`cleanDescriptor` — the collapse the register's own "Always" already rules on — strips store
+numbers, 4+ digit runs and a CITY ST suffix. The learner only had the stricter of the two keys.
+
+**Shipped (all three commits pushed):**
+1. **`24f9f0f` — the canonical learning tier** at priority 40, under the same evidence bar (>=2
+   distinct transactions, zero conflicts, #44 sign guard at derive AND match time, AI badge, undo
+   still automatic). Guard is a CONJUNCTION of two structural tests, no word list:
+   `hasDistinguishingToken(canonical)` plus `canonical === cleanDescriptor(raw)`, so a label the
+   KNOWN_MERCHANTS table INVENTED ('Airport Dining' covers a Starbucks, a Peet's and a steakhouse)
+   refuses itself with no hand-audit of 300+ patterns.
+2. **`d50ced7` — the proposal engine** (`engine/categorize/propose.ts`) for the rows a rule may
+   never be built on. Three bases, most specific first: payee tokens, same-channel identical amount
+   seen twice, looser canonical. Unanimity required on every basis; the amount basis additionally
+   refuses when the payees contradict.
+3. **`1c47633` — the inbox tier + the demo fence.** Labelled "· from your history" badge, evidence
+   sentence, `✓ Confirm` button. NOT confident by construction.
+
+**Found while building, and worth more than the feature:** `loadCorrectionInputs` had **no
+shared-demo fence**, so learned rules and personalized hints have been reading one anonymous
+visitor's filings on the next visitor's behalf since #161/#207 — and the proposal would have
+rendered it in the first person. Fenced at the single loader all three features read.
+
+**Also verified, NOT a defect:** `getTriageGroups()` called with no argument returns EVERY user's
+rows, because Prisma drops an `undefined` filter. Unreachable in production — the page redirects
+without a session id and every action goes through `requireUserId()`. It was my test's bug.
+
+Gate: tsc + eslint clean, `next build` clean, **4699 unit / 294 files**, VERIFY GREEN. Both locks
+mutation-proven (removing the proposal fails 4; disabling the demo fence fails 1). No schema change.
+
+**OPEN, recorded as TASKS O.9d–f:** the REGISTER still offers no proposal (only the triage inbox
+does), the slice has had **no hostile-critic pass** (Fable, money + shared-account lenses — the four
+#161 regressions caught in-flight are evidence this area punishes confidence), and there is **no
+e2e** driving a reader through seeing and confirming a proposal.
+
 ## ✅ RESOLVED 2026-07-27 — the e2e flake that blocked `verify.sh` (was an OPEN BLOCKER here)
 
 **Fixed by O.3 (DECISIONS #322) and re-confirmed by execution during O.7: `VERIFY_E2E=1 bash scripts/verify.sh`
