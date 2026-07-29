@@ -246,10 +246,15 @@ describe('proposalReason — states the evidence, formats no money', () => {
     matchedAmountCents: -145000,
   };
 
-  it('names the amount it matched on, using the caller-formatted string', () => {
+  it('names the amount it matched on, as a FILING claim, never a register claim (O.9e P1-2)', () => {
+    // "Your last 3 Check rows were Rent" would assert an ordering over the
+    // REGISTER, which this engine never reads — a same-amount row the pipeline
+    // auto-filed (no Correction) is invisible here, so "last" could be false
+    // about rows the reader can see. "You filed 3 …" states what was measured.
     expect(proposalReason(base, { categoryLabel: 'Rent', amount: '$1,450.00' })).toBe(
-      'Your last 3 Check rows for $1,450.00 were Rent.',
+      'You filed 3 Check rows for $1,450.00 as Rent.',
     );
+    expect(proposalReason(base, { categoryLabel: 'Rent', amount: '$1,450.00' })).not.toContain('last');
   });
 
   it('names the payee and pluralizes honestly', () => {

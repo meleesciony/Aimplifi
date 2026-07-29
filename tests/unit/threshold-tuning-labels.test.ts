@@ -7,7 +7,9 @@
  * routing would drift from the global thresholds and the golden e2e/demo
  * behavior would change. Only labels a user actually made (filing/correcting,
  * which stamp labeledAt) count; undo retracts the label AND the stamp,
- * symmetric with the #169 un-label invariant.
+ * symmetric with the #169 un-label invariant. And for the SHARED demo row the
+ * bar is total (O.9e): even visitor-made labels never tune, because every
+ * anonymous visitor is the same user — see the fence in server/tuning.ts.
  *
  * Drives the REAL applyCategory + undoCorrections server actions and the REAL
  * getThresholdTuning read against throwaway data (never the seeded demo user);
@@ -21,6 +23,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
+import { DEMO_USER_ID } from '@/lib/demo-user';
 import { AUTO_FLAGGED_BPS } from '@/lib/engine/categorize/pipeline';
 import { getThresholdTuning } from '@/server/tuning';
 import { applyCategory, undoCorrections } from '@/server/triage-actions';
@@ -134,5 +137,40 @@ describe('threshold tuning reads only user-labeled predictions (DECISIONS #190)'
     expect(tuning.flaggedBps).toBe(6700);
     expect(tuning.reason).toBe('tuned');
     await prisma.categoryPrediction.deleteMany({ where: { userId: USER } });
+  });
+
+  it('the SHARED DEMO never tunes, even from live visitor-style labels (O.9e fence)', async () => {
+    // The exact plant the previous test proved ACTIVATES tuning for a real user
+    // (labeledAt stamped — what a live visitor's filing writes through
+    // applyCategory), placed on the shared `user-demo` row. Every anonymous
+    // visitor is that same row, so without the fence one visitor's filings shift
+    // the flagged boundary the NEXT visitor's suggestions are computed with —
+    // the #332 class the learned-rule and proposal reads were already fenced
+    // for. Fail-old: delete the isDemoUser fence in server/tuning.ts and this
+    // returns 'tuned' @ 6700, exactly as the real-user test above does.
+    const base = Date.parse('2026-06-01T00:00:00Z');
+    const planted = Array.from({ length: 20 }, (_, i) => `tunefence-${stamp}-${i}`);
+    await prisma.categoryPrediction.createMany({
+      data: planted.map((transactionId, i) => ({
+        userId: DEMO_USER_ID,
+        transactionId,
+        predictedCategoryId: 'shopping',
+        confidenceBps: 9000,
+        actualCategoryId: i < 2 ? 'dining' : 'shopping',
+        labeledAt: new Date(base + i * 60_000),
+      })),
+    });
+    try {
+      const tuning = await getThresholdTuning(DEMO_USER_ID);
+      expect(tuning.flaggedBps).toBe(AUTO_FLAGGED_BPS);
+      expect(tuning.offsetBps).toBe(0);
+      expect(tuning.sampleCount).toBe(0); // strangers' labels never counted
+      expect(tuning.reason).toBe('insufficient-samples');
+    } finally {
+      // Remove ONLY the planted rows — the seeded demo predictions stay untouched.
+      await prisma.categoryPrediction.deleteMany({
+        where: { userId: DEMO_USER_ID, transactionId: { in: planted } },
+      });
+    }
   });
 });

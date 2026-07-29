@@ -2,6 +2,75 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ CRITIC PASS 2026-07-29 — O.9e: the Fable pass on O.9a–c, two P1s found and fixed (DECISIONS #334)
+
+Fresh-context hostile-critic pass (money/data-integrity + shared-account/privacy lenses,
+docs/CRITIC_RUBRIC.md) on the canonical learning tier, the proposal engine, and the demo fence.
+Verdict: **no P0; two P1s, both fixed and locked this session; one new P2 recorded open.**
+
+**P1-1 — the shared demo was still learning, through the one read O.9c never fenced.** O.9c's claim
+was "the shared demo stops learning", and its fence covered corrections (`loadCorrectionInputs`) and
+explicit rules (`loadExplicitUserRules`). But threshold tuning is a THIRD correction-era learning
+read, and it was open: `getThresholdTuning`'s `labeledAt: { not: null }` gate stops only SEED-time
+labels, while a live demo visitor's filing stamps `labeledAt` through the triage writers
+(triage-actions.ts:176/275/380/560) like any user's. Every anonymous visitor is the same `user-demo`
+row, so strangers' filings would accumulate past `MIN_TUNING_SAMPLES = 20` and shift the flagged
+boundary (clamped ±500bps) that the NEXT visitor's pipeline verdict — and therefore the inbox's
+suggestions and the register's new O.9d chips — are computed with. Not a content leak (a threshold,
+not a sentence), but exactly the #226/#243 class: the demo learning from what a visitor brings.
+Fixed at the single loader every consumer goes through (ingest, backfill, triage, register, trust,
+settings — fence-by-construction); a demo visitor's filing still files, it never becomes tuning
+evidence; demo seed derives nothing anyway, so goldens are byte-identical. Lock in
+`threshold-tuning-labels.test.ts` is **mutation-proven this session**: deleting the fence line makes
+the new test fail (the identical 20-label plant that the file's own real-user test proves activates
+tuning at 6700) — real fail-old output, not asserted.
+
+**P1-2 — the amount-basis evidence sentence claimed the REGISTER when it had only measured the
+CORRECTIONS.** "Your last 3 Check rows for $1,450.00 were Rent." is a claim about an ordering over
+the register — and the proposal engine never reads the register. A same-amount row the pipeline
+auto-filed (no Correction) or one sitting unfiled is invisible to `liveIntents`, so "your last N"
+could be false about rows the reader can see — on the exact surface whose whole safety argument is
+"the reader judges the stated evidence" (verbatim-value-not-verbatim-meaning class). Rewritten as
+the filing claim that states exactly what was measured: "You filed 3 Check rows for $1,450.00 as
+Rent." Locked with a `not.toContain('last')` assertion beside the golden string. The payee and
+merchant sentences were already filing claims and are untouched.
+
+**P2 (open, new) — the payee proposal's `subject` renders the SORTED identity key, not the name.**
+`payeeKey` sorts+dedupes tokens so a bank reordering "MARY ADAMS" still matches — correct for
+matching — but `subject` carries that sorted key into the sentence: "You filed 2 earlier payments to
+ADAMS MARY as …". Fix when touched: carry a descriptor-order display form beside the sorted key.
+(The O(unfiledRows × corrections) register cost was already recorded as an O.9d residual — still
+open, unchanged.)
+
+**Attacks run and REFUTED, recorded so they are not re-run:** (1) register/inbox scope parity holds —
+I suspected the register offered chips on rows the inbox refuses (non-spending accounts, non-USD,
+reconciliation-excluded copies), but `getTransactions` itself carries the identical
+`SPENDING_ACCOUNT_TYPES` + USD + `getReconciliationTxnKeep` scope (transactions.ts:135,152), so the
+module's "a row the inbox refuses to ask about is not asked about here either" claim is TRUE. (2) The
+inbox's group confirm cannot overwrite a concurrent actor's decision — `fileMerchantGroup` re-selects
+its targets fresh inside a SERIALIZABLE tx, so a row filed elsewhere drops out rather than being
+re-filed (the register needed `expectUnfiled` only because `recategorize` targets one row by id).
+(3) The landlord/contractor amount-coincidence attack is already dead in the engine and locked
+(propose.test.ts "a CONTRADICTING payee kills the amount basis"); match-time sign guard on learned
+canonical rules verified live in pipeline.ts:208 (`learnedSignOk`), not just claimed in the header.
+
+Scorecard (≥8 requires evidence): financial correctness 8 (sign guards at derive AND match time
+verified in source; amount matching is signed integer cents; engines compute no new money figure —
+P1-2 was copy, not math). Security 8 (applyCategory ownership re-proved inside the serializable tx;
+every learning read userId-scoped and now demo-fenced). UX clarity 8 (every chip names its origin;
+CAS fails loud with a remedy sentence). Mobile/a11y 7 (aria-label + tap-target present; not
+re-measured on-device — O.9f owes the browser pass). Performance 7 (recorded O(N×M) residual). Code
+quality 9 (structural refusals, no word lists; the learn/propose asymmetry argued in source).
+Edge-case coverage 9 (80 targeted tests re-run green this session; fence fail-old reproduced, not
+delegated).
+
+Gate: real output this session — targeted suites 80/80, fence mutation FAIL then 4/4 restored,
+`npx tsc --noEmit` clean, `npx eslint .` clean, full `VERIFY_E2E=1 bash scripts/verify.sh`:
+**4718 unit / 296 files**, e2e **213/214** — the one failure a 60s click timeout in
+`phase4-features.spec.ts` (goals, untouched by this slice), which passed **6/6 in 3.4s re-run
+alone** — the documented load-induced local flake class (O.3 lesson; CI arbitrates). Remaining open
+in the wave: **O.9f** (the proposal e2e).
+
 ## ✅ BUILT 2026-07-29 — O.9: categorization learns through notation drift, and proposes where it may not file (DECISIONS #331/#332)
 
 Owner, live: *"i've already inputed many and the system still doesn't recognize that the others are

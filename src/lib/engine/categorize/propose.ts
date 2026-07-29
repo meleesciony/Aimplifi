@@ -112,9 +112,15 @@ export function proposalReason(
         ? `You filed an earlier payment to ${proposal.subject} as ${opts.categoryLabel}.`
         : `You filed ${n} earlier payments to ${proposal.subject} as ${opts.categoryLabel}.`;
     case 'amount':
+      // A FILING claim, deliberately — never "your last N rows" (O.9e critic
+      // P1-2). The evidence set is the reader's CORRECTIONS; rows the pipeline
+      // auto-filed or that sit unfiled at the same amount are invisible to this
+      // engine, so a sentence about the register's "last N" rows could be false
+      // about rows the reader can see. "You filed N…" states exactly what was
+      // measured and nothing more.
       return opts.amount === null
         ? `You filed ${times} for this same amount as ${opts.categoryLabel}.`
-        : `Your last ${n} ${proposal.subject} rows for ${opts.amount} were ${opts.categoryLabel}.`;
+        : `You filed ${n} ${proposal.subject} rows for ${opts.amount} as ${opts.categoryLabel}.`;
     case 'merchant':
       return n === 1
         ? `You filed an earlier ${proposal.subject} row as ${opts.categoryLabel}.`
