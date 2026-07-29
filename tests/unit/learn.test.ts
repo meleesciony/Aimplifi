@@ -125,21 +125,38 @@ describe('deriveLearnedRules — the centerpiece', () => {
       corr('a', 'dining', 'JOES CORNER DELI', -1200),
       corr('b', 'dining', 'JOES CORNER DELI', -1500),
     ]);
-    expect(rules).toHaveLength(1);
-    expect(rules[0]).toMatchObject({ merchantCanonical: null, descriptorSignature: 'JOES CORNER DELI', categoryId: 'dining' });
+    // Since #331 a repeating descriptor earns BOTH keys — the signature and the
+    // merchant canonical it cleans to. The signature rule is unchanged:
+    const sig = rules.filter((r) => r.descriptorSignature !== null);
+    expect(sig).toHaveLength(1);
+    expect(sig[0]).toMatchObject({ merchantCanonical: null, descriptorSignature: 'JOES CORNER DELI', categoryId: 'dining' });
     expect(categorize(txn({ rawDescriptor: 'JOES CORNER DELI', amountCents: -900 }), rules).categoryId).toBe('dining');
-    // …but a DIFFERENT descriptor is never blanketed by it
+    // …but a DIFFERENT descriptor is never blanketed by it — still true under
+    // the canonical tier, because 'Joes Other Shop' is a different canonical.
     expect(categorize(txn({ rawDescriptor: 'JOES OTHER SHOP', amountCents: -900 }), rules).categoryId).not.toBe('dining');
   });
 
-  it('does NOT merge two DIFFERENT-numbered occurrences (conservative)', () => {
-    // distinct store/txn numbers → distinct signatures → neither reaches the
-    // threshold → nothing learned (the safe direction; explicit "Always" is the
-    // canonical-wide tool).
-    expect(deriveLearnedRules([
+  it('DOES merge two store-numbered occurrences of ONE store (#331 reversal)', () => {
+    // POLICY REVERSAL, recorded. This test previously asserted `[]` on the
+    // reasoning that distinct store numbers give distinct signatures, so
+    // "nothing learned" was the safe direction and explicit "Always" was the
+    // canonical-wide tool. The owner reported the consequence from the live
+    // app: "i've already inputed many and the system still doesn't recognize
+    // that the others are the same, perhaps by small differences in how it's
+    // notated." Two rows of ONE store differing only by store number ARE the
+    // same counterparty, and refusing to learn them is the defect, not the
+    // guard. The canonical tier now merges them (#331).
+    const rules = deriveLearnedRules([
       corr('a', 'shopping', 'SQ *POPUP MARKET 0042', -3000),
       corr('b', 'shopping', 'SQ *POPUP MARKET 0087', -3200),
-    ])).toEqual([]);
+    ]);
+    const canon = rules.filter((r) => r.merchantCanonical === 'Popup Market');
+    expect(canon).toHaveLength(1);
+    expect(canon[0].categoryId).toBe('shopping');
+    // the third store number files without another correction…
+    expect(categorize(txn({ rawDescriptor: 'SQ *POPUP MARKET 0091', amountCents: -2800 }), rules).categoryId).toBe('shopping');
+    // …while a genuinely DIFFERENT store is untouched.
+    expect(categorize(txn({ rawDescriptor: 'SQ *CORNER MARKET 0042', amountCents: -2800 }), rules).matchedRuleId).toBeNull();
   });
 
   it('CANARY: one "Zelle → rent" never files other Zelles as rent', () => {
@@ -208,8 +225,10 @@ describe('deriveLearnedRules — the centerpiece', () => {
       corr('a', 'groceries', 'FOODPLACE LOCAL', -3000), // seq 1 — a's net intent is groceries
       corr('b', 'groceries', 'FOODPLACE LOCAL', -3200), // seq 2
     ]);
-    expect(rules).toHaveLength(1);
-    expect(rules[0].categoryId).toBe('groceries');
+    // Both keys learn (#331), and the superseded 'dining' intent survives in
+    // neither of them — that is the assertion under test.
+    expect(rules).toHaveLength(2);
+    expect(rules.map((r) => r.categoryId)).toEqual(['groceries', 'groceries']);
   });
 
   it('exactly LEARN_THRESHOLD is the boundary', () => {
