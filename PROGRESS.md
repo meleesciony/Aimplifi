@@ -1323,7 +1323,7 @@ stripBankNoise, TST*(Toast)→dining + PADDLE.NET→software processor priors
 (8000 bps, AI badge), ~70 KNOWN + ~25 generic additions, new aggregates
 (Cash App/Apple Cash/PayPal INST XFER/CHECK forms), issuer card-pmt ACH→transfer,
 income split into paycheck/interest-income/govt-benefits/tax-refund, fixed the
--alternation inflection bug class (WENDYS/WEGMANS/PLUMBING/VETERINARY/...).
+\b-alternation inflection bug class (WENDYS/WEGMANS/PLUMBING/VETERINARY/...).
 Follow-through: backfill + categorize-assist sign guards → Income GROUP;
 recurring SUBSCRIPTION_CATEGORIES + insights keys extended; LLM assist wired
 into Plaid sync (two-pass; parity with SimpleFIN/CSV/manual). Eval rebuilt as

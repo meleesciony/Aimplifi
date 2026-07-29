@@ -2,6 +2,32 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ O.12d 2026-07-29 — the provider-category backfill is BUILT (DECISIONS #337); production run PENDING
+
+The repair for the re-diagnosis below: `PlaidProvider.backfillProviderCategories` fetches the
+null rows' exact date window via date-ranged `/transactions/get` (which returns already-delivered
+rows, unlike `/sync`), plans writes with a pure exact-match-or-counted-skip planner
+(`src/lib/providers/plaid-backfill.ts`), and fills ONLY the two provider-guess columns via
+per-row compare-and-set (ownership + both-null + the matched `amountCents` in the WHERE), so
+verdicts are untouched by construction and re-runs are no-ops. The guess is `persistedProviderGuess`
+— extracted from `prepareIngestedTransaction`, so ingest and backfill cannot drift, F4 sign guard
+included. Trigger is ON-DEMAND only: `/api/repair/plaid-provider-categories` (CRON_SECRET bearer,
+deliberately not in vercel.json crons — the defect population is closed). Demo fenced in the core.
+
+**Two fresh-context critics, both FAIL, all P0/P1 fixed + fail-old locked** (DECISIONS #337,
+REGRESSION_LEDGER ×2): the route shipped UNREACHABLE behind the auth middleware matcher (P0,
+executed repro — fixed, `middleware-matcher.test.ts`); a raw NUL byte in plaid.ts survived the
+whole verify gate while making ripgrep treat the file as BINARY (P1, found independently by both
+— fixed byte-exactly, and `source-hygiene.test.ts` now gates every control byte in
+src/tests/scripts, catching a pre-existing raw-0x01 pair in `server/coach.ts` on its first run).
+
+**OPEN until the production run** (next session step, task #4): invoke the route against
+production with the live bearer, then re-run
+`scripts/audit-probes/o12-what-the-inbox-actually-holds.ts` and record the before/after of the
+82-silent-groups table below. PFC availability on `/transactions/get` is UNVERIFIED against live
+Plaid until that run — all-matches-in-`noGuess` is the tell that the dashboard API version is not
+returning PFC on /get (failure direction: visible no-op, never a wrong write).
+
 ## 🔎 RE-DIAGNOSIS 2026-07-29 — Wave O.12 was scoped on a set the inbox never renders (commit `1716766`)
 
 The owner's report (*"I don't see the categorization proposals"*) was diagnosed a second time, because
@@ -17,11 +43,12 @@ never corrected before, **0** blocked by O.9a's ≥2-correction bar, **0** block
 
 **Root cause — L.12's provider-guess tier is dead on his data.** `providerCategoryId` is null on 1,279 of
 his 1,312 Plaid spending rows; the 33 that carry one are all dated 2026-07-23 or later, and they map to
-sensible leaves, so the mapping is not the defect. L.12 shipped in `57e3576` on 2026-07-24, the column has
-exactly one writer (`plaid.ts:1163`), and no backfill was ever written — and `/transactions/sync` never
-re-sends a delivered row, so the nulls are permanent. 97 of the 173 queued rows are Plaid rows older than
-that deploy, which is why the tier that exists precisely for never-before-filed merchants is silent on all
-of them.
+sensible leaves, so the mapping is not the defect. L.12 shipped in `57e3576` on 2026-07-24, the column
+(at diagnosis time) had exactly one writer (`plaid.ts:1163`) and no backfill — and `/transactions/sync`
+never re-sends a delivered row, so the nulls were permanent without a repair. 97 of the 173 queued rows
+are Plaid rows older than that deploy, which is why the tier that exists precisely for
+never-before-filed merchants was silent on all of them. **Repaired by O.12d (§ above, 2026-07-29): the
+backfill is now the deliberate second writer of these two columns.**
 
 **Task-queue effect:** `O.12a` (exclude investment rows) and `O.12b` (recency-weight the learner) are
 **RETRACTED with evidence** — neither describes a live defect. Replaced by `O.12d` (backfill the column;

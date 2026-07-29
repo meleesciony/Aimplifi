@@ -108,6 +108,13 @@ rule for legacy rows that never re-synced after the column shipped.
   rows are deleted, the cursor is persisted on the `PlaidItem`.
 - **Sign convention flip** (tested): Plaid amounts are outflow-POSITIVE; Aimplifi
   stores outflow-NEGATIVE — `plaidAmountToCents` negates on ingest.
+- **`POST /transactions/get`** (date-ranged) is called by exactly ONE path: the
+  on-demand O.12d repair (`PlaidProvider.backfillProviderCategories`, invoked via
+  `/api/repair/plaid-provider-categories` with the CRON_SECRET bearer — never
+  scheduled). `/transactions/sync` never re-sends a delivered row, so rows ingested
+  before the provider-guess columns existed (L.12, 2026-07-24) carry permanent
+  nulls; `/transactions/get` DOES return delivered rows, and the repair fills the
+  two provider-guess columns — null-only, exact-match-or-skip, verdicts untouched.
 - Re-runs until `has_more` is false. After ingest, `refreshTransferFlags`
   re-derives `isTransfer` across the user's full set (descriptor + pair matching),
   then `refreshRecurringForUser` re-detects recurring series + scheduled

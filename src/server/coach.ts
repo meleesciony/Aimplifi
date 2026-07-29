@@ -331,7 +331,7 @@ export async function getCoachData(
   const floorLines = selectReview(reviewCandidates, null);
   const reviewPersonalized =
     reviewOrder !== null &&
-    reviewSelected.map((c) => c.line).join('') !== floorLines.map((c) => c.line).join('');
+    reviewSelected.map((c) => c.line).join('\u0001') !== floorLines.map((c) => c.line).join('\u0001');
 
   return {
     today,

@@ -62,7 +62,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
             'Transactions, statements, balances, and scheduled/recurring items — the data the cash-needed, budgeting, and forecasting engines run on.',
             'Provider access tokens (Plaid or SimpleFIN), AES-256-GCM encrypted at rest. Tokens are never logged and never sent to your browser.',
             'Your settings: email, a salted password hash (for email sign-in), and your planning assumptions (wage, return and withdrawal rates, money dials).',
-            'An audit log of sensitive actions — sign-in, data exports, goal/budget/rule changes, sync runs, bank link/unlink, and account deletion — so account activity is accountable.',
+            'An audit log of sensitive actions — sign-in, data exports, goal/budget/rule changes, sync runs, bank link/unlink, operator-run data repairs (counts only), and account deletion — so account activity is accountable.',
           ],
         },
         'All money is stored as integer cents, and all balances are stored as positive numbers; the account type determines whether a balance counts as an asset or a liability.',

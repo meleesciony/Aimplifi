@@ -8,7 +8,8 @@
  *
  *   IMPLEMENTED but UNVERIFIED (no sandbox credentials in this build env): the
  *   network orchestration below — /link/token/create, /item/public_token/
- *   exchange, /accounts/get, /transactions/sync (cursor loop), /liabilities/get,
+ *   exchange, /accounts/get, /transactions/sync (cursor loop), /transactions/get
+ *   (date-ranged, ONLY the O.12d provider-category backfill), /liabilities/get,
  *   /item/remove. It is real code, not a stub, but has never run against a live
  *   Plaid sandbox. Run docs/PLAID_WALKTHROUGH.md §5 to validate before trusting.
  *
@@ -60,6 +61,11 @@ import {
   type PlaidSecurity,
   mapPlaidHoldings,
 } from './plaid-holdings';
+import {
+  type BackfillCandidateRow,
+  type ProviderCategoryBackfillResult,
+  planProviderCategoryBackfill,
+} from './plaid-backfill';
 import { assistUnsureRows } from '@/server/categorize-assist';
 import { categorizeSuggestFor } from '@/server/categorize-suggest';
 import { DemoProvider } from './demo';
@@ -2173,5 +2179,164 @@ export class PlaidProvider implements DataProvider {
         meta: JSON.stringify({ itemId, tokensRevoked: items.length }),
       },
     });
+  }
+
+  /**
+   * O.12d — one-shot, re-runnable REPAIR: fill `providerCategoryId` /
+   * `providerCategoryConfidenceBps` on Plaid rows ingested before L.12 added the
+   * columns (57e3576, 2026-07-24). `/transactions/sync` never re-sends a delivered
+   * row, so those nulls are permanent without this; `/transactions/get` (date-ranged)
+   * DOES return already-delivered rows and is called here for exactly the window the
+   * null rows span. See plaid-backfill.ts for the matching rules and their failure
+   * direction (every uncertainty is a counted SKIP, never a guess).
+   *
+   * WRITES exactly the two provider columns, WHERE they are still BOTH null — the
+   * compare-and-set makes the repair idempotent and makes a concurrent sync's fresher
+   * write win. `categoryId` / `needsReview` / corrections / any filed verdict are
+   * untouched by construction: they are not in the update's `data`.
+   *
+   * On-demand only (the repair route), never scheduled: the defect population is
+   * CLOSED — every ingest since L.12 writes the columns via `base` — so an automatic
+   * trigger would be machinery for rows that can no longer come into existence.
+   */
+  async backfillProviderCategories(userId: string): Promise<ProviderCategoryBackfillResult> {
+    const empty: ProviderCategoryBackfillResult = {
+      candidates: 0,
+      planned: 0,
+      written: 0,
+      itemsQueried: 0,
+      itemsFailed: 0,
+      skipped: { notReturned: 0, inconsistentFetch: 0, accountMismatch: 0, amountMismatch: 0, noGuess: 0 },
+    };
+    // Demo fence in the CORE (fence-by-construction, the #256 removeItem stance): the
+    // shared demo row must never trigger provider egress, whatever route calls this.
+    if (isDemoUser(userId)) return empty;
+
+    // The repair population: Plaid-account rows the provider named (providerRef) whose
+    // provider-guess columns are BOTH null. Scoped by `account.provider`, never by the
+    // nullable `plaidItemId` linkage (null on rows not re-synced since #256 — reading
+    // that null as "not this item's row" is the L.17 silent-no-op class).
+    const rows = await prisma.transaction.findMany({
+      where: {
+        account: { userId, provider: 'plaid' },
+        providerRef: { not: null },
+        providerCategoryId: null,
+        providerCategoryConfidenceBps: null,
+      },
+      select: { id: true, providerRef: true, accountId: true, amountCents: true, date: true },
+    });
+    const candidates: BackfillCandidateRow[] = rows
+      .filter((r): r is typeof r & { providerRef: string } => r.providerRef !== null)
+      .map((r) => ({ id: r.id, providerRef: r.providerRef, accountId: r.accountId, amountCents: r.amountCents }));
+    if (candidates.length === 0) {
+      // "Ran, nothing to repair" must be distinguishable from "never ran" in the
+      // audit log alone (critic B P3-1a) — the operator should not need to have
+      // kept the HTTP response.
+      await prisma.auditLog
+        .create({
+          data: {
+            userId,
+            action: 'plaid.provider-category.backfill',
+            meta: JSON.stringify(empty),
+          },
+        })
+        .catch(() => {});
+      return empty;
+    }
+    // Zero Plaid calls when there is nothing to repair (above); otherwise fetch exactly
+    // the window the null rows span. Stored `date` IS Plaid's `date` for the row
+    // (refreshed via `base` on every re-send), so min/max is the exact filter.
+    const dates = rows.map((r) => r.date).sort();
+    const startDate = dates[0];
+    const endDate = dates[dates.length - 1];
+
+    const items = await prisma.plaidItem.findMany({ where: { userId } });
+    const fetched: PlaidTransaction[] = [];
+    let itemsQueried = 0;
+    let itemsFailed = 0;
+    for (const item of items) {
+      try {
+        const token = decryptToken(item.accessToken);
+        let offset = 0;
+        for (;;) {
+          const page = await plaidPost<{
+            transactions: PlaidTransaction[];
+            total_transactions: number;
+          }>('/transactions/get', {
+            access_token: token,
+            start_date: startDate,
+            end_date: endDate,
+            options: { count: 500, offset },
+          });
+          fetched.push(...page.transactions);
+          offset += page.transactions.length;
+          // Stop on a completed or EMPTY page: an empty page with total_transactions
+          // still ahead would otherwise loop forever against a misbehaving server.
+          if (page.transactions.length === 0 || offset >= page.total_transactions) break;
+        }
+        itemsQueried++;
+      } catch (e) {
+        // Per-item isolation, the syncTransactions stance: one broken login
+        // (ITEM_LOGIN_REQUIRED) must not block the repair of the others. Audited;
+        // the skipped item's rows stay null and the run is re-runnable.
+        itemsFailed++;
+        await prisma.auditLog
+          .create({
+            data: {
+              userId,
+              action: 'plaid.provider-category.backfill.item-failed',
+              meta: JSON.stringify({
+                itemId: item.itemId,
+                error: e instanceof Error ? e.message : String(e),
+              }),
+            },
+          })
+          .catch(() => {});
+      }
+    }
+
+    const plan = planProviderCategoryBackfill(candidates, fetched, await this.plaidAccountIdMap(userId));
+
+    // Per-row compare-and-set. The WHERE re-asserts ownership, BOTH-null, and the
+    // exact `amountCents` the plan matched on — so a row a concurrent sync populated
+    // first OR re-amounted mid-repair (the F4 sign guard's premise) is a counted
+    // no-op, never a stale-signed guess (critic A P3-1). ~1.3k sequential updates
+    // is seconds against Neon, well inside the route's 300s budget.
+    let written = 0;
+    for (const w of plan.writes) {
+      const res = await prisma.transaction.updateMany({
+        where: {
+          id: w.id,
+          account: { userId },
+          providerCategoryId: null,
+          providerCategoryConfidenceBps: null,
+          amountCents: w.amountCents,
+        },
+        data: {
+          providerCategoryId: w.providerCategoryId,
+          providerCategoryConfidenceBps: w.providerCategoryConfidenceBps,
+        },
+      });
+      written += res.count;
+    }
+
+    const result: ProviderCategoryBackfillResult = {
+      candidates: candidates.length,
+      planned: plan.writes.length,
+      written,
+      itemsQueried,
+      itemsFailed,
+      skipped: plan.skipped,
+    };
+    await prisma.auditLog
+      .create({
+        data: {
+          userId,
+          action: 'plaid.provider-category.backfill',
+          meta: JSON.stringify(result), // counts only — no descriptors, no amounts
+        },
+      })
+      .catch(() => {});
+    return result;
   }
 }

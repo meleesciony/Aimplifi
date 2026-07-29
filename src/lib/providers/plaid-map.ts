@@ -608,6 +608,31 @@ export function mapPlaidProviderCategoryGuess(
   return { categoryId, confidenceBps };
 }
 
+/**
+ * The PERSISTED provider guess for a row: `mapPlaidProviderCategoryGuess` PLUS the
+ * #44 / F4 SIGN GUARD. The auto-file path refuses to book an OUTFLOW into an Income
+ * category (isUsableProviderHint + the merchant-default guard in pipeline.ts), and the
+ * persisted guess is filed with ONE tap in the triage inbox, so it must not resurface
+ * the exact case the pipeline blocks — an outflow guessed as income would ERASE the
+ * spend AND inflate income (the F4 class). Drop the guess in that one direction only;
+ * the inflow→spend refund case (a positive amount filing back to its spend category)
+ * is left intact, matching the merchant-default convention.
+ *
+ * ONE AUTHOR on purpose: live ingest (`prepareIngestedTransaction`) and the O.12d
+ * provider-category backfill both call this, so the backfill can never write a guess
+ * ingest would have refused. `amountCents` is Pulse-signed (outflow NEGATIVE — i.e.
+ * already through `plaidAmountToCents`), never Plaid's outflow-positive dollars.
+ */
+export function persistedProviderGuess(
+  amountCents: number,
+  pfc: PlaidTransaction['personal_finance_category'],
+): { categoryId: string; confidenceBps: number } | null {
+  const guess = mapPlaidProviderCategoryGuess(pfc);
+  return guess && !(amountCents < 0 && CATEGORY_BY_ID.get(guess.categoryId)?.group === 'Income')
+    ? guess
+    : null;
+}
+
 export interface IngestedTransaction {
   providerRef: string;
   accountId: string;
@@ -670,18 +695,9 @@ export function prepareIngestedTransaction(
     rules,
     { flaggedBps },
   );
-  const providerGuess = mapPlaidProviderCategoryGuess(txn.personal_finance_category);
-  // #44 / F4 SIGN GUARD on the persisted guess: the auto-file path refuses to book an
-  // OUTFLOW into an Income category (isUsableProviderHint + the merchant-default guard in
-  // pipeline.ts). The suggestion is filed with ONE tap, so it must not resurface the exact
-  // case the pipeline blocks — an outflow guessed as income would ERASE the spend AND
-  // inflate income (the F4 class). Drop the guess in that one direction only; the
-  // inflow→spend refund case (a positive amount filing back to its spend category) is left
-  // intact, matching the merchant-default convention.
-  const persistedGuess =
-    providerGuess && !(amountCents < 0 && CATEGORY_BY_ID.get(providerGuess.categoryId)?.group === 'Income')
-      ? providerGuess
-      : null;
+  // Guess + #44/F4 sign guard live in ONE exported author (persistedProviderGuess,
+  // above) shared with the O.12d backfill — see its docblock for the rationale.
+  const persistedGuess = persistedProviderGuess(amountCents, txn.personal_finance_category);
   return {
     providerRef: txn.transaction_id,
     accountId,

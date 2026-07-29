@@ -95,7 +95,9 @@ fictional dataset; everything below applies fully once Plaid is connected.
   create/delete, budget set/clear, money-dials update, rule creation and
   batch-apply, cron sync runs, learned-phrasing changes (`vocab.retired` when you forget
   one, `vocab.retired.recheck` when the weekly re-check drops one — so a machine-initiated
-  un-learning is never silent), (dormant Plaid path) item link/remove, and
+  un-learning is never silent), (dormant Plaid path) item link/remove, operator-run data
+  repairs (`plaid.provider-category.backfill` + `.item-failed`, O.12d — counts and skip
+  reasons only, never descriptors or amounts), and
   account deletion (`account.delete`, written immediately before the cascade that
   also removes it — per §Deletion, nothing about the user is retained).
 
