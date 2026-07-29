@@ -911,8 +911,17 @@ export function TriageInbox({
   // label is the disclosure and it appears before any tap. This fallback is NEVER part
   // of "Accept all confident" (that reads only the pipeline's own suggestion).
   const suggestionIsProviderGuess = !top.suggestedCategoryId && !!top.providerSuggestedCategoryId;
-  const shownSuggestionId = top.suggestedCategoryId ?? top.providerSuggestedCategoryId;
-  const shownSuggestionName = top.suggestedCategoryName ?? top.providerSuggestedCategoryName;
+  // #331: last resort, and the one that finally covers the aggregates the owner
+  // re-files forever — a category PROPOSED from his own correction history,
+  // shown with the evidence it rests on so it can be judged rather than trusted.
+  // Server-side it is offered only when the two tiers above produced nothing, so
+  // this ?? chain can never demote either of them.
+  const suggestionIsProposal =
+    !top.suggestedCategoryId && !top.providerSuggestedCategoryId && !!top.proposedCategoryId;
+  const shownSuggestionId =
+    top.suggestedCategoryId ?? top.providerSuggestedCategoryId ?? top.proposedCategoryId;
+  const shownSuggestionName =
+    top.suggestedCategoryName ?? top.providerSuggestedCategoryName ?? top.proposedCategoryName;
   const confidentSummary = summarizeConfident(groups);
   const activeRow = activeRowId ? top.rows.find((r) => r.id === activeRowId) : null;
   const groupFooter = top.ruleEligible
@@ -1017,12 +1026,22 @@ export function TriageInbox({
                 {top.providerSuggestedCategoryName}
                 <span className="ml-1 font-normal text-muted-foreground">· Plaid&rsquo;s guess</span>
               </Badge>
+            ) : top.proposedCategoryName ? (
+              <Badge variant="outline" data-testid="triage-proposal">
+                {top.proposedCategoryName}
+                <span className="ml-1 font-normal text-muted-foreground">· from your history</span>
+              </Badge>
             ) : (
               <span className="text-sm text-muted-foreground" data-testid="triage-no-suggestion">
                 none yet — pick once for {one ? 'this' : `all ${top.count}`}
               </span>
             )}
           </div>
+          {top.proposalReason && !top.suggestedCategoryName && !top.providerSuggestedCategoryName && (
+            <p className="text-xs text-muted-foreground" data-testid="triage-proposal-reason">
+              {top.proposalReason} Confirm below, or pick a different one.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -1127,9 +1146,13 @@ export function TriageInbox({
                 ? one
                   ? `✓ File as ${shownSuggestionName} (Plaid's guess)`
                   : `✓ File all ${top.count} (Plaid's guess)`
-                : one
-                  ? `✓ File as ${shownSuggestionName}`
-                  : `✓ File all ${top.count}`
+                : suggestionIsProposal
+                  ? one
+                    ? `✓ Confirm ${shownSuggestionName}`
+                    : `✓ Confirm ${shownSuggestionName} for all ${top.count}`
+                  : one
+                    ? `✓ File as ${shownSuggestionName}`
+                    : `✓ File all ${top.count}`
               : one
                 ? 'Pick category'
                 : `Pick for all ${top.count}`}

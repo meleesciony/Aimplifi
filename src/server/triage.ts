@@ -8,7 +8,13 @@ import { categoryName } from '@/lib/engine/categorize/categories';
 import { type ReviewRow, type TriageGroup, groupKey, groupReviewRows } from '@/lib/engine/categorize/group';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { categorize, suggestAlternatives } from '@/lib/engine/categorize/pipeline';
-import { deriveCorrectionHints } from '@/lib/engine/categorize/learn';
+import { deriveCorrectionHints, type LearnedCorrectionInput } from '@/lib/engine/categorize/learn';
+import {
+  proposalReason,
+  proposeCategory,
+  type CategoryProposal,
+} from '@/lib/engine/categorize/propose';
+import { cents, formatCents } from '@/lib/money';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { loadCorrectionInputs, loadUserRules } from '@/server/rules';
@@ -177,12 +183,59 @@ function bestGuess(amountCents: number): string {
   return amountCents > 0 ? 'income' : 'shopping';
 }
 
+/**
+ * The proposal for a GROUP: every row must independently earn one, and they
+ * must all name the same category. Returns the ANCHOR row's proposal, whose
+ * reason sentence is a true statement about the row the card is headed by.
+ *
+ * The unanimity requirement is what makes an amount-based proposal safe at
+ * group scope. An aggregate group keys on the raw descriptor, so its rows can
+ * carry DIFFERENT amounts; each row is then judged on its own amount evidence,
+ * and a group that is not really one recurring obligation simply fails to agree
+ * and proposes nothing.
+ */
+function unanimousProposal(
+  rows: readonly Pick<TriageGroup['rows'][number], 'rawDescriptor' | 'amountCents'>[],
+  corrections: readonly LearnedCorrectionInput[],
+): CategoryProposal | null {
+  if (rows.length === 0) return null;
+  const proposals = rows.map((r) =>
+    proposeCategory({ rawDescriptor: r.rawDescriptor, amountCents: r.amountCents }, corrections),
+  );
+  if (proposals.some((p) => p === null)) return null;
+  const categories = new Set(proposals.map((p) => p!.categoryId));
+  if (categories.size !== 1) return null;
+  return proposals[0]!;
+}
+
 /** A triage group enriched with display names + quick-pick alternatives. */
 export interface TriageGroupView extends TriageGroup {
   suggestedCategoryName: string | null;
   /** Display name of the provider (Plaid) guess, shown as "Plaid's guess" when our
    *  own suggestion is null (L.12). null when there is no provider fallback. */
   providerSuggestedCategoryName: string | null;
+  /**
+   * A category PROPOSED from the reader's own correction history (#331), shown
+   * as a one-tap "Looks like …" confirm ONLY when neither our ruleset nor the
+   * provider produced anything — the rows the owner reported re-filing forever
+   * (a Venmo to the same payee, a recurring check for the same amount), where a
+   * durable rule is refused because one aggregate canonical hides many payees.
+   *
+   * Offered only when EVERY row in the group independently earns a proposal for
+   * the SAME category — the same unanimity contract `suggestedCategoryId`
+   * carries — so a group whose amounts differ (and whose amount-based evidence
+   * therefore differs row to row) proposes nothing rather than filing one row's
+   * evidence onto another's.
+   *
+   * Like the provider guess and for the same reason, it is deliberately NOT
+   * part of `isConfidentGroup`, which reads `suggestedCategoryId` alone: the
+   * owner asked to be ASKED, so "Accept all confident" can never sweep a
+   * proposal by construction, not by remembering to exclude it.
+   */
+  proposedCategoryId: string | null;
+  proposedCategoryName: string | null;
+  /** The evidence sentence shown under the proposal, never a bare assertion. */
+  proposalReason: string | null;
   /** 3 quick-pick alternatives (pipeline pool + staples), never the suggestion. */
   alternativeIds: string[];
   alternativeNames: string[];
@@ -262,14 +315,36 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
           },
         )
       : [];
+    // A proposal from the reader's OWN history — last resort only, and only if
+    // every row in the group earns the same one (see TriageGroupView).
+    const proposal =
+      g.suggestedCategoryId === null && g.providerSuggestedCategoryId === null
+        ? unanimousProposal(g.rows, corrections)
+        : null;
     const alts = [...new Set([...pool, 'dining', 'groceries', 'household', 'cash'])]
-      .filter((c) => c !== g.suggestedCategoryId && c !== g.providerSuggestedCategoryId)
+      .filter(
+        (c) =>
+          c !== g.suggestedCategoryId &&
+          c !== g.providerSuggestedCategoryId &&
+          c !== (proposal?.categoryId ?? null),
+      )
       .slice(0, 3);
     return {
       ...g,
       suggestedCategoryName: g.suggestedCategoryId ? categoryName(g.suggestedCategoryId, meta) : null,
       providerSuggestedCategoryName: g.providerSuggestedCategoryId
         ? categoryName(g.providerSuggestedCategoryId, meta)
+        : null,
+      proposedCategoryId: proposal?.categoryId ?? null,
+      proposedCategoryName: proposal ? categoryName(proposal.categoryId, meta) : null,
+      proposalReason: proposal
+        ? proposalReason(proposal, {
+            categoryLabel: categoryName(proposal.categoryId, meta),
+            amount:
+              proposal.matchedAmountCents === null
+                ? null
+                : formatCents(cents(Math.abs(proposal.matchedAmountCents))),
+          })
         : null,
       alternativeIds: alts,
       alternativeNames: alts.map((id) => categoryName(id, meta)),

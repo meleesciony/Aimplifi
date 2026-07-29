@@ -7,6 +7,7 @@
 import { prisma } from '@/lib/db';
 import { deriveLearnedRules, type LearnedCorrectionInput } from '@/lib/engine/categorize/learn';
 import { isAggregateCanonical } from '@/lib/engine/categorize/normalize';
+import { isDemoUser } from '@/lib/demo-user';
 import type { RuleLike } from '@/lib/engine/categorize/pipeline';
 
 export interface RuleRow {
@@ -70,6 +71,20 @@ export async function loadExplicitUserRules(userId: string): Promise<RuleLike[]>
  * Demo seed (zero corrections) returns [] — goldens stay byte-identical.
  */
 export async function loadCorrectionInputs(userId: string): Promise<LearnedCorrectionInput[]> {
+  // SHARED-DEMO FENCE (#331, applying the #226/#243 lesson). The one-click demo is
+  // credential-free, so every anonymous visitor signs in as the SAME row. Everything
+  // downstream of this loader — learned rules, personalized triage hints, and now
+  // category PROPOSALS — turns one visitor's filing decisions into something the NEXT
+  // visitor is shown, and the proposal states it in the first person ("You filed 2
+  // earlier payments to J. PARK as Dining"), which is both a false sentence about that
+  // reader and a disclosure of a stranger's choices.
+  //
+  // This is the one read every correction-derived feature goes through, so fencing it
+  // here fences all three by construction rather than at three call sites that must
+  // each be remembered. The demo SEED writes no corrections, so every golden value is
+  // byte-identical; a demo visitor's own correction still files the row they clicked,
+  // it just never becomes evidence about another row.
+  if (isDemoUser(userId)) return [];
   const corrections = await prisma.correction.findMany({
     where: { userId },
     orderBy: { createdAt: 'asc' },
