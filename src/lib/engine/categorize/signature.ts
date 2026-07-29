@@ -94,13 +94,32 @@ const NOISE_TOKENS: ReadonlySet<string> = new Set([
  * payee-less aggregate) from filing every Zelle as rent.
  */
 export function hasDistinguishingToken(signature: string): boolean {
+  return distinguishingTokens(signature).length > 0;
+}
+
+/**
+ * The tokens of a signature that could NAME a counterparty — everything that is
+ * neither a payment-channel root, nor connective glue, nor a pure id number.
+ *
+ * This is the same filter `hasDistinguishingToken` has always applied, lifted
+ * out so a caller can compare two descriptors by WHO they name rather than only
+ * ask whether anybody is named (#331). An aggregate channel keeps its payee in
+ * these tokens — "VENMO PAYMENT 1029384756 JOHN SMITH" yields ['JOHN','SMITH'] —
+ * while the varying transaction id, which is exactly what stops the two rows
+ * from sharing a signature, drops out as a pure number.
+ *
+ * Order is descriptor order; duplicates are preserved. Callers that want an
+ * identity should sort/dedupe, since a bank may reorder a payee's name parts.
+ */
+export function distinguishingTokens(signature: string): string[] {
+  const out: string[] = [];
   for (const tok of signature.split(' ')) {
     if (!tok) continue;
     if (NOISE_TOKENS.has(tok)) continue;
     if (!/[A-Z]/.test(tok)) continue; // pure number / symbol — an id, not a payee
-    return true;
+    out.push(tok);
   }
-  return false;
+  return out;
 }
 
 /**
