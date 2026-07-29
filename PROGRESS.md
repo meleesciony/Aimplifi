@@ -6361,3 +6361,23 @@ and "Your goals are to make the app at least as good as simplifi. Currently we c
 transaction list. Rest of features also pale in comparison."
 NEXT: notate as a wave + a field-level parity matrix (his explicit ask), then build the user-authored
 keyword rule ("contains") engine-first.
+
+## Turn close 2026-07-29 — three commits shipped, one owner-blocked question
+SHIPPED (all pushed to origin/main, verify green each time; 301 files / 4781 tests):
+- `7c599bf` O.13a engine (keyword-rule.ts + RuleLike.matchKeywords + one ruleMatches clause) and the
+  parity notation (docs/SIMPLIFI_PARITY.md, TASKS Wave O.13 a-h + Wave P). No schema change, no prisma diff.
+- `2c9ae23` O.14a the login mask: a system AuthError no longer reads as "wrong password" nor spends the
+  per-account fail budget; PII-free reason=no-user|bad-hash discriminator in authorize().
+- `d1e078c` lesson: the instrument can be blind to the rung it measures (L.26 extended).
+OPEN / NEXT, in priority order:
+1. O.14b — BLOCKED on one owner-only fact: the exact sentence he sees on a failed login.
+2. O.13a remainder — additive `matchKeywords` column, toRuleLike mapping, rule creation from a
+   transaction with a live match-count preview, priority band 110 + specificity tie-break, hostile critic.
+3. O.13b — the transaction detail view (his most acute complaint: "can't even solve the transaction list").
+4. O.12e — surface the 21 measured per-row suggestions in the inbox drill-down + honest card copy.
+DEPLOY VERIFIED (not by a status code): the deployment holding the `https://www.aimplifi.app` alias is
+`dpl_CqS41FDtLGtxEctQvGJJuHrdrDr7` (aimplifi-3iwpquwu9), ● Ready, and its build log opens
+`Cloning github.com/meleesciony/Aimplifi (Branch: main, Commit: 2c9ae23)` — the login-fix commit, with
+7c599bf as its ancestor. No public marker was grepped and that is stated rather than skipped: both changes
+are server-side error handling behind a failed sign-in, so nothing on a public page reflects them (the L.18
+standard — the deployment record is the evidence).
