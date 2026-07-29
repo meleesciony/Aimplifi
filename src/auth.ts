@@ -31,7 +31,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = String(creds?.password ?? '');
         if (!email || !password) return null;
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || !verifyPassword(password, user.passwordHash)) return null; // same response either way
+        if (!user || !verifyPassword(password, user.passwordHash)) {
+          // PII-FREE DIAGNOSTIC (owner report 2026-07-29: sign-in "sometimes says
+          // wrong pw", and the retry works). The reader sees ONE sentence for
+          // three different facts, so a reproduction currently tells us nothing.
+          // This records which of them it was — and nothing else: no email, no
+          // password, no length, no descriptor. `no-user` means the address did
+          // not arrive as stored; `bad-hash` means the address was found and the
+          // submitted bytes did not verify, which points at value delivery on the
+          // client rather than at the server. Neither branch changes what the
+          // READER is told (still one indistinguishable sentence, so this cannot
+          // become an account-enumeration oracle).
+          console.warn(`[auth] credentials rejected: reason=${user ? 'bad-hash' : 'no-user'}`);
+          return null; // same response either way
+        }
         return { id: user.id, email: user.email, name: user.name ?? undefined };
       },
     }),

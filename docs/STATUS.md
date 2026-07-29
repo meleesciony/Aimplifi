@@ -2,6 +2,58 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## 🔍 2026-07-29 — the login "wrong password" report: a mask REMOVED, the cause still OPEN
+
+Owner, verbatim: *"Also the login is buggy. When I click login, it sometimes says wrong pw. I click it
+again, it works."*
+
+**What was verified, in order, and what each step killed.**
+
+1. **The copy was lying by construction, and that is fixed.** `signInWithPassword` mapped EVERY
+   `AuthError` to "Invalid email or password." — including `CallbackRouteError`, which is what Auth.js
+   raises when `authorize()` itself throws (the `prisma.user.findUnique` in there can fail on a cold or
+   flaky connection). So a fault on our side accused the reader's correct password, and it spent one of
+   his 8 per-account failed-attempt credits. Now only unambiguously-infrastructure types get an honest
+   "problem on our side" sentence and no budget charge; an UNRECOGNISED `AuthError` deliberately stays on
+   the credential path, because excusing unknown errors would let an attacker who can provoke one opt out
+   of brute-force throttling. Locked + mutation-proven (REGRESSION_LEDGER 2026-07-29).
+2. **Production evidence says his failures were `CredentialsSignin`, i.e. `authorize()` returned null.**
+   The Vercel error table shows 4 groups; the two bare-stack groups share their last-seen timestamp with
+   the `[auth][error] CredentialsSignin` line (and differ only by build-chunk hash), so they are one
+   multi-line event, not three faults. Count is **7 events / 5 users since 2026-06-18**, last
+   2026-07-29T20:38:28Z. Caveat stated rather than skipped: runtime-log retention on this plan is short,
+   so this table cannot prove it covers every failure he experienced.
+3. **`MissingCSRF` is impossible on this path — refuted from the dependency source.**
+   `next-auth/lib/actions.js` calls `Auth(req, { ...config, raw, skipCSRFCheck })`, so the server-action
+   sign-in never runs the CSRF check. A plausible "first POST has no csrf cookie, retry works" story died
+   in one read.
+4. **Password verification cannot be intermittent.** `verifyPassword` is scrypt over a per-password salt
+   with no pepper, no env var, no clock (`src/lib/auth/password.ts`) — deterministic in (plain, stored).
+   So a retry succeeding with the same bytes is not explicable server-side; something about the FIRST
+   submit differed.
+5. **The reveal toggle's submit-time type flip is NOT reproduced in either engine.** `PasswordInput`
+   re-hides the field in a CAPTURE-phase submit listener (so a password manager sees a real password
+   field), which runs before React reads the FormData; if any engine cleared the value on that flip, the
+   first submit would carry an empty password and the retry would work — exactly the reported shape.
+   Measured with `scripts/audit-probes/login-reveal-type-flip.mjs`: chromium and WebKit both send all 21
+   characters, with and without reveal, focused and unfocused. Per the mobile-overflow lesson, Playwright
+   WebKit is NOT his iOS Safari, so this is inconclusive for his phone — but it removes the leading
+   client-side candidate.
+
+**Still OPEN, and deliberately not guessed at.** The inputs are uncontrolled (so the pre-hydration
+controlled-input class does not apply), the server is deterministic, and the two mechanisms that would
+explain a differing first submit are refuted or unreproduced. A **PII-free discriminator** now ships in
+`authorize()`: a rejection logs `reason=no-user` or `reason=bad-hash` — no email, no password, no length,
+and identical copy to the reader either way, so it cannot become an account-enumeration oracle. The next
+occurrence therefore names its own cause: `bad-hash` means the wrong bytes arrived (client-side value
+delivery), `no-user` means the address did, and NEITHER appearing while sign-in still fails means it was
+never a credential error and the newly-honest system message will say so.
+
+**One fact is needed from the owner, and only he can supply it:** the EXACT sentence on screen when it
+fails. "Invalid email or password." and "Enter your email and password." are produced by different
+branches — the second means the password field arrived empty — and that single word splits the remaining
+space.
+
 ## ✅ O.12d 2026-07-29 — the provider-category backfill is BUILT, DEPLOYED, and RUN against production (DECISIONS #337)
 
 The repair for the re-diagnosis below: `PlaidProvider.backfillProviderCategories` fetches the

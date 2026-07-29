@@ -121,3 +121,63 @@ describe('signInWithPassword throttle — IP cap + no lockout (ROADMAP #8, Criti
     expect(signIn).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * A fault on OUR side may not be reported as a wrong password (owner report
+ * 2026-07-29: sign-in "sometimes says wrong pw. I click it again, it works").
+ *
+ * Auth.js wraps anything thrown inside `authorize` — a failed user lookup, a
+ * database blip — as `CallbackRouteError`, and every AuthError used to collapse
+ * into "Invalid email or password.": a claim about what the reader typed, made
+ * when the truth was that we broke. Two things must hold, and the SECOND is the
+ * security half: a system fault must not spend the per-account failed-attempt
+ * budget, while an UNRECOGNISED AuthError must still spend it, so nobody can
+ * dodge brute-force throttling by provoking an unusual error.
+ */
+describe('sign-in errors: our fault vs a wrong password', () => {
+  const stamp = `sys-${Date.now()}-${process.pid}`;
+  const keys: string[] = [];
+  function fd(email: string, password: string) {
+    const f = new FormData();
+    f.set('email', email);
+    f.set('password', password);
+    return f;
+  }
+  function mockIp(ip: string) {
+    vi.mocked(headers).mockResolvedValue({ get: (k: string) => (k === 'x-forwarded-for' ? ip : null) } as never);
+  }
+  function typedAuthError(type: string) {
+    return Object.assign(new AuthError('boom'), { type });
+  }
+  afterEach(() => vi.clearAllMocks());
+  afterAll(async () => {
+    await prisma.rateLimit.deleteMany({ where: { key: { in: keys } } });
+  });
+
+  it('a CallbackRouteError blames us, not the password, and spends no fail budget', async () => {
+    const email = `${stamp}-sys@test.local`;
+    const ip = `10.0.3.${(process.pid % 200) + 1}`;
+    keys.push(`signin-fail:${email}`, `signin-ip:${ip}`);
+    mockIp(ip);
+    vi.mocked(signIn).mockRejectedValue(typedAuthError('CallbackRouteError'));
+
+    const out = await signInWithPassword(null, fd(email, 'the-correct-password'));
+    expect(out.error).toMatch(/problem on our side/i);
+    expect(out.error).not.toMatch(/invalid email or password/i);
+    // The reader failed nothing, so the account's throttle budget is untouched.
+    expect(await prisma.rateLimit.findUnique({ where: { key: `signin-fail:${email}` } })).toBeNull();
+  });
+
+  it('an UNRECOGNISED AuthError still counts as a failed attempt (no throttle bypass)', async () => {
+    const email = `${stamp}-unknown@test.local`;
+    const ip = `10.0.4.${(process.pid % 200) + 1}`;
+    keys.push(`signin-fail:${email}`, `signin-ip:${ip}`);
+    mockIp(ip);
+    vi.mocked(signIn).mockRejectedValue(typedAuthError('SomeFutureAuthError'));
+
+    const out = await signInWithPassword(null, fd(email, 'wrong'));
+    expect(out.error).toBe('Invalid email or password.');
+    const row = await prisma.rateLimit.findUnique({ where: { key: `signin-fail:${email}` } });
+    expect(row!.count).toBe(1);
+  });
+});

@@ -27,6 +27,44 @@ const SIGNIN_FAIL_LIMIT = 8; // failed attempts per account / window
 const SIGNIN_IP_LIMIT = 20; // attempts per device / window
 const SIGNIN_WINDOW_MS = 60_000;
 
+/**
+ * Auth.js error types that are OUR fault, not a wrong password (owner report
+ * 2026-07-29: *"the login is buggy. When I click login, it sometimes says wrong
+ * pw. I click it again, it works."*).
+ *
+ * Until now every `AuthError` — including a database failure inside `authorize`,
+ * which Auth.js wraps as `CallbackRouteError` — was reported to the reader as
+ * "Invalid email or password.". That sentence is a CLAIM about what the reader
+ * typed, and on this path it could be false: a transient system fault told him
+ * his own correct password was wrong. A message that blames the reader for our
+ * outage is the worst kind of copy defect, because the honest reaction to it is
+ * to doubt a password that was right.
+ *
+ * The DIRECTION of this list is deliberate. An unrecognised `AuthError` stays on
+ * the credential path — it keeps the "invalid" copy AND keeps consuming the
+ * per-account failed-attempt budget — because the alternative lets an attacker
+ * who can provoke any unusual AuthError opt out of brute-force throttling. Only
+ * types that are unambiguously infrastructure are excused, and being excused
+ * costs the attacker nothing they could exploit (these need a broken deployment,
+ * not a guessable input).
+ */
+const SYSTEM_AUTH_ERROR_TYPES: ReadonlySet<string> = new Set([
+  'CallbackRouteError', // authorize() threw — e.g. the user lookup failed
+  'AdapterError',
+  'EventError',
+  'JWTSessionError',
+  'SessionTokenError',
+  'MissingSecret',
+  'MissingAdapter',
+  'MissingAdapterMethods',
+  'MissingAuthorize',
+  'UnsupportedStrategy',
+  'InvalidProvider',
+  'InvalidEndpoints',
+  'UntrustedHost',
+  'ErrorPageLoop',
+]);
+
 // OWNER_ALLOWLIST + effectiveAllowlist() moved to '@/lib/auth/allowlist' (DECISIONS
 // #100) so the Google OAuth signIn callback (src/auth.ts via google-provision.ts)
 // enforces the SAME invite-only gate without importing this server-action module
@@ -86,6 +124,17 @@ export async function signInWithPassword(
     await signIn('password', { email, password, redirectTo: '/dashboard' });
   } catch (e) {
     if (e instanceof AuthError) {
+      // A fault on OUR side may not be reported as a wrong password, and may not
+      // spend the reader's failed-attempt budget — he did not fail an attempt.
+      // Unknown types deliberately fall through to the credential path below (see
+      // SYSTEM_AUTH_ERROR_TYPES).
+      if (SYSTEM_AUTH_ERROR_TYPES.has(e.type)) {
+        console.error(`[auth] system error on sign-in: type=${e.type}`); // no email, no password
+        return {
+          error:
+            'We could not complete sign-in, and it is a problem on our side rather than your password. Please try again.',
+        };
+      }
       // (2) Per-account FAILED-attempt cap, consumed ONLY on a failure and checked
       //     AFTER sign-in — so a correct password is never blocked (no targeted
       //     account lockout, Critic SEC-2).
