@@ -2,6 +2,35 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## 🔎 RE-DIAGNOSIS 2026-07-29 — Wave O.12 was scoped on a set the inbox never renders (commit `1716766`)
+
+The owner's report (*"I don't see the categorization proposals"*) was diagnosed a second time, because
+the first probe selected `needsReview = true` joined to `Account` with **no account-type filter** while
+all three inbox entry points already scope to `SPENDING_ACCOUNT_TYPES` (`triage.ts:102`, `:260`, `:368`).
+It measured 548 rows; the reader's inbox holds **173 rows in 89 merchant groups**. The corrected replay
+(`scripts/audit-probes/o12-what-the-inbox-actually-holds.ts`) reproduces `getTriageGroups` statement for
+statement against production and prints the queue predicate clause by clause.
+
+**What the 89 groups are offered: 0 ruleset suggestions, 0 Plaid guesses, 7 O.9 proposals, 82 nothing.**
+Bucketing the 82 by reason: **10** aggregates (Venmo alone is 33 rows in one group), **72** merchants
+never corrected before, **0** blocked by O.9a's ≥2-correction bar, **0** blocked by conflicting history.
+
+**Root cause — L.12's provider-guess tier is dead on his data.** `providerCategoryId` is null on 1,279 of
+his 1,312 Plaid spending rows; the 33 that carry one are all dated 2026-07-23 or later, and they map to
+sensible leaves, so the mapping is not the defect. L.12 shipped in `57e3576` on 2026-07-24, the column has
+exactly one writer (`plaid.ts:1163`), and no backfill was ever written — and `/transactions/sync` never
+re-sends a delivered row, so the nulls are permanent. 97 of the 173 queued rows are Plaid rows older than
+that deploy, which is why the tier that exists precisely for never-before-filed merchants is silent on all
+of them.
+
+**Task-queue effect:** `O.12a` (exclude investment rows) and `O.12b` (recency-weight the learner) are
+**RETRACTED with evidence** — neither describes a live defect. Replaced by `O.12d` (backfill the column;
+provider-touching write over ~1.3k live rows ⇒ hostile critic), `O.12e` (aggregates), `O.12f` (a group
+whose merchant canonical is `.`, 12 fully-masked SimpleFIN descriptors). **No src/ behaviour changed and
+no prisma diff, so the live database is untouched.** Also repaired a pre-existing gate break: `6b821ee`
+committed an audit probe whose ternary-as-statement tripped `eslint --max-warnings 0`, so `main` did not
+pass its own verify.
+
 ## ✅ CRITIC PASS 2026-07-29 — O.9e: the Fable pass on O.9a–c, two P1s found and fixed (DECISIONS #334)
 
 Fresh-context hostile-critic pass (money/data-integrity + shared-account/privacy lenses,
