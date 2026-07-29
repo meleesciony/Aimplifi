@@ -9017,7 +9017,15 @@ against a stale build (the recorded tell: "my change had no effect at all") and 
 the pair-window straddle (O.10b), `merchantSpend`'s refund-first truncation (O.10c), and three recorded
 residuals (O.10d).
 
-**Gate (real output, run alone):** `bash scripts/verify.sh` → tsc 0, eslint 0, **297 files / 4732 tests**
-at the pre-critic gate, `next build` clean, ✅ VERIFY GREEN; final counts below. Mutation-proven: reverting
-`trends.ts` fails 7 locks, headlined `expected 6500 to be 8000` — the measured divergence itself; applying
-the O.8(b) exclusion fails the decision lock. Prisma diff EMPTY → no DDL against Neon.
+**Gate (real output, run alone, after every critic fix):** `VERIFY_E2E=1 bash scripts/verify.sh` → tsc 0,
+eslint 0, **297 files / 4741 tests**, **214 e2e passed**, `next build` clean, ✅ VERIFY GREEN. `docs:lint`
+clean (101 files). Mutation-proven: reverting `trends.ts` fails 7 locks, headlined
+`expected 6500 to be 8000` — the measured divergence itself; applying the O.8(b) exclusion fails the
+decision lock. Prisma diff EMPTY → no DDL against Neon.
+
+**Shipped live as `57d280e`**, proven by the deployment record rather than a status code: the newest
+production deployment (`aimplifi-45ye2wmrm-reiforge.vercel.app`) reports ● Ready, its build log opens
+`Cloning github.com/meleesciony/Aimplifi (Branch: main, Commit: 57d280e)`, and `vercel inspect` shows it
+holding the `https://www.aimplifi.app` alias — i.e. it is the deployment serving traffic. No public
+marker was grepped, and that is stated rather than skipped: every string this slice touched lives behind
+`/trends`, which is auth-gated (the L.18 standard), so the deployment record is the evidence.
