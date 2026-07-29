@@ -192,27 +192,70 @@ Owner, verbatim: *"I don't see changes from the last day of work"* and *"when I 
 should also categorize the same going forward. It seems like they are only doing trailing
 categorization"*.
 
-**DIAGNOSED BY REPLAY, not by hypothesis** (`scripts/audit-probes/o9-replay-suggestions.ts` runs the
-SHIPPED `registerSuggestionFor` over his real rows and his real 672 corrections):
+> **2026-07-29, SECOND PASS — the first diagnosis below was measured on the wrong set and all three of
+> its task rows are RETRACTED.** The original probe counted `needsReview = true` joined to `Account`
+> with **no account-type filter**, but all three inbox entry points already scope to
+> `SPENDING_ACCOUNT_TYPES` (`triage.ts:102`, `:260`, `:368`). It measured a set the owner's screen never
+> renders. Superseded by the replay in `scripts/audit-probes/o12-what-the-inbox-actually-holds.ts`, which
+> reproduces `getTriageGroups` statement for statement over his live rows. Retained here only so nobody
+> re-derives the retracted numbers. Original text:
+>
+> *"548 unfiled rows, 16 with a proposal, 374 (68%) on INVESTMENT accounts burying the rest; the review
+> queue is the one place that does not scope to `SPENDING_ACCOUNT_TYPES`."* — **false**: the queue does
+> scope, the 374 securities rows were never in it, and the true queue is 173 rows / 89 merchant groups.
+
+**Two hypotheses REFUTED in the first pass and still refuted — recorded so nobody re-chases them:** the
+deploy was fine (the live domain serves the newest commit), and the register chip is not being suppressed
+by its `currentCategoryId !== 'uncategorized'` gate. Also verified in code: learned rules DO apply going
+forward — `loadUserRules` (`rules.ts:139`) appends them and every ingest path loads through it — so
+"trailing only" is a symptom, not the mechanism.
+
+**WHAT THE OWNER'S INBOX ACTUALLY HOLDS** (shipped `getTriageGroups` replayed over production):
 
 | measurement | value |
 |---|---|
-| unfiled rows in his queue | 548 |
-| …that produce a proposal today | **16** |
-| …that produce nothing | **532** |
-| review queue on INVESTMENT accounts | **374 (68%)** |
+| `needsReview` rows, every account type (what the first pass measured) | 548 |
+| …after the queue's own `type in CHECKING/SAVINGS/CREDIT` | **173** (−375) |
+| …after the currency and transfer guards | 173 (−0) |
+| merchant **groups** — the number the nav badge prints | **89** |
+| groups offered our own ruleset suggestion | **0** |
+| groups offered Plaid's guess | **0** |
+| groups offered an O.9 proposal | **7** |
+| groups offering the reader **nothing at all** | **82** |
 
-Two hypotheses were REFUTED on the way and are recorded so nobody re-chases them: the deploy was fine
-(the live domain serves the newest commit), and the register chip is NOT being suppressed by its
-`currentCategoryId !== 'uncategorized'` gate — all 548 rows are genuinely uncategorized. Also verified in
-code: learned rules DO apply going forward — `loadUserRules` (rules.ts:138) appends them and every ingest
-path loads through it — so "trailing only" is a symptom, not the mechanism.
+**WHY those 82 are silent** — bucketed by the probe, not guessed:
+
+| reason | groups |
+|---|---|
+| aggregate pseudo-merchant (Venmo ×33 rows, Cash App, checks) — never ruleable by design | 10 |
+| **merchant never corrected before — no history to learn from** | **72** |
+| ≥2 corrections but below the bar / conflicting (the retracted O.12b class) | **0** |
+
+**ROOT CAUSE — the tier built for exactly this population is dead on his data.** The 72 never-corrected
+merchants are local one-offs (`La Mei Zi`, `Proof Of The Pudding`, `Sf Over Georgia Food`, `Creek Gc`); a
+merchant learner cannot help on a first sighting, which is precisely why L.12 added Plaid's own
+`personal_finance_category` as a labelled "Plaid's guess" fallback. Measured coverage of that column on
+his spending rows:
+
+| provider | rows | carrying a provider guess |
+|---|---|---|
+| plaid | 1,312 | **33 (2.5%)** — every one dated **2026-07-23 or later** |
+| simplefin | 1,272 | 0 (correct — SimpleFIN sends no category) |
+
+The mapping is not broken: the 33 rows map to sensible leaves (shopping, fast-food, coffee, dining,
+groceries, fuel…). **L.12 shipped in `57e3576` on 2026-07-24, ingest has written the column ever since,
+and no backfill was ever written** — `providerCategoryId` has exactly one writer, `plaid.ts:1163`, and
+appears in no backfill or script. Plaid's `/transactions/sync` never re-sends a row it has already
+delivered, so those 1,279 nulls are **permanent** without an explicit repair. 97 of the 173 rows in his
+queue are Plaid rows older than 2026-07-23, so the guess tier is silent on every one of them.
 
 | # | Task | Owner/Agent | Effort | Est. budget | Status |
 |---|------|-------------|--------|------------|--------|
-| O.12a | **Securities activity does not belong in a spending review queue.** 374 of 548 rows are INVESTMENT-account transactions — "SCHWAB U.S. DIVIDEND EQUITY ETF", "CALL TESLA INC $860 EXP 01/15/27", "VANGUARD REAL ESTATE INDEX FUND ETF SHARES". A merchant learner can never file these, so they sit forever, bury the 16 rows that DO have a proposal, and make the inbox look broken. Note the spending surfaces already scope to `SPENDING_ACCOUNT_TYPES` (CHECKING/SAVINGS/CREDIT) — the review queue is the one place that does not, so this is an inconsistency with the app's own established scope rather than a new policy. Decide the honest treatment (exclude from the queue entirely vs. a separate "investment activity" lane) and make the queue count mean "rows you could actually file". **Biggest single visible win available.** | Opus 5 | medium | 60k | [ ] |
-| O.12b | **The learner abstains hardest on the merchants he corrects most.** O.9a requires >=2 corrections with ZERO conflicts. His top merchant `Glf*heritagegolflinks` has **88 corrections across 4 categories**; `Glf*bobbyjonesgc` 33/3; `Sho Spicy` 12/3. The guard is behaving as designed and the result is that the app is permanently silent on exactly the rows he re-files most — indistinguishable, from his side, from being ignored. Options: honour the MOST RECENT filing, weight by recency, or ask once and remember. Requires care — the zero-conflict bar exists because a wrong confident rule is worse than none (#44/#161). **Money-adjacent categorization routing ⇒ hostile critic.** | **Fable 5** | high | 70k | [ ] |
-| O.12c | **Aggregates still dominate the remainder.** After investments, what is left is largely checks and app-to-app payments ("Check Paid #779", "CASH APP*…") — the rows O.9b's proposal tier was built for, which fired only 16 times. Once O.12a clears the noise, re-measure with the same replay before building anything: the true hit-rate on the rows that remain is currently unknown. | Opus 5 | medium | 40k | [ ] |
+| ~~O.12a~~ | ~~Securities activity does not belong in a spending review queue.~~ **RETRACTED 2026-07-29 — the premise was false.** `getTriageItems`, `getTriageGroups` and `getReviewCount` all already carry `type: { in: [...SPENDING_ACCOUNT_TYPES] }` (`triage.ts:102`, `:260`, `:368`), so the 374 INVESTMENT rows never reach the inbox, never bury anything, and there is nothing to exclude. No code change. The row survives as the record of a measurement taken without the consumer's own predicate. | — | — | — | **[x] RETRACTED** |
+| ~~O.12b~~ | ~~The learner abstains hardest on the merchants he corrects most.~~ **RETRACTED as the explanation of the owner's report, though the design observation stands.** Bucketing the 82 silent groups by reason returns **0** blocked by the ≥2-correction bar and **0** blocked by conflicting history. His heavily-corrected merchants (`Glf*heritagegolflinks`, 88 corrections / 4 categories) are already filed and are **not in the queue** — the zero-conflict guard is costing him nothing here. If recency-weighting is ever revisited it must be justified by a fresh measurement, not by this report. | — | — | — | **[x] RETRACTED** |
+| O.12d | **Backfill `providerCategoryId` on Plaid rows ingested before L.12.** The repair for the root cause above: 1,279 of his 1,312 Plaid spending rows carry a null in the column the inbox's second suggestion tier reads, and `/transactions/sync` will never re-deliver them. Fetch the historical window via a date-ranged `/transactions/get` (which does return already-delivered rows), match on `providerRef`, and write ONLY the two provider columns on rows where they are currently null — never touching `categoryId`, `needsReview`, or any filed verdict, so a row the reader has already decided is untouched. Backfill must be idempotent and re-runnable. Note the failure direction: writing a WRONG guess into this column offers the reader a confident-looking one-tap mis-file, so a row whose `providerRef` does not match exactly is skipped, not guessed. Also decide whether the same repair runs for any user or only on demand. **Provider-touching write over ~1.3k live rows ⇒ hostile critic.** | **Fable 5** | high | 80k | [ ] |
+| O.12e | **10 of the 89 groups are aggregates that can never carry a rule** — Venmo alone is 33 rows in one group, and `Cash App`, `Check Paid #…` behave the same. This is the population O.9b's proposal tier was built for and it fires on 7 groups today. Separate from O.12d (which cannot help these — Plaid sends no useful category for a P2P transfer either). Re-measure with the same replay AFTER O.12d lands, since the remaining silent set is what defines the work. | Opus 5 | medium | 40k | [ ] |
+| O.12f | **One group's merchant canonical is `.`** — 12 rows whose raw descriptor is fully masked (`******.*************`, a SimpleFIN artifact on a Capital One card). It can never be categorized by name and currently presents as a normal merchant group called ".". Decide the honest treatment: these rows have an amount and a date and nothing else, so a group headed by a meaningless name is worse than one that says what it is. | Sonnet / Opus 5 | small | 25k | [ ] |
 
 ## Wave O.11 — Reimbursable, excluded, and the Mint/Simplifi field set (owner request 2026-07-29, LIVE)
 

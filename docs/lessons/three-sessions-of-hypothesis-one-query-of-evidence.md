@@ -57,3 +57,38 @@ let this survive in plain sight for four sessions.
 until the next sync runs. A fix whose effect is gated behind a job the reader cannot see needs that
 job triggered in the same session, or the owner looks at the same $0.00 and concludes nothing
 happened again.
+
+## Extended by Wave O.12 (2026-07-29): a replay must carry the CONSUMER'S predicate, not just its engine
+
+The instrument this lesson prescribes was used, correctly, on the owner's next report (*"I don't see
+the categorization proposals"*) — and it still produced a false diagnosis, because the replay ran the
+right **engine** over the wrong **set**. It selected `needsReview = true` joined to `Account` with no
+account-type filter, got 548 rows, found 374 of them (68%) on INVESTMENT accounts, and concluded that
+securities activity was burying the inbox. The whole next wave was scoped around excluding it.
+
+All three inbox entry points already scope to `SPENDING_ACCOUNT_TYPES` (`triage.ts:102`, `:260`,
+`:368`). Those 374 rows were never in the queue. **The real inbox is 173 rows in 89 merchant groups**,
+and the probe had measured a set that no screen renders.
+
+**The rule: a replay is only evidence about what the reader sees if it reproduces the consumer's whole
+`where` clause, not the engine the consumer calls afterwards.** Reproducing `registerSuggestionFor`
+faithfully proved nothing, because the bug hypothesis was about *which rows arrive*, and that question
+lives entirely in the clause the probe dropped. Copy the predicate from the consumer verbatim, and
+print it **clause by clause with the count after each** — the corrected probe shows `548 → 173 (−375)`
+on the type clause alone, which makes a dropped filter impossible to miss and would have killed the
+first diagnosis in its first run.
+
+**Bucket a silence by reason before building for one reason.** The follow-up row assumed the learner's
+zero-conflict bar was silencing his most-corrected merchants. Bucketing the 82 silent groups returned
+**0** blocked by that bar and **0** blocked by conflicts — 72 were merchants he had *never* corrected,
+a population no learner can serve. Both retracted task rows were plausible, specific, and cited real
+code; what killed them was one query that counted the reasons instead of assuming one.
+
+**A 2.5% column is a broken zero wearing a plausible number.** The real cause was `providerCategoryId`
+— the tier built precisely for never-before-seen merchants — being null on 1,279 of 1,312 Plaid rows.
+It was not a mapping bug: the 33 populated rows map to sensible categories, and *every one of them is
+dated on or after the L.12 deploy*. A column added by a feature has no history unless someone writes
+the backfill, and `/transactions/sync` never re-sends a delivered row, so the gap is permanent rather
+than self-healing. **When a new column feeds a user-visible decision, the backfill is part of the
+feature** — and its coverage is worth measuring by ingest date, which is what turned "the guess tier
+seems weak" into a dated, one-writer, no-backfill fact.

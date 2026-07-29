@@ -18,7 +18,8 @@ const OWNER = 'cmqisanqh000004l7wylnhrpd'
 const q = async (l, s, p = []) => {
   const r = await c.query(s, p)
   console.log(`\n--- ${l} ---`)
-  r.rows.length ? console.table(r.rows) : console.log('(no rows)')
+  if (r.rows.length) console.table(r.rows)
+  else console.log('(no rows)')
   return r.rows
 }
 
