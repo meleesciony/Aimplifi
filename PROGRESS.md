@@ -6381,3 +6381,18 @@ DEPLOY VERIFIED (not by a status code): the deployment holding the `https://www.
 7c599bf as its ancestor. No public marker was grepped and that is stated rather than skipped: both changes
 are server-side error handling behind a failed sign-in, so nothing on a public page reflects them (the L.18
 standard — the deployment record is the evidence).
+
+## O.13 continued 2026-07-29 — the brand-coverage fix, and the rule plumbing
+SHIPPED `23f6f15` (verify green: 303 files / 4811 tests; deployed, ● Ready on www.aimplifi.app):
+- BRAND COVERAGE (visible to the owner): `\bMACY\b` cannot match `MACYS` — the trailing S removes the
+  word boundary — so the possessive spelling matched and the plural spelling every bank sends did not.
+  22 of 80 major-brand descriptors had no category; now 6, each refused on purpose. Added at the SPECIFIC
+  tier so the canonical is fixed too: `MACYS LENOX SQUARE` → "Macy's" / clothing.
+- O.13a storage + server: additive nullable `CategorizationRule.matchKeywords` (prisma db push ran on
+  deploy, additive only), `toRuleLike` decode + declared-but-empty REFUSAL, priority 110 with a
+  specificity tie-break that leaves merchant-rule ordering byte-identical, and preview/create/list/delete
+  actions with preview↔mutation parity asserted against real rows.
+STILL NOT BUILT, and it is why the owner says he can't help: the RULE BUILDER UI. The capability is
+plumbed end to end and unreachable from the app.
+NEXT: (1) the builder UI — chips, live match count, apply-to-existing, then the hostile critic;
+(2) O.13b transaction detail view; (3) O.12e inbox drill-down suggestions.
