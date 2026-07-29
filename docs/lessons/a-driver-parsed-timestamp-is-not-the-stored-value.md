@@ -61,3 +61,31 @@ refills only when `refreshRecurringForUser` runs, which happens on the nightly `
 opening the app. So the correct claim after shipping a detection fix is not "the number moved", and
 not "the user must wait for the cron" either: it is *the number moves on his next sync, whichever
 comes first*. Verify it there, and say which event you are waiting for.
+
+## Extended O.12e (2026-07-29) — the instrument can be blind to the very rung it is measuring
+
+The same disease, one layer over: a replay probe called the shipped per-row suggestion ladder to count how
+many inbox rows already carry a suggestion, and passed `providerCategoryId: null` for every row — because
+`TriageGroup['rows']` is a `Pick` that DROPS that column, and `tsx` does not type-check. The provider rung
+was therefore untestable by construction, and the probe reported **9** where the answer was **21** (12 of
+the missing ones being an entire group whose premise in the task queue was "can never be categorized").
+
+Three transferable rules:
+
+1. **A measurement is only as wide as the fields it can see.** Before believing a replay, ask which inputs
+   of the thing under test you actually supplied, and which you defaulted to null/absent. A defaulted input
+   silently converts "this rung found nothing" into "this rung was never asked".
+2. **Run the probe through the type checker.** `next build`'s `tsc` pass caught this in a file that had
+   already RUN successfully and produced numbers written into three documents. Probes live in the repo and
+   the repo has a type gate — use it before quoting the output, not after.
+3. **A biased number presented as exact is worse than no number**, because it gets copied into task rows
+   and scopes the next slice. The first figure had already been written into TASKS, PROGRESS and a commit
+   message before the gate caught it; all three needed correcting.
+
+Corollary from the same session, different instrument: **verify the reported EXAMPLE, not just the reported
+problem.** The owner asked for keyword rules because `tjmaxx 0181 0966` "always changes" — and executing the
+shipped normalizer showed both of his descriptors already resolve to the known merchant `Tjmaxx` and
+auto-file correctly. The capability gap was real; his example was not an instance of it. The genuine
+instance was two rows down his own screenshot (`Tst*mirko Pasta Buckhead` vs `MIRKO PASTA` → two canonicals,
+two categories, two review states), and it became the locking test. Building on the unverified example would
+have shipped a feature whose regression test could not fail.
