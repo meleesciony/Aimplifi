@@ -13,6 +13,7 @@
 
 import { dayOfWeek, isoDate } from '@/lib/dates';
 import { CATEGORY_BY_ID } from './categories';
+import { keywordsMatch } from './keyword-rule';
 import { normalizeMerchant } from './normalize';
 import { computeDescriptorSignature } from './signature';
 import { TRANSFER_CONFIDENCE_BPS } from './transfers';
@@ -42,6 +43,18 @@ export interface RuleLike {
    * on every stored rule, so existing behavior is byte-identical.
    */
   descriptorSignature?: string | null;
+  /**
+   * The reader's own TYPED match key (TASKS O.13a, categorize/keyword-rule.ts):
+   * every keyword must appear literally (case-insensitive) in the raw statement
+   * text. This is the key a derived one cannot express — `tjmaxx 0181 0966` where
+   * the store and sequence numbers change every visit.
+   *
+   * Absent/null on every rule stored before O.13a, so existing behavior is
+   * byte-identical. An EMPTY array is NOT absent: it matches nothing, because a
+   * keyword rule carries `merchantCanonical: null` ("any merchant") and would
+   * otherwise file everything.
+   */
+  matchKeywords?: readonly string[] | null;
   /**
    * True for a synthetic LEARNED rule (categorize/learn.ts), false/absent for an
    * explicit user rule. Learned rules pass a match-time sign check (a future
@@ -151,6 +164,10 @@ export function ruleMatches(rule: RuleLike, txn: TxnInput, merchantCanonical: st
   // a signature-mode rule — the ordinary stored-rule path pays nothing.
   if (rule.descriptorSignature != null && rule.descriptorSignature !== computeDescriptorSignature(txn.rawDescriptor))
     return false;
+  // The reader's TYPED key (O.13a). `!= null` deliberately lets an EMPTY array
+  // through to `keywordsMatch`, which refuses it — a keyword rule that lost its
+  // keywords must match nothing, never everything (keyword-rule.ts header).
+  if (rule.matchKeywords != null && !keywordsMatch(rule.matchKeywords, txn.rawDescriptor)) return false;
   const magnitude = Math.abs(txn.amountCents);
   if (rule.minAmountCents !== null && magnitude < rule.minAmountCents) return false;
   if (rule.maxAmountCents !== null && magnitude > rule.maxAmountCents) return false;

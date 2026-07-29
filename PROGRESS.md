@@ -6333,3 +6333,31 @@ FINAL GATE (real output, run ALONE): `VERIFY_E2E=1 bash scripts/verify.sh` → t
 DOCS: DECISIONS #335/#336 + index, STATUS §O.8, TASKS O.8 closed + Wave O.10 (a-d) opened, 6 REGRESSION
 LEDGER rows, lesson `sharing-a-basis-is-not-sharing-a-scope.md` + INDEX.
 NEXT: commit, push, deploy-verify.
+
+## O.12e measured, and a new owner mandate: Simplifi parity. 2026-07-29
+MEASURED (read-only production replay, `scripts/audit-probes/o12e-why-the-proposal-is-silent.ts`,
+owner's live rows, `AccountReconciliation` = 26 so the queue figures are an UPPER BOUND):
+- queue today 130 rows / 66 groups (was 173/89 at the O.12d run — he has been filing).
+- 49 groups reach the proposal tier; 44 of those cards are SILENT.
+- Of the 93 rows inside those card-silent groups, the shipped per-row ladder
+  (`registerSuggestionFor`, which the REGISTER renders today) returns a chip on **21**: 9 Venmo rows on
+  `history/transfer` (amount basis, support 2-4) PLUS 12 `provider/shopping` rows that are the entire
+  masked `.` group of O.12f. The inbox's own "One by one" drill-down consults NO ladder, so it shows
+  none of them, while its card says "none yet - pick once for all N".
+- CORRECTED MID-SESSION: the first run said 9 because the probe passed `providerCategoryId: null` —
+  `TriageGroup['rows']` is a Pick that DROPS that column, so the provider rung was untestable and the
+  count was a lower bound presented as exact (L.26 class). `next build`'s type check caught it.
+- The remaining 72 rows: the engine genuinely has nothing (first sightings). Nothing to surface there.
+- WHY the payee basis is dead on the biggest group: all 33 Venmo rows carry the raw descriptor
+  literally `"Venmo"` - one payee key, empty. propose.ts's docblock claims the payee basis "rescues an
+  aggregate" via payee tokens; that is FALSE for this feed (no payee in the string). Only the amount
+  basis can fire. Worth correcting in the docblock when that file is next touched.
+- O.12f confirmed: the `.` group is 12 POSTED rows, raw `******.*************`, amounts -$0.58 to
+  -$402.92, aggregate=false.
+OWNER MESSAGE MID-TURN (5 Simplifi screenshots + two messages): "Categorization and features for
+categorization are extremely lacking compared to simplifi... You have the ability to change things like
+'contains tjmax'. Because the card number and other numbers always change. This aids in future pain."
+and "Your goals are to make the app at least as good as simplifi. Currently we can't even solve the
+transaction list. Rest of features also pale in comparison."
+NEXT: notate as a wave + a field-level parity matrix (his explicit ask), then build the user-authored
+keyword rule ("contains") engine-first.
