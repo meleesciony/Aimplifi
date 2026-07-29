@@ -278,11 +278,27 @@ export function TrendsView({
             <Store className="size-3.5 text-muted-foreground" aria-hidden />
             <h2 className="text-sm font-semibold">New this month</h2>
           </div>
-          {/* Same settled-only basis as Biggest purchases, and stated for the same
-              reason (O.6 / L.29): "you shopped somewhere new" is a claim about an
-              event, and a pending authorisation has not finished being one. */}
+          {/* Two claims, two bases, both stated (O.8a / L.29). "You shopped
+              somewhere new" is a claim about an EVENT, so a merchant earns its
+              place here only on a settled purchase — a pending authorisation has
+              not finished being one. The AMOUNT is an aggregate at merchant
+              scope, so it counts pending charges and nets refunds.
+
+              Three earlier drafts of this sentence were each falsified by a
+              critic, and the corrections are why it reads as it does:
+               - "appears here once a purchase settles" promised something the
+                 net-≤-0 drop breaks — a settled purchase fully refunded does NOT
+                 appear — so the drop is now stated rather than implied;
+               - "the same way your reports and budgets do" over-claimed: this
+                 amount applies a `<= today` guard and /reports does not, so a
+                 future-dated manual row is counted there and not here;
+               - naming Ask as the surface it agrees with would be false for
+                 prefix-family merchants (see TASKS O.10), so no surface is named.
+              Every clause here is about THIS card and nothing else. */}
           <p className="mb-2 text-xs text-muted-foreground" data-testid="trends-new-merchants-basis">
-            Settled purchases only — a pending charge appears here once it posts.
+            A merchant is confirmed here by a settled purchase. The amount counts charges still
+            pending and nets refunds against them, so a merchant whose refunds cancelled the month
+            drops off this list.
           </p>
           <ul className="divide-y">
             {newMerchants.map((n) => (

@@ -149,10 +149,45 @@ export const ROW_SUM_KINDS: ReadonlySet<AssistantIntent['kind']> = new Set<Assis
  * directly (plaid-map.ts:420). Most card payments do get transfer-flagged
  * because the detector pairs them with the card's own credit — but a payment to
  * a card this app does not hold has no counterpart, stays unflagged, and IS
- * counted. Whether it SHOULD be is a five-surface money question (it would
- * double-count against the charges it settles, and /budgets already excludes it
- * separately via NON_BUDGETABLE) — logged as TASKS O.8(b); until that lands, the
- * sentence describes what the code actually does.
+ * counted.
+ *
+ * O.8(b) asked whether it SHOULD be. The answer is that it stays counted — but
+ * as a TRADE-OFF between two reachable populations, not because excluding it
+ * would be a no-op. An earlier draft of this comment argued the latter and a
+ * critic falsified it by execution; both versions of the reasoning are kept
+ * here because the wrong one is the tempting one.
+ *
+ * One ground for doubt WAS simply false: "/budgets already excludes it via
+ * NON_BUDGETABLE". It does not. `NON_BUDGETABLE` (budgets/status.ts:27) decides
+ * which categories may carry a TARGET — it is the picker's offer set, not a row
+ * filter — and `summarizeBudgets` renders the union of spend keys and budget
+ * keys, so /budgets counts these rows exactly as /reports does. The two surfaces
+ * never disagreed, and TASKS O.8(b) was written on the belief that they did.
+ *
+ * The other ground is REAL, and narrower than "a card payment double-counts":
+ *  - When we hold the card, `detectTransfers` usually pairs the two sides and
+ *    sets `isTransfer`, which line 45 of reports.ts excludes. Measured against
+ *    production, that is what happens (see docs/STATUS.md §O.8 for the counts).
+ *  - But pairing needs exact opposite amounts within ±3 CALENDAR DAYS
+ *    (transfers.ts:41-58). A payment leaving checking on the 28th whose card-side
+ *    credit posts on the 3rd escapes the window: executed, only the CARD side is
+ *    flagged (its descriptor is transfer-like), so the checking-side payment
+ *    counts as spending and the credit that would offset it is excluded. The
+ *    phantom spend is never repaid, because the next month's net-refund rule
+ *    drops the leftover credit.
+ *
+ * So excluding by category WOULD fix the straddle. It would also delete the only
+ * trace of money leaving for a reader paying a card this app cannot see. Those
+ * fail in opposite directions and the directions are not equal: over-counting
+ * makes /budgets say "$87.70 left" when more is left (the reader under-spends),
+ * while under-counting makes it say more is left than there is — an INSTRUCTION
+ * built on an understated figure, which is the failure that costs money (L.14).
+ * The exclusion is therefore declined, and the straddle is recorded as an open
+ * defect whose fix belongs in the DETECTOR (pair a `credit-card-payment` row
+ * against a held CREDIT account over a wider window), not in this predicate —
+ * fixing it there repairs the double count without deleting anything.
+ *
+ * Locked in reports.test.ts, including the straddle, so neither half is silent.
  */
 const NET_SPEND_BASIS =
   'Purchases only — transfers and income are excluded; refunds count against their category.';

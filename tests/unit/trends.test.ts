@@ -292,8 +292,14 @@ describe('computeSpendingTrends on the seed (real-volume, default normalization)
   });
 
   it('surfaces new merchants not seen in the prior 6 months', () => {
-    expect(r.newMerchants.map((m) => m.merchant)).toContain('Costco Gas');
-    for (const m of r.newMerchants) expect(m.amountCents).toBeGreaterThan(0);
+    // GOLDEN LITERALS (O.8a critic). `amountCents > 0` used to stand here and is
+    // now tautological — the net-<=-0 drop guarantees it — so it compared the
+    // code against its own default and could never fail. These two numbers are
+    // the seed's actual figures and are unchanged by O.8a (the seed has no
+    // pending row or refund at either merchant), which is what makes them a
+    // regression lock rather than a restatement of the new behaviour.
+    expect(r.newMerchants.map((m) => m.merchant)).toEqual(['Store Card Purchase', 'Costco Gas']);
+    expect(r.newMerchants.map((m) => m.amountCents)).toEqual([4350, 3738]);
   });
 });
 
@@ -491,5 +497,140 @@ describe('toTrendTxns — the /trends intake (O.6 fail-old lock)', () => {
     const [t] = toTrendTxns([row({ rawDescriptor: 'ZELLE PAYMENT TO ALEX' })]);
     expect(t.aggregateMerchant).toBe(true);
     expect(t.merchant).toBeTruthy();
+  });
+});
+
+/**
+ * O.8(a) — the "New this month" AMOUNT is an aggregate, so it reads the register
+ * basis; only the NAMING half stays settled-only.
+ *
+ * Opened by the O.7 critics and MEASURED before it was fixed: four rows at one
+ * brand-new merchant (two settled purchases, one pending purchase, one settled
+ * refund) made /trends print $65.00 and Ask print $80.00 for the same merchant
+ * and the same month. Both sentences were true of their own basis and each was
+ * disclosed, which is exactly why nobody could see it — the surfaces are never
+ * shown side by side. O.6/O.7 settled that one question gets one basis.
+ */
+describe('O.8a — new-merchant amounts read the register basis', () => {
+  const NM_TODAY = '2026-06-20';
+  /** The measured case. `Fresh Roasters` is unseen in the prior 6 months. */
+  const rows: TrendTxn[] = [
+    T('2026-06-03', -4000, 'coffee', { merchant: 'Fresh Roasters' }),
+    T('2026-06-10', -2500, 'coffee', { merchant: 'Fresh Roasters' }),
+    T('2026-06-18', -3000, 'coffee', { merchant: 'Fresh Roasters', status: 'PENDING' }),
+    T('2026-06-15', 1500, 'coffee', { merchant: 'Fresh Roasters' }), // a REFUND
+  ];
+  const nm = (txns: TrendTxn[], today = NM_TODAY) =>
+    computeSpendingTrends({ txns, today }).newMerchants.find((n) => n.merchant === 'Fresh Roasters');
+
+  it('counts a PENDING charge and nets a REFUND: 40 + 25 + 30 − 15 = $80.00', () => {
+    // Fail-old: the settled-gross rule returned 4000 + 2500 = 6500.
+    expect(nm(rows)!.amountCents).toBe(8000);
+  });
+
+  it('the pending row and the refund are each doing work (anti-vacuity, both directions)', () => {
+    expect(nm(rows.filter((t) => t.status !== 'PENDING'))!.amountCents).toBe(5000); // 40+25−15
+    expect(nm(rows.filter((t) => t.amountCents < 0))!.amountCents).toBe(9500); // 40+25+30
+  });
+
+  it('still refuses to NAME a merchant new on a pending row alone', () => {
+    // The naming half did not move. One pending charge, nothing settled ⇒ absent.
+    const pendingOnly: TrendTxn[] = [
+      T('2026-06-18', -3000, 'coffee', { merchant: 'Fresh Roasters', status: 'PENDING' }),
+      T('2026-06-03', -1000, 'coffee', { merchant: 'Anchor Cafe' }), // anti-vacuity
+    ];
+    const r = computeSpendingTrends({ txns: pendingOnly, today: NM_TODAY });
+    expect(r.newMerchants.map((n) => n.merchant)).toEqual(['Anchor Cafe']);
+  });
+
+  it('drops a merchant whose refunds cancelled the month rather than printing a negative', () => {
+    // #74 accepted gross to avoid "a confusing negative new-merchant line";
+    // netting answers it with the rule /reports already applies to a category.
+    const cancelled: TrendTxn[] = [
+      T('2026-06-03', -4000, 'coffee', { merchant: 'Fresh Roasters' }),
+      T('2026-06-09', 4200, 'coffee', { merchant: 'Fresh Roasters' }),
+      T('2026-06-03', -1000, 'coffee', { merchant: 'Anchor Cafe' }), // anti-vacuity
+    ];
+    const r = computeSpendingTrends({ txns: cancelled, today: NM_TODAY });
+    expect(r.newMerchants.map((n) => n.merchant)).toEqual(['Anchor Cafe']);
+  });
+
+  it('counts an UNFILED row at the merchant, which the naming pass cannot see', () => {
+    // `uncategorized` is in the non-actionable group, so it can never NAME a new
+    // merchant — but the register counts it and so does Ask, so it must reach
+    // the money. This is the axis `isPurchaseRow` would have silently dropped.
+    const withUnfiled: TrendTxn[] = [
+      T('2026-06-03', -4000, 'coffee', { merchant: 'Fresh Roasters' }),
+      T('2026-06-07', -1200, null, { merchant: 'Fresh Roasters' }),
+    ];
+    expect(nm(withUnfiled)!.amountCents).toBe(5200);
+  });
+
+  it('an aggregate pseudo-merchant is still excluded entirely (the O.7 guard, by name)', () => {
+    const withAggregate: TrendTxn[] = [
+      T('2026-06-03', -4900, null, { merchant: 'ATM Withdrawal', aggregateMerchant: true }),
+      T('2026-06-03', -1000, 'coffee', { merchant: 'Anchor Cafe' }),
+    ];
+    const r = computeSpendingTrends({ txns: withAggregate, today: NM_TODAY });
+    expect(r.newMerchants.map((n) => n.merchant)).toEqual(['Anchor Cafe']);
+  });
+});
+
+/**
+ * O.8a critic (P1) — pending money cannot NAME a merchant, but it CAN un-name
+ * one, and the card's basis line has to survive that asymmetry.
+ *
+ * These pin the drop rule's reach. They are not a claim that the asymmetry is
+ * ideal: they exist so it is disclosed and visible rather than discovered.
+ */
+describe('O.8a — what the net-<=-0 drop actually removes', () => {
+  const D_TODAY = '2026-06-20';
+  const other = T('2026-06-03', -1000, 'coffee', { merchant: 'Anchor Cafe' }); // anti-vacuity
+  const names = (txns: TrendTxn[]) =>
+    computeSpendingTrends({ txns, today: D_TODAY }).newMerchants.map((n) => n.merchant);
+
+  it('a settled purchase fully refunded drops off, while Biggest purchases still names it', () => {
+    const txns = [
+      T('2026-06-03', -4000, 'coffee', { merchant: 'Fresh Roasters' }),
+      T('2026-06-09', 4000, 'coffee', { merchant: 'Fresh Roasters' }),
+      other,
+    ];
+    const r = computeSpendingTrends({ txns, today: D_TODAY });
+    expect(r.newMerchants.map((n) => n.merchant)).toEqual(['Anchor Cafe']);
+    // The same page still names the purchase on the other card — the two cards
+    // answer different questions, and the basis line says which this one asks.
+    expect(r.largest.map((l) => l.merchant)).toContain('Fresh Roasters');
+  });
+
+  it('a PENDING refund can veto a merchant that a settled purchase confirmed', () => {
+    // The asymmetry, stated: a pending row may not name an event, but it counts
+    // toward the money, so a provisional credit can remove the line. Disclosed
+    // by the card's "nets refunds against them … drops off this list".
+    expect(
+      names([
+        T('2026-06-03', -12000, 'coffee', { merchant: 'Fresh Roasters' }),
+        T('2026-06-18', 12500, 'coffee', { merchant: 'Fresh Roasters', status: 'PENDING' }),
+        other,
+      ]),
+    ).toEqual(['Anchor Cafe']);
+  });
+
+  it('a $0 verification hold neither names nor perturbs a merchant', () => {
+    expect(
+      names([T('2026-06-03', 0, 'fuel', { merchant: 'Sunoco' }), other]),
+    ).toEqual(['Anchor Cafe']);
+  });
+
+  it('once NAMED, a non-actionable row at the same merchant reaches the money (parity, by decision)', () => {
+    // The guard the money pass deliberately does NOT re-apply — see the
+    // NON_ACTIONABLE_GROUP docblock. Bounded in practice by the aggregate gate.
+    const r = computeSpendingTrends({
+      txns: [
+        T('2026-06-03', -4000, 'coffee', { merchant: 'Fresh Roasters' }),
+        T('2026-06-06', -1500, 'cash', { merchant: 'Fresh Roasters' }),
+      ],
+      today: D_TODAY,
+    });
+    expect(r.newMerchants[0]).toMatchObject({ merchant: 'Fresh Roasters', amountCents: 5500 });
   });
 });

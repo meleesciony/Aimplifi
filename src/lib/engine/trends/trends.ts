@@ -21,7 +21,16 @@
 import { addMonthsToMonthKey, daysInMonth, monthKey } from '@/lib/dates';
 import { roundHalfAwayFromZero } from '@/lib/money';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
-import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
+import {
+  spendingByCategory,
+  // Aliased because this module has its own narrower `isSpendRow` (purchases
+  // only — inflows rejected). The register basis is the one an AGGREGATE reads
+  // (O.7); the local one is what a row-NAMING insight reads. Two predicates, two
+  // questions, and the alias is what stops a future edit from confusing them.
+  isSpendRow as isRegisterSpendRow,
+  spendContributionCents,
+  type ReportTxn,
+} from '@/lib/engine/reports/reports';
 
 // ── Tunable thresholds (deterministic, in code) ─────────────────────────────
 /** A mover must move at least this many cents to be worth surfacing. */
@@ -38,9 +47,20 @@ export const NEW_MERCHANT_LOOKBACK_MONTHS = 6;
 /**
  * The catch-all group (transfer, credit-card-payment, cash/ATM, uncategorized).
  * Its members are money movement, not actionable spending, so they are kept out
- * of the category movers and the "largest purchases" / "new merchants" lists.
+ * of the category movers and out of WHICH rows may NAME something: "largest
+ * purchases", and which merchants qualify as new.
  * (They still count toward the pace total, which mirrors the /reports and
  * /spending-plan definition of "money out this month" — one spend definition.)
+ *
+ * O.8a narrowed this claim rather than widening the guard. The new-merchant
+ * AMOUNT is a register-basis aggregate, and the register counts these rows — so
+ * once a merchant has been named by an actionable settled purchase, a
+ * `cash`/`credit-card-payment`/unfiled row at that SAME canonical merchant does
+ * reach its total, exactly as it reaches Ask's. Adding the guard to the money
+ * pass would re-open the divergence this slice closed, and would re-break O.6's
+ * P0 (unfiled rows vanishing). Reachability is bounded by the aggregate gate:
+ * ATM/card-payment/Zelle descriptors normalize to aggregate pseudo-merchants,
+ * which both passes skip. Locked in trends.test.ts.
  */
 const NON_ACTIONABLE_GROUP = 'Transfers & Other';
 
@@ -51,12 +71,18 @@ export interface TrendTxn extends ReportTxn {
    * different questions of the same rows, and only one of them wants pending.
    * The category figures (movers, pace) count pending — a pending charge has
    * genuinely reduced what you can spend, and every other spending surface counts
-   * it. The two insights that NAME an individual row as a settled fact (largest
-   * purchases, new merchants) do not, because a pending amount is provisional: a
-   * fuel pre-authorisation posts at $1 and settles at $60, so "your biggest
-   * purchase" and "you shopped somewhere new" would be sentences about a figure
-   * that has not happened yet. `computeSpendingTrends` is the single place that
-   * split is applied, so the two bases cannot drift apart per-insight.
+   * it. What does NOT count pending is a claim NAMING something as a settled
+   * fact, because a pending amount is provisional: a fuel pre-authorisation posts
+   * at $1 and settles at $60, so "your biggest purchase" would be a sentence
+   * about a figure that has not happened yet.
+   *
+   * That line runs through `newMerchants` rather than around it (O.8a). WHICH
+   * merchants are new is a naming claim and stays settled-only; the AMOUNT
+   * printed beside each one is an aggregate at merchant scope, the same question
+   * Ask's `merchantSpend` answers, so it counts pending and nets refunds like
+   * every other aggregate. `computeSpendingTrends` passes every row and each
+   * insight applies its own narrowing, so a basis lives next to the claim it
+   * describes instead of being decided one call up.
    */
   status: string;
   /**
@@ -122,9 +148,40 @@ export interface LargestTxn {
 export interface NewMerchant {
   merchant: string;
   categoryName: string;
-  // this month's purchases at the merchant. Refunds aren't netted — a brand-new
-  // merchant rarely has a same-month return, and netting would risk a confusing
-  // negative "new merchant" line; an accepted simplification (STATUS / #74).
+  /**
+   * Spending at this merchant this month, on the REGISTER basis (O.8a): posted
+   * AND pending, refunds netted against it, bucketed by the stored category —
+   * the same per-row predicate `spendingByCategory` and Ask's `merchantSpend`
+   * both count on.
+   *
+   * WHAT THAT DOES **NOT** PROMISE, corrected by the O.8a critic after an
+   * earlier draft of this comment claimed the two surfaces "cannot drift":
+   * sharing a row BASIS is not sharing a merchant SCOPE. This list keys on the
+   * exact canonical name; `merchantMatches` (answer.ts:733) matches a
+   * bidirectional whole-word PREFIX, so a question about "Costco Gas" also
+   * sweeps in "Costco". On the demo seed that is $37.38 here against $195.82
+   * there — a gap this module cannot close, because it is Ask's name resolution,
+   * not the money rule. It predates O.8a (the old settled-gross figure was the
+   * same $37.38) and is recorded as TASKS O.10. `o8-merchant-basis-parity.test.ts`
+   * pins BOTH halves: the basis agreeing, and the scope not.
+   *
+   * It used to be settled purchases only, gross. That is a true sentence and it
+   * was disclosed on the card, but it made this surface answer "how much did I
+   * spend at M this month" with different dollars than Ask did (measured: $65.00
+   * here vs $80.00 there, off four rows) — the same one-question-two-bases sin
+   * O.6/O.7 unified everywhere else, and pending is understated worst at exactly
+   * these merchants, since a merchant you just started using is the one most
+   * likely to have a charge that has not settled.
+   *
+   * The naming half did NOT move: a merchant still only qualifies as new on a
+   * settled purchase, because "you shopped somewhere new" is a claim about an
+   * event and a pending authorisation has not finished being one.
+   *
+   * Always > 0. #74 accepted the gross simplification to avoid "a confusing
+   * negative new-merchant line"; netting answers that by DROPPING a merchant
+   * whose net is ≤ 0, which is the rule `spendingByCategory` already applies to
+   * a net-refunded category (reports.ts:78) rather than a new one.
+   */
   amountCents: number;
   firstDate: string; // earliest this-month date
 }
@@ -319,6 +376,28 @@ function computeLargest(
     .slice(0, MAX_LARGEST);
 }
 
+/**
+ * Merchants spent at this month but not in the prior `NEW_MERCHANT_LOOKBACK_MONTHS`.
+ *
+ * TWO passes on purpose (O.8a), because the card makes two different claims and
+ * O.6/O.7 settled that they take different bases:
+ *
+ *  1. WHICH merchants are new — a claim about an EVENT ("you shopped somewhere
+ *     new"), so it is licensed by settled purchase rows only. A pending
+ *     authorisation can vanish, and a merchant named on one that never posts is
+ *     a sentence about something that did not happen. This pass also fixes the
+ *     label and the first-seen date, for the same reason.
+ *  2. HOW MUCH was spent there — an AGGREGATE over a window at merchant scope,
+ *     which is the same question `merchantSpend` answers, so it reads the
+ *     register basis (posted AND pending, refunds netted, stored category). The
+ *     predicate is literally the reports engine's, not a copy of it, so the two
+ *     cannot drift ON THE ROW RULE. They can still differ on WHICH ROWS BELONG
+ *     TO THE MERCHANT — see `NewMerchant.amountCents` for the prefix-matching
+ *     gap and TASKS O.10.
+ *
+ * Receives ALL rows; the settled narrowing for pass 1 is applied here rather
+ * than by the caller, so the two bases stay visible side by side.
+ */
 function computeNewMerchants(
   txns: readonly TrendTxn[],
   today: string,
@@ -326,40 +405,65 @@ function computeNewMerchants(
 ): NewMerchant[] {
   const ym = monthKey(today);
   const earliestPrior = addMonthsToMonthKey(ym, -(NEW_MERCHANT_LOOKBACK_MONTHS)); // inclusive lower bound
+  const merchantKey = (m: string) => m.trim().toLowerCase();
 
-  // Merchants seen in the lookback window [earliestPrior, prior month].
-  // Aggregate pseudo-merchants are skipped entirely — "new" is meaningless for them.
+  // ── Pass 1: naming. Settled purchases only. ──────────────────────────────
+  // Aggregate pseudo-merchants are skipped entirely — "new" is meaningless for
+  // them, and it is the guard that keeps "ATM Withdrawal" out of the list.
+  const isNamingRow = (t: TrendTxn) =>
+    t.status === 'POSTED' && isPurchaseRow(t, meta) && !t.aggregateMerchant && !!t.merchant;
+
   const seenBefore = new Set<string>();
   for (const t of txns) {
-    if (!isPurchaseRow(t, meta) || t.aggregateMerchant || !t.merchant) continue;
+    if (!isNamingRow(t)) continue;
     const m = monthKey(t.date);
-    if (m >= earliestPrior && m < ym) seenBefore.add(t.merchant.trim().toLowerCase());
+    if (m >= earliestPrior && m < ym) seenBefore.add(merchantKey(t.merchant!));
   }
 
-  const thisMonth = new Map<
-    string,
-    { merchant: string; categoryName: string; amountCents: number; firstDate: string }
-  >();
+  const named = new Map<string, { merchant: string; categoryName: string; firstDate: string }>();
   for (const t of txns) {
-    if (t.date > today || monthKey(t.date) !== ym || !isPurchaseRow(t, meta) || t.aggregateMerchant || !t.merchant)
-      continue;
-    const key = t.merchant.trim().toLowerCase();
+    if (t.date > today || monthKey(t.date) !== ym || !isNamingRow(t)) continue;
+    const key = merchantKey(t.merchant!);
     if (seenBefore.has(key)) continue;
-    const prev = thisMonth.get(key);
+    const prev = named.get(key);
     if (prev) {
-      prev.amountCents += -t.amountCents;
       if (t.date < prev.firstDate) prev.firstDate = t.date;
     } else {
-      thisMonth.set(key, {
-        merchant: t.merchant.trim(),
+      named.set(key, {
+        merchant: t.merchant!.trim(),
         categoryName: catName(namedCategoryId(t), meta),
-        amountCents: -t.amountCents,
         firstDate: t.date,
       });
     }
   }
 
-  return [...thisMonth.values()]
+  // ── Pass 2: the money. Register basis over the named merchants. ──────────
+  // Same three predicates `merchantSpend` applies, in the same order: the window
+  // (carried by `isSpendRow`), `<= today`, and the aggregate gate. A row that is
+  // unfiled or pending counts here and is invisible to pass 1 — which is the
+  // point: the reader is told a merchant is new by what settled, and told what
+  // they spent there by what the register shows.
+  const totals = new Map<string, number>();
+  for (const t of txns) {
+    if (t.date > today || !t.merchant || t.aggregateMerchant) continue;
+    if (!isRegisterSpendRow(t, { fromYm: ym, toYm: ym }, meta)) continue;
+    const key = merchantKey(t.merchant);
+    if (!named.has(key)) continue;
+    totals.set(key, (totals.get(key) ?? 0) + spendContributionCents(t));
+  }
+
+  const rows: NewMerchant[] = [];
+  for (const [key, n] of named) {
+    const amountCents = totals.get(key) ?? 0;
+    // Net refund / zero → drop, the rule `spendingByCategory` applies to a
+    // category (reports.ts:78). A merchant whose returns cancelled the month is
+    // not a "new merchant" worth a line, and printing −$10.00 under "New this
+    // month" is the confusing negative #74 declined to risk.
+    if (amountCents <= 0) continue;
+    rows.push({ merchant: n.merchant, categoryName: n.categoryName, amountCents, firstDate: n.firstDate });
+  }
+
+  return rows
     .sort((a, b) => b.amountCents - a.amountCents || (a.merchant < b.merchant ? -1 : 1))
     .slice(0, MAX_NEW_MERCHANTS);
 }
@@ -383,6 +487,9 @@ export function computeSpendingTrends(
     pace: computePace(txns, today, meta),
     movers,
     largest: computeLargest(settled, today, meta),
-    newMerchants: computeNewMerchants(settled, today, meta),
+    // ALL rows (O.8a) — `computeNewMerchants` applies the settled narrowing to
+    // its naming pass itself, because only half of what that card prints is a
+    // claim about a settled event; the money beside it is an aggregate.
+    newMerchants: computeNewMerchants(txns, today, meta),
   };
 }

@@ -38,6 +38,22 @@ test('trends view shows pace, movers, and largest purchases from the seed', asyn
   const largest = page.getByTestId('trends-largest');
   await expect(largest).toBeVisible();
   await expect(largest).toContainText('Costco');
+
+  // New merchants (O.8a). Nothing asserted this card before, so the basis line
+  // its honesty rests on could have been deleted with every suite green — and
+  // per L.29 a figure counting unsettled money must SAY that it does.
+  const newMerchants = page.getByTestId('trends-new-merchants');
+  await expect(newMerchants).toBeVisible();
+  // The seed's figure, rendered — the engine golden reaching the page.
+  await expect(newMerchants).toContainText('Costco Gas');
+  await expect(newMerchants).toContainText('$37.38');
+
+  const basis = page.getByTestId('trends-new-merchants-basis');
+  // Each clause is a separate claim, so each is asserted separately: what
+  // confirms a merchant, that pending money counts, and that the list can drop.
+  await expect(basis).toContainText('settled purchase');
+  await expect(basis).toContainText('still pending');
+  await expect(basis).toContainText('drops off this list');
 });
 
 test('trends page passes WCAG 2.1 AA (axe)', async ({ page }) => {

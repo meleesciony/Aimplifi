@@ -5714,7 +5714,10 @@ Accepted P2s (documented, by design): (1) pace counts money-movement to MATCH
 documented split, not a third spend definition); (2) largest excludes
 uncategorized to avoid Unknown-Merchant noise (consistent with movers); (3)
 refunds are not netted from the new-merchant total (a brand-new merchant rarely
-has a same-month return; netting would risk a confusing negative line); (4) the
+has a same-month return; netting would risk a confusing negative line)
+— **SUPERSEDED by O.8a 2026-07-29:** refunds ARE netted now, and the confusing
+negative is answered by dropping a merchant whose net is ≤ 0, the rule
+`spendingByCategory` already applies to a net-refunded category; (4) the
 day-1/2 pace projection is volatile but explicitly caveated ("a projection, not a
 prediction"); (5) the mover baseline averages over months-with-any-spend — a true
 calendar-monthly average including $0 months; (6) trends copy is hand-verified
@@ -8802,6 +8805,10 @@ together instead: `toPurchaseRows` also stopped guessing, and `TrendTxn.status` 
 that NAME a row as a settled fact (biggest purchases, new merchants) do not. O.6's sin is one question
 answered differently on different PAGES, not different questions on one page — and each of those two
 sections now states its basis inline (L.29).
+**AMENDED by O.8a 2026-07-29:** the line runs THROUGH the new-merchant card rather than around it. Which
+merchants are new is still settled-only (a naming claim about an event); the AMOUNT beside each one is an
+aggregate at merchant scope — the identical question Ask's `merchantSpend` answers — so it counts pending
+and nets refunds. Biggest purchases is unchanged: it names a single row.
 
 ### Shipped
 
@@ -8946,3 +8953,71 @@ clean · `npx vitest run` → **4641 unit / 291 files** · `VERIFY_E2E=1 bash sc
 passed, ✅ VERIFY GREEN**. Every lock mutation-proven: deleting the aggregate filter fails 2, restoring
 the category merge fails 1, reverting the basis fails 15, dropping `<= today` fails 2, reverting the
 display-name rule fails 1.
+
+## 2026-07-29 — O.8: one basis for a merchant aggregate, and a proposed money fix refuted (verify green)
+
+**The gap, measured before anything changed.** /trends' "New this month" card and Ask answered the same
+question — "how much did I spend at merchant M this month" — with different dollars. Four rows at one
+brand-new merchant (two settled purchases, one pending purchase, one settled refund) produced **$65.00**
+on /trends and **$80.00** in Ask. Both sentences were true of their own basis and both were disclosed on
+their own surface, which is exactly why nobody could see it: the two are never shown side by side.
+
+**The decision: the split runs THROUGH the card, not around it.** WHICH merchants are new is a claim
+about an EVENT, so it stays settled-purchase-only — a pending authorisation can vanish, and a merchant
+named on one that never posts is a sentence about something that did not happen. The AMOUNT beside each
+is an AGGREGATE at merchant scope, so it now reads the reports engine's own exported `isSpendRow` /
+`spendContributionCents`: posted and pending, refunds netted, bucketed by the stored category.
+`computeSpendingTrends` passes every row and each insight applies its own narrowing, so a basis lives
+beside the claim it describes. #74's accepted gross simplification ("netting would risk a confusing
+negative new-merchant line") is answered by dropping a net-≤-0 merchant — the rule `spendingByCategory`
+already applies to a net-refunded category, not a newly invented one.
+
+**O.8(b) refuted, and then the refutation's own argument falsified.** TASKS O.8 asked for the
+`credit-card-payment` category to be excluded from spending, on two grounds that are both wrong.
+"/budgets already excludes it via NON_BUDGETABLE" — false; that set gates which categories may carry a
+budget TARGET, while `summarizeBudgets` renders the union of spend keys, so the two surfaces never
+disagreed. And the double count it feared is already handled: a read-only production probe found
+**20 of 20** `credit-card-payment` rows carrying `isTransfer: true` (the defect set is empty), because
+the pair detector catches them whenever we hold the card. For contrast, the id-based `transfer`
+exclusion is doing real work on the same data — **49 rows**, signed −$14,872.95, that the flag alone
+never caught. *(Counts live here rather than in source comments, per the one-status-home rule.)*
+
+But the first version of that argument said excluding "would fix nothing", and a critic executed the
+counterexample: pairing needs opposite amounts within **±3 calendar days**, so a payment leaving checking
+on the 28th whose card-side credit posts on the 3rd escapes — only the card side is flagged, the payment
+counts as spending on top of the charges it settles, and the credit never repays it because next month's
+net-refund rule drops it. The exclusion is still declined, but as a **trade-off chosen by failure
+direction**: it would also delete the only trace of money leaving for a reader paying a card this app
+cannot see, and an understated figure beneath "$87.70 left this month" is the failure that costs money
+(L.14). The straddle is locked as a known defect and carried to **O.10b**, where the fix belongs — in the
+detector, which repairs the double count without deleting anything.
+
+**What the two critics found (both FAIL, converging INDEPENDENTLY on the same P1).** I claimed the new
+amount reads "the exact rows Ask counts" and that the two "cannot drift". False, and false on the shipped
+demo seed by 5.2×: `merchantMatches` takes a bidirectional whole-word PREFIX, so "Costco Gas" sweeps in
+every "Costco" row — **$37.38** here against **$195.82** there, answered under the name *Costco*.
+Sharing a row BASIS is not sharing a merchant SCOPE. The gap predates this slice (the old settled-gross
+figure was the same $37.38), so what shipped was a false claim rather than a regression; every claim is
+narrowed and the divergence is now PINNED by assertions, so closing it (O.10a) means changing a test that
+explains itself. The parity lock itself was the second P1: every case used one merchant string, which
+makes exact-key and prefix matching trivially identical — a fixture that cannot express the failure it
+advertises catching. The seed assertion had the same disease inverted (`amountCents > 0` became
+tautological the moment the net-≤-0 drop landed); replaced with golden literals. The claims critic then
+falsified my own basis line — "a merchant appears here once a purchase settles" is broken by the drop
+rule, and a PENDING refund can veto a merchant a settled purchase confirmed, so pending money cannot name
+an event but can un-name one. Rewritten and both cases locked.
+
+**Also fixed from the critics:** production counts hardcoded into source comments, a probe printing user
+emails into transcripts, the live `.env.prod.tmp` credential left at repo root (deleted; regenerate with
+`vercel env pull` when a probe needs it), and the new-merchants card having **no test of any kind** — its
+basis sentence could have been deleted with every suite green. The e2e written for it failed on first run
+against a stale build (the recorded tell: "my change had no effect at all") and passed after a rebuild.
+
+**Open, carried to Wave O.10, each verified by execution:** Ask's prefix-family merchant scope (O.10a),
+the pair-window straddle (O.10b), `merchantSpend`'s refund-first truncation (O.10c), and three recorded
+residuals (O.10d).
+
+**Gate (real output, run alone):** `bash scripts/verify.sh` → tsc 0, eslint 0, **297 files / 4732 tests**
+at the pre-critic gate, `next build` clean, ✅ VERIFY GREEN; final counts below. Mutation-proven: reverting
+`trends.ts` fails 7 locks, headlined `expected 6500 to be 8000` — the measured divergence itself; applying
+the O.8(b) exclusion fails the decision lock. Prisma diff EMPTY → no DDL against Neon.
