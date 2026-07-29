@@ -2,7 +2,7 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
-## ✅ O.12d 2026-07-29 — the provider-category backfill is BUILT (DECISIONS #337); production run PENDING
+## ✅ O.12d 2026-07-29 — the provider-category backfill is BUILT, DEPLOYED, and RUN against production (DECISIONS #337)
 
 The repair for the re-diagnosis below: `PlaidProvider.backfillProviderCategories` fetches the
 null rows' exact date window via date-ranged `/transactions/get` (which returns already-delivered
@@ -21,12 +21,32 @@ whole verify gate while making ripgrep treat the file as BINARY (P1, found indep
 — fixed byte-exactly, and `source-hygiene.test.ts` now gates every control byte in
 src/tests/scripts, catching a pre-existing raw-0x01 pair in `server/coach.ts` on its first run).
 
-**OPEN until the production run** (next session step, task #4): invoke the route against
-production with the live bearer, then re-run
-`scripts/audit-probes/o12-what-the-inbox-actually-holds.ts` and record the before/after of the
-82-silent-groups table below. PFC availability on `/transactions/get` is UNVERIFIED against live
-Plaid until that run — all-matches-in-`noGuess` is the tell that the dashboard API version is not
-returning PFC on /get (failure direction: visible no-op, never a wrong write).
+**PRODUCTION RUN 2026-07-29 (this session, deploy `b9fd11f` verified live first — the route's own
+401 with no authjs cookies, the critic's differential):** 1 user swept, **12 items queried / 0
+failed**, candidates 1,282, **planned 870 = written 870** (zero rows raced), skipped: 262
+`notReturned` (history Plaid no longer returns — honestly null), 150 `noGuess` (Plaid itself has
+no usable guess — the null is correct), 0 amount/account mismatches, 0 inconsistent fetches. PFC
+availability on `/transactions/get` is now **VERIFIED by measurement** (870 guesses landed).
+
+**AFTER, same replay probe** (`o12-what-the-inbox-actually-holds.ts`), queue unchanged at 173
+rows / 89 groups as expected (the repair files nothing): groups offered **Plaid's guess 0 → 27**,
+O.9 proposals 7 → 5 (verified benign: the probe's tiers are precedence-ordered at its line 203,
+so 2 proposal-groups that gained a guess moved up a tier — net coverage **7 → 32 of 89 groups**),
+offering NOTHING **82 → 57** = 10 aggregates (O.12e's population) + 47 never-corrected merchants
+where Plaid also has no guess (incl. the 12-row masked `.` group, O.12f). Note the probe now
+prints 26 owner `AccountReconciliation` rows, so its replay is an UPPER BOUND where the
+diagnosis-time run (0 rows) was exact.
+
+**⚠️ OPERATOR NOTE — CRON_SECRET was ROTATED this session (2026-07-29).** The old value was
+stored as a Vercel *sensitive* var (unreadable even by `vercel env pull`, which returns a
+`[SENSITIVE]` placeholder), so the route could not be invoked with any credential on this
+machine. A fresh random value was set via `vercel env rm/add CRON_SECRET production` + redeploy;
+Vercel Cron reads the env var at fire time, so the nightly crons are unaffected. The new value
+lives ONLY in Vercel (the local copy was deleted with `.env.prod.tmp` per the probe-header rule);
+any saved copy of the old value is now stale. To invoke a repair/cron route manually in a future
+session: rotate again (2-minute procedure, this section is the record) or have the owner set a
+value they keep. `PLAID_SECRET` and `DATA_PROVIDER` are also sensitive-stored — a local script
+can never call Plaid directly; provider-touching repairs must run in the deployed app.
 
 ## 🔎 RE-DIAGNOSIS 2026-07-29 — Wave O.12 was scoped on a set the inbox never renders (commit `1716766`)
 
