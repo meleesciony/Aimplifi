@@ -158,6 +158,53 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   // (real feeds vary): without this the biggest US retailer fell to unknown.
   { pattern: /^WAL[- ]?MART|^WALMART(\.COM)?\b/i, canonical: 'Walmart', categoryId: 'shopping' },
   { pattern: /^TARGET(\.COM)?\b/i, canonical: 'Target', categoryId: 'shopping' },
+  // DEPARTMENT STORES + national retail the table was MISSING (O.13 owner report,
+  // 2026-07-29: *"How is categorizer not identifying macys? A major big box
+  // brand."*). The generic keyword tier below did list several of these brands —
+  // as the STEMS `MACY`, `DILLARD`, `KOHL` — and `\bMACY\b` cannot match `MACYS`,
+  // because the trailing S removes the word boundary the pattern needs. So the
+  // apostrophe spelling worked (`MACY'S #123` → clothing) and the plural spelling
+  // every bank actually sends did not (`MACYS LENOX SQUARE` → uncategorized).
+  // Measured: 22 of 80 major-brand descriptors earned no category at all.
+  //
+  // They belong in this SPECIFIC tier rather than as a widened keyword stem, for
+  // a reason worth stating: an entry here also fixes the NAME. The generic tier
+  // only supplies a category, so the register kept printing 'Macys Lenox Square'
+  // — the brand welded to the shopping mall it sits in. Anchored patterns are
+  // prefix matches, so trailing location noise (a mall, a store number, a city)
+  // never blocks the match and never reaches the canonical.
+  { pattern: /^MACY'?S\b/i, canonical: "Macy's", categoryId: 'clothing' },
+  { pattern: /^DILLARD'?S\b/i, canonical: "Dillard's", categoryId: 'clothing' },
+  { pattern: /^BLOOMINGDALE'?S\b/i, canonical: "Bloomingdale's", categoryId: 'clothing' },
+  { pattern: /^SAKS( ?FIFTH)?\b/i, canonical: 'Saks Fifth Avenue', categoryId: 'clothing' },
+  { pattern: /^KOHL'?S\b/i, canonical: "Kohl's", categoryId: 'clothing' },
+  { pattern: /^J\.? ?CREW\b/i, canonical: 'J.Crew', categoryId: 'clothing' },
+  { pattern: /^VICTORIA'?S? ?SECRET\b/i, canonical: "Victoria's Secret", categoryId: 'clothing' },
+  { pattern: /^BATH ?(&|AND) ?BODY ?WORKS\b/i, canonical: 'Bath & Body Works', categoryId: 'personal-care' },
+  { pattern: /^PARTY CITY\b/i, canonical: 'Party City', categoryId: 'shopping' },
+  { pattern: /^CABELA'?S\b/i, canonical: "Cabela's", categoryId: 'hobbies' },
+  // Furnishings. 'JM*' is the processor prefix Joss & Main bills under, and the
+  // digits that follow it are an order id that changes every purchase — exactly
+  // the class O.13a's typed keywords exist for, so recognising the brand here
+  // saves the reader from needing a rule at all.
+  { pattern: /^JOSS ?(&|AND) ?MAIN\b|^JM\*\s?JOSS ?MAIN/i, canonical: 'Joss & Main', categoryId: 'furnishings' },
+  { pattern: /^WILLIAMS[- ]?SONOMA\b/i, canonical: 'Williams Sonoma', categoryId: 'furnishings' },
+  // Dining chains the table missed. 'DD/BR' is the Dunkin'/Baskin-Robbins combo
+  // store code (the owner's own $10.70 row read 'Dd/br Q35'); Dunkin alone was
+  // already recognised as coffee, so the combo follows it rather than inventing a
+  // second answer for the same counter.
+  { pattern: /^DD ?\/ ?BR\b/i, canonical: "Dunkin' / Baskin-Robbins", categoryId: 'coffee' },
+  { pattern: /^BASKIN[- ]?ROBBINS\b/i, canonical: 'Baskin-Robbins', categoryId: 'fast-food' },
+  { pattern: /^IN[- ]?N[- ]?OUT\b/i, canonical: 'In-N-Out Burger', categoryId: 'fast-food' },
+  { pattern: /^FIREHOUSE SUBS\b/i, canonical: 'Firehouse Subs', categoryId: 'fast-food' },
+  { pattern: /^BEN ?(&|AND) ?JERRY'?S\b/i, canonical: "Ben & Jerry's", categoryId: 'fast-food' },
+  // In-park Walt Disney World vendors, which arrive as the park or resort code
+  // plus whatever was sold ('WDW HYPERIONPOPCORN', 'EPCOT FACEPAINT' — both in the
+  // owner's register). Deliberately NOT keyed on 'DISNEY': that word also carries
+  // the streaming subscription, which is a different answer, and these two tokens
+  // are unmistakable on their own.
+  { pattern: /^WDW\b/i, canonical: 'Walt Disney World', categoryId: 'entertainment' },
+  { pattern: /^EPCOT\b/i, canonical: 'Epcot', categoryId: 'entertainment' },
   // Dining chains (#163 leaf precision: counter-service chains are fast-food,
   // Starbucks is the canonical coffee-shop — the leaves Mint/Simplifi use)
   { pattern: /^CHICK-FIL-A/i, canonical: 'Chick-fil-A', categoryId: 'fast-food' },
@@ -394,7 +441,7 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   // Shopping
   // (GameStop moved to the games leaf, #163.)
   { pattern: /\b(BEST ?BUY|APPLE STORE|MICRO ?CENTER|NEWEGG|B&H PHOTO)\b/i, categoryId: 'electronics' },
-  { pattern: /\b(NIKE|ADIDAS|LULULEMON|OLD NAVY|H&M|ZARA|UNIQLO|FOREVER 21|BANANA REPUBLIC|J\.?CREW|MADEWELL|NORDSTROM|MACY|DILLARD|TJ ?MAXX|MARSHALL|BURLINGTON|UNDER ARMOUR|FOOT LOCKER|KOHL|JCPENNEY|SHEIN|ROSS (DRESS|STORES)|AMERICAN EAGLE|ANTHROPOLOGIE|URBAN OUTFITTERS|STOCKX|POSHMARK|MERCARI|DEPOP|MARSHALLS?|CLOTHING|APPAREL)\b/i, categoryId: 'clothing' },
+  { pattern: /\b(NIKE|ADIDAS|LULULEMON|OLD NAVY|H&M|ZARA|UNIQLO|FOREVER 21|BANANA REPUBLIC|J\.?CREW|MADEWELL|NORDSTROM|MACY'?S?|DILLARD'?S?|TJ ?MAXX|MARSHALL|BURLINGTON|UNDER ARMOUR|FOOT LOCKER|KOHL'?S?|JCPENNEY|SHEIN|ROSS (DRESS|STORES)|AMERICAN EAGLE|ANTHROPOLOGIE|URBAN OUTFITTERS|STOCKX|POSHMARK|MERCARI|DEPOP|MARSHALLS?|CLOTHING|APPAREL)\b/i, categoryId: 'clothing' },
   { pattern: /\b(IKEA|WAYFAIR|ASHLEY FURN|POTTERY BARN|CRATE ?& ?BARREL|WEST ELM|HOME ?GOODS|FURNITURE|MATTRESS|BED BATH|CB2|ROOMS TO GO|AT HOME STORE)\b/i, categoryId: 'furnishings' },
   // Organization/storage retail → household (#163).
   { pattern: /\b(CONTAINER STORE)\b/i, categoryId: 'household' },

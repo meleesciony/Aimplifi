@@ -420,6 +420,17 @@ model CategorizationRule {
   categoryId     String
   priority       Int // user rules beat merchant defaults beat suggestion
   createdFrom    String? // correction id — provenance
+  // The reader's OWN typed match key (TASKS O.13a): space-joined keywords, ALL of
+  // which must appear literally (case-insensitive) in the raw statement text.
+  // Space-joining is lossless by construction — the parser splits on whitespace and
+  // commas, so no stored keyword can contain either — and it keeps the schema
+  // portable (no array/Json type; see the SQLite note at the top of this file).
+  // Null on every rule created before O.13a, which is what keeps their behaviour
+  // byte-identical. An EMPTY string is NOT the same as null: it decodes to a key of
+  // zero keywords, which matches NOTHING (a keyword rule carries no merchantId, and
+  // in RuleLike a null merchantCanonical means "ANY merchant", so an empty key would
+  // otherwise file everything — see keyword-rule.ts).
+  matchKeywords  String?
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   category Category @relation(fields: [categoryId], references: [id])

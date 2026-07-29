@@ -5,6 +5,7 @@
  * created by "Always" were write-only.
  */
 import { prisma } from '@/lib/db';
+import { decodeKeywords } from '@/lib/engine/categorize/keyword-rule';
 import { deriveLearnedRules, type LearnedCorrectionInput } from '@/lib/engine/categorize/learn';
 import { isAggregateCanonical } from '@/lib/engine/categorize/normalize';
 import { isDemoUser } from '@/lib/demo-user';
@@ -20,6 +21,8 @@ export interface RuleRow {
   accountId: string | null;
   categoryId: string;
   priority: number;
+  /** Space-joined typed keywords (O.13a). Null on every pre-O.13a row. */
+  matchKeywords?: string | null;
 }
 
 /**
@@ -41,9 +44,27 @@ export function toRuleLike(
     if (isAggregateCanonical(canonical)) return null;
     merchantCanonical = canonical;
   }
+  // A TYPED key (O.13a). Two things are deliberate here and both are the opposite
+  // of how a DERIVED key is treated:
+  //
+  //  - it may target an aggregate. `isAggregateCanonical` above refuses a
+  //    merchant-keyed rule on Venmo/Zelle/checks because the normalizer INFERRED
+  //    that identity and one canonical hides many payees. A keyword the reader typed
+  //    is not an inference — he named it, he can see it in the rule list, and he can
+  //    delete it — which is the same asymmetry that licenses propose.ts to use
+  //    evidence learn.ts refuses. A keyword rule carries no merchantId, so it never
+  //    reaches that guard, and that is correct rather than an oversight.
+  //  - a DECLARED but EMPTY key matches nothing. `merchantCanonical: null` means
+  //    "ANY merchant" (see the orphan case above), so a rule that announced a
+  //    keyword key and has none left would file every transaction in the app. Same
+  //    trap as the orphan, same answer: refuse the row.
+  const declaresKeywordKey = rule.matchKeywords != null;
+  const keywords = decodeKeywords(rule.matchKeywords);
+  if (declaresKeywordKey && keywords.length === 0) return null;
   return {
     id: rule.id,
     merchantCanonical,
+    matchKeywords: declaresKeywordKey ? keywords : null,
     minAmountCents: rule.minAmountCents,
     maxAmountCents: rule.maxAmountCents,
     weekendOnly: rule.weekendOnly,

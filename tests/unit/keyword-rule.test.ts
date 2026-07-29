@@ -19,12 +19,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  KEYWORD_RULE_PRIORITY,
   decodeKeywords,
   encodeKeywords,
   keywordSpecificity,
   keywordsMatch,
   parseKeywords,
 } from '@/lib/engine/categorize/keyword-rule';
+import { toRuleLike } from '@/server/rules';
 import { type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
 
 /** The owner's real statement text, from his Simplifi screenshot. */
@@ -153,9 +155,11 @@ describe('the pipeline honours a typed key', () => {
   });
 
   it('leaves a rule with NO key byte-identical to before (absent ≠ empty)', () => {
-    // 'Macys Lenox Square' is what the normalizer actually produces for this
-    // descriptor — verified by execution, not assumed.
-    const merchantRule = rule({ id: 'm-1', merchantCanonical: 'Macys Lenox Square', priority: 100 });
+    // "Macy's" is what the normalizer produces for this descriptor — verified by
+    // execution, not assumed. (It produced 'Macys Lenox Square' until the O.13
+    // brand-coverage fix taught the table the plural spelling, and this fixture
+    // failing on that change is the test doing its job.)
+    const merchantRule = rule({ id: 'm-1', merchantCanonical: "Macy's", priority: 100 });
     const out = categorize({ ...TXN, rawDescriptor: 'MACYS LENOX SQUARE' }, [merchantRule]);
     expect(out.matchedRuleId).toBe('m-1');
     expect(out.source).toBe('user-rule');
@@ -197,5 +201,75 @@ describe('the class no DERIVED key can fix', () => {
       expect(out.matchedRuleId).toBe('kw-mirko');
       expect(out.needsReview).toBe(false);
     }
+  });
+});
+
+/**
+ * The STORED half: mapping a row to a rule, and precedence (O.13a).
+ *
+ * `toRuleLike` is where the feature's worst possible bug lives. A keyword rule
+ * carries no merchantId, and in `RuleLike` a null `merchantCanonical` means "ANY
+ * merchant" — so a row that ANNOUNCED a keyword key and has none left would file
+ * every transaction in the account. That is the same trap the orphaned-merchant
+ * case already guards, and it gets the same answer: refuse the row.
+ */
+describe('toRuleLike — the stored keyword key', () => {
+  const base = {
+    id: 'r1',
+    merchantId: null,
+    minAmountCents: null,
+    maxAmountCents: null,
+    weekendOnly: null,
+    weekdayOnly: null,
+    accountId: null,
+    categoryId: 'clothing',
+    priority: KEYWORD_RULE_PRIORITY,
+  };
+
+  it('decodes the stored key onto the rule', () => {
+    const out = toRuleLike({ ...base, matchKeywords: 'tjmaxx 0181' }, new Map());
+    expect(out?.matchKeywords).toEqual(['tjmaxx', '0181']);
+  });
+
+  it('REFUSES a row that declares a keyword key and has none left', () => {
+    // Fail-old: without this the rule has no merchant, no keywords and no other
+    // condition — it matches every transaction the pipeline ever sees.
+    expect(toRuleLike({ ...base, matchKeywords: '' }, new Map())).toBeNull();
+    expect(toRuleLike({ ...base, matchKeywords: '   ' }, new Map())).toBeNull();
+  });
+
+  it('leaves a pre-O.13a row (no key at all) exactly as it was', () => {
+    const out = toRuleLike({ ...base, priority: 100, matchKeywords: null }, new Map());
+    expect(out).not.toBeNull();
+    expect(out!.matchKeywords).toBeNull();
+  });
+});
+
+describe('precedence between rules that both match', () => {
+  function kw(id: string, words: string, categoryId: string) {
+    return rule({ id, matchKeywords: parseKeywords(words), categoryId, priority: KEYWORD_RULE_PRIORITY });
+  }
+
+  it('a TYPED key outranks an explicit merchant rule on the same row', () => {
+    const merchantRule = rule({ id: 'm-1', merchantCanonical: 'Tjmaxx', categoryId: 'shopping', priority: 100 });
+    const out = categorize({ ...TXN, rawDescriptor: TJMAXX }, [merchantRule, kw('kw-1', 'tjmaxx', 'clothing')]);
+    expect(out.categoryId).toBe('clothing');
+    expect(out.matchedRuleId).toBe('kw-1');
+  });
+
+  it('the MORE SPECIFIC key wins, in either input order', () => {
+    const broad = kw('kw-broad', 'costco', 'groceries');
+    const narrow = kw('kw-narrow', 'costco gas', 'fuel');
+    const txn = { ...TXN, rawDescriptor: 'COSTCO GAS #0455 ATLANTA GA' };
+    expect(categorize(txn, [broad, narrow]).matchedRuleId).toBe('kw-narrow');
+    expect(categorize(txn, [narrow, broad]).matchedRuleId).toBe('kw-narrow');
+  });
+
+  it('two equally specific keys resolve by id, not by input order', () => {
+    const a = kw('kw-aaa', 'pasta', 'dining');
+    const b = kw('kw-bbb', 'mirko', 'groceries');
+    const txn = { ...TXN, rawDescriptor: 'MIRKO PASTA' };
+    expect(categorize(txn, [a, b]).matchedRuleId).toBe('kw-aaa');
+    expect(categorize(txn, [b, a]).matchedRuleId).toBe('kw-aaa');
   });
 });

@@ -45,6 +45,15 @@
  */
 
 /**
+ * Priority band for a typed keyword rule: above the 100 an explicit "Always"
+ * merchant rule carries, because it is the most specific instruction in the
+ * system — the reader wrote the key himself, against text he can see, for a case
+ * the normalizer got wrong. A merchant rule generalises from an inferred
+ * identity; this one does not generalise at all.
+ */
+export const KEYWORD_RULE_PRIORITY = 110;
+
+/**
  * The reader's typed input, split into keyword tokens the way the rule builder
  * shows them as chips: commas OR whitespace separate keywords (Simplifi:
  * "Commas or spaces enter a new keyword"), case is folded, blanks dropped, and

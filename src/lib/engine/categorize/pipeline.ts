@@ -13,7 +13,7 @@
 
 import { dayOfWeek, isoDate } from '@/lib/dates';
 import { CATEGORY_BY_ID } from './categories';
-import { keywordsMatch } from './keyword-rule';
+import { keywordSpecificity, keywordsMatch } from './keyword-rule';
 import { normalizeMerchant } from './normalize';
 import { computeDescriptorSignature } from './signature';
 import { TRANSFER_CONFIDENCE_BPS } from './transfers';
@@ -221,7 +221,22 @@ export function categorize(
   // a refund/fee) must fall through to review rather than auto-file wrong.
   const matching = rules
     .filter((r) => ruleMatches(r, txn, merchant.canonical))
-    .sort((a, b) => b.priority - a.priority);
+    .sort((a, b) => {
+      if (b.priority !== a.priority) return b.priority - a.priority;
+      // Between two TYPED keyword rules that both match, the more specific key
+      // wins (O.13a): "costco gas" beats "costco" rather than depending on which
+      // row the database returned first.
+      const bySpecificity =
+        keywordSpecificity(b.matchKeywords ?? []) - keywordSpecificity(a.matchKeywords ?? []);
+      if (bySpecificity !== 0) return bySpecificity;
+      // Last resort, and ONLY between keyword rules: a stable id order, so two
+      // equally-specific typed keys never resolve by query order. Merchant-keyed
+      // rules deliberately keep the insertion-order tie-break that
+      // `ensureUnconditionalRule`'s supersede logic is written against — widening
+      // this to them would change behaviour that another module depends on.
+      if (a.matchKeywords && b.matchKeywords) return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      return 0;
+    });
   const rule = matching.find((r) => !r.isLearned || learnedSignOk(r.categoryId, txn.amountCents));
   if (rule) {
     const learned = rule.isLearned === true;
