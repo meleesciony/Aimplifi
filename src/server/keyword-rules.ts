@@ -35,6 +35,7 @@
  */
 import { revalidatePath } from 'next/cache';
 import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
+import { accountLabel } from '@/lib/engine/account/display-name';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import {
   KEYWORD_RULE_PRIORITY,
@@ -809,4 +810,86 @@ export async function deleteKeywordRule(ruleId: string): Promise<{ deleted: bool
   revalidatePath('/transactions');
   revalidatePath('/triage');
   return { deleted: res.count > 0 };
+}
+
+/**
+ * The transaction a rule is being written FROM (TASKS O.13b).
+ *
+ * Owner: *"Having to remember which transaction and how to populate them exactly
+ * as written is too cumbersome."* The builder had no prefill of any kind, and the
+ * register renders the app's cleaned-up merchant name rather than the bank's
+ * text — so the only string a rule can match against was on no screen he could
+ * reach. This read is what makes `/rules?from=<id>` possible.
+ *
+ * Scoped by `account.userId`, like every other read here: a transaction id from
+ * another account resolves to `null` and the page falls back to the blank
+ * builder, never to someone else's descriptor.
+ *
+ * `excludedReason` is NOT a refusal. The row is still shown and the key is still
+ * prefilled — but when the clicked row lives outside the population a rule may
+ * write (`matchableWhere`), the preview will legitimately report a count that
+ * does not include it, and a reader who is not told why has been handed a
+ * contradiction. Naming the reason is the honest version of the same fact.
+ */
+export interface RuleSourceTransaction {
+  id: string;
+  rawDescriptor: string;
+  merchantName: string | null;
+  categoryId: string | null;
+  date: string;
+  amountCents: number;
+  accountName: string;
+  excludedReason: string | null;
+}
+
+export async function getRuleSourceTransaction(
+  transactionId: string,
+): Promise<RuleSourceTransaction | null> {
+  const userId = await requireUserId();
+  const t = await prisma.transaction.findFirst({
+    where: { id: transactionId, account: { userId } },
+    select: {
+      id: true,
+      rawDescriptor: true,
+      categoryId: true,
+      date: true,
+      amountCents: true,
+      isSplitParent: true,
+      splitParentId: true,
+      isTransfer: true,
+      reviewPinned: true,
+      merchant: { select: { canonical: true } },
+      account: { select: { name: true, displayName: true, type: true, currency: true } },
+    },
+  });
+  if (!t) return null;
+
+  // Mirrors `matchableWhere` field for field — if that scope changes, this
+  // sentence has to change with it, which is why they sit in the same file.
+  const excludedReason = t.isSplitParent
+    ? 'This row was split, so a rule files the pieces rather than this container.'
+    : t.splitParentId !== null
+      ? 'This is one piece of a split you made by hand, and a rule never overwrites those.'
+      : t.isTransfer
+        ? 'This looks like a transfer between two of your own accounts, which a rule does not re-file.'
+        : t.reviewPinned
+          ? 'This row is pinned for review, so a rule leaves it for you to decide.'
+          : !SPENDING_ACCOUNT_TYPES.includes(
+                t.account.type as (typeof SPENDING_ACCOUNT_TYPES)[number],
+              )
+            ? 'Rules apply to your spending accounts, and this row is on another kind of account.'
+            : t.account.currency !== null && t.account.currency !== 'USD'
+              ? 'Rules apply to your US dollar accounts.'
+              : null;
+
+  return {
+    id: t.id,
+    rawDescriptor: t.rawDescriptor,
+    merchantName: t.merchant?.canonical ?? null,
+    categoryId: t.categoryId,
+    date: t.date,
+    amountCents: t.amountCents,
+    accountName: accountLabel(t.account),
+    excludedReason,
+  };
 }

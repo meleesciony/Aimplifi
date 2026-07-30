@@ -45,6 +45,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatCents } from '@/lib/money';
 import { cents } from '@/lib/money';
+import { formatISODate, isoDate } from '@/lib/dates';
 import { parseKeywords } from '@/lib/engine/categorize/keyword-rule';
 import {
   type KeywordRulePreview,
@@ -102,16 +103,40 @@ function describeConditions(
   return extras;
 }
 
+/**
+ * The transaction this rule is being written FROM (TASKS O.13b), when the reader
+ * arrived by clicking a row instead of opening `/rules` cold. Everything here is
+ * READ-ONLY context plus starting values — the reader still previews and still
+ * saves, because a rule minted by a click is exactly the silent filing this wave
+ * exists to stop.
+ */
+export interface RulePrefillView {
+  transactionId: string;
+  rawDescriptor: string;
+  merchantName: string | null;
+  accountName: string;
+  date: string;
+  amountCents: number;
+  categoryId: string | null;
+  keywords: string[];
+  /** Keywords that look statement-specific; hinted on the chip, never removed. */
+  volatile: string[];
+  /** Why a rule would not file this row, when that is true of it. */
+  excludedReason: string | null;
+}
+
 export function KeywordRuleBuilder({
   categoryGroups,
   rules,
   categoryNameById,
   accounts,
+  prefill = null,
 }: {
   categoryGroups: CategoryOption[];
   rules: StoredKeywordRule[];
   categoryNameById: Record<string, string>;
   accounts: AccountOption[];
+  prefill?: RulePrefillView | null;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -148,8 +173,17 @@ export function KeywordRuleBuilder({
    * (and the stale text inside it) to line N when a middle line is removed,
    * because the inputs are uncontrolled by design (mutation-form-recipe).
    */
-  const [orLines, setOrLines] = useState<OrLine[]>([{ key: 0, tokens: [], draft: '' }]);
+  const [orLines, setOrLines] = useState<OrLine[]>([
+    { key: 0, tokens: prefill?.keywords ?? [], draft: '' },
+  ]);
   const nextLineKey = useRef(1);
+  /**
+   * O.13b: the chips that arrived from the clicked row's own statement text and
+   * usually change between visits. A HINT on a chip he can see — the deletion is
+   * always his gesture, because a key we widened silently is a key he never
+   * typed (see `rule-prefill.ts`).
+   */
+  const volatileHint = new Set(prefill?.volatile ?? []);
 
   const accountNameById = Object.fromEntries(accounts.map((a) => [a.id, a.name] as const));
 
@@ -365,6 +399,36 @@ export function KeywordRuleBuilder({
               </Button>
             </div>
           )}
+          {/* O.13b — the statement PROVENANCE line for the row he clicked. The
+              register shows the app's cleaned-up name (`Macy's`), the rule matches
+              the bank's text (`MACYS LENOX SQUARE`), and until now no screen
+              showed the second one. This is that screen. */}
+          {prefill && !editing && (
+            <div
+              className="space-y-1 rounded-md border border-dashed px-3 py-2 text-sm"
+              data-testid="kw-prefill-banner"
+            >
+              <p>
+                Writing a rule from{' '}
+                <span className="font-medium">{prefill.merchantName ?? 'this transaction'}</span> —{' '}
+                {formatCents(cents(prefill.amountCents), { signDisplay: 'always' })} on{' '}
+                {formatISODate(isoDate(prefill.date), 'long')}.
+              </p>
+              <p className="break-words text-xs text-muted-foreground">
+                Appears on your {prefill.accountName} statement as{' '}
+                <span className="font-mono" data-testid="kw-prefill-descriptor">
+                  {prefill.rawDescriptor}
+                </span>
+                . Those words are already filled in below. Remove the parts that change every visit —
+                a store number or a transaction id — and the rule will cover the next one too.
+              </p>
+              {prefill.excludedReason && (
+                <p className="text-xs text-amber-700 dark:text-amber-300" data-testid="kw-prefill-excluded">
+                  {prefill.excludedReason} The count below will not include it.
+                </p>
+              )}
+            </div>
+          )}
           <form ref={formRef} onSubmit={onPreview} className="space-y-3" key={formKey}>
             <div className="space-y-1">
               <label htmlFor="kw" className="text-sm font-medium">
@@ -385,7 +449,17 @@ export function KeywordRuleBuilder({
                         <span
                           key={t}
                           data-testid="kw-chip"
-                          className="inline-flex shrink-0 items-center gap-1 rounded bg-accent px-1.5 py-0.5 font-mono text-xs"
+                          data-volatile={i === 0 && volatileHint.has(t) ? 'true' : undefined}
+                          title={
+                            i === 0 && volatileHint.has(t)
+                              ? 'This part of the bank’s text usually changes between visits — removing it makes the rule match more of them.'
+                              : undefined
+                          }
+                          className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-xs ${
+                            i === 0 && volatileHint.has(t)
+                              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                              : 'bg-accent'
+                          }`}
                         >
                           {t}
                           <button
@@ -470,7 +544,7 @@ export function KeywordRuleBuilder({
                 id="cat"
                 name="categoryId"
                 required
-                defaultValue={editing?.categoryId ?? ''}
+                defaultValue={editing?.categoryId ?? prefill?.categoryId ?? ''}
                 data-testid="kw-category"
                 className={INPUT_CLASS}
               >

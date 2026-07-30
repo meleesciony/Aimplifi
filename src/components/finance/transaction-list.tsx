@@ -446,6 +446,21 @@ export function TransactionList({
                             Pending
                           </Badge>
                         )}
+                        {/* O.13b — the rule lever, ON THE ROW. Owner, 2026-07-30:
+                            "whenever clicking a transaction, should have rules pull
+                            up so you can change specifically for that transaction…
+                            Having to remember which transaction and how to populate
+                            them exactly as written is too cumbersome." The link
+                            carries the transaction id, and `/rules` fills the key
+                            in from THIS row's statement text. */}
+                        <Link
+                          href={`/rules?from=${encodeURIComponent(t.id)}`}
+                          data-testid="txn-rule-link"
+                          aria-label={`Create a categorization rule from this ${t.merchantName} transaction`}
+                          className="tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                        >
+                          Rule…
+                        </Link>
                         {/* Why-This-Category (§3.1): who decided this category. The
                             label is the resolver's verdict, rendered verbatim — an
                             AI guess is the ONLY kind that asks for the user's OK. */}

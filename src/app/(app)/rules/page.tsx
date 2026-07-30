@@ -1,12 +1,16 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/auth';
-import { KeywordRuleBuilder } from '@/components/rules/keyword-rule-builder';
+import {
+  KeywordRuleBuilder,
+  type RulePrefillView,
+} from '@/components/rules/keyword-rule-builder';
+import { suggestRuleKeywords } from '@/lib/engine/categorize/rule-prefill';
 import { prisma } from '@/lib/db';
 import { accountLabel } from '@/lib/engine/account/display-name';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getVisibleGroups } from '@/server/categories';
-import { listKeywordRules } from '@/server/keyword-rules';
+import { getRuleSourceTransaction, listKeywordRules } from '@/server/keyword-rules';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 
 export const metadata = { title: 'Rules' };
@@ -26,9 +30,24 @@ export const metadata = { title: 'Rules' };
  * The app was built to infer identity and had no surface for being TOLD one. This
  * page is that surface.
  */
-export default async function RulesPage() {
+export default async function RulesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
+
+  // O.13b — arriving from a transaction: `?from=<id>` pre-fills the key with
+  // that row's own statement text. Owner: *"Having to remember which transaction
+  // and how to populate them exactly as written is too cumbersome."* An id that
+  // is not this reader's resolves to null and the page renders the blank builder,
+  // so a guessed id leaks nothing and breaks nothing.
+  const { from } = await searchParams;
+  const source = from ? await getRuleSourceTransaction(from) : null;
+  const prefill: RulePrefillView | null = source
+    ? { ...source, transactionId: source.id, ...suggestRuleKeywords(source.rawDescriptor) }
+    : null;
 
   const [categoryGroups, rules, allAccounts, superseded] = await Promise.all([
     getVisibleGroups(session.user.id),
@@ -81,6 +100,7 @@ export default async function RulesPage() {
         rules={rules}
         categoryNameById={categoryNameById}
         accounts={accounts}
+        prefill={prefill}
       />
 
       <p className="text-xs text-muted-foreground">

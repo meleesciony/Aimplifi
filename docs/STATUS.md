@@ -2,6 +2,44 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-30 — O.13b (first slice): a rule opens FROM the transaction, pre-filled
+
+Owner, verbatim: *"From transaction page, whenever clicking a transaction, should have rules pull up so
+you can change specifically for that transaction. This should work for prior and forward transactions.
+Having to remember which transaction and how to populate them exactly as written is too cumbersome."*
+
+Two shipped-but-unusable defects, both about the screen he stands on:
+
+1. **`/rules` accepted no prefill.** The builder took the category list, the stored rules and the
+   accounts — nothing about any transaction. Every key had to be retyped from memory.
+2. **The register never rendered `rawDescriptor`.** It shows the normalizer's cleaned-up name, so the
+   exact string a rule matches against appeared on no reachable screen. O.13i's brand work widened
+   this: `MACYS LENOX SQUARE` now displays as `Macy's`, which matches nothing as typed.
+
+Now: every register row carries a `Rule…` link to `/rules?from=<id>`, which renders the statement
+provenance line (*"Appears on your … statement as …"*) and pre-fills the key as chips taken from that
+row's own bank text, with the row's current category pre-selected.
+
+**The prefill deliberately keeps the volatile tokens.** `costco whse 1084` arrives as three chips, the
+store number among them, flagged amber but NOT deleted for him. The wave's governing failure direction
+is that a rule executes without asking again, so a key we silently widened would be a key he never
+typed, and the count he acts on would be the consequence of our guess wearing his authority. Widening
+is his gesture — delete the chip, watch the count grow — which is exactly what O.13j built the chips for.
+
+### Gate
+
+`VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc clean, eslint clean, clean `next build`,
+**221 e2e passed**. New locks: `tests/unit/rule-prefill.test.ts` (10 tests, every case asserting the
+suggested key matches the row it came from, through the real matcher) and
+`tests/e2e/rule-from-transaction.spec.ts` (the row link → prefilled chips → preview 1 → delete `1084` →
+preview 2 → both prior visits re-filed → a LATER visit files itself; plus a bogus `?from=` falling back
+to the blank builder, so a guessed id leaks no descriptor).
+
+Two measured findings the specs record rather than assume: `next start` serves the last build, so the
+first e2e run failed against a stale bundle and not against the code; and `^COSTCO WHSE #` auto-files
+to groceries (`normalize.ts:116`) while the same warehouse spelled without the `#` does not — the
+owner's exact defect shape, and the reason the spec targets `household` instead.
+
 ## ✅ BUILT 2026-07-30 — O.13j: the rule builder becomes findable, and the keywords become chips
 
 Owner, with Simplifi's Create Rule screen open beside ours: **"I don't see it."** Both causes were
