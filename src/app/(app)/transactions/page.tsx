@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Plus, Upload } from 'lucide-react';
+import { Plus, Upload, Wand2 } from 'lucide-react';
 import { auth } from '@/auth';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { MerchantLensCard } from '@/components/finance/merchant-lens-card';
@@ -76,6 +76,20 @@ export default async function TransactionsPage({
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Transactions</h1>
         <div className="flex gap-2">
+          {/* O.13a: the register is where the owner notices a descriptor whose text
+              changes every time, so it is where the rule builder has to be reachable
+              from. */}
+          <Link
+            href="/rules"
+            data-testid="rules-link"
+            className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+          >
+            <Wand2 className="size-4" aria-hidden />
+            {/* sr-only rather than `hidden` below sm: `display:none` would leave this
+                control with NO accessible name on a phone, which is the width the
+                a11y gate runs at. The label still costs no layout there. */}
+            <span className="sr-only sm:not-sr-only">Rules</span>
+          </Link>
           <Link
             href="/transactions/import"
             data-testid="import-txn-link"

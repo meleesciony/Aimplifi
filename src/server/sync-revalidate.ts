@@ -52,6 +52,7 @@ export const SYNC_REVALIDATE_PATHS = [
   '/investments',
   '/recurring',
   '/reports',
+  '/rules',
   '/settings',
   '/spending-plan',
   '/transactions',

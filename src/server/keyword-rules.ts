@@ -30,6 +30,7 @@ import {
   keywordsMatch,
   parseKeywords,
 } from '@/lib/engine/categorize/keyword-rule';
+import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { auditLog, requireUserId } from '@/server/authz';
 import { assertOwnedCategory } from '@/server/category-meta';
 
@@ -44,6 +45,19 @@ export interface KeywordRulePreview {
   alreadyFiledElsewhereCount: number;
   /** A few real descriptors, so the reader judges the key against his own text. */
   samples: { rawDescriptor: string; amountCents: number; date: string; categoryId: string }[];
+  /**
+   * Matched rows whose SIGN disagrees with the chosen category — an outflow about
+   * to be filed as income, or an inflow as spending. An explicit rule the reader
+   * typed is deliberate, so this does not refuse anything; but filing an outflow
+   * as income inflates income everywhere money is summed, and that is the one
+   * mistake here the reader cannot see afterwards. Null when the category's group
+   * is unknown (a custom category), because a warning we cannot justify is worse
+   * than none.
+   */
+  signMismatchCount: number | null;
+  /** Inflows / outflows in the matched set, so the split is visible at a glance. */
+  inflowCount: number;
+  outflowCount: number;
 }
 
 /**
@@ -54,6 +68,19 @@ export interface KeywordRulePreview {
  */
 function filedCategory(categoryId: string | null): string {
   return categoryId ?? 'uncategorized';
+}
+
+/**
+ * Does this row's sign contradict the category it is about to be filed as? Same
+ * question `propose.ts`'s #44 guard asks, asked here as a WARNING rather than a
+ * refusal, because a typed rule is the reader's deliberate instruction.
+ */
+function signDisagrees(categoryId: string, amountCents: number): boolean {
+  const cat = CATEGORY_BY_ID.get(categoryId);
+  if (!cat) return false; // custom category — group unknown, so no claim is made
+  if (cat.group === 'Income') return amountCents < 0;
+  if (categoryId === 'transfer') return false;
+  return amountCents > 0;
 }
 
 async function matchingRows(userId: string, keywords: readonly string[]) {
@@ -87,6 +114,12 @@ export async function previewKeywordRule(input: {
         filedCategory(r.categoryId) !== 'uncategorized' &&
         filedCategory(r.categoryId) !== input.categoryId,
     ).length,
+    signMismatchCount:
+      input.categoryId === undefined || !CATEGORY_BY_ID.has(input.categoryId)
+        ? null
+        : rows.filter((r) => signDisagrees(input.categoryId!, r.amountCents)).length,
+    inflowCount: rows.filter((r) => r.amountCents > 0).length,
+    outflowCount: rows.filter((r) => r.amountCents < 0).length,
     samples: rows.slice(0, 5).map((r) => ({
       rawDescriptor: r.rawDescriptor,
       amountCents: r.amountCents,
@@ -184,6 +217,13 @@ export async function createKeywordRule(input: {
     }
   }
 
+  // '/rules' is where the reader IS when this runs, and it renders the list this
+  // write just changed. Omitting it left the page serving its pre-write payload:
+  // "Rule saved, and 2 transactions filed" printed directly above "You haven't
+  // written any rules yet" — caught by the e2e, invisible to every unit test,
+  // because a stale render is a fact about the router cache and not about the
+  // engine (docs/lessons/count-the-state-not-the-writers.md, one level over).
+  revalidatePath('/rules');
   revalidatePath('/transactions');
   revalidatePath('/triage');
   return { ruleId: rule.id, keywords, affected, correctionIds };
@@ -222,6 +262,7 @@ export async function deleteKeywordRule(ruleId: string): Promise<{ deleted: bool
     where: { id: ruleId, userId, NOT: { matchKeywords: null } },
   });
   if (res.count > 0) await auditLog(userId, 'rule.delete', { ruleId });
+  revalidatePath('/rules');
   revalidatePath('/transactions');
   revalidatePath('/triage');
   return { deleted: res.count > 0 };
