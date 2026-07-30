@@ -466,6 +466,17 @@ model Correction {
   fromCategoryId String?
   toCategoryId   String
   becameRuleId   String?
+  // The rule whose apply-to-history WROTE this correction, or null when a human
+  // filed the row (TASKS O.13b, owner: "occasionally we may change a single
+  // transaction (outlier) for a diff category. Keep that intact.").
+  //
+  // Additive and nullable. It exists because `handFiledIds` must not let a rule
+  // confirm its own past writes: without it, a rule's own backfill corrections
+  // read back as the reader's hand decisions, so EDITING that rule silently
+  // re-filed nothing. Legacy rows are null and are therefore treated as the
+  // reader's — the conservative direction, and exactly the predicate the sync
+  // path (`simplefin.ts`) has always used.
+  sourceRuleId   String?
   // The id of the correction this row UNDOES (set only on inverse corrections from
   // undoCorrections). @@unique makes a double-undo of the same correction idempotent:
   // a second concurrent inverse insert hits the unique constraint and is skipped

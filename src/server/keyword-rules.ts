@@ -97,6 +97,16 @@ export interface KeywordRulePreview {
   /** Inflows / outflows in the matched set, so the split is visible at a glance. */
   inflowCount: number;
   outflowCount: number;
+  /**
+   * Matched rows the reader filed BY HAND into some other category — his outliers.
+   * They are EXCLUDED from the apply set, not merely warned about (owner
+   * 2026-07-30: *"occasionally we may change a single transaction (outlier) for a
+   * diff category. Keep that intact."*), so this number exists to keep
+   * `wouldFileCount` honest: it is part of `matchCount` and not part of what the
+   * apply writes. `null` until a target category is chosen, because "some other
+   * category" has no meaning before then.
+   */
+  handFiledCount: number | null;
 }
 
 /**
@@ -174,6 +184,7 @@ type MatchRow = {
   amountCents: number;
   date: string;
   categoryId: string | null;
+  needsReview: boolean;
 };
 
 const MATCH_SELECT = {
@@ -182,9 +193,58 @@ const MATCH_SELECT = {
   amountCents: true,
   date: true,
   categoryId: true,
+  // Half of the hand-filed test — see `handFiledIds`.
+  needsReview: true,
 } as const;
 
-type FindManyClient = { transaction: { findMany: typeof prisma.transaction.findMany } };
+type FindManyClient = {
+  transaction: { findMany: typeof prisma.transaction.findMany };
+  correction: { findMany: typeof prisma.correction.findMany };
+};
+
+/**
+ * Rows the READER filed by hand, which an apply-to-history must leave alone.
+ *
+ * Owner, 2026-07-30: *"Rules are great but occasionally we may change a single
+ * transaction (outlier) for a diff category. Keep that intact."*
+ *
+ * He was right that this was exposed. The sync path has always preserved a
+ * hand-filed row — `simplefin.ts` computes `corrected && !fresh.needsReview` and
+ * writes only bank facts when it holds — and `runBackfillForUser` never touches a
+ * decided row at all (`OR: [needsReview, categoryId null, 'uncategorized']`). The
+ * keyword-rule apply had NEITHER guard: it filtered only "already the target
+ * category" and the sign check, so one tick of "apply to existing" overwrote every
+ * outlier the reader had filed by hand, on a rule that is right about the other
+ * ninety-nine rows.
+ *
+ * The predicate is COPIED from the sync path rather than invented, so a row that
+ * survives a sync and a row that survives a backfill are the same row:
+ *  - a `Correction` exists (a human decided this row at some point), AND
+ *  - it is not back in review (`needsReview: false`) — a row the app has since
+ *    re-opened is undecided again, and the rule may answer it.
+ *
+ * FUTURE rows are unaffected: the rule still files everything that arrives after
+ * it, which is the half of "prior and forward" he asked for. This guard is only
+ * about not un-deciding a decision he already made.
+ */
+async function handFiledIds(
+  userId: string,
+  rows: readonly MatchRow[],
+  client: FindManyClient,
+): Promise<Set<string>> {
+  const decided = rows.filter((r) => !r.needsReview).map((r) => r.id);
+  if (decided.length === 0) return new Set();
+  const corrections = await client.correction.findMany({
+    // `sourceRuleId: null` is the half that stops a rule confirming its OWN past
+    // writes. Without it, the corrections an apply-to-history wrote read back as
+    // the reader's hand decisions, so EDITING that rule re-filed nothing — caught
+    // by the pre-existing O.13c edit lock, not by a new test. A correction with a
+    // sourceRuleId was authored by a rule; only a human's is a hand decision.
+    where: { userId, transactionId: { in: decided }, sourceRuleId: null },
+    select: { transactionId: true },
+  });
+  return new Set(corrections.map((c) => c.transactionId));
+}
 
 async function matchableHistory(
   userId: string,
@@ -369,6 +429,21 @@ export async function previewKeywordRule(input: {
   const known = target !== undefined && CATEGORY_BY_ID.has(target);
   const wrongSign = known ? rows.filter((r) => signWouldErase(target!, r.amountCents)) : [];
   const alreadyCorrect = rows.filter((r) => filedCategory(r.categoryId) === target);
+  // The reader's hand-filed outliers, counted on exactly the basis the apply
+  // excludes them on — this file's core invariant is that the number shown IS the
+  // population written, so the preview cannot use a looser test than the write.
+  const handFiled = await handFiledIds(userId, rows, prisma);
+  const preserved = known
+    ? rows.filter((r) => handFiled.has(r.id) && filedCategory(r.categoryId) !== target).length
+    : null;
+  // The write set, derived the same way `applyRuleToHistory` derives it — not by
+  // subtracting three counts that could double-count a row failing two tests.
+  const eligiblePreview = rows.filter(
+    (r) => filedCategory(r.categoryId) !== target && !handFiled.has(r.id),
+  );
+  const wouldFile = known
+    ? eligiblePreview.filter((r) => !signWouldErase(target!, r.amountCents)).length
+    : rows.length - alreadyCorrect.length;
   return {
     groups: conditions.groups,
     matchCount: rows.length,
@@ -376,8 +451,9 @@ export async function previewKeywordRule(input: {
     alreadyFiledElsewhereCount: rows.filter(
       (r) => filedCategory(r.categoryId) !== 'uncategorized' && filedCategory(r.categoryId) !== target,
     ).length,
-    wouldFileCount: rows.length - alreadyCorrect.length - wrongSign.length,
+    wouldFileCount: wouldFile,
     signMismatchCount: known ? wrongSign.length : null,
+    handFiledCount: preserved,
     inflowCount: rows.filter((r) => r.amountCents > 0).length,
     outflowCount: rows.filter((r) => r.amountCents < 0).length,
     samples: rows.slice(0, 5).map((r) => ({
@@ -401,6 +477,12 @@ export interface CreateKeywordRuleResult {
   correctionIds: string[];
   /** Outflows left alone because filing them as income would erase them. */
   skippedWrongSign: number;
+  /**
+   * Rows the reader had filed BY HAND into another category, left exactly as he
+   * filed them (owner 2026-07-30). Reported rather than silently dropped: an
+   * exclusion the reader is not told about is its own kind of surprise.
+   */
+  preservedHandFiled: number;
   /** Rows whose payee was renamed now (0 when no rename or the reader declined). */
   renamed: number;
   /** The stored THEN action + conditions, echoed for the client's optimistic list. */
@@ -435,12 +517,22 @@ async function applyRuleToHistory(
   rule: { id: string; categoryId: string; renameTo: string | null },
   conditions: KeywordRuleConditions,
   opts: { claimLineage: boolean },
-): Promise<{ ids: string[]; wrongSign: number; renamed: number }> {
+): Promise<{ ids: string[]; wrongSign: number; renamed: number; preserved: number }> {
   return serializableTx(async (tx) => {
     const targets = await matchingRows(userId, conditions, tx);
-    const eligible = targets.filter((t) => filedCategory(t.categoryId) !== rule.categoryId);
+    // The reader's own outliers, left exactly as he filed them (owner 2026-07-30).
+    // Computed INSIDE the serializable transaction, on the same rows the write
+    // uses, so a correction landing mid-apply cannot be missed by a read taken
+    // earlier — the same reason `matchingRows` is called with `tx` here.
+    const handFiled = await handFiledIds(userId, targets, tx);
+    const eligible = targets.filter(
+      (t) => filedCategory(t.categoryId) !== rule.categoryId && !handFiled.has(t.id),
+    );
     const toRefile = eligible.filter((t) => !signWouldErase(rule.categoryId, t.amountCents));
     const wrongSign = eligible.length - toRefile.length;
+    const preserved = targets.filter(
+      (t) => handFiled.has(t.id) && filedCategory(t.categoryId) !== rule.categoryId,
+    ).length;
     // The SAME guard the refile uses, for the same reason one level up (critic
     // cycle 1, P1-3). A rename is not just a label: `merchantId` is the batch key
     // `similarTransactionsWhere` uses, and `recategorize({scope:'merchant'})` re-files
@@ -461,6 +553,9 @@ async function applyRuleToHistory(
           transactionId: t.id,
           fromCategoryId: t.categoryId,
           toCategoryId: rule.categoryId,
+          // Stamped so this write can never later be mistaken for the reader's own
+          // outlier decision — see `handFiledIds`.
+          sourceRuleId: rule.id,
         },
       });
       ids.push(c.id);
@@ -532,7 +627,7 @@ async function applyRuleToHistory(
       });
       renamed = res.count;
     }
-    return { ids, wrongSign, renamed };
+    return { ids, wrongSign, renamed, preserved };
   });
 }
 
@@ -605,6 +700,7 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
 
   let affected = 0;
   let skippedWrongSign = 0;
+  let preservedHandFiled = 0;
   let renamed = 0;
   const correctionIds: string[] = [];
   if (input.applyToExisting) {
@@ -621,6 +717,7 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
     correctionIds.push(...written.ids);
     affected = written.ids.length;
     skippedWrongSign = written.wrongSign;
+    preservedHandFiled = written.preserved;
     renamed = written.renamed;
     if (affected > 0 || renamed > 0) {
       await auditLog(userId, 'rule.batch-apply', {
@@ -643,6 +740,7 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
     affected,
     correctionIds,
     skippedWrongSign,
+    preservedHandFiled,
     renamed,
     renameTo,
     accountId: conditions.accountId,
@@ -702,6 +800,7 @@ export async function updateKeywordRule(
 
   let affected = 0;
   let skippedWrongSign = 0;
+  let preservedHandFiled = 0;
   let renamed = 0;
   const correctionIds: string[] = [];
   if (input.applyToExisting) {
@@ -716,6 +815,7 @@ export async function updateKeywordRule(
     correctionIds.push(...written.ids);
     affected = written.ids.length;
     skippedWrongSign = written.wrongSign;
+    preservedHandFiled = written.preserved;
     renamed = written.renamed;
     if (affected > 0 || renamed > 0) {
       await auditLog(userId, 'rule.batch-apply', {
@@ -736,6 +836,7 @@ export async function updateKeywordRule(
     affected,
     correctionIds,
     skippedWrongSign,
+    preservedHandFiled,
     renamed,
     renameTo,
     accountId: conditions.accountId,

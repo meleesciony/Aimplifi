@@ -455,6 +455,14 @@ export function TransactionList({
                             in from THIS row's statement text. */}
                         <Link
                           href={`/rules?from=${encodeURIComponent(t.id)}`}
+                          // One link per ROW, so the default viewport prefetch
+                          // would fire a dynamic RSC request per visible
+                          // transaction on every register load — for an action
+                          // that is taken on one row in a hundred. Measured: the
+                          // register's own e2e began failing its post-click
+                          // navigation under 4-worker contention once this link
+                          // was added, and passed serially.
+                          prefetch={false}
                           data-testid="txn-rule-link"
                           aria-label={`Create a categorization rule from this ${t.merchantName} transaction`}
                           className="tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"

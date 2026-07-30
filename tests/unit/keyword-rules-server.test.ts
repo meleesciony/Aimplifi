@@ -521,3 +521,128 @@ describe('updateKeywordRule — edit in place (O.13c)', () => {
     await prisma.user.deleteMany({ where: { id: other } });
   });
 });
+
+/**
+ * THE OUTLIER GUARD (owner, 2026-07-30, mid-session):
+ *
+ *   "Rules are great but occasionally we may change a single transaction
+ *    (outlier) for a diff category. Keep that intact."
+ *
+ * He was right that this was exposed, and the asymmetry is the evidence: the sync
+ * path has always preserved a hand-filed row (`simplefin.ts`: `corrected &&
+ * !fresh.needsReview` → write bank facts only) and `runBackfillForUser` never
+ * touches a decided row at all. The keyword-rule apply had NEITHER guard — it
+ * filtered on "already the target category" and the sign check and nothing else —
+ * so one tick of "apply to existing" re-filed every outlier he had decided by
+ * hand, on a rule that is correct about all the other rows.
+ *
+ * These tests fail against that behaviour: the hand-filed row comes back with the
+ * rule's category instead of his own.
+ */
+describe('a hand-filed outlier survives apply-to-existing', () => {
+  /** File one row the way the register's "just this once" does: category + Correction. */
+  async function handFile(rawDescriptor: string, categoryId: string) {
+    const row = await prisma.transaction.findFirstOrThrow({
+      where: { account: { userId: USER }, rawDescriptor },
+    });
+    await prisma.transaction.update({
+      where: { id: row.id },
+      data: { categoryId, needsReview: false, confidenceBps: 9900 },
+    });
+    await prisma.correction.create({
+      data: {
+        userId: USER,
+        transactionId: row.id,
+        fromCategoryId: null,
+        toCategoryId: categoryId,
+      },
+    });
+    return row.id;
+  }
+
+  it('leaves the reader’s own category on the row he decided', async () => {
+    const outlierId = await handFile('MIRKO PASTA', 'groceries');
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      applyToExisting: true,
+    });
+    const outlier = await prisma.transaction.findUniqueOrThrow({ where: { id: outlierId } });
+    expect(outlier.categoryId).toBe('groceries');
+    // The other two matching rows DID get filed — the rule still works.
+    expect(res.affected).toBe(2);
+    expect(res.preservedHandFiled).toBe(1);
+  });
+
+  it('says so in the preview, and the count it promises is the count it writes', async () => {
+    await handFile('MIRKO PASTA', 'groceries');
+    const preview = await previewKeywordRule({ keywordsRaw: 'mirko', categoryId: 'dining' });
+    expect(preview.matchCount).toBe(3);
+    expect(preview.handFiledCount).toBe(1);
+    // The file's core invariant: what the preview promised is what the apply wrote.
+    expect(preview.wouldFileCount).toBe(2);
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      applyToExisting: true,
+    });
+    expect(res.affected).toBe(preview.wouldFileCount);
+  });
+
+  it('still answers a row the app has re-opened for review, decided or not', async () => {
+    // `corrected && !needsReview` is the sync path's predicate, copied verbatim: a
+    // row the app put BACK in review is undecided again, and the rule may answer
+    // it. Using "a Correction exists" alone would freeze such a row forever.
+    const id = await handFile('MIRKO PASTA', 'groceries');
+    await prisma.transaction.update({ where: { id }, data: { needsReview: true } });
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      applyToExisting: true,
+    });
+    const row = await prisma.transaction.findUniqueOrThrow({ where: { id } });
+    expect(row.categoryId).toBe('dining');
+    expect(res.preservedHandFiled).toBe(0);
+    expect(res.affected).toBe(3);
+  });
+
+  it('does not freeze a row whose only Correction belongs to ANOTHER user', async () => {
+    // Ownership: `handFiledIds` scopes by userId, so a foreign correction row can
+    // never make this reader's transaction unwritable.
+    const row = await prisma.transaction.findFirstOrThrow({
+      where: { account: { userId: USER }, rawDescriptor: 'MIRKO PASTA' },
+    });
+    const other = `${USER}-other`;
+    await prisma.user.create({ data: { id: other, email: `${other}@test.local` } });
+    await prisma.transaction.update({
+      where: { id: row.id },
+      data: { categoryId: 'groceries', needsReview: false },
+    });
+    await prisma.correction.create({
+      data: {
+        userId: other,
+        transactionId: row.id,
+        fromCategoryId: null,
+        toCategoryId: 'groceries',
+      },
+    });
+    try {
+      const res = await createKeywordRule({
+        keywordsRaw: 'mirko',
+        categoryId: 'dining',
+        renameTo: '',
+        accountId: null,
+        minAmountRaw: '',
+        maxAmountRaw: '',
+        applyToExisting: true,
+      });
+      expect(res.preservedHandFiled).toBe(0);
+      expect(
+        (await prisma.transaction.findUniqueOrThrow({ where: { id: row.id } })).categoryId,
+      ).toBe('dining');
+    } finally {
+      await prisma.correction.deleteMany({ where: { userId: other } });
+      await prisma.user.deleteMany({ where: { id: other } });
+    }
+  });
+});

@@ -2,6 +2,46 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-30 — the outlier guard: a rule may not un-decide what you decided
+
+Owner, mid-session: *"Rules are great but occasionally we may change a single transaction (outlier) for
+a diff category. Keep that intact."*
+
+He was right that this was exposed, and the ASYMMETRY is the evidence. Two of the three writers that can
+change a row's category already protected a hand-filed row: the sync path computes
+`corrected && !fresh.needsReview` and then writes bank facts only (`simplefin.ts`), and
+`runBackfillForUser` never touches a decided row at all. The keyword-rule apply-to-history had NEITHER —
+it filtered on "already the target category" and the sign guard and nothing else — so one tick of
+"apply to existing" re-filed every outlier he had decided by hand, on a rule that is correct about all
+the other rows.
+
+Now the apply excludes them, on the sync path's predicate COPIED rather than reinvented, and says so:
+the preview line ("2 of them you filed yourself into other categories, and they stay exactly as you left
+them") and the confirmation sentence both name the count, because an exclusion the reader is not told
+about is its own kind of surprise. Future transactions are unaffected — the rule still files everything
+that arrives after it, which is the other half of what he asked for.
+
+**The first cut was wrong and a pre-existing test caught it.** Counting every `Correction` let a rule
+confirm its OWN past writes: the corrections its backfill had just written read back as the reader's
+hand decisions, so EDITING a rule re-filed nothing. That is the `vocab:` self-confirmation trap one
+feature over, arriving by a different door. Fixed with an additive nullable `Correction.sourceRuleId`,
+stamped when a rule authors a correction and null when a human does. **Legacy corrections are null and
+are therefore treated as the reader's** — the conservative direction, and exactly the predicate the sync
+path has always used. Consequence, recorded rather than hidden: editing a rule created BEFORE this
+change will not re-file the rows that rule's own earlier backfill filed.
+
+### Gate
+
+`VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN, 221 e2e.** Four new unit locks, mutation-proven:
+deleting the guard fails exactly two of them and nothing else. Three intermediate parallel runs failed a
+DIFFERENT spec each time (register filter, CSV import, merchant lens, duplicate connections) and every
+one passed serially and under isolated 4-worker stress — the contention class named in
+`playwright.config.ts`, confirmed by the green rerun, not assumed.
+
+Also fixed while chasing it: the new per-row `Rule…` link now sets `prefetch={false}`. One link per row
+means Next's default viewport prefetch fires a dynamic RSC request per visible transaction on every
+register load, for an action taken on one row in a hundred.
+
 ## ✅ BUILT 2026-07-30 — O.13b (first slice): a rule opens FROM the transaction, pre-filled
 
 Owner, verbatim: *"From transaction page, whenever clicking a transaction, should have rules pull up so

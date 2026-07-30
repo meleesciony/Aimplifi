@@ -310,10 +310,14 @@ export function KeywordRuleBuilder({
         res.renamed > 0
           ? ` ${res.renamed} ${res.renamed === 1 ? 'payee was' : 'payees were'} renamed — the bank’s original text stays on every one.`
           : '';
+      const keptNote =
+        res.preservedHandFiled > 0
+          ? ` ${res.preservedHandFiled} ${res.preservedHandFiled === 1 ? 'transaction you filed yourself was' : 'transactions you filed yourself were'} left as ${res.preservedHandFiled === 1 ? 'it was' : 'they were'}.`
+          : '';
       setDone(
         res.affected > 0
-          ? `Rule ${editing ? 'updated' : 'saved'}, and ${res.affected} ${res.affected === 1 ? 'transaction' : 'transactions'} filed as ${label}.${renamedNote}${skipped}`
-          : `Rule ${editing ? 'updated' : 'saved'}. It will file matching transactions from now on.${renamedNote}${skipped}`,
+          ? `Rule ${editing ? 'updated' : 'saved'}, and ${res.affected} ${res.affected === 1 ? 'transaction' : 'transactions'} filed as ${label}.${renamedNote}${keptNote}${skipped}`
+          : `Rule ${editing ? 'updated' : 'saved'}. It will file matching transactions from now on.${renamedNote}${keptNote}${skipped}`,
       );
       setUndoable(res.correctionIds);
       // Built from the action's own RETURN, never a guess about what was stored.
@@ -740,6 +744,20 @@ export function KeywordRuleBuilder({
                       {preview.signMismatchCount} of them are money OUT, and this is an income category.
                       Those will be left alone — filing money out as income would remove it from your
                       spending totals entirely. The rule will skip them in future too.
+                    </p>
+                  )}
+                  {/* The reader's own outliers. Owner, 2026-07-30: "occasionally we
+                      may change a single transaction (outlier) for a diff category.
+                      Keep that intact." They are excluded from the apply, and an
+                      exclusion he is not TOLD about is its own kind of surprise. */}
+                  {preview.handFiledCount !== null && preview.handFiledCount > 0 && (
+                    <p className="text-xs text-muted-foreground" data-testid="kw-hand-filed-note">
+                      {preview.handFiledCount}{' '}
+                      {preview.handFiledCount === 1
+                        ? 'of them you filed yourself into another category, and it stays'
+                        : 'of them you filed yourself into other categories, and they stay'}{' '}
+                      exactly as you left {preview.handFiledCount === 1 ? 'it' : 'them'}. The rule
+                      still files new transactions that match.
                     </p>
                   )}
                   <ul className="space-y-1 text-xs text-muted-foreground">
