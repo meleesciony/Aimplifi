@@ -6425,3 +6425,26 @@ in the app. Fixed by making the wait budget explicit, never by weakening the cla
 STILL OWED on O.13a: the hostile-critic pass (categorization routing that writes money categories).
 NEXT: (1) the O.13a critic; (2) O.13b the transaction detail view; (3) O.12e the inbox drill-down.
 
+## O.13a critic cycle 1 — FAIL, then fixed. 2026-07-29
+`2bf141d`, deploy-verified (build log `Commit: 2bf141d`, route `f /rules`, holding www.aimplifi.app).
+Two fresh-context critics, different lenses, BOTH FAIL: 2 P0 + 7 P1, all fixed and fail-old locked
+(9 REGRESSION_LEDGER rows, DECISIONS #339, lesson `a-typed-key-is-a-pattern-not-an-identity.md`).
+Gate: VERIFY_E2E=1 green twice — 304 files / 4825 tests, 216 e2e. No prisma diff.
+THE TWO P0s (both reproduced by execution before the fix):
+- a typed rule was the ONLY auto-file path with no #44 sign check, and the failure is ERASURE not
+  mis-labelling: an outflow filed as income is dropped by `isSpendRow`, so spending vanished from
+  reports/trends/budgets while `monthlyFlows` still counted it. My first fix reused `learnedSignOk`,
+  which is symmetric, and therefore broke the documented refund convention — caught by this slice's own
+  new lock. The guard is asymmetric on purpose.
+- the apply set was `{account:{userId}}` with none of the five exclusions its three siblings carry: it
+  re-filed a transfer, a split parent, both split CHILDREN (collapsing a hand-made allocation), a
+  review-pinned row, and investment/non-USD rows. Preview count on the same data: 9 -> 3.
+THE P1s: undo left the rule alive so the next backfill re-filed all 5 reverted rows; no demo fence (one
+visitor's typed words rendered to the next, while the rule could never fire); three strings claimed an
+empty rule "matches everything" when the engine makes it match nothing; the builder pointed at bank text
+the register never shows, a gap THIS session's brand work widened; the history rewrite defaulted ON with
+no undo anywhere; and the list contradicted its own success message.
+NEXT: (1) O.13b the transaction detail view — it now also owes the raw-bank-text row (the O.13a
+mitigation is a zero-match hint, not a fix); (2) O.13d rule EDIT + surfacing merchant/learned rules in
+the list, since a typed rule silently outranks both; (3) O.12e the inbox drill-down.
+
