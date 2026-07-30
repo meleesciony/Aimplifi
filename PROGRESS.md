@@ -6641,3 +6641,90 @@ normal 2.5m). My first bisect blamed the new per-row Details link and was CONFOU
 in the same step, and `next start` serves the last build. Rebuilt with the link present: all four
 merchant-lens tests pass, and the full gate is green with 226 e2e. I cannot name a mechanism
 beyond machine load, so this is logged as unreproduced, not diagnosed.
+
+### O.15 slice 1 — nothing the app claims is a dead end (verify green)
+
+Owner brief: *"no cohesion in the app… most def not at parity with Mint/Simplifi."*
+
+WHAT SHIPPED. One href author (`merchantRegisterHref` + `MERCHANT_LINK_CLASS` in
+`src/lib/engine/transactions/links.ts`); the four pre-existing inline `?merchant=`
+template literals migrated onto it; new links on `/recurring` (every row + every
+coming-up renewal) and in the Today feed ("View charges at X" on any proposal carrying a
+merchant). The uncommitted coach clickability fix that was already in the working tree
+(coach/page.tsx, life-energy-card.tsx) is verified and included here.
+
+TWO DELIBERATE REFUSALS, documented at the call site so neither reads as an oversight:
+the household shared list (partner-owned rows, viewer-scoped register, and
+`getSharedTransactionsView()` takes no filter at all) and the category label on a
+`/recurring` row (a cadence has no month window, and `CategoryFigure` requires one).
+
+GATE: `VERIFY_E2E=1 bash scripts/verify.sh` → **VERIFY GREEN**, 4912 unit / 308 files,
+**232 e2e** (up from 226 — the six new ones).
+
+MUTATION-PROVEN, because a green test is a hypothesis (the O.13b inert-banner lesson):
+1. Builder → `URLSearchParams`: 1 test dies (the `%20` pin).
+2. Builder → no escaping at all, parsed via `href.split('?')[1]`: 5 die but `A#1 Auto`
+   and `100% Chiropractic` survive — a manual split never lets `#` start a fragment, so
+   the test was more forgiving than a browser. Re-parsing through a real `new URL()`
+   takes it to 7 dead. That leniency was found by mutating, not by review.
+3. Both new links replaced with plain `<span>`s + full rebuild: exactly 3 of the 6 e2e
+   tests fail, the other 3 stay green.
+
+CHECKED RATHER THAN ASSUMED — the question the whole slice rests on: is the string each
+call site passes the same string the register filters on? `merchantName` is
+`t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical`
+(server/transactions.ts:262), matched EXACTLY and case-insensitively (query.ts:200);
+`RecurringSeries.merchantCanonical` resolves against `Merchant.canonical`
+(server/recurring.ts:195–199). Same string, so aggregate pseudo-merchants ("ATM
+Withdrawal", "Zelle Payment") link to the register's own grouping rather than to nothing.
+
+NOT DONE IN THIS SLICE, recorded rather than smoothed over: the three tappable dashboard
+summary cards (Top spending, Trends/Spending insights, Recurring summary) each render a
+category or merchant name INSIDE a card-wide `TrackedActedLink`. An anchor may not nest
+inside an anchor, so linking those names is a structural change to the card (and to the
+`SURFACE_LINK_CARD_CLASS` contract that `surface-card-styles.test.ts` locks), not a link
+swap. They are not dead ends today — each lands on the full page where that same name IS
+linked — so this is a two-tap path, not a missing one. Owner can overrule.
+
+CRITIC CYCLE 1 — two fresh-context critics, both FAIL, almost no overlap. One found a
+**P0 by executing a probe**: `/recurring`, `/coach` and the Today feed display a live
+re-derivation of the merchant name from `rawDescriptor`, while the register matches the
+STORED `Merchant.canonical` — so after an O.13c rename-payee rule the link lands on 0 of 4
+rows. Neither of my tests could have caught it: the unit fixture builds its rows from the
+same string it hands the builder, and the demo seed has zero divergence. I had checked
+this exact question earlier in the session and got it WRONG — I verified that
+`merchantCanonical` is looked UP against `Merchant.canonical` and concluded it therefore
+IS that value; `detectRecurring` in fact groups by `normalizeMerchant(rawDescriptor)` and
+`RecurringTxn` carries no merchant relation at all.
+
+Decision (full reasoning in DECISIONS #341): SHIP the links and PIN the divergence. It
+predates the links (the Merchant Lens joins the same two name-spaces at
+server/transactions.ts:334 and fails identically); leaving plain text is a dead end for
+every reader while shipping is one only for renamed payees; and the real fix — threading
+merchant identity through the snapshot into `detectRecurring` — changes what a recurring
+series is keyed by, which is engine work at the tier this repo reserves for it. The
+rejected shortcut was widening the register's filter to also match the descriptor: that
+makes a filter fuzzy to hide an identity defect, and silently widens the Merchant Lens's
+money figures.
+
+Also fixed this cycle: a `toContain` that PASSED on the very truncation its comment
+claimed to catch; `MERCHANT_LINK_CLASS` shipping hover-only affordance (invisible at
+380px — the defect this module already recorded for category figures); its docblock
+claiming to stop drift while four links in the same commit hand-rolled their classes; a
+false claim that the register has a free-text merchant box (it has no merchant control at
+all — recorded as a real weakness with a queued UI fix); "View charges at X" on an INCOME
+row, calling a paycheck a charge; and `truncate` without `min-w-0` in two files.
+
+STILL OPEN, named not buried: `detectRecurring` lacks the `isAggregateCanonical` guard its
+two sibling detectors have, so a rent-by-Zelle series links to a register mixing every
+Zelle payee; and the feed's opportunity kinds hard-set `merchant: null`, so "A
+subscription's price went up" still names nobody.
+
+GATE AFTER FIXES: `bash scripts/verify.sh` → **VERIFY GREEN**, 4915 unit / 308 files;
+`no-dead-ends.spec.ts` 8/8.
+
+RULES-BUILDER REPORT (owner: "can't add additional fields — e.g. Cardone for income
+category"). The stale-deploy hypothesis in the brief is DEAD: O.13c is commit `368c3cb`
+and `origin/main` is six commits past it at `168529d`. So the deployed build does carry
+the O.13c UI and this is a real bug, not a missing deploy. Not reproduced yet — `/rules`
+answers 307 to an anonymous fetch, so it needs a signed-in session.

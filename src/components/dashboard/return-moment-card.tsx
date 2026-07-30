@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transactions/links';
 import { Button } from '@/components/ui/button';
 import { type ISODate, formatISODate } from '@/lib/dates';
 import { type Cents, formatCents } from '@/lib/money';
@@ -59,7 +61,16 @@ export function ReturnMomentCard({ moment }: { moment: ReturnMoment }) {
             <ul className="mt-1 space-y-0.5">
               {shownIncreases.map((p) => (
                 <li key={p.merchant} className="flex justify-between gap-4">
-                  <span>{p.merchant}</span>
+                  {/* O.15 slice 1 — a price-CHANGE claim about a named subscription,
+                      shown to a reader returning after a week away. The charges behind
+                      it are exactly what "did it really?" wants. */}
+                  <Link
+                    href={merchantRegisterHref(p.merchant)}
+                    data-testid="return-moment-merchant-link"
+                    className={`min-w-0 truncate ${MERCHANT_LINK_CLASS}`}
+                  >
+                    {p.merchant}
+                  </Link>
                   <span className="tabular-nums text-muted-foreground">
                     +{formatCents(p.deltaCents as Cents)}/mo
                   </span>

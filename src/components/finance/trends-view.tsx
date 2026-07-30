@@ -10,7 +10,12 @@ import { ArrowDownRight, ArrowUpRight, Gauge, Receipt, Sparkles, Store } from 'l
 import { formatISODate, formatMonth, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
-import { CATEGORY_LINK_CLASS, categoryMonthRegisterHref } from '@/lib/engine/transactions/links';
+import {
+  CATEGORY_LINK_CLASS,
+  MERCHANT_LINK_CLASS,
+  categoryMonthRegisterHref,
+  merchantRegisterHref,
+} from '@/lib/engine/transactions/links';
 import type { CategoryMover, SpendingTrends } from '@/lib/engine/trends/trends';
 import type { BalanceMoveView } from '@/server/balance-move';
 
@@ -259,7 +264,15 @@ export function TrendsView({
             {largest.map((l, i) => (
               <li key={`${l.date}-${l.merchant}-${i}`} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{l.merchant}</div>
+                  {/* O.15 slice 1 — "Largest purchases" is a list of single charges
+                      the reader is being invited to examine; the name has to open them. */}
+                  <Link
+                    href={merchantRegisterHref(l.merchant)}
+                    data-testid="trends-largest-merchant-link"
+                    className={`block truncate text-sm ${MERCHANT_LINK_CLASS}`}
+                  >
+                    {l.merchant}
+                  </Link>
                   <div className="truncate text-xs text-muted-foreground">
                     {l.categoryName} · {formatISODate(isoDate(l.date), 'short')}
                   </div>
@@ -304,7 +317,16 @@ export function TrendsView({
             {newMerchants.map((n) => (
               <li key={n.merchant} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{n.merchant}</div>
+                  {/* O.15 slice 1 — the card whose whole subject is a merchant the
+                      reader has never seen before. "What is this?" is the only question
+                      anyone has here, and until now the card could not answer it. */}
+                  <Link
+                    href={merchantRegisterHref(n.merchant)}
+                    data-testid="trends-new-merchant-link"
+                    className={`block truncate text-sm ${MERCHANT_LINK_CLASS}`}
+                  >
+                    {n.merchant}
+                  </Link>
                   <div className="truncate text-xs text-muted-foreground">{n.categoryName}</div>
                 </div>
                 <span className="shrink-0 text-sm font-medium tabular-nums">{money(n.amountCents)}</span>

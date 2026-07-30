@@ -134,6 +134,26 @@ export function SharedTransactionList({
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
+                      {/* O.15 slice 1 REFUSAL — this merchant name stays plain text, and
+                          it is the one surface in the sweep that does.
+
+                          Every other merchant name in the app names a row the reader
+                          OWNS, so `?merchant=` lands on a register containing that row.
+                          These rows belong to a PARTNER. The register's personal list is
+                          scoped to the viewer (`getTransactions(session.user.id, …)`) and
+                          its household section is fetched by `getSharedTransactionsView()`
+                          — which takes no filter at all, so it cannot narrow to a
+                          merchant even in principle. Following a link from here would
+                          land on the reader's OWN charges at that name: a different set
+                          from the row they tapped, silently, with no error and an HTTP
+                          200 — and where the reader has none, an empty register reading
+                          as "there are no charges here" about a charge they are looking
+                          straight at.
+
+                          That is the failure `categoryRegisterHref` returns null for
+                          (rows right, control wrong), so the same answer applies: refuse
+                          rather than assert. Re-open this when the register can filter
+                          the household set — then the link is honest and belongs here. */}
                       <span className="truncate font-medium">{t.merchantName}</span>
                       <span
                         className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground"

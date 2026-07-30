@@ -5,6 +5,8 @@
  * A lens the user can toggle — never a judgment.
  */
 import { useState } from 'react';
+import Link from 'next/link';
+import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transactions/links';
 import {
   Card,
   CardContent,
@@ -56,7 +58,14 @@ export function LifeEnergyCard({
               {items.map((item, i) => (
                 <li key={i} className="flex items-baseline justify-between gap-2">
                   <span className="truncate">
-                    {item.merchant}
+                    {/* Same Merchant-Lens entry as the register row (DECISIONS #250). */}
+                    <Link
+                      href={merchantRegisterHref(item.merchant)}
+                      data-testid="life-energy-merchant-link"
+                      className={MERCHANT_LINK_CLASS}
+                    >
+                      {item.merchant}
+                    </Link>
                     <span className="ml-1 text-xs text-muted-foreground">
                       {formatISODate(isoDate(item.date))}
                     </span>

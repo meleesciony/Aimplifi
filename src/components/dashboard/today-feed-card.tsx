@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transactions/links';
 import { Button } from '@/components/ui/button';
 import type { NudgeFeed, Proposal } from '@/lib/engine/nudge/types';
 import {
@@ -222,6 +224,49 @@ function ProposalRow({
           {frozenNote && (
             <p className="text-muted-foreground" data-testid={`nudge-frozen-${proposal.kind}`}>
               {frozenNote}
+            </p>
+          )}
+          {/* O.15 slice 1 — the feed makes the sharpest claims in the app about a
+              NAMED merchant ("larger than the typical $11.56 there", "usually
+              arrives monthly") and offered no way to check any of them; the only
+              action was to dismiss. This is the check.
+
+              A separate affordance rather than a link wrapped around the name
+              inside `detail`, and that is deliberate: `detail` is a money
+              SENTENCE assembled in today-feed-copy.ts, whose every clause is
+              audited copy (the estimate disclosures, the no-shame framing, the
+              runway formula). Linkifying a substring of it would mean splitting
+              that string into React nodes at each of its four kinds and
+              re-auditing all of them — changing money copy to add a link. The
+              merchant is already a first-class field on the payload, so the row
+              can point at the register without touching a word of what it says.
+
+              Gated on `proposal.merchant` because it is genuinely nullable: the
+              copy itself falls back to "this source", and a link reading "View
+              charges at this source" would filter the register by nothing.
+
+              The VERB is kind-aware, and that is not a nicety. Exactly two kinds
+              carry a merchant (select.ts: `unusual_charge` and `income_pause`),
+              and one of them is INCOME — a paycheck. "View charges at Acme
+              Payroll" calls a deposit a charge, on the same row whose audited
+              copy is careful to describe money that DIDN'T arrive and never says
+              "spent" (today-feed-copy.ts:164). Adding a link is no licence to
+              undo that; a new sentence beside money copy is money copy. */}
+          {proposal.merchant && (
+            <p className="mt-0.5">
+              <Link
+                href={merchantRegisterHref(proposal.merchant)}
+                // Keyed by the proposal, not just its kind: ANOMALY_MAX_RESULTS is 3,
+                // so three `unusual_charge` rows can render at once and a kind-only
+                // testid would resolve to three nodes. The kind stays in the id so
+                // existing kind-scoped selectors still read naturally.
+                data-testid={`nudge-merchant-link-${proposal.kind}`}
+                data-merchant={proposal.merchant}
+                className={MERCHANT_LINK_CLASS}
+              >
+                {proposal.kind === 'income_pause' ? 'View deposits from' : 'View charges at'}{' '}
+                {proposal.merchant}
+              </Link>
             </p>
           )}
           {pauseError && (

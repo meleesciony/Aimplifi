@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transactions/links';
 import { CheckCircle2, Eye, ShieldCheck, TrendingUp } from 'lucide-react';
 import { auth } from '@/auth';
 import { AutomationBlueprintCard } from '@/components/coach/automation-blueprint-card';
@@ -119,8 +121,21 @@ export default async function CoachPage() {
             <ul className="space-y-3 text-sm" data-testid="opportunities-list">
               {data.opportunities.map((o, i) => (
                 <li key={i} className="space-y-0.5">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-medium">{o.merchant}</span>
+                  {/* min-w-0: the name below truncates, and a truncating flex child
+                      with default min-width:auto pushes the shrink-0 badge off the row
+                      instead of clipping itself (the iOS flexbox lesson, and the rule
+                      this slice's own builder docblock states). */}
+                  <div className="flex min-w-0 items-baseline justify-between gap-2">
+                    {/* Same Merchant-Lens entry the register row uses (DECISIONS #250):
+                        the flagged name opens the merchant-filtered register, so the
+                        reader can see the charges behind the claim in one tap. */}
+                    <Link
+                      href={merchantRegisterHref(o.merchant)}
+                      data-testid="coach-opportunity-link"
+                      className={`truncate ${MERCHANT_LINK_CLASS}`}
+                    >
+                      {o.merchant}
+                    </Link>
                     <Badge variant={o.isEstimate ? 'outline' : 'secondary'} className="shrink-0">
                       {o.isEstimate ? `~${formatCents(o.monthlyCents)}/mo est.` : `${formatCents(o.monthlyCents)}/mo`}
                     </Badge>
@@ -146,7 +161,16 @@ export default async function CoachPage() {
           <CardHeader className="pb-2">
             <CardDescription>Lifestyle creep</CardDescription>
             <CardTitle className="text-base">
-              {data.creep.flagged ? 'Spending is outpacing income' : 'Tracking income'}
+              {/* The verdict is a claim about a set of transactions, so the title IS
+                  the way into that set: flagged → the spending it indicts; clear →
+                  the income it tracks. Same register links every other surface uses. */}
+              <Link
+                href={data.creep.flagged ? '/transactions?type=expense' : '/transactions?type=income'}
+                data-testid="coach-creep-link"
+                className="underline-offset-2 hover:underline"
+              >
+                {data.creep.flagged ? 'Spending is outpacing income' : 'Tracking income'}
+              </Link>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">

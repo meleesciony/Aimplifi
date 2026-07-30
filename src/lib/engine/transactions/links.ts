@@ -50,6 +50,45 @@ export const CATEGORY_LINK_CLASS =
   'hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2';
 
 /**
+ * The one visual treatment for a merchant NAME that drills into the register.
+ *
+ * It carries a RESTING dotted underline, matching `CATEGORY_LINK_CLASS`, and
+ * that is the one deliberate visual change in this slice rather than an
+ * accident. The register's merchant name shipped for months as
+ * `font-medium hover:underline`: no underline, no colour delta and no weight
+ * delta against the text beside it, so its only affordance was `:hover`, which
+ * does not exist on a phone. That is verbatim the defect measured at 380px and
+ * recorded above for category figures, and the fix has to be the same one —
+ * this slice exists to make these names discoverable, and a link nobody can see
+ * is indistinguishable from not shipping it. Matching the category treatment is
+ * also the cohesion the owner actually asked for: one "inspectable" idiom across
+ * the app instead of two, so a reader learns it once.
+ *
+ * The cost is honest and reversible in one constant: a register of fifty rows
+ * now shows fifty dotted underlines. Dotted rather than solid, at muted colour,
+ * keeps that from reading as fifty blue links.
+ *
+ * `focus-visible` is the other addition: every hand-written copy of this markup
+ * omitted it, so the links were reachable by keyboard and invisible once
+ * reached.
+ *
+ * ONE call site deliberately does NOT use this constant, and it is not drift:
+ * `transaction-detail-view.tsx`'s "Every X transaction" is a footer nav link
+ * sitting beside "Back to transactions", already carries a resting solid
+ * underline, and must match its neighbour rather than the row idiom. Every other
+ * merchant link in the app uses this.
+ *
+ * No `truncate` here. Whether a name may be clipped is a fact about the LAYOUT
+ * it sits in — a register row truncates, a sentence in the Today feed must not —
+ * so each call site adds it, and `min-w-0` on the flex parent, itself (the iOS
+ * flexbox lesson: a `truncate` with no `min-w-0` ancestor silently overflows).
+ */
+export const MERCHANT_LINK_CLASS =
+  'rounded-sm font-medium underline decoration-dotted decoration-muted-foreground/70 ' +
+  'underline-offset-2 hover:decoration-solid ' +
+  'focus-visible:outline-2 focus-visible:outline-offset-2';
+
+/**
  * A category figure and the inclusive day window it was summed over. Both dates
  * are REQUIRED: an href carrying a category but no window lands on the register's
  * default (all history), whose total is larger than any month figure that could
@@ -163,4 +202,61 @@ export function categoryMonthRegisterHref(
 ): string | null {
   const { from, to } = monthWindow(month);
   return categoryRegisterHref({ categoryId, from, to, amountCents }, linkable);
+}
+
+/**
+ * The register, filtered to one merchant across ALL history (O.15 slice 1).
+ *
+ * Deliberately window-less, and that is the difference from every category link
+ * above rather than an oversight. A category link is hung on a FIGURE — a month
+ * total, a mover's month spend — so a missing window silently widens the
+ * destination past the number that was clicked, which is the whole reason
+ * `CategoryFigure` makes `from`/`to` required. A merchant link is hung on a
+ * NAME: "Netflix" is not an amount, so there is no sum for the destination to
+ * disagree with, and the reader asking "what is this?" wants every charge, not
+ * the ones inside a window they never chose. The register's own default scope is
+ * all history, so this lands exactly where its Merchant filter would.
+ *
+ * It returns a plain `string`, not `string | null` — but NOT because the
+ * rows-right/control-wrong hole is absent here. A first draft of this comment
+ * claimed the register has "a free-text merchant box that displays whatever it
+ * is given"; a critic checked, and there is no such control.
+ * `transaction-filters.tsx` renders Type / Account / Category / From / To only,
+ * and re-serialises `merchant` into the URL without ever showing it. The name is
+ * echoed by the Merchant Lens card, which `transactions/page.tsx` renders as
+ * `{lens && …}` and whose engine ABSTAINS on thin history and on aggregate
+ * pseudo-merchants — so on exactly the sparse merchants where the destination
+ * looks emptiest, nothing on the page names what it was narrowed to.
+ *
+ * That is a real weakness, and it is recorded rather than dressed up. It is not
+ * fixed by refusing to build the href: unlike a category id, which can be
+ * checked against the picker's own option list before linking, there is no
+ * predicate a builder could evaluate here — every merchant name is equally
+ * displayable and equally unshown. The fence would have to be a merchant control
+ * on the register, which is a UI task and is queued as one. The two links that
+ * predate this slice already had the same gap.
+ *
+ * A caller that must not link — the household shared list, whose rows belong to
+ * a PARTNER while this register is scoped to the reader — is refused by not
+ * calling this at all, with the reason written at the call site.
+ *
+ * Centralising the ENCODING is the concrete reason this is one function rather
+ * than an inline template literal per surface: merchant names carry `&` ("Barnes
+ * & Noble"), `#` and `+` far more often than category slugs — lowercase ASCII by
+ * construction — do, and an escape that is right at the call sites that have one
+ * and forgotten at the next one added truncates the filter silently, giving a
+ * narrower register and no error anywhere.
+ *
+ * `encodeURIComponent`, NOT `URLSearchParams`, and the difference is load-bearing
+ * even though both round-trip through a `URLSearchParams` reader (measured: `+`
+ * and `%20` both read back as a space). `URLSearchParams.toString()` emits a
+ * space as `+`, which is only a space to a parser applying form-encoding rules;
+ * `%20` is a space to every query parser there is. The TWO merchant links that
+ * were already shipped (`transaction-list.tsx`, `transaction-detail-view.tsx`)
+ * emit `%20`, so keeping that byte-for-byte is what makes this refactor provably
+ * unable to move where an existing link lands. A link silently filtering to
+ * "Blue+Bottle+Coffee" would match nothing while still returning HTTP 200.
+ */
+export function merchantRegisterHref(merchant: string): string {
+  return `${REGISTER_PATH}?merchant=${encodeURIComponent(merchant)}`;
 }

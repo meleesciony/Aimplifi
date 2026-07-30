@@ -14,6 +14,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transactions/links';
 import { useSearchParams } from 'next/navigation';
 import { Check, Pencil, Receipt, Tag } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -435,9 +436,9 @@ export function TransactionList({
                         {/* Merchant Pattern Lens entry (DECISIONS #250): the name
                             links to the merchant-filtered register + lens card. */}
                         <Link
-                          href={`/transactions?merchant=${encodeURIComponent(t.merchantName)}`}
+                          href={merchantRegisterHref(t.merchantName)}
                           data-testid="txn-merchant-link"
-                          className="truncate font-medium underline-offset-2 hover:underline"
+                          className={`truncate ${MERCHANT_LINK_CLASS}`}
                         >
                           {t.merchantName}
                         </Link>

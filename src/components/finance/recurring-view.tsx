@@ -5,8 +5,10 @@
  * increases and possibly-unused memberships surfaced as gentle flags (coach
  * guardrails: a question, never a scold).
  */
+import Link from 'next/link';
 import { CalendarClock, Repeat, TrendingUp } from 'lucide-react';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transactions/links';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
@@ -49,8 +51,27 @@ function Row({
       className="flex items-center justify-between gap-3 px-4 py-2.5"
     >
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="truncate font-medium">{item.merchantCanonical}</span>
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {/* O.15 slice 1 — /recurring named the merchant and went nowhere: the
+              page that says "you pay Netflix $15.99/mo" is exactly where a
+              reader asks "since when?", and the register filtered to that
+              merchant is the answer. Same builder and same affordance as the
+              register row's own name.
+
+              The CATEGORY beside it (below) is deliberately NOT a link: a
+              category href must carry the window it was summed over
+              (`CategoryFigure` makes from/to required, and for good reason —
+              a window-less category link lands on all-history, a total larger
+              than any figure that could have been clicked). A recurring series
+              has no month window to hand over; it is a cadence, not a sum. The
+              honest link here is the merchant, which asserts no figure at all. */}
+          <Link
+            href={merchantRegisterHref(item.merchantCanonical)}
+            data-testid="recurring-merchant-link"
+            className={`truncate ${MERCHANT_LINK_CLASS}`}
+          >
+            {item.merchantCanonical}
+          </Link>
           {change && (
             <span
               data-testid="price-change-badge"
@@ -225,7 +246,16 @@ export function RecurringView({
                   className="flex items-center justify-between gap-3 px-4 py-2"
                 >
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <span className="truncate font-medium">{o.merchantCanonical}</span>
+                    {/* O.15 slice 1 — same reasoning as the Row above: a renewal
+                        the app says is COMING is a claim built from charges that
+                        already happened, so the name opens them. */}
+                    <Link
+                      href={merchantRegisterHref(o.merchantCanonical)}
+                      data-testid="coming-up-merchant-link"
+                      className={`truncate ${MERCHANT_LINK_CLASS}`}
+                    >
+                      {o.merchantCanonical}
+                    </Link>
                     {o.increasedFromCents !== null && (
                       <span className="shrink-0 rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-600 dark:text-rose-400">
                         ↑ was {formatCents(cents(o.increasedFromCents))}

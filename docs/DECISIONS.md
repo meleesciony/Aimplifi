@@ -502,3 +502,173 @@ whose text differs only in case from an existing canonical (`costco` vs `Costco`
 second `Merchant` row that looks identical in the register, because a portable
 case-insensitive lookup is not available across SQLite and Postgres in Prisma; and rules still
 require a category, so a rename-only rule is not expressible.
+
+## #341 (O.15 slice 1): nothing the app claims is a dead end — and a link is refused where it would land on someone else's rows
+
+Owner's verdict, 2026-07-30: *"no cohesion in the app… most def not at parity with
+Mint/Simplifi."* The concrete defect underneath the word "cohesion" was that surfaces
+named a merchant and stopped there. `/recurring` stated "you pay X $15.99/mo" and the
+name did nothing; the Today feed asserted a charge was "larger than the typical $11.56
+there" and offered exactly one control — Dismiss. The app made claims about named
+merchants and gave the reader no way to check any of them.
+
+**The rule:** a named merchant is a way in to the rows behind the claim. Implemented as
+one builder, `merchantRegisterHref()`, added beside `categoryRegisterHref` in
+`src/lib/engine/transactions/links.ts` — the module that already declared itself the one
+author of every drill-down href while two inline `?merchant=` template literals lived
+outside it (`transaction-list.tsx`, `transaction-detail-view.tsx`). Both are migrated onto
+it. A first draft of this entry said "four migrated" and a critic checked the actual
+commit: the other two edited call sites (`coach/page.tsx`, `life-energy-card.tsx`) were
+plain `<span>`s that became NEW links in this same slice — they were never migrations, and
+describing them as such would have sent a reviewer past two of the sites carrying the P0
+below.
+
+**Why the merchant builder returns `string` and the category builder returns `string |
+null`.** They are not inconsistent; they are fenced against different holes. A category
+link is hung on a FIGURE, so `CategoryFigure` makes `from`/`to` required — a window-less
+category link lands on all-history, a larger total than any figure that could have been
+clicked — and it refuses ids the register's `<select>` cannot DISPLAY, because landing on
+correctly-filtered rows under a control reading "All categories" is still wrong. A
+merchant link is hung on a NAME. "Netflix" is not an amount, so there is no sum for the
+destination to disagree with and no window to carry; and the register's merchant filter
+is free text, which displays whatever it is handed, so there is no rows-right/control-
+wrong hole to fence.
+
+**The destination holds by construction, and that was checked rather than assumed.** The
+register computes `merchantName` as `t.merchant?.canonical ?? normalizeMerchant(
+t.rawDescriptor).canonical` (server/transactions.ts:262) and matches it EXACTLY,
+case-insensitively (`query.ts:200` — there is no substring fallback to soften a mangled
+parameter). `RecurringSeries.merchantCanonical` is resolved against `Merchant.canonical`
+(server/recurring.ts:195–199), which is the same string. Aggregate pseudo-merchants
+("ATM Withdrawal", "Zelle Payment") therefore link honestly to the register's own
+grouping of those rows rather than to nothing.
+
+**`encodeURIComponent`, not `URLSearchParams`, and it is not a style choice.** Under an
+exact-equality filter a mangled escape does not degrade the destination, it EMPTIES it —
+and an empty register is not an error, it is a page reading "no transactions" about a
+charge the reader is looking straight at, returning HTTP 200 and logging nothing.
+`URLSearchParams.toString()` emits a space as `+`, which is only a space to a parser
+applying form-encoding rules. The four migrated call sites already emitted `%20`, so
+keeping that byte-for-byte is what makes the refactor provably behaviour-preserving
+rather than probably behaviour-preserving.
+
+**Two deliberate refusals, both recorded at the call site rather than left to look like
+oversights:**
+
+1. **The household shared list keeps plain text.** Every other merchant name in the app
+   names a row the reader OWNS. Those rows belong to a PARTNER, and the register is
+   viewer-scoped (`getTransactions(session.user.id, …)`) while its household section
+   comes from `getSharedTransactionsView()`, which takes no filter at all and so cannot
+   narrow to a merchant even in principle. A link would land the reader on their OWN
+   charges at that name — a different set, silently — or, where they have none, on an
+   empty register reading as "there are no charges here" about a charge they can see.
+   Same answer as `categoryRegisterHref`'s null: refuse rather than assert.
+2. **The category label on a `/recurring` row is not linked.** A recurring series is a
+   cadence, not a sum, so it has no month window to hand `CategoryFigure`. The honest
+   link on that row is the merchant, which asserts no figure at all.
+
+**The Today feed gets a separate affordance, not a linkified substring.** `detail` is a
+money SENTENCE assembled in `today-feed-copy.ts` whose every clause is audited copy
+(estimate disclosures, no-shame framing, the runway formula). Splitting it into React
+nodes at each of its four kinds would mean changing money copy to add a link. `merchant`
+is already a first-class field on the proposal, so the row points at the register without
+touching a word of what it says — and the link is gated on that field being non-null,
+because the copy itself falls back to "this source" and a link reading "View charges at
+this source" would filter by nothing.
+
+**Locks.** `tests/unit/merchant-register-links.test.ts` round-trips eight hostile real-
+world merchant names (`&`, `#`, `+`, `%`, `=`, a curly apostrophe, non-ASCII) through a
+REAL `new URL()` parse rather than `href.split('?')[1]` — measured: the split version
+keeps 6 of 8 green on a builder that does no escaping at all, because a manual split
+never lets `#` start a fragment. `tests/e2e/no-dead-ends.spec.ts` walks the routes and
+reads the DOM, because a unit test on a builder cannot see whether the string is on the
+page (the O.13b inert-banner lesson). Both were mutation-proven: swapping the two new
+links for plain `<span>`s and rebuilding fails exactly 3 of the 6 e2e tests and leaves
+the other 3 green.
+
+### O.15 slice 1 — critic cycle 1 (two fresh-context critics, both FAIL, and they did not overlap)
+
+**The P0 neither the unit lock nor the e2e could have caught, because both were built
+out of the same string.** `merchant-register-links.test.ts` constructs its fixture rows
+with the very name it hands the builder (`view(id, merchantName)`), so it can only ever
+prove the URL round-trips — never that the app puts the RIGHT name into it. The e2e runs
+on a demo seed with zero divergence. The critic executed a probe and landed the reader on
+**0 of 4 rows**.
+
+There are TWO merchant name-spaces here:
+
+* the register displays and matches the STORED name, `t.merchant?.canonical ??
+  normalizeMerchant(t.rawDescriptor).canonical` (server/transactions.ts:262, query.ts:200,
+  exact and case-insensitive);
+* `/recurring`, the Today feed's unusual-charge row and `/coach` display a LIVE
+  RE-DERIVATION, `normalizeMerchant(rawDescriptor).canonical` — `RecurringTxn` carries no
+  merchant relation at all (recurring/detect.ts:187, anomaly/detect.ts:101,
+  server/coach.ts:239).
+
+They agree until something changes the stored name without touching the descriptor, and
+O.13c's rename-payee rule does exactly that: it upserts a `Merchant` with `canonical:
+renameTo` and re-points `Transaction.merchantId`, leaving `rawDescriptor` alone forever
+(server/keyword-rules.ts:598–621). After a rename the register says "Netflix (family
+plan)" while `/recurring` still says "Netflix", so a link built from the `/recurring` name
+matches nothing.
+
+**Decision: ship the links, pin the divergence, and queue the identity fix — with the
+reasoning written down so it can be falsified.**
+
+1. *It is older than the links.* The Merchant Lens already joins these two name-spaces
+   and already fails the same way (server/transactions.ts:334 compares
+   `s.merchantCanonical` against the register's `profile.merchant`). `/recurring` was
+   ALREADY displaying the pre-rename name as plain text. The links did not create the
+   split; they made it reachable in one tap.
+2. *Failure direction, counted honestly.* Leaving plain text is a dead end for 100% of
+   names and every reader. Shipping is a working link for every name that has not been
+   renamed and a dead end only for those that have. Shipping is strictly better in
+   expectation, and the harm is a visibly empty list rather than a wrong money figure —
+   this is a browse-and-audit surface, not an instruction.
+3. *The real fix is not available cheaply and must not be faked.* Unifying the
+   name-spaces means threading merchant identity through the shared snapshot into
+   `detectRecurring` — which changes what a recurring series is KEYED by, and so touches
+   detection, price-change history, income-pause identity and the scheduled projection.
+   That is engine work at the tier this repo reserves for it. The tempting shortcut —
+   widening the register's filter to also match the normalized descriptor — was rejected:
+   it papers over an identity defect by making a filter fuzzy, and it silently widens the
+   Merchant Lens's money figures, which are computed from the filtered rows.
+4. *So it is PINNED, not described.* `merchant-register-links.test.ts` now asserts the
+   broken behaviour under a rename fixture with an explicit instruction that a failure
+   means the bug is FIXED and the test should be deleted. A divergence you cannot close
+   gets a test that explains itself, so closing it means changing something that argues
+   back.
+
+**The other findings, all real, all fixed in this cycle:**
+
+* A `toContain` assertion whose own comment claimed it would catch "Barnes & Noble"
+  truncating to "Barnes" — and which that truncation PASSES, because a substring check can
+  never catch truncation. Now `toBe`.
+* `MERCHANT_LINK_CLASS` shipped `hover:underline` only, reproducing verbatim the 380px
+  defect this module already recorded for category figures: on a phone there is no hover,
+  so the affordance did not exist. It now carries a resting dotted underline matching
+  `CATEGORY_LINK_CLASS` — one inspectable idiom across the app, which is the cohesion the
+  owner asked for. Locked.
+* Its docblock claimed to stop drift while four merchant links in the same commit carried
+  hand-written class strings and no focus ring. Now applied everywhere except the detail
+  view's footer nav link, which matches its "Back to transactions" neighbour on purpose —
+  and the docblock names that exception instead of claiming universality.
+* The builder's justification for never returning null claimed "the register's merchant
+  filter is a free-text box that displays whatever it is given". There is no such control:
+  `transaction-filters.tsx` renders Type/Account/Category/From/To only. The name is echoed
+  only by a lens that ABSTAINS on thin history — i.e. it is least visible exactly where the
+  destination looks emptiest. Recorded as a real weakness with a queued UI fix, not
+  dressed up: unlike a category id there is no predicate a builder could evaluate, since
+  every merchant name is equally displayable and equally unshown.
+* "View charges at X" rendered on `income_pause` rows, calling a paycheck a charge one
+  line under copy audited to say the opposite. Now kind-aware ("View deposits from").
+* `truncate` on flex children whose parents lacked `min-w-0` — the exact rule this
+  slice's own docblock states, violated in two of the files it was written for.
+
+**Still open, recorded rather than smoothed over:** `detectRecurring` has no
+`isAggregateCanonical` guard where `anomaly/detect.ts:102` and `income/pause.ts:196` both
+do, so a rent-by-Zelle series renders as "Zelle Payment" and now links to a register
+mixing every unrelated Zelle payee. And the feed's opportunity kinds hard-set
+`merchant: null` (select.ts:218) although `Opportunity.merchant` exists, so "A
+subscription's price went up" still names nobody — the most anonymous claim in the app,
+untouched by a slice titled "nothing the app claims is a dead end".

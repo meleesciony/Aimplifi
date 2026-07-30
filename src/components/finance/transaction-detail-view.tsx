@@ -22,6 +22,7 @@
  */
 import { useRef, useState } from 'react';
 import Link from 'next/link';
+import { merchantRegisterHref } from '@/lib/engine/transactions/links';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatISODate, isoDate } from '@/lib/dates';
@@ -584,7 +585,7 @@ export function TransactionDetailView({
           Back to transactions
         </Link>
         <Link
-          href={`/transactions?merchant=${encodeURIComponent(row.merchantName)}`}
+          href={merchantRegisterHref(row.merchantName)}
           className="underline underline-offset-2 hover:text-foreground"
           data-testid="detail-merchant-link"
         >
