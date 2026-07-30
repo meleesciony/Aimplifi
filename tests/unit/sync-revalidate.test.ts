@@ -13,8 +13,16 @@
  */
 import { readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { SYNC_REVALIDATE_PATHS } from '@/server/sync-revalidate';
+import { describe, expect, it, vi } from 'vitest';
+import { SYNC_REVALIDATE_PATHS, revalidateAfterSync } from '@/server/sync-revalidate';
+
+/** Every `revalidatePath` call the module makes, with its `type` argument. */
+const { marks } = vi.hoisted(() => ({ marks: [] as { path: string; type?: string }[] }));
+vi.mock('next/cache', () => ({
+  revalidatePath: (path: string, type?: string) => {
+    marks.push({ path, type });
+  },
+}));
 
 const APP_DIR = join(process.cwd(), 'src', 'app', '(app)');
 
@@ -34,14 +42,36 @@ function routesUnderAppGroup(dir: string, prefix = ''): string[] {
 }
 
 describe('the sync revalidation list', () => {
-  it('has no dynamic route segment, which this check could not handle silently', () => {
-    // A latent trap the critic caught (P2-7): if a `[param]` route is ever added, the
-    // walk below would demand a literal '/x/[id]' entry — and `revalidatePath('/x/[id]')`
-    // without its second `'page'` argument marks NOTHING, so the test would go green
-    // over an entry that does no work. There are none today; this fails loudly on the
-    // day one appears, rather than quietly accepting a useless entry.
+  /**
+   * The day predicted by the original tripwire arrived: O.13b added
+   * `/transactions/[id]`, the app's first dynamic route, and this test failed
+   * exactly as it was written to.
+   *
+   * Its replacement is stronger than the tripwire, because a list entry alone
+   * proves nothing here: `revalidatePath('/x/[id]')` with a bare string marks
+   * NOTHING, so coverage of a dynamic route can only be demonstrated by the
+   * second `'page'` argument actually being passed. Fail-old verified by
+   * reverting the branch in `revalidateAfterSync` — the dynamic assertion fails
+   * and no other does.
+   */
+  it('marks a dynamic route with the type-aware "page" form, not the bare path', () => {
+    marks.length = 0;
+    revalidateAfterSync();
+
     const dynamic = routesUnderAppGroup(APP_DIR).filter((r) => r.includes('['));
-    expect(dynamic, 'add the type-aware revalidatePath(path, "page") form for these').toEqual([]);
+    // Non-trivial fixture: with no dynamic route on disk this would assert nothing.
+    expect(dynamic).toContain('/transactions/[id]');
+
+    for (const route of dynamic) {
+      expect(marks, `${route} must be marked with the "page" form`).toContainEqual({
+        path: route,
+        type: 'page',
+      });
+    }
+    // …and a literal path is still marked the ordinary way, so the branch above
+    // did not quietly change how every other route is invalidated.
+    expect(marks).toContainEqual({ path: '/transactions', type: undefined });
+    expect(marks).toHaveLength(SYNC_REVALIDATE_PATHS.length);
   });
 
   it('covers every authenticated route, with nothing invented', () => {

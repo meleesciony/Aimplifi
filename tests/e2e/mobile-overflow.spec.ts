@@ -392,3 +392,35 @@ test('every authenticated content route (demo) fits every phone width', async ({
     await assertFitsEveryWidth(page, `${path} (demo)`);
   }
 });
+
+/**
+ * The transaction detail view (O.13b) — the app's first DYNAMIC route, so it
+ * cannot join the path list above: `/transactions/[id]` needs a real id, which
+ * only the register can supply.
+ *
+ * It earns its own sweep on the same grounds `/rules` did: it renders new layout
+ * at phone width, and specifically the RAW bank descriptor — an unbroken,
+ * arbitrarily long token (`TST*MIRKO PASTA BUCKHEAD ~ TRAN: …`) inside a `<code>`
+ * element, which is the single most overflow-prone thing this app puts on a
+ * screen. The register itself never shows that string, so no existing sweep
+ * covers it.
+ */
+test('/transactions/[id] fits every phone width, raw bank descriptor included', async ({ page }) => {
+  await signInDemo(page);
+  await page.goto('/transactions');
+  await expect(page.getByTestId('txn-list')).toBeVisible({ timeout: 20_000 });
+
+  // Reached the way the reader reaches it, so the link itself is exercised too.
+  await page.getByTestId('txn-detail-link').first().click();
+  await page.waitForURL('**/transactions/*', { timeout: 20_000 });
+  await expect(page.getByTestId('detail-raw-descriptor')).toBeVisible({ timeout: 20_000 });
+
+  await assertFitsEveryWidth(page, '/transactions/[id] (demo)');
+
+  // The split panel is collapsed on arrival and is the widest thing on the page
+  // once open (amount box + two category selects on one row), so the closed state
+  // alone would leave the real risk unmeasured.
+  await page.getByTestId('detail-split-open').click();
+  await expect(page.getByTestId('detail-split-amount')).toBeVisible({ timeout: 20_000 });
+  await assertFitsEveryWidth(page, '/transactions/[id] (split open)');
+});

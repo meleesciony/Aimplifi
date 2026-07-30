@@ -6501,3 +6501,118 @@ rule's category but not its rename, and a case-only rename collision mints a sec
 pre-existing and outside the app: the two O.12 audit probes don't select `matchKeywords`, so they
 model every typed keyword rule as match-everything and have been unreliable since O.13a. O.13b (the
 transaction detail view) is the next queued row in this wave.
+
+
+## O.13b SECOND SLICE — the transaction detail view. 2026-07-30
+
+DONE: `/transactions/[id]` exists, reached by a `Details` link on every register row. It carries the
+whole field set for one transaction — payee, amount, account, date, status, category, note, the tax
+control, the provenance badge, the statement provenance line, the rule lever — and, for the first time
+from the register, SPLIT.
+
+WHY SPLIT IS THE LOAD-BEARING PART: the engine, the server action and the two-part gesture have existed
+since Phase 3c and lived ONLY in the triage inbox, so a transaction that had already been filed could
+never be split. Nothing about splitting was rebuilt; the detail view calls the same
+`splitTransaction`, and a split container renders its pieces plus Undo — the only place undo can live,
+since the register deliberately hides the container so $212.40 is not counted twice.
+
+ONE BASIS, NOT TWO: `suggestionForRow` was hoisted out of `getTransactions` to module scope so the
+detail view computes the suggestion ladder and the provenance badge through the identical code path.
+The "why a rule cannot be written from this row" sentence is asked of `getRuleSourceTransaction`
+rather than re-derived, so it cannot drift from `matchableWhere`. Merchant-wide filing is deliberately
+absent: the register's "apply to N" count comes from the reconciliation-filtered set it already holds,
+and a second count computed here could differ by a reconciled duplicate — so this page files one row
+and sends durable all-rows instructions to /rules, which previews its own count.
+
+FOUND BY THE GATE, NOT BY THE FEATURE: this is the app's FIRST dynamic route, and
+`tests/unit/sync-revalidate.test.ts` failed the moment it appeared — the tripwire the O.12 critic left
+for exactly this day. `revalidateAfterSync` looped a bare `revalidatePath(p)`, and on a path
+containing a `[param]` that call marks NOTHING: adding the list entry would have looked like coverage
+while nothing marked the route at all (the route is ƒ Dynamic, so this is list integrity, not a live stale-money fix). Fixed with the type-aware
+`revalidatePath(p, 'page')` branch. The tripwire was REPLACED BY A STRONGER LOCK (spies on
+`revalidatePath`, asserts the argument per dynamic route), not relaxed — mutation-proven: reverting
+the branch fails exactly that assertion and no other. One REGRESSION_LEDGER row.
+
+TWO TEST-ONLY DEFECTS WORTH RECORDING, both measured:
+- The first e2e raced the detail view's own post-save reload: asserting the `<select>`'s value passed
+  against the pre-reload DOM, and the reload then wiped the split panel mid-interaction. The wait is
+  now on a fact only the SERVER can produce after the write — the provenance badge flipping to
+  "You set this".
+- A bogus id returns HTTP 200, not 404. This page is the app's first `notFound()` caller (the root
+  `not-found.tsx` docblock says so), and the `(app)` layout has already streamed by the time the read
+  resolves, so Next cannot revise a status line it has flushed. The reader gets the right screen; the
+  spec asserts the screen and STATUS records the status.
+
+GATE: tsc clean, eslint clean, 4879 unit tests / 306 files, clean `next build`, 223 e2e passed on a
+full clean run. Two intermediate runs each failed a DIFFERENT spec (merchant-lens + reconcile, then
+goals) and every one passed serially — the 4-worker contention class named in playwright.config.ts,
+confirmed by re-running rather than assumed.
+
+NEXT: O.13d (rule management — the list still shows only TYPED rules, while merchant "Always" and
+learned rules stay invisible and undeletable though a typed rule outranks both); then O.13g
+(user-settable Pending/Cleared, which the detail view now has a home for) and O.13f (mark as
+recurring by hand).
+
+### O.13b critic cycle 1 — two fresh-context critics, both FAIL, all P1s fixed
+
+Different lenses (money+authz; on-screen claims+UX). They converged INDEPENDENTLY on the split
+dead-end. Eight P1s, all fixed and ledger-locked (6 REGRESSION_LEDGER rows):
+
+1. Undo split was LOSSY — the claim nulled the parent's categoryId and undoSplit could not restore
+   it, so undoing a split of an already-filed row discarded the reader's filing. Invisible until this
+   slice, because split had only ever been reachable from the inbox, where rows are unfiled.
+2. The split was PERMANENT once the reader navigated away: the container is hidden from the register
+   and the inbox, so its undo lived at a URL nothing linked to. splitParentId was already returned
+   and never rendered.
+3. "Appears on your … statement as …" was false for manual/CSV rows (typed text, no statement) and
+   for PENDING rows — and this slice's own e2e created the manual account that proved it.
+4. The rule copy promised retroactive filing that the default path does not do.
+5. A tax tag on a split container saved and reached nothing (the tax export drops those rows).
+6. Thrown refusals would render as an opaque Next digest in production.
+7. Errors had no role="alert" and painted above a 380px fold.
+8. The deadline reload was silent — indistinguishable from success.
+
+Plus P2s fixed: the reconciliation boundary, split offered on transfers and sub-2-cent rows, the
+ownership scope on the children query, a cross-tenant unit test against a REAL second user, the
+register/detail field-by-field agreement asserted rather than reviewed, the /transactions/[id]
+phone-width sweep, aria-labels on two identical "Save" buttons, a too-loose waitForURL glob, and a
+404 test that would have passed with the route file deleted.
+
+Two claims of mine were CORRECTED rather than defended: the sync-revalidate docblock (and its ledger
+row) said the missing branch would leave the detail view "serving pre-sync money" — the route is
+ƒ Dynamic, so the honest claim is list integrity, not a live stale-money fix.
+
+GATE AFTER FIXES: ✅ VERIFY GREEN — tsc, eslint, 4886 unit tests / 307 files, clean next build,
+225 e2e.
+
+### O.13b critic cycle 2 — FAIL again; a cycle-1 fix had been INERT
+
+A third fresh context re-executed all ten cycle-1 findings rather than trusting the comments. Six
+confirmed closed by mutation (each naming the test that dies). Four were not, all now fixed:
+
+1. THE BANNER NEVER RENDERED. `page.tsx` imported UNCONFIRMED_PARAM from the 'use client' view, and
+   a client module's exports are client-REFERENCE stubs on the server, so searchParams was indexed
+   with a non-string. The entire cycle-1 fix for the silent timed-out write did nothing, while tsc,
+   eslint, next build and every test stayed green. Proved by an A/B build. Constant now lives in a
+   plain module (transaction-detail-params.ts) — the L.7 'use server' rule from the other side.
+2. A hand-typed / CSV row on a bank-LINKED account was still attributed to the bank: the cycle-1 fix
+   asked account.provider, but manual add and CSV import accept any account the reader owns. The row
+   already knew (providerRef null unless a feed delivered it). My own sibling test had locked the bug
+   in by flipping the account and asserting 'bank'.
+3. Splitting a TAX-TAGGED row silently destroyed the deduction (measured 21240 -> 0), and the only
+   sentence about it appeared after the money moved. Warned before the confirm now, naming the amount.
+4. The correct reconciliation-boundary fix had NO test — deleting the guard left all 9 green.
+
+Plus: a note save on a split container silently cleared its tax tag; the unconfirmed flag was sticky
+across a confirmed save; two money-reasoning comments in trends.ts and keyword-rules.ts had been
+falsified by the split change; four per-user loaders were fetched and discarded for filed rows.
+
+THE RISKIEST EDIT CAME BACK CLEAN, by execution rather than by argument: a split container retaining
+its category cannot double-count. Reports total 21240 -> 21240 (household 21240 -> 1240, shopping ->
+20000); trends spentSoFarCents 21240 on both sides; the register's category filter returns only the
+child; spending-plan / dashboard / Ask byte-identical. The static sweep found ~22 consumers, all
+excluding the container by FLAG.
+
+LESSON WORTH KEEPING: three of the four cycle-2 P1s existed because a fix was reviewed rather than
+locked. The banner is the sharpest case in this repo so far — a fix that typechecks, builds, and
+passes every test while doing literally nothing.

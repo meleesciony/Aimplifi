@@ -121,7 +121,8 @@ function filedCategory(categoryId: string | null): string {
 /**
  * The one scope shared by the preview and the write. Every clause is a sibling's
  * clause rather than a new opinion:
- *  - `isSplitParent: false` — a container whose categoryId is intentionally null;
+ *  - `isSplitParent: false` — a container the children have taken the money from
+ *    (it carries its own category since O.13b, but never any spending);
  *  - `splitParentId: null` — a split CHILD carries the parent's rawDescriptor, so a
  *    keyword rule would otherwise collapse a hand-made allocation into one
  *    category, and that allocation is the only record of the reader's intent;

@@ -2,6 +2,134 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-30 — O.13b (second slice): the transaction detail view
+
+Owner, with six Simplifi screenshots: *"Currently we can't even solve the transaction list."* The first
+slice gave a register row its rule lever; this one gives the reader **a place to stand on one
+transaction** — `/transactions/[id]`, reachable from a `Details` link on every row.
+
+Three things were true of a filed transaction before this page existed, and the new e2e asserts each
+rather than describing it:
+
+1. **Its raw bank text was on no screen he could reach.** The register renders the normalizer's
+   cleaned-up name, so `COSTCO WHSE 1084` reads as "Costco" — and O.13i's brand work widened that gap.
+   The page carries the statement provenance line (*"Appears on your … statement as … on …"*), which is
+   what makes a keyword rule teachable at all.
+2. **SPLIT was unreachable.** The engine, the action and the two-part gesture have existed since Phase
+   3c and lived ONLY in the triage inbox, so a row that had already been filed could never be split.
+   The detail view calls the same `splitTransaction`, and a split container renders its pieces plus
+   Undo — the one place undo can live, since the register deliberately hides the container.
+3. **The fields were spread across inline popovers.** Payee, amount, account, date, status, category,
+   note, tax tag and provenance now sit in one place, each control calling the SAME server action the
+   register or the inbox already called. Nothing about how a transaction changes was re-implemented.
+
+**One basis, not two.** The register's `suggestionForRow` mapper was hoisted out of `getTransactions`
+to module scope so the detail view computes the suggestion ladder and the provenance badge from the
+identical code path — a second implementation would be two screens one click apart disagreeing about
+what the app thinks a row is. The "why a rule cannot be written from this row" sentence is *asked of*
+`getRuleSourceTransaction` rather than re-derived, so it cannot drift from `matchableWhere`.
+
+**Deliberately NOT offered here: merchant-wide filing.** The register derives its "apply to N" count
+from the reconciliation-filtered row set it has already loaded; a second count computed on this page
+could differ by a reconciled duplicate. So the detail view files *this row only* and sends every
+durable all-rows instruction to `/rules`, which previews its own count before the rule exists — the
+wave's governing failure direction (match too little, never silently too much).
+
+### The defect the gate caught, which no part of this feature would have revealed
+
+`/transactions/[id]` is the app's **first dynamic route**, and `sync-revalidate.test.ts` failed the
+moment it appeared — exactly as the O.12 critic wrote it to. `revalidateAfterSync` looped a bare
+`revalidatePath(p)`, and for a path containing a `[param]` that call marks **nothing**: adding the
+entry would have looked like coverage while nothing marked the route at all. (Scope, corrected after the critic pass and not overclaimed: the route calls `auth()`, so `next build` lists it as ƒ (Dynamic) and it has no Full Route Cache entry to go stale — what the branch buys is that the list means what it says, not a live stale-money fix.)
+Fixed with the type-aware `revalidatePath(p, 'page')` branch; the tripwire was replaced by a stronger
+behavioral lock (it spies on `revalidatePath` and asserts the argument), mutation-proven — reverting
+the branch fails that assertion and no other. Ledger row added.
+
+### HOSTILE CRITIC CYCLE 1 — two fresh-context critics, both FAIL: 8 P1 + several P2, all fixed
+
+Different lenses (money/authz; on-screen claims/UX), and they converged INDEPENDENTLY on the split
+dead-end, which is the strongest signal available that it was real.
+
+- **Undo split was lossy.** The split claim nulled the parent's `categoryId`, and `undoSplit` could
+  not restore what had been erased — so undoing a split of an already-filed row silently discarded
+  the reader's own filing and dropped the row back into review. Invisible until now (split was
+  reachable only from the inbox, where rows are unfiled by definition) and reachable the moment this
+  page shipped. The container now KEEPS its category: safe because every surface excludes a container
+  by the FLAG, never by the category — the amount is what would double-count, and it was always there.
+- **The split was permanent once you navigated away.** A container is hidden from the register AND
+  the inbox, and `undoSplit`'s only other caller is the inbox's session-scoped undo stack, so the undo
+  lived at a URL nothing linked to. `splitParentId` was already being returned and simply never
+  rendered; a piece's page now links to its container.
+- **Two on-screen sentences were false.** *"Appears on your … statement as …"* was shown for MANUAL
+  and CSV rows — text the reader typed, on an account with no statement — and this slice's own e2e
+  created exactly that account and asserted the sentence. And the rule copy promised the rule would
+  file *"the ones already here"* when the builder's apply-to-history box is deliberately OFF by
+  default. Both are the L.21 class the ledger already records twice.
+- **A tax tag on a split container** saved, said "Saved", and reached nothing: the tax export drops
+  `isSplitParent` rows outright. No previous surface could reach that combination; this page would
+  have invented the hole.
+- **Every thrown refusal would have been an opaque digest in production**, because the view rendered
+  `e.message` from actions that throw. Only a refusal the server RETURNS is shown verbatim now.
+- Plus: no `role="alert"` on errors rendered above a 380px fold, a silent deadline reload
+  indistinguishable from success, the reconciliation boundary the register applies, split offered on
+  transfers and sub-2-cent rows, and a missing cross-tenant test against a REAL other user's row.
+
+Six REGRESSION_LEDGER rows. The two riskiest fixes are mutation-proven: reverting the split claim
+fails exactly the category-restore lock, and reverting the `revalidatePath` branch fails exactly the
+dynamic-route assertion.
+
+### HOSTILE CRITIC CYCLE 2 — FAIL again: 4 more P1, including a cycle-1 fix that was INERT
+
+A third fresh context re-executed every cycle-1 finding instead of reading the comments that claimed
+them closed. Six were confirmed closed by mutation (naming the test that dies). Four were not:
+
+- **The unconfirmed-write banner never rendered.** The page imported its query-param constant from
+  the `'use client'` view, and every export of a client module is a client-REFERENCE stub on the
+  server side of the RSC graph — so the lookup used a non-string key and never matched. The whole
+  cycle-1 fix for the silent timed-out write was inert, and tsc, eslint, `next build` and every test
+  were green over it. Proved by an A/B build where the only change was inlining the literal.
+- **A hand-typed row on a bank-LINKED account was still attributed to the bank.** The cycle-1 fix
+  asked `account.provider`, but manual add and CSV import accept any account the reader owns; the
+  row-level fact (`providerRef`) was there and unused. The sibling test had locked the bug in.
+- **Splitting a tax-tagged row silently destroyed the deduction** — measured $212.40 → $0.00 — and
+  the only sentence about it appeared after the money had moved. Now warned before the confirm.
+- **The correct reconciliation-boundary fix had no test**: deleting the guard left all nine green.
+
+Also fixed: saving a note on a split container silently cleared its tax tag (the withheld control
+sent no value and the action writes both fields), the `unconfirmed` flag was sticky across a
+confirmed save, two money-reasoning comments elsewhere had been falsified by the split change, and
+four per-user loaders (including the whole correction history) were fetched and discarded for any
+filed row.
+
+**The riskiest edit came back clean.** The critic verified by execution — not by reading the comment —
+that a split container retaining its category cannot double-count: reports total conserved
+21240 → 21240 (household 21240 → 1240, shopping → 20000), trends `spentSoFarCents` 21240 both sides,
+the register's category filter returns only the child, and spending-plan / dashboard / Ask were
+byte-identical before and after. Five ledger rows; the two fixes that previously had no failing test
+are now mutation-proven, and the inert-banner fix is proven by rebuilding with the defect restored.
+
+### Gate
+
+`VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc clean, eslint clean, unit tests and
+e2e counts in the run below. Several intermediate runs each failed a DIFFERENT spec (merchant-lens +
+reconcile, then goals twice) and every one passed serially — the 4-worker contention class named in
+`playwright.config.ts`, confirmed by re-running rather than assumed.
+
+### Recorded residual, deliberate
+
+A bogus or foreign transaction id renders the branded "Page not found" screen with **HTTP 200, not
+404**. Measured, not assumed: this page is the app's first `notFound()` caller (the root
+`not-found.tsx` docblock says so in as many words), and the `(app)` layout has already streamed by the
+time the read resolves, so Next cannot revise a status line it has flushed. What the reader gets is
+correct — no transaction data, one clear recovery — so the e2e asserts the screen and this note
+records the status.
+
+### Still open for the full O.13b
+
+Payee editing on the row itself (O.13c does it via a rule's rename), user-settable status (O.13g),
+tags (O.11d), exclude-from (O.11a), attachments (O.13h) and mark-as-recurring (O.13f) — each its own
+matrix row and its own slice.
+
 ## ✅ BUILT 2026-07-30 — the outlier guard: a rule may not un-decide what you decided
 
 Owner, mid-session: *"Rules are great but occasionally we may change a single transaction (outlier) for

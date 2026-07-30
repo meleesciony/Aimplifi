@@ -118,6 +118,78 @@ export interface TransactionsResult {
 const PAGE_SIZE = 100;
 
 /**
+ * The four per-user loaders the O.9d suggestion ladder needs. Passed in rather
+ * than loaded per row: the register maps thousands of rows from ONE load, and
+ * the detail view (O.13b) maps one row from the same four, so the two surfaces
+ * cannot answer "what is this row?" from different inputs.
+ */
+interface SuggestionLadderInputs {
+  userRules: Awaited<ReturnType<typeof loadUserRules>>;
+  tuning: Awaited<ReturnType<typeof getThresholdTuning>>;
+  meta: Awaited<ReturnType<typeof getCategoryMeta>>;
+  corrections: Awaited<ReturnType<typeof loadCorrectionInputs>>;
+}
+
+/** The stored facts the ladder and the provenance resolver read off one row. */
+interface SuggestibleRow {
+  categoryId: string | null;
+  isTransfer: boolean;
+  reviewPinned: boolean;
+  rawDescriptor: string;
+  amountCents: number;
+  date: string;
+  accountId: string;
+  providerCategoryId: string | null;
+}
+
+/**
+ * The O.9d chip for one row, or null — see registerSuggestionFor for the ladder.
+ *
+ * Module-level (was a closure inside getTransactions until O.13b) so the
+ * transaction detail view computes it from the identical code path. A second
+ * implementation here would be the register and the detail page disagreeing
+ * about what the app thinks an unfiled row is, on two screens one click apart.
+ */
+function suggestionForRow(t: SuggestibleRow, inputs: SuggestionLadderInputs): TxnView['suggestion'] {
+  // Cost gate only — the engine re-checks both conditions. A filed row never
+  // needs the pipeline run, and the full register can hold thousands of rows.
+  if ((t.categoryId ?? 'uncategorized') !== 'uncategorized') return null;
+  if (t.isTransfer && !t.reviewPinned) return null;
+  const out = categorize(
+    { rawDescriptor: t.rawDescriptor, amountCents: t.amountCents, date: t.date, accountId: t.accountId },
+    inputs.userRules,
+    { flaggedBps: inputs.tuning.flaggedBps },
+  );
+  const s = registerSuggestionFor(
+    {
+      currentCategoryId: t.categoryId ?? 'uncategorized',
+      isTransfer: t.isTransfer,
+      reviewPinned: t.reviewPinned,
+      pipelineCategoryId: out.categoryId,
+      providerCategoryId: t.providerCategoryId,
+      txn: { rawDescriptor: t.rawDescriptor, amountCents: t.amountCents },
+    },
+    inputs.corrections,
+  );
+  if (s === null) return null;
+  const label = categoryName(s.categoryId, inputs.meta);
+  return {
+    kind: s.kind,
+    categoryId: s.categoryId,
+    categoryName: label,
+    reason: s.proposal
+      ? proposalReason(s.proposal, {
+          categoryLabel: label,
+          amount:
+            s.proposal.matchedAmountCents === null
+              ? null
+              : formatCents(cents(Math.abs(s.proposal.matchedAmountCents))),
+        })
+      : null,
+  };
+}
+
+/**
  * All of a user's transactions, mapped to display rows, then filtered/sorted by
  * the pure engine. Split PARENT containers are excluded — their children carry
  * the real amounts, so including both would double-count every split (the same
@@ -180,45 +252,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   ]);
   const predByTxn = new Map(predictions.map((p) => [p.transactionId, p]));
 
-  /** The O.9d chip for one row, or null — see registerSuggestionFor for the ladder. */
-  function suggestionFor(t: (typeof txns)[number]): TxnView['suggestion'] {
-    // Cost gate only — the engine re-checks both conditions. A filed row never
-    // needs the pipeline run, and the full register can hold thousands of rows.
-    if ((t.categoryId ?? 'uncategorized') !== 'uncategorized') return null;
-    if (t.isTransfer && !t.reviewPinned) return null;
-    const out = categorize(
-      { rawDescriptor: t.rawDescriptor, amountCents: t.amountCents, date: t.date, accountId: t.accountId },
-      userRules,
-      { flaggedBps: tuning.flaggedBps },
-    );
-    const s = registerSuggestionFor(
-      {
-        currentCategoryId: t.categoryId ?? 'uncategorized',
-        isTransfer: t.isTransfer,
-        reviewPinned: t.reviewPinned,
-        pipelineCategoryId: out.categoryId,
-        providerCategoryId: t.providerCategoryId,
-        txn: { rawDescriptor: t.rawDescriptor, amountCents: t.amountCents },
-      },
-      corrections,
-    );
-    if (s === null) return null;
-    const label = categoryName(s.categoryId, meta);
-    return {
-      kind: s.kind,
-      categoryId: s.categoryId,
-      categoryName: label,
-      reason: s.proposal
-        ? proposalReason(s.proposal, {
-            categoryLabel: label,
-            amount:
-              s.proposal.matchedAmountCents === null
-                ? null
-                : formatCents(cents(Math.abs(s.proposal.matchedAmountCents))),
-          })
-        : null,
-    };
-  }
+  const ladder: SuggestionLadderInputs = { userRules, tuning, meta, corrections };
 
   const rows: TxnView[] = txns.map((t) => ({
     id: t.id,
@@ -253,7 +287,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
       predictedCategoryId: predByTxn.get(t.id)?.predictedCategoryId ?? null,
       currentCategoryId: t.categoryId ?? null,
     }),
-    suggestion: suggestionFor(t),
+    suggestion: suggestionForRow(t, ladder),
   }));
 
   // Merchant Pattern Lens (DECISIONS #250): computed from the viewer's FULL row
@@ -338,6 +372,185 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   const unclassifiedCount = countUnclassified(rows, filter);
 
   return { rows: items, summary, accountOptions, pageInfo: info, lens, unclassifiedCount };
+}
+
+/** One piece of a split, as the detail view lists it. */
+export interface SplitPartView {
+  id: string;
+  amountCents: number;
+  categoryId: string;
+  categoryName: string;
+}
+
+/**
+ * Everything the transaction detail page (TASKS O.13b) renders about ONE row.
+ *
+ * `row` is the SAME `TxnView` the register renders, mapped by the same
+ * expressions — so the payee, the category name and the provenance badge cannot
+ * say one thing in the list and another on the page it links to.
+ */
+export interface TransactionDetailView {
+  row: TxnView;
+  /** This row was split by hand: its children carry the money, it carries none. */
+  isSplitParent: boolean;
+  /** The pieces, when this row is a split parent (empty otherwise). */
+  parts: SplitPartView[];
+  /** Set when this row is itself one piece of a split — links back to the container. */
+  splitParentId: string | null;
+  /** Why a split is not offered on this row, or null when it is. */
+  splitBlockedReason: string | null;
+  /**
+   * Where `rawDescriptor` CAME FROM — the only honest basis for the provenance
+   * line. A manual or CSV row's descriptor is text the reader typed, and a
+   * manual account has no statement at all, so calling it "your statement" would
+   * be a sentence about the bank generated from the reader's own keystrokes
+   * (critic cycle 1, P1). 'bank' means a real feed (Plaid / SimpleFIN).
+   */
+  descriptorOrigin: 'bank' | 'entered';
+}
+
+/**
+ * One transaction, by id, scoped to its owner — the read behind
+ * `/transactions/[id]`. Returns null for an id that is not this user's, so the
+ * page 404s rather than confirming that someone else's transaction exists.
+ *
+ * Deliberately does NOT apply the register's `isSplitParent: false` exclusion.
+ * The register hides a split container because listing it beside its children
+ * would double-count the money; the detail page shows exactly one row and no
+ * totals, and the container is the only place "undo this split" can live.
+ */
+export async function getTransactionDetail(
+  userId: string,
+  transactionId: string,
+): Promise<TransactionDetailView | null> {
+  const t = await prisma.transaction.findFirst({
+    where: {
+      id: transactionId,
+      account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
+    },
+    include: {
+      account: { select: { id: true, name: true, displayName: true, provider: true } },
+      merchant: true,
+      category: { select: { name: true } },
+    },
+  });
+  if (!t) return null;
+
+  // The register withholds a reconciled duplicate's rows (the assembler's R1
+  // ownership rule); a page that rendered one would be a fully editable
+  // transaction that every total in the app treats as nonexistent — the
+  // "one question, one basis" divergence, reachable by bookmark or a stale link.
+  // Withheld here means not found, exactly as the register means it.
+  const keepsReconciled = await getReconciliationTxnKeep(userId);
+  if (!keepsReconciled(t.accountId, t.date)) return null;
+
+  // The suggestion ladder only ever fires on an UNFILED row — `suggestionForRow`
+  // returns null on its first line otherwise — so a filed row was loading four
+  // per-user datasets, including the reader's entire correction history, purely to
+  // discard them (critic cycle 2, F8). The gate is the ladder's own first
+  // condition, kept next to it so the two cannot drift.
+  const needsLadder = (t.categoryId ?? 'uncategorized') === 'uncategorized';
+  const [prediction, userRules, tuning, meta, corrections, children] = await Promise.all([
+    prisma.categoryPrediction.findFirst({
+      where: { userId, transactionId: t.id },
+      select: { source: true, predictedCategoryId: true, labeledAt: true },
+    }),
+    needsLadder ? loadUserRules(userId) : null,
+    needsLadder ? getThresholdTuning(userId) : null,
+    needsLadder ? getCategoryMeta(userId) : null,
+    needsLadder ? loadCorrectionInputs(userId) : null,
+    prisma.transaction.findMany({
+      // `account: { userId }` is redundant today (the parent is ownership-verified
+      // above and a child is only ever created on its parent's account) but this
+      // file's header promises EVERY query carries the scope, and a promise with
+      // one exception is not a promise.
+      where: { splitParentId: t.id, account: { userId } },
+      select: { id: true, amountCents: true, categoryId: true, category: { select: { name: true } } },
+      orderBy: { id: 'asc' },
+    }),
+  ]);
+
+  const row: TxnView = {
+    id: t.id,
+    date: t.date,
+    accountId: t.accountId,
+    accountName: accountLabel(t.account),
+    merchantName: t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical,
+    rawDescriptor: t.rawDescriptor,
+    categoryId: t.categoryId ?? 'uncategorized',
+    categoryName: t.category?.name ?? categoryName(t.categoryId),
+    amountCents: t.amountCents,
+    status: t.status,
+    isTransfer: t.isTransfer,
+    note: t.note,
+    taxClass: t.taxClass,
+    needsReview: t.needsReview,
+    merchantId: t.merchantId,
+    ruleEligible: isRuleEligibleMerchant(t.rawDescriptor),
+    // merchantCount is deliberately absent: it drives the register's "apply to N"
+    // copy, and the register derives it from the reconciliation-filtered set it
+    // has already loaded. A second count computed here could differ by a
+    // reconciled duplicate — so this page offers "just this once" and sends
+    // every durable, all-rows instruction to /rules, which previews its own count.
+    provenance: describeProvenance({
+      source: (prediction?.source ?? null) as PredictionSource | null,
+      hasPredictionRow: prediction !== null,
+      txnConfidenceBps: t.confidenceBps ?? 0,
+      userLabeled: prediction?.labeledAt != null,
+      predictedCategoryId: prediction?.predictedCategoryId ?? null,
+      currentCategoryId: t.categoryId ?? null,
+    }),
+    suggestion:
+      userRules && tuning && meta && corrections
+        ? suggestionForRow(t, { userRules, tuning, meta, corrections })
+        : null,
+  };
+
+  // The refusals `splitTransaction` enforces, said in advance and in the reader's
+  // words. Stated rather than hidden: a control that vanishes with no sentence is
+  // indistinguishable from one we forgot to build.
+  //
+  // The first cut covered only the split CHILD while the docblock claimed it
+  // covered them all (critic cycle 1, P2). The transfer case is not the action's
+  // refusal but ours: `splitTransaction` would happily split a transfer, and the
+  // two children would carry categories that no spending total ever reads,
+  // because every one of them drops `isTransfer` rows first. A control that
+  // produces nothing observable is worse than an absent one.
+  const splitBlockedReason = t.isSplitParent
+    ? null // the parent renders its pieces + undo instead
+    : t.splitParentId !== null
+      ? 'This is already one piece of a split, and a piece cannot be split again.'
+      : t.isTransfer
+        ? 'This is a transfer between your own accounts, so its pieces would not count as spending anywhere. Splitting it would not change any total.'
+        : Math.abs(t.amountCents) < 2
+          ? 'This transaction is too small to split into two parts.'
+          : null;
+
+  return {
+    row,
+    isSplitParent: t.isSplitParent,
+    parts: children.map((c) => ({
+      id: c.id,
+      amountCents: c.amountCents,
+      categoryId: c.categoryId ?? 'uncategorized',
+      categoryName: c.category?.name ?? categoryName(c.categoryId),
+    })),
+    splitParentId: t.splitParentId,
+    splitBlockedReason,
+    // The ROW decides, not the account (critic cycle 2, F3). The first cut asked
+    // `account.provider === 'manual'`, but `addManualTransaction` and the CSV
+    // import both accept ANY account the reader owns — so a hand-typed row on a
+    // Plaid-linked card was attributed to the bank, which is the same false claim
+    // one door over. `providerRef` is the row-level fact: a feed delivered this
+    // row and gave it an id, or nobody did.
+    //
+    // The demo dataset is the one deliberate exception: its rows carry no
+    // `providerRef` (they are seeded, not fetched) while presenting themselves as
+    // a bank feed, and the demo account is fenced against manual entry (#244), so
+    // no hand-typed row can exist there to be mislabelled.
+    descriptorOrigin:
+      t.providerRef !== null || t.account.provider === 'demo' ? 'bank' : 'entered',
+  };
 }
 
 /**

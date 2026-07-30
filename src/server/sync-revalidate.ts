@@ -56,6 +56,12 @@ export const SYNC_REVALIDATE_PATHS = [
   '/settings',
   '/spending-plan',
   '/transactions',
+  // The app's first DYNAMIC route (O.13b, the transaction detail view). It is
+  // marked through the type-aware form below: `revalidatePath('/x/[id]')` with a
+  // bare string marks NOTHING, so an entry here without that branch would look
+  // like coverage and do no work — exactly the trap the sibling test was left
+  // here to catch, and it caught it.
+  '/transactions/[id]',
   '/transactions/import',
   '/transactions/new',
   '/trends',
@@ -63,7 +69,30 @@ export const SYNC_REVALIDATE_PATHS = [
   '/trust',
 ] as const;
 
-/** Mark every sync-affected route stale. Safe to call from a server action. */
+/** Is this entry a dynamic route (`/x/[id]`) rather than a literal path? */
+export function isDynamicRoutePath(path: string): boolean {
+  return path.includes('[');
+}
+
+/**
+ * Mark every sync-affected route stale. Safe to call from a server action.
+ *
+ * A dynamic route MUST pass the second `'page'` argument: given a path
+ * containing a `[param]`, Next treats the bare one-argument call as a literal
+ * URL, which matches no rendered page and marks nothing.
+ *
+ * SCOPE, corrected after a critic pass and stated rather than overclaimed: the
+ * detail route calls `auth()`, so `next build` lists it as ƒ (Dynamic) and it has
+ * no Full Route Cache entry to go stale — this entry cannot today be the
+ * difference between fresh and pre-sync money, and saying it was would be the
+ * same overstatement this file's own test exists to prevent. What the branch
+ * buys is that the list means what it says: every authenticated route is marked,
+ * by a call that actually marks it, so the enumeration stays mechanical if the
+ * route's caching ever changes.
+ */
 export function revalidateAfterSync(): void {
-  for (const p of SYNC_REVALIDATE_PATHS) revalidatePath(p);
+  for (const p of SYNC_REVALIDATE_PATHS) {
+    if (isDynamicRoutePath(p)) revalidatePath(p, 'page');
+    else revalidatePath(p);
+  }
 }

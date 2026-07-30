@@ -619,7 +619,20 @@ export async function splitTransaction(input: {
     // (closes the STATUS #10 race; the pre-read above is just a fast UX fail).
     const claimed = await tx.transaction.updateMany({
       where: { id: txn.id, isSplitParent: false, splitParentId: null },
-      data: { needsReview: false, categoryId: null, confidenceBps: null, isSplitParent: true, reviewPinned: false },
+      // O.13b: the parent KEEPS its category. It used to be nulled here, which was
+      // invisible while split was reachable only from the triage inbox (an unfiled
+      // row has no category to lose) and became a real loss the moment an
+      // ALREADY-FILED row could be split from the register: undoSplit restores
+      // `isSplitParent: false` and could not put back a category it had erased, so
+      // "Undo split" silently discarded the reader's own filing.
+      //
+      // Safe because every surface excludes a container by the FLAG, never by the
+      // category — verified across the register, triage, budgets, reports, trends,
+      // tax export, cash-needed, transfers, anomaly, radar, coach, recurring, the
+      // assistant and backfill. The amount is what would double-count, and the
+      // amount was always there; carrying the category alongside it adds no new
+      // path into any total.
+      data: { needsReview: false, isSplitParent: true, reviewPinned: false },
     });
     if (claimed.count === 0) throw new Error('Transaction is already split');
 
@@ -645,7 +658,12 @@ export async function splitTransaction(input: {
     return ids;
   });
 
+  // O.13b: the register is now a caller too (the detail view's Split control), and
+  // a split MOVES money in it — the parent leaves the list, two children take its
+  // place. Revalidating only /triage left the reader looking at the row he had
+  // just split.
   revalidatePath('/triage');
+  revalidatePath('/transactions');
   return { childIds };
 }
 
@@ -654,17 +672,36 @@ export async function undoSplit(transactionId: string): Promise<TriageGroupView[
   const userId = await requireUserId();
   const txn = await ownedTransaction(userId, transactionId);
   if (!txn.isSplitParent) throw new Error('Transaction is not a split parent');
+  // O.13b: a container that still carries its pre-split category comes back FILED,
+  // not flagged — restoring a decided row into the review queue is the
+  // "restore-is-a-lie" failure this file has been bitten by twice. A container
+  // split before that change has a null category and still returns to review,
+  // which is the honest outcome for a row whose category really is gone.
+  const restoredNeedsReview =
+    txn.categoryId === null || txn.categoryId === 'uncategorized' ? true : false;
   await prisma.$transaction([
     prisma.transaction.deleteMany({ where: { splitParentId: transactionId } }),
     prisma.transaction.update({
       where: { id: transactionId },
-      // #165 critic F1: a transfer-flagged parent restored to review must be
+      // #165 critic F1: a transfer-flagged parent restored TO REVIEW must be
       // PINNED, or the queue's transfer guard hides it and the next sync's
       // pair pass re-files it — same restore-is-a-lie failure as undoCorrections.
-      data: { needsReview: true, isSplitParent: false, ...(txn.isTransfer ? { reviewPinned: true } : {}) },
+      //
+      // The pin is now conditioned on actually going back to review (O.13b). A
+      // row restored FILED does not need it — backfill already skips a decided
+      // row — and pinning one would mint this file's first `needsReview: false`
+      // + `reviewPinned: true` row, when all four filing paths above deliberately
+      // clear the pin as they file. That contradictory state was itself a P1 in
+      // an earlier cycle: pinned-but-filed is a row no surface can clear.
+      data: {
+        needsReview: restoredNeedsReview,
+        isSplitParent: false,
+        ...(txn.isTransfer && restoredNeedsReview ? { reviewPinned: true } : {}),
+      },
     }),
   ]);
   revalidatePath('/triage');
+  revalidatePath('/transactions'); // O.13b — same reason as splitTransaction above.
   return getTriageGroups(userId); // group queue (Phase 3c)
 }
 

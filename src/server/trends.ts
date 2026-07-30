@@ -30,10 +30,13 @@
  *     normalizer guessed. That guess is not what the register filters on, so the
  *     figure named rows the destination could not show — the same "rows right,
  *     control wrong" hole O.5's `linkable` fence closes, arriving by a different
- *     route. The population is real and specific: undoing a split restores a row
- *     with `isSplitParent: false` and `categoryId: null` (triage-actions.ts:641),
- *     deliberately leaving it `needsReview: true` so the reader re-files it —
- *     which is precisely the row a guess should not quietly file for them.
+ *     route. The population is real and specific: an unfiled row restored to the
+ *     register with `categoryId: null` and `needsReview: true` is precisely the
+ *     row a guess should not quietly file for the reader. (This used to cite
+ *     undoSplit as the example. It no longer fits: since O.13b a container KEEPS
+ *     its category through a split, so undoing one restores a FILED row — the
+ *     reasoning above is unaffected, but the example was falsified and citing a
+ *     dead one would send the next reader to the wrong conclusion.)
  *
  * The stored category is now the only category, so an unfiled row reads as
  * Uncategorized here exactly as it does everywhere else, and the movers list

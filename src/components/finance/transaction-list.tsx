@@ -446,6 +446,22 @@ export function TransactionList({
                             Pending
                           </Badge>
                         )}
+                        {/* O.13b — the detail view: one place carrying this row's
+                            whole field set, including the split the register
+                            could not reach and the bank text it does not show.
+                            `prefetch={false}` for the same reason as the rule
+                            link below: one link per ROW would otherwise fire a
+                            dynamic RSC request per visible transaction on every
+                            register load. */}
+                        <Link
+                          href={`/transactions/${encodeURIComponent(t.id)}`}
+                          prefetch={false}
+                          data-testid="txn-detail-link"
+                          aria-label={`Open the details of this ${t.merchantName} transaction`}
+                          className="tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                        >
+                          Details
+                        </Link>
                         {/* O.13b — the rule lever, ON THE ROW. Owner, 2026-07-30:
                             "whenever clicking a transaction, should have rules pull
                             up so you can change specifically for that transaction…
