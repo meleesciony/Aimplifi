@@ -2,6 +2,49 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-30 — O.15 slice 3: every rule that files your money is on one page (DECISIONS #343)
+
+Measured before building, not reported by anyone: the categorizer loads **every**
+`CategorizationRule` row for a user, while `/rules` listed only rows carrying a typed
+keyword key. So every rule minted by tapping **Always** — the inbox prompt, and the
+register's "re-file all N" — filed money for as long as the account existed while
+appearing on no screen, and the delete action was scoped to the same narrow subset, so
+those rules could not be removed anywhere. The builder's empty state said *"You
+haven't written any rules yet"* to a reader whose money was being filed by his own
+rules.
+
+The page now reads the **engine's own query** through the **engine's own mapper**,
+which was extracted into `lib/engine/categorize/rule-mapping.ts` and given one
+decision point returning either the RuleLikes the pipeline consumes or a NAMED
+refusal — so "this rule files nothing, and here is why" is the engine's silence read
+back rather than a second opinion. An integration test asserts the union of the
+page's two lists equals `loadExplicitUserRules`'s ids, with an empty intersection.
+
+Two fresh-context critic cycles, both FAIL on first reading (record in DECISIONS
+#343): cycle 1 — 3 P1 including the slice's own defect surviving in one class (a
+delete button that spun and did nothing beside copy telling the reader to press it);
+cycle 2 re-executed every repro against a real database and found the third P1 had
+MOVED one branch left, plus the honest weak spot — three of the five cycle-1 fixes
+were locked by no test that could fail if reverted, one of them an assertion of the
+form `x === !x`. All fixed, both directions asserted. 3 REGRESSION_LEDGER rows.
+
+### 🟠 OPEN, deliberately deferred by this slice
+
+1. **A rule with no payee and no typed words matches EVERY transaction.**
+   `ruleMatches` skips both key checks when both are null. No creation path in the app
+   produces that shape today, and refusing it in the mapper would change what the
+   categorizer does, which this slice does not have the licence for — so it is FLAGGED
+   and named on the page ("always file **every transaction** as X") rather than
+   silently disarmed. A fourth refusal (`no-condition`) is real engine work and needs
+   its own hostile-critic pass.
+2. **Learned rules are disclosed, not listed.** They have no stored row and their key
+   is a descriptor signature with no rendering a reader could act on. The page says
+   they exist and how they change; listing them needs a readable key first.
+3. **A demo visitor's "Always" still writes a rule row that nothing ever reads.**
+   `applyCategory` has no demo fence, while `loadExplicitUserRules` fences demo — so
+   the rows accumulate in the one shared account with no surface to prune them. The
+   page now says rules made there aren't saved; the accumulation itself is unfixed.
+
 ## ✅ BUILT 2026-07-30 — O.15 slice 2: one action menu per transaction (DECISIONS #342)
 
 Owner: *"I should be able to do all other features from one menu (tax related, reimburse,

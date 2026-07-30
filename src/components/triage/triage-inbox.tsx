@@ -523,7 +523,7 @@ export function TriageInbox({
                     // error boundary, which would wipe the queue position (checker P2).
                     setError(
                       e instanceof ActionDeadline
-                        ? 'We lost the confirmation for that rule — check your rules in Settings before retrying.'
+                        ? 'We lost the confirmation for that rule — check the Rules page before retrying.'
                         : e instanceof Error
                           ? e.message
                           : 'Could not create the rule.',

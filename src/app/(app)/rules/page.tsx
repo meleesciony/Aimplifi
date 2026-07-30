@@ -5,12 +5,15 @@ import {
   KeywordRuleBuilder,
   type RulePrefillView,
 } from '@/components/rules/keyword-rule-builder';
+import { RuleInventoryList } from '@/components/rules/rule-inventory-list';
+import { isInventoryListed } from '@/lib/engine/categorize/rule-inventory';
 import { suggestRuleKeywords } from '@/lib/engine/categorize/rule-prefill';
 import { prisma } from '@/lib/db';
 import { accountLabel } from '@/lib/engine/account/display-name';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getVisibleGroups } from '@/server/categories';
 import { getRuleSourceTransaction, listKeywordRules } from '@/server/keyword-rules';
+import { listRuleInventory } from '@/server/rule-inventory';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 
 export const metadata = { title: 'Rules' };
@@ -49,9 +52,14 @@ export default async function RulesPage({
     ? { ...source, transactionId: source.id, ...suggestRuleKeywords(source.rawDescriptor) }
     : null;
 
-  const [categoryGroups, rules, allAccounts, superseded] = await Promise.all([
+  const [categoryGroups, rules, inventory, allAccounts, superseded] = await Promise.all([
     getVisibleGroups(session.user.id),
     listKeywordRules(),
+    // O.15 slice 3 — the rules the reader did NOT type: every one minted by tapping
+    // "Always" while filing a transaction, plus any stored row the engine has
+    // stopped running. Both were invisible and undeletable before this page read
+    // them, while the engine went on loading every one of them.
+    listRuleInventory(),
     // For the optional "only in this account" condition (O.13c) — the superseded
     // filter the add-transaction page uses, so the picker never offers a read-only
     // predecessor no new row will ever land on, AND the population
@@ -101,6 +109,20 @@ export default async function RulesPage({
         categoryNameById={categoryNameById}
         accounts={accounts}
         prefill={prefill}
+      />
+
+      {/*
+        The partition between the two lists is ONE predicate in the engine
+        (`isInventoryListed`), not a filter written here: the builder above renders
+        the reader's active typed rules, this renders everything else, and an
+        integration test proves the union is exactly the set the categorizer loads.
+      */}
+      <RuleInventoryList
+        entries={inventory.entries.filter(isInventoryListed)}
+        categoryNameById={categoryNameById}
+        accountNameById={inventory.accountNameById}
+        hasLearnedRules={inventory.hasLearnedRules}
+        isDemo={inventory.isDemo}
       />
 
       <p className="text-xs text-muted-foreground">

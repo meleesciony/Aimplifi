@@ -6834,3 +6834,147 @@ deploy proof includes the build log's db push against Neon:
 errors in the 30-minute window after READY. Every changed route is auth-gated, so per
 the slice-1 L.23 note there is no curl-able marker; the deployment's own identity
 (READY + sha + alias + aliasError + the db-push line) is the honest proof.
+
+### O.15 slice 3 — every rule that files your money is on one page (IN PROGRESS)
+
+THE DEFECT, measured before building (not a hypothesis):
+`src/server/rules.ts:121` — the engine loads EVERY `CategorizationRule` row for the
+user. `src/server/keyword-rules.ts:868` — the /rules page lists only
+`NOT: { matchKeywords: null }`. So every rule minted by the inbox's "Always" button
+(`ensureUnconditionalRule`, triage-actions.ts:86, merchantId + priority 100, no
+keywords) files money forever on a page that shows a strict SUBSET of what runs, and
+`deleteKeywordRule` (keyword-rules.ts:907) scopes its WHERE to the same subset, so
+those rules cannot be deleted from any surface. The builder's empty state says
+"You haven't written any rules yet" — false for a reader who has only ever tapped
+"Always". Rules refused by the mapper (orphaned merchantId, aggregate canonical,
+declared-but-empty key) are likewise invisible AND undeletable.
+
+PLAN (engine-first):
+1. Extract the pure mapper out of `src/server/rules.ts` into
+   `src/lib/engine/categorize/rule-mapping.ts`, and give it ONE decision point that
+   returns either the RuleLikes or the REFUSAL REASON — so the page's "this files
+   nothing, and here is why" cannot drift from the engine's silence.
+2. Pure `rule-inventory.ts`: stored rows -> ordered inventory entries, ordered the
+   way `pipeline.ts:258` resolves (priority desc, keyword specificity, id).
+3. Server `listRuleInventory()` reading through the SAME query as
+   `loadExplicitUserRules`, demo-fenced; `deleteMerchantRule` as a narrow sibling of
+   `deleteKeywordRule` sharing one internal delete helper.
+4. UI: the full inventory on /rules; fix the false empty-state copy.
+5. DEFERRED, disclosed not hidden: LEARNED rules (priority 50, derived from
+   corrections) are counted and named on the page, not listed — a signature key has
+   no human-readable rendering and no delete lever. Own slice; STATUS §OPEN.
+
+CRITIC CYCLE 1 — FAIL (fresh-context, had not seen my reasoning): 0 P0, 3 P1, 2 P2,
+4 P3. Every finding re-verified against the real code before fixing; all P1s and P2s
+fixed, P3s fixed or answered in prose.
+
+ P1-1 THE SLICE'S OWN DEFECT SURVIVED IN ONE CLASS. `deleteMerchantRule` was scoped
+   `matchKeywords: null` — a deliberate "narrow sibling" — but the inventory also
+   renders a TYPED rule whose key decoded to nothing, and `''` is not `null`. The
+   WHERE matched zero rows, returned `{deleted:false}` WITHOUT throwing, so the
+   button spun and did nothing beside copy reading "Delete it and write the rule
+   again". Visible-and-undeletable is the same dead end, one screen later. Now
+   `deleteRule`, scoped `{id, userId}`, with the invariant under test: every entry
+   the inventory renders is removed by the action its button calls (locked over all
+   three kinds, plus the rotted-key row specifically).
+ P1-2 A FALSE NUMBER ABOUT MONEY. `learnedCount: learned.length` rendered as "picked
+   up N patterns", but `learn.ts` emits TWO RuleLikes per payee since #331 (a
+   signature key at priority 50 AND a canonical key at 40 — the repo's own
+   learn.test.ts asserts length 2 for one payee), so one taught merchant read as "2
+   patterns". Replaced with `hasLearnedRules: boolean` — the claim the data supports.
+ P1-3 ONE FALLBACK STRING, THREE WRONG SENTENCES. Every refused row printed "A payee
+   that is no longer here": an AGGREGATE rule said its payee was missing directly
+   above a sentence saying it was Venmo (contradictory, and the only identifying
+   string was suppressed, so the reader could not tell which rule to delete); a TYPED
+   rule with a rotted key was described as a payee it never had. Refusals now carry
+   `refusedCanonical` and the phrasing is per-refusal.
+ P2-4 The new empty state promised "choose Always and a rule will appear here" — but
+   nothing fences the demo mint path (`triage-actions.ts` has no `isDemoUser` check,
+   verified by grep), so a demo visitor's own next click disproves it. `isDemo` now
+   travels with the empty list and the demo sentence says rules are not kept there.
+ P2-5 A row with no payee AND no typed words matches EVERY transaction (`ruleMatches`
+   skips both key checks) and was rendered as a missing payee — the broadest rule in
+   the account described as the most harmless. Now flagged `matchesEverything` and
+   named as such. The engine is deliberately NOT changed: refusing that shape would
+   alter what the categorizer does, which is not this slice's licence (see STATUS
+   §OPEN).
+ P3-6 The ordering docblock claimed to disclose the engine's conflict resolution. It
+   cannot: the pipeline's sign guards can skip the top-sorted rule, and learned rules
+   share the sorted set at match time. Comparator now mirrors the pipeline's actual
+   restriction (id tie-break between TYPED entries only, so equal-priority merchant
+   rules keep insertion order, which `ensureUnconditionalRule`'s supersede logic is
+   written against) and the prose claims a stable listing order, nothing more.
+ P3-7 The partition read `active && typed`; the builder's list actually filters
+   `matchKeywords != null` THEN `groups.length > 0`. Equivalent only because no writer
+   sets both a merchantId and a typed key. Re-derived from the builder's own two
+   conditions, and locked over eight row shapes: never twice, never neither.
+ P3-8 Two unverified claims retracted: the refusal docblock no longer asserts every
+   refusal state "exists in the database today" (`empty-keyword-key` has no writer this
+   repo can name), and plan item 3 above promised "one internal delete helper" — the
+   two deletes share nothing, and after P1-1 they deliberately have different scopes.
+ P3-9 ACCEPTED COST, recorded not fixed: /rules now loads the full correction history
+   on every render to answer one boolean. Same query the categorizer already runs on
+   every ingest; not worth a second code path today.
+
+CRITIC CYCLE 2 — 0 P0, 0 P1, 1 P2, 7 P3; every cycle-1 finding re-executed by the
+critic against a real database (not read and agreed with) and CLOSED, except one that
+had moved rather than gone. All eight fixed.
+
+ F1 (P2) THE CYCLE-1 P1 HAD MOVED ONE BRANCH LEFT. `subjectOf` tested `origin` before
+   the refusal, so a TYPED rule refused for a MERCHANT reason rendered "a rule you
+   typed whose words are gone" above a paragraph explaining the payee was Venmo — the
+   words were not gone, and `refusedCanonical` was computed and thrown away. Branches
+   now go refusal-first: whatever the engine refused the row FOR is what the row says,
+   and it is the same fact the paragraph states.
+ F2/F8 The same branch returned a "verb" that was not one ("a rule you typed whose
+   words are gone as Groceries"), and the section heading "Rules from filing a payee"
+   was false for the rotted typed rule listed under it. Now `{lead} {name} as
+   {category}` reads for every shape, and the heading is "Everything else filing your
+   money".
+ F3 `aria-label` REPLACES the button's content, and it omitted the conditions the
+   visible row shows — the screen-reader user got strictly less than the sighted one,
+   and two rules differing only by condition were indistinguishable. Label now built
+   from the same parts as the row.
+ F4/F5/F6 THE HONEST WEAK SPOT, and the most useful thing either cycle found: three of
+   the five cycle-1 fixes were not locked by any test that could fail if they were
+   reverted. The partition test asserted `isBuilderListed(e) === isInventoryListed(e)`
+   is false — `x === !x`, true of every implementation. `isDemo` was only ever asserted
+   TRUE, so hardcoding it would have told every real user "the demo account is shared
+   by everyone trying Aimplifi". `hasLearnedRules` was only ever asserted FALSE, so
+   hardcoding it would have silently deleted the one paragraph where the page admits
+   its list is not everything filing your money. All three now assert both directions,
+   with expected membership written out per row shape rather than derived.
+   Recorded rather than papered over: the two formulations of `isBuilderListed` are
+   EQUIVALENT over every entry the mapper can produce, so no fixture separates them.
+   The module says so instead of the test pretending otherwise.
+ F7 "rules aren't kept here" was literally false on the demo — `applyCategory` has no
+   demo fence, so the row IS written; what is true is that it is never loaded and never
+   shown. Now "rules made here aren't saved to your account and won't file anything
+   later."
+
+ Cycle 2 could not break: `deleteRule`'s `{id, userId}` scope (ownership in the WHERE,
+ no new capability — the only extra rows it reaches are ones `deleteKeywordRule`
+ already deletes for the same user); dangling `Correction.becameRuleId` (both
+ consumers already re-check liveness); the builder list after an outside delete; and
+ the completeness claim itself (`Merchant.defaultCategoryId` is written by three paths
+ and read by none, so it is not an unlisted filer — the only unlisted filers are
+ learned rules, which the page discloses).
+
+GATE (this session):
+`VERIFY_E2E=1 bash scripts/verify.sh` → tsc 0, eslint 0, **4990 unit / 314 files**
+(+40 over slice 2), build clean. The parallel e2e phase reported **238 passed, 1
+failed** → the script printed ❌ VERIFY FAILED, so this did NOT ship on a green claim.
+
+THE FAILURE, diagnosed rather than written off: `phase4-features.spec.ts:33` (goals —
+"Delete Japan trip" → the two-step `goal-delete-confirm` never appeared, 60s timeout).
+Nothing in this slice touches goals. The artifact was copied aside BEFORE any re-run
+(the slice-2 note: a rerun's cleanup destroyed the first artifact); its page snapshot
+shows the delete button `[active]`, i.e. the first click landed and the confirm state
+never rendered — the repo's documented pre-hydration/load-flake signature, not a
+missing element. Re-ran the spec alone: **6/6 passed, the failing test in 4.6s against
+a 60s budget.**
+
+Full e2e re-run SERIALIZED (`--workers=1`), the repo's trustworthy full-suite mode:
+**239 passed, 6.1m, zero failures**, including
+`rule-inventory.spec.ts` (1.7s). Schema: `git diff origin/main..main -- prisma/` is
+EMPTY — this slice adds no columns, so the deploy does not touch the Neon database.

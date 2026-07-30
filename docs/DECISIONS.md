@@ -749,3 +749,57 @@ Accepted residuals, recorded not fixed: the offsetting-inflow suggestion can
 name one deposit for two same-amount purchases (labeled a suggestion, touches
 no figure); the menus lack arrow-key navigation (matches the existing pickers'
 a11y posture). 5 REGRESSION_LEDGER rows.
+
+## #343 (O.15 slice 3) — Every rule that files your money is on one page, and the page reads the engine's own set
+
+**The defect, measured before building.** Two queries answered "what are my rules"
+and they disagreed. The categorizer's `loadExplicitUserRules` loads EVERY
+`CategorizationRule` row for the user; `/rules` listed only rows carrying a typed
+keyword key (`NOT: { matchKeywords: null }`). So every rule minted by tapping
+**Always** — in the inbox prompt, or as the register's merchant-wide filing, both
+through `ensureUnconditionalRule` — filed the reader's money for as long as the
+account existed while appearing on no screen. `deleteKeywordRule`'s WHERE was scoped
+to that same narrow subset, so those rules could not be removed from any surface
+either, and the builder's empty state said *"You haven't written any rules yet"* to a
+reader whose money was being filed by rules he made. An authored rule the reader
+cannot see or delete is worse than no rule: it accumulates.
+
+**One set, not two.** The pure mapper moved out of `src/server/rules.ts` into
+`lib/engine/categorize/rule-mapping.ts` and gained ONE decision point,
+`mapStoredRule`, returning either the RuleLikes the pipeline consumes or a NAMED
+refusal. The page's "this rule files nothing, and here is why" is therefore the
+engine's own silence, read back — not a second opinion about the reader's money. The
+list reads through `loadStoredRuleRows`, the same query the engine loads through, and
+an integration test asserts the union of the page's two lists equals
+`loadExplicitUserRules`'s ids with an empty intersection.
+
+**Deliberately NOT changed: what the categorizer does.** A stored row with no payee
+and no typed words matches every transaction (`ruleMatches` skips both key checks).
+Refusing that shape would be a safety improvement in this repo's preferred failure
+direction, and it is still not this slice's licence — so it is FLAGGED and named on
+the page (`matchesEverything` → "always file **every transaction** as X") rather than
+silently disarmed. Queued in STATUS §OPEN as engine work with its own critic.
+
+**Learned rules: disclosed, not listed, and not counted.** Rules derived from
+corrections have no stored row and no rendering a reader could act on (their key is a
+descriptor signature), and their lever is undoing or re-filing the correction. The
+page says they exist and how they change. It does NOT count them: `learn.ts` emits
+two RuleLikes per payee since #331, so a reader who taught the app one merchant would
+have been told it picked up "2 patterns" — `hasLearnedRules` is the claim the data
+supports.
+
+**Two critic cycles, both FAIL on first reading, both fresh-context.** Cycle 1: 3 P1
+(the slice's own defect surviving in one class — a "narrow sibling" delete scoped
+`matchKeywords: null` could not remove a typed rule whose key was `''`, so the button
+spun and did nothing beside copy telling the reader to press it; the false learned
+COUNT; and one fallback string that made an aggregate rule announce a missing payee
+directly above a sentence naming it as Venmo), 2 P2, 4 P3. Cycle 2 re-executed every
+cycle-1 repro against a real database rather than reading the fixes: all closed except
+the third, which had MOVED one branch left (an `origin`-first test swallowed a typed
+rule refused for a merchant reason). Its most useful finding was not a bug but a
+measurement — three of the five cycle-1 fixes were locked by no test that could fail
+if they were reverted, including a partition assertion of the form `x === !x`. All
+eight fixed; both directions now asserted. Recorded rather than papered over: the two
+formulations of `isBuilderListed` are equivalent over every entry the mapper can
+build, so no fixture separates them, and the module says so instead of the test
+pretending otherwise. 3 REGRESSION_LEDGER rows.

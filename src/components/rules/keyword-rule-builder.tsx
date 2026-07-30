@@ -56,6 +56,7 @@ import {
   updateKeywordRule,
 } from '@/server/keyword-rules';
 import { undoCorrections } from '@/server/triage-actions';
+import { describeConditions } from './rule-conditions';
 
 export interface CategoryOption {
   group: string;
@@ -85,23 +86,11 @@ const INPUT_CLASS =
   'w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 /** One rule's IF-side as the human-readable line the list renders. */
-function describeConditions(
-  r: StoredKeywordRule,
-  accountNameById: Record<string, string>,
-): string[] {
-  const extras: string[] = [];
-  if (r.accountId) extras.push(`only in ${accountNameById[r.accountId] ?? 'one account'}`);
-  if (r.minAmountCents !== null && r.maxAmountCents !== null) {
-    extras.push(
-      `${formatCents(cents(r.minAmountCents))}–${formatCents(cents(r.maxAmountCents))}`,
-    );
-  } else if (r.minAmountCents !== null) {
-    extras.push(`at least ${formatCents(cents(r.minAmountCents))}`);
-  } else if (r.maxAmountCents !== null) {
-    extras.push(`at most ${formatCents(cents(r.maxAmountCents))}`);
-  }
-  return extras;
-}
+/**
+ * Extracted to `./rule-conditions` in O.15 slice 3 and shared with the second rule
+ * list on this page: two lists describing the same stored columns in two phrasings
+ * is the same class of defect as two screens disagreeing about a total.
+ */
 
 /**
  * The transaction this rule is being written FROM (TASKS O.13b), when the reader
@@ -818,10 +807,10 @@ export function KeywordRuleBuilder({
       </Card>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-medium">Your rules</h2>
+        <h2 className="text-sm font-medium">Rules you typed</h2>
         {shownRules.length === 0 ? (
           <p className="text-sm text-muted-foreground" data-testid="kw-empty">
-            You haven&rsquo;t written any rules yet. A rule files matching transactions automatically from
+            You haven&rsquo;t typed any rules yet. A rule files matching transactions automatically from
             now on, using the words you typed rather than a guess. Two things still take precedence: a
             payment detected as a transfer between two of your own accounts, and money-out rows you point
             at an income category.
