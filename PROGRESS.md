@@ -6728,3 +6728,43 @@ category"). The stale-deploy hypothesis in the brief is DEAD: O.13c is commit `3
 and `origin/main` is six commits past it at `168529d`. So the deployed build does carry
 the O.13c UI and this is a real bug, not a missing deploy. Not reproduced yet — `/rules`
 answers 307 to an anonymous fetch, so it needs a signed-in session.
+
+### O.15 slice 1 SHIPPED + deploy-verified — 2026-07-30
+
+Commit `a1c10d7`, pushed to origin/main, deployment `dpl_93jaKcJNYCoZ…` **READY**,
+`githubCommitSha a1c10d70…` (matches), `alias` includes **www.aimplifi.app** and
+**aimplifi.app**, `aliasError: null`. Zero runtime errors in the window after.
+`git diff origin/main..main -- prisma/` was EMPTY, so no `db push` ran against Neon.
+
+DEPLOY-PROOF NOTE, because I nearly recorded a vacuous one. The chunk-hash comparison
+this repo uses (deployment URL vs canonical host on `/sign-in`) returned MATCH — on the
+byte-identical hashes `0cz1d0mv5g_q7.js` / `0fbn43l2yk1l4.js` / `1_0v6exngdege.js`
+already recorded for the PREVIOUS deploy. Of course it did: this slice touches no
+unauthenticated route, so `/sign-in`'s chunks are the same in both builds and the
+comparison would have matched whether or not the change shipped. That is L.23's
+page-hash blindness in a new costume — the marker must be unique to THE CHANGE, and
+when every changed route is auth-gated there is no curl-able one, so the honest proof
+is the deployment's own identity (READY + sha + alias + aliasError).
+
+GATE: `verify.sh` green (tsc, eslint, **4915 unit / 308 files**, build) + full e2e
+**234 passed, SERIALIZED (`--workers=1`), 6.4m, zero failure artifacts**.
+
+The parallel run FAILED 1 (`combine-connections.spec.ts:66`) on
+`SQLITE_BUSY_SNAPSHOT` — "database is locked" from `prisma.accountReconciliation
+.upsert()` under worker contention. Not this diff, which touches no reconciliation
+code: the spec passes alone in 2.2s (it took 21.9s while failing), and the serialized
+full run is clean. Recorded, not written off — the two artifacts from the earlier
+wedged run were read before being cleared, and `mobile-overflow`'s was a `waitForURL`
+timeout rather than the `intercepts pointer events` signature that lesson names as the
+flake, so it was treated as real until its click target (`txn-detail-link`, untouched
+here) cleared it.
+
+PROCESS FAILURE WORTH THE ROW (`docs/lessons/alive-is-not-progressing.md`): an earlier
+full gate HUNG. Asked about it, I checked that the Playwright processes EXISTED and
+told the owner it was healthy; it had been frozen for 63 minutes with two failure
+artifacts already on disk. A process table cannot answer "is this moving". Root cause
+of the wedge: repeated targeted spec runs leak `next start` servers that contend on
+port 3100 (37 stray node processes). Fixes: measure `now - mtime(newest output)`, never
+pipe a long run through a buffering `grep`, treat `test-results/` merely EXISTING as a
+finding, and kill strays before a full gate.
+
