@@ -45,6 +45,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatCents } from '@/lib/money';
 import { cents } from '@/lib/money';
+import { parseKeywords } from '@/lib/engine/categorize/keyword-rule';
 import {
   type KeywordRulePreview,
   type StoredKeywordRule,
@@ -63,6 +64,20 @@ export interface CategoryOption {
 export interface AccountOption {
   id: string;
   name: string;
+}
+
+/**
+ * One OR-line: the keywords already committed to CHIPS plus the word still being
+ * typed (owner, 2026-07-29, with Simplifi's Create Rule on screen: the keywords
+ * belong on screen as deletable chips — `costco` `whse` `1084` — because deleting
+ * the volatile ones is the entire point of a typed key). The chips are the
+ * authoritative value; a hidden input carries `[...tokens, draft]` space-joined so
+ * the FormData contract `read()` uses is unchanged.
+ */
+interface OrLine {
+  key: number;
+  tokens: string[];
+  draft: string;
 }
 
 const INPUT_CLASS =
@@ -133,7 +148,7 @@ export function KeywordRuleBuilder({
    * (and the stale text inside it) to line N when a middle line is removed,
    * because the inputs are uncontrolled by design (mutation-form-recipe).
    */
-  const [orLines, setOrLines] = useState<{ key: number; def: string }[]>([{ key: 0, def: '' }]);
+  const [orLines, setOrLines] = useState<OrLine[]>([{ key: 0, tokens: [], draft: '' }]);
   const nextLineKey = useRef(1);
 
   const accountNameById = Object.fromEntries(accounts.map((a) => [a.id, a.name] as const));
@@ -163,8 +178,38 @@ export function KeywordRuleBuilder({
     };
   }
 
-  function freshLines(defs: string[]): { key: number; def: string }[] {
-    return (defs.length > 0 ? defs : ['']).map((def) => ({ key: nextLineKey.current++, def }));
+  function freshLines(defs: string[]): OrLine[] {
+    return (defs.length > 0 ? defs : ['']).map((def) => ({
+      key: nextLineKey.current++,
+      tokens: parseKeywords(def),
+      draft: '',
+    }));
+  }
+
+  /** Commit whatever separator-terminated words the reader just typed into chips. */
+  function onDraftChange(lineKey: number, raw: string) {
+    setOrLines((prev) =>
+      prev.map((l) => {
+        if (l.key !== lineKey) return l;
+        // A separator ENDS a keyword (Simplifi: "Commas or spaces enter a new
+        // keyword"), so everything before the final separator becomes chips and the
+        // tail stays in the box as the word still being typed.
+        const endsWithSeparator = /[,\s|]$/.test(raw);
+        const committed = parseKeywords(endsWithSeparator ? raw : raw.replace(/[^,\s|]*$/, ''));
+        const tail = endsWithSeparator ? '' : (/[^,\s|]*$/.exec(raw)?.[0] ?? '');
+        // `parseKeywords` dedupes within its own input; dedupe against the chips
+        // already on the line too, so typing a word twice is one condition.
+        const merged = [...l.tokens];
+        for (const t of committed) if (!merged.includes(t)) merged.push(t);
+        return { ...l, tokens: merged, draft: tail };
+      }),
+    );
+  }
+
+  function removeToken(lineKey: number, token: string) {
+    setOrLines((prev) =>
+      prev.map((l) => (l.key === lineKey ? { ...l, tokens: l.tokens.filter((t) => t !== token) } : l)),
+    );
   }
 
   function resetForm() {
@@ -326,19 +371,58 @@ export function KeywordRuleBuilder({
                 When the statement text contains
               </label>
               {orLines.map((line, i) => (
-                <div key={line.key} className="flex items-center gap-2">
-                  {i > 0 && <span className="text-xs text-muted-foreground">or</span>}
-                  <input
-                    id={i === 0 ? 'kw' : `kw-or-${i}`}
-                    name="keywords"
-                    required={i === 0}
-                    placeholder={i === 0 ? 'cardone eq' : 'cardone equity'}
-                    autoComplete="off"
-                    defaultValue={line.def}
-                    data-testid={i === 0 ? 'kw-input' : `kw-input-or-${i}`}
-                    aria-label={i === 0 ? undefined : `Alternative keywords ${i + 1}`}
-                    className={INPUT_CLASS}
-                  />
+                <div key={line.key} className="flex items-start gap-2">
+                  {i > 0 && <span className="pt-2 text-xs text-muted-foreground">or</span>}
+                  <div className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                        Contains
+                      </span>
+                      {/* The reader's keywords AS CHIPS, each deletable — the owner's
+                          named ask, verbatim: delete the store number and the
+                          sequence, keep `tjmaxx`, and the rule holds forever. */}
+                      {line.tokens.map((t) => (
+                        <span
+                          key={t}
+                          data-testid="kw-chip"
+                          className="inline-flex shrink-0 items-center gap-1 rounded bg-accent px-1.5 py-0.5 font-mono text-xs"
+                        >
+                          {t}
+                          <button
+                            type="button"
+                            onClick={() => removeToken(line.key, t)}
+                            aria-label={`Remove the keyword ${t}`}
+                            data-testid={`kw-chip-remove-${t}`}
+                            className="tap-target inline-flex items-center justify-center rounded hover:text-red-400"
+                          >
+                            <X className="size-3" aria-hidden />
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        id={i === 0 ? 'kw' : `kw-or-${i}`}
+                        // Deliberately NOT `required`: an empty key must earn OUR
+                        // sentence ("type at least one word…") from the preview,
+                        // which is the tested refusal path, rather than a browser
+                        // validation bubble that says nothing about why a rule with
+                        // no words would match nothing.
+                        placeholder={line.tokens.length > 0 ? 'another word' : i === 0 ? 'costco whse 1084' : 'cardone equity'}
+                        autoComplete="off"
+                        value={line.draft}
+                        onChange={(e) => onDraftChange(line.key, e.target.value)}
+                        data-testid={i === 0 ? 'kw-input' : `kw-input-or-${i}`}
+                        aria-label={
+                          i === 0 ? 'Keywords the statement text must contain' : `Alternative keywords ${i + 1}`
+                        }
+                        className="min-w-[8rem] flex-1 bg-transparent px-1 py-0.5 text-sm outline-none"
+                      />
+                    </div>
+                    {/* The authoritative value the form submits: chips plus the word
+                        still in the box, so a reader who never types a trailing space
+                        still gets the word he typed. One entry per OR line, which is
+                        exactly what `read()` joins with the stored `|` divider. */}
+                    <input type="hidden" name="keywords" value={[...line.tokens, line.draft].join(' ')} />
+                  </div>
                   {i > 0 && (
                     <Button
                       type="button"
@@ -358,7 +442,9 @@ export function KeywordRuleBuilder({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setOrLines((prev) => [...prev, { key: nextLineKey.current++, def: '' }])}
+                onClick={() =>
+                  setOrLines((prev) => [...prev, { key: nextLineKey.current++, tokens: [], draft: '' }])
+                }
                 data-testid="kw-add-or"
               >
                 <Plus className="size-4" aria-hidden /> Add an &ldquo;or&rdquo; line

@@ -2,6 +2,38 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-30 — O.13j: the rule builder becomes findable, and the keywords become chips
+
+Owner, with Simplifi's Create Rule screen open beside ours: **"I don't see it."** Both causes were
+shipped-but-invisible, and neither was a bug any test could have caught, because every test navigated
+straight to `/rules` by URL:
+
+1. **`/rules` was in no navigation list.** Eighteen entries across the primary bar, the More sheet and
+   the Discover section, and not one of them was Rules. The only door was a text link inside the
+   `/transactions` header — so the one surface that lets the reader TELL the categorizer what to do was
+   the hardest surface in the app to find. It now sits in the More sheet next to Activity, because a
+   rule is written about what he just saw in the register.
+2. **The keywords were a text box, not chips.** His named ask is the deletion — `costco whse 1084`
+   minus the store number holds forever — and there was nothing on screen to delete. Each keyword is
+   now its own chip with an × , behind a `Contains` label that mirrors his screenshot; a space or comma
+   commits the word being typed (Simplifi's own rule), and the chips are the authoritative value, so
+   the form's FormData contract and every server-side guard are unchanged.
+
+The typing box became controlled to hold the chips, which departs from
+`docs/lessons/mutation-form-recipe.md`'s uncontrolled-input rule: text typed in the first moments after
+arrival can be lost. Accepted deliberately — the chips ARE the feature — and `required` was REMOVED from
+that box on purpose, so an empty key still earns our own sentence from the preview instead of a browser
+validation bubble.
+
+### Gate
+
+`VERIFY_E2E=1 bash scripts/verify.sh`: tsc clean, eslint clean, 4865 unit tests across 305 files, clean
+`next build`, 219 e2e. Two reload-bearing mutation specs (`budget-targets`, `combine-connections`) failed
+under 4-worker contention and pass in isolation — the flake class named in `playwright.config.ts`;
+neither touches rules or navigation. New locks: the chip-deletion widening test (3 chips → 1 match →
+remove `1084` → 2 matches), `nav-rules` in the mobile More sheet, and `/rules` added to the phone-width
+overflow sweep because wrapping chips are new layout at 360–430px.
+
 ## ✅ BUILT 2026-07-30 — O.13c: Simplifi-parity transaction rules (rename payee, OR groups, conditions, edit) — DECISIONS #340
 
 Shipped, pushed, and deploy-verified. Four gaps against Simplifi's rule builder, all on top of the

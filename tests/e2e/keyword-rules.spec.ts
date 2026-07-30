@@ -220,8 +220,15 @@ test('an "or" line unions two keys, a rename groups them, and the rule edits in 
     await page.getByTestId('kw-edit').click({ timeout: 2000 });
     await expect(page.getByTestId('kw-editing-banner')).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: 20000 });
-  await expect(page.getByTestId('kw-input')).toHaveValue('cardone xv');
-  await expect(page.getByTestId('kw-input-or-1')).toHaveValue('cardone ix');
+  // The stored key reopens as deletable CHIPS, one per keyword, in both or-lines
+  // (owner, with Simplifi's Create Rule on screen: the keywords belong on screen as
+  // chips he can delete). The typing box is empty because nothing is half-typed.
+  await expect(page.getByTestId('kw-chip')).toHaveCount(4, { timeout: 20000 });
+  await expect(page.getByTestId('kw-chip').nth(0)).toContainText('cardone');
+  await expect(page.getByTestId('kw-chip').nth(1)).toContainText('xv');
+  await expect(page.getByTestId('kw-chip').nth(2)).toContainText('cardone');
+  await expect(page.getByTestId('kw-chip').nth(3)).toContainText('ix');
+  await expect(page.getByTestId('kw-input')).toHaveValue('');
   await expect(page.getByTestId('kw-rename')).toHaveValue('Cardone Capital');
 
   await page.getByTestId('kw-rename').fill('Cardone Holdings');
@@ -262,4 +269,58 @@ test('the builder refuses a key with nothing to match on', async ({ page }) => {
   await expect(page.getByTestId('kw-preview-result')).not.toContainText('match everything');
   // No create button is offered for an empty key.
   await expect(page.getByTestId('kw-create')).toHaveCount(0);
+});
+
+/**
+ * THE OWNER'S NAMED ASK, as a lock (2026-07-29, with Simplifi's Create Rule on
+ * screen showing `costco` `whse` `1084` as deletable chips):
+ *
+ *   *"You have the ability to change things like 'contains tjmax'. Because the card
+ *    number and other numbers always change. This aids in future pain."*
+ *
+ * The keywords shipped as text in a box, so nothing on screen could be DELETED —
+ * which is the whole gesture. This drives it: type the bank's full text, see one
+ * chip per word, delete the volatile store number, and watch the match count widen
+ * from the single row that carries that number to BOTH spellings of the same store.
+ * A count that did not move would mean the deletion changed nothing.
+ */
+test('deleting a volatile keyword chip widens the key to every spelling of the store', async ({
+  page,
+}) => {
+  await signUpThrowaway(page);
+  await addManualAccount(page, 'Chip Checking');
+  // Two real Costco spellings: the store number differs, so no single literal key
+  // containing it can ever span both.
+  for (const d of ['costco whse 1084', 'COSTCO WHSE #0981']) {
+    await page.goto('/transactions/new');
+    await expect(async () => {
+      await page.getByTestId('dir-out').click({ timeout: 2000 });
+      await expect(page.getByTestId('dir-out')).toHaveAttribute('aria-pressed', 'true', {
+        timeout: 2000,
+      });
+    }).toPass({ timeout: 20000 });
+    await page.getByTestId('txn-descriptor').fill(d);
+    await page.getByTestId('txn-amount').fill('142.60');
+    await page.getByTestId('txn-submit').click();
+    await page.waitForURL('**/transactions', { timeout: 20000 });
+  }
+
+  await page.goto('/rules');
+  // A trailing space commits the last word, exactly as Simplifi describes it.
+  await page.getByTestId('kw-input').fill('costco whse 1084 ');
+  await expect(page.getByTestId('kw-chip')).toHaveCount(3, { timeout: 20000 });
+  await page.getByTestId('kw-category').selectOption('groceries');
+  await page.getByTestId('kw-preview').click();
+  // With the store number in the key, only the row carrying it can match.
+  await expect(page.getByTestId('kw-preview-count')).toContainText(/Matches\s+1\s+transaction\b/, {
+    timeout: 20000,
+  });
+
+  // Delete the chip that changes every visit — the gesture the owner asked for.
+  await page.getByTestId('kw-chip-remove-1084').click();
+  await expect(page.getByTestId('kw-chip')).toHaveCount(2);
+  await page.getByTestId('kw-preview').click();
+  await expect(page.getByTestId('kw-preview-count')).toContainText(/Matches\s+2\s+transactions\b/, {
+    timeout: 20000,
+  });
 });

@@ -326,6 +326,8 @@ const DEMO_ROUTES: ReadonlyArray<{ path: string; ready: string }> = [
   { path: '/calendar', ready: 'cal-month' },
   { path: '/cards', ready: 'toggle-minimum' },
   { path: '/triage', ready: 'accuracy-card' },
+  // The rule builder renders keyword CHIPS, which wrap — new UI at phone width.
+  { path: '/rules', ready: 'keyword-rules' },
   { path: '/settings', ready: 'export-card' },
 ];
 

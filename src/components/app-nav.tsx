@@ -27,6 +27,7 @@ import {
   Menu,
   PiggyBank,
   Receipt,
+  ListChecks,
   Settings,
   ShieldCheck,
   Sprout,
@@ -53,6 +54,12 @@ const SECONDARY = [
   { href: '/accounts', label: 'Accounts', icon: Landmark, testid: 'nav-accounts' },
   { href: '/investments', label: 'Investments', icon: LineChart, testid: 'nav-investments' },
   { href: '/transactions', label: 'Activity', icon: Receipt, testid: 'nav-transactions' },
+  // O.13c follow-up (owner, with a Simplifi screenshot: "I don't see it"): the rule
+  // builder shipped reachable ONLY from a text link in the /transactions header, so
+  // the one surface that lets him TELL the categorizer what to do was absent from
+  // every navigation list — 18 nav entries and no Rules. Sits next to Activity
+  // because a rule is written about what he just saw in the register.
+  { href: '/rules', label: 'Rules', icon: ListChecks, testid: 'nav-rules' },
   { href: '/goals', label: 'Goals', icon: PiggyBank, testid: 'nav-goals' },
   { href: '/budgets', label: 'Spending', icon: Wallet, testid: 'nav-budgets' },
   { href: '/settings', label: 'Settings', icon: Settings, testid: 'nav-settings' },

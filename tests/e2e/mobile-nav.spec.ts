@@ -38,6 +38,9 @@ test('More sheet: opens labelled destinations, navigates, Escape closes', async 
     'nav-transactions',
     'nav-goals',
     'nav-budgets',
+    // The rule builder was reachable only from a link inside the /transactions
+    // header until the owner reported he could not find it at all.
+    'nav-rules',
     'nav-settings',
   ]) {
     await expect(page.getByTestId(id)).toBeVisible();
