@@ -6616,3 +6616,28 @@ excluding the container by FLAG.
 LESSON WORTH KEEPING: three of the four cycle-2 P1s existed because a fix was reviewed rather than
 locked. The banner is the sharpest case in this repo so far — a fix that typechecks, builds, and
 passes every test while doing literally nothing.
+
+### O.13b SHIPPED + deploy-verified — 2026-07-30
+
+Commit `9afcfb1`, pushed to origin/main, deployment `dpl_GdDg15Mm…` **READY** in production,
+`githubCommitSha` 9afcfb1 (matches).
+
+DEPLOY PROOF, because a 200 proves nothing (an old deployment answers 200 perfectly well) and
+`/transactions/[id]` is auth-gated so no UI marker is curl-able:
+1. The production build log's route table lists `ƒ /transactions/[id]` — a line unique to this
+   change, printed by the build that was deployed.
+2. The canonical host serves byte-identical hashed chunks to the new deployment URL
+   (`0cz1d0mv5g_q7.js`, `0fbn43l2yk1l4.js`, `1_0v6exngdege.js` on both), which is what actually
+   proves www.aimplifi.app is on THIS build rather than the previous one.
+3. Build log confirms the database was untouched, as the empty `git diff prisma/` predicted:
+   `Datasource "db": PostgreSQL database "pulse" … neon.tech` → `The database is already in sync
+   with the Prisma schema.`
+4. Runtime errors in the hour after: one pre-existing group only — a `pg` SSL-mode deprecation
+   warning first seen 2026-06-17, whose `lastDeployment` is the PREVIOUS deploy. Nothing new.
+
+UNRESOLVED, recorded rather than smoothed over: one `merchant-lens` e2e failed twice under a
+loaded machine (the cycle-2 critic was running concurrently; that e2e run took 7.9m against a
+normal 2.5m). My first bisect blamed the new per-row Details link and was CONFOUNDED — it rebuilt
+in the same step, and `next start` serves the last build. Rebuilt with the link present: all four
+merchant-lens tests pass, and the full gate is green with 226 e2e. I cannot name a mechanism
+beyond machine load, so this is logged as unreproduced, not diagnosed.
