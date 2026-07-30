@@ -75,6 +75,13 @@ import {
 } from '@/lib/engine/transactions/query';
 import { isDemoUser } from '@/lib/demo-user';
 import { accountLabel } from '@/lib/engine/account/display-name';
+import {
+  SPLIT_BLOCKED_CHILD,
+  SPLIT_BLOCKED_REIMBURSED,
+  SPLIT_BLOCKED_TOO_SMALL,
+  SPLIT_BLOCKED_TRANSFER,
+} from '@/lib/engine/transactions/actions';
+import { findOffsettingInflow, reimbursementState } from '@/lib/engine/transactions/reimbursement';
 
 /** Merchant Pattern Lens view (AI plan §Later #19, DECISIONS #250): rendered
  *  narration for the merchant the register is filtered to. Null when the
@@ -268,6 +275,10 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     isTransfer: t.isTransfer,
     note: t.note,
     taxClass: t.taxClass,
+    // O.15: stored flags, verbatim — the badge and the menu render from these.
+    excludeFromTotals: t.excludeFromTotals,
+    reimbursement: t.reimbursement,
+    splitParentId: t.splitParentId,
     // The stored flag, verbatim. Half of "unclassified" (see `isUnclassifiedTxn`);
     // the other half is the row sitting in the 'uncategorized' placeholder above.
     needsReview: t.needsReview,
@@ -309,6 +320,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
         merchant: r.merchantName,
         status: r.status,
         isTransfer: r.isTransfer,
+        excludeFromTotals: r.excludeFromTotals, // O.15: lens money figures obey the basis
       })),
       filter.merchant,
       today,
@@ -407,6 +419,53 @@ export interface TransactionDetailView {
    * (critic cycle 1, P1). 'bank' means a real feed (Plaid / SimpleFIN).
    */
   descriptorOrigin: 'bank' | 'entered';
+  /**
+   * O.15: when this row's reimbursement is 'received', the inflow that most
+   * plausibly paid it back — a display-time SUGGESTION from
+   * `findOffsettingInflow` (exact opposite amount, on/after the purchase,
+   * within the 90-day window), never a stored link and never part of any
+   * figure. Null when untracked, still awaiting, or nothing matches.
+   */
+  reimbursementMatch: { id: string; date: string; amountCents: number; merchantName: string } | null;
+}
+
+/**
+ * O.15: the "likely this deposit" suggestion for a RECEIVED reimbursement.
+ * Candidates are the exact opposite amount on any of the user's spending
+ * accounts — the pure matcher applies the window/status/kind rules and picks
+ * deterministically. One narrow query, only on the 'received' state.
+ */
+async function reimbursementMatchFor(
+  userId: string,
+  t: { id: string; date: string; amountCents: number; reimbursement: string | null },
+): Promise<TransactionDetailView['reimbursementMatch']> {
+  if (reimbursementState(t.reimbursement) !== 'received' || t.amountCents >= 0) return null;
+  const candidates = await prisma.transaction.findMany({
+    where: {
+      account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
+      amountCents: -t.amountCents,
+      date: { gte: t.date },
+    },
+    include: { merchant: true },
+  });
+  const match = findOffsettingInflow(
+    { id: t.id, date: t.date, amountCents: t.amountCents, reimbursement: t.reimbursement },
+    candidates.map((c) => ({
+      id: c.id,
+      date: c.date,
+      amountCents: c.amountCents,
+      reimbursement: c.reimbursement,
+      isTransfer: c.isTransfer,
+      isSplitParent: c.isSplitParent,
+      status: c.status,
+    })),
+  );
+  if (!match) return null;
+  const row = candidates.find((c) => c.id === match.id);
+  return {
+    ...match,
+    merchantName: row ? (row.merchant?.canonical ?? normalizeMerchant(row.rawDescriptor).canonical) : '',
+  };
 }
 
 /**
@@ -484,6 +543,10 @@ export async function getTransactionDetail(
     isTransfer: t.isTransfer,
     note: t.note,
     taxClass: t.taxClass,
+    // O.15: stored flags, verbatim — the badge and the menu render from these.
+    excludeFromTotals: t.excludeFromTotals,
+    reimbursement: t.reimbursement,
+    splitParentId: t.splitParentId,
     needsReview: t.needsReview,
     merchantId: t.merchantId,
     ruleEligible: isRuleEligibleMerchant(t.rawDescriptor),
@@ -516,15 +579,20 @@ export async function getTransactionDetail(
   // two children would carry categories that no spending total ever reads,
   // because every one of them drops `isTransfer` rows first. A control that
   // produces nothing observable is worse than an absent one.
+  // The sentences now live in engine/transactions/actions.ts (O.15), because the
+  // action menu shows the SAME refusals — imported here so the split section and
+  // the menu can never say different things about one row.
   const splitBlockedReason = t.isSplitParent
     ? null // the parent renders its pieces + undo instead
     : t.splitParentId !== null
-      ? 'This is already one piece of a split, and a piece cannot be split again.'
+      ? SPLIT_BLOCKED_CHILD
       : t.isTransfer
-        ? 'This is a transfer between your own accounts, so its pieces would not count as spending anywhere. Splitting it would not change any total.'
-        : Math.abs(t.amountCents) < 2
-          ? 'This transaction is too small to split into two parts.'
-          : null;
+        ? SPLIT_BLOCKED_TRANSFER
+        : reimbursementState(t.reimbursement) !== null
+          ? SPLIT_BLOCKED_REIMBURSED // O.15 P1-2: a split erases the money-owed claim
+          : Math.abs(t.amountCents) < 2
+            ? SPLIT_BLOCKED_TOO_SMALL
+            : null;
 
   return {
     row,
@@ -550,6 +618,7 @@ export async function getTransactionDetail(
     // no hand-typed row can exist there to be mislabelled.
     descriptorOrigin:
       t.providerRef !== null || t.account.provider === 'demo' ? 'bank' : 'entered',
+    reimbursementMatch: await reimbursementMatchFor(userId, t),
   };
 }
 

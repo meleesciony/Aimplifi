@@ -70,6 +70,7 @@ export function toTrendTxns(
     // Optional to match `TransactionLike`, which the snapshot is typed as; every
     // real row carries it and the engine treats a missing flag as false.
     isSplitParent?: boolean;
+    excludeFromTotals?: boolean | null;
   }[],
 ): TrendTxn[] {
   return rows.map((t) => {
@@ -99,6 +100,8 @@ export function toTrendTxns(
       status: t.status,
       isTransfer: t.isTransfer,
       isSplitParent: t.isSplitParent,
+      // O.15: carried so both trends predicates drop reader-excluded rows.
+      excludeFromTotals: t.excludeFromTotals ?? false,
       merchant: m.canonical,
       aggregateMerchant: m.aggregate,
     };

@@ -353,6 +353,19 @@ model Transaction {
   // unrecognized reads back as UNTAGGED via `isTaxClass` rather than landing in the
   // wrong drawer's total. Encodes NO tax rule — see that module's header.
   taxClass      String?
+  // O.15 slice 2: the reader says "this row is not my spending" (work-reimbursed,
+  // shared expense, one-off distortion). Excluded rows drop out of every money
+  // TOTAL — budgets, spending plan, reports, trends, coach flows, Ask — through
+  // the same predicates that already drop transfers (isSpendRow / countsInFlows;
+  // see src/lib/engine/transactions/exclude.ts for the single basis). They stay
+  // fully visible in the register, badged. Undoable; encodes no money rule itself.
+  excludeFromTotals Boolean @default(false)
+  // O.15 slice 2: refund tracker. NULL = not tracked; 'awaiting' = the reader
+  // expects this purchase back (counted in the outstanding-reimbursements line);
+  // 'received' = it came back. A free String, not an enum (SQLite + additive
+  // values); anything unrecognized reads back as untracked. Purely informational:
+  // it never changes how a row sums — exclusion is the separate, explicit lever.
+  reimbursement String?
 
   account  Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   merchant Merchant? @relation(fields: [merchantId], references: [id])

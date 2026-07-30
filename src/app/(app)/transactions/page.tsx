@@ -44,6 +44,10 @@ export default async function TransactionsPage({
   // express it at all, because the 'uncategorized' placeholder is deliberately
   // stripped from every assignable list (categorize/assign.ts).
   const unclassified = str(sp.unclassified) === '1';
+  // O.15: the coach's outstanding-reimbursements figure links here — a figure
+  // that names rows must open on those rows. Unknown values read as "no filter".
+  const reimbRaw = str(sp.reimb);
+  const reimbursement = reimbRaw === 'awaiting' || reimbRaw === 'received' ? reimbRaw : null;
   const page = Math.max(1, parseInt(str(sp.page), 10) || 1);
 
   const filter: TxnFilter = {
@@ -55,11 +59,15 @@ export default async function TransactionsPage({
     from: from || null,
     to: to || null,
     unclassified,
+    reimbursement,
   };
   // Same predicate as TransactionFilters.hasFilters — empty-register copy
   // branches on it (ROADMAP ALSO CONSIDER / #186).
   const hasFilters =
-    !!(search || account || category || merchant || from || to) || type !== 'all' || unclassified;
+    !!(search || account || category || merchant || from || to) ||
+    type !== 'all' ||
+    unclassified ||
+    reimbursement !== null;
 
   const [{ rows, summary, accountOptions, pageInfo, lens, unclassifiedCount }, categoryGroups, withheld, shared] =
     await Promise.all([
@@ -134,7 +142,7 @@ export default async function TransactionsPage({
       <TransactionFilters
         accountOptions={accountOptions}
         categoryOptions={categoryGroups.flatMap((g) => g.categories)}
-        current={{ search, account, category, merchant, type, from, to, unclassified }}
+        current={{ search, account, category, merchant, type, from, to, unclassified, reimbursement }}
         unclassifiedCount={unclassifiedCount}
       />
 

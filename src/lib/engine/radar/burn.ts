@@ -20,6 +20,7 @@
 import { type ISODate, addDays, compareDates, daysBetween, isoDate } from '@/lib/dates';
 import { type Cents, ZERO, roundHalfAwayFromZero } from '@/lib/money';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import type { TransactionLike } from '@/lib/engine/cash-needed/assemble';
 
 /** Look back 8 complete weeks of daily spend ("based on your last 8 weeks"). */
@@ -66,6 +67,8 @@ export function discretionaryDailyOutflows(
     if (t.status !== 'POSTED') continue;
     if (t.isTransfer) continue;
     if (t.isSplitParent) continue;
+    // O.15: an excluded row is not the reader's spending pace either.
+    if (isExcludedFromTotals(t)) continue;
     if (t.amountCents >= 0) continue; // outflows only
     const date = isoDate(t.date);
     if (compareDates(date, windowStart) < 0) continue;

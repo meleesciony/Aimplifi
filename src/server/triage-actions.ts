@@ -15,6 +15,8 @@ import { auditLog, requireUserId } from '@/server/authz';
 import { assertOwnedCategory } from '@/server/category-meta';
 import { ensureCategories } from '@/server/ensure-categories';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { SPLIT_BLOCKED_REIMBURSED } from '@/lib/engine/transactions/actions';
+import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { type TriageGroupView, getTriageGroups, similarTransactionsWhere } from '@/server/triage';
 
 /** Aggregate pseudo-merchants (Zelle/checks/ATM) never get merchant-wide rules. */
@@ -592,6 +594,10 @@ export async function splitTransaction(input: {
   const txn = await ownedTransaction(userId, input.transactionId);
   if (txn.splitParentId) throw new Error('Cannot split a split child');
   if (txn.isSplitParent) throw new Error('Transaction is already split');
+  // O.15 critic P1-2: a split turns this row into a container the outstanding-
+  // reimbursements line skips and the register never lists — the money-owed
+  // claim would vanish with no event. Same sentence the menu shows disabled.
+  if (reimbursementState(txn.reimbursement) !== null) throw new Error(SPLIT_BLOCKED_REIMBURSED);
   if (input.parts.length < 2) throw new Error('A split needs at least 2 parts');
   const sign = Math.sign(txn.amountCents);
   for (const p of input.parts) {
@@ -650,6 +656,12 @@ export async function splitTransaction(input: {
           status: txn.status,
           needsReview: false,
           isTransfer: txn.isTransfer,
+          // O.15 critic P1-1: the pieces inherit the reader's "not my spending"
+          // — without this, splitting an excluded row silently reinstated its
+          // whole amount into every total the exclusion had removed it from.
+          // (The menu's own copy promises this direction: "exclude its pieces
+          // instead".) undoSplit needs no twin: the parent keeps its flag.
+          excludeFromTotals: txn.excludeFromTotals,
           splitParentId: txn.id,
         },
       });

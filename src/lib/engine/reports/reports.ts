@@ -5,6 +5,7 @@
  * their parent group. Integer cents in/out, no I/O.
  */
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 
 export interface ReportTxn {
   date: string; // YYYY-MM-DD
@@ -12,6 +13,8 @@ export interface ReportTxn {
   categoryId?: string | null;
   isTransfer?: boolean;
   isSplitParent?: boolean;
+  /** O.15: reader-excluded rows leave every total via this one basis. */
+  excludeFromTotals?: boolean | null;
 }
 
 export interface CategorySpend {
@@ -42,7 +45,7 @@ export function isSpendRow(
   range: { fromYm: string; toYm: string },
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): boolean {
-  if (t.isSplitParent || t.isTransfer) return false;
+  if (t.isSplitParent || t.isTransfer || isExcludedFromTotals(t)) return false;
   const ym = t.date.slice(0, 7);
   if (ym < range.fromYm || ym > range.toYm) return false;
   const id = t.categoryId ?? 'uncategorized';

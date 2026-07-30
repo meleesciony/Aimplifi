@@ -23,6 +23,11 @@ import {
   type Opportunity,
 } from '@/lib/engine/fi/insights';
 import { detectUnusualCharges, type UnusualCharge } from '@/lib/engine/anomaly/detect';
+import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
+import {
+  type OutstandingReimbursements,
+  outstandingReimbursements,
+} from '@/lib/engine/transactions/reimbursement';
 import { incomePausesForFeed, type IncomePauseState } from '@/lib/engine/income/pause';
 import { computeMoneySignature, type MoneySignature } from '@/lib/engine/fi/signature';
 import { computeCardClearedStreak, type CardClearedStreakResult } from '@/lib/engine/cards/cleared-streak';
@@ -117,6 +122,12 @@ export interface CoachData {
   /** True iff the LLM ordered the recap this render; false on the deterministic floor (demo/zero-key). */
   reviewPersonalized: boolean;
   blueprint: BlueprintStep[];
+  /**
+   * O.15: purchases the reader marked 'awaiting reimbursement' — count + the
+   * verbatim sum of their magnitudes (the notify/select idiom: copied amounts,
+   * nothing computed). Zero rows → {0, 0} and the card doesn't render.
+   */
+  outstandingReimbursements: OutstandingReimbursements;
 }
 
 const COAST_TARGET_YEARS = 25;
@@ -143,6 +154,11 @@ export async function getCoachData(
     isSplitParent: t.isSplitParent ?? false,
     categoryId: (t as { categoryId?: string | null }).categoryId ?? null,
     splitParentId: (t as { splitParentId?: string | null }).splitParentId ?? null,
+    // O.15: carried so countsInFlows (and every coach sum below) drops
+    // reader-excluded rows via the one basis.
+    excludeFromTotals: t.excludeFromTotals ?? false,
+    // O.15: carried for the outstanding-reimbursements line below.
+    reimbursement: (t as { reimbursement?: string | null }).reimbursement ?? null,
   }));
 
   const allFlows = monthlyFlows(txns);
@@ -231,7 +247,12 @@ export async function getCoachData(
   const lifeEnergy = txns
     .filter(
       (t) =>
-        !t.isTransfer && !t.isSplitParent && t.status === 'POSTED' && t.amountCents < 0 && t.date >= cutoff,
+        !t.isTransfer &&
+        !t.isSplitParent &&
+        !isExcludedFromTotals(t) && // O.15: not the reader's spending
+        t.status === 'POSTED' &&
+        t.amountCents < 0 &&
+        t.date >= cutoff,
     )
     .sort((a, b) => a.amountCents - b.amountCents)
     .slice(0, 5)
@@ -365,5 +386,6 @@ export async function getCoachData(
     reviewLines,
     reviewPersonalized,
     blueprint,
+    outstandingReimbursements: outstandingReimbursements(txns),
   };
 }

@@ -21,6 +21,7 @@
 import { addMonthsToMonthKey, daysInMonth, monthKey } from '@/lib/dates';
 import { roundHalfAwayFromZero } from '@/lib/money';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import {
   spendingByCategory,
   // Aliased because this module has its own narrower `isSpendRow` (purchases
@@ -228,7 +229,7 @@ const namedCategoryId = (t: TrendTxn): string | null | undefined => t.categoryId
  * between the two surfaces would rot (O.6).
  */
 function isSpendRow(t: TrendTxn, meta: ReadonlyMap<string, CategoryMeta>): boolean {
-  if (t.isSplitParent || t.isTransfer) return false;
+  if (t.isSplitParent || t.isTransfer || isExcludedFromTotals(t)) return false;
   if (t.amountCents >= 0) return false; // refunds/inflows are not "purchases"
   const id = namedCategoryId(t) ?? 'uncategorized';
   if (id === 'transfer') return false;

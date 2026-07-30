@@ -34,6 +34,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { CUSTOM_CATEGORY_GROUPS, filterCategoryOptions } from '@/lib/engine/categorize/assign';
 import { isConfidentGroup, summarizeConfident } from '@/lib/engine/categorize/group';
+import { SPLIT_BLOCKED_REIMBURSED } from '@/lib/engine/transactions/actions';
+import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { cents, centsFromDollarString, formatCents } from '@/lib/money';
 import type { TriageGroupView } from '@/server/triage';
 import { createCustomCategory } from '@/server/custom-category-actions';
@@ -757,6 +759,19 @@ export function TriageInbox({
   /** Split editor for one row (both categories selectable — group suggestions
    *  are often absent, so part A can't silently assume one). */
   function renderSplit(group: TriageGroupView, row: GroupRow) {
+    // O.15 (cycle-2 P2): a tracked row refuses to split — same sentence the
+    // action menu shows disabled and the server throws. Gated HERE because a
+    // thrown server-action message is masked to a digest in production, so
+    // this is the only door where the reader could not read the reason.
+    if (reimbursementState(row.reimbursement) !== null) {
+      return (
+        <div className="space-y-2 rounded-lg border p-3" data-testid="triage-split">
+          <p className="text-xs text-muted-foreground" data-testid="triage-split-blocked">
+            {SPLIT_BLOCKED_REIMBURSED}
+          </p>
+        </div>
+      );
+    }
     const splitTotal = Math.abs(row.amountCents);
     const defaultFirst = group.suggestedCategoryId ?? allCats.find((c) => c.id === 'shopping')?.id ?? allCats[0]?.id ?? '';
     const firstCatId = splitFirstCat || defaultFirst;

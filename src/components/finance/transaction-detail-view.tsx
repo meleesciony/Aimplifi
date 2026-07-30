@@ -20,7 +20,7 @@
  * reverts an uncontrolled category `<select>` to its first option on the error
  * path — a silent mis-file).
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { merchantRegisterHref } from '@/lib/engine/transactions/links';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +30,12 @@ import { cents, formatCents, parseDollarInput } from '@/lib/money';
 import { TAX_CLASSES, TAX_CLASS_LABELS } from '@/lib/engine/tax/classes';
 import { TXN_NOTE_MAX_CHARS } from '@/lib/engine/tax/note';
 import { setTransactionTax } from '@/server/tax-actions';
+import { setExcludeFromTotals, setReimbursement } from '@/server/transaction-flags-actions';
 import { recategorize, splitTransaction, undoSplit } from '@/server/triage-actions';
+import { txnActionAvailability } from '@/lib/engine/transactions/actions';
+import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
+import { TxnActionMenuItems } from '@/components/finance/txn-action-menu';
+import { MoreHorizontal } from 'lucide-react';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { provenanceBadgeView } from '@/components/finance/provenance-badge';
@@ -88,7 +93,11 @@ export function TransactionDetailView({
   const [error, setError] = useState<string | null>(null);
   const [splitOpen, setSplitOpen] = useState(false);
   const [firstPart, setFirstPart] = useState('');
+  // The one action menu (O.15) — single-row page, so plain local state is fine.
+  const [menuOpen, setMenuOpen] = useState(false);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const reimb = reimbursementState(row.reimbursement);
 
   const flatCategories = categoryGroups.flatMap((g) => g.categories);
   const pv = provenanceBadgeView(row.provenance);
@@ -144,6 +153,35 @@ export function TransactionDetailView({
   const firstCents = parseDollarInput(firstPart);
   const splitValid = firstCents !== null && firstCents > 0 && firstCents < total;
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDocMouseDown(e: MouseEvent) {
+      if (busy) return; // never dismiss mid-write — the reload confirms it
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [menuOpen, busy]);
+
+  /** Wrap a flag write so its returned refusal renders verbatim (the
+   *  `setTransactionTax` pattern — these actions REPORT, they don't throw). */
+  function runFlag(fn: () => Promise<{ ok: true } | { ok: false; error: string }>) {
+    setMenuOpen(false);
+    void run(async () => {
+      const res = await fn();
+      if (!res.ok) throw new RefusalError(res.error);
+    });
+  }
+
+  /** Bring one of this page's own editors to the reader (the menu's "one
+   *  place for every verb" promise — here the verbs live on this page). */
+  function focusEditor(selector: string) {
+    setMenuOpen(false);
+    const el = document.querySelector<HTMLElement>(selector);
+    el?.scrollIntoView({ block: 'center' });
+    el?.focus();
+  }
+
   return (
     <div className="space-y-4" data-testid="txn-detail">
       <div>
@@ -161,6 +199,86 @@ export function TransactionDetailView({
               Transfer
             </Badge>
           )}
+          {row.excludeFromTotals && (
+            <Badge
+              variant="outline"
+              data-testid="detail-excluded-badge"
+              className="border-amber-500/60 text-[10px] text-amber-700 dark:text-amber-300"
+            >
+              Excluded from totals
+            </Badge>
+          )}
+          {reimb === 'awaiting' && (
+            <Badge variant="outline" data-testid="detail-reimb-badge" className="text-[10px]">
+              Awaiting reimbursement
+            </Badge>
+          )}
+          {reimb === 'received' && (
+            <Badge variant="outline" data-testid="detail-reimb-badge" className="text-[10px]">
+              Reimbursed
+            </Badge>
+          )}
+          {/* O.15 — the same action menu every register row carries, so this
+              page and the register never disagree about what a row can do. */}
+          <div ref={menuRef} className="relative ml-auto">
+            <button
+              type="button"
+              data-testid="txn-action-trigger"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label={`All actions for this ${row.merchantName} transaction`}
+              className="tap-target inline-flex items-center justify-center rounded border px-1.5 py-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <MoreHorizontal className="size-4" aria-hidden />
+            </button>
+            {menuOpen && (
+              <div
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setMenuOpen(false);
+                    menuRef.current
+                      ?.querySelector<HTMLButtonElement>('[data-testid="txn-action-trigger"]')
+                      ?.focus();
+                  }
+                }}
+                className="absolute right-0 z-50 mt-1 max-h-80 w-64 overflow-auto rounded-lg border bg-card text-foreground shadow-lg ring-1 ring-foreground/10"
+              >
+                <TxnActionMenuItems
+                  actions={txnActionAvailability({
+                    amountCents: row.amountCents,
+                    isTransfer: row.isTransfer,
+                    isSplitParent: detail.isSplitParent,
+                    splitParentId: detail.splitParentId,
+                    taxClass: row.taxClass,
+                    excludeFromTotals: row.excludeFromTotals,
+                    reimbursement: row.reimbursement,
+                  })}
+                  excluded={row.excludeFromTotals}
+                  busy={busy}
+                  handlers={{
+                    onCategory: () => focusEditor('[data-testid="detail-category-select"]'),
+                    onNoteTax: () => focusEditor('[data-testid="detail-note"]'),
+                    onSplit: () => {
+                      setMenuOpen(false);
+                      setSplitOpen(true);
+                      requestAnimationFrame(() =>
+                        document
+                          .querySelector('[data-testid="detail-split"]')
+                          ?.scrollIntoView({ block: 'center' }),
+                      );
+                    },
+                    onReimbursement: (state) =>
+                      runFlag(() => setReimbursement({ transactionId: row.id, state })),
+                    onExclude: (exclude) =>
+                      runFlag(() => setExcludeFromTotals({ transactionId: row.id, exclude })),
+                    ruleHref: `/rules?from=${encodeURIComponent(row.id)}`,
+                    renameHref: `/rules?from=${encodeURIComponent(row.id)}#kw-rename`,
+                  }}
+                />
+              </div>
+            )}
+          </div>
         </div>
         <div
           className={`mt-1 text-2xl tabular-nums ${row.amountCents > 0 ? 'text-emerald-500' : ''}`}
@@ -547,6 +665,70 @@ export function TransactionDetailView({
           </>
         )}
       </div>
+
+      {/* REIMBURSEMENT (O.15) — shown once the reader is tracking this row.
+          The untracked state's door is the action menu above, like the register. */}
+      {reimb !== null && (
+        <div className="space-y-2 rounded-md border p-3" data-testid="detail-reimbursement">
+          <div className="text-sm font-medium">Reimbursement</div>
+          {reimb === 'awaiting' ? (
+            <>
+              <p className="text-xs text-muted-foreground">
+                You marked this {formatCents(cents(total))} purchase as awaiting reimbursement. It
+                still counts as spending until you exclude it — being owed money back doesn&apos;t
+                change what left your account.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  disabled={busy}
+                  data-testid="detail-reimb-received"
+                  onClick={() => runFlag(() => setReimbursement({ transactionId: row.id, state: 'received' }))}
+                >
+                  Reimbursement received
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  data-testid="detail-reimb-clear"
+                  onClick={() => runFlag(() => setReimbursement({ transactionId: row.id, state: null }))}
+                >
+                  Stop tracking
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Marked as reimbursed.{' '}
+                {detail.reimbursementMatch ? (
+                  <span data-testid="detail-reimb-match">
+                    Likely this deposit: <b>{detail.reimbursementMatch.merchantName}</b> on{' '}
+                    {formatISODate(isoDate(detail.reimbursementMatch.date), 'long')} for{' '}
+                    {formatCents(cents(detail.reimbursementMatch.amountCents))} — a suggestion from
+                    the matching amount, not a stored link.
+                  </span>
+                ) : (
+                  <span data-testid="detail-reimb-no-match">
+                    No matching deposit found yet ({formatCents(cents(total))} back within 90 days) —
+                    that can simply mean it hasn&apos;t arrived.
+                  </span>
+                )}
+              </p>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                data-testid="detail-reimb-clear"
+                onClick={() => runFlag(() => setReimbursement({ transactionId: row.id, state: null }))}
+              >
+                Stop tracking
+              </Button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* THE RULE LEVER — the durable instruction, pre-filled from this row's own
           statement text (O.13b first slice). */}

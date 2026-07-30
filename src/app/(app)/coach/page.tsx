@@ -101,6 +101,35 @@ export default async function CoachPage() {
       {/* #254 Habit streaks — cleared-in-full + no-subscription-creep, basis inline */}
       <HabitStreaksCard cardCleared={data.streaks.cardCleared} noCreep={data.streaks.noCreep} />
 
+      {/* O.15 — outstanding reimbursements: purchases the reader marked as
+          awaiting money back. Amounts copied verbatim (notify/select idiom);
+          the figure links to exactly the rows it counts (no dead ends). */}
+      {data.outstandingReimbursements.count > 0 && (
+        <Card data-testid="outstanding-reimbursements-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Money you&apos;re owed back</CardDescription>
+            <CardTitle className="text-base" data-testid="outstanding-reimbursements-total">
+              {formatCents(data.outstandingReimbursements.totalCents)} awaiting reimbursement
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {data.outstandingReimbursements.count === 1
+                ? 'One purchase you marked as awaiting reimbursement.'
+                : `${data.outstandingReimbursements.count} purchases you marked as awaiting reimbursement.`}{' '}
+              They still count as spending until the money comes back.{' '}
+              <Link
+                href="/transactions?reimb=awaiting"
+                className="underline underline-offset-2 hover:text-foreground"
+                data-testid="outstanding-reimbursements-link"
+              >
+                See them
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Big wins, never latte shame */}
       <Card data-testid="opportunities-card">
         <CardHeader className="pb-2">

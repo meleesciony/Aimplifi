@@ -171,6 +171,7 @@ async function main() {
       date: t.date,
       accountName: '',
       status: t.status,
+      reimbursement: (t as { reimbursement?: string | null }).reimbursement ?? null,
       aggregate: normalizeMerchant(t.rawDescriptor).aggregate,
       suggestedCategoryId: out.categoryId === 'uncategorized' ? null : out.categoryId,
       providerCategoryId: t.providerCategoryId,

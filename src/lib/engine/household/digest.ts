@@ -18,6 +18,7 @@
  */
 import { compareDates, type ISODate } from '@/lib/dates';
 import { cents, type Cents } from '@/lib/money';
+import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 
 /** The minimum a transaction row must expose to be summarized (DB row or fixture). */
 export interface MovementRow {
@@ -28,6 +29,8 @@ export interface MovementRow {
   status: string;
   /** The container row left behind by a split: excluded from ALL sums (its children carry the money). */
   isSplitParent: boolean;
+  /** O.15: reader-excluded rows leave every total via this one basis. */
+  excludeFromTotals?: boolean | null;
 }
 
 export interface SharedMovementSummary {
@@ -70,7 +73,7 @@ export function summarizeSharedMovement(input: {
 
   for (const r of rows) {
     if (compareDates(r.date, since) < 0 || compareDates(r.date, today) > 0) continue;
-    if (r.isTransfer || r.isSplitParent || r.status !== 'POSTED') continue;
+    if (r.isTransfer || r.isSplitParent || r.status !== 'POSTED' || isExcludedFromTotals(r)) continue;
     transactionCount += 1;
     if (r.amountCents < 0) outflow += -r.amountCents;
     else inflow += r.amountCents;

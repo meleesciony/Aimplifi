@@ -12,6 +12,7 @@
 import { type Cents, formatCents } from '@/lib/money';
 import { netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
+import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import {
   isSpendRow,
   spendContributionCents,
@@ -513,6 +514,8 @@ export interface AskTxnRow {
   aggregateMerchant: boolean;
   isTransfer?: boolean;
   isSplitParent?: boolean;
+  /** O.15: reader-excluded rows leave every Ask figure via the one basis. */
+  excludeFromTotals?: boolean | null;
   merchant: string;
 }
 
@@ -527,6 +530,8 @@ export interface SnapshotTxnLike {
   isTransfer: boolean;
   isSplitParent?: boolean;
   categoryId?: string | null;
+  /** O.15: present on DB rows; carried so every Ask predicate can read it. */
+  excludeFromTotals?: boolean | null;
 }
 
 /**
@@ -550,6 +555,7 @@ export function toAskTxnRows(txns: readonly SnapshotTxnLike[]): AskTxnRow[] {
       aggregateMerchant: m.aggregate,
       isTransfer: t.isTransfer,
       isSplitParent: t.isSplitParent ?? false,
+      excludeFromTotals: t.excludeFromTotals ?? false,
       merchant: m.canonical,
     };
   });
@@ -573,7 +579,7 @@ const NON_ACTIONABLE_GROUP = 'Transfers & Other';
  * biggest June buy (Costco) to catch any drift.
  */
 function isPurchaseRow(t: AskTxnRow, meta: ReadonlyMap<string, CategoryMeta>): boolean {
-  if (t.isSplitParent || t.isTransfer) return false;
+  if (t.isSplitParent || t.isTransfer || isExcludedFromTotals(t)) return false;
   if (t.amountCents >= 0) return false;
   const id = namedCategoryId(t);
   if (id === 'transfer') return false;

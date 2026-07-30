@@ -33,6 +33,7 @@ import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
 import { medianOfSorted } from '@/lib/stats';
 import { type ISODate, addMonthsClamped, compareDates, isoDate, startOfMonth } from '@/lib/dates';
 import { isAggregateCanonical } from '@/lib/engine/categorize/normalize';
+import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 
 /** Minimal row shape: the register's TxnView is a superset. Split parents are
  *  excluded upstream (the register query never loads them). */
@@ -43,6 +44,8 @@ export interface LensTxn {
   merchant: string;
   status: string; // PENDING | POSTED
   isTransfer: boolean;
+  /** O.15: reader-excluded rows leave every total via this one basis. */
+  excludeFromTotals?: boolean | null;
 }
 
 /** One fully-covered 3-calendar-month window of qualifying charges. */
@@ -80,9 +83,10 @@ export const LENS_MIN_PATTERN_SAMPLE = 3;
 /** Width of each trend window, in full calendar months. */
 export const LENS_WINDOW_MONTHS = 3;
 
-/** Same inclusion rule as the anomaly engine (split parents excluded upstream). */
+/** Same inclusion rule as the anomaly engine (split parents excluded upstream;
+ *  O.15 — excluded rows leave the lens's money figures like every other total). */
 function isQualifyingCharge(t: LensTxn): boolean {
-  return t.status === 'POSTED' && !t.isTransfer && t.amountCents < 0;
+  return t.status === 'POSTED' && !t.isTransfer && !isExcludedFromTotals(t) && t.amountCents < 0;
 }
 
 function windowOf(

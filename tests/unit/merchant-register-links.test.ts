@@ -94,6 +94,9 @@ function view(id: string, merchantName: string): TxnView {
     taxClass: null,
     needsReview: false,
     provenance: { kind: 'merchant-default', label: 'Known merchant', needsConfirm: false },
+    excludeFromTotals: false,
+    reimbursement: null,
+    splitParentId: null,
     suggestion: null,
   };
 }

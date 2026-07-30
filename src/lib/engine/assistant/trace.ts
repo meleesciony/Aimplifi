@@ -65,6 +65,10 @@ export interface TraceTxn {
   isTransfer: boolean;
   isSplitParent?: boolean;
   categoryId?: string | null;
+  /** O.15: carried so the trace's shared predicates (isSpendRow /
+   *  isIncomeFlowRow) drop excluded rows exactly as the answers' sums did —
+   *  a trace citing a row the total refused would un-reconcile the headline. */
+  excludeFromTotals?: boolean | null;
 }
 
 /** One cited transaction row. The plain sum of a trace's rows IS its headline. */

@@ -64,6 +64,14 @@ export interface TransactionLike {
   isTransfer: boolean;
   /** Container row left behind by a split — its children carry the amounts. */
   isSplitParent?: boolean;
+  /**
+   * O.15: carried on the snapshot row for BEHAVIORAL consumers (radar burn).
+   * This assembler itself deliberately IGNORES it: pending charges and
+   * post-close credits are statement reality — the card bill includes an
+   * excluded row whether or not the reader wants it in their budgets, so
+   * "how much do I need" must keep counting it.
+   */
+  excludeFromTotals?: boolean | null;
 }
 export interface ScheduledLike {
   accountId: string;

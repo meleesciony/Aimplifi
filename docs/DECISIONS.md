@@ -672,3 +672,80 @@ mixing every unrelated Zelle payee. And the feed's opportunity kinds hard-set
 `merchant: null` (select.ts:218) although `Opportunity.merchant` exists, so "A
 subscription's price went up" still names nobody — the most anonymous claim in the app,
 untouched by a slice titled "nothing the app claims is a dead end".
+
+---
+
+## #342 (O.15 slice 2) — One action menu per transaction; exclude-from-totals through the existing predicates; a reimbursement tracker that never moves a sum
+
+**Owner brief:** "I should be able to do all other features from one menu (tax
+related, reimburse, exclude from budget etc) — even if I don't use it."
+
+**Exclusion = a third classification, through the SAME predicates.** `Transaction
+.excludeFromTotals` drops a row from every money total by extending the
+predicates that already drop transfers and split parents — `isSpendRow`
+(reports/budgets/Ask/trace), `countsInFlows` (monthlyFlows → coach/spending
+plan/reports months/Ask income), trends' purchase predicate, the anomaly
+detector, the Merchant Lens, radar burn, the household movement digest, and the
+register's own summary strip. One greppable basis: `isExcludedFromTotals`
+(`engine/transactions/exclude.ts`). The field is OPTIONAL on engine row types so
+an unselecting call site keeps pre-O.15 behavior bit-for-bit (proved by the
+untouched golden suite), and REQUIRED on `TxnView` so a forgetting caller fails
+to compile instead of silently hiding the badge.
+
+**Where exclusion deliberately does NOT apply** (each recorded in the module
+header): balances/net worth (the bank already counted the row), cash-needed
+(the card bill includes it regardless), recurring detection (an excluded bill
+still recurs — hiding it hides the reminder), and tax export (a `taxClass` is
+its own explicit instruction; dropping a tagged deduction silently is the
+O.13b failure again).
+
+**Reimbursement is informational by construction.** 'awaiting'/'received' never
+touch any predicate (locked by test); the only money-shaped output is the
+coach's outstanding line — verbatim |amount| sums of awaiting outflows, linking
+to `/transactions?reimb=awaiting` (a figure that names rows opens on those
+rows). "Received" shows a display-time `findOffsettingInflow` SUGGESTION
+(exact amount, 90-day window, deterministic tie-breaks) — deliberately not a
+stored link: nothing can drift, double-apply, or need migration. An awaiting
+row that is also excluded still counts as owed — cash owed is not a budget
+figure. Chosen against auto-excluding awaiting rows: the money genuinely left,
+and two explicit levers cannot double-remove a row.
+
+**The menu is one availability basis, not one component.** `txnActionAvailability`
+(`engine/transactions/actions.ts`) returns ALL EIGHT actions always —
+disabled-with-reason, never hidden — and the register menu, the detail menu,
+and the server actions all read the same exported sentences, so a disabled
+reason on screen and a refusal on the wire cannot say different things (the
+refusals are ALSO enforced server-side; a disabled button is one dev-tools edit
+from a submitted form). The shared piece is the menu CONTENT
+(`txn-action-menu.tsx`); each surface keeps its own trigger/dismissal because
+the register's single-open-row controller discipline (800+ rows, no per-row
+hooks) is load-bearing. Category/note items DELEGATE to the register's two
+existing editors rather than duplicating them.
+
+**Demo fence on both writes:** one visitor's exclusion would rewrite every
+visitor's hand-verified totals — the same shared-row argument as #244/#225.
+
+**Placement:** the outstanding line lives on /coach (the owner said
+"dashboard/coach"; coach is where money-review/receipt lines already live and
+the dashboard is the contested surface — moving it later is one component).
+
+**#342 critic record (two cycles, fresh-context Fable).** Cycle 1 FAIL — 0 P0,
+4 P1, 2 P2, 2 P3. All four P1s were STATE TRANSITIONS the slice never modeled,
+none in the basis itself: splitting an excluded row reinstated its money
+(child-create omitted the new field); splitting a tracked row vanished the
+money-owed claim (parent became a container the outstanding line skips); a
+transfer-reflag left the coach claiming owed money while the menu locked out
+the only control that could stop the claim (fixed with an UNDO ASYMMETRY —
+starting an action may be refused, stopping it never is — applied to both
+flags and to both server guards); and the coach's owed-money link landed on a
+filter the filter bar denied (axis threaded through current/commit/hasFilters
++ a dismissible chip). P2s: set-scoped `excludedCount` drives the register
+caption; the household shared list now badges excluded rows the joint digest's
+tally drops. Cycle 2 PASS — every finding CLOSED by re-executed repros; one
+NEW P2 found by probing the fixes (the triage inbox's split tool reached the
+refusal only as a production-masked throw — `reimbursement` threaded into the
+triage row so the tool renders the shared sentence instead of the form).
+Accepted residuals, recorded not fixed: the offsetting-inflow suggestion can
+name one deposit for two same-amount purchases (labeled a suggestion, touches
+no figure); the menus lack arrow-key navigation (matches the existing pickers'
+a11y posture). 5 REGRESSION_LEDGER rows.

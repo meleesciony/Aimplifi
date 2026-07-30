@@ -29,6 +29,7 @@ import { type Cents, cents } from '@/lib/money';
 import { medianOfSorted } from '@/lib/stats';
 import { type ISODate, compareDates, daysBetween } from '@/lib/dates';
 import { isAggregateCanonical, normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 
 /** Minimal transaction shape the detector needs (superset-compatible with coach txns). */
 export interface AnomalyTxn {
@@ -39,6 +40,8 @@ export interface AnomalyTxn {
   isTransfer: boolean;
   status: string;
   isSplitParent?: boolean;
+  /** O.15: reader-excluded rows leave every total via this one basis. */
+  excludeFromTotals?: boolean | null;
 }
 
 export interface UnusualCharge {
@@ -69,9 +72,17 @@ export const ANOMALY_RECENT_WINDOW_DAYS = 45;
 /** Overall cap on reported anomalies (top by deviation). */
 export const ANOMALY_MAX_RESULTS = 3;
 
-/** The single inclusion rule: a POSTED, non-transfer, non-split-parent outflow. */
+/** The single inclusion rule: a POSTED, non-transfer, non-split-parent,
+ *  non-excluded outflow (O.15 — a row the reader excluded from totals is not
+ *  their spending pattern either, so it must not set or break a baseline). */
 function isQualifyingCharge(t: AnomalyTxn): boolean {
-  return t.status === 'POSTED' && !t.isTransfer && !(t.isSplitParent ?? false) && t.amountCents < 0;
+  return (
+    t.status === 'POSTED' &&
+    !t.isTransfer &&
+    !(t.isSplitParent ?? false) &&
+    !isExcludedFromTotals(t) &&
+    t.amountCents < 0
+  );
 }
 
 /** Median with the documented integer convention: the shared exact median

@@ -74,7 +74,7 @@ export default async function BudgetsPage() {
         isTransfer: false,
         isSplitParent: false,
       },
-      select: { categoryId: true, amountCents: true, accountId: true, date: true },
+      select: { categoryId: true, amountCents: true, accountId: true, date: true, excludeFromTotals: true },
     }),
     prisma.budget.findMany({ where: { userId } }),
     prisma.user.findUnique({ where: { id: userId } }),
@@ -111,6 +111,8 @@ export default async function BudgetsPage() {
       (t) =>
         keepsReconciled(t.accountId, t.date) &&
         // isTransfer/isSplitParent are already false — the Prisma clause excluded them.
+        // excludeFromTotals is SELECTED and passed through (O.15): the predicate,
+        // not this page, decides that an excluded row leaves the figures.
         isSpendRow({ ...t, isTransfer: false, isSplitParent: false }, spendRange, meta),
     ),
   );

@@ -2,6 +2,34 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-30 — O.15 slice 2: one action menu per transaction (DECISIONS #342)
+
+Owner: *"I should be able to do all other features from one menu (tax related, reimburse,
+exclude from budget etc)."* Every register row, the detail view, and the triage split door
+now share ONE availability basis (`txnActionAvailability` — all eight actions always
+listed, disabled-with-reason, never hidden; the same exported sentences are the
+server-side refusals). Two new levers behind it: **exclude-from-totals** (drops the row
+from every money total through the SAME predicates that drop transfers — one basis,
+`isExcludedFromTotals`; deliberately NOT applied to balances, cash-needed, recurring
+detection, or tax export, each recorded in the module header) and a **reimbursement
+tracker** (informational by construction — never touches a predicate; the coach's
+outstanding line is verbatim |amount| sums linking to the rows it names; the received-side
+inflow match is a display-time suggestion, never a stored link).
+
+Two-cycle Fable critic (record in DECISIONS #342): cycle 1 FAIL — 4 P1, all state
+TRANSITIONS (split/reflag/undo interactions with the new flags), all fixed incl. the UNDO
+ASYMMETRY rule (starting an action may be refused; stopping it never is); cycle 2 PASS by
+re-executed repros. 5 REGRESSION_LEDGER rows.
+
+**Known intermittent, recorded not written off:** `mobile-overflow.spec.ts:408`
+(`/transactions/[id]`) once timed out on mobile-webkit's `waitForURL` after clicking
+`txn-detail-link` — signature predates this slice (slice-1 notes, build without the
+menu), passes alone/warm/full-gate; cold-run-correlated; mechanism unknown. If it recurs:
+copy `test-results/` aside BEFORE any re-run.
+
+Gate: verify green — 4950 unit / 312 files, build clean; full e2e serialized 238/238.
+Schema: 2 additive Transaction columns (`excludeFromTotals`, `reimbursement`).
+
 ## ✅ BUILT 2026-07-30 — O.13b (second slice): the transaction detail view
 
 Owner, with six Simplifi screenshots: *"Currently we can't even solve the transaction list."* The first

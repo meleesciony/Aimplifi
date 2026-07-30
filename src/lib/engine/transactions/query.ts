@@ -14,6 +14,8 @@ import { type Cents, cents } from '@/lib/money';
 import { compareDates, isoDate } from '@/lib/dates';
 import type { FreshnessResult } from '@/lib/engine/sync/health';
 import type { ProvenanceVerdict } from '@/lib/engine/categorize/provenance';
+import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
+import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 
 export interface TxnView {
   id: string;
@@ -51,6 +53,27 @@ export interface TxnView {
    * NOT the whole of "unclassified" on its own — see `isUnclassifiedTxn`.
    */
   needsReview: boolean;
+  /**
+   * O.15: the reader excluded this row from every money total. REQUIRED, not
+   * optional, for the same reason as `needsReview`: an optional flag would read
+   * as "counts" at exactly the caller that forgot to select it — and the badge
+   * this flag drives is the register's only honesty about a row the totals
+   * no longer show.
+   */
+  excludeFromTotals: boolean;
+  /**
+   * O.15 refund tracker: null (untracked) | 'awaiting' | 'received'. Narrowed
+   * through `reimbursementState` (engine/transactions/reimbursement.ts) so an
+   * unrecognized stored value reads as untracked, never as a state it is not.
+   * REQUIRED for the same reason as `excludeFromTotals`.
+   */
+  reimbursement: string | null;
+  /**
+   * O.15: set when this row is one PIECE of a split. REQUIRED so the action
+   * menu can say "already one piece of a split" instead of silently offering a
+   * second split — the same forgot-to-set failure direction as the flags above.
+   */
+  splitParentId: string | null;
   /** Owning merchant row id, if known — needed for "always for this merchant". */
   merchantId?: string | null;
   /** False for aggregate pseudo-merchants (Zelle/checks) — no merchant-wide rule. */
@@ -99,6 +122,9 @@ export interface TxnFilter {
   type?: FlowType;
   from?: string | null; // inclusive YYYY-MM-DD lower bound
   to?: string | null; // inclusive YYYY-MM-DD upper bound
+  /** O.15: show ONLY rows in this reimbursement state (the coach's outstanding
+   *  line links here — a figure that names rows must open on those rows). */
+  reimbursement?: 'awaiting' | 'received' | null;
   /** Show ONLY rows that still need a category decision (`isUnclassifiedTxn`).
    *  A separate axis from `type` and from `categoryId` on purpose: it is a question
    *  about whether the app has decided, not about what it decided. */
@@ -160,6 +186,13 @@ export interface TxnSummary {
   outflowCents: Cents;
   /** inflowCents − outflowCents (transfers excluded). */
   netCents: Cents;
+  /**
+   * O.15 (critic P2-1): rows in THIS summary's set the money figures dropped
+   * as reader-excluded. Set-scoped like the figures themselves — the caption's
+   * disclosure branches on this, never on the page slice, because an excluded
+   * row on page 3 moves page 1's totals.
+   */
+  excludedCount: number;
 }
 
 /** Most-recent-first, with a stable id tiebreak so order is fully deterministic. */
@@ -195,6 +228,7 @@ export function filterTransactions(rows: readonly TxnView[], filter: TxnFilter =
   return rows.filter((t) => {
     if (!matchesType(t, type)) return false;
     if (filter.unclassified && !isUnclassifiedTxn(t)) return false;
+    if (filter.reimbursement && reimbursementState(t.reimbursement) !== filter.reimbursement) return false;
     if (filter.accountId && t.accountId !== filter.accountId) return false;
     if (filter.categoryId && t.categoryId !== filter.categoryId) return false;
     if (merchant && t.merchantName.toLowerCase() !== merchant) return false;
@@ -250,8 +284,13 @@ export function paginate<T>(rows: readonly T[], page: number, pageSize: number):
 export function summarizeTransactions(rows: readonly TxnView[]): TxnSummary {
   let inflow = 0;
   let outflow = 0;
+  let excluded = 0;
   for (const t of rows) {
+    if (isExcludedFromTotals(t)) excluded += 1;
     if (t.isTransfer) continue; // transfers are neither income nor expense
+    // O.15: excluded rows stay LISTED (and counted as rows) but leave the
+    // money figures, the same direction as every other total in the app.
+    if (isExcludedFromTotals(t)) continue;
     if (t.amountCents > 0) inflow += t.amountCents;
     else if (t.amountCents < 0) outflow += -t.amountCents;
   }
@@ -260,6 +299,7 @@ export function summarizeTransactions(rows: readonly TxnView[]): TxnSummary {
     inflowCents: cents(inflow),
     outflowCents: cents(outflow),
     netCents: cents(inflow - outflow),
+    excludedCount: excluded,
   };
 }
 

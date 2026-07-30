@@ -287,6 +287,7 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
       date: t.date,
       accountName: accountLabel(t.account),
       status: t.status,
+      reimbursement: t.reimbursement,
       aggregate: normalizeMerchant(t.rawDescriptor).aggregate,
       suggestedCategoryId: out.categoryId === 'uncategorized' ? null : out.categoryId,
       // Plaid's persisted own-category guess (L.12). Read straight from the column —

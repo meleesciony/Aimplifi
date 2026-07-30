@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transactions/links';
 import { useSearchParams } from 'next/navigation';
-import { Check, Pencil, Receipt, Tag } from 'lucide-react';
+import { Check, MoreHorizontal, Pencil, Receipt, Tag } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
@@ -29,7 +29,11 @@ import { TAX_CLASSES, TAX_CLASS_LABELS, taxClassLabel } from '@/lib/engine/tax/c
 import { TXN_NOTE_MAX_CHARS } from '@/lib/engine/tax/note';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import { setTransactionTax } from '@/server/tax-actions';
+import { setExcludeFromTotals, setReimbursement } from '@/server/transaction-flags-actions';
 import { recategorize } from '@/server/triage-actions';
+import { txnActionAvailability } from '@/lib/engine/transactions/actions';
+import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
+import { TxnActionMenuItems } from '@/components/finance/txn-action-menu';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import {
@@ -53,6 +57,9 @@ function taxTriggerLabel(t: TxnView): string {
 }
 
 function amountClass(t: TxnView): string {
+  // Excluded rows stay listed but leave every total (O.15) — the muted amount
+  // plus the visible "Excluded" badge is the register's disclosure of that.
+  if (t.excludeFromTotals) return 'text-muted-foreground';
   if (t.isTransfer) return 'text-muted-foreground';
   return t.amountCents > 0 ? 'text-emerald-500' : 'text-foreground';
 }
@@ -137,6 +144,62 @@ export function TransactionList({
     setTaxError(null);
   }, []);
 
+  // --- The one action menu (O.15) ---------------------------------------------
+  // A THIRD independent controller, same single-open-row discipline as the two
+  // above: menu state never lives per row. The menu is the row's complete verb
+  // list; category and note/tax items DELEGATE to the two existing controllers
+  // rather than duplicating their editors.
+  const [actionOpenId, setActionOpenId] = useState<string | null>(null);
+  const [actionDropUp, setActionDropUp] = useState(false);
+  // The trigger's viewport top, captured at open — the category/note items hand
+  // it to the two existing openers so THEIR drop-up measure stays correct.
+  const [actionTop, setActionTop] = useState(0);
+  const [actionBusy, setActionBusy] = useState(false);
+  // Bound to its row: the flag write's refusal must render on the row that
+  // refused, not wherever the menu happens to be open by then.
+  const [actionError, setActionError] = useState<{ id: string; msg: string } | null>(null);
+  const actionRef = useRef<HTMLDivElement>(null);
+
+  const closeActions = useCallback(() => {
+    setActionOpenId(null);
+  }, []);
+
+  useEffect(() => {
+    if (actionOpenId == null) return;
+    function onDocMouseDown(e: MouseEvent) {
+      if (actionBusy) return; // never dismiss mid-write — the reload confirms it
+      if (actionRef.current && !actionRef.current.contains(e.target as Node)) closeActions();
+    }
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [actionOpenId, closeActions, actionBusy]);
+
+  /** One flag write (exclude / reimbursement), on the shared deadline+reload
+   *  recipe: the re-rendered row is the confirmation that can't lie (#167). */
+  async function writeFlag(t: TxnView, fn: () => Promise<{ ok: true } | { ok: false; error: string }>) {
+    if (actionBusy) return;
+    setActionError(null);
+    setActionBusy(true);
+    let res;
+    try {
+      res = await withDeadline(fn(), FORM_ACTION_DEADLINE_MS);
+    } catch (e) {
+      if (e instanceof ActionDeadline) {
+        window.location.reload(); // write usually committed — re-sync (#164 rule)
+        return;
+      }
+      setActionError({ id: t.id, msg: 'Could not save — nothing was changed. Try again.' });
+      setActionBusy(false);
+      return;
+    }
+    if (!res.ok) {
+      setActionError({ id: t.id, msg: res.error });
+      setActionBusy(false);
+      return;
+    }
+    window.location.reload();
+  }
+
   useEffect(() => {
     if (taxOpenId == null) return;
     function onDocMouseDown(e: MouseEvent) {
@@ -209,6 +272,34 @@ export function TransactionList({
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
   }, [openId, close, pending]);
+
+  /** Open the category picker for one row. Extracted from the chip's onClick so
+   *  the action menu's "Change category" opens the SAME picker in the same state
+   *  — one editor, two doors (O.15). */
+  function openCategoryPicker(t: TxnView, triggerTop: number) {
+    closeTax();
+    closeActions();
+    setDropUp(triggerTop > window.innerHeight * 0.55);
+    setOpenId(t.id);
+    setChosen(null);
+    setError(null);
+    setQuery('');
+    setNewCatOpen(false);
+    setNewCatName(''); // a fresh menu never inherits another row's draft
+    setNewCatError(null);
+  }
+
+  /** Open the note + tax panel for one row — same one-editor-two-doors rule. */
+  function openTaxPanel(t: TxnView, triggerTop: number) {
+    close(); // never leave the category picker open behind this
+    closeActions();
+    setTaxDropUp(triggerTop > window.innerHeight * 0.55);
+    // The draft is seeded from the ROW, every time it opens, so it can never
+    // inherit another row's half-typed note.
+    setTaxDraft({ taxClass: t.taxClass ?? '', note: t.note ?? '' });
+    setTaxError(null);
+    setTaxOpenId(t.id);
+  }
 
   /** Open the mini-form with the group prefilled from the row's CURRENT category
    *  (spending groups only — customs never join Income/Transfers) and the NAME
@@ -395,7 +486,10 @@ export function TransactionList({
       </div>
       <p className="text-xs text-muted-foreground">
         {summary.count} transaction{summary.count === 1 ? '' : 's'}. Totals exclude
-        transfers between your own accounts.
+        transfers between your own accounts
+        {/* Branches on the SUMMARY (set-scoped, critic P2-1), never the page
+            slice: an excluded row on page 3 moves page 1's totals too. */}
+        {summary.excludedCount > 0 ? ' and the rows marked “Excluded from totals”.' : '.'}
         {pageInfo.total > pageInfo.pageSize && (
           <> Showing {pageInfo.fromIndex}–{pageInfo.toIndex}.</>
         )}
@@ -424,6 +518,7 @@ export function TransactionList({
                 const canAlways = Boolean(t.ruleEligible && t.merchantId);
                 const open = openId === t.id;
                 const taxOpen = taxOpenId === t.id;
+                const actionsOpen = actionOpenId === t.id;
                 const pv = provenanceBadgeView(t.provenance);
                 return (
                   <li
@@ -445,6 +540,36 @@ export function TransactionList({
                         {t.status === 'PENDING' && (
                           <Badge variant="outline" className="shrink-0 text-[10px]">
                             Pending
+                          </Badge>
+                        )}
+                        {/* O.15 — the register's honesty about a row the totals no
+                            longer show. Always-visible (not hover-only — the 380px
+                            lesson from slice 1's MERCHANT_LINK_CLASS fix). */}
+                        {t.excludeFromTotals && (
+                          <Badge
+                            variant="outline"
+                            data-testid="txn-excluded-badge"
+                            className="shrink-0 border-amber-500/60 text-[10px] text-amber-700 dark:text-amber-300"
+                          >
+                            Excluded from totals
+                          </Badge>
+                        )}
+                        {reimbursementState(t.reimbursement) === 'awaiting' && (
+                          <Badge
+                            variant="outline"
+                            data-testid="txn-reimb-badge"
+                            className="shrink-0 text-[10px] text-muted-foreground"
+                          >
+                            Awaiting reimbursement
+                          </Badge>
+                        )}
+                        {reimbursementState(t.reimbursement) === 'received' && (
+                          <Badge
+                            variant="outline"
+                            data-testid="txn-reimb-badge"
+                            className="shrink-0 text-[10px] text-muted-foreground"
+                          >
+                            Reimbursed
                           </Badge>
                         )}
                         {/* O.13b — the detail view: one place carrying this row's
@@ -565,6 +690,16 @@ export function TransactionList({
                           {confirmError.msg}
                         </p>
                       )}
+                      {/* A flag write's refusal, on the row that refused (O.15). */}
+                      {actionError?.id === t.id && (
+                        <p
+                          role="alert"
+                          className="mt-0.5 text-[11px] text-red-400"
+                          data-testid="txn-action-error"
+                        >
+                          {actionError.msg}
+                        </p>
+                      )}
                       <div
                         ref={open ? menuRef : undefined}
                         className="relative text-xs text-muted-foreground"
@@ -578,17 +713,7 @@ export function TransactionList({
                           onClick={(e) =>
                             open
                               ? close()
-                              : (setDropUp(
-                                  e.currentTarget.getBoundingClientRect().top >
-                                    window.innerHeight * 0.55,
-                                ),
-                                setOpenId(t.id),
-                                setChosen(null),
-                                setError(null),
-                                setQuery(''),
-                                setNewCatOpen(false),
-                                setNewCatName(''), // a fresh menu never inherits another row's draft
-                                setNewCatError(null))
+                              : openCategoryPicker(t, e.currentTarget.getBoundingClientRect().top)
                           }
                         >
                           {t.categoryName}
@@ -615,15 +740,7 @@ export function TransactionList({
                                 closeTax();
                                 return;
                               }
-                              close(); // never leave the category picker open behind this
-                              setTaxDropUp(
-                                e.currentTarget.getBoundingClientRect().top > window.innerHeight * 0.55,
-                              );
-                              // The draft is seeded from the ROW, every time it opens, so
-                              // it can never inherit another row's half-typed note.
-                              setTaxDraft({ taxClass: t.taxClass ?? '', note: t.note ?? '' });
-                              setTaxError(null);
-                              setTaxOpenId(t.id);
+                              openTaxPanel(t, e.currentTarget.getBoundingClientRect().top);
                             }}
                           >
                             <Tag className="size-3 shrink-0 opacity-50" aria-hidden />
@@ -938,8 +1055,85 @@ export function TransactionList({
                         )}
                       </div>
                     </div>
-                    <div className={`shrink-0 tabular-nums ${amountClass(t)}`}>
-                      {formatCents(cents(t.amountCents), { signDisplay: 'always' })}
+                    <div className="flex shrink-0 items-center gap-1">
+                      <div className={`tabular-nums ${amountClass(t)}`}>
+                        {formatCents(cents(t.amountCents), { signDisplay: 'always' })}
+                      </div>
+                      {/* O.15 — the one action menu: the row's complete verb list.
+                          Same content module the detail view renders, so the two
+                          surfaces can never disagree about what a row can do. */}
+                      <div ref={actionsOpen ? actionRef : undefined} className="relative">
+                        <button
+                          type="button"
+                          data-testid="txn-action-trigger"
+                          aria-haspopup="menu"
+                          aria-expanded={actionsOpen}
+                          aria-label={`All actions for this ${t.merchantName} transaction`}
+                          className="tap-target inline-flex items-center justify-center rounded border px-1 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                          onClick={(e) => {
+                            if (actionsOpen) {
+                              closeActions();
+                              return;
+                            }
+                            close();
+                            closeTax();
+                            const top = e.currentTarget.getBoundingClientRect().top;
+                            setActionTop(top);
+                            setActionDropUp(top > window.innerHeight * 0.55);
+                            setActionError(null);
+                            setActionOpenId(t.id);
+                          }}
+                        >
+                          <MoreHorizontal className="size-4" aria-hidden />
+                        </button>
+                        {actionsOpen && (
+                          <div
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') {
+                                const trigger = actionRef.current?.querySelector<HTMLButtonElement>(
+                                  '[data-testid="txn-action-trigger"]',
+                                );
+                                closeActions();
+                                trigger?.focus();
+                              }
+                            }}
+                            className={`absolute right-0 z-50 max-h-80 w-64 max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border bg-card text-foreground shadow-lg ring-1 ring-foreground/10 ${
+                              actionDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                            }`}
+                          >
+                            <TxnActionMenuItems
+                              actions={txnActionAvailability({
+                                amountCents: t.amountCents,
+                                isTransfer: t.isTransfer,
+                                isSplitParent: false, // the register never loads containers
+                                splitParentId: t.splitParentId,
+                                taxClass: t.taxClass,
+                                excludeFromTotals: t.excludeFromTotals,
+                                reimbursement: t.reimbursement,
+                              })}
+                              excluded={t.excludeFromTotals}
+                              busy={actionBusy}
+                              handlers={{
+                                onCategory: () => openCategoryPicker(t, actionTop),
+                                onNoteTax: () => openTaxPanel(t, actionTop),
+                                // The split form lives on the detail view — navigate,
+                                // don't duplicate it here.
+                                splitHref: `/transactions/${encodeURIComponent(t.id)}`,
+                                onReimbursement: (state) =>
+                                  void writeFlag(t, () =>
+                                    setReimbursement({ transactionId: t.id, state }),
+                                  ),
+                                onExclude: (exclude) =>
+                                  void writeFlag(t, () =>
+                                    setExcludeFromTotals({ transactionId: t.id, exclude }),
+                                  ),
+                                ruleHref: `/rules?from=${encodeURIComponent(t.id)}`,
+                                renameHref: `/rules?from=${encodeURIComponent(t.id)}#kw-rename`,
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </li>
                 );

@@ -6768,3 +6768,53 @@ port 3100 (37 stray node processes). Fixes: measure `now - mtime(newest output)`
 pipe a long run through a buffering `grep`, treat `test-results/` merely EXISTING as a
 finding, and kill strays before a full gate.
 
+
+### O.15 slice 2 — one action menu per transaction (verify green, shipped below)
+
+Owner brief: "I should be able to do all other features from one menu (tax related,
+reimburse, exclude from budget etc) — even if I don't use it." Full design + critic
+record in DECISIONS #342; the short shape: `Transaction.excludeFromTotals` drops a row
+from every money TOTAL through the SAME predicates that already drop transfers
+(`isExcludedFromTotals` in `engine/transactions/exclude.ts`, one greppable basis;
+deliberately NOT applied to balances, cash-needed, recurring, or tax export — each
+recorded in the module header); `reimbursement` ('awaiting'/'received') is informational
+by construction — never touches a predicate (locked by test), its only money-shaped
+output the coach's outstanding line (verbatim |amount| sums, linking to
+`/transactions?reimb=awaiting`), with the received-side match a display-time SUGGESTION,
+not a stored link. `txnActionAvailability` returns ALL EIGHT actions always —
+disabled-with-reason, never hidden — and the register menu, detail menu, triage split
+door, and the server refusals all read the same exported sentences. Demo fence on both
+writes. Schema: two additive Transaction columns (`excludeFromTotals Boolean
+@default(false)`, `reimbursement String?`).
+
+CRITIC: cycle 1 FAIL — 0 P0, 4 P1 (all state TRANSITIONS the slice never modeled:
+split-reinstates-excluded-money; split-vanishes-the-owed-claim; transfer-reflag locks
+the only exit from a standing owed claim — fixed with the UNDO ASYMMETRY, starting an
+action may be refused, stopping it never is; coach's owed link landed on a filter the
+filter bar denied), 2 P2, 2 P3. Cycle 2 PASS — every finding closed by re-executed
+repros; one NEW P2 (triage split door on a tracked row surfaced the refusal as a masked
+production throw — field threaded, shared sentence rendered). 5 REGRESSION_LEDGER rows,
+EDGE_CASES sections, DECISIONS #342.
+
+SESSION BREAK: the app disconnected mid-final-gate (last owner-visible state: cycle 2
+PASS + a "re-run and capture failure details" shell running). Resumed in a fresh
+session from the working tree + DECISIONS #342 + two owner screenshots; the gate was
+re-run from scratch rather than trusted.
+
+THE FAILURE THAT SHELL WAS CHASING, resolved as a recorded intermittent, not written
+off: `mobile-overflow.spec.ts:408` (`/transactions/[id]` sweep) failed ONCE on
+mobile-webkit — `page.waitForURL` 20s timeout after clicking the first
+`txn-detail-link`; the snapshot showed the click landed (still signed in, still on the
+register, no open menu recorded). Evidence it is NOT this slice: the identical
+signature (same test, same waitForURL timeout) is already recorded in the slice-1 notes
+from a run on a build WITHOUT the action menu; the test passes alone on webkit (3.4s),
+passes in the webkit-only spec run (7/7), passed on mobile-380 in the SAME run that
+failed on webkit, passed on an immediate identical re-run (18/18), and passed in the
+full serialized gate. Correlates with cold first-run-after-build. Mechanism UNKNOWN —
+if it recurs, the artifact now gets copied aside BEFORE any re-run (this session lost
+the first artifact to a rerun's cleanup; do not repeat that).
+
+GATE (this session, clean env, port 3100 free, no stray next servers):
+`bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0, **4950 unit / 312
+files** (+35/+4 over slice 1), build clean. Full e2e SERIALIZED (`--workers=1`) →
+**238 passed, 6.4m, zero failure artifacts** (+4 = action-menu.spec).

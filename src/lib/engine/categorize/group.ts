@@ -28,6 +28,11 @@ export interface ReviewRow {
   date: string;
   accountName: string;
   status: string;
+  /** O.15 (cycle-2 P2): the inbox's split tool must refuse a tracked row with
+   *  the shared sentence BEFORE the server throw — a thrown server-action
+   *  message is masked to a digest in production, so the client-side gate is
+   *  the only place the reader can actually read the reason. */
+  reimbursement: string | null;
   aggregate: boolean;
   /**
    * The pipeline's verdict for this row, or null when it has none
@@ -75,7 +80,9 @@ export interface TriageGroup {
    */
   providerSuggestedCategoryId: string | null;
   /** Every queued row, newest first — powers expand-to-singles and the card meta. */
-  rows: Array<Pick<ReviewRow, 'id' | 'date' | 'amountCents' | 'rawDescriptor' | 'status' | 'accountName'>>;
+  rows: Array<
+    Pick<ReviewRow, 'id' | 'date' | 'amountCents' | 'rawDescriptor' | 'status' | 'accountName' | 'reimbursement'>
+  >;
 }
 
 export function groupKey(row: Pick<ReviewRow, 'merchantId' | 'rawDescriptor' | 'merchantCanonical' | 'aggregate'>): string {
@@ -146,6 +153,7 @@ export function groupReviewRows(rows: ReviewRow[]): TriageGroup[] {
         rawDescriptor: m.rawDescriptor,
         status: m.status,
         accountName: m.accountName,
+        reimbursement: m.reimbursement,
       })),
     });
   }

@@ -102,6 +102,7 @@ export async function getHouseholdDigestContext(
           isTransfer: true,
           status: true,
           isSplitParent: true,
+          excludeFromTotals: true, // O.15: the shared tally obeys the one basis
         },
       })
     : [];

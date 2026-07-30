@@ -31,6 +31,7 @@ function run(rules: RuleLike[]) {
     merchantId: o.verdict.merchantCanonical, // canonical stands in for the FK in the pure run
     merchantCanonical: o.verdict.merchantCanonical,
     rawDescriptor: o.txn.rawDescriptor,
+    reimbursement: null,
     amountCents: o.txn.amountCents,
     date: o.txn.date,
     accountName: 'X',

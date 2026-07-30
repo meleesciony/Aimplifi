@@ -175,6 +175,10 @@ export type SharedTxnRow = {
   amountCents: number;
   status: string;
   isTransfer: boolean;
+  /** O.15 (critic P2-2): the joint digest's tally drops excluded rows, so the
+   *  shared LIST must badge them — a total that silently omits a row the list
+   *  shows unmarked is two surfaces disagreeing about a partner's money. */
+  excludeFromTotals: boolean;
   /** Owner display label (name, else email) — attribution honesty (§4.4). */
   ownerLabel: string;
 };
@@ -265,6 +269,7 @@ export async function getSharedTransactionsView(): Promise<SharedTransactionsVie
       amountCents: t.amountCents,
       status: t.status,
       isTransfer: t.isTransfer,
+      excludeFromTotals: t.excludeFromTotals,
       ownerLabel: t.account.user.name ?? t.account.user.email,
     })),
   };

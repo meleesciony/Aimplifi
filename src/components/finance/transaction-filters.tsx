@@ -28,7 +28,7 @@ export function TransactionFilters({
   /** Category dropdown options — the user's visible assignable set incl. customs
    *  (DECISIONS #111). Hidden categories are still findable via the search box. */
   categoryOptions: { id: string; name: string }[];
-  current: { search: string; account: string; category: string; merchant: string; type: string; from: string; to: string; unclassified: boolean };
+  current: { search: string; account: string; category: string; merchant: string; type: string; from: string; to: string; unclassified: boolean; reimbursement: 'awaiting' | 'received' | null };
   /** How many rows in the register still need a category decision, BEFORE this
    *  filter is applied — so the toggle can say what it would find, and can say so
    *  while it is already on. Zero hides the control: a filter that can only ever
@@ -50,6 +50,10 @@ export function TransactionFilters({
     if (merged.from) q.set('from', merged.from);
     if (merged.to) q.set('to', merged.to);
     if (merged.unclassified) q.set('unclassified', '1');
+    // O.15: the coach's owed-money link sets this — preserved across commits and
+    // cleared by Clear, like every other axis (critic P1-4: a filter the bar
+    // denies is a dead end wearing a page).
+    if (merged.reimbursement) q.set('reimb', merged.reimbursement);
     const qs = q.toString();
     router.push(qs ? `/transactions?${qs}` : '/transactions');
   }
@@ -57,7 +61,8 @@ export function TransactionFilters({
   const hasFilters =
     !!(current.search || current.account || current.category || current.merchant || current.from || current.to) ||
     current.type !== 'all' ||
-    current.unclassified;
+    current.unclassified ||
+    current.reimbursement !== null;
 
   return (
     <div className="space-y-2" data-testid="txn-filters">
@@ -192,6 +197,19 @@ export function TransactionFilters({
             className={selectClass}
           />
         </label>
+
+        {current.reimbursement !== null && (
+          <button
+            type="button"
+            aria-pressed
+            onClick={() => commit({ reimbursement: null })}
+            data-testid="txn-filter-reimb"
+            className="tap-target inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-input bg-accent px-3 text-sm font-medium"
+          >
+            {current.reimbursement === 'awaiting' ? 'Awaiting reimbursement' : 'Reimbursed'}
+            <span aria-hidden>×</span>
+          </button>
+        )}
 
         {hasFilters && (
           <button

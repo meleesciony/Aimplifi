@@ -10,6 +10,7 @@ import { type Cents, cents } from '@/lib/money';
 import { type ISODate, addMonthsClamped, isoDate, monthKey } from '@/lib/dates';
 import { median } from '@/lib/stats';
 import { categorize } from '@/lib/engine/categorize/pipeline';
+import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId } from '@/lib/engine/categorize/categories';
 import type { RecurringSeriesResult } from '@/lib/engine/recurring/detect';
 import { opportunityFVCents, savingsRateBps } from './fi';
@@ -26,11 +27,13 @@ export interface TxnLike {
   /** Container rows from splits are excluded; their CHILDREN carry the amounts. */
   isSplitParent?: boolean;
   splitParentId?: string | null;
+  /** O.15: reader-excluded rows leave every flow via this one basis. */
+  excludeFromTotals?: boolean | null;
 }
 
 /** The single inclusion rule for flow aggregation (one definition, used everywhere). */
 function countsInFlows(t: TxnLike): boolean {
-  return !t.isTransfer && t.status === 'POSTED' && !t.isSplitParent;
+  return !t.isTransfer && t.status === 'POSTED' && !t.isSplitParent && !isExcludedFromTotals(t);
 }
 
 /**

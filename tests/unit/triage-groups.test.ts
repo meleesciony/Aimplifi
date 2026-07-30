@@ -224,9 +224,9 @@ describe('merchant-group triage (Phase 3b)', () => {
 
   it('pure grouping: leverage sort (count desc), preserved newest-first rows, merchantless fallback key', () => {
     const groups = groupReviewRows([
-      { id: 'a1', merchantId: null, merchantCanonical: 'Local One', rawDescriptor: 'LOCAL ONE', amountCents: -100, date: '2026-06-09', accountName: 'X', status: 'POSTED', aggregate: false, suggestedCategoryId: null, providerCategoryId: null },
-      { id: 'b1', merchantId: 'm1', merchantCanonical: 'Busy', rawDescriptor: 'BUSY 1', amountCents: -100, date: '2026-06-08', accountName: 'X', status: 'POSTED', aggregate: false, suggestedCategoryId: 'coffee', providerCategoryId: null },
-      { id: 'b2', merchantId: 'm1', merchantCanonical: 'Busy', rawDescriptor: 'BUSY 2', amountCents: -200, date: '2026-06-07', accountName: 'X', status: 'POSTED', aggregate: false, suggestedCategoryId: 'dining', providerCategoryId: null },
+      { id: 'a1', merchantId: null, merchantCanonical: 'Local One', rawDescriptor: 'LOCAL ONE', amountCents: -100, date: '2026-06-09', accountName: 'X', status: 'POSTED', reimbursement: null, aggregate: false, suggestedCategoryId: null, providerCategoryId: null },
+      { id: 'b1', merchantId: 'm1', merchantCanonical: 'Busy', rawDescriptor: 'BUSY 1', amountCents: -100, date: '2026-06-08', accountName: 'X', status: 'POSTED', reimbursement: null, aggregate: false, suggestedCategoryId: 'coffee', providerCategoryId: null },
+      { id: 'b2', merchantId: 'm1', merchantCanonical: 'Busy', rawDescriptor: 'BUSY 2', amountCents: -200, date: '2026-06-07', accountName: 'X', status: 'POSTED', reimbursement: null, aggregate: false, suggestedCategoryId: 'dining', providerCategoryId: null },
     ]);
     expect(groups.map((g) => g.merchantCanonical)).toEqual(['Busy', 'Local One']); // 2 rows beat 1
     expect(groups[0].suggestedCategoryId).toBeNull(); // MIXED verdicts → null, no fake unanimity
@@ -250,6 +250,7 @@ describe('merchant-group triage (Phase 3b)', () => {
     aggregate: o.aggregate ?? false,
     suggestedCategoryId: o.suggestedCategoryId ?? null,
     providerCategoryId: o.providerCategoryId ?? null,
+    reimbursement: null,
   });
 
   it('L.12 pure: a unanimous Plaid guess with no pipeline suggestion becomes the fallback, and is NOT confident', () => {

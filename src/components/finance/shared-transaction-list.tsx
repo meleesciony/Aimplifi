@@ -166,6 +166,17 @@ export function SharedTransactionList({
                           Pending
                         </Badge>
                       )}
+                      {/* O.15 (critic P2-2): the joint digest's tally drops
+                          excluded rows — the list says so on the row itself. */}
+                      {t.excludeFromTotals && (
+                        <Badge
+                          variant="outline"
+                          data-testid="shared-txn-excluded-badge"
+                          className="shrink-0 border-amber-500/60 text-[10px] text-amber-700 dark:text-amber-300"
+                        >
+                          Excluded from totals
+                        </Badge>
+                      )}
                     </div>
                     <div
                       ref={open ? menuRef : undefined}
