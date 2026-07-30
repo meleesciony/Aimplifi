@@ -6448,3 +6448,56 @@ NEXT: (1) O.13b the transaction detail view — it now also owes the raw-bank-te
 mitigation is a zero-match hint, not a fix); (2) O.13d rule EDIT + surfacing merchant/learned rules in
 the list, since a typed rule silently outranks both; (3) O.12e the inbox drill-down.
 
+
+## O.13c SHIPPED + deploy-verified — Simplifi-parity rules. 2026-07-30
+
+Commit `368c3cb`, pushed, deployment `dpl_41ea5f2M…` **READY**, sha matches, aliased to
+`www.aimplifi.app` + `aimplifi.app` (`aliasError: null`), zero runtime errors in the hour after.
+Picked up a prior session's UNCOMMITTED working tree (verified in a cloud sandbox: tsc/eslint/vitest
+only) and took it through local verify, critics, docs, and ship.
+
+**Gate, run locally with real output:** `VERIFY_E2E=1 bash scripts/verify.sh` → tsc clean, eslint
+clean, **305 files / 4865 tests**, `next build` clean, **218 e2e**. (Baseline before my fixes was
+4858 / 218; the +7 are the new fail-old locks.) A 218-test e2e baseline was also captured on the
+tree exactly as handed off, so the critic fixes are isolated from "did it ever work".
+
+**Two briefing claims were wrong and both mattered.** (1) `RULES_GAP_REPORT.md` does not exist
+anywhere in the tree — its content went into docs/STATUS.md + the TASKS row instead, since a
+root-level status file would violate the repo's own one-status-home rule. (2) The brief said
+`prisma db push` runs on deploy "because a schema diff is present"; `package.json`'s build is bare
+`next build`. The push actually comes from a `buildCommand` override in `vercel.json`. Verified
+before pushing, and confirmed in the build log afterwards:
+`Datasource "db": PostgreSQL database "pulse" … neon.tech` → `Your database is now in sync with your
+Prisma schema. Done in 557ms`. That line is the real proof for this slice, because `/rules` is
+auth-gated — `curl | grep` for a UI marker is not available, and the demo path returns `[]` before
+it ever selects the new column, so it would not exercise it either. Pre-flighted by running
+`gen-pg-schema.mjs` + `prisma validate` against the generated Postgres schema locally first.
+
+**CRITIC CYCLE 1 — two fresh-context critics, both FAIL: 1 P0 + 3 P1, all fixed + locked
+(6 ledger rows, DECISIONS #340, one new lesson file).**
+
+The P0 was found INDEPENDENTLY by both, from different assigned lenses. OR-groups had been encoded
+into the EXISTING `matchKeywords` column with `|` as the divider, and `|` was an ordinary character
+inside a keyword under the parser that wrote every row already in the database. `us|y47` (an AND key
+requiring that literal text) became an OR firing on `y47` alone at 9900 bps with no review;
+`shell|a`, which passed O.13a's floor as one 7-char token, would have become the group `["a"]` and
+mass-filed an entire account. Fixed structurally — new column, legacy decoder keeps the old
+separators forever, floor re-applied on the READ path in one shared basis.
+
+**I mis-analyzed one of these myself and a critic caught it.** I inspected the undo lineage guard,
+saw `createdFrom: correction.id`, and cleared it — considering only the case of undoing an *old*
+correction. Undoing an *edit's* re-apply matches that guard and deleted the rule the reader had only
+meant to edit. Lineage is now claimed on the create path only (`claimLineage`).
+
+**And a fix of mine broke what it measured.** Making the "N payees renamed" count truthful via
+`NOT: { merchantId }` is UNKNOWN for NULL columns in SQL's three-valued logic, so every rename
+reported 0 and wrote nothing. The lock written for the count claim caught it within the minute; the
+predicate is now an explicit `OR: [{ merchantId: null }, …]`.
+
+**Resume from here:** 7 residuals are recorded in docs/STATUS.md under "OPEN after O.13c" — the
+three worth a decision are that clearing a rename cannot restore the bank's text, backfill honors a
+rule's category but not its rename, and a case-only rename collision mints a second `Merchant` row
+(no portable case-insensitive lookup across SQLite + Postgres in Prisma). Residual 7 is
+pre-existing and outside the app: the two O.12 audit probes don't select `matchKeywords`, so they
+model every typed keyword rule as match-everything and have been unreliable since O.13a. O.13b (the
+transaction detail view) is the next queued row in this wave.
