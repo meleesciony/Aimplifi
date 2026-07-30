@@ -6396,3 +6396,32 @@ STILL NOT BUILT, and it is why the owner says he can't help: the RULE BUILDER UI
 plumbed end to end and unreachable from the app.
 NEXT: (1) the builder UI — chips, live match count, apply-to-existing, then the hostile critic;
 (2) O.13b transaction detail view; (3) O.12e inbox drill-down suggestions.
+
+## O.13a SHIPPED — the rule builder is live. 2026-07-29
+`d6a763c`, deploy-verified: the deployment holding `https://www.aimplifi.app` was built from
+`Commit: d6a763c` and its build output lists the route `f /rules` (a marker unique to this change — the
+307-to-sign-in a curl gets proves nothing, since every unknown path redirects the same way).
+
+WHAT THE OWNER CAN NOW DO: /rules (or the Rules button in the register header) — type `cardone`, pick
+Investment Income, see "Matches 2 transactions in your history — 2 not yet categorized", the money-in/out
+split, five real descriptors, and a warning if any matched row runs the wrong way for that category; then
+create, with or without filing the history. Each re-filed row writes a Correction, so it undoes like any
+other filing. The rules list shows what he wrote and deletes it without un-categorizing anything.
+
+WHY IT WAS NEEDED, from his own data: `Cardone Eq Fund Cef Xv Ppd ~ Tran: ...` and `Cardone Equity F Cef
+Ix Ppd ~ Tran: ...` are two unrelated payees to every DERIVED key (merchant canonical, descriptor
+signature), so every correction he made taught the app about a payee it will never see again.
+
+THE E2E EARNED ITS KEEP — three defects no unit test could see: a stale /rules render contradicting its
+own success message (missing revalidate on the page the reader stands on); my new header link overflowing
+380px in BOTH engines; and the icon-only fix for that overflow removing the control's accessible name,
+failing two WCAG sweeps. Also caught elsewhere: /rules had to join SYNC_REVALIDATE_PATHS, and 4 raw 0x08
+bytes my own doc edit wrote into TASKS.md (the heredoc hazard the repo already has a lesson about).
+
+PROCESS NOTE worth keeping: my own spec failed 3 of 4 full-suite runs on a post-`router.refresh()` count
+and passed every time it ran alone — the documented load-flake signature, but in MY assertion rather than
+in the app. Fixed by making the wait budget explicit, never by weakening the claim.
+
+STILL OWED on O.13a: the hostile-critic pass (categorization routing that writes money categories).
+NEXT: (1) the O.13a critic; (2) O.13b the transaction detail view; (3) O.12e the inbox drill-down.
+
