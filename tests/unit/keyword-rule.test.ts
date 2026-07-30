@@ -21,14 +21,18 @@ import { describe, expect, it } from 'vitest';
 import {
   KEYWORD_RULE_PRIORITY,
   MIN_KEYWORD_LENGTH,
+  decodeKeywordGroups,
   decodeKeywords,
+  encodeKeywordGroups,
   encodeKeywords,
+  keywordGroupsMatch,
   keywordSpecificity,
   keywordsMatch,
   longestKeywordLength,
+  parseKeywordGroups,
   parseKeywords,
 } from '@/lib/engine/categorize/keyword-rule';
-import { toRuleLike } from '@/server/rules';
+import { toRuleLike, toRuleLikes } from '@/server/rules';
 import { type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
 
 /** The owner's real statement text, from his Simplifi screenshot. */
@@ -332,5 +336,256 @@ describe('the minimum key length (critic P2-10)', () => {
     expect(MIN_KEYWORD_LENGTH).toBeGreaterThanOrEqual(3);
     expect(longestKeywordLength(parseKeywords('a'))).toBeLessThan(MIN_KEYWORD_LENGTH);
     expect(longestKeywordLength(parseKeywords('a cardone'))).toBeGreaterThanOrEqual(MIN_KEYWORD_LENGTH);
+  });
+});
+
+/**
+ * OR-GROUPS (TASKS O.13c — Simplifi parity: "Add 'OR' conditions to target
+ * different keyword combinations"). The owner's Cardone rows arrive as
+ * 'Cardone Eq Fund …' and 'Cardone Equity F …' — one broad keyword spans them,
+ * but a reader who wants the narrower keys needs OR: `cardone eq | cardone
+ * equity`. The failure directions stay the O.13a ones: an all-empty key still
+ * matches NOTHING, and a pre-O.13c stored key must decode byte-identically.
+ */
+describe('parseKeywordGroups / the group codec', () => {
+  it('splits groups on |, keeps AND semantics inside each group', () => {
+    expect(parseKeywordGroups('cardone eq | cardone equity')).toEqual([
+      ['cardone', 'eq'],
+      ['cardone', 'equity'],
+    ]);
+  });
+
+  it('an input with no | is exactly one group — every pre-O.13c key decodes as before', () => {
+    expect(parseKeywordGroups('tjmaxx 0181')).toEqual([['tjmaxx', '0181']]);
+    expect(decodeKeywordGroups('tjmaxx 0181')).toEqual([parseKeywords('tjmaxx 0181')]);
+  });
+
+  it('drops empty groups, collapses duplicate groups, and refuses the all-empty key', () => {
+    expect(parseKeywordGroups('cardone | ')).toEqual([['cardone']]);
+    expect(parseKeywordGroups('cardone | cardone')).toEqual([['cardone']]);
+    // Duplicates collapse regardless of ORDER — matching is order-free, so these
+    // are one condition and storing both rendered two identical chip rows and
+    // inflated the audited group count (critic P2-3).
+    expect(parseKeywordGroups('cardone eq | eq cardone')).toEqual([['cardone', 'eq']]);
+    expect(parseKeywordGroups(' | , | ')).toEqual([]);
+    expect(decodeKeywordGroups(null)).toEqual([]);
+    expect(decodeKeywordGroups('')).toEqual([]);
+  });
+
+  it('round-trips losslessly: no token can contain the group divider', () => {
+    // `|` is in the parser's separator set, so `a|b` can never be one token —
+    // which is the whole argument that the `|`-join encoding is lossless.
+    expect(parseKeywords('a|b')).toEqual(['a', 'b'] as string[]);
+    const groups = parseKeywordGroups('cardone eq | cardone equity');
+    expect(decodeKeywordGroups(encodeKeywordGroups(groups))).toEqual(groups);
+    expect(encodeKeywordGroups([])).toBe('');
+  });
+});
+
+describe('keywordGroupsMatch — OR of ANDs', () => {
+  const EQ = 'Cardone Eq Fund Cef Xv Ppd ~ Tran: 9912';
+  const EQUITY = 'Cardone Equity F Cef Ix Ppd ~ Tran: 4471';
+
+  it('matches when ANY one group fully matches', () => {
+    const groups = parseKeywordGroups('cardone eq fund | cardone equity');
+    expect(keywordGroupsMatch(groups, EQ)).toBe(true);
+    expect(keywordGroupsMatch(groups, EQUITY)).toBe(true);
+    expect(keywordGroupsMatch(groups, 'PUBLIX #1234')).toBe(false);
+  });
+
+  it('refuses the empty groups list — never a match-everything key', () => {
+    expect(keywordGroupsMatch([], EQ)).toBe(false);
+  });
+});
+
+describe('toRuleLikes — one stored rule, one RuleLike per OR-group', () => {
+  const base = {
+    id: 'r1',
+    merchantId: null,
+    minAmountCents: null,
+    maxAmountCents: null,
+    weekendOnly: null,
+    weekdayOnly: null,
+    accountId: null,
+    categoryId: 'investment-income',
+    priority: KEYWORD_RULE_PRIORITY,
+  };
+
+  it('expands a multi-group key to entries sharing the id, actions, and conditions', () => {
+    const out = toRuleLikes(
+      {
+        ...base,
+        matchKeywords: 'cardone eq',
+        matchKeywordGroups: 'cardone eq | cardone equity',
+        renameTo: 'Cardone',
+      },
+      new Map(),
+    );
+    expect(out).toHaveLength(2);
+    expect(out.map((r) => r.matchKeywords)).toEqual([
+      ['cardone', 'eq'],
+      ['cardone', 'equity'],
+    ]);
+    for (const r of out) {
+      expect(r.id).toBe('r1');
+      expect(r.renameTo).toBe('Cardone');
+      expect(r.categoryId).toBe('investment-income');
+    }
+  });
+
+  it('the pipeline files EITHER variant through the one stored rule', () => {
+    const rules = toRuleLikes(
+      {
+        ...base,
+        matchKeywords: 'cardone eq fund',
+        matchKeywordGroups: 'cardone eq fund | cardone equity',
+      },
+      new Map(),
+    );
+    for (const rawDescriptor of [
+      'Cardone Eq Fund Cef Xv Ppd ~ Tran: 9912',
+      'Cardone Equity F Cef Ix Ppd ~ Tran: 4471',
+    ]) {
+      const out = categorize({ ...TXN, amountCents: 37500, rawDescriptor }, rules);
+      expect(out.categoryId).toBe('investment-income');
+      expect(out.matchedRuleId).toBe('r1');
+    }
+  });
+
+  it('still refuses a declared-but-empty key, and passes a pre-O.13c row through unchanged', () => {
+    expect(toRuleLikes({ ...base, matchKeywords: '  ,  ', matchKeywordGroups: ' | ' }, new Map())).toEqual(
+      [],
+    );
+    const out = toRuleLikes({ ...base, priority: 100, matchKeywords: null }, new Map());
+    expect(out).toHaveLength(1);
+    expect(out[0].matchKeywords).toBeNull();
+    // And the single-rule mapper agrees with the expansion (shared body).
+    expect(toRuleLike({ ...base, matchKeywords: 'tjmaxx' }, new Map())?.matchKeywords).toEqual(['tjmaxx']);
+  });
+
+  /**
+   * CRITIC CYCLE 1, P0 + P1 — both critics found this independently.
+   *
+   * O.13c's first cut encoded OR-groups into the EXISTING `matchKeywords` column
+   * and taught the parser to treat `|` as the divider. But `|` was an ordinary
+   * character inside a keyword under the parser that WROTE every stored row, so
+   * that change silently redefined data already in the database: an AND key that
+   * required the literal `us|y47` became an OR that fires on `y47` alone, and
+   * `shell|a` — which passed the O.13a length floor as one 7-character token —
+   * became a group `["a"]` that matches nearly every descriptor and auto-files it
+   * at 9900 bps with no review and no badge. Widening is the ONE direction this
+   * engine's header forbids in capitals.
+   *
+   * The groups therefore live in their own column, and these are the fail-old
+   * locks for both halves.
+   */
+  describe('a pre-O.13c stored key keeps its ORIGINAL meaning (critic P0/P1)', () => {
+    it('reads a legacy `|` as part of a keyword, never as an OR divider', () => {
+      const out = toRuleLikes({ ...base, matchKeywords: 'amzn mktp us|y47' }, new Map());
+      // ONE AND-group, and the `|` token survives inside it exactly as stored.
+      expect(out).toHaveLength(1);
+      expect(out[0].matchKeywords).toEqual(['amzn', 'mktp', 'us|y47']);
+      // So it still matches only the literal text it always required…
+      expect(
+        categorize({ ...TXN, amountCents: 37500, rawDescriptor: 'AMZN MKTP US|Y47 BILL' }, out)
+          .matchedRuleId,
+      ).toBe('r1');
+      // …and NOT the widened OR it would have become.
+      expect(
+        categorize({ ...TXN, amountCents: 37500, rawDescriptor: 'Y47 SOMETHING ELSE' }, out).matchedRuleId,
+      ).toBeNull();
+    });
+
+    it('never lets a legacy row widen into a sub-floor file-everything group', () => {
+      const out = toRuleLikes({ ...base, matchKeywords: 'shell|a' }, new Map());
+      expect(out).toHaveLength(1);
+      expect(out[0].matchKeywords).toEqual(['shell|a']);
+      // The catastrophic case: an unrelated row must NOT be filed by this rule.
+      expect(
+        categorize({ ...TXN, amountCents: -4400, rawDescriptor: 'PUBLIX #1234' }, out).matchedRuleId,
+      ).toBeNull();
+    });
+
+    it('re-applies the per-group length floor on the READ path, dropping only the weak group', () => {
+      // Defense in depth, the same discipline `isAggregateCanonical` already gets
+      // in this mapper: a guard that runs only at creation is advisory.
+      const out = toRuleLikes(
+        { ...base, matchKeywords: 'cardone', matchKeywordGroups: 'cardone | eq' },
+        new Map(),
+      );
+      expect(out).toHaveLength(1);
+      expect(out[0].matchKeywords).toEqual(['cardone']);
+      // Every group too weak ⇒ the rule matches NOTHING, never everything.
+      expect(
+        toRuleLikes({ ...base, matchKeywords: 'eq', matchKeywordGroups: 'eq | xv' }, new Map()),
+      ).toEqual([]);
+    });
+
+    it('degrades to the first group, never to everything, if the group column is lost', () => {
+      const out = toRuleLikes({ ...base, matchKeywords: 'cardone eq', matchKeywordGroups: null }, new Map());
+      expect(out).toHaveLength(1);
+      expect(out[0].matchKeywords).toEqual(['cardone', 'eq']);
+    });
+  });
+});
+
+/**
+ * RENAME PAYEE (O.13c — Simplifi parity: the THEN action in the owner's
+ * screenshot, "Rename Payee: Costco"). The pipeline's returned canonical is what
+ * every ingest writer upserts the Merchant row from, so the rename is an
+ * identity-level grouping. The guarded directions: a rule that does NOT file
+ * (sign-refused) must not rename either, and a rule without a rename must leave
+ * the canonical byte-identical.
+ */
+describe('rename payee — the pipeline half', () => {
+  const RENAMING = () =>
+    rule({
+      id: 'kw-costco',
+      matchKeywords: parseKeywords('costco whse'),
+      categoryId: 'groceries',
+      renameTo: 'Costco',
+    });
+
+  it('a filing rule renames the canonical, and the payee becomes known', () => {
+    const out = categorize({ ...TXN, rawDescriptor: 'costco whse 1084' }, [RENAMING()]);
+    expect(out.matchedRuleId).toBe('kw-costco');
+    expect(out.merchantCanonical).toBe('Costco');
+    expect(out.merchantKnown).toBe(true);
+  });
+
+  it('spans descriptor variants — the same-vendor-presented-differently defect', () => {
+    for (const rawDescriptor of ['costco whse 1084', 'COSTCO WHSE #0981 ATLANTA']) {
+      expect(categorize({ ...TXN, rawDescriptor }, [RENAMING()]).merchantCanonical).toBe('Costco');
+    }
+  });
+
+  it('a rule with no rename leaves the canonical byte-identical', () => {
+    const plain = rule({ id: 'kw-1', matchKeywords: parseKeywords('mirko') });
+    const withRule = categorize({ ...TXN, rawDescriptor: 'MIRKO PASTA' }, [plain]);
+    const without = categorize({ ...TXN, rawDescriptor: 'MIRKO PASTA' });
+    expect(withRule.merchantCanonical).toBe(without.merchantCanonical);
+    expect(withRule.merchantKnown).toBe(without.merchantKnown);
+  });
+
+  it('a sign-REFUSED rule renames nothing — the row keeps its recognizable name', () => {
+    // `cardone -> income` meeting an outflow: the filing is refused (#44), so the
+    // rename must be refused with it — the review row should still read as the
+    // bank presented it, not as the name a rule that did NOT fire would have used.
+    const out = categorize({ ...TXN, amountCents: -12500, rawDescriptor: 'CARDONE MGMT FEE' }, [
+      rule({
+        id: 'kw-income',
+        matchKeywords: parseKeywords('cardone'),
+        categoryId: 'income',
+        renameTo: 'Cardone',
+      }),
+    ]);
+    expect(out.source).not.toBe('user-rule');
+    expect(out.merchantCanonical).not.toBe('Cardone');
+  });
+
+  it('a transfer outranks a renaming rule, exactly as it outranks a filing one', () => {
+    const out = categorize({ ...TXN, isTransfer: true, rawDescriptor: 'costco whse 1084' }, [RENAMING()]);
+    expect(out.source).toBe('transfer');
+    expect(out.merchantCanonical).not.toBe('Costco');
   });
 });

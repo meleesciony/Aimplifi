@@ -209,7 +209,9 @@ export function prepareImportedTransaction(
     date: row.date,
     amountCents: row.amountCents,
     rawDescriptor: row.description,
-    merchantCanonical: merchant.canonical,
+    // The PIPELINE's canonical (identical to the normalizer's unless a
+    // rename-payee rule filed the row — O.13c, see plaid-map.ts).
+    merchantCanonical: result.merchantCanonical,
     categoryId: result.categoryId,
     confidenceBps: result.confidenceBps,
     needsReview: result.needsReview,

@@ -5,7 +5,7 @@
  * created by "Always" were write-only.
  */
 import { prisma } from '@/lib/db';
-import { decodeKeywords } from '@/lib/engine/categorize/keyword-rule';
+import { storedKeywordGroups } from '@/lib/engine/categorize/keyword-rule';
 import { deriveLearnedRules, type LearnedCorrectionInput } from '@/lib/engine/categorize/learn';
 import { isAggregateCanonical } from '@/lib/engine/categorize/normalize';
 import { isDemoUser } from '@/lib/demo-user';
@@ -21,8 +21,15 @@ export interface RuleRow {
   accountId: string | null;
   categoryId: string;
   priority: number;
-  /** Space-joined typed keywords (O.13a). Null on every pre-O.13a row. */
+  /**
+   * Space-joined typed keywords, pure AND (O.13a). Null on every pre-O.13a row,
+   * and non-null on every typed rule — which is what makes it the discriminator.
+   */
   matchKeywords?: string | null;
+  /** `|`-joined OR-groups (O.13c). Null on every pre-O.13c row. Authoritative when set. */
+  matchKeywordGroups?: string | null;
+  /** Rename-payee action (O.13c). Null on every pre-O.13c row. */
+  renameTo?: string | null;
 }
 
 /**
@@ -35,13 +42,30 @@ export function toRuleLike(
   rule: RuleRow,
   canonicalByMerchantId: ReadonlyMap<string, string>,
 ): RuleLike | null {
+  const expanded = toRuleLikes(rule, canonicalByMerchantId);
+  return expanded.length > 0 ? expanded[0] : null;
+}
+
+/**
+ * Expand one stored rule into the RuleLike entries the pipeline consumes. A
+ * multi-group keyword rule (O.13c — `cardone eq | cardone equity`) expands to
+ * ONE RuleLike per OR-group, all sharing the stored rule's id, priority, and
+ * actions: the pipeline's existing AND-matcher and per-group specificity
+ * ordering then work unchanged, and `matchedRuleId` still names the one stored
+ * row the reader can see and delete. Single-group and merchant-keyed rules
+ * expand to exactly one entry — byte-identical to the pre-O.13c mapping.
+ */
+export function toRuleLikes(
+  rule: RuleRow,
+  canonicalByMerchantId: ReadonlyMap<string, string>,
+): RuleLike[] {
   let merchantCanonical: string | null = null;
   if (rule.merchantId) {
     const canonical = canonicalByMerchantId.get(rule.merchantId);
-    if (!canonical) return null; // orphaned merchant reference
+    if (!canonical) return []; // orphaned merchant reference
     // defense in depth: aggregate pseudo-merchants never steer suggestions,
     // even if a rule row predates the creation-time guard
-    if (isAggregateCanonical(canonical)) return null;
+    if (isAggregateCanonical(canonical)) return [];
     merchantCanonical = canonical;
   }
   // A TYPED key (O.13a). Two things are deliberate here and both are the opposite
@@ -58,13 +82,20 @@ export function toRuleLike(
   //    "ANY merchant" (see the orphan case above), so a rule that announced a
   //    keyword key and has none left would file every transaction in the app. Same
   //    trap as the orphan, same answer: refuse the row.
+  //  - the two keyword columns are read through ONE shared basis
+  //    (`storedKeywordGroups`), the same function the rules LIST decodes with, so
+  //    the page can never show the reader a key the engine does not execute. That
+  //    basis is also where the pre-O.13c column keeps its original AND meaning and
+  //    where the per-group length floor is re-applied on the read path.
   const declaresKeywordKey = rule.matchKeywords != null;
-  const keywords = decodeKeywords(rule.matchKeywords);
-  if (declaresKeywordKey && keywords.length === 0) return null;
-  return {
+  const groups = storedKeywordGroups(rule);
+  if (declaresKeywordKey && groups.length === 0) return [];
+  const base = {
     id: rule.id,
     merchantCanonical,
-    matchKeywords: declaresKeywordKey ? keywords : null,
+    // Only a TYPED keyword rule may rename (pipeline.ts refuses it for learned
+    // rules; merchant-keyed rules never store one today).
+    renameTo: rule.renameTo ?? null,
     minAmountCents: rule.minAmountCents,
     maxAmountCents: rule.maxAmountCents,
     weekendOnly: rule.weekendOnly,
@@ -73,6 +104,8 @@ export function toRuleLike(
     categoryId: rule.categoryId,
     priority: rule.priority,
   };
+  if (!declaresKeywordKey) return [{ ...base, matchKeywords: null }];
+  return groups.map((g) => ({ ...base, matchKeywords: g }));
 }
 
 /** The user's EXPLICIT stored rules ("Always" / register merchant-scope). */
@@ -91,7 +124,7 @@ export async function loadExplicitUserRules(userId: string): Promise<RuleLike[]>
     ? await prisma.merchant.findMany({ where: { id: { in: merchantIds } } })
     : [];
   const canonicalById = new Map(merchants.map((m) => [m.id, m.canonical]));
-  return rules.map((r) => toRuleLike(r, canonicalById)).filter((r): r is RuleLike => r !== null);
+  return rules.flatMap((r) => toRuleLikes(r, canonicalById));
 }
 
 /**

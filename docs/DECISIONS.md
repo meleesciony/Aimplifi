@@ -423,3 +423,82 @@ it had existed for months and the rewrite of months of history had no way back. 
 invisible to every unit test and to a passing e2e — it only surfaced because the spec asserted the row
 appears WITHOUT a reload.
 
+
+## #340 (O.13c + critic cycle 1): Simplifi-parity rules — and the discovery that giving an existing column a new meaning is a data migration nobody wrote
+
+**What shipped.** Four Simplifi-parity additions to the typed keyword rules from O.13a: a
+**Rename Payee** action, **OR keyword groups**, the **account + amount conditions** the
+`CategorizationRule` table has carried unexposed since Phase 2, and **edit-in-place** (O.13a
+offered only delete-and-retype, which silently dropped the rule's undo lineage).
+
+**The rename was built as an IDENTITY, not a label — and that deviates from the plan in
+TASKS deliberately.** The queued design was an additive `Merchant.displayName` plus "one
+resolver at the UI boundary", with the stated risk that *"every surface that prints a merchant
+name must read the same resolver, or two pages will disagree about what the same payee is
+called."* That risk is real and this build sidesteps it entirely: a rename re-points the row's
+`merchantId` at a `Merchant` whose canonical IS the name the reader typed. Every surface that
+already reads `merchant.canonical` — register, merchant lens, recurring — shows the new name
+with **zero** new resolver and no possibility of two pages disagreeing. `rawDescriptor` is
+never touched, so the bank's text stays the permanent record and the match key. The cost is
+that renaming is a write over history rather than a view-time transform, which is why it is
+gated behind the same explicit apply-to-existing checkbox the category refile uses.
+
+**The OR groups were the expensive lesson, and both fresh-context critics found it
+independently — the strongest available signal a finding is real.** The first cut encoded the
+groups into the EXISTING `matchKeywords` column, using `|` as the divider, and taught
+`parseKeywords` to treat `|` as a separator. Every docblock called the encoding "lossless BY
+CONSTRUCTION", and for values the new codec wrote itself, it was. The claim was answering the
+wrong question. `|` was an **ordinary character inside a keyword** under the parser that wrote
+every row already in the database, so the change silently redefined stored data: an AND key
+that required the literal `us|y47` became an OR that fires on `y47` alone, at 9900 bps with
+`needsReview: false`, no badge and no review. The tail is worse — `shell|a` passed O.13a's
+length floor as one 7-character token, and would have decoded to the group `["a"]`, which
+matches nearly every descriptor and mass-files an entire account into one category. Two
+docblocks and the schema comment asserted this could not happen ("a pre-O.13c row has no
+`|`"); the assertion was simply false, and a test titled *"every pre-O.13c key decodes as
+before"* exercised only a key with no `|` — a tautology under both codecs.
+
+**The fix is structural, not a patch: the new encoding got its own column.**
+`matchKeywordGroups` is additive and nullable, written only by the O.13c codec, authoritative
+when present. `matchKeywords` keeps the pure-AND meaning it has always had, is read by a
+decoder that keeps the pre-O.13c separators **forever**, and still carries a multi-group rule's
+FIRST group — so the column stays a truthful key for every row, remains the "is this a typed
+rule" discriminator, and if the group column were ever lost the rule degrades to one group:
+**narrower, never wider.** The per-group length floor is now re-applied on the READ path too,
+in the one shared `storedKeywordGroups` basis that both the engine loader and the rules list
+decode through, so the page can never render a key the engine does not execute. The
+transferable rule: **a stored value's meaning may never change under it, and a guard that runs
+only at creation is advisory.** `server/rules.ts` already re-applied `isAggregateCanonical` at
+load time with the comment *"defense in depth … even if a rule row predates the creation-time
+guard"* — the identical argument, one function away, not applied.
+
+**Two more P1s, both from reasoning about a field by only one of its jobs.** (1) The shared
+apply-to-history writer claimed undo lineage unconditionally, so editing a rule, re-applying,
+and clicking the toast's Undo **deleted the rule the reader had only meant to edit** — while
+the builder's optimistic list kept rendering it, so there was no signal at all. Lineage is now
+claimed on the create path only. (2) The rename was applied to rows the sign guard had
+**refused** to file, on the stated premise that "a rename is a display identity, not a filing,
+so no money moves." That premise ignores `merchantId`'s second job: it is the batch key
+`similarTransactionsWhere` uses, and `recategorize({scope:'merchant'})` re-files already-filed
+rows in that batch. So the rename built a mixed-sign merchant group in which one later "file
+all similar" would turn three real deposits into spend — the exact erasure the sign guard
+exists to prevent, reached by a different door. The rename set now takes the same
+`signWouldErase` filter the refile does, which also settles a contradiction between the two
+rename paths: `categorize` renames only a rule that actually FILED, so before this the same row
+would have been named one way by backfill and another by the next sync.
+
+**A fix that broke the thing it measured, caught by its own lock.** Making the "N payees
+renamed" count truthful meant excluding rows already carrying the name, written as
+`NOT: { merchantId: merchant.id }`. In SQL's three-valued logic that is UNKNOWN for a NULL
+column, so every unnamed row — the majority, and the entire point of a rename — was silently
+excluded and every rename reported 0 and wrote nothing. The lock written for the count claim
+caught it the same minute. Predicate is now an explicit `OR: [{ merchantId: null }, …]`.
+
+**Recorded residuals, deliberate and documented rather than fixed:** clearing the rename field
+does not put the bank's text back on rows already renamed (it can only be overwritten with
+another name); `runBackfillForUser` honors a rule's category action but not its rename, so a
+rule created without apply-to-existing leaves its rows under two payee identities; a rename
+whose text differs only in case from an existing canonical (`costco` vs `Costco`) mints a
+second `Merchant` row that looks identical in the register, because a portable
+case-insensitive lookup is not available across SQLite and Postgres in Prisma; and rules still
+require a category, so a rename-only rule is not expressible.

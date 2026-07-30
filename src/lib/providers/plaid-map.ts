@@ -17,7 +17,6 @@
 import { type ISODate, isoDate } from '@/lib/dates';
 import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
 import { estimateMinimumPayment } from '@/lib/engine/cash-needed/engine';
-import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { type CategorizedTxn, type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
 import type { PredictionSource } from '@/lib/engine/categorize/provenance';
@@ -674,7 +673,6 @@ export function prepareIngestedTransaction(
   const rawDescriptor = txn.name?.trim() || txn.merchant_name?.trim() || 'Unknown Merchant';
   const amountCents = plaidAmountToCents(txn.amount);
   const date = isoDate(txn.date);
-  const merchant = normalizeMerchant(rawDescriptor);
   // Plaid's OWN category guess for this row. The AUTO-FILE hint (fed to the pipeline)
   // stays the narrow VERY_HIGH/HIGH/MEDIUM map — byte-identical auto-file behavior — so
   // the categorizer's input is unchanged. The GUESS is the LOW-inclusive superset,
@@ -704,7 +702,11 @@ export function prepareIngestedTransaction(
     date,
     amountCents,
     rawDescriptor,
-    merchantCanonical: merchant.canonical,
+    // The PIPELINE's canonical, not the normalizer's: identical whenever no rule
+    // renamed (every branch of categorize echoes normalize's canonical), and the
+    // reader's chosen payee name when a rename-payee rule filed the row (O.13c) —
+    // the caller's Merchant upsert then groups all variants under that one name.
+    merchantCanonical: result.merchantCanonical,
     categoryId: result.categoryId,
     confidenceBps: result.confidenceBps,
     needsReview: result.needsReview,

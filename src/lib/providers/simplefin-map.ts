@@ -21,7 +21,6 @@
  */
 import { type ISODate, fromEpochDays } from '@/lib/dates';
 import { type Cents, cents } from '@/lib/money';
-import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
 import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 import { canonicalizeCurrency } from './currency';
@@ -238,7 +237,6 @@ export function prepareSimplefinTransaction(
       : txn.transacted_at && txn.transacted_at > 0
         ? simplefinPostedToDate(txn.transacted_at)
         : today;
-  const merchant = normalizeMerchant(rawDescriptor);
   const result = categorize({ rawDescriptor, amountCents, date, accountId }, rules, { flaggedBps });
   return {
     providerRef: txn.id,
@@ -246,7 +244,9 @@ export function prepareSimplefinTransaction(
     date,
     amountCents,
     rawDescriptor,
-    merchantCanonical: merchant.canonical,
+    // The PIPELINE's canonical (identical to the normalizer's unless a
+    // rename-payee rule filed the row — O.13c, see plaid-map.ts).
+    merchantCanonical: result.merchantCanonical,
     categoryId: result.categoryId,
     confidenceBps: result.confidenceBps,
     needsReview: result.needsReview,

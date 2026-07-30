@@ -25,8 +25,10 @@ import {
   deleteKeywordRule,
   listKeywordRules,
   previewKeywordRule,
+  updateKeywordRule,
 } from '@/server/keyword-rules';
 import { loadExplicitUserRules } from '@/server/rules';
+import { undoCorrections } from '@/server/triage-actions';
 import { prisma } from '@/lib/db';
 
 const USER = `kw-${Date.now()}-${process.pid}`;
@@ -90,7 +92,7 @@ describe('previewKeywordRule', () => {
   it('counts exactly the rows the ENGINE would match — no more, no less', async () => {
     const preview = await previewKeywordRule({ keywordsRaw: 'mirko' });
     const expected = ROWS.filter((r) => keywordsMatch(['mirko'], r.d));
-    expect(preview.keywords).toEqual(['mirko']);
+    expect(preview.groups).toEqual([['mirko']]);
     expect(preview.matchCount).toBe(expected.length);
     expect(preview.matchCount).toBe(3);
     // The word-sharing row is not swept in, and neither is the unrelated one.
@@ -100,7 +102,7 @@ describe('previewKeywordRule', () => {
 
   it('returns nothing for an empty key rather than everything', async () => {
     const preview = await previewKeywordRule({ keywordsRaw: '   ,  ' });
-    expect(preview.keywords).toEqual([]);
+    expect(preview.groups).toEqual([]);
     expect(preview.matchCount).toBe(0);
   });
 
@@ -176,7 +178,7 @@ describe('the reader can see and remove what he wrote', () => {
       categoryId: 'dining',
       applyToExisting: true,
     });
-    expect((await listKeywordRules()).map((r) => r.keywords)).toEqual([['mirko']]);
+    expect((await listKeywordRules()).map((r) => r.groups)).toEqual([[['mirko']]]);
 
     expect(await deleteKeywordRule(created.ruleId)).toEqual({ deleted: true });
     expect(await listKeywordRules()).toEqual([]);
@@ -195,6 +197,326 @@ describe('the reader can see and remove what he wrote', () => {
     });
     expect(await deleteKeywordRule(theirs.id)).toEqual({ deleted: false });
     expect(await prisma.categorizationRule.findUnique({ where: { id: theirs.id } })).not.toBeNull();
+    await prisma.categorizationRule.deleteMany({ where: { userId: other } });
+    await prisma.user.deleteMany({ where: { id: other } });
+  });
+});
+
+
+/**
+ * O.13c — the Simplifi-parity surface: OR-groups, rename payee, account and
+ * amount conditions, and edit-in-place. Same discipline as above: the preview's
+ * promise and the write's effect are asserted to be the SAME set, and the
+ * bank's own text is asserted untouched by a rename.
+ */
+describe('OR-groups through the server (O.13c)', () => {
+  it('previews and files the union of the groups, still excluding word-sharers', async () => {
+    const preview = await previewKeywordRule({ keywordsRaw: 'buckhead | mirko pasta' });
+    expect(preview.groups).toEqual([['buckhead'], ['mirko', 'pasta']]);
+    expect(preview.matchCount).toBe(3); // the three Mirko rows; PASTA HOUSE shares only a word
+
+    const res = await createKeywordRule({
+      keywordsRaw: 'buckhead | mirko pasta',
+      categoryId: 'dining',
+      applyToExisting: true,
+    });
+    expect(res.affected).toBe(3);
+    const loaded = await loadExplicitUserRules(USER);
+    // One stored rule, one RuleLike per group, sharing the id.
+    expect(loaded).toHaveLength(2);
+    expect(new Set(loaded.map((r) => r.id)).size).toBe(1);
+  });
+
+  it('enforces the length floor on EVERY group', async () => {
+    await expect(
+      createKeywordRule({ keywordsRaw: 'mirko | at', categoryId: 'dining' }),
+    ).rejects.toThrow(/at least 3 letters/i);
+    expect(await prisma.categorizationRule.count({ where: { userId: USER } })).toBe(0);
+  });
+});
+
+describe('rename payee through the server (O.13c)', () => {
+  it('applies the rename to every matched row, keeps the raw text, and survives reload', async () => {
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      renameTo: 'Mirko Pasta',
+      applyToExisting: true,
+    });
+    expect(res.renamed).toBe(3);
+    const merchant = await prisma.merchant.findUnique({ where: { canonical: 'Mirko Pasta' } });
+    expect(merchant).not.toBeNull();
+    const rows = await prisma.transaction.findMany({
+      where: { account: { userId: USER }, merchantId: merchant!.id },
+      select: { rawDescriptor: true },
+    });
+    // All three variants grouped under the one payee the reader named…
+    expect(rows).toHaveLength(3);
+    // …and the bank's text is still the permanent record on each row.
+    expect(rows.map((r) => r.rawDescriptor).sort()).toEqual(
+      ['MIRKO PASTA', 'Mirko Pasta Buckhead', 'Tst*mirko Pasta Buckhead'].sort(),
+    );
+    // The rename is loaded back onto the live rule for FUTURE rows too.
+    const loaded = await loadExplicitUserRules(USER);
+    expect(loaded[0]!.renameTo).toBe('Mirko Pasta');
+    expect((await listKeywordRules())[0]!.renameTo).toBe('Mirko Pasta');
+  });
+
+  it('does not rename history unless asked, and blank means no rename', async () => {
+    const res = await createKeywordRule({ keywordsRaw: 'mirko', categoryId: 'dining', renameTo: '  ' });
+    expect(res.renamed).toBe(0);
+    expect(res.renameTo).toBeNull();
+    expect(
+      await prisma.transaction.count({
+        where: { account: { userId: USER }, NOT: { merchantId: null } },
+      }),
+    ).toBe(0);
+  });
+});
+
+describe('account and amount conditions (O.13c)', () => {
+  it('scopes preview AND write to the chosen account — one shared basis', async () => {
+    const acct = await prisma.account.findFirstOrThrow({ where: { userId: USER } });
+    const other = await prisma.account.create({
+      data: {
+        userId: USER,
+        provider: 'simplefin',
+        providerRef: `${USER}-other-acct`,
+        name: 'Other Card',
+        type: 'CREDIT',
+        currentBalanceCents: 0,
+        currency: 'USD',
+      },
+    });
+    await prisma.transaction.create({
+      data: {
+        accountId: other.id,
+        date: '2026-07-01',
+        rawDescriptor: 'MIRKO PASTA MIDTOWN',
+        amountCents: -6000,
+        status: 'POSTED',
+        needsReview: true,
+      },
+    });
+    const scoped = await previewKeywordRule({ keywordsRaw: 'mirko', accountId: acct.id });
+    expect(scoped.matchCount).toBe(3);
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      accountId: acct.id,
+      applyToExisting: true,
+    });
+    expect(res.affected).toBe(3);
+    const untouched = await prisma.transaction.findFirstOrThrow({
+      where: { accountId: other.id },
+    });
+    expect(untouched.categoryId).toBeNull();
+  });
+
+  it("refuses another user's account id", async () => {
+    const other = `${USER}-acct-owner`;
+    await prisma.user.create({ data: { id: other, email: `${other}@test.local` } });
+    const theirs = await prisma.account.create({
+      data: {
+        userId: other,
+        provider: 'simplefin',
+        providerRef: `${other}-card`,
+        name: 'Their Card',
+        type: 'CREDIT',
+        currentBalanceCents: 0,
+        currency: 'USD',
+      },
+    });
+    await expect(
+      previewKeywordRule({ keywordsRaw: 'mirko', accountId: theirs.id }),
+    ).rejects.toThrow(/account/i);
+    await prisma.account.deleteMany({ where: { userId: other } });
+    await prisma.user.deleteMany({ where: { id: other } });
+  });
+
+  it('bands the match on the amount MAGNITUDE, in preview and write alike', async () => {
+    // Rows are -121.25, -44.00, -88.00; a $50–$100 band keeps exactly one.
+    const preview = await previewKeywordRule({
+      keywordsRaw: 'mirko',
+      minAmountRaw: '$50',
+      maxAmountRaw: '100',
+    });
+    expect(preview.matchCount).toBe(1);
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      minAmountRaw: '$50',
+      maxAmountRaw: '100',
+      applyToExisting: true,
+    });
+    expect(res.affected).toBe(1);
+    const filed = await prisma.transaction.findFirstOrThrow({
+      where: { account: { userId: USER }, categoryId: 'dining' },
+    });
+    expect(filed.amountCents).toBe(-8800);
+    // And the band is live on the loaded rule for future rows.
+    const loaded = await loadExplicitUserRules(USER);
+    expect(loaded[0]!.minAmountCents).toBe(5000);
+    expect(loaded[0]!.maxAmountCents).toBe(10000);
+  });
+
+  it('refuses a nonsense band rather than storing it silently', async () => {
+    await expect(
+      previewKeywordRule({ keywordsRaw: 'mirko', minAmountRaw: '100', maxAmountRaw: '50' }),
+    ).rejects.toThrow(/minimum amount is larger/i);
+    await expect(
+      previewKeywordRule({ keywordsRaw: 'mirko', minAmountRaw: 'abc' }),
+    ).rejects.toThrow(/positive dollar/i);
+  });
+});
+
+describe('updateKeywordRule — edit in place (O.13c)', () => {
+  it('changes the key, category, and rename without minting a second rule', async () => {
+    const created = await createKeywordRule({ keywordsRaw: 'mirko', categoryId: 'dining' });
+    const res = await updateKeywordRule(created.ruleId, {
+      keywordsRaw: 'mirko pasta | buckhead',
+      categoryId: 'groceries',
+      renameTo: 'Mirko',
+      applyToExisting: true,
+    });
+    expect(res.ruleId).toBe(created.ruleId);
+    expect(res.affected).toBe(3);
+    expect(res.renamed).toBe(3);
+    expect(await prisma.categorizationRule.count({ where: { userId: USER } })).toBe(1);
+    const listed = await listKeywordRules();
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.groups).toEqual([['mirko', 'pasta'], ['buckhead']]);
+    expect(listed[0]!.categoryId).toBe('groceries');
+    expect(listed[0]!.renameTo).toBe('Mirko');
+  });
+
+  /**
+   * CRITIC CYCLE 1, P1-1. `undoCorrections` deletes the rule whose `createdFrom`
+   * still points at the correction being undone — correct for a rule that
+   * correction MINTED, catastrophic for one that was merely EDITED. Before the fix,
+   * edit → apply → "Undo those N" deleted a rule the reader only meant to change,
+   * with a toast that said only "those transactions are back", and the builder's
+   * optimistic list kept rendering the rule that no longer existed.
+   */
+  it('undoing an EDIT’s re-apply restores the rows and LEAVES THE RULE ALIVE', async () => {
+    const created = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      applyToExisting: true,
+    });
+    expect(created.affected).toBe(3);
+
+    // Edit it, re-applying to history — this must NOT re-claim the undo lineage.
+    const edited = await updateKeywordRule(created.ruleId, {
+      keywordsRaw: 'mirko',
+      categoryId: 'groceries',
+      applyToExisting: true,
+    });
+    expect(edited.affected).toBe(3);
+    const ruleRow = await prisma.categorizationRule.findUnique({ where: { id: created.ruleId } });
+    // Lineage still names the CREATE's correction, not the edit's.
+    expect(created.correctionIds).toContain(ruleRow!.createdFrom);
+    expect(edited.correctionIds).not.toContain(ruleRow!.createdFrom);
+
+    await undoCorrections(edited.correctionIds);
+
+    // The rows went back to what the create had filed them as…
+    const rows = await prisma.transaction.findMany({
+      where: { account: { userId: USER }, rawDescriptor: { contains: 'irko' } },
+      select: { categoryId: true },
+    });
+    expect(rows.every((r) => r.categoryId === 'dining')).toBe(true);
+    // …and the rule the reader only EDITED is still there.
+    expect(await prisma.categorizationRule.count({ where: { id: created.ruleId } })).toBe(1);
+    expect(await listKeywordRules()).toHaveLength(1);
+  });
+
+  /**
+   * CRITIC CYCLE 1, P1-3. A rename is not just a label: `merchantId` is the batch
+   * key `similarTransactionsWhere` uses, and `recategorize({scope:'merchant'})`
+   * re-files ALREADY-FILED rows in that batch. Renaming a sign-refused outflow into
+   * an income payee's group builds a mixed-sign group in which one later "file all
+   * similar" turns real deposits into spend. It also made the two rename paths
+   * contradict each other — `categorize` renames only a rule that actually filed.
+   */
+  it('does NOT rename a row the sign guard refused to file', async () => {
+    const account = await prisma.account.findFirstOrThrow({ where: { userId: USER } });
+    await prisma.transaction.create({
+      data: {
+        accountId: account.id,
+        date: '2026-07-01',
+        rawDescriptor: 'CARDONE MGMT FEE',
+        amountCents: -12500,
+        status: 'POSTED',
+        needsReview: true,
+      },
+    });
+    await prisma.transaction.create({
+      data: {
+        accountId: account.id,
+        date: '2026-07-02',
+        rawDescriptor: 'Cardone Eq Fund Cef Xv',
+        amountCents: 37500,
+        status: 'POSTED',
+        needsReview: true,
+      },
+    });
+
+    const res = await createKeywordRule({
+      keywordsRaw: 'cardone',
+      categoryId: 'investment-income',
+      renameTo: 'Cardone',
+      applyToExisting: true,
+    });
+    expect(res.affected).toBe(1); // the deposit only
+    expect(res.skippedWrongSign).toBe(1); // the fee, left alone
+    expect(res.renamed).toBe(1); // …and NOT renamed either
+
+    const fee = await prisma.transaction.findFirstOrThrow({
+      where: { account: { userId: USER }, rawDescriptor: 'CARDONE MGMT FEE' },
+      select: { merchantId: true, categoryId: true },
+    });
+    expect(fee.merchantId).toBeNull();
+    const deposit = await prisma.transaction.findFirstOrThrow({
+      where: { account: { userId: USER }, rawDescriptor: 'Cardone Eq Fund Cef Xv' },
+      select: { merchant: { select: { canonical: true } } },
+    });
+    expect(deposit.merchant?.canonical).toBe('Cardone');
+  });
+
+  /** Critic P2-9: the count must be rows CHANGED, not rows matched. */
+  it('reports 0 renamed when a re-apply changes no payee', async () => {
+    const created = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      renameTo: 'Mirko Pasta',
+      applyToExisting: true,
+    });
+    expect(created.renamed).toBe(3);
+    const again = await updateKeywordRule(created.ruleId, {
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      renameTo: 'Mirko Pasta',
+      applyToExisting: true,
+    });
+    expect(again.renamed).toBe(0);
+  });
+
+  it("will not edit another user's rule, or a merchant-keyed one", async () => {
+    const other = `${USER}-edit-owner`;
+    await prisma.user.create({ data: { id: other, email: `${other}@test.local` } });
+    const theirs = await prisma.categorizationRule.create({
+      data: { userId: other, categoryId: 'dining', priority: 110, matchKeywords: 'mirko' },
+    });
+    await expect(
+      updateKeywordRule(theirs.id, { keywordsRaw: 'mirko', categoryId: 'groceries' }),
+    ).rejects.toThrow(/wasn/i);
+    const merchantKeyed = await prisma.categorizationRule.create({
+      data: { userId: USER, categoryId: 'dining', priority: 100 },
+    });
+    await expect(
+      updateKeywordRule(merchantKeyed.id, { keywordsRaw: 'mirko', categoryId: 'groceries' }),
+    ).rejects.toThrow(/wasn/i);
     await prisma.categorizationRule.deleteMany({ where: { userId: other } });
     await prisma.user.deleteMany({ where: { id: other } });
   });

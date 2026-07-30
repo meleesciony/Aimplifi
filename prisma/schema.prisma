@@ -430,7 +430,28 @@ model CategorizationRule {
   // zero keywords, which matches NOTHING (a keyword rule carries no merchantId, and
   // in RuleLike a null merchantCanonical means "ANY merchant", so an empty key would
   // otherwise file everything — see keyword-rule.ts).
+  // This column's MEANING NEVER CHANGES: one pure-AND key, split on commas and
+  // whitespace only. O.13c's OR-groups went into their own column below rather
+  // than being encoded in here, because `|` was an ordinary character inside a
+  // keyword under this parser — so re-reading these bytes with a `|`-aware parser
+  // would silently widen an existing rule from AND to OR (critic cycle 1, P0+P1).
+  // A multi-group O.13c rule still writes its FIRST group here, so the column
+  // stays a truthful pure-AND key for every row and remains the discriminator for
+  // "this is a typed keyword rule" (`NOT: { matchKeywords: null }`).
   matchKeywords  String?
+  // OR-groups (O.13c, Simplifi parity: "Add 'OR' conditions to target different
+  // keyword combinations"). Groups are space-joined then `|`-joined
+  // ("cardone eq | cardone equity"); the rule fires when ANY one group's keywords
+  // are all present. Lossless because THIS column is only ever written by the
+  // O.13c codec, whose parser strips `|` from every token. Null on every rule
+  // created before O.13c — those decode from `matchKeywords` alone, unchanged —
+  // and authoritative whenever present. If it were ever lost, the rule degrades
+  // to the first group in `matchKeywords`: narrower, never wider.
+  matchKeywordGroups String?
+  // Rename-payee action (O.13c, Simplifi parity): when this rule files a row, the
+  // merchant canonical becomes THIS name — identity-level grouping across every
+  // descriptor variant the keywords span. Null = no rename (all pre-O.13c rows).
+  renameTo       String?
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   category Category @relation(fields: [categoryId], references: [id])

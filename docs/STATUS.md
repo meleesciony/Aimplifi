@@ -2,6 +2,104 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-30 — O.13c: Simplifi-parity transaction rules (rename payee, OR groups, conditions, edit) — DECISIONS #340
+
+Shipped, pushed, and deploy-verified. Four gaps against Simplifi's rule builder, all on top of the
+typed keyword rules from O.13a:
+
+**Rename Payee.** A rule can now give every row it files one payee name, so `costco whse 1084`,
+`COSTCO WHSE #0981` and every future variant group under one identity. Built as an IDENTITY rather
+than the planned `Merchant.displayName` + UI resolver (DECISIONS #340): the rename re-points the
+row's `merchantId` at a `Merchant` whose canonical IS the reader's text, so the register, the
+merchant lens and recurring all show it with **zero** new resolver and no way for two pages to
+disagree about what the same payee is called. `rawDescriptor` is never modified — the bank's text
+stays the permanent record and the match key.
+
+**OR keyword groups.** One rule, several keyword combinations (`cardone eq | cardone equity`); the
+rule fires when any one group's words are all present. Stored in its own additive nullable
+`matchKeywordGroups` column — see the critic section below for why that column exists.
+
+**Account + amount conditions.** `CategorizationRule` has carried `accountId` /
+`minAmountCents` / `maxAmountCents` since Phase 2 with no way to set them. Now exposed, with
+preview and write sharing one scope (`matchableWhere` / `resolveConditions`) so the count the
+reader is shown is exactly the population the rule writes. Amounts band on absolute value, the same
+magnitude semantics `ruleMatches` already used.
+
+**Edit in place.** O.13a offered only delete-and-retype, which silently dropped the rule's undo
+lineage. An edit reopens what was stored and re-applies through the same writer the create uses.
+
+### Gate
+
+`VERIFY_E2E=1 bash scripts/verify.sh` green: tsc clean, eslint clean, the full vitest suite, a clean
+`next build`, and the full Playwright suite. The new e2e (`tests/e2e/keyword-rules.spec.ts`) proves
+the OR union against a known baseline rather than asserting a bare number — one line matches 1 row,
+adding the "or" line makes it 2, so neither line alone could have passed — then asserts the rename
+collapsing two unrelated descriptors into one payee **in the register**, and edit-in-place reopening
+both stored "or" lines without minting a second rule.
+
+### Hostile critic cycle 1 — two fresh-context critics, both FAIL: 1 P0 + 3 P1 + several P2, all fixed and locked (6 REGRESSION_LEDGER rows)
+
+**The P0, found INDEPENDENTLY by both critics — the strongest available signal a finding is real.**
+The first cut encoded OR-groups into the EXISTING `matchKeywords` column, with `|` as the divider,
+and every docblock called the encoding "lossless BY CONSTRUCTION". It was — for values the new codec
+wrote itself, which was the wrong question. `|` was an **ordinary character inside a keyword** under
+the parser that wrote every row already in the database, so the change silently redefined stored
+data: an AND key that required the literal `us|y47` became an OR firing on `y47` alone, at 9900 bps
+with `needsReview: false`, no badge, no review. The tail is worse — `shell|a` passed O.13a's length
+floor as one 7-character token and would have decoded to the group `["a"]`, matching nearly every
+descriptor and mass-filing an entire account into one category. Two docblocks and the schema comment
+asserted this could not happen; the assertion was false, and the test titled "every pre-O.13c key
+decodes as before" exercised only a key with no `|` — a tautology under both codecs.
+
+Fixed structurally: the new encoding got **its own additive nullable column**, `matchKeywords` keeps
+the pure-AND meaning it has always had and is read by a decoder that keeps the pre-O.13c separators
+forever, and the per-group length floor is re-applied on the **read** path in one shared
+`storedKeywordGroups` basis that both the engine loader and the rules list decode through. A
+multi-group rule also writes its first group into the old column, so if the group column were ever
+lost the rule degrades to one group: narrower, never wider.
+
+**The other two P1s, both from reading a field by only one of its jobs.** Undoing an EDIT's
+re-apply **deleted the rule the reader had only meant to edit** (the writer shared with create
+claimed undo lineage unconditionally, and `undoCorrections` deletes the rule whose `createdFrom`
+still points at the correction being undone) — while the builder's optimistic list kept rendering
+the deleted rule, so there was no signal at all. And the rename was applied to rows the sign guard
+had **refused** to file, on the premise that "a rename is a display identity, not a filing, so no
+money moves"; that ignores `merchantId`'s second job as the batch key `similarTransactionsWhere`
+uses, so the rename built a mixed-sign merchant group in which one later "file all similar" would
+turn real deposits into spend.
+
+Also worth keeping: the fix that made the "N payees renamed" count truthful used
+`NOT: { merchantId: … }`, which in SQL's three-valued logic is UNKNOWN for a NULL column — so every
+unnamed row, the entire point of a rename, was excluded and every rename reported 0 and wrote
+nothing. The lock written for the count claim caught it the same minute.
+
+### 🟠 OPEN after O.13c — recorded residuals, deliberate
+
+1. **Clearing the rename field does not put the bank's text back.** A renamed row can only be
+   renamed again, not reverted — nothing restores the normalizer's canonical. The builder now says
+   so plainly rather than implying reversibility. Fixing it means re-deriving and re-upserting each
+   matched row's original canonical.
+2. **`runBackfillForUser` honors a rule's category action but not its rename.** A rename rule
+   created WITHOUT apply-to-existing has its category applied by "improve my categories" while its
+   rename is ignored, leaving that rule's rows under two payee identities.
+3. **A case-only rename collision mints a second `Merchant` row.** Renaming to `costco` alongside an
+   existing `Costco` creates two rows the register draws identically, because Prisma has no portable
+   case-insensitive lookup across SQLite and Postgres (`mode: 'insensitive'` is Postgres-only).
+4. **Rules still require a category**, so a rename-only rule is not expressible (`categoryId` would
+   have to become nullable). Matching is still contains-only — no regex, prefix, or starts-with.
+5. **New CSV / manual rows do not persist `merchantId`**, so a rename reaches them only through
+   apply-to-existing.
+6. **Undo of an apply restores categories and (on the create path) deletes the rule; renames stay.**
+7. **The audit probes have modelled keyword rules wrongly since O.13a** (pre-existing, outside the
+   shipped app, found by a critic while reviewing this slice).
+   `scripts/audit-probes/o12-what-the-inbox-actually-holds.ts` and `o12e-why-the-proposal-is-silent.ts`
+   do not select `matchKeywords`, so `declaresKeywordKey` is false and every typed rule is simulated
+   as `merchantCanonical: null, matchKeywords: null` — an unconditional match-everything rule. Any
+   probe conclusion about a user with keyword rules is unreliable. Fix when a probe is next needed:
+   add `matchKeywords`, `matchKeywordGroups`, `renameTo` to their SELECTs and switch them from
+   `toRuleLike` to `flatMap(toRuleLikes)` (the singular mapper returns only the FIRST OR-group, which
+   is wrong for a probe whose whole job is reproducing what the app does).
+
 ## 🔍 2026-07-29 — the login "wrong password" report: the two blocking facts ARRIVED; the failure is now localized to the FIRST autofill
 
 Owner, verbatim: *"the login is buggy. When I click login, it sometimes says wrong pw. I click it

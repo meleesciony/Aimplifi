@@ -62,6 +62,17 @@ export interface RuleLike {
    * meeting a later refund/fee); explicit rules are deliberate and always apply.
    */
   isLearned?: boolean;
+  /**
+   * Rename-payee action (TASKS O.13c, Simplifi parity: "Rename Payee"). When the
+   * rule files a transaction, the row's merchant canonical becomes THIS name
+   * instead of whatever the normalizer derived — which is how `costco whse 1084`,
+   * `COSTCO WHSE #0981`, and every future variant group under one payee the
+   * reader named. Ingest upserts the Merchant row from the pipeline's returned
+   * canonical, so the rename is an identity-level grouping (register, merchant
+   * lens, recurring), not a cosmetic label. Absent/null on every rule stored
+   * before O.13c and on learned rules, so existing behavior is byte-identical.
+   */
+  renameTo?: string | null;
   minAmountCents: number | null;
   maxAmountCents: number | null;
   weekendOnly: boolean | null;
@@ -287,9 +298,16 @@ export function categorize(
   });
   if (rule) {
     const learned = rule.isLearned === true;
+    // Rename-payee action (O.13c): the rule's name wins over the derived
+    // canonical, and a renamed payee is KNOWN by definition — the reader named
+    // it. Only an explicit rule can carry `renameTo` (learn.ts never sets it),
+    // and only a rule that actually FILES renames: a sign-refused rule above
+    // fell through, so a wrong-signed row keeps its derived identity and lands
+    // in review under the name the reader can still recognize.
+    const renamed = !learned && rule.renameTo != null && rule.renameTo !== '';
     return {
-      merchantCanonical: merchant.canonical,
-      merchantKnown: merchant.known,
+      merchantCanonical: renamed ? rule.renameTo! : merchant.canonical,
+      merchantKnown: renamed ? true : merchant.known,
       categoryId: rule.categoryId,
       confidenceBps: learned ? LEARNED_RULE_CONFIDENCE_BPS : RULE_CONFIDENCE_BPS,
       needsReview: false,

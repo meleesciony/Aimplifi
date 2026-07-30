@@ -146,6 +146,106 @@ test('one typed keyword groups deposits no derived key could ever join', async (
   });
 });
 
+/**
+ * O.13c — the three Simplifi-parity additions, on the same two deposits: an "or"
+ * line, a payee RENAME, and editing the stored rule in place.
+ *
+ * The OR assertion is built so neither line could pass alone: `cardone xv` reaches
+ * only the Xv fund and `cardone ix` only the Ix fund, so a count of 2 is proof the
+ * groups were unioned rather than one group being silently widened. The RENAME
+ * assertion reads the REGISTER, because that is where a rename either is or isn't
+ * real — `merchantName` there is the row's stored merchant canonical
+ * (server/transactions.ts), so two descriptors collapsing to one payee is the
+ * identity-level grouping the feature promises, not a label drawn on the rules page.
+ */
+test('an "or" line unions two keys, a rename groups them, and the rule edits in place', async ({
+  page,
+}) => {
+  await signUpThrowaway(page);
+  await addManualAccount(page, 'KW Checking');
+  for (const d of DEPOSITS) await addDeposit(page, d.descriptor, d.amount);
+  await addDeposit(page, OTHER.descriptor, OTHER.amount);
+
+  await page.goto('/rules');
+
+  // ONE line first, so the union is measured against a known baseline: `cardone xv`
+  // reaches the Xv fund and nothing else.
+  await page.getByTestId('kw-input').fill('cardone xv');
+  await page.getByTestId('kw-category').selectOption('investment-income');
+  await page.getByTestId('kw-preview').click();
+  await expect(page.getByTestId('kw-preview-count')).toContainText(/Matches\s+1\s+transaction\b/, {
+    timeout: 20000,
+  });
+
+  // Now the "or" line. Adding it is pure React state, so a pre-hydration click
+  // drops silently and the fill below would land on a field that never appeared
+  // (#167 idiom).
+  await expect(async () => {
+    await page.getByTestId('kw-add-or').click({ timeout: 2000 });
+    await expect(page.getByTestId('kw-input-or-1')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await page.getByTestId('kw-input-or-1').fill('cardone ix');
+  await page.getByTestId('kw-rename').fill('Cardone Capital');
+  await page.getByTestId('kw-preview').click();
+  // TWO — and neither line alone reached both, which is the whole claim of an OR group.
+  await expect(page.getByTestId('kw-preview-count')).toContainText(/Matches\s+2\s+transactions\b/, {
+    timeout: 20000,
+  });
+
+  await page.getByTestId('kw-apply-existing').check();
+  await page.getByTestId('kw-create').click();
+  await expect(page.getByTestId('kw-done')).toContainText('renamed', { timeout: 20000 });
+
+  // The stored rule renders both groups and the payee name it will show.
+  await expect(page.getByTestId('kw-rule-row')).toHaveCount(1, { timeout: 20000 });
+  await expect(page.getByTestId('kw-rule-row')).toContainText('Cardone Capital', { timeout: 20000 });
+
+  // THE POINT: the register now groups two unrelated descriptors under one payee…
+  await page.goto('/transactions');
+  const rows = page.getByTestId('txn-row');
+  await expect(rows.filter({ hasText: 'Cardone Capital' })).toHaveCount(2, { timeout: 20000 });
+  // …both filed as income, and the unrelated inflow is untouched by either line.
+  await expect(rows.filter({ hasText: 'Cardone Capital' }).first()).toContainText(
+    /investment income/i,
+    { timeout: 20000 },
+  );
+  await expect(rows.filter({ hasText: 'Lakeshore' })).toContainText(/uncategorized/i, {
+    timeout: 20000,
+  });
+
+  // EDIT IN PLACE. O.13a offered only delete-and-retype, which dropped the rule's
+  // undo lineage; the edit must reopen what was STORED (both or-lines, the name).
+  await page.goto('/rules');
+  await expect(async () => {
+    await page.getByTestId('kw-edit').click({ timeout: 2000 });
+    await expect(page.getByTestId('kw-editing-banner')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await expect(page.getByTestId('kw-input')).toHaveValue('cardone xv');
+  await expect(page.getByTestId('kw-input-or-1')).toHaveValue('cardone ix');
+  await expect(page.getByTestId('kw-rename')).toHaveValue('Cardone Capital');
+
+  await page.getByTestId('kw-rename').fill('Cardone Holdings');
+  await page.getByTestId('kw-preview').click();
+  await expect(page.getByTestId('kw-preview-count')).toContainText(/Matches\s+2\s+transactions\b/, {
+    timeout: 20000,
+  });
+  await page.getByTestId('kw-apply-existing').check();
+  await page.getByTestId('kw-create').click();
+  await expect(page.getByTestId('kw-done')).toContainText('updated', { timeout: 20000 });
+
+  // ONE rule still — an edit, not a second rule racing the first.
+  await expect(page.getByTestId('kw-rule-row')).toHaveCount(1, { timeout: 20000 });
+  await page.reload();
+  await expect(page.getByTestId('kw-rule-row')).toHaveCount(1, { timeout: 20000 });
+  await expect(page.getByTestId('kw-rule-row')).toContainText('Cardone Holdings', { timeout: 20000 });
+
+  // And the new name reached the register, so the edit re-applied rather than only saving.
+  await page.goto('/transactions');
+  await expect(page.getByTestId('txn-row').filter({ hasText: 'Cardone Holdings' })).toHaveCount(2, {
+    timeout: 20000,
+  });
+});
+
 test('the builder refuses a key with nothing to match on', async ({ page }) => {
   await signUpThrowaway(page);
   await page.goto('/rules');

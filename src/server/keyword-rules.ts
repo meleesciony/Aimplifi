@@ -34,16 +34,19 @@
  * reason for not bounding it (critic P2).
  */
 import { revalidatePath } from 'next/cache';
-import { prisma, serializableTx } from '@/lib/db';
+import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import {
   KEYWORD_RULE_PRIORITY,
   MIN_KEYWORD_LENGTH,
+  encodeKeywordGroups,
   encodeKeywords,
-  keywordsMatch,
+  keywordGroupsMatch,
   longestKeywordLength,
-  parseKeywords,
+  parseKeywordGroups,
+  storedKeywordGroups,
 } from '@/lib/engine/categorize/keyword-rule';
+import { parseDollarInput } from '@/lib/money';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { auditLog, requireUserId } from '@/server/authz';
@@ -51,8 +54,11 @@ import { assertOwnedCategory } from '@/server/category-meta';
 import { ensureCategories } from '@/server/ensure-categories';
 
 export interface KeywordRulePreview {
-  /** The parsed key, echoed back so the UI renders the chips it will actually store. */
-  keywords: string[];
+  /**
+   * The parsed OR-groups (O.13c), echoed back so the UI renders the chips it will
+   * actually store. One inner array per group; a single-group key is `[[...]]`.
+   */
+  groups: string[][];
   /** Rows whose statement text carries every keyword, within the matchable scope. */
   matchCount: number;
   /** Of those, how many are still unfiled — the ones a rule would newly answer. */
@@ -117,18 +123,48 @@ function filedCategory(categoryId: string | null): string {
  *  - spending account types + USD/null currency — the population the register and
  *    the inbox actually render (DECISIONS #135).
  */
-function matchableWhere(userId: string) {
+function matchableWhere(userId: string, accountId?: string | null) {
   return {
     isSplitParent: false,
     splitParentId: null,
     isTransfer: false,
     reviewPinned: false,
+    // O.13c account condition: when the rule is scoped to one account, the
+    // preview and the write both narrow to it HERE — one shared scope, so the
+    // count shown is still exactly the population written.
+    ...(accountId ? { accountId } : {}),
     account: {
       userId,
       type: { in: [...SPENDING_ACCOUNT_TYPES] },
       OR: [{ currency: null }, { currency: 'USD' }],
     },
   };
+}
+
+/**
+ * The full IF-side of a rule, shared verbatim by preview, create, and update
+ * (O.13c). `groups` are the parsed OR-groups; the optional conditions mirror the
+ * columns `CategorizationRule` has carried since Phase 2 (`accountId`,
+ * `minAmountCents`/`maxAmountCents` on ABSOLUTE value — the same magnitude
+ * semantics `ruleMatches` uses), finally exposed to the builder.
+ */
+export interface KeywordRuleConditions {
+  groups: string[][];
+  accountId: string | null;
+  minAmountCents: number | null;
+  maxAmountCents: number | null;
+}
+
+/** Does one matchable row satisfy the amount band? Absolute value, like `ruleMatches`. */
+function amountInBand(
+  amountCents: number,
+  minAmountCents: number | null,
+  maxAmountCents: number | null,
+): boolean {
+  const magnitude = Math.abs(amountCents);
+  if (minAmountCents !== null && magnitude < minAmountCents) return false;
+  if (maxAmountCents !== null && magnitude > maxAmountCents) return false;
+  return true;
 }
 
 type MatchRow = {
@@ -149,9 +185,13 @@ const MATCH_SELECT = {
 
 type FindManyClient = { transaction: { findMany: typeof prisma.transaction.findMany } };
 
-async function matchableHistory(userId: string, client: FindManyClient): Promise<MatchRow[]> {
+async function matchableHistory(
+  userId: string,
+  client: FindManyClient,
+  accountId?: string | null,
+): Promise<MatchRow[]> {
   return client.transaction.findMany({
-    where: matchableWhere(userId),
+    where: matchableWhere(userId, accountId),
     select: MATCH_SELECT,
     orderBy: [{ date: 'desc' }, { id: 'desc' }],
   });
@@ -159,12 +199,16 @@ async function matchableHistory(userId: string, client: FindManyClient): Promise
 
 async function matchingRows(
   userId: string,
-  keywords: readonly string[],
+  conditions: KeywordRuleConditions,
   client: FindManyClient = prisma,
 ): Promise<MatchRow[]> {
-  if (keywords.length === 0) return [];
-  const rows = await matchableHistory(userId, client);
-  return rows.filter((r) => keywordsMatch(keywords, r.rawDescriptor));
+  if (conditions.groups.length === 0) return [];
+  const rows = await matchableHistory(userId, client, conditions.accountId);
+  return rows.filter(
+    (r) =>
+      keywordGroupsMatch(conditions.groups, r.rawDescriptor) &&
+      amountInBand(r.amountCents, conditions.minAmountCents, conditions.maxAmountCents),
+  );
 }
 
 /**
@@ -196,21 +240,107 @@ function assertTargetable(categoryId: string): void {
   }
 }
 
-function assertUsableKey(keywords: readonly string[]): void {
+function assertUsableKey(groups: readonly (readonly string[])[]): void {
   // Note the WORDING: an empty key matches nothing (keywordsMatch refuses it). The
   // danger is structural — a keyword rule carries no merchantId, and a null
   // merchantCanonical means "any merchant" — so without the refusal it would be a
   // rule with no conditions at all. The earlier message told the reader an empty
   // rule "would match every transaction", which is the RATIONALE, not the behaviour
   // (critic P1: the engine's own docblock says the opposite in capitals).
-  if (keywords.length === 0) {
+  if (groups.length === 0) {
     throw new Error('Enter at least one word for the rule to match on.');
   }
-  if (longestKeywordLength(keywords) < MIN_KEYWORD_LENGTH) {
-    throw new Error(
-      `Use at least ${MIN_KEYWORD_LENGTH} letters in one of your words — a shorter one matches most of your transactions.`,
-    );
+  // The length floor is PER GROUP (O.13c): each OR-group can match on its own, so
+  // one weak group ("or: at") would re-open exactly the hole the floor closes.
+  for (const g of groups) {
+    if (longestKeywordLength(g) < MIN_KEYWORD_LENGTH) {
+      throw new Error(
+        `Use at least ${MIN_KEYWORD_LENGTH} letters in one word of every "or" line — a shorter one matches most of your transactions.`,
+      );
+    }
   }
+}
+
+/** Longest payee name a rename may store — same order as the register renders. */
+const MAX_RENAME_LEN = 60;
+
+/**
+ * Normalize the optional rename-payee action: trimmed, length-capped, null when
+ * blank. The name is the reader's own text and is stored verbatim otherwise — it
+ * becomes a Merchant canonical, exactly like a normalizer-derived one.
+ */
+function normalizeRenameTo(renameTo: string | null | undefined): string | null {
+  const trimmed = (renameTo ?? '').trim();
+  if (trimmed === '') return null;
+  if (trimmed.length > MAX_RENAME_LEN) {
+    throw new Error(`Keep the payee name under ${MAX_RENAME_LEN} characters.`);
+  }
+  return trimmed;
+}
+
+/**
+ * Parse + validate the optional IF-side conditions from raw form values. Amounts
+ * arrive as the user typed them ("$25", "1,000"); `parseDollarInput` is the same
+ * lenient boundary parser every other money form uses. Stored as ABSOLUTE cents
+ * (magnitude), matching `ruleMatches`.
+ */
+async function resolveConditions(
+  userId: string,
+  input: { keywordsRaw: string; accountId?: string | null; minAmountRaw?: string; maxAmountRaw?: string },
+): Promise<KeywordRuleConditions> {
+  const groups = parseKeywordGroups(input.keywordsRaw);
+  let accountId: string | null = null;
+  if (input.accountId) {
+    // Ownership check — a foreign account id must never scope a rule (same
+    // userId-in-the-WHERE discipline every sibling action uses).
+    const account = await prisma.account.findFirst({
+      where: { id: input.accountId, userId },
+      select: { id: true },
+    });
+    if (!account) throw new Error('That account wasn’t found — refresh and try again.');
+    accountId = account.id;
+  }
+  const parseAmount = (raw: string | undefined, label: string): number | null => {
+    const trimmed = (raw ?? '').trim();
+    if (trimmed === '') return null;
+    const parsed = parseDollarInput(trimmed);
+    if (parsed === null || parsed < 0) {
+      throw new Error(`Enter the ${label} amount as a positive dollar figure, like 25 or 12.50.`);
+    }
+    return parsed;
+  };
+  const minAmountCents = parseAmount(input.minAmountRaw, 'minimum');
+  const maxAmountCents = parseAmount(input.maxAmountRaw, 'maximum');
+  if (minAmountCents !== null && maxAmountCents !== null && minAmountCents > maxAmountCents) {
+    throw new Error('The minimum amount is larger than the maximum — swap them.');
+  }
+  return { groups, accountId, minAmountCents, maxAmountCents };
+}
+
+/**
+ * The two keyword columns a typed rule writes (critic cycle 1, P0+P1).
+ *
+ * `matchKeywords` keeps the pure-AND meaning it has always had and carries the
+ * rule's FIRST group, so every row in that column — old or new — is a truthful
+ * AND key, and it remains the discriminator for "this is a typed keyword rule"
+ * (`NOT: { matchKeywords: null }`, used by the list, the edit, and the delete).
+ * `matchKeywordGroups` carries the full OR encoding and is what the engine reads.
+ *
+ * The OR groups were NOT encoded into the existing column, because `|` was an
+ * ordinary character inside a keyword under the old parser: re-reading those
+ * bytes with a `|`-aware parser silently widens a stored AND rule into an OR (see
+ * `decodeKeywords`). Writing the first group into the old column also fixes the
+ * failure DIRECTION if the new column were ever null: the rule narrows to one
+ * group rather than widening.
+ */
+function keywordColumns(groups: readonly string[][]): {
+  matchKeywords: string;
+  matchKeywordGroups: string;
+} {
+  return {
+    matchKeywords: encodeKeywords(groups[0] ?? []),
+    matchKeywordGroups: encodeKeywordGroups(groups),
+  };
 }
 
 /**
@@ -219,17 +349,27 @@ function assertUsableKey(keywords: readonly string[]): void {
 export async function previewKeywordRule(input: {
   keywordsRaw: string;
   categoryId?: string;
+  accountId?: string | null;
+  minAmountRaw?: string;
+  maxAmountRaw?: string;
 }): Promise<KeywordRulePreview> {
   const userId = await requireUserId();
-  const keywords = parseKeywords(input.keywordsRaw);
-  const history = await matchableHistory(userId, prisma);
-  const rows = keywords.length === 0 ? [] : history.filter((r) => keywordsMatch(keywords, r.rawDescriptor));
+  const conditions = await resolveConditions(userId, input);
+  const history = await matchableHistory(userId, prisma, conditions.accountId);
+  const rows =
+    conditions.groups.length === 0
+      ? []
+      : history.filter(
+          (r) =>
+            keywordGroupsMatch(conditions.groups, r.rawDescriptor) &&
+            amountInBand(r.amountCents, conditions.minAmountCents, conditions.maxAmountCents),
+        );
   const target = input.categoryId;
   const known = target !== undefined && CATEGORY_BY_ID.has(target);
   const wrongSign = known ? rows.filter((r) => signWouldErase(target!, r.amountCents)) : [];
   const alreadyCorrect = rows.filter((r) => filedCategory(r.categoryId) === target);
   return {
-    keywords,
+    groups: conditions.groups,
     matchCount: rows.length,
     unfiledCount: rows.filter((r) => filedCategory(r.categoryId) === 'uncategorized').length,
     alreadyFiledElsewhereCount: rows.filter(
@@ -252,13 +392,147 @@ export async function previewKeywordRule(input: {
 
 export interface CreateKeywordRuleResult {
   ruleId: string;
-  keywords: string[];
+  /** The parsed OR-groups the rule stored (O.13c). */
+  groups: string[][];
   /** Rows re-filed now (0 when the reader declined to touch history). */
   affected: number;
   /** One per re-filed row, so the whole action is undoable like every other filing. */
   correctionIds: string[];
   /** Outflows left alone because filing them as income would erase them. */
   skippedWrongSign: number;
+  /** Rows whose payee was renamed now (0 when no rename or the reader declined). */
+  renamed: number;
+  /** The stored THEN action + conditions, echoed for the client's optimistic list. */
+  renameTo: string | null;
+  accountId: string | null;
+  minAmountCents: number | null;
+  maxAmountCents: number | null;
+}
+
+/**
+ * The one apply-to-history writer, shared by create and update (O.13c). Runs
+ * INSIDE `serializableTx` for the DECISIONS #146 reason the create documented:
+ * the matched set must be read in the same transaction that writes it.
+ *
+ * Two writes, deliberately different in weight:
+ *  - CATEGORY refile — exactly the O.13a behavior: Correction per row (undoable),
+ *    sign-eroding rows skipped, undo lineage on the first correction.
+ *  - PAYEE RENAME — applied to every matched row the SIGN GUARD also allows, so
+ *    the two paths that can rename agree (critic cycle 1, P1-3). `rawDescriptor`
+ *    is untouched: the bank's text remains the permanent record and the match key.
+ *
+ * `claimLineage` is the create/update difference and it is not cosmetic (critic
+ * cycle 1, P1-1). `undoCorrections` deletes the rule whose `createdFrom` still
+ * points at the correction being undone — right for a rule the correction MINTED,
+ * catastrophic for a rule that merely got edited, because undoing the edit's
+ * re-apply would delete a rule the reader only meant to change. So only the create
+ * path claims lineage; an edit's re-apply is undoable as a filing and leaves the
+ * rule alone, which is the same stance `deleteKeywordRule` documents.
+ */
+async function applyRuleToHistory(
+  userId: string,
+  rule: { id: string; categoryId: string; renameTo: string | null },
+  conditions: KeywordRuleConditions,
+  opts: { claimLineage: boolean },
+): Promise<{ ids: string[]; wrongSign: number; renamed: number }> {
+  return serializableTx(async (tx) => {
+    const targets = await matchingRows(userId, conditions, tx);
+    const eligible = targets.filter((t) => filedCategory(t.categoryId) !== rule.categoryId);
+    const toRefile = eligible.filter((t) => !signWouldErase(rule.categoryId, t.amountCents));
+    const wrongSign = eligible.length - toRefile.length;
+    // The SAME guard the refile uses, for the same reason one level up (critic
+    // cycle 1, P1-3). A rename is not just a label: `merchantId` is the batch key
+    // `similarTransactionsWhere` uses, and `recategorize({scope:'merchant'})` re-files
+    // ALREADY-FILED rows in that batch. Renaming a wrong-signed outflow into an
+    // income payee's group therefore builds a mixed-sign group in which one later
+    // "file all similar" turns three real deposits into spend — the exact erasure
+    // the sign guard exists to prevent, arriving by a different door. It also made
+    // the two rename paths contradict each other: `categorize` renames only a rule
+    // that actually FILED (pipeline.ts), so the same row would be named one way on
+    // backfill and another way on the next sync.
+    const toRename = targets.filter((t) => !signWouldErase(rule.categoryId, t.amountCents));
+
+    const ids: string[] = [];
+    for (const t of toRefile) {
+      const c = await tx.correction.create({
+        data: {
+          userId,
+          transactionId: t.id,
+          fromCategoryId: t.categoryId,
+          toCategoryId: rule.categoryId,
+        },
+      });
+      ids.push(c.id);
+    }
+    if (ids.length > 0) {
+      await tx.transaction.updateMany({
+        // The read predicate is re-asserted here, not just the ids, so a row that
+        // moved out of scope underneath us is skipped rather than overwritten.
+        where: { id: { in: toRefile.map((t) => t.id) }, ...matchableWhere(userId, conditions.accountId) },
+        data: { categoryId: rule.categoryId, needsReview: false, confidenceBps: 9900 },
+      });
+      await tx.categoryPrediction.updateMany({
+        where: { transactionId: { in: toRefile.map((t) => t.id) }, userId },
+        data: { actualCategoryId: rule.categoryId, labeledAt: new Date() },
+      });
+      // Undo lineage — see the createKeywordRule docblock. Only the FIRST
+      // correction owns the rule, the shape `undoCorrections` knows how to unwind,
+      // and only on the CREATE path (see `claimLineage` above).
+      if (opts.claimLineage) {
+        await tx.correction.update({ where: { id: ids[0] }, data: { becameRuleId: rule.id } });
+        await tx.categorizationRule.update({ where: { id: rule.id }, data: { createdFrom: ids[0] } });
+      }
+    }
+
+    let renamed = 0;
+    if (rule.renameTo !== null && toRename.length > 0) {
+      // Same upsert shape the ingest writers use (plaid.ts / simplefin.ts): the
+      // Merchant table is keyed by canonical, and a renamed payee is a canonical
+      // the reader named rather than one the normalizer derived.
+      //
+      // The unique index on `canonical` is GLOBAL, so a concurrent insert of the
+      // same name (this reader's own in-flight sync, or another reader's) surfaces
+      // a UNIQUE violation rather than the serialization failure `serializableTx`
+      // retries — the class `isUniqueViolation` already exists for at the ingest
+      // sites (critic cycle 1, P2-7). Losing the whole re-file to a name that now
+      // exists would be absurd, so read the winner and carry on.
+      let merchant: { id: string };
+      try {
+        merchant = await tx.merchant.upsert({
+          where: { canonical: rule.renameTo },
+          create: { canonical: rule.renameTo, defaultCategoryId: rule.categoryId },
+          update: {},
+        });
+      } catch (e) {
+        if (!isUniqueViolation(e)) throw e;
+        const existing = await tx.merchant.findUnique({
+          where: { canonical: rule.renameTo },
+          select: { id: true },
+        });
+        if (!existing) throw e;
+        merchant = existing;
+      }
+      const res = await tx.transaction.updateMany({
+        where: {
+          id: { in: toRename.map((t) => t.id) },
+          // Rows already carrying this payee are excluded, so the count the toast
+          // reports is rows CHANGED, not rows matched — a repeat apply of an
+          // unchanged rule must not claim it renamed 12 payees (critic P2-9).
+          //
+          // Spelled as an explicit OR, not `NOT: { merchantId }`: in SQL's
+          // three-valued logic `NOT (merchantId = 'x')` is UNKNOWN when the column
+          // is NULL, so the unnamed rows — the majority, and the whole point of a
+          // rename — were silently excluded and every rename reported 0. Caught by
+          // this slice's own count lock.
+          OR: [{ merchantId: null }, { merchantId: { not: merchant.id } }],
+          ...matchableWhere(userId, conditions.accountId),
+        },
+        data: { merchantId: merchant.id },
+      });
+      renamed = res.count;
+    }
+    return { ids, wrongSign, renamed };
+  });
 }
 
 /**
@@ -276,11 +550,21 @@ export interface CreateKeywordRuleResult {
  * every row he had just reverted — a loop he could not escape (critic P1,
  * reproduced: 5 rows reverted, all 5 re-filed by one backfill).
  */
-export async function createKeywordRule(input: {
+export interface KeywordRuleInput {
   keywordsRaw: string;
   categoryId: string;
+  /** Optional THEN action: rename the payee on matched rows (O.13c). Blank = none. */
+  renameTo?: string | null;
+  /** Optional IF condition: only rows on this account (O.13c). Falsy = any account. */
+  accountId?: string | null;
+  /** Optional IF condition: minimum absolute amount, as typed ("$25"). Blank = none. */
+  minAmountRaw?: string;
+  /** Optional IF condition: maximum absolute amount, as typed. Blank = none. */
+  maxAmountRaw?: string;
   applyToExisting?: boolean;
-}): Promise<CreateKeywordRuleResult> {
+}
+
+export async function createKeywordRule(input: KeywordRuleInput): Promise<CreateKeywordRuleResult> {
   const userId = await requireUserId();
   // SHARED-DEMO FENCE. `loadExplicitUserRules` returns [] for the demo row, so a
   // rule created here could never file anything while the UI promised it would —
@@ -290,8 +574,9 @@ export async function createKeywordRule(input: {
   if (isDemoUser(userId)) throw new Error(DEMO_ENTRY_BLOCKED);
   await assertOwnedCategory(userId, input.categoryId);
   assertTargetable(input.categoryId);
-  const keywords = parseKeywords(input.keywordsRaw);
-  assertUsableKey(keywords);
+  const conditions = await resolveConditions(userId, input);
+  assertUsableKey(conditions.groups);
+  const renameTo = normalizeRenameTo(input.renameTo);
   // Both writes reference Category rows by id (#65) — the same guard
   // `applyCategory` and `fileMerchantGroup` run for exactly this reason.
   await ensureCategories();
@@ -301,68 +586,47 @@ export async function createKeywordRule(input: {
       userId,
       categoryId: input.categoryId,
       priority: KEYWORD_RULE_PRIORITY,
-      matchKeywords: encodeKeywords(keywords),
+      ...keywordColumns(conditions.groups),
+      renameTo,
+      accountId: conditions.accountId,
+      minAmountCents: conditions.minAmountCents,
+      maxAmountCents: conditions.maxAmountCents,
     },
   });
   await auditLog(userId, 'rule.create', {
     ruleId: rule.id,
     categoryId: input.categoryId,
-    keywordCount: keywords.length, // the COUNT, never the reader's text
+    // COUNTS, never the reader's text (a keyword or payee name can be a person).
+    keywordCount: conditions.groups.reduce((n, g) => n + g.length, 0),
+    groupCount: conditions.groups.length,
+    hasRename: renameTo !== null,
   });
 
   let affected = 0;
   let skippedWrongSign = 0;
+  let renamed = 0;
   const correctionIds: string[] = [];
   if (input.applyToExisting) {
-    const written = await serializableTx(async (tx) => {
-      // Re-read INSIDE the transaction. The set was previously read outside it, so a
-      // concurrent commit (a second tab, a household partner, a sync) produced a
-      // Correction stamped with a `fromCategoryId` the row never had — and the undo
-      // the UI promises would then restore the wrong category (the DECISIONS #146
-      // class `db.ts` provides `serializableTx` for).
-      const targets = await matchingRows(userId, keywords, tx);
-      const eligible = targets.filter((t) => filedCategory(t.categoryId) !== input.categoryId);
-      const toRefile = eligible.filter((t) => !signWouldErase(input.categoryId, t.amountCents));
-      const wrongSign = eligible.length - toRefile.length;
-
-      const ids: string[] = [];
-      for (const t of toRefile) {
-        const c = await tx.correction.create({
-          data: {
-            userId,
-            transactionId: t.id,
-            fromCategoryId: t.categoryId,
-            toCategoryId: input.categoryId,
-          },
-        });
-        ids.push(c.id);
-      }
-      if (ids.length > 0) {
-        await tx.transaction.updateMany({
-          // The read predicate is re-asserted here, not just the ids, so a row that
-          // moved out of scope underneath us is skipped rather than overwritten.
-          where: { id: { in: toRefile.map((t) => t.id) }, ...matchableWhere(userId) },
-          data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900 },
-        });
-        await tx.categoryPrediction.updateMany({
-          where: { transactionId: { in: toRefile.map((t) => t.id) }, userId },
-          data: { actualCategoryId: input.categoryId, labeledAt: new Date() },
-        });
-        // Undo lineage — see the docblock. Only the FIRST correction owns the rule,
-        // which is the shape `undoCorrections` already knows how to unwind.
-        await tx.correction.update({ where: { id: ids[0] }, data: { becameRuleId: rule.id } });
-        await tx.categorizationRule.update({ where: { id: rule.id }, data: { createdFrom: ids[0] } });
-      }
-      return { ids, wrongSign };
-    });
+    // Re-read INSIDE the transaction (applyRuleToHistory) — DECISIONS #146: a
+    // concurrent commit must not produce a Correction stamped with a
+    // `fromCategoryId` the row never had.
+    const written = await applyRuleToHistory(
+      userId,
+      { id: rule.id, categoryId: input.categoryId, renameTo },
+      conditions,
+      // The rule was minted by THIS action, so its undo may delete it.
+      { claimLineage: true },
+    );
     correctionIds.push(...written.ids);
     affected = written.ids.length;
     skippedWrongSign = written.wrongSign;
-    if (affected > 0) {
+    renamed = written.renamed;
+    if (affected > 0 || renamed > 0) {
       await auditLog(userId, 'rule.batch-apply', {
         ruleId: rule.id,
         categoryId: input.categoryId,
         affected,
+        renamed,
       });
     }
   }
@@ -372,16 +636,126 @@ export async function createKeywordRule(input: {
   revalidatePath('/rules');
   revalidatePath('/transactions');
   revalidatePath('/triage');
-  return { ruleId: rule.id, keywords, affected, correctionIds, skippedWrongSign };
+  return {
+    ruleId: rule.id,
+    groups: conditions.groups,
+    affected,
+    correctionIds,
+    skippedWrongSign,
+    renamed,
+    renameTo,
+    accountId: conditions.accountId,
+    minAmountCents: conditions.minAmountCents,
+    maxAmountCents: conditions.maxAmountCents,
+  };
+}
+
+export interface UpdateKeywordRuleResult extends CreateKeywordRuleResult {
+  updated: boolean;
+}
+
+/**
+ * Edit a typed rule in place (O.13c — Simplifi lets a rule be edited; O.13a only
+ * offered delete-and-retype, which silently dropped the rule's undo lineage).
+ * Ownership is asserted by userId + keyword-key shape in the WHERE, the same
+ * discipline `deleteKeywordRule` uses; a merchant-keyed or learned rule can never
+ * be edited through this door. Optionally re-applies to history through the SAME
+ * writer the create uses — one basis, no drift.
+ */
+export async function updateKeywordRule(
+  ruleId: string,
+  input: KeywordRuleInput,
+): Promise<UpdateKeywordRuleResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) throw new Error(DEMO_ENTRY_BLOCKED);
+  const existing = await prisma.categorizationRule.findFirst({
+    where: { id: ruleId, userId, NOT: { matchKeywords: null } },
+    select: { id: true },
+  });
+  if (!existing) throw new Error('That rule wasn’t found — refresh and try again.');
+  await assertOwnedCategory(userId, input.categoryId);
+  assertTargetable(input.categoryId);
+  const conditions = await resolveConditions(userId, input);
+  assertUsableKey(conditions.groups);
+  const renameTo = normalizeRenameTo(input.renameTo);
+  await ensureCategories();
+
+  await prisma.categorizationRule.update({
+    where: { id: existing.id },
+    data: {
+      categoryId: input.categoryId,
+      ...keywordColumns(conditions.groups),
+      renameTo,
+      accountId: conditions.accountId,
+      minAmountCents: conditions.minAmountCents,
+      maxAmountCents: conditions.maxAmountCents,
+    },
+  });
+  await auditLog(userId, 'rule.update', {
+    ruleId: existing.id,
+    categoryId: input.categoryId,
+    keywordCount: conditions.groups.reduce((n, g) => n + g.length, 0),
+    groupCount: conditions.groups.length,
+    hasRename: renameTo !== null,
+  });
+
+  let affected = 0;
+  let skippedWrongSign = 0;
+  let renamed = 0;
+  const correctionIds: string[] = [];
+  if (input.applyToExisting) {
+    const written = await applyRuleToHistory(
+      userId,
+      { id: existing.id, categoryId: input.categoryId, renameTo },
+      conditions,
+      // The rule PRE-EXISTED this edit, so undoing the re-apply must put the
+      // transactions back WITHOUT deleting a rule the reader only changed (P1-1).
+      { claimLineage: false },
+    );
+    correctionIds.push(...written.ids);
+    affected = written.ids.length;
+    skippedWrongSign = written.wrongSign;
+    renamed = written.renamed;
+    if (affected > 0 || renamed > 0) {
+      await auditLog(userId, 'rule.batch-apply', {
+        ruleId: existing.id,
+        categoryId: input.categoryId,
+        affected,
+        renamed,
+      });
+    }
+  }
+
+  revalidatePath('/rules');
+  revalidatePath('/transactions');
+  revalidatePath('/triage');
+  return {
+    ruleId: existing.id,
+    groups: conditions.groups,
+    affected,
+    correctionIds,
+    skippedWrongSign,
+    renamed,
+    renameTo,
+    accountId: conditions.accountId,
+    minAmountCents: conditions.minAmountCents,
+    maxAmountCents: conditions.maxAmountCents,
+    updated: true,
+  };
 }
 
 export interface StoredKeywordRule {
   id: string;
-  keywords: string[];
+  /** OR-groups (O.13c): the rule matches when any one group's words all appear. */
+  groups: string[][];
   categoryId: string;
+  renameTo: string | null;
+  accountId: string | null;
+  minAmountCents: number | null;
+  maxAmountCents: number | null;
 }
 
-/** The reader's typed rules, for a list he can see and delete. */
+/** The reader's typed rules, for a list he can see, edit, and delete. */
 export async function listKeywordRules(): Promise<StoredKeywordRule[]> {
   const userId = await requireUserId();
   // Same fence as creation: the shared demo row must never render one anonymous
@@ -390,17 +764,33 @@ export async function listKeywordRules(): Promise<StoredKeywordRule[]> {
   const rows = await prisma.categorizationRule.findMany({
     where: { userId, NOT: { matchKeywords: null } },
     orderBy: { id: 'asc' },
-    select: { id: true, matchKeywords: true, categoryId: true },
+    select: {
+      id: true,
+      matchKeywords: true,
+      matchKeywordGroups: true,
+      categoryId: true,
+      renameTo: true,
+      accountId: true,
+      minAmountCents: true,
+      maxAmountCents: true,
+    },
   });
   return rows
     .map((r) => ({
       id: r.id,
-      keywords: parseKeywords(r.matchKeywords ?? ''),
+      // The SAME decoder the engine loader uses (`server/rules.ts`), so the list
+      // cannot show a key the engine would not execute — including the pre-O.13c
+      // AND meaning and the read-path length floor.
+      groups: storedKeywordGroups(r),
       categoryId: r.categoryId,
+      renameTo: r.renameTo,
+      accountId: r.accountId,
+      minAmountCents: r.minAmountCents,
+      maxAmountCents: r.maxAmountCents,
     }))
-    // A row whose stored key decodes to nothing is refused by `toRuleLike` and files
+    // A row whose stored key decodes to nothing is refused by `toRuleLikes` and files
     // nothing, so listing it would render "contains → Category" with no chips.
-    .filter((r) => r.keywords.length > 0);
+    .filter((r) => r.groups.length > 0);
 }
 
 /**

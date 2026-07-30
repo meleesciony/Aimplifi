@@ -78,12 +78,82 @@ export function longestKeywordLength(keywords: readonly string[]): number {
  */
 export function parseKeywords(input: string): string[] {
   const out: string[] = [];
-  for (const raw of input.split(/[,\s]+/)) {
+  // `|` joins the separator set (O.13c): it is the OR-group divider in
+  // `matchKeywordGroups`, so no surviving token may ever contain it — that is what
+  // keeps `encodeKeywordGroups` lossless by construction, the same argument the
+  // space-join codec already makes about whitespace and commas.
+  //
+  // This is the WRITE path (the reader's live input) and the O.13c column only.
+  // It is NOT how a stored `matchKeywords` value is read: that column predates the
+  // divider and `decodeKeywords` keeps the old separators, because widening a
+  // stored rule is the one failure direction this file forbids.
+  for (const raw of input.split(/[,\s|]+/)) {
     const token = raw.trim().toLowerCase();
     if (token === '') continue;
     if (!out.includes(token)) out.push(token);
   }
   return out;
+}
+
+/**
+ * OR-groups (TASKS O.13c, Simplifi parity: "Add 'OR' conditions to target
+ * different keyword combinations"). The reader writes several keyword
+ * combinations for ONE rule — `cardone eq | cardone equity` — and the rule
+ * matches when ANY group's keywords are all present (OR of ANDs).
+ *
+ * `|` divides groups; within a group the existing AND semantics are unchanged.
+ * Empty groups are dropped (`a | ` is one group) and duplicate groups collapse
+ * REGARDLESS OF ORDER — matching is order-free, so `abc def` and `def abc` are one
+ * condition and storing both would render two identical chip rows and inflate the
+ * audited group count (critic cycle 1, P2-3). An input with no `|` parses to
+ * exactly one group.
+ *
+ * This is the WRITE-path parser. It is NOT used to read a pre-O.13c
+ * `matchKeywords` value — see `decodeKeywords` for why that would widen a stored
+ * rule.
+ */
+export function parseKeywordGroups(input: string): string[][] {
+  const groups: string[][] = [];
+  const seen = new Set<string>();
+  for (const part of input.split('|')) {
+    const g = parseKeywords(part);
+    if (g.length === 0) continue;
+    // Canonical form for identity only: sorted, so order cannot hide a duplicate.
+    // The GROUP itself keeps the reader's typed order, because the chips are
+    // rendered back to him in that order.
+    const key = [...g].sort().join(' ');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    groups.push(g);
+  }
+  return groups;
+}
+
+/**
+ * Storage codec for the `matchKeywordGroups` column: groups space-joined then
+ * `|`-joined — lossless because `parseKeywords` strips `|` from every token, and
+ * because this column is only ever written by THIS codec. That last clause is the
+ * one the first cut of O.13c was missing: the same encoding written into the older
+ * `matchKeywords` column would have been read back through a parser that had
+ * treated `|` as an ordinary character, silently widening stored AND rules into
+ * ORs (critic cycle 1, P0/P1).
+ */
+export function encodeKeywordGroups(groups: readonly (readonly string[])[]): string {
+  return groups.map((g) => g.join(' ')).join(' | ');
+}
+
+/** Decode a stored key into OR-groups. A null/blank column yields `[]`. */
+export function decodeKeywordGroups(stored: string | null | undefined): string[][] {
+  if (stored == null) return [];
+  return parseKeywordGroups(stored);
+}
+
+/** Does ANY group fully match? Empty groups list ⇒ false (matches nothing). */
+export function keywordGroupsMatch(
+  groups: readonly (readonly string[])[],
+  rawDescriptor: string,
+): boolean {
+  return groups.some((g) => keywordsMatch(g, rawDescriptor));
 }
 
 /**
@@ -96,10 +166,68 @@ export function encodeKeywords(keywords: readonly string[]): string {
   return keywords.join(' ');
 }
 
-/** Decode a stored key. A null/blank column yields `[]` — which matches nothing. */
+/**
+ * Decode a stored `matchKeywords` key. A null/blank column yields `[]` — which
+ * matches nothing.
+ *
+ * SPLITS ON THE PRE-O.13c SEPARATORS ONLY, deliberately, and this is the whole
+ * reason O.13c's groups live in their own column (critic cycle 1, P0+P1). Every
+ * `matchKeywords` value in the database was written by a parser whose separators
+ * were commas and whitespace, so `|` was an ORDINARY CHARACTER INSIDE A KEYWORD:
+ * `us|y47` was one token requiring that literal text. Re-reading such a row with
+ * today's `parseKeywords` (where `|` divides OR-groups) would silently convert an
+ * AND key into an OR — a rule that required three words at once would start
+ * firing on `y47` alone, and one whose every group fell under the length floor
+ * (`eq|fund`, `x|y`) would auto-file most of the register at 9900 bps with no
+ * review and no badge. Widening is the ONE direction this file's header forbids
+ * in capitals. So the legacy column keeps the legacy separators, forever, and a
+ * pre-O.13c row means exactly today what it meant when it was written.
+ */
 export function decodeKeywords(stored: string | null | undefined): string[] {
   if (stored == null) return [];
-  return parseKeywords(stored);
+  const out: string[] = [];
+  for (const raw of stored.split(/[,\s]+/)) {
+    const token = raw.trim().toLowerCase();
+    if (token === '') continue;
+    if (!out.includes(token)) out.push(token);
+  }
+  return out;
+}
+
+/**
+ * The OR-groups a STORED rule matches on — the one basis every reader of the two
+ * columns shares (the engine loader in `server/rules.ts` and the rules list in
+ * `server/keyword-rules.ts`), so the list can never render a key the engine does
+ * not execute.
+ *
+ * `matchKeywordGroups` (O.13c) is authoritative when present. Otherwise the row
+ * predates O.13c and its single AND key is decoded by the parser that WROTE it
+ * (see `decodeKeywords`).
+ *
+ * The per-group length floor is re-applied HERE, on the READ path, in the same
+ * defense-in-depth spirit as the `isAggregateCanonical` re-check in
+ * `server/rules.ts`: `assertUsableKey` guards creation, but a guard that only
+ * runs at creation is advisory, and the failure it would let through is a group
+ * so short it matches nearly every descriptor. A no-op for every row written
+ * through the builder — creation already refused those — and a structural stop
+ * for anything else that ever reaches the column. Dropping only the WEAK group
+ * narrows the rule; a rule left with no usable group at all matches NOTHING,
+ * which is this file's stated failure direction.
+ */
+export function storedKeywordGroups(rule: {
+  matchKeywords?: string | null;
+  matchKeywordGroups?: string | null;
+}): string[][] {
+  const groups =
+    rule.matchKeywordGroups != null
+      ? decodeKeywordGroups(rule.matchKeywordGroups)
+      : wrapSingleGroup(decodeKeywords(rule.matchKeywords));
+  return groups.filter((g) => longestKeywordLength(g) >= MIN_KEYWORD_LENGTH);
+}
+
+/** `[]` stays empty (matches nothing); a non-empty AND key is one group. */
+function wrapSingleGroup(keywords: string[]): string[][] {
+  return keywords.length > 0 ? [keywords] : [];
 }
 
 /**
