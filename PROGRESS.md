@@ -6978,3 +6978,23 @@ Full e2e re-run SERIALIZED (`--workers=1`), the repo's trustworthy full-suite mo
 **239 passed, 6.1m, zero failures**, including
 `rule-inventory.spec.ts` (1.7s). Schema: `git diff origin/main..main -- prisma/` is
 EMPTY — this slice adds no columns, so the deploy does not touch the Neon database.
+
+### O.15 slice 3 SHIPPED + deploy-verified — 2026-07-30
+
+Commit `d723f2b`, pushed to origin/main. Deployment `dpl_ZBUEFsKcY17CqEa2UViNc5tEVcmf`
+**READY** on `githubCommitSha d723f2bec…` (matches), `alias` includes
+**www.aimplifi.app** and **aimplifi.app**, `aliasError: null`.
+
+Every route this slice touches is auth-gated, so there is no curl-able marker (the
+slice-1 L.23 note: a chunk-hash comparison against an unauthenticated page is vacuous
+when nothing unauthenticated changed, and a 200 proves nothing because an old
+deployment answers 200 perfectly well). The honest proof is the deployment's own
+identity above, plus the build log confirming the prediction made from the empty
+`git diff origin/main..main -- prisma/`:
+
+  Datasource "db": PostgreSQL database "pulse" … neon.tech
+  The database is already in sync with the Prisma schema.
+
+— no columns added, no production data touched. Runtime errors in the window: ONE
+pre-existing group only, the `pg` SSL-mode deprecation warning first seen
+2026-06-17, whose `lastDeployment` is the PREVIOUS deploy. Nothing new.
