@@ -6818,3 +6818,19 @@ GATE (this session, clean env, port 3100 free, no stray next servers):
 `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0, **4950 unit / 312
 files** (+35/+4 over slice 1), build clean. Full e2e SERIALIZED (`--workers=1`) →
 **238 passed, 6.4m, zero failure artifacts** (+4 = action-menu.spec).
+
+### O.15 slice 2 SHIPPED + deploy-verified — 2026-07-30
+
+Commit `5e15514`, pushed to origin/main. Deployment `dpl_DoDVNhaM15csoEoeBm7HjGdJcvyq`
+**READY** on `githubCommitSha 5e1551479…` (matches), `alias` includes **www.aimplifi.app**
+and **aimplifi.app**, `aliasError: null`. This slice DOES carry a schema diff, so the
+deploy proof includes the build log's db push against Neon:
+
+  Datasource "db": PostgreSQL database "pulse" … neon.tech
+  🚀 Your database is now in sync with your Prisma schema. Done in 429ms
+
+— the two additive Transaction columns (`excludeFromTotals` default-false,
+`reimbursement` nullable) now exist in production; no data was touched. Zero runtime
+errors in the 30-minute window after READY. Every changed route is auth-gated, so per
+the slice-1 L.23 note there is no curl-able marker; the deployment's own identity
+(READY + sha + alias + aliasError + the db-push line) is the honest proof.
