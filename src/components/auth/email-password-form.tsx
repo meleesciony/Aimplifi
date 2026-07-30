@@ -23,6 +23,13 @@ export function EmailPasswordForm() {
         name="email"
         required
         autoComplete="email"
+        // React resets this uncontrolled form once the action returns, so a
+        // rejection used to empty BOTH fields (measured in tests/e2e/auth.spec.ts)
+        // and every retry was a full re-entry. `defaultValue` is what the reset
+        // restores TO, so echoing the submitted address back puts it straight
+        // back. Keyed on the address so a NEW value replaces the mounted default.
+        key={state?.email ?? ''}
+        defaultValue={state?.email ?? ''}
         placeholder="you@email.com"
         aria-label="Email"
         data-testid="auth-email"

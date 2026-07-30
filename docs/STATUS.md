@@ -2,57 +2,69 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
-## 🔍 2026-07-29 — the login "wrong password" report: a mask REMOVED, the cause still OPEN
+## 🔍 2026-07-29 — the login "wrong password" report: the two blocking facts ARRIVED; the failure is now localized to the FIRST autofill
 
-Owner, verbatim: *"Also the login is buggy. When I click login, it sometimes says wrong pw. I click it
-again, it works."*
+Owner, verbatim: *"the login is buggy. When I click login, it sometimes says wrong pw. I click it
+again, it works."* Then, with a screenshot: *"My LastPass signin caused incorrect pw. It's correct. If
+I click button again it works."*
 
-**What was verified, in order, and what each step killed.**
+O.14b was BLOCKED on two facts only the owner could produce. Both are now in hand, and together with
+one new measurement they collapse most of the remaining space.
 
-1. **The copy was lying by construction, and that is fixed.** `signInWithPassword` mapped EVERY
-   `AuthError` to "Invalid email or password." — including `CallbackRouteError`, which is what Auth.js
-   raises when `authorize()` itself throws (the `prisma.user.findUnique` in there can fail on a cold or
-   flaky connection). So a fault on our side accused the reader's correct password, and it spent one of
-   his 8 per-account failed-attempt credits. Now only unambiguously-infrastructure types get an honest
-   "problem on our side" sentence and no budget charge; an UNRECOGNISED `AuthError` deliberately stays on
-   the credential path, because excusing unknown errors would let an attacker who can provoke one opt out
-   of brute-force throttling. Locked + mutation-proven (REGRESSION_LEDGER 2026-07-29).
-2. **Production evidence says his failures were `CredentialsSignin`, i.e. `authorize()` returned null.**
-   The Vercel error table shows 4 groups; the two bare-stack groups share their last-seen timestamp with
-   the `[auth][error] CredentialsSignin` line (and differ only by build-chunk hash), so they are one
-   multi-line event, not three faults. Count is **7 events / 5 users since 2026-06-18**, last
-   2026-07-29T20:38:28Z. Caveat stated rather than skipped: runtime-log retention on this plan is short,
-   so this table cannot prove it covers every failure he experienced.
-3. **`MissingCSRF` is impossible on this path — refuted from the dependency source.**
-   `next-auth/lib/actions.js` calls `Auth(req, { ...config, raw, skipCSRFCheck })`, so the server-action
-   sign-in never runs the CSRF check. A plausible "first POST has no csrf cookie, retry works" story died
-   in one read.
-4. **Password verification cannot be intermittent.** `verifyPassword` is scrypt over a per-password salt
-   with no pepper, no env var, no clock (`src/lib/auth/password.ts`) — deterministic in (plain, stored).
-   So a retry succeeding with the same bytes is not explicable server-side; something about the FIRST
-   submit differed.
-5. **The reveal toggle's submit-time type flip is NOT reproduced in either engine.** `PasswordInput`
-   re-hides the field in a CAPTURE-phase submit listener (so a password manager sees a real password
-   field), which runs before React reads the FormData; if any engine cleared the value on that flip, the
-   first submit would carry an empty password and the retry would work — exactly the reported shape.
-   Measured with `scripts/audit-probes/login-reveal-type-flip.mjs`: chromium and WebKit both send all 21
-   characters, with and without reveal, focused and unfocused. Per the mobile-overflow lesson, Playwright
-   WebKit is NOT his iOS Safari, so this is inconclusive for his phone — but it removes the leading
-   client-side candidate.
+**FACT 1 — the exact sentence, from his screenshot: "Invalid email or password."** Not "Enter your
+email and password.". Those come from different branches, and the one he saw means the password field
+did **not** arrive empty. Every "the field was cleared" mechanism — including the reveal toggle's
+submit-time `type` flip, the leading client-side candidate — is dead: they all produce an EMPTY
+password, which lands on the other sentence.
 
-**Still OPEN, and deliberately not guessed at.** The inputs are uncontrolled (so the pre-hydration
-controlled-input class does not apply), the server is deterministic, and the two mechanisms that would
-explain a differing first submit are refuted or unreproduced. A **PII-free discriminator** now ships in
-`authorize()`: a rejection logs `reason=no-user` or `reason=bad-hash` — no email, no password, no length,
-and identical copy to the reader either way, so it cannot become an account-enumeration oracle. The next
-occurrence therefore names its own cause: `bad-hash` means the wrong bytes arrived (client-side value
-delivery), `no-user` means the address did, and NEITHER appearing while sign-in still fails means it was
-never a credential error and the newly-honest system message will say so.
+**FACT 2 — the discriminator fired: `reason=bad-hash`.** Vercel runtime log, production,
+`2026-07-29T03:21:42Z`, `POST /sign-in` (matches the 11:21 on his screenshot for a UTC−4 device, and it
+is the only `credentials rejected` line in the retained window). `bad-hash` means the address was
+found **exactly as stored** and the submitted password bytes did not verify. So: the email was
+delivered correctly, and the password was delivered non-empty and WRONG.
 
-**One fact is needed from the owner, and only he can supply it:** the EXACT sentence on screen when it
-fails. "Invalid email or password." and "Enter your email and password." are produced by different
-branches — the second means the password field arrived empty — and that single word splits the remaining
-space.
+**MEASUREMENT — a retry was never a second click on the same values.** React resets an uncontrolled
+`<form action>` once the action returns; measured on the deployed component (`tests/e2e/auth.spec.ts`),
+a rejection emptied BOTH fields. With `required` on the email, a literal second click on an emptied
+form cannot even submit. So "I click it again, it works" necessarily means **he filled again** — on a
+phone, re-invoking LastPass. His screenshot catches exactly that moment: both fields empty behind the
+error, the LastPass suggestion bar up.
+
+**What that leaves, stated as the narrow thing it is.** `verifyPassword` is deterministic in
+(plain, stored) — scrypt, per-password salt, no pepper, no env, no clock. The email arrived right. The
+password arrived non-empty and wrong, then a SECOND fill of the same field succeeded. Therefore the
+first fill and the second fill delivered **different bytes**, and the defect lives in what LastPass put
+in the password field on the first pass. Three candidates remain, each with a different fix site:
+
+| Candidate | Fix lives in |
+| --- | --- |
+| Surrounding whitespace on the filled value | the sign-in boundary (normalize) |
+| The email mis-filled into the password field | the form markup / autocomplete hints |
+| A genuinely different password — i.e. a STALE entry saved in the vault, never updated after the reset (#257 links to /sign-in and never offers the new credential for saving) | the password-RESET flow |
+
+**Shipped this session (verify green, 4834 unit + 217 e2e).**
+1. **A second-generation discriminator** (`src/lib/auth/reject-reason.ts`, pure + unit-tested) splits
+   `bad-hash` by mechanism: `bad-hash+trim-verifies` (the trimmed value IS the password),
+   `bad-hash+equals-email` (the address landed in the password field), plain `bad-hash` (genuinely
+   other bytes ⇒ the stale-vault-entry candidate is the survivor), plus `no-password-set` for a
+   Google-provisioned account. Still a fixed enum: no email, no password, no length, no content
+   descriptor, and identical reader copy in every branch, so it cannot become an enumeration oracle.
+   The extra scrypt runs ONLY when the value carries surrounding whitespace, so a normal rejection
+   costs and times exactly what it did before.
+2. **The reveal toggle no longer writes `type` when the viewer was never opened.** The write landed on
+   the exact element a password manager had just filled, in a capture-phase listener that runs before
+   the form serializes. Playwright chromium and WebKit both survive it, so this is NOT a claimed fix —
+   it is the removal of an untestable-on-his-device mutation from the 99% of submits that never needed
+   it. FACT 1 has already demoted this candidate anyway.
+3. **A failed attempt now keeps the email** (echoed through the action state, restored via
+   `defaultValue`, which is what React's reset restores TO). Half the re-entry, and one less trip
+   through the autofill that is the suspect. The password is deliberately NOT echoed back.
+
+**Still OPEN, and one owner-only fact still splits it:** open the LastPass vault, look at the
+entry(ies) for aimplifi.app, and answer (a) does the saved password match the one that works, and
+(b) is there MORE THAN ONE entry for the site. If the saved one is stale or duplicated, the fix is on
+the reset flow, not on the sign-in field. Failing that, the next production occurrence names its own
+mechanism via the enum above.
 
 ## ✅ O.12d 2026-07-29 — the provider-category backfill is BUILT, DEPLOYED, and RUN against production (DECISIONS #337)
 

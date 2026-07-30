@@ -34,6 +34,17 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
     const form = el?.form;
     if (!el || !form) return;
     const hide = () => {
+      // Touch NOTHING when the viewer was never opened (O.14b). The `type` write
+      // lands on the exact element a password manager has just filled, in a
+      // capture-phase listener that runs before the form serializes — and the
+      // owner's one captured failure (`reason=bad-hash`) is a value-delivery
+      // failure on this field with LastPass in the loop. Playwright's chromium
+      // and WebKit both survive the flip (scripts/audit-probes/login-reveal-type-flip.mjs),
+      // so this is NOT a claimed fix; it is the removal of a mutation we cannot
+      // test on his real iOS Safari and do not need on the 99% of submits where
+      // the reveal was never used. Reads live DOM rather than `visible` so the
+      // once-mounted listener can never act on a stale closure.
+      if (el.type === 'password') return;
       el.type = 'password';
       setVisible(false);
     };

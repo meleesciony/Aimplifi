@@ -156,3 +156,19 @@ test('wrong password is rejected with a friendly error', async ({ page }) => {
   await expect(page.getByTestId('auth-error')).toBeVisible({ timeout: 20000 });
   await expect(page).toHaveURL(/\/sign-in/);
 });
+
+test('a failed attempt keeps the email, so a retry is not a full re-entry', async ({ page }) => {
+  // O.14b. React resets an uncontrolled `<form action>` after the action returns,
+  // so a rejection emptied BOTH fields and every retry meant re-invoking the
+  // password manager from scratch — measured before this test existed, and the
+  // reason the owner's "click it again" was never a second click on the same
+  // values. The address is echoed back through the action state and restored via
+  // `defaultValue`; the password is deliberately NOT restored.
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-email').fill('nobody-here@aimplifi.test');
+  await page.getByTestId('auth-password').fill('definitely-wrong');
+  await page.getByTestId('auth-submit').click();
+  await expect(page.getByTestId('auth-error')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('auth-email')).toHaveValue('nobody-here@aimplifi.test');
+  await expect(page.getByTestId('auth-password')).toHaveValue('');
+});

@@ -72,6 +72,18 @@ const SYSTEM_AUTH_ERROR_TYPES: ReadonlySet<string> = new Set([
 
 export interface AuthFormState {
   error?: string;
+  /**
+   * The address that was just submitted, echoed back so the form can restore it
+   * (O.14b). React resets an uncontrolled `<form action>` after the action
+   * returns — MEASURED, not assumed: `tests/e2e/auth.spec.ts` "a failed attempt
+   * keeps the email…" showed BOTH fields emptied on a rejection. So a retry was
+   * never a second click on the values that just failed; it was a full re-entry,
+   * which on a phone means re-invoking the password manager. Restoring the email
+   * (via `defaultValue`, which is what React resets TO) removes half of that
+   * re-entry. The password is deliberately NOT echoed: it is not sent back over
+   * the wire to be restored into a field.
+   */
+  email?: string;
 }
 
 export async function signUpWithPassword(
@@ -81,24 +93,28 @@ export async function signUpWithPassword(
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
   const parsed = validateSignup({ email, password });
-  if (!parsed.ok) return { error: parsed.errors.join(' ') };
+  if (!parsed.ok) return { error: parsed.errors.join(' '), email: normalizeEmail(email) };
 
   // Invite-only gate (DECISIONS #57, #60). On Vercel the household owners are always
   // allowed (env ∪ OWNER_ALLOWLIST) so a mis-set env var can't lock them out; off
   // Vercel it stays dormant unless SIGNUP_ALLOWLIST is set. Checked on the normalized
   // email, before any DB write, so an un-invited address never creates a row.
   if (!isSignupAllowed(parsed.email, effectiveAllowlist())) {
-    return { error: 'This app is invite-only. Ask the owner to add your email to the allowlist.' };
+    return {
+      error: 'This app is invite-only. Ask the owner to add your email to the allowlist.',
+      email: parsed.email,
+    };
   }
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.email }, select: { id: true } });
-  if (existing) return { error: 'An account with that email already exists — sign in instead.' };
+  if (existing)
+    return { error: 'An account with that email already exists — sign in instead.', email: parsed.email };
 
   await prisma.user.create({ data: { email: parsed.email, passwordHash: hashPassword(password) } });
   try {
     await signIn('password', { email: parsed.email, password, redirectTo: '/dashboard' });
   } catch (e) {
-    if (e instanceof AuthError) return { error: 'Account created — please sign in.' };
+    if (e instanceof AuthError) return { error: 'Account created — please sign in.', email: parsed.email };
     throw e; // NEXT_REDIRECT
   }
   return {};
@@ -110,14 +126,17 @@ export async function signInWithPassword(
 ): Promise<AuthFormState> {
   const email = normalizeEmail(String(formData.get('email') ?? ''));
   const password = String(formData.get('password') ?? '');
-  if (!email || !password) return { error: 'Enter your email and password.' };
+  if (!email || !password) return { error: 'Enter your email and password.', email };
 
   // (1) Per-device volume cap, BEFORE any auth work (fails CLOSED on a limiter DB
   //     error). Keyed on the caller's IP, so it bounds an attacker's guess rate but
   //     can never lock a victim out of their own account.
   const ip = await clientIp();
   if (!(await rateLimitDurable(`signin-ip:${ip}`, SIGNIN_IP_LIMIT, SIGNIN_WINDOW_MS))) {
-    return { error: 'Too many sign-in attempts from this device. Please wait a minute and try again.' };
+    return {
+      error: 'Too many sign-in attempts from this device. Please wait a minute and try again.',
+      email,
+    };
   }
 
   try {
@@ -133,15 +152,19 @@ export async function signInWithPassword(
         return {
           error:
             'We could not complete sign-in, and it is a problem on our side rather than your password. Please try again.',
+          email,
         };
       }
       // (2) Per-account FAILED-attempt cap, consumed ONLY on a failure and checked
       //     AFTER sign-in — so a correct password is never blocked (no targeted
       //     account lockout, Critic SEC-2).
       if (!(await rateLimitDurable(`signin-fail:${email}`, SIGNIN_FAIL_LIMIT, SIGNIN_WINDOW_MS))) {
-        return { error: 'Too many failed attempts for this account. Please wait a minute and try again.' };
+        return {
+          error: 'Too many failed attempts for this account. Please wait a minute and try again.',
+          email,
+        };
       }
-      return { error: 'Invalid email or password.' };
+      return { error: 'Invalid email or password.', email };
     }
     throw e; // NEXT_REDIRECT
   }

@@ -11,6 +11,7 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { applyGoogleSignIn } from '@/lib/auth/google-provision';
 import { verifyPassword } from '@/lib/auth/password';
+import { credentialRejection } from '@/lib/auth/reject-reason';
 import { normalizeEmail } from '@/lib/auth/validate';
 import { prisma } from '@/lib/db';
 import { currentSessionEpoch, isSessionEpochCurrent } from '@/server/session-guard';
@@ -34,15 +35,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user || !verifyPassword(password, user.passwordHash)) {
           // PII-FREE DIAGNOSTIC (owner report 2026-07-29: sign-in "sometimes says
           // wrong pw", and the retry works). The reader sees ONE sentence for
-          // three different facts, so a reproduction currently tells us nothing.
-          // This records which of them it was — and nothing else: no email, no
-          // password, no length, no descriptor. `no-user` means the address did
-          // not arrive as stored; `bad-hash` means the address was found and the
-          // submitted bytes did not verify, which points at value delivery on the
-          // client rather than at the server. Neither branch changes what the
-          // READER is told (still one indistinguishable sentence, so this cannot
-          // become an account-enumeration oracle).
-          console.warn(`[auth] credentials rejected: reason=${user ? 'bad-hash' : 'no-user'}`);
+          // several different facts, so a reproduction on its own tells us
+          // nothing. This records which fact it was and nothing else — no email,
+          // no password, no length, no descriptor of content — via the pure
+          // classifier in '@/lib/auth/reject-reason'. The owner's first captured
+          // failure logged `bad-hash`, so the discriminator now splits THAT case
+          // by mechanism (whitespace / mis-filled email / genuinely other bytes).
+          // Every branch returns the SAME null and the reader is told the SAME
+          // sentence, so this cannot become an account-enumeration oracle.
+          console.warn(
+            `[auth] credentials rejected: reason=${credentialRejection({
+              userFound: Boolean(user),
+              storedHash: user?.passwordHash,
+              email,
+              password,
+              verify: verifyPassword,
+            })}`,
+          );
           return null; // same response either way
         }
         return { id: user.id, email: user.email, name: user.name ?? undefined };
