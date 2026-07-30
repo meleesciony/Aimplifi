@@ -383,3 +383,43 @@ URLs are left serving, because they are the instruments the repo uses to verify 
 production (L.23) and to exercise previews; redirecting them would blind the deploy check. Only the stale
 BRAND host is redirected.
 
+## #339 (O.13a critic cycle 1): a typed key is a PATTERN, and every guard the app has was written for an identity
+
+Two fresh-context critics, different lenses (money/data-integrity; claims/privacy), both **FAIL**, converging
+independently on the demo fence and on the preview promising rows the pipeline refuses. 2 P0 + 7 P1, all
+fixed and locked. The unifying finding is one sentence: **every existing safeguard assumed a rule's key was
+an exact identity the reader attached to one payee, and a keyword is a substring that generalises to rows he
+has never seen.**
+
+That is why the sign guard mattered most. `cardone -> income` is obviously right for the deposits he was
+looking at, and obviously wrong for the management fee that arrives next month — and filing an outflow into
+an Income category does not merely mis-label it, it DELETES it: `isSpendRow` drops Income-group rows, so the
+spending disappears from reports, trends and budgets while `monthlyFlows` still counts it as an expense.
+Two surfaces, one row, disagreeing by the amount, with no badge and no review. The guard now applies to typed
+rules — and the FIRST fix was itself wrong, because reusing `learnedSignOk` also refused a positive row in a
+spend category, which is the documented refund convention. The guard is asymmetric on purpose, and the
+slice's own lock caught the over-correction within minutes.
+
+The second P0 is the same mistake in the write path: the apply set was every row the user owns. A split
+CHILD carries its parent's descriptor, so a keyword rule collapsed an allocation the reader had made by
+hand — the only record that it existed — and it also re-filed a detected transfer, cleared a review pin no
+undo can restore, and touched investment and non-USD rows no register page renders. All five exclusions
+already existed in three sibling writers; this one was authored from the engine's perspective (which rows
+match) instead of the product's (which rows are the app's to decide).
+
+**The claims half was worse than the code half, and that is the transferable part.** Three strings told the
+reader an empty rule "would match everything" — the RATIONALE for the guard, shipped as a fact, when the
+engine does the exact opposite and says so in capitals. The builder told him to check his spelling against
+"the original bank text" that the register does not display; and this same session's brand work widened that
+gap, because `MACYS LENOX SQUARE` now displays as `Macy's`, which never matches as typed (4 of 6 executed
+cases failed). Two changes shipped hours apart worked against each other, and neither author noticed —
+mitigated now by showing his real descriptors when a key matches nothing, with the row-level fix carried to
+O.13b.
+
+**Process notes worth keeping.** Parallel critics with different lenses found the same two defects
+independently, which is the strongest available signal a finding is real; each also found P1s the other
+missed. The `undoCorrections` finding is a reminder that a capability with one caller is barely a capability:
+it had existed for months and the rewrite of months of history had no way back. And the stale-list defect was
+invisible to every unit test and to a passing e2e — it only surfaced because the spec asserted the row
+appears WITHOUT a reload.
+

@@ -40,6 +40,7 @@ import {
   deleteKeywordRule,
   previewKeywordRule,
 } from '@/server/keyword-rules';
+import { undoCorrections } from '@/server/triage-actions';
 
 export interface CategoryOption {
   group: string;
@@ -61,10 +62,23 @@ export function KeywordRuleBuilder({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [preview, setPreview] = useState<KeywordRulePreview | null>(null);
-  const [busy, setBusy] = useState<'preview' | 'create' | 'delete' | null>(null);
+  const [busy, setBusy] = useState<'preview' | 'create' | 'delete' | 'undo' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
-  const [applyToExisting, setApplyToExisting] = useState(true);
+  const [applyToExisting, setApplyToExisting] = useState(false);
+  /** Corrections written by the last apply, so the reader can put them back. */
+  const [undoable, setUndoable] = useState<string[]>([]);
+  /**
+   * Rules created in THIS session, merged over the server list. `router.refresh()`
+   * alone did not reliably repaint the list after the action (measured: the row was
+   * in the database and the page still showed the empty state 20s later, until a
+   * reload) — and a reader who just saw "Rule saved" beside "you have no rules"
+   * has been told two contradictory things. These values come from the action's own
+   * RETURN, not from a guess about what the server stored.
+   */
+  const [created, setCreated] = useState<StoredKeywordRule[]>([]);
+  /** Ids removed in this session, so a delete disappears immediately too. */
+  const [removed, setRemoved] = useState<string[]>([]);
 
   /**
    * Read the live form values without ever making the text input controlled — the
@@ -104,16 +118,44 @@ export function KeywordRuleBuilder({
     try {
       const { keywordsRaw, categoryId } = read();
       const res = await createKeywordRule({ keywordsRaw, categoryId, applyToExisting });
+      const label = categoryNameById[categoryId] ?? categoryId;
+      const skipped =
+        res.skippedWrongSign > 0
+          ? ` ${res.skippedWrongSign} money-out ${res.skippedWrongSign === 1 ? 'row was' : 'rows were'} left alone, because filing money out as income would remove it from your spending totals.`
+          : '';
       setDone(
         res.affected > 0
-          ? `Rule saved, and ${res.affected} ${res.affected === 1 ? 'transaction' : 'transactions'} filed as ${categoryNameById[categoryId] ?? categoryId}.`
-          : 'Rule saved. It will file matching transactions from now on.',
+          ? `Rule saved, and ${res.affected} ${res.affected === 1 ? 'transaction' : 'transactions'} filed as ${label}.${skipped}`
+          : `Rule saved. It will file matching transactions from now on.${skipped}`,
       );
+      setUndoable(res.correctionIds);
+      setCreated((prev) => [...prev, { id: res.ruleId, keywords: res.keywords, categoryId }]);
       setPreview(null);
       formRef.current?.reset();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'We could not save that rule. Please try again.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Put back what the apply just changed. `undoCorrections` has existed since the
+   * inbox was built and the triage card was its ONLY caller, so the one-click
+   * rewrite of months of history shipped with no way back (critic P1).
+   */
+  async function onUndoApply() {
+    if (busy || undoable.length === 0) return;
+    setBusy('undo');
+    setError(null);
+    try {
+      await undoCorrections(undoable);
+      setUndoable([]);
+      setDone('Those transactions are back to the categories they had before.');
+      router.refresh();
+    } catch {
+      setError('We could not undo that just now. Please try again.');
     } finally {
       setBusy(null);
     }
@@ -125,6 +167,8 @@ export function KeywordRuleBuilder({
     setError(null);
     try {
       await deleteKeywordRule(ruleId);
+      setRemoved((prev) => [...prev, ruleId]);
+      setCreated((prev) => prev.filter((r) => r.id !== ruleId));
       router.refresh();
     } catch {
       setError('We could not remove that rule just now. Please try again.');
@@ -132,6 +176,10 @@ export function KeywordRuleBuilder({
       setBusy(null);
     }
   }
+
+  const shownRules = [...rules, ...created.filter((c) => !rules.some((r) => r.id === c.id))].filter(
+    (r) => !removed.includes(r.id),
+  );
 
   return (
     <div className="space-y-4" data-testid="keyword-rules">
@@ -152,10 +200,14 @@ export function KeywordRuleBuilder({
                 className={INPUT_CLASS}
               />
               <p className="break-words text-xs text-muted-foreground">
-                Every word you enter must appear somewhere in the transaction&rsquo;s original bank text,
-                in any order. Separate words with a space or comma. Store numbers and transaction ids
-                change every time, so leave them out — <span className="font-mono">cardone</span> matches
-                every Cardone deposit no matter which fund or id follows it.
+                Every word you enter must appear somewhere in the bank&rsquo;s own text for the
+                transaction, in any order, and the match is literal. Separate words with a space or
+                comma. Store numbers and transaction ids change every time, so leave them out —{' '}
+                <span className="font-mono">cardone</span> matches every Cardone deposit no matter which
+                fund or id follows it. Note that the bank&rsquo;s text is often not the name shown in your
+                list: a row displayed as <span className="font-mono">Macy&rsquo;s</span> may arrive as{' '}
+                <span className="font-mono">MACYS LENOX SQUARE</span>. Check below — the matches always
+                show the bank&rsquo;s text.
               </p>
             </div>
 
@@ -194,22 +246,55 @@ export function KeywordRuleBuilder({
             </p>
           )}
           {done && (
-            <p role="status" className="text-sm text-emerald-400" data-testid="kw-done">
-              {done}
-            </p>
+            <div className="space-y-1">
+              <p role="status" className="text-sm text-emerald-400" data-testid="kw-done">
+                {done}
+              </p>
+              {undoable.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onUndoApply}
+                  disabled={busy !== null}
+                  data-testid="kw-undo"
+                >
+                  {busy === 'undo' ? 'Undoing…' : `Undo those ${undoable.length}`}
+                </Button>
+              )}
+            </div>
           )}
 
           {preview && (
-            <div className="space-y-2 rounded-lg border p-3" data-testid="kw-preview-result">
+            <div
+              role="status"
+              className="space-y-2 rounded-lg border p-3"
+              data-testid="kw-preview-result"
+            >
               {preview.keywords.length === 0 ? (
-                <p className="text-sm">Enter at least one word — an empty rule would match everything.</p>
+                <p className="text-sm">Enter at least one word for the rule to match on.</p>
               ) : preview.matchCount === 0 ? (
-                <p className="text-sm" data-testid="kw-preview-none">
-                  Nothing in your history contains{' '}
-                  {preview.keywords.map((k) => `“${k}”`).join(' and ')}. The rule would still apply to
-                  future transactions, but check the spelling against the bank text below a transaction
-                  first — the match is literal.
-                </p>
+                <div className="space-y-1" data-testid="kw-preview-none">
+                  <p className="text-sm">
+                    Nothing in your history contains{' '}
+                    {preview.keywords.map((k) => `“${k}”`).join(' and ')}. The rule would still apply to
+                    future transactions, but the match is literal, so it is worth checking against the
+                    bank&rsquo;s own text.
+                  </p>
+                  {preview.recentDescriptors.length > 0 && (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        This is how your recent transactions actually arrive — copy a word from one:
+                      </p>
+                      <ul className="space-y-0.5 text-xs text-muted-foreground">
+                        {preview.recentDescriptors.map((d) => (
+                          <li key={d} className="min-w-0 break-all font-mono">
+                            {d}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
               ) : (
                 <>
                   <p className="text-sm" data-testid="kw-preview-count">
@@ -226,9 +311,9 @@ export function KeywordRuleBuilder({
                   </p>
                   {preview.signMismatchCount !== null && preview.signMismatchCount > 0 && (
                     <p className="text-xs text-amber-400" data-testid="kw-sign-warning">
-                      {preview.signMismatchCount} of them run the other way for this category (money out
-                      filed as income, or money in filed as spending). Filing those would move the amount
-                      to the wrong side of every total.
+                      {preview.signMismatchCount} of them are money OUT, and this is an income category.
+                      Those will be left alone — filing money out as income would remove it from your
+                      spending totals entirely. The rule will skip them in future too.
                     </p>
                   )}
                   <ul className="space-y-1 text-xs text-muted-foreground">
@@ -255,8 +340,12 @@ export function KeywordRuleBuilder({
                       className="mt-0.5"
                     />
                     <span>
-                      Also file {preview.matchCount === 1 ? 'the' : 'all'} {preview.matchCount} existing{' '}
-                      {preview.matchCount === 1 ? 'transaction' : 'transactions'} now.
+                      Also file the{' '}
+                      {preview.wouldFileCount === preview.matchCount
+                        ? preview.matchCount
+                        : `${preview.wouldFileCount} of ${preview.matchCount}`}{' '}
+                      existing {preview.wouldFileCount === 1 ? 'transaction' : 'transactions'} this would
+                      change now. You can undo it straight afterwards.
                     </span>
                   </label>
                   <Button onClick={onCreate} disabled={busy !== null} data-testid="kw-create">
@@ -279,14 +368,16 @@ export function KeywordRuleBuilder({
 
       <div className="space-y-2">
         <h2 className="text-sm font-medium">Your rules</h2>
-        {rules.length === 0 ? (
+        {shownRules.length === 0 ? (
           <p className="text-sm text-muted-foreground" data-testid="kw-empty">
             You haven&rsquo;t written any rules yet. A rule files matching transactions automatically from
-            now on, and it never guesses — it does exactly what you typed.
+            now on, using the words you typed rather than a guess. Two things still take precedence: a
+            payment detected as a transfer between two of your own accounts, and money-out rows you point
+            at an income category.
           </p>
         ) : (
           <ul className="space-y-2" data-testid="kw-list">
-            {rules.map((r) => (
+            {shownRules.map((r) => (
               <li
                 key={r.id}
                 className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2"

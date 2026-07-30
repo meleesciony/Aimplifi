@@ -145,6 +145,29 @@ function learnedSignOk(categoryId: string, amountCents: number): boolean {
   return true;
 }
 
+/**
+ * The sign guard for a TYPED keyword rule (O.13a). Asymmetric on purpose, and the
+ * asymmetry is the whole point:
+ *
+ *  - an OUTFLOW into an Income-group category is REFUSED. `isSpendRow` drops
+ *    Income-group rows, so such a filing deletes real spending from reports,
+ *    trends and budgets while `monthlyFlows` still counts it as an expense — two
+ *    surfaces disagreeing by the amount, with no badge and no review. A keyword
+ *    key is a SUBSTRING, so it generalises to rows the reader never saw when he
+ *    wrote it ("cardone" written for deposits will meet a management fee).
+ *  - an INFLOW into a spend category is ALLOWED, because that is the documented
+ *    refund convention: a return files back to the category it reverses.
+ *
+ * A refused rule falls through to review, which is what every other auto-file path
+ * here does with a wrong-signed answer. Mirrored by `signWouldErase` in
+ * server/keyword-rules.ts so the preview promises exactly this.
+ */
+export function keywordRuleSignOk(categoryId: string, amountCents: number): boolean {
+  const cat = CATEGORY_BY_ID.get(categoryId);
+  if (!cat) return true; // custom category — group unknown, so no claim is made
+  return !(cat.group === 'Income' && amountCents < 0);
+}
+
 export interface CategorizedTxn {
   merchantCanonical: string;
   merchantKnown: boolean;
@@ -237,7 +260,31 @@ export function categorize(
       if (a.matchKeywords && b.matchKeywords) return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
       return 0;
     });
-  const rule = matching.find((r) => !r.isLearned || learnedSignOk(r.categoryId, txn.amountCents));
+  // A TYPED keyword rule takes the same #44 sign check a learned rule takes, and
+  // for a stronger reason: its key is a substring, so it generalises to rows the
+  // reader never saw when he wrote it. A `cardone -> income` rule meeting next
+  // month's `CARDONE MGMT FEE -$125.00` filed an OUTFLOW as income — and an
+  // Income-group row is dropped by `isSpendRow`, so $125 of real spending vanished
+  // from reports, trends and budgets while the flows engine still counted it as an
+  // expense: two surfaces disagreeing by the amount, silently, with no badge and
+  // no review (critic P0-1, reproduced). Falling through to review is what every
+  // other auto-file path in this file already does with a wrong-signed answer.
+  //
+  // An explicit MERCHANT rule is deliberately still exempt: its key is an exact
+  // identity the reader attached to one payee, not a pattern.
+  // Two different sign guards, deliberately, because the two rule kinds fail
+  // differently. A LEARNED rule keeps its symmetric check (unchanged). A TYPED
+  // keyword rule takes the ASYMMETRIC one: reusing `learnedSignOk` for it was
+  // wrong, because that also refuses a POSITIVE row in a spend category — the
+  // refund/return case this file documents as correct by convention (a return
+  // offsets the spend it reverses), and this slice's own lock caught it. Only the
+  // erasing direction is refused, which is exactly what the rule builder's preview
+  // counts and skips, so engine and preview share one rule.
+  const rule = matching.find((r) => {
+    if (r.isLearned === true && !learnedSignOk(r.categoryId, txn.amountCents)) return false;
+    if (r.matchKeywords != null && !keywordRuleSignOk(r.categoryId, txn.amountCents)) return false;
+    return true;
+  });
   if (rule) {
     const learned = rule.isLearned === true;
     return {

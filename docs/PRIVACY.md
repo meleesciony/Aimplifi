@@ -91,9 +91,10 @@ fictional dataset; everything below applies fully once Plaid is connected.
   32 bytes) — applies to the dormant Plaid path; demo mode stores no tokens.
   Tokens are never logged and never sent to the client. Raw bank credentials
   never touch this system (they go to Plaid Link directly).
-- Audit log — what is logged TODAY: sign-in (best-effort — never blocks login), data exports (CSV/PDF), goal
-  create/delete, budget set/clear, money-dials update, rule creation and
-  batch-apply, cron sync runs, learned-phrasing changes (`vocab.retired` when you forget
+- Audit log — the main things logged TODAY (this list is illustrative, not exhaustive; the writers are every `auditLog(...)` call in `src/server`): sign-in (best-effort — never blocks login), data exports (CSV/PDF), goal
+  create/delete, budget set/clear, money-dials update, rule creation, rule
+  batch-apply and rule DELETION (`rule.delete`, TASKS O.13a — the id only, never the
+  words you typed), cron sync runs, learned-phrasing changes (`vocab.retired` when you forget
   one, `vocab.retired.recheck` when the weekly re-check drops one — so a machine-initiated
   un-learning is never silent), (dormant Plaid path) item link/remove, operator-run data
   repairs (`plaid.provider-category.backfill` + `.item-failed`, O.12d — counts and skip

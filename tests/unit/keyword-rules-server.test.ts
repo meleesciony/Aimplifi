@@ -149,8 +149,12 @@ describe('createKeywordRule', () => {
   });
 
   it('REFUSES an empty key at the server boundary', async () => {
+    // The WORDING changed deliberately in the critic pass: the old message told the
+    // reader an empty rule "would match every transaction", which is the RATIONALE
+    // for the guard, not the behaviour — `keywordsMatch([])` returns false, so an
+    // empty key matches NOTHING. This assertion moved with the sentence.
     await expect(createKeywordRule({ keywordsRaw: '  ', categoryId: 'dining' })).rejects.toThrow(
-      /at least one keyword/i,
+      /at least one word/i,
     );
     expect(await prisma.categorizationRule.count({ where: { userId: USER } })).toBe(0);
   });

@@ -43,9 +43,10 @@ export default async function RulesPage() {
       <div>
         <h1 className="text-xl font-semibold">Rules</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Tell Aimplifi how to file a transaction and it will do exactly that — no guessing. Useful when
-          the bank text changes every time: a fund name, a store number, or a transaction id that never
-          repeats.
+          Tell Aimplifi how to file a transaction and it follows the words you typed rather than
+          guessing at the payee. Useful when the bank text changes every time: a fund name, a store
+          number, or a transaction id that never repeats. A rule does not override a payment detected as
+          a transfer between two of your own accounts.
         </p>
       </div>
 

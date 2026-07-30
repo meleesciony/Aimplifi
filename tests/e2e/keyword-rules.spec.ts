@@ -101,8 +101,26 @@ test('one typed keyword groups deposits no derived key could ever join', async (
   // Both matched rows are inflows filed as income, so no sign warning is due.
   await expect(page.getByTestId('kw-sign-warning')).toHaveCount(0);
 
+  // The history rewrite is opt-IN now: creating a rule is a statement about the
+  // future, and the earlier build defaulted this ON while its own docblock said the
+  // reader must choose it (critic P1).
+  await expect(page.getByTestId('kw-apply-existing')).not.toBeChecked();
+  await page.getByTestId('kw-apply-existing').check();
   await page.getByTestId('kw-create').click();
   await expect(page.getByTestId('kw-done')).toContainText('2', { timeout: 20000 });
+
+  // And the rewrite is reversible from the page that performed it — `undoCorrections`
+  // existed for months with the triage card as its only caller (critic P1).
+  await expect(page.getByTestId('kw-undo')).toBeVisible({ timeout: 20000 });
+
+  // It appears WITHOUT a reload: "Rule saved" printed beside "you have no rules yet"
+  // is two contradictory statements, and `router.refresh()` alone did not reliably
+  // repaint the list (measured — the row was in the database while the page still
+  // showed the empty state 20s later).
+  await expect(page.getByTestId('kw-rule-row')).toHaveCount(1, { timeout: 20000 });
+  // …and it is still there on a fresh request, which is what proves it was stored
+  // rather than only drawn (the `addManualAsset` reload-confirmed idiom).
+  await page.reload();
 
   // The rule is visible and removable — an invisible rule that files money is worse
   // than no rule. The wait budget is explicit because this assertion follows a
@@ -128,7 +146,7 @@ test('one typed keyword groups deposits no derived key could ever join', async (
   });
 });
 
-test('the builder refuses a key that would match everything', async ({ page }) => {
+test('the builder refuses a key with nothing to match on', async ({ page }) => {
   await signUpThrowaway(page);
   await page.goto('/rules');
   // A blank key cannot even be submitted (the field is required), so the refusal a
@@ -139,6 +157,9 @@ test('the builder refuses a key that would match everything', async ({ page }) =
   await expect(page.getByTestId('kw-preview-result')).toContainText('at least one word', {
     timeout: 20000,
   });
+  // It must NOT tell the reader an empty rule matches everything — the engine makes
+  // it match nothing, and the old sentence shipped the rationale as fact (critic P1).
+  await expect(page.getByTestId('kw-preview-result')).not.toContainText('match everything');
   // No create button is offered for an empty key.
   await expect(page.getByTestId('kw-create')).toHaveCount(0);
 });

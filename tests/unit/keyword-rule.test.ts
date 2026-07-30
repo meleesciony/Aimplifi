@@ -20,10 +20,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   KEYWORD_RULE_PRIORITY,
+  MIN_KEYWORD_LENGTH,
   decodeKeywords,
   encodeKeywords,
   keywordSpecificity,
   keywordsMatch,
+  longestKeywordLength,
   parseKeywords,
 } from '@/lib/engine/categorize/keyword-rule';
 import { toRuleLike } from '@/server/rules';
@@ -271,5 +273,64 @@ describe('precedence between rules that both match', () => {
     const txn = { ...TXN, rawDescriptor: 'MIRKO PASTA' };
     expect(categorize(txn, [a, b]).matchedRuleId).toBe('kw-aaa');
     expect(categorize(txn, [b, a]).matchedRuleId).toBe('kw-aaa');
+  });
+});
+
+/**
+ * THE CRITIC FINDINGS, locked (TASKS O.13a, hostile-critic cycle 1: 2 P0 + 7 P1).
+ *
+ * Each case below failed on the shipped code and was reproduced by a critic before
+ * being fixed, so each is a fail-old lock rather than a restatement of the fix.
+ */
+describe('a typed key takes the #44 sign check (critic P0-1)', () => {
+  const INCOME_RULE = () =>
+    rule({ id: 'kw-income', matchKeywords: parseKeywords('cardone'), categoryId: 'income' });
+
+  it('REFUSES to file an outflow as income, and sends it to review instead', () => {
+    // Reproduced before the fix: `CARDONE MGMT FEE -$125` filed as income with
+    // confidence 9900 and needsReview false — and an Income-group row is dropped by
+    // isSpendRow, so the spending vanished from reports while the flows engine still
+    // counted it. Two surfaces, one row, disagreeing by the amount.
+    const out = categorize(
+      { ...TXN, amountCents: -12500, rawDescriptor: 'CARDONE MGMT FEE' },
+      [INCOME_RULE()],
+    );
+    expect(out.categoryId).not.toBe('income');
+    expect(out.source).not.toBe('user-rule');
+    expect(out.needsReview).toBe(true);
+  });
+
+  it('still files the INFLOW the reader wrote the rule for', () => {
+    const out = categorize(
+      { ...TXN, amountCents: 37500, rawDescriptor: 'Cardone Eq Fund Cef Xv Ppd Tran 9912' },
+      [INCOME_RULE()],
+    );
+    expect(out.categoryId).toBe('income');
+    expect(out.matchedRuleId).toBe('kw-income');
+  });
+
+  it('leaves the refund convention alone — a positive row in a SPEND category is fine', () => {
+    // The mirror error would be guarding this direction: a return offsetting a
+    // purchase files back to the original category by design (pipeline.ts).
+    const out = categorize({ ...TXN, amountCents: 4000, rawDescriptor: 'TJMAXX 0499 RETURN' }, [
+      rule({ id: 'kw-shop', matchKeywords: parseKeywords('tjmaxx'), categoryId: 'shopping' }),
+    ]);
+    expect(out.categoryId).toBe('shopping');
+    expect(out.matchedRuleId).toBe('kw-shop');
+  });
+
+  it('does not weaken an explicit MERCHANT rule, whose key is an exact identity', () => {
+    const out = categorize({ ...TXN, amountCents: -5000, rawDescriptor: 'MACYS LENOX SQUARE' }, [
+      rule({ id: 'm-1', merchantCanonical: "Macy's", categoryId: 'income', priority: 100 }),
+    ]);
+    expect(out.matchedRuleId).toBe('m-1');
+  });
+});
+
+describe('the minimum key length (critic P2-10)', () => {
+  it('a one-letter key would match most rows, so the floor is structural', () => {
+    expect(MIN_KEYWORD_LENGTH).toBeGreaterThanOrEqual(3);
+    expect(longestKeywordLength(parseKeywords('a'))).toBeLessThan(MIN_KEYWORD_LENGTH);
+    expect(longestKeywordLength(parseKeywords('a cardone'))).toBeGreaterThanOrEqual(MIN_KEYWORD_LENGTH);
   });
 });

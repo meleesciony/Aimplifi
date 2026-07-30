@@ -54,6 +54,20 @@
 export const KEYWORD_RULE_PRIORITY = 110;
 
 /**
+ * Shortest keyword the builder will store. An empty key is refused because it
+ * would match everything; a ONE-letter key is the same defect wearing a value —
+ * measured on the seeded dataset, `e` matched 680 of 855 rows and `a` matched
+ * 714. The match-count preview cannot warn a brand-new user whose history is
+ * empty, so the floor is structural rather than advisory.
+ */
+export const MIN_KEYWORD_LENGTH = 3;
+
+/** Longest keyword in a key, for the minimum-length floor. */
+export function longestKeywordLength(keywords: readonly string[]): number {
+  return keywords.reduce((max, k) => Math.max(max, k.length), 0);
+}
+
+/**
  * The reader's typed input, split into keyword tokens the way the rule builder
  * shows them as chips: commas OR whitespace separate keywords (Simplifi:
  * "Commas or spaces enter a new keyword"), case is folded, blanks dropped, and

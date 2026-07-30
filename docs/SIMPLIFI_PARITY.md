@@ -53,9 +53,9 @@ Related** toggle that feeds a Tax Report.
 
 | # | Simplifi capability | Aimplifi today | Tracked as |
 |---|---|---|---|
-| 1 | Rule with a **user-typed match key** and an operator (`contains`), keywords as editable chips | **MISSING.** `CategorizationRule` (`prisma/schema.prisma:411`) keys on `merchantId` + optional amount/day/account conditions. The key is always DERIVED — the normalizer's canonical, or the learner's descriptor signature. The only authoring gesture is "Always" after filing one row (`transaction-list.tsx`, `recat-always`). No keyword, no operator, no user-editable key. | **O.13a** |
+| 1 | Rule with a **user-typed match key** and an operator (`contains`), keywords as editable chips | **SHIPPED 2026-07-29 (O.13a)** at `/rules`, with a match-count preview before saving. *As authored, this row read MISSING:* `CategorizationRule` keyed only on `merchantId` + amount/day/account conditions, so the key was always DERIVED (the normalizer's canonical or the learner's signature) and the only authoring gesture was "Always" after filing one row. | **O.13a** |
 | 2 | Rule **then-actions** beyond category (rename payee, tags, note, exclude, mark reviewed) | **MISSING.** A rule sets `categoryId` only. | O.13a (category), O.13c (rename), O.11d (tags), O.11a (exclude) |
-| 3 | Rule **list / edit / delete**, and "handle existing transactions next" with a count | **MISSING.** Rules are minted silently by the "Always" prompt and by the learner; there is no page that lists them, no edit, no delete, no preview of how many rows a rule would touch. | **O.13d** |
+| 3 | Rule **list / edit / delete**, and "handle existing transactions next" with a count | **PARTIAL (O.13a).** A typed rule can be listed, previewed with a count, applied to history and deleted. Still missing: **edit**, and the list shows only TYPED rules — a merchant "Always" rule and a learned rule remain invisible and undeletable, while a typed rule silently outranks both. So the page heading "Your rules" is narrower than it sounds. | **O.13d** |
 | 4 | **Transaction detail** view | **MISSING.** No `/transactions/[id]` page and no drawer. The register edits category/note/tax-class through inline popovers (`transaction-list.tsx`); split exists only in the triage inbox. This is the "we can't even solve the transaction list" complaint. | **O.13b** |
 | 5 | **Payee rename** (display name ≠ statement text) | **MISSING.** `Merchant` (`schema:367`) has no display name. Accounts have one (`Account.displayName`, L.7); merchants do not. | **O.13c** |
 | 6 | Category **hierarchy** (3 levels), **Expense/Income** type, **Tax Related** flag | **PARTIAL.** Custom categories exist with a parent group and a discretionary flag (`custom-category-manager.tsx`). No explicit type column (income is inferred from the group name, `categories.ts`), and the tax flag lives per-TRANSACTION (`taxClass`) rather than per-category. | **O.13e** |
@@ -64,11 +64,11 @@ Related** toggle that feeds a Tax Report.
 | 9 | **Reviewed** flag the user sets | **MISSING** as a user-set flag. `needsReview` and `reviewPinned` are the app's own queue state. | O.11a |
 | 10 | **Notes** per row | **HAVE.** `Transaction.note` (`schema:349`), editable in the register. | — |
 | 11 | **Split** a transaction | **PARTIAL.** Engine + server action + triage-inbox UI; unreachable from the register because there is no detail view. | O.13b |
-| 12 | Mark one row as a **bill / recurring** | **PARTIAL.** Recurring series are auto-detected (`RecurringSeries`, `schema:483`); the user cannot promote or demote one by hand. | **O.13f** |
+| 12 | Mark one row as a **bill / recurring** | **PARTIAL.** Recurring series are auto-detected (`RecurringSeries`, `schema:494`); the user cannot promote or demote one by hand. | **O.13f** |
 | 13 | **Pending / Cleared** editable by the user | **MISSING.** `status` renders as a badge; no action edits it. | **O.13g** |
-| 14 | **Attach a receipt / file** | **MISSING.** No column, no upload, no storage. NOTE: Wave O.11's header lists "receipts" among shipped features — that refers to the `ValueReceipt` ledger (`schema:666`, proactive-catch receipts from TASKS 1.3), a different feature. Attachments do not exist. | **O.13h** |
+| 14 | **Attach a receipt / file** | **MISSING.** No column, no upload, no storage. NOTE: Wave O.11's header lists "receipts" among shipped features — that refers to the `ValueReceipt` ledger (`schema:677`, proactive-catch receipts from TASKS 1.3), a different feature. Attachments do not exist. | **O.13h** |
 | 15 | **Track a refund** (link an outflow to an expected inflow) | **MISSING.** A `refund` income leaf exists; no expectation tracking. | O.13g |
-| 16 | Statement **provenance line** on the row ("appears as … on …") | **MISSING** as a sentence, though the raw descriptor is rendered. Cheap, and it is what makes a keyword rule teachable — the reader must see the exact text a rule matches against. | O.13b |
+| 16 | Statement **provenance line** on the row ("appears as … on …") | **MISSING, and now load-bearing.** The raw bank text is rendered in exactly two places — the triage inbox and the rule builder's own preview — and NOT in the register, which shows the app's cleaned-up name instead. So a reader matching a rule against "the bank's text" has no surface showing it for an already-filed row, and O.13's brand work widened the gap (`MACYS LENOX SQUARE` now displays as `Macy's`, which never matches as typed). Mitigated in O.13a — a zero-match preview lists his real recent descriptors to copy from — but the row itself still has to show it. | **O.13b** |
 
 ### 2a. One correction to the owner's example, measured before it was built on
 
@@ -86,7 +86,11 @@ spans it exactly. That pair is now the locking test for O.13a
 (`tests/unit/keyword-rule.test.ts`, "the class no DERIVED key can fix"), and it is the mechanism behind
 the owner's older report that the app "doesn't recognize that the others are the same" (Wave O.9).
 
-**The through-line.** Ten of sixteen are missing outright, and they are not sixteen unrelated features:
+> **Status note, 2026-07-29:** row 1 shipped the same day this matrix was written and row 3 became
+> partial, so the "ten of sixteen" count below is as-authored. A critic caught this doc falsifying itself
+> within hours of being committed — the plan-verdicts-are-authoring-time lesson, applied to its own author.
+
+**The through-line.** Ten of sixteen were missing outright when this was written, and they are not sixteen unrelated features:
 Simplifi gives the reader a **place to stand on one transaction** (the detail view) and **an editable
 instruction the app then executes** (the rule). Aimplifi has invested in inference — a normalizer, a
 learner, a proposal engine, a provider-guess tier — and given the reader almost no lever. When the
