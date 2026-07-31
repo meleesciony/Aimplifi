@@ -2,6 +2,37 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-31 — N.1: the menu explains itself (DECISIONS #355)
+
+Owner, 2026-07-31: *"a lot of sections in the app are cumbersome in daily workflow. You basically
+have to search it in a menu for it to show up. A new user wouldn't have this knowledge."*
+
+**The defect was four near-synonyms, not missing routes.** "Plan" is `/spending-plan`, "Spending"
+is `/budgets`, and "Reports" and "Trends" are both charts of spending — fourteen bare nouns in a
+2-column grid, with nothing to choose between them. Every destination now carries a one-line
+description of the question it answers (taken from the page's own copy), the sheet is a single
+column to fit them, and a search box matches label, description and keywords so a reader can type
+"subscriptions", "401k" or "overdraft". Catalogue and search are a pure module in `src/lib/nav/`
+with 12 unit tests; IA, ordering and every `data-testid` are unchanged.
+
+Gate: `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **5328 unit / 327 files** / build clean.
+`mobile-nav.spec.ts` 2/2 (incl. axe WCAG AA on the sheet with the new search input),
+`mobile-overflow.spec.ts` 8/8, `category-drilldown.spec.ts` 5/5, `spending-plan.spec.ts` 1/1.
+
+### OPEN / stated limitations
+
+- **No route was renamed.** If the descriptions turn out not to be enough, renaming `/budgets`
+  ("Spending") and `/spending-plan` ("Plan") is the next lever — deliberately not bundled here, so
+  this change can be judged on its own. **TASKS N.2.**
+- **No command palette.** A keyboard shortcut is invisible to the new user this report is about;
+  the search box is inside the menu they already open.
+- **The search is client-side over 14 rows** — no fuzzy matching and no typo tolerance, so
+  "recuring" finds nothing. Substring matching covers partial words ("scription" works); a
+  misspelling does not.
+- **Desktop keeps its flat header row** of text links, now carrying each description as a `title`
+  tooltip. The sheet is phones-only, so a desktop reader gets the descriptions on hover rather
+  than inline.
+
 ## ✅ BUILT 2026-07-31 — W.1a: the wealth-target card shows its inputs (DECISIONS #354)
 
 Owner, 2026-07-31: *"I set 10 mil and it gave me some arbitrary savings for arbitrary time.

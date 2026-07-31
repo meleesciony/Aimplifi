@@ -1600,3 +1600,66 @@ appearing the moment the slider moves - and it is preferred over reintroducing a
 to manufacture a difference. The FI card six inches above still prints its own unlabelled
 app-chosen 25 (`COAST_TARGET_YEARS`); filed as TASKS W.9 rather than folded in, since it changes a
 different card's figure.
+
+## #355
+
+**(N.1) The menu says what each page answers, and takes a search — the labels were a memory test.**
+
+Owner, 2026-07-31: *"a lot of sections in the app are cumbersome in daily workflow. You basically
+have to search it in a menu for it to show up. A new user wouldn't have this knowledge."*
+
+**The diagnosis is the four near-synonyms.** The app has 19 user-facing destinations; five are
+bottom tabs and the other fourteen lived in a "More" sheet as a 2-column grid of bare nouns. Four
+of those nouns are about spending and nothing distinguished them:
+
+| Menu label | Route | What it actually answers |
+| --- | --- | --- |
+| **Plan** | `/spending-plan` | how much is guilt-free to spend this month, and the maths behind it |
+| **Spending** | `/budgets` | what you spent this month by category, against targets you set |
+| **Reports** | `/reports` | six months of income against spending, plus this month by category |
+| **Trends** | `/trends` | what *changed* — movers, biggest purchases, new merchants |
+
+A reader wanting "what did I spend on groceries" had four plausible taps and no way to rank them.
+That is not a discoverability problem to be solved by promoting routes; it is a *labelling*
+problem, and "a new user wouldn't have this knowledge" is a precise description of it — with
+nothing but a noun to go on, choosing correctly IS knowledge you must already have.
+
+**Two changes, neither of them a re-organisation.** The IA, the group split, the order and every
+`data-testid` are unchanged, so muscle memory and eight existing e2e specs survive:
+
+1. **Every destination now carries a one-line description of the question it answers**, and the
+   sheet became a single column to fit them (two-up at 380px cannot hold a sentence). The
+   descriptions are taken from each page's OWN copy — its `<h1>`, its empty state, its view
+   docblock — never invented in the menu, because a menu that describes a page differently from
+   the page is a second source of truth about what the product does.
+2. **A search box filters the sheet by label, description or keyword**, so a reader can type their
+   own word instead of recognising the app's: *subscriptions* finds Recurring, *401k* finds
+   Investments, *overdraft* finds Forecast, *csv* finds Activity. Tokens are ANDed (more words
+   narrow), matching is case-insensitive substring, and catalogue order is preserved rather than
+   relevance-ranked — with nineteen items a scoring function only adds ways for the order to
+   surprise someone.
+
+**The catalogue is a shared module, not a component detail.** `src/lib/nav/destinations.ts` holds
+the rows and `search.ts` the predicate, both pure, so the thing that matters can be *tested*: a
+description that fails to distinguish its neighbours is now a test failure rather than a matter of
+taste, and every destination must be reachable by at least one query that is not its own label.
+`app-nav.tsx`'s three hand-maintained tuples became views of it, which is also what makes it
+impossible to add a route to a menu without saying what it is for.
+
+**An empty query shows the whole menu, and no match is its own state.** The box is an accelerator
+laid over the list, never a gate in front of it — a reader who ignores it sees exactly what they
+saw before. A query matching nothing renders a sentence saying so and suggesting the kind of word
+that works, because an empty list and a menu that failed to load look identical and only one of
+them is the reader's fault.
+
+**A bug the new e2e caught immediately:** the sheet has *three* closers (Escape, the X button, the
+backdrop) and only two went through `closeMore`. Escape kept the search query, so pressing it and
+reopening showed a menu missing most of its items — the exact "where did it go" this slice exists
+to remove. Escape now routes through the same function
+(`fence-by-construction-not-per-call-site`, at the smallest possible scale).
+
+**Not done, deliberately.** No route was promoted, renamed or moved between groups, and no command
+palette was added: a keyboard palette is invisible to the new user this report is about, and
+renaming `/budgets` or `/spending-plan` moves a URL readers have bookmarked. If the descriptions
+turn out not to be enough, renaming those two is the next lever — filed as **TASKS N.2** rather
+than bundled into a change that can be judged on its own.
