@@ -12,6 +12,7 @@ import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import {
   CATEGORY_LINK_CLASS,
+  CATEGORY_NAME_LINK_CLASS,
   MERCHANT_LINK_CLASS,
   categoryMonthRegisterHref,
   merchantRegisterHref,
@@ -89,7 +90,23 @@ function MoverRow({
     <li className="flex items-center justify-between gap-3 py-2">
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-medium">{m.name}</span>
+          {/* Owner-reported 2026-07-31. Same href and same refusal as the figure
+              below; the name is simply the target a reader aims at. The weight
+              stays here rather than in the shared class — see
+              CATEGORY_NAME_LINK_CLASS. `min-w-0` keeps the truncation working now
+              that the truncating element is an anchor (the iOS flexbox lesson). */}
+          {href === null ? (
+            <span className="truncate text-sm font-medium">{m.name}</span>
+          ) : (
+            <Link
+              href={href}
+              data-testid={`mover-category-name-link-${m.categoryId}`}
+              aria-label={`${m.name}: ${current} in ${monthLabel} — view these transactions`}
+              className={`min-w-0 truncate text-sm font-medium ${CATEGORY_NAME_LINK_CLASS}`}
+            >
+              {m.name}
+            </Link>
+          )}
           {isDial && <Gauge className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />}
         </div>
         {/* Not `truncate`: this line now holds a LINK, and truncation clips from

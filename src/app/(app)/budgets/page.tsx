@@ -14,7 +14,11 @@ import { BudgetTargetForm } from '@/components/finance/budget-target-form';
 import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
 import { getCategoryOverlay } from '@/server/category-meta';
 import { getHiddenCategoryIds, getLinkableCategoryIds } from '@/server/categories';
-import { CATEGORY_LINK_CLASS, categoryMonthRegisterHref } from '@/lib/engine/transactions/links';
+import {
+  CATEGORY_LINK_CLASS,
+  CATEGORY_NAME_LINK_CLASS,
+  categoryMonthRegisterHref,
+} from '@/lib/engine/transactions/links';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getSpendingPlan } from '@/server/spending-plan';
@@ -173,8 +177,25 @@ export default async function BudgetsPage() {
               return (
               <li key={row.categoryId} className="space-y-1" data-testid={`budget-row-${row.categoryId}`}>
                 <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <span>
-                    {row.name}
+                  <span className="min-w-0">
+                    {/* Owner-reported 2026-07-31: the NAME is what a reader points
+                        at, and it was the one inert thing on a tappable row — the
+                        figure beside it is ~62px wide on a phone. Same href, same
+                        builder, same refusal as the figure; a second anchor rather
+                        than a row-wide one because ClearBudgetButton lives in this
+                        row and controls may not nest inside an anchor. */}
+                    {href === null ? (
+                      row.name
+                    ) : (
+                      <Link
+                        href={href}
+                        data-testid={`budget-category-name-link-${row.categoryId}`}
+                        aria-label={`${row.name}: ${spent} spent this month — view these transactions`}
+                        className={CATEGORY_NAME_LINK_CLASS}
+                      >
+                        {row.name}
+                      </Link>
+                    )}
                     {row.isDial && (
                       <span className="ml-1 text-xs text-emerald-500" title="A money dial — spend here proudly">
                         ◉ dial

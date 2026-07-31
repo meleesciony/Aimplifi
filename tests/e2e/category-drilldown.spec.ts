@@ -169,3 +169,81 @@ test('Budgets: a spend figure links to a register that nets to the same amount',
   expect(-netCents).toBe(clickedCents);
   await expect(page.getByTestId('txn-filter-category')).not.toHaveValue('');
 });
+
+/**
+ * REGRESSION (owner-reported 2026-07-31, with a /budgets screenshot):
+ * *"I should be able to see all transactions under that category."*
+ *
+ * The figure was a link and the NAME beside it was an inert `<span>`, on the two
+ * surfaces (/budgets, /trends) where the figure is the only target. The reader
+ * pointed at the words, nothing happened, and the feature read as unshipped.
+ *
+ * This asserts the property that was missing rather than the markup: the name
+ * REACHES the same filtered register as the figure on its row. Fails against the
+ * old code at the very first line — no `budget-category-name-link-*` existed.
+ */
+test('Budgets: the category NAME reaches the same register as its figure', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+
+  await clickMoreNav(page, 'nav-budgets');
+  await page.waitForURL('**/budgets');
+
+  const nameLink = page.locator('[data-testid^="budget-category-name-link-"]').first();
+  await expect(nameLink).toBeVisible();
+
+  // Same row, same destination — the two anchors may not drift into two answers.
+  const categoryId = (await nameLink.getAttribute('data-testid'))!.replace(
+    'budget-category-name-link-',
+    '',
+  );
+  const figureLink = page.getByTestId(`budget-category-link-${categoryId}`);
+  const clickedCents = parseCents(await figureLink.innerText());
+  expect(clickedCents).toBeGreaterThan(0); // anti-vacuity: a real figure was read
+  expect(await nameLink.getAttribute('href')).toBe(await figureLink.getAttribute('href'));
+
+  // And the name is a target a thumb can actually hit — the whole complaint.
+  const box = (await nameLink.boundingBox())!;
+  expect(box.width).toBeGreaterThan(60);
+
+  await nameLink.click();
+  await page.waitForURL('**/transactions?category=**');
+  const netCents = parseCents(await page.getByTestId('summary-net').innerText());
+  expect(-netCents).toBe(clickedCents);
+  await expect(page.getByTestId('txn-filter-category')).not.toHaveValue('');
+});
+
+/**
+ * REGRESSION (same report, the "and all bar charts" half): on /reports the BAR
+ * was a sibling of the row anchor, so the widest and most chart-like element on
+ * the card was the one part that ignored a tap. The bar now sits inside the same
+ * anchor. Asserted by hit-testing the bar's own centre point, because the bar is
+ * decorative markup with no testid of its own and a DOM-shape assertion would
+ * pass on a bar that is visually covered by something else.
+ */
+test('Reports: tapping the category BAR opens that category', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+
+  await clickMoreNav(page, 'nav-reports');
+  await page.waitForURL('**/reports');
+  await expect(page.getByTestId('category-breakdown')).toBeVisible();
+
+  const row = page.locator('[data-testid^="category-link-"]').first();
+  await expect(row).toBeVisible();
+  const expectedHref = await row.getAttribute('href');
+
+  // The bar is the last child of the anchor; click its centre, not the row's.
+  const bar = row.locator('span.rounded-full').first();
+  await expect(bar).toBeVisible();
+  const box = (await bar.boundingBox())!;
+  expect(box.height).toBeGreaterThan(0); // anti-vacuity: a real bar was measured
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+  await page.waitForURL('**/transactions?category=**');
+  expect(new URL(page.url()).pathname + '?' + new URL(page.url()).searchParams.toString()).toBe(
+    expectedHref,
+  );
+});

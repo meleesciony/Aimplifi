@@ -51,6 +51,37 @@ export const CATEGORY_LINK_CLASS =
   'hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2';
 
 /**
+ * The same affordance on the category NAME (owner-reported 2026-07-31, with a
+ * /budgets screenshot: *"I should be able to see all transactions under that
+ * category"*).
+ *
+ * Why a name link exists at all, when O.6 deliberately nailed the affordance to
+ * the FIGURE: because on two of the three surfaces the figure is the ONLY target,
+ * and it is a bad one. `/budgets` prints "$1,046.29" in `text-sm tabular-nums` —
+ * roughly 62×16px on the golden 380px viewport — while the words a reader
+ * actually points at ("Entertainment & Streaming", ~180px) were an inert
+ * `<span>`. `/reports` never had this problem because its whole row is the
+ * anchor, which is also the evidence that a row-wide target is the right shape;
+ * `/budgets` cannot copy it verbatim, because its row carries a
+ * `ClearBudgetButton`, and an interactive control nested inside an anchor is
+ * invalid HTML that swallows the button's own clicks. Two sibling anchors to one
+ * href is the honest way to get the same reach without nesting.
+ *
+ * It carries NO font-weight, and that is the difference from `MERCHANT_LINK_CLASS`
+ * rather than an omission. Weight is a fact about the row: a /trends mover name is
+ * already `font-medium`, a /budgets category name is not, and a shared constant
+ * that picked one would silently restyle the other. The call site keeps the
+ * weight; this constant contributes only the "inspectable" cue and the focus ring.
+ *
+ * The link is a claim of equality exactly as the figure's is — same href, same
+ * builder, same refusal — so it inherits the whole O.5/O.6 fence and adds no new
+ * assertion about what the destination sums to.
+ */
+export const CATEGORY_NAME_LINK_CLASS =
+  'rounded-sm underline decoration-dotted decoration-muted-foreground/70 underline-offset-2 ' +
+  'hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2';
+
+/**
  * The one visual treatment for a merchant NAME that drills into the register.
  *
  * It carries a RESTING dotted underline, matching `CATEGORY_LINK_CLASS`, and

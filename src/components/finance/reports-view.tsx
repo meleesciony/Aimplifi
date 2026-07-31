@@ -162,28 +162,44 @@ export function ReportsView({
                     // text (WCAG 2.5.3) — an aria-label replaces it, and dropping
                     // "· Food & Dining" made voice control unable to match on it.
                     aria-label={`${c.name} · ${c.group}: ${formatCents(cents(c.amountCents))} in ${monthLabel(data.ym)} — view these transactions`}
-                    className="flex items-baseline justify-between rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+                    // Owner-reported 2026-07-31 ("you didn't fix this and all bar
+                    // charts"): the BAR was a sibling of this anchor, so the widest,
+                    // most obviously chart-like thing on the card was the one part of
+                    // the row that did not respond to a tap. `block` + an inner flex
+                    // keeps the row's layout byte-identical and puts the bar inside
+                    // the same target. No new claim — same href, same figure.
+                    className="block rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
                   >
-                    <span className="min-w-0 truncate">
-                      {c.name} <span className="text-xs text-muted-foreground">· {c.group}</span>
+                    <span className="flex items-baseline justify-between">
+                      <span className="min-w-0 truncate">
+                        {c.name} <span className="text-xs text-muted-foreground">· {c.group}</span>
+                      </span>
+                      {/* O.6 critic P1-1: the affordance rides the FIGURE, not the whole
+                          row — a dotted underline stretched across a space-between flex
+                          would underline the gap. Same constant the other two surfaces
+                          use, so the "money you can tap" cue is one gesture app-wide;
+                          previously this row's only cue was `hover:underline`, which a
+                          phone does not have. */}
+                      <span className={`ml-2 shrink-0 tabular-nums ${CATEGORY_LINK_CLASS}`}>
+                        {formatCents(cents(c.amountCents))}
+                      </span>
                     </span>
-                    {/* O.6 critic P1-1: the affordance rides the FIGURE, not the whole
-                        row — a dotted underline stretched across a space-between flex
-                        would underline the gap. Same constant the other two surfaces
-                        use, so the "money you can tap" cue is one gesture app-wide;
-                        previously this row's only cue was `hover:underline`, which a
-                        phone does not have. */}
-                    <span className={`ml-2 shrink-0 tabular-nums ${CATEGORY_LINK_CLASS}`}>
-                      {formatCents(cents(c.amountCents))}
+                    <span className="mt-1 block h-2 overflow-hidden rounded-full bg-muted">
+                      <span
+                        className="block h-2 rounded-full"
+                        style={{ width: `${(c.amountCents / max) * 100}%`, backgroundColor: PALETTE[i % PALETTE.length] }}
+                      />
                     </span>
                   </Link>
                 )}
-                <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full"
-                    style={{ width: `${(c.amountCents / max) * 100}%`, backgroundColor: PALETTE[i % PALETTE.length] }}
-                  />
-                </div>
+                {href === null && (
+                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-2 rounded-full"
+                      style={{ width: `${(c.amountCents / max) * 100}%`, backgroundColor: PALETTE[i % PALETTE.length] }}
+                    />
+                  </div>
+                )}
               </div>
               );
             })}
