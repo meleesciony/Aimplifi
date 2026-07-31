@@ -17,8 +17,11 @@ import {
   categoryMonthRegisterHref,
   merchantRegisterHref,
 } from '@/lib/engine/transactions/links';
-import type { CategoryMover, SpendingTrends } from '@/lib/engine/trends/trends';
+import type { CategoryMover } from '@/lib/engine/trends/trends';
+import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
+import type { CategoryBreakdown } from '@/lib/engine/glass-box/category-breakdown';
 import type { BalanceMoveView } from '@/server/balance-move';
+import type { SpendingTrendsData } from '@/server/trends';
 
 const money = (n: number, signed = false) =>
   formatCents(cents(n), signed ? { signDisplay: 'always' } : undefined);
@@ -51,12 +54,20 @@ function MoverRow({
   href,
   monthLabel,
   isDial = false,
+  breakdown,
 }: {
   m: CategoryMover;
   href: string | null;
   /** The compared month, spelled out for the accessible name (e.g. "May"). */
   monthLabel: string;
   isDial?: boolean;
+  /**
+   * The rows behind `currentCents`. REQUIRED, not optional: an omitted breakdown
+   * would render a row with no expander, which looks like the feature was never
+   * built rather than like a gap — the same argument `ReportsView` makes about
+   * `linkableCategoryIds`.
+   */
+  breakdown: CategoryBreakdown;
 }) {
   const current = money(m.currentCents);
   const currentFigure =
@@ -87,7 +98,11 @@ function MoverRow({
   // Direction must not be conveyed by colour alone (WCAG 1.4.1) — label the icon.
   const directionLabel = m.direction === 'down' ? 'decrease' : m.direction === 'new' ? 'new' : 'increase';
   return (
-    <li className="flex items-center justify-between gap-3 py-2">
+    // `data-testid` rather than leaving the spec to count `li`: this row now
+    // CONTAINS a list of its own (the breakdown panel), so "every mover row has a
+    // link" cannot be expressed as a count of descendant list items any more.
+    <li className="py-2" data-testid="mover-row">
+      <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
           {/* Owner-reported 2026-07-31. Same href and same refusal as the figure
@@ -137,6 +152,20 @@ function MoverRow({
           ) : null}
         </span>
       </div>
+      </div>
+      {/* The month this expands is `comparedYm`, the same one the figure's link
+          opens — never the in-progress month the pace card above describes. The
+          panel's own copy names no month; this card's heading already does. */}
+      <CategoryBreakdownPanel
+        breakdown={breakdown}
+        categoryName={m.name}
+        // `monthLabel` IS `comparedYm` spelled out — the same string this row's
+        // accessible name already uses, so the panel cannot describe a different
+        // month from the link beside it.
+        windowLabel={monthLabel}
+        registerHref={href}
+        testIdPrefix="mover-breakdown"
+      />
     </li>
   );
 }
@@ -147,13 +176,13 @@ export function TrendsView({
   balanceMove = null,
   linkableCategoryIds = [],
 }: {
-  trends: SpendingTrends;
+  trends: SpendingTrendsData;
   dials?: string[];
   balanceMove?: BalanceMoveView | null;
   /** O.6: the register's own category option list — see getLinkableCategoryIds. */
   linkableCategoryIds?: string[];
 }) {
-  const { pace, movers, largest, newMerchants, comparedYm, baselineMonths } = trends;
+  const { pace, movers, largest, newMerchants, comparedYm, baselineMonths, breakdowns } = trends;
   const paceUp = pace ? pace.deltaVsPriorCents > 0 : false;
   // money dials are user-configured category labels; tag a mover when its category is one
   const dialSet = new Set(dials.map((d) => d.toLowerCase()));
@@ -221,7 +250,13 @@ export function TrendsView({
             ones carrying links — so the basis a reader would need in order to
             check them against the register belongs beside them. */}
         <p className="mb-2 text-xs text-muted-foreground" data-testid="trends-movers-basis">
-          Totals include pending charges. Tap a month&rsquo;s figure to see the transactions behind it.
+          {/* The sentence ENUMERATES what a reader can do, which makes it a claim
+              that goes stale when an affordance is added beside it (the
+              enumerated-actions corollary in new-egress-means-auditing-every-live-
+              claim). Expanding a row now lists the same transactions in place;
+              the figure still opens them in the register. */}
+          Totals include pending charges. Expand a row to see the transactions behind it, or tap the
+          month&rsquo;s figure to open them in your activity list.
         </p>
         {balanceMove?.sentence && (
           <p className="mb-2 text-sm text-muted-foreground" data-testid="balance-move-explainer">
@@ -252,6 +287,7 @@ export function TrendsView({
                 href={moverHref(m)}
                 monthLabel={comparedYm ? shortMonth(comparedYm) : 'that month'}
                 isDial={dialSet.has(m.name.toLowerCase())}
+                breakdown={breakdowns[m.categoryId]}
               />
             ))}
           </ul>

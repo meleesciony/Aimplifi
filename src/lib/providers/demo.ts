@@ -49,6 +49,12 @@ export class DemoProvider implements DataProvider {
         prisma.transaction.findMany({
           where: { account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
           orderBy: [{ date: 'asc' }, { id: 'asc' }],
+          // The payee name the register shows, joined so a snapshot consumer can
+          // NAME a row and not only sum it (the category-breakdown panels). Not
+          // derivable from `rawDescriptor`: a keyword rule's `renameTo` writes
+          // `Merchant.canonical` (O.13a), so the normalizer's guess at the bank
+          // text is exactly the name a reader who renamed a payee replaced.
+          include: { merchant: { select: { canonical: true } } },
         }),
         prisma.scheduledTransaction.findMany({ where: ownedByUser }),
         prisma.balanceSnapshot.findMany({ where: ownedByUser, orderBy: { date: 'asc' } }),

@@ -7,8 +7,10 @@
  */
 import Link from 'next/link';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
+import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { CATEGORY_LINK_CLASS, categoryMonthRegisterHref } from '@/lib/engine/transactions/links';
+import { formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { withheldInlineNote, type WithheldAccountSummary } from '@/lib/providers/currency';
 import type { ReportsData } from '@/server/reports';
@@ -200,6 +202,18 @@ export function ReportsView({
                     />
                   </div>
                 )}
+                {/* Deliberately a SIBLING of the row anchor, never inside it: an
+                    interactive control nested in an anchor is invalid HTML and
+                    the anchor swallows its clicks (the same constraint /budgets
+                    records about its Clear button). The row keeps its whole-row
+                    tap target; the expander is its own. */}
+                <CategoryBreakdownPanel
+                  breakdown={data.breakdowns[c.categoryId]}
+                  categoryName={c.name}
+                  windowLabel={formatMonth(data.ym)}
+                  registerHref={href}
+                  testIdPrefix="reports-breakdown"
+                />
               </div>
               );
             })}

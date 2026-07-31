@@ -1663,3 +1663,118 @@ palette was added: a keyboard palette is invisible to the new user this report i
 renaming `/budgets` or `/spending-plan` moves a URL readers have bookmarked. If the descriptions
 turn out not to be enough, renaming those two is the next lever — filed as **TASKS N.2** rather
 than bundled into a change that can be judged on its own.
+
+## #356 (O.18) — Every category row expands to the transactions inside it, and the panel proves it adds up
+
+**The report.** Owner, 2026-07-31, with a /budgets screenshot: *"I've asked you many times to make
+rows expandable so I can see what exactly system is classifying spending as. Not just the stuff in
+the photo but every table. You haven't done it."*
+
+**What was already there, and why it was not the ask.** The day before, `21b6b20` made both the
+category NAME and the FIGURE on /budgets, /reports and /trends link into the register, filtered to
+that category and that month — shipped, pushed, and live (`main` was level with `origin/main` when
+this session opened, which is the first thing that was checked, per `committed-is-not-shipped`). So
+this was not a missing affordance. It was the wrong GESTURE: a link leaves the page, drops the table
+the reader was comparing rows in, and answers one category per round trip. "Is this bucket right?"
+is a question about several buckets at once, and it only stays answerable if the answer opens in
+place. Both ship now — the panel shows what is inside, and its footer still offers the register,
+which is where a row actually gets re-filed.
+
+**The one design rule.** A breakdown never re-queries and never re-derives; it is built from the very
+array the surface summed, through the very predicate the surface summed with. `spendingByCategory`
+selects rows with `isSpendRow` and adds `spendContributionCents`, and those two functions were
+already exported from the reports engine for exactly this purpose. Every call site hands
+`buildCategoryBreakdowns` the same array it handed the figure builder, so there is no second
+`where` clause that could drift from the first — the failure `a-link-on-a-figure-asserts-two-engines-agree`
+and `one-question-one-basis` were both written about. It also makes the panel's headline claim
+falsifiable rather than decorative: the caller passes the figure it RENDERS, and `reconciles`
+compares against it.
+
+**Three surfaces, one panel, one basis.** /budgets "By category", /reports "Spending by category"
+and /trends' movers. All three already summed whole calendar months through the same predicate,
+which is what let one builder serve them; /trends' panel describes `comparedYm`, the LAST complete
+month, taken from the engine's own field rather than re-derived. The shared basis sentence lives
+beside the predicate and the component prints it unconditionally, so no surface can ship a panel
+with no disclosure by forgetting a prop.
+
+**Three states, not two.** A category with rows that add up says so and names the count. A category
+with no rows says "No transactions were filed here this month" — the honest panel for a mover that
+fell to $0.00, which `links.ts` calls the most interesting row on the card. And a category whose
+refunds outweighed its spending gets its own sentence rather than the mismatch copy, because both
+figure builders deliberately hold that case at zero (`spendingByCategory` drops `<= 0`;
+`netSpendByCategory` keeps "only categories whose net is an outflow") — the rows genuinely do not
+sum to the figure, and calling that "we can't reconcile this" would report a defect where the
+engines are doing exactly what they say. The real mismatch branch survives for the case it was
+written for: a live figure with no rows behind it, which is the shape an upstream defect takes.
+
+**What it prints per row, and why the bank text is there.** Date, the payee as the register names it
+(`merchant.canonical ?? normalizeMerchant(rawDescriptor).canonical` — a reader who renamed a payee
+with a rule must meet their own name, not the normalizer's guess), the amount as a signed
+contribution so a refund reads as a credit inside a positive total, a pending marker, and — when it
+differs from the payee — the raw bank descriptor. That last line is the literal answer to the
+question asked: it is what the categorizer read before choosing the bucket.
+
+**Not expanded, deliberately, each recorded as its own task rather than left looking unfinished.**
+The dashboard "Top spending" card is a single `<a>` to /reports and a button inside an anchor is
+invalid HTML whose clicks the anchor eats (O.18a). The Conscious Spending strip needs the plan's own
+rows per bucket, not a transaction list, and a basis decision before any equality is asserted
+(O.18b, superseding W.7's option (a)). /recurring prints a TYPICAL amount, so its sightings do not
+sum to it and the panel's contract would be false there (O.18c). /trends' "New this month" is a
+merchant aggregate on a third basis (O.18e).
+
+**One shared type widened, one query joined.** `TransactionLike` gained three OPTIONAL display
+fields (`id`, `categoryId`, `merchant`) and the demo provider's transaction query now joins
+`merchant.canonical`. Optional because engine fixtures across the suite hand-build that shape and
+none of them describes a real database row; the widening also DELETED `server/trends.ts`'s local
+cast for `categoryId` rather than adding a second one beside it.
+
+**Two hostile critics, both FAIL, and the arithmetic was never what they found.** The money-truth
+critic re-ran every surface's real intake against the seeded database — 11 of 11 /reports
+categories, 11 of 11 /budgets rows, 6 of 6 movers — and could not produce a single mismatch, nor a
+`reconciles` that was false on a correct number. Its P1s were about a SENTENCE and an ARGUMENT. The
+UI critic could not break the nesting, the accessibility or the payload (measured: +5,097 bytes on
+/reports, and restricting the build to the rendered top twelve would have saved fourteen), and
+found its P1s in a 360px measurement and in a green spec that had gone red.
+
+1. **A window word is a claim about where the reader is standing.** The panel said "this month",
+   which is true on /budgets and /reports and false on /trends, whose panels describe `comparedYm`
+   — the last COMPLETE month — directly beneath a Pace card headed with the current one. Not
+   hypothetical: on the demo the Fuel mover reads $0.00 for May while /budgets prints $68.27 of Fuel
+   for June, so the sentence told a reader the categorizer had filed nothing into a bucket they were
+   actively spending from. `BREAKDOWN_BASIS`'s own docblock reasons about exactly this trap and
+   names no window; the two sentences beside it did. And fixing one of them left its sibling two
+   lines away still saying it — `a-disclosure-is-several-claims-in-one-sentence` again. The window is
+   now a REQUIRED prop and the two window-bearing strings are functions of it, so tsc enumerated the
+   call sites and the lock covers every string the module can emit rather than an enumerated pair.
+2. **An argument no fixture can falsify is not a guarantee.** /trends built its panel rows from
+   `snap.transactions` while its figures came from `toTrendTxns(snap.transactions)`, justified by a
+   paragraph arguing the two selections must be identical. The critic mutated `excludeFromTotals`
+   inside that shaping step and the entire suite stayed green — the demo seed holds zero
+   reader-excluded rows and therefore cannot express the divergence. The same comment cited a lock
+   that did not exist and credited the O.6 intake test with pinning five fields it does not pin. Fix
+   is structural, not textual: `TrendTxn` carries three display-only fields and ONE array is handed
+   to both, so there is nothing left to argue about.
+3. **A count of descendant elements is a selector any future child can widen.**
+   `category-drilldown.spec.ts` asserted "every mover row carries a link" as
+   `movers.locator('li').count()` — 6 before, 23 after, because each mover now contains a list of
+   its own transactions. It went red invisibly, since `verify.sh` runs Playwright only under
+   `VERIFY_E2E=1` (the #306 blind spot). Re-pointed at a named `mover-row` testid.
+4. **`min-w-0` is permission to shrink, not a way to shrink.** A 40-character unbreakable payee name
+   painted to x=466 in a 360px viewport, through the amount column, while the document-level M.1
+   gate reported no overflow — it measures passively-loaded pages and these rows live behind a tap.
+   `break-words` rather than `truncate`, because a clipped payee name is the one string a reader
+   opened the panel to read.
+5. **"Every table" was not met, and the data was already there.** The dashboard's Top Spending card
+   was filed as a deliberate refusal on the grounds that the whole card is one anchor. The critic's
+   answer: the owner said every table, this is a table with figures, and `/dashboard` was already
+   computing `reports.breakdowns` and throwing them away. The anchor moved to the header instead of
+   the expanders being dropped — same destination, same engagement key, same layout, and a new
+   `SURFACE_CARD_CLASS` so a non-link summary card keeps the identical surface beside its four
+   neighbours.
+
+**Two more findings were self-caught in the diff audit before either critic reported**, and both are
+the same disease as #2: a comment citing a lock that had not been written yet, and a comment
+claiming a cast had been removed when it had not. Both are now true. A sixth finding — that the
+payee-naming rule existed as the same two-branch expression at six call sites, with its first branch
+(the reader's own renamed payee) indistinguishable from its second on every one of the seed's 847
+rows — became `registerDisplayName`, one author with one mutation-proven test.

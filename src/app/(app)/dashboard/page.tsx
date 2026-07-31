@@ -268,7 +268,11 @@ export default async function DashboardPage({
 
       {/* spending analytics: this month's top categories + what changed (Trends) */}
       <div className="grid gap-5 sm:grid-cols-2">
-        <TopSpendingCard breakdown={reports.breakdown} />
+        <TopSpendingCard
+          breakdown={reports.breakdown}
+          breakdowns={reports.breakdowns}
+          ym={reports.ym}
+        />
         <SpendingInsightsCard trends={trends} />
       </div>
 

@@ -44,6 +44,11 @@
  * ranking a guess.
  */
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { registerDisplayName } from '@/lib/engine/transactions/display-name';
+import {
+  buildCategoryBreakdowns,
+  type CategoryBreakdown,
+} from '@/lib/engine/glass-box/category-breakdown';
 import { computeSpendingTrends, type SpendingTrends, type TrendTxn } from '@/lib/engine/trends/trends';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
@@ -71,13 +76,18 @@ export function toTrendTxns(
     // real row carries it and the engine treats a missing flag as false.
     isSplitParent?: boolean;
     excludeFromTotals?: boolean | null;
+    // Declared rather than read through a cast: `TransactionLike` now carries
+    // `categoryId`, so the field this function's whole O.6 argument is about is
+    // visible in its own signature instead of being asserted in its body.
+    categoryId?: string | null;
+    // Display only (O.18) — carried so the breakdown panel can be built from THIS
+    // array rather than from the snapshot a second time. See `TrendTxn`.
+    id?: string;
+    merchant?: { canonical: string } | null;
   }[],
 ): TrendTxn[] {
   return rows.map((t) => {
-    // Snapshot rows are full transactions at runtime; categoryId isn't on the
-    // minimal TransactionLike type, so read it through a narrow cast (the same
-    // stored category /reports relies on).
-    const stored = (t as { categoryId?: string | null }).categoryId ?? null;
+    const stored = t.categoryId ?? null;
     const m = normalizeMerchant(t.rawDescriptor);
     return {
       date: t.date,
@@ -104,11 +114,29 @@ export function toTrendTxns(
       excludeFromTotals: t.excludeFromTotals ?? false,
       merchant: m.canonical,
       aggregateMerchant: m.aggregate,
+      // Display only, never read by an insight — see the note on `TrendTxn`.
+      id: t.id,
+      rawDescriptor: t.rawDescriptor,
+      merchantName: registerDisplayName(t),
     };
   });
 }
 
-export async function getSpendingTrends(userId: string): Promise<SpendingTrends> {
+/**
+ * The trends payload plus the rows behind each mover's month figure.
+ *
+ * `breakdowns` is keyed by category id with one entry per surfaced mover, and it
+ * describes `comparedYm` — the LAST COMPLETE month — not the in-progress one the
+ * pace card talks about. That is the same window `MoverRow`'s link already
+ * opens, and getting it wrong would be the failure `a-borrowed-total-imports-its-
+ * window` is about, so the month comes from the engine's own `comparedYm` rather
+ * than from a second derivation here.
+ */
+export interface SpendingTrendsData extends SpendingTrends {
+  breakdowns: Record<string, CategoryBreakdown>;
+}
+
+export async function getSpendingTrends(userId: string): Promise<SpendingTrendsData> {
   const provider = getProvider();
   const today = provider.today(userId);
   const [snap, meta] = await Promise.all([
@@ -116,5 +144,26 @@ export async function getSpendingTrends(userId: string): Promise<SpendingTrends>
     getCategoryMeta(userId),
   ]);
 
-  return computeSpendingTrends({ txns: toTrendTxns(snap.transactions), today }, meta);
+  // ONE array, handed to both. The first cut built the panel rows from
+  // `snap.transactions` and argued the two selections must be identical because
+  // `toTrendTxns` copies every field `isSpendRow` reads. A hostile critic mutated
+  // one of those fields (`excludeFromTotals`) and the whole suite stayed green,
+  // because the demo seed holds zero reader-excluded rows and therefore cannot
+  // express the failure — an argument no fixture can falsify is not a guarantee.
+  // Handing both the same array removes the argument instead of defending it.
+  const txns = toTrendTxns(snap.transactions);
+  const trends = computeSpendingTrends({ txns, today }, meta);
+
+  // No movers ⇒ `comparedYm` is null ⇒ no panel can be opened, so there is
+  // nothing to build and no month to build it over.
+  const breakdowns = trends.comparedYm
+    ? buildCategoryBreakdowns(
+        txns,
+        trends.comparedYm,
+        new Map(trends.movers.map((m) => [m.categoryId, m.currentCents])),
+        meta,
+      )
+    : {};
+
+  return { ...trends, breakdowns };
 }

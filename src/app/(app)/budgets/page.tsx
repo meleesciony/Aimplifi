@@ -8,6 +8,7 @@ import { isSpendRow } from '@/lib/engine/reports/reports';
 import { isBudgetable, netSpendByCategory, summarizeBudgets } from '@/lib/engine/budgets/status';
 import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { cents, formatCents } from '@/lib/money';
+import { formatMonth } from '@/lib/dates';
 import { getProvider } from '@/lib/providers/demo';
 import { prisma } from '@/lib/db';
 import { BudgetTargetForm } from '@/components/finance/budget-target-form';
@@ -23,6 +24,9 @@ import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { ConsciousBucketsStrip } from '@/components/finance/conscious-buckets-strip';
+import { buildCategoryBreakdowns } from '@/lib/engine/glass-box/category-breakdown';
+import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
+import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 
 const SYSTEM_BUDGETABLE = CATEGORIES.filter((c) => isBudgetable(c.id));
 
@@ -78,7 +82,22 @@ export default async function BudgetsPage() {
         isTransfer: false,
         isSplitParent: false,
       },
-      select: { categoryId: true, amountCents: true, accountId: true, date: true, excludeFromTotals: true },
+      // The last four fields carry no weight in any figure — they exist so each
+      // row can be NAMED in the expandable breakdown beneath its category
+      // (`buildCategoryBreakdowns`). `merchant.canonical` rather than the
+      // normalizer's guess at `rawDescriptor`, because that is the name the
+      // register prints and the one a reader's own rename writes (O.13a).
+      select: {
+        categoryId: true,
+        amountCents: true,
+        accountId: true,
+        date: true,
+        excludeFromTotals: true,
+        id: true,
+        rawDescriptor: true,
+        status: true,
+        merchant: { select: { canonical: true } },
+      },
     }),
     prisma.budget.findMany({ where: { userId } }),
     prisma.user.findUnique({ where: { id: userId } }),
@@ -115,16 +134,22 @@ export default async function BudgetsPage() {
   // is a claim that the register agrees. Sharing the PREDICATE, not just the query,
   // is what makes "one basis" true rather than nearly true.
   const spendRange = { fromYm: month, toYm: month };
-  const spendByCategory = netSpendByCategory(
-    txns.filter(
+  // Named, not inlined, because ONE array now feeds two things: the figures, and
+  // the rows the expandable panel prints beneath each figure. Passing the same
+  // array to both is what makes "these rows are that number" true by
+  // construction rather than by a second query that could drift (the whole
+  // argument in engine/glass-box/category-breakdown.ts).
+  const spendRows = txns
+    .filter(
       (t) =>
         keepsReconciled(t.accountId, t.date) &&
         // isTransfer/isSplitParent are already false — the Prisma clause excluded them.
         // excludeFromTotals is SELECTED and passed through (O.15): the predicate,
         // not this page, decides that an excluded row leaves the figures.
         isSpendRow({ ...t, isTransfer: false, isSplitParent: false }, spendRange, meta),
-    ),
-  );
+    )
+    .map((t) => ({ ...t, isTransfer: false, isSplitParent: false }));
+  const spendByCategory = netSpendByCategory(spendRows);
 
   // Custom categories are spending by definition (never income/transfer/uncategorized).
   // The system half resolves each label through the SAME per-user meta the spend
@@ -149,6 +174,21 @@ export default async function BudgetsPage() {
     // free-text list, not a category picker) — recorded in TASKS.
     isDial: (id) => dials.has(categoryName(id, meta)) || dials.has(CATEGORY_BY_ID.get(id)?.name ?? ''),
   });
+
+  // Owner request 2026-07-31: every one of these rows expands to the
+  // transactions the app filed into it. Built from `spendRows` — the identical
+  // array `netSpendByCategory` just summed — and handed each row's OWN rendered
+  // figure, so `reconciles` is a real check on this page rather than a claim.
+  const breakdowns = buildCategoryBreakdowns(
+    spendRows.map((t) => ({
+      ...t,
+      // The register's own display rule, shared with it by construction.
+      merchantName: registerDisplayName(t),
+    })),
+    month,
+    new Map(rows.map((r) => [r.categoryId, r.spentCents])),
+    meta,
+  );
 
   return (
     <div className="space-y-4">
@@ -264,6 +304,19 @@ export default async function BudgetsPage() {
                     </p>
                   </>
                 )}
+                {/* The expandable half. The register link is passed through
+                    UNCHANGED — same builder, same refusal — so the panel adds a
+                    way to look without adding a claim the row did not already
+                    make. */}
+                <CategoryBreakdownPanel
+                  breakdown={breakdowns[row.categoryId]}
+                  categoryName={row.name}
+                  // This page's own window, the same one its card description
+                  // prints — the panel may not assume "this month" (O.18 critics).
+                  windowLabel={formatMonth(month)}
+                  registerHref={href}
+                  testIdPrefix="budget-breakdown"
+                />
               </li>
               );
             })}

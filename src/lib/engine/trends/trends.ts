@@ -116,6 +116,30 @@ export interface TrendTxn extends ReportTxn {
    * + the triage flow — so it can legitimately appear here, like on /reports.)
    */
   aggregateMerchant?: boolean;
+  /**
+   * DISPLAY ONLY — never read by any insight in this engine (O.18).
+   *
+   * These three exist so the /trends breakdown panel can be built from THIS
+   * array, the one the mover figures were summed from, instead of from the
+   * snapshot rows a second time. The first cut did build from the snapshot and
+   * justified it with a paragraph arguing the two selections must be identical
+   * because `toTrendTxns` copies every field `isSpendRow` reads; a hostile critic
+   * mutated one of those fields (`excludeFromTotals`) and the ENTIRE suite stayed
+   * green, because the demo seed holds zero reader-excluded rows and so cannot
+   * express the failure. An argument no fixture can falsify is not a guarantee —
+   * so the second derivation is gone and there is nothing left to argue about.
+   *
+   * `merchantName` is deliberately NOT `merchant`. That one is the normalizer's
+   * canonical key, which the merchant insights GROUP and MATCH on; this one is
+   * the name the register prints for the row (`Merchant.canonical`, which a
+   * keyword rule's `renameTo` writes — O.13a). Folding them together would make
+   * a reader's rename change which rows count as the same merchant.
+   */
+  id?: string;
+  /** The bank's own text, carried for display beside the resolved name. */
+  rawDescriptor?: string;
+  /** The register's display name for this row — see the note above. */
+  merchantName?: string;
 }
 
 export interface SpendingPace {

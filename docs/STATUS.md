@@ -2,6 +2,70 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-31 — O.18: every category row expands to the transactions inside it (DECISIONS #356)
+
+Owner, 2026-07-31, with a /budgets screenshot: *"I've asked you many times to make rows expandable
+so I can see what exactly system is classifying spending as. Not just the stuff in the photo but
+every table. You haven't done it."*
+
+**The links were already live; the gesture was wrong.** `21b6b20` (the previous day) made category
+names and figures link into the register, and `main` was level with `origin/main`, so those shipped.
+But a link leaves the page and answers one category per round trip, and "is this bucket right?" is a
+question about several buckets at once. Now every category row on **/budgets**, **/reports** and
+**/trends** expands in place to the transactions the app filed into it — date, payee as the register
+names it, the bank's own descriptor when it differs, the amount as a signed contribution (a refund
+reads as a credit), a pending marker, a Total, and a sentence asserting the rows add up to the
+figure above. Every row links to its detail view, which is where a misfiling gets corrected; the
+panel footer still opens the whole set in the register.
+
+**The rows are the figure's own rows.** The builder is handed the same array the surface summed and
+selects with the reports engine's own exported predicate — no second query, so `reconciles` is a
+real check rather than a claim.
+
+**Two hostile critics, both FAIL, five P1s between them — every one real and every one fixed.**
+The money-truth critic executed the parity claim on all three surfaces (11/11 reports categories,
+11/11 budgets rows, 6/6 movers reconcile on the seed) and could not break it; its P1s were about
+the sentences and the *argument*, not the arithmetic. The UI critic measured a 360px overflow and
+found a green existing spec that this change had turned red. What they found:
+
+1. **A window word was a lie on one of three surfaces.** The panel said "this month"; /trends'
+   panels describe the last COMPLETE month, beneath a Pace card headed with the current one. On the
+   demo the Fuel mover reads $0.00 for May while /budgets prints $68.27 of Fuel for June — so the
+   sentence told a reader the app had filed nothing into a bucket they were spending from. The
+   window is now a REQUIRED prop; the two window-bearing sentences take it as an argument.
+2. **The /trends panel was built from a second derivation** defended by a written argument the seed
+   could not falsify (the critic mutated a field inside the shaping step and the whole suite stayed
+   green, because the demo holds zero reader-excluded rows). One array is now handed to both, so the
+   divergence is unrepresentable, and the comment's cited lock — which did not exist — is real.
+3. **An existing e2e lock had gone red invisibly** (`category-drilldown` counted `li` and each mover
+   now contains a list of its own), and `verify.sh` skips Playwright by default.
+4. **A long unbreakable payee name painted 106px outside a 360px viewport**, through the amount
+   column, with the document-level M.1 gate reporting no overflow — it cannot see controls behind
+   a tap.
+5. **"Every table" was not met** while the dashboard was already computing these rows and throwing
+   them away. See below.
+
+### OPEN / stated limitations
+
+- **The dashboard "Top spending" card now expands too** — the whole-card `<a href="/reports">`
+  became a header link so its four rows could carry expanders (a button inside an anchor is invalid
+  HTML). The route the card existed for is asserted by the new e2e. This reverses the deliberate
+  refusal filed as **TASKS O.18a**, which is closed.
+- **No committed spec seeds a long-token bank descriptor.** The 360px overflow above was found by a
+  critic's throwaway fixture; the demo seed's longest descriptor token is 15 characters, so the
+  fixed `break-words` is not locked by anything in the repo. A seeded long-descriptor row belongs in
+  `mobile-overflow.spec.ts`.
+- **The Conscious Spending strip does not expand** — the top card in the owner's own screenshot. A
+  bucket is a set of CATEGORIES, not transactions, so this panel does not fit it; the honest version
+  is the spending plan's own rows per bucket, which needs the basis question settled first.
+  **TASKS O.18b** (supersedes W.7's option (a)).
+- **/recurring does not expand.** Its rows print a TYPICAL amount, not a total, so the "these rows
+  add up" contract would be false there; it needs its own panel and its own copy. **TASKS O.18c.**
+- **/trends' "New this month" does not expand** — a merchant aggregate on a third basis (it applies
+  a `<= today` guard /reports does not). **TASKS O.18e.**
+- **No pagination in the panel.** A category with hundreds of rows in one month renders all of them;
+  capping would break the reconciliation claim, so the choice was all-or-nothing and all is honest.
+
 ## ✅ BUILT 2026-07-31 — N.1: the menu explains itself (DECISIONS #355)
 
 Owner, 2026-07-31: *"a lot of sections in the app are cumbersome in daily workflow. You basically

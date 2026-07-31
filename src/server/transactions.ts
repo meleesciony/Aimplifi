@@ -12,7 +12,7 @@ import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { summarizeRecurring } from '@/lib/engine/recurring/summary';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { type PredictionSource, describeProvenance } from '@/lib/engine/categorize/provenance';
-import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { rowOrigin } from '@/lib/engine/transactions/origin';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { proposalReason } from '@/lib/engine/categorize/propose';
@@ -292,7 +292,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     date: t.date,
     accountId: t.accountId,
     accountName: accountLabel(t.account),
-    merchantName: t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical,
+    merchantName: registerDisplayName(t),
     rawDescriptor: t.rawDescriptor,
     categoryId: t.categoryId ?? 'uncategorized',
     categoryName: categoryLabel(t.categoryId, meta, t.category?.name),
@@ -499,7 +499,7 @@ async function reimbursementMatchFor(
   const row = candidates.find((c) => c.id === match.id);
   return {
     ...match,
-    merchantName: row ? (row.merchant?.canonical ?? normalizeMerchant(row.rawDescriptor).canonical) : '',
+    merchantName: row ? registerDisplayName(row) : '',
   };
 }
 
@@ -573,7 +573,7 @@ export async function getTransactionDetail(
     date: t.date,
     accountId: t.accountId,
     accountName: accountLabel(t.account),
-    merchantName: t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical,
+    merchantName: registerDisplayName(t),
     rawDescriptor: t.rawDescriptor,
     categoryId: t.categoryId ?? 'uncategorized',
     categoryName: categoryLabel(t.categoryId, meta, t.category?.name),

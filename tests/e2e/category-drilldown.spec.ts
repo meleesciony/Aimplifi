@@ -93,7 +93,11 @@ test('Trends: a category mover deep-links to the month it was summed over', asyn
   await expect(movers).toBeVisible();
   // Anti-vacuity: the card must actually be showing movers, or every assertion
   // below passes over an empty box.
-  await expect(movers.locator('li')).not.toHaveCount(0);
+  // `mover-row`, not `li`: since O.18 each mover CONTAINS a list of its own
+  // transactions (hidden until expanded, but present in the DOM the moment it is
+  // opened once), so counting descendant list items counts the wrong thing. This
+  // assertion and the equality below were both silently measuring 23 instead of 6.
+  await expect(movers.getByTestId('mover-row')).not.toHaveCount(0);
 
   // EVERY mover row carries a link — no dead rows (O.6 critic P1-2). The builder
   // briefly refused a figure of $0.00, and on this card that lands on the single
@@ -101,7 +105,7 @@ test('Trends: a category mover deep-links to the month it was summed over', asyn
   // moved, and sorts first by absolute delta, so it rendered dead beside four live
   // ones. The demo has exactly that row ("Travel · $0.00 vs $489.98 usual"), which
   // is why this count equality is not a formality.
-  const rowCount = await movers.locator('li').count();
+  const rowCount = await movers.getByTestId('mover-row').count();
   await expect(movers.locator('[data-testid^="mover-category-link-"]')).toHaveCount(rowCount);
 
   // For the reconciliation itself, pick a row with money in it: a $0.00 mover is

@@ -62,6 +62,30 @@ export interface TransactionLike {
   rawDescriptor: string;
   status: string;
   isTransfer: boolean;
+  /**
+   * The three fields below are OPTIONAL and carry no weight in this assembler —
+   * they exist so a snapshot consumer can NAME a row rather than only sum it
+   * (the category-breakdown panels, 2026-07-31). Optional rather than required
+   * because engine fixtures across the suite hand-build this shape and none of
+   * them is describing a real database row; every row a provider emits carries
+   * all three.
+   *
+   * Before this, `server/trends.ts` reached `categoryId` through a local cast
+   * with a comment explaining why it had to. Declaring the field is the same
+   * information written where the next reader will look for it, and that cast is
+   * gone rather than joined by a second one.
+   */
+  id?: string;
+  /** The STORED category — the bucket every spending figure sums into. */
+  categoryId?: string | null;
+  /**
+   * The payee name the register displays, when the row was joined to its
+   * merchant. Not the normalizer's output: a keyword rule's `renameTo` writes
+   * `Merchant.canonical` (O.13a), so this is where a reader's own name for a
+   * payee lives, and a surface that fell back to the bank text would show them
+   * a name they had deliberately replaced.
+   */
+  merchant?: { canonical: string } | null;
   /** Container row left behind by a split — its children carry the amounts. */
   isSplitParent?: boolean;
   /**

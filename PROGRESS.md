@@ -8208,3 +8208,54 @@ carrying `ƒ /api/attachments` and `ƒ /api/attachments/[id]`, and holding
 tables landed with `12786da`), so Neon took no DDL here.
 
 O.13h is shipped, criticized, fixed, re-verified and live.
+
+## 2026-07-31 — O.18 IN PROGRESS — every category table row expands to the transactions inside it
+
+Owner (with the /budgets screenshot): *"I've asked you many times to make rows expandable so I can
+see what exactly system is classifying spending as. Not just the stuff in the photo but every
+table. You haven't done it."*
+
+Established first: `main` is level with `origin/main`, so the category LINKS shipped yesterday
+(`21b6b20`) are deployed. The ask is therefore not a missing link — it is a different gesture.
+A link leaves the page and answers one category at a time; "is this bucket right?" is answered by
+scanning several buckets, which only works in place.
+
+Built (verify not yet run at the time of writing):
+- `src/lib/engine/glass-box/category-breakdown.ts` — pure builder. Selects rows with the reports
+  engine's OWN exported predicate (`isSpendRow` / `spendRowCategoryId` / `spendContributionCents`),
+  never a copy, and takes the figure the surface RENDERS so `reconciles` is a real check. Third
+  state `clampedByNetRefund` for the documented "a refund outweighed the month" zero, so the panel
+  names the clamp instead of reporting a defect. `BREAKDOWN_BASIS` lives beside the predicate and
+  the component prints it unconditionally (a disclosure a call site can forget is one it will).
+- `src/components/finance/category-breakdown-panel.tsx` — the expander. Zero fetch: the rows are
+  on the page when it paints, so expanding cannot show a different basis than the figure above it.
+- Wired: /budgets "By category", /reports "Spending by category", /trends movers.
+- `TransactionLike` gained three OPTIONAL display fields (`id`, `categoryId`, `merchant`) and the
+  demo provider now joins `merchant.canonical` — so a snapshot consumer can NAME a row, and
+  `server/trends.ts`'s old local cast for `categoryId` is gone rather than joined by a second one.
+
+Deliberately NOT expanded, each for a stated reason (see TASKS O.18a–c): the dashboard Top Spending
+card is one `<a>` to /reports (a button inside an anchor is invalid HTML and the anchor eats its
+clicks); the Conscious Spending strip needs a bucket→rows mapping, not a transaction list (W.7);
+/recurring rows print a TYPICAL amount, so its sightings do not sum to the figure and need their
+own copy.
+
+Locks: `tests/unit/category-breakdown.test.ts` 21/21, mutation-proven — neutering the shared
+predicate fails 7.
+
+**Self-caught during the diff audit (before any critic reported):**
+- A code comment cited a lock, `trends-breakdown-parity`, that did not exist yet. Written, plus a
+  sibling `reports-breakdown-parity` and a demo-seed assertion that a mover which fell to $0.00 is
+  an EMPTY breakdown rather than a mismatch — the case the first draft of the e2e tripped over by
+  taking the topmost mover (Travel, $0.00, the largest absolute delta on the seed).
+- A comment in `assemble.ts` claimed the widened type "removes the cast" in `server/trends.ts`; it
+  did not, because `toTrendTxns` declares its own inline row type. The cast is now actually gone.
+- The empty-panel string read "No transactions were filed here **this month**" — true on /budgets
+  and /reports, FALSE on /trends, whose panels describe `comparedYm`. Extracted to
+  `BREAKDOWN_EMPTY` beside `BREAKDOWN_BASIS` and both are now asserted window-free.
+- The toggle read a bare "14 items" in muted text. Replaced with a bordered chip reading
+  "Show 14 transactions" / "Hide" — the affordance-nobody-can-see measurement recorded in
+  `CATEGORY_LINK_CLASS` has already cost this repo twice.
+- A hostile-critic subagent left a live mutation in `server/trends.ts`
+  (`excludeFromTotals: false` under a comment claiming it had been restored). Caught by the diff
+  audit, restored by the critic itself shortly after. Second recorded instance of that class.
