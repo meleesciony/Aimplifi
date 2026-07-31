@@ -2,6 +2,16 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-31 — W.1 DEPLOY VERIFIED
+
+Commit `e19e65e`, deployment `aimplifi-94fphu70a-reiforge.vercel.app` **● Ready**, build
+log `Cloning … (Branch: main, Commit: e19e65e)` matching HEAD, holding
+**www.aimplifi.app** + **aimplifi.app**. No schema diff in this commit, so Neon took no
+DDL. Proved live by driving the production page in a real browser (demo sign-in →
+`/coach`), not by a status code: the card renders, and typing $10,000,000 returns
+"about 69 years 10 months" at the current pace with "$17,542.23/month in today's money"
+for a 25-year horizon, and a sensitivity spread of 52 years to never.
+
 ## ✅ BUILT 2026-07-31 — W.1: a wealth target you can name (DECISIONS #353)
 
 Owner, 2026-07-31: *"if I want to save up to 10 mil from my current investments and
