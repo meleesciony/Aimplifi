@@ -87,12 +87,55 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   },
   {
     label: 'wealthTargetAtCurrentPace',
-    text: COACH_COPY.wealthTargetAtCurrentPace(44, 5, cents(500000), 450),
+    text: COACH_COPY.wealthTargetAtCurrentPace(44, 5, cents(500000), 450, 6),
     isProjection: true,
   },
   {
     label: 'wealthTargetNotSaving',
-    text: COACH_COPY.wealthTargetNotSaving(),
+    text: COACH_COPY.wealthTargetNotSaving(6),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetNotSaving:no-months',
+    text: COACH_COPY.wealthTargetNotSaving(0),
+    isProjection: false,
+  },
+  // Registered so the guardrail sweeps below actually SEE them. All three shipped invisible to
+  // the scan in the first pass of this slice, and one of them ("which is what grows at 7.50%")
+  // would have failed the projection-assumption sweep on the spot.
+  {
+    label: 'wealthTargetStartingFrom',
+    text: COACH_COPY.wealthTargetStartingFrom(cents(148_000_000)),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetStartingFrom:empty',
+    text: COACH_COPY.wealthTargetStartingFrom(cents(0)),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetHorizonBasis:seeded',
+    text: COACH_COPY.wealthTargetHorizonBasis('seeded'),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetHorizonBasis:chosen',
+    text: COACH_COPY.wealthTargetHorizonBasis('chosen'),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetHorizonBasis:fallback',
+    text: COACH_COPY.wealthTargetHorizonBasis('fallback'),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetDials',
+    text: COACH_COPY.wealthTargetDials(1000, 250, false),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetDials:default-inflation',
+    text: COACH_COPY.wealthTargetDials(1000, 250, true),
     isProjection: false,
   },
   {
@@ -472,5 +515,142 @@ describe('wealth-target copy — the claims the critics broke', () => {
     expect(line).toContain('7.00% before inflation');
     expect(line).toContain('its date is earlier');
     expect(line).toContain('2.50% inflation assumption');
+  });
+});
+
+/**
+ * The wealth-target card's THREE invisible inputs (owner, 2026-07-31: "I set 10 mil and it gave
+ * me some arbitrary savings for arbitrary time. These should be based on my dials which should
+ * show directly on this page").
+ *
+ * The figures were never wrong — $23,888.10/month reaching $10M in 12y10m and $349.41/month
+ * reaching it in 25 both imply the same ~$1.48M starting balance, so the two halves of the card
+ * agreed with each other and with the arithmetic. What made them read as arbitrary is that the
+ * card printed the destination and the instalment and rendered NO control and NO figure for the
+ * three inputs that decide them. These lock the naming, not the maths.
+ */
+describe('wealth target — every figure names where it came from', () => {
+  it('prints the starting balance and scopes it to the projections, not to "everything below"', () => {
+    const s = COACH_COPY.wealthTargetStartingFrom(cents(1_480_000_00));
+    expect(s).toContain('$1,480,000.00');
+    expect(s.toLowerCase()).toContain('investment accounts');
+    // The rate is NOT named here. The sensitivity rows grow this same balance at the dial ±2pp,
+    // so "grows at 7.50% in everything below" was false of three of the card's own lines — and
+    // positional besides, which goes stale the moment the card is reordered.
+    expect(s).not.toMatch(/\d+\.\d\d%/);
+    expect(s).not.toMatch(/below/i);
+    // The exclusion may not read as EXHAUSTIVE: the currency guard drops non-USD investment
+    // accounts before the sum, and Plaid maps HSA / cash-management / prepaid into CHECKING.
+    expect(s).not.toMatch(/are not counted in it/i);
+  });
+
+  it('names the assumption that makes compounding the leftover coherent', () => {
+    // Excluding cash from the BALANCE while compounding the monthly leftover — which is cash —
+    // at the same rate is a contradiction the card previously supplied its own reason for.
+    const s = COACH_COPY.wealthTargetStartingFrom(cents(1_480_000_00));
+    expect(s).toMatch(/assuming what you put away each month is invested/i);
+    expect(s).not.toMatch(/not on cash/i);
+  });
+
+  it('does not describe an empty portfolio as money the reader has', () => {
+    const s = COACH_COPY.wealthTargetStartingFrom(cents(0));
+    expect(s).toContain('$0.00');
+    expect(s).toMatch(/whole target has to come from what you put away/i);
+    expect(s).not.toMatch(/in your investment accounts today/i);
+  });
+
+  it('names the pace figure as leftover, over the window it was ACTUALLY averaged on', () => {
+    // `monthlySavings` divides by `Math.max(1, last6.length)` and `monthlyFlows` emits only
+    // months that contain a qualifying row — so a constant "6" is false for every short history
+    // and for any span containing an empty month. Two independent critics falsified it.
+    const three = COACH_COPY.wealthTargetAtCurrentPace(12, 10, cents(23_888_10), 750, 3);
+    expect(three).toContain('$23,888.10');
+    expect(three).toContain('12 years 10 months');
+    expect(three).toMatch(/left after spending/i);
+    expect(three).toContain('3 months');
+    expect(three).not.toContain('6 months');
+    expect(three.startsWith('Saving ')).toBe(false);
+    // Singular is a reachable window, not a typo.
+    expect(COACH_COPY.wealthTargetAtCurrentPace(1, 0, cents(100_00), 750, 1)).toContain('1 month ');
+  });
+
+  it('does not read an empty history as evidence of overspending', () => {
+    // 0 complete months divides 0 by 1 and floors exactly as real overspending does. Telling a
+    // day-one reader "spending is running ahead of income" is a behaviour claim built from an
+    // empty set — the one thing `an-empty-set-is-not-a-fact-about-money` forbids.
+    const none = COACH_COPY.wealthTargetNotSaving(0);
+    expect(none).toMatch(/complete month/i);
+    expect(none).not.toMatch(/running ahead of income/i);
+    expect(COACH_COPY.wealthTargetNotSaving(6)).toMatch(/running ahead of income/i);
+  });
+
+  it('gives the horizon THREE bases, so a dragged slider is never called unchosen', () => {
+    const seeded = COACH_COPY.wealthTargetHorizonBasis('seeded');
+    const chosen = COACH_COPY.wealthTargetHorizonBasis('chosen');
+    const fallback = COACH_COPY.wealthTargetHorizonBasis('fallback');
+    expect(new Set([seeded, chosen, fallback]).size).toBe(3);
+    expect(seeded).toMatch(/your current pace/i);
+    // The state that was missing: the reader dragged the control and was told, one line under
+    // it, that nothing had picked the date.
+    expect(chosen).toMatch(/you picked/i);
+    expect(chosen).not.toMatch(/nothing has picked/i);
+    expect(fallback).toMatch(/nothing has picked this date for you/i);
+    expect(fallback).not.toMatch(/your (current )?pace/i);
+  });
+
+  it('claims the dials are the reader’s ONLY when the reader actually set them', () => {
+    // `User.inflationBps` is nullable and /coach falls back to 2.50%. /settings calls that same
+    // number "our defaults" — a card calling it "yours" contradicts the page it links to, and
+    // the possessive is the exact claim the owner asked to be made true.
+    const set = COACH_COPY.wealthTargetDials(1000, 250, false);
+    const defaulted = COACH_COPY.wealthTargetDials(1000, 250, true);
+    expect(set).toContain('10.00%');
+    expect(set).toContain('2.50%');
+    expect(set).toMatch(/yours to change/i);
+    expect(defaulted).toMatch(/Aimplifi's default/i);
+    expect(defaulted).not.toMatch(/both rates are yours/i);
+    // Neither may claim EVERY figure is downstream of the dials: the target, the starting
+    // balance, the pace figure and the guilt-free figure are all inputs from elsewhere.
+    for (const s of [set, defaulted]) {
+      expect(s).not.toMatch(/every figure/i);
+      expect(s).toMatch(/how long the target takes, and what it costs a month/i);
+    }
+  });
+});
+
+/**
+ * The scan's own completeness. `ALL_STRINGS` is hand-maintained, and this slice originally added
+ * three COACH_COPY entries and zero rows — so the shame sweep, the projection-assumption sweep
+ * and the ticker sweep all silently skipped the new copy, and one of the three would have failed
+ * on the spot. A hand-maintained list of everything is only as good as the check that it IS
+ * everything.
+ */
+describe('the guardrail scan covers every string COACH_COPY can emit', () => {
+  it('has an ALL_STRINGS row for every function-valued key', () => {
+    const covered = new Set(ALL_STRINGS.map((s) => s.label.split(':')[0]));
+    const emitters = Object.entries(COACH_COPY)
+      .filter(([, v]) => typeof v === 'function')
+      .map(([k]) => k);
+    expect(emitters.length).toBeGreaterThan(0);
+    const missing = emitters.filter((k) => !covered.has(k));
+    // A pre-existing gap this check FOUND, pinned rather than quietly widened into the
+    // assertion. Every one of these predates this slice; the list may only shrink, so adding a
+    // new COACH_COPY key without an ALL_STRINGS row fails here, and closing one of the seven
+    // means deleting a line that explains itself (TASKS W.8).
+    const KNOWN_UNSCANNED = [
+      'reviewNextAction',
+      'reviewPersonalizedBadge',
+      'nextActionCancelSub',
+      'nextActionTransfer',
+      'nextActionAutomate',
+      'digestNothingDueWithUndated',
+      'digestUndatedAlongsideDues',
+    ];
+    const unexpected = missing.filter((k) => !KNOWN_UNSCANNED.includes(k));
+    expect(unexpected, `COACH_COPY keys with no ALL_STRINGS row: ${unexpected.join(', ')}`).toEqual(
+      [],
+    );
+    // And the pin itself cannot rot: a key that gets registered must leave this list.
+    expect(KNOWN_UNSCANNED.filter((k) => !missing.includes(k))).toEqual([]);
   });
 });

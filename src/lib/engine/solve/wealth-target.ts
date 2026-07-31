@@ -71,7 +71,16 @@ export type WealthTargetUnreachableReason =
 export interface WealthTargetInput {
   /** The target the reader STATED, integer cents, today's dollars (e.g. $10M → 1_000_000_000). */
   targetAmountCents: number;
-  /** Investment portfolio + savings counted toward it today, integer cents (coach.fi.portfolioCents). */
+  /**
+   * The balance every projection here starts from, integer cents.
+   *
+   * The sole caller passes `coach.fi.portfolioCents`, which `getCoachData` builds from
+   * `type === 'INVESTMENT'` accounts ONLY — checking and savings are a separate `liquid` sum and
+   * are not in it. This doc previously read "investment portfolio + savings", which was never
+   * true of any caller, and the difference is not cosmetic: it is the largest single input to
+   * both answers, so a surface that renders a figure from here must say which accounts it counts
+   * rather than inherit this comment's word for it.
+   */
   currentPortfolioCents: number;
   /** What the reader is actually putting away each month today, integer cents. May be ≤ 0. */
   currentMonthlyContributionCents: number;
@@ -222,6 +231,56 @@ function rateOfIncomeBps(amountCents: number | null, monthlyIncomeCents: number)
   if (amountCents === null || monthlyIncomeCents <= 0) return null;
   return Math.round((amountCents / monthlyIncomeCents) * 10000);
 }
+
+/**
+ * The narrowest and widest horizons a surface may offer, in whole years. Declared here rather
+ * than in the card because `seededHorizon` refuses outside them and a caller whose slider spanned
+ * a different range would get a seed its own control could not display.
+ */
+export const MIN_HORIZON_YEARS = 1;
+export const MAX_HORIZON_YEARS = 40;
+
+/**
+ * Where a "I want it in N years" control should OPEN, given the reader's own arrival.
+ *
+ * A constant default was the whole of the owner's "arbitrary time" complaint (2026-07-31): the
+ * card chose 25 years, printed it in the same weight as the figures, and gave no way to tell a
+ * number it had invented from one the reader had set. Seeded from the arrival, the card opens
+ * self-consistent — the pace sentence and the required-contribution sentence describe the same
+ * landing before anything is touched.
+ *
+ * `ceil`, never `round`: the opening year must not fall EARLIER than the pace actually lands, or
+ * the card greets the reader by demanding money on top of a pace it has just called sufficient.
+ *
+ * Three inputs REFUSE the seed, and `seeded: false` is the honest third state rather than a
+ * clamp — each refusal is a case where the arrival is a number the surface declines to print, and
+ * a slider silently parked on it would reintroduce that number as a position:
+ *   - `contributionFloored`: nothing is going in, so there is no pace to seed from and the card
+ *     refuses a date in the sentence above (`wealthTargetNotSaving`).
+ *   - `monthsAtCurrentRate === null`: no arrival inside the FI engine's 100-year cap.
+ *   - beyond `MAX_HORIZON_YEARS`: clamping a 70-year arrival down to the control's 40-year
+ *     ceiling would present the ceiling as the reader's trajectory — the `a-clamped-output-may-
+ *     not-print-its-inputs` shape, one control over.
+ */
+export function seededHorizon(
+  monthsAtCurrentRate: number | null,
+  contributionFloored: boolean,
+): { years: number; seeded: boolean } {
+  if (contributionFloored || monthsAtCurrentRate === null) {
+    return { years: FALLBACK_HORIZON_YEARS, seeded: false };
+  }
+  const years = Math.ceil(monthsAtCurrentRate / 12);
+  if (years < MIN_HORIZON_YEARS || years > MAX_HORIZON_YEARS) {
+    return { years: FALLBACK_HORIZON_YEARS, seeded: false };
+  }
+  return { years, seeded: true };
+}
+
+/**
+ * The horizon used only where the reader's own pace cannot supply one. A fallback, never a
+ * recommendation — every surface that opens on it must say so (`wealthTargetHorizonBasis`).
+ */
+export const FALLBACK_HORIZON_YEARS = 25;
 
 export function solveWealthTarget(input: WealthTargetInput): WealthTargetResult {
   const targetAmountCents = Math.max(0, Math.floor(input.targetAmountCents));

@@ -1516,3 +1516,87 @@ re-files (#166/#170). It does not: `transaction-detail-view.tsx` sets
 `defaultValue={flatCategories.some((c) => c.id === row.categoryId) ? row.categoryId : ''}`, falling
 back to the explicit "Choose a category…" placeholder, so saving requires a deliberate choice. The
 coherence gap is real but honest, and no silent mis-file rides on it.
+
+## #354
+
+**(W.1a) The wealth-target card renders its inputs, not just its answers.**
+
+Owner, 2026-07-31, looking at a $10,000,000 target: *"I set 10 mil and it gave me some
+arbitrary savings for arbitrary time. These should be based on my dials which should show
+directly on this page. Make it make sense."*
+
+**The figures were right, and mutually consistent.** "$23,888.10/month -> 12 years 10 months"
+and "25 years -> $349.41/month" both imply a starting balance near $1.48M (solved independently:
+$1,472,908 and $1,495,242, the gap being whole-month rounding). Nothing was wrong with the
+arithmetic. What made it read as arbitrary is that the card computed from four inputs and
+rendered a control for exactly one of them - the reader typed the target, and the portfolio, the
+pace, the horizon and the two rate dials all arrived invisibly.
+
+Three holes, all now closed:
+
+* **The starting balance was never printed** outside the `already-there` branch. It is the single
+  largest input to both answers, and without it "$349.41/month reaches $10M" is not a believable
+  sentence.
+* **`DEFAULT_HORIZON_YEARS = 25`** was a constant the card chose, rendered in the same visual
+  weight as the figures. `seededHorizon` replaces it: the slider opens on
+  `ceil(monthsAtCurrentRate / 12)` - the first whole year the reader's own pace lands - so the
+  card's two halves agree before anything is touched, and dragging shows the trade rather than
+  introducing it. `ceil` and not `round`, or the card greets the reader by demanding money on top
+  of a pace it has just called sufficient. Three states REFUSE the seed (a floored contribution,
+  no arrival inside the 100-year cap, an arrival past the control's 40-year ceiling) because each
+  is an arrival the surface declines to print, and a clamp would present the ceiling as the
+  reader's trajectory.
+* **The pace figure was labelled as an instruction** ("Saving $23,888.10/month") when it is
+  `(income - expenses) / n` over the reader's complete months - what was left over, not money
+  observed moving into an investment account.
+
+**Two parallel fresh-context critics, both FAIL, converging on five of the same defects** - and
+every one was a CLAIM, not a computation. One critic proved the seed's self-consistency
+analytically and again over 140,067 random seeded cases with zero violations; the arithmetic
+survived untouched. What failed was what the new sentences asserted about where the numbers came
+from, which is the same axis the owner complained about:
+
+1. *"averaged over your last 6 complete months"* - the divisor is `Math.max(1, last6.length)` and
+   `monthlyFlows` emits only months that CONTAIN a qualifying row, so it is 3 for a reader three
+   months in and the span can cover eight calendar months when two are empty. Fixed by plumbing
+   the real count (`fi.monthlySavingsMonths`) rather than vaguening the sentence.
+2. *"Both rates above are your own settings"* - `User.inflationBps` is nullable and /coach falls
+   back to 2.50%, which the linked settings page calls *"our defaults"* in as many words. The
+   possessive is exactly the claim the owner asked to be made true, so it is the one that must not
+   be faked; now branched on a required `inflationIsDefault`.
+3. *"this rate is a return on invested money, not on cash"* - the card excluded the reader's cash
+   from the balance on that ground and then compounded their monthly leftover, which IS cash, at
+   the same rate. The model was always "the surplus gets invested"; that assumption was the one
+   thing the card never said. Now stated, and the contradicting rationale is gone.
+4. **A dragged slider was told "Nothing has picked this date for you"** - a boolean covered
+   seeded and fallback and silently gave the reader who had just moved the control the fallback
+   sentence. Three facts need three states; `horizonBasis` is now
+   `'seeded' | 'chosen' | 'fallback'`.
+5. **The exclusion enumeration claimed a completeness it did not have** - non-USD investment
+   accounts never reach `portfolioCents` (the currency guard runs inside the snapshot reader), so
+   a sentence naming everyday cash as *the* exclusion described a set the figure does not contain.
+   The card now carries the same `withheldInlineNote` the FI card above it already had, and both
+   caveats were moved to ride the balance they qualify instead of sitting two sentences below it.
+
+Also fixed in the same cycle: *"Change either one and every figure on this card moves"* was false
+of four figures; the `already-there` state printed the portfolio twice in adjacent sentences; an
+empty transaction history was reported as *"spending is running ahead of income"* (a behaviour
+claim built from an empty set); the settings anchor was an empty non-focusable div that inserted a
+layout gap; and a comment claiming pass 1 costs "one `monthsToFI` walk" was wrong - the
+sensitivity table is built before the open-ended return, so it is four.
+
+**The guardrail scan had stopped being exhaustive and nobody could see it.** `ALL_STRINGS` in
+`coach-copy.test.ts` is hand-maintained, and this slice first shipped three new COACH_COPY entries
+with zero rows, so the shame sweep, the projection-assumption sweep and the ticker sweep all
+skipped the new copy - and one string ("which is what grows at 7.50%") failed the assumption sweep
+the moment it was registered. A completeness test now asserts every function-valued key has a row,
+which immediately found seven PRE-EXISTING unscanned keys; those are pinned in a named list that
+may only shrink (TASKS W.8).
+
+**Deliberately not changed.** The seeded horizon makes the card's second answer restate the first
+in the untouched state ("to land it in 13 years takes about what you already save"). That is the
+coherence the seed exists to produce - a confirmation the reader is on track, with the contrast
+appearing the moment the slider moves - and it is preferred over reintroducing an unchosen number
+to manufacture a difference. The FI card six inches above still prints its own unlabelled
+app-chosen 25 (`COAST_TARGET_YEARS`); filed as TASKS W.9 rather than folded in, since it changes a
+different card's figure.

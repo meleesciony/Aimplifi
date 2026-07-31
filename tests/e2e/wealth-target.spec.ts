@@ -27,10 +27,64 @@ test('wealth target: typing a target and dragging the horizon move the live answ
   await expect(basis).toContainText("today's money");
   await expect(basis).toContainText('after inflation');
 
+  // ---- The three inputs that used to be invisible (owner, 2026-07-31) ------------------
+  // "I set 10 mil and it gave me some arbitrary savings for arbitrary time." The figures were
+  // consistent; the card rendered no control and no figure for the inputs that decided them.
+
+  // 1. The STARTING BALANCE. Every figure on this card grows from it, so a reader who cannot
+  //    see it has no way to believe an instalment computed against it — and it must say which
+  //    accounts it counts, because it is INVESTMENT rows only.
+  const startingFrom = page.getByTestId('wealth-target-starting-from');
+  await expect(startingFrom).toBeVisible();
+  await expect(startingFrom).toContainText('investment accounts');
+  await expect(startingFrom).toContainText('checking and savings');
+  // The assumption that makes compounding a cash leftover at an investing rate coherent.
+  await expect(startingFrom).toContainText('invested too rather than left as cash');
+
+  // 2. The DIALS, named as the reader's own and reachable in one tap rather than described.
+  const dials = page.getByTestId('wealth-target-dials');
+  // The demo user has no stored `inflationBps`, so this is the DEFAULTED branch — the card must
+  // not call Aimplifi's own 2.50% "yours" while /settings calls the same number "our defaults".
+  await expect(dials).toContainText("Aimplifi's default");
+  await expect(dials).not.toContainText('Both rates are yours');
+  await expect(dials).toContainText('How long the target takes');
+  await expect(page.getByTestId('wealth-target-dials-link')).toHaveAttribute(
+    'href',
+    '/settings#money-dials',
+  );
+
+  // 3. The HORIZON, seeded from the reader's own arrival instead of a constant 25. At the
+  //    default target the demo's pace lands inside the control's range, so the slider must open
+  //    on the first whole year that pace arrives — read out of the pace sentence itself rather
+  //    than hard-coded, so this cannot quietly pass against a drifted seed.
+  const paceText = (await page.getByTestId('wealth-target-pace').textContent()) ?? '';
+  const arrival = /about (\d+) years?(?: (\d+) months?)?/.exec(paceText);
+  expect(arrival, `pace line did not state an arrival: ${paceText}`).not.toBeNull();
+  const arrivalMonths = Number(arrival![1]) * 12 + Number(arrival![2] ?? 0);
+  const seededYears = Math.ceil(arrivalMonths / 12);
+  await expect(page.getByTestId('wealth-target-horizon-value')).toHaveText(
+    `${seededYears} year${seededYears === 1 ? '' : 's'}`,
+  );
+  await expect(page.getByTestId('wealth-target-horizon-basis')).toContainText('your current pace');
+  // And the seed's whole point: the card OPENS self-consistent. The horizon is the first year
+  // the current pace lands, so the required contribution cannot exceed what is already going in
+  // — the two halves agree before the reader touches anything.
+  await expect(page.getByTestId('wealth-target-additional')).toContainText(
+    'at or below what you',
+  );
+
   // Raising the target can only push the answer further out — the pace line must MOVE.
   const paceBefore = await page.getByTestId('wealth-target-pace').textContent();
   await page.getByTestId('wealth-target-amount').fill('$10,000,000');
   await expect(page.getByTestId('wealth-target-pace')).not.toHaveText(paceBefore ?? '');
+
+  // $10M does not arrive within the slider's 40-year ceiling on this fixture, so the seed is
+  // REFUSED rather than clamped: parking the control on 40 would present its ceiling as the
+  // reader's trajectory. The fallback appears, and says plainly that nothing chose it.
+  await expect(page.getByTestId('wealth-target-horizon-value')).toHaveText('25 years');
+  await expect(page.getByTestId('wealth-target-horizon-basis')).toContainText(
+    'Nothing has picked this date for you',
+  );
 
   // The required-contribution half answers the deadline question, and dragging the
   // horizon changes it live (a shorter horizon demands more per month).
@@ -40,6 +94,18 @@ test('wealth target: typing a target and dragging the horizon move the live answ
   const requiredAt10 = await page.getByTestId('wealth-target-required').textContent();
   expect(requiredAt10).not.toBe(requiredAt25);
   expect(requiredAt10).toContain('/month');
+
+  // A dragged slider is the READER'S date, and the card must say so — not "nothing has picked
+  // this date for you", printed one line under the control they just moved.
+  await expect(page.getByTestId('wealth-target-horizon-basis')).toContainText('you picked');
+
+  // And the drag must SURVIVE a target edit that would otherwise seed successfully. Typing back
+  // the default target re-enters the range where `seededHorizon` returns `seeded: true`, so an
+  // implementation where the seed overrides the drag would move the slider off 10 here — which
+  // the previous version of this assertion (a target that refuses the seed) could never catch.
+  await page.getByTestId('wealth-target-amount').fill('$1,000,000');
+  await expect(page.getByTestId('wealth-target-horizon-value')).toHaveText('10 years');
+  await expect(page.getByTestId('wealth-target-horizon-basis')).toContainText('you picked');
 
   // A negative guilt-free figure must never be described as money the reader HAS. The demo
   // is overspent (`leftToSpendCents` = -$2,432.33, `overspent: true`), so this fixture

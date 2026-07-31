@@ -57,6 +57,18 @@ export interface CoachData {
     annualExpensesCents: Cents;
     portfolioCents: Cents;
     monthlySavingsCents: Cents;
+    /**
+     * How many months `monthlySavingsCents` and `monthlyIncomeCents` were actually averaged
+     * over — `last6.length`, which is the DIVISOR, not the constant 6.
+     *
+     * Carried because two independent critics falsified the same sentence on the wealth-target
+     * card: `monthlyFlows` emits only months that CONTAIN a qualifying row, so this is 3 for a
+     * reader three months in and the span can cover eight calendar months when two are empty.
+     * A surface that wants to say what window a figure came from has to be told; deriving "6"
+     * from the name of the variable is how a checkable sentence became an uncheckable one.
+     * 0 is a real value and means no complete month has any activity yet.
+     */
+    monthlySavingsMonths: number;
     monthlyIncomeCents: Cents;
     monthsToFI: number | null;
     coastIsCoast: boolean;
@@ -368,6 +380,7 @@ export async function getCoachData(
       annualExpensesCents: annualExpenses,
       portfolioCents: portfolio,
       monthlySavingsCents: monthlySavings,
+      monthlySavingsMonths: last6.length,
       monthlyIncomeCents: monthlyIncome,
       monthsToFI: months,
       coastIsCoast: coast.isCoastFI,

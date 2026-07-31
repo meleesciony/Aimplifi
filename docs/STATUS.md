@@ -2,6 +2,50 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-31 — W.1a: the wealth-target card shows its inputs (DECISIONS #354)
+
+Owner, 2026-07-31: *"I set 10 mil and it gave me some arbitrary savings for arbitrary time.
+These should be based on my dials which should show directly on this page. Make it make
+sense."*
+
+**The numbers were never wrong.** $23,888.10/month reaching $10M in 12y10m and $349.41/month
+reaching it in 25 years both imply the same starting balance of about $1.48M. The card computed
+from four inputs and rendered a control for one of them, so the starting portfolio, the pace, the
+horizon and the two rate dials all arrived invisibly — which is what "arbitrary" was describing.
+
+Now on the card: the **starting balance** for every outcome (naming that it is investment accounts
+only, and that the monthly surplus is assumed to be invested too); the **pace figure** named as
+leftover over the window it was really averaged on; a **horizon seeded** from the reader's own
+arrival rather than a constant 25, with three explicit refusals instead of a clamp; and the **two
+dials** named with a one-tap link to `/settings#money-dials`.
+
+Gate: `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **5316 unit / 326 files** / build clean.
+`wealth-target.spec.ts` 2/2, `phase3-coach.spec.ts` 1/1, `mobile-overflow.spec.ts` 8/8,
+`mobile-nav.spec.ts` 1/1. Two parallel fresh-context critics both returned FAIL and converged on
+five defects — all of them CLAIMS rather than computations; one critic proved the seed's
+self-consistency over 140,067 random cases with zero violations. All five fixed, three
+mutation-proven, 5 REGRESSION_LEDGER entries.
+
+### OPEN / stated limitations
+
+- **The untouched card's second answer restates its first.** Because the slider opens on the first
+  whole year the current pace lands, the required contribution there is by construction at or
+  below what the reader already saves. That is the coherence the seed exists to create (and a
+  useful "you are on track" confirmation), and the contrast returns the moment the slider moves —
+  but it is a deliberate trade, not an oversight.
+- **The FI card directly above still prints an unlabelled app-chosen 25 years**
+  (`COAST_TARGET_YEARS`), on the same page where this card now explains where its own dates come
+  from. **TASKS W.9.**
+- **Seven COACH_COPY keys are still outside the guardrail scan** — found by the new completeness
+  test, pinned in a list that may only shrink. **TASKS W.8.**
+- **The required contribution is still a level REAL amount** (unchanged from W.1): a standing order
+  set once falls behind, and the copy says so.
+- **Two bases still coexist on /coach** (this card is real-return, the FI card nominal). The
+  reconciliation sentence remains; fixing the FI card is **TASKS W.2**.
+- **`wealthTargetDeadlineTooSoon` is unreachable from this card** — the slider's floor is 1 year,
+  so `deadlineMonths < 1` cannot occur. Kept as a cheap guard on a shared engine boundary (a guard
+  for an unreachable state fails safe; a feature for one does not), not as a live branch.
+
 ## ✅ BUILT 2026-07-31 — W.1 DEPLOY VERIFIED
 
 Commit `e19e65e`, deployment `aimplifi-94fphu70a-reiforge.vercel.app` **● Ready**, build

@@ -102,12 +102,111 @@ export const COACH_COPY = {
   wealthTargetVsFiCard: (nominalBps: number, inflationBps: number) =>
     `The financial-independence card above assumes ${pct(nominalBps)} before inflation, so its date is earlier than anything here; this card takes your ${pct(inflationBps)} inflation assumption off first.`,
 
-  wealthTargetAtCurrentPace: (years: number, months: number, monthlyCents: Cents, realBps: number) =>
-    `Saving ${formatCents(monthlyCents)}/month, you'd get there in about ${years} year${years === 1 ? '' : 's'}${months > 0 ? ` ${months} month${months === 1 ? '' : 's'}` : ''}, assuming ${pct(realBps)} growth after inflation and that what you put away keeps pace with inflation.`,
+  /**
+   * The STARTING BALANCE, printed for every outcome rather than only the already-there one.
+   *
+   * This is the figure whose absence made the card read as arbitrary (owner, 2026-07-31: "I set
+   * 10 mil and it gave me some arbitrary savings for arbitrary time"). Both answers on the card
+   * are computed FROM it — at $1.48M invested, $10M in 25 years genuinely needs a few hundred a
+   * month, and a reader who cannot see the $1.48M has no way to believe the $349. A projection
+   * that prints its destination and its instalment and hides its origin is asking to be trusted
+   * on one of the three numbers that decide it.
+   *
+   * It also names what the balance COUNTS, because `getCoachData` sums `type === 'INVESTMENT'`
+   * only — checking and savings are NOT in it, while the owner's own question said "from my
+   * current investments and savings". Silently excluding a whole account class from a figure the
+   * reader states a goal against is the `an-empty-set-is-not-a-fact-about-money` shape: the
+   * exclusion is defensible (cash does not earn this return) and it is not self-evident, so it
+   * is said rather than assumed.
+   */
+  wealthTargetStartingFrom: (portfolioCents: Cents) =>
+    // Three claims, each independently checked (`a-disclosure-is-several-claims-in-one-sentence`):
+    //  · the FIGURE and where it lives — `getCoachData` sums `type === 'INVESTMENT'` only;
+    //  · its SCOPE — "every projection on this card" is true of the sensitivity rows too, which
+    //    grow this same balance at ±2pp. An earlier draft said the balance grows "at 7.50% in
+    //    everything below", which those three rows falsify, and which is positional besides —
+    //    a sentence naming a position goes stale the moment the card is reordered;
+    //  · the ASSUMPTION that makes the model coherent. Excluding cash on the ground that the
+    //    rate is "a return on invested money, not on cash" read as a rule the very next sentence
+    //    breaks, since the monthly figure it compounds IS the reader's leftover cash. The
+    //    assumption was always there — the engine adds contributions to an invested balance —
+    //    and it was the one thing the card never said.
+    portfolioCents > 0
+      ? `Starting from the ${formatCents(portfolioCents)} in your investment accounts today — the balance every projection on this card grows. Everyday checking and savings balances are not among them, and every figure here is worked out assuming what you put away each month is invested too rather than left as cash.`
+      : `Starting from $0.00, because nothing in an investment account is counted toward this yet — so the whole target has to come from what you put away. Checking and savings balances are not counted in it, and every figure here is worked out assuming what you put away each month is invested rather than left as cash.`,
 
-  /** The FI card's refusal, in this card's words: nothing is going in, so no date is honest. */
-  wealthTargetNotSaving: () =>
-    `Spending is running ahead of income right now, so there's nothing going in to project from — a date here wouldn't be honest. What the target needs is below; the gap between that and today is the real answer.`,
+  /**
+   * The pace figure, named rather than asserted. It was "Saving $23,888.10/month", which reads as
+   * an instruction the app is giving and gives the reader nothing to check it against; it is in
+   * fact `(income − expenses) / 6` over their last six COMPLETE months, i.e. what was left over,
+   * not money observed moving into an investment account.
+   */
+  wealthTargetAtCurrentPace: (
+    years: number,
+    months: number,
+    monthlyCents: Cents,
+    realBps: number,
+    averagedOverMonths: number,
+  ) =>
+    // The window is deliberately NOT given a count. `monthlySavings` divides by
+    // `Math.max(1, last6.length)` over `fullFlows.slice(-6)`, and `monthlyFlows` only emits
+    // months that HAVE qualifying rows — so the divisor is 3 for a reader three months in, and
+    // the span can cover eight calendar months when two of them are empty. "Your last 6 complete
+    // months" would be false in both, which is the #252 critic's finding one card over (see
+    // `signatureSaving*` below, and `a-borrowed-total-imports-its-window`): the sentence added to
+    // make a figure checkable is the sentence that makes it uncheckable.
+    `At ${formatCents(monthlyCents)}/month — what was left after spending, averaged over the ${averagedOverMonths} month${averagedOverMonths === 1 ? '' : 's'} of yours Aimplifi has — you'd get there in about ${years} year${years === 1 ? '' : 's'}${months > 0 ? ` ${months} month${months === 1 ? '' : 's'}` : ''}, assuming ${pct(realBps)} growth after inflation and that what you put away keeps pace with inflation.`,
+
+  /**
+   * Where the horizon slider's OPENING position came from. Two branches, because a seeded
+   * position and a fallback default are different claims: one is a fact about the reader's own
+   * trajectory, the other is a number nobody chose. The old card printed "25 years" in the same
+   * weight as the answer with no way to tell which it was.
+   */
+  // THREE states, not two. A boolean covered "seeded" and "fell back" and silently gave the
+  // reader who had just DRAGGED the control the fallback sentence — "Nothing has picked this
+  // date for you", printed one line under the thing they had picked it with.
+  wealthTargetHorizonBasis: (basis: 'seeded' | 'chosen' | 'fallback') => {
+    switch (basis) {
+      case 'seeded':
+        return `Set to the first whole year your current pace lands it — drag to see what moving the date does to the monthly figure.`;
+      case 'chosen':
+        return `This is the date you picked — the monthly figure is what it takes to land the target by then.`;
+      case 'fallback':
+        return `Nothing has picked this date for you — drag it to the year you actually want and the monthly figure follows.`;
+    }
+  },
+
+  /**
+   * The dials, named and pointed at. Two things this sentence may NOT say:
+   *
+   *  · **"your own settings"**, unqualified. `User.inflationBps` is nullable and /coach falls
+   *    back to `RETIREMENT_ASSUMPTIONS.inflationBps`, so for a reader who never opened the
+   *    retirement fieldset this card would call 2.50% "yours" while the page it links to calls
+   *    the same number "our defaults" in as many words. The possessive is exactly the claim the
+   *    owner asked to be made true, so it is the one that must not be faked.
+   *  · **"every figure on this card moves"**. The target, the starting balance, the pace figure
+   *    and the guilt-free figure are all inputs from elsewhere and move for none of it — an
+   *    enumeration is a claim, and this one was false four times over.
+   */
+  wealthTargetDials: (nominalBps: number, inflationBps: number, inflationIsDefault: boolean) =>
+    inflationIsDefault
+      ? `${pct(nominalBps)} return is your setting; ${pct(inflationBps)} inflation is Aimplifi's default, which you haven't changed. How long the target takes, and what it costs a month, are worked out from these two.`
+      : `Both rates are yours to change — ${pct(nominalBps)} return and ${pct(inflationBps)} inflation. How long the target takes, and what it costs a month, are worked out from these two.`,
+
+  /**
+   * The FI card's refusal, in this card's words: nothing is going in, so no date is honest.
+   *
+   * TWO reasons produce a floored contribution and they are not the same fact. Zero complete
+   * months of activity divides 0 by 1 and floors exactly like real overspending does, so a
+   * reader who linked an account yesterday was told their spending is running ahead of their
+   * income — a claim about behaviour derived from an empty set, which is the one thing
+   * `an-empty-set-is-not-a-fact-about-money` exists to forbid.
+   */
+  wealthTargetNotSaving: (averagedOverMonths: number) =>
+    averagedOverMonths <= 0
+      ? `There isn't a complete month of activity here yet, so there's nothing to work a pace out from — this fills in once a full month has gone by. What the target needs is below either way.`
+      : `Spending is running ahead of income right now, so there's nothing going in to project from — a date here wouldn't be honest. What the target needs is below; the gap between that and today is the real answer.`,
 
   wealthTargetAlreadyThere: (portfolioCents: Cents, targetCents: Cents) =>
     `You have ${formatCents(portfolioCents)}, which is already past the ${formatCents(targetCents)} you named. Worth deciding what the number is for — a target you've passed is a good moment to name the next one.`,

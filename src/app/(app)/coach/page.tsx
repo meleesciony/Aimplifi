@@ -109,6 +109,13 @@ export default async function CoachPage() {
         safeToSpendCents={cents(plan.leftToSpendCents)}
         expectedReturnBps={data.fi.expectedReturnBps}
         inflationBps={planningRow?.inflationBps ?? RETIREMENT_ASSUMPTIONS.inflationBps}
+        // `User.inflationBps` is nullable, so this fallback IS the "you never set one" signal.
+        // /settings calls the same 2.50% "our defaults"; the card may not call it "yours".
+        inflationIsDefault={planningRow?.inflationBps == null}
+        monthlySavingsMonths={data.fi.monthlySavingsMonths}
+        // Same note the FI card above already carries: a withheld non-USD investment account is
+        // absent from `portfolioCents`, and the starting-balance sentence enumerates exclusions.
+        currencyNote={withheldInlineNote(withheld)}
         // The TARGET starts from nothing — it is what the reader typed. What starts from the
         // portfolio is every projection on the card, including the required-contribution
         // instruction, which a balance frozen HIGH makes too small.

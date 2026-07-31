@@ -13,7 +13,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  FALLBACK_HORIZON_YEARS,
+  MAX_HORIZON_YEARS,
   MAX_TARGET_CENTS,
+  MIN_HORIZON_YEARS,
+  seededHorizon,
   solveWealthTarget,
   type WealthTargetInput,
 } from '@/lib/engine/solve/wealth-target';
@@ -345,5 +349,77 @@ describe('solveWealthTarget — the base sensitivity row IS the headline', () =>
     expect(r.sensitivity[1].nominalReturnBps).toBe(700);
     expect(r.sensitivity[1].realReturnBps).toBe(r.realReturnBps);
     expect(r.sensitivity[1].monthsAtCurrentRate).toBe(r.monthsAtCurrentRate);
+  });
+});
+
+/**
+ * The horizon SEED (owner, 2026-07-31: "I set 10 mil and it gave me some arbitrary savings for
+ * arbitrary time"). A constant 25 was the "arbitrary time": a number the card chose, rendered in
+ * the same weight as the figures, indistinguishable from one the reader had set.
+ *
+ * The refusals are the majority of these tests on purpose. Every one is a case where the arrival
+ * behind the seed is a number the SURFACE declines to print, and a slider parked on it would
+ * reintroduce the refused number as a position the reader would read as their own.
+ */
+describe('seededHorizon — the slider opens on the reader, or says it did not', () => {
+  it('seeds the first WHOLE YEAR the current pace lands, never earlier', () => {
+    // 12y10m ⇒ 13, not 12. Rounding down would open the card demanding money on top of a pace
+    // the sentence directly above has just called sufficient — the two halves would contradict
+    // each other in the untouched state, which is the exact defect this seed exists to remove.
+    expect(seededHorizon(154, false)).toEqual({ years: 13, seeded: true });
+    expect(seededHorizon(144, false)).toEqual({ years: 12, seeded: true });
+    // One month past a whole year still costs a whole year.
+    expect(seededHorizon(145, false)).toEqual({ years: 13, seeded: true });
+  });
+
+  it('refuses to seed from a pace the card will not print a date for', () => {
+    // `contributionFloored` is the state where `wealthTargetNotSaving` replaces the pace line
+    // entirely. The engine still computes an arrival (growth alone can reach a target), so the
+    // number EXISTS — which is precisely why the refusal has to be explicit rather than incidental.
+    expect(seededHorizon(154, true)).toEqual({ years: FALLBACK_HORIZON_YEARS, seeded: false });
+    expect(seededHorizon(0, true)).toEqual({ years: FALLBACK_HORIZON_YEARS, seeded: false });
+  });
+
+  it('refuses to seed when nothing arrives inside the engine cap', () => {
+    expect(seededHorizon(null, false)).toEqual({ years: FALLBACK_HORIZON_YEARS, seeded: false });
+  });
+
+  it('refuses to CLAMP an arrival past the control ceiling into a trajectory', () => {
+    // A 70-year arrival parked at the slider's 40 would present the ceiling as the reader's own
+    // pace. `seeded: false` makes the copy say nothing picked the date, which is true.
+    expect(seededHorizon(MAX_HORIZON_YEARS * 12, false)).toEqual({
+      years: MAX_HORIZON_YEARS,
+      seeded: true,
+    });
+    expect(seededHorizon(MAX_HORIZON_YEARS * 12 + 1, false)).toEqual({
+      years: FALLBACK_HORIZON_YEARS,
+      seeded: false,
+    });
+    expect(seededHorizon(840, false)).toEqual({ years: FALLBACK_HORIZON_YEARS, seeded: false });
+  });
+
+  it('seeds the floor at one whole year for an arrival under a year', () => {
+    expect(seededHorizon(1, false)).toEqual({ years: MIN_HORIZON_YEARS, seeded: true });
+    // Already there: zero months ⇒ zero years is below the control's own minimum, so no seed.
+    expect(seededHorizon(0, false)).toEqual({ years: FALLBACK_HORIZON_YEARS, seeded: false });
+  });
+
+  it('the seeded horizon is one the solver actually accepts, end to end', () => {
+    // The seed is only worth anything if feeding it back produces the agreement it promises:
+    // at the seeded year the required contribution must not EXCEED what the reader already puts
+    // away, because the seed is the first whole year their own pace lands.
+    // The owner's own shape, which is what made the defect visible: a portfolio large enough
+    // that $10M arrives inside the control's range. The default fixture deliberately does NOT
+    // arrive within 40 years, and asserting on it would only re-test the refusal above.
+    const owner = { currentPortfolioCents: 1_480_000_00, currentMonthlyContributionCents: 23_888_10 };
+    const pace = solveWealthTarget(input({ ...owner, deadlineMonths: null }));
+    const seed = seededHorizon(pace.monthsAtCurrentRate, pace.contributionFloored);
+    expect(seed.seeded).toBe(true);
+    const atSeed = solveWealthTarget(input({ ...owner, deadlineMonths: seed.years * 12 }));
+    expect(atSeed.requiredMonthlyCents).not.toBeNull();
+    expect(atSeed.requiredMonthlyCents!).toBeLessThanOrEqual(
+      atSeed.currentMonthlyContributionCents,
+    );
+    expect(atSeed.requiredAdditionalMonthlyCents).toBe(0);
   });
 });

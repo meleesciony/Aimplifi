@@ -121,6 +121,13 @@ export default async function SettingsPage() {
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Settings</h1>
 
+      {/* Anchor target for every surface that prints a figure computed from these dials and
+          offers to change them (`/coach`'s wealth-target card). It WRAPS the form rather than
+          sitting beside it as an empty node: a zero-height sibling inside `space-y-4` silently
+          added a gap above this card on every settings visit, and an empty div is not focusable,
+          so following the link scrolled the page and moved no focus at all. `tabIndex={-1}`
+          makes it a programmatic focus target; `scroll-mt` clears the sticky desktop header. */}
+      <div id="money-dials" tabIndex={-1} className="scroll-mt-20 focus:outline-none">
       <MoneyDialsForm
         current={{
           hourlyWageCents: user.hourlyWageCents,
@@ -136,6 +143,7 @@ export default async function SettingsPage() {
         }}
         accounts={eligibleAccounts}
       />
+      </div>
       <p className="px-1 text-xs text-muted-foreground" data-testid="assumptions-change">
         {COACH_COPY.assumptionsChange()}
       </p>
