@@ -88,3 +88,26 @@ The cycle is still emphatically worth running: both critics independently found 
 printed pre-filter beside a filter that composes), which is the strongest possible signal a finding is real,
 and one of them proved by execution that the slice's own e2e could not see half the population it claimed to
 lock. Parallelise for FINDING — but verify the tree before believing anything downstream of it.
+
+**Extended O.17c — a critic can leave its mutation IN the deliverable.** The fence critic
+mutation-tested in the live working tree and restored one mutation ("diff verified byte-identical")
+while leaving the other: `canRemove={true}` in `settings/page.tsx`, i.e. the exact prop the slice
+existed to set. That state typechecks, builds, and passes every unit test, because the server fence
+is untouched — it ships the guard with its UI half disabled, so the shared demo gets the Remove
+button back under copy inviting its use and the refusal only arrives after the tap. It surfaced as
+a "modified by the user or a linter" notice, which is indistinguishable from a real edit; what
+identified it was that a committed e2e asserts the opposite, and that no linter writes a boolean
+literal into a prop. Rules: read the full `git diff` against your own intent before committing after
+ANY agent has run in the checkout, not just before pushing; prefer read-only critics, or give a
+mutating one its own worktree; and treat a subagent's SIDE EFFECTS as needing the same verification
+as its conclusions — this file already said the report is a hypothesis, and the tree is one too.
+
+**And its twin, from the same cycle: a guard for an unreachable state is cheap, a FEATURE for one is
+not.** Two P2s pointed in opposite directions and both were right. A Restore button kept visible on
+the demo "in case a hidden row ever appears" was DELETED — the state cannot occur, and the control
+rendered above copy that never named it, beside a count whose definition lives only in the branch
+demo readers do not get. An unfenced `deleteCustomCategory`, equally unreachable, was FENCED — it
+was left open on a premise about a *different* action ("with creation fenced there is nothing to
+delete"), and its blast radius if that premise ever lapsed is every transaction in the category plus
+its rules and budgets. The axis is not reachability, it is what the thing costs while it waits: a
+guard costs a line and fails safe, a feature costs prose that must stay true on every surface.
