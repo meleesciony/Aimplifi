@@ -19,6 +19,10 @@ import { type Cents, cents, sumCents } from '@/lib/money';
 import type { ISODate } from '@/lib/dates';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { frozenCardsNote } from '@/lib/engine/account/feed-dropped-view';
+import {
+  mapToConsciousBuckets,
+  type ConsciousBucketKey,
+} from '@/lib/engine/spending-plan/conscious';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
 import { planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
@@ -49,7 +53,7 @@ export interface TraceRow {
 }
 
 export interface NumberTrace {
-  key: 'cash_needed' | 'safe_to_spend';
+  key: 'cash_needed' | 'safe_to_spend' | 'conscious_fixed' | 'conscious_savings';
   /** The headline number being explained, exactly as the engine returned it. */
   headlineCents: Cents;
   rows: TraceRow[];
@@ -175,33 +179,48 @@ export function traceCashNeeded(
 }
 
 /**
- * Rows behind the guilt-free-spending headline: the identity
- * left = pattern income − fixed expenses − card payments − planned savings
- * (− card payments already dated past this month), carried as SIGNED rows so
- * the same plain-summation invariant holds. All fields live on the
- * SpendingPlan result itself (it extends its input), so nothing is re-derived.
+ * The safe-to-spend identity, decomposed ONCE — rows and basis sentences built
+ * here and reshaped by two consumers: `traceSafeToSpend` (the full identity)
+ * and `traceConsciousBuckets` (the strip's per-bucket panels, O.18b). The
+ * basis sentences are grouped by the TERM each one describes, so a bucket
+ * panel can carry exactly the sentences about its own rows without a second
+ * author — the flatten order in `assembleSafeToSpend` reproduces the
+ * pre-O.18b list byte-for-byte.
  */
-export function traceSafeToSpend(
-  plan: SpendingPlan,
-  /**
-   * REQUIRED, not defaulted (the L.15 lesson: a defaulted disclosure argument fails
-   * silent at exactly the caller that forgets it). Two of its fields are what
-   * separate a zero row that means "nothing qualified" from one that means "you
-   * have not set this up" — see `planRowLabels`.
-   */
-  disclosures: SpendingPlanDisclosures,
-): NumberTrace {
+interface SafeToSpendParts {
+  rows: {
+    income: TraceRow;
+    fixed: TraceRow;
+    cardPayments: TraceRow;
+    savings: TraceRow;
+    /** Present only when the L.11(D) reservation acted — see the row comment. */
+    beyondMonth: TraceRow | null;
+  };
+  basis: {
+    income: string[];
+    fixedRate: string[];
+    shortfall: string[];
+    discretionary: string[];
+    longCadence: string[];
+    card: string[];
+    cardEstimated: string[];
+    beyondMonth: string[];
+    savings: string[];
+  };
+}
+
+function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): SafeToSpendParts {
   const labels = planRowLabels(plan, disclosures);
   const fixedShortfallNote = uncountedFixedNote(disclosures, 'left-to-spend', 'the fixed-expenses line');
-  const rows: TraceRow[] = [
-    {
+  const rows: SafeToSpendParts['rows'] = {
+    income: {
       id: 'income',
       label: labels.income.label,
       amountCents: cents(plan.patternIncomeCents),
       isEstimated: false,
       notes: [],
     },
-    {
+    fixed: {
       id: 'fixed',
       label: labels.fixed.label,
       amountCents: cents(-plan.fixedExpensesCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
@@ -209,7 +228,7 @@ export function traceSafeToSpend(
       notes: [],
       action: labels.fixed.action,
     },
-    {
+    cardPayments: {
       id: 'card-payments',
       label: labels.cardPayments.label,
       amountCents: cents(-plan.cardObligationsCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
@@ -219,7 +238,7 @@ export function traceSafeToSpend(
       isEstimated: plan.cardObligationsEstimated,
       notes: [],
     },
-    {
+    savings: {
       id: 'savings',
       // The resolved figure is max(goal contributions, the savings-% target),
       // so the label must name the side that actually decided it (#295) — and at
@@ -235,9 +254,9 @@ export function traceSafeToSpend(
     // panel's claim — that its lines add up to the number above — stays a
     // claim that could fail. Present only when such a payment exists: a $0 row
     // would name a mechanism that did not act, for a reader who owns no cards.
-    ...(plan.obligationsBeyondMonthCents > 0
-      ? [
-          {
+    beyondMonth:
+      plan.obligationsBeyondMonthCents > 0
+        ? {
             id: 'card-payments-next',
             label: `Card payments already dated, due after this month (through ${plan.obligationsBeyondMonthThroughDate})`,
             amountCents: cents(-plan.obligationsBeyondMonthCents),
@@ -246,19 +265,12 @@ export function traceSafeToSpend(
             // statement provenance for a figure that is entirely an estimate.
             isEstimated: plan.obligationsBeyondMonthEstimated,
             notes: [],
-          },
-        ]
-      : []),
-  ];
-  const sum = sumCents(rows.map((r) => r.amountCents));
+          }
+        : null,
+  };
 
-  return {
-    key: 'safe_to_spend',
-    headlineCents: cents(plan.leftToSpendCents),
-    rows,
-    sumCents: sum,
-    reconciles: sum === plan.leftToSpendCents,
-    basis: [
+  const basis: SafeToSpendParts['basis'] = {
+    income: [
       plan.incomeBasis === 'trailing-median'
         ? `Income is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of income across everything that arrived in your checking and savings accounts — a pattern, so the figure does not swing with what has posted so far this month. ${
             plan.incomeMonths >= 3
@@ -277,29 +289,33 @@ export function traceSafeToSpend(
             // actually arrived.
             'Income is your detected recurring income at a monthly rate — there is no complete month of history to take the pattern from yet. A deposit on a rhythm longer than monthly — quarterly, twice a year, or yearly — is not counted here: one long gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows such a deposit at a share of a month; this figure leaves it out.'
           : 'There is no income pattern yet — nothing here is invented; once a complete month of income posts, the figure comes from that pattern.',
-      // BIWEEKLY is named too (L.23 copy critic P2-4): ×26/12 is the largest
-      // multiplier in the table and the commonest real cadence in this app.
-      //
-      // L.29 splits the sentence in two, because its halves have different truth
-      // conditions. The RATE half describes what the fixed term did to rows it
-      // holds — this function's own rule ("a $0 row would name a mechanism that
-      // did not act") applied to the sentence beside the row instead of the row:
-      // told to a reader whose term is empty, it explains an arithmetic that ran
-      // on nothing, next to a line that now says so. The DISCRETIONARY half is a
-      // property of the formula itself and is true for every reader, including
-      // the one with no bills at all — it is what stops "$0 fixed" being read as
-      // "nothing I spend is counted anywhere".
-      ...(plan.scheduledFixed.length > 0
+    ],
+    // BIWEEKLY is named too (L.23 copy critic P2-4): ×26/12 is the largest
+    // multiplier in the table and the commonest real cadence in this app.
+    //
+    // L.29 splits the sentence in two, because its halves have different truth
+    // conditions. The RATE half describes what the fixed term did to rows it
+    // holds — this function's own rule ("a $0 row would name a mechanism that
+    // did not act") applied to the sentence beside the row instead of the row:
+    // told to a reader whose term is empty, it explains an arithmetic that ran
+    // on nothing, next to a line that now says so. The DISCRETIONARY half is a
+    // property of the formula itself and is true for every reader, including
+    // the one with no bills at all — it is what stops "$0 fixed" being read as
+    // "nothing I spend is counted anywhere".
+    fixedRate:
+      plan.scheduledFixed.length > 0
         ? [
             'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12.',
           ]
-        : []),
-      // The understated NON-ZERO figure, which no label can reach (L.30) —
-      // authored once in `row-labels.ts` beside the labels, and printed by the Ask
-      // answer too. 'left-to-spend' because this panel's headline is always
-      // `plan.leftToSpendCents`, negative and all, never the overage Ask renders.
-      ...(fixedShortfallNote ? [fixedShortfallNote] : []),
+        : [],
+    // The understated NON-ZERO figure, which no label can reach (L.30) —
+    // authored once in `row-labels.ts` beside the labels, and printed by the Ask
+    // answer too. 'left-to-spend' because this panel's headline is always
+    // `plan.leftToSpendCents`, negative and all, never the overage Ask renders.
+    shortfall: fixedShortfallNote ? [fixedShortfallNote] : [],
+    discretionary: [
       'Discretionary spending is never subtracted: guilt-free is the month’s allocation after fixed costs and savings, not what is left of it today.',
+    ],
       // Only when an annual bill is actually IN the term. Unconditional, this told
       // every reader their yearly premium was handled at a twelfth a month, when
       // the detector needs three sightings at a steady price — about two years of
@@ -319,26 +335,27 @@ export function traceSafeToSpend(
       // the L.23 copy critic arrived at — and the fractions come from the same
       // table `monthlyRateCents` divides by, so the sentence cannot claim a
       // third while the arithmetic takes a twelfth.
-      ...longCadencesInTerm(plan.scheduledFixed).map(
-        (c) =>
-          `A ${LONG_CADENCE_WORDS[c].adjective} bill is spread across the ${LONG_CADENCE_WORDS[c].period}: this figure subtracts ${LONG_CADENCE_WORDS[c].share} of it every month. Nothing is actually moved or set aside for you — ${LONG_CADENCE_WORDS[c].landing} the whole amount goes out while this figure only ever counted ${LONG_CADENCE_WORDS[c].share}, so ${LONG_CADENCE_WORDS[c].planLine}.`,
-      ),
+    longCadence: longCadencesInTerm(plan.scheduledFixed).map(
+      (c) =>
+        `A ${LONG_CADENCE_WORDS[c].adjective} bill is spread across the ${LONG_CADENCE_WORDS[c].period}: this figure subtracts ${LONG_CADENCE_WORDS[c].share} of it every month. Nothing is actually moved or set aside for you — ${LONG_CADENCE_WORDS[c].landing} the whole amount goes out while this figure only ever counted ${LONG_CADENCE_WORDS[c].share}, so ${LONG_CADENCE_WORDS[c].planLine}.`,
+    ),
       // Gated on a card existing at all (L.29, same rule as the clause above):
       // "assumes each is paid in full" and "comes from the same obligation rows"
       // describe a mechanism that cannot have acted for a reader with no linked
       // card, beside a row that now says exactly that. A reader who HAS cards
       // still gets it whether or not any is due this month — the assumption is
       // what makes a $0 in-month line readable.
-      ...(disclosures.creditCardCount > 0 || plan.cardObligationsCents !== 0
+    card:
+      disclosures.creditCardCount > 0 || plan.cardObligationsCents !== 0
         ? [
             'Spending on credit cards is counted when its statement’s payment comes due, not again at purchase time. The card-payments line covers your own cards due this month, assumes each is paid in full, and comes from the same obligation rows as the cash-needed answer.',
           ]
-        : []),
-      ...(plan.cardObligationsEstimated
-        ? [
-            'No statement has been generated yet, so the card-payments line is estimated from current balances.',
-          ]
-        : []),
+        : [],
+    cardEstimated: plan.cardObligationsEstimated
+      ? [
+          'No statement has been generated yet, so the card-payments line is estimated from current balances.',
+        ]
+      : [],
       // Why a monthly plan is quoting a figure smaller than its own arithmetic.
       // The fact a reader needs and cannot see: the money is not gone (it is
       // reserved for a payment already dated). The reservation's income side
@@ -346,16 +363,123 @@ export function traceSafeToSpend(
       // detected rows scoped to the payment account) — never a balance — so
       // the figure says nothing about cash held elsewhere (the L.11(C)
       // account-set rule).
-      ...(plan.obligationsBeyondMonthCents > 0
+    beyondMonth:
+      plan.obligationsBeyondMonthCents > 0
         ? [
             `A statement can come due after the month it belongs to, and one dated ${plan.obligationsBeyondMonthThroughDate} would otherwise sit in no plan you can see — this month would call it next month's business, and next month's plan would arrive after the money was spent. Only the part your scheduled income does not arrive in time to cover is set aside here, so a payment your next paycheck already pays for is not reserved twice. Whatever is set aside will also appear in next month's card-payments line until it is paid.`,
           ]
-        : []),
-      ...(plan.savingsTargetBps != null
+        : [],
+    savings:
+      plan.savingsTargetBps != null
         ? [
             'Planned savings takes the larger of your goal contributions and the savings target set in Settings — they express the same pay-yourself-first intent, so they are never added together.',
           ]
-        : []),
+        : [],
+  };
+
+  return { rows, basis };
+}
+
+/** Flattens the parts back into the pre-O.18b trace, byte-for-byte — row order
+ *  and basis order are pinned by tests/unit/glass-box.test.ts. */
+function assembleSafeToSpend(plan: SpendingPlan, parts: SafeToSpendParts): NumberTrace {
+  const { income, fixed, cardPayments, savings, beyondMonth } = parts.rows;
+  const rows: TraceRow[] = [income, fixed, cardPayments, savings, ...(beyondMonth ? [beyondMonth] : [])];
+  const sum = sumCents(rows.map((r) => r.amountCents));
+  const b = parts.basis;
+  return {
+    key: 'safe_to_spend',
+    headlineCents: cents(plan.leftToSpendCents),
+    rows,
+    sumCents: sum,
+    reconciles: sum === plan.leftToSpendCents,
+    basis: [
+      ...b.income,
+      ...b.fixedRate,
+      ...b.shortfall,
+      ...b.discretionary,
+      ...b.longCadence,
+      ...b.card,
+      ...b.cardEstimated,
+      ...b.beyondMonth,
+      ...b.savings,
     ],
+  };
+}
+
+/**
+ * Rows behind the guilt-free-spending headline: the identity
+ * left = pattern income − fixed expenses − card payments − planned savings
+ * (− card payments already dated past this month), carried as SIGNED rows so
+ * the same plain-summation invariant holds. All fields live on the
+ * SpendingPlan result itself (it extends its input), so nothing is re-derived.
+ */
+export function traceSafeToSpend(
+  plan: SpendingPlan,
+  /**
+   * REQUIRED, not defaulted (the L.15 lesson: a defaulted disclosure argument fails
+   * silent at exactly the caller that forgets it). Two of its fields are what
+   * separate a zero row that means "nothing qualified" from one that means "you
+   * have not set this up" — see `planRowLabels`.
+   */
+  disclosures: SpendingPlanDisclosures,
+): NumberTrace {
+  return assembleSafeToSpend(plan, safeToSpendParts(plan, disclosures));
+}
+
+/**
+ * The Conscious Spending strip's per-bucket panels (O.18b). Each bucket's rows
+ * are the safe-to-spend trace's OWN rows — reshaped, sign-flipped where the
+ * bucket states a cost as a positive amount — and each bucket's headline is
+ * `mapToConsciousBuckets`' figure for it. That makes `reconciles` a real
+ * CROSS-MODULE check of the #93 partition: the partition module and this one
+ * read the same plan fields through different code, and a formula change on
+ * either side surfaces here as a reported mismatch, never a silent drift.
+ *
+ * Guilt-free is a REMAINDER, not a sum of costs, so its honest panel is the
+ * whole subtraction — the safe-to-spend trace itself, key and all: its
+ * headline IS the bucket figure (`leftToSpendCents`, negative when overspent).
+ *
+ * Basis sentences ride the bucket whose rows they describe; none is authored
+ * here. The strip-level notes (savings-unset, uncounted-fixed, overspent) stay
+ * on the strip — they qualify the SPLIT, not one bucket's arithmetic.
+ */
+export function traceConsciousBuckets(
+  plan: SpendingPlan,
+  disclosures: SpendingPlanDisclosures,
+): Record<ConsciousBucketKey, NumberTrace> {
+  const parts = safeToSpendParts(plan, disclosures);
+  const figure = new Map(mapToConsciousBuckets(plan).buckets.map((b) => [b.key, b.cents]));
+  // `|| 0` normalizes the -0 a zero term would negate to (same rule as the rows).
+  const flip = (r: TraceRow): TraceRow => ({ ...r, amountCents: cents(-r.amountCents || 0) });
+  const b = parts.basis;
+
+  const fixedRows = [
+    flip(parts.rows.fixed),
+    flip(parts.rows.cardPayments),
+    ...(parts.rows.beyondMonth ? [flip(parts.rows.beyondMonth)] : []),
+  ];
+  const fixedSum = sumCents(fixedRows.map((r) => r.amountCents));
+  const savingsRows = [flip(parts.rows.savings)];
+  const savingsSum = sumCents(savingsRows.map((r) => r.amountCents));
+
+  return {
+    fixed: {
+      key: 'conscious_fixed',
+      headlineCents: cents(figure.get('fixed') ?? 0),
+      rows: fixedRows,
+      sumCents: fixedSum,
+      reconciles: fixedSum === figure.get('fixed'),
+      basis: [...b.fixedRate, ...b.longCadence, ...b.card, ...b.cardEstimated, ...b.beyondMonth],
+    },
+    savings: {
+      key: 'conscious_savings',
+      headlineCents: cents(figure.get('savings') ?? 0),
+      rows: savingsRows,
+      sumCents: savingsSum,
+      reconciles: savingsSum === figure.get('savings'),
+      basis: [...b.savings],
+    },
+    guiltFree: assembleSafeToSpend(plan, parts),
   };
 }

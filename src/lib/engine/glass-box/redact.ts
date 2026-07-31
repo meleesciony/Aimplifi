@@ -11,6 +11,7 @@
  * autopay line when autopayCents > 0).
  */
 import type { NumberTrace, TraceRow } from '@/lib/engine/glass-box/trace';
+import { CONSCIOUS_BUCKET_LABELS } from '@/lib/engine/spending-plan/conscious';
 
 function redactRow(row: TraceRow, index: number, key: NumberTrace['key']): TraceRow {
   const label = key === 'cash_needed' ? `Card ${index + 1}` : row.label;
@@ -30,6 +31,10 @@ export function redactTraceForShare(trace: NumberTrace): NumberTrace {
 const HEADLINE: Record<NumberTrace['key'], string> = {
   cash_needed: 'Cash needed',
   safe_to_spend: 'Guilt-free to spend',
+  // O.18b bucket panels: same author as the strip legend (one-author rule) —
+  // guilt-free's panel IS the safe-to-spend trace, so only these two are new.
+  conscious_fixed: CONSCIOUS_BUCKET_LABELS.fixed,
+  conscious_savings: CONSCIOUS_BUCKET_LABELS.savings,
 };
 
 /**

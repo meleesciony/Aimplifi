@@ -21,6 +21,19 @@ import type { SpendingPlan } from './plan';
 
 export type ConsciousBucketKey = 'fixed' | 'savings' | 'guiltFree';
 
+/**
+ * The buckets' display names, authored once (L.29's one-author rule applied to
+ * O.18b): the strip's legend, the per-bucket Glass-Box panels, and the share
+ * snapshot's headline all print these — two spellings of one bucket would be
+ * two answers to one question. "Fixed costs" deliberately does not say
+ * "bills": since #295 the bucket also holds this month's card payments.
+ */
+export const CONSCIOUS_BUCKET_LABELS: Record<ConsciousBucketKey, string> = {
+  fixed: 'Fixed costs',
+  savings: 'Savings & investing',
+  guiltFree: 'Guilt-free',
+};
+
 export interface ConsciousBucket {
   key: ConsciousBucketKey;
   /** Exact partition of patternIncomeCents. `guiltFree` is negative when overspent. */
