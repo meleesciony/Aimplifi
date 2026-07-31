@@ -8259,3 +8259,14 @@ predicate fails 7.
 - A hostile-critic subagent left a live mutation in `server/trends.ts`
   (`excludeFromTotals: false` under a comment claiming it had been restored). Caught by the diff
   audit, restored by the critic itself shortly after. Second recorded instance of that class.
+
+### O.18 DEPLOY VERIFIED — 2026-07-31 19:45 ET
+
+Commit `5badb2a`. Deployment `aimplifi-epjw1s92m-reiforge.vercel.app` **● Ready**
+(created 19:36 ET), build log `Cloning github.com/meleesciony/Aimplifi (Branch: main,
+Commit: 5badb2a)` matching HEAD, aliases holding **www.aimplifi.app** + **aimplifi.app**.
+No schema diff in `origin/main..main -- prisma/` (branch level), so Neon untouched.
+HTML-marker grep not possible anonymously — /reports 307s to /sign-in for a cookieless
+client — so verification is the L.23 build-log-commit method, which is exact.
+
+O.18 + O.18a are shipped, criticized, fixed, verified and live.
