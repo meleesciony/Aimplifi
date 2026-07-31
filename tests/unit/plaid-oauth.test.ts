@@ -12,7 +12,7 @@
  * for the redirect wiring.
  */
 import { describe, expect, it } from 'vitest';
-import { linkTokenParams } from '@/lib/providers/plaid';
+import { PLAID_DAYS_REQUESTED, linkTokenParams } from '@/lib/providers/plaid';
 import {
   OAUTH_LINK_TOKEN_KEY,
   OAUTH_ORIGIN_PATH_KEY,
@@ -90,5 +90,44 @@ describe('OAUTH_ORIGIN_PATH_KEY / readStoredOriginPath (Gap 3 §3 critic P1 fix)
     // (storage unavailable, or Link opened before this fix existed) always has
     // somewhere sane to land, never `undefined`/a crash.
     expect(readStoredOriginPath()).toBe('/accounts');
+  });
+});
+
+/**
+ * Owner-reported 2026-07-31: "How many months of financial data does system
+ * pull? Why not more years so I can see trends?"
+ *
+ * The answer was 90 days, chosen by nobody — Plaid defaults `days_requested` to
+ * 90 when the key is absent, so an unset field was a shipped decision. These
+ * lock the answer to that question at the one place it is decided.
+ */
+describe('linkTokenParams — how much history a new link asks for', () => {
+  it('asks for history explicitly rather than inheriting Plaid\'s 90-day default', () => {
+    const body = linkTokenParams('user-1') as { transactions?: { days_requested?: number } };
+    expect(body.transactions?.days_requested).toBeDefined();
+    // The defect being locked out is precisely the default, so name it: a drift
+    // back to 90 (or to an absent key, caught above) must fail here.
+    expect(body.transactions?.days_requested).not.toBe(90);
+  });
+
+  it('stays inside the range Plaid documents (1..730), at the maximum', () => {
+    // BOUNDED, not pinned: a future trade-off may lower this, and that edit
+    // should have to move a bound that explains itself rather than re-copy a
+    // literal. 24 months is what the 12-month FI window and the 6-month reports
+    // chart need before they can compare a year against the year before it.
+    expect(PLAID_DAYS_REQUESTED).toBeGreaterThanOrEqual(365);
+    expect(PLAID_DAYS_REQUESTED).toBeLessThanOrEqual(730);
+    expect(linkTokenParams('user-1').transactions).toEqual({
+      days_requested: PLAID_DAYS_REQUESTED,
+    });
+  });
+
+  it('sends NO transactions parameter in update mode — Plaid rejects product params beside an access_token', () => {
+    // The update-mode branch is the repair/add-an-account door and carries an
+    // access_token; days_requested there would break every re-auth, and Plaid
+    // documents that it cannot extend an existing Item's history anyway.
+    const body = linkTokenParams('user-1', undefined, { accessToken: 'access-sandbox-x' });
+    expect(body.transactions).toBeUndefined();
+    expect(body.products).toBeUndefined();
   });
 });

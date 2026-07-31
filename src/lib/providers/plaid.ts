@@ -170,6 +170,17 @@ export async function fetchPlaidWebhookKey(kid: string): Promise<JWK | null> {
 }
 
 /**
+ * How many days of transaction history a NEW Plaid link asks the bank for.
+ *
+ * Plaid's own maximum (min 1, max 730 — plaid.com/docs/api/link/, fetched
+ * 2026-07-31). Named rather than inlined so the number is greppable from the
+ * question that produced it ("how many months does the system pull?") and so the
+ * lock in tests/unit/plaid-oauth.test.ts asserts a BOUND rather than pinning a
+ * literal it would just re-copy.
+ */
+export const PLAID_DAYS_REQUESTED = 730;
+
+/**
  * Build the `/link/token/create` request body (minus client_id/secret, which
  * plaidPost injects). Pure + unit-tested (tests/unit/plaid-oauth.test.ts). Keeping
  * `liabilities` AND `investments` in required_if_supported (not `products`) is what
@@ -230,6 +241,32 @@ export function linkTokenParams(
     ...base,
     products: ['transactions'],
     required_if_supported_products: ['liabilities', 'investments'],
+    // Owner-reported 2026-07-31: "How many months of financial data does system
+    // pull? Why not more years so I can see trends?" The answer was NINETY DAYS,
+    // and nobody chose it — Plaid's `transactions.days_requested` defaults to 90
+    // when the field is absent, so an unset key was a decision we shipped (the
+    // a-framework-default-is-a-decision-you-shipped lesson, second instance).
+    //
+    // 730 is Plaid's documented MAXIMUM (min 1, max 730; verified at
+    // plaid.com/docs/api/link/, fetched 2026-07-31). Two years is also what the
+    // engines already want: the FI signature reads a 12-month saving window and
+    // /reports charts 6 months, and both were being fed from a 3-month floor —
+    // so on a freshly linked bank the year-over-year comparisons had nothing to
+    // compare against.
+    //
+    // THIS ONLY HELPS FUTURE LINKS, and that asymmetry is the important part
+    // rather than a caveat: Plaid documents that `days_requested` applies only
+    // where Transactions has not already been initialized on the Item, and that
+    // extending an existing Item requires /item/remove plus a fresh trip through
+    // Link. So an already-connected bank keeps its 90 days until the owner
+    // deliberately re-links it. Nothing here re-links anything on its own — that
+    // destroys the existing credential (the irreversible-acts-need-live-proof
+    // lesson) and is the owner's call, not a migration.
+    //
+    // The cost is a longer historical poll on first link, which is exactly what
+    // the cursor-based /transactions/sync flow already handles: the extra rows
+    // arrive on later syncs rather than blocking the link.
+    transactions: { days_requested: PLAID_DAYS_REQUESTED },
   };
 }
 
