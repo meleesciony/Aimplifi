@@ -7941,3 +7941,38 @@ recorded above rather than asserted.
 
 Unit count moved 5089 → 5114 (+25, the register-return engine locks); e2e 245 →
 248 (+3, the O.16 spec).
+
+### O.16a — DEPLOY VERIFIED — 2026-07-31
+
+Commit `16b459b`, pushed to origin/main (`0 0`, clean tree). Deployment
+`dpl_9BEV53T5YTUxSQpBWoC1EauWVhYo` **READY** on `githubCommitSha
+16b459bd1d3f4613362d9125b5bfb670ea3c3e5b` — read from the API, matching HEAD —
+`target: production`, `aliasError: null`, aliases include **www.aimplifi.app** and
+**aimplifi.app**. Live on the canonical host: `/sign-in` **200**, `/transactions`
+**307**, `/rules` **307** (both auth gates behaving), apex **308** to www.
+
+Watched BUILDING → READY rather than reading once: the first read showed
+`state: BUILDING` with only the two vercel.app aliases present, and reporting from
+it would have produced a false "not aliased" finding — the alias lag the slice-5
+record documents, observed again.
+
+**The live database is untouched, and that is evidenced rather than inferred.** The
+build log's Prisma step reads *"The database is already in sync with the Prisma
+schema."* against the Neon host, which is the deploy-side confirmation of the
+`git diff origin/main..HEAD -- prisma/` check run before the push (empty). The route
+table lists `ƒ /rules`, `ƒ /transactions` and `ƒ /transactions/[id]` — the three
+routes this slice touches — all server-rendered on demand.
+
+**A byte-level proof was ATTEMPTED and failed; recording it rather than quietly
+falling back.** Both changed surfaces are auth-gated, so there is no HTML to grep.
+`detail-back-link` does land in a PUBLIC client chunk
+(`.next/static/chunks/22sr8-0ofty3q.js` locally), so the plan was to fetch that exact
+path from production and grep the marker — but it returns **HTTP 404**, because
+Vercel's build produces different chunk hashes than the local one. The local chunk
+name is not evidence about the deployed bundle. `rules-return-link` is server-only
+(`.next/server/chunks/ssr/...`) and was never fetchable.
+
+So the deploy evidence is: the newest production deployment is READY on this exact
+sha, holds the canonical alias, its build log shows the schema untouched and the
+three routes present. It is NOT "I fetched a changed byte from the live app" — that
+remains unavailable for auth-gated surfaces, as it was for slices 4–7.
