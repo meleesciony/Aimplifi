@@ -2,6 +2,67 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## 🧭 DECIDED 2026-07-30 — O.15 slice 5 / O.13e: category parity is three questions (DECISIONS #345)
+
+TASKS O.13e bundles three Simplifi capabilities under one row and says to decide
+which are real gaps **before** building. This slice is that decision, and the
+bundling was the thing to undo — the three share a noun and nothing else.
+
+**(a) Three-level hierarchy — REFUSED, deliberately.** `Category.parentId` has zero
+readers and zero writers outside generated Prisma, so nothing is half-built. Six
+picker surfaces plus every group-by in reports/trends/budgets/spending-plan render
+the 2-level shape, and Simplifi's own example (Auto & Transport -> Registration ->
+Registration Fees) is already expressible as a leaf under a group — `auto-registration`
+literally is it. Reopens on an owner request naming a distinction two levels cannot
+express.
+
+**(b) Explicit Expense/Income type — REAL, DEFERRED, and not a UI toggle.** "Is this
+category income?" is answered in **14 places**; only 2 use the shared
+`isIncomeCategoryId`. The readers split across two maps — `reports.ts`/`trends.ts`
+use the per-user merged meta, the other twelve the static custom-blind
+`CATEGORY_BY_ID` — and they agree solely because `NON_CUSTOM_GROUPS` bars a custom
+from the Income group. Relaxing that turns `pipeline.ts`'s three #44 sign guards
+from a documented exemption into a live defect: an OUTFLOW would file into an income
+category, which `isSpendRow` drops from reports/trends/budgets while `monthlyFlows`
+still counts it. **This is not hypothetical — it is O.13a critic cycle 1's P0
+(`cardone` -> income meeting `CARDONE MGMT FEE -$125.00`), already paid for once.**
+Prerequisite: thread per-user meta into `pipeline.ts` and collapse all 14 onto one
+custom-aware basis. Weighed against 11 income leaves already shipped, the marginal
+capability is small and the blast radius is the auto-filing path.
+
+**(c) Per-category tax flag — REAL, re-routed to rule then-actions (parity row 2).**
+Semantics settled on failure direction: a write-time stamp, never a read-time
+fallback (which would silently re-tag history a reader may have handed a preparer;
+write-time can only under-tag, which is visible). What blocks it as a *category*
+column is topology — `applyCategory`, recategorize, keyword-rule apply, backfill,
+Plaid and SimpleFIN each write `categoryId` independently, so a per-call-site stamp
+is the fence-by-call-site anti-pattern. It belongs on the rule machinery, which
+already has counted apply-to-existing and undo.
+
+**Code shipped:** two understated comments corrected in place — `NON_CUSTOM_GROUPS`
+now records all 14 dependents across two maps and what breaks in `pipeline.ts` if it
+is relaxed; `isIncomeCategoryId`'s "This is THE income test" now says it is one of
+fourteen. Behaviour is unchanged by construction.
+
+**Self-correction, recorded:** the first draft of this finding claimed the exclusion
+was an unlocked invariant. It is locked fail-old by
+`tests/unit/custom-category-lifecycle.test.ts:82` ("refuses the Income and Transfers
+groups"). Reading the test is what corrected it; the real defect was the narrower one
+that shipped.
+
+Gate: `bash scripts/verify.sh` — tsc 0, eslint 0, build clean, **5038 unit / 316
+files**, identical to slice 4's baseline, which is the evidence that nothing
+behavioural moved. No `prisma/` diff, so the live database is untouched.
+
+### 🟠 OPEN, carried forward from this decision
+
+1. **The 14 income predicates are still 14.** Consolidation onto one custom-aware
+   basis is the named prerequisite for (b) and is not done. Until it is, the
+   `NON_CUSTOM_GROUPS` exclusion is what holds reports/trends and the other twelve
+   readers in agreement.
+2. **Per-category tax defaults do not exist**; the reader still tags every row by
+   hand. Now tracked under parity row 2 rather than O.13e.
+
 ## ✅ BUILT 2026-07-30 — O.15 slice 4: you can tell Aimplifi what repeats (DECISIONS #344)
 
 SIMPLIFI_PARITY row 12 / TASKS O.13f. Detection calls nothing recurring below three

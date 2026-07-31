@@ -7194,3 +7194,26 @@ Income and Transfers groups") — a create with `group: 'Income'` is refused, so
 'Income' from `NON_CUSTOM_GROUPS` fails that test. The real defect was narrower and is
 what shipped: the exclusion's stated RATIONALE named 1 of its 14 dependents. Reading the
 test before writing the finding is what rule 0 asks for, and the first draft did not.
+
+### O.15 slice 5 SHIPPED + deploy-verified — 2026-07-30
+
+Commit `e98a28d`, pushed to origin/main. Deployment
+`dpl_HDJS5TwnehzcoPHvy5E1s8vEVB3W` **READY** on `githubCommitSha e98a28d8f01…`
+(matches), `target: production`, `alias` includes **www.aimplifi.app** and
+**aimplifi.app**, `aliasError: null`. `git diff --stat -- prisma/` is EMPTY, so the
+live Neon database is untouched by this deploy.
+
+WHAT THE DEPLOY PROOF CANNOT BE HERE, stated rather than faked: this commit changes
+two docblocks and five documents. L.23 already records that the page-HASH check is
+blind to a comment-only commit — comments are stripped before the chunk hash, so
+identical hashes mean neither deployed nor not-deployed — and there is no new testid,
+label or route to `curl | grep`. The deployment record (READY + sha match + production
+alias) is therefore the whole proof, which is exactly the fallback that lesson
+prescribes. `www.aimplifi.app/sign-in` serves HTTP 200 throughout.
+
+One thing worth keeping: the FIRST `get_deployment` read at the moment `state` flipped
+to READY listed only `aimplifi-reiforge.vercel.app` and the branch alias — the custom
+domains were absent. A second read seconds later showed all five with
+`aliasError: null`. The alias assignment lags the READY flip, so a single read taken
+at the transition understates it; had I reported from that first read I would have
+recorded "www not aliased" as a finding about a deploy that was fine.
