@@ -7311,3 +7311,32 @@ passed in all three.
 SCHEMA: one additive nullable column, so `prisma db push` on deploy ADDS it and
 touches nothing else.
 
+### O.15 slice 6 SHIPPED + deploy-verified — 2026-07-30
+
+Commit `ef9ae17`, pushed to origin/main. Deployment
+`dpl_ChCh6FhKRVF2PWdfb4XLSyWN3exK` **READY** on `githubCommitSha
+ef9ae175a7e2a8c…` (matches HEAD), `target: production`, `alias` includes
+**www.aimplifi.app** and **aimplifi.app**, `aliasError: null`.
+
+THE DEPLOY PROOF IS THE NEON LINE, because /rules is auth-gated and there is no
+unauthenticated marker to `curl | grep`. This slice adds a column, so the build
+log's `prisma db push` against Neon says something the previous no-schema deploys
+did not:
+
+```
+Datasource "db": PostgreSQL database "pulse", schema "public" at "…neon.tech"
+🚀  Your database is now in sync with your Prisma schema. Done in 530ms
+```
+
+Slice 5's deploy printed "already in sync"; this one printed "now in sync",
+which is the additive `CategorizationRule.setTaxClass` column landing on the live
+database and nothing else changing. Build also compiled clean (30.2s) and
+TypeScript re-ran on the Vercel machine (32.8s).
+
+`www.aimplifi.app/sign-in` serves **200**; `/rules` serves **307** to sign-in,
+which is the auth gate behaving.
+
+Runtime errors in the window after: **one pre-existing group only** — the `pg`
+SSL-mode deprecation warning first seen 2026-06-17, whose `lastDeployment` is the
+PREVIOUS deployment. Nothing new.
+
