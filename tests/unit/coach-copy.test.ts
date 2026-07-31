@@ -69,6 +69,117 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'opportunity:price', text: COACH_COPY.opportunity(opportunity('price-increase'), 700), isProjection: true },
   { label: 'opportunity:insurance', text: COACH_COPY.opportunity(opportunity('insurance-reshop'), 700), isProjection: true },
   { label: 'opportunity:bill', text: COACH_COPY.opportunity(opportunity('negotiable-bill'), 700), isProjection: true },
+  // Wealth target — every projection here carries BOTH assumptions (rate + today's dollars).
+  {
+    label: 'wealthTargetBasis',
+    text: COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 450, 700, 250, false),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetBasis:floored',
+    text: COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 0, 700, 1000, true),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetVsFiCard',
+    text: COACH_COPY.wealthTargetVsFiCard(700, 250),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetAtCurrentPace',
+    text: COACH_COPY.wealthTargetAtCurrentPace(44, 5, cents(500000), 450),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetNotSaving',
+    text: COACH_COPY.wealthTargetNotSaving(),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetAlreadyThere',
+    text: COACH_COPY.wealthTargetAlreadyThere(cents(1_200_000_000), cents(1_000_000_000)),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetBeyondHorizon',
+    text: COACH_COPY.wealthTargetBeyondHorizon(450),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetOutOfRange',
+    text: COACH_COPY.wealthTargetOutOfRange(),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetNoAmount',
+    text: COACH_COPY.wealthTargetNoAmount(),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetRequired',
+    text: COACH_COPY.wealthTargetRequired(cents(1_250_00), 25, 450, 250),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetRequired:oneYear',
+    text: COACH_COPY.wealthTargetRequired(cents(1_250_00), 1, 450, 250),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetRequiredShare',
+    text: COACH_COPY.wealthTargetRequiredShare(3400),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetRequiredExceedsIncome',
+    text: COACH_COPY.wealthTargetRequiredExceedsIncome(),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetAdditional:fits',
+    text: COACH_COPY.wealthTargetAdditional(cents(75_000), cents(300_000), true),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetAdditional:doesNotFit',
+    text: COACH_COPY.wealthTargetAdditional(cents(900_000), cents(300_000), false),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetAdditional:unknowable',
+    text: COACH_COPY.wealthTargetAdditional(cents(900_000), cents(-243_233), null),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetAdditional:none',
+    text: COACH_COPY.wealthTargetAdditional(cents(0), cents(300_000), true),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetDeadlineTooSoon',
+    text: COACH_COPY.wealthTargetDeadlineTooSoon(),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetSensitivityIntro:spread',
+    text: COACH_COPY.wealthTargetSensitivityIntro(true),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetSensitivityIntro:degenerate',
+    text: COACH_COPY.wealthTargetSensitivityIntro(false),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetSensitivityRow',
+    text: COACH_COPY.wealthTargetSensitivityRow(700, 450, 44),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetSensitivityRow:never',
+    text: COACH_COPY.wealthTargetSensitivityRow(500, 250, null),
+    isProjection: true,
+  },
   { label: 'moneyDials', text: COACH_COPY.moneyDials(['Travel', 'Dining Out']), isProjection: false },
   { label: 'creepFlagged', text: COACH_COPY.creepFlagged(creepFlagged), isProjection: false },
   { label: 'creepClear', text: COACH_COPY.creepClear(creepClear), isProjection: false },
@@ -286,5 +397,80 @@ describe('habit-streaks copy — exact rendered locks (#254)', () => {
     expect(COACH_COPY.noCreepStreak(1, 12, 1)).toContain('1 full month with');
     expect(COACH_COPY.noCreepStreak(1, 12, 1)).toContain('1 tracked subscription.');
     expect(COACH_COPY.noCreepStreak(12, 12, 8)).toContain('as far back as this check looks');
+  });
+});
+
+/**
+ * Wealth-target copy — exact rendered locks for the sentences two hostile critics
+ * independently broke. Each of these was a TRUE sentence printed beside a figure it was
+ * not true OF, which is the defect class the lessons ledger keeps recording; a scan for
+ * tone cannot see any of them, so they are pinned as the reader reads them.
+ */
+describe('wealth-target copy — the claims the critics broke', () => {
+  it('a floored real return never prints a subtraction that does not compute', () => {
+    // 7.00% − 10.00% is −3.00%, not 0.00%. The floored branch must not print both operands
+    // beside the floor and invite the reader to check the arithmetic.
+    const floored = COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 0, 700, 1000, true);
+    expect(floored).not.toMatch(/7\.00% return assumption less 10\.00% inflation/);
+    expect(floored).toContain('at or below your 10.00% inflation assumption');
+    // And it must state the direction of the error the floor introduces.
+    expect(floored).toContain('arrive later than it says, not sooner');
+    // The unfloored branch still shows its working.
+    expect(COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 450, 700, 250, false)).toContain(
+      'your 7.00% return assumption less 2.50% inflation',
+    );
+  });
+
+  it('affordability that cannot be judged names no pool at all', () => {
+    // The engine returns null when there is no positive guilt-free figure. Falling through
+    // to the "more than you have" branch formatted a NEGATIVE balance as money the reader
+    // has ("more than the -$2,432.33 of monthly guilt-free spending you have").
+    const unknowable = COACH_COPY.wealthTargetAdditional(cents(900_000), cents(-243_233), null);
+    expect(unknowable).not.toMatch(/-\$/);
+    expect(unknowable).not.toContain('guilt-free spending you have');
+    expect(unknowable).toContain('no guilt-free figure to weigh it against');
+    // The two judgeable branches still name the figure they compare against.
+    expect(COACH_COPY.wealthTargetAdditional(cents(75_000), cents(300_000), true)).toContain(
+      'fits inside your $3,000.00',
+    );
+    expect(COACH_COPY.wealthTargetAdditional(cents(900_000), cents(300_000), false)).toContain(
+      'more than the $3,000.00',
+    );
+  });
+
+  it('"already there" names the PORTFOLIO, not the number the reader typed', () => {
+    expect(
+      COACH_COPY.wealthTargetAlreadyThere(cents(1_200_000_000), cents(1_000_000_000)),
+    ).toBe(
+      "You have $12,000,000.00, which is already past the $10,000,000.00 you named. " +
+        "Worth deciding what the number is for — a target you've passed is a good moment to name the next one.",
+    );
+  });
+
+  it('the horizon copy names the 100-year cap it actually computed, not a softer paraphrase', () => {
+    expect(COACH_COPY.wealthTargetBeyondHorizon(450)).toContain("doesn't arrive within 100 years");
+    expect(COACH_COPY.wealthTargetSensitivityRow(500, 250, null)).toContain('not within 100 years');
+    expect(COACH_COPY.wealthTargetBeyondHorizon(450)).not.toMatch(/working lifetime/i);
+  });
+
+  it('the sensitivity intro only claims a spread when the rows have one', () => {
+    expect(COACH_COPY.wealthTargetSensitivityIntro(true)).toContain('the spread between them');
+    const degenerate = COACH_COPY.wealthTargetSensitivityIntro(false);
+    expect(degenerate).not.toMatch(/the spread between them is usually wider/);
+    expect(degenerate).toContain('all three floor to no real growth');
+  });
+
+  it('the required contribution says a flat standing order will not keep pace', () => {
+    const line = COACH_COPY.wealthTargetRequired(cents(183_243), 25, 450, 250);
+    expect(line).toContain("in today's money");
+    expect(line).toContain('would need to rise with inflation');
+    expect(line).toContain('2.50% a year on your own assumption');
+  });
+
+  it('the FI-card reconciliation names both bases and which one runs earlier', () => {
+    const line = COACH_COPY.wealthTargetVsFiCard(700, 250);
+    expect(line).toContain('7.00% before inflation');
+    expect(line).toContain('its date is earlier');
+    expect(line).toContain('2.50% inflation assumption');
   });
 });

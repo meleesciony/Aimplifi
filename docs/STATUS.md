@@ -2,6 +2,45 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-31 — W.1: a wealth target you can name (DECISIONS #353)
+
+Owner, 2026-07-31: *"if I want to save up to 10 mil from my current investments and
+savings, what do I need to do?"*
+
+**The app could not answer it, and the reason was structural.** Every wealth figure here
+was EXPENSE-DRIVEN — the FI number is `annualExpenses × 10000/swrBps`, so the target is
+always derived from spending and can never be a number the reader states. The one solver
+that does take a stated amount, `solveSavingsGoalByDate`, is deliberately LINEAR (it
+mirrors the /goals envelope timeline, no growth), so pointing it at $10,000,000 would have
+demanded ~$27,777/month where compounding needs a fraction of that.
+
+`solveWealthTarget` is the fourth inverse planner and originates no compounding math:
+"when do I arrive at my current pace" is `monthsToFI`, "what must I put away to land it by
+then" is `coastFI`'s bisection. It answers both at once, plus the required contribution as
+a share of income and against safe-to-spend.
+
+**Basis: today's dollars at the REAL return**, matching the /investments outlook.
+
+### OPEN / stated limitations
+
+- **/coach now carries two bases, and says so rather than hiding it.** The FI card directly
+  above grows the portfolio at the NOMINAL dial toward a target built from today's
+  expenses, which is a mixed basis and makes its date earlier — measured at 16 vs 21 years
+  on one worked case, and a SMALLER target on the new card can read as taking longer. The
+  new card carries a reconciliation sentence naming which runs earlier and why. Fixing the
+  FI card is **TASKS W.2**, deliberately not folded in: it changes a figure readers have
+  been reading for months and deserves its own decision and critic pass.
+- **The required contribution is a level REAL amount.** A standing order set once and left
+  alone falls behind; the copy says so and names the reader's own inflation dial. The app
+  does not model an escalating contribution.
+- **Not reachable through Ask.** The owner asked in words, and that route is **TASKS W.4** —
+  the engine and the card shipped, the amount parser ("10 mil", "$10M") did not.
+- **The share-of-income sentence names its own window** (6-month mean, from `getCoachData`)
+  because that is NOT the spending plan's income (a 3-month median over non-credit
+  accounts) shown in the next sentence. The two genuinely differ; the copy states which.
+- **`/coach` now fetches the finance snapshot twice** (`getCoachData` + `getSpendingPlan`,
+  neither `cache()`-wrapped). Recorded by a critic as a performance P2; not addressed here.
+
 ## ✅ BUILT 2026-07-31 — O.16a: you come back to where you were (DECISIONS #348)
 
 Owner, 2026-07-30: *"Can you add away to go back to what we were doing after let's

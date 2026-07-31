@@ -72,6 +72,110 @@ export const COACH_COPY = {
       ? `The slider uses your 6-month average pace (${pct1(avgBps)}); ${latestMonthLabel ?? 'your latest full month'} alone was ${pct1(latestBps)}.`
       : `The slider uses your 6-month average pace (${pct1(avgBps)}).`,
 
+  // ---- Wealth target ("I want $10M — what do I need to do?") --------------------------
+  // Every string here carries TWO assumptions, not one: the return rate AND the fact that
+  // the target is read in today's dollars. Both are load-bearing — a $10M answer at a
+  // nominal rate against a present-value goal would be optimistic by decades — so neither
+  // is ever left to a footnote the reader might not open.
+
+  wealthTargetBasis: (
+    targetCents: Cents,
+    realBps: number,
+    nominalBps: number,
+    inflationBps: number,
+    realReturnFloored: boolean,
+  ) =>
+    // The floored branch may NOT print the subtraction: 7.00% less 10.00% is not 0.00%, and
+    // a reader can do that arithmetic in their head. It says what the floor means instead.
+    realReturnFloored
+      ? `${formatCents(targetCents)} in today's money. Your ${pct(nominalBps)} return assumption is at or below your ${pct(inflationBps)} inflation assumption, so this is worked out assuming no growth after inflation at all — and if inflation really did outrun returns, anything below would arrive later than it says, not sooner.`
+      : `${formatCents(targetCents)} in today's money, assuming ${pct(realBps)} growth after inflation — your ${pct(nominalBps)} return assumption less ${pct(inflationBps)} inflation. Every figure below is in today's dollars, so the target means what it means to you now.`,
+
+  /**
+   * The reconciliation sentence. /coach stacks this card under the FI card, which grows the
+   * portfolio at the NOMINAL dial toward a target built from today's expenses — so the two
+   * print different dates for what a reader sees as one question, and a smaller target here
+   * can read as taking LONGER. Each card stating its own basis is not enough once they are
+   * adjacent: stacking them is the invitation to compare. This names the difference and its
+   * direction so the reader has something to reconcile them with.
+   */
+  wealthTargetVsFiCard: (nominalBps: number, inflationBps: number) =>
+    `The financial-independence card above assumes ${pct(nominalBps)} before inflation, so its date is earlier than anything here; this card takes your ${pct(inflationBps)} inflation assumption off first.`,
+
+  wealthTargetAtCurrentPace: (years: number, months: number, monthlyCents: Cents, realBps: number) =>
+    `Saving ${formatCents(monthlyCents)}/month, you'd get there in about ${years} year${years === 1 ? '' : 's'}${months > 0 ? ` ${months} month${months === 1 ? '' : 's'}` : ''}, assuming ${pct(realBps)} growth after inflation and that what you put away keeps pace with inflation.`,
+
+  /** The FI card's refusal, in this card's words: nothing is going in, so no date is honest. */
+  wealthTargetNotSaving: () =>
+    `Spending is running ahead of income right now, so there's nothing going in to project from — a date here wouldn't be honest. What the target needs is below; the gap between that and today is the real answer.`,
+
+  wealthTargetAlreadyThere: (portfolioCents: Cents, targetCents: Cents) =>
+    `You have ${formatCents(portfolioCents)}, which is already past the ${formatCents(targetCents)} you named. Worth deciding what the number is for — a target you've passed is a good moment to name the next one.`,
+
+  wealthTargetBeyondHorizon: (realBps: number) =>
+    `At what's going in now, this target doesn't arrive within 100 years, assuming ${pct(realBps)} growth after inflation. The two levers are the amount you add each month and the number itself.`,
+
+  wealthTargetOutOfRange: () =>
+    `Enter a target between $0.01 and $100,000,000,000,000 and the plan fills in.`,
+
+  wealthTargetNoAmount: () =>
+    `Enter a target amount and this fills in. Nothing below describes a number until there's one to describe.`,
+
+  wealthTargetRequired: (
+    requiredMonthlyCents: Cents,
+    years: number,
+    realBps: number,
+    inflationBps: number,
+  ) =>
+    // "In today's money" is the load-bearing clause. The simulation adds a LEVEL REAL
+    // contribution, so a flat standing order set once loses ground every year and lands
+    // short — the card says "every figure is in today's dollars" directly above, which
+    // makes the omission worse by implying it is already handled.
+    `To land it in ${years} year${years === 1 ? '' : 's'} it takes about ${formatCents(requiredMonthlyCents)}/month in today's money, assuming ${pct(realBps)} growth after inflation. A standing order set once and left alone would need to rise with inflation — ${pct(inflationBps)} a year on your own assumption — to keep that pace.`,
+
+  /** The share of income, split out so it can be withheld when the denominator can't carry it. */
+  wealthTargetRequiredShare: (rateBps: number) =>
+    `That's ${pct1(rateBps)} of your average monthly income over the last 6 months.`,
+
+  wealthTargetRequiredExceedsIncome: () =>
+    `That's more than your whole average monthly income, so this pairing of number and date isn't a plan yet — one of the two has to move.`,
+
+  wealthTargetAdditional: (
+    additionalCents: Cents,
+    safeToSpendCents: Cents,
+    withinSafeToSpend: boolean | null,
+  ) =>
+    additionalCents <= 0
+      ? `That's at or below what you're already putting away, so the plan is to keep going.`
+      : // `null` means the engine could not judge affordability — there is no positive
+        // guilt-free figure to compare against. It must NOT fall through to the "more than
+        // you have" branch, which would format a negative or absent pool as money the reader
+        // has ("more than the -$2,432.33 of monthly guilt-free spending you have").
+        withinSafeToSpend === null
+        ? `That's ${formatCents(additionalCents)}/month more than you save today. There's no guilt-free figure to weigh it against this month, so whether it fits is a question your spending plan answers, not this card.`
+        : withinSafeToSpend
+          ? `That's ${formatCents(additionalCents)}/month more than you save today, and it fits inside your ${formatCents(safeToSpendCents)} of monthly guilt-free spending.`
+          : `That's ${formatCents(additionalCents)}/month more than you save today — more than the ${formatCents(safeToSpendCents)} of monthly guilt-free spending you have, so the date or the number has to move.`,
+
+  wealthTargetDeadlineTooSoon: () =>
+    `That's less than a month away, so there's no contribution schedule to work out.`,
+
+  /**
+   * Two intros, because the claim about spread is FALSE of a degenerate table. When every
+   * row floors to the same real rate the three lines are identical, and a sentence promising
+   * "the spread is wider than any budgeting change you could make" sits directly above three
+   * rows with no spread at all.
+   */
+  wealthTargetSensitivityIntro: (hasSpread: boolean) =>
+    hasSpread
+      ? `The same target at three return assumptions, all at what you're putting away today — the horizon above doesn't change these. Nobody knows which one you'll get, and the spread between them is usually wider than any budgeting change you could make, which is why the assumption is worth seeing rather than trusting.`
+      : `The same target at three return assumptions, all at what you're putting away today. They agree here only because your return assumption is at or below your inflation assumption, so all three floor to no real growth — the spread reappears as soon as the return assumption clears inflation.`,
+
+  wealthTargetSensitivityRow: (nominalBps: number, realBps: number, years: number | null) =>
+    years === null
+      ? `Assuming ${pct(nominalBps)} returns (${pct(realBps)} after inflation): not within 100 years.`
+      : `Assuming ${pct(nominalBps)} returns (${pct(realBps)} after inflation): about ${years} years.`,
+
   opportunity: (o: Opportunity, expectedReturnBps: number) => {
     const base = `${o.merchant}: ${formatCents(o.monthlyCents)}/mo`;
     const fv = `is ${formatCents(o.fv30Cents)} of future wealth over 30 years (${formatCents(o.fv20Cents)} over 20, ${formatCents(o.fv10Cents)} over 10), assuming ${pct(expectedReturnBps)} average annual returns — compounding does the work, not willpower.`;

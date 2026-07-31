@@ -1,0 +1,278 @@
+'use client';
+
+/**
+ * Wealth-target card — "I want $10M. What do I need to do?"
+ *
+ * The reader states a number and a horizon; the card answers in both directions at once
+ * (when the current pace arrives, and what a chosen date would require) and shows how much
+ * of the answer is the return assumption rather than the saving.
+ *
+ * Every figure comes from `solveWealthTarget`, the pure engine imported client-side — the
+ * same module and the same inputs the server would use, so dragging a control cannot drift
+ * from a server-rendered figure (the FI slider's idiom, #3).
+ *
+ * THE INPUT IS A BOUNDARY, AND IT REFUSES. The amount box is UNCONTROLLED (`defaultValue`
+ * + onChange mirroring into state) so text typed before hydration is not blanked by the
+ * first render — the #216 half of the mutation-form lesson, which applies to any text box.
+ * But an uncontrolled box that only updates state on a SUCCESSFUL parse leaves the card
+ * answering a target the reader can no longer see: clear the box, or type "ten million",
+ * and every figure below goes on describing the previous number with nothing marking it
+ * stale. So the parse result is held as `number | null`, null is a first-class state, and
+ * in it the card says it has no target rather than printing an answer to a question nobody
+ * asked. `aria-invalid` carries the same fact to a screen reader.
+ */
+import { useMemo, useState } from 'react';
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import { solveWealthTarget } from '@/lib/engine/solve/wealth-target';
+import { type Cents, formatCents, parseDollarInput } from '@/lib/money';
+
+/** A round, widely-held starting point. The reader replaces it; nothing here is a suggestion. */
+const DEFAULT_TARGET_CENTS = 1_000_000_00;
+const DEFAULT_HORIZON_YEARS = 25;
+const MAX_HORIZON_YEARS = 40;
+
+/** Whole years, rounded rather than truncated, so a summary line never reads LOWER than the
+ *  years-and-months line describing the same month count ("about 8 years" beside "8 years
+ *  9 months"). */
+const wholeYears = (months: number) => Math.round(months / 12);
+
+export function WealthTargetCard({
+  portfolioCents,
+  monthlySavingsCents,
+  monthlyIncomeCents,
+  safeToSpendCents,
+  expectedReturnBps,
+  inflationBps,
+  frozenPortfolioNote,
+}: {
+  portfolioCents: Cents;
+  monthlySavingsCents: Cents;
+  /**
+   * The 6-month MEAN of categorized monthly income (`server/coach.ts`), which is NOT the
+   * spending plan's income (a 3-month median over non-credit accounts). The two differ, so
+   * the share-of-income sentence names its own window rather than saying "your income" and
+   * letting the reader assume it matches the guilt-free figure in the next sentence.
+   */
+  monthlyIncomeCents: Cents;
+  safeToSpendCents: Cents;
+  expectedReturnBps: number;
+  inflationBps: number;
+  /**
+   * Set when an INVESTMENT account the bank stopped sharing is inside `portfolioCents`.
+   * Every PROJECTION here starts from that balance — including the required-contribution
+   * line, which is an instruction rather than a figure: a balance frozen HIGH makes the
+   * instruction too small and the reader under-saves.
+   */
+  frozenPortfolioNote?: string | null;
+}) {
+  const [targetCents, setTargetCents] = useState<number | null>(DEFAULT_TARGET_CENTS);
+  const [horizonYears, setHorizonYears] = useState<number>(DEFAULT_HORIZON_YEARS);
+
+  const result = useMemo(
+    () =>
+      targetCents === null
+        ? null
+        : solveWealthTarget({
+            targetAmountCents: targetCents,
+            currentPortfolioCents: portfolioCents,
+            currentMonthlyContributionCents: monthlySavingsCents,
+            nominalReturnBps: expectedReturnBps,
+            inflationBps,
+            monthlyIncomeCents,
+            safeToSpendCents,
+            deadlineMonths: horizonYears * 12,
+          }),
+    [
+      targetCents,
+      horizonYears,
+      portfolioCents,
+      monthlySavingsCents,
+      monthlyIncomeCents,
+      safeToSpendCents,
+      expectedReturnBps,
+      inflationBps,
+    ],
+  );
+
+  const basisLine =
+    result === null
+      ? COACH_COPY.wealthTargetNoAmount()
+      : result.unreachableReason === 'target-out-of-range'
+        ? COACH_COPY.wealthTargetOutOfRange()
+        : COACH_COPY.wealthTargetBasis(
+            result.targetAmountCents as Cents,
+            result.realReturnBps,
+            expectedReturnBps,
+            inflationBps,
+            result.realReturnFloored,
+          );
+
+  const paceLine = (() => {
+    if (result === null || result.unreachableReason === 'target-out-of-range') return null;
+    if (result.outcome === 'already-there') {
+      return COACH_COPY.wealthTargetAlreadyThere(
+        result.currentPortfolioCents as Cents,
+        result.targetAmountCents as Cents,
+      );
+    }
+    // Nothing is going in. The FI card refuses to project here and so does this one — a
+    // date computed from a floored $0 would turn that refusal into a number.
+    if (result.contributionFloored) return COACH_COPY.wealthTargetNotSaving();
+    if (result.monthsAtCurrentRate === null) {
+      return COACH_COPY.wealthTargetBeyondHorizon(result.realReturnBps);
+    }
+    return COACH_COPY.wealthTargetAtCurrentPace(
+      Math.floor(result.monthsAtCurrentRate / 12),
+      result.monthsAtCurrentRate % 12,
+      result.currentMonthlyContributionCents as Cents,
+      result.realReturnBps,
+    );
+  })();
+
+  const requiredLine = (() => {
+    if (result === null || result.unreachableReason === 'target-out-of-range') return null;
+    // The already-there sentence belongs to the pace slot; repeating it verbatim here said
+    // the same thing twice on one card.
+    if (result.outcome === 'already-there') return null;
+    if (result.requiredMonthlyCents === null) return COACH_COPY.wealthTargetDeadlineTooSoon();
+    return COACH_COPY.wealthTargetRequired(
+      result.requiredMonthlyCents as Cents,
+      horizonYears,
+      result.realReturnBps,
+      inflationBps,
+    );
+  })();
+
+  // The share of income is withheld above 100%: a near-zero denominator turns it into the
+  // "−855105.8%" class of figure the FI engine has a written lesson about, and a reader
+  // learns nothing from a six-digit percentage that the sentence doesn't say in words.
+  const shareLine =
+    result === null || result.requiredSavingsRateBps === null || result.outcome === 'already-there'
+      ? null
+      : result.requiredSavingsRateBps > 10000
+        ? COACH_COPY.wealthTargetRequiredExceedsIncome()
+        : COACH_COPY.wealthTargetRequiredShare(result.requiredSavingsRateBps);
+
+  const hasSpread =
+    result !== null &&
+    new Set(result.sensitivity.map((s) => s.realReturnBps)).size > 1;
+
+  return (
+    <Card data-testid="wealth-target-card">
+      <CardHeader className="pb-2">
+        <CardDescription>Wealth target</CardDescription>
+        <CardTitle as="div" className="text-2xl tabular-nums">
+          <label htmlFor="wealth-target-amount" className="sr-only">
+            Target amount in dollars
+          </label>
+          <input
+            id="wealth-target-amount"
+            type="text"
+            inputMode="decimal"
+            defaultValue={formatCents(DEFAULT_TARGET_CENTS as Cents)}
+            onChange={(e) => setTargetCents(parseDollarInput(e.target.value))}
+            aria-describedby="wealth-target-basis"
+            aria-invalid={targetCents === null}
+            className="w-full max-w-[14ch] rounded-md border bg-transparent px-2 py-1 tabular-nums aria-[invalid=true]:border-amber-500"
+            data-testid="wealth-target-amount"
+          />
+        </CardTitle>
+        <p className="text-sm text-muted-foreground" id="wealth-target-basis" data-testid="wealth-target-basis">
+          {basisLine}
+        </p>
+        {result !== null && result.unreachableReason !== 'target-out-of-range' ? (
+          <p className="text-xs text-muted-foreground" data-testid="wealth-target-vs-fi">
+            {COACH_COPY.wealthTargetVsFiCard(expectedReturnBps, inflationBps)}
+          </p>
+        ) : null}
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {/* One live region for the whole answer: two separate polite regions re-announced
+            two full sentences on every keystroke. */}
+        <div aria-live="polite" className="space-y-4">
+          {paceLine ? (
+            <p className="text-sm" data-testid="wealth-target-pace">
+              {paceLine}
+            </p>
+          ) : null}
+          {frozenPortfolioNote ? (
+            <p className="text-xs text-amber-500" data-testid="wealth-target-frozen-note">
+              {frozenPortfolioNote}
+            </p>
+          ) : null}
+
+          {requiredLine ? (
+            <div className="space-y-2 rounded-lg border p-3">
+              <label htmlFor="wealth-target-horizon" className="flex justify-between text-sm">
+                <span>I want it in…</span>
+                <span className="font-semibold tabular-nums" data-testid="wealth-target-horizon-value">
+                  {horizonYears} year{horizonYears === 1 ? '' : 's'}
+                </span>
+              </label>
+              <input
+                id="wealth-target-horizon"
+                type="range"
+                min={1}
+                max={MAX_HORIZON_YEARS}
+                step={1}
+                value={horizonYears}
+                aria-valuetext={`${horizonYears} year${horizonYears === 1 ? '' : 's'}`}
+                onChange={(e) => setHorizonYears(Number(e.target.value))}
+                className="w-full accent-emerald-500"
+                data-testid="wealth-target-horizon"
+              />
+              <p className="text-sm" data-testid="wealth-target-required">
+                {requiredLine}
+              </p>
+              {shareLine ? (
+                <p className="text-sm text-muted-foreground" data-testid="wealth-target-share">
+                  {shareLine}
+                </p>
+              ) : null}
+              {result !== null && result.requiredAdditionalMonthlyCents !== null ? (
+                <p className="text-sm text-muted-foreground" data-testid="wealth-target-additional">
+                  {COACH_COPY.wealthTargetAdditional(
+                    result.requiredAdditionalMonthlyCents as Cents,
+                    safeToSpendCents,
+                    result.withinSafeToSpend,
+                  )}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        {result !== null && result.sensitivity.length > 0 ? (
+          <details className="text-xs text-muted-foreground" data-testid="wealth-target-sensitivity">
+            <summary className="cursor-pointer select-none">
+              How much of this is the return assumption?
+            </summary>
+            <p className="mt-1">{COACH_COPY.wealthTargetSensitivityIntro(hasSpread)}</p>
+            <ul className="mt-2 space-y-1">
+              {result.sensitivity.map((s, idx) => (
+                // Keyed by position, not by rate: two rows can share a nominal rate once the
+                // ±2pp spread is clamped at 0 (a return dial of 0 gives [0, 0, 200]).
+                <li key={idx} data-testid="wealth-target-sensitivity-row">
+                  {COACH_COPY.wealthTargetSensitivityRow(
+                    s.nominalReturnBps,
+                    s.realReturnBps,
+                    s.monthsAtCurrentRate === null ? null : wholeYears(s.monthsAtCurrentRate),
+                  )}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
