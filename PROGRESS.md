@@ -7552,3 +7552,23 @@ about SUITE TIMING, not about whether the feature is correct. Pushing lets CI
 arbitrate and lets the owner see the work; leaving it uncommitted across a restart
 would risk the slice. **The Definition of Done is NOT met until a gate on this
 tree exits 0, and this is recorded as such rather than rounded up.**
+
+### O.15 slice 7 — DEPLOY VERIFIED (with its limitation stated)
+
+Commit `7af382a`, pushed to origin/main (`0 0` with origin, working tree clean).
+Deployment `aimplifi-bb8lo0p8u` **● Ready**, `target: production`, created ~8s
+after the push and the newest production deployment; aliases include
+**www.aimplifi.app** and **aimplifi.app**. `www.aimplifi.app/sign-in` → **200**,
+`/transactions` → **307** to sign-in (the auth gate behaving).
+
+**Limitation, stated rather than papered over:** there is no unauthenticated
+marker to `curl | grep` for this slice — every surface it touches is behind auth —
+AND unlike slice 6 there is no schema change, so the build log carries no Neon
+`prisma db push` line to serve as the proof either. The evidence above is
+therefore "the newest production deployment, built from the push, is Ready and
+aliased", not "I fetched the new control and saw it". A logged-in check of
+`/transactions/[id]` for the Status row is the outstanding confirmation.
+
+`vercel inspect` printed no `githubCommitSha` field in this CLI version (58.4.4),
+so the sha match is inferred from timing + ordering rather than read directly —
+weaker than slice 6's check, and named as such.
