@@ -7753,3 +7753,22 @@ this as licence to wave through the next rotating failure.
 obtain these greens: this session's only edits are TASKS.md, PROGRESS.md and
 docs/STATUS.md. That matters, because the cheapest way to turn this record green would
 have been to touch the harness, and that is the one move V.1 forbids.
+
+### V.0 record DEPLOY-VERIFIED — 2026-07-31
+
+Commit `3f64773`, pushed to origin/main (`0` ahead, working tree clean). Deployment
+`dpl_ETUyithFc3LCz134ZTDC8Hu2VAAC` **READY** on `githubCommitSha
+3f64773b719a1fc16dc2257f6435f899303ce5b4` — read directly from the API, matching HEAD —
+`target: production`, `aliasError: null`, aliases include **www.aimplifi.app** and
+**aimplifi.app**. Live: `/sign-in` **200**, `/transactions` **307** to sign-in (auth gate
+behaving), apex **308** to www. No prisma diff, so the live Neon database is untouched.
+
+Watched BUILDING → READY rather than reading once: the first two reads showed
+`state: BUILDING` with only the vercel.app aliases present, and reporting from either
+would have produced a false "not aliased" finding — the alias-lag the slice-5 record
+already documented, observed again here.
+
+**Limitation, same as slice 7's and stated rather than skipped:** this commit is
+documentation only, so there is no new marker to `curl | grep` and no schema line in the
+build log. The evidence is "the newest production deployment is READY on this exact sha
+and holds the canonical alias", not "I fetched a changed byte".
