@@ -9,6 +9,7 @@ import { getVisibleGroups } from '@/server/categories';
 import { getRuleSourceTransaction } from '@/server/keyword-rules';
 import { getTransactionDetail } from '@/server/transactions';
 import { getRecurringVerdictForTransaction } from '@/server/recurring-overrides';
+import { listAttachmentsForTransaction } from '@/server/attachments';
 import { RETURN_PARAM, decodeRegisterReturn } from '@/lib/engine/transactions/links';
 
 export const metadata = { title: 'Transaction' };
@@ -42,7 +43,7 @@ export default async function TransactionDetailPage({
   // confirms nothing about whether someone else's transaction exists.
   if (!detail) notFound();
 
-  const [categoryGroups, ruleSource, recurringVerdict] = await Promise.all([
+  const [categoryGroups, ruleSource, recurringVerdict, attachments] = await Promise.all([
     getVisibleGroups(session.user.id),
     // Asked rather than re-derived: the sentence explaining why a rule cannot be
     // written from this row is the rule builder's OWN predicate, which mirrors
@@ -53,6 +54,9 @@ export default async function TransactionDetailPage({
     // the engine's own parser so the screen cannot show an instruction the
     // detector would ignore.
     getRecurringVerdictForTransaction(session.user.id, id),
+    // O.13h — METADATA only; the files themselves are fetched one at a time by
+    // `/api/attachments/<id>`, so opening this page never reads a byte of one.
+    listAttachmentsForTransaction(session.user.id, id),
   ]);
 
   return (
@@ -75,6 +79,7 @@ export default async function TransactionDetailPage({
       returnTo={decodeRegisterReturn(
         Array.isArray(query[RETURN_PARAM]) ? query[RETURN_PARAM][0] : query[RETURN_PARAM],
       )}
+      attachments={attachments}
     />
   );
 }

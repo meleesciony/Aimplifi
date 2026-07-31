@@ -1198,3 +1198,76 @@ the file beat recalling the list. Gate run 1 then failed all three new tests wit
 `element(s) not found` on an EMPTY demo queue: the shared-demo order-dependency, not
 the V.1 flake, and fixed by seeding a throwaway user per test with the fixture's hard
 case asserted present, never by a retry or a longer timeout.
+
+## #349 (O.13h) — Receipt attachments, and why the bytes live in the database
+
+**The task row named a vendor ("needs a real storage decision (Vercel Blob, private)"), and
+the retention policy overruled it.** `docs/DATA_RETENTION_AND_DISPOSAL.md` §3 promises that a
+single cascading delete of the user record removes every associated row and that "nothing
+about the user is retained after deletion"; §6 states that the only external data flows are
+Plaid/SimpleFIN and the optional AI routing call. Object storage falsifies both. A bucket
+needs a compensating delete on **five** distinct paths — the reader removing one file, the
+transaction being deleted, the account being deleted, the user being deleted, and an upload
+whose row insert failed after the object landed — and a single missed path leaves a
+photograph of a receipt, carrying a name and an address, outside the guarantee permanently.
+That is the fence-by-call-site anti-pattern applied to somebody's medical paperwork. In this
+database the FK cascade IS the deletion path, and the promise holds by construction — asserted
+at the strongest level in `attachment-store.test.ts`: delete the USER, then count the blob rows
+GLOBALLY (not through the ownership join, which a deleted parent would make blind).
+
+Settling it independently: no `BLOB_READ_WRITE_TOKEN` exists on the Vercel project (checked,
+`vercel env ls production`), so the blob path could not have shipped in working order today
+regardless — it would have been a feature that typechecked and did nothing in production, which
+this repo has shipped before (#348's banner, L.7's `'use server'` export).
+
+**What is traded away, stated rather than discovered later:** database size and backup weight.
+Bounded by 5 MB per file × 5 files per transaction, against an allowlisted signup. There is no
+per-USER total cap — recorded as an open residual in STATUS rather than invented, because the
+honest version of that cap needs a decision about what the app does when a reader reaches it,
+and nobody has one. If volume ever justifies object storage the metadata table stays and only
+`AttachmentBlob` moves, at which point the compensating-delete work above becomes real and must
+be built and proven, not assumed.
+
+**The security decision that shaped the engine: the stored content type is SNIFFED from the
+bytes.** Never the browser's declared `File.type`, never the filename extension — both are
+attacker-controlled, and the stored type is exactly what `/api/attachments/<id>` later echoes
+in its `Content-Type` header, so trusting either would let an uploader choose a header this app
+serves from its own origin alongside a signed-in banking session. A closed six-type set, magic-byte
+identification, and an unknown file REFUSED rather than stored as `octet-stream`. The type is
+re-asserted on the READ path too, because a guard that only runs at creation is advisory. Locked
+by mutation: making the route trust `file.type` fails exactly one test, dropping the ownership
+scope on the read fails exactly one other.
+
+**Two tables, not one.** `TransactionAttachment` holds metadata and `AttachmentBlob` holds the
+file. Transaction rows are read on nearly every page in this app, so one `include: { attachments:
+true }` added later would silently pull megabytes into a dashboard render — a memory cliff no test
+would fail on. Splitting makes "listing attachments never loads a file" true by construction rather
+than by every future caller remembering a `select`.
+
+**Upload is a route handler, not a server action** — Next caps a Server Action body at 1 MB and a
+phone photo of a receipt exceeds it; the alternative was raising `serverActions.bodySizeLimit`
+app-wide to serve one feature. The route therefore writes out the CSRF check a Server Action gets
+from the framework (Origin vs Host, on top of the SameSite=Lax cookie). Delete stays an action.
+The upload deliberately does NOT use `withDeadline`: that 8s deadline exists for a severed
+server-action confirmation stream (#164/#166), and applying it to a `fetch` would abandon the await
+on a healthy 5 MB upload over a phone connection and announce that we could not confirm a file that
+was still being sent.
+
+**Visible to the owner alone, including on a shared account.** Household sharing shows a partner an
+account's amounts and merchants; it will not show them the files. A receipt can carry a full name, a
+home address, a prescription or another card's last four. The failure directions are not symmetric —
+a partner not seeing a receipt is a question they can ask, a partner seeing one cannot be undone.
+
+**No demo fence on the DELETE action, deliberately.** The upload route fences the demo account, so a
+demo visitor can never own an attachment, and the ownership predicate already refuses. A fence there
+would be a branch nothing can reach, which reads to the next editor as a claim that something is
+handled and hides that the real guard is upstream (the L.22 dead-branch rule).
+
+**Corrected while building, not after.** (1) The first write of the filename guard put literal
+control bytes into the source — `grep` reported the file as binary — and the fix through a shell
+heredoc silently produced them a second time; it is now a code-point check with no control byte and
+no backslash escape that a rewrite can mangle (the L.18 lesson, hit twice in one file). (2) A
+filename in a non-Latin script neutralized to `__` in the ASCII fallback; it now falls back to
+`attachment` unless an alphanumeric survives. (3) `docs/SIMPLIFI_PARITY.md` row 8 still read
+"MISSING" for exclude-from while row 4 of the same table recorded it shipped in O.15 slice 2 —
+corrected here rather than left for a future session to rediscover.

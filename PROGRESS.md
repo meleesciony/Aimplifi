@@ -7976,3 +7976,144 @@ So the deploy evidence is: the newest production deployment is READY on this exa
 sha, holds the canonical alias, its build log shows the schema untouched and the
 three routes present. It is NOT "I fetched a changed byte from the live app" — that
 remains unavailable for auth-gated surfaces, as it was for slices 4–7.
+
+## O.13h — receipt / file attachments (2026-07-31, Opus 5)
+
+Wave O.13's last open row. Owner mandate is Simplifi parity; attachments were the
+one field-level gap with NO column, NO write path and NO storage.
+
+### The storage decision, made from the retention policy rather than from a vendor
+
+`docs/DATA_RETENTION_AND_DISPOSAL.md` §3 promises that ONE cascading delete of the
+user record removes every associated row, and that "nothing about the user is
+retained after deletion"; §6 says the only external data flows are Plaid/SimpleFIN
+and the optional AI call. Object storage (the Vercel Blob the task row suggested)
+falsifies both: a bucket needs a compensating delete on every path (attachment
+delete, transaction delete, account delete, user delete, and any upload whose row
+insert failed), and one missed path leaves a photograph of a receipt outside the
+guarantee permanently. Bytes therefore live in the database, where the FK cascade
+IS the deletion path. Also settles it: no `BLOB_READ_WRITE_TOKEN` exists on the
+Vercel project (checked, `vercel env ls production`), so the blob path could not
+have shipped working today anyway.
+
+### Built so far (tsc clean)
+
+- `src/lib/engine/attachments/attachment.ts` — pure boundary guard. The stored
+  content type is SNIFFED from magic bytes, never the browser's declared type and
+  never the filename extension, because the stored type is what the download route
+  echoes as `Content-Type`. Closed 6-type set; HEIC accepted (iPhone photos) but
+  marked non-renderable so no surface promises a preview it cannot paint.
+  `contentDispositionValue` builds the header from an ASCII ALLOWLIST + RFC 5987.
+- `tests/unit/attachment-validation.test.ts` — **27/27 green**, refusal-majority.
+- Schema: `TransactionAttachment` (metadata) + `AttachmentBlob` (bytes) as TWO
+  tables on purpose — transaction rows are read on nearly every page, so splitting
+  makes "listing attachments never loads a file" true by construction rather than
+  by every future caller remembering a `select`.
+- `src/server/attachments.ts` (reads, ownership always derived through
+  `transaction.account.userId`), `src/server/attachment-actions.ts` (delete),
+  `src/app/api/attachments/route.ts` (POST upload — a route, not an action, because
+  Next caps action bodies at 1 MB and a phone receipt photo exceeds it),
+  `src/app/api/attachments/[id]/route.ts` (GET download).
+
+### Two byte-level corrections made during the build, not after
+
+1. The first write of the filename guard put LITERAL control bytes in the source
+   (`grep` reported the file as binary). Rewritten as a code-point check with no
+   control byte and no backslash escape to survive a rewrite.
+2. A non-Latin filename neutralized to `__` in the ASCII fallback; now falls back to
+   `attachment` unless an alphanumeric survives.
+
+### NOT yet done
+
+UI (detail view), integration + e2e tests, docs (PRIVACY / retention / DECISIONS /
+STATUS / TASKS), the verify gate, deploy. Nothing is deploy-verified.
+
+### O.13h — UI, tests and the gate
+
+Shipped since the checkpoint above: the detail-view panel (upload / preview /
+download / remove, with the accepted types, the caps and the visibility rule stated
+beside the control), the page wiring, `tests/unit/attachment-store.test.ts` (16,
+real Prisma) and `tests/e2e/attachments.spec.ts` (2).
+
+**Both load-bearing locks are MUTATION-PROVEN.** Dropping the ownership scope in
+`readAttachmentForUser` fails exactly one test (`answers for somebody else's file
+exactly as for one that does not exist`); making the route store `file.type`
+instead of the sniffed type fails exactly one other (`stores the SNIFFED type`).
+Neither mutation disturbed any other test, so each lock names one defect.
+
+**The e2e earns its cost by asserting a claim I could otherwise only believe:** the
+download route sends `Content-Disposition: attachment` on every file, and the
+preview `<img>` renders anyway because a subresource load ignores that header.
+Asserted as `naturalWidth > 0` rather than assumed.
+
+### A 500 I could not reproduce, and what I did about it
+
+Gate run 1 failed ONE test — my own — with `detail-attachment-row` count 0. The
+trace (preserved at `/tmp/o13h-gate1`) held the answer: the upload POST returned
+**HTTP 500**. It did not recur in four subsequent full runs, and a 12-way
+concurrent in-process probe of the route returned 200 twelve times, so the
+interactive-transaction theory was NOT confirmed and no fix is claimed for it.
+
+What changed is justified on its own merits rather than on that unproven
+diagnosis: the route no longer wraps ownership + count + write in
+`prisma.$transaction`. It was the only write path in this app holding the local
+SQLite write lock across three round trips, in a harness whose own config
+documents write contention; the app's idiom (`setTransactionTax`) is one scoped
+read then one write, and the row and its bytes stay atomic because the nested
+`blob: { create }` is a single statement. The two remaining races are named in the
+source with what each costs. A `try/catch` now turns a store failure into a
+sentence written for the reader instead of a bare 500 the form can only shrug at —
+warranted by an observed failure, not by decoration.
+
+### GATE: unit/lint/build GREEN; full-suite e2e RED with the V.1 rotating flake
+
+```
+ Test Files  322 passed (322)
+      Tests  5157 passed (5157)
+```
+`npx tsc --noEmit` → 0. `npx eslint . --max-warnings=0` → 0. `npx next build` → clean.
+
+Five full-suite e2e runs on this tree, failing set each time:
+
+| run | failures |
+|---|---|
+| 1 | `attachments` (mine — the 500 above) |
+| 2 | **none — 250 passed, ✅ VERIFY GREEN** (pre-route-change tree) |
+| 3 | `mobile-overflow:408` |
+| 4 | `merchant-lens`, `phase4-features:80`, `transactions:678` |
+| 5 | `phase4-features:33`, `transactions:145` |
+| 6 | `budget-targets:20`, `phase4-features:33` |
+
+Zero overlap between consecutive runs but one, every failure in a spec this slice
+does not touch, and **all 47 tests across all six of those spec files pass together
+on the shipped tree in 55.9s**. `attachments.spec` passed under full-suite load in
+every run after the fix. The tree is sound; the gate's exit code is not about it.
+
+**The mobile-overflow failure was checked rather than waved through**, because it
+loads `/transactions/[id]` — the page this slice changes. Its `error-context.md`
+shows the page still on the register with the `h1` reading "Transactions": the
+click never navigated, so the detail page was never requested and my changes could
+not have been executed.
+
+### New evidence for V.1, which asked for the stall to be instrumented
+
+Run 4's `phase4-features:80` failure was not an assertion at all —
+`apiRequestContext.get: read ECONNRESET` on `GET /api/export`. That is a
+CONNECTION-level failure, which fits V.1's whole signature (a navigation that never
+completes, every victim green alone in 1–3s, the set rotating).
+
+Measured alongside it: **nothing is LISTENING on port 3100 between runs** (so the
+leaked-server hypothesis from `alive-is-not-progressing.md` is refuted for this
+machine), while sockets in `TIME_WAIT` on 127.0.0.1:3100 accumulated across the
+session — **754 after run 4, 1,179 after run 5** — and the failure count rose with
+them (1 → 3 → 2 → 2). This also explains the awkward fact V.1 said must be
+explained before anyone believes a contention story: it does not need concurrency,
+so the `--workers=1` sightings fit, and V.0's "a machine restart made it green"
+fits too, because a restart clears TIME_WAIT.
+
+**Stated as a correlation, not a cause.** 1,179 is far below the ~16k Windows
+ephemeral-port range, so exhaustion is not demonstrated — what IS demonstrated is a
+connection-level failure and a rising socket debt that tracks the failure rate.
+The next V.1 step is cheap and named: measure TIME_WAIT before/after each run
+against the failure count, and check whether an idle machine (or `MaxUserPort` /
+`TcpTimedWaitDelay`) moves the rate.

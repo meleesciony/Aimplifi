@@ -53,8 +53,19 @@ import {
   txnActionAvailability,
 } from '@/lib/engine/transactions/actions';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
+import {
+  ATTACHMENT_TYPES,
+  MAX_ATTACHMENTS_PER_TRANSACTION,
+  MAX_ATTACHMENT_BYTES,
+  attachmentAcceptAttribute,
+  attachmentTypeLabel,
+  formatAttachmentSize,
+  isRenderableInline,
+} from '@/lib/engine/attachments/attachment';
+import { deleteTransactionAttachment } from '@/server/attachment-actions';
+import type { AttachmentListItem } from '@/server/attachments';
 import { TxnActionMenuItems } from '@/components/finance/txn-action-menu';
-import { MoreHorizontal } from 'lucide-react';
+import { FileText, MoreHorizontal } from 'lucide-react';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { provenanceBadgeView } from '@/components/finance/provenance-badge';
@@ -194,6 +205,7 @@ export function TransactionDetailView({
   recurringVerdict,
   projectionsStale,
   returnTo,
+  attachments,
 }: {
   detail: DetailView;
   categoryGroups: CategoryGroup[];
@@ -216,6 +228,10 @@ export function TransactionDetailView({
   /** O.16 — the filtered register the reader left, already validated and named
    *  by the engine, or null when he did not arrive from a narrowed view. */
   returnTo: RegisterReturn | null;
+  /** O.13h — this row's receipts, METADATA ONLY. The bytes live in their own
+   *  table and are fetched one at a time by `/api/attachments/<id>`, so rendering
+   *  this page never loads a file. */
+  attachments: AttachmentListItem[];
 }) {
   const { row } = detail;
   const [busy, setBusy] = useState(false);
@@ -309,6 +325,51 @@ export function TransactionDetailView({
       setBusy(false);
       // The panels sit below the fold at 380px, so an error rendered at the top
       // of the page is an error the reader never sees.
+      requestAnimationFrame(() => errorRef.current?.scrollIntoView({ block: 'center' }));
+    }
+  }
+
+  /**
+   * Uploading a file, deliberately WITHOUT `withDeadline` — the one mutation on
+   * this page that does not use it.
+   *
+   * That deadline exists for a specific failure: a server action's confirmation
+   * stream being severed under load (#164/#166), where waiting longer gains
+   * nothing because the write already committed. A `fetch` to a route handler has
+   * no such stream; it resolves or rejects on its own. Applying the 8s deadline
+   * here would abandon the await on a perfectly healthy 5 MB upload over a phone
+   * connection and tell the reader we could not confirm a file that was still
+   * being sent — a false alarm on the commonest case this feature has.
+   */
+  async function runUpload(form: HTMLFormElement) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const body = new FormData(form);
+    body.set('transactionId', row.id);
+    try {
+      const response = await fetch('/api/attachments', { method: 'POST', body });
+      const result: unknown = await response.json().catch(() => null);
+      const ok =
+        typeof result === 'object' && result !== null && (result as { ok?: unknown }).ok === true;
+      if (!ok) {
+        const message = (result as { error?: unknown } | null)?.error;
+        // The route writes every refusal for the reader, so it is shown verbatim —
+        // the size cap, the type list and the demo fence all explain themselves.
+        throw new RefusalError(
+          typeof message === 'string' && message.length > 0
+            ? message
+            : 'That file did not upload — nothing was saved.',
+        );
+      }
+      window.location.assign(afterWriteHref());
+    } catch (e) {
+      setError(
+        e instanceof RefusalError
+          ? e.message
+          : 'That file did not upload — nothing was saved. Check your connection and try again.',
+      );
+      setBusy(false);
       requestAnimationFrame(() => errorRef.current?.scrollIntoView({ block: 'center' }));
     }
   }
@@ -758,6 +819,121 @@ export function TransactionDetailView({
           </Button>
         </div>
       </form>
+
+      {/* RECEIPTS & DOCUMENTS — O.13h, the last Simplifi-parity field with no
+          column at all.
+
+          Placed beside the note on purpose: both answer "what was this?", and the
+          note exists partly because there was nowhere to put the receipt.
+
+          No restriction on a split container, unlike the tax tag above. That
+          withholding exists because the tax EXPORT drops a parent row, so a tag
+          there would reach no report — an attachment is summed by nothing and
+          read by nobody but the reader, and a split purchase has exactly one
+          real-world receipt, which belongs on the charge. */}
+      <div className="space-y-2 rounded-md border p-3" data-testid="detail-attachments">
+        <div className="text-sm font-medium">Receipts &amp; documents</div>
+
+        {attachments.length === 0 ? (
+          <p className="text-xs text-muted-foreground" data-testid="detail-attachments-empty">
+            Nothing attached to this transaction yet.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {attachments.map((a) => (
+              <li key={a.id} className="flex items-center gap-2" data-testid="detail-attachment-row">
+                {isRenderableInline(a.mimeType) ? (
+                  // A plain <img>, not next/image: this is a private, authenticated,
+                  // per-user route, not an asset the optimizer can fetch or cache.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/attachments/${a.id}`}
+                    alt={a.filename}
+                    className="h-12 w-12 shrink-0 rounded border object-cover"
+                    data-testid="detail-attachment-preview"
+                  />
+                ) : (
+                  // No preview is offered for a type no browser paints — a broken
+                  // image frame would read as a corrupted upload.
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded border text-muted-foreground">
+                    <FileText className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                )}
+                {/* min-w-0 at every level down to the truncating text: without it a
+                    long filename pushes the Remove button off the right edge on a
+                    phone (the M.1 iOS Safari flexbox lesson). */}
+                <div className="min-w-0 flex-1">
+                  <a
+                    href={`/api/attachments/${a.id}`}
+                    className="block truncate text-sm underline"
+                    data-testid="detail-attachment-link"
+                  >
+                    {a.filename}
+                  </a>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {attachmentTypeLabel(a.mimeType)} · {formatAttachmentSize(a.byteSize)}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  className="shrink-0"
+                  aria-label={`Remove ${a.filename}`}
+                  data-testid="detail-attachment-delete"
+                  onClick={() =>
+                    void run(async () => {
+                      const res = await deleteTransactionAttachment({ attachmentId: a.id });
+                      if (!res.ok) throw new RefusalError(res.error);
+                    })
+                  }
+                >
+                  Remove
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {attachments.length >= MAX_ATTACHMENTS_PER_TRANSACTION ? (
+          <p className="text-xs text-muted-foreground" data-testid="detail-attachment-full">
+            This transaction is holding {MAX_ATTACHMENTS_PER_TRANSACTION} files, which is the limit.
+            Remove one to add another.
+          </p>
+        ) : (
+          <form
+            className="flex flex-wrap items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void runUpload(e.currentTarget);
+            }}
+          >
+            <input
+              type="file"
+              name="file"
+              required
+              accept={attachmentAcceptAttribute()}
+              className="min-w-0 flex-1 text-xs"
+              aria-label="Choose a receipt or document"
+              data-testid="detail-attachment-input"
+            />
+            <Button type="submit" size="sm" disabled={busy} data-testid="detail-attachment-save">
+              Attach
+            </Button>
+          </form>
+        )}
+
+        {/* The basis, stated where the control is (L.29). The visibility sentence is
+            a real guarantee and not a nicety: shared-account access shows a partner
+            this row's amount and merchant, and never these files. */}
+        <p className="text-xs text-muted-foreground">
+          {ATTACHMENT_TYPES.map((t) => t.label).join(', ')} — up to{' '}
+          {formatAttachmentSize(MAX_ATTACHMENT_BYTES)} each,{' '}
+          {MAX_ATTACHMENTS_PER_TRANSACTION} per transaction. Files are stored with your data and
+          deleted with it; only you can open them, including on an account you share with a partner.
+        </p>
+      </div>
 
       {/* SPLIT — SIMPLIFI_PARITY row 11. The engine, the action and the two-part
           gesture are the triage inbox's; what O.13b adds is that a row already

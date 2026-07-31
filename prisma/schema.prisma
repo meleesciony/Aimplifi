@@ -371,6 +371,7 @@ model Transaction {
   account  Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   merchant Merchant? @relation(fields: [merchantId], references: [id])
   category Category? @relation(fields: [categoryId], references: [id])
+  attachments TransactionAttachment[]
 
   @@unique([accountId, providerRef]) // ingest idempotency: one row per provider txn id
   // (providerRef is null for manual/seed rows; multiple NULLs are allowed, so they're
@@ -988,4 +989,50 @@ model HouseholdInvite {
 
   @@unique([householdId, email])
   @@index([email])
+}
+
+// O.13h — a receipt or document the reader attached to one transaction.
+//
+// WHY THE BYTES LIVE IN THIS DATABASE and not in object storage: the retention
+// policy (docs/DATA_RETENTION_AND_DISPOSAL.md §3) promises that ONE cascading
+// delete of the user record removes every associated row and that "nothing about
+// the user is retained after deletion". A bucket cannot honour that promise by
+// construction — it would need a compensating delete on every path (attachment
+// delete, transaction delete, account delete, user delete, and any upload whose
+// row insert failed), and a single missed path leaves a photograph of a receipt,
+// with a name and an address on it, outside the guarantee forever. Here the FK
+// cascade below IS the deletion path, and §6's "no third-party data flow" claim
+// stays true because no third party is involved. See DECISIONS (O.13h) for the
+// volume ceiling this trades away and the migration path if it is ever reached.
+model TransactionAttachment {
+  id            String   @id @default(cuid())
+  transactionId String
+  // Reader-facing prose, normalized at the write boundary. NEVER used to decide a
+  // content type — `mimeType` is sniffed from the bytes.
+  filename      String
+  // The SNIFFED type, and the exact value the download route echoes as
+  // Content-Type. Storing a browser-declared type here would let an uploader
+  // choose a header this app serves from its own origin.
+  mimeType      String
+  byteSize      Int
+  createdAt     DateTime @default(now())
+
+  transaction Transaction     @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  blob        AttachmentBlob?
+
+  @@index([transactionId])
+}
+
+// The file itself, deliberately in its OWN table.
+//
+// Transaction rows are read on nearly every page in this app. If the bytes sat on
+// the metadata row, a single `include: { attachments: true }` added anywhere later
+// would silently pull megabytes into a dashboard render — a memory cliff no test
+// would fail on. Splitting the table makes "listing attachments never loads a file"
+// true BY CONSTRUCTION rather than by every future caller remembering a `select`.
+model AttachmentBlob {
+  attachmentId String @id
+  bytes        Bytes
+
+  attachment TransactionAttachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
 }

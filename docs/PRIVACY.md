@@ -14,6 +14,17 @@ fictional dataset; everything below applies fully once Plaid is connected.
   clears itself the moment the account is shared again. Cascades on account deletion.
 - Transactions, statements, balances, scheduled transactions — the data the
   product's engines need.
+- Receipts and documents you attach to a transaction (`TransactionAttachment` /
+  `AttachmentBlob`, O.13h): the file itself, its name, its size, and the file type
+  Aimplifi determined by reading the bytes. Stored in Aimplifi's own database, never
+  sent to a third party and never used to compute a figure — they are yours to look
+  at. **Only you can open them.** If you share an account with a household partner
+  they see that account's transactions, and never the files attached to them: a
+  receipt is a photograph that can carry a name, an address or a prescription, so it
+  stays with the person who uploaded it. Every file is served from an authenticated,
+  per-user address that returns exactly the same "not found" for someone else's file
+  as for one that does not exist. Deleted with the transaction, the account, or your
+  whole record — see "Deletion". The shared demo account cannot upload at all.
 - Value receipts (`ValueReceipt`, #206): an append-only per-user tally of what the
   app proactively surfaced — a delivered payment reminder, a delivered cash-flow
   warning, a flagged subscription price increase — each with an amount copied from

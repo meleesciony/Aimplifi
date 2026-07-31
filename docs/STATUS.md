@@ -9945,3 +9945,48 @@ production deployment (`aimplifi-45ye2wmrm-reiforge.vercel.app`) reports ● Rea
 holding the `https://www.aimplifi.app` alias — i.e. it is the deployment serving traffic. No public
 marker was grepped, and that is stated rather than skipped: every string this slice touched lives behind
 `/trends`, which is auth-gated (the L.18 standard), so the deployment record is the evidence.
+
+## O.13h — receipts and documents on a transaction (2026-07-31)
+
+Wave O.13's last open row, and the final field-level gap in `docs/SIMPLIFI_PARITY.md`
+that had no column at all. A receipt or document now attaches to any transaction from
+the detail view: upload, preview, download, remove.
+
+**The storage decision was made by the retention policy, not by a vendor** — full
+argument in DECISIONS #349. `DATA_RETENTION_AND_DISPOSAL.md` §3 promises one cascading
+delete removes every associated row and that nothing is retained afterwards; §6 denies
+any third-party data flow. Object storage falsifies both, and the failure is permanent
+and invisible: a bucket needs a compensating delete on five separate paths, and one miss
+leaves a photograph of somebody's receipt outside the guarantee forever. In the database
+the FK cascade IS the deletion path, and the test asserts it at the strongest level —
+delete the USER, then count blob rows GLOBALLY rather than through the ownership join a
+deleted parent would make blind.
+
+**The security core:** the stored content type is SNIFFED from magic bytes. Never the
+browser's `File.type`, never the filename extension — both attacker-controlled, and the
+stored type is exactly what `/api/attachments/<id>` echoes as `Content-Type` from this
+app's own origin, beside a signed-in banking session. Unknown files are refused rather
+than stored as `octet-stream`, and the type is re-asserted on the READ path because a
+creation-time guard is advisory.
+
+**Counts (real output, run alone):** `npx tsc --noEmit` 0, `npx eslint . --max-warnings=0`
+0, **5157 unit / 322 files**, `npx next build` clean. Full-suite e2e is RED with the V.1
+rotating flake — six runs, a different failing set each time, every failure in a spec this
+slice does not touch, and all 47 tests across all six of those files passing TOGETHER on
+the shipped tree in 55.9s. New V.1 evidence (an `ECONNRESET`, no listener on 3100 between
+runs, TIME_WAIT rising 754 → 1,179 with the failure count) is recorded in PROGRESS and on
+the V.1 row.
+
+### OPEN residuals, recorded rather than invented
+
+- **No per-USER storage cap.** Bounded per row (5 MB × 5 files) against an allowlisted
+  signup, so the ceiling is row count. The honest version of a user cap needs a decision
+  about what the app DOES when a reader reaches it, and nobody has one yet. Revisit with
+  TASKS 4.5 (widening the allowlist).
+- **HEIC is stored but never previewed** — no browser paints it in an `<img>`, so the
+  surface offers a download instead of a silently broken frame. iPhone uploads are
+  frequently HEIC, which is why the type is accepted at all.
+- **A 500 observed once** on the upload route under full-suite contention and never
+  reproduced (not in four later full runs, nor in a 12-way concurrent probe). No
+  diagnosis is claimed; the route no longer holds a write lock across three round trips,
+  and a store failure now returns a sentence written for the reader instead of a bare 500.

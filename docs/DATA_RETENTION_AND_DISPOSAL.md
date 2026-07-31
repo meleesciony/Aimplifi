@@ -29,6 +29,7 @@ is involved until a user creates an account and links a bank.
 | --- | --- |
 | Account metadata | Retained while the account is active. Last-4 digit mask only — full account numbers are never requested, stored, or displayed (`prisma/schema.prisma` `Account.mask`). |
 | Transactions, balances & statements | Retained while the account is active; the app imposes no separate expiry. Deleted completely on account deletion. |
+| Receipts & documents attached to a transaction | Retained while the transaction exists. Stored in the application database (`TransactionAttachment` + `AttachmentBlob`), **not** in external object storage, precisely so that the single cascading delete described in §3 removes the file itself — an object store would require a separate compensating deletion on every path, and one missed path would leave a receipt image outside this policy indefinitely. Removed when the reader deletes the file, the transaction, the account, or the whole record. Capped at 5 MB per file and 5 files per transaction. |
 | Derived data (recurring & scheduled items, categorization rules, corrections, goals, budgets, balance snapshots, holdings) | Retained while the account is active; cascade-deleted with the user record on account deletion. |
 | Provider access tokens (Plaid / SimpleFIN) | Retained while a connection is active, AES-256-GCM encrypted at rest (`src/lib/crypto.ts`). Revoked at the provider (Plaid `POST /item/remove`) during account deletion. |
 | Account settings (email, salted scrypt password hash, planning assumptions) | Retained while the account is active; deleted on account deletion (`src/lib/auth/password.ts`). |
@@ -49,8 +50,8 @@ data" (`src/server/account-actions.ts`). The process is:
 4. A single cascading delete of the user record removes every associated row: accounts,
    transactions, statements, card payments, balance snapshots, scheduled transactions,
    categorization rules, corrections, recurring series, goals, budgets, holdings, linked
-   Plaid/SimpleFIN connections, and audit-log rows (`onDelete: Cascade` throughout
-   `prisma/schema.prisma`).
+   Plaid/SimpleFIN connections, attached receipts and the files themselves, and audit-log
+   rows (`onDelete: Cascade` throughout `prisma/schema.prisma`).
 5. The action is session-verified and scoped to the requesting user's own records, and it
    is idempotent — if the record is already gone it completes silently and signs the user
    out.
