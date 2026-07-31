@@ -9995,7 +9995,14 @@ the V.1 row.
 
 ## O.17c — the shared demo can no longer remove a category (2026-07-31, DECISIONS #351)
 
-**Shipped.** `setCategoryHidden` now refuses the shared demo row for the REMOVING direction, the
+**Shipped and DEPLOY-VERIFIED** — commit `3e7f0c3`, pushed to `origin/main`, Vercel production
+deployment `dpl_Bvg4PtD6GzWxEa1skwJp9tykDVLi` ● Ready and aliased to `www.aimplifi.app`. No schema
+diff, so the live database was untouched by the deploy. The marker lives on an auth-gated page, so
+a curl could not see it: `scripts/audit-probes/o17c-live-deploy-check.mjs` signs into the shared
+demo on the real site (read-only, and it never clicks Remove) and confirms all seven markers on
+production — the new copy present, the old invitation gone, and no Remove control by testid or by
+accessible name, with the category list asserted present first so the absences cannot pass
+vacuously. `setCategoryHidden` now refuses the shared demo row for the REMOVING direction, the
 Remove control is dropped for demo rather than shown and refused, and the Settings copy no longer
 opens by inviting the very action the server declines.
 
