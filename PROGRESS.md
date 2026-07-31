@@ -6998,3 +6998,67 @@ identity above, plus the build log confirming the prediction made from the empty
 — no columns added, no production data touched. Runtime errors in the window: ONE
 pre-existing group only, the `pg` SSL-mode deprecation warning first seen
 2026-06-17, whose `lastDeployment` is the PREVIOUS deploy. Nothing new.
+
+### O.15 slice 4 — you can tell Aimplifi what repeats (O.13f)
+
+THE GAP, measured before building: `detectRecurring` needs three same-signed charges at
+a stable amount with agreeing gaps. Executed against one rent charge: zero series, zero
+scheduled rows. The bar is right for a guess — the L.24 money critic showed a false
+quarterly prints a dated outflow on /calendar — but the reader could never pay it off
+from the other side, in either direction.
+
+THE ARCHITECTURAL DECISION (DECISIONS #344): the instruction is applied INSIDE
+`detectRecurring`, as a REQUIRED third parameter. Five production surfaces detect
+independently (/recurring, the projection writer, the merchant lens, the radar's
+committed-merchant exclusion, the coach), so an instruction honoured by four of them
+would leave one still printing the bill he deleted. Required rather than defaulted
+because a forgotten argument fails silently; the compiler enumerated all nine call sites
+(six production, seed, benchmark, two audit probes). `radarFromSnapshot` took the same
+parameter AHEAD of its two optional ones — appended it could only have been optional.
+
+WHAT A DECLARATION MAY CLAIM: the rhythm and the direction, nothing else. Amount,
+anchor, account, category and the step-past-today all come from `buildSeries`, the one
+function detection now shares, so a declared bill cannot carry a figure absent from the
+reader's history. No price-change claim is ever attached (two plateaus need three
+sightings). `declaredByUser` is REQUIRED on `RecurringSeriesResult` so no surface can
+render his call as a pattern the app observed.
+
+THE E2E CAUGHT THE DEFECT NO UNIT TEST COULD: the first cut keyed the instruction on
+`Transaction.merchant.canonical`, which is NULL on every hand-entered row — so the
+feature refused precisely the reader it exists for, with "Aimplifi has no payee name for
+this transaction" printed under a heading showing the payee. The key is now
+`normalizeMerchant(rawDescriptor).canonical`, the string the DETECTOR groups by. Locked
+by two tests, both mutation-proven against the old key.
+
+TWO FRESH-CONTEXT FABLE CRITICS, BOTH FAIL — 1 P0 + 6 P1, all fixed:
+ * P0: an AGGREGATE payee (`Check`, `Venmo`, `Zelle`) could be declared — rent marked
+   monthly on a check would project the gardener's $40 into cash-needed.
+ * P1: the dominant-sign rule turned a refunded purchase into +$25.00/month of projected
+   INCOME on the payment account. The declared DIRECTION is now stored and honoured.
+ * P1: a bill declared from an old charge read "$0/month, no longer charging" on
+   /recurring while the plan carried the full rate — the L.23 two-surface split.
+ * P1: the detail page offered and SAVED a declaration for transfers and split
+   containers its own menu refused three inches above; now enforced on the wire.
+ * P1: copy asserted "it is projected … in your forecasts" for series that provably
+   reach no projection (on-card, long-cadence income, detection-overtaken).
+ * P1: renamed payees named one merchant and bound another.
+Plus: no deadline on /recurring's mutations, an exact-bytes lookup where the engine folds
+case, the panel reading raw rows instead of the parser, a quoted amount the engine does
+not use, tap-target/accessible names, role=alert. 3 REGRESSION_LEDGER rows.
+
+MUTATION-PROVEN, because a green test is a hypothesis: reverting the declared-sign rule
+kills 1 test, re-enabling the lapse gate for declared series kills 2, removing the
+declaration refusals kills 3. Baseline and restored both 45/45.
+
+GATE, and the two things it caught that nothing else did:
+ 1. `mobile-overflow.spec.ts` failed in BOTH engines — the new Recurring section made
+    /transactions/[id] 415px wide at a 360px viewport, because the shared Button is
+    `whitespace-nowrap` and two of its labels were sentences. Labels shortened and a
+    wrapping class added; re-run green in both engines.
+ 2. `rule-inventory.spec.ts` (not this slice's code) failed in the full suite twice —
+    parallel AND serialized — and passed twice in ~2s in isolation. Diagnosed rather
+    than re-run away: its delete click had no pre-hydration retry where the same spec's
+    earlier click does (#167). The click is now retried; the assertion is untouched.
+    Three other specs (merchant-lens, transactions, and the first mobile-overflow run)
+    failed only in the PARALLEL run and passed serialized — the documented load flake.
+

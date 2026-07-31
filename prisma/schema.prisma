@@ -76,6 +76,7 @@ model User {
   engagementEvents    EngagementEvent[]
   nudgeDismissals     NudgeDismissal[]
   incomePauseConfirmations IncomePauseConfirmation[]
+  recurringOverrides  RecurringOverride[]
   selfAuditSnapshots  SelfAuditSnapshot[]
   passwordResetTokens PasswordResetToken[]
   accountReconciliations AccountReconciliation[]
@@ -858,6 +859,38 @@ model IncomePauseConfirmation {
   id                String   @id @default(cuid())
   userId            String
   merchantCanonical String // the paused series' canonical merchant (engine-minted)
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, merchantCanonical])
+  @@index([userId])
+}
+
+// The reader's own verdict on whether a merchant is a bill (O.13f / O.15 slice 4).
+// Detection needs three sightings at a stable amount with agreeing gaps; this is the
+// lever for the two cases that bar cannot serve — a bill he KNOWS is monthly and has
+// paid once, and a series the detector invented from three coincidences. Applied
+// inside `detectRecurring` itself (src/lib/engine/recurring/override.ts holds the
+// closed sets and the match key), so all five detecting surfaces honour it at once.
+// One row per user×merchant; deleting the row is the undo, so there is no state to
+// unwind. The shared demo user never writes here (same fence as IncomePauseConfirmation).
+model RecurringOverride {
+  id                String   @id @default(cuid())
+  userId            String
+  merchantCanonical String // the series' canonical merchant (engine-minted)
+  decision          String // BILL | NOT_BILL — anything else reads back as no instruction
+  cadence           String? // WEEKLY|BIWEEKLY|MONTHLY|QUARTERLY|SEMIANNUAL|ANNUAL; required for BILL
+  // OUT | IN — the DIRECTION of the charge he was standing on when he said it.
+  // Part of the instruction, not decoration: without it the engine falls back to
+  // whichever sign is in the majority for that payee, and a purchase with two
+  // refunds against it would be declared as recurring INCOME at a refund's amount
+  // (found by the money critic, executed). Null on rows written before this column
+  // and on NOT_BILL, where there is nothing to project.
+  declaredSign      String?
+  // The row he was standing on when he said it — kept for the audit trail only.
+  // Never read by detection: a bill is a fact about a MERCHANT, and the source row
+  // can be deleted, split or re-filed without the instruction meaning less.
+  sourceTransactionId String?
   createdAt         DateTime @default(now())
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

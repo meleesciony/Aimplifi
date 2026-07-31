@@ -803,3 +803,71 @@ eight fixed; both directions now asserted. Recorded rather than papered over: th
 formulations of `isBuilderListed` are equivalent over every entry the mapper can
 build, so no fixture separates them, and the module says so instead of the test
 pretending otherwise. 3 REGRESSION_LEDGER rows.
+
+## #344 (O.15 slice 4 / TASKS O.13f): the reader may declare a bill — and the declaration is applied inside the detector, not beside it
+
+SIMPLIFI_PARITY row 12. Detection calls nothing recurring below **three** charges at a
+stable amount with agreeing gaps (`detectRecurring` + `cadenceFromGaps`), and that bar
+is deliberate — the L.24 money critic showed a false quarterly is not a mis-stated
+figure but a NEW invented obligation, printing a dated outflow on /calendar and able to
+raise a radar "move $X by <date>". The bar's cost was that the reader could never pay it
+off from the other side: he knows the rent he has paid once from this account is
+monthly, and there was no way to say so; he can see three haircuts assembled into a
+"bill", and no way to say it is wrong.
+
+**WHERE the instruction is applied is the whole decision.** Five production surfaces
+detect independently — /recurring (`getRecurring`), the projection writer
+(`refreshRecurringForUser`), the merchant lens (`server/transactions.ts`), the radar's
+committed-merchant exclusion, and the coach. An instruction honoured by four of them is
+worse than one honoured by none: one surface would still print the bill he deleted. So
+the override is a **required third parameter of `detectRecurring` itself**, with no
+default. Required, not optional, because the failure mode of a forgotten argument is
+silent and reader-visible; the compiler enumerated all nine call sites (six production,
+the seed, the benchmark and two audit probes) and `NO_RECURRING_OVERRIDES` is the
+explicit "nobody has said anything" the non-user paths pass. `radarFromSnapshot` took
+the same parameter AHEAD of its two optional ones, because appended it could only have
+been optional.
+
+**What a declaration may claim: exactly the rhythm.** The amount, the anchor date, the
+account, the category, the sign and the next-date stepping all come from
+`buildSeries`, the one function detection itself now uses — so a declared bill can never
+carry a figure that appears nowhere in the reader's history. It carries NO price-change
+claim (`previousAmountCents`/`priceChangedAt` stay null): the two-plateau rule needs
+three sightings to mean anything, and a declaration exists precisely where there are
+fewer, so announcing "the price went up" from two rows would be the app originating a
+fact. `declaredByUser` is a REQUIRED field on `RecurringSeriesResult`, so every
+constructor states which kind it is building and no surface can render the reader's own
+call as a pattern the app observed.
+
+**Detection wins where both apply.** If the charges earn a series by themselves, that
+series is used and `declaredByUser` stays false — the evidence read the real gaps, where
+a declaration is one remembered rhythm. That makes the reader's row redundant rather
+than wrong, and /recurring says which of the four `VerdictEffect`s is in force
+(`suppressed` / `projected-as-declared` / `detected-anyway` / `no-charges`) rather than
+implying his cadence is always the one being projected. NOT_BILL beats everything,
+including the evidence: it is the only lever against a false detection, and a detector
+that could out-vote it would make the lever advisory.
+
+**The projection rebuild is part of the write.** Live detection feeds /recurring, the
+lens, the radar and the coach; the CASH surfaces — /calendar, /forecast, /spending-plan
+and the dashboard's cash-needed — read stored `ScheduledTransaction` rows, which only
+`refreshRecurringForUser` writes. Without the refresh inside the action, a declared bill
+would appear on /recurring and nowhere else until some future sync: two surfaces
+disagreeing about one fact. When the rebuild fails the save still stands (the row is
+stored; the next sync applies it) and the action RETURNS `projectionsRefreshed: false`,
+which both callers surface as a named banner rather than a silent success.
+
+**The key is the string the DETECTOR groups by** — `normalizeMerchant(rawDescriptor)
+.canonical`, not `Transaction.merchant.canonical`. The first cut used the merchant
+relation and the e2e caught it: `merchantId` is null on every hand-entered row, i.e. on
+exactly the population a declaration exists for, so the feature refused the reader it
+was built for. Matching is case- and NFC-folded, because `Merchant.canonical` can hold
+`costco` and `Costco` (the recorded O.13c residual) and an instruction about a payee is
+an instruction about the payee he sees.
+
+**Recorded residuals, not fixed:** an O.13c-renamed payee is keyed and listed under the
+bank's normalized name while the register and the detail sentence show the typed name;
+`markRecurring` is refused on transfers, so the one transfer class detection keeps (the
+auto-loan ACH) cannot be declared — it is already detected when it recurs; and a read
+fault on the override table degrades to "he never said anything", which re-projects a
+demoted series for as long as the fault lasts (the alternative takes down five pages).

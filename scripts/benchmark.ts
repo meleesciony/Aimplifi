@@ -13,6 +13,7 @@
 import { buildSeedData } from '../src/lib/seed/build';
 import { categorize } from '../src/lib/engine/categorize/pipeline';
 import { detectRecurring, type Cadence } from '../src/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { monthlyFlows } from '../src/lib/engine/fi/insights';
 import { fiNumberCents, monthsToFI, savingsRateBps } from '../src/lib/engine/fi/fi';
 import { assembleCashNeededInput } from '../src/lib/engine/cash-needed/assemble';
@@ -54,7 +55,7 @@ function main() {
   console.log(`   label, so scoring against it would be circular. Review rate is honest.\n`);
 
   // ── 2. Recurring / subscription detection ──
-  const series = detectRecurring(posted, today);
+  const series = detectRecurring(posted, today, NO_RECURRING_OVERRIDES);
   const subs = series.filter((s) => s.isSubscription);
   const unused = series.filter((s) => s.possiblyUnused);
   const priceChanges = series.filter((s) => s.priceChangedAt);

@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { isoDate } from '@/lib/dates';
 import { buildSeedData } from '@/lib/seed/build';
 import { detectRecurring, type RecurringSeriesResult } from '@/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { computeNoCreepStreak } from '@/lib/engine/recurring/creep-streak';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 
@@ -31,6 +32,7 @@ function series(overrides: Partial<RecurringSeriesResult> = {}): RecurringSeries
     isIncome: false,
     possiblyUnused: false,
     accountId: 'acct-freedom',
+    declaredByUser: false,
     ...overrides,
   };
 }
@@ -146,7 +148,7 @@ describe('demo seed lock (#254) — Netflix is the demo’s only creep event', (
         .map((a) => a.id),
     );
     const txns = seed.transactions.filter((t) => t.status === 'POSTED' && spendingIds.has(t.accountId));
-    const detected = detectRecurring(txns, TODAY);
+    const detected = detectRecurring(txns, TODAY, NO_RECURRING_OVERRIDES);
     const r = computeNoCreepStreak(detected, TODAY);
     expect(r.streakMonths).toBe(3);
     expect(r.brokeOn).toEqual({

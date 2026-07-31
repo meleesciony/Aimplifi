@@ -13,6 +13,7 @@ import { CATEGORIES } from '../src/lib/engine/categorize/categories';
 import { KNOWN_MERCHANTS } from '../src/lib/engine/categorize/normalize';
 import { categorize } from '../src/lib/engine/categorize/pipeline';
 import { detectRecurring } from '../src/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { isoDate } from '../src/lib/dates';
 
 const prisma = new PrismaClient({ adapter: makeAdapter(process.env.DATABASE_URL) });
@@ -199,6 +200,9 @@ async function main() {
   const series = detectRecurring(
     data.transactions.filter((t) => t.status === 'POSTED'),
     isoDate(data.asOf),
+    // The seeded account has no reader verdicts by construction: this runs before
+    // anyone has used the app, and the demo user is fenced out of writing them.
+    NO_RECURRING_OVERRIDES,
   );
   await prisma.recurringSeries.createMany({
     data: series

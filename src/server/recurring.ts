@@ -17,6 +17,7 @@ import {
   toScheduledRow,
 } from '@/lib/engine/recurring/detect';
 import { confirmedPauseState } from '@/lib/engine/income/pause';
+import { getRecurringOverrides } from '@/server/recurring-overrides';
 import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurring/summary';
 import { upcomingRenewals, type UpcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { categoryName } from '@/lib/engine/categorize/categories';
@@ -67,7 +68,7 @@ export async function getRecurring(userId: string): Promise<RecurringData> {
       isTransfer: t.isTransfer,
     }));
 
-  const series = detectRecurring(txns, isoDate(today));
+  const series = detectRecurring(txns, isoDate(today), await getRecurringOverrides(userId));
   const summary = summarizeRecurring(series, today);
   const renewals = upcomingRenewals(summary.items, today);
 
@@ -187,7 +188,16 @@ export async function refreshRecurringForUser(
   // cadence/price-change/possiblyUnused, and the persisted scheduled rows feed forecast and
   // cash-needed. Same shared R1 rule as the register.
   const keepsReconciled = await getReconciliationTxnKeep(userId);
-  const series = detectRecurring(txns.filter((t) => keepsReconciled(t.accountId, t.date)) as RecurringTxn[], today);
+  // O.13f: the reader's own verdicts, applied by the detector itself — so what this
+  // function PERSISTS (RecurringSeries + the ScheduledTransaction rows feeding
+  // cash-needed, forecast, the calendar and the spending plan) is the same set the
+  // /recurring page shows him. A bill he declared is projected; a series he demoted
+  // stops being projected here, which is the only place a projection is written.
+  const series = detectRecurring(
+    txns.filter((t) => keepsReconciled(t.accountId, t.date)) as RecurringTxn[],
+    today,
+    await getRecurringOverrides(userId),
+  );
 
   // RecurringSeries.merchantId is required; resolve canonical → Merchant.id. Series
   // whose merchant has no row are skipped (mirrors the seed). The Plaid ingest

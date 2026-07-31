@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { detectRecurring, type RecurringTxn } from '@/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { isoDate } from '@/lib/dates';
 
 const today = isoDate('2026-06-10');
@@ -28,7 +29,7 @@ describe('critic: recurring detection adversarial cases', () => {
       t('2026-05-03', -1799, 'NETFLIX.COM 866-579-7172'),
       t('2026-06-03', -1799, 'NETFLIX.COM 866-579-7172'),
     ];
-    const series = detectRecurring(txns, today);
+    const series = detectRecurring(txns, today, NO_RECURRING_OVERRIDES);
     const netflix = series.find((s) => s.merchantCanonical === 'Netflix');
     expect(netflix).toBeDefined();
     expect(netflix!.cadence).toBe('MONTHLY'); // median gap [31,28,61,31] = 31 ✓
@@ -39,7 +40,7 @@ describe('critic: recurring detection adversarial cases', () => {
       t('2025-06-01', -9900, 'AMAZON.COM*PR1ME 8821'),
       t('2026-06-01', -9900, 'AMAZON.COM*PR1ME 8821'),
     ];
-    const series = detectRecurring(txns, today);
+    const series = detectRecurring(txns, today, NO_RECURRING_OVERRIDES);
     expect(series).toHaveLength(0); // txns.length < 3 → skipped (detect.ts:93)
   });
 
@@ -53,7 +54,7 @@ describe('critic: recurring detection adversarial cases', () => {
       t('2026-04-06', -1799, 'NETFLIX.COM 866-579-7172'), // rebill
       t('2026-05-03', -1799, 'NETFLIX.COM 866-579-7172'),
     ];
-    const series = detectRecurring(txns, today);
+    const series = detectRecurring(txns, today, NO_RECURRING_OVERRIDES);
     // The +$17.99 refund is the minority sign → excluded; the 6 charges still
     // form the series. (Previously distinct={-1799,+1799} with firstNewIdx=0
     // dropped the whole subscription — STATUS #7, now resolved by the
@@ -76,7 +77,7 @@ describe('critic: recurring detection adversarial cases', () => {
       t('2026-05-15', 245000, 'ACH DEPOSIT ACME ANALYTICS PAYROLL'),
       t('2026-05-29', 245000, 'ACH DEPOSIT ACME ANALYTICS PAYROLL'),
     ];
-    const series = detectRecurring(txns, today);
+    const series = detectRecurring(txns, today, NO_RECURRING_OVERRIDES);
     const payroll = series.find((s) => s.isIncome);
     expect(payroll).toBeDefined();
     expect(payroll!.cadence).toBe('BIWEEKLY'); // gaps [14,14,21,7,14,14] → median 14 ✓
@@ -92,7 +93,7 @@ describe('critic: recurring detection adversarial cases', () => {
       t('2026-05-09', -3499, 'LA FITNESS MEMBERSHIP DUES'),
       t('2026-06-09', -3499, 'LA FITNESS MEMBERSHIP DUES'), // charged yesterday
     ];
-    const series = detectRecurring(txns, today);
+    const series = detectRecurring(txns, today, NO_RECURRING_OVERRIDES);
     expect(series[0].possiblyUnused).toBe(true); // flagged with zero 90-day evidence
   });
 
@@ -103,7 +104,7 @@ describe('critic: recurring detection adversarial cases', () => {
       t('2026-05-03', -1549, 'NETFLIX.COM 866-579-7172'),
       t('2026-06-03', 1549, 'NETFLIX.COM 866-579-7172'), // refund, most recent
     ];
-    const series = detectRecurring(txns, today);
+    const series = detectRecurring(txns, today, NO_RECURRING_OVERRIDES);
     const s = series.find((x) => x.merchantCanonical === 'Netflix');
     // The trailing +$15.49 refund (minority sign) is excluded; the 3 charges are
     // a clean monthly expense subscription — NOT phantom +$15.49/mo "income".

@@ -38,6 +38,7 @@ import {
   type RecurringSeriesResult,
   type RecurringTxn,
 } from '@/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { assembleCashNeededInput } from '@/lib/engine/cash-needed/assemble';
 import { refreshRecurringForUser } from '@/server/recurring';
 import { getSpendingPlan } from '@/server/spending-plan';
@@ -59,7 +60,7 @@ function monthlyTxns(descriptor: string, accountId: string, amountCents: number)
 
 describe('toScheduledTransactions — the account SET, not one account (L.25)', () => {
   const savingsSeries = () => {
-    const [s] = detectRecurring(monthlyTxns(GYM_DESC, 'acct-savings', -4500), isoDate(TODAY));
+    const [s] = detectRecurring(monthlyTxns(GYM_DESC, 'acct-savings', -4500), isoDate(TODAY), NO_RECURRING_OVERRIDES);
     expect(s?.cadence).toBe('MONTHLY');
     expect(s?.accountId).toBe('acct-savings');
     return s!;
@@ -85,7 +86,7 @@ describe('toScheduledTransactions — the account SET, not one account (L.25)', 
   });
 
   it('does NOT project a series charged to a CREDIT card — that is the obligation term', () => {
-    const [card] = detectRecurring(monthlyTxns(GYM_DESC, 'acct-card', -4500), isoDate(TODAY));
+    const [card] = detectRecurring(monthlyTxns(GYM_DESC, 'acct-card', -4500), isoDate(TODAY), NO_RECURRING_OVERRIDES);
     expect(card?.accountId).toBe('acct-card');
     // The cash set is CHECKING/SAVINGS only. Were the card admitted, this $45 would
     // be subtracted twice: once as its own fixed-expense row and once inside the
@@ -102,7 +103,7 @@ describe('toScheduledTransactions — the account SET, not one account (L.25)', 
     // leaves; income landing in savings does NOT fund a card payment that must leave
     // checking, and counting it would shrink the L.11(D) reservation — the
     // figure-vs-instruction error L.14 records, in the guilt-free-RAISING direction.
-    const [income] = detectRecurring(monthlyTxns('STRIPE PAYOUT ETSY SHOP', 'acct-savings', 38000), isoDate(TODAY));
+    const [income] = detectRecurring(monthlyTxns('STRIPE PAYOUT ETSY SHOP', 'acct-savings', 38000), isoDate(TODAY), NO_RECURRING_OVERRIDES);
     expect(income?.isIncome).toBe(true);
     expect(income?.cadence).toBe('MONTHLY');
     expect(
@@ -117,7 +118,7 @@ describe('toScheduledTransactions — the account SET, not one account (L.25)', 
   it('still projects detected income ON the payment account, exactly as before', () => {
     // The other direction of the same rule — the asymmetry must not become a silent
     // ban on detected payroll, which is what feeds `payroll-detected` rows.
-    const [income] = detectRecurring(monthlyTxns('ACME PAYROLL', 'acct-checking', 38000), isoDate(TODAY));
+    const [income] = detectRecurring(monthlyTxns('ACME PAYROLL', 'acct-checking', 38000), isoDate(TODAY), NO_RECURRING_OVERRIDES);
     const rows = toScheduledTransactions(
       [income!],
       { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking', 'acct-savings']) },
@@ -139,7 +140,7 @@ describe('toScheduledTransactions — the account SET, not one account (L.25)', 
         rawDescriptor: 'ACH WITHDRAWAL CARMAX AUTO FIN', isTransfer: true,
       }));
 
-    const [onJoint] = detectRecurring(ach('acct-joint'), isoDate(TODAY));
+    const [onJoint] = detectRecurring(ach('acct-joint'), isoDate(TODAY), NO_RECURRING_OVERRIDES);
     expect(onJoint?.categoryId).toBe('auto-loan');
     expect(
       toScheduledTransactions(
@@ -151,7 +152,7 @@ describe('toScheduledTransactions — the account SET, not one account (L.25)', 
 
     // …but on the PAYMENT account it still projects exactly as it always has.
     // #134 is an accepted residual; this slice must not silently close it either.
-    const [onPayment] = detectRecurring(ach('acct-checking'), isoDate(TODAY));
+    const [onPayment] = detectRecurring(ach('acct-checking'), isoDate(TODAY), NO_RECURRING_OVERRIDES);
     expect(
       toScheduledTransactions(
         [onPayment!],
@@ -184,6 +185,7 @@ describe('the single-account balance walks re-filter, which is what makes wideni
     isIncome: false,
     possiblyUnused: true,
     accountId: 'acct-savings',
+    declaredByUser: false,
   } satisfies RecurringSeriesResult;
 
   it('cash-needed assembles only the PAYMENT account rows, so a savings bill never hits the checking walk', () => {

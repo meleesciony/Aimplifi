@@ -13,6 +13,7 @@
 import { type ISODate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import { type RecurringTxn, detectRecurring, toScheduledTransactions } from '@/lib/engine/recurring/detect';
+import { getRecurringOverrides } from '@/server/recurring-overrides';
 import { confirmedPauseState } from '@/lib/engine/income/pause';
 import { activeTerminalSuccessorMap, getReconciliationTxnKeep } from '@/server/reconciliation';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
@@ -38,7 +39,7 @@ async function main() {
   const kept = txns.filter((t) => keepsReconciled(t.accountId, t.date));
   console.log(`txns after the reconciliation keep rule: ${kept.length} (dropped ${txns.length - kept.length})`);
 
-  const series = detectRecurring(kept as RecurringTxn[], today);
+  const series = detectRecurring(kept as RecurringTxn[], today, await getRecurringOverrides(OWNER));
   console.log(`detectRecurring -> ${series.length} series`);
 
   const [user, accounts, terminalOf] = await Promise.all([

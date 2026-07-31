@@ -82,6 +82,7 @@ import {
   SPLIT_BLOCKED_TRANSFER,
 } from '@/lib/engine/transactions/actions';
 import { findOffsettingInflow, reimbursementState } from '@/lib/engine/transactions/reimbursement';
+import { getRecurringOverrides } from '@/server/recurring-overrides';
 
 /** Merchant Pattern Lens view (AI plan §Later #19, DECISIONS #250): rendered
  *  narration for the merchant the register is filtered to. Null when the
@@ -338,6 +339,11 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
             isTransfer: t.isTransfer,
           })),
         today,
+        // O.13f: the merchant lens captions this payee with its cadence and
+        // monthly rate, so it must read the reader's own verdicts too — a payee he
+        // declared a bill is captioned as one here, and one he demoted loses the
+        // caption instead of keeping it on the single page that re-detects locally.
+        await getRecurringOverrides(userId),
       );
       // Expense series only: the profile describes CHARGES, so an income
       // series' cadence (a deposit schedule) must never caption it.

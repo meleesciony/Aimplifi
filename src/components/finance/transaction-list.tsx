@@ -1119,6 +1119,11 @@ export function TransactionList({
                                 // The split form lives on the detail view — navigate,
                                 // don't duplicate it here.
                                 splitHref: `/transactions/${encodeURIComponent(t.id)}`,
+                                // Same reason as split: the recurring verdict and
+                                // the rhythm picker are server-rendered on the
+                                // detail view, where what is already in force can
+                                // be shown rather than guessed at from row facts.
+                                recurringHref: `/transactions/${encodeURIComponent(t.id)}#recurring`,
                                 onReimbursement: (state) =>
                                   void writeFlag(t, () =>
                                     setReimbursement({ transactionId: t.id, state }),

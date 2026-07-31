@@ -130,8 +130,19 @@ test('a rule minted by "Always" is visible on /rules and can be deleted', async 
   await expect(page.getByTestId('kw-rule-row')).toHaveCount(0);
 
   // Delete it, and it is gone on a fresh request — stored state, not a repaint.
-  await page.getByTestId('inventory-delete').click();
-  await expect(page.getByTestId('inventory-rule-row')).toHaveCount(0, { timeout: 20_000 });
+  //
+  // The click is retried for the same reason the category-chip click above is
+  // (#167): the first click after a navigation can land pre-hydration and drop
+  // silently. Measured 2026-07-30 — this test failed twice in the FULL suite (both
+  // parallel and serialized, the delete never landing across 43 polls) and passed
+  // twice in a row in isolation in ~2s against a 60s budget, i.e. the server was
+  // loaded, not the page broken. The ASSERTION is untouched: the row must be gone,
+  // and the reload below still proves it was stored rather than repainted. Deleting
+  // twice is a no-op (`deleteMany`), so the retry cannot mask a half-delete.
+  await expect(async () => {
+    await page.getByTestId('inventory-delete').click({ timeout: 2_000 });
+    await expect(page.getByTestId('inventory-rule-row')).toHaveCount(0, { timeout: 3_000 });
+  }).toPass({ timeout: 20_000 });
   await page.reload();
   await expect(page.getByTestId('inventory-empty')).toBeVisible({ timeout: 20_000 });
 

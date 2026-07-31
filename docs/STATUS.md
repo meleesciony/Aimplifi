@@ -2,6 +2,96 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-30 — O.15 slice 4: you can tell Aimplifi what repeats (DECISIONS #344)
+
+SIMPLIFI_PARITY row 12 / TASKS O.13f. Detection calls nothing recurring below three
+charges at a stable amount with agreeing gaps, and that bar is right for a guess — a
+false positive is not a mis-stated figure but a NEW invented obligation, with a dated
+outflow on /calendar. Its cost was that the bar could never be paid off from the other
+side: the reader knows the rent he has paid once is monthly, and there was no way to say
+so; he can see three haircuts assembled into a "bill", and no way to argue.
+
+Now: a **Recurring** section on `/transactions/[id]` (reached from a new item in the one
+action menu on every register row) declares a payee recurring at a rhythm he picks, from
+as little as one charge; `/recurring` carries **Not recurring** on the row where a false
+detection is visible, plus **What you've told Aimplifi** — every standing instruction
+with its Remove, which is the only place a demoted series could be recovered from.
+
+The instruction is applied **inside `detectRecurring`**, as a required third parameter
+with no default, because five surfaces detect independently and one that forgot would
+still be printing the bill he deleted; the compiler enumerated all nine call sites. A
+declaration claims exactly the **rhythm** and the **direction** — amount, anchor, sign,
+account and next-date all come from the same `buildSeries` detection uses, and no
+price-change claim is ever attached. The write rebuilds the stored
+`ScheduledTransaction` rows, so /calendar, /forecast, /spending-plan and cash-needed
+move in the same gesture; a rebuild that fails returns `projectionsRefreshed: false` and
+is named on screen rather than implied.
+
+**Two fresh-context Fable critics, both FAIL on first reading** (1 P0, 6 P1 between
+them; all fixed and mutation-proven — three source mutations, each killing tests):
+
+* **P0 — an aggregate payee could be declared.** `Check`, `Venmo`, `Zelle Payment` are
+  ONE canonical over many unrelated payees; detection is safe there only because it
+  needs three sightings at a stable amount. Declared, "my rent is monthly" said on
+  `CHECK #2204` ($1,800) would have projected whatever the most recent check happened to
+  be — the gardener's $40 — into cash-needed and onto the calendar. Now refused, through
+  the existing `isAggregateCanonical`, at one decision point the menu, the page and the
+  server all read.
+* **P1 — the dominant-sign rule invented income.** A $49.99 purchase carrying two
+  refunds has a positive majority, so declaring "this charge repeats" produced recurring
+  INCOME of $25.00 on the payment account — the direction that silences warnings. The
+  declared **direction** is now stored with the instruction and honoured by the engine.
+* **P1 — a declared bill filed as "no longer charging".** One charge from two months ago
+  declared MONTHLY read $0/month on /recurring while the plan and calendar carried the
+  full rate — the exact split both L.23 critics rated P1. A declaration is now exempt
+  from the lapse gate in both surfaces' shared predicate: silence is evidence of death
+  only where the app inferred the rhythm.
+* **P1 — the detail page contradicted its own menu**, offering (and saving) a
+  declaration for transfers and split containers the menu refused three inches above.
+  Refusals are now enforced on the wire and rendered as the same sentence.
+* **P1 — copy asserted a projection the page cannot see.** "It is projected … in your
+  forecasts" was false for a card-charged series, for long-cadence income and for a
+  payee whose charges earned their own different cadence. The detail page now states the
+  INSTRUCTION and links to /recurring; the panel states the rhythm and the amount basis
+  and claims nothing about forecasts.
+* **P1 — renamed payees named one merchant and bound another.** Every sentence now names
+  the key the instruction actually binds, which is the string the instructions list shows.
+
+Also fixed: no deadline on /recurring's mutations (a hung write disabled both buttons
+forever with no sentence); an exact-bytes verdict lookup where the engine folds case; the
+panel reading raw rows instead of the parser the detector reads; the quoted "$X" in the
+pitch copy (the engine anchors on the payee's most recent charge, not the row you are
+standing on); `tap-target` and per-row accessible names; `role="alert"` on the stale
+banner.
+
+### 🟠 OPEN, deliberately deferred by this slice
+
+1. **The instructions panel does not name WHY a declared series is or is not projected.**
+   `SeriesProjectionStatus` (L.30) is computed only by the projection writer, and
+   /recurring detects live without a projection scope; rather than build a second basis
+   for the same question, the copy makes no projection claim at all. Naming the status
+   per instruction means threading the stored `RecurringSeries.projectionStatus` (the one
+   pass that decides the rows) onto the page — its own slice.
+2. **A declared series is projected until the reader removes it.** The lapse exemption is
+   deliberate (see above), so a bill that genuinely stops charging keeps its projection
+   until he says otherwise. It is listed with a one-click Remove on the page that shows
+   it; a "this hasn't charged in a while — still yours?" prompt is not built.
+3. **Instruction #201 is silently inert.** `MAX_OVERRIDES_READ = 200` caps the read; the
+   write does not cap, so a 201st instruction would save, never be honoured and never be
+   listed. No reader is near it; the failure is silent by construction, which is the part
+   worth recording.
+4. **An O.13c-renamed payee is keyed and listed under the bank's normalized name** while
+   the register shows the typed name. The key is right (it is what the detector groups
+   by) and every sentence in this feature now uses it, but the reader sees two names for
+   one payee across two features.
+5. **A read fault on the override table degrades to "he never said anything"**, so a
+   demoted series is projected again for as long as the fault lasts. The alternative —
+   throwing — takes down /recurring, /dashboard, the radar and the coach for the same
+   fault.
+6. **Concurrent verdicts race benignly:** two simultaneous writes each run a full-replace
+   refresh, and an unlucky interleaving leaves the second instruction stored but
+   unprojected until the next sync, with no stale notice. Self-heals.
+
 ## ✅ BUILT 2026-07-30 — O.15 slice 3: every rule that files your money is on one page (DECISIONS #343)
 
 Measured before building, not reported by anyone: the categorizer loads **every**

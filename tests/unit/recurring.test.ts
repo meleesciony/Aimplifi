@@ -7,13 +7,14 @@
 import { describe, expect, it } from 'vitest';
 import { buildSeedData } from '@/lib/seed/build';
 import { detectRecurring, toScheduledTransactions } from '@/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { assembleCashNeededInput } from '@/lib/engine/cash-needed/assemble';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
 import { holidayTable, isoDate } from '@/lib/dates';
 
 const seed = buildSeedData('2026-06-10');
 const posted = seed.transactions.filter((t) => t.status === 'POSTED');
-const series = detectRecurring(posted, isoDate('2026-06-10'));
+const series = detectRecurring(posted, isoDate('2026-06-10'), NO_RECURRING_OVERRIDES);
 
 describe('recurring detection on seed data', () => {
   it('finds ≥8 subscriptions', () => {
@@ -114,7 +115,7 @@ describe('refund robustness (STATUS #7 / ROADMAP #4): a refund+rebill keeps the 
       { id: '3', accountId: 'a', date: '2026-03-05', amountCents: -1599, rawDescriptor: 'GLOWBOX MONTHLY' },
       { id: '4', accountId: 'a', date: '2026-04-05', amountCents: -1599, rawDescriptor: 'GLOWBOX MONTHLY' },
     ];
-    const out = detectRecurring(txns, isoDate('2026-06-10'));
+    const out = detectRecurring(txns, isoDate('2026-06-10'), NO_RECURRING_OVERRIDES);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ cadence: 'MONTHLY', typicalAmountCents: -1599, occurrences: 4 });
   });
@@ -125,6 +126,6 @@ describe('refund robustness (STATUS #7 / ROADMAP #4): a refund+rebill keeps the 
       { id: '2', accountId: 'a', date: '2026-02-05', amountCents: -1599, rawDescriptor: 'GLOWBOX MONTHLY' },
       { id: 'r', accountId: 'a', date: '2026-02-09', amountCents: 1599, rawDescriptor: 'GLOWBOX MONTHLY' },
     ];
-    expect(detectRecurring(txns, isoDate('2026-06-10'))).toHaveLength(0); // only 2 charges < 3
+    expect(detectRecurring(txns, isoDate('2026-06-10'), NO_RECURRING_OVERRIDES)).toHaveLength(0); // only 2 charges < 3
   });
 });

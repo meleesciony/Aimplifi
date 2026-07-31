@@ -59,6 +59,7 @@ import {
   type RecurringSeriesResult,
   type RecurringTxn,
 } from '@/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { summarizeRecurring } from '@/lib/engine/recurring/summary';
 import { expandScheduled as expandForecast } from '@/lib/engine/forecast/forecast';
 import { expandScheduled as expandCalendar } from '@/lib/engine/calendar/build';
@@ -110,6 +111,7 @@ const seriesShape = {
   isIncome: false,
   possiblyUnused: false,
   accountId: 'acct-checking',
+  declaredByUser: false,
 } satisfies RecurringSeriesResult;
 
 /** Three same-amount charges one clamped year apart — the shape `cadenceFromGaps`
@@ -126,7 +128,7 @@ function annualSeriesTxns(descriptor: string, amountCents: number, firstDate: st
 
 describe('toScheduledTransactions — the ANNUAL passthrough, both directions (L.23)', () => {
   it('projects a detected annual EXPENSE with cadence ANNUAL on its own dated occurrence', () => {
-    const series = detectRecurring(annualSeriesTxns(PREMIUM_DESC, -120000, '2023-08-15'), isoDate(TODAY));
+    const series = detectRecurring(annualSeriesTxns(PREMIUM_DESC, -120000, '2023-08-15'), isoDate(TODAY), NO_RECURRING_OVERRIDES);
     expect(series).toHaveLength(1);
     expect(series[0].cadence).toBe('ANNUAL');
     expect(series[0].isIncome).toBe(false);
@@ -146,7 +148,7 @@ describe('toScheduledTransactions — the ANNUAL passthrough, both directions (L
   });
 
   it('does NOT project a detected annual INCOME series — the failure direction differs by role', () => {
-    const series = detectRecurring(annualSeriesTxns(BONUS_DESC, 500000, '2023-12-15'), isoDate(TODAY));
+    const series = detectRecurring(annualSeriesTxns(BONUS_DESC, 500000, '2023-12-15'), isoDate(TODAY), NO_RECURRING_OVERRIDES);
     expect(series).toHaveLength(1);
     expect(series[0].cadence).toBe('ANNUAL');
     expect(series[0].isIncome).toBe(true);
@@ -160,6 +162,7 @@ describe('toScheduledTransactions — the ANNUAL passthrough, both directions (L
     const detected = detectRecurring(
       seed.transactions.filter((t) => t.status === 'POSTED'),
       isoDate(TODAY),
+          NO_RECURRING_OVERRIDES,
     );
     const rows = toScheduledTransactions(detected, { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate(TODAY));
     expect(rows.some((r) => r.cadence === 'BIWEEKLY' && r.source === 'payroll-detected')).toBe(true);
@@ -302,7 +305,7 @@ describe('L.24 — the every-gap licence a QUARTERLY/SEMIANNUAL classification m
     return out;
   };
   const cadenceOf = (label: string, gaps: readonly number[]) =>
-    detectRecurring(gapsToTxns(label, gaps), isoDate(TODAY))[0]?.cadence ?? null;
+    detectRecurring(gapsToTxns(label, gaps), isoDate(TODAY), NO_RECURRING_OVERRIDES)[0]?.cadence ?? null;
 
   it('a real quarterly rhythm is QUARTERLY; a real semiannual one is SEMIANNUAL', () => {
     // Calendar-quarter billing drifts 89–92 days by month length alone.
@@ -345,7 +348,7 @@ describe('L.24 — the every-gap licence a QUARTERLY/SEMIANNUAL classification m
       amountCents: amountCents as number,
       rawDescriptor: 'VET CLINIC',
     }));
-    expect(detectRecurring(vet, isoDate(TODAY))).toEqual([]);
+    expect(detectRecurring(vet, isoDate(TODAY), NO_RECURRING_OVERRIDES)).toEqual([]);
   });
 
   it('real-world quarterly anchors still detect — the spread cap costs no genuine bill', () => {
@@ -527,6 +530,7 @@ describe('L.24 — the long-cadence rules apply to the two new cadences, not jus
         rawDescriptor: t.rawDescriptor ?? '',
       })),
       isoDate(TODAY),
+          NO_RECURRING_OVERRIDES,
     );
     expect(detected.filter((s) => s.cadence === 'QUARTERLY' || s.cadence === 'SEMIANNUAL')).toEqual([]);
   });
@@ -539,7 +543,7 @@ describe('a LAPSED annual series is projected nowhere — the two surfaces agree
   // nextExpectedAt next August. Unguarded, /recurring filed it under "no longer
   // charging" at $0/month while the plan counted $100/month forever and the
   // calendar printed a dated −$1,200 for a cancelled policy.
-  const lapsed = () => detectRecurring(annualSeriesTxns('LAPSED POLICY', -120000, '2019-08-15'), isoDate(TODAY));
+  const lapsed = () => detectRecurring(annualSeriesTxns('LAPSED POLICY', -120000, '2019-08-15'), isoDate(TODAY), NO_RECURRING_OVERRIDES);
 
   it('detects, but is filed as no-longer-charging and projected zero times', () => {
     const series = lapsed();
@@ -561,13 +565,16 @@ describe('a LAPSED annual series is projected nowhere — the two surfaces agree
   it('is exactly the /recurring rule, at the cadence-scaled boundary', () => {
     // 365 × 1.5 = 548 days of silence. One day inside it still charges; one day
     // outside it does not — and the same predicate answers for both surfaces.
-    const s = { cadence: 'ANNUAL' as const, lastSeenAt: isoDate('2025-01-01') };
+    const s = { cadence: 'ANNUAL' as const, lastSeenAt: isoDate('2025-01-01'), declaredByUser: false };
     expect(isSeriesActive(s, isoDate('2026-07-03'))).toBe(true); // 548 days
     expect(isSeriesActive(s, isoDate('2026-07-04'))).toBe(false); // 549
     // A monthly bill's silence becomes evidence in ~45 days, not ~18 months —
     // the reason the gate is cadence-scaled rather than one constant.
-    expect(isSeriesActive({ cadence: 'MONTHLY', lastSeenAt: isoDate('2026-04-26') }, isoDate('2026-06-10'))).toBe(true);
-    expect(isSeriesActive({ cadence: 'MONTHLY', lastSeenAt: isoDate('2026-04-25') }, isoDate('2026-06-10'))).toBe(false);
+    expect(isSeriesActive({ cadence: 'MONTHLY', lastSeenAt: isoDate('2026-04-26'), declaredByUser: false }, isoDate('2026-06-10'))).toBe(true);
+    expect(isSeriesActive({ cadence: 'MONTHLY', lastSeenAt: isoDate('2026-04-25'), declaredByUser: false }, isoDate('2026-06-10'))).toBe(false);
+    // …and the gate does not apply to a series the READER declared: silence is
+    // evidence of death only where the app inferred the rhythm (O.13f).
+    expect(isSeriesActive({ cadence: 'MONTHLY', lastSeenAt: isoDate('2026-04-25'), declaredByUser: true }, isoDate('2026-06-10'))).toBe(true);
   });
 
   it('leaves the WEEKLY/BIWEEKLY/MONTHLY cadences ungated, as they were', () => {
@@ -581,7 +588,7 @@ describe('a LAPSED annual series is projected nowhere — the two surfaces agree
       amountCents: -1599,
       rawDescriptor: 'STALE MONTHLY THING',
     }));
-    const series = detectRecurring(stale, isoDate(TODAY));
+    const series = detectRecurring(stale, isoDate(TODAY), NO_RECURRING_OVERRIDES);
     expect(series[0].cadence).toBe('MONTHLY');
     expect(summarizeRecurring(series, TODAY).inactive).toHaveLength(1);
     expect(toScheduledTransactions(series, { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate(TODAY))).toHaveLength(1);
@@ -685,7 +692,7 @@ describe('the cadences that reach nothing at all — pinned, not assumed (L.23)'
       ['QUARTERLY WATER', 91, 'QUARTERLY'],
       ['SEMIANNUAL PREMIUM', 182, 'SEMIANNUAL'],
     ] as const) {
-      const [series] = detectRecurring(everyNDays(label, gap), isoDate(TODAY));
+      const [series] = detectRecurring(everyNDays(label, gap), isoDate(TODAY), NO_RECURRING_OVERRIDES);
       expect(series?.cadence).toBe(expected);
     }
     for (const [label, gap] of [
@@ -694,7 +701,7 @@ describe('the cadences that reach nothing at all — pinned, not assumed (L.23)'
       ['THREE WEEKLY THING', 21],
       ['TEN DAY THING', 10],
     ] as const) {
-      expect(detectRecurring(everyNDays(label, gap), isoDate(TODAY))).toEqual([]);
+      expect(detectRecurring(everyNDays(label, gap), isoDate(TODAY), NO_RECURRING_OVERRIDES)).toEqual([]);
     }
   });
 
@@ -703,12 +710,12 @@ describe('the cadences that reach nothing at all — pinned, not assumed (L.23)'
     // a premium that rises every year is never detected at all (3 distinct
     // amounts), and three sightings span ~2 years of history.
     const twoSightings = annualSeriesTxns('TWO ONLY', -120000, '2024-08-15').slice(0, 2);
-    expect(detectRecurring(twoSightings, isoDate(TODAY))).toEqual([]);
+    expect(detectRecurring(twoSightings, isoDate(TODAY), NO_RECURRING_OVERRIDES)).toEqual([]);
     const rising = annualSeriesTxns('RISING PREMIUM', -110000, '2023-08-15').map((t, i) => ({
       ...t,
       amountCents: [-110000, -115000, -120000][i],
     }));
-    expect(detectRecurring(rising, isoDate(TODAY))).toEqual([]);
+    expect(detectRecurring(rising, isoDate(TODAY), NO_RECURRING_OVERRIDES)).toEqual([]);
     // And the span three sightings need, stated as the number it is.
     const three = annualSeriesTxns('STABLE PREMIUM', -120000, '2023-08-15');
     expect(daysBetween(isoDate(three[0].date), isoDate(three[2].date))).toBe(731);
@@ -826,7 +833,7 @@ describe('the real server path: a detected annual bill reaches the spending plan
       amountCents: -30000,
       rawDescriptor: 'CITY WATER QUARTERLY',
     }));
-    const [series] = detectRecurring(quarterly, isoDate(TODAY));
+    const [series] = detectRecurring(quarterly, isoDate(TODAY), NO_RECURRING_OVERRIDES);
     expect(series?.cadence).toBe('QUARTERLY');
     // It reaches the projection as an EXPENSE on a cash account (here the payment
     // account; since L.25 any CHECKING/SAVINGS would do)…

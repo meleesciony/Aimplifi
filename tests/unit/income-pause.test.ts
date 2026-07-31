@@ -21,6 +21,7 @@ import {
   type RecurringSeriesResult,
   type RecurringTxn,
 } from '@/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import {
   MIN_AMOUNT_CENTS,
   MIN_OCCURRENCES,
@@ -52,6 +53,7 @@ function series(overrides: Partial<RecurringSeriesResult> = {}): RecurringSeries
     isIncome: true,
     possiblyUnused: false,
     accountId: 'acct-savings',
+    declaredByUser: false,
     ...overrides,
   };
 }
@@ -172,7 +174,7 @@ describe('demo seed lock (#251) — the engineered pause is the demo’s ONLY on
     const today = isoDate('2026-06-10');
     // The coach input predicate, verbatim (POSTED, non-split — seed rows have no splits).
     const txns = seed.transactions.filter((t) => t.status === 'POSTED');
-    const out = detectIncomePauses(detectRecurring(txns, today), today);
+    const out = detectIncomePauses(detectRecurring(txns, today, NO_RECURRING_OVERRIDES), today);
     expect(out).toHaveLength(1);
     expect(out[0]).toEqual({
       merchantCanonical: 'Stripe Payout',
@@ -307,7 +309,7 @@ describe('production-shaped locking fixture (raw rows → detectRecurring → ra
       txn(isoDate('2026-06-12'), 245000, 'ACH DEPOSIT ACME ANALYTICS PAYROLL', 'acct-checking'),
     ];
     const today = isoDate('2026-06-14');
-    const out = detectIncomePauses(detectRecurring(rows, today), today);
+    const out = detectIncomePauses(detectRecurring(rows, today, NO_RECURRING_OVERRIDES), today);
     expect(out).toHaveLength(1);
     expect(out[0]).toEqual({
       merchantCanonical: 'Stripe Payout',

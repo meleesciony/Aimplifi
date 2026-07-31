@@ -9,6 +9,7 @@
  * proposed).
  */
 import { describe, expect, it } from 'vitest';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { isoDate } from '@/lib/dates';
 import { holidayTable } from '@/lib/dates';
 import { buildSeedData } from '@/lib/seed/build';
@@ -38,7 +39,7 @@ const snap: FinanceSnapshot = {
   balanceSnapshots: seed.snapshots,
 };
 
-const { input, radar } = radarFromSnapshot(snap, TODAY);
+const { input, radar } = radarFromSnapshot(snap, TODAY, NO_RECURRING_OVERRIDES);
 
 describe('radar grounding — committed events are /forecast’s exact assembly', () => {
   it('scheduled + loan flows expand to the identical event list', () => {

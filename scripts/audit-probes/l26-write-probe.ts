@@ -13,6 +13,7 @@
 import { prisma } from '@/lib/db';
 import { type ISODate } from '@/lib/dates';
 import { type RecurringTxn, detectRecurring, toScheduledTransactions } from '@/lib/engine/recurring/detect';
+import { getRecurringOverrides } from '@/server/recurring-overrides';
 import { activeTerminalSuccessorMap, getReconciliationTxnKeep } from '@/server/reconciliation';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
@@ -42,7 +43,7 @@ async function main() {
     select: { id: true, accountId: true, date: true, amountCents: true, rawDescriptor: true, isTransfer: true },
   })
   const keepsReconciled = await getReconciliationTxnKeep(OWNER)
-  const series = detectRecurring(txns.filter((t) => keepsReconciled(t.accountId, t.date)) as RecurringTxn[], today)
+  const series = detectRecurring(txns.filter((t) => keepsReconciled(t.accountId, t.date)) as RecurringTxn[], today, await getRecurringOverrides(OWNER))
 
   const canonicals = [...new Set(series.map((s) => s.merchantCanonical))]
   const merchants = await prisma.merchant.findMany({

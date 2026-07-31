@@ -7,12 +7,13 @@
 import { describe, expect, it } from 'vitest';
 import { buildSeedData } from '@/lib/seed/build';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { summarizeRecurring } from '@/lib/engine/recurring/summary';
 import { isoDate } from '@/lib/dates';
 
 const seed = buildSeedData('2026-06-10');
 const posted = seed.transactions.filter((t) => t.status === 'POSTED');
-const series = detectRecurring(posted, isoDate('2026-06-10'));
+const series = detectRecurring(posted, isoDate('2026-06-10'), NO_RECURRING_OVERRIDES);
 const summary = summarizeRecurring(series, '2026-06-10');
 
 describe('summarizeRecurring on the seed', () => {

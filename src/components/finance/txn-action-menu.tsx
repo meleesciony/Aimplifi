@@ -36,6 +36,12 @@ export interface TxnActionHandlers {
   /** Destinations for the two rule-backed actions (pre-filled from this row). */
   ruleHref: string;
   renameHref: string;
+  /** Open the recurring verdict (O.13f). Absent when the surface reaches it by
+   *  NAVIGATION — `recurringHref` renders instead, the same split/detail-view
+   *  arrangement, because the picker and the current verdict live on the detail
+   *  page where the state is server-rendered. */
+  onRecurring?: () => void;
+  recurringHref?: string;
 }
 
 const ITEM_CLASS =
@@ -95,6 +101,16 @@ export function TxnActionMenuItems({
               </Link>
             ) : (
               <button key={a.kind} type="button" role="menuitem" data-testid={testid} disabled={busy} className={ITEM_CLASS} onClick={handlers.onSplit}>
+                {a.label}
+              </button>
+            );
+          case 'markRecurring':
+            return handlers.recurringHref ? (
+              <Link key={a.kind} role="menuitem" href={handlers.recurringHref} prefetch={false} data-testid={testid} className={ITEM_CLASS}>
+                {a.label}
+              </Link>
+            ) : (
+              <button key={a.kind} type="button" role="menuitem" data-testid={testid} disabled={busy} className={ITEM_CLASS} onClick={handlers.onRecurring}>
                 {a.label}
               </button>
             );

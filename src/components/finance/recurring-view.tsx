@@ -17,6 +17,10 @@ import type { WithheldAccountSummary } from '@/lib/providers/currency';
 import type { RecurringData } from '@/server/recurring';
 import { priceChangeBadge, type RecurringItem } from '@/lib/engine/recurring/summary';
 import { renewalsWithin } from '@/lib/engine/recurring/renewals';
+import {
+  NotABillButton,
+  RecurringInstructions,
+} from '@/components/finance/recurring-verdict-controls';
 
 const CADENCE_SUFFIX: Record<Cadence, string> = {
   WEEKLY: '/wk',
@@ -84,6 +88,16 @@ function Row({
               {change.increased ? '↑' : '↓'} was {formatCents(cents(change.previousMagnitudeCents))}
             </span>
           )}
+          {/* O.13f: a series that exists because the READER said so is never
+              rendered as a pattern the app observed. */}
+          {item.declaredByUser && (
+            <span
+              data-testid="recurring-declared-badge"
+              className="shrink-0 rounded border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-600 dark:text-sky-400"
+            >
+              You marked this
+            </span>
+          )}
           {item.possiblyUnused && (
             <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
               Worth a look?
@@ -109,6 +123,10 @@ function Row({
             <>last seen {formatISODate(isoDate(item.lastSeenAt))}</>
           )}
         </div>
+        {/* THE LEVER, on the row where a false detection is actually visible
+            (O.13f). Three haircuts a quarter apart read as a bill here and
+            nowhere else, so this is where the reader gets to say otherwise. */}
+        <NotABillButton merchantCanonical={item.merchantCanonical} />
       </div>
     </li>
   );
@@ -159,9 +177,17 @@ function Section({
 export function RecurringView({
   data,
   withheld,
+  instructions,
+  projectionsStale,
 }: {
   data: RecurringData;
   withheld: WithheldAccountSummary;
+  /** O.13f — the reader's standing verdicts, listed with their undo. A demoted
+   *  series is gone from every list above, so without this its undo would live
+   *  nowhere on the page that caused it. */
+  instructions: React.ComponentProps<typeof RecurringInstructions>['rows'];
+  /** A verdict saved, but the projection rebuild behind it did not run. */
+  projectionsStale: boolean;
 }) {
   const s = data.summary;
   const hasAny = s.items.length > 0;
@@ -173,6 +199,16 @@ export function RecurringView({
       {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
           vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
       <CurrencyExclusionBanner summary={withheld} />
+      {projectionsStale && (
+        <p
+          role="alert"
+          data-testid="recurring-projections-stale"
+          className="rounded-md border border-amber-500/60 p-2 text-xs text-amber-700 dark:text-amber-300"
+        >
+          Saved. Your forecast, calendar and spending plan could not be rebuilt just now — they will
+          pick this up on your next sync.
+        </p>
+      )}
       {/* Hero: total monthly recurring */}
       <section
         data-testid="recurring-hero"
@@ -319,9 +355,13 @@ export function RecurringView({
         </>
       )}
 
+      <RecurringInstructions rows={instructions} />
+
       <p className="px-1 text-xs text-muted-foreground">
         Detected from your transaction history — cadence, price changes, and what&apos;s next are
-        estimates. Always confirm before canceling anything.
+        estimates. Where you have marked a payee yourself, the rhythm is yours and the amount is
+        still an estimate: your most recent charge to that payee. Always confirm before canceling
+        anything.
       </p>
     </div>
   );

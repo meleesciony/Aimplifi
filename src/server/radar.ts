@@ -33,6 +33,8 @@ import {
 import { getProvider } from '@/lib/providers/demo';
 import type { FinanceSnapshot } from '@/lib/providers/types';
 import { accountLabel } from '@/lib/engine/account/display-name';
+import { getRecurringOverrides } from '@/server/recurring-overrides';
+import type { RecurringOverrideInput } from '@/lib/engine/recurring/override';
 
 /** Same horizon as /forecast — the "90-day walk" the plan calls for. */
 export const RADAR_HORIZON_DAYS = 90;
@@ -46,6 +48,14 @@ export interface CashFlowRadarData {
 export function radarFromSnapshot(
   snap: FinanceSnapshot,
   today: ISODate,
+  /**
+   * The reader's own bill verdicts (O.13f). REQUIRED, and placed ahead of the two
+   * optional parameters deliberately: appended after them it could only have been
+   * optional, and a caller that omitted it would silently re-add a merchant the
+   * reader had demoted back into this projection's committed line. Every caller
+   * now states which set it is projecting from.
+   */
+  recurringOverrides: readonly RecurringOverrideInput[],
   horizonDays = RADAR_HORIZON_DAYS,
   /**
    * Suspected same-card-twice pairs (TASKS L.15, critic P1-2). Advisory: the projection is left
@@ -141,7 +151,10 @@ export function radarFromSnapshot(
       rawDescriptor: t.rawDescriptor,
       isTransfer: t.isTransfer,
     }));
-  for (const series of detectRecurring(recurringTxns, today)) {
+  // O.13f: the reader's verdicts, so a merchant he declared a bill is treated as
+  // COMMITTED here (out of discretionary burn) and one he demoted stops being — the
+  // same set the committed line itself is projected from.
+  for (const series of detectRecurring(recurringTxns, today, recurringOverrides)) {
     excludedCanonicals.add(series.merchantCanonical);
   }
   const burn = computeBurnRates(
@@ -236,6 +249,12 @@ export async function getCashFlowRadar(userId: string): Promise<CashFlowRadarDat
   // set, so the ids line up with what the projection repeats.
   const { result } = cashNeededFromSnapshot(snap, today, 'PAY_IN_FULL');
   const cardDuplicates = await personalCardDuplicates(userId, snap, result);
-  const { radar, paymentAccountName } = radarFromSnapshot(snap, today, undefined, cardDuplicates);
+  const { radar, paymentAccountName } = radarFromSnapshot(
+    snap,
+    today,
+    await getRecurringOverrides(userId),
+    undefined,
+    cardDuplicates,
+  );
   return { radar, paymentAccountName };
 }

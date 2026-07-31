@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildSeedData } from '@/lib/seed/build';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { summarizeRecurring, type RecurringItem } from '@/lib/engine/recurring/summary';
 import { upcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { isoDate } from '@/lib/dates';
@@ -36,6 +37,7 @@ function item(
     isIncome: false,
     possiblyUnused: false,
     accountId: 'acc-1',
+    declaredByUser: false,
     monthlyEquivalentCents: Math.abs(over.lastAmountCents),
     active: true,
     daysSinceLast: 20,
@@ -231,7 +233,7 @@ describe('upcomingRenewals — on the real seed (demo-first)', () => {
   const ASOF = '2026-06-10';
   const seed = buildSeedData(ASOF);
   const posted = seed.transactions.filter((t) => t.status === 'POSTED');
-  const series = detectRecurring(posted, isoDate(ASOF));
+  const series = detectRecurring(posted, isoDate(ASOF), NO_RECURRING_OVERRIDES);
   const summary = summarizeRecurring(series, ASOF);
   const r = upcomingRenewals(summary.items, ASOF);
 

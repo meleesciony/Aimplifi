@@ -15,6 +15,7 @@ import {
 import { generateMoneyReview } from '@/lib/engine/fi/coach-copy';
 import { CATEGORIES } from '@/lib/engine/categorize/categories';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { cents } from '@/lib/money';
 import { isoDate } from '@/lib/dates';
 
@@ -23,6 +24,7 @@ const flows = monthlyFlows(seed.transactions);
 const series = detectRecurring(
   seed.transactions.filter((t) => t.status === 'POSTED'),
   isoDate('2026-06-10'),
+  NO_RECURRING_OVERRIDES,
 );
 
 describe('monthly savings rate from seed data (3 hand-verified months)', () => {

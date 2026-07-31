@@ -13,6 +13,11 @@
 import { type ISODate, addDays, addMonthsClamped, compareDates, daysBetween, isoDate } from '@/lib/dates';
 import { median } from '@/lib/stats';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import {
+  type RecurringOverrideInput,
+  buildOverrideMap,
+  overrideKey,
+} from '@/lib/engine/recurring/override';
 
 export interface RecurringTxn {
   id: string;
@@ -47,6 +52,14 @@ export interface RecurringSeriesResult {
   isIncome: boolean;
   possiblyUnused: boolean;
   accountId: string;
+  /**
+   * TRUE when this series exists because the READER said so (O.13f) and the
+   * evidence did not: the rhythm is his, not inferred. Required, not optional —
+   * a surface that renders a declared bill as a detected one is claiming the app
+   * observed a pattern it never saw, and the compiler is what makes every
+   * constructor state which kind it is building.
+   */
+  declaredByUser: boolean;
 }
 
 
@@ -178,11 +191,188 @@ const SUBSCRIPTION_CATEGORIES = new Set([
   'auto-insurance', 'health-insurance', 'dental-insurance', 'vision-insurance', 'life-insurance',
 ]);
 
+/** One merchant's rows, as grouped below. */
+interface MerchantGroup {
+  txns: RecurringTxn[];
+  categoryId: string;
+}
+
+/**
+ * The same-signed subset a series is read from. A stray opposite-sign txn — a
+ * refund inside an expense subscription, say — is a one-off, NOT part of the
+ * cadence, so only the dominant sign is analyzed and a refund+rebill doesn't drop
+ * the whole series (STATUS #7 fragility / ROADMAP #4). Pure-signed groups (every
+ * seed series) are unchanged: the minority list is empty, so this is the full set.
+ *
+ * Shared by detection and by a reader's declaration, so a declared bill's amount
+ * and date come off exactly the rows detection would have read.
+ */
+function dominantSignTxns(txns: readonly RecurringTxn[]): RecurringTxn[] {
+  const negatives = txns.filter((t) => t.amountCents < 0);
+  const positives = txns.filter((t) => t.amountCents > 0);
+  return negatives.length >= positives.length ? negatives : positives;
+}
+
+/**
+ * Shape one series from its most recent charge. ONE copy of this arithmetic, used
+ * by both detection and declaration: the anchor, the amount, the income/
+ * subscription classification and the step-past-today loop decide what reaches
+ * /calendar and the spending plan, and a declared bill that computed its own
+ * `nextExpectedAt` would be a second money basis for the same question.
+ */
+function buildSeries(args: {
+  canonical: string;
+  categoryId: string;
+  sorted: readonly RecurringTxn[];
+  cadence: Cadence;
+  previousAmountCents: number | null;
+  priceChangedAt: ISODate | null;
+  today: ISODate;
+  declaredByUser: boolean;
+}): RecurringSeriesResult {
+  const { canonical, categoryId, sorted, cadence, today } = args;
+  const last = sorted[sorted.length - 1];
+  const lastSeenAt = isoDate(last.date);
+  const isIncome = last.amountCents > 0;
+  const isSubscription = !isIncome && SUBSCRIPTION_CATEGORIES.has(categoryId);
+  let nextExpectedAt = nextDate(lastSeenAt, cadence);
+  while (compareDates(nextExpectedAt, today) < 0) nextExpectedAt = nextDate(nextExpectedAt, cadence);
+  return {
+    merchantCanonical: canonical,
+    categoryId,
+    cadence,
+    typicalAmountCents: last.amountCents,
+    lastAmountCents: last.amountCents,
+    previousAmountCents: args.previousAmountCents,
+    priceChangedAt: args.priceChangedAt,
+    lastSeenAt,
+    nextExpectedAt,
+    occurrences: sorted.length,
+    isSubscription,
+    isIncome,
+    // "Possibly unused": a fitness membership with no usage signal for 90+ days.
+    // Usage can't be observed in transaction data, so this is a question for
+    // the user, not an accusation (see coach guardrails).
+    possiblyUnused: isSubscription && categoryId === 'fitness',
+    accountId: last.accountId,
+    declaredByUser: args.declaredByUser,
+  };
+}
+
+/** Detection for ONE merchant group: the evidence bar, unchanged. Null when the
+ *  rows do not earn a series — which is the case a reader's BILL declaration
+ *  answers, and the ONLY case it answers. */
+function detectSeries(canonical: string, group: MerchantGroup, today: ISODate): RecurringSeriesResult | null {
+  const { categoryId } = group;
+  const txns = dominantSignTxns(group.txns);
+  if (txns.length < 3) return null;
+  const sorted = [...txns].sort((a, b) => compareDates(isoDate(a.date), isoDate(b.date)));
+  const gaps: number[] = [];
+  for (let i = 1; i < sorted.length; i++) {
+    gaps.push(daysBetween(isoDate(sorted[i - 1].date), isoDate(sorted[i].date)));
+  }
+  const cadence = cadenceFromGaps(gaps);
+  if (cadence === 'IRREGULAR') return null;
+
+  // Amount stability: a series is recurring when amounts cluster tightly.
+  // Allow exactly two stable plateaus (price change).
+  const amounts = sorted.map((t) => t.amountCents);
+  const distinct = [...new Set(amounts)];
+  if (distinct.length > 2) {
+    // payroll-style: identical amounts required for income; variable spend is
+    // not a subscription (e.g. groceries at Kroger).
+    return null;
+  }
+
+  let previousAmountCents: number | null = null;
+  let priceChangedAt: ISODate | null = null;
+  if (distinct.length === 2) {
+    // must be two contiguous plateaus old→new, else it's just variable spend
+    const firstNewIdx = amounts.findIndex((a) => a === amounts[amounts.length - 1]);
+    const plateaued =
+      amounts.slice(0, firstNewIdx).every((a) => a === amounts[0]) &&
+      amounts.slice(firstNewIdx).every((a) => a === amounts[amounts.length - 1]);
+    if (!plateaued || firstNewIdx === 0) return null;
+    previousAmountCents = amounts[0];
+    priceChangedAt = isoDate(sorted[firstNewIdx].date);
+  }
+
+  return buildSeries({
+    canonical,
+    categoryId,
+    sorted,
+    cadence,
+    previousAmountCents,
+    priceChangedAt,
+    today,
+    declaredByUser: false,
+  });
+}
+
+/**
+ * The series a reader's "this IS a bill" declaration produces, from a merchant
+ * whose rows did not earn one on their own.
+ *
+ * It makes exactly ONE claim the evidence does not: the rhythm, which he supplied.
+ * Everything else is read off his real charges — the amount and the anchor date
+ * come from the most recent one, the same as a detected series — so a declared
+ * bill can never carry a figure that appears nowhere in his history.
+ *
+ * NO price-change claim is ever attached (`previousAmountCents`/`priceChangedAt`
+ * stay null): the two-plateau rule needs three sightings to mean anything, and a
+ * declaration exists precisely where there are fewer. Announcing "the price went
+ * up" from two rows would be the app originating a fact.
+ */
+function declaredSeries(
+  canonical: string,
+  group: MerchantGroup,
+  cadence: Exclude<Cadence, 'IRREGULAR'>,
+  declaredSign: 'OUT' | 'IN' | null,
+  today: ISODate,
+): RecurringSeriesResult | null {
+  // THE DIRECTION IS HIS, NOT THE MAJORITY'S. Detection may take the dominant sign
+  // because three sightings at a stable amount have already made the direction
+  // obvious; a declaration has neither bar. A $49.99 purchase carrying two refunds
+  // has a positive majority, so the majority rule turned "this charge repeats" into
+  // projected INCOME of $25.00 on the payment account — a sign and an amount the
+  // reader never stated, in the direction that silences warnings (money critic,
+  // executed). He declared while standing on a charge; that charge's direction is
+  // part of what he said. Falls back to the majority only for a row stored before
+  // the direction was recorded.
+  const signed =
+    declaredSign === 'OUT'
+      ? group.txns.filter((t) => t.amountCents < 0)
+      : declaredSign === 'IN'
+        ? group.txns.filter((t) => t.amountCents > 0)
+        : dominantSignTxns(group.txns);
+  const txns = signed;
+  if (txns.length === 0) return null;
+  const sorted = [...txns].sort((a, b) => compareDates(isoDate(a.date), isoDate(b.date)));
+  return buildSeries({
+    canonical,
+    categoryId: group.categoryId,
+    sorted,
+    cadence,
+    previousAmountCents: null,
+    priceChangedAt: null,
+    today,
+    declaredByUser: true,
+  });
+}
+
+/**
+ * @param overrides the reader's own verdicts (O.13f). REQUIRED, with no default,
+ * on purpose: five production surfaces detect independently, and a caller that
+ * forgot this argument would keep projecting a bill its reader had deleted while
+ * every other surface honoured him. `NO_RECURRING_OVERRIDES` is the explicit
+ * "nobody has said anything" the seed, the benchmark and the pure tests pass.
+ */
 export function detectRecurring(
   transactions: readonly RecurringTxn[],
   today: ISODate,
+  overrides: readonly RecurringOverrideInput[],
 ): RecurringSeriesResult[] {
-  const byMerchant = new Map<string, { txns: RecurringTxn[]; categoryId: string }>();
+  const byMerchant = new Map<string, MerchantGroup>();
   for (const t of transactions) {
     const m = normalizeMerchant(t.rawDescriptor);
     // Own-account transfers (incl. card payments) are not subscriptions;
@@ -193,79 +383,29 @@ export function detectRecurring(
     byMerchant.set(m.canonical, entry);
   }
 
+  const instructions = buildOverrideMap(overrides);
   const results: RecurringSeriesResult[] = [];
   for (const [canonical, group] of byMerchant) {
-    const { categoryId } = group;
-    // A recurring series is same-signed charges; a stray opposite-sign txn — a
-    // refund inside an expense subscription, say — is a one-off, NOT part of the
-    // cadence. Analyze only the dominant sign so a refund+rebill doesn't drop the
-    // whole series (STATUS #7 fragility / ROADMAP #4). Pure-signed groups (every
-    // seed series) are unchanged: the minority list is empty, so `txns` is the full set.
-    const negatives = group.txns.filter((t) => t.amountCents < 0);
-    const positives = group.txns.filter((t) => t.amountCents > 0);
-    const txns = negatives.length >= positives.length ? negatives : positives;
-    if (txns.length < 3) continue;
-    const sorted = [...txns].sort((a, b) => compareDates(isoDate(a.date), isoDate(b.date)));
-    const gaps: number[] = [];
-    for (let i = 1; i < sorted.length; i++) {
-      gaps.push(daysBetween(isoDate(sorted[i - 1].date), isoDate(sorted[i].date)));
-    }
-    const cadence = cadenceFromGaps(gaps);
-    if (cadence === 'IRREGULAR') continue;
+    const instruction = instructions.get(overrideKey(canonical)) ?? null;
+    // "Not a bill" wins over everything, including evidence: it is the only lever
+    // against a false detection, and a detector that could out-vote it would make
+    // the lever advisory. Every consumer of this function loses the series at
+    // once, which is the point.
+    if (instruction?.decision === 'NOT_BILL') continue;
 
-    // Amount stability: a series is recurring when amounts cluster tightly.
-    // Allow exactly two stable plateaus (price change).
-    const amounts = sorted.map((t) => t.amountCents);
-    const distinct = [...new Set(amounts)];
-    if (distinct.length > 2) {
-      // payroll-style: identical amounts required for income; variable spend is
-      // not a subscription (e.g. groceries at Kroger).
+    const detected = detectSeries(canonical, group, today);
+    if (detected !== null) {
+      // Detection AGREES, so it wins the details: it read the real gaps, where a
+      // declaration is one remembered rhythm. The declaration is then redundant
+      // rather than wrong, and /recurring says so beside it rather than leaving
+      // the reader to wonder which cadence is being projected.
+      results.push(detected);
       continue;
     }
-
-    let previousAmountCents: number | null = null;
-    let priceChangedAt: ISODate | null = null;
-    if (distinct.length === 2) {
-      // must be two contiguous plateaus old→new, else it's just variable spend
-      const firstNewIdx = amounts.findIndex((a) => a === amounts[amounts.length - 1]);
-      const plateaued =
-        amounts.slice(0, firstNewIdx).every((a) => a === amounts[0]) &&
-        amounts.slice(firstNewIdx).every((a) => a === amounts[amounts.length - 1]);
-      if (!plateaued || firstNewIdx === 0) continue;
-      previousAmountCents = amounts[0];
-      priceChangedAt = isoDate(sorted[firstNewIdx].date);
+    if (instruction?.decision === 'BILL' && instruction.cadence !== null) {
+      const declared = declaredSeries(canonical, group, instruction.cadence, instruction.declaredSign, today);
+      if (declared !== null) results.push(declared);
     }
-
-    const last = sorted[sorted.length - 1];
-    const lastSeenAt = isoDate(last.date);
-    const isIncome = last.amountCents > 0;
-    const isSubscription = !isIncome && SUBSCRIPTION_CATEGORIES.has(categoryId);
-
-    // "Possibly unused": a fitness membership with no usage signal for 90+ days.
-    // Usage can't be observed in transaction data, so this is a question for
-    // the user, not an accusation (see coach guardrails).
-    const possiblyUnused = isSubscription && categoryId === 'fitness';
-
-    results.push({
-      merchantCanonical: canonical,
-      categoryId,
-      cadence,
-      typicalAmountCents: last.amountCents,
-      lastAmountCents: last.amountCents,
-      previousAmountCents,
-      priceChangedAt,
-      lastSeenAt,
-      nextExpectedAt: (() => {
-        let n = nextDate(lastSeenAt, cadence);
-        while (compareDates(n, today) < 0) n = nextDate(n, cadence);
-        return n;
-      })(),
-      occurrences: sorted.length,
-      isSubscription,
-      isIncome,
-      possiblyUnused,
-      accountId: last.accountId,
-    });
   }
 
   return results.sort((a, b) => a.merchantCanonical.localeCompare(b.merchantCanonical));
@@ -335,9 +475,19 @@ export const CADENCE_DAYS: Record<Cadence, number> = {
  * become evidence at each rhythm.
  */
 export function isSeriesActive(
-  series: Pick<RecurringSeriesResult, 'cadence' | 'lastSeenAt'>,
+  series: Pick<RecurringSeriesResult, 'cadence' | 'lastSeenAt' | 'declaredByUser'>,
   today: ISODate,
 ): boolean {
+  // A DECLARED series is never lapsed, and this is the rule that keeps the two
+  // surfaces agreeing (money critic P1-2, executed): silence is evidence of death
+  // only where the app INFERRED the rhythm from charges. Where the reader has just
+  // said "this repeats monthly" while looking at a charge from two months ago, the
+  // declaration is the fresher evidence — and without this, /recurring filed his
+  // brand-new instruction under "no longer charging" at $0/month while the spending
+  // plan and the calendar carried the full rate, which is exactly the split both
+  // L.23 critics rated P1. It stays projected until he removes the instruction,
+  // which is one click on the page that lists it.
+  if (series.declaredByUser) return true;
   return daysBetween(series.lastSeenAt, today) <= Math.round(CADENCE_DAYS[series.cadence] * 1.5);
 }
 

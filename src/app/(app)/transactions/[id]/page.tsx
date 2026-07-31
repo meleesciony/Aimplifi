@@ -4,10 +4,11 @@ import { TransactionDetailView } from '@/components/finance/transaction-detail-v
 // From a plain module, never from the `'use client'` view: a client module's
 // exports are reference stubs on the server, so importing it there silently
 // yields a non-string key (critic cycle 2, F1).
-import { UNCONFIRMED_PARAM } from '@/components/finance/transaction-detail-params';
+import { PROJECTIONS_STALE_PARAM, UNCONFIRMED_PARAM } from '@/components/finance/transaction-detail-params';
 import { getVisibleGroups } from '@/server/categories';
 import { getRuleSourceTransaction } from '@/server/keyword-rules';
 import { getTransactionDetail } from '@/server/transactions';
+import { getRecurringVerdictForTransaction } from '@/server/recurring-overrides';
 
 export const metadata = { title: 'Transaction' };
 
@@ -40,13 +41,17 @@ export default async function TransactionDetailPage({
   // confirms nothing about whether someone else's transaction exists.
   if (!detail) notFound();
 
-  const [categoryGroups, ruleSource] = await Promise.all([
+  const [categoryGroups, ruleSource, recurringVerdict] = await Promise.all([
     getVisibleGroups(session.user.id),
     // Asked rather than re-derived: the sentence explaining why a rule cannot be
     // written from this row is the rule builder's OWN predicate, which mirrors
     // `matchableWhere` field for field. A second copy here would drift the day
     // that scope changes.
     getRuleSourceTransaction(id),
+    // O.13f: what the reader has already said about this payee, read back through
+    // the engine's own parser so the screen cannot show an instruction the
+    // detector would ignore.
+    getRecurringVerdictForTransaction(session.user.id, id),
   ]);
 
   return (
@@ -57,6 +62,10 @@ export default async function TransactionDetailPage({
       // Set by the client when a write outran its deadline: the reload that
       // follows must not look identical to a successful save.
       unconfirmed={query[UNCONFIRMED_PARAM] === '1'}
+      recurringVerdict={recurringVerdict}
+      // The verdict saved, but the rebuild that carries it to the cash surfaces
+      // did not run — so this page may not promise that they moved.
+      projectionsStale={query[PROJECTIONS_STALE_PARAM] === '1'}
     />
   );
 }

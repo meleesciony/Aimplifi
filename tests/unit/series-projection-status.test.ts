@@ -48,6 +48,7 @@ const series = (over: Partial<RecurringSeriesResult> = {}): RecurringSeriesResul
   isIncome: false,
   possiblyUnused: false,
   accountId: CHECKING,
+  declaredByUser: false,
   ...over,
 });
 

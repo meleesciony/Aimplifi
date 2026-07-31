@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { detectRecurring, type RecurringTxn } from '@/lib/engine/recurring/detect';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { summarizeRecurring, priceChangeBadge } from '@/lib/engine/recurring/summary';
 import { findOpportunities } from '@/lib/engine/fi/insights';
 import { isoDate } from '@/lib/dates';
@@ -31,7 +32,7 @@ const expenseRaise: RecurringTxn[] = [
 ];
 
 const today = '2026-02-20';
-const series = detectRecurring([...incomeRaise, ...expenseRaise], isoDate(today));
+const series = detectRecurring([...incomeRaise, ...expenseRaise], isoDate(today), NO_RECURRING_OVERRIDES);
 const incomeSeries = series.find((s) => s.isIncome);
 const expenseSeries = series.find((s) => !s.isIncome);
 

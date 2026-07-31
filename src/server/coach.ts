@@ -33,6 +33,7 @@ import { computeMoneySignature, type MoneySignature } from '@/lib/engine/fi/sign
 import { computeCardClearedStreak, type CardClearedStreakResult } from '@/lib/engine/cards/cleared-streak';
 import { computeNoCreepStreak, type NoCreepStreakResult } from '@/lib/engine/recurring/creep-streak';
 import { getConfirmedIncomePauses } from '@/server/income-pause';
+import { getRecurringOverrides } from '@/server/recurring-overrides';
 import { generateMoneyReview, type MoneyReview } from '@/lib/engine/fi/coach-copy';
 import { buildReviewCandidates, selectReview, type ReviewRole } from '@/lib/engine/fi/money-review';
 import { DEMO_USER_ID } from '@/lib/demo-user';
@@ -213,6 +214,10 @@ export async function getCoachData(
   const series = detectRecurring(
     txns.filter((t) => t.status === 'POSTED' && !t.isSplitParent && spendingIds.has(t.accountId)),
     today,
+    // O.13f: the same reader verdicts /recurring and the projections read. A coach
+    // "you could cancel this subscription" about a series he has already told the
+    // app is not a bill would be the app arguing with him from a stale basis.
+    await getRecurringOverrides(userId),
   );
   const opportunities = findOpportunities(series, user.expectedReturnBps);
   // Unusual Charge Radar (#249): pure detection over the SAME already-fetched rows —

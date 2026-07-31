@@ -19,6 +19,7 @@
  * could not catch this — it hand-builds the row list, which is exactly the wiring under test here.
  */
 import { describe, expect, it } from 'vitest';
+import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { isoDate } from '@/lib/dates';
 import { radarFromSnapshot } from '@/server/radar';
 import type { CardDuplicatePairInput } from '@/lib/engine/account/card-duplicate-view';
@@ -108,7 +109,7 @@ function snapWith(
 }
 
 const noteOf = (snap: FinanceSnapshot, pairs: CardDuplicatePairInput[]) =>
-  radarFromSnapshot(snap, TODAY, 90, pairs).radar.duplicateDisclosure;
+  radarFromSnapshot(snap, TODAY, NO_RECURRING_OVERRIDES, 90, pairs).radar.duplicateDisclosure;
 
 describe('the radar discloses a duplicate only where the PROJECTION carries it', () => {
   it('discloses when both sides are genuinely projected', () => {
@@ -162,13 +163,14 @@ describe('the radar discloses a duplicate only where the PROJECTION carries it',
       { id: 'dup-a', name: 'CREDIT CARD', balanceCents: 1_000, statementCents: 1_000, dueDay: 20 },
       { id: 'dup-b', name: 'CREDIT CARD', balanceCents: 1_000, statementCents: 1_000, dueDay: 20 },
     ], true);
-    const r = radarFromSnapshot(snap, TODAY, 90, PAIR).radar;
+    const r = radarFromSnapshot(snap, TODAY, NO_RECURRING_OVERRIDES, 90, PAIR).radar;
     const truth = radarFromSnapshot(
       snapWith([
         { id: 'other', name: 'Spark Miles', balanceCents: 300_000, statementCents: 300_000, dueDay: 29 },
         { id: 'dup-a', name: 'CREDIT CARD', balanceCents: 1_000, statementCents: 1_000, dueDay: 20 },
       ], true),
       TODAY,
+      NO_RECURRING_OVERRIDES,
       90,
     ).radar;
     // Precondition: the duplicate genuinely changes neither figure the sentence names.
@@ -186,7 +188,7 @@ describe('the radar discloses a duplicate only where the PROJECTION carries it',
       { id: 'dup-a', name: 'CREDIT CARD', balanceCents: 100, statementCents: 100 },
       { id: 'dup-b', name: 'CREDIT CARD', balanceCents: 100, statementCents: 100 },
     ]);
-    const r = radarFromSnapshot(snap, TODAY, 90, PAIR).radar;
+    const r = radarFromSnapshot(snap, TODAY, NO_RECURRING_OVERRIDES, 90, PAIR).radar;
     expect(r.committed.firstNegativeDate).toBeNull();
     expect(r.duplicateDisclosure).toBeNull();
   });
@@ -196,8 +198,8 @@ describe('the radar discloses a duplicate only where the PROJECTION carries it',
       { id: 'dup-a', name: 'CREDIT CARD', balanceCents: 300_000, statementCents: 300_000 },
       { id: 'dup-b', name: 'CREDIT CARD', balanceCents: 300_000, statementCents: 300_000 },
     ]);
-    const plain = radarFromSnapshot(snap, TODAY, 90).radar;
-    const disclosed = radarFromSnapshot(snap, TODAY, 90, PAIR).radar;
+    const plain = radarFromSnapshot(snap, TODAY, NO_RECURRING_OVERRIDES, 90).radar;
+    const disclosed = radarFromSnapshot(snap, TODAY, NO_RECURRING_OVERRIDES, 90, PAIR).radar;
     expect(disclosed.committed).toEqual(plain.committed);
     expect(disclosed.coverTransfer).toEqual(plain.coverTransfer);
     expect(disclosed.pushWorthy).toBe(plain.pushWorthy);

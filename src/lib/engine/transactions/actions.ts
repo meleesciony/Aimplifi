@@ -35,7 +35,8 @@ export type TxnActionKind =
   | 'taxTag'
   | 'split'
   | 'reimbursement'
-  | 'excludeFromTotals';
+  | 'excludeFromTotals'
+  | 'markRecurring';
 
 export interface TxnActionAvailability {
   kind: TxnActionKind;
@@ -78,6 +79,15 @@ export const SPLIT_BLOCKED_REIMBURSED =
 export const SPLIT_PARENT_HAS_UNDO =
   'You already split this — the pieces and the undo are on the details view.';
 
+// O.13f. The label carries NO state ("Recurring…", not "Recurring: monthly"):
+// this menu is rendered from row facts that do not include the reader's verdict,
+// and a label claiming a state it cannot see would be wrong on exactly the rows
+// he has already acted on. The destination shows what is actually in force.
+export const RECURRING_BLOCKED_SPLIT_PARENT =
+  'A split container is left out of every total, so there is no charge here to repeat — mark one of its pieces.';
+export const RECURRING_BLOCKED_TRANSFER =
+  'Aimplifi reads this as a move between your own accounts, and those are never tracked as bills.';
+
 export const CATEGORY_BLOCKED_SPLIT_PARENT =
   'The pieces of this split carry the categories — file those instead.';
 // Existing copy, reused verbatim (source: transaction-detail-view.tsx tax-on-parent).
@@ -85,7 +95,7 @@ export const TAX_BLOCKED_SPLIT_PARENT =
   'A tax tag belongs on the pieces, not on this container — the tax report leaves a split container out entirely, so a tag here would never reach it.';
 
 /**
- * All eight actions, always, in menu order. The caller renders exactly this
+ * All nine actions, always, in menu order. The caller renders exactly this
  * list — adding an action means adding it here, where its availability rule
  * and its tests live.
  */
@@ -222,5 +232,15 @@ export function txnActionAvailability(t: ActionRowFacts): TxnActionAvailability[
               reason: null,
             };
 
-  return [category, rule, renamePayee, note, taxTag, split, reimbursement, exclude];
+  // O.13f: "this repeats" / "this does not" — the lever for the two cases the
+  // three-sighting detection bar cannot serve. Refused on the two row shapes the
+  // detector never reads (a split container, a transfer), because an instruction
+  // that matches nothing is worse than a refusal: it looks obeyed.
+  const markRecurring: TxnActionAvailability = t.isSplitParent
+    ? { kind: 'markRecurring', label: 'Recurring…', enabled: false, reason: RECURRING_BLOCKED_SPLIT_PARENT }
+    : t.isTransfer
+      ? { kind: 'markRecurring', label: 'Recurring…', enabled: false, reason: RECURRING_BLOCKED_TRANSFER }
+      : { kind: 'markRecurring', label: 'Recurring…', enabled: true, reason: null };
+
+  return [category, rule, renamePayee, note, taxTag, split, markRecurring, reimbursement, exclude];
 }

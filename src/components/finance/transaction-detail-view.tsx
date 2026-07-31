@@ -31,6 +31,12 @@ import { TAX_CLASSES, TAX_CLASS_LABELS } from '@/lib/engine/tax/classes';
 import { TXN_NOTE_MAX_CHARS } from '@/lib/engine/tax/note';
 import { setTransactionTax } from '@/server/tax-actions';
 import { setExcludeFromTotals, setReimbursement } from '@/server/transaction-flags-actions';
+import {
+  clearRecurringVerdict,
+  markMerchantNotABill,
+  markTransactionAsBill,
+} from '@/server/recurring-override-actions';
+import { DECLARABLE_CADENCES } from '@/lib/engine/recurring/override';
 import { recategorize, splitTransaction, undoSplit } from '@/server/triage-actions';
 import { txnActionAvailability } from '@/lib/engine/transactions/actions';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
@@ -39,7 +45,10 @@ import { MoreHorizontal } from 'lucide-react';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { provenanceBadgeView } from '@/components/finance/provenance-badge';
-import { UNCONFIRMED_PARAM } from '@/components/finance/transaction-detail-params';
+import {
+  PROJECTIONS_STALE_PARAM,
+  UNCONFIRMED_PARAM,
+} from '@/components/finance/transaction-detail-params';
 import type { TransactionDetailView as DetailView } from '@/server/transactions';
 
 interface CategoryGroup {
@@ -53,6 +62,72 @@ interface CategoryGroup {
  * digest. Only this kind is shown verbatim.
  */
 class RefusalError extends Error {}
+
+/**
+ * How each cadence reads in a sentence (O.13f). One table, beside the closed set
+ * it labels, so a cadence can never reach the screen as a raw enum spelling.
+ */
+const CADENCE_ADVERB: Record<string, string> = {
+  WEEKLY: 'every week',
+  BIWEEKLY: 'every two weeks',
+  MONTHLY: 'every month',
+  QUARTERLY: 'every three months',
+  SEMIANNUAL: 'twice a year',
+  ANNUAL: 'once a year',
+};
+
+/** The rhythm picker. Uncontrolled `<select>` + explicit submit, the recipe this
+ *  page's other forms follow (never `useActionState` — L.7). */
+function RecurringCadenceForm({
+  busy,
+  initial,
+  submitLabel,
+  onSubmit,
+}: {
+  busy: boolean;
+  initial: string;
+  submitLabel: string;
+  onSubmit: (cadence: string) => void;
+}) {
+  const [cadence, setCadence] = useState(initial);
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <label htmlFor="detail-recurring-cadence" className="text-xs text-muted-foreground">
+        How often
+      </label>
+      <select
+        id="detail-recurring-cadence"
+        data-testid="detail-recurring-cadence"
+        className="tap-target rounded-md border bg-background px-2 py-1 text-sm"
+        value={cadence}
+        disabled={busy}
+        onChange={(e) => setCadence(e.target.value)}
+      >
+        {DECLARABLE_CADENCES.map((c) => (
+          <option key={c} value={c}>
+            {CADENCE_ADVERB[c]}
+          </option>
+        ))}
+      </select>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={busy}
+        data-testid="detail-recurring-save"
+        onClick={() => onSubmit(cadence)}
+      >
+        {submitLabel}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * The shared Button is `whitespace-nowrap`, which turns a long label into a page
+ * 55px wider than a 360px phone — measured by tests/e2e/mobile-overflow.spec.ts on
+ * this very section. Any button here whose text is a sentence carries this.
+ */
+const WRAPPING_BUTTON = 'h-auto whitespace-normal text-left';
 
 /** One labelled block. The page is a stack of these, in Simplifi's field order. */
 function Field({
@@ -79,6 +154,8 @@ export function TransactionDetailView({
   categoryGroups,
   ruleExcludedReason,
   unconfirmed,
+  recurringVerdict,
+  projectionsStale,
 }: {
   detail: DetailView;
   categoryGroups: CategoryGroup[];
@@ -87,6 +164,17 @@ export function TransactionDetailView({
   /** Why a rule cannot be written from this row, from the rule builder's OWN
    *  predicate (`getRuleSourceTransaction`) — never a second copy of it here. */
   ruleExcludedReason: string | null;
+  /** O.13f — the reader's standing verdict on this row's payee, already read back
+   *  through the engine's parser (so an unreadable row arrives as no verdict). */
+  recurringVerdict: {
+    merchantCanonical: string | null;
+    decision: string | null;
+    cadence: string | null;
+    /** Why this row may not be declared recurring — the engine's own sentence. */
+    blockedReason: string | null;
+  };
+  /** The last verdict saved but its projection rebuild did not run. */
+  projectionsStale: boolean;
 }) {
   const { row } = detail;
   const [busy, setBusy] = useState(false);
@@ -171,6 +259,46 @@ export function TransactionDetailView({
       const res = await fn();
       if (!res.ok) throw new RefusalError(res.error);
     });
+  }
+
+  /**
+   * A recurring verdict (O.13f). Same REPORTED-refusal handling as `runFlag`,
+   * plus the one thing this action can half-do: the row is saved but the
+   * projection rebuild that carries it to /calendar, /forecast and the spending
+   * plan may not have run. That is not a failure — the instruction is stored and
+   * the next sync applies it — so it reloads with a flag instead of an error, and
+   * the page says which screens have not caught up yet.
+   */
+  function runVerdict(
+    fn: () => Promise<{ ok: true; projectionsRefreshed: boolean } | { ok: false; error: string }>,
+  ) {
+    setMenuOpen(false);
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    void (async () => {
+      try {
+        const res = await withDeadline(fn(), FORM_ACTION_DEADLINE_MS);
+        if (!res.ok) throw new RefusalError(res.error);
+        window.location.assign(
+          res.projectionsRefreshed
+            ? window.location.pathname
+            : `${window.location.pathname}?${PROJECTIONS_STALE_PARAM}=1`,
+        );
+      } catch (e) {
+        if (e instanceof ActionDeadline) {
+          window.location.assign(`${window.location.pathname}?${UNCONFIRMED_PARAM}=1`);
+          return;
+        }
+        setError(
+          e instanceof RefusalError
+            ? e.message
+            : 'That did not go through. Reload the page to see the latest, then try again.',
+        );
+        setBusy(false);
+        requestAnimationFrame(() => errorRef.current?.scrollIntoView({ block: 'center' }));
+      }
+    })();
   }
 
   /** Bring one of this page's own editors to the reader (the menu's "one
@@ -272,6 +400,7 @@ export function TransactionDetailView({
                       runFlag(() => setReimbursement({ transactionId: row.id, state })),
                     onExclude: (exclude) =>
                       runFlag(() => setExcludeFromTotals({ transactionId: row.id, exclude })),
+                    onRecurring: () => focusEditor('[data-testid="detail-recurring"]'),
                     ruleHref: `/rules?from=${encodeURIComponent(row.id)}`,
                     renameHref: `/rules?from=${encodeURIComponent(row.id)}#kw-rename`,
                   }}
@@ -758,6 +887,143 @@ export function TransactionDetailView({
             >
               Create a rule from this transaction
             </Link>
+          </>
+        )}
+      </div>
+
+      {/* RECURRING — SIMPLIFI_PARITY row 12 (TASKS O.13f). Detection needs three
+          charges at a steady rhythm before it will call anything a bill, which is
+          the right bar for a guess but leaves the reader unable to state what he
+          already knows. This is where he states it, and where he takes it back. */}
+      {/* `id` is load-bearing: the register's menu links to `#recurring`, so
+          without it that link lands at the top of the page and the reader has to
+          hunt for the control he just asked for. */}
+      <div id="recurring" className="space-y-2 rounded-md border p-3" data-testid="detail-recurring">
+        <div className="text-sm font-medium">Recurring</div>
+        {projectionsStale && (
+          <p
+            role="alert"
+            className="rounded-md border border-amber-500/60 p-2 text-xs text-amber-700 dark:text-amber-300"
+            data-testid="detail-recurring-stale"
+          >
+            Saved. Your forecast, calendar and spending plan could not be rebuilt just now — they will
+            pick this up on your next sync.
+          </p>
+        )}
+        {recurringVerdict.merchantCanonical === null ? (
+          <p className="text-xs text-muted-foreground" data-testid="detail-recurring-no-payee">
+            Aimplifi has no payee name for this transaction yet, and a bill is tracked by payee — so
+            there is nothing to mark here.
+          </p>
+        ) : recurringVerdict.blockedReason !== null && recurringVerdict.decision === null ? (
+          <>
+            {/* The menu already refuses to DECLARE this row; the section must
+                refuse in the SAME sentence rather than offering a form three
+                inches below a disabled control (reader critic P1-2). The server
+                enforces the same rule. */}
+            <p className="text-xs text-muted-foreground" data-testid="detail-recurring-blocked">
+              {recurringVerdict.blockedReason}
+            </p>
+            {/* …but the DEMOTION stays: it can only remove a projection, never
+                invent one, and an aggregate payee like Venmo is exactly the kind
+                the detector can get wrong. Refusing both levers here would take
+                away the safe one to protect against the unsafe one. */}
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              data-testid="detail-recurring-not-a-bill"
+              className={WRAPPING_BUTTON}
+              onClick={() =>
+                runVerdict(() =>
+                  markMerchantNotABill({ merchantCanonical: recurringVerdict.merchantCanonical! }),
+                )
+              }
+            >
+              Not recurring
+            </Button>
+          </>
+        ) : recurringVerdict.decision === 'BILL' ? (
+          <>
+            {/* States the INSTRUCTION and nothing about what is projected. This
+                page cannot see `classifySeriesProjection`, and the earlier draft
+                asserted "it is projected … in your forecasts" for every BILL — false
+                where the series is on a card, where the charges earned their own
+                (different) cadence, or where the only charge is still pending. The
+                page that CAN name the effect says so, and links here. */}
+            <p className="text-xs text-muted-foreground" data-testid="detail-recurring-state">
+              You told Aimplifi that {recurringVerdict.merchantCanonical} repeats{' '}
+              {CADENCE_ADVERB[recurringVerdict.cadence ?? ''] ?? 'on a schedule'}.{' '}
+              <Link href="/recurring" className="underline underline-offset-2">
+                Recurring
+              </Link>{' '}
+              shows what Aimplifi is doing with that.
+            </p>
+            <RecurringCadenceForm
+              busy={busy}
+              initial={recurringVerdict.cadence ?? 'MONTHLY'}
+              submitLabel="Change how often"
+              onSubmit={(cadence) => runVerdict(() => markTransactionAsBill({ transactionId: row.id, cadence }))}
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              data-testid="detail-recurring-clear"
+              className={WRAPPING_BUTTON}
+              onClick={() => runVerdict(() => clearRecurringVerdict({ merchantCanonical: recurringVerdict.merchantCanonical! }))}
+            >
+              Remove this instruction
+            </Button>
+          </>
+        ) : recurringVerdict.decision === 'NOT_BILL' ? (
+          <>
+            <p className="text-xs text-muted-foreground" data-testid="detail-recurring-state">
+              You told Aimplifi that {recurringVerdict.merchantCanonical} does not repeat. It is left
+              out of Recurring and out of every forward projection, however its charges line up.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              data-testid="detail-recurring-clear"
+              className={WRAPPING_BUTTON}
+              onClick={() => runVerdict(() => clearRecurringVerdict({ merchantCanonical: recurringVerdict.merchantCanonical! }))}
+            >
+              Remove this instruction
+            </Button>
+          </>
+        ) : (
+          <>
+            {/* The amount is deliberately NOT quoted from THIS row: the engine
+                anchors a declared series on the payee's most recent charge in the
+                same direction, which after a rent rise is not the row he is
+                standing on (critic P2-5). It promises the rule, not a figure. */}
+            <p className="text-xs text-muted-foreground" data-testid="detail-recurring-state">
+              Aimplifi calls a payee recurring after three charges a steady time apart. If you already
+              know {recurringVerdict.merchantCanonical} repeats, say so: it will be projected at the
+              rhythm you pick, from your most recent charge to that payee.
+            </p>
+            <RecurringCadenceForm
+              busy={busy}
+              initial="MONTHLY"
+              submitLabel="Mark as recurring"
+              onSubmit={(cadence) => runVerdict(() => markTransactionAsBill({ transactionId: row.id, cadence }))}
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              data-testid="detail-recurring-not-a-bill"
+              className={WRAPPING_BUTTON}
+              onClick={() =>
+                runVerdict(() =>
+                  markMerchantNotABill({ merchantCanonical: recurringVerdict.merchantCanonical! }),
+                )
+              }
+            >
+              Not recurring
+            </Button>
           </>
         )}
       </div>

@@ -1,12 +1,14 @@
 /**
  * O.15 slice 2 — the one action menu's availability basis. The contract under
- * guard: ALL EIGHT actions are always returned (disabled-with-reason, never
+ * guard: ALL NINE actions are always returned (disabled-with-reason, never
  * hidden), the reasons are the same sentences the server actions refuse with,
  * and the reimbursement slot's label follows the row's state.
  */
 import { describe, expect, it } from 'vitest';
 import {
   CATEGORY_BLOCKED_SPLIT_PARENT,
+  RECURRING_BLOCKED_SPLIT_PARENT,
+  RECURRING_BLOCKED_TRANSFER,
   EXCLUDE_BLOCKED_SPLIT_PARENT,
   EXCLUDE_BLOCKED_TRANSFER,
   REIMBURSE_BLOCKED_INFLOW,
@@ -26,6 +28,7 @@ const ALL_KINDS = [
   'note',
   'taxTag',
   'split',
+  'markRecurring',
   'reimbursement',
   'excludeFromTotals',
 ] as const;
@@ -45,7 +48,7 @@ const byKind = (t: ActionRowFacts) =>
   new Map(txnActionAvailability(t).map((a) => [a.kind, a]));
 
 describe('txnActionAvailability — every action, always', () => {
-  it('returns all eight actions in menu order, for every row shape', () => {
+  it('returns all nine actions in menu order, for every row shape', () => {
     for (const t of [
       facts(),
       facts({ isTransfer: true }),
@@ -164,5 +167,39 @@ describe('the exclusion slot follows the row state', () => {
     expect(byKind(facts({ excludeFromTotals: true })).get('excludeFromTotals')?.label).toBe(
       'Include in totals again',
     );
+  });
+});
+
+describe('markRecurring (O.13f) — refused exactly where an instruction would match nothing', () => {
+  const recurring = (t: ActionRowFacts) =>
+    txnActionAvailability(t).find((a) => a.kind === 'markRecurring')!;
+
+  it('is offered on an ordinary charge — and on an INFLOW, which the reimbursement slot is not', () => {
+    // A paycheck is a recurring series too; "does this repeat?" is a different
+    // question from "are you owed this back?", and only the second is outflow-only.
+    expect(recurring(facts())).toMatchObject({ enabled: true, reason: null });
+    expect(recurring(facts({ amountCents: 380000 }))).toMatchObject({ enabled: true, reason: null });
+  });
+
+  it('is refused on the two row shapes the detector never reads, with its reason', () => {
+    // Refused rather than silently accepted: `detectRecurring` skips split
+    // containers and transfers, so a verdict stored from one would look obeyed
+    // and do nothing at all.
+    expect(recurring(facts({ isSplitParent: true }))).toMatchObject({
+      enabled: false,
+      reason: RECURRING_BLOCKED_SPLIT_PARENT,
+    });
+    expect(recurring(facts({ isTransfer: true }))).toMatchObject({
+      enabled: false,
+      reason: RECURRING_BLOCKED_TRANSFER,
+    });
+  });
+
+  it('carries no state in its label — the destination is what knows the verdict', () => {
+    // These row facts do not include the reader's verdict, so a label claiming
+    // one would be wrong on exactly the rows he has already acted on.
+    for (const t of [facts(), facts({ excludeFromTotals: true }), facts({ reimbursement: 'awaiting' })]) {
+      expect(recurring(t).label).toBe('Recurring…');
+    }
   });
 });
