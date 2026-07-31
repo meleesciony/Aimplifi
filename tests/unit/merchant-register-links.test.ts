@@ -89,6 +89,7 @@ function view(id: string, merchantName: string): TxnView {
     categoryName: 'Groceries',
     amountCents: -1234,
     status: 'POSTED',
+    descriptorOrigin: 'bank',
     isTransfer: false,
     note: null,
     taxClass: null,

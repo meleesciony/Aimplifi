@@ -1110,6 +1110,8 @@ export function TransactionList({
                                 taxClass: t.taxClass,
                                 excludeFromTotals: t.excludeFromTotals,
                                 reimbursement: t.reimbursement,
+                                status: t.status,
+                                descriptorOrigin: t.descriptorOrigin,
                               })}
                               excluded={t.excludeFromTotals}
                               busy={actionBusy}
@@ -1132,6 +1134,10 @@ export function TransactionList({
                                   void writeFlag(t, () =>
                                     setExcludeFromTotals({ transactionId: t.id, exclude }),
                                   ),
+                                // Navigate, don't write: the pending disclosure and
+                                // the tax caution live on the detail view, and this
+                                // action must never fire without them.
+                                statusHref: `/transactions/${encodeURIComponent(t.id)}`,
                                 ruleHref: `/rules?from=${encodeURIComponent(t.id)}`,
                                 renameHref: `/rules?from=${encodeURIComponent(t.id)}#kw-rename`,
                               }}

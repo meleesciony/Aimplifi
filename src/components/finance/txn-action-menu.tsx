@@ -33,6 +33,14 @@ export interface TxnActionHandlers {
   onReimbursement: (state: 'awaiting' | 'received' | null) => void;
   /** Write the exclusion flag. */
   onExclude: (exclude: boolean) => void;
+  /** Write the cleared/pending status by hand (O.13g). Only ever called for a
+   *  row the reader entered — the engine disables it everywhere else. Absent when
+   *  the surface reaches it by NAVIGATION (`statusHref`), which the register does:
+   *  marking a row pending hides it from the tax export and five other surfaces,
+   *  and that sentence only fits on the detail view. Same arrangement as `split`
+   *  and `markRecurring`. */
+  onStatus?: (next: 'PENDING' | 'POSTED') => void;
+  statusHref?: string;
   /** Destinations for the two rule-backed actions (pre-filled from this row). */
   ruleHref: string;
   renameHref: string;
@@ -164,6 +172,30 @@ export function TxnActionMenuItems({
                 disabled={busy}
                 className={ITEM_CLASS}
                 onClick={() => handlers.onExclude(!excluded)}
+              >
+                {a.label}
+              </button>
+            );
+          case 'status':
+            // The register NAVIGATES (statusHref): this action hides a row from
+            // the tax export and five other surfaces, and the sentence that says
+            // so lives beside the control on the detail view. A bare button here
+            // would let a reader drop a tax-tagged row out of a preparer-bound
+            // total in one click with nothing on screen — found independently by
+            // both critics.
+            return handlers.statusHref ? (
+              <Link key={a.kind} role="menuitem" href={handlers.statusHref} prefetch={false} data-testid={testid} className={ITEM_CLASS}>
+                {a.label}
+              </Link>
+            ) : (
+              <button
+                key={a.kind}
+                type="button"
+                role="menuitem"
+                data-testid={testid}
+                disabled={busy}
+                className={ITEM_CLASS}
+                onClick={() => handlers.onStatus?.(a.nextStatus ?? 'POSTED')}
               >
                 {a.label}
               </button>

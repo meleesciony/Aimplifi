@@ -131,7 +131,9 @@ const PENDING_MAX_AGE_DAYS = 32;
  *       (absent from both the feed and pass 1) — without that, it would linger and, if it
  *       re-posted under a new id, double-count (critic P1-1).
  *
- * Safety: POSTED rows are institution-authoritative and never touched; a pending SPLIT
+ * Safety: POSTED rows are never touched here — institution-authoritative when the feed
+ * owns them, and since O.15 slice 7 a POSTED row may also be one the READER marked
+ * cleared by hand, which is a second reason not to touch it; a pending SPLIT
  * PARENT is protected from the in-window pass (one flaky snapshot must never destroy a
  * user decision — DECISIONS #148, cycle-4 #27) but DISSOLVES WITH its children in the
  * age-out pass (never orphaned, never immortal — the pre-#147 blanket exclusion made a
@@ -160,8 +162,14 @@ async function reconcilePendingTransactions(
   // (1) In-window reconcile, per account we synced this run.
   for (const [accountId, refs] of returnedRefsByAccount) {
     const keep = [...refs];
-    // Only feed-owned rows: `not: null` excludes manual/seed rows (POSTED anyway,
-    // but explicit). With refs returned, exclude the ones still present (notIn); an
+    // Only feed-owned rows: `not: null` excludes manual/seed rows. That guard is
+    // LOAD-BEARING as of O.15 slice 7 — it used to be belt-and-braces because a
+    // manual row was POSTED by construction and this pass only deletes PENDING
+    // ones, and the reader can now mark his OWN row pending on a SimpleFIN-linked
+    // account. Removing `not: null` would delete a transaction he typed. (The
+    // premise of a carve-out dies when a new writer joins the column — the lesson
+    // this repo recorded two days earlier, one column over.)
+    // With refs returned, exclude the ones still present (notIn); an
     // empty set means the account returned nothing this sync, so every feed-owned
     // in-window pending row is now stale. (notIn:[] would match everything, so the
     // empty case drops the notIn and keeps only the not-null + window guards.)

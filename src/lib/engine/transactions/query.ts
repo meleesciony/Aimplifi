@@ -16,6 +16,7 @@ import type { FreshnessResult } from '@/lib/engine/sync/health';
 import type { ProvenanceVerdict } from '@/lib/engine/categorize/provenance';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
+import type { RowOrigin } from '@/lib/engine/transactions/origin';
 
 export interface TxnView {
   id: string;
@@ -29,6 +30,14 @@ export interface TxnView {
   categoryName: string;
   amountCents: number; // signed: outflow negative, inflow positive
   status: string; // PENDING | POSTED
+  /**
+   * Who owns this row — 'bank' when a feed delivered it, 'entered' when the reader
+   * did (`rowOrigin`, engine/transactions/origin.ts). REQUIRED rather than
+   * optional: an absent value would default to the reader owning the row, which is
+   * the direction that OFFERS a status write on a row the next sync overwrites —
+   * a control that looks obeyed and is not.
+   */
+  descriptorOrigin: RowOrigin;
   isTransfer: boolean;
   /**
    * The reader's own memo, verbatim, or null. REQUIRED rather than optional: a row

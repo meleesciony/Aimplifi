@@ -15,12 +15,17 @@ import { prisma } from '@/lib/db';
 import { auditLog, requireUserId } from '@/server/authz';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
+import { rowOrigin } from '@/lib/engine/transactions/origin';
 import {
   EXCLUDE_BLOCKED_SPLIT_PARENT,
   EXCLUDE_BLOCKED_TRANSFER,
   REIMBURSE_BLOCKED_INFLOW,
   REIMBURSE_BLOCKED_SPLIT_PARENT,
   REIMBURSE_BLOCKED_TRANSFER,
+  STATUS_BLOCKED_BANK_OWNED,
+  STATUS_BLOCKED_INFLOW,
+  STATUS_BLOCKED_SPLIT_CHILD,
+  STATUS_BLOCKED_SPLIT_PARENT,
 } from '@/lib/engine/transactions/actions';
 
 export type FlagActionResult = { ok: true } | { ok: false; error: string };
@@ -43,7 +48,19 @@ async function ownedRow(userId: string, transactionId: string) {
   if (typeof transactionId !== 'string' || transactionId.trim() === '') return null;
   return prisma.transaction.findFirst({
     where: { id: transactionId, account: { userId } },
-    select: { id: true, amountCents: true, isTransfer: true, isSplitParent: true },
+    select: {
+      id: true,
+      amountCents: true,
+      isTransfer: true,
+      isSplitParent: true,
+      // O.15 slice 7: the status action's facts. `providerRef` + the account's
+      // provider are what `rowOrigin` decides ownership from — the ROW, never the
+      // account alone (O.13b critic cycle 2).
+      status: true,
+      splitParentId: true,
+      providerRef: true,
+      account: { select: { provider: true } },
+    },
   });
 }
 
@@ -123,5 +140,71 @@ export async function setReimbursement(input: {
   // The tracker line lives on /coach; the badge on /transactions.
   revalidatePath('/transactions');
   revalidatePath('/coach');
+  return { ok: true };
+}
+
+/**
+ * Set `status` by hand — O.13g, Simplifi parity row 13 ("Pending / Cleared
+ * editable by the user").
+ *
+ * This slice does NOT change what PENDING means: every one of the ~11 gates that
+ * read it already handles a pending row, because providers deliver them. It
+ * widens only WHO MAY WRITE the value, and only to rows no feed owns — so the
+ * blast radius is this function, not the read surfaces.
+ *
+ * The refusals are the menu's own sentences, imported rather than re-typed.
+ */
+export async function setTransactionStatus(input: {
+  transactionId: string;
+  status: string;
+}): Promise<FlagActionResult> {
+  const userId = await requireUserId();
+  // Same shared-demo fence as its two siblings: the demo's hand-verified totals
+  // are the product surface, and status moves several of them.
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  if (input.status !== 'PENDING' && input.status !== 'POSTED') {
+    return { ok: false, error: 'That is not a status Aimplifi knows — nothing was saved.' };
+  }
+
+  const row = await ownedRow(userId, input.transactionId);
+  if (!row) return { ok: false, error: 'That transaction is no longer available — nothing was changed.' };
+
+  // Every refusal below is BOTH directions, and each mirrors the menu exactly —
+  // the sentences are imported, never re-typed.
+  //
+  // 1. A fed row: the bank is the authority on whether its own charge cleared.
+  if (rowOrigin({ providerRef: row.providerRef, accountProvider: row.account.provider }) === 'bank') {
+    return { ok: false, error: STATUS_BLOCKED_BANK_OWNED };
+  }
+  // 2. A split PIECE. `splitTransaction` gives children no `providerRef`, so a
+  //    piece of a BANK charge would pass the check above while both providers
+  //    push the parent's status onto its children on every sync — the write would
+  //    be silently reverted. Refused before the container check because a piece is
+  //    the shape that reaches this action in the wild.
+  if (row.splitParentId !== null) return { ok: false, error: STATUS_BLOCKED_SPLIT_CHILD };
+  if (row.isSplitParent) return { ok: false, error: STATUS_BLOCKED_SPLIT_PARENT };
+  // 3. Money in. The pending sum is SIGNED, so a pending inflow ADDS to today's
+  //    projected cash — a typed "expected paycheck" would cancel the dashboard's
+  //    transfer instruction. Refused rather than disclosed (see STATUS_BLOCKED_INFLOW).
+  if (row.amountCents >= 0) return { ok: false, error: STATUS_BLOCKED_INFLOW };
+
+  await prisma.transaction.update({ where: { id: row.id }, data: { status: input.status } });
+  await auditLog(userId, 'transaction.status.set', {
+    transactionId: row.id,
+    from: row.status,
+    to: input.status,
+  });
+  // Status moves more surfaces than an exclusion does: bill DETECTION (/recurring),
+  // the savings rate and Merchant Lens (/coach, /transactions), and cash-needed
+  // (/dashboard). The projection pages are revalidated because they read the
+  // detector's output — but note this does NOT rebuild the stored
+  // `ScheduledTransaction` rows (no `refreshRecurringForUser` call here); those
+  // refresh on the next sync or manual-entry hook, the same as every other
+  // detection input. Stated rather than implied (critic A, P3).
+  revalidateTotals();
+  revalidatePath('/recurring');
+  revalidatePath('/calendar');
+  revalidatePath('/forecast');
   return { ok: true };
 }

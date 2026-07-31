@@ -2,6 +2,93 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-31 — O.15 slice 7: you can say "this hasn't cleared yet" (DECISIONS #347)
+
+SIMPLIFI_PARITY row 13 (**Pending / Cleared editable by the user**), which read
+"`status` renders as a badge; no action edits it". TASKS O.13g bundled it with
+row 15 ("track a refund"), and as with #345 the bundling was the first thing to
+undo: **row 15 was already shipped.** Slice 2's reimbursement tracker IS
+Simplifi's *"Expecting a refund? Track it here"* — `Transaction.reimbursement`,
+the "Money you're owed back" line on /coach, and `findOffsettingInflow` proposing
+the matching deposit. The gap there is vocabulary, not capability, and the matrix
+row was corrected rather than a second feature built.
+
+**The architecture: widen the WRITER, never the meaning.** `status` is read at
+~30 call sites with no shared predicate, and every one already handles a pending
+row because providers deliver them. So no predicate changed and **no column was
+added** — the live database is untouched by this deploy.
+
+**Ownership is the whole design, and it is where all three critic findings
+landed.** The rule is *the reader may only write what he owns*: a fed row is
+refused in BOTH directions (the bank is the authority on whether its own charge
+cleared — this is NOT slice 2's never-lock-the-undo asymmetry, which governs
+reader-owned columns like `excludeFromTotals`).
+
+**HOSTILE CRITIC CYCLE 1 — two fresh-context Fable critics, both FAIL: 6 P1 plus
+P2/P3, all fixed and ledger-locked.** They converged INDEPENDENTLY on the same
+hole, which this repo treats as the strongest available signal that a finding is
+real: **a split PIECE has no `providerRef`**, so a piece of a BANK charge read as
+reader-owned and was offered a write — while both providers push the parent's
+status onto its children on every sync. The reader's answer would have been
+silently reverted, which is exactly the failure the bank refusal exists to
+prevent. Pieces are now refused both ways, and that **amends** the asymmetry
+invariant for pieces (in place, with its reason) rather than dropping it.
+
+**The sharpest finding was executed against the real engine.** The pending sum is
+SIGNED (`assemble.ts:107`) and the engine adds it to today's balance, so
+"pending" means *still to leave* on an outflow and *already arrived* on an inflow
+— with no date gate. A hand-typed "+$2,000 EXPECTED PAYCHECK" marked pending took
+a $500 shortfall to **$0** and deleted the dashboard's transfer instruction, even
+dated 45 days out. Only a provider could reach that state before this slice.
+Refused, not disclosed: L.14's axis says a stale figure can be weighed while a
+missing instruction bounces an autopay.
+
+**The disclosure had to be written against the gates, because the obvious
+sentence is false.** `isSpendRow` never reads `status`, so /reports, /budgets,
+/trends pace+movers and the register summary count a pending row exactly like a
+cleared one. `STATUS_PENDING_EFFECT` says so, and the unit test EXECUTES each
+clause against the engine it names — add a status gate to reports and a test
+fails telling you the copy is now a lie. A tax-tagged row gets its own caution
+(the slice-6 "two orders" class). Two consequences: the register's menu item now
+NAVIGATES to the detail view rather than writing in place (both critics found a
+bare button let a tax-tagged row leave the tax export in one click with nothing
+on screen), and the effect copy renders for OUTFLOWS only, since a provider can
+still deliver a pending deposit the sentence would describe backwards.
+
+**One claim corrected rather than defended.** The refusal originally justified
+itself with *"says so again on every sync — a change here would be overwritten"*.
+That mechanism does not exist for the commonest bank row: Plaid's
+`/transactions/sync` is a cursor DELTA that never re-sends an unmodified settled
+row, and SimpleFIN refetches only a ~5-day window. The policy survived on
+AUTHORITY; the stated reason did not, and the wrong reason is the dangerous half
+— it is what the next editor relies on.
+
+### 🟠 OPEN / residual, recorded rather than implied
+
+1. **A piece of a row the READER marked pending before splitting stays pending**
+   until he undoes the split. Resolving a piece's true owner needs its parent
+   loaded at three call sites; the wave's governing failure direction made the
+   honest refusal the right trade, and the remedy is named in the sentence. For a
+   piece of a BANK charge there is no cost — the feed sets it when the charge posts.
+2. **A hand-typed row duplicating a bank row double-counts once the bank's copy
+   arrives** (critic A, P2, mechanism-verified not executed end-to-end): nothing
+   matches or removes the manual copy, so cash-needed can subtract a check twice.
+   Pre-existing for POSTED duplicates; this slice makes the pending variant
+   reachable. No matcher exists and none was built.
+3. **On a fully manual payment account, marking a row cleared raises projected
+   cash** — manual balances are hand-set and never mutated by transactions, so
+   removing the pending subtraction is not offset until the reader edits the
+   balance. Nothing prompts him to. Mechanism confirmed by the same executed runs.
+4. **`refreshRecurringForUser` is not called on a status flip.** The projection
+   pages are revalidated and re-read the detector, but stored `ScheduledTransaction`
+   rows refresh on the next sync or manual-entry hook, like every other detection
+   input. Stated in the action rather than implied.
+5. **The "bill detection" clause of the disclosure is locked by a string-presence
+   grep** over `server/recurring.ts` + `server/coach.ts`, because the POSTED
+   narrowing lives at the server intake and no pure fixture can reach it (the O.5
+   rule: sharing an engine is not sharing a basis). It is the weakest clause in an
+   otherwise executed lock, and the test says so.
+
 ## ✅ BUILT 2026-07-30 — O.15 slice 6: a rule can tag it for taxes (DECISIONS #346)
 
 SIMPLIFI_PARITY row 2 (rule THEN-actions), and the delivery of the half

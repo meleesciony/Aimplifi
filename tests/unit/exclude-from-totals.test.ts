@@ -177,6 +177,7 @@ describe('the register: the one place an excluded row STAYS', () => {
     categoryName: 'Groceries',
     amountCents: -21240,
     status: 'POSTED',
+    descriptorOrigin: 'bank',
     isTransfer: false,
     note: null,
     taxClass: null,

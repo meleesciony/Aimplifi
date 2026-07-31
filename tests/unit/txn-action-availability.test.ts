@@ -31,8 +31,13 @@ const ALL_KINDS = [
   'markRecurring',
   'reimbursement',
   'excludeFromTotals',
+  'status',
 ] as const;
 
+// Base row: POSTED and ENTERED BY THE READER. 'entered' is the deliberate default
+// because it is the only shape where the status action is live at all — a 'bank'
+// base would make every status assertion below pass on the refusal branch and
+// never exercise the rule (the vacuous-fixture trap).
 const facts = (over: Partial<ActionRowFacts> = {}): ActionRowFacts => ({
   amountCents: -12550,
   isTransfer: false,
@@ -41,6 +46,8 @@ const facts = (over: Partial<ActionRowFacts> = {}): ActionRowFacts => ({
   taxClass: null,
   excludeFromTotals: false,
   reimbursement: null,
+  status: 'POSTED',
+  descriptorOrigin: 'entered',
   ...over,
 });
 
@@ -48,7 +55,7 @@ const byKind = (t: ActionRowFacts) =>
   new Map(txnActionAvailability(t).map((a) => [a.kind, a]));
 
 describe('txnActionAvailability — every action, always', () => {
-  it('returns all nine actions in menu order, for every row shape', () => {
+  it('returns all ten actions in menu order, for every row shape', () => {
     for (const t of [
       facts(),
       facts({ isTransfer: true }),

@@ -7340,3 +7340,215 @@ Runtime errors in the window after: **one pre-existing group only** — the `pg`
 SSL-mode deprecation warning first seen 2026-06-17, whose `lastDeployment` is the
 PREVIOUS deployment. Nothing new.
 
+
+## O.15 slice 7 — "this hasn't cleared yet" (O.13g) — PLAN, 2026-07-30
+
+TASKS O.13g bundles two Simplifi-parity rows. Measured before building; they get
+different verdicts, like O.13e:
+
+- **Parity row 15 "Track a refund" — ALREADY SHIPPED, matrix stale.** Slice 2's
+  reimbursement tracker IS Simplifi's "Expecting a refund? Track it here":
+  `Transaction.reimbursement` ('awaiting' | 'received'),
+  `outstandingReimbursements()` on /coach, and `findOffsettingInflow()` proposing
+  the matching deposit (exact opposite magnitude, POSTED, ≤90d, earliest-then-id
+  tiebreak, never stored). Deliverable = un-stale the row, not a build.
+- **Parity row 13 "Pending/Cleared editable" — the genuine gap, and the build.**
+
+### The architecture: do not change what PENDING MEANS
+
+`status` is read by ~30 call sites and there is NO shared predicate. But every one
+of them already handles PENDING correctly today, because providers deliver PENDING
+rows. So this slice widens WHO MAY WRITE the value and changes no predicate — the
+blast radius is the write side, not the read side, and no refactor is needed.
+
+**Only rows the app owns may be flipped.** VERIFIED IN CODE, not from comments:
+- `simplefin.ts:172` and `:205` — both pending-sweep deletes carry
+  `providerRef: { not: null }`, so a manual row is structurally outside them.
+- `plaid.ts:1507` — the removed-path selects `providerRef: { in: chunk }`; a null
+  ref can never be in Plaid's removed-id list.
+- `plaid.ts:1163/1224/1320` write `status` from `txn.pending` on every create AND
+  update, so a reader's flip on a bank row would be silently overwritten next sync.
+  That is the refusal's stated reason, and it is true rather than defensive.
+
+**The origin signal already exists and is already reasoned about**:
+`server/transactions.ts:626` derives `descriptorOrigin: 'bank' | 'entered'` from the
+ROW's `providerRef` (not `account.provider` — O.13b critic cycle 2 fixed exactly that
+false attribution), with the demo dataset a documented exception. Reused, not
+re-derived; extracted so the register and the detail view share one basis.
+
+### The asymmetry, and why slice 2's version of it does NOT transfer verbatim
+
+Slice 2's rule was "starting an action may be refused; stopping it never is",
+because `excludeFromTotals`/`reimbursement` are READER-OWNED columns. `status` is
+PROVIDER-OWNED, so for a bank row the refusal is total in BOTH directions — the
+reader may only write what he owns. Within an app-owned row the slice-2 rule holds
+in full: marking PENDING (the direction that HIDES the row from trends, tax export,
+FI, merchant profile, recurring detection, radar) may be refused on a container or a
+split piece; marking CLEARED (the direction that RESTORES it to every total) must
+never be lockable, or a row could be stranded hidden forever.
+
+### Disclosure (L.29 — a surface that starts hiding money says so)
+
+Marking pending removes the row from trends/tax export/FI/household/anomaly/merchant
+profile/recurring/radar and ADDS it to cash-needed's pending-outflow sum
+(`assemble.ts:107`, payment account, non-container). The control states this. A row
+carrying a `taxClass` gets the tax-export clause specifically — the slice-6
+"two orders" class: a tag is an instruction, and silently dropping it from a figure
+bound for a preparer is the failure this repo has already been bitten by twice.
+
+### Steps
+1. extract origin helper (one basis) + add `descriptorOrigin` to `TxnView`
+2. `actions.ts`: `'status'` kind, 2 new REQUIRED `ActionRowFacts` fields (tsc
+   enumerates the 2 call sites + the test), refusal copy
+3. `setTransactionStatus` server action (same idiom: demo fence, imported refusals,
+   audit log, revalidate)
+4. UI: detail-view control + disclosure, register menu wiring
+5. locks: availability unit, server-guard unit, one e2e that flips a manual row and
+   asserts a money total actually moves
+6. docs: STATUS, DECISIONS, SIMPLIFI_PARITY rows 13+15, TASKS O.13g
+7. gate `VERIFY_E2E=1`, then commit → push → deploy-verify
+
+SCHEMA: **no new column** — this reuses `status`. Expect no prisma diff, so the
+live Neon database is untouched by the deploy.
+
+### Self-found before the critics reported (O.15 slice 7)
+
+**The register can flip status with no disclosure.** `STATUS_PENDING_EFFECT` and
+`STATUS_PENDING_TAX_CAUTION` render on `/transactions/[id]` only, but the action
+menu is also on every register row, where the item is a BUTTON that writes
+immediately — so a reader can mark a tax-tagged row pending in one click and
+never see the sentence saying the tax export just dropped it. That is the L.29 /
+slice-6 "two orders" class again.
+
+Fix chosen: make the register's status item NAVIGATE to the detail view, exactly
+as `split` and `markRecurring` already do there ("The split form lives on the
+detail view — navigate, don't duplicate it here"). Reuses an established
+convention instead of inventing a second disclosure surface, and keeps one place
+where the sentence and the control sit together.
+
+Deferred to apply WITH the critics' findings rather than now, so their file:line
+references do not go stale mid-run (parallelise for finding, serialize for fixing).
+
+### O.15 slice 7 — HOSTILE CRITIC CYCLE 1: two fresh-context Fable critics, BOTH FAIL
+
+6 P1 total, 0 P0. All fixed and ledger-locked (5 REGRESSION_LEDGER rows). The two
+critics were given DIFFERENT lenses (money-truth/data-integrity vs
+claims/UI-truth) and run in parallel; fixes were applied afterwards, serialized.
+
+**They converged INDEPENDENTLY on the same finding** — the repo's strongest signal
+that a finding is real — and it was the one my own design reasoning had missed:
+a split PIECE carries no `providerRef`, so a piece of a BANK charge read as
+'entered' and was offered a status write, while both providers push the parent's
+status onto children on every sync. Silently reverted; the exact failure the bank
+refusal exists to prevent.
+
+**Critic A (money) additionally found the sharpest defect, by execution:** the
+pending sum is SIGNED, so a hand-typed "+$2,000 EXPECTED PAYCHECK" marked pending
+took a measured $500 shortfall to $0 and deleted the dashboard's transfer
+instruction — no date gate, so a row 45 days out counted today. Money in is now
+refused outright.
+
+**Critic B (claims) additionally found:** the refusal's stated mechanism was false
+(Plaid is a cursor delta, SimpleFIN a ~5-day window — nothing re-asserts a settled
+row), the SimpleFIN reconcile's `providerRef: { not: null }` comment still called
+itself redundant when it had become the only thing preventing deletion of a
+reader's own row, and `action-menu.spec.ts` still asserted "all eight actions"
+while the engine returned ten.
+
+**Both found the register's undisclosed flip** (which I had also self-found before
+they reported and deferred deliberately, so their line references would not go
+stale mid-run).
+
+Mutation-proven, one at a time: neutralising the split-piece branch fails exactly
+2 tests; neutralising the inflow branch fails exactly 1.
+
+**What survived attack, stated plainly:** every other clause of
+`STATUS_PENDING_EFFECT` verified TRUE against its engine; no provider path can
+delete or overwrite a hand-marked row (both SimpleFIN passes, the age-out, Plaid's
+removed-path and the churn transplant all key on `providerRef`); no stranding on
+non-container rows; `descriptorOrigin` genuinely populated in both mappers; the
+server mirrors every menu refusal.
+
+### O.15 slice 7 — GATE RUN 1: 2 e2e failures, investigated before re-running
+
+`VERIFY_E2E=1 bash scripts/verify.sh` run 1: tsc clean, eslint clean,
+**5089 unit / 319 files passed**, build clean, **243 e2e passed, 2 failed** →
+`❌ VERIFY FAILED`. (Note: the background notification reported "exit 0" — that
+was my trailing `echo`, not the gate. Read the log, not the wrapper.)
+
+The two failures, and why neither is this slice — established BEFORE any re-run,
+because a re-run destroys the reproduction:
+
+1. `mobile-overflow.spec.ts:408` `/transactions/[id]` on **mobile-webkit** —
+   `waitForURL` timeout after clicking `txn-detail-link`. This is the EXACT
+   signature docs/STATUS.md recorded as a known intermittent during slice 2
+   ("passes alone/warm/full-gate; cold-run-correlated; mechanism unknown"), whose
+   own instruction was to copy `test-results/` aside before re-running. Done:
+   `/tmp/slice7-e2e-artifacts/`. The preserved `error-context.md` shows the page
+   still on `/transactions` with the `Details` link present and the action menu
+   CLOSED — so the link this slice added to that menu is not even in the failing
+   DOM. Had the slice broken the page, the failure would be in
+   `assertFitsEveryWidth` or `detail-raw-descriptor`, i.e. AFTER navigation; this
+   one never navigated.
+2. `phase4-features.spec.ts:50` goals delete-confirm click timeout on mobile-380 —
+   an unrelated surface, and the shape of the documented local full-suite load
+   flake (a different assertion each run, passes alone).
+
+Both pass in isolation, serialized: mobile-overflow **7 passed** on webkit,
+phase4-features **6 passed**. Per the lessons, one run is not evidence — a
+rotating failure set is contention, the SAME set twice is a bug — so the full gate
+is being re-run serialized to settle it.
+
+Checked and NOT a gap: `tests/e2e/transaction-status.spec.ts` reports "no tests
+found" under mobile-webkit because that project is deliberately scoped
+`testMatch: /mobile-overflow\.spec\.ts/` (playwright.config.ts:67).
+
+### O.15 slice 7 — GATE STATE AT HANDOFF: NOT locally green, and NOT explained away
+
+Owner needs to restart the machine, so this is the honest stopping point.
+
+| run | tree | unit | e2e | verdict |
+|---|---|---|---|---|
+| 1 | slice 7 | 5089 / 319 files pass | 243 pass, **2 fail** | ❌ |
+| 2 | slice 7 | 5089 / 319 files pass | 244 pass, **1 fail** | ❌ |
+| 3 | **clean HEAD** (stashed) | 5071 / 318 files pass | **241 pass, 0 fail** | ✅ VERIFY GREEN |
+
+The three failures were `mobile-overflow:408` (webkit) + `phase4-features:33`,
+then `merchant-lens:77` — three DIFFERENT specs, zero overlap between runs, all
+the identical mechanism (a click, then `waitForURL` never completing), and all
+passing in isolation in 0.9–2.3s. Artifacts preserved BEFORE any re-run at
+`/tmp/slice7-e2e-artifacts/` per the slice-2 instruction; the webkit
+`error-context.md` shows the page still on `/transactions` with the action menu
+CLOSED, so the link this slice adds to that menu is not in the failing DOM, and
+the failure is before navigation rather than at the overflow assertion.
+
+**What I will NOT claim:** that this is "just the known flake". A single clean-HEAD
+green run is weak evidence, but it is evidence, and it points the other way. The
+rotating failure set and the isolation passes point at contention; one green
+clean-HEAD run points at me. Both readings are alive.
+
+**Leading hypothesis, untested, and it is not a product defect:** this slice adds
+**4 data-creating e2e tests** (signup + manual account + 2–3 manual transactions
+each), so the suite now does materially more DB/server work than clean HEAD's 241
+— which would raise the contention that makes OTHER specs' navigations time out
+without any product code being wrong. Note runs 1 and 2 executed 243 and 244
+tests vs clean HEAD's 241.
+
+**How to settle it next session (in order, cheapest first):**
+1. Re-run the full gate on THIS tree 2–3 more times. Same spec failing every time
+   ⇒ real bug. Rotating ⇒ contention, and the hypothesis above is the cause.
+2. If rotating, re-run clean HEAD 2–3 times too; a clean-HEAD failure appearing
+   confirms contention and closes it.
+3. Let CI (the Linux runner) arbitrate — it is the documented e2e arbiter here,
+   and it runs on different hardware with different timing.
+4. `mobile-overflow:408` now has TWO recorded sightings (slice 2, and run 1 here)
+   with preserved artifacts. It has earned its own task rather than another
+   "known intermittent" note.
+
+**Why this is being pushed anyway:** the product code is verified — tsc, eslint
+and `next build` clean on every run; 5089 unit tests green; all 4 new e2e tests
+green; both critic P1 fixes mutation-proven; no schema diff. The open question is
+about SUITE TIMING, not about whether the feature is correct. Pushing lets CI
+arbitrate and lets the owner see the work; leaving it uncommitted across a restart
+would risk the slice. **The Definition of Done is NOT met until a gate on this
+tree exits 0, and this is recorded as such rather than rounded up.**

@@ -30,7 +30,11 @@ import { cents, formatCents, parseDollarInput } from '@/lib/money';
 import { TAX_CLASSES, TAX_CLASS_LABELS } from '@/lib/engine/tax/classes';
 import { TXN_NOTE_MAX_CHARS } from '@/lib/engine/tax/note';
 import { setTransactionTax } from '@/server/tax-actions';
-import { setExcludeFromTotals, setReimbursement } from '@/server/transaction-flags-actions';
+import {
+  setExcludeFromTotals,
+  setReimbursement,
+  setTransactionStatus,
+} from '@/server/transaction-flags-actions';
 import {
   clearRecurringVerdict,
   markMerchantNotABill,
@@ -38,7 +42,11 @@ import {
 } from '@/server/recurring-override-actions';
 import { DECLARABLE_CADENCES } from '@/lib/engine/recurring/override';
 import { recategorize, splitTransaction, undoSplit } from '@/server/triage-actions';
-import { txnActionAvailability } from '@/lib/engine/transactions/actions';
+import {
+  STATUS_PENDING_EFFECT,
+  STATUS_PENDING_TAX_CAUTION,
+  txnActionAvailability,
+} from '@/lib/engine/transactions/actions';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { TxnActionMenuItems } from '@/components/finance/txn-action-menu';
 import { MoreHorizontal } from 'lucide-react';
@@ -189,6 +197,32 @@ export function TransactionDetailView({
 
   const flatCategories = categoryGroups.flatMap((g) => g.categories);
   const pv = provenanceBadgeView(row.provenance);
+  // ONE availability computation for this page: the action menu and the Status
+  // field below both read it. Two calls would be two surfaces one inch apart
+  // able to disagree about whether the reader may mark this row.
+  const actions = txnActionAvailability({
+    amountCents: row.amountCents,
+    isTransfer: row.isTransfer,
+    isSplitParent: detail.isSplitParent,
+    splitParentId: detail.splitParentId,
+    taxClass: row.taxClass,
+    excludeFromTotals: row.excludeFromTotals,
+    reimbursement: row.reimbursement,
+    status: row.status,
+    descriptorOrigin: row.descriptorOrigin,
+  });
+  const statusAction = actions.find((a) => a.kind === 'status')!;
+  // The effect copy answers "what does pending DO to my figures" — shown while the
+  // row IS pending (the state the reader is in) and while the live action WOULD
+  // make it pending (what he is about to do), so it is never only after the fact.
+  //
+  // OUTFLOWS ONLY (critic A, P1): the cash clause is true of money going out and
+  // false of money coming in, because cash-needed sums pending SIGNED — a pending
+  // deposit reads as cash that has already arrived. The reader can no longer mark
+  // an inflow pending, but a provider can, so this gate is what keeps us from
+  // printing an outflow's sentence over a bank's pending deposit.
+  const showsPendingEffect =
+    row.amountCents < 0 && (row.status === 'PENDING' || statusAction.nextStatus === 'PENDING');
   const total = Math.abs(row.amountCents);
 
   /**
@@ -373,15 +407,7 @@ export function TransactionDetailView({
                 className="absolute right-0 z-50 mt-1 max-h-80 w-64 overflow-auto rounded-lg border bg-card text-foreground shadow-lg ring-1 ring-foreground/10"
               >
                 <TxnActionMenuItems
-                  actions={txnActionAvailability({
-                    amountCents: row.amountCents,
-                    isTransfer: row.isTransfer,
-                    isSplitParent: detail.isSplitParent,
-                    splitParentId: detail.splitParentId,
-                    taxClass: row.taxClass,
-                    excludeFromTotals: row.excludeFromTotals,
-                    reimbursement: row.reimbursement,
-                  })}
+                  actions={actions}
                   excluded={row.excludeFromTotals}
                   busy={busy}
                   handlers={{
@@ -400,6 +426,8 @@ export function TransactionDetailView({
                       runFlag(() => setReimbursement({ transactionId: row.id, state })),
                     onExclude: (exclude) =>
                       runFlag(() => setExcludeFromTotals({ transactionId: row.id, exclude })),
+                    onStatus: (status) =>
+                      runFlag(() => setTransactionStatus({ transactionId: row.id, status })),
                     onRecurring: () => focusEditor('[data-testid="detail-recurring"]'),
                     ruleHref: `/rules?from=${encodeURIComponent(row.id)}`,
                     renameHref: `/rules?from=${encodeURIComponent(row.id)}#kw-rename`,
@@ -455,7 +483,40 @@ export function TransactionDetailView({
         <Field label="Account" testid="detail-account">
           {row.accountName}
         </Field>
-        <Field label="Status">{row.status === 'PENDING' ? 'Pending' : 'Cleared'}</Field>
+        {/* O.13g / Simplifi parity row 13. The value first, then either the
+            control or the sentence saying why there isn't one — the same
+            disabled-with-reason rule the action menu follows, because a status
+            that silently cannot be edited is indistinguishable from one nobody
+            built. */}
+        <Field label="Status">
+          <span className="flex flex-wrap items-center gap-2">
+            <span data-testid="detail-status-value">
+              {row.status === 'PENDING' ? 'Pending' : 'Cleared'}
+            </span>
+            {statusAction.enabled ? (
+              <button
+                type="button"
+                data-testid="detail-status-toggle"
+                disabled={busy}
+                className="tap-target rounded border px-2 py-0.5 text-xs hover:bg-accent disabled:opacity-50"
+                onClick={() =>
+                  runFlag(() =>
+                    setTransactionStatus({
+                      transactionId: row.id,
+                      status: statusAction.nextStatus ?? 'POSTED',
+                    }),
+                  )
+                }
+              >
+                {statusAction.label}
+              </button>
+            ) : (
+              <span data-testid="detail-status-reason" className="text-xs text-muted-foreground">
+                {statusAction.reason}
+              </span>
+            )}
+          </span>
+        </Field>
         <Field label="Why this category">
           <Badge
             variant="outline"
@@ -467,6 +528,23 @@ export function TransactionDetailView({
           </Badge>
         </Field>
       </div>
+
+      {/* L.29 — a surface that starts hiding money says so, and says WHICH money.
+          Rendered from the engine's exported sentences so the page, the menu and
+          any test share one author. */}
+      {showsPendingEffect && (
+        <p data-testid="detail-status-effect" className="mt-2 text-xs text-muted-foreground">
+          {STATUS_PENDING_EFFECT}
+          {row.taxClass !== null && (
+            <>
+              {' '}
+              <span data-testid="detail-status-tax-caution" className="text-amber-700 dark:text-amber-300">
+                {STATUS_PENDING_TAX_CAUTION}
+              </span>
+            </>
+          )}
+        </p>
+      )}
 
       {/* `role="alert"` matches every sibling error site in this app (the auth
           form, accounts-list, add-transaction, budget-target). Without it a

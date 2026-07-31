@@ -13,6 +13,7 @@ import { summarizeRecurring } from '@/lib/engine/recurring/summary';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { type PredictionSource, describeProvenance } from '@/lib/engine/categorize/provenance';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { rowOrigin } from '@/lib/engine/transactions/origin';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { proposalReason } from '@/lib/engine/categorize/propose';
 import { registerSuggestionFor } from '@/lib/engine/categorize/register-suggestion';
@@ -218,7 +219,9 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     // Join the category row so a CUSTOM category resolves to its real name; system
     // rows are identical (their DB name == the static name), so this is a no-op for
     // them and a fix for customs without threading a meta map here (DECISIONS #111).
-    include: { account: { select: { id: true, name: true, displayName: true } }, merchant: true, category: { select: { name: true } } },
+    // `provider` joined for `rowOrigin` (O.15 slice 7): the register's action menu
+    // must know whether a feed owns this row before offering a status write.
+    include: { account: { select: { id: true, name: true, displayName: true, provider: true } }, merchant: true, category: { select: { name: true } } },
     orderBy: [{ date: 'desc' }, { id: 'desc' }],
   });
 
@@ -273,6 +276,10 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     categoryName: t.category?.name ?? categoryName(t.categoryId),
     amountCents: t.amountCents,
     status: t.status,
+    // O.15 slice 7: who owns this row, on the one shared basis the detail view's
+    // provenance line uses. The status control is offered only where no feed will
+    // overwrite the answer.
+    descriptorOrigin: rowOrigin({ providerRef: t.providerRef, accountProvider: t.account.provider }),
     isTransfer: t.isTransfer,
     note: t.note,
     taxClass: t.taxClass,
@@ -546,6 +553,10 @@ export async function getTransactionDetail(
     categoryName: t.category?.name ?? categoryName(t.categoryId),
     amountCents: t.amountCents,
     status: t.status,
+    // O.15 slice 7: who owns this row, on the one shared basis the detail view's
+    // provenance line uses. The status control is offered only where no feed will
+    // overwrite the answer.
+    descriptorOrigin: rowOrigin({ providerRef: t.providerRef, accountProvider: t.account.provider }),
     isTransfer: t.isTransfer,
     note: t.note,
     taxClass: t.taxClass,
@@ -611,19 +622,11 @@ export async function getTransactionDetail(
     })),
     splitParentId: t.splitParentId,
     splitBlockedReason,
-    // The ROW decides, not the account (critic cycle 2, F3). The first cut asked
-    // `account.provider === 'manual'`, but `addManualTransaction` and the CSV
-    // import both accept ANY account the reader owns — so a hand-typed row on a
-    // Plaid-linked card was attributed to the bank, which is the same false claim
-    // one door over. `providerRef` is the row-level fact: a feed delivered this
-    // row and gave it an id, or nobody did.
-    //
-    // The demo dataset is the one deliberate exception: its rows carry no
-    // `providerRef` (they are seeded, not fetched) while presenting themselves as
-    // a bank feed, and the demo account is fenced against manual entry (#244), so
-    // no hand-typed row can exist there to be mislabelled.
-    descriptorOrigin:
-      t.providerRef !== null || t.account.provider === 'demo' ? 'bank' : 'entered',
+    // The ROW decides, not the account (critic cycle 2, F3) — reasoning and the
+    // demo exception now live with the shared basis in engine/transactions/origin,
+    // because O.15 slice 7 gave this fact a second consumer (the status control,
+    // which may only offer a write on a row no feed will overwrite).
+    descriptorOrigin: rowOrigin({ providerRef: t.providerRef, accountProvider: t.account.provider }),
     reimbursementMatch: await reimbursementMatchFor(userId, t),
   };
 }

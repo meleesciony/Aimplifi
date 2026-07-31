@@ -1020,3 +1020,87 @@ so a tax tag, a note, an exclude-from-totals flag and a reimbursement state set 
 PENDING row were destroyed when it posted. Fixed as a data CLASS (all four columns),
 mutation-proven. SimpleFIN has the same hole by a different mechanism and is NOT fixed
 here; recorded in STATUS §OPEN rather than left to read as covered.
+
+## #347 (O.15 slice 7 / O.13g) — The reader may mark a transaction cleared or pending, and the whole design is about who OWNS the answer
+
+TASKS O.13g bundles two Simplifi-parity rows. As with #345, the bundling was the
+first thing to undo — measured, not assumed:
+
+- **Row 15, "track a refund": ALREADY SHIPPED.** Simplifi's detail view says
+  *"Expecting a refund? Track it here"*; O.15 slice 2's reimbursement tracker is
+  that feature under another name — `Transaction.reimbursement`
+  ('awaiting' | 'received'), an outstanding "Money you're owed back" line on
+  /coach, and `findOffsettingInflow` proposing the matching deposit (exact
+  opposite magnitude, POSTED, ≤90 days, earliest-then-id, never stored). The
+  deliverable was un-staling the matrix, not code.
+- **Row 13, "Pending / Cleared editable": the genuine gap, and the build.**
+
+### The architecture: widen the WRITER, never the meaning
+
+`status` is read at ~30 call sites and has no shared predicate. Every one of them
+already handles a pending row correctly, because providers deliver them — so this
+slice changes no predicate and adds no column. It widens only who may write the
+value. The blast radius is the write path, which is what made a ~200-line slice
+possible on a field that moves eleven surfaces.
+
+### Ownership, which is where all three critic findings landed
+
+The rule is *the reader may only write what he owns*, and getting "owns" right
+took two fresh-context critics, both FAIL, converging INDEPENDENTLY on the same
+hole:
+
+1. **A fed row is refused in BOTH directions.** Not the slice-2 asymmetry
+   ("starting may be refused; stopping never is") — that rule governs
+   reader-owned columns like `excludeFromTotals`. `status` is provider-owned, so
+   the question is not "may he undo?" but "is this his to say?".
+2. **A split PIECE is refused in both directions, and this shipped broken.**
+   `splitTransaction` gives children no `providerRef`, so a piece of a BANK charge
+   read as `'entered'` and was offered a write — while both providers push the
+   parent's status onto its children on every sync
+   (`updateMany({ where: { splitParentId }, data: { status } })`). The reader's
+   answer would have been silently reverted: precisely the failure the bank
+   refusal exists to prevent, one row shape over. Resolving a piece's true owner
+   means loading its parent at three call sites; the wave's governing failure
+   direction (refuse rather than act too widely) made the honest refusal the right
+   trade, with the remedy named in the sentence. **This retired the asymmetry
+   invariant for pieces — amended in place with its reason, never dropped.**
+3. **MONEY IN is refused, and this was the sharpest finding.** `assemble.ts:107`
+   sums pending rows on the payment account SIGNED, and the engine adds that total
+   to today's balance — so "pending" means *still to leave* on an outflow and
+   *already arrived* on an inflow, with no date gate. A critic executed it: a
+   hand-typed "+$2,000 EXPECTED PAYCHECK" marked pending took a $500 shortfall to
+   **$0** and deleted the dashboard's transfer instruction, even dated 45 days out.
+   Before this slice only a bank could create that state, i.e. only for money
+   someone had observed in flight. L.14's axis decides it: a stale figure can be
+   weighed, a missing instruction bounces an autopay — so the capability is
+   refused, not disclosed. Expected income has its own machinery, which projects
+   on a date instead of landing in today's cash.
+
+### The disclosure, and why the obvious sentence was false
+
+`STATUS_PENDING_EFFECT` had to be written against the gates rather than from
+intuition: **`isSpendRow` never reads `status`**, so /reports, /budgets, /trends
+pace+movers and the register summary count a pending row exactly like a cleared
+one. The sentence says so, and the unit test EXECUTES each clause against the
+engine it names — add a status gate to reports and a test fails telling you the
+copy is now a lie. A tax-tagged row additionally gets `STATUS_PENDING_TAX_CAUTION`
+(the slice-6 "two orders" class: the tax export drops pending rows, so a
+deduction would leave a preparer-bound figure silently).
+
+Two consequences of that sentence being outflow-shaped: the register's menu item
+now NAVIGATES to the detail view rather than writing in place (both critics found
+that a bare button let a tax-tagged row leave the tax export in one click with
+nothing on screen — the same arrangement `split` and `markRecurring` already use),
+and the effect copy renders only for outflows, since a provider can still deliver
+a pending deposit that the sentence would describe backwards.
+
+### One claim corrected rather than defended
+
+The first refusal sentence justified itself with a mechanism that does not exist:
+*"says so again on every sync — a change here would be overwritten."* Plaid's
+`/transactions/sync` is a cursor DELTA that never re-sends an unmodified settled
+row, and SimpleFIN refetches only a ~5-day window, so for the commonest bank row
+nothing would overwrite a local edit. The policy survived on AUTHORITY (the bank
+knows whether its charge cleared and we do not); the stated reason did not, and
+the wrong reason is the dangerous half — it is what the next editor relies on.
+Corrected in the copy, in `origin.ts` and in the `actions.ts` docblock.

@@ -149,6 +149,7 @@ const asTxnViews = (rows: Row[]): TxnView[] =>
       categoryName: r.categoryId,
       amountCents: r.amountCents,
       status: r.status ?? 'POSTED',
+      descriptorOrigin: 'bank',
       isTransfer: r.isTransfer ?? false,
       note: null,
       taxClass: null,

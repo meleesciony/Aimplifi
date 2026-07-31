@@ -65,6 +65,7 @@ function txn(over: Partial<TxnView> & Pick<TxnView, 'id' | 'date' | 'amountCents
     note: null,
     taxClass: null,
     status: 'POSTED',
+    descriptorOrigin: 'bank',
     isTransfer: false,
     provenance: { kind: 'merchant-default', label: 'Known merchant', needsConfirm: false },
     excludeFromTotals: false,

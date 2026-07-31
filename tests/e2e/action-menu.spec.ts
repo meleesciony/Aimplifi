@@ -83,19 +83,30 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     await rowFor(page, 'Whole Foods').getByTestId('txn-action-trigger').click();
     const menu = page.getByTestId('txn-action-menu');
     await expect(menu).toBeVisible();
-    // All eight actions, always — the menu is the row's complete verb list.
-    for (const kind of [
+    // All TEN actions, always — the menu is the row's complete verb list. This
+    // list had drifted to eight while the engine returned ten (`markRecurring`
+    // from O.13f and `status` from O.15 slice 7 were both missing), so the
+    // completeness lock had stopped locking completeness. The count is asserted
+    // too: a future action added to `txnActionAvailability` and forgotten here
+    // now fails rather than passing quietly.
+    const ALL_MENU_KINDS = [
       'category',
       'rule',
       'renamePayee',
       'note',
       'taxTag',
       'split',
+      'markRecurring',
       'reimbursement',
       'excludeFromTotals',
-    ]) {
+      'status',
+    ];
+    for (const kind of ALL_MENU_KINDS) {
       await expect(menu.locator(`[data-testid="txn-action-${kind}"]`)).toBeVisible();
     }
+    await expect(menu.locator('[role="menuitem"], button[disabled]')).toHaveCount(
+      ALL_MENU_KINDS.length,
+    );
 
     // A transfer: exclude/split/reimburse are disabled AND say why — never hidden.
     await page.keyboard.press('Escape');
