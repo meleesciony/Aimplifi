@@ -22,7 +22,12 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { merchantRegisterHref } from '@/lib/engine/transactions/links';
+import {
+  RETURN_PARAM,
+  merchantRegisterHref,
+  withRegisterReturn,
+  type RegisterReturn,
+} from '@/lib/engine/transactions/links';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatISODate, isoDate } from '@/lib/dates';
@@ -157,6 +162,30 @@ function Field({
   );
 }
 
+/**
+ * Where to land after a write on this page.
+ *
+ * `assign(pathname)` — dropping the whole query string — is deliberate and
+ * predates O.16: a plain `reload()` preserves the query, so a confirmed save
+ * arriving after an unconfirmed one would re-render the "we could not confirm
+ * it" banner about a write that just succeeded (critic cycle 2, F6). But the
+ * reader's PLACE also rides in the query now, and it must survive a write the
+ * way the banner flags must not — otherwise marking a row pending silently
+ * costs him the queue he was working, which is the exact complaint O.16 exists
+ * to answer.
+ *
+ * So the rule is no longer "keep everything" or "drop everything": carry
+ * `back` forward, and re-add a status flag only when this write is what set it.
+ */
+function afterWriteHref(flag?: string): string {
+  const carried = new URLSearchParams(window.location.search).get(RETURN_PARAM);
+  const params = new URLSearchParams();
+  if (carried) params.set(RETURN_PARAM, carried);
+  if (flag) params.set(flag, '1');
+  const qs = params.toString();
+  return qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+}
+
 export function TransactionDetailView({
   detail,
   categoryGroups,
@@ -164,6 +193,7 @@ export function TransactionDetailView({
   unconfirmed,
   recurringVerdict,
   projectionsStale,
+  returnTo,
 }: {
   detail: DetailView;
   categoryGroups: CategoryGroup[];
@@ -183,6 +213,9 @@ export function TransactionDetailView({
   };
   /** The last verdict saved but its projection rebuild did not run. */
   projectionsStale: boolean;
+  /** O.16 — the filtered register the reader left, already validated and named
+   *  by the engine, or null when he did not arrive from a narrowed view. */
+  returnTo: RegisterReturn | null;
 }) {
   const { row } = detail;
   const [busy, setBusy] = useState(false);
@@ -212,6 +245,14 @@ export function TransactionDetailView({
     descriptorOrigin: row.descriptorOrigin,
   });
   const statusAction = actions.find((a) => a.kind === 'status')!;
+  /**
+   * O.16 — this page is a WAYPOINT, not only a destination: from here the reader
+   * can go on to `/rules`, and losing his place at the second hop is the same
+   * defect as losing it at the first. Re-encoded from the already-validated
+   * `returnTo.href` rather than from raw `window.location`, so nothing that
+   * failed the decode can be laundered back into a link.
+   */
+  const carriedQuery = returnTo ? (returnTo.href.split('?')[1] ?? '') : '';
   // The effect copy answers "what does pending DO to my figures" — shown while the
   // row IS pending (the state the reader is in) and while the live action WOULD
   // make it pending (what he is about to do), so it is never only after the fact.
@@ -248,7 +289,7 @@ export function TransactionDetailView({
       // so a confirmed save arriving after an unconfirmed one would re-render the
       // "we could not confirm it" banner about a write we just confirmed
       // (critic cycle 2, F6).
-      window.location.assign(window.location.pathname);
+      window.location.assign(afterWriteHref());
     } catch (e) {
       if (e instanceof ActionDeadline) {
         // The write may well have committed. Reload to show whatever is true now,
@@ -257,7 +298,7 @@ export function TransactionDetailView({
         // effect: `docs/lessons/mutation-form-recipe.md` records that a
         // set-state-in-effect resync was a smell that became the bug two
         // increments later, and a server-rendered banner needs no such rehydration.
-        window.location.assign(`${window.location.pathname}?${UNCONFIRMED_PARAM}=1`);
+        window.location.assign(afterWriteHref(UNCONFIRMED_PARAM));
         return;
       }
       setError(
@@ -315,13 +356,11 @@ export function TransactionDetailView({
         const res = await withDeadline(fn(), FORM_ACTION_DEADLINE_MS);
         if (!res.ok) throw new RefusalError(res.error);
         window.location.assign(
-          res.projectionsRefreshed
-            ? window.location.pathname
-            : `${window.location.pathname}?${PROJECTIONS_STALE_PARAM}=1`,
+          afterWriteHref(res.projectionsRefreshed ? undefined : PROJECTIONS_STALE_PARAM),
         );
       } catch (e) {
         if (e instanceof ActionDeadline) {
-          window.location.assign(`${window.location.pathname}?${UNCONFIRMED_PARAM}=1`);
+          window.location.assign(afterWriteHref(UNCONFIRMED_PARAM));
           return;
         }
         setError(
@@ -429,8 +468,14 @@ export function TransactionDetailView({
                     onStatus: (status) =>
                       runFlag(() => setTransactionStatus({ transactionId: row.id, status })),
                     onRecurring: () => focusEditor('[data-testid="detail-recurring"]'),
-                    ruleHref: `/rules?from=${encodeURIComponent(row.id)}`,
-                    renameHref: `/rules?from=${encodeURIComponent(row.id)}#kw-rename`,
+                    ruleHref: withRegisterReturn(
+                      `/rules?from=${encodeURIComponent(row.id)}`,
+                      carriedQuery,
+                    ),
+                    renameHref: withRegisterReturn(
+                      `/rules?from=${encodeURIComponent(row.id)}#kw-rename`,
+                      carriedQuery,
+                    ),
                   }}
                 />
               </div>
@@ -959,7 +1004,7 @@ export function TransactionDetailView({
               the ones you already have is your choice at that point.
             </p>
             <Link
-              href={`/rules?from=${encodeURIComponent(row.id)}`}
+              href={withRegisterReturn(`/rules?from=${encodeURIComponent(row.id)}`, carriedQuery)}
               data-testid="detail-rule-link"
               className="tap-target inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
             >
@@ -1107,8 +1152,20 @@ export function TransactionDetailView({
       </div>
 
       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-        <Link href="/transactions" className="underline underline-offset-2 hover:text-foreground">
-          Back to transactions
+        {/*
+          O.16 — split, "Recurring…" and the status control all arrive here from
+          the register, and this was a bare `/transactions`: following it dropped
+          the reader's filter and page, which is the friction the owner reported
+          ("I have to click activity again and needs category"). With a view
+          carried it names that view and returns to it; with none it is the same
+          link it always was.
+        */}
+        <Link
+          href={returnTo?.href ?? '/transactions'}
+          data-testid="detail-back-link"
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          {returnTo ? `Back to ${returnTo.label}` : 'Back to transactions'}
         </Link>
         <Link
           href={merchantRegisterHref(row.merchantName)}

@@ -2,6 +2,48 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-31 — O.16a: you come back to where you were (DECISIONS #348)
+
+Owner, 2026-07-30: *"Can you add away to go back to what we were doing after let's
+say changing a rule? Right now I have to click activity again and needs category"*.
+
+**He was not missing a way back — he had two, and both threw his place away.**
+`/rules` and the transaction detail view each already ended with a "Back to
+transactions" link, and both were a bare `/transactions`: following either landed
+him on the UNFILTERED register at page 1. That is why his sentence names the repair
+steps rather than a missing button.
+
+**Scope: the return context belongs to the two DESTINATION pages, not to the ten row
+actions.** Five of ten never leave the register at all (three open a panel in place;
+`reimbursement` and `excludeFromTotals` reload the same URL). The other five leave for
+exactly `/rules` and `/transactions/{id}` — so this is one engine module and two
+consumers, not a per-action convention.
+
+`withRegisterReturn` / `decodeRegisterReturn` live in `links.ts` beside
+`merchantRegisterHref`. The open-redirect class is closed **by construction**: only
+the QUERY is taken from the caller and the path is always the `REGISTER_PATH`
+literal, so no `?back=` value can express another destination. One opaque param,
+because the register's date `?from=` collides with `/rules`' transaction `?from=`.
+Values are validated, not just keys. The label names a filter only when it is the
+sole axis, calls a page-only trip "your activity list" rather than "filtered", and
+says nothing when it recognises nothing.
+
+### OPEN / stated limitations
+
+- **Scroll position is not restored.** Page NUMBER returns (it is a URL param), but
+  nothing in this app restores scroll offset and pagination uses bare `<Link>`s that
+  scroll to top, so returning to row 1 of page 3 is a shorter trip than before and
+  not the identical pixel. Measurement (3) in the O.16 task row asked for this
+  explicitly; it is recorded rather than implied.
+- **`?back=` carries free-text ids unvalidated** (`account`, `category`, `merchant`,
+  `q`, `from`, `to`). Whether an id exists is a database question a pure builder
+  cannot ask, and the register already renders an unmatched id as an empty list. This
+  is the same gap `merchantRegisterHref` already records, not a new one.
+- **The triage inbox (`/triage`) was NOT given a return context.** It is a queue with
+  its own flow rather than a filtered view of the register, so it has no
+  register-shaped place to carry. Reopens if the owner reports the same friction
+  there.
+
 ## ✅ BUILT 2026-07-31 — O.15 slice 7: you can say "this hasn't cleared yet" (DECISIONS #347)
 
 SIMPLIFI_PARITY row 13 (**Pending / Cleared editable by the user**), which read

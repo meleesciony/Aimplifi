@@ -11,6 +11,7 @@ import { suggestRuleKeywords } from '@/lib/engine/categorize/rule-prefill';
 import { prisma } from '@/lib/db';
 import { accountLabel } from '@/lib/engine/account/display-name';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { decodeRegisterReturn } from '@/lib/engine/transactions/links';
 import { getVisibleGroups } from '@/server/categories';
 import { getRuleSourceTransaction, listKeywordRules } from '@/server/keyword-rules';
 import { listRuleInventory } from '@/server/rule-inventory';
@@ -36,7 +37,7 @@ export const metadata = { title: 'Rules' };
 export default async function RulesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; back?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
@@ -46,7 +47,14 @@ export default async function RulesPage({
   // and how to populate them exactly as written is too cumbersome."* An id that
   // is not this reader's resolves to null and the page renders the blank builder,
   // so a guessed id leaks nothing and breaks nothing.
-  const { from } = await searchParams;
+  // O.16 — and WHERE he was standing when he left it. Owner: *"Right now I have
+  // to click activity again and needs category."* `?back=` carries the
+  // register's own filter params; `decodeRegisterReturn` rebuilds the trip from
+  // the `/transactions` literal, so this value cannot name another destination,
+  // and returns null for anything it does not recognise — in which case this
+  // page says nothing about where he came from rather than guessing.
+  const { from, back } = await searchParams;
+  const returnTo = decodeRegisterReturn(back);
   const source = from ? await getRuleSourceTransaction(from) : null;
   const prefill: RulePrefillView | null = source
     ? { ...source, transactionId: source.id, ...suggestRuleKeywords(source.rawDescriptor) }
@@ -93,6 +101,31 @@ export default async function RulesPage({
 
   return (
     <div className="space-y-4">
+      {/*
+        O.16 — the way back to the queue he was working. Rendered ONLY when the
+        register handed us a view it recognises, because "Back to <name>" for a
+        view he never narrowed is a false claim about his own history; with no
+        context the page keeps the plain "The transaction list" sentence it
+        already ends with.
+
+        Deliberately an affordance rather than a redirect on save. The builder's
+        confirmation ("filed N transactions") is the evidence that the write
+        landed, and bouncing him out of the page would take it off screen the
+        moment it appeared — while a reader minting several rules in one sitting
+        would be thrown back to the register after each. One click, and the
+        context survives the `router.refresh()` that follows a save because it
+        rides in the URL rather than in state.
+      */}
+      {returnTo && (
+        <Link
+          href={returnTo.href}
+          data-testid="rules-return-link"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          <span aria-hidden="true">&larr;</span> Back to {returnTo.label}
+        </Link>
+      )}
+
       <div>
         <h1 className="text-xl font-semibold">Rules</h1>
         <p className="mt-1 text-sm text-muted-foreground">

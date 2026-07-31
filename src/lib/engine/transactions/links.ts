@@ -22,6 +22,7 @@
  * destination below the figure that was clicked.
  */
 import { monthWindow } from '@/lib/dates';
+import type { FlowType } from '@/lib/engine/transactions/query';
 
 /** The register route these links target. */
 export const REGISTER_PATH = '/transactions';
@@ -259,4 +260,188 @@ export function categoryMonthRegisterHref(
  */
 export function merchantRegisterHref(merchant: string): string {
   return `${REGISTER_PATH}?merchant=${encodeURIComponent(merchant)}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* O.16 — carrying the reader's PLACE back out of a row action                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The query param that carries where the reader was standing.
+ *
+ * Deliberately NOT flattened into the destination's own query string, and the
+ * reason is a live collision rather than tidiness: the register spells a date
+ * bound `?from=YYYY-MM-DD` (`transactions/page.tsx`), while `/rules` spells a
+ * source transaction `?from=<txnId>` (O.13b). Merging the two namespaces would
+ * make one silently overwrite the other — a rule builder prefilled from a date,
+ * or a return trip filtered to a transaction id. One opaque param keeps the two
+ * vocabularies apart.
+ */
+export const RETURN_PARAM = 'back';
+
+/**
+ * The register's own filter params — the ONLY keys that survive a round trip.
+ *
+ * This list is the security boundary AND the correctness boundary, so it is
+ * pinned here beside `REGISTER_PATH` rather than derived: `transactions/page.tsx`
+ * reads exactly these ten and treats every unknown value as "no filter", so a
+ * key that is not on this list could not narrow the destination even if it were
+ * carried. Anything else the caller happens to be holding is dropped.
+ */
+const REGISTER_VIEW_PARAMS = [
+  'q',
+  'account',
+  'category',
+  'merchant',
+  'type',
+  'from',
+  'to',
+  'unclassified',
+  'reimb',
+  'page',
+] as const;
+
+/** Where the reader came from, and what that view may honestly be called. */
+export interface RegisterReturn {
+  /** Always rooted at `REGISTER_PATH` — never a caller-supplied path. */
+  href: string;
+  /** Names the view, for "Back to <label>". Never guesses. */
+  label: string;
+}
+
+/**
+ * The `?type=` vocabulary, owned here and imported by the register.
+ *
+ * It was a local `const VALID_TYPES` inside `transactions/page.tsx` until O.16
+ * needed the same list to decide whether a carried value is real. Two copies of
+ * a vocabulary is how the register comes to accept a value this builder drops —
+ * so there is one author, and adding a flow type breaks in one place.
+ */
+export const VALID_FLOW_TYPES: FlowType[] = ['all', 'income', 'expense', 'transfer'];
+
+/**
+ * Does this value mean anything to the register?
+ *
+ * Keys alone are not enough. `transactions/page.tsx` reads a CLOSED vocabulary
+ * for four of the ten params and silently falls back to "no filter" on anything
+ * else, so a carried `reimb=bogus` would rebuild a URL that lands on the
+ * UNFILTERED register while `labelFor` went on calling it a filtered view — a
+ * sentence about the reader's own history that the destination contradicts.
+ * Validating here keeps the label and the landing in agreement.
+ *
+ * The six free-text params (`q`, `account`, `category`, `merchant`, `from`,
+ * `to`) are deliberately NOT validated: an id's existence is a database
+ * question a pure builder cannot ask, and the register already renders an
+ * unmatched id as an empty list rather than an error. That gap is the same one
+ * `merchantRegisterHref` records above, not a new one.
+ */
+function isMeaningfulValue(key: (typeof REGISTER_VIEW_PARAMS)[number], value: string): boolean {
+  switch (key) {
+    case 'type':
+      return (VALID_FLOW_TYPES as string[]).includes(value);
+    case 'unclassified':
+      return value === '1';
+    case 'reimb':
+      return value === 'awaiting' || value === 'received';
+    case 'page':
+      return /^\d+$/.test(value) && Number(value) >= 1;
+    default:
+      return true;
+  }
+}
+
+/**
+ * Keep only the register's own params, in the register's own order.
+ *
+ * Empty values are dropped because the register itself treats `?q=` as no
+ * filter, and carrying them back would produce a URL that differs from the one
+ * the reader was actually looking at while describing the same view.
+ */
+function pickRegisterParams(query: string): URLSearchParams {
+  const source = new URLSearchParams(query);
+  const kept = new URLSearchParams();
+  for (const key of REGISTER_VIEW_PARAMS) {
+    const value = source.get(key);
+    if (value !== null && value !== '' && isMeaningfulValue(key, value)) kept.set(key, value);
+  }
+  return kept;
+}
+
+/**
+ * Attach the reader's current place to a link that LEAVES the register.
+ *
+ * Returns `href` unchanged when there is nothing worth carrying, which is the
+ * whole no-false-claim rule in one line: an unfiltered register on page 1 is
+ * where "Back to transactions" already lands, so the destination keeps its
+ * existing copy rather than growing an affordance that promises a return to a
+ * view the reader never narrowed.
+ *
+ * Fragments are re-attached last, not appended over. `renameHref` is
+ * `/rules?from=<id>#kw-rename` (`txn-action-menu.tsx`), and a param pasted onto
+ * the end of that lands INSIDE the fragment — the rules page would see no
+ * return context and the browser would look for an anchor that does not exist.
+ */
+export function withRegisterReturn(href: string, currentQuery: string | null | undefined): string {
+  if (!currentQuery) return href;
+  const carried = pickRegisterParams(currentQuery);
+  const encoded = carried.toString();
+  if (!encoded) return href;
+
+  const hashAt = href.indexOf('#');
+  const base = hashAt === -1 ? href : href.slice(0, hashAt);
+  const fragment = hashAt === -1 ? '' : href.slice(hashAt);
+  const separator = base.includes('?') ? '&' : '?';
+  return `${base}${separator}${RETURN_PARAM}=${encodeURIComponent(encoded)}${fragment}`;
+}
+
+/**
+ * Name the view the carried params describe.
+ *
+ * A named filter is used ONLY when it is the sole axis in play, because
+ * "Needs a category" printed over a view that is also narrowed to one merchant
+ * and one month describes a bigger set than the reader will actually land on.
+ * `page` is excluded from that test on purpose: it is a position WITHIN a view,
+ * not another axis, so page 3 of the needs-a-category queue is still the
+ * needs-a-category queue.
+ *
+ * Everything unnamed falls back to a phrase that is true of every filtered
+ * register, rather than to a guess assembled from param names the reader has
+ * never seen.
+ */
+function labelFor(params: URLSearchParams): string {
+  const axes = REGISTER_VIEW_PARAMS.filter((key) => key !== 'page' && params.has(key));
+  if (axes.length === 1) {
+    if (params.get('unclassified') === '1') return 'Needs a category';
+    if (params.get('reimb') === 'awaiting') return 'Awaiting reimbursement';
+    if (params.get('reimb') === 'received') return 'Reimbursement received';
+  }
+  // Deep in an unfiltered register (page 7 of everything) is still a place worth
+  // returning to, but calling it "filtered" would be a claim about a narrowing
+  // the reader never made — the same over-claim the single-axis rule above
+  // avoids, one step further down.
+  if (axes.length === 0) return 'your activity list';
+  return 'your filtered activity';
+}
+
+/**
+ * Rebuild the return trip from an untrusted parameter.
+ *
+ * There is no redirect target to sanitise here, which is the point: the path is
+ * the `REGISTER_PATH` literal and only the query is taken from the caller, so an
+ * `?back=https://evil.example` or `?back=//evil.example` cannot express itself
+ * as a destination — it is parsed as a query string, matches none of the ten
+ * register keys, and decodes to `null`. The open-redirect class is closed by
+ * construction rather than by a validator someone must remember to call, which
+ * is the fence-by-construction rule this repo already applies to demo-fenced
+ * capabilities.
+ *
+ * `null` means "say nothing": an absent, malformed, or wholly-unrecognised value
+ * leaves the destination page rendering the copy it had before this slice.
+ */
+export function decodeRegisterReturn(raw: string | null | undefined): RegisterReturn | null {
+  if (!raw) return null;
+  const carried = pickRegisterParams(raw);
+  const query = carried.toString();
+  if (!query) return null;
+  return { href: `${REGISTER_PATH}?${query}`, label: labelFor(carried) };
 }

@@ -14,7 +14,11 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transactions/links';
+import {
+  MERCHANT_LINK_CLASS,
+  merchantRegisterHref,
+  withRegisterReturn,
+} from '@/lib/engine/transactions/links';
 import { useSearchParams } from 'next/navigation';
 import { Check, MoreHorizontal, Pencil, Receipt, Tag } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -90,6 +94,14 @@ export function TransactionList({
   // scroll to reach. Measured one-shot at open; a scroll while open can leave
   // the side stale (accepted P2, STATUS 2026-07-01).
   const [dropUp, setDropUp] = useState(false);
+
+  /**
+   * O.16 — the reader's place, as it stands right now, for every link that
+   * LEAVES the register. `withRegisterReturn` returns the href untouched when
+   * nothing is narrowed, so an unfiltered register emits exactly the URLs it
+   * emitted before this slice.
+   */
+  const currentQuery = searchParams?.toString() ?? '';
 
   /** A page URL that preserves the current filters (page 1 drops the param). */
   function pageHref(p: number): string {
@@ -580,7 +592,10 @@ export function TransactionList({
                             dynamic RSC request per visible transaction on every
                             register load. */}
                         <Link
-                          href={`/transactions/${encodeURIComponent(t.id)}`}
+                          href={withRegisterReturn(
+                            `/transactions/${encodeURIComponent(t.id)}`,
+                            currentQuery,
+                          )}
                           prefetch={false}
                           data-testid="txn-detail-link"
                           aria-label={`Open the details of this ${t.merchantName} transaction`}
@@ -596,7 +611,10 @@ export function TransactionList({
                             carries the transaction id, and `/rules` fills the key
                             in from THIS row's statement text. */}
                         <Link
-                          href={`/rules?from=${encodeURIComponent(t.id)}`}
+                          href={withRegisterReturn(
+                            `/rules?from=${encodeURIComponent(t.id)}`,
+                            currentQuery,
+                          )}
                           // One link per ROW, so the default viewport prefetch
                           // would fire a dynamic RSC request per visible
                           // transaction on every register load — for an action
@@ -1120,12 +1138,18 @@ export function TransactionList({
                                 onNoteTax: () => openTaxPanel(t, actionTop),
                                 // The split form lives on the detail view — navigate,
                                 // don't duplicate it here.
-                                splitHref: `/transactions/${encodeURIComponent(t.id)}`,
+                                splitHref: withRegisterReturn(
+                                  `/transactions/${encodeURIComponent(t.id)}`,
+                                  currentQuery,
+                                ),
                                 // Same reason as split: the recurring verdict and
                                 // the rhythm picker are server-rendered on the
                                 // detail view, where what is already in force can
                                 // be shown rather than guessed at from row facts.
-                                recurringHref: `/transactions/${encodeURIComponent(t.id)}#recurring`,
+                                recurringHref: withRegisterReturn(
+                                  `/transactions/${encodeURIComponent(t.id)}#recurring`,
+                                  currentQuery,
+                                ),
                                 onReimbursement: (state) =>
                                   void writeFlag(t, () =>
                                     setReimbursement({ transactionId: t.id, state }),
@@ -1137,9 +1161,18 @@ export function TransactionList({
                                 // Navigate, don't write: the pending disclosure and
                                 // the tax caution live on the detail view, and this
                                 // action must never fire without them.
-                                statusHref: `/transactions/${encodeURIComponent(t.id)}`,
-                                ruleHref: `/rules?from=${encodeURIComponent(t.id)}`,
-                                renameHref: `/rules?from=${encodeURIComponent(t.id)}#kw-rename`,
+                                statusHref: withRegisterReturn(
+                                  `/transactions/${encodeURIComponent(t.id)}`,
+                                  currentQuery,
+                                ),
+                                ruleHref: withRegisterReturn(
+                                  `/rules?from=${encodeURIComponent(t.id)}`,
+                                  currentQuery,
+                                ),
+                                renameHref: withRegisterReturn(
+                                  `/rules?from=${encodeURIComponent(t.id)}#kw-rename`,
+                                  currentQuery,
+                                ),
                               }}
                             />
                           </div>

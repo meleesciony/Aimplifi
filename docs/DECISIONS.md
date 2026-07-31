@@ -1104,3 +1104,97 @@ nothing would overwrite a local edit. The policy survived on AUTHORITY (the bank
 knows whether its charge cleared and we do not); the stated reason did not, and
 the wrong reason is the dangerous half — it is what the next editor relies on.
 Corrected in the copy, in `origin.ts` and in the `actions.ts` docblock.
+
+## #348 (O.16a) — Come back to where you were: the return context belongs to the DESTINATION, not to the action
+
+Owner, 2026-07-30: *"Can you add away to go back to what we were doing after let's
+say changing a rule? Right now I have to click activity again and needs category"*.
+
+### The request was phrased as an absence, and it was not one
+
+There were already two "Back to transactions" links — one ending `/rules`
+(`rules/page.tsx:130`), one on the transaction detail view
+(`transaction-detail-view.tsx:1110`). Both were a bare `/transactions`, so following
+either landed him on the UNFILTERED register at page 1: exactly the state he
+described rebuilding by hand. He was not missing a way back; he had two, and both
+discarded his place. The tell is in his own sentence — a reader with no control says
+there is no way back, while a reader with a lossy one describes the work he does
+afterwards.
+
+### Scope: neither of the two options the task offered
+
+TASKS O.16a proposed rules-only OR a return context threaded through every action in
+`txnActionAvailability`, and required a measurement first. Measured (three explorer
+subagents, then verified at source):
+
+- **Five of ten actions never leave the register.** `category`, `note` and `taxTag`
+  open a panel in place; `reimbursement` and `excludeFromTotals` end in
+  `window.location.reload()`. Threading a context through them is dead code (L.22).
+- **The other five leave for exactly TWO destinations** — `/rules` (rule,
+  renamePayee) and `/transactions/{id}` (split, markRecurring, status, plus the
+  row's own `txn-detail-link`).
+
+So the context belongs to the two destination pages: one shared module, two
+consumers. Smaller than the "honest" option, strictly more complete than the narrow
+one. Shipping the literal request would have added a third link beside two broken
+ones and left the detail view — where four of the five outbound actions land —
+untouched.
+
+### A delegated mechanism that was false, and the repo had already said so
+
+The row-action subagent reported the cause as the register's `reload()` "losing all
+query params" and concluded the friction was rules-only. `reload()` re-requests the
+current URL, params included, and `transaction-detail-view.tsx:246` already carried a
+comment stating it — which is why that file uses `assign(pathname)` instead. The two
+flag actions never lost anything. Reproducing the claim rather than adopting it kept
+a false mechanism out of the design and out of the scope decision.
+
+### Shape
+
+`withRegisterReturn` / `decodeRegisterReturn` in `links.ts`, beside
+`merchantRegisterHref` — one author for register hrefs, not a second convention.
+
+- **The open-redirect class is closed BY CONSTRUCTION.** `?back=` is
+  attacker-controllable, so the decoder never accepts a path: it takes only the
+  QUERY and always rebuilds against the `REGISTER_PATH` literal.
+  `?back=https://evil.example` parses as a query string, matches none of the ten
+  register keys, and decodes to `null`. No validator anyone can forget to call.
+- **One opaque param, not flattened.** The register spells a date bound `?from=`;
+  `/rules` spells a source transaction `?from=`. Flattening would have made one
+  silently overwrite the other — a builder prefilled from a date, or a return trip
+  filtered to a transaction id.
+- **Values are validated, not just keys.** The register falls back to "no filter" on
+  an unknown `reimb`/`type`/`unclassified`/`page`, so carrying one would land on the
+  UNFILTERED list beneath a label calling it filtered. `VALID_FLOW_TYPES` moved out
+  of `transactions/page.tsx` so the reader and the builder cannot drift.
+- **The label never over-claims.** A named filter is used only when it is the sole
+  axis (`page` excepted — a position within a view, not another axis); carrying only
+  `page` is "your activity list", never "filtered"; two axes fall back to a phrase
+  true of every filtered register; and no recognised context means the destinations
+  render the copy they had before this slice.
+- **`afterWriteHref()`** — the detail view's four post-write `assign()` sites dropped
+  the entire query string on purpose (to clear the unconfirmed banner) and would have
+  taken the reader's place with it. Two unrelated facts now share that namespace, so
+  the rule is neither "keep everything" nor "drop everything".
+- **An affordance, not a redirect on save.** The builder's confirmation is the
+  evidence the write landed; bouncing him out would take it off screen the moment it
+  appeared, and a reader minting several rules in one sitting would be thrown back
+  after each. One click, and the context survives `router.refresh()` because it rides
+  in the URL rather than in state.
+
+### Stated limitation
+
+Page NUMBER is restored (it is a URL param); SCROLL POSITION is not — nothing in the
+app restores scroll, and pagination uses bare `<Link>`s that scroll to top. Returning
+to row 1 of page 3 is a shorter trip than before but not the identical pixel. Recorded
+rather than implied.
+
+### The e2e found the door the author's enumeration missed
+
+I wired the action-menu hrefs and the row's "Rule…" link and believed the sweep done.
+The spec's detail-view test clicked `txn-detail-link` — the row's MAIN link into the
+detail view, the commonest door of all — and it was still bare. Grepping `href=` in
+the file beat recalling the list. Gate run 1 then failed all three new tests with
+`element(s) not found` on an EMPTY demo queue: the shared-demo order-dependency, not
+the V.1 flake, and fixed by seeding a throwaway user per test with the fixture's hard
+case asserted present, never by a retry or a longer timeout.

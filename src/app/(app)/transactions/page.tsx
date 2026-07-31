@@ -8,12 +8,15 @@ import { TransactionFilters } from '@/components/finance/transaction-filters';
 import { TransactionList } from '@/components/finance/transaction-list';
 import { buttonVariants } from '@/components/ui/button';
 import type { FlowType, TxnFilter } from '@/lib/engine/transactions/query';
+import { VALID_FLOW_TYPES } from '@/lib/engine/transactions/links';
 import { SharedTransactionList } from '@/components/finance/shared-transaction-list';
 import { getSharedTransactionsView } from '@/server/household';
 import { getTransactions, getWithheldAccountSummary } from '@/server/transactions';
 import { getVisibleGroups } from '@/server/categories';
 
-const VALID_TYPES: FlowType[] = ['all', 'income', 'expense', 'transfer'];
+// The `?type=` vocabulary is owned by `links.ts` (O.16) so the return-trip
+// builder and this reader cannot drift into accepting different values.
+const VALID_TYPES: FlowType[] = VALID_FLOW_TYPES;
 
 function str(v: string | string[] | undefined): string {
   return Array.isArray(v) ? (v[0] ?? '') : (v ?? '');

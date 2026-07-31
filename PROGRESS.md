@@ -7772,3 +7772,172 @@ already documented, observed again here.
 documentation only, so there is no new marker to `curl | grep` and no schema line in the
 build log. The evidence is "the newest production deployment is READY on this exact sha
 and holds the canonical alias", not "I fetched a changed byte".
+
+## 2026-07-31 — O.16a: come back to where you were (built, gate pending)
+
+Owner, 2026-07-30: *"Can you add away to go back to what we were doing after let's
+say changing a rule? Right now I have to click activity again and needs category"*.
+
+### The scope decision, and why the task's two options were both wrong
+
+TASKS O.16a offered a binary — rules-only, or a return context threaded through
+every action in `txnActionAvailability` — and told whoever picked it up to MEASURE
+first. Three explorer subagents did (doors into `/rules`; per-action post-completion
+behaviour; what "place" consists of on the register). The measurement says the honest
+shape is a THIRD one neither option named:
+
+**The return context belongs to the two DESTINATION pages, not to the ten actions.**
+
+- Five of ten actions never leave the register at all. `category`, `note` and
+  `taxTag` open a panel in place; `reimbursement` and `excludeFromTotals` call
+  `writeFlag`, which ends in `window.location.reload()`. Threading a context
+  through those would be dead code — the L.22 class.
+- The other five leave for exactly TWO destinations: `/rules` (rule, renamePayee)
+  and `/transactions/{id}` (split, markRecurring, status — plus the row's own
+  `txn-detail-link`, the commonest door of all and the one my first pass missed
+  until the e2e named it).
+- **Both destinations already had a "back" link, and both were a bare
+  `/transactions`** (`transaction-detail-view.tsx:1110`, `rules/page.tsx:130`).
+  So the owner was never missing an affordance. He had one, and it silently threw
+  his place away. That is why the complaint reads as "I have to click activity
+  again and needs category" rather than "there is no way back".
+
+### A delegated finding that was false, caught before it entered the design
+
+The row-action agent reported the root cause as the register's `reload()` "losing
+all query params", and concluded the friction was rules-only. `reload()` re-requests
+the current URL, params and all — and this repo had already written that down:
+`transaction-detail-view.tsx:246` explains it uses `assign(pathname)` *because* "a
+plain reload PRESERVES the query string". The two flag actions never lost anything.
+Reproducing the claim instead of adopting it is what kept a wrong mechanism out of
+the fix (`a-subagents-green-is-a-hypothesis`).
+
+### Shape
+
+Engine-first, in `links.ts` beside `merchantRegisterHref` — one author for register
+hrefs rather than a second convention:
+
+- `withRegisterReturn(href, currentQuery)` attaches the place on the way OUT, and
+  returns the href untouched when nothing is narrowed (so an unfiltered register
+  emits byte-identical URLs to pre-O.16).
+- `decodeRegisterReturn(raw)` rebuilds the trip. **The open-redirect class is closed
+  by construction, not by a validator**: the path is the `REGISTER_PATH` literal and
+  only the QUERY is taken from the caller, so `?back=https://evil.example` parses as
+  a query string, matches none of the ten register keys, and decodes to `null`.
+- One opaque param, NOT flattened: the register spells a date bound `?from=`, while
+  `/rules` spells a source transaction `?from=`. Flattening would have made one
+  silently overwrite the other.
+- Values are validated, not just keys — the register falls back to "no filter" on an
+  unknown `reimb`/`type`/`unclassified`/`page`, so carrying one would have landed on
+  the UNFILTERED list under a label calling it filtered.
+- The label never over-claims: a named filter is used only when it is the sole axis
+  (`page` excepted — a position within a view, not another axis), else a phrase true
+  of every filtered register; and no context ⇒ the destinations render the copy they
+  had before this slice.
+- `afterWriteHref()` in the detail view: four post-write `assign()` sites dropped the
+  whole query string on purpose (to clear the unconfirmed banner) and would have
+  discarded the reader's place with it.
+- Deliberately an affordance, not a redirect-on-save: the builder's confirmation is
+  the evidence the write landed, and bouncing him out would take it off screen.
+
+### Verified so far
+
+`npx tsc --noEmit` → 0. `npx eslint .` → 0. New unit lock 24/24, and the two
+load-bearing properties are MUTATION-PROVEN: forcing `hashAt = -1` kills the fragment
+test (1 failed), dropping `isMeaningfulValue` kills 2.
+
+### NOT yet done
+
+Full `bash scripts/verify.sh` (with VERIFY_E2E=1) has not been run on this tree, and
+the new e2e spec `tests/e2e/register-return.spec.ts` has NEVER been executed — an
+e2e run tests the last `next build`, so it needs a rebuild first. Nothing here is
+deploy-verified. Scroll position within a page is NOT restored (page number is, via
+`?page=`); recorded as a stated limitation, not a claim.
+
+### O.16a — GATE RUN 1: ❌ FAILED, and the failure was MINE, not the flake
+
+```
+ Test Files  320 passed (320)
+      Tests  5114 passed (5114)
+✓ Compiled successfully in 6.5s
+  3 failed
+  246 passed (3.0m)
+❌ VERIFY FAILED
+```
+
+All three failures were the three new O.16 tests, and the signature was
+`element(s) not found` on `getByTestId('txn-rule-link')` at
+`/transactions?unclassified=1` — an EMPTY queue, not a timeout, not a navigation
+stall. That is not the V.1 rotating environment flake and was deliberately not
+written off as one (the #306 trap: a real stale assertion masked by "the known
+flake"). It is the documented shared-demo order-dependency — the demo is one row,
+the specs that FILE transactions drain "Needs a category" before this spec reads
+it, which is why all three passed in isolation and failed in the suite.
+
+Fixed as the lesson prescribes rather than by a retry or a longer timeout: each
+test now signs up its own throwaway user, adds a manual account and one purchase
+under a payee no merchant map can place (`ZZQ VENDOR 4471 NONESUCH`, so
+Auto-detect leaves it needing a category), and `readerInTheQueue` ASSERTS the row
+is present before anything else — so the lock can never again pass vacuously
+against an empty page. Targeted re-run: 3/3 green.
+
+Nothing was weakened to get there: no timeout raised, no retry added, no
+assertion removed. The two tests that asserted the `?from=`/`?back=` coexistence
+were merged into the first, since they exercise the same navigation.
+
+### O.16a — GATE RUN 2: ❌ 1 failure, and it is the V.1 rotating flake (argued, not assumed)
+
+```
+ Test Files  320 passed (320)
+      Tests  5114 passed (5114)
+✓ Compiled successfully in 6.8s
+  1 failed
+  247 passed (2.9m)
+❌ VERIFY FAILED
+```
+
+The three O.16 tests PASSED. The single failure was
+`phase4-features.spec.ts:33 › goals: creating a goal shows its effect on the FI
+date` — a 60s click timeout on `goal-delete-confirm`.
+
+**Why this is the V.1 class and not an O.16 regression — the argument, since
+"it's the known flake" is exactly the excuse #306 says gets a real defect waved
+through:**
+
+1. **The same product code both passed and failed it.** Run 1 failed only the
+   three register-return tests and PASSED `phase4-features:33`; run 2 passed the
+   register-return tests and failed `phase4-features:33`. The only edit between
+   the two runs was `tests/e2e/register-return.spec.ts`, which cannot reach the
+   goals surface. A test that passes and fails on identical product code is
+   rotating by definition.
+2. **The diff has no path to it.** O.16 touches `links.ts`, the register, the
+   transaction detail view, `/rules` and `/transactions` — goals and the FI date
+   share no module with any of them (`git diff --stat` in the record above).
+3. **It is the same spec:line already in the V.1 table** (PROGRESS, V.1 run 1:
+   `mobile-overflow:408`, `phase4-features:33`).
+
+Nothing was relaxed, retried or re-timed to accommodate it — V.1 forbids exactly
+that, because it hides the signal the gate exists to give. Run 3 is in flight
+with run 2's artifacts preserved at `/tmp/o16-artifacts-run2` (a re-run destroys
+the reproduction).
+
+### O.16a — GATE RUN 3: ✅ VERIFY GREEN
+
+```
+ Test Files  320 passed (320)
+      Tests  5114 passed (5114)
+✓ Compiled successfully in 6.5s
+  248 passed (2.6m)
+✅ VERIFY GREEN
+EXIT=0
+```
+
+Unchanged tree from run 2 — no timeout relaxed, no retry added, no assertion
+touched. `phase4-features:33` passed this time, which is the third data point in
+the pattern V.1 is measuring: on identical product code the failing set rotates
+(run 1 → the 3 O.16 fixture failures; run 2 → `phase4-features:33`; run 3 → none).
+Run 1's failures were real and mine; run 2's was not, and the argument for that is
+recorded above rather than asserted.
+
+Unit count moved 5089 → 5114 (+25, the register-return engine locks); e2e 245 →
+248 (+3, the O.16 spec).

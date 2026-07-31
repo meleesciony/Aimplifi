@@ -9,6 +9,7 @@ import { getVisibleGroups } from '@/server/categories';
 import { getRuleSourceTransaction } from '@/server/keyword-rules';
 import { getTransactionDetail } from '@/server/transactions';
 import { getRecurringVerdictForTransaction } from '@/server/recurring-overrides';
+import { RETURN_PARAM, decodeRegisterReturn } from '@/lib/engine/transactions/links';
 
 export const metadata = { title: 'Transaction' };
 
@@ -66,6 +67,14 @@ export default async function TransactionDetailPage({
       // The verdict saved, but the rebuild that carries it to the cash surfaces
       // did not run — so this page may not promise that they moved.
       projectionsStale={query[PROJECTIONS_STALE_PARAM] === '1'}
+      // O.16 — split, "Recurring…" and the status control all navigate here from
+      // the register, so this page inherits the reader's place and its own
+      // "Back to transactions" link is what hands it back. Decoded here (server)
+      // rather than in the view, so an unrecognised value renders the plain link
+      // it rendered before this slice.
+      returnTo={decodeRegisterReturn(
+        Array.isArray(query[RETURN_PARAM]) ? query[RETURN_PARAM][0] : query[RETURN_PARAM],
+      )}
     />
   );
 }
