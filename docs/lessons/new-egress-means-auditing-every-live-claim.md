@@ -25,3 +25,30 @@ the easy half. In the same slice, before the critic:
 Why it mattered: all four P1s had one-file fixes, but any of them shipped would have been a false
 live money/privacy statement — the #221/#243 class the repo treats as P1 regardless of how correct
 the underlying code is.
+
+## Extended O.15 slice 6 — a new WRITER of a column invalidates the carve-outs written about it
+
+The same disease one level in, and it cost the sharpest finding of that slice's critic cycle.
+`engine/transactions/exclude.ts` carried a deliberate, well-argued carve-out: the tax export
+still counts a row the reader both TAGGED and EXCLUDED, because "a row given two orders" should
+not lose the deduction silently. Correct — and true only while the ONLY way to get a `taxClass`
+was the reader typing it on that row.
+
+The slice made a RULE a second writer of that column. The reader had then given exactly one
+order ("this is not my spending") and the rule supplied the other, so money he had removed from
+every other total would have landed in a figure bound for a tax preparer. Nothing in the diff
+touched `exclude.ts`; the carve-out simply stopped being about the situation it described.
+
+**The rule:** when you add a writer to a column, grep for every documented DECISION about that
+column — not just claims about what the app says, but carve-outs, exemptions and "we
+deliberately allow X because Y" comments — and re-read each one asking *is Y still true with
+this new writer?* A carve-out is an argument with a premise, and a premise about who writes a
+value dies the moment someone else can write it.
+
+Corollary from the same cycle: when a slice adds a THEN-action to machinery that already
+enumerates its actions in user-facing copy ("transactions it already filed keep the category and
+the payee name"), those enumerations are claims with the same failure mode — both rule-list
+footers in this app still listed two of three actions after the third shipped. And a code comment
+asserting "the residual is recorded in docs/STATUS.md" must not be written before the record
+exists: the critic grepped for it, correctly, and it was not there.
+
