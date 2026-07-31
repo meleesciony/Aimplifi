@@ -127,3 +127,38 @@ test('removing a built-in category takes it out of the picker and says so', asyn
     page.locator('select option').filter({ hasText: /^Car Wash$/ }),
   ).toHaveCount(0);
 });
+
+/**
+ * O.17c — the shared demo row cannot remove a category, and does not offer to.
+ *
+ * The ABSENCE is the load-bearing assertion: the server fence is unit-locked, but
+ * only a rendered page can show that the demo reader is not still being invited to
+ * press a control that now refuses. The copy assertion goes with it, because the
+ * demo branch of this paragraph used to read "Remove the ones you don't use" —
+ * an instruction to degrade the shared demo, printed directly above the button.
+ */
+test('the shared demo is not offered category removal, and the copy says why', async ({ page }) => {
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+
+  await page.goto('/settings');
+  const manager = page.getByTestId('category-manager');
+  await expect(manager).toBeVisible();
+
+  // The hard case is present: this IS the category list, with rows in it — so the
+  // "no Remove control" assertion below cannot pass on an empty/never-rendered page.
+  await expect(manager).toContainText('Car Wash');
+
+  // No Remove control anywhere in the manager, for any category.
+  await expect(page.getByTestId('cat-visibility-car-wash')).toHaveCount(0);
+  await expect(manager.getByRole('button', { name: 'Remove' })).toHaveCount(0);
+  // Rename is fenced too (O.17), so its control is absent as well.
+  await expect(page.getByTestId('cat-rename-car-wash')).toHaveCount(0);
+
+  // The copy no longer invites the removal it will refuse, and names the reason.
+  // Each sentence stands alone, so this asserts the removal one on its own terms.
+  await expect(manager).toContainText('Removing is off in the demo');
+  await expect(manager).toContainText('every other visitor');
+  await expect(manager).not.toContainText('Remove the ones you don’t use');
+});

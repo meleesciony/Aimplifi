@@ -88,8 +88,7 @@ export async function createCustomCategory(input: {
   // The demo is ONE shared row: a category name typed here is a name the next
   // anonymous visitor reads, in every picker and every report — the typed leg of
   // the rule in docs/lessons/shared-demo-account-must-not-learn.md, recorded there
-  // as open and closed here (O.17). Deleting stays open: with creation fenced
-  // there is nothing on the demo row to delete, and removing carries no words.
+  // as open and closed here (O.17).
   if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
   const name = normalizeCategoryName(input.name ?? '');
   const nameErr = validateName(name);
@@ -118,8 +117,7 @@ export async function renameCustomCategory(input: { id: string; name: string }):
   // The demo is ONE shared row: a category name typed here is a name the next
   // anonymous visitor reads, in every picker and every report — the typed leg of
   // the rule in docs/lessons/shared-demo-account-must-not-learn.md, recorded there
-  // as open and closed here (O.17). Deleting stays open: with creation fenced
-  // there is nothing on the demo row to delete, and removing carries no words.
+  // as open and closed here (O.17).
   if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
   const name = normalizeCategoryName(input.name ?? '');
   const nameErr = validateName(name);
@@ -147,6 +145,16 @@ export async function renameCustomCategory(input: { id: string; name: string }):
 
 export async function deleteCustomCategory(input: { id: string }): Promise<CategoryActionResult> {
   const userId = await requireUserId();
+  // Shared-demo fence (O.17c critic P2-4). This used to be left open on the premise
+  // that "with creation fenced there is nothing on the demo row to delete" — true
+  // today (a production probe found 0 demo-owned custom categories) and a premise
+  // about a DIFFERENT action, which is the shape that dies quietly when a seed, an
+  // import or a backfill becomes a second writer. The blast radius if it ever came
+  // back is worse than the hidden-flag write O.17c fenced: the transaction below
+  // re-files every transaction in the category, and deletes its rules and budgets,
+  // for every visitor sharing the row. A guard for a state that cannot happen yet
+  // is cheap; discovering it can happen later is not.
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
   const owned = await prisma.category.findFirst({
     where: { id: input.id, userId, isSystem: false },
     select: { id: true },

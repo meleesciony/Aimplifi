@@ -49,6 +49,27 @@ export const DEMO_DESTROY_BLOCKED =
   'The demo is a shared account, so it can’t be deleted or signed out everywhere — create your own free account to control your own data.';
 
 /**
+ * Refusal when the shared demo account tries to REMOVE a built-in category (O.17c).
+ *
+ * Different in kind from the leaks above: a `HiddenCategory` row stores a static
+ * category slug, never a word the visitor typed, so nothing of one visitor's
+ * vocabulary reaches the next. The harm is the other shared-row failure mode —
+ * one anonymous visitor taking categories out of the pickers that every visitor
+ * after them chooses from. The Settings copy used to invite exactly that on the
+ * demo row ("Remove the ones you don't use"), one tap from a visible button.
+ *
+ * Only the REMOVING direction is fenced. Restoring can only ever move the demo
+ * back toward its seeded default — the seed writes no `HiddenCategory` rows, so
+ * with removal fenced there is nothing on the demo row to restore, and leaving it
+ * open keeps an in-app remedy if a row ever arrives by some other route. That
+ * premise is a fact about the seed, so it is locked by a test rather than left in
+ * this comment (the same one-sided shape as `resetSystemCategoryName` and
+ * `deleteCustomCategory`, whose comments state the premise but do not assert it).
+ */
+export const DEMO_CATEGORY_REMOVE_BLOCKED =
+  'The demo is a shared account, so removing a category would take it out of the pickers for every other visitor — create your own free account to set up the categories you use.';
+
+/**
  * Refusal for cross-provider account reconciliation on the shared demo (TASKS 4.6).
  * Demo accounts are `provider: 'demo'` and are excluded from the #192 duplicate
  * detector, so a reconciliation candidate is never PROPOSED for the demo — this is

@@ -9990,3 +9990,77 @@ the V.1 row.
   reproduced (not in four later full runs, nor in a 12-way concurrent probe). No
   diagnosis is claimed; the route no longer holds a write lock across three round trips,
   and a store failure now returns a sentence written for the reader instead of a bare 500.
+
+---
+
+## O.17c — the shared demo can no longer remove a category (2026-07-31, DECISIONS #351)
+
+**Shipped.** `setCategoryHidden` now refuses the shared demo row for the REMOVING direction, the
+Remove control is dropped for demo rather than shown and refused, and the Settings copy no longer
+opens by inviting the very action the server declines.
+
+**What the residual understated.** O.17 filed this as an unfenced action endpoint. The Remove
+button was also never gated on the demo (only rename was), and the demo branch of the Settings
+paragraph began **"Remove the ones you don't use."** — printed directly above that button, in the
+same paragraph explaining that the demo is shared. It was one tap.
+
+**Damage measured, not assumed.** `scripts/audit-probes/o17c-demo-hidden-categories.mjs` (read-only,
+production) reported **0** `HiddenCategory` rows on `user-demo` and **0 across every user in the
+database** — the feature has never been used in production by anyone. So there is nothing to clean
+up and this is prevention only. The probe also confirmed 0 `CategoryRename` and 0 demo-owned custom
+`Category` rows, i.e. the doors O.17 fenced were never walked through either.
+
+**Design notes.** The fence is deliberately one-sided (removing refused, restoring open) because
+restoring can only move the demo back toward its seeded default; that premise belongs to the seed,
+not to the action, so it is asserted by a test instead of stated in a comment. A new
+`DEMO_CATEGORY_REMOVE_BLOCKED` constant rather than a borrowed one, because nothing here is being
+*added* — the row stores a static slug, never a typed word. `canRemove` is a separate prop from
+`canRename` so each sentence of the copy is gated by the capability it actually describes.
+
+**Gate.** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / 5197 unit / 325 files / build clean.
+`category-rename.spec.ts` 3/3 including the new demo lock. The fence is mutation-proven: neutering
+it fails 4 of the new test file's 7.
+
+**Hostile critic (fresh context): FAIL — 2 P1 + 3 P2 + 3 P3, all closed.** The fence itself it
+could not break: it grepped every possible writer of `HiddenCategory` (schema, the read helper,
+this action, a defensive delete in `deleteCustomCategory`), confirmed there is no raw SQL anywhere
+in `src/server`/`src/app`, no nested write, no cron and no provider path, and independently re-ran
+the production probe. What it did break was the record and the neighbourhood:
+
+- **P1 (both process):** STATUS said "Shipped." while nothing was committed, and the recorded gate
+  counts predated the code — the file had grown from 5 tests to 6 while the critic was reading it.
+  Both corrected here from a re-run gate; the counts above are from that run.
+- **P2 — the same hole one component up.** `deleteCustomCategory` was unfenced on the premise
+  "with creation fenced there is nothing on the demo row to delete" — a premise about a *different*
+  action, quoted by #351 as precedent while left open. Now fenced. Unreachable today (0 demo-owned
+  custom categories in production) but its blast radius is larger than this slice's: it re-files
+  every transaction in the category and drops its rules and budgets for everyone sharing the row.
+- **P2 — a control for an impossible state.** The first draft kept a Restore button on the demo for
+  an already-hidden category. Removed rather than papered over: the state cannot occur, and the
+  button rendered above copy that never named it, beside a "N removed." count whose definition
+  lives only in the branch demo readers do not get.
+- **P3 — a stale comment on the changed line.** `settings/page.tsx` still said "Removing stays on"
+  directly above the prop that turns it off, and a docblock claimed the two copy clauses were
+  independent when the demo one said "off *too*". Both rewritten; each sentence now stands alone.
+
+**Caught separately (not a critic finding):** the critic mutation-tested in the live working tree
+and left `canRemove={true}` behind in `settings/page.tsx`, which would have shipped the server
+fence with its UI half disabled — the exact "offered then refused" state the design rejects. Caught
+by reading the diff before commit; the e2e would have failed it at the gate regardless. A
+read-only critic would not have this failure mode.
+
+## O.17b — DECIDED: removing a category does not stop the categorizer (2026-07-31, DECISIONS #352)
+
+**No code change.** The behaviour question is closed: "Remove" stays a picker preference, and the
+disclosure O.17 added is the resolution rather than a placeholder. Reasons in full in DECISIONS
+#352; the short version is that one of the two proposed destinations does not exist
+(`Category.parentId` has never been populated; `group` is a string, not an assignable row), and the
+other — `uncategorized` — discards knowledge the engine had, asserts a false "we don't know", fills
+the triage queue as a *consequence* of the reader asking to see less, and silently merges two
+meanings of the needs-review class across four downstream consumers.
+
+**Checked and NOT found while deciding:** the suspected silent mis-file — a `<select>` whose value
+is absent from its own options, the #166/#170 shape — is not present. `transaction-detail-view.tsx`
+falls back to an explicit "Choose a category…" placeholder when a row's category is hidden, so
+saving requires a deliberate choice. Recorded because it was the concrete fear underneath the
+question, and it is answered.

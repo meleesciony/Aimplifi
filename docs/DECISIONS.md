@@ -1335,7 +1335,7 @@ closes a contract between two functions rather than a live vector.
 axis (a stored GIF/HTML polyglot came back as `content-type: image/gif` with
 `content-disposition: attachment`, `nosniff` and the sandbox CSP; SVG and HTML are refused
 outright), authorization on all four queries including the household claim, header injection
-against `a";x=y
+against `a";x=y
 Set-Cookie: a=b.jpg`, the identical 404 for another user's id and a
 non-existent one, and the absence of any orphan on the deletion axis.
 
@@ -1421,3 +1421,98 @@ so a rename would detach the marker; mitigated by matching either the new or the
 but keying dials by id is the real fix and is its own change (TASKS). `/trust`'s AI-audit
 descriptions keep canonical names — it is a historical record of what the model suggested at the
 time. `setCategoryHidden` is still unfenced for the demo (ids only, no typed words, pre-existing).
+
+## #351 (O.17c) — The shared demo cannot remove a category, and only the removing direction is fenced
+
+`setCategoryHidden` had no demo fence. Every anonymous visitor signs into the SAME row
+(`user-demo`), so one visitor removing a built-in category took it out of the pickers every
+visitor after them chooses from. The residual filed by O.17 described this as an unfenced action
+endpoint; it was more reachable than that. The Settings copy on the demo row opened with **"Remove
+the ones you don't use."** — an instruction to degrade the shared demo, printed directly above a
+visible Remove button, in the same paragraph that explains the demo is shared. The button was
+never gated on the demo (only rename was), so this was one tap, not a crafted request.
+
+**Measured before fixing.** A read-only production probe
+(`scripts/audit-probes/o17c-demo-hidden-categories.mjs`) found **0** `HiddenCategory` rows on the
+demo row — and 0 across every user in the database. So there is no pre-existing damage to undo:
+this is prevention only, and `prevention-is-not-a-remedy.md` does not apply. That cost one query
+and replaced a guess about production with a fact.
+
+**The fence is one-sided on purpose.** Removing is refused; restoring stays open. Restoring can
+only move the demo back toward its seeded default, so it cannot degrade the shared row — and
+leaving it open keeps an in-app way back if a hidden row ever arrives by some other route. That
+safety rests on a premise about a different file (the seed writes no `HiddenCategory` rows), which
+is exactly the shape of argument that dies quietly when someone else becomes a writer. So the
+premise is asserted by a test rather than stated in a comment: if a future seed ever hides a
+category on the demo row, the lock fails and the one-sided fence gets re-decided. The sibling
+one-sided fences (`resetSystemCategoryName`, `deleteCustomCategory`) state their premise in prose
+and do not assert it; this one does.
+
+**A new refusal constant, not a borrowed one.** `DEMO_ENTRY_BLOCKED` says "anything you add here
+would be visible to other visitors" and nothing is being added — a `HiddenCategory` row stores a
+static slug, never a typed word, which is why this leak is different in kind from the ones O.17
+closed. `DEMO_CATEGORY_REMOVE_BLOCKED` names the actual harm: the category leaves the pickers for
+everyone else.
+
+**The copy is now gated per clause.** `canRename` and `canRemove` are separate props even though
+both derive from one fact, because they are two claims about two controls. Each sentence is gated
+by the capability it describes, so no combination can leave the paragraph promising something the
+reader cannot do — the failure mode when one boolean gates prose about two things. The real-user
+branch keeps the O.17 disclosure that the categorizer still auto-files into a removed category
+verbatim; the demo branch drops it, because it describes a capability that branch does not have.
+Each sentence stands alone rather than leaning on the other — "removing is off TOO" has no
+antecedent on an account where renaming is on. The Remove control is dropped for demo rather than
+shown and refused.
+
+**Two things the hostile critic changed.** A first draft kept a Restore button visible on the demo
+whenever a category was already hidden, as an in-app way back. Removed: `setCategoryHidden` is the
+only writer of that table (exhaustively grepped — no raw SQL, no nested writes, no cron, no
+provider path) and it is now fenced, and a re-seed cascades the table away, so the state it
+rescued cannot occur — while the control itself rendered above copy that never named it, beside a
+"N removed." count whose only definition lives in the branch demo readers do not get, and its
+optimistic toggle unmounted the button mid-flight. A guard for an impossible state is cheap; a
+FEATURE for one carries copy debt, which is the distinction that decided it.
+
+And the critic found the same hole one component up: `deleteCustomCategory` was unfenced on the
+premise "with creation fenced there is nothing on the demo row to delete" — a premise about a
+DIFFERENT action, and the exact shape #351 claims to be fixing while quoting that very function as
+precedent. Now fenced. It is unreachable today (the probe found 0 demo-owned custom categories),
+but its blast radius if it ever came back is larger than the write this slice started with: the
+delete re-files every transaction in the category and drops its rules and budgets for everyone
+sharing the row.
+
+## #352 (O.17b) — "Remove" stays a picker preference: the categorizer does not learn the hidden set
+
+The open question from O.17: should removing a category also stop new transactions being auto-filed
+into it, routing them to the parent group or to `uncategorized`? **Decided: no.** Removing stays a
+display preference, and the disclosure O.17 added is the right resolution rather than a placeholder.
+
+**One of the two proposed options does not exist.** "Route to the parent group" is not expressible:
+`Category.parentId` is declared and has never been populated (the taxonomy is two-level by #63/#65),
+and `group` is a plain string on the category, not an assignable row. There is no category to route
+to. Building one would mean inventing a category per group — a taxonomy change, not a routing tweak.
+So the real choice was binary: leave it, or route to `uncategorized`.
+
+**Routing to `uncategorized` fails in the worse direction.** The categorizer knew the row was a car
+wash; filing it as uncategorized throws that knowledge away and asserts "we don't know", which is
+false — the app's own reason for the hedge would be a preference the reader expressed about a
+*picker*. It also inverts the reader's intent: they removed a category to see less of it, and the
+result would be a triage queue filling with rows they must file by hand, plus their reports losing a
+real signal into an undifferentiated bucket. And it would make `uncategorized` mean two different
+things — "the app could not tell" and "the app could tell but you removed the bucket" — silently
+conflated by every downstream consumer of the needs-review class (triage, the self-audit
+unknown-rate metric, the nudge feed, the AI-trust panel). That is a data-class widening with a wide
+blast radius bought for a cosmetic complaint.
+
+**The failure directions are not symmetric.** Leaving it: a reader sees a category they removed
+appear in a report. The figure is TRUE, the confusion is mild, and it is self-correcting — they can
+restore the category. Changing it: a true figure is replaced by an honest-looking blank and the
+reader is given work. A cosmetic falsehood is cheaper than a manufactured unknown, which is the same
+rule that governs every other zero in this app.
+
+**Checked and NOT found.** The suspicion underneath the question was that a row filed into a removed
+category would show a picker missing its own current value — the `<select>` shape that silently
+re-files (#166/#170). It does not: `transaction-detail-view.tsx` sets
+`defaultValue={flatCategories.some((c) => c.id === row.categoryId) ? row.categoryId : ''}`, falling
+back to the explicit "Choose a category…" placeholder, so saving requires a deliberate choice. The
+coherence gap is real but honest, and no silent mis-file rides on it.

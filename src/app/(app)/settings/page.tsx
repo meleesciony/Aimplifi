@@ -277,12 +277,18 @@ export default async function SettingsPage() {
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Built-in categories
             </h3>
-            {/* Renaming is off for the demo: it is one shared row, so a name typed
-                here would be read by the next anonymous visitor. Removing stays on —
-                it stores no words, only which ids this row hides. The action refuses
-                demo server-side too; this keeps the UI from offering a door that
-                fails. */}
-            <CategoryManager catalog={categoryCatalog} canRename={!isDemoUser(userId)} />
+            {/* Both are off for the demo, for two DIFFERENT reasons. Renaming: it is
+                one shared row, so a name typed here would be read by the next
+                anonymous visitor. Removing (O.17c): the row stores no words, only
+                ids — the harm is that one visitor takes a category out of the
+                pickers every visitor after them chooses from. Each action refuses
+                demo server-side as well; these props keep the UI from offering a
+                door that fails. */}
+            <CategoryManager
+              catalog={categoryCatalog}
+              canRename={!isDemoUser(userId)}
+              canRemove={!isDemoUser(userId)}
+            />
           </div>
         </CardContent>
       </Card>

@@ -35,10 +35,24 @@ const fieldClass = 'h-9 rounded-md border border-input bg-background px-2 text-s
 export function CategoryManager({
   catalog,
   canRename,
+  canRemove,
 }: {
   catalog: CatalogGroup[];
   /** False for the shared demo row, where a typed name would reach the next visitor. */
   canRename: boolean;
+  /**
+   * False for the shared demo row (O.17c), where removing a category would take it
+   * out of the pickers every other visitor chooses from. Separate from `canRename`
+   * because it is a different claim about a different control, gating a different
+   * sentence — one boolean gating prose about two capabilities is how a paragraph
+   * ends up promising a control the reader does not have.
+   *
+   * Each of the two sentences is written to stand ALONE, naming its own subject and
+   * its own reason, rather than leaning on the other ("removing is off TOO" has no
+   * antecedent when renaming is on). Both props happen to derive from one fact
+   * today; the copy does not assume they always will.
+   */
+  canRemove: boolean;
 }) {
   const initialHidden = useMemo(
     () => new Set(catalog.flatMap((g) => g.categories.filter((c) => c.hidden).map((c) => c.id))),
@@ -138,12 +152,11 @@ export function CategoryManager({
     <div className="space-y-3" data-testid="category-manager">
       <p className="text-xs text-muted-foreground">
         {canRename
-          ? 'Rename a category to whatever you call it, or remove the ones you don’t use. '
-          : 'Remove the ones you don’t use. Renaming is off in the demo, which is a shared account — a name typed here would show up for other visitors. '}
-        Removing takes a category out of the pickers you choose from, and nothing is deleted:
-        whatever is already filed under it keeps its category and still counts in your reports.
-        Aimplifi can still file a new transaction there on its own when it clearly fits — removing
-        a category hides it from you, it doesn’t stop the app using it.
+          ? 'Rename a category to whatever you call it. '
+          : 'Renaming is off in the demo, which is a shared account — a name typed here would show up for other visitors. '}
+        {canRemove
+          ? 'Remove the ones you don’t use. Removing takes a category out of the pickers you choose from, and nothing is deleted: whatever is already filed under it keeps its category and still counts in your reports. Aimplifi can still file a new transaction there on its own when it clearly fits — removing a category hides it from you, it doesn’t stop the app using it.'
+          : 'Removing is off in the demo, which is a shared account: taking a category out of the pickers would take it out for every other visitor too.'}
         {hidden.size > 0 && (
           <>
             {' '}
@@ -267,7 +280,20 @@ export function CategoryManager({
                     )}
                     {/* Gated on the same predicate the server enforces, so a
                         category that stops being removable loses the control
-                        rather than offering one that fails. */}
+                        rather than offering one that fails. On the shared demo
+                        (`canRemove` false) the control is dropped rather than
+                        shown and refused.
+
+                        An earlier draft kept a Restore button visible when a
+                        category was already hidden, as a way back on the demo.
+                        Dropped: `setCategoryHidden` is the only writer of that
+                        row and it is now fenced, and a re-seed cascades the
+                        table away, so the state it rescued cannot occur — while
+                        the button itself rendered above copy that never names
+                        it, beside a "N removed." count whose only definition
+                        lives in the branch demo readers do not get. A control
+                        for an impossible state, carrying real copy debt. */}
+                    {canRemove && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -292,6 +318,7 @@ export function CategoryManager({
                         </>
                       )}
                     </Button>
+                    )}
                   </div>
                 </li>
               );
