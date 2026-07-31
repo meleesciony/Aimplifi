@@ -11,7 +11,7 @@ import {
   visibleGroups,
   type CatalogGroup,
 } from '@/lib/engine/categorize/visibility';
-import { getCustomCategories } from '@/server/category-meta';
+import { getCategoryOverlay, getCategoryRenames } from '@/server/category-meta';
 
 export async function getHiddenCategoryIds(userId: string): Promise<Set<string>> {
   const rows = await prisma.hiddenCategory.findMany({
@@ -21,9 +21,13 @@ export async function getHiddenCategoryIds(userId: string): Promise<Set<string>>
   return new Set(rows.map((r) => r.categoryId));
 }
 
-/** Full management catalog (every category + its hidden flag) for the Settings UI. */
+/** Full management catalog (every category + its hidden and renamed state) for Settings. */
 export async function getCategoryCatalog(userId: string): Promise<CatalogGroup[]> {
-  return categoryCatalog(await getHiddenCategoryIds(userId));
+  const [hidden, renames] = await Promise.all([
+    getHiddenCategoryIds(userId),
+    getCategoryRenames(userId),
+  ]);
+  return categoryCatalog(hidden, renames);
 }
 
 /**
@@ -34,22 +38,22 @@ export async function getCategoryCatalog(userId: string): Promise<CatalogGroup[]
 export async function getVisibleCategories(
   userId: string,
 ): Promise<{ id: string; name: string; group: string }[]> {
-  const [hidden, custom] = await Promise.all([
+  const [hidden, overlay] = await Promise.all([
     getHiddenCategoryIds(userId),
-    getCustomCategories(userId),
+    getCategoryOverlay(userId),
   ]);
-  return visibleCategories(hidden, custom);
+  return visibleCategories(hidden, overlay.custom, overlay.renames);
 }
 
 /** Visible assignable categories grouped by parent — the register picker. */
 export async function getVisibleGroups(
   userId: string,
 ): Promise<{ group: string; categories: { id: string; name: string }[] }[]> {
-  const [hidden, custom] = await Promise.all([
+  const [hidden, overlay] = await Promise.all([
     getHiddenCategoryIds(userId),
-    getCustomCategories(userId),
+    getCategoryOverlay(userId),
   ]);
-  return visibleGroups(hidden, custom);
+  return visibleGroups(hidden, overlay.custom, overlay.renames);
 }
 
 /**

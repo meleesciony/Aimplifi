@@ -36,9 +36,12 @@ const fieldClass = 'h-9 rounded-md border border-input bg-background px-2 text-s
 export function CustomCategoryManager({
   categories,
   groups,
+  canWrite,
 }: {
   categories: CustomCategory[];
   groups: string[];
+  /** False on the shared demo row, where a typed name reaches the next visitor. */
+  canWrite: boolean;
 }) {
   const items = categories; // server truth; every success path reloads
   const [name, setName] = useState('');
@@ -99,8 +102,9 @@ export function CustomCategoryManager({
   return (
     <div className="space-y-3" data-testid="custom-category-manager">
       <p className="text-xs text-muted-foreground">
-        Create categories that fit your life — they appear in every picker, in reports, and in
-        Ask. Deleting one re-files its transactions as Uncategorized; nothing is lost.
+        {canWrite
+          ? 'Create categories that fit your life — they appear in every picker, in reports, and in Ask. Deleting one re-files its transactions as Uncategorized; nothing is lost.'
+          : 'The demo is a shared account, so creating your own categories is off here — a name typed into it would show up for other visitors. In your own free account you can add as many as you like.'}
       </p>
 
       {error && (
@@ -109,6 +113,7 @@ export function CustomCategoryManager({
         </p>
       )}
 
+      {canWrite && (
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Name
@@ -163,6 +168,7 @@ export function CustomCategoryManager({
           <Plus className="size-3.5" aria-hidden /> Add
         </Button>
       </div>
+      )}
 
       {items.length > 0 && (
         <ul className="divide-y rounded-md border" data-testid="custom-category-list">

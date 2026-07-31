@@ -13,6 +13,7 @@ import { accountLabel } from '@/lib/engine/account/display-name';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { decodeRegisterReturn } from '@/lib/engine/transactions/links';
 import { getVisibleGroups } from '@/server/categories';
+import { getCategoryMeta } from '@/server/category-meta';
 import { getRuleSourceTransaction, listKeywordRules } from '@/server/keyword-rules';
 import { listRuleInventory } from '@/server/rule-inventory';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
@@ -60,8 +61,9 @@ export default async function RulesPage({
     ? { ...source, transactionId: source.id, ...suggestRuleKeywords(source.rawDescriptor) }
     : null;
 
-  const [categoryGroups, rules, inventory, allAccounts, superseded] = await Promise.all([
+  const [categoryGroups, categoryMeta, rules, inventory, allAccounts, superseded] = await Promise.all([
     getVisibleGroups(session.user.id),
+    getCategoryMeta(session.user.id),
     listKeywordRules(),
     // O.15 slice 3 — the rules the reader did NOT type: every one minted by tapping
     // "Always" while filing a transaction, plus any stored row the engine has
@@ -92,12 +94,20 @@ export default async function RulesPage({
     .filter((a) => !superseded.has(a.id))
     .map((a) => ({ id: a.id, name: accountLabel(a) }));
 
-  // One name lookup for both the rule list and the confirmation sentence, built
-  // from the SAME set the picker offers — so a rule can never display a name the
-  // reader could not have chosen.
-  const categoryNameById = Object.fromEntries(
-    categoryGroups.flatMap((g) => g.categories.map((c) => [c.id, c.name] as const)),
-  );
+  // One name lookup for both the rule list and the confirmation sentence.
+  //
+  // Built from the picker set PLUS the reader's full per-user meta. The picker
+  // alone was the original rule ("a rule can never display a name the reader
+  // could not have chosen") and it broke the moment a category could be REMOVED:
+  // a still-firing rule pointing at a removed category fell through to the raw
+  // slug, so /rules read "Always file STARBUCKS as dining-out". A rule that is
+  // filing money must name its destination in words, whether or not that
+  // category is still offered in a picker — the meta is the reader's own
+  // vocabulary either way, so this cannot show a name they never saw.
+  const categoryNameById = Object.fromEntries([
+    ...[...categoryMeta].map(([id, m]) => [id, m.name] as const),
+    ...categoryGroups.flatMap((g) => g.categories.map((c) => [c.id, c.name] as const)),
+  ]);
 
   return (
     <div className="space-y-4">

@@ -22,7 +22,7 @@ import { categorizeSuggestFor } from '@/server/categorize-suggest';
 import { loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { logCategoryPredictions } from '@/server/predictions';
-import { assertOwnedCategory, getCustomCategories } from '@/server/category-meta';
+import { assertOwnedCategory, getCategoryRenames, getCustomCategories } from '@/server/category-meta';
 import { refuseManualWriteToSuperseded } from '@/server/reconciliation';
 import { refreshRecurringForUser } from '@/server/recurring';
 import { getProvider } from '@/lib/providers/demo';
@@ -241,10 +241,23 @@ export async function importTransactionsCsv(
     return { ok: false, imported: 0, skipped: 0, errors: ['Paste CSV content first.'] };
   }
 
-  // A CSV "category" column may name one of the user's custom categories ("Golf");
-  // resolve those to their id too, alongside the system names (DECISIONS #111).
-  const custom = await getCustomCategories(userId);
+  // A CSV "category" column may name one of the user's custom categories ("Golf"),
+  // or a built-in they RENAMED (O.17) — resolve both to their id alongside the
+  // canonical system names (DECISIONS #111).
+  //
+  // The rename half is not a nicety: /api/export writes the reader's own label
+  // into this column, so without it a user who exports, edits in Excel and
+  // re-imports their own file gets every renamed row resolved to `null` — which
+  // is not an error, it is a silent hand-off to the auto-categorizer, re-filing
+  // their rows into a different category (both O.17 critics, independently).
+  // A rename can never equal another visible category's name (the rename door
+  // refuses that), so adding these keys cannot make a name ambiguous.
+  const [custom, renames] = await Promise.all([
+    getCustomCategories(userId),
+    getCategoryRenames(userId),
+  ]);
   const customByName = new Map(custom.map((c) => [c.name.toLowerCase(), c.id]));
+  for (const [categoryId, name] of renames) customByName.set(name.toLowerCase(), categoryId);
   const { rows, errors } = parseTransactionCsv(text, customByName);
   const [rules, tuning] = await Promise.all([loadUserRules(userId), getThresholdTuning(userId)]);
   const prepared = rows.map((row) => {

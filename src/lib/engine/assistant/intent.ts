@@ -698,19 +698,46 @@ export function resolveSpendTarget(
   // caller's platform composed the bytes (the parser already normalizes; the
   // conversation frame passes raw fragments) — TASKS 2.6.
   const q = qRaw.normalize('NFC');
+
+  // `custom` carries two kinds of row and they resolve at DIFFERENT priorities:
+  // a RENAMED built-in (its id is in the static taxonomy) is the reader
+  // overriding the app's own word for an existing bucket, so it outranks the
+  // synonym table; a CUSTOM category is an additional bucket and stays below it,
+  // as DECISIONS #111 decided, so adding one can never hijack a built-in phrase.
+  //
+  // Without the first half, a reader who renamed Hobbies to "Gas" asked about
+  // "gas" and got the FUEL total — a different figure under a word that, on
+  // their own screens, names something else (found by both O.17 critics). Every
+  // answer prints the label of what it resolved, so the reader sees which bucket
+  // replied.
+  const renamedBuiltIns = custom.filter((c) => CATEGORY_BY_ID.has(c.id));
+  const ownCategories = custom.filter((c) => !CATEGORY_BY_ID.has(c.id));
+
+  // Longest name first so "golf club" beats "golf". Unicode-aware lookarounds
+  // rather than JS's word-boundary escape, which is ASCII-word-based: against
+  // an accented name there is no boundary after the accent, so the escape can
+  // never match and the user's own category was unreachable (TASKS 2.6).
+  // The escape is described rather than written here on purpose: writing it
+  // into a comment is how a raw 0x08 landed in this file (source-hygiene).
+  const matchByName = (list: readonly { id: string; name: string }[]): SpendTarget | null => {
+    for (const c of [...list].sort((a, b) => b.name.length - a.name.length)) {
+      const name = c.name.trim().toLowerCase().normalize('NFC');
+      if (!name) continue;
+      const re = new RegExp(`(?<![\p{L}\p{N}])${escapeRe(name)}(?![\p{L}\p{N}])`, 'u');
+      if (re.test(q)) return catTarget(c.id, c.name.trim());
+    }
+    return null;
+  };
+
+  const renamed = matchByName(renamedBuiltIns);
+  if (renamed) return renamed;
+
   for (const { re, target } of SYNONYMS) {
     if (re.test(q)) return target;
   }
-  // Custom categories (DECISIONS #111), longest name first so "golf club" beats
-  // "golf". Unicode-aware boundaries instead of \b: JS \b is ASCII-word-based,
-  // so `\bcafé\b` could never match — the boundary after "é" does not exist —
-  // and the user's own category was unreachable (TASKS 2.6).
-  for (const c of [...custom].sort((a, b) => b.name.length - a.name.length)) {
-    const name = c.name.trim().toLowerCase().normalize('NFC');
-    if (!name) continue;
-    const re = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(name)}(?![\\p{L}\\p{N}])`, 'u');
-    if (re.test(q)) return catTarget(c.id, c.name.trim());
-  }
+
+  const own = matchByName(ownCategories);
+  if (own) return own;
   // Fallback: a group name spoken verbatim (e.g. "personal & family"). Word-
   // bounded — "homegoods" is not a mention of Home — and not extended by a
   // further name word — "home depot" is a store, not the Home group (TASKS 2.6;
@@ -1641,11 +1668,16 @@ function canonicalTargetLabel(
   custom: readonly { id: string; name?: string }[],
 ): string | null {
   if (t.type === 'category') {
-    const system = CATEGORY_BY_ID.get(t.categoryId)?.name;
-    if (system) return system;
+    // The reader's own vocabulary FIRST — `custom` carries their custom
+    // categories AND any built-in they renamed, both server-loaded, so this is
+    // still a re-derivation and a forged frame label still cannot survive it.
+    // Reading the static map first printed "You spent $840.00 on Groceries" to a
+    // reader whose every other screen said "Food shop" — while the SAME answer's
+    // top-categories list said "Food shop". One reply, two names, one bucket.
     // Trimmed: this label lands verbatim in a money headline (critic F7).
     const own = custom.find((c) => c.id === t.categoryId)?.name?.trim();
-    return own || null;
+    if (own) return own;
+    return CATEGORY_BY_ID.get(t.categoryId)?.name ?? null;
   }
   if (t.type === 'group') {
     // The synonym table's own phrasing for this group ("eating out"), else the group.

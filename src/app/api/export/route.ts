@@ -9,6 +9,7 @@ import { auditLog, rateLimitDurable } from '@/server/authz';
 import { getDashboardData } from '@/server/finance';
 import { netWorthReportPdf, netWorthToCsv, transactionsToCsv } from '@/lib/export';
 import { categoryName } from '@/lib/engine/categorize/categories';
+import { getCategoryMeta } from '@/server/category-meta';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { activeSupersededPredecessorIds, getReconciliationTxnKeep } from '@/server/reconciliation';
 import { accountLabel } from '@/lib/engine/account/display-name';
@@ -32,8 +33,11 @@ export async function GET(request: NextRequest) {
     const rawTxns = await prisma.transaction.findMany({
       // Transactions = spending (bank + cards); brokerage/loan activity excluded (#62).
       where: { account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
-      // Join the category so a custom category exports its real name (#111); system
-      // rows are unchanged (DB name == static name), null categoryId → no category.
+      // Join the category as a BACKSTOP only. The name that ships is resolved
+      // below through the reader's own merged meta, because a built-in category
+      // they renamed (O.17) keeps the canonical `Category.name` in the DB — the
+      // rename is a per-user overlay row — so exporting the join would hand them
+      // a file labelled differently from every screen they read it on.
       include: { account: { select: { name: true, displayName: true } }, merchant: true, category: { select: { name: true } } },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
     });
@@ -41,6 +45,9 @@ export async function GET(request: NextRequest) {
     // in-app register/reports — without this, a reconciled pair's overlap rows exported
     // both providers' copies of every real transaction. Same shared R1 rule as the register.
     const keepsReconciled = await getReconciliationTxnKeep(userId);
+    // The reader's own vocabulary: their custom categories plus any built-in they
+    // renamed. Same resolver the register, reports and Ask read.
+    const categoryMeta = await getCategoryMeta(userId);
     const txns = rawTxns.filter((t) => keepsReconciled(t.accountId, t.date));
     const csv = transactionsToCsv(
       txns.map((t) => ({
@@ -48,7 +55,9 @@ export async function GET(request: NextRequest) {
         account: accountLabel(t.account),
         rawDescriptor: t.rawDescriptor,
         merchant: t.merchant?.canonical ?? null,
-        category: t.category?.name ?? (t.categoryId ? categoryName(t.categoryId) : null),
+        category: t.categoryId
+          ? (categoryMeta.get(t.categoryId)?.name ?? t.category?.name ?? categoryName(t.categoryId))
+          : null,
         amountCents: t.amountCents,
         status: t.status,
       })),

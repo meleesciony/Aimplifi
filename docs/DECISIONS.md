@@ -1344,3 +1344,80 @@ non-existent one, and the absence of any orphan on the deletion axis.
 auth check); and whether Vercel's platform body cap admits a 5 MB upload is UNVERIFIED from here
 (the platform raised it well above the old 4.5 MB, but the honest test is a real 4.8 MB photo on
 the deployed app).
+
+---
+
+## #350 — Built-in categories are renameable per user, and "hidden" is now called "removed" (O.17)
+
+**Context.** The owner sent nine screenshots of the category picker he uses daily and said our
+list was incomplete, then asked for a way to delete or edit categories.
+
+**What shipped, in two parts.**
+
+*The list.* 22 leaves added to `CATEGORIES` (91 → 113), taken from his real export and triaged in
+`docs/scratch/simplifi-category-import.md`. Additive only — no id, name, group or discretionary
+flag changed, so the demo's pinned categorization and every golden value are byte-identical, and
+`ensureCategories()` upserts the new ids on deploy with no migration. Refused as redundant:
+Digital Services (= `subscriptions`), Gym/Workout Classes (= `fitness`), Restaurants (=
+`dining`), Rideshare (= `transport`), Tolls (= `parking`), Service & Parts (=
+`auto-maintenance`), Finance Charge (= `fees-interest`), Home Supplies (= `household`). Refused
+as user-specific: his own hobby and family rows, a half-typed "Finan", and the per-account
+`Transfer` children (we model transfers as account links, not categories). Not representable: the
+export's third level — the taxonomy is two-level per #63/#65 and `parentId` is still unpopulated,
+which #345 already decided deliberately.
+
+The two Income additions name their DIRECTION ("Alimony Received"). A category in the Income group
+is read as income by all fourteen predicates, so an outflow filed there would erase spending from
+reports while `monthlyFlows` still counted it. Paying support is `child-support` under Personal &
+Family, which is not income.
+
+*Edit and delete.* Custom categories already had create/rename/delete. What was missing was any
+edit of a BUILT-IN, and a delete of one is impossible: system `Category` rows are global
+(`userId = null`) and are the FK target of every user's history, so `Category.name` is shared and
+deleting a row would break strangers' data. So:
+
+- **Rename** is a per-user overlay, new `CategoryRename(userId, categoryId, name)` — additive
+  table, cascade on user (one delete still removes everything, per the retention policy §3).
+  Only the NAME is overridable: `group` decides income-vs-spending and `discretionary` feeds
+  lifestyle-creep, so neither is a label the reader may edit. No figure moves.
+- **Delete** is the existing hidden flag, relabelled "Remove"/"Restore" — the honest word for
+  what it does. A control saying "Delete" that means "stop offering this" is a claim we do not
+  honour.
+
+**The critic cycle (two parallel fresh-context critics, both FAIL, converging on the same P0).**
+
+*P0 — the rename never reached the register.* The register, the transaction detail and split
+parts each resolved their label from the joined `Category.name`, so a row read "Doctor" beside
+its own picker reading "Dr Visits". Four docblocks claimed the single-loader design reached them
+"by construction". Fixed with one shared `categoryLabel()` in `server/transactions.ts`, and by
+ungating the detail view's meta load (it was gated on `needsLadder`, i.e. UNFILED rows — exactly
+the case a label needs). Locked fail-old. The full account is in
+`docs/lessons/one-loader-is-not-one-reader.md`.
+
+*P1s, all fixed.* The export→import round trip broke the moment `/api/export` began writing the
+reader's own label (the importer knew canonical names only, and an unresolved name is not an
+error — it is a silent hand-off to the auto-categorizer). Ask could not be asked by the new name
+and printed the canonical one in its headline while the same reply's top-categories list printed
+the new one. A custom category could take a renamed built-in's name, producing two identical
+picker rows, one of them a budget target — fixed by giving all three doors ONE collision rule
+(`visibleCategoryNames`), which also frees a built-in's original name once nothing shows it. The
+"Removed" copy claimed categories leave "the pickers" while the budget-target picker never
+filtered hidden (now it does), and omitted the clause that mattered: the categorizer never reads
+the hidden set, so a removed category keeps receiving auto-filed rows — now said out loud. And
+the demo copy explaining that renaming is off "because a name typed here would show up for other
+visitors" sat directly above an unfenced custom-category field; closed by fencing
+`createCustomCategory`/`renameCustomCategory` — the typed leg
+`shared-demo-account-must-not-learn.md` had recorded as open.
+
+**Deliberate, recorded.** A rename outranks the Ask synonym table: a reader who renames Hobbies
+to "Gas" and asks about "gas" gets THEIR category, not Fuel. Their explicit word beats our
+built-in one, and every answer prints the label it resolved, so the choice is visible. A custom
+category still ranks below the synonyms (#111 unchanged) — it adds a bucket rather than
+overriding a word. A household partner keeps seeing canonical names on shared rows: a private
+label is vocabulary, and §4.5 keeps that personal.
+
+**Residuals, not fixed.** Money dials are stored as free TEXT and matched against category names,
+so a rename would detach the marker; mitigated by matching either the new or the built-in name,
+but keying dials by id is the real fix and is its own change (TASKS). `/trust`'s AI-audit
+descriptions keep canonical names — it is a historical record of what the model suggested at the
+time. `setCategoryHidden` is still unfenced for the demo (ids only, no typed words, pre-existing).

@@ -11,7 +11,7 @@ import {
   assignableCategories,
   assignableGroups,
 } from './assign';
-import { CATEGORY_BY_ID } from './categories';
+import { CATEGORY_BY_ID, NO_RENAMES } from './categories';
 
 /**
  * Categories that can never be hidden. `uncategorized` is the absence-of-a-
@@ -28,7 +28,11 @@ export function isHideable(categoryId: string): boolean {
 
 export interface CatalogEntry {
   id: string;
+  /** What the reader sees — their rename when they set one, else the built-in name. */
   name: string;
+  /** The built-in name, always. The manager needs it to offer "Reset to <default>". */
+  defaultName: string;
+  renamed: boolean;
   group: string;
   hidden: boolean;
   hideable: boolean;
@@ -43,7 +47,10 @@ export interface CatalogGroup {
  * category annotated with its hidden state, grouped by parent in CATEGORIES
  * order. Shows hidden ones too (so they can be turned back on).
  */
-export function categoryCatalog(hiddenIds: Iterable<string>): CatalogGroup[] {
+export function categoryCatalog(
+  hiddenIds: Iterable<string>,
+  renames: ReadonlyMap<string, string> = NO_RENAMES,
+): CatalogGroup[] {
   const hidden = new Set(hiddenIds);
   const out: CatalogGroup[] = [];
   for (const c of ASSIGNABLE_CATEGORIES) {
@@ -52,9 +59,12 @@ export function categoryCatalog(hiddenIds: Iterable<string>): CatalogGroup[] {
       g = { group: c.group, categories: [] };
       out.push(g);
     }
+    const renamed = renames.get(c.id);
     g.categories.push({
       id: c.id,
-      name: c.name,
+      name: renamed ?? c.name,
+      defaultName: c.name,
+      renamed: renamed !== undefined,
       group: c.group,
       hidden: hidden.has(c.id),
       hideable: isHideable(c.id),
@@ -71,9 +81,10 @@ export function categoryCatalog(hiddenIds: Iterable<string>): CatalogGroup[] {
 export function visibleCategories(
   hiddenIds: Iterable<string>,
   custom: readonly AssignableCategory[] = [],
+  renames: ReadonlyMap<string, string> = NO_RENAMES,
 ): { id: string; name: string; group: string }[] {
   const hidden = new Set(hiddenIds);
-  return assignableCategories(custom).filter((c) => !hidden.has(c.id));
+  return assignableCategories(custom, renames).filter((c) => !hidden.has(c.id));
 }
 
 /**
@@ -83,9 +94,10 @@ export function visibleCategories(
 export function visibleGroups(
   hiddenIds: Iterable<string>,
   custom: readonly AssignableCategory[] = [],
+  renames: ReadonlyMap<string, string> = NO_RENAMES,
 ): { group: string; categories: { id: string; name: string }[] }[] {
   const hidden = new Set(hiddenIds);
-  return assignableGroups(custom)
+  return assignableGroups(custom, renames)
     .map((g) => ({
       group: g.group,
       categories: g.categories.filter((c) => !hidden.has(c.id)),

@@ -181,6 +181,57 @@ export const CATEGORIES: SystemCategory[] = [
 export const CATEGORY_BY_ID = new Map(CATEGORIES.map((c) => [c.id, c]));
 
 /**
+ * Longest category name a reader may type — for a custom category and for a
+ * rename of a built-in one alike. It lives here, in a plain leaf module, because
+ * both writers are `'use server'` files, which may export only async functions
+ * (L.7). One constant so the two paths cannot drift into accepting different
+ * lengths for what the picker renders in the same column.
+ */
+export const MAX_CATEGORY_NAME = 40;
+
+/**
+ * Normalize a category name the reader typed, for BOTH a custom category and a
+ * rename of a built-in one. Pure, so the two writers share one definition rather
+ * than each trimming in its own way.
+ *
+ * What it removes, and why each one matters — every item here defeats the
+ * duplicate-name check that runs immediately after it, which is the whole point
+ * of that check (two picker rows the reader cannot tell apart):
+ *   - NFC first, so "Café" composed two ways is ONE name. `resolveSpendTarget`
+ *     already normalizes this way for the same reason.
+ *   - ASCII control characters and DEL. A literal NUL also makes Postgres reject
+ *     the write outright while SQLite (dev/test) accepts it, so without this the
+ *     failure appears only in production.
+ *   - Zero-width and bidi formatting characters (U+200B–U+200F, U+202A–U+202E,
+ *     U+2060–U+2064, U+FEFF). These are invisible: "Dining Out" plus a zero-width
+ *     space is pixel-identical to "Dining Out" and byte-different, and U+202E
+ *     visually reverses the text around it in the register and the exported CSV.
+ *   - Whitespace collapsed and trimmed, so " Dr  Visits " === "Dr Visits".
+ */
+export function normalizeCategoryName(raw: string): string {
+  let out = '';
+  for (const ch of (raw ?? '').normalize('NFC')) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code < 0x20 || code === 0x7f) continue;
+    if (code >= 0x200b && code <= 0x200f) continue;
+    if (code >= 0x202a && code <= 0x202e) continue;
+    if (code >= 0x2060 && code <= 0x2064) continue;
+    if (code === 0xfeff) continue;
+    out += ch;
+  }
+  return out.trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Length in CODE POINTS, not UTF-16 units — otherwise the same 40-character
+ * limit admits 40 CJK characters and refuses 40 emoji. `dials.ts` counts the
+ * same way for the same limit.
+ */
+export function categoryNameLength(name: string): number {
+  return [...name].length;
+}
+
+/**
  * True when a SYSTEM category id belongs to the Income group ('income' plus the
  * #163 leaves: paycheck, bonus, side-income, interest-income, investment-income,
  * rental-income, govt-benefits, tax-refund, reimbursement, refund). Custom
@@ -229,24 +280,58 @@ export interface CustomCategoryInput {
 }
 
 /**
+ * The no-renames case, shared so every default argument is the same reference
+ * and `renames.size === 0` is the cheap "nothing to overlay" test.
+ */
+export const NO_RENAMES: ReadonlyMap<string, string> = new Map();
+
+/**
  * Per-user resolver (PURE): the static system meta OVERLAID with a user's custom
- * categories. With an EMPTY custom list the result is value-identical to
- * CATEGORY_BY_ID, so every engine that defaults to the static map produces
- * byte-identical output for a user with no custom categories — the golden tests
- * stay green without being touched. Custom ids are cuids and never collide with
- * the system slug ids, so the overlay only ADDS entries.
+ * categories and their per-user SYSTEM renames. With an EMPTY custom list and no
+ * renames the result is value-identical to CATEGORY_BY_ID, so every engine that
+ * defaults to the static map produces byte-identical output for a user with
+ * neither — the golden tests stay green without being touched. Custom ids are
+ * cuids and never collide with the system slug ids, so the custom overlay only
+ * ADDS entries.
+ *
+ * `renames` is applied ONLY to system ids (inside the CATEGORIES loop) and the
+ * custom overlay runs after it, so a stale rename row can never rewrite a custom
+ * category's name — a custom is renamed through `renameCustomCategory`, which
+ * edits its own row. Only `name` is overridable: `group` decides income vs
+ * spending in 14 predicates and `discretionary` feeds lifestyle-creep, so
+ * neither is a label the reader may edit.
  */
 export function mergeCategoryMeta(
   custom: readonly CustomCategoryInput[],
+  renames: ReadonlyMap<string, string> = NO_RENAMES,
 ): Map<string, CategoryMeta> {
   const m = new Map<string, CategoryMeta>();
   for (const c of CATEGORIES) {
-    m.set(c.id, { name: c.name, group: c.group, discretionary: c.discretionary });
+    m.set(c.id, { name: renames.get(c.id) ?? c.name, group: c.group, discretionary: c.discretionary });
   }
   for (const c of custom) {
     m.set(c.id, { name: c.name, group: c.group, discretionary: c.discretionary });
   }
   return m;
+}
+
+/**
+ * The vocabulary a reader can speak to Ask: their custom categories plus any
+ * built-in they renamed, as a flat id+name list.
+ *
+ * Both belong in one list because both are "words this reader uses that the
+ * static taxonomy does not know". `resolveSpendTarget` tells them apart by
+ * asking whether the id is in the taxonomy, and ranks them differently — see the
+ * comment there — so this stays a plain concatenation with no priority baked in.
+ */
+export function askVocabulary(
+  custom: readonly { id: string; name: string }[],
+  renames: ReadonlyMap<string, string>,
+): { id: string; name: string }[] {
+  return [
+    ...custom.map((c) => ({ id: c.id, name: c.name })),
+    ...[...renames].map(([id, name]) => ({ id, name })),
+  ];
 }
 
 /**

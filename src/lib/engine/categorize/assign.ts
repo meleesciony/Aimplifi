@@ -7,7 +7,7 @@
  * helpers define what a user may assign by hand and which merchants can carry a
  * durable "always" rule — no React, no DB.
  */
-import { CATEGORIES } from './categories';
+import { CATEGORIES, NO_RENAMES } from './categories';
 import { normalizeMerchant } from './normalize';
 
 /**
@@ -50,8 +50,20 @@ export interface AssignableCategory {
  */
 export function assignableCategories(
   custom: readonly AssignableCategory[] = [],
+  renames: ReadonlyMap<string, string> = NO_RENAMES,
 ): AssignableCategory[] {
-  return custom.length === 0 ? ASSIGNABLE_CATEGORIES : [...ASSIGNABLE_CATEGORIES, ...custom];
+  if (custom.length === 0 && renames.size === 0) return ASSIGNABLE_CATEGORIES;
+  // A rename replaces the LABEL in place; canonical order never changes, so the
+  // picker does not reshuffle under a reader who renamed one row (and no golden
+  // that pins an index moves).
+  const base =
+    renames.size === 0
+      ? ASSIGNABLE_CATEGORIES
+      : ASSIGNABLE_CATEGORIES.map((c) => {
+          const renamed = renames.get(c.id);
+          return renamed ? { ...c, name: renamed } : c;
+        });
+  return custom.length === 0 ? base : [...base, ...custom];
 }
 
 /**
@@ -62,10 +74,11 @@ export function assignableCategories(
  */
 export function assignableGroups(
   custom: readonly AssignableCategory[] = [],
+  renames: ReadonlyMap<string, string> = NO_RENAMES,
 ): { group: string; categories: { id: string; name: string }[] }[] {
-  if (custom.length === 0) return ASSIGNABLE_GROUPS;
+  if (custom.length === 0 && renames.size === 0) return ASSIGNABLE_GROUPS;
   const out: { group: string; categories: { id: string; name: string }[] }[] = [];
-  for (const c of assignableCategories(custom)) {
+  for (const c of assignableCategories(custom, renames)) {
     let g = out.find((o) => o.group === c.group);
     if (!g) {
       g = { group: c.group, categories: [] };

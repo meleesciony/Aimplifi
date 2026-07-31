@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CATEGORIES, categoryName, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
+import { CATEGORIES, CATEGORY_BY_ID, categoryName, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
 import { isSpendRow } from '@/lib/engine/reports/reports';
 import { isBudgetable, netSpendByCategory, summarizeBudgets } from '@/lib/engine/budgets/status';
 import { parseStoredDials } from '@/lib/engine/settings/dials';
@@ -12,8 +12,8 @@ import { getProvider } from '@/lib/providers/demo';
 import { prisma } from '@/lib/db';
 import { BudgetTargetForm } from '@/components/finance/budget-target-form';
 import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
-import { getCustomCategories } from '@/server/category-meta';
-import { getLinkableCategoryIds } from '@/server/categories';
+import { getCategoryOverlay } from '@/server/category-meta';
+import { getHiddenCategoryIds, getLinkableCategoryIds } from '@/server/categories';
 import { CATEGORY_LINK_CLASS, categoryMonthRegisterHref } from '@/lib/engine/transactions/links';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
@@ -42,7 +42,7 @@ export default async function BudgetsPage() {
   // target can't be set before any account exists).
   if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
-  const [txns, budgets, user, plan, custom, linkableCategoryIds] = await Promise.all([
+  const [txns, budgets, user, plan, overlay, hiddenCategoryIds, linkableCategoryIds] = await Promise.all([
     // All non-transfer, non-split activity this month (BOTH signs) so the engine
     // can net refunds against spend — outflow-only would overstate it.
     prisma.transaction.findMany({
@@ -81,14 +81,19 @@ export default async function BudgetsPage() {
     getSpendingPlan(userId),
     // Custom categories (DECISIONS #111): selectable as targets and resolved to
     // their real name in the spend list instead of falling back to "Uncategorized".
-    getCustomCategories(userId),
+    getCategoryOverlay(userId),
+    // Settings calls hiding a category "Remove", and the sentence beside that
+    // control says it leaves the pickers. THIS picker did not honour it, so a
+    // removed category was still offered as a budget target — the claim was false
+    // on the one surface where acting on it sets a monthly figure (O.17 critic).
+    getHiddenCategoryIds(userId),
     // O.6: the register's own option list — the fence that decides which rows may
     // become links. Same call /reports and /transactions make.
     getLinkableCategoryIds(userId),
   ]);
   const linkable = new Set(linkableCategoryIds);
 
-  const meta = mergeCategoryMeta(custom);
+  const meta = mergeCategoryMeta(overlay.custom, overlay.renames);
   const dials = new Set<string>(parseStoredDials(user?.moneyDials));
   const budgetByCategory = new Map(budgets.map((b) => [b.categoryId, b.monthCents]));
   // Reconciliation boundary (slice-6 critic C-3): a mid-month provider migration backfills
@@ -118,11 +123,27 @@ export default async function BudgetsPage() {
   );
 
   // Custom categories are spending by definition (never income/transfer/uncategorized).
-  const categoryOptions = [...SYSTEM_BUDGETABLE, ...custom.filter((c) => isBudgetable(c.id))];
+  // The system half resolves each label through the SAME per-user meta the spend
+  // rows below use: a reader who renamed a category must not meet their new name
+  // in the list of targets and the built-in name in the picker that sets them.
+  const categoryOptions = [
+    ...SYSTEM_BUDGETABLE.filter((c) => !hiddenCategoryIds.has(c.id)).map((c) => ({
+      ...c,
+      name: categoryName(c.id, meta),
+    })),
+    ...overlay.custom.filter((c) => isBudgetable(c.id)),
+  ];
 
   const rows = summarizeBudgets(spendByCategory, budgetByCategory, {
     name: (id) => categoryName(id, meta),
-    isDial: (id) => dials.has(categoryName(id, meta)),
+    // Money dials are stored as free TEXT the reader typed (User.moneyDials), and
+    // the settings field suggests built-in names ("Travel, Dining Out, Hobbies"),
+    // so a rename would silently detach the marker from the category it was set
+    // on. Match either name: the dial keeps marking the same bucket after a
+    // rename, and starts marking one whose new name the reader typed. Keying
+    // dials by id instead is the real fix and is a separate change (they are a
+    // free-text list, not a category picker) — recorded in TASKS.
+    isDial: (id) => dials.has(categoryName(id, meta)) || dials.has(CATEGORY_BY_ID.get(id)?.name ?? ''),
   });
 
   return (

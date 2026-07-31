@@ -67,6 +67,7 @@ model User {
   simplefin           SimpleFinConnection?
   predictions         CategoryPrediction[]
   hiddenCategories    HiddenCategory[]
+  categoryRenames     CategoryRename[]
   customCategories    Category[]
   pushSubscriptions   PushSubscription[]
   notificationsSent   NotificationSent[]
@@ -109,6 +110,39 @@ model HiddenCategory {
   id         String @id @default(cuid())
   userId     String
   categoryId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId])
+  @@index([userId])
+}
+
+// A per-user display name for a SYSTEM category (O.17).
+//
+// System Category rows are GLOBAL (userId=null) and FK'd by every user's
+// history, so `Category.name` cannot carry a rename: one row's name is shared by
+// everyone, and editing it would relabel a stranger's reports. This table is the
+// per-user overlay instead. It is applied in ONE place — `getCategoryMeta(userId)`
+// / `getCategoryOverlay(userId)` in src/server/category-meta.ts — which the
+// register, triage, reports, trends, budgets, Ask, coach and recurring already
+// thread through their engines, so a rename reaches them by construction rather
+// than by a per-call-site edit (fence-by-construction, docs/lessons).
+//
+// Deliberately NOT applied to a household partner's view of a shared row: they
+// keep the canonical name. A private label is vocabulary, and
+// HOUSEHOLD_ARCHITECTURE §4.5 keeps a reader's vocabulary personal — the same
+// reason `categoryNamesByIds` never widens to the merged meta.
+//
+// Mirrors HiddenCategory deliberately: no FK to Category (the id is a static
+// slug from CATEGORIES, and system rows are upserted by ensureCategories rather
+// than owned here), cascade on the user so one user delete removes it with
+// everything else (DATA_RETENTION_AND_DISPOSAL §3).
+model CategoryRename {
+  id         String   @id @default(cuid())
+  userId     String
+  categoryId String
+  name       String
+  updatedAt  DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

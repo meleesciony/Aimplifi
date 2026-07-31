@@ -20,6 +20,25 @@ import { registerSuggestionFor } from '@/lib/engine/categorize/register-suggesti
 import { loadCorrectionInputs, loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { getCategoryMeta } from '@/server/category-meta';
+
+/**
+ * The label a row shows for its category — the reader's own vocabulary first.
+ *
+ * ONE resolver for the register, the detail view and split parts, because these
+ * three drifted from the pickers the moment a rename existed (O.17, found by two
+ * independent critics). The joined `Category.name` is the LAST resort: for a
+ * built-in it is the global canonical name, which is precisely the wrong answer
+ * for a reader who renamed it, so it serves only a row whose category is missing
+ * from the per-user meta.
+ */
+function categoryLabel(
+  id: string | null | undefined,
+  meta: ReadonlyMap<string, { name: string }> | null,
+  joined?: string | null,
+): string {
+  if (!id) return categoryName(null);
+  return meta?.get(id)?.name ?? joined ?? categoryName(id);
+}
 import { cents, formatCents } from '@/lib/money';
 import { type NetWorthSeriesPoint, netWorthSeries } from '@/lib/engine/networth/series';
 import {
@@ -216,9 +235,12 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
       account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
       isSplitParent: false,
     },
-    // Join the category row so a CUSTOM category resolves to its real name; system
-    // rows are identical (their DB name == the static name), so this is a no-op for
-    // them and a fix for customs without threading a meta map here (DECISIONS #111).
+    // Join the category row as a BACKSTOP only. The displayed label is resolved
+    // through the per-user meta below, because a built-in the reader RENAMED
+    // (O.17) keeps the canonical `Category.name` in the DB — the rename is an
+    // overlay row — so trusting this join printed the old name on the register
+    // while the row's own picker printed the new one. Two names for one bucket,
+    // side by side. Found by both O.17 critics independently (DECISIONS #350).
     // `provider` joined for `rowOrigin` (O.15 slice 7): the register's action menu
     // must know whether a feed owns this row before offering a status write.
     include: { account: { select: { id: true, name: true, displayName: true, provider: true } }, merchant: true, category: { select: { name: true } } },
@@ -273,7 +295,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     merchantName: t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical,
     rawDescriptor: t.rawDescriptor,
     categoryId: t.categoryId ?? 'uncategorized',
-    categoryName: t.category?.name ?? categoryName(t.categoryId),
+    categoryName: categoryLabel(t.categoryId, meta, t.category?.name),
     amountCents: t.amountCents,
     status: t.status,
     // O.15 slice 7: who owns this row, on the one shared basis the detail view's
@@ -529,7 +551,11 @@ export async function getTransactionDetail(
     }),
     needsLadder ? loadUserRules(userId) : null,
     needsLadder ? getThresholdTuning(userId) : null,
-    needsLadder ? getCategoryMeta(userId) : null,
+    // NOT gated on `needsLadder`. It was, while it only fed the ladder; O.17 makes
+    // it decide the row's own LABEL, and a FILED row is exactly the case the gate
+    // excluded — so a renamed category printed its canonical name on every filed
+    // transaction's detail page. A gate must move with the thing it guards.
+    getCategoryMeta(userId),
     needsLadder ? loadCorrectionInputs(userId) : null,
     prisma.transaction.findMany({
       // `account: { userId }` is redundant today (the parent is ownership-verified
@@ -550,7 +576,7 @@ export async function getTransactionDetail(
     merchantName: t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical,
     rawDescriptor: t.rawDescriptor,
     categoryId: t.categoryId ?? 'uncategorized',
-    categoryName: t.category?.name ?? categoryName(t.categoryId),
+    categoryName: categoryLabel(t.categoryId, meta, t.category?.name),
     amountCents: t.amountCents,
     status: t.status,
     // O.15 slice 7: who owns this row, on the one shared basis the detail view's
@@ -618,7 +644,7 @@ export async function getTransactionDetail(
       id: c.id,
       amountCents: c.amountCents,
       categoryId: c.categoryId ?? 'uncategorized',
-      categoryName: c.category?.name ?? categoryName(c.categoryId),
+      categoryName: categoryLabel(c.categoryId, meta, c.category?.name),
     })),
     splitParentId: t.splitParentId,
     splitBlockedReason,

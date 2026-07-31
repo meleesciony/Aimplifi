@@ -267,13 +267,22 @@ export default async function SettingsPage() {
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Your categories
             </h3>
-            <CustomCategoryManager categories={customCategories} groups={customGroups} />
+            <CustomCategoryManager
+              categories={customCategories}
+              groups={customGroups}
+              canWrite={!isDemoUser(userId)}
+            />
           </div>
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Show or hide built-in categories
+              Built-in categories
             </h3>
-            <CategoryManager catalog={categoryCatalog} />
+            {/* Renaming is off for the demo: it is one shared row, so a name typed
+                here would be read by the next anonymous visitor. Removing stays on —
+                it stores no words, only which ids this row hides. The action refuses
+                demo server-side too; this keeps the UI from offering a door that
+                fails. */}
+            <CategoryManager catalog={categoryCatalog} canRename={!isDemoUser(userId)} />
           </div>
         </CardContent>
       </Card>

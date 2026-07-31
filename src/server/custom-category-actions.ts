@@ -12,9 +12,16 @@
  */
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
-import { CATEGORIES } from '@/lib/engine/categorize/categories';
+import {
+  CATEGORY_BY_ID,
+  MAX_CATEGORY_NAME,
+  categoryNameLength,
+  normalizeCategoryName,
+} from '@/lib/engine/categorize/categories';
 import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { auditLog, requireUserId } from '@/server/authz';
+import { visibleCategoryNames } from '@/server/category-meta';
+import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { ensureCategories } from '@/server/ensure-categories';
 
 export interface CategoryActionResult {
@@ -23,9 +30,6 @@ export interface CategoryActionResult {
   id?: string;
 }
 
-const MAX_NAME = 40;
-/** Built-in category names (lowercased) — a custom can't shadow one (would render twice). */
-const SYSTEM_NAMES = new Set(CATEGORIES.map((c) => c.name.toLowerCase()));
 /** Valid parent groups a custom may join — SPENDING groups only (critic F4). */
 const KNOWN_GROUPS = new Set(CUSTOM_CATEGORY_GROUPS);
 
@@ -35,37 +39,44 @@ function revalidateAll(): void {
   for (const p of REVALIDATE) revalidatePath(p);
 }
 
-/** Collapse internal whitespace and trim, so " Golf  Club " === "Golf Club". */
-function normalizeName(raw: string): string {
-  return raw.trim().replace(/\s+/g, ' ');
-}
-
+/**
+ * Shape-only validation. The DUPLICATE check is deliberately not here: it needs
+ * the reader's effective names (a built-in they renamed is spoken for under its
+ * NEW name, and free under its old one), which requires the DB — see
+ * `visibleCategoryNames`, the one author of that rule for all three doors.
+ */
 function validateName(name: string): string | null {
   if (!name) return 'Enter a category name';
-  if (name.length > MAX_NAME) return `Keep the name under ${MAX_NAME} characters`;
-  if (SYSTEM_NAMES.has(name.toLowerCase())) return 'That matches a built-in category — pick a different name';
+  if (categoryNameLength(name) > MAX_CATEGORY_NAME) {
+    return `Keep the name under ${MAX_CATEGORY_NAME} characters`;
+  }
   return null;
+}
+
+/**
+ * The duplicate rule, shared by create and rename. Compares against what the
+ * reader can SEE — built-ins under their effective name plus their own customs —
+ * so renaming Groceries to "Food shop" both frees the word "Groceries" for a
+ * custom AND stops a custom from taking "Food shop" and rendering twice.
+ */
+async function nameConflict(
+  userId: string,
+  name: string,
+  exceptId?: string,
+): Promise<string | null> {
+  const owner = (await visibleCategoryNames(userId)).get(name.toLowerCase());
+  if (!owner || owner === exceptId) return null;
+  // Which message depends on WHAT holds the name, decided by the taxonomy rather
+  // than by the shape of the id (custom ids are cuids and system ids are slugs
+  // today, but that is a coincidence to lean on, not a rule).
+  return CATEGORY_BY_ID.has(owner)
+    ? 'That matches a built-in category — pick a different name'
+    : 'You already have a category with that name';
 }
 
 /** P2002 = the per-user unique([userId, name]) constraint — a friendly duplicate message. */
 function isUniqueViolation(e: unknown): boolean {
   return (e as { code?: string })?.code === 'P2002';
-}
-
-/**
- * Case-insensitive per-user duplicate check (critic F6). The DB @@unique is
- * case-SENSITIVE and Prisma's `mode: 'insensitive'` is Postgres-only, so we
- * compare in JS for portability across SQLite (dev/test) and Postgres (prod) —
- * blocking "Golf" vs "golf" before they can collide in the CSV name resolver.
- * The DB constraint remains the backstop for an exact-case race (P2002).
- */
-async function isDuplicateName(userId: string, name: string, exceptId?: string): Promise<boolean> {
-  const existing = await prisma.category.findMany({
-    where: { userId, isSystem: false },
-    select: { id: true, name: true },
-  });
-  const lower = name.toLowerCase();
-  return existing.some((c) => c.id !== exceptId && c.name.toLowerCase() === lower);
 }
 
 export async function createCustomCategory(input: {
@@ -74,14 +85,19 @@ export async function createCustomCategory(input: {
   discretionary: boolean;
 }): Promise<CategoryActionResult> {
   const userId = await requireUserId();
-  const name = normalizeName(input.name ?? '');
+  // The demo is ONE shared row: a category name typed here is a name the next
+  // anonymous visitor reads, in every picker and every report — the typed leg of
+  // the rule in docs/lessons/shared-demo-account-must-not-learn.md, recorded there
+  // as open and closed here (O.17). Deleting stays open: with creation fenced
+  // there is nothing on the demo row to delete, and removing carries no words.
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+  const name = normalizeCategoryName(input.name ?? '');
   const nameErr = validateName(name);
   if (nameErr) return { ok: false, error: nameErr };
   const group = (input.group ?? '').trim();
   if (!group || !KNOWN_GROUPS.has(group)) return { ok: false, error: 'Choose a group for it' };
-  if (await isDuplicateName(userId, name)) {
-    return { ok: false, error: 'You already have a category with that name' };
-  }
+  const conflict = await nameConflict(userId, name);
+  if (conflict) return { ok: false, error: conflict };
 
   try {
     const row = await prisma.category.create({
@@ -99,7 +115,13 @@ export async function createCustomCategory(input: {
 
 export async function renameCustomCategory(input: { id: string; name: string }): Promise<CategoryActionResult> {
   const userId = await requireUserId();
-  const name = normalizeName(input.name ?? '');
+  // The demo is ONE shared row: a category name typed here is a name the next
+  // anonymous visitor reads, in every picker and every report — the typed leg of
+  // the rule in docs/lessons/shared-demo-account-must-not-learn.md, recorded there
+  // as open and closed here (O.17). Deleting stays open: with creation fenced
+  // there is nothing on the demo row to delete, and removing carries no words.
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+  const name = normalizeCategoryName(input.name ?? '');
   const nameErr = validateName(name);
   if (nameErr) return { ok: false, error: nameErr };
 
@@ -109,9 +131,8 @@ export async function renameCustomCategory(input: { id: string; name: string }):
     select: { id: true },
   });
   if (!owned) return { ok: false, error: 'Category not found' };
-  if (await isDuplicateName(userId, name, input.id)) {
-    return { ok: false, error: 'You already have a category with that name' };
-  }
+  const conflict = await nameConflict(userId, name, input.id);
+  if (conflict) return { ok: false, error: conflict };
 
   try {
     await prisma.category.update({ where: { id: input.id }, data: { name } });

@@ -28,8 +28,8 @@ import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 import type { ISODate } from '@/lib/dates';
 import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
-import { mergeCategoryMeta, type CategoryMeta, type CustomCategoryInput } from '@/lib/engine/categorize/categories';
-import { getCustomCategories } from '@/server/category-meta';
+import { askVocabulary, mergeCategoryMeta, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { getCategoryOverlay } from '@/server/category-meta';
 import { parseAssistantQuery, validateIntent, type AssistantIntent } from '@/lib/engine/assistant/intent';
 import { frameFromIntent, resolveEllipsis, type AskFrame } from '@/lib/engine/assistant/frame';
 import { followUpQuestions } from '@/lib/engine/assistant/follow-ups';
@@ -127,7 +127,8 @@ async function resolveIntent(
   question: string,
   today: string,
   userId: string,
-  custom: readonly CustomCategoryInput[],
+  /** The reader's spoken vocabulary: custom categories PLUS renamed built-ins. */
+  custom: readonly { id: string; name: string }[],
   frame: AskFrame | null,
 ): Promise<ResolveResult> {
   const parsed = parseAssistantQuery(question, today as Parameters<typeof parseAssistantQuery>[1], custom);
@@ -205,15 +206,19 @@ export async function askAssistant(
   const today = provider.today(userId);
   // Custom categories (DECISIONS #111): the parser matches their names ("spend on
   // Golf"), and the merged meta makes the spend answers resolve them correctly.
-  const custom = await getCustomCategories(userId);
-  const meta = mergeCategoryMeta(custom);
-  const validPrior = priorIntent == null ? null : validateIntent(priorIntent, custom);
+  const { custom, renames } = await getCategoryOverlay(userId);
+  const meta = mergeCategoryMeta(custom, renames);
+  // What the reader can SAY: their own categories plus any built-in they renamed.
+  // The parser matched customs only, so a renamed built-in was unreachable by the
+  // very name every other screen showed — Ask answered `unknown` for it.
+  const spoken = askVocabulary(custom, renames);
+  const validPrior = priorIntent == null ? null : validateIntent(priorIntent, spoken);
   const frame = validPrior ? frameFromIntent(validPrior) : null;
   const { intent, viaLlm, viaFrame, vocab, parserUnknown, llmGuessKind } = await resolveIntent(
     question,
     today,
     userId,
-    custom,
+    spoken,
     frame,
   );
   // Vocabulary mining (TASKS 2.2): every parser-unknown Ask, including LLM
@@ -313,7 +318,8 @@ async function composeAnswer(
  *  and whose figures a category correction visibly moves. */
 function validatedCorrectionIntent(
   raw: unknown,
-  custom: readonly CustomCategoryInput[],
+  /** The reader's spoken vocabulary: custom categories PLUS renamed built-ins. */
+  custom: readonly { id: string; name: string }[],
 ): AssistantIntent {
   const intent = validateIntent(raw, custom);
   if (!intent || !CORRECTABLE_KINDS.has(intent.kind)) {
@@ -348,8 +354,8 @@ export async function correctFromAsk(input: {
   intent: unknown;
 }): Promise<{ answer: AssistantAnswer | null; correctionId: string }> {
   const userId = await requireUserId();
-  const custom = await getCustomCategories(userId);
-  const intent = validatedCorrectionIntent(input.intent, custom);
+  const { custom, renames } = await getCategoryOverlay(userId);
+  const intent = validatedCorrectionIntent(input.intent, askVocabulary(custom, renames));
   // Ownership, category validity (system or caller-owned custom), the
   // append-only Correction, and the audit log are all applyCategory's own
   // gates — reused verbatim so this surface can never drift from /triage.
@@ -363,7 +369,7 @@ export async function correctFromAsk(input: {
   // Return the correction handle with no answer; the client discloses the split
   // honestly (panels closed, undo offered, "ask again to refresh").
   try {
-    const answer = await composeAnswer(userId, intent, getProvider().today(userId), mergeCategoryMeta(custom));
+    const answer = await composeAnswer(userId, intent, getProvider().today(userId), mergeCategoryMeta(custom, renames));
     return { answer, correctionId: correctionIds[0] };
   } catch {
     return { answer: null, correctionId: correctionIds[0] };
@@ -383,14 +389,14 @@ export async function undoAskCorrection(input: {
   intent: unknown;
 }): Promise<{ answer: AssistantAnswer | null }> {
   const userId = await requireUserId();
-  const custom = await getCustomCategories(userId);
-  const intent = validatedCorrectionIntent(input.intent, custom);
+  const { custom, renames } = await getCategoryOverlay(userId);
+  const intent = validatedCorrectionIntent(input.intent, askVocabulary(custom, renames));
   await undoCorrections([input.correctionId]);
   // Same committed-write honesty as correctFromAsk (critic 2b F1): the undo is
   // durable and idempotent (a retried undo is a no-op), so a recompute failure
   // returns null rather than pretending the undo failed.
   try {
-    const answer = await composeAnswer(userId, intent, getProvider().today(userId), mergeCategoryMeta(custom));
+    const answer = await composeAnswer(userId, intent, getProvider().today(userId), mergeCategoryMeta(custom, renames));
     return { answer };
   } catch {
     return { answer: null };
