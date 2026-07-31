@@ -7572,3 +7572,184 @@ aliased", not "I fetched the new control and saw it". A logged-in check of
 `vercel inspect` printed no `githubCommitSha` field in this CLI version (58.4.4),
 so the sha match is inferred from timing + ordering rather than read directly —
 weaker than slice 6's check, and named as such.
+
+### V.1 — the rotating e2e failure: the class PREDATES slice 7 (2026-07-31)
+
+Resuming the slice-7 gate question with the recorded plan (PROGRESS "How to settle
+it next session"), cheapest first. Two things are established before any new run.
+
+**1. CI cannot arbitrate from this machine, and that is owner-only to fix.**
+`gh run list` → `To get started with GitHub CLI, please run: gh auth login`; no
+`GH_TOKEN`/`GITHUB_TOKEN` in the environment; unauthenticated
+`api.github.com/repos/meleesciony/Aimplifi` → **404** (private repo). Step 3 of the
+recorded plan is therefore unavailable, not skipped. Filed as **TASKS.md V.2**.
+
+**2. The rotating failure is visible on a tree that does NOT contain slice 7 — so
+slice 7 is ruled out as its sole cause.** PROGRESS.md:7305, written during slice 6
+and therefore before slice 7's four data-creating specs existed, records: *"E2E: 241
+tests. THREE full serialized runs each failed exactly ONE test, a DIFFERENT one each
+time (phase4-features goals, merchant-lens, action-menu), every one passing alone
+afterwards."* That is the same failure set (`phase4-features`, `merchant-lens`), the
+same rotation, and the same solo-green property as slice 7's runs 1 and 2.
+
+This corrects the leading hypothesis the last session left open. It does NOT clear
+slice 7 of being *additive* load — 243/244 tests vs clean HEAD's 241 — but the class
+exists without it, and a fix aimed only at the new specs would not have touched it.
+
+**The contradiction that any explanation must survive:** those three slice-6 sightings
+were `--workers=1`, where the shared-SQLite parallel-contention mechanism that
+`playwright.config.ts:30-38` documents should not apply. Contention remains the leading
+candidate (the config comment describes this precise signature: severed server-action
+confirmation streams, "solo-green every time") but it is NOT established, and the
+serialized sightings are the reason it is not. Recorded rather than rounded off.
+
+Against that, the one clean-HEAD run in the slice-7 session was fully green (241/0).
+So the evidence to date is: rotating failures on both trees, plus one green run on
+clean HEAD. That is a RATE question, not a pass/fail one, which is why V.1 asks for N
+runs per tree rather than another single re-run.
+
+Opened **TASKS.md Wave V** (V.1 settle it; V.2 owner authenticates `gh`) — filed as its
+own wave because the failing specs are not mobile and the subject is the Definition of
+Done itself. Artifacts from run 1 survived the restart at `/tmp/slice7-e2e-artifacts/`.
+
+Gate run A on this tree (parallel, default `workers: 4`, matching runs 1–2) in flight;
+tsc and eslint already clean.
+
+**V.1 evidence — what the stalling navigation actually is (explorer trace, file:line).**
+Every recorded failure in this class is "a click, then `waitForURL` never completes",
+so the question is what that click does. For `mobile-overflow:408` it is now answered:
+
+- `txn-detail-link` is a plain Next.js `<Link href="/transactions/{id}">` with
+  `prefetch={false}` and **no** onClick, server action, or analytics call
+  (`src/components/finance/transaction-list.tsx:582-590`). So this failure is **not** a
+  severed server-action confirmation stream — the mechanism `playwright.config.ts:31-37`
+  documents. That comment is about mutation specs; this is a read navigation, and the two
+  need separate explanations.
+- Neither route segment has a `loading.tsx`, and neither page sets `dynamic`,
+  `revalidate`, or `runtime`.
+- The destination `/transactions/[id]` does ~5–6 DB round-trips before it can render
+  (`src/app/(app)/transactions/[id]/page.tsx:27-71`): `auth()`, then
+  `getTransactionDetail()`'s three queries, then `getVisibleGroups`,
+  `getRuleSourceTransaction`, `getRecurringVerdictForTransaction` in parallel.
+- The SOURCE route is the heavier one: `/transactions` calls `getTransactions()`, which
+  loads the user's FULL transaction set (`prisma.transaction.findMany`, with its own
+  in-file note "Loads the full set per call — fine at demo scale"), plus three more
+  loaders, and the App Router re-renders the shared layout tree on navigation.
+
+**Hypothesis this licenses — labeled as one, with the step that would confirm it.**
+With no `loading.tsx` and `prefetch={false}`, the App Router has no Suspense boundary to
+commit against, so the URL should not change until the destination's RSC payload arrives;
+`waitForURL` therefore cannot resolve any faster than that ~5–6-query render. Under DB
+contention (4 workers, one SQLite file, 847 seeded transactions) that render slows, and
+whichever spec happens to click during a spike is the one that fails — which fits the
+rotating set, the identical mechanism across specs, and the 0.9–2.3s solo-green times.
+**Not yet executed against this app.** Confirm by timing the RSC request for
+`/transactions/[id]` under full-suite load versus solo, not by reasoning about it. Note it
+does NOT yet explain the slice-6 `--workers=1` sightings; that contradiction stands.
+
+**Candidate fix to evaluate under V.1(d), recorded so it is not lost — NOT applied here.**
+A `loading.tsx` for the `/transactions/[id]` segment would commit the navigation
+immediately and is a real product improvement in its own right (today a reader tapping a
+row on a phone sees nothing happen until the server answers). It is explicitly NOT the
+banned "relax the timeout / retry the spec" move. But it must be evaluated honestly: it
+would also make the gate stop measuring destination render time, so it needs its own
+assertion on the thing it stops covering.
+
+**Slice 7 deploy proof UPGRADED — the sha is now read directly, not inferred.**
+Last session recorded a real weakness: `vercel inspect` (CLI 58.4.4) printed no
+`githubCommitSha`, so the match was inferred from timing and ordering. Read today via
+the Vercel API instead (`list_deployments`, project `prj_Zr3x9TKUklr2LRswwc1rqZR4lcRO`,
+team `team_pk5Bl46h1HAtdlfO5ASqydxE`): the newest production deployment
+`dpl_DxM9k2p4HEfvPvHRcpAyVrzgKvoF` is `state: READY`, `target: production`, on
+`githubCommitSha 3b8e32b666bf04a3abe9d17ed8127f6c44ca5516` — byte-identical to local
+`git rev-parse HEAD`. The slice-7 code commit `7af382a45557b5c6…` is the deployment
+below it, also READY. So the live site is built from this exact tree.
+
+**Still outstanding, and still owner-only:** a logged-in look at `/transactions/[id]`
+to see the Status row. Every surface this slice touches is auth-gated and it adds no
+schema, so there is no unauthenticated marker to curl and no Neon `db push` line — the
+deploy evidence is "the newest production deployment is READY on this exact sha", not
+"I saw the control".
+
+### V.1 / slice 7 — GATE RUN A ON THIS TREE: ✅ VERIFY GREEN (2026-07-31)
+
+```
+ Test Files  319 passed (319)
+      Tests  5089 passed (5089)
+  245 passed (2.7m)
+✅ VERIFY GREEN
+EXIT=0
+```
+
+`VERIFY_E2E=1 bash scripts/verify.sh` on the slice-7 tree (`3b8e32b`, unchanged —
+this session has touched only TASKS.md and PROGRESS.md): tsc 0, eslint 0, **5089 unit
+/ 319 files**, `next build` clean, **245 e2e passed, 0 failed**, gate **EXIT=0**.
+
+Read from the LOG's own `EXIT=` line, not the background notification's exit code —
+last session's wrapper `echo` masked a failing gate, and that is why the check is
+written this way.
+
+**This closes the slice-7 Definition of Done.** CLAUDE.md rule 2 requires a gate on
+this tree exiting 0; it now has. The previous session was right to refuse to claim it
+and right to push anyway (product code was verified; the open question was suite
+timing) — the record simply completes here.
+
+**The failure RATE across four runs of the identical tree, which is the actual finding:**
+
+| run | when | e2e total | failed | which |
+|---|---|---|---|---|
+| 1 | before restart | 245 | 2 | `mobile-overflow:408` (webkit), `phase4-features:33` |
+| 2 | before restart | 245 | 1 | `merchant-lens:77` |
+| A | **after restart** | 245 | **0** | — |
+
+Same 245-test suite, same commit, same product code; 2 → 1 → 0. The only variable that
+changed between run 2 and run A is the **machine restart** the owner performed. Nothing
+was fixed. This is a rate that moved with the environment, which is what V.1 predicted
+would need measuring rather than another single re-run.
+
+**What this does NOT establish, stated plainly:** that the flake is gone. One green run
+is exactly the weak evidence the last session declined to over-read in the other
+direction, and the honest reading has not changed just because the result now favours
+us. V.1 stays OPEN. Run B (chained, artifacts from A preserved first) is in flight.
+
+### V.1 — GATE RUN B: ✅ VERIFY GREEN AGAIN. Two consecutive greens, unchanged tree.
+
+```
+ Test Files  319 passed (319)
+      Tests  5089 passed (5089)
+  245 passed (2.7m)
+✅ VERIFY GREEN
+EXIT=0
+```
+
+Run B was chained behind A with A's `test-results/` copied aside first
+(`/tmp/slice7-settle/artifacts-A`), per the standing rule that a re-run destroys the
+reproduction. Both logs kept at `/tmp/slice7-settle/run-A.log` and `run-B.log`.
+
+**The rate, four runs of commit `3b8e32b` with byte-identical product code:**
+
+| run | environment | e2e total | failed |
+|---|---|---|---|
+| 1 | before the owner's machine restart | 245 | 2 |
+| 2 | before the restart | 245 | 1 |
+| A | **after the restart** | 245 | **0** |
+| B | after the restart | 245 | **0** |
+
+The failure rate went 2 → 1 → 0 → 0 with no code change and one environment change.
+Two consecutive clean full gates is materially stronger than the single clean-HEAD run
+the last session correctly refused to lean on, and it points the same way that run did:
+away from the slice and at the machine.
+
+**The V.1 question is therefore SHARPENED, not closed.** What is now supported: the
+failures are environment-correlated, and slice 7 is not their cause (independently
+established by PROGRESS:7305, where the same rotation appears on the slice-6 tree). What
+is still NOT established: the mechanism. The `--workers=1` slice-6 sightings still are
+not explained by parallel DB contention, and "a restart fixed it" is a correlation over
+four runs on one machine, not a diagnosis — the next sighting on a fresh machine would
+kill it. V.1 stays OPEN with its rate-measurement framing intact; nobody should read
+this as licence to wave through the next rotating failure.
+
+**No test was weakened, no timeout relaxed, no spec retried.** Nothing was changed to
+obtain these greens: this session's only edits are TASKS.md, PROGRESS.md and
+docs/STATUS.md. That matters, because the cheapest way to turn this record green would
+have been to touch the harness, and that is the one move V.1 forbids.

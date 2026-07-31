@@ -465,6 +465,42 @@ feature waves; none blocks Wave 0.
 | S.9 | Owner reconciliation D9: Vercel team name ("reiforge" vs "Mike's projects") — confirm and fix the wrong doc. | Human | — | — | [x] done 2026-07-21 (#262). **No doc was wrong — the premise was a false dichotomy.** The Vercel API returns one team: `{"name": "Mike's projects", "slug": "reiforge", "id": "team_pk5Bl46h1HAtdlfO5ASqydxE"}`. "Mike's projects" is the display name (BACKUP_AND_RECOVERY) and "reiforge" is the URL slug (SESSION_CONTEXT/DECISIONS #198); both name the same team, and the dashboard URL is vercel.com/reiforge/aimplifi. Nothing to fix; needed no owner input after all. |
 
 
+## Wave V — The verify gate's own trustworthiness (opened 2026-07-31)
+
+Filed as its own wave, not under Wave M, deliberately: the failing specs are not mobile
+(`merchant-lens`, `phase4-features`, `action-menu`, `mobile-overflow`), and the subject is the
+Definition of Done itself. CLAUDE.md rule 2 makes `bash scripts/verify.sh` exiting 0 the gate for
+**every** wave, so a gate that fails once per full run on a tree whose product code is sound taxes
+every future slice — and worse, it trains the reader of these ledgers to wave failures through as
+"the known flake", which is exactly how a real regression ships.
+
+**The signature, recorded across two sessions and two different trees:** a full e2e run fails
+exactly ONE or TWO tests; a DIFFERENT spec each run with zero overlap between runs; every failure
+is the same mechanism (a click, then `waitForURL` never completing); and every one passes alone in
+0.9–2.3s. Sightings so far: slice 6's tree, THREE full serialized (`--workers=1`) runs, one
+rotating failure each (PROGRESS.md:7305); slice 7's tree, runs 1 and 2 (2 fails then 1 fail);
+against ONE clean-HEAD run that was fully green. **The class therefore predates slice 7** — it is
+visible on a tree that does not contain it — so "the 4 new data-creating e2e tests caused it" is
+ruled out as the sole cause, though it may still be additive load.
+
+**Candidate mechanism, NOT yet proven:** the e2e harness is one shared SQLite file with
+`fullyParallel: true` and `workers: 4` (`playwright.config.ts:30-38`), and that config's own comment
+already records this exact failure mode — write contention severing "server-action confirmation
+streams to flunk the reload-bearing mutation specs (solo-green every time)". The awkward fact that
+must be explained before anyone believes it: the slice-6 sightings were at `--workers=1`, where
+that mechanism should not apply. Do not skip that contradiction.
+
+**Preserved evidence** (copy it aside again before any re-run — a re-run destroys the
+reproduction): `/tmp/slice7-e2e-artifacts/` holds run 1's `verify.log` plus per-failure trace
+directories for all three specs, including the webkit `error-context.md` showing the page still on
+`/transactions` with the action menu closed.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+| V.0 | **Measured 2026-07-31 — the rate moved with the ENVIRONMENT, not the code.** Four runs of the identical commit `3b8e32b`: run 1 → 2 failures, run 2 → 1, **run A → 0 (`✅ VERIFY GREEN`, EXIT=0, 245 e2e)**, all with byte-identical product code. The only variable between run 2 and run A was the owner's machine restart. This closes slice 7's Definition of Done (CLAUDE.md rule 2 wants a gate on this tree exiting 0, and it now has one) but does NOT close V.1: one green run is the same weak evidence the last session declined to over-read pointing the other way. | — | — | — | **[x] MEASURED — see PROGRESS.md.** |
+| V.1 | **Settle the rotating e2e failure: contention, environment, or a real defect.** Order, cheapest first: (a) N full runs on one unchanged tree — the SAME spec failing every time is a bug, a rotating set is not; (b) the same N on clean HEAD, since a clean-HEAD failure closes the question outright; (c) vary ONE harness knob at a time (`workers`, `reuseExistingServer`, cold vs warm build) and record which one moves the rate — a rate is the measurement here, not a pass/fail; (d) instrument the stall rather than guess at it — the failure is always a navigation that never completes, so capture what the server was doing at that moment instead of inferring it. Land the outcome as either a harness fix with the rate re-measured, or a named, evidenced product defect. Do NOT close this by relaxing a timeout or retrying the spec: that hides the signal the gate exists to give. | Opus 5 | high | 80k | **[ ] OPEN — opened 2026-07-31 from the slice-7 gate.** |
+| V.2 | **Blocked on the owner: authenticate `gh` (or supply `GH_TOKEN`) so CI can arbitrate.** `.github/workflows/verify.yml` runs the gate on a Linux runner — different hardware, different timing, `reuseExistingServer: false` — which is the documented arbiter for exactly this disagreement, and the one piece of evidence a local machine cannot produce. Unauthenticated `api.github.com` returns 404 on this private repo, so no session can read a CI result today. | Human | — | — | **[ ] OPEN — blocking (b)/(c) above being cross-checked off this machine.** |
+
 ## Standing rules for whoever picks up a task
 
 1. Read `AGENTS.md` → `LOOP_ENGINEERING.md` → `CLAUDE.md` → `docs/lessons/INDEX.md` first, every session.

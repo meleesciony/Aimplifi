@@ -89,6 +89,16 @@ AUTHORITY; the stated reason did not, and the wrong reason is the dangerous half
    rule: sharing an engine is not sharing a basis). It is the weakest clause in an
    otherwise executed lock, and the test says so.
 
+**GATE — closed green 2026-07-31, one session after the slice shipped.** This entry
+deliberately never claimed a green gate: the slice was pushed with two e2e failures
+outstanding and PROGRESS recorded the Definition of Done as unmet rather than rounding
+it up. It is now met. `VERIFY_E2E=1 bash scripts/verify.sh` on the unchanged tree
+(`3b8e32b`) → tsc 0, eslint 0, **5089 unit / 319 files**, `next build` clean, **245 e2e
+passed, 0 failed**, `✅ VERIFY GREEN`, EXIT=0. No product code changed between the
+failing runs and this one; the failing e2e specs were never in this slice's surface.
+The rotating failure that caused the delay is tracked on its own as **TASKS Wave V** and
+is NOT considered resolved by one green run.
+
 ## ✅ BUILT 2026-07-30 — O.15 slice 6: a rule can tag it for taxes (DECISIONS #346)
 
 SIMPLIFI_PARITY row 2 (rule THEN-actions), and the delivery of the half
