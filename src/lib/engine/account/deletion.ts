@@ -24,6 +24,13 @@ export interface DeletionCounts {
   goals: number;
   budgets: number;
   rules: number;
+  /**
+   * O.13h. Named in this summary because it is the only thing here the reader
+   * personally UPLOADED — a photograph they chose to hand over — and the policy
+   * beside this control promises the confirmation "shows exactly what will be
+   * removed". A list that omits their receipts does not.
+   */
+  attachments: number;
 }
 
 export interface DeletionSummaryRow {
@@ -43,6 +50,7 @@ export function deletionSummary(counts: DeletionCounts): DeletionSummaryRow[] {
     { label: 'savings goals', count: counts.goals },
     { label: 'budget targets', count: counts.budgets },
     { label: 'categorization rules', count: counts.rules },
+    { label: 'receipts & documents', count: counts.attachments },
   ];
   return rows.filter((r) => r.count > 0);
 }

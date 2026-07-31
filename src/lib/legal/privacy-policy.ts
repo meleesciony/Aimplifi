@@ -21,7 +21,7 @@
  */
 
 /** ISO date (YYYY-MM-DD) this policy was last reviewed. */
-export const PRIVACY_LAST_UPDATED = '2026-06-25';
+export const PRIVACY_LAST_UPDATED = '2026-07-31';
 
 /** Contact for privacy questions and deletion requests. */
 export const PRIVACY_CONTACT_EMAIL = 'michael.lee.p@gmail.com';
@@ -62,6 +62,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
             'Transactions, statements, balances, and scheduled/recurring items — the data the cash-needed, budgeting, and forecasting engines run on.',
             'Provider access tokens (Plaid or SimpleFIN), AES-256-GCM encrypted at rest. Tokens are never logged and never sent to your browser.',
             'Your settings: email, a salted password hash (for email sign-in), and your planning assumptions (wage, return and withdrawal rates, money dials).',
+            'Receipts and documents you attach to a transaction: the file itself, its name, its size, and the file type we determine by reading the bytes. Only you can open them — a household partner you share an account with sees that account’s transactions, never the files attached to them — and they are never sent to a third party.',
             'An audit log of sensitive actions — sign-in, data exports, goal/budget/rule changes, sync runs, bank link/unlink, operator-run data repairs (counts only), and account deletion — so account activity is accountable.',
           ],
         },
@@ -76,7 +77,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
         {
           list: [
             'Your bank username or password. Credentials go directly to Plaid Link (or SimpleFIN) and never touch our servers.',
-            'Full card or account numbers — only the last-4 mask is ever kept.',
+            'Full card or account numbers are never requested from your bank, derived from your accounts, or displayed — only the last-4 mask is kept. (A file you upload yourself is stored exactly as you supplied it: we read its first few bytes to identify the file type and never inspect, index, or redact its contents.)',
             'Social Security numbers or other government identifiers.',
             'Plaid public tokens — these are exchanged for an encrypted access token immediately and discarded.',
           ],
@@ -131,7 +132,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
             'Permanently delete everything via Settings → “Delete my data”. The destructive action is gated behind a typed confirmation and shows exactly what will be removed.',
           ],
         },
-        'Deletion runs in three steps: (1) you confirm by typing the exact phrase; (2) any linked Plaid item has its access token revoked at Plaid; (3) your user record is deleted, which cascades to every related row — accounts, transactions, statements, payments, scheduled items, balance snapshots, rules, corrections, recurring series, goals, budgets, linked items, and the audit log itself. Nothing about you is retained, and the action is irreversible.',
+        'Deletion runs in three steps: (1) you confirm by typing the exact phrase; (2) any linked Plaid item has its access token revoked at Plaid; (3) your user record is deleted, which cascades to every related row — accounts, transactions, statements, payments, scheduled items, balance snapshots, rules, corrections, recurring series, goals, budgets, linked items, attached receipts and documents and the files themselves, and the audit log itself. Nothing about you is retained, and the action is irreversible.',
       ],
     },
     {

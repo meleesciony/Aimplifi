@@ -1001,9 +1001,16 @@ model HouseholdInvite {
 // delete, transaction delete, account delete, user delete, and any upload whose
 // row insert failed), and a single missed path leaves a photograph of a receipt,
 // with a name and an address on it, outside the guarantee forever. Here the FK
-// cascade below IS the deletion path, and §6's "no third-party data flow" claim
-// stays true because no third party is involved. See DECISIONS (O.13h) for the
-// volume ceiling this trades away and the migration path if it is ever reached.
+// cascade below IS the deletion path.
+//
+// A correction from the O.13h critic cycle, kept because the wrong version is the
+// dangerous half: an earlier draft of this comment also claimed §6's "no third-party
+// data flow" stays true "because no third party is involved". That is FALSE — §6
+// enumerates four flows and names Neon as the database operator, so these bytes do
+// reach a third party. What is true is that no NEW third party is introduced (a
+// bucket would have been Vercel, also already named). The deletion argument above
+// stands on its own and never needed the §6 one. See DECISIONS #349 for the volume
+// ceiling this trades away and the migration path if it is ever reached.
 model TransactionAttachment {
   id            String   @id @default(cuid())
   transactionId String

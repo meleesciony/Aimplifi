@@ -1204,8 +1204,7 @@ case asserted present, never by a retry or a longer timeout.
 **The task row named a vendor ("needs a real storage decision (Vercel Blob, private)"), and
 the retention policy overruled it.** `docs/DATA_RETENTION_AND_DISPOSAL.md` §3 promises that a
 single cascading delete of the user record removes every associated row and that "nothing
-about the user is retained after deletion"; §6 states that the only external data flows are
-Plaid/SimpleFIN and the optional AI routing call. Object storage falsifies both. A bucket
+about the user is retained after deletion". Object storage falsifies that. A bucket
 needs a compensating delete on **five** distinct paths — the reader removing one file, the
 transaction being deleted, the account being deleted, the user being deleted, and an upload
 whose row insert failed after the object landed — and a single missed path leaves a
@@ -1227,6 +1226,16 @@ honest version of that cap needs a decision about what the app does when a reade
 and nobody has one. If volume ever justifies object storage the metadata table stays and only
 `AttachmentBlob` moves, at which point the compensating-delete work above becomes real and must
 be built and proven, not assumed.
+
+**CORRECTION (critic cycle, same day) — the second half of my original argument was FALSE and
+is struck rather than softened.** The first version of this entry also said §6 "states that the
+only external data flows are Plaid/SimpleFIN and the optional AI routing call", and the schema
+comment claimed §6's no-third-party promise "stays true because no third party is involved".
+§6 enumerates **four** flows, and the last two are *Hosting — Vercel* and *Database — Neon*.
+Receipt bytes in this database therefore DO reach a third party; what is true is only that no
+**new** one is introduced (a bucket would have been Vercel, also already named). The §3 deletion
+argument above never needed the §6 one and stands alone. Recorded because a load-bearing premise
+that is wrong is worse than a missing one: the next editor would have inherited it.
 
 **The security decision that shaped the engine: the stored content type is SNIFFED from the
 bytes.** Never the browser's declared `File.type`, never the filename extension — both are
@@ -1271,3 +1280,67 @@ filename in a non-Latin script neutralized to `__` in the ASCII fallback; it now
 `attachment` unless an alphanumeric survives. (3) `docs/SIMPLIFI_PARITY.md` row 8 still read
 "MISSING" for exclude-from while row 4 of the same table recorded it shipped in O.15 slice 2 —
 corrected here rather than left for a future session to rediscover.
+
+### Critic cycle — two fresh-context critics, both FAIL, and they converged independently
+
+Both found the **same P1 without seeing each other's work**, which is the strongest signal
+available here: a receipt attached to a PENDING charge was destroyed when the bank posted it.
+Plaid's pending→posted churn creates a replacement row and deletes the predecessor, carrying
+`Correction`, `CategoryPrediction` and four reader-owned COLUMNS across — and O.13h added a
+fifth piece of reader state that is a RELATION, so `carriedReaderState` could never have covered
+it. The row cascades, the blob goes with it, silently, on a cron nobody watches. The comment
+directly above that code already described this exact failure for tax tags and notes and said it
+had been fixed "as a data CLASS"; I added to the class and did not join it.
+
+Fixed structurally rather than per site: the four delete sites' duplicated re-point blocks are
+now ONE `carryReaderRelations(toId)` closure that every one of them already had to call, so a
+future reader-owned relation joins one function instead of being copied beside four deletes —
+which is how the fifth gets missed. Mutation-proven: removing the attachment re-point fails
+exactly the new lock.
+
+**The second P1 was mine and was proven by execution:** `deleteTransactionAttachment` took
+`attachmentId` straight into a Prisma `where` with no runtime type guard. A Server Action
+argument arrives over the wire and TypeScript is erased, so `{"attachmentId":{"not":""}}` read as
+a filter OPERATOR and deleted every receipt the caller owned while returning `{ ok: true }`.
+Blast radius stayed inside the caller's own data because the `account: { userId }` conjunct held,
+which is the only reason it is P1 and not P0 — and ~10 sibling actions in this repo already guard
+their scalars exactly this way. Also mutation-proven.
+
+**Claims found false and corrected** (the claims critic's whole yield): the PUBLIC policy
+`src/lib/legal/privacy-policy.ts` — whose own header says to keep it in sync with the two docs
+this slice DID update — was untouched, so its "the app stores only the data its features need"
+list omitted a new stored data class, its "only the last-4 mask is ever kept" line had become
+unenforceable against arbitrary uploaded images, its deletion-cascade enumeration omitted the
+files, and its `PRIVACY_LAST_UPDATED` still read 2026-06-25 beside a sentence promising review
+"whenever the app's data handling changes"; the deletion PREVIEW ("shows exactly what will be
+removed") never named the one artifact the reader personally uploaded, so `DeletionCounts` gains
+an `attachments` field and a "receipts & documents" row; both deletion-trigger enumerations were
+closed lists that omitted the provider-driven deletes the sync performs with no user action; the
+"one statement" justification for dropping the interactive transaction named the wrong mechanism
+(it is Prisma's implicit nested-write transaction); the `accept` attribute comment claimed the
+picker "cannot offer a type the upload would refuse" (it is a hint, and the server decides from
+bytes); "every other per-row write in this app is an action" was false (the push routes); and the
+download route's "only route that serves bytes a user supplied" was too broad.
+
+**Also fixed from the security pass:** the upload now scopes to `SPENDING_ACCOUNT_TYPES` like the
+detail page does, so bytes can no longer be stored against a transaction whose page 404s — files
+with no Remove button anywhere, removable only by deleting the account; the `content-length`
+pre-check no longer claims to reject "before buffering" (the header is optional, so a client that
+omits it skipped the guard entirely); and `normalizeAttachmentFilename` rejects a lone surrogate,
+which passed the code-point test and then made `encodeURIComponent` throw inside the download
+route — not reachable over HTTP (undici substitutes U+FFFD in the multipart round trip), so this
+closes a contract between two functions rather than a live vector.
+
+**Verified SOUND by the security critic, by execution rather than argument:** the content-type
+axis (a stored GIF/HTML polyglot came back as `content-type: image/gif` with
+`content-disposition: attachment`, `nosniff` and the sandbox CSP; SVG and HTML are refused
+outright), authorization on all four queries including the household claim, header injection
+against `a";x=y
+Set-Cookie: a=b.jpg`, the identical 404 for another user's id and a
+non-existent one, and the absence of any orphan on the deletion axis.
+
+**Open, recorded, not fixed:** an upload with no `Origin` header at all skips the CSRF comparison
+(defence-in-depth only — a cross-site POST arrives without the SameSite=Lax cookie and dies at the
+auth check); and whether Vercel's platform body cap admits a 5 MB upload is UNVERIFIED from here
+(the platform raised it well above the old 4.5 MB, but the honest test is a real 4.8 MB photo on
+the deployed app).

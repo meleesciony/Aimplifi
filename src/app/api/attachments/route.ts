@@ -1,8 +1,8 @@
 /**
  * Attachment upload (O.13h): POST /api/attachments  (multipart: transactionId, file)
  *
- * WHY A ROUTE HANDLER AND NOT A SERVER ACTION, since every other per-row write in
- * this app is an action: Next caps a Server Action body at 1 MB by default, and a
+ * WHY A ROUTE HANDLER AND NOT A SERVER ACTION, since nearly every per-row write in
+ * this app is an action (the push-subscription routes are the other exception): Next caps a Server Action body at 1 MB by default, and a
  * phone photo of a receipt is several times that. The alternatives were raising
  * `serverActions.bodySizeLimit` — which loosens the ceiling for EVERY action in the
  * app to serve one feature — or accepting the upload where a large body is normal.
@@ -19,8 +19,8 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { auditLog, rateLimitDurable } from '@/server/authz';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import {
-  MAX_ATTACHMENTS_PER_TRANSACTION,
   MAX_ATTACHMENT_BYTES,
   attachmentRefusalMessage,
   validateAttachment,
@@ -64,11 +64,16 @@ export async function POST(request: NextRequest) {
   // will not take a file, which hiding it would not.
   if (isDemoUser(userId)) return refuse(DEMO_ENTRY_BLOCKED, 403);
 
-  // Reject an oversized body BEFORE buffering it. `validateAttachment` enforces the
-  // same ceiling on the real byte count afterwards — this header is a claim by the
-  // client, so it can only be trusted to say "too big", never to say "small enough".
-  const declaredLength = Number(request.headers.get('content-length') ?? '0');
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_ATTACHMENT_BYTES * 2) {
+  // A cheap early exit for a client that ANNOUNCES an oversized body. Stated
+  // accurately, because the first version of this comment claimed it rejects the body
+  // "before buffering it" and that was false: the header is optional (HTTP/2 does not
+  // require it, and `Transfer-Encoding: chunked` omits it), so a request without one
+  // skips this entirely and `request.formData()` below still buffers. The real ceiling
+  // is `validateAttachment`, which counts the bytes that actually arrived; this only
+  // saves work in the honest case.
+  const declared = request.headers.get('content-length');
+  const declaredLength = declared === null ? null : Number(declared);
+  if (declaredLength !== null && Number.isFinite(declaredLength) && declaredLength > MAX_ATTACHMENT_BYTES * 2) {
     return refuse(attachmentRefusalMessage('too-large'), 413);
   }
 
@@ -99,8 +104,12 @@ export async function POST(request: NextRequest) {
   // write lock across three round trips, in a harness that runs four Playwright
   // workers and a `next start` server against one file — write contention there is
   // documented in `playwright.config.ts`. The row and its bytes are still atomic:
-  // the nested `blob: { create }` is one statement, so there is no state where a
-  // listed file has no content behind it.
+  // the nested `blob: { create }` runs inside Prisma's own implicit transaction for
+  // nested writes, so the metadata row and its bytes commit together. (Stated as the
+  // mechanism it actually is: an earlier draft called it "one statement", which is not
+  // true and would invite someone to optimise the guarantee away. `readAttachmentForUser`
+  // also returns null when the blob is missing, so even then the read path 404s rather
+  // than serving an empty file.)
   //
   // What the two remaining races cost, stated rather than papered over:
   //  - The transaction is deleted between the read and the write → the foreign key
@@ -108,8 +117,16 @@ export async function POST(request: NextRequest) {
   //  - Two uploads race the CAP and both see 4 → one extra file on one row. A lease
   //    would be ceremony for that.
   // Ownership is not one of them: it is re-read here and cannot be raced into.
+  // Scoped the same way the DETAIL PAGE is, not merely by ownership. `getTransactionDetail`
+  // additionally requires a spending-account type, so an upload aimed at an INVESTMENT or
+  // LOAN row would have been stored against a page that 404s — bytes with no Remove button
+  // anywhere in the UI, removable only by deleting the account. The UI never offers that,
+  // but the route is reachable directly, and unreachable bytes are a retention problem.
   const owned = await prisma.transaction.findFirst({
-    where: { id: transactionId, account: { userId } },
+    where: {
+      id: transactionId,
+      account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } },
+    },
     select: { id: true, _count: { select: { attachments: true } } },
   });
   if (!owned) {
@@ -168,6 +185,5 @@ export async function POST(request: NextRequest) {
       mimeType: validated.attachment.mimeType,
       byteSize: validated.attachment.byteSize,
     },
-    remaining: MAX_ATTACHMENTS_PER_TRANSACTION,
   });
 }

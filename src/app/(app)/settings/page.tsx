@@ -42,7 +42,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/sign-in');
 
   const userId = session.user.id;
-  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy, tuning, selfAudit, learnedPhrases, taxYears] =
+  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy, tuning, selfAudit, learnedPhrases, taxYears, attachmentCount] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -76,6 +76,9 @@ export default async function SettingsPage() {
       getLatestSelfAuditSnapshot(userId),
       listLearnedPhrases(userId),
       getTaxYears(userId),
+      // O.13h — named in the deletion preview because it is the only thing there
+      // the reader personally uploaded.
+      prisma.transactionAttachment.count({ where: { transaction: { account: { userId } } } }),
     ]);
   const householdView = await getHouseholdView();
   if (!user) redirect('/sign-in');
@@ -111,6 +114,7 @@ export default async function SettingsPage() {
     goals: goalCount,
     budgets: budgetCount,
     rules: ruleCount,
+    attachments: attachmentCount,
   });
 
   return (

@@ -88,8 +88,16 @@ export function attachmentTypeLabel(mime: string): string {
   return ATTACHMENT_TYPES.find((t) => t.mime === mime)?.label ?? mime;
 }
 
-/** The `accept` attribute for the file input. Derived from the same set the server enforces,
- *  so the picker cannot offer a type the upload would refuse. */
+/**
+ * The `accept` attribute for the file input, derived from the same set the server
+ * enforces so the picker's default filter matches the allowlist.
+ *
+ * It is a HINT, not a guard: every desktop file dialog offers an "All files" escape,
+ * and `accept` is matched against the name/OS type while the server decides from the
+ * BYTES — so a `.jpg` that is really something else is offered here and refused there.
+ * That divergence is intended; this attribute exists to save a wasted round trip, not
+ * to enforce anything.
+ */
 export function attachmentAcceptAttribute(): string {
   return ATTACHMENT_TYPES.map((t) => t.mime).join(',');
 }
@@ -177,6 +185,14 @@ export function normalizeAttachmentFilename(
     return code < 0x20 || code === 0x7f;
   });
   if (hasControlChar) return { ok: false, refusal: 'filename-unprintable' };
+  // A LONE SURROGATE is printable by this test and makes `encodeURIComponent` throw,
+  // which would take out the download route (no try/catch there) and leave the row
+  // permanently un-downloadable. Found by the O.13h security critic: the module header
+  // claims two independent guards, and that is only true if the first one never admits
+  // input the second cannot handle. Not reachable over HTTP today — undici replaces a
+  // lone surrogate with U+FFFD during the multipart round trip — so this closes a
+  // contract between two functions rather than a live vector.
+  if (!trimmed.isWellFormed()) return { ok: false, refusal: 'filename-unprintable' };
   if (trimmed.length > ATTACHMENT_FILENAME_MAX_CHARS) return { ok: false, refusal: 'filename-too-long' };
   return { ok: true, filename: trimmed };
 }
@@ -221,11 +237,6 @@ export function validateAttachment(input: {
   };
 }
 
-/** Whole megabytes read better than "5242880 bytes" in a refusal the reader has to act on. */
-function megabytes(bytes: number): string {
-  return `${Math.round((bytes / (1024 * 1024)) * 10) / 10}MB`;
-}
-
 /**
  * The message a reader sees. One author, so the control, the route and the test
  * cannot disagree about what the limit is — and every message says what happened to
@@ -237,7 +248,7 @@ export function attachmentRefusalMessage(refusal: AttachmentRefusal): string {
     case 'empty':
       return 'That file is empty — nothing was saved.';
     case 'too-large':
-      return `That file is larger than ${megabytes(MAX_ATTACHMENT_BYTES)} — nothing was saved. Try a smaller scan or photo.`;
+      return `That file is larger than ${formatAttachmentSize(MAX_ATTACHMENT_BYTES)} — nothing was saved. Try a smaller scan or photo.`;
     case 'too-many':
       return `This transaction already has ${MAX_ATTACHMENTS_PER_TRANSACTION} files, which is the limit — nothing was saved. Remove one to add another.`;
     case 'unsupported-type':

@@ -1,8 +1,9 @@
 /**
  * Attachment download (O.13h): GET /api/attachments/<id>
  *
- * This is the only route in the app that serves bytes a user supplied, from the same
- * origin as the signed-in session — so the headers here are the feature's security
+ * This is the only route in the app that serves back a file the user UPLOADED, verbatim,
+ * from the same origin as the signed-in session (`/api/export` also echoes user-supplied
+ * strings, but it builds them into a CSV it composes itself) — so the headers here are the feature's security
  * boundary and not formatting:
  *
  *  - `Content-Type` is the type SNIFFED at upload, re-checked against the allowlist

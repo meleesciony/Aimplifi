@@ -265,6 +265,22 @@ describe('deletion is complete', () => {
     expect(await blobCount(OWNER)).toBe(1);
   });
 
+  it('refuses a Prisma FILTER OBJECT where an id belongs, instead of deleting everything', async () => {
+    // A Server Action argument arrives over the wire and TypeScript is erased. Before
+    // the guard, `{ not: '' }` reached Prisma as an OPERATOR: it matched every row the
+    // ownership conjunct allowed and deleted every receipt this user owned, returning
+    // { ok: true }. Found and proven by execution in the O.13h critic cycle.
+    await upload(ownerTxnId, jpegFile('a.jpg'));
+    await upload(ownerTxnId, jpegFile('b.jpg'));
+    expect(await blobCount(OWNER)).toBe(2);
+
+    const result = await deleteTransactionAttachment(
+      { attachmentId: { not: '' } } as unknown as { attachmentId: string },
+    );
+    expect(result.ok).toBe(false);
+    expect(await blobCount(OWNER)).toBe(2);
+  });
+
   it('deleting the TRANSACTION takes the file with it', async () => {
     const txn = await prisma.transaction.create({
       data: {

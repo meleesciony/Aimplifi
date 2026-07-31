@@ -4,7 +4,7 @@
  * Account deletion (ROADMAP #10, docs/PRIVACY.md §Deletion). Session-verified,
  * typed-confirmation gated, and ownership-scoped: a single `prisma.user.delete`
  * cascades every user-owned row (accounts → transactions/statements/etc., plus
- * rules, corrections, recurring series, goals, budgets, audit log, Plaid items)
+ * rules, corrections, recurring series, goals, budgets, audit log, Plaid items, attached receipts and their file bytes)
  * because each relation is `onDelete: Cascade`. Shared reference data (the system
  * Category set, the global Merchant table) is not user-scoped and is left intact.
  * Irreversible — and not exercised by e2e against the shared demo user.

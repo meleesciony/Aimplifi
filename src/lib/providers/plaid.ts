@@ -1288,6 +1288,46 @@ export class PlaidProvider implements DataProvider {
                       excludeFromTotals: predecessor.excludeFromTotals,
                       reimbursement: predecessor.reimbursement,
                     };
+
+                    /**
+                     * Everything the reader owns that lives in ANOTHER TABLE, re-pointed
+                     * at the replacement row. `carriedReaderState` above can only carry
+                     * COLUMNS; a relation has to be moved.
+                     *
+                     * One function, called at every one of the four delete sites below,
+                     * because the alternative — a re-point copied beside each delete — is
+                     * how the fifth one gets missed (`fence-by-construction-not-per-call-site`).
+                     * O.13h was exactly that miss: attachments cascade on
+                     * `transaction.delete`, so a receipt photographed onto a PENDING charge
+                     * was destroyed the moment the bank re-sent it as posted — silently, on
+                     * a cron nobody watches, the row still on screen looking untouched. That
+                     * is the same sentence the comment above already wrote about tax tags
+                     * and notes; a new reader-owned relation joins THIS function or it dies
+                     * the same way.
+                     */
+                    const carryReaderRelations = async (toId: string) => {
+                      // Scoped by transactionId ONLY (not userId): since TASKS 4.2 slice 6
+                      // a Correction's userId may be a household partner who one-off
+                      // recategorized this row, not the syncing owner — every correction on
+                      // this (already ownership-resolved) transaction id transplants with
+                      // it, regardless of who authored it.
+                      await tx.correction.updateMany({
+                        where: { transactionId: predecessor.id },
+                        data: { transactionId: toId },
+                      });
+                      // The prediction log follows the charge across id churn too
+                      // (DECISIONS #190) — same "audit = state" rule as corrections.
+                      await tx.categoryPrediction.updateMany({
+                        where: { transactionId: predecessor.id, userId },
+                        data: { transactionId: toId },
+                      });
+                      // O.13h receipts. Not scoped by userId for the same reason as
+                      // corrections: ownership is already resolved via `predecessor`.
+                      await tx.transactionAttachment.updateMany({
+                        where: { transactionId: predecessor.id },
+                        data: { transactionId: toId },
+                      });
+                    };
                     if (predecessor.isSplitParent) {
                       // Cycle-2 P0: a split PENDING parent posting under a new id was
                       // deleted with isSplitParent dropped — children dangled (no FK)
@@ -1319,22 +1359,7 @@ export class PlaidProvider implements DataProvider {
                           where: { splitParentId: predecessor.id },
                           data: { splitParentId: container.id, status: row.status },
                         });
-                        // Scoped by transactionId ONLY (not userId): since TASKS 4.2
-                        // slice 6, a Correction's userId may be a household partner who
-                        // one-off recategorized this row, not the syncing owner — every
-                        // correction on this specific (already ownership-resolved via
-                        // `predecessor`) transaction id legitimately transplants with it,
-                        // regardless of who authored it (critic finding, slice 6).
-                        await tx.correction.updateMany({
-                          where: { transactionId: predecessor.id },
-                          data: { transactionId: container.id },
-                        });
-                        // The prediction log follows the charge across id churn too
-                        // (DECISIONS #190) — same "audit = state" rule as corrections.
-                        await tx.categoryPrediction.updateMany({
-                          where: { transactionId: predecessor.id, userId },
-                          data: { transactionId: container.id },
-                        });
+                      await carryReaderRelations(container.id);
                         await tx.transaction.delete({ where: { id: predecessor.id } });
                         return true;
                       }
@@ -1359,16 +1384,7 @@ export class PlaidProvider implements DataProvider {
                           ...carriedReaderState,
                         },
                       });
-                      // Scoped by transactionId only — see the container-path comment
-                      // above (slice 6: a partner's correction transplants too).
-                      await tx.correction.updateMany({
-                        where: { transactionId: predecessor.id },
-                        data: { transactionId: replacement.id },
-                      });
-                      await tx.categoryPrediction.updateMany({
-                        where: { transactionId: predecessor.id, userId },
-                        data: { transactionId: replacement.id },
-                      });
+                      await carryReaderRelations(replacement.id);
                       await tx.transaction.delete({ where: { id: predecessor.id } });
                       return true;
                     }
@@ -1387,16 +1403,7 @@ export class PlaidProvider implements DataProvider {
                           ...carriedReaderState,
                         },
                       });
-                      // Scoped by transactionId only — see the container-path comment
-                      // above (slice 6: a partner's correction transplants too).
-                      await tx.correction.updateMany({
-                        where: { transactionId: predecessor.id },
-                        data: { transactionId: pinned.id },
-                      });
-                      await tx.categoryPrediction.updateMany({
-                        where: { transactionId: predecessor.id, userId },
-                        data: { transactionId: pinned.id },
-                      });
+                      await carryReaderRelations(pinned.id);
                       await tx.transaction.delete({ where: { id: predecessor.id } });
                       return true;
                     }
@@ -1415,20 +1422,7 @@ export class PlaidProvider implements DataProvider {
                         ...carriedReaderState,
                       },
                     });
-                    // Corrections follow the transaction across the id churn (audit =
-                    // state). Scoped by transactionId only — not userId — since a
-                    // Correction's userId may be a household partner who one-off
-                    // recategorized this row (TASKS 4.2 slice 6); every correction on
-                    // this (already ownership-resolved) transaction id transplants
-                    // regardless of who authored it.
-                    await tx.correction.updateMany({
-                      where: { transactionId: predecessor.id },
-                      data: { transactionId: created.id },
-                    });
-                    await tx.categoryPrediction.updateMany({
-                      where: { transactionId: predecessor.id, userId },
-                      data: { transactionId: created.id },
-                    });
+                      await carryReaderRelations(created.id);
                     await tx.transaction.delete({ where: { id: predecessor.id } });
                     return true;
                   })

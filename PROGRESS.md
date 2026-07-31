@@ -8148,3 +8148,53 @@ than quietly skipped.** `curl https://www.aimplifi.app/sign-in` returns 000, but
 the 000 says nothing about the site and must not be read as an outage. The deployment
 record plus the build-log route table is the evidence; a fetched byte from the live app
 remains unavailable for auth-gated surfaces, as it was for slices 4–7 and O.16a.
+
+### O.13h — CRITIC CYCLE: two fresh-context critics, both FAIL, converging independently
+
+Dispatched with different lenses (security/authz; claims/copy/docs). Both found the
+**same P1 without seeing each other's work**, and both proved it by execution — the
+strongest signal this repo has that a finding is real.
+
+**P1 (both critics): a receipt on a PENDING charge was destroyed when the bank posted
+it.** Plaid's pending→posted churn creates a replacement row and deletes the
+predecessor, carrying `Correction`, `CategoryPrediction` and four reader-owned COLUMNS.
+An attachment is a RELATION, so `carriedReaderState` could never have covered it — the
+rows have to be re-pointed — and the cascade took the blob too. The comment immediately
+above that code already describes this exact failure for tax tags and notes and says it
+was fixed "as a data CLASS". I added a fifth member and did not join it.
+
+Fixed structurally: the four delete sites' duplicated re-point blocks are now ONE
+`carryReaderRelations(toId)` closure they all already had to call, so the next
+reader-owned relation joins one function instead of being copied beside four deletes.
+
+**P1 (security critic, executed): Prisma operator injection.**
+`deleteTransactionAttachment` put `attachmentId` straight into a `where` with no runtime
+guard. A Server Action argument arrives over the wire and TypeScript is erased, so
+`{"attachmentId":{"not":""}}` read as a FILTER OPERATOR and deleted every receipt the
+caller owned while returning `{ ok: true }`. Contained to the caller's own data by the
+`account: { userId }` conjunct, which is the only reason it is P1; ~10 sibling actions
+here already guard their scalars this way and this file skipped it.
+
+**Both fixes mutation-proven:** removing the typeof guard fails exactly the injection
+lock (1 failed / 16 passed); removing the attachment re-point fails exactly the churn
+lock (1 failed / 24 passed). Neither mutation disturbed anything else.
+
+**A false premise of my own, struck rather than softened.** DECISIONS #349 and the schema
+comment both claimed §6 of the retention policy denies third-party data flows. It does
+not — it enumerates FOUR, and two are *Hosting — Vercel* and *Database — Neon*. So these
+bytes DO reach a third party; what is true is that no NEW one is introduced. The §3
+deletion argument never needed the §6 one and stands alone. Corrected everywhere,
+because a load-bearing premise that is wrong is worse than a missing one.
+
+**The public policy was the miss I would not have found.** `src/lib/legal/privacy-policy.ts`
+— whose own header says keep it in sync with the two docs I did update — was untouched:
+its "stores only the data its features need" list omitted a whole new data class, its
+"only the last-4 mask is ever kept" line had become unenforceable against arbitrary
+uploaded images, its deletion enumeration omitted the files, and `PRIVACY_LAST_UPDATED`
+still read 2026-06-25 beside a sentence promising review whenever data handling changes.
+All four fixed. The deletion PREVIEW also never named the reader's own uploads, so
+`DeletionCounts` gains `attachments` and a "receipts & documents" row (tsc enumerated the
+two fixtures, which is why the field is required).
+
+**Gate after the cycle:** `npx tsc --noEmit` 0, `npx eslint . --max-warnings=0` 0,
+**5159 unit / 322 files** (+2 locks), `docs:lint` clean (111 files).

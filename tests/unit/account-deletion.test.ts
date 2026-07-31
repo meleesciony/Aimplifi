@@ -38,17 +38,36 @@ describe('confirmationMatches', () => {
 describe('deletionSummary', () => {
   it('labels each non-zero count and omits the empties', () => {
     expect(
-      deletionSummary({ accounts: 4, transactions: 842, statements: 12, goals: 0, budgets: 0, rules: 3 }),
+      deletionSummary({
+        accounts: 4,
+        transactions: 842,
+        statements: 12,
+        goals: 0,
+        budgets: 0,
+        rules: 3,
+        attachments: 7,
+      }),
     ).toEqual([
       { label: 'linked accounts', count: 4 },
       { label: 'transactions', count: 842 },
       { label: 'statements', count: 12 },
       { label: 'categorization rules', count: 3 },
+      // O.13h: the reader's own uploads are named, because the policy beside this
+      // control promises the confirmation shows exactly what will be removed.
+      { label: 'receipts & documents', count: 7 },
     ]);
   });
   it('returns [] when there is nothing to remove', () => {
     expect(
-      deletionSummary({ accounts: 0, transactions: 0, statements: 0, goals: 0, budgets: 0, rules: 0 }),
+      deletionSummary({
+        accounts: 0,
+        transactions: 0,
+        statements: 0,
+        goals: 0,
+        budgets: 0,
+        rules: 0,
+        attachments: 0,
+      }),
     ).toEqual([]);
   });
 });

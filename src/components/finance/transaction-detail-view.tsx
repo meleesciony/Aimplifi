@@ -941,8 +941,9 @@ export function TransactionDetailView({
         <p className="text-xs text-muted-foreground">
           {ATTACHMENT_TYPES.map((t) => t.label).join(', ')} — up to{' '}
           {formatAttachmentSize(MAX_ATTACHMENT_BYTES)} each,{' '}
-          {MAX_ATTACHMENTS_PER_TRANSACTION} per transaction. Files are stored with your data and
-          deleted with it; only you can open them, including on an account you share with a partner.
+          {MAX_ATTACHMENTS_PER_TRANSACTION} per transaction. Files are stored with your data and deleted
+          with it — including if your bank withdraws this transaction. Only you can open them, even
+          on an account you share with a partner.
         </p>
       </div>
 

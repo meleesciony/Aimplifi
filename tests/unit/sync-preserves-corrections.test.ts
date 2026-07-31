@@ -614,6 +614,56 @@ describe('Plaid resync preserves user corrections (real provider, mocked server)
     expect(rows[0].reimbursement).toBe('awaiting');
   });
 
+  it("test_regression__churn_destroys_attachments (O.13h critic cycle): a RECEIPT attached to a pending row survives the pending→posted id churn", async () => {
+    // The same defect as the test above, one slice later and one table over.
+    // O.13h added a fifth piece of reader-owned state and did not join the carry —
+    // and an attachment is a RELATION, so `carriedReaderState` (which can only carry
+    // columns) could never have covered it: the rows have to be re-pointed. Both
+    // fresh-context critics found this independently, and both proved it by
+    // execution: attach a photo to a pending charge, let the bank post it, and the
+    // file and its bytes are gone with the predecessor row via the FK cascade.
+    syncPages = [{ accounts: [acct], added: [plaidTxn()], modified: [], removed: [], next_cursor: 'cur-1', has_more: false }];
+    await new PlaidProvider().syncTransactions(USER);
+    const before = await row();
+
+    const attachment = await prisma.transactionAttachment.create({
+      data: {
+        transactionId: before.id,
+        filename: 'lunch receipt.jpg',
+        mimeType: 'image/jpeg',
+        byteSize: 4,
+        blob: { create: { bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0]) } },
+      },
+      select: { id: true },
+    });
+
+    syncPages = [{
+      accounts: [acct],
+      added: [plaidTxn({ transaction_id: 'ptx-2', pending: false, pending_transaction_id: 'ptx-1' })],
+      modified: [],
+      removed: [{ transaction_id: 'ptx-1' }],
+      next_cursor: 'cur-2',
+      has_more: false,
+    }];
+    await new PlaidProvider().syncTransactions(USER);
+
+    const rows = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].providerRef).toBe('ptx-2'); // the churn really happened
+    expect(rows[0].id).not.toBe(before.id);
+
+    // The receipt is still here, still attached to the charge, and its BYTES are
+    // still behind it — the cascade would have taken the blob too.
+    const carried = await prisma.transactionAttachment.findUnique({
+      where: { id: attachment.id },
+      select: { transactionId: true, filename: true, blob: { select: { bytes: true } } },
+    });
+    expect(carried).not.toBeNull();
+    expect(carried!.transactionId).toBe(rows[0].id);
+    expect(carried!.filename).toBe('lunch receipt.jpg');
+    expect(Array.from(carried!.blob!.bytes)).toEqual([0xff, 0xd8, 0xff, 0xe0]);
+  });
+
   it('the same carry holds on the review-PINNED churn branch (O.15 slice 6, critic cycle 1)', async () => {
     // Cycle 1 noted that only the DEFAULT settled branch was asserted while three
     // other create sites took the same spread. A pinned predecessor takes its own

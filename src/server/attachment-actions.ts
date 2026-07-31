@@ -34,6 +34,18 @@ export async function deleteTransactionAttachment(input: {
 }): Promise<DeleteAttachmentResult> {
   const userId = await requireUserId();
 
+  // A Server Action argument arrives over the wire and TypeScript is erased, so this
+  // is a runtime check and not a formality: without it `{"attachmentId":{"not":""}}`
+  // reaches Prisma as a FILTER OPERATOR rather than an id, matches every row the
+  // conjunct below allows, and deletes every receipt this user owns while returning
+  // `{ ok: true }`. Proven by execution in the O.13h critic cycle. Every other
+  // per-row action here already guards its scalars the same way
+  // (`transaction-flags-actions.ts:48`, `recurring-override-actions.ts:88`, …);
+  // this file was the one that skipped it.
+  if (typeof input?.attachmentId !== 'string' || input.attachmentId.length === 0) {
+    return { ok: false, error: 'That file is no longer available — nothing was changed.' };
+  }
+
   // Ownership IN the where clause, so the check and the delete are one statement and
   // there is no window between them. Reached through the account, like every other
   // transaction write.
