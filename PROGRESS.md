@@ -7062,3 +7062,30 @@ GATE, and the two things it caught that nothing else did:
     Three other specs (merchant-lens, transactions, and the first mobile-overflow run)
     failed only in the PARALLEL run and passed serialized — the documented load flake.
 
+
+### O.15 slice 4 SHIPPED + deploy-verified — 2026-07-30
+
+Commit `b23a57d`, pushed to origin/main. Deployment `dpl_6RkAYhTwHHnKUPMdoybFE6tSNFqd`
+**READY** on `githubCommitSha b23a57d940…` (matches), `alias` includes
+**www.aimplifi.app** and **aimplifi.app**, `aliasError: null`.
+
+THE SCHEMA CHANGE, which this slice HAS and the last two did not: `git diff` on
+`prisma/` shows 33 added lines and **zero deleted** — a new `RecurringOverride` model
+plus its `User` back-relation, no column touched on any existing table. The build log
+confirms it reached the live database and is the proof for this deploy, since every
+route the slice touches is auth-gated and no curl marker exists:
+
+  Datasource "db": PostgreSQL database "pulse" … neon.tech
+  🚀  Your database is now in sync with your Prisma schema. Done in 558ms
+
+Note the wording differs from the previous two deploys' "The database is already in
+sync" — that difference IS the evidence the table was created rather than nothing
+happening.
+
+Runtime errors in the window: ONE pre-existing group, the `pg` SSL-mode deprecation
+warning first seen 2026-06-17, whose `lastDeployment` is the PREVIOUS deploy. Nothing
+new.
+
+GATE (verbatim, `VERIFY_E2E=1 bash scripts/verify.sh`): tsc 0, eslint 0,
+**5038 unit / 316 files** (+48 over slice 3), build clean, **240 e2e** — ✅ VERIFY GREEN,
+in the PARALLEL run, with `test-results/` empty.
