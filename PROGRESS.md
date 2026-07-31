@@ -7089,3 +7089,108 @@ new.
 GATE (verbatim, `VERIFY_E2E=1 bash scripts/verify.sh`): tsc 0, eslint 0,
 **5038 unit / 316 files** (+48 over slice 3), build clean, **240 e2e** — ✅ VERIFY GREEN,
 in the PARALLEL run, with `test-results/` empty.
+
+### O.15 slice 5 — O.13e category parity: the decision, measured before building
+
+TASKS O.13e asks for three Simplifi category capabilities and explicitly says to
+**decide which are real gaps and which are our deliberate design BEFORE building**,
+because "a third level multiplies every category picker in the app". This is that
+decision, and every verdict below was re-derived by execution against the code on
+2026-07-30, not read off a plan doc.
+
+**Measurements taken first (all reproduced in the main thread, not delegated):**
+
+1. `Category.parentId` exists in the schema (`schema.prisma:403`) and has **zero
+   readers and zero writers** in `src/` outside generated Prisma code (the only
+   `parentId` hits are Plaid's unrelated `splitParentId`). Hierarchy is therefore
+   NOT half-built — the column is a Phase-1 leftover, and a dead column is not a
+   head start (lesson: a-dead-branch-is-a-claim-that-something-is-handled).
+
+2. "Is this category income?" is answered in **14 places**, and only **2** go
+   through the shared `isIncomeCategoryId` (`budgets/status.ts:29`,
+   `fi/insights.ts:48`). The other twelve are inline `group === 'Income'`
+   comparisons. A delegated report claimed 18 call sites; re-running the grep in
+   the main thread gave 6 occurrences across 4 files, so the shared-predicate
+   count is 2 — a delegated count is a hypothesis (lesson:
+   a-subagents-green-is-a-hypothesis).
+
+3. Those 14 readers split into **two families that read different maps**:
+   `reports.ts:53` and `trends.ts:236` resolve through the **per-user merged
+   meta** (custom-aware); the other twelve read the **static** `CATEGORY_BY_ID`
+   (custom-blind). They agree today for exactly one reason: `NON_CUSTOM_GROUPS`
+   (`assign.ts:88`) forbids a custom category from the Income group.
+
+4. That exclusion's own comment justifies itself by naming `isIncomeCategoryId`
+   — a 2-call-site function — while **twelve** other inline predicates depend on
+   it just as much and are documented nowhere. The invariant is far more
+   load-bearing than its stated rationale.
+
+5. `pipeline.ts` takes **no category-meta parameter at all**, and its three #44
+   sign guards (`isUsableProviderHint:135`, `learnedSignOk:153`,
+   `keywordRuleSignOk:179`) each explicitly EXEMPT custom categories — "an
+   unknown/custom category group can't be judged, so it is allowed" / "custom
+   category — group unknown, so no claim is made".
+
+**VERDICTS.**
+
+- **Three-level hierarchy — REFUSED, deliberate.** Six picker surfaces render the
+  2-level shape today, plus every group-by in reports/trends/budgets/spending-plan.
+  Simplifi's third level (Auto & Transport -> Registration -> Registration Fees) is
+  already representable here as a leaf under a group, so the capability gap is
+  presentational, and no owner message has asked for it. What would reopen it: an
+  owner request naming a distinction our two levels genuinely cannot express.
+
+- **Explicit Expense/Income type — REAL, and deliberately DEFERRED, with the
+  reason measured.** This is not a UI toggle; it is a sign-guard change across the
+  categorization hot path. The moment a custom category may be income, finding (5)
+  turns from a documented exemption into a live defect: `keywordRuleSignOk`
+  returns true for a custom income category on a NEGATIVE amount, so an outflow
+  files into an income category — which `isSpendRow` then drops from reports,
+  trends and budgets while `monthlyFlows` still counts it as an expense. That is
+  the precise erasure the docblock exists to prevent, and it is a P0 shape. Doing
+  it honestly means threading per-user meta into `pipeline.ts` and collapsing all
+  14 predicates onto ONE custom-aware basis. Against that cost: the system
+  taxonomy already ships **11 income leaves** (paycheck, bonus, side-income,
+  interest-income, investment-income, rental-income, govt-benefits, tax-refund,
+  reimbursement, refund), which covers the real income shapes, so the marginal
+  capability is small and the blast radius is the whole auto-filing path. Deferred
+  as its own slice, with the work named so it is not re-derived.
+
+- **Per-category tax flag — REAL, and this slice builds it.** The owner asked on
+  2026-07-27 for tax-time export; today `taxClass` is per-TRANSACTION only, so a
+  reader tags every charitable donation by hand, one row at a time, forever. A
+  per-category default collapses that into one gesture. It touches no flow
+  predicate and no sign guard, so its risk profile is independent of the two
+  verdicts above.
+
+**Design constraint carried into the build, from the tax module's own
+constitution** (`tax/classes.ts`: "the reader decides what belongs in each drawer,
+and the export reports what they put there and nothing more"): the category tax
+class is a **write-time default stamped onto the row at filing**, never a
+read-time fallback in the export. A read-time fallback would silently re-tag
+history whenever a category is edited, changing totals a reader may already have
+handed to a preparer. Write-time can only UNDER-tag, which is visible and
+fixable; read-time OVER-tags silently into a number that goes on a return — and
+the failure direction is the rule. A hand-set `taxClass` on a row is never
+overwritten by a category default, and applying to existing rows is an explicit,
+counted, undoable backfill (the O.13d "handle existing transactions next" idiom),
+not a silent sweep.
+
+STATUS: decision recorded; build starting on the per-category tax flag.
+
+GATE (`bash scripts/verify.sh`): tsc 0, eslint 0, `next build` clean, **5038 unit /
+316 files passed** — ✅ VERIFY GREEN. The count is IDENTICAL to slice 4's baseline
+(5038/316), which is the evidence rather than a disappointment: this slice changes two
+docblocks and four documents and must not move a single assertion. E2E was skipped
+(`VERIFY_E2E` unset) and that is the right call here — no route, no component, no query
+and no engine behaviour changed, so there is no user-visible flow for Playwright to
+exercise. `git diff --stat -- prisma/` is EMPTY: no schema change, so the live Neon
+database is untouched by this deploy.
+
+Correction made during the build, recorded because the first draft was wrong: this entry
+originally claimed the custom-category income exclusion was an UNLOCKED invariant. It is
+locked, fail-old, by `tests/unit/custom-category-lifecycle.test.ts:82` ("refuses the
+Income and Transfers groups") — a create with `group: 'Income'` is refused, so deleting
+'Income' from `NON_CUSTOM_GROUPS` fails that test. The real defect was narrower and is
+what shipped: the exclusion's stated RATIONALE named 1 of its 14 dependents. Reading the
+test before writing the finding is what rule 0 asks for, and the first draft did not.

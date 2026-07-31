@@ -871,3 +871,92 @@ bank's normalized name while the register and the detail sentence show the typed
 auto-loan ACH) cannot be declared — it is already detected when it recurs; and a read
 fault on the override table degrades to "he never said anything", which re-projects a
 demoted series for as long as the fault lasts (the alternative takes down five pages).
+
+## #345 (O.13e) — Category parity is three separate questions, and they get three different answers
+
+TASKS O.13e bundles three Simplifi capabilities under one row and instructs that we
+**decide which are real gaps before building**, because "a third level multiplies every
+category picker in the app". Bundling them was the thing to undo: they share a noun and
+nothing else — one is presentational, one is a money-routing change to the categorization
+hot path, and one is a write-path-topology problem. Every verdict below was re-derived by
+executing greps against the code on 2026-07-30, not read off this or any other plan
+(lesson: plan-verdicts-are-authoring-time-not-current-state).
+
+**(a) Three-level hierarchy — REFUSED, deliberately.** `Category.parentId` exists
+(`schema.prisma:403`) and has zero readers and zero writers in `src/` outside generated
+Prisma code, so the column is a Phase-1 leftover rather than a head start; treating it as
+one would be the dead-branch error (a column nothing writes is not a capability). Against
+that, six picker surfaces render the 2-level shape today, as does every group-by in
+reports, trends, budgets and spending-plan. And the capability gap is presentational:
+Simplifi's own example, Auto & Transport -> Registration -> Registration Fees, is already
+expressible here as a leaf under a group, which is exactly what `auto-registration`
+("Registration & Fees", group "Auto & Transport") is. No owner message has asked for a
+third level. What would reopen this: an owner request naming a distinction two levels
+genuinely cannot express — recorded so the refusal is falsifiable rather than permanent.
+
+**(b) Explicit Expense/Income type — a REAL gap, deferred, and it is not a UI toggle.**
+The plan row describes this as "ours is inferred from the group NAME", which is true and
+badly understates it. "Is this category income?" is answered in **fourteen** places.
+Exactly two go through the shared `isIncomeCategoryId` (`budgets/status.ts:29`,
+`fi/insights.ts:48`); the other twelve are inline `group === 'Income'` comparisons in
+pipeline, propose, learn, backfill, reports, trends, assistant/answer, keyword-rules,
+categorize-assist and plaid-map. Worse than the count is the split: `reports.ts:53` and
+`trends.ts:236` resolve through the **per-user merged meta** (custom-aware) while the
+other twelve read the **static** `CATEGORY_BY_ID` (custom-blind). Two families, two maps,
+one question — the one-question-one-basis sin, latent rather than live.
+
+It is latent for exactly one reason: `NON_CUSTOM_GROUPS` (`assign.ts:88`) bars a custom
+category from the Income group, so no id can ever resolve differently between the two
+maps. That exclusion is therefore load-bearing for all fourteen readers, while its own
+comment justified itself by naming `isIncomeCategoryId` alone — a two-call-site function.
+A future session reading that comment would reasonably conclude the blast radius of
+relaxing it was two engines.
+
+The measured consequence of relaxing it: `pipeline.ts` takes no category-meta parameter at
+all, and its three #44 sign guards each explicitly EXEMPT custom categories ("an
+unknown/custom category group can't be judged, so it is allowed"; "custom category — group
+unknown, so no claim is made"). The moment a custom may be income, that exemption stops
+being a documented no-op and becomes a defect: `keywordRuleSignOk` returns true for an
+OUTFLOW into a custom income category, `isSpendRow` then drops that row from reports,
+trends and budgets, and `monthlyFlows` still counts it as an expense — two surfaces
+disagreeing by the amount, with no badge and no review. That is the precise erasure
+`keywordRuleSignOk`'s own docblock was written to prevent, arriving through the one door
+it leaves open.
+
+So the honest prerequisite is: thread per-user meta into `pipeline.ts` and collapse all
+fourteen predicates onto one custom-aware basis, with the sign guards then able to judge a
+custom category instead of exempting it. Weighed against that: the system taxonomy already
+ships **eleven** income leaves (paycheck, bonus, side-income, interest-income,
+investment-income, rental-income, govt-benefits, tax-refund, reimbursement, refund), which
+covers the income shapes a real reader has, so the marginal capability bought is small
+while the blast radius is the whole auto-filing path. Deferred as its own slice — not
+cancelled, and with the work named so the next session does not re-derive it.
+
+**(c) Per-category "tax related" flag — a REAL gap, re-routed to rule then-actions
+(parity row 2).** The owner asked on 2026-07-27 for tax-time export, and today `taxClass`
+is per-TRANSACTION only, so charitable donations get tagged by hand one row at a time
+forever. The semantics question was settled first, on failure direction: the category's
+class must be a **write-time default stamped onto the row when it is filed**, never a
+read-time fallback in the export. A read-time fallback silently re-tags history whenever a
+category is edited, changing totals a reader may already have handed to a preparer, and it
+contradicts the tax module's own constitution ("the reader decides what belongs in each
+drawer, and the export reports what they put there and nothing more"). Write-time can only
+UNDER-tag, which is visible and fixable; read-time OVER-tags silently into a number that
+goes on a return.
+
+What blocks it as a *category* column is topology, not semantics: there is no single place
+that assigns a category to a row. `applyCategory` (triage), the register's recategorize,
+keyword-rule apply, the backfill, and both the Plaid and SimpleFIN ingest paths each write
+`categoryId` independently. Stamping the default at each is the fence-copied-per-call-site
+anti-pattern that has already cost this repo a P0, and it would silently miss every future
+write path. The instruction therefore belongs on the machinery that is already fenced and
+already has counted apply-to-existing plus undo: the rule then-action (parity row 2, which
+lists exactly this alongside rename/tags/note/exclude). Re-routed rather than refused.
+
+**Shipped with this decision, code-wise:** the two understated comments are corrected in
+place — `NON_CUSTOM_GROUPS` now records that fourteen readers across two maps depend on
+it and what breaks in `pipeline.ts` if it is relaxed, and `isIncomeCategoryId`'s "This is
+THE income test" now says it is one of fourteen. The invariant itself was already locked
+fail-old by `tests/unit/custom-category-lifecycle.test.ts` ("refuses the Income and
+Transfers groups") — checked rather than assumed, and the first draft of this decision
+claimed it was unlocked until that test was read.

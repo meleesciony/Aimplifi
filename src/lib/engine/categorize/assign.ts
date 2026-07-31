@@ -83,6 +83,30 @@ export function assignableGroups(
  * taxonomy, so they always net as spending) and transfers by flag/id, so a
  * custom placed in "Income" or "Transfers & Other" would be mis-aggregated. Excluding those two groups makes every custom a genuine
  * spending category, so a custom can never be mistaken for income or a transfer.
+ *
+ * HOW LOAD-BEARING THIS IS (measured 2026-07-30, O.13e decision, DECISIONS #345).
+ * The paragraph above names `isIncomeCategoryId`, which has exactly TWO call
+ * sites (`budgets/status.ts`, `fi/insights.ts`). That understates the
+ * dependency by an order of magnitude: "is this category income?" is answered in
+ * **14 places**, twelve of them inline `group === 'Income'` comparisons that
+ * never touch the shared predicate. Worse, those readers split across two
+ * different maps — `reports.ts` and `trends.ts` resolve through the PER-USER
+ * merged meta (custom-aware), while the other twelve read the static
+ * `CATEGORY_BY_ID` (custom-blind). Those two families agree today for one reason
+ * only: this exclusion.
+ *
+ * So do not relax this set as a UI convenience. Admitting a custom category to
+ * the Income group turns `pipeline.ts`'s three #44 sign guards from a documented
+ * exemption ("custom category — group unknown, so no claim is made") into a live
+ * defect: `keywordRuleSignOk` would return true for an OUTFLOW into a custom
+ * income category, `isSpendRow` would then drop that row from reports, trends and
+ * budgets while `monthlyFlows` still counted it as an expense — two surfaces
+ * disagreeing by the amount, with no badge and no review. The prerequisite for
+ * ever allowing it is threading per-user meta into `pipeline.ts` and collapsing
+ * all 14 predicates onto one custom-aware basis; see TASKS O.13e.
+ *
+ * Locked fail-old by `tests/unit/custom-category-lifecycle.test.ts` ("refuses the
+ * Income and Transfers groups").
  */
 const NON_CUSTOM_GROUPS: ReadonlySet<string> = new Set(['Income', 'Transfers & Other']);
 export const CUSTOM_CATEGORY_GROUPS: string[] = ASSIGNABLE_GROUPS.map((g) => g.group).filter(

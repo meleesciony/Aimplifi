@@ -152,6 +152,19 @@ export const CATEGORY_BY_ID = new Map(CATEGORIES.map((c) => [c.id, c]));
  * checks (`=== 'income'`) predate the #163 leaf taxonomy and silently
  * misclassify a real user's 'paycheck' payroll — see REGRESSION_LEDGER
  * 2026-07-05 (monthlyFlows) before adding a new id-literal income check.
+ *
+ * CORRECTION TO "THIS IS THE income test" (measured 2026-07-30, DECISIONS #345).
+ * It is one of fourteen. This function has exactly TWO call sites
+ * (`budgets/status.ts`, `fi/insights.ts`); the other twelve answers to "is this
+ * category income?" are inline `group === 'Income'` comparisons spread across
+ * pipeline / propose / learn / backfill / reports / trends / answer /
+ * keyword-rules / categorize-assist / plaid-map. They agree today only because a
+ * custom category can never be filed under the Income group — see the
+ * load-bearing note on `NON_CUSTOM_GROUPS` in `categorize/assign.ts`, which is
+ * what actually holds this together. Consolidating the fourteen onto one
+ * custom-aware basis is the prerequisite for an explicit Expense/Income type on
+ * custom categories (TASKS O.13e), NOT a cleanup that can be done casually:
+ * two of the fourteen already read a different (per-user) map than the rest.
  */
 export function isIncomeCategoryId(id: string): boolean {
   return CATEGORY_BY_ID.get(id)?.group === 'Income';
