@@ -349,6 +349,17 @@ export function TransactionDetailView({
     body.set('transactionId', row.id);
     try {
       const response = await fetch('/api/attachments', { method: 'POST', body });
+      // A signed-out upload is a LIKELY path, not an edge case: sessions idle out
+      // after 30 minutes (O.4), and a detail page left open across lunch is exactly
+      // where someone comes back and attaches a receipt. The middleware answers
+      // `{"error":"Unauthorized"}` for any /api route, and this form shows the
+      // server's message verbatim — so without this branch the reader is told
+      // "Unauthorized" instead of what to do about it.
+      if (response.status === 401) {
+        throw new RefusalError(
+          'You have been signed out — nothing was saved. Sign in again, then attach the file.',
+        );
+      }
       const result: unknown = await response.json().catch(() => null);
       const ok =
         typeof result === 'object' && result !== null && (result as { ok?: unknown }).ok === true;

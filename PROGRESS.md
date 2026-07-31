@@ -8117,3 +8117,34 @@ connection-level failure and a rising socket debt that tracks the failure rate.
 The next V.1 step is cheap and named: measure TIME_WAIT before/after each run
 against the failure count, and check whether an idle machine (or `MaxUserPort` /
 `TcpTimedWaitDelay`) moves the rate.
+
+### O.13h — DEPLOY VERIFIED — 2026-07-31
+
+Commit `12786da`, pushed to origin/main (in sync, clean tree). Deployment
+`aimplifi-hqk0z8cum-reiforge.vercel.app` reached **● Ready**, `target: production`,
+holding **www.aimplifi.app** and **aimplifi.app** (watched BUILDING → READY rather
+than read once, per the alias-lag precedent).
+
+**The build log is the evidence, and it is stronger than the last few slices could
+manage** — the routes themselves are new, so the route table names them:
+
+```
+Cloning github.com/meleesciony/Aimplifi (Branch: main, Commit: 12786da)
+Datasource "db": PostgreSQL database "pulse", schema "public" at "ep-proud-sound-atpgfoct...neon.tech"
+🚀  Your database is now in sync with your Prisma schema. Done in 577ms
+├ ƒ /api/attachments
+├ ƒ /api/attachments/[id]
+├ ƒ /transactions/[id]
+```
+
+The cloned commit equals local HEAD exactly. **The live Neon database DID change this
+time** — unlike every recent slice — and that is the point of the `db push` line: the
+two additive tables were created. No existing column was touched (`git diff` on
+prisma/: 47 insertions, 0 deletions).
+
+**A live HTTP check was ATTEMPTED and is UNAVAILABLE from this shell, recorded rather
+than quietly skipped.** `curl https://www.aimplifi.app/sign-in` returns 000, but so does
+`curl https://api.github.com` — DNS resolution is blocked for curl in this sandbox, so
+the 000 says nothing about the site and must not be read as an outage. The deployment
+record plus the build-log route table is the evidence; a fetched byte from the live app
+remains unavailable for auth-gated surfaces, as it was for slices 4–7 and O.16a.
