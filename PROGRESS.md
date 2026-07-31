@@ -8198,3 +8198,13 @@ two fixtures, which is why the field is required).
 
 **Gate after the cycle:** `npx tsc --noEmit` 0, `npx eslint . --max-warnings=0` 0,
 **5159 unit / 322 files** (+2 locks), `docs:lint` clean (111 files).
+
+### O.13h — CRITIC-CYCLE DEPLOY VERIFIED — 2026-07-31
+
+Commit `e5e7b48`. Deployment `aimplifi-myafr2b6r-reiforge.vercel.app` **● Ready**,
+build log `Cloning … (Branch: main, Commit: e5e7b48)` matching HEAD, route table
+carrying `ƒ /api/attachments` and `ƒ /api/attachments/[id]`, and holding
+**www.aimplifi.app** + **aimplifi.app**. No schema change in this commit (the two
+tables landed with `12786da`), so Neon took no DDL here.
+
+O.13h is shipped, criticized, fixed, re-verified and live.
