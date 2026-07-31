@@ -2,6 +2,85 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-07-30 — O.15 slice 6: a rule can tag it for taxes (DECISIONS #346)
+
+SIMPLIFI_PARITY row 2 (rule THEN-actions), and the delivery of the half
+DECISIONS #345(c) deferred: Simplifi puts a **Tax Related** toggle on the
+CATEGORY, and #345 measured that shape against this codebase and refused it —
+`applyCategory`, recategorize, keyword-rule apply, backfill, Plaid and SimpleFIN
+each write `categoryId` independently, so a per-category flag would have to be
+honoured at six call sites. The rule machinery is already ONE fenced path with a
+counted, previewed, opt-in apply-to-existing. So the flag lives on the rule:
+`CategorizationRule.setTaxClass` (one additive nullable column).
+
+**The semantics, each a failure-direction call.** A WRITE-TIME stamp, never a
+read-time lookup: a read-time "is this category tax-related?" would silently
+re-tag months of history the moment the reader edited a category, changing a
+total they may already have handed a preparer. A stamp can only ever UNDER-tag,
+and an under-tag is visible in the export. And it NEVER overwrites a tag already
+on the row — including an unrecognized one, because overwriting would destroy the
+only record of what the reader chose.
+
+**Who may tag.** Only an explicit typed rule that actually FILES the row. Never a
+learned rule (the app's own inference — the same line the rename action draws),
+never a merchant default, never a provider guess, never a transfer, never the LLM
+backfill pass, and never a sync UPDATE of a row that already exists. Written on
+ingest (Plaid/SimpleFIN create, CSV, manual entry), on the backfill, and on the
+counted apply-to-existing.
+
+**Two guards, not one.** The pure decision (`engine/categorize/tax-action.ts`)
+and a SQL clause on every write (`taxClass` null-or-blank AND
+`excludeFromTotals: false`). Measured: with the in-memory filter mutated away, the
+SQL guard alone still preserved the reader's tag and the reported count stayed
+honest, because it reads the update's own `res.count`.
+
+**HOSTILE CRITIC CYCLE 1 — two fresh-context critics, both FAIL: 1 P0, 7 P1, and
+several P2/P3, all fixed and ledger-locked.** They converged INDEPENDENTLY on the
+sharpest one: the first cut tagged the reader's HAND-FILED outlier while the same
+toast told him the row was "left as it was" — a rule writing a deduction claim
+onto a row it had explicitly refused to re-file. Excluding hand-filed rows both
+makes the sentence true and restores the invariant the feature states everywhere
+else. The second P1 was the same shape one level out: `exclude.ts` records that
+the export deliberately still counts a row the reader both TAGGED and EXCLUDED
+("two orders"), and that premise died the moment a RULE became the tagger — the
+reader had given exactly one order, "this is not my spending", and money he
+removed from every other total would have landed in a figure bound for a return.
+The rest were claims: an apply checkbox whose count described a different set from
+the write, an Undo button that covers the filings and not the tags, three shipped
+sentences ("a record of your own tagging") that a rule-written tag falsifies, and
+both rule-list footers enumerating what survives a delete without mentioning the
+new action.
+
+**One defect the tests found that no critic did:** the backfill's tag guard,
+first written as a clause on the SAME `updateMany` as the category, made a row
+carrying a blank tag lose its category re-file entirely — a silent under-file
+bought to buy a tag guard. Split into two writes, each matching exactly what it is
+allowed to touch.
+
+### 🟠 OPEN / residual, recorded rather than implied
+
+1. **The tag write has no per-row undo.** The apply's category re-files mint
+   Corrections and the page offers "Undo those N filings"; the tags are not
+   Corrections and are not reverted by it. This is disclosed in three places the
+   reader actually sees (the apply checkbox, the save receipt, the post-undo
+   sentence) rather than left to be discovered. It is bounded by the fact that the
+   stamp can only ever fill a blank — clearing it on `/transactions/[id]` restores
+   exactly the prior state — but for a rule that tagged 200 rows that is 200
+   navigations, and there is no "rows this rule tagged" filter. A real undo would
+   need the tagged ids to survive the request; not built.
+2. **Deleting a rule, or clearing its tax action, does not un-tag history** — the
+   same stance `deleteKeywordRule` already documents for categories and renames.
+   Now stated in both rule-list footers.
+3. **The Plaid pending→posted churn fix is provider-asymmetric.** SimpleFIN has no
+   transplant at all: a pending row whose ref changes when it posts is deleted by
+   `reconcilePendingTransactions` and re-created, which destroys the same four
+   columns (and the Correction chain) that the Plaid path now carries across. That
+   is pre-existing and untouched here; naming it because this slice's own framing
+   ("fixed as a data CLASS") would otherwise read as if the class were covered.
+4. **Only two of the four Plaid churn branches are asserted** (the default settled
+   branch and the review-pinned one). The split-container and dissolve branches
+   take the same spread and are unasserted.
+
 ## 🧭 DECIDED 2026-07-30 — O.15 slice 5 / O.13e: category parity is three questions (DECISIONS #345)
 
 TASKS O.13e bundles three Simplifi capabilities under one row and says to decide

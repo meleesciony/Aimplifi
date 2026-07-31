@@ -1251,9 +1251,43 @@ export class PlaidProvider implements DataProvider {
                         isTransfer: true,
                         isSplitParent: true,
                         reviewPinned: true,
+                        // The reader's OWN per-row state (O.15 slice 6). Selected
+                        // because the predecessor row is DELETED at the end of every
+                        // branch below and these columns live nowhere else — see
+                        // `carriedReaderState`.
+                        taxClass: true,
+                        note: true,
+                        excludeFromTotals: true,
+                        reimbursement: true,
                       },
                     });
                     if (!predecessor) return false;
+                    /**
+                     * Everything on this row that the READER put there, carried
+                     * across the pending→posted id churn.
+                     *
+                     * Found while wiring the rule tag action (O.15 slice 6) and
+                     * fixed as a data CLASS rather than as the one column that
+                     * slice touches, because all four fail identically: Plaid
+                     * re-sends a settled charge under a NEW `transaction_id`, this
+                     * branch creates a replacement row and deletes the predecessor,
+                     * and only `Correction` and `CategoryPrediction` were followed
+                     * across. A tax tag, a note, an exclude-from-totals flag and a
+                     * reimbursement state set on a PENDING row were therefore
+                     * destroyed when it posted — silently, on a schedule nobody
+                     * watches, with the row still on screen looking untouched.
+                     *
+                     * Spread AFTER `...data` at every create site below so it wins:
+                     * `data` carries what the BANK knows, this carries what the
+                     * reader decided, and the reader outranks the feed on their own
+                     * columns exactly as they already do on the category verdict.
+                     */
+                    const carriedReaderState = {
+                      taxClass: predecessor.taxClass,
+                      note: predecessor.note,
+                      excludeFromTotals: predecessor.excludeFromTotals,
+                      reimbursement: predecessor.reimbursement,
+                    };
                     if (predecessor.isSplitParent) {
                       // Cycle-2 P0: a split PENDING parent posting under a new id was
                       // deleted with isSplitParent dropped — children dangled (no FK)
@@ -1278,6 +1312,7 @@ export class PlaidProvider implements DataProvider {
                             needsReview: false,
                             isTransfer: predecessor.isTransfer,
                             isSplitParent: true,
+                            ...carriedReaderState,
                           },
                         });
                         await tx.transaction.updateMany({
@@ -1321,6 +1356,7 @@ export class PlaidProvider implements DataProvider {
                           confidenceBps: null,
                           // Durable across re-sends (cycle-4 P1, DECISIONS #148).
                           reviewPinned: true,
+                          ...carriedReaderState,
                         },
                       });
                       // Scoped by transactionId only — see the container-path comment
@@ -1348,6 +1384,7 @@ export class PlaidProvider implements DataProvider {
                           needsReview: true,
                           confidenceBps: null,
                           reviewPinned: true,
+                          ...carriedReaderState,
                         },
                       });
                       // Scoped by transactionId only — see the container-path comment
@@ -1375,6 +1412,7 @@ export class PlaidProvider implements DataProvider {
                         confidenceBps: settled ? predecessor.confidenceBps : row.confidenceBps,
                         needsReview: settled ? false : row.needsReview,
                         isTransfer: settled ? predecessor.isTransfer : row.isTransfer,
+                        ...carriedReaderState,
                       },
                     });
                     // Corrections follow the transaction across the id churn (audit =
@@ -1400,7 +1438,18 @@ export class PlaidProvider implements DataProvider {
               } else {
                 try {
                   const createdRow = await prisma.transaction.create({
-                    data: { accountId, providerRef: row.providerRef, ...data },
+                    data: {
+                      accountId,
+                      providerRef: row.providerRef,
+                      ...data,
+                      // O.15 slice 6: a rule's tag action, applied ONLY here — the
+                      // one path that brings a row into existence, where there is
+                      // no reader answer to overwrite. Every UPDATE path below
+                      // deliberately omits it: a row that already exists carries
+                      // whatever tag its reader put there, and a sync may not
+                      // re-answer a question they have already answered.
+                      ...(row.taxClassStamp ? { taxClass: row.taxClassStamp } : {}),
+                    },
                   });
                   // Log the pipeline's verdict for the accuracy metric + threshold
                   // tuning (DECISIONS #190): the live-path counterpart of the seed's

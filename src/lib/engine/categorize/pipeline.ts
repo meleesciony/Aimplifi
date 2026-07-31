@@ -16,6 +16,7 @@ import { CATEGORY_BY_ID } from './categories';
 import { keywordSpecificity, keywordsMatch } from './keyword-rule';
 import { normalizeMerchant } from './normalize';
 import { computeDescriptorSignature } from './signature';
+import { resolveRuleTaxStamp } from './tax-action';
 import { TRANSFER_CONFIDENCE_BPS } from './transfers';
 
 export const AUTO_SILENT_BPS = 9000;
@@ -73,6 +74,14 @@ export interface RuleLike {
    * before O.13c and on learned rules, so existing behavior is byte-identical.
    */
   renameTo?: string | null;
+  /**
+   * Tag-for-taxes action (O.15 slice 6, Simplifi parity row 2). When the rule FILES
+   * a transaction, the row's `taxClass` becomes this slug — unless the row already
+   * carries one, which is never overwritten (categorize/tax-action.ts holds the
+   * whole decision and the reasoning for it). Absent/null on every rule stored
+   * before this slice and on learned rules, so existing behavior is byte-identical.
+   */
+  setTaxClass?: string | null;
   minAmountCents: number | null;
   maxAmountCents: number | null;
   weekendOnly: boolean | null;
@@ -99,6 +108,19 @@ export interface TxnInput {
    * categorize path for every ingest source; this keeps it golden-safe).
    */
   providerCategoryHint?: { categoryId: string; confidenceBps: number } | null;
+  /**
+   * The tax tag the row ALREADY carries, for the rule tax-stamp decision (O.15
+   * slice 6). Absent/undefined means untagged, which is true by construction of
+   * every NEW row an ingest writer is about to create — so only the paths that
+   * re-categorize an EXISTING row (the backfill) need to pass it, and the ones
+   * that don't keep their exact prior behaviour.
+   *
+   * It is passed IN rather than the decision being made at each writer because
+   * "may this rule tag this row" is one question with one answer; asking it at six
+   * write sites is the fence-by-call-site anti-pattern DECISIONS #345(c) refused a
+   * per-category flag over in the first place.
+   */
+  currentTaxClass?: string | null;
 }
 
 export type CategorySource =
@@ -189,6 +211,17 @@ export interface CategorizedTxn {
   aiBadge: boolean;
   source: CategorySource;
   matchedRuleId: string | null;
+  /**
+   * The tax tag to WRITE onto this row, or null for "leave `taxClass` exactly as
+   * it is" (O.15 slice 6). Non-null only when a rule that actually FILED this row
+   * carries the action AND the row is untagged — the whole decision lives in
+   * `resolveRuleTaxStamp`, so a writer's only job is `if (taxClassStamp) write it`.
+   *
+   * It is null on every path that is not a user-rule match, which is what keeps
+   * every non-rule filing byte-identical: a transfer, a merchant default, a
+   * provider-category rescue and a fallback all tag nothing, exactly as before.
+   */
+  taxClassStamp: string | null;
 }
 
 export function ruleMatches(rule: RuleLike, txn: TxnInput, merchantCanonical: string): boolean {
@@ -245,6 +278,10 @@ export function categorize(
       aiBadge: false,
       source: 'transfer',
       matchedRuleId: null,
+      // A transfer returns BEFORE rules are consulted, so no rule can tag it —
+      // which is also why `matchableWhere` excludes transfers from a rule's apply
+      // set. The two paths agree by construction.
+      taxClassStamp: null,
     };
   }
 
@@ -314,6 +351,19 @@ export function categorize(
       aiBadge: learned, // a learned rule is a visible, correctable guess
       source: 'user-rule',
       matchedRuleId: rule.id,
+      // Tag-for-taxes (O.15 slice 6). Gated on `!learned` for the same reason the
+      // rename is: a learned rule is the app's own inference, and a tax tag is a
+      // claim about a deduction — only an instruction the reader typed may make it.
+      // `learn.ts` never sets the column, so this is defence in depth rather than
+      // the only guard. And it sits INSIDE the branch that files, so a rule the
+      // sign check refused above tags nothing either: the row keeps its identity,
+      // its category and its blank tag, and lands in review where it can be seen.
+      taxClassStamp: learned
+        ? null
+        : resolveRuleTaxStamp({
+            ruleTaxClass: rule.setTaxClass,
+            currentTaxClass: txn.currentTaxClass,
+          }),
     };
   }
 
@@ -339,6 +389,9 @@ export function categorize(
       aiBadge: false,
       source: 'fallback',
       matchedRuleId: null,
+      // No rule filed this row (the reader declared the amount context ambiguous),
+      // so no rule tags it either.
+      taxClassStamp: null,
     };
   }
 
@@ -366,6 +419,8 @@ export function categorize(
       aiBadge: hint.confidenceBps < AUTO_SILENT_BPS,
       source: 'provider-category',
       matchedRuleId: null,
+      // The provider's guess is not the reader's instruction, so it tags nothing.
+      taxClassStamp: null,
     };
   }
 
@@ -391,6 +446,7 @@ export function categorize(
       aiBadge: false,
       source: 'fallback',
       matchedRuleId: null,
+      taxClassStamp: null,
     };
   }
 
@@ -403,6 +459,9 @@ export function categorize(
     aiBadge: !needsReview && merchant.confidenceBps < AUTO_SILENT_BPS,
     source: merchant.known ? 'merchant-default' : 'fallback',
     matchedRuleId: null,
+    // A merchant default is the app's own inference about an identity, not an
+    // instruction — the same line the rename action draws.
+    taxClassStamp: null,
   };
 }
 

@@ -228,6 +228,7 @@ describe('backfill sign guard accepts any Income-GROUP leaf (#163)', () => {
     accountId: 'a',
     categoryId: 'uncategorized',
     needsReview: true,
+    taxClass: null,
     ...over,
   });
 

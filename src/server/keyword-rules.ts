@@ -47,6 +47,12 @@ import {
   parseKeywordGroups,
   storedKeywordGroups,
 } from '@/lib/engine/categorize/keyword-rule';
+import {
+  hasTag,
+  normalizeSetTaxClass,
+  resolveRuleTaxStamp,
+} from '@/lib/engine/categorize/tax-action';
+import { isTaxClass } from '@/lib/engine/tax/classes';
 import { parseDollarInput } from '@/lib/money';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
@@ -107,6 +113,27 @@ export interface KeywordRulePreview {
    * category" has no meaning before then.
    */
   handFiledCount: number | null;
+  /**
+   * Rows the tag-for-taxes action would newly tag (O.15 slice 6) — see `taxTagSets`
+   * for the three populations it subtracts. `null` until BOTH a tax class and a
+   * target category are chosen: the sign guard is part of the set, so a count shown
+   * before a category exists is a promise the save would then reduce, and a tag
+   * count is the number this feature is judged on.
+   *
+   * Counted separately from `wouldFileCount` because the two answer different
+   * questions and their sets genuinely differ: a row already in the right category
+   * is written by no re-file and still takes the tag.
+   */
+  wouldTagCount: number | null;
+  /**
+   * Matched rows that ALREADY carry a tax tag and are therefore left alone.
+   * Reported rather than silently skipped, for the same reason `preservedHandFiled`
+   * is: a reader who is told "12 rows match" and sees "tagged 9" has been handed a
+   * contradiction unless the other 3 are named. It counts rows carrying ANY tag,
+   * including this rule's own class — so the copy beside it may not imply those rows
+   * are outside the class.
+   */
+  alreadyTaggedCount: number | null;
 }
 
 /**
@@ -186,6 +213,8 @@ type MatchRow = {
   date: string;
   categoryId: string | null;
   needsReview: boolean;
+  taxClass: string | null;
+  excludeFromTotals: boolean;
 };
 
 const MATCH_SELECT = {
@@ -196,6 +225,12 @@ const MATCH_SELECT = {
   categoryId: true,
   // Half of the hand-filed test — see `handFiledIds`.
   needsReview: true,
+  // O.15 slice 6: the tag action never overwrites a tag that is already there, so
+  // both the preview's count and the write's set have to be able to see one.
+  taxClass: true,
+  // …and it never bulk-tags a row the reader has taken OUT of his spending — see
+  // `taxTagSets` for why that carve-out does not transfer from a hand tag to a rule.
+  excludeFromTotals: true,
 } as const;
 
 type FindManyClient = {
@@ -282,6 +317,76 @@ function signWouldErase(categoryId: string, amountCents: number): boolean {
   const cat = CATEGORY_BY_ID.get(categoryId);
   if (!cat) return false;
   return cat.group === 'Income' && amountCents < 0;
+}
+
+/**
+ * The tag-for-taxes action's row sets (O.15 slice 6) — ONE derivation, called by
+ * the preview and by the write, because this file's core invariant is that the
+ * number shown to the reader IS the population written.
+ *
+ * The eligible set is NOT the re-file set — a row already sitting in the rule's
+ * category is written by no re-file at all, and it is exactly the row a reader
+ * adding a tag action to an existing rule is trying to reach. It is the re-file
+ * set plus those already-correct rows, and MINUS three populations:
+ *
+ *  - SIGN-REFUSED rows, for the reason the rename docblock gives one level up:
+ *    `categorize` tags only a rule that actually FILED, so tagging a row the
+ *    pipeline refuses would make the same row carry one answer from a backfill and
+ *    a different one from the next sync.
+ *  - HAND-FILED outliers. The first cut excluded them from the re-file and tagged
+ *    them anyway, on the argument that their exclusion protects a CATEGORY and a
+ *    tag is not a category. Two independent fresh-context critics falsified that
+ *    the same way: the reader is shown "1 transaction you filed yourself was left
+ *    as it was" about a row a rule had just written a DEDUCTION CLAIM onto. A
+ *    Correction means "I decided this row", and of the two decisions the tag is the
+ *    higher-stakes one. Excluding them also restores the invariant this feature
+ *    states everywhere else — a rule tags only what it files or already agrees with.
+ *  - EXCLUDED rows (`excludeFromTotals`). `engine/transactions/exclude.ts` records
+ *    that the tax export deliberately still counts a row the reader both tagged AND
+ *    excluded, because "a row given two orders" should not lose the deduction
+ *    silently. That reasoning was written when the only way to get a `taxClass` was
+ *    the reader typing it on that row. Here the reader gave exactly ONE order —
+ *    "this is not my spending" — and a rule would supply the other, putting money he
+ *    removed from every other total into a figure he may hand a preparer. He can
+ *    still tag such a row by hand, which is the case the carve-out was written for.
+ */
+function taxTagSets(
+  rows: readonly MatchRow[],
+  categoryId: string | undefined,
+  setTaxClass: string | null,
+  handFiled: ReadonlySet<string>,
+): { toTag: MatchRow[]; alreadyTagged: number } {
+  if (!isTaxClass(setTaxClass)) return { toTag: [], alreadyTagged: 0 };
+  const eligible = rows.filter(
+    (r) =>
+      !handFiled.has(r.id) &&
+      !r.excludeFromTotals &&
+      (categoryId === undefined || !signWouldErase(categoryId, r.amountCents)),
+  );
+  return {
+    toTag: eligible.filter(
+      (r) => resolveRuleTaxStamp({ ruleTaxClass: setTaxClass, currentTaxClass: r.taxClass }) !== null,
+    ),
+    alreadyTagged: eligible.filter((r) => hasTag(r.taxClass)).length,
+  };
+}
+
+/**
+ * The WHERE-clause half of the same invariant: a row may take the stamp only while
+ * it is still untagged AND still counted. Spelled as an explicit OR rather than
+ * `taxClass: null` because `hasTag` counts a blank string as untagged, and a
+ * preview that counted a row the write then skipped would be the contradiction this
+ * file exists to avoid. A function rather than a const so Prisma gets a mutable
+ * array (its `OR` input type is not readonly).
+ *
+ * Callers compose it under `AND` rather than spreading it: it carries a TOP-LEVEL
+ * `OR`, and today it only survives a spread beside `matchableWhere` because that
+ * one's `OR` is nested inside `account`. The day anyone adds a top-level `OR`
+ * there, a spread would drop this guard silently — which is the whole class of
+ * failure it exists to prevent.
+ */
+function untaggedWhere() {
+  return { OR: [{ taxClass: null }, { taxClass: '' }], excludeFromTotals: false };
 }
 
 /** Category ids a durable rule may never target, each for a stated reason. */
@@ -414,6 +519,8 @@ export async function previewKeywordRule(input: {
   accountId?: string | null;
   minAmountRaw?: string;
   maxAmountRaw?: string;
+  /** O.15 slice 6 — the tag-for-taxes action, so its counts preview like the rest. */
+  setTaxClass?: string | null;
 }): Promise<KeywordRulePreview> {
   const userId = await requireUserId();
   const conditions = await resolveConditions(userId, input);
@@ -445,6 +552,14 @@ export async function previewKeywordRule(input: {
   const wouldFile = known
     ? eligiblePreview.filter((r) => !signWouldErase(target!, r.amountCents)).length
     : rows.length - alreadyCorrect.length;
+  // O.15 slice 6 — the same derivation the write runs, so the two counts cannot
+  // drift. `known ? target : undefined` keeps the sign guard out of it until a real
+  // category is chosen, exactly as `wouldFile` does above.
+  const setTaxClass = normalizeSetTaxClass(input.setTaxClass);
+  const tags = taxTagSets(rows, known ? target : undefined, setTaxClass, handFiled);
+  // Suppressed until a category is chosen too: the sign guard is part of the set,
+  // so counting before then would show a number the save reduces (critic P3).
+  const tagCountsReady = setTaxClass !== null && known;
   return {
     groups: conditions.groups,
     matchCount: rows.length,
@@ -455,6 +570,8 @@ export async function previewKeywordRule(input: {
     wouldFileCount: wouldFile,
     signMismatchCount: known ? wrongSign.length : null,
     handFiledCount: preserved,
+    wouldTagCount: tagCountsReady ? tags.toTag.length : null,
+    alreadyTaggedCount: tagCountsReady ? tags.alreadyTagged : null,
     inflowCount: rows.filter((r) => r.amountCents > 0).length,
     outflowCount: rows.filter((r) => r.amountCents < 0).length,
     samples: rows.slice(0, 5).map((r) => ({
@@ -486,8 +603,17 @@ export interface CreateKeywordRuleResult {
   preservedHandFiled: number;
   /** Rows whose payee was renamed now (0 when no rename or the reader declined). */
   renamed: number;
+  /**
+   * Rows newly tagged for taxes (O.15 slice 6). Rows ACTUALLY written, read off the
+   * update's own count — never the size of the intended set, so a row tagged by
+   * hand inside the read→write window is not claimed.
+   */
+  taxTagged: number;
+  /** Matched rows left alone because they already carried a tag. */
+  taxAlreadyTagged: number;
   /** The stored THEN action + conditions, echoed for the client's optimistic list. */
   renameTo: string | null;
+  setTaxClass: string | null;
   accountId: string | null;
   minAmountCents: number | null;
   maxAmountCents: number | null;
@@ -515,10 +641,17 @@ export interface CreateKeywordRuleResult {
  */
 async function applyRuleToHistory(
   userId: string,
-  rule: { id: string; categoryId: string; renameTo: string | null },
+  rule: { id: string; categoryId: string; renameTo: string | null; setTaxClass: string | null },
   conditions: KeywordRuleConditions,
   opts: { claimLineage: boolean },
-): Promise<{ ids: string[]; wrongSign: number; renamed: number; preserved: number }> {
+): Promise<{
+  ids: string[];
+  wrongSign: number;
+  renamed: number;
+  preserved: number;
+  taxTagged: number;
+  taxAlreadyTagged: number;
+}> {
   return serializableTx(async (tx) => {
     const targets = await matchingRows(userId, conditions, tx);
     // The reader's own outliers, left exactly as he filed them (owner 2026-07-30).
@@ -628,7 +761,32 @@ async function applyRuleToHistory(
       });
       renamed = res.count;
     }
-    return { ids, wrongSign, renamed, preserved };
+
+    // TAG FOR TAXES (O.15 slice 6). Third and lightest of the three writes: it
+    // creates no Correction, because a tag is not a category decision and the
+    // undo path unwinds category decisions. What it is instead is REVERSIBLE BY
+    // HAND on a control that already exists — the tax select on /transactions/[id]
+    // — and it can only ever fill a blank, never change an answer. That pairing is
+    // what makes a per-row undo unnecessary rather than merely absent, and the
+    // residual is recorded in docs/STATUS.md rather than implied.
+    const tags = taxTagSets(targets, rule.categoryId, rule.setTaxClass, handFiled);
+    let taxTagged = 0;
+    if (tags.toTag.length > 0 && isTaxClass(rule.setTaxClass)) {
+      const res = await tx.transaction.updateMany({
+        where: {
+          id: { in: tags.toTag.map((t) => t.id) },
+          // Re-asserted like the re-file's write, and for one more reason on top:
+          // `untaggedWhere()` makes "never overwrite a tag, never tag an excluded
+          // row" hold in SQL, so a tag or an exclusion the reader sets between this
+          // transaction's read and its write survives even though the row was in
+          // the intended set. Composed under AND — see that function's docblock.
+          AND: [untaggedWhere(), matchableWhere(userId, conditions.accountId)],
+        },
+        data: { taxClass: rule.setTaxClass },
+      });
+      taxTagged = res.count;
+    }
+    return { ids, wrongSign, renamed, preserved, taxTagged, taxAlreadyTagged: tags.alreadyTagged };
   });
 }
 
@@ -652,6 +810,11 @@ export interface KeywordRuleInput {
   categoryId: string;
   /** Optional THEN action: rename the payee on matched rows (O.13c). Blank = none. */
   renameTo?: string | null;
+  /**
+   * Optional THEN action: tag matched rows for taxes (O.15 slice 6). One of the
+   * closed set in engine/tax/classes.ts; blank or unrecognized = no tag action.
+   */
+  setTaxClass?: string | null;
   /** Optional IF condition: only rows on this account (O.13c). Falsy = any account. */
   accountId?: string | null;
   /** Optional IF condition: minimum absolute amount, as typed ("$25"). Blank = none. */
@@ -674,6 +837,7 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
   const conditions = await resolveConditions(userId, input);
   assertUsableKey(conditions.groups);
   const renameTo = normalizeRenameTo(input.renameTo);
+  const setTaxClass = normalizeSetTaxClass(input.setTaxClass);
   // Both writes reference Category rows by id (#65) — the same guard
   // `applyCategory` and `fileMerchantGroup` run for exactly this reason.
   await ensureCategories();
@@ -685,6 +849,7 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
       priority: KEYWORD_RULE_PRIORITY,
       ...keywordColumns(conditions.groups),
       renameTo,
+      setTaxClass,
       accountId: conditions.accountId,
       minAmountCents: conditions.minAmountCents,
       maxAmountCents: conditions.maxAmountCents,
@@ -697,12 +862,16 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
     keywordCount: conditions.groups.reduce((n, g) => n + g.length, 0),
     groupCount: conditions.groups.length,
     hasRename: renameTo !== null,
+    // The CLASS, never a count of rows: it is a closed-set slug, not the reader's text.
+    taxClass: setTaxClass,
   });
 
   let affected = 0;
   let skippedWrongSign = 0;
   let preservedHandFiled = 0;
   let renamed = 0;
+  let taxTagged = 0;
+  let taxAlreadyTagged = 0;
   const correctionIds: string[] = [];
   if (input.applyToExisting) {
     // Re-read INSIDE the transaction (applyRuleToHistory) — DECISIONS #146: a
@@ -710,7 +879,7 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
     // `fromCategoryId` the row never had.
     const written = await applyRuleToHistory(
       userId,
-      { id: rule.id, categoryId: input.categoryId, renameTo },
+      { id: rule.id, categoryId: input.categoryId, renameTo, setTaxClass },
       conditions,
       // The rule was minted by THIS action, so its undo may delete it.
       { claimLineage: true },
@@ -720,12 +889,15 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
     skippedWrongSign = written.wrongSign;
     preservedHandFiled = written.preserved;
     renamed = written.renamed;
-    if (affected > 0 || renamed > 0) {
+    taxTagged = written.taxTagged;
+    taxAlreadyTagged = written.taxAlreadyTagged;
+    if (affected > 0 || renamed > 0 || taxTagged > 0) {
       await auditLog(userId, 'rule.batch-apply', {
         ruleId: rule.id,
         categoryId: input.categoryId,
         affected,
         renamed,
+        taxTagged,
       });
     }
   }
@@ -743,7 +915,10 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
     skippedWrongSign,
     preservedHandFiled,
     renamed,
+    taxTagged,
+    taxAlreadyTagged,
     renameTo,
+    setTaxClass,
     accountId: conditions.accountId,
     minAmountCents: conditions.minAmountCents,
     maxAmountCents: conditions.maxAmountCents,
@@ -778,6 +953,7 @@ export async function updateKeywordRule(
   const conditions = await resolveConditions(userId, input);
   assertUsableKey(conditions.groups);
   const renameTo = normalizeRenameTo(input.renameTo);
+  const setTaxClass = normalizeSetTaxClass(input.setTaxClass);
   await ensureCategories();
 
   await prisma.categorizationRule.update({
@@ -786,6 +962,7 @@ export async function updateKeywordRule(
       categoryId: input.categoryId,
       ...keywordColumns(conditions.groups),
       renameTo,
+      setTaxClass,
       accountId: conditions.accountId,
       minAmountCents: conditions.minAmountCents,
       maxAmountCents: conditions.maxAmountCents,
@@ -797,17 +974,21 @@ export async function updateKeywordRule(
     keywordCount: conditions.groups.reduce((n, g) => n + g.length, 0),
     groupCount: conditions.groups.length,
     hasRename: renameTo !== null,
+    // The CLASS, never a count of rows: it is a closed-set slug, not the reader's text.
+    taxClass: setTaxClass,
   });
 
   let affected = 0;
   let skippedWrongSign = 0;
   let preservedHandFiled = 0;
   let renamed = 0;
+  let taxTagged = 0;
+  let taxAlreadyTagged = 0;
   const correctionIds: string[] = [];
   if (input.applyToExisting) {
     const written = await applyRuleToHistory(
       userId,
-      { id: existing.id, categoryId: input.categoryId, renameTo },
+      { id: existing.id, categoryId: input.categoryId, renameTo, setTaxClass },
       conditions,
       // The rule PRE-EXISTED this edit, so undoing the re-apply must put the
       // transactions back WITHOUT deleting a rule the reader only changed (P1-1).
@@ -818,12 +999,15 @@ export async function updateKeywordRule(
     skippedWrongSign = written.wrongSign;
     preservedHandFiled = written.preserved;
     renamed = written.renamed;
-    if (affected > 0 || renamed > 0) {
+    taxTagged = written.taxTagged;
+    taxAlreadyTagged = written.taxAlreadyTagged;
+    if (affected > 0 || renamed > 0 || taxTagged > 0) {
       await auditLog(userId, 'rule.batch-apply', {
         ruleId: existing.id,
         categoryId: input.categoryId,
         affected,
         renamed,
+        taxTagged,
       });
     }
   }
@@ -839,7 +1023,10 @@ export async function updateKeywordRule(
     skippedWrongSign,
     preservedHandFiled,
     renamed,
+    taxTagged,
+    taxAlreadyTagged,
     renameTo,
+    setTaxClass,
     accountId: conditions.accountId,
     minAmountCents: conditions.minAmountCents,
     maxAmountCents: conditions.maxAmountCents,
@@ -853,6 +1040,8 @@ export interface StoredKeywordRule {
   groups: string[][];
   categoryId: string;
   renameTo: string | null;
+  /** Tag-for-taxes THEN action (O.15 slice 6). Null when the rule tags nothing. */
+  setTaxClass: string | null;
   accountId: string | null;
   minAmountCents: number | null;
   maxAmountCents: number | null;
@@ -873,6 +1062,7 @@ export async function listKeywordRules(): Promise<StoredKeywordRule[]> {
       matchKeywordGroups: true,
       categoryId: true,
       renameTo: true,
+      setTaxClass: true,
       accountId: true,
       minAmountCents: true,
       maxAmountCents: true,
@@ -887,6 +1077,10 @@ export async function listKeywordRules(): Promise<StoredKeywordRule[]> {
       groups: storedKeywordGroups(r),
       categoryId: r.categoryId,
       renameTo: r.renameTo,
+      // Re-validated on the READ path, never trusted from the column: an
+      // unrecognized slug must render as "no tag action" on the list for exactly
+      // the same reason `resolveRuleTaxStamp` refuses to write one.
+      setTaxClass: isTaxClass(r.setTaxClass) ? r.setTaxClass : null,
       accountId: r.accountId,
       minAmountCents: r.minAmountCents,
       maxAmountCents: r.maxAmountCents,

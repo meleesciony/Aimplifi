@@ -466,6 +466,23 @@ model CategorizationRule {
   // merchant canonical becomes THIS name — identity-level grouping across every
   // descriptor variant the keywords span. Null = no rename (all pre-O.13c rows).
   renameTo       String?
+  // Tag-for-taxes action (O.15 slice 6, Simplifi parity row 2 — the per-category
+  // "Tax Related" flag re-routed here by DECISIONS #345(c)). When this rule files
+  // a row, the row's `taxClass` becomes THIS slug — one of the closed set in
+  // src/lib/engine/tax/classes.ts, validated on the way in and re-validated on the
+  // way out (`isTaxClass`), so an unrecognized value tags nothing rather than
+  // landing in the wrong drawer's total.
+  //
+  // The semantics are a WRITE-TIME STAMP, deliberately, and the alternative was
+  // considered and refused: a read-time "this category is tax-related" lookup would
+  // silently re-tag history whenever the reader edited a category, changing totals
+  // they may already have handed a preparer. A write-time stamp can only ever
+  // UNDER-tag, and an under-tag is visible in the export.
+  //
+  // It NEVER overwrites a tag that is already on the row — see
+  // `resolveRuleTaxStamp` in categorize/tax-action.ts. Null = this rule tags
+  // nothing, which is every rule stored before this slice.
+  setTaxClass    String?
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   category Category @relation(fields: [categoryId], references: [id])

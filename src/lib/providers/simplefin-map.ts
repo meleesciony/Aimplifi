@@ -210,6 +210,12 @@ export interface IngestedSfTransaction {
    * never user-dictates, so this is the pipeline's CategorySource; the LLM assist
    * overlay may stamp it 'llm' via assistUnsureRows. */
   source: PredictionSource;
+  /**
+   * The tax tag a matched RULE instructs for this row (O.15 slice 6), or null when
+   * no rule with the action filed it. The caller writes it only on a row it is
+   * CREATING — see the Plaid writer for why an update path may not.
+   */
+  taxClassStamp: string | null;
 }
 
 /**
@@ -253,5 +259,6 @@ export function prepareSimplefinTransaction(
     isTransfer: result.source === 'transfer',
     status: txn.pending ? 'PENDING' : 'POSTED',
     source: result.source,
+    taxClassStamp: result.taxClassStamp,
   };
 }

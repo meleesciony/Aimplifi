@@ -960,3 +960,63 @@ THE income test" now says it is one of fourteen. The invariant itself was alread
 fail-old by `tests/unit/custom-category-lifecycle.test.ts` ("refuses the Income and
 Transfers groups") — checked rather than assumed, and the first draft of this decision
 claimed it was unlocked until that test was read.
+
+## #346 (O.15 slice 6) — A rule THEN-action tags for taxes, and a tag is the higher-stakes of a row's two decisions
+
+**Context.** #345(c) found Simplifi's per-CATEGORY "Tax Related" toggle unbuildable
+here as specified: six independent writers of `categoryId` means a per-category flag
+is honoured at six call sites — the fence-by-call-site anti-pattern. It re-routed the
+capability to the rule machinery, which is one fenced path with a counted, previewed,
+opt-in apply-to-existing and an undo. This slice is that build.
+
+**Decisions.**
+1. **Write-time stamp, never a read-time lookup.** A read-time "is this category
+   tax-related?" re-tags history whenever a category is edited, silently changing a
+   total the reader may already have handed a preparer. A stamp can only UNDER-tag,
+   and an under-tag is visible in the export — a number smaller than expected is a
+   number the reader can question. Over-tagging is invisible in exactly the way a
+   fabricated deduction is.
+2. **Never overwrite a tag already on the row**, including an unrecognized value.
+   `isTaxClass` reads an unknown slug as untagged everywhere else, but overwriting it
+   would destroy the only record of what the reader chose.
+3. **Only an explicit typed rule that FILES may tag.** Learned rules, merchant
+   defaults, provider guesses, transfers and the LLM backfill pass all abstain: a tax
+   tag is a claim about a deduction, and only an instruction the reader typed may make
+   it. The same line the O.13c rename action draws, for the same reason.
+4. **The tag set is not the re-file set**, and naming the difference is the whole
+   design. It ADDS rows already sitting in the rule's category (written by no re-file,
+   and exactly the rows a reader adding a tag to an existing rule is trying to reach)
+   and SUBTRACTS three populations: sign-refused rows, hand-filed outliers, and rows
+   the reader excluded from his totals.
+5. **A hand-filed outlier is never tagged** (critic cycle 1, found independently by
+   both critics). The first cut tagged it, arguing that the hand-filed exclusion
+   protects a CATEGORY and a tag is not a category. That is false in the direction
+   that matters: a Correction means "I decided this row", and of the two decisions the
+   deduction claim is the higher-stakes one. The reader was being shown "1 transaction
+   you filed yourself was left as it was" about a row a rule had just written.
+6. **A row excluded from totals is never bulk-tagged** (critic cycle 1). `exclude.ts`
+   deliberately lets the tax export count a row the reader both TAGGED and EXCLUDED —
+   "two orders", and dropping the deduction silently would be the worse error. That
+   reasoning was written when the only way to get a `taxClass` was the reader typing
+   it on that row. With a rule as the tagger he has given ONE order, and the other
+   would put money he removed from every other total into a figure bound for a return.
+   He can still tag such a row by hand, which is the case the carve-out was written for.
+7. **Two guards, deliberately redundant.** The pure decision (`resolveRuleTaxStamp`)
+   plus a SQL clause on every write. Measured rather than argued: with the in-memory
+   filter mutated away, the SQL guard alone preserved the reader's tag and the reported
+   count stayed honest, because it reads the update's own `res.count`.
+8. **The backfill's tag is a SECOND write, not another field on the category write.**
+   Its guards are narrower, and folding them into one WHERE made a row failing any of
+   them lose its category re-file too — a silent under-file bought to buy a tag guard.
+   Caught by the test written for the blank-tag case, not by a critic.
+9. **No per-row undo, disclosed rather than implied.** The tags are not Corrections, so
+   "Undo those N filings" does not revert them; the button, the receipt and the
+   post-undo sentence all say so, and the residual is recorded in docs/STATUS.md.
+
+**Carried along, and said out loud (CLAUDE.md rule 5):** a pre-existing P0-class data
+loss found while wiring the ingest path. Plaid's pending→posted id churn deletes the
+predecessor row, and only `Correction` and `CategoryPrediction` were followed across —
+so a tax tag, a note, an exclude-from-totals flag and a reimbursement state set on a
+PENDING row were destroyed when it posted. Fixed as a data CLASS (all four columns),
+mutation-proven. SimpleFIN has the same hole by a different mechanism and is NOT fixed
+here; recorded in STATUS §OPEN rather than left to read as covered.

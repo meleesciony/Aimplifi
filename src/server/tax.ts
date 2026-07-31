@@ -25,9 +25,15 @@ async function taxRows(userId: string): Promise<TaxExportRow[]> {
   const raw = await prisma.transaction.findMany({
     where: {
       account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
-      // Only rows the reader actually tagged can appear in this report, and the tag
-      // is the whole filter — untagged rows are not "untagged medical", they are
-      // simply not part of it.
+      // Only TAGGED rows can appear in this report, and the tag is the whole filter
+      // — untagged rows are not "untagged medical", they are simply not part of it.
+      //
+      // "Tagged" gained a second author in O.15 slice 6: a rule the reader wrote can
+      // stamp `taxClass` when it files a row. That is still his instruction rather
+      // than the app's inference (only an explicit typed rule may carry the action,
+      // never a learned one, a merchant default or a provider guess), which is why
+      // this filter is unchanged — but the sentence above used to say "the reader
+      // actually tagged", and a rule-tagged row would have made it false.
       taxClass: { not: null },
     },
     include: { merchant: true },

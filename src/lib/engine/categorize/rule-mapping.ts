@@ -37,6 +37,8 @@ export interface RuleRow {
   matchKeywordGroups?: string | null;
   /** Rename-payee action (O.13c). Null on every pre-O.13c row. */
   renameTo?: string | null;
+  /** Tag-for-taxes action (O.15 slice 6). Null on every row written before it. */
+  setTaxClass?: string | null;
 }
 
 /**
@@ -140,6 +142,10 @@ export function mapStoredRule(
     // Only a TYPED keyword rule may rename (pipeline.ts refuses it for learned
     // rules; merchant-keyed rules never store one today).
     renameTo: rule.renameTo ?? null,
+    // Carried for the same reason and on the same terms as the rename: the
+    // pipeline decides whether it may be USED (only an explicit rule that files),
+    // and every OR-group of one stored rule shares the same THEN actions.
+    setTaxClass: rule.setTaxClass ?? null,
     minAmountCents: rule.minAmountCents,
     maxAmountCents: rule.maxAmountCents,
     weekendOnly: rule.weekendOnly,

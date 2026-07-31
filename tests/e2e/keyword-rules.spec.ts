@@ -324,3 +324,118 @@ test('deleting a volatile keyword chip widens the key to every spelling of the s
     timeout: 20000,
   });
 });
+
+/**
+ * O.15 slice 6 — the tag-for-taxes THEN action, end to end.
+ *
+ * Owner (Wave O.11): *"Can we add reimbursable and exclude from budgets and all
+ * other mint and simplifi fields? That way I don't have expenses that are work
+ * related. Similar to business related items as well"* — and DECISIONS #345(c),
+ * which routed Simplifi's per-CATEGORY "Tax Related" toggle onto the rule machinery
+ * because there is no single category-write choke point to stamp at.
+ *
+ * The flow drives the two halves the owner asked for by name — *"This should work
+ * for prior and forward transactions"* — and the third that no unit test can see:
+ * a transaction he tagged HIMSELF is not re-tagged by a rule that disagrees.
+ *
+ * The assertion surface is `/transactions/[id]`, because the tax select there is
+ * both where the tag becomes visible and where he can undo it by hand — which is
+ * what makes the absence of a per-row undo on the rule apply a stated limitation
+ * rather than a dead end.
+ */
+const SPENDS = [
+  { descriptor: 'ADOBE *XXX-XXX-6687', amount: '59.99' },
+  { descriptor: 'ADOBE  ACROPRO SUBS 8774', amount: '19.99' },
+];
+
+async function addSpend(page: Page, descriptor: string, amount: string) {
+  await page.goto('/transactions/new');
+  await expect(async () => {
+    await page.getByTestId('dir-out').click({ timeout: 2000 });
+    await expect(page.getByTestId('dir-out')).toHaveAttribute('aria-pressed', 'true', { timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await page.getByTestId('txn-descriptor').fill(descriptor);
+  await page.getByTestId('txn-amount').fill(amount);
+  await page.getByTestId('txn-submit').click();
+  await page.waitForURL('**/transactions', { timeout: 20000 });
+}
+
+/**
+ * Open a register row's detail page BY AMOUNT, not by the bank's text: the register
+ * deliberately renders the normalizer's cleaned-up payee ("Adobe Xxx-xxx"), which is
+ * the very gap the provenance line on the detail page exists to close (O.13b). The
+ * first run of this spec filtered on the raw descriptor and found nothing — the
+ * page snapshot in the failure trace is what said so.
+ */
+async function openDetail(page: Page, text: string) {
+  await page.goto('/transactions');
+  const row = page.getByTestId('txn-row').filter({ hasText: text }).first();
+  await expect(row).toBeVisible({ timeout: 20000 });
+  await row.getByTestId('txn-detail-link').click();
+  await page.waitForURL('**/transactions/**', { timeout: 20000 });
+}
+
+test('a rule tags prior and future transactions for taxes, and never re-tags one you tagged yourself', async ({
+  page,
+}) => {
+  await signUpThrowaway(page);
+  await addManualAccount(page, 'Tax Checking');
+  for (const s of SPENDS) await addSpend(page, s.descriptor, s.amount);
+
+  // The reader's OWN answer on the first row, made BEFORE the rule exists. This is
+  // the row the whole abstention rests on.
+  await openDetail(page, '$59.99');
+  await page.getByTestId('detail-tax').selectOption('medical');
+  // The note+tax form saves together (one submit, `detail-note-save`).
+  await page.getByTestId('detail-note-save').click();
+  await expect(page.getByTestId('detail-tax')).toHaveValue('medical', { timeout: 20000 });
+
+  // Saving the tag kicks a client-side refresh, and a `goto` racing it is aborted
+  // by the browser (net::ERR_ABORTED — seen on the first run of this spec, in the
+  // navigation rather than in the app). Retry until the builder is actually on
+  // screen; the retry IS the wait.
+  await expect(async () => {
+    await page.goto('/rules');
+    await expect(page.getByTestId('kw-input')).toBeVisible({ timeout: 5000 });
+  }).toPass({ timeout: 30000 });
+  await page.getByTestId('kw-input').fill('adobe');
+  await page.getByTestId('kw-category').selectOption('software');
+  await page.getByTestId('kw-tax').selectOption('business');
+  await page.getByTestId('kw-preview').click();
+
+  // THE COUNTS, before the rule exists: two rows match, one takes the tag, one
+  // keeps the answer the reader already gave. A single summed number here would
+  // leave him unable to tell which of his rows the export now counts.
+  await expect(page.getByTestId('kw-preview-result')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('kw-preview-count')).toContainText('2');
+  await expect(page.getByTestId('kw-tag-note')).toContainText('1 transaction would be tagged');
+  await expect(page.getByTestId('kw-tag-note')).toContainText('1 already carries a tag');
+
+  await page.getByTestId('kw-apply-existing').check();
+  await page.getByTestId('kw-create').click();
+  await expect(page.getByTestId('kw-done')).toContainText('tagged Business expense for taxes', {
+    timeout: 20000,
+  });
+  // Both clauses, separately: "1 tagged" and "1 already carried a tag" describe
+  // DIFFERENT rows, and a reader handed a single summed number could not tell which
+  // of his transactions the export now counts.
+  await expect(page.getByTestId('kw-done')).toContainText('already carried a tax tag');
+  // …and the receipt says the tags are not covered by the Undo beside it.
+  await expect(page.getByTestId('kw-done')).toContainText('tax tags stay put');
+  // The action is on the rule the reader can see, edit and delete — not hidden.
+  await expect(page.getByTestId('kw-rule-tax')).toContainText('Business expense', { timeout: 20000 });
+
+  // PRIOR: the untagged row now carries the rule's tag…
+  await openDetail(page, '$19.99');
+  await expect(page.getByTestId('detail-tax')).toHaveValue('business', { timeout: 20000 });
+
+  // …and the row he answered himself still says what he said.
+  await openDetail(page, '$59.99');
+  await expect(page.getByTestId('detail-tax')).toHaveValue('medical', { timeout: 20000 });
+
+  // FORWARD: a transaction that arrives AFTER the rule is tagged as it is filed,
+  // with no second gesture — the half a history backfill cannot prove.
+  await addSpend(page, 'ADOBE  CREATIVE CLOUD 5521', '82.49');
+  await openDetail(page, '$82.49');
+  await expect(page.getByTestId('detail-tax')).toHaveValue('business', { timeout: 20000 });
+});

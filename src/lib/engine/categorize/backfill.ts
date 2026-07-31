@@ -38,6 +38,15 @@ export interface BackfillRow {
   categoryId: string | null;
   needsReview: boolean;
   isSplitParent?: boolean;
+  /**
+   * The tax tag the row already carries (O.15 slice 6). REQUIRED, not optional,
+   * so tsc enumerates every caller: undefined would read as "untagged", and an
+   * untagged row is exactly the row a rule may stamp — so a forgotten field is a
+   * silent overwrite of a tag the reader set by hand. A required field cannot make
+   * a caller answer CORRECTLY (L.30), which is why the WRITE is also fenced with
+   * `taxClass: null` in its own WHERE; this is the first of the two guards.
+   */
+  taxClass: string | null;
 }
 
 export interface BackfillRefile {
@@ -46,6 +55,13 @@ export interface BackfillRefile {
   toCategoryId: string;
   confidenceBps: number;
   source: CategorySource;
+  /**
+   * The tax tag to WRITE with this re-file, or null for "leave `taxClass` alone"
+   * (O.15 slice 6). Non-null only when the rule that resolved this row carries the
+   * action and the row is untagged — the pipeline made that decision, and this
+   * field just carries it out to the writer so the plan stays pure.
+   */
+  taxClassStamp: string | null;
 }
 
 export interface BackfillPlan {
@@ -82,7 +98,15 @@ export function planBackfill(
     scanned++;
 
     const out = categorize(
-      { rawDescriptor: r.rawDescriptor, amountCents: r.amountCents, date: r.date, accountId: r.accountId },
+      {
+        rawDescriptor: r.rawDescriptor,
+        amountCents: r.amountCents,
+        date: r.date,
+        accountId: r.accountId,
+        // Passed so a rule's tag action cannot overwrite a tag the reader set by
+        // hand on a row that happens to still be in review (O.15 slice 6).
+        currentTaxClass: r.taxClass,
+      },
       rules,
       { flaggedBps },
     );
@@ -106,6 +130,7 @@ export function planBackfill(
       toCategoryId: out.categoryId,
       confidenceBps: out.confidenceBps,
       source: out.source,
+      taxClassStamp: out.taxClassStamp,
     });
   }
 

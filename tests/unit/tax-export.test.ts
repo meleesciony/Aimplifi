@@ -227,7 +227,10 @@ describe('what the export refuses to claim', () => {
     // Unconditional: the first disclosure is true for every reader and every year,
     // and a total that travels without it reads as a computed entitlement.
     expect(out.disclosures[0]).toMatch(/not tax advice/i);
-    expect(out.disclosures[0]).toMatch(/what you tagged, added up/i);
+    // "you AND YOUR RULES" since O.15 slice 6: a rule the reader wrote can stamp
+    // `taxClass` when it files a row, so a sentence claiming the total is only what
+    // he tagged by hand became false the day that shipped.
+    expect(out.disclosures[0]).toMatch(/what you and your rules tagged, added up/i);
     // No LABEL or line may assert deductibility. Checked over everything except
     // `disclosures`, because the disclaimer legitimately uses the word in order to
     // deny it — the first cut of this assertion scanned the whole object and was

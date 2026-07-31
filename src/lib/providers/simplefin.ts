@@ -640,7 +640,15 @@ async function runSimplefinSync(
     } else {
       try {
         const createdRow = await prisma.transaction.create({
-          data: { accountId: row.accountId, providerRef: row.providerRef, ...data2 },
+          data: {
+            accountId: row.accountId,
+            providerRef: row.providerRef,
+            ...data2,
+            // O.15 slice 6: the rule's tag action, on the one path that creates a
+            // row. `guardedVerdictRefresh` above deliberately does not tag — that
+            // row already exists and its tag is the reader's.
+            ...(row.taxClassStamp ? { taxClass: row.taxClassStamp } : {}),
+          },
         });
         // Log the pipeline's verdict for the accuracy metric + threshold tuning
         // (DECISIONS #190): the live-path counterpart of the seed's prediction log.

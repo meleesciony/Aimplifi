@@ -172,9 +172,9 @@ export default async function SettingsPage() {
           <div>
             <p className="text-sm font-medium">Tax year</p>
             <p className="text-xs text-muted-foreground">
-              Everything you tagged — medical, child care, charitable and the rest — grouped by
-              category with a total for each. It&apos;s a record of your own tagging, not tax advice,
-              and Aimplifi decides nothing about what you can claim.
+              Everything you or your rules tagged — medical, child care, charitable and the rest —
+              grouped by category with a total for each. It&apos;s a record of your own tagging, not
+              tax advice, and Aimplifi decides nothing about what you can claim.
             </p>
           </div>
           {taxYears.length === 0 ? (
@@ -183,7 +183,12 @@ export default async function SettingsPage() {
               <Link href="/transactions" className="underline underline-offset-2">
                 transactions page
               </Link>{' '}
-              to file it under a tax category, and the years you tag will appear here.
+              to file it under a tax category — or give a{' '}
+              <Link href="/rules" className="underline underline-offset-2">
+                rule
+              </Link>{' '}
+              a tax tag and it tags matching transactions for you. The years you tag will appear
+              here.
             </p>
           ) : (
             <div className="flex flex-wrap gap-2">

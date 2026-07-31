@@ -46,6 +46,13 @@ export interface BackfillResult {
   llmRefiled: number;
   /** UNSURE rows neither pass could settle (left in review). */
   stillUnsure: number;
+  /**
+   * Rows a rule's tag-for-taxes action tagged during this pass (O.15 slice 6).
+   * Reported for the reason every other count here is: this write puts a row into a
+   * tax-year total, and the /triage button used to say "Auto-filed N transactions"
+   * while silently writing deduction claims the reader never saw counted.
+   */
+  taxTagged: number;
 }
 
 interface Refile {
@@ -53,6 +60,13 @@ interface Refile {
   toCategoryId: string;
   confidenceBps: number;
   source: 'rule' | 'llm';
+  /**
+   * The tax tag to write alongside the re-file, or null for "leave it alone"
+   * (O.15 slice 6). Only a deterministic RULE with the tag action ever produces a
+   * value here; the LLM pass is a guess about a CATEGORY and may never make a
+   * claim about a deduction, so it always passes null.
+   */
+  taxClassStamp: string | null;
 }
 
 export async function runBackfillForUser(
@@ -88,6 +102,10 @@ export async function runBackfillForUser(
         categoryId: true,
         needsReview: true,
         isSplitParent: true,
+        // Selected so a rule's tag action can see that this row is already tagged
+        // and decline to overwrite it (O.15 slice 6). `BackfillRow.taxClass` is
+        // required precisely so this select cannot be forgotten.
+        taxClass: true,
       },
     }),
     loadUserRules(userId),
@@ -105,6 +123,7 @@ export async function runBackfillForUser(
       categoryId: r.categoryId,
       needsReview: r.needsReview,
       isSplitParent: r.isSplitParent,
+      taxClass: r.taxClass,
     })),
     rules,
     tuning.flaggedBps,
@@ -128,15 +147,27 @@ export async function runBackfillForUser(
   );
   const llmRefiles: Refile[] = assisted
     .filter((a) => !a.needsReview && a.categoryId !== 'uncategorized')
-    .map((a) => ({ id: a.id, toCategoryId: a.categoryId, confidenceBps: a.confidenceBps, source: 'llm' as const }));
+    .map((a) => ({
+      id: a.id,
+      toCategoryId: a.categoryId,
+      confidenceBps: a.confidenceBps,
+      source: 'llm' as const,
+      taxClassStamp: null,
+    }));
 
   const allRefiles: Refile[] = [
-    ...plan.refiles.map((r) => ({ id: r.id, toCategoryId: r.toCategoryId, confidenceBps: r.confidenceBps, source: 'rule' as const })),
+    ...plan.refiles.map((r) => ({
+      id: r.id,
+      toCategoryId: r.toCategoryId,
+      confidenceBps: r.confidenceBps,
+      source: 'rule' as const,
+      taxClassStamp: r.taxClassStamp,
+    })),
     ...llmRefiles,
   ];
 
   if (allRefiles.length === 0) {
-    return { scanned: plan.scanned, refiled: 0, llmRefiled: 0, stillUnsure: plan.scanned };
+    return { scanned: plan.scanned, refiled: 0, llmRefiled: 0, stillUnsure: plan.scanned, taxTagged: 0 };
   }
 
   // Defense in depth: every target must be ownable (system id or this user's
@@ -149,10 +180,23 @@ export async function runBackfillForUser(
   // Collapse identical (source, category, confidence) writes into a few updateMany
   // calls. Keying by source too keeps rule vs LLM rows in separate groups, so the
   // written-count split below stays exact even if they collide on (category, conf).
-  const groups = new Map<string, { categoryId: string; confidenceBps: number; source: 'rule' | 'llm'; ids: string[] }>();
+  // The tax stamp joins the key (O.15 slice 6): two rows re-filed to the same
+  // category can differ in whether a tag is written, because one of them was
+  // already tagged and the pipeline declined to overwrite it. Folding them
+  // together would write one row's stamp onto the other's.
+  const groups = new Map<
+    string,
+    { categoryId: string; confidenceBps: number; source: 'rule' | 'llm'; taxClassStamp: string | null; ids: string[] }
+  >();
   for (const rf of allRefiles) {
-    const key = `${rf.source}|${rf.toCategoryId}|${rf.confidenceBps}`;
-    const g = groups.get(key) ?? { categoryId: rf.toCategoryId, confidenceBps: rf.confidenceBps, source: rf.source, ids: [] };
+    const key = `${rf.source}|${rf.toCategoryId}|${rf.confidenceBps}|${rf.taxClassStamp ?? ''}`;
+    const g = groups.get(key) ?? {
+      categoryId: rf.toCategoryId,
+      confidenceBps: rf.confidenceBps,
+      source: rf.source,
+      taxClassStamp: rf.taxClassStamp,
+      ids: [],
+    };
     g.ids.push(rf.id);
     groups.set(key, g);
   }
@@ -165,6 +209,7 @@ export async function runBackfillForUser(
   // truth stand). Count rows ACTUALLY written so the returned tallies stay honest.
   let written = 0;
   let llmWritten = 0;
+  let taxTagged = 0;
   await prisma.$transaction(async (tx) => {
     for (const g of groups.values()) {
       const res = await tx.transaction.updateMany({
@@ -184,6 +229,33 @@ export async function runBackfillForUser(
       });
       written += res.count;
       if (g.source === 'llm') llmWritten += res.count;
+      // The TAG is a SECOND write, deliberately, rather than another field on the
+      // one above. Its guards are narrower than the re-file's (never overwrite a
+      // tag, never tag a row the reader removed from his totals, never tag a split
+      // CHILD whose allocation is the only record of his intent), and folding them
+      // into the same WHERE meant a row failing any of them lost its category
+      // re-file too — a silent under-file to buy a tag guard. Two writes, each
+      // matching exactly what it is allowed to touch.
+      if (g.taxClassStamp) {
+        const tagged = await tx.transaction.updateMany({
+          where: {
+            id: { in: g.ids },
+            account: { userId },
+            // Same blank-or-null definition of "untagged" the keyword-rule writer
+            // uses, so the two paths cannot disagree about which rows are free.
+            OR: [{ taxClass: null }, { taxClass: '' }],
+            excludeFromTotals: false,
+            // A split CHILD carries its parent's descriptor, so a keyword rule
+            // matches it — and the child's amount is real money in the export.
+            // `matchableWhere` excludes them from the rule apply for exactly this
+            // reason; the backfill's own read does not, so the guard lives here.
+            splitParentId: null,
+            isSplitParent: false,
+          },
+          data: { taxClass: g.taxClassStamp },
+        });
+        taxTagged += tagged.count;
+      }
     }
   });
 
@@ -193,10 +265,11 @@ export async function runBackfillForUser(
     refiled: written,
     llmRefiled: llmWritten,
     stillUnsure,
+    taxTagged,
   });
   revalidatePath('/triage');
   revalidatePath('/transactions');
   revalidatePath('/dashboard');
 
-  return { scanned: plan.scanned, refiled: written, llmRefiled: llmWritten, stillUnsure };
+  return { scanned: plan.scanned, refiled: written, llmRefiled: llmWritten, stillUnsure, taxTagged };
 }

@@ -646,3 +646,248 @@ describe('a hand-filed outlier survives apply-to-existing', () => {
     }
   });
 });
+
+/**
+ * Tag for taxes — the THEN action added in O.15 slice 6.
+ *
+ * The parity claim this file exists for applies to the tag exactly as it applies
+ * to the re-file: the number the preview shows IS the population the write
+ * touches. It is asserted separately because the two sets genuinely differ — a row
+ * already sitting in the rule's category is written by no re-file and still takes
+ * the tag, which is the whole reason `wouldTagCount` is not `wouldFileCount`.
+ */
+describe('createKeywordRule — tag for taxes', () => {
+  it('tags exactly the previewed set, and the count is rows CHANGED', async () => {
+    const preview = await previewKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'business',
+    });
+    expect(preview.wouldTagCount).toBe(3);
+    expect(preview.alreadyTaggedCount).toBe(0);
+
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'business',
+      applyToExisting: true,
+    });
+    expect(res.taxTagged).toBe(preview.wouldTagCount);
+    const tagged = await prisma.transaction.findMany({
+      where: { account: { userId: USER }, taxClass: 'business' },
+      select: { rawDescriptor: true },
+    });
+    expect(tagged).toHaveLength(3);
+    expect(tagged.map((t) => t.rawDescriptor).sort()).toEqual(
+      ['MIRKO PASTA', 'Mirko Pasta Buckhead', 'Tst*mirko Pasta Buckhead'].sort(),
+    );
+    // The rows that merely share a word are untouched, as with every other write here.
+    const untouched = await prisma.transaction.findMany({
+      where: { account: { userId: USER }, rawDescriptor: { in: ['PASTA HOUSE ATLANTA', 'PUBLIX #1234'] } },
+    });
+    expect(untouched.every((t) => t.taxClass === null)).toBe(true);
+  });
+
+  it('leaves a row the reader already tagged, and SAYS how many it left', async () => {
+    const one = await prisma.transaction.findFirstOrThrow({
+      where: { account: { userId: USER }, rawDescriptor: 'MIRKO PASTA' },
+    });
+    await prisma.transaction.update({ where: { id: one.id }, data: { taxClass: 'medical' } });
+
+    const preview = await previewKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'business',
+    });
+    expect(preview.wouldTagCount).toBe(2);
+    expect(preview.alreadyTaggedCount).toBe(1);
+
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'business',
+      applyToExisting: true,
+    });
+    expect(res.taxTagged).toBe(2);
+    expect(res.taxAlreadyTagged).toBe(1);
+    // The reader's own answer survived the rule that disagreed with it.
+    expect((await prisma.transaction.findUniqueOrThrow({ where: { id: one.id } })).taxClass).toBe(
+      'medical',
+    );
+  });
+
+  it('tags a row that needed NO re-file — the set the filing counts cannot describe', async () => {
+    // Every matched row is already in the rule's category, so `affected` is 0 and
+    // the tag action still has three rows to do. A reader adding a tag to a rule
+    // that has been filing correctly for months is exactly this case.
+    await prisma.transaction.updateMany({
+      where: { account: { userId: USER } },
+      data: { categoryId: 'dining', needsReview: false },
+    });
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'business',
+      applyToExisting: true,
+    });
+    expect(res.affected).toBe(0);
+    expect(res.taxTagged).toBe(3);
+  });
+
+  it('tags nothing on rows the SIGN guard refuses to file', async () => {
+    // Outflows into an Income category are excluded from the apply entirely; the
+    // tag rides the same set the rename does, so it is excluded here too.
+    const preview = await previewKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'income',
+      setTaxClass: 'business',
+    });
+    expect(preview.signMismatchCount).toBe(3);
+    expect(preview.wouldTagCount).toBe(0);
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'income',
+      setTaxClass: 'business',
+      applyToExisting: true,
+    });
+    expect(res.taxTagged).toBe(0);
+    expect(
+      await prisma.transaction.count({ where: { account: { userId: USER }, taxClass: { not: null } } }),
+    ).toBe(0);
+  });
+
+  it('test_regression__rule_tags_a_hand_filed_outlier: a row the reader filed himself is never tagged', async () => {
+    // Both fresh-context critics found this independently. The first cut tagged the
+    // reader's outlier while the very same toast told him it was "left as it was" —
+    // a rule writing a DEDUCTION CLAIM onto a row it explicitly refused to re-file.
+    const one = await prisma.transaction.findFirstOrThrow({
+      where: { account: { userId: USER }, rawDescriptor: 'MIRKO PASTA' },
+    });
+    await prisma.transaction.update({
+      where: { id: one.id },
+      data: { categoryId: 'groceries', needsReview: false },
+    });
+    await prisma.correction.create({
+      data: { userId: USER, transactionId: one.id, fromCategoryId: null, toCategoryId: 'groceries' },
+    });
+
+    const preview = await previewKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'business',
+    });
+    expect(preview.handFiledCount).toBe(1);
+    expect(preview.wouldTagCount).toBe(2); // NOT 3
+
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'business',
+      applyToExisting: true,
+    });
+    expect(res.preservedHandFiled).toBe(1);
+    expect(res.taxTagged).toBe(2);
+    const outlier = await prisma.transaction.findUniqueOrThrow({ where: { id: one.id } });
+    expect(outlier.categoryId).toBe('groceries'); // his category, as before…
+    expect(outlier.taxClass).toBeNull(); // …and no deduction claim written onto it
+  });
+
+  it('test_regression__rule_tags_an_excluded_row: a row taken out of your spending is never bulk-tagged', async () => {
+    // `engine/transactions/exclude.ts` records that the tax export still counts a row
+    // the reader both TAGGED and EXCLUDED — "two orders", and dropping the deduction
+    // silently would be the worse error. That premise holds for a tag he typed on
+    // that row. Here he gave ONE order ("this is not my spending") and a rule would
+    // supply the other, putting money he removed from every other total into a figure
+    // he may hand a preparer.
+    const one = await prisma.transaction.findFirstOrThrow({
+      where: { account: { userId: USER }, rawDescriptor: 'MIRKO PASTA' },
+    });
+    await prisma.transaction.update({ where: { id: one.id }, data: { excludeFromTotals: true } });
+
+    const preview = await previewKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'business',
+    });
+    expect(preview.wouldTagCount).toBe(2); // NOT 3
+
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'business',
+      applyToExisting: true,
+    });
+    expect(res.taxTagged).toBe(2);
+    const excluded = await prisma.transaction.findUniqueOrThrow({ where: { id: one.id } });
+    expect(excluded.taxClass).toBeNull();
+    // …but it is still FILED: the exclusion is about spending totals, not categories.
+    expect(excluded.categoryId).toBe('dining');
+  });
+
+  it('shows no tag count until a category is chosen, because the sign guard is part of the set', async () => {
+    const preview = await previewKeywordRule({ keywordsRaw: 'mirko', setTaxClass: 'business' });
+    expect(preview.matchCount).toBe(3);
+    expect(preview.wouldTagCount).toBeNull();
+    expect(preview.alreadyTaggedCount).toBeNull();
+  });
+
+  it('stores an unknown class as NO action, and tags nothing', async () => {
+    const preview = await previewKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'crypto-losses',
+    });
+    expect(preview.wouldTagCount).toBeNull();
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'crypto-losses',
+      applyToExisting: true,
+    });
+    expect(res.setTaxClass).toBeNull();
+    expect(res.taxTagged).toBe(0);
+    const stored = await prisma.categorizationRule.findUniqueOrThrow({ where: { id: res.ruleId } });
+    expect(stored.setTaxClass).toBeNull();
+  });
+
+  it('the stored action reaches the LIST and the ENGINE, not just the database', async () => {
+    const res = await createKeywordRule({
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'business',
+    });
+    expect((await listKeywordRules()).find((r) => r.id === res.ruleId)?.setTaxClass).toBe('business');
+    // The engine loads what the page lists — the O.15 slice 3 invariant, extended
+    // to the new column: a THEN action the pipeline cannot see would file money
+    // one way on screen and another way at ingest.
+    const likes = await loadExplicitUserRules(USER);
+    expect(likes.find((l) => l.id === res.ruleId)?.setTaxClass).toBe('business');
+  });
+
+  it('an EDIT can add the action to a rule that had none, and remove it again', async () => {
+    const res = await createKeywordRule({ keywordsRaw: 'mirko', categoryId: 'dining' });
+    expect(res.setTaxClass).toBeNull();
+
+    const added = await updateKeywordRule(res.ruleId, {
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: 'business',
+      applyToExisting: true,
+    });
+    expect(added.setTaxClass).toBe('business');
+    expect(added.taxTagged).toBe(3);
+
+    const cleared = await updateKeywordRule(res.ruleId, {
+      keywordsRaw: 'mirko',
+      categoryId: 'dining',
+      setTaxClass: '',
+    });
+    expect(cleared.setTaxClass).toBeNull();
+    // Removing the action stops FUTURE tagging; it does not un-tag history, for the
+    // same reason deleting a rule does not un-file it (see `deleteKeywordRule`).
+    // Recorded as a residual in docs/STATUS.md rather than implied by silence.
+    expect(
+      await prisma.transaction.count({ where: { account: { userId: USER }, taxClass: 'business' } }),
+    ).toBe(3);
+  });
+});

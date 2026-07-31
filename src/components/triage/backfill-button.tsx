@@ -50,9 +50,17 @@ export function BackfillButton() {
         return;
       }
       const aiNote = res.llmRefiled > 0 ? ` (${res.llmRefiled} with AI)` : '';
+      // A tag written here goes into a tax-year total, so it is COUNTED rather than
+      // folded into the filing number (O.15 slice 6): the two describe different
+      // sets, and a reader who is not told a deduction claim was written has no
+      // reason to go and check it.
+      const tagNote =
+        res.taxTagged > 0
+          ? ` · ${res.taxTagged} tagged for taxes by your rules`
+          : '';
       setFlash(
         'backfill',
-        `Auto-filed ${res.refiled} transaction${res.refiled === 1 ? '' : 's'}${aiNote}` +
+        `Auto-filed ${res.refiled} transaction${res.refiled === 1 ? '' : 's'}${aiNote}${tagNote}` +
           (res.stillUnsure > 0 ? ` · ${res.stillUnsure} still need a look.` : '.'),
       );
       // Reload: the drained queue is the confirmation that can't lie.

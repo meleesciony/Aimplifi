@@ -654,6 +654,13 @@ export interface IngestedTransaction {
    * this is what Plaid thinks, never a verdict, and never auto-applied below the bar. */
   providerCategoryId: string | null;
   providerCategoryConfidenceBps: number | null;
+  /**
+   * The tax tag a matched RULE instructs for this row (O.15 slice 6), or null when
+   * no rule with the action filed it. Written by the caller only on a row it is
+   * CREATING — a row that already exists carries whatever tag the reader put on
+   * it, and a sync may not answer a question the reader has already answered.
+   */
+  taxClassStamp: string | null;
 }
 
 /**
@@ -715,5 +722,6 @@ export function prepareIngestedTransaction(
     source: result.source,
     providerCategoryId: persistedGuess?.categoryId ?? null,
     providerCategoryConfidenceBps: persistedGuess?.confidenceBps ?? null,
+    taxClassStamp: result.taxClassStamp,
   };
 }

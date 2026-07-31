@@ -47,6 +47,7 @@ import { formatCents } from '@/lib/money';
 import { cents } from '@/lib/money';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { parseKeywords } from '@/lib/engine/categorize/keyword-rule';
+import { TAX_CLASSES, TAX_CLASS_LABELS, taxClassLabel } from '@/lib/engine/tax/classes';
 import {
   type KeywordRulePreview,
   type StoredKeywordRule,
@@ -195,6 +196,7 @@ export function KeywordRuleBuilder({
         .join(' | '),
       categoryId: String(fd.get('categoryId') ?? ''),
       renameTo: String(fd.get('renameTo') ?? ''),
+      setTaxClass: String(fd.get('setTaxClass') ?? ''),
       accountId: String(fd.get('accountId') ?? '') || null,
       minAmountRaw: String(fd.get('minAmount') ?? ''),
       maxAmountRaw: String(fd.get('maxAmount') ?? ''),
@@ -260,7 +262,7 @@ export function KeywordRuleBuilder({
     setDone(null);
     setBusy('preview');
     try {
-      const { keywordsRaw, categoryId, accountId, minAmountRaw, maxAmountRaw } = read();
+      const { keywordsRaw, categoryId, accountId, minAmountRaw, maxAmountRaw, setTaxClass } = read();
       setPreview(
         await previewKeywordRule({
           keywordsRaw,
@@ -268,6 +270,7 @@ export function KeywordRuleBuilder({
           accountId,
           minAmountRaw,
           maxAmountRaw,
+          setTaxClass,
         }),
       );
     } catch (err) {
@@ -299,14 +302,27 @@ export function KeywordRuleBuilder({
         res.renamed > 0
           ? ` ${res.renamed} ${res.renamed === 1 ? 'payee was' : 'payees were'} renamed — the bank’s original text stays on every one.`
           : '';
+      // Two separate clauses, never one summed number: "tagged 9" and "3 already
+      // carried a tag" are different facts about different rows, and a reader
+      // handed 12 would have no way to tell which of his rows the export now
+      // counts. The already-tagged clause only appears when there ARE some.
+      const taggedLabel = taxClassLabel(res.setTaxClass);
+      const taggedNote =
+        res.taxTagged > 0 && taggedLabel
+          ? ` ${res.taxTagged} ${res.taxTagged === 1 ? 'transaction was' : 'transactions were'} tagged ${taggedLabel} for taxes — tax tags stay put, so clear one on the transaction itself if you change your mind.`
+          : '';
+      const alreadyTaggedNote =
+        res.taxAlreadyTagged > 0
+          ? ` ${res.taxAlreadyTagged} already carried a tax tag, so the rule left ${res.taxAlreadyTagged === 1 ? 'it' : 'them'} alone.`
+          : '';
       const keptNote =
         res.preservedHandFiled > 0
           ? ` ${res.preservedHandFiled} ${res.preservedHandFiled === 1 ? 'transaction you filed yourself was' : 'transactions you filed yourself were'} left as ${res.preservedHandFiled === 1 ? 'it was' : 'they were'}.`
           : '';
       setDone(
         res.affected > 0
-          ? `Rule ${editing ? 'updated' : 'saved'}, and ${res.affected} ${res.affected === 1 ? 'transaction' : 'transactions'} filed as ${label}.${renamedNote}${keptNote}${skipped}`
-          : `Rule ${editing ? 'updated' : 'saved'}. It will file matching transactions from now on.${renamedNote}${keptNote}${skipped}`,
+          ? `Rule ${editing ? 'updated' : 'saved'}, and ${res.affected} ${res.affected === 1 ? 'transaction' : 'transactions'} filed as ${label}.${renamedNote}${taggedNote}${alreadyTaggedNote}${keptNote}${skipped}`
+          : `Rule ${editing ? 'updated' : 'saved'}. It will file matching transactions from now on.${renamedNote}${taggedNote}${alreadyTaggedNote}${keptNote}${skipped}`,
       );
       setUndoable(res.correctionIds);
       // Built from the action's own RETURN, never a guess about what was stored.
@@ -315,6 +331,7 @@ export function KeywordRuleBuilder({
         groups: res.groups,
         categoryId: values.categoryId,
         renameTo: res.renameTo,
+        setTaxClass: res.setTaxClass,
         accountId: res.accountId,
         minAmountCents: res.minAmountCents,
         maxAmountCents: res.maxAmountCents,
@@ -342,7 +359,10 @@ export function KeywordRuleBuilder({
     try {
       await undoCorrections(undoable);
       setUndoable([]);
-      setDone('Those transactions are back to the categories they had before.');
+      // Scoped deliberately: this undoes the FILINGS. A tax tag the same apply wrote
+      // is not a Correction and is not reverted here, so the sentence may not claim
+      // the rows are back to how they were.
+      setDone('Those transactions are back to the categories they had before. Any tax tags stay — clear one on the transaction itself.');
       router.refresh();
     } catch {
       setError('We could not undo that just now. Please try again.');
@@ -555,6 +575,32 @@ export function KeywordRuleBuilder({
             </div>
 
             <div className="space-y-1">
+              <label htmlFor="kw-tax" className="text-sm font-medium">
+                Tag it for taxes <span className="font-normal text-muted-foreground">(optional)</span>
+              </label>
+              <select
+                id="kw-tax"
+                name="setTaxClass"
+                defaultValue={editing?.setTaxClass ?? ''}
+                data-testid="kw-tax"
+                className={INPUT_CLASS}
+              >
+                <option value="">No tax tag</option>
+                {TAX_CLASSES.map((c) => (
+                  <option key={c} value={c}>
+                    {TAX_CLASS_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Matching transactions are tagged for the tax export, so you stop tagging the same shop
+                every month. A transaction you have already tagged yourself is never re-tagged, and this
+                is a filing cabinet, not tax advice — the export totals what you put in it and nothing
+                more.
+              </p>
+            </div>
+
+            <div className="space-y-1">
               <label htmlFor="kw-rename" className="text-sm font-medium">
                 Rename the payee to <span className="font-normal text-muted-foreground">(optional)</span>
               </label>
@@ -675,7 +721,7 @@ export function KeywordRuleBuilder({
                   disabled={busy !== null}
                   data-testid="kw-undo"
                 >
-                  {busy === 'undo' ? 'Undoing…' : `Undo those ${undoable.length}`}
+                  {busy === 'undo' ? 'Undoing…' : `Undo those ${undoable.length} filings`}
                 </Button>
               )}
             </div>
@@ -749,6 +795,20 @@ export function KeywordRuleBuilder({
                       still files new transactions that match.
                     </p>
                   )}
+                  {/* The tag action's own two counts (O.15 slice 6). Kept apart from
+                      the filing counts above because they describe different rows:
+                      a transaction already sitting in the right category is written
+                      by no re-file and still takes the tag. */}
+                  {preview.wouldTagCount !== null && (
+                    <p className="text-xs text-muted-foreground" data-testid="kw-tag-note">
+                      {preview.wouldTagCount}{' '}
+                      {preview.wouldTagCount === 1 ? 'transaction' : 'transactions'} would be tagged for
+                      taxes.
+                      {preview.alreadyTaggedCount !== null && preview.alreadyTaggedCount > 0
+                        ? ` ${preview.alreadyTaggedCount} already ${preview.alreadyTaggedCount === 1 ? 'carries a tag and keeps it' : 'carry a tag and keep it'}.`
+                        : ''}
+                    </p>
+                  )}
                   <ul className="space-y-1 text-xs text-muted-foreground">
                     {preview.samples.map((s, i) => (
                       <li key={`${s.date}-${i}`} className="flex min-w-0 items-baseline justify-between gap-2">
@@ -780,8 +840,11 @@ export function KeywordRuleBuilder({
                       existing {preview.wouldFileCount === 1 ? 'transaction' : 'transactions'} this would
                       change now (a rename, if you set one, applies to{' '}
                       {preview.matchCount - (preview.signMismatchCount ?? 0)} of them — money-out rows
-                      pointed at an income category are left alone entirely). You can undo the category
-                      changes straight afterwards.
+                      pointed at an income category are left alone entirely
+                      {preview.wouldTagCount !== null
+                        ? `; a tax tag applies to ${preview.wouldTagCount}, and stays on ${preview.wouldTagCount === 1 ? 'it' : 'them'} even if you undo`
+                        : ''}
+                      ). You can undo the category changes straight afterwards.
                     </span>
                   </label>
                   <Button onClick={onCreate} disabled={busy !== null} data-testid="kw-create">
@@ -850,6 +913,12 @@ export function KeywordRuleBuilder({
                         , shown as <b className="break-words text-foreground">{r.renameTo}</b>
                       </span>
                     )}
+                    {taxClassLabel(r.setTaxClass) && (
+                      <span className="text-muted-foreground" data-testid="kw-rule-tax">
+                        , tagged <b className="break-words text-foreground">{taxClassLabel(r.setTaxClass)}</b>{' '}
+                        for taxes
+                      </span>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <Button
@@ -880,9 +949,9 @@ export function KeywordRuleBuilder({
         )}
         <p className="text-xs text-muted-foreground">
           Deleting a rule stops it filing anything new. Editing one changes what it does from now on.
-          Either way, transactions it already filed keep the category and the payee name it gave them —
-          nothing is silently un-categorized, and clearing the payee name here does not put the bank&rsquo;s
-          text back on rows that were already renamed.
+          Either way, transactions it already filed keep the category, the payee name and the tax tag it
+          gave them — nothing is silently un-categorized or un-tagged, and clearing the payee name or the
+          tax tag here does not undo either one on rows that already have it.
         </p>
       </div>
     </div>

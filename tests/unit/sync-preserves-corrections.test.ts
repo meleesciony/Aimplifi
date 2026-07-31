@@ -573,6 +573,79 @@ describe('Plaid resync preserves user corrections (real provider, mocked server)
     for (const c of corrections) expect(c.transactionId).toBe(rows[0].id);
   });
 
+  it("test_regression__churn_destroys_reader_state (O.15 slice 6): a tag, a note, an exclusion and a reimbursement set on a PENDING row survive the pending→posted id churn", async () => {
+    // Found while wiring the rule tag action, and fixed as a data CLASS rather
+    // than as the one column that slice writes. Only `Correction` and
+    // `CategoryPrediction` were followed across the churn, so every column the
+    // READER owns was destroyed when Plaid re-sent a settled charge under a new
+    // `transaction_id`: the predecessor row is deleted and these values live
+    // nowhere else. Silent, on a schedule nobody watches, with the row still on
+    // screen looking untouched.
+    syncPages = [{ accounts: [acct], added: [plaidTxn()], modified: [], removed: [], next_cursor: 'cur-1', has_more: false }];
+    await new PlaidProvider().syncTransactions(USER);
+    const before = await row();
+    await prisma.transaction.update({
+      where: { id: before.id },
+      data: {
+        taxClass: 'business',
+        note: 'client lunch, receipt in the folder',
+        excludeFromTotals: true,
+        reimbursement: 'awaiting',
+      },
+    });
+
+    syncPages = [{
+      accounts: [acct],
+      added: [plaidTxn({ transaction_id: 'ptx-2', pending: false, pending_transaction_id: 'ptx-1' })],
+      modified: [],
+      removed: [{ transaction_id: 'ptx-1' }],
+      next_cursor: 'cur-2',
+      has_more: false,
+    }];
+    await new PlaidProvider().syncTransactions(USER);
+
+    const rows = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].providerRef).toBe('ptx-2'); // the churn really happened
+    expect(rows[0].id).not.toBe(before.id);
+    expect(rows[0].taxClass).toBe('business');
+    expect(rows[0].note).toBe('client lunch, receipt in the folder');
+    expect(rows[0].excludeFromTotals).toBe(true);
+    expect(rows[0].reimbursement).toBe('awaiting');
+  });
+
+  it('the same carry holds on the review-PINNED churn branch (O.15 slice 6, critic cycle 1)', async () => {
+    // Cycle 1 noted that only the DEFAULT settled branch was asserted while three
+    // other create sites took the same spread. A pinned predecessor takes its own
+    // branch, and its pin is re-applied AFTER the spread — so this also proves the
+    // carry does not smuggle the pin back off.
+    syncPages = [{ accounts: [acct], added: [plaidTxn()], modified: [], removed: [], next_cursor: 'cur-1', has_more: false }];
+    await new PlaidProvider().syncTransactions(USER);
+    const before = await row();
+    await prisma.transaction.update({
+      where: { id: before.id },
+      data: { reviewPinned: true, taxClass: 'charitable', note: 'pinned + tagged', excludeFromTotals: true },
+    });
+
+    syncPages = [{
+      accounts: [acct],
+      added: [plaidTxn({ transaction_id: 'ptx-2', pending: false, pending_transaction_id: 'ptx-1' })],
+      modified: [],
+      removed: [{ transaction_id: 'ptx-1' }],
+      next_cursor: 'cur-2',
+      has_more: false,
+    }];
+    await new PlaidProvider().syncTransactions(USER);
+
+    const rows = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].providerRef).toBe('ptx-2');
+    expect(rows[0].reviewPinned).toBe(true); // the pin still wins
+    expect(rows[0].taxClass).toBe('charitable');
+    expect(rows[0].note).toBe('pinned + tagged');
+    expect(rows[0].excludeFromTotals).toBe(true);
+  });
+
   it('slice 6 regression (hostile-critic finding): a PARTNER-attributed correction survives pending→posted id churn instead of stranding on the deleted id', async () => {
     const PARTNER = `pl-partner-${Date.now()}-${process.pid}`;
     const HOUSEHOLD_NAME = `Churn Household ${process.pid}`;

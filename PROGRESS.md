@@ -7217,3 +7217,97 @@ domains were absent. A second read seconds later showed all five with
 `aliasError: null`. The alias assignment lags the READY flip, so a single read taken
 at the transition understates it; had I reported from that first read I would have
 recorded "www not aliased" as a finding about a deploy that was fine.
+
+### O.15 slice 6 — a rule can tag it for taxes (O.13e(c), verify green)
+
+Owner brief this closes, in his own words across two waves: *"Can we add
+reimbursable and exclude from budgets and all other mint and simplifi fields? …
+Similar to business related items as well"* (O.11), and the deferred half of
+DECISIONS #345(c) — Simplifi's per-CATEGORY "Tax Related" toggle, which #345
+refused as specified because `categoryId` has SIX independent writers and a
+per-category flag would be honoured at six call sites. The rule machinery is one
+fenced path with a counted, previewed, opt-in apply-to-existing, so the flag went
+there instead.
+
+WHAT SHIPPED. One additive nullable column (`CategorizationRule.setTaxClass`), a
+pure decision module (`engine/categorize/tax-action.ts`), the action carried
+through `RuleLike` → `categorize()` → all four ingest writers plus the backfill and
+the apply-to-existing, a select and helper text in the rule builder, two new
+preview counts, a receipt clause, and the action rendered on BOTH rule lists.
+
+THE DECISIONS, each a failure-direction call rather than a preference:
+ - WRITE-TIME stamp, never a read-time lookup: read-time would silently re-tag
+   history whenever a category was edited, changing a total the reader may already
+   have handed a preparer. A stamp can only UNDER-tag, which is visible.
+ - NEVER overwrite a tag already on the row, including an unrecognized value.
+ - Only an explicit typed rule that FILES may tag. Learned rules, merchant
+   defaults, provider guesses, transfers and the LLM backfill pass all abstain.
+ - The tag set is deliberately NOT the re-file set: it ADDS rows already sitting in
+   the rule's category (the rows a reader adding a tag to an old rule is trying to
+   reach) and SUBTRACTS sign-refused rows, hand-filed outliers, and rows excluded
+   from totals.
+
+HOSTILE CRITIC CYCLE 1 — two fresh-context critics, one on correctness and one on
+claims. BOTH FAIL: 1 P0, 7 P1, several P2/P3. They converged INDEPENDENTLY on the
+sharpest finding, which is the strongest signal available here: the first cut
+tagged the reader's HAND-FILED outlier while the same toast told him the row was
+"left as it was". A rule wrote a deduction claim onto a row it had explicitly
+refused to re-file, and my own docblock had argued for it ("their exclusion
+protects a CATEGORY, and a tag says nothing about a category") — false in the
+direction that matters, because a Correction means "I decided this row" and of the
+two decisions the deduction is the higher-stakes one.
+
+The second P1 is the same shape one level out, and I would not have found it:
+`exclude.ts` records that the tax export deliberately still counts a row the reader
+both TAGGED and EXCLUDED — "two orders", and dropping the deduction silently would
+be the worse error. That reasoning was written when the only way to get a
+`taxClass` was the reader typing it on that row. With a RULE as the tagger he has
+given exactly ONE order — "this is not my spending" — and money he removed from
+every other total would have landed in a figure bound for a return. Fixed by
+excluding those rows from the tag set (he can still tag one by hand, which is the
+case the carve-out was actually written for).
+
+The rest were claims: an apply checkbox whose count described a different set from
+the write it authorises (P0); an Undo button covering the filings and not the tags;
+three shipped sentences ("a record of your own tagging", "these totals are what you
+tagged") that a rule-written tag falsifies; both rule-list footers enumerating what
+survives a delete without the new action; and a code comment asserting a residual
+was "recorded in docs/STATUS.md" when it was not yet written — rule 1, correctly
+caught.
+
+ONE DEFECT THE TESTS FOUND THAT NEITHER CRITIC DID: the backfill's tag guard, first
+written as a clause on the SAME `updateMany` as the category, made a row carrying a
+blank tag lose its category re-file entirely — a silent under-file bought to buy a
+tag guard. Split into two writes.
+
+CARRIED ALONG, SAID OUT LOUD (CLAUDE.md rule 5): a pre-existing P0-class data loss
+found while wiring the ingest path. Plaid's pending→posted id churn deletes the
+predecessor row and only `Correction`/`CategoryPrediction` were followed across, so
+a tax tag, a note, an exclude-from-totals flag and a reimbursement state set on a
+PENDING row were destroyed when it posted — silently, on a schedule nobody watches,
+with the row still on screen looking untouched. Fixed as a data CLASS (all four
+columns, four create sites). SimpleFIN has the same hole by a different mechanism
+and is NOT fixed here (STATUS §OPEN 3).
+
+MUTATION-PROVEN, because a green test is a hypothesis:
+ 1. Remove `...carriedReaderState` from all four Plaid create sites → the churn lock
+    dies with `expected null to be 'business'`.
+ 2. Remove the hand-filed + excluded filters from `taxTagSets` → both new
+    regression locks die (`expected 3 to be 2`, twice).
+ 3. Remove the ingest-side stamp from manual entry, rebuild, re-run the e2e → the
+    FORWARD half of the spec dies at `expected "business", received ""`.
+ 4. Mutate the in-memory tag filter away while leaving the SQL guard → a probe shows
+    the SQL guard alone preserves the reader's tag and reports `taxTagged: 1` rather
+    than 2, so the redundant guard is load-bearing and the count stays honest.
+
+GATE: `bash scripts/verify.sh` → tsc 0, eslint 0, `next build` clean, **5062 unit /
+317 files** at the pre-critic checkpoint (counts re-run below after the fixes).
+E2E: 241 tests. THREE full serialized runs each failed exactly ONE test, a DIFFERENT
+one each time (phase4-features goals, merchant-lens, action-menu), every one passing
+alone afterwards and every one in a spec this slice does not touch — the rotating
+failure set that the lessons name as contention rather than regression. The new spec
+passed in all three.
+
+SCHEMA: one additive nullable column, so `prisma db push` on deploy ADDS it and
+touches nothing else.
+

@@ -170,6 +170,12 @@ export interface PreparedImportRow {
    * logged as a prediction, so it has no source by construction.
    */
   source?: PredictionSource;
+  /**
+   * The tax tag a matched RULE instructs for this row (O.15 slice 6), or absent
+   * when no rule with the action filed it. Absent on the explicit-category branch
+   * by construction — a CSV that dictates a category consults no rule at all.
+   */
+  taxClassStamp?: string | null;
 }
 
 /**
@@ -218,5 +224,8 @@ export function prepareImportedTransaction(
     isTransfer: result.source === 'transfer',
     status: 'POSTED',
     source: result.source,
+    // O.15 slice 6: a rule that files an imported row tags it too, so a CSV row
+    // and a synced row that match the same rule end up identical.
+    taxClassStamp: result.taxClassStamp,
   };
 }

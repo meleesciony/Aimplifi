@@ -40,6 +40,12 @@ export interface PreparedTxn {
    * never logged as a prediction, so it has no source by construction.
    */
   source?: PredictionSource;
+  /**
+   * The tax tag a matched RULE instructs for this row (O.15 slice 6), or absent
+   * when no rule with the action filed it — including the whole user-DICTATED
+   * branch, which consults no rule.
+   */
+  taxClassStamp?: string | null;
 }
 
 const NO_EXTRA_IDS: ReadonlySet<string> = new Set();
@@ -111,5 +117,8 @@ export function prepareManualTransaction(
     isTransfer: result.source === 'transfer',
     status: 'POSTED',
     source: result.source,
+    // O.15 slice 6: a hand-entered row is categorized by the same rules as an
+    // ingested one, so it takes the same tag action too.
+    taxClassStamp: result.taxClassStamp,
   };
 }

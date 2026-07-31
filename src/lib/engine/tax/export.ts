@@ -176,7 +176,7 @@ export function buildTaxExport(rows: readonly TaxExportRow[], year: number): Tax
   const totalRefundedCents = groups.reduce((s, g) => s + g.refundedCents, 0);
 
   const disclosures: string[] = [
-    'These totals are what you tagged, added up. Aimplifi does not decide what is deductible, applies no limits or thresholds, and this is not tax advice — check it against your own records before it goes near a return.',
+    'These totals are what you and your rules tagged, added up. Aimplifi does not decide what is deductible, applies no limits or thresholds, and this is not tax advice — check it against your own records before it goes near a return.',
   ];
   if (totalRefundedCents > 0) {
     disclosures.push(

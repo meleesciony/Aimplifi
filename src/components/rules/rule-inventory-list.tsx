@@ -24,6 +24,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { InventoryEntry, RuleRefusal } from '@/lib/engine/categorize/rule-inventory';
+import { taxClassLabel } from '@/lib/engine/tax/classes';
 import { deleteRule } from '@/server/rule-inventory';
 import { describeConditions } from './rule-conditions';
 
@@ -133,7 +134,17 @@ export function RuleInventoryList({
             // carries the conditions the visible row shows. Without them, two rules
             // differing only by condition had identical accessible names and the
             // non-sighted reader got strictly less than the sighted one (cycle-2 F3).
-            const described = [lead, name, extras.length ? `(${extras.join(', ')})` : '', `as ${categoryName}`]
+            // The tag action rides the SAME string the screen reader gets and the
+            // same line the sighted reader sees (O.15 slice 6) — a rule that writes
+            // a tax tag may not be described by a sentence that mentions only the
+            // category, on either surface.
+            const taxLabel = taxClassLabel(e.setTaxClass);
+            const described = [
+              lead,
+              name,
+              extras.length ? `(${extras.join(', ')})` : '',
+              `as ${categoryName}${taxLabel ? `, tagged ${taxLabel} for taxes` : ''}`,
+            ]
               .filter(Boolean)
               .join(' ');
             return (
@@ -151,6 +162,11 @@ export function RuleInventoryList({
                   )}
                   <span className="text-muted-foreground"> as </span>
                   <b className="break-words">{categoryName}</b>
+                  {taxLabel && (
+                    <span className="text-muted-foreground" data-testid="inventory-rule-tax">
+                      , tagged <b className="break-words text-foreground">{taxLabel}</b> for taxes
+                    </span>
+                  )}
                   {!e.active && e.refusal && (
                     <p className="mt-1 text-xs text-muted-foreground" data-testid="inventory-inert">
                       <b className="text-foreground">Not running. </b>
@@ -185,7 +201,7 @@ export function RuleInventoryList({
       )}
       <p className="text-xs text-muted-foreground">
         Deleting a rule stops it filing anything new. Transactions it already filed keep the category
-        it gave them — nothing is silently un-categorized.
+        and any tax tag it gave them — nothing is silently un-categorized or un-tagged.
       </p>
       {hasLearnedRules && (
         <p className="text-xs text-muted-foreground" data-testid="inventory-learned">

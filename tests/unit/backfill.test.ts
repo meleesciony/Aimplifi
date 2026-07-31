@@ -15,6 +15,9 @@ function row(p: Partial<BackfillRow> & { id: string; rawDescriptor: string }): B
     accountId: 'a1',
     categoryId: 'uncategorized',
     needsReview: true,
+    // Untagged unless a case says otherwise (O.15 slice 6) — the shape every row
+    // in this suite had before the tag action existed.
+    taxClass: null,
     ...p,
   };
 }
@@ -107,5 +110,50 @@ describe('planBackfill (pure)', () => {
     ]);
     expect(plan.scanned).toBe(1);
     expect(plan.refiles[0].toCategoryId).toBe('entertainment');
+  });
+});
+
+/**
+ * The rule THEN-action "tag for taxes" reaching rows that were ingested before the
+ * rule existed (O.15 slice 6). The planner is where the decision is made; the
+ * server writer carries it out under a second `taxClass: null` guard.
+ */
+describe('planBackfill — the tag-for-taxes action', () => {
+  const RULE: RuleLike = {
+    id: 'r-tax',
+    merchantCanonical: null,
+    matchKeywords: ['mirko'],
+    setTaxClass: 'business',
+    minAmountCents: null,
+    maxAmountCents: null,
+    weekendOnly: null,
+    weekdayOnly: null,
+    accountId: null,
+    categoryId: 'dining',
+    priority: 110,
+  };
+
+  it('carries the stamp onto an untagged row the rule now resolves', () => {
+    const plan = planBackfill([row({ id: 't1', rawDescriptor: 'MIRKO PASTA' })], [RULE]);
+    expect(plan.refiles).toHaveLength(1);
+    expect(plan.refiles[0].toCategoryId).toBe('dining');
+    expect(plan.refiles[0].taxClassStamp).toBe('business');
+  });
+
+  it('carries NO stamp onto a row the reader already tagged', () => {
+    const plan = planBackfill(
+      [row({ id: 't1', rawDescriptor: 'MIRKO PASTA', taxClass: 'medical' })],
+      [RULE],
+    );
+    expect(plan.refiles).toHaveLength(1); // still re-filed…
+    expect(plan.refiles[0].taxClassStamp).toBeNull(); // …and the tag left alone
+  });
+
+  it('carries no stamp when the rule has no tag action — every pre-slice rule is unchanged', () => {
+    const plan = planBackfill(
+      [row({ id: 't1', rawDescriptor: 'MIRKO PASTA' })],
+      [{ ...RULE, setTaxClass: null }],
+    );
+    expect(plan.refiles[0].taxClassStamp).toBeNull();
   });
 });

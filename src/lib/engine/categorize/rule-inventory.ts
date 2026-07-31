@@ -23,6 +23,7 @@
  *
  * Pure: no database, no session, no clock.
  */
+import { isTaxClass } from '../tax/classes';
 import { keywordSpecificity } from './keyword-rule';
 import { mapStoredRule, type RuleRefusal, type RuleRow } from './rule-mapping';
 
@@ -74,6 +75,13 @@ export interface InventoryEntry {
   keywordGroups: string[][];
   categoryId: string;
   renameTo: string | null;
+  /**
+   * Tag-for-taxes THEN action (O.15 slice 6). Carried for the same reason
+   * `renameTo` is: a page that lists what runs must list what it DOES, or a rule
+   * quietly writing a tax tag is exactly as invisible as a rule quietly filing a
+   * category was before this page existed.
+   */
+  setTaxClass: string | null;
   conditions: InventoryConditions;
   priority: number;
   /**
@@ -186,6 +194,7 @@ function toEntry(row: RuleRow, canonicalByMerchantId: ReadonlyMap<string, string
       keywordGroups: [],
       categoryId: row.categoryId,
       renameTo: row.renameTo ?? null,
+      setTaxClass: readableTaxClass(row.setTaxClass),
       conditions,
       priority: row.priority,
       active: false,
@@ -205,11 +214,21 @@ function toEntry(row: RuleRow, canonicalByMerchantId: ReadonlyMap<string, string
     keywordGroups: origin === 'typed' ? mapped.likes.map((l) => [...(l.matchKeywords ?? [])]) : [],
     categoryId: first.categoryId,
     renameTo: first.renameTo ?? null,
+    setTaxClass: readableTaxClass(first.setTaxClass),
     conditions,
     priority: first.priority,
     active: true,
     refusal: null,
   };
+}
+
+/**
+ * The same READ-path gate `listKeywordRules` applies, so the two lists cannot
+ * disagree about whether a stored slug is a tag action: an unrecognized value tags
+ * nothing at write time (`resolveRuleTaxStamp`), so it must read as no action here.
+ */
+function readableTaxClass(stored: string | null | undefined): string | null {
+  return isTaxClass(stored) ? stored : null;
 }
 
 function compareEntries(a: InventoryEntry, b: InventoryEntry): number {
