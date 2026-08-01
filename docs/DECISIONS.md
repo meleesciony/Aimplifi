@@ -2557,3 +2557,27 @@ when those are not protected).
 **Locks.** `test_regression__money_dials_protect_named_categories_from_cut_list` +
 `test_regression__wealth_contribution_prefers_settings_savings_pct` + e2e wealth-target
 contribution / steppers / cuts markers.
+
+## #376 — Fixed vs guilt-free by category (Wave B.1 start)
+
+Owner 2026-08-01: budgeting is a start; still missing sections to set fixed expenses;
+start by categorizing every transaction into fixed or not fixed.
+
+**DECIDED:**
+1. Classification is by the transaction's **filed category** (not a per-txn flag).
+   Pure `classifySpendClass` → `fixed` | `guilt-free` | `out-of-scope` (transfers,
+   card payments, cash, investment, income, uncategorized stay out-of-scope — never
+   labeled "not fixed" as if they were guilt-free spend).
+2. Additive `CategoryFixedOverride` (userId × categoryId → isFixed). Absence = app
+   suggestion (`!CategoryMeta.discretionary`). Matching the suggestion deletes the
+   override row. System `Category.discretionary` stays global; reader choice cannot
+   live there.
+3. `monthlyNonDiscretionaryCents` / Plan guilt-free honour meta (custom categories)
+   + overrides. Surface: `/budgets` Fixed vs guilt-free panel with move controls;
+   demo read-only. Amount-from-budget-target (full B.1 amount term) is a later slice.
+
+**Locks.** `tests/unit/spend-class.test.ts`
+`test_regression__user_override_moves_dining_into_fixed_median` +
+`test_regression__custom_nondiscretionary_category_counts_as_fixed` +
+`test_regression__transfer_and_uncategorized_are_out_of_scope_not_guilt_free` +
+e2e `spend-class.spec.ts`. Schema additive → Neon `prisma db push` on deploy.

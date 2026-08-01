@@ -14,6 +14,7 @@ import { prisma } from '@/lib/db';
 import { BudgetTargetForm } from '@/components/finance/budget-target-form';
 import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
 import { getCategoryOverlay } from '@/server/category-meta';
+import { getCategoryFixedOverrides } from '@/server/category-fixed';
 import { getHiddenCategoryIds, getLinkableCategoryIds } from '@/server/categories';
 import {
   CATEGORY_LINK_CLASS,
@@ -23,10 +24,13 @@ import {
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getSpendingPlan } from '@/server/spending-plan';
+import { summarizeSpendClassCategories } from '@/lib/engine/spending-plan/spend-class';
 import { ConsciousBucketsStrip } from '@/components/finance/conscious-buckets-strip';
+import { SpendClassPanel } from '@/components/finance/spend-class-panel';
 import { buildCategoryBreakdowns } from '@/lib/engine/glass-box/category-breakdown';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
+import { isDemoUser } from '@/lib/demo-user';
 
 const SYSTEM_BUDGETABLE = CATEGORIES.filter((c) => isBudgetable(c.id));
 
@@ -50,7 +54,8 @@ export default async function BudgetsPage() {
   // target can't be set before any account exists).
   if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
-  const [txns, budgets, user, plan, overlay, hiddenCategoryIds, linkableCategoryIds] = await Promise.all([
+  const [txns, budgets, user, plan, overlay, hiddenCategoryIds, linkableCategoryIds, fixedOverrides] =
+    await Promise.all([
     // All non-transfer, non-split activity this month (BOTH signs) so the engine
     // can net refunds against spend — outflow-only would overstate it.
     prisma.transaction.findMany({
@@ -113,6 +118,7 @@ export default async function BudgetsPage() {
     // O.6: the register's own option list — the fence that decides which rows may
     // become links. Same call /reports and /transactions make.
     getLinkableCategoryIds(userId),
+    getCategoryFixedOverrides(userId),
   ]);
   const linkable = new Set(linkableCategoryIds);
 
@@ -190,10 +196,24 @@ export default async function BudgetsPage() {
     meta,
   );
 
+  // Wave B.1: every spend category this month, split Fixed vs guilt-free.
+  // Same spendByCategory the budget rows use — designation does not invent money.
+  const spendClasses = summarizeSpendClassCategories(
+    spendByCategory,
+    meta,
+    fixedOverrides,
+    (id) => categoryName(id, meta),
+  );
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Spending this month</h1>
       <ConsciousBucketsStrip plan={plan} disclosures={plan.disclosures} />
+      <SpendClassPanel
+        fixed={spendClasses.fixed}
+        guiltFree={spendClasses.guiltFree}
+        canEdit={!isDemoUser(userId)}
+      />
       <Card>
         <CardHeader className="pb-2">
           {/* O.6: the basis belongs in the label (L.29). "Pending included" is the

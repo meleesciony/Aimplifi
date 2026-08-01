@@ -36,6 +36,8 @@ import { monthlyNonDiscretionaryCents } from '@/lib/engine/spending-plan/fixed-p
 import type { SeriesProjectionStatus } from '@/lib/engine/recurring/detect';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance';
+import { getCategoryMeta } from '@/server/category-meta';
+import { getCategoryFixedOverrides } from '@/server/category-fixed';
 import { getProvider } from '@/lib/providers/demo';
 import { formatISODate, isoDate } from '@/lib/dates';
 
@@ -90,10 +92,19 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     .slice(-3)
     .map((f) => f.incomeCents);
 
-  // Fixed pattern (#371): non-discretionary spend across spending accounts
+  // Fixed pattern (#371/#376): non-discretionary spend across spending accounts
   // (checking / savings / credit) — groceries on a card still consume the
-  // allocation. Dining out and shopping stay out (discretionary = guilt-free).
-  const trailingMonthlyFixedCents = monthlyNonDiscretionaryCents(snap.transactions)
+  // allocation. Dining out and shopping stay out unless the reader overrides
+  // the category on /budgets. Custom categories honour their discretionary flag.
+  const [categoryMeta, fixedOverrides] = await Promise.all([
+    getCategoryMeta(userId),
+    getCategoryFixedOverrides(userId),
+  ]);
+  const trailingMonthlyFixedCents = monthlyNonDiscretionaryCents(
+    snap.transactions,
+    categoryMeta,
+    fixedOverrides,
+  )
     .filter((f) => f.month < ym)
     .slice(-3)
     .map((f) => f.expenseCents);

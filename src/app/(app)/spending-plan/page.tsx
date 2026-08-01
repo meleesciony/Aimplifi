@@ -225,8 +225,12 @@ export default async function SpendingPlanPage() {
             differences show as a slide.
           </li>
           <li>
-            Guilt-free = income − savings% − fixed. Dining out and golf are discretionary;
-            savings is not.
+            Mark categories Fixed or Guilt-free on{' '}
+            <Link href="/budgets" className="underline underline-offset-2 hover:text-foreground">
+              Spending
+            </Link>
+            . Guilt-free = income − savings% − fixed. Dining out and golf start as
+            guilt-free; groceries and bills start as fixed — change any that are wrong.
           </li>
         </ol>
       </section>

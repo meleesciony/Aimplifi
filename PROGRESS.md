@@ -1,5 +1,13 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — Fixed vs guilt-free by category (#376) PARTIAL (B.1 start)
+
+Owner: budgeting is a start; missing sections to set fixed expenses; start by
+categorizing every transaction into fixed or not fixed. Shipped: `classifySpendClass`,
+`CategoryFixedOverride`, meta-aware Plan median, `/budgets` Fixed vs guilt-free panel
+(demo read-only). Open: per-category amount term from budget target; B.2 one-page
+composition; hostile critic.
+
 ## 2026-08-01 — Wealth dial + savings% + cut proposals (#375) DONE
 
 Owner: interactive years dial; use settings savings % as new-money flow; $/mo + %
