@@ -32,6 +32,10 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import {
+  proposeDiscretionaryCuts,
+  type DiscretionaryCategorySpend,
+} from '@/lib/engine/fi/discretionary-cuts';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
 import {
   FALLBACK_HORIZON_YEARS,
@@ -59,10 +63,20 @@ export function WealthTargetCard({
   inflationBps,
   dialOwnership,
   monthlySavingsMonths,
+  contributionBasis,
+  savingsTargetBps,
+  historicalMonthlySavingsCents,
+  discretionaryCategorySpend,
+  moneyDials,
   frozenPortfolioNote,
   currencyNote,
 }: {
   portfolioCents: Cents;
+  /**
+   * Monthly contribution the years dial grows from (#375) — Settings savings %
+   * when set, else recent surplus. Named `monthlySavingsCents` for continuity with
+   * the engine field it feeds.
+   */
   monthlySavingsCents: Cents;
   /**
    * The 6-month MEAN of categorized monthly income (`server/coach.ts`), which is NOT the
@@ -86,12 +100,18 @@ export function WealthTargetCard({
    */
   dialOwnership: DialOwnership;
   /**
-   * How many months `monthlySavingsCents` was averaged over — the actual divisor, which is
-   * `Math.max(1, last6.length)` and is 3 for a reader three months in. The pace sentence names
-   * this number; asserting "6" was false for every short history and for any span containing a
-   * month with no activity, and it was the sentence added to make the figure checkable.
+   * How many months the historical surplus was averaged over — still named in the
+   * pace sentence when contribution is recent-surplus; when contribution is the
+   * settings %, the contribution-basis line owns the explanation instead.
    */
   monthlySavingsMonths: number;
+  /** #375 — which source produced `monthlySavingsCents`. */
+  contributionBasis: 'settings-savings-pct' | 'recent-surplus';
+  savingsTargetBps: number | null;
+  /** Recent surplus (always), for the compare line beside a settings-% contribution. */
+  historicalMonthlySavingsCents: Cents;
+  discretionaryCategorySpend: DiscretionaryCategorySpend[];
+  moneyDials: string[];
   /**
    * Set when an INVESTMENT account the bank stopped sharing is inside `portfolioCents`.
    * Every PROJECTION here starts from that balance — including the required-contribution
@@ -236,6 +256,27 @@ export function WealthTargetCard({
     result !== null &&
     new Set(result.sensitivity.map((s) => s.realReturnBps)).size > 1;
 
+  const gapCents =
+    result !== null && result.requiredAdditionalMonthlyCents !== null && result.requiredAdditionalMonthlyCents > 0
+      ? result.requiredAdditionalMonthlyCents
+      : 0;
+  const cutProposals = useMemo(
+    () =>
+      proposeDiscretionaryCuts({
+        categories: discretionaryCategorySpend,
+        moneyDials,
+        gapCents,
+        limit: 5,
+      }),
+    [discretionaryCategorySpend, moneyDials, gapCents],
+  );
+
+  function nudgeHorizon(delta: number) {
+    const base = chosenHorizonYears ?? horizonYears;
+    const next = Math.min(MAX_HORIZON_YEARS, Math.max(MIN_HORIZON_YEARS, base + delta));
+    setChosenHorizonYears(next);
+  }
+
   return (
     <Card data-testid="wealth-target-card">
       <CardHeader className="pb-2">
@@ -324,14 +365,48 @@ export function WealthTargetCard({
               {paceLine}
             </p>
           ) : null}
+          {result !== null && result.unreachableReason !== 'target-out-of-range' ? (
+            <p className="text-xs text-muted-foreground" data-testid="wealth-target-contribution-basis">
+              {COACH_COPY.wealthTargetContributionBasis(
+                contributionBasis,
+                monthlySavingsCents,
+                savingsTargetBps,
+                historicalMonthlySavingsCents,
+              )}
+            </p>
+          ) : null}
           {requiredLine ? (
             <div className="space-y-2 rounded-lg border p-3">
-              <label htmlFor="wealth-target-horizon" className="flex justify-between text-sm">
-                <span>I want it in…</span>
-                <span className="font-semibold tabular-nums" data-testid="wealth-target-horizon-value">
-                  {horizonYears} year{horizonYears === 1 ? '' : 's'}
-                </span>
-              </label>
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <label htmlFor="wealth-target-horizon" className="min-w-0">
+                  I want it in…
+                </label>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    className="inline-flex size-11 items-center justify-center rounded-md border text-lg leading-none"
+                    aria-label="One fewer year"
+                    data-testid="wealth-target-horizon-dec"
+                    onClick={() => nudgeHorizon(-1)}
+                    disabled={horizonYears <= MIN_HORIZON_YEARS}
+                  >
+                    −
+                  </button>
+                  <span className="min-w-[5.5rem] text-center font-semibold tabular-nums" data-testid="wealth-target-horizon-value">
+                    {horizonYears} year{horizonYears === 1 ? '' : 's'}
+                  </span>
+                  <button
+                    type="button"
+                    className="inline-flex size-11 items-center justify-center rounded-md border text-lg leading-none"
+                    aria-label="One more year"
+                    data-testid="wealth-target-horizon-inc"
+                    onClick={() => nudgeHorizon(1)}
+                    disabled={horizonYears >= MAX_HORIZON_YEARS}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
               <input
                 id="wealth-target-horizon"
                 type="range"
@@ -347,7 +422,7 @@ export function WealthTargetCard({
               <p className="text-xs text-muted-foreground" data-testid="wealth-target-horizon-basis">
                 {COACH_COPY.wealthTargetHorizonBasis(horizonBasis)}
               </p>
-              <p className="text-sm" data-testid="wealth-target-required">
+              <p className="text-sm font-medium" data-testid="wealth-target-required">
                 {requiredLine}
               </p>
               {shareLine ? (
@@ -363,6 +438,33 @@ export function WealthTargetCard({
                     result.withinSafeToSpend,
                   )}
                 </p>
+              ) : null}
+              {gapCents > 0 ? (
+                <div className="space-y-2 border-t pt-2" data-testid="wealth-target-cuts">
+                  <p className="text-sm" data-testid="wealth-target-cuts-intro">
+                    {COACH_COPY.wealthTargetCutsIntro(gapCents as Cents, moneyDials.length)}
+                  </p>
+                  {cutProposals.length === 0 ? (
+                    <p className="text-xs text-muted-foreground" data-testid="wealth-target-cuts-empty">
+                      {COACH_COPY.wealthTargetCutsEmpty(gapCents as Cents)}
+                    </p>
+                  ) : (
+                    <ul className="space-y-1.5 text-sm">
+                      {cutProposals.map((c) => (
+                        <li key={c.categoryId} data-testid="wealth-target-cut-row">
+                          {COACH_COPY.wealthTargetCutRow(c.categoryName, c.monthlyCents)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Link
+                    href="/settings#money-dials"
+                    className="inline-flex min-h-11 items-center text-xs font-medium text-emerald-600 underline underline-offset-4 dark:text-emerald-400"
+                    data-testid="wealth-target-cuts-dials-link"
+                  >
+                    Edit money dials (protect what you want to keep)
+                  </Link>
+                </div>
               ) : null}
             </div>
           ) : null}

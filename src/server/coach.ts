@@ -27,6 +27,9 @@ import {
   type MonthlyFlow,
   type Opportunity,
 } from '@/lib/engine/fi/insights';
+import type { DiscretionaryCategorySpend } from '@/lib/engine/fi/discretionary-cuts';
+import { averageDiscretionaryCategorySpend } from '@/lib/engine/fi/discretionary-spend';
+import { categoryName } from '@/lib/engine/categorize/categories';
 import { detectUnusualCharges, type UnusualCharge } from '@/lib/engine/anomaly/detect';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import {
@@ -163,6 +166,15 @@ export interface CoachData {
   lifeEnergy: { merchant: string; amountCents: number; hours: number; date: string }[];
   hourlyWageCents: number;
   moneyDials: string[];
+  /**
+   * Trailing average monthly discretionary spend by category (DECISIONS #375) —
+   * cut-proposal input for the wealth-target card. Money dials are applied at
+   * the proposal step, not here, so a dial change without a re-fetch of spends
+   * still re-ranks correctly on the client.
+   */
+  discretionaryCategorySpend: DiscretionaryCategorySpend[];
+  /** Settings savings-% dial — null when unset (Plan / wealth contribution). */
+  savingsTargetBps: number | null;
   review: MoneyReview;
   /** §2.4 candidate-set recap shown on /coach — each line a verbatim COACH_COPY string. */
   reviewLines: { id: string; role: ReviewRole; line: string }[];
@@ -482,6 +494,14 @@ export async function getCoachData(
     lifeEnergy,
     hourlyWageCents: wage,
     moneyDials: parseStoredDials(user.moneyDials),
+    discretionaryCategorySpend: averageDiscretionaryCategorySpend(
+      txns,
+      isoDate(today),
+      3,
+      meta,
+      (id) => categoryName(id, meta),
+    ),
+    savingsTargetBps: user.savingsTargetBps ?? null,
     review,
     reviewLines,
     reviewPersonalized,

@@ -2536,3 +2536,24 @@ transaction. I’m not sure what some of the charges are. Been too long."*
 **Locks.** `test_regression__skip_rotates_front_card_without_dropping_it` +
 `test_regression__masked_descriptor_heading_is_honest` + e2e
 `Skip for now rotates to the next merchant without filing (#374)`.
+
+## #375 — Wealth years dial: settings savings % + dial-aware cut proposals
+
+Owner 2026-08-01: wealth-target slider interactive; years dial should use savings %
+from settings as new money flow; output $/mo + % of income; propose cutting
+lower-priority discretionary (not in money dials — e.g. golf/dining/kids activities
+when those are not protected).
+
+**DECIDED:**
+1. **Contribution basis:** `wealthContributionBasis` — when `savingsTargetBps` is set
+   and Plan `plannedSavingsCents` > 0, the years dial compounds from that intentional
+   flow; else recent surplus. Both figures disclosed on the card.
+2. **Interactive years:** range input kept; +/− steppers added (44px) for reliable
+   mobile interaction. Outputs already include required $/mo + share of income.
+3. **Cuts (W.6a):** pure `proposeDiscretionaryCuts` ranks discretionary category
+   averages that do not match money dials; shown when required additional > 0.
+   Educational, not advisory — "a choice, not a verdict."
+
+**Locks.** `test_regression__money_dials_protect_named_categories_from_cut_list` +
+`test_regression__wealth_contribution_prefers_settings_savings_pct` + e2e wealth-target
+contribution / steppers / cuts markers.

@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/card';
 import { EmptyCoach } from '@/components/onboarding/route-empty';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
 import { formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { prisma } from '@/lib/db';
@@ -66,6 +67,12 @@ export default async function CoachPage() {
     returnIsDefault: data.fi.returnIsDefault,
     inflationIsDefault: data.fi.inflationIsDefault,
   };
+  // #375 — years dial compounds from Settings/Plan savings % when set; else recent surplus.
+  const wealthContribution = wealthContributionBasis({
+    historicalMonthlySavingsCents: data.fi.monthlySavingsCents,
+    plannedSavingsCents: plan.plannedSavingsCents,
+    savingsTargetBps: plan.savingsTargetBps,
+  });
 
   return (
     <div className="space-y-4">
@@ -122,13 +129,18 @@ export default async function CoachPage() {
           `data.fi`, one read, so they cannot print two different rates for one setting. */}
       <WealthTargetCard
         portfolioCents={data.fi.portfolioCents}
-        monthlySavingsCents={data.fi.monthlySavingsCents}
+        monthlySavingsCents={cents(wealthContribution.contributionCents)}
         monthlyIncomeCents={data.fi.monthlyIncomeCents}
         safeToSpendCents={cents(plan.leftToSpendCents)}
         expectedReturnBps={data.fi.expectedReturnBps}
         inflationBps={data.fi.inflationBps}
         dialOwnership={dialOwnership}
         monthlySavingsMonths={data.fi.monthlySavingsMonths}
+        contributionBasis={wealthContribution.basis}
+        savingsTargetBps={plan.savingsTargetBps}
+        historicalMonthlySavingsCents={data.fi.monthlySavingsCents}
+        discretionaryCategorySpend={data.discretionaryCategorySpend}
+        moneyDials={data.moneyDials}
         // Same note the FI card above already carries: a withheld non-USD investment account is
         // absent from `portfolioCents`, and the starting-balance sentence enumerates exclusions.
         currencyNote={withheldInlineNote(withheld)}

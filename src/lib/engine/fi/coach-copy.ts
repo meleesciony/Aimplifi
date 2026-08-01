@@ -426,6 +426,31 @@ export const COACH_COPY = {
   wealthTargetRequiredExceedsIncome: () =>
     `That's more than your whole average monthly income, so this pairing of number and date isn't a plan yet — one of the two has to move.`,
 
+  /**
+   * #375 — which monthly contribution the years dial compounds from. Settings
+   * savings % is the intentional new-money flow; recent surplus is the fallback.
+   */
+  wealthTargetContributionBasis: (
+    basis: 'settings-savings-pct' | 'recent-surplus',
+    contributionCents: Cents,
+    savingsTargetBps: number | null,
+    historicalMonthlyCents: Cents,
+  ) =>
+    basis === 'settings-savings-pct' && savingsTargetBps != null
+      ? `The years dial grows from your settings savings rate (${pct1(savingsTargetBps)} → ${formatCents(contributionCents)}/month). Recent surplus averaged ${formatCents(historicalMonthlyCents)}/month — different window, shown so you can compare.`
+      : `The years dial grows from your recent monthly surplus (${formatCents(contributionCents)}/month). Set a savings % on Plan or in Settings to use that intentional new-money flow instead.`,
+
+  wealthTargetCutsIntro: (gapCents: Cents, dialCount: number) =>
+    dialCount > 0
+      ? `To free about ${formatCents(gapCents)}/month more, start with discretionary spending outside your money dials (the things you said you want to spend on stay off this list):`
+      : `To free about ${formatCents(gapCents)}/month more, start with lower-priority discretionary spending (dining out, fitness/golf, kids activities, and similar — set money dials in Settings to protect what you want to keep):`,
+
+  wealthTargetCutRow: (categoryName: string, monthlyCents: Cents) =>
+    `${categoryName} — about ${formatCents(monthlyCents)}/month lately. Cutting here is a choice, not a verdict.`,
+
+  wealthTargetCutsEmpty: (gapCents: Cents) =>
+    `Nothing discretionary outside your money dials is large enough to name for the ${formatCents(gapCents)}/month gap — the date or the target may need to move, or a money dial may be covering the whole discretionary set.`,
+
   wealthTargetAdditional: (
     additionalCents: Cents,
     safeToSpendCents: Cents,

@@ -348,6 +348,41 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     isProjection: false,
   },
   {
+    label: 'wealthTargetContributionBasis:settings',
+    text: COACH_COPY.wealthTargetContributionBasis(
+      'settings-savings-pct',
+      cents(500_000),
+      2500,
+      cents(200_000),
+    ),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetContributionBasis:surplus',
+    text: COACH_COPY.wealthTargetContributionBasis('recent-surplus', cents(200_000), null, cents(200_000)),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetCutsIntro:withDials',
+    text: COACH_COPY.wealthTargetCutsIntro(cents(100_000), 2),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetCutsIntro:noDials',
+    text: COACH_COPY.wealthTargetCutsIntro(cents(100_000), 0),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetCutRow',
+    text: COACH_COPY.wealthTargetCutRow('Dining Out', cents(45_000)),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetCutsEmpty',
+    text: COACH_COPY.wealthTargetCutsEmpty(cents(100_000)),
+    isProjection: false,
+  },
+  {
     label: 'wealthTargetAdditional:fits',
     text: COACH_COPY.wealthTargetAdditional(cents(75_000), cents(300_000), true),
     isProjection: false,

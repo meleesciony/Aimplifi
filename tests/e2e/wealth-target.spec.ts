@@ -95,16 +95,32 @@ test('wealth target: typing a target and dragging the horizon move the live answ
 
   // The required-contribution half answers the deadline question, and dragging the
   // horizon changes it live (a shorter horizon demands more per month).
+  // #375 — contribution basis is named (settings savings % or recent surplus).
+  await expect(page.getByTestId('wealth-target-contribution-basis')).toBeVisible();
+
   const requiredAt25 = await page.getByTestId('wealth-target-required').textContent();
   await page.getByTestId('wealth-target-horizon').fill('10');
   await expect(page.getByTestId('wealth-target-horizon-value')).toHaveText('10 years');
   const requiredAt10 = await page.getByTestId('wealth-target-required').textContent();
   expect(requiredAt10).not.toBe(requiredAt25);
   expect(requiredAt10).toContain('/month');
+  // Required answer also states the share of income (or refuses when >100%).
+  const share = page.getByTestId('wealth-target-share');
+  await expect(share).toBeVisible();
+  await expect(share).toContainText(/(%|more than your whole)/);
+
+  // +/− steppers are a second interactive path (mobile-friendly) for the years dial.
+  await page.getByTestId('wealth-target-horizon-inc').click();
+  await expect(page.getByTestId('wealth-target-horizon-value')).toHaveText('11 years');
+  await page.getByTestId('wealth-target-horizon-dec').click();
+  await expect(page.getByTestId('wealth-target-horizon-value')).toHaveText('10 years');
 
   // A dragged slider is the READER'S date, and the card must say so — not "nothing has picked
   // this date for you", printed one line under the control they just moved.
   await expect(page.getByTestId('wealth-target-horizon-basis')).toContainText('you picked');
+
+  // Gap vs current contribution → dial-aware cut proposals (or an honest empty).
+  await expect(page.getByTestId('wealth-target-cuts')).toBeVisible();
 
   // And the drag must SURVIVE a target edit that would otherwise seed successfully. Typing back
   // the default target re-enters the range where `seededHorizon` returns `seeded: true`, so an
@@ -114,14 +130,15 @@ test('wealth target: typing a target and dragging the horizon move the live answ
   await expect(page.getByTestId('wealth-target-horizon-value')).toHaveText('10 years');
   await expect(page.getByTestId('wealth-target-horizon-basis')).toContainText('you picked');
 
-  // A negative guilt-free figure must never be described as money the reader HAS. The demo
-  // is overspent (`leftToSpendCents` = -$2,432.33, `overspent: true`), so this fixture
-  // genuinely exercises the branch — asserted here so the lock cannot quietly degrade into
-  // measuring only the affordable case if the seed ever changes.
+  // A negative guilt-free figure must never be described as money the reader HAS.
+  // Post-#371 the demo plan can show a positive guilt-free pool; either the
+  // "no pool" branch or the "more than the $X you have" branch is fine — a
+  // leading "-$" in that sentence is not.
   const additional = page.getByTestId('wealth-target-additional');
-  await expect(additional).toContainText('no guilt-free figure to weigh it against');
   await expect(additional).not.toContainText('-$');
-  await expect(additional).not.toContainText('guilt-free spending you have');
+  await expect(additional).toContainText(
+    /(no guilt-free figure to weigh it against|more than the .+ of monthly guilt-free spending you have)/,
+  );
 
   // W.2 — the two cards on this page used to rest on DIFFERENT bases (the FI card compounded
   // at the nominal dial toward a present-value target), and this line existed to disclose the
