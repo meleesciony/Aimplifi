@@ -1109,7 +1109,9 @@ export function answerSafeToSpend(
     // The basis rides this branch too (cycle-2 critic: Ask has no breakdown page, and an
     // inflated one-month pattern UNDERSTATES the overage — the dangerous direction).
     const basis =
-      plan.incomeBasis === 'trailing-median'
+      plan.incomeBasis === 'user-set'
+        ? 'That is the monthly income you set on the plan, minus fixed costs and your planned savings. '
+        : plan.incomeBasis === 'trailing-median'
         ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of earned pay in the checking account that pays your cards, minus fixed and recurring expenses and your planned savings. Investment income, interest, and money moved in from savings are left out. ${
             plan.incomeMonths >= 3
               ? ''
@@ -1132,7 +1134,9 @@ export function answerSafeToSpend(
     kind: 'safe_to_spend',
     headline: `Your guilt-free allocation this month is ${fmt(plan.leftToSpendCents)}.`,
     detail: withQualifiers(
-      plan.incomeBasis === 'trailing-median'
+      plan.incomeBasis === 'user-set'
+        ? 'That is the monthly income you set on the plan, minus fixed costs and your planned savings. Discretionary spending is never subtracted.'
+        : plan.incomeBasis === 'trailing-median'
         ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of earned pay in the checking account that pays your cards, minus fixed and recurring expenses and your planned savings. Investment income, interest, and money moved in from savings are left out. ${
             plan.incomeMonths >= 3
               ? 'A one-time deposit is not income here — the median ignores the month it landed in.'

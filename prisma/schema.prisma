@@ -47,6 +47,11 @@ model User {
   // and demo users compute identically until they opt in. The engine takes
   // max(goal contributions, income × this) — a floor, never a sum.
   savingsTargetBps  Int? // 0–9000 enforced at the dials boundary
+  // Optional Plan figure overrides (DECISIONS #372). null = use the suggested
+  // pattern from transactions. Integer cents. Cleared by submitting an empty
+  // field on /spending-plan. Demo writes are fenced (shared account).
+  planIncomeOverrideCents Int?
+  planFixedOverrideCents  Int?
   // Calendar date (YYYY-MM-DD, provider "today") of the user's last dashboard view,
   // for the return-moment greeting (TASKS 1.1). A CALENDAR DATE, not a timestamp, per
   // the date-discipline rule — so the gap is measured in the same civil-date domain as

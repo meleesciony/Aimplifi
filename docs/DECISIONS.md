@@ -2464,3 +2464,39 @@ treated as spendable allocation income.
 `test_regression__payment_account_income_scope_excludes_dup_checking_and_mm` +
 `test_regression__paycheck_preferred_over_mobile_deposit_and_interest`.
 Extends #369; no schema change.
+
+## #371 — Fixed costs = non-discretionary spend pattern (not tiny recurring-only)
+
+Owner 2026-08-01: formula is `income − savings% − fixed(non-discretionary) = guilt-free`
+(dining out discretionary; groceries not). After #370 the income side was sane (~$21k
+paycheck median) but fixed was still **$834** from four detected recurring series, so
+guilt-free still read ~$15k. Live non-discretionary spend (excl. transfers / CC pay /
+investment / uncategorized) medians ~$13.8k → guilt-free ~$2.1k at current income, or
+~$8.7k at a $30k income month.
+
+**DECIDED:** Trailing median of non-discretionary category outflows across spending
+accounts (`monthlyNonDiscretionaryCents`); take `max(pattern, recurring-series rate)` so
+a thin filing month cannot understate known bills. Exclude transfer, credit-card-payment,
+cash, investment. Uncategorized excluded (unknown ≠ fixed). Glass-box / row labels name
+the non-discretionary basis.
+
+**Locks.** `tests/unit/fixed-pattern.test.ts`
+`test_regression__fixed_is_nondiscretionary_median_not_tiny_recurring_only` +
+`test_regression__dining_out_is_not_fixed` +
+`test_regression__fitness_golf_is_discretionary_not_fixed`.
+Fitness marked `discretionary: true` (golf / gym / extracurricular). Extends #369/#370.
+
+## #372 — User-set Plan figures (income / fixed / savings %) close the gap
+
+Owner 2026-08-01: suggestions from code will always miss some filing; there must be a
+place to set monthly income, non-discretionary fixed, and savings % by hand. Savings is
+pay-yourself-first — not a discretionary cut.
+
+**DECIDED:** Additive `User.planIncomeOverrideCents` / `planFixedOverrideCents` (null =
+use suggestion). `/spending-plan` “Your plan figures” form writes them + can update
+`savingsTargetBps`. Engine bases `user-set` when an override is present; suggestions stay
+on the plan for comparison. Demo writes fenced. Empty field clears override.
+
+**Locks.** `tests/unit/plan-overrides.test.ts` +
+`test_regression__user_set_overrides_replace_suggestions`. Schema additive → Neon
+`prisma db push` on deploy.

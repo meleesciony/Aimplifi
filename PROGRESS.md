@@ -1,5 +1,11 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — Fixed non-discretionary (#371) + Plan figure overrides (#372) IN FLIGHT
+
+Owner: income − savings% − non-disc fixed = guilt-free; dining/golf discretionary;
+savings is not; must be able to set figures by hand. Code: non-disc median fixed,
+fitness discretionary, Plan “Your plan figures” form + User override columns.
+
 ## 2026-08-01 — Guilt-free income scope (#370) + Home charts restored DONE
 
 Owner: ~$23k guilt-free impossible; don't count MM / already-saved; restore charts (not

@@ -2,11 +2,13 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
+import { PlanFiguresForm } from '@/components/finance/plan-figures-form';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { traceSafeToSpend } from '@/lib/engine/glass-box/trace';
 import { formatCents } from '@/lib/money';
 import { cents } from '@/lib/money';
 import { prisma } from '@/lib/db';
+import { isDemoUser } from '@/lib/demo-user';
 
 export const metadata = { title: "Spending plan" };
 
@@ -18,8 +20,20 @@ export default async function SpendingPlanPage() {
   if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
   const p = await getSpendingPlan(userId);
+  const canEditFigures = !isDemoUser(userId);
+  const figuresForm = (
+    <PlanFiguresForm
+      suggestedIncomeCents={p.suggestedIncomeCents}
+      suggestedFixedCents={p.suggestedFixedCents}
+      incomeOverrideCents={p.incomeOverrideCents}
+      fixedOverrideCents={p.fixedOverrideCents}
+      savingsTargetBps={p.savingsTargetBps}
+      canEdit={canEditFigures}
+    />
+  );
   const positive = !p.overspent;
   // Card fields do not create a guilt-free figure (owner 2026-08-01).
+  // User-set overrides still produce a plan even with no transaction pattern.
   const noData =
     p.patternIncomeCents === 0 &&
     p.fixedExpensesCents === 0 &&
@@ -36,11 +50,11 @@ export default async function SpendingPlanPage() {
             Guilt-free to spend
           </p>
           <p className="mt-2 text-sm text-muted-foreground" data-testid="spending-plan-empty">
-            Once we can see your income — a complete month posted, or a recurring paycheck
-            detected — your guilt-free spending amount shows up here, with every line of the
-            arithmetic behind it.
+            Once we can see your income — a complete month posted, a recurring paycheck
+            detected, or figures you set below — your guilt-free amount shows up here.
           </p>
         </section>
+        {figuresForm}
       </div>
     );
   }
@@ -177,13 +191,15 @@ export default async function SpendingPlanPage() {
           </p>
         ))}
         <p className="mt-3 text-xs text-muted-foreground">
-          Income pattern − fixed costs − savings. Card payments settle spend already counted;
-          cash needed for them lives on Home.
+          Income − savings% − non-discretionary fixed (groceries and bills in; dining out out).
+          Card payments settle spend already counted; cash needed for them lives on Home.
           {p.savingsTargetBps == null && p.plannedSavingsCents > 0 ? (
             <> Set a savings target in Settings to reserve a share of income first.</>
           ) : null}
         </p>
       </section>
+
+      {figuresForm}
 
       <section
         className="rounded-2xl border bg-card p-5 shadow-sm"
@@ -198,13 +214,17 @@ export default async function SpendingPlanPage() {
             so income, transfers, and bills land in the right buckets.
           </li>
           <li>
-            Confirm your payment account and savings target in{' '}
+            Set or confirm income, non-discretionary fixed costs, and savings % in{' '}
+            <span className="text-foreground">Your plan figures</span> above (or{' '}
             <Link href="/settings" className="underline underline-offset-2 hover:text-foreground">
               Settings
             </Link>
-            .
+            ).
           </li>
-          <li>Guilt-free is what&apos;s left after fixed costs and savings — spend it freely.</li>
+          <li>
+            Guilt-free = income − savings% − fixed. Dining out and golf are discretionary;
+            savings is not.
+          </li>
         </ol>
       </section>
 

@@ -88,6 +88,7 @@ export function planRowLabels(
  * between "we found nothing" and "there was nothing".
  */
 function incomeLabel(plan: SpendingPlan): string {
+  if (plan.incomeBasis === 'user-set') return 'Income (you set)';
   if (plan.incomeBasis === 'trailing-median') {
     const months = `${plan.incomeMonths} month${plan.incomeMonths === 1 ? '' : 's'}`;
     return plan.patternIncomeCents === 0
@@ -148,7 +149,12 @@ function incomeLabel(plan: SpendingPlan): string {
  */
 function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): PlanRowLabel {
   if (plan.fixedExpensesCents !== 0 || plan.scheduledFixed.length > 0) {
-    return { label: 'Fixed & recurring expenses (monthly pattern)' };
+    if (plan.fixedBasis === 'user-set') return { label: 'Fixed costs (you set)' };
+    return plan.fixedBasis === 'non-discretionary-median'
+      ? {
+          label: `Fixed costs (non-discretionary, median of last ${plan.fixedMonths} month${plan.fixedMonths === 1 ? '' : 's'})`,
+        }
+      : { label: 'Fixed & recurring expenses (monthly pattern)' };
   }
   const seen = disclosures.fixedSeries;
   const absent = seen.detected - seen.counted;

@@ -15,7 +15,7 @@
  * Pure: no I/O, no Date, integer cents only. Copy strings here follow the
  * coaching guardrails (educational, assumption stated inline, no shame).
  */
-import { type Cents, cents, sumCents } from '@/lib/money';
+import { type Cents, cents, formatCents, sumCents } from '@/lib/money';
 import type { ISODate } from '@/lib/dates';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { frozenCardsNote } from '@/lib/engine/account/feed-dropped-view';
@@ -244,7 +244,9 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
 
   const basis: SafeToSpendParts['basis'] = {
     income: [
-      plan.incomeBasis === 'trailing-median'
+      plan.incomeBasis === 'user-set'
+        ? `Income is the monthly figure you set on this plan (suggested from your data: ${formatCents(cents(plan.suggestedIncomeCents))}).`
+        : plan.incomeBasis === 'trailing-median'
         ? `Income is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of earned pay in the checking account that pays your cards — a pattern, so the figure does not swing with what has posted so far this month. Investment income, interest, and money moved in from savings or a money-market are left out. ${
             plan.incomeMonths >= 3
               ? 'A one-time deposit touches only its own month; the median ignores it.'
@@ -276,11 +278,19 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
     // the one with no bills at all — it is what stops "$0 fixed" being read as
     // "nothing I spend is counted anywhere".
     fixedRate:
-      plan.scheduledFixed.length > 0
+      plan.fixedBasis === 'user-set'
         ? [
-            'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12.',
+            `Fixed costs are the monthly figure you set on this plan (suggested from non-discretionary spending: ${formatCents(cents(plan.suggestedFixedCents))}). Savings is separate — your savings target is not a discretionary cut.`,
           ]
-        : [],
+        : plan.fixedBasis === 'non-discretionary-median'
+        ? [
+            `Fixed costs are the median of your last ${plan.fixedMonths} complete month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spending (groceries, housing, utilities, insurance, and similar — not dining out, golf, or shopping). Savings is separate from this line.`,
+          ]
+        : plan.scheduledFixed.length > 0
+          ? [
+              'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12.',
+            ]
+          : [],
     // The understated NON-ZERO figure, which no label can reach (L.30) —
     // authored once in `row-labels.ts` beside the labels, and printed by the Ask
     // answer too. 'left-to-spend' because this panel's headline is always

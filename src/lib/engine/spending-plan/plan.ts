@@ -83,7 +83,10 @@ import { median } from '@/lib/stats';
 import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 
 /** Where the plan's income figure came from — every surface states it inline. */
-export type IncomeBasis = 'trailing-median' | 'detected-series' | 'none';
+export type IncomeBasis = 'trailing-median' | 'detected-series' | 'none' | 'user-set';
+
+/** How the fixed-expense term was derived (DECISIONS #371 / #372). */
+export type FixedBasis = 'non-discretionary-median' | 'detected-series' | 'none' | 'user-set';
 
 /** A detected recurring series, as the plan consumes it (sign carries direction:
  *  negative = a bill/outflow, positive = income). */
@@ -101,8 +104,25 @@ export interface SpendingPlanInput {
   /** Detected recurring INCOME series — the fallback basis when no complete
    *  month exists. */
   scheduledIncome: PlanScheduledItem[];
-  /** Detected recurring EXPENSE series (amountCents negative). */
+  /** Detected recurring EXPENSE series (amountCents negative) — fallback when
+   *  no non-discretionary spend pattern exists yet. */
   scheduledFixed: PlanScheduledItem[];
+  /**
+   * Complete prior months' non-discretionary spend (groceries, housing,
+   * utilities… — not dining out), oldest → newest (up to 3 used). Empty →
+   * fall back to `scheduledFixed` monthly rates (DECISIONS #371).
+   */
+  trailingMonthlyFixedCents?: number[];
+  /**
+   * Optional user-set monthly income (cents). When set, replaces the suggested
+   * pattern (DECISIONS #372). null/undefined = use the suggestion.
+   */
+  incomeOverrideCents?: number | null;
+  /**
+   * Optional user-set monthly fixed costs (cents). When set, replaces the
+   * suggested non-discretionary / recurring figure (DECISIONS #372).
+   */
+  fixedOverrideCents?: number | null;
   /**
    * Card payment obligations whose effective due date falls in THIS calendar
    * month — the sum of the cash-needed engine's own `perDueDate` rows with
@@ -242,14 +262,22 @@ export interface FixedSeriesCensus {
 }
 
 export interface SpendingPlan extends SpendingPlanInput {
-  /** The income figure this plan runs on, derived from the pattern inputs. */
+  /** The income figure this plan runs on (override or suggestion). */
   patternIncomeCents: number;
   /** Which basis produced it. */
   incomeBasis: IncomeBasis;
   /** How many complete months a 'trailing-median' basis used (1–3). */
   incomeMonths: number;
-  /** Fixed + recurring expenses at a monthly rate, derived from `scheduledFixed`. */
+  /** Suggested income before any user override (same as pattern when unset). */
+  suggestedIncomeCents: number;
+  /** Fixed / non-discretionary expenses for the month (override or suggestion). */
   fixedExpensesCents: number;
+  /** Which basis produced `fixedExpensesCents`. */
+  fixedBasis: FixedBasis;
+  /** How many complete months a non-discretionary-median basis used (1–3). */
+  fixedMonths: number;
+  /** Suggested fixed before any user override (same as fixed when unset). */
+  suggestedFixedCents: number;
   /** Resolved planned savings: the LARGER of goal contributions and the
    *  savings-% target applied to pattern income. A floor, never a sum — both
    *  express "pay yourself first", so adding them would count the intent twice. */
@@ -261,10 +289,9 @@ export interface SpendingPlan extends SpendingPlanInput {
   unallocatedSavingsCents: number;
   /** True when a payment dated after this month is inside the figure. */
   reservesBeyondMonth: boolean;
-  /** THE GUILT-FREE FIGURE: pattern income − (fixed expenses + card payments
-   *  due this month + card payments already dated after it + savings). A
-   *  MONTHLY allocation — there is deliberately no per-day view of it (owner
-   *  2026-07-26). Negative = over plan. */
+  /** THE GUILT-FREE FIGURE: pattern income − fixed (non-discretionary) −
+   *  savings. Card payments settle prior spend (cash-needed). Monthly
+   *  allocation — no per-day view (owner 2026-07-26). Negative = over plan. */
   leftToSpendCents: number;
   overspent: boolean;
 }
@@ -434,29 +461,56 @@ export function savingsTargetCents(patternIncomeCents: number, savingsTargetBps:
 }
 
 export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
-  // Income: the trailing pattern, median of up to the last 3 complete months —
-  // a one-time inflow touches no month but its own. Rounding named: Math.round
-  // (half-up), per the lib/stats contract (the shared median never re-rounds).
+  // Income suggestion: trailing median of up to 3 complete months, else series.
   const trailing = input.trailingMonthlyIncomeCents.slice(-3);
-  let patternIncomeCents: number;
-  let incomeBasis: IncomeBasis;
+  let suggestedIncomeCents: number;
+  let suggestedIncomeBasis: Exclude<IncomeBasis, 'user-set'>;
   let incomeMonths: number;
   if (trailing.length > 0) {
-    patternIncomeCents = Math.round(median(trailing));
-    incomeBasis = 'trailing-median';
+    suggestedIncomeCents = Math.round(median(trailing));
+    suggestedIncomeBasis = 'trailing-median';
     incomeMonths = trailing.length;
   } else {
     const series = input.scheduledIncome.reduce((sum, s) => sum + monthlyRateCents(s.amountCents, s.cadence), 0);
-    patternIncomeCents = series;
-    incomeBasis = series > 0 ? 'detected-series' : 'none';
+    suggestedIncomeCents = series;
+    suggestedIncomeBasis = series > 0 ? 'detected-series' : 'none';
     incomeMonths = 0;
   }
 
-  // Fixed expenses: the detected recurring outflows at a monthly rate.
-  const fixedExpensesCents = input.scheduledFixed.reduce(
+  // Fixed suggestion (#371): non-discretionary pattern, floored by recurring.
+  const trailingFixed = (input.trailingMonthlyFixedCents ?? []).slice(-3);
+  const recurringFixedCents = input.scheduledFixed.reduce(
     (sum, s) => sum + monthlyRateCents(-s.amountCents, s.cadence),
     0,
   );
+  let suggestedFixedCents: number;
+  let suggestedFixedBasis: Exclude<FixedBasis, 'user-set'>;
+  let fixedMonths: number;
+  if (trailingFixed.length > 0) {
+    const patternFixed = Math.round(median(trailingFixed));
+    suggestedFixedCents = Math.max(patternFixed, recurringFixedCents);
+    suggestedFixedBasis = 'non-discretionary-median';
+    fixedMonths = trailingFixed.length;
+  } else if (recurringFixedCents > 0) {
+    suggestedFixedCents = recurringFixedCents;
+    suggestedFixedBasis = 'detected-series';
+    fixedMonths = 0;
+  } else {
+    suggestedFixedCents = 0;
+    suggestedFixedBasis = 'none';
+    fixedMonths = 0;
+  }
+
+  // User overrides (#372) replace the suggestion when set; savings % stays a dial.
+  const hasIncomeOverride =
+    typeof input.incomeOverrideCents === 'number' && Number.isSafeInteger(input.incomeOverrideCents) && input.incomeOverrideCents >= 0;
+  const hasFixedOverride =
+    typeof input.fixedOverrideCents === 'number' && Number.isSafeInteger(input.fixedOverrideCents) && input.fixedOverrideCents >= 0;
+
+  const patternIncomeCents = hasIncomeOverride ? input.incomeOverrideCents! : suggestedIncomeCents;
+  const incomeBasis: IncomeBasis = hasIncomeOverride ? 'user-set' : suggestedIncomeBasis;
+  const fixedExpensesCents = hasFixedOverride ? input.fixedOverrideCents! : suggestedFixedCents;
+  const fixedBasis: FixedBasis = hasFixedOverride ? 'user-set' : suggestedFixedBasis;
 
   const targetCents = savingsTargetCents(patternIncomeCents, input.savingsTargetBps);
   const plannedSavingsCents = Math.max(input.goalContributionsCents, targetCents);
@@ -473,8 +527,12 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
     ...input,
     patternIncomeCents,
     incomeBasis,
-    incomeMonths,
+    incomeMonths: hasIncomeOverride ? 0 : incomeMonths,
+    suggestedIncomeCents,
     fixedExpensesCents,
+    fixedBasis,
+    fixedMonths: hasFixedOverride ? 0 : fixedMonths,
+    suggestedFixedCents,
     plannedSavingsCents,
     savingsSource,
     unallocatedSavingsCents,

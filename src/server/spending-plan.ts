@@ -32,6 +32,7 @@ import {
   type SpendingPlanDisclosures,
 } from '@/lib/engine/spending-plan/plan';
 import { monthlyGuiltFreeIncomeCents } from '@/lib/engine/spending-plan/income-pattern';
+import { monthlyNonDiscretionaryCents } from '@/lib/engine/spending-plan/fixed-pattern';
 import type { SeriesProjectionStatus } from '@/lib/engine/recurring/detect';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance';
@@ -51,6 +52,9 @@ export interface SpendingPlanWithNotes extends SpendingPlan {
    * scopes in one object, each documented on its own field.
    */
   disclosures: SpendingPlanDisclosures;
+  /** Stored overrides (null = using suggestion). For the Plan figures form. */
+  incomeOverrideCents: number | null;
+  fixedOverrideCents: number | null;
 }
 
 export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithNotes> {
@@ -86,12 +90,22 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     .slice(-3)
     .map((f) => f.incomeCents);
 
+  // Fixed pattern (#371): non-discretionary spend across spending accounts
+  // (checking / savings / credit) — groceries on a card still consume the
+  // allocation. Dining out and shopping stay out (discretionary = guilt-free).
+  const trailingMonthlyFixedCents = monthlyNonDiscretionaryCents(snap.transactions)
+    .filter((f) => f.month < ym)
+    .slice(-3)
+    .map((f) => f.expenseCents);
+
   // The recurring series, split by sign: income feeds only the no-history
-  // fallback (and the L.11(D) walk below); expenses feed the fixed term at a
-  // monthly rate. Detected recurring LOAN payments arrive here — which is why
-  // loanObligations is not a term of this plan (adding it would double-count
-  // them; a loan with NO detected series is counted zero times — recorded in
-  // docs/STATUS.md §L.11(C)).
+  // fallback (and the L.11(D) walk below); expenses are the FALLBACK for the
+  // fixed term when no non-discretionary pattern exists yet (#371), and still
+  // floor the term via max() so a thin filing month cannot understate bills
+  // the detector already sees. Detected recurring LOAN payments arrive here —
+  // which is why loanObligations is not a separate term (adding it would
+  // double-count them; a loan with NO detected series is counted zero times
+  // until filed — recorded in docs/STATUS.md §L.11(C)).
   // Income-series fallback matches the trailing-pattern account set (payment
   // checking when set). Bills still come from every cash account — a utility
   // autopaid from savings is a real fixed cost (L.25).
@@ -119,7 +133,14 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   // pay-yourself-first % target from Settings (#295). The engine takes the max.
   const [goals, user, linkedCreditCardCount, fixedSeriesByStatus] = await Promise.all([
     prisma.goal.findMany({ where: { userId }, select: { monthlyContributionCents: true } }),
-    prisma.user.findUnique({ where: { id: userId }, select: { savingsTargetBps: true } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        savingsTargetBps: true,
+        planIncomeOverrideCents: true,
+        planFixedOverrideCents: true,
+      },
+    }),
     // The LINKAGE fact, for the one label that asserts an absence of cards (L.29
     // critic P1-3). Counted here rather than off `snap.accounts` because the
     // snapshot withholds every non-USD account (DECISIONS #135), so a reader with a
@@ -209,6 +230,9 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     trailingMonthlyIncomeCents,
     scheduledIncome,
     scheduledFixed,
+    trailingMonthlyFixedCents,
+    incomeOverrideCents: user?.planIncomeOverrideCents ?? null,
+    fixedOverrideCents: user?.planFixedOverrideCents ?? null,
     cardObligationsCents,
     cardObligationsEstimated,
     goalContributionsCents,
@@ -220,6 +244,8 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
 
   return {
     ...plan,
+    incomeOverrideCents: user?.planIncomeOverrideCents ?? null,
+    fixedOverrideCents: user?.planFixedOverrideCents ?? null,
     disclosures: await buildDisclosures(userId, snap, computed, endOfMonth, {
       // The three facts that separate one $0 card-payments line from another (L.29).
       // Each is about a different way of not owing money this month, and each is

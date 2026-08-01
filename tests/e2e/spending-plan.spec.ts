@@ -20,16 +20,20 @@ test('Spending Plan: guilt-free headline + breakdown render for the demo user', 
   // L.22: income is a trailing pattern, expenses a monthly-rate pattern — the
   // demo seed has complete months, so the median basis renders.
   await expect(page.getByText(/Income \(median of last \d months?/, { exact: false })).toBeVisible();
-  await expect(page.getByText('Fixed & recurring expenses (monthly pattern)', { exact: true })).toBeVisible();
-  // The #295 term renders as its own breakdown row.
-  await expect(page.getByText('Card payments due this month', { exact: true })).toBeVisible();
+  // #371: non-discretionary pattern when history exists; else recurring series.
+  await expect(
+    page.getByText(/Fixed (costs \(non-discretionary|& recurring expenses \(monthly pattern\))/, {
+      exact: false,
+    }),
+  ).toBeVisible();
+  // Owner 2026-08-01: card payments are not a Plan row (settlement, not a cost class).
+  await expect(page.getByText('Card payments due this month', { exact: true })).toHaveCount(0);
 
   // Allocation legend (#186): labeled swatches under the bar (touch-visible;
   // title= tooltips alone are not).
   const legend = page.getByTestId('spending-plan-legend');
   await expect(legend).toBeVisible();
   await expect(legend.getByText('Fixed expenses', { exact: true })).toBeVisible();
-  await expect(legend.getByText('Card payments', { exact: true })).toBeVisible();
   await expect(legend.getByText('Savings', { exact: true })).toBeVisible();
   await expect(legend.getByText('Guilt-free', { exact: true })).toBeVisible();
   // The old cash-month rows are gone — no per-day framing anywhere (L.22).

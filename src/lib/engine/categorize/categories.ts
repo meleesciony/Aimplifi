@@ -121,7 +121,9 @@ export const CATEGORIES: SystemCategory[] = [
   { id: 'vision', name: 'Vision', group: 'Health & Fitness', discretionary: false },
   { id: 'mental-health', name: 'Mental Health', group: 'Health & Fitness', discretionary: false },
   { id: 'medical-supplies', name: 'Medical Supplies', group: 'Health & Fitness', discretionary: false },
-  { id: 'fitness', name: 'Fitness', group: 'Health & Fitness', discretionary: false },
+  // Discretionary (owner 2026-08-01): golf, gym, extracurricular sport — guilt-free
+  // spend, not a fixed cost. Kids Activities is already discretionary; this matches.
+  { id: 'fitness', name: 'Fitness', group: 'Health & Fitness', discretionary: true },
 
   // ── Personal & Family ───────────────────────────────────────────────
   { id: 'personal-care', name: 'Personal Care', group: 'Personal & Family', discretionary: true },
