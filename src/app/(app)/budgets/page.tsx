@@ -25,12 +25,16 @@ import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { summarizeSpendClassCategories } from '@/lib/engine/spending-plan/spend-class';
+import { resolveFixedCategoryAmounts } from '@/lib/engine/spending-plan/fixed-category-amounts';
 import { ConsciousBucketsStrip } from '@/components/finance/conscious-buckets-strip';
+import { BudgetingCompositionCard } from '@/components/finance/budgeting-composition-card';
 import { SpendClassPanel } from '@/components/finance/spend-class-panel';
+import { PlanFiguresForm } from '@/components/finance/plan-figures-form';
 import { buildCategoryBreakdowns } from '@/lib/engine/glass-box/category-breakdown';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { isDemoUser } from '@/lib/demo-user';
+import { isoDate } from '@/lib/dates';
 
 const SYSTEM_BUDGETABLE = CATEGORIES.filter((c) => isBudgetable(c.id));
 
@@ -205,14 +209,70 @@ export default async function BudgetsPage() {
     (id) => categoryName(id, meta),
   );
 
+  // #377: per-category Plan amounts (budget else typical) for Fixed rows —
+  // same pure helper getSpendingPlan uses for the category-designations basis.
+  const snap = await provider.getFinanceSnapshot(userId);
+  const categoryFixedFull = resolveFixedCategoryAmounts({
+    transactions: snap.transactions,
+    today: isoDate(today),
+    meta,
+    overrides: fixedOverrides,
+    budgetByCategory,
+    nameOf: (id) => categoryName(id, meta),
+  });
+  const planAmountByCat = new Map(
+    categoryFixedFull.rows.map((r) => [r.categoryId, r] as const),
+  );
+  const fixedRows = spendClasses.fixed.map((row) => {
+    const planAmt = planAmountByCat.get(row.categoryId);
+    return {
+      ...row,
+      planAmountCents: planAmt?.amountCents,
+      planAmountBasis: planAmt?.basis,
+    };
+  });
+  // Fixed categories with a budget/override but no spend this month still belong
+  // in the Fixed list so the reader can see / change the Plan amount.
+  for (const r of categoryFixedFull.rows) {
+    if (fixedRows.some((f) => f.categoryId === r.categoryId)) continue;
+    if (!r.budgetCents && !fixedOverrides.has(r.categoryId)) continue;
+    fixedRows.push({
+      categoryId: r.categoryId,
+      name: r.name,
+      spentCents: 0,
+      isFixed: true,
+      suggestedFixed: true,
+      overridden: fixedOverrides.has(r.categoryId),
+      planAmountCents: r.amountCents,
+      planAmountBasis: r.basis,
+    });
+  }
+
+  const canEdit = !isDemoUser(userId);
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Spending this month</h1>
+      <BudgetingCompositionCard
+        plan={plan}
+        savingsTargetBps={user?.savingsTargetBps ?? null}
+      />
+      <PlanFiguresForm
+        suggestedIncomeCents={plan.suggestedIncomeCents}
+        suggestedFixedCents={plan.suggestedFixedCents}
+        incomeOverrideCents={plan.incomeOverrideCents}
+        fixedOverrideCents={plan.fixedOverrideCents}
+        savingsTargetBps={user?.savingsTargetBps ?? null}
+        incomeSlideCents={plan.incomeSlideCents}
+        fixedSlideCents={plan.fixedSlideCents}
+        hasSlide={plan.hasSlide}
+        canEdit={canEdit}
+      />
       <ConsciousBucketsStrip plan={plan} disclosures={plan.disclosures} />
       <SpendClassPanel
-        fixed={spendClasses.fixed}
+        fixed={fixedRows}
         guiltFree={spendClasses.guiltFree}
-        canEdit={!isDemoUser(userId)}
+        canEdit={canEdit}
       />
       <Card>
         <CardHeader className="pb-2">

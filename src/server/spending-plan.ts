@@ -33,6 +33,8 @@ import {
 } from '@/lib/engine/spending-plan/plan';
 import { monthlyGuiltFreeIncomeCents } from '@/lib/engine/spending-plan/income-pattern';
 import { monthlyNonDiscretionaryCents } from '@/lib/engine/spending-plan/fixed-pattern';
+import { resolveFixedCategoryAmounts } from '@/lib/engine/spending-plan/fixed-category-amounts';
+import { categoryName } from '@/lib/engine/categorize/categories';
 import type { SeriesProjectionStatus } from '@/lib/engine/recurring/detect';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance';
@@ -142,7 +144,8 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
 
   // Planned savings inputs: active goals' monthly contributions, and the
   // pay-yourself-first % target from Settings (#295). The engine takes the max.
-  const [goals, user, linkedCreditCardCount, fixedSeriesByStatus] = await Promise.all([
+  // Budgets feed the #377 per-category Fixed rollup (budget target else typical).
+  const [goals, user, linkedCreditCardCount, budgetRows, fixedSeriesByStatus] = await Promise.all([
     prisma.goal.findMany({ where: { userId }, select: { monthlyContributionCents: true } }),
     prisma.user.findUnique({
       where: { id: userId },
@@ -157,6 +160,10 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     // snapshot withholds every non-USD account (DECISIONS #135), so a reader with a
     // CAD card would have been told in words that no card is linked.
     prisma.account.count({ where: { userId, type: 'CREDIT' } }),
+    prisma.budget.findMany({
+      where: { userId },
+      select: { categoryId: true, monthCents: true },
+    }),
     // What became of every repeating EXPENSE the detector found (L.30). Read from
     // the stored reason the writer records in the same pass that decides the
     // projected rows, because at read time the reason is not re-derivable: a
@@ -236,12 +243,26 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const obligationsBeyondMonthEstimated =
     worstGapCents > 0 && beyondMonthPoints.some((p) => p.cards.some((c) => c.isEstimated));
 
+  // #377: per-category Fixed amounts (budget else typical). Plan prefers this
+  // rollup only when the reader has set a Fixed override or a budget on a
+  // fixed category — otherwise the #371 median stays (demo golden-safe).
+  const categoryFixed = resolveFixedCategoryAmounts({
+    transactions: snap.transactions,
+    today,
+    meta: categoryMeta,
+    overrides: fixedOverrides,
+    budgetByCategory: new Map(budgetRows.map((b) => [b.categoryId, b.monthCents])),
+    nameOf: (id) => categoryName(id, categoryMeta),
+  });
+
   const plan = computeSpendingPlan({
     today,
     trailingMonthlyIncomeCents,
     scheduledIncome,
     scheduledFixed,
     trailingMonthlyFixedCents,
+    categoryFixedCents: categoryFixed.totalCents,
+    categoryFixedHasReaderInput: categoryFixed.hasReaderInput,
     incomeOverrideCents: user?.planIncomeOverrideCents ?? null,
     fixedOverrideCents: user?.planFixedOverrideCents ?? null,
     cardObligationsCents,

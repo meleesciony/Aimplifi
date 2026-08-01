@@ -282,15 +282,19 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
         ? [
             `Fixed costs are the monthly figure you set on this plan (suggested from non-discretionary spending: ${formatCents(cents(plan.suggestedFixedCents))}). Savings is separate — your savings target is not a discretionary cut.`,
           ]
-        : plan.fixedBasis === 'non-discretionary-median'
-        ? [
-            `Fixed costs are the median of your last ${plan.fixedMonths} complete month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spending (groceries, housing, utilities, insurance, and similar — not dining out, golf, or shopping). Savings is separate from this line.`,
-          ]
-        : plan.scheduledFixed.length > 0
+        : plan.fixedBasis === 'category-designations'
           ? [
-              'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12.',
+              'Fixed costs are the sum of your Fixed categories: each uses the monthly budget target you set when present, otherwise typical spend from recent complete months. Change Fixed vs guilt-free on Spending.',
             ]
-          : [],
+          : plan.fixedBasis === 'non-discretionary-median'
+            ? [
+                `Fixed costs are the median of your last ${plan.fixedMonths} complete month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spending (groceries, housing, utilities, insurance, and similar — not dining out, golf, or shopping). Savings is separate from this line.`,
+              ]
+            : plan.scheduledFixed.length > 0
+              ? [
+                  'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12.',
+                ]
+              : [],
     // The understated NON-ZERO figure, which no label can reach (L.30) —
     // authored once in `row-labels.ts` beside the labels, and printed by the Ask
     // answer too. 'left-to-spend' because this panel's headline is always

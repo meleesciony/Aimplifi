@@ -2581,3 +2581,23 @@ start by categorizing every transaction into fixed or not fixed.
 `test_regression__custom_nondiscretionary_category_counts_as_fixed` +
 `test_regression__transfer_and_uncategorized_are_out_of_scope_not_guilt_free` +
 e2e `spend-class.spec.ts`. Schema additive → Neon `prisma db push` on deploy.
+
+## #377 — Budgeting composition + Fixed amounts from budget|typical (B.2 / B.1)
+
+Owner continue after #376: budgeting section with income (calculated), savings %,
+fixed (with suggestions), guilt-free as remainder; set fixed expense amounts.
+
+**DECIDED:**
+1. **`/budgets` composition card** states income − savings − fixed = guilt-free,
+   each line labeled yours vs app. `PlanFiguresForm` (savings % + optional locks)
+   lives on Spending too — one page for the dials.
+2. **Per-category Fixed amount** = `Budget.monthCents` when set, else typical
+   monthly spend (`resolveFixedCategoryAmounts`). Shown on Fixed rows.
+3. **Plan math:** when the reader has set a Fixed designation override OR a
+   budget on any Fixed category, suggested fixed = max(category rollup,
+   recurring floor), basis `category-designations`. Otherwise keep #371
+   non-discretionary median (demo has neither → golden-safe).
+
+**Locks.** `test_regression__budget_target_wins_over_typical_for_fixed_category` +
+`test_regression__category_rollup_drives_plan_only_with_reader_input` +
+e2e `budgeting-composition` markers on spend-class.spec.

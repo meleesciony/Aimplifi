@@ -85,8 +85,13 @@ import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 /** Where the plan's income figure came from — every surface states it inline. */
 export type IncomeBasis = 'trailing-median' | 'detected-series' | 'none' | 'user-set';
 
-/** How the fixed-expense term was derived (DECISIONS #371 / #372). */
-export type FixedBasis = 'non-discretionary-median' | 'detected-series' | 'none' | 'user-set';
+/** How the fixed-expense term was derived (DECISIONS #371 / #372 / #377). */
+export type FixedBasis =
+  | 'non-discretionary-median'
+  | 'category-designations'
+  | 'detected-series'
+  | 'none'
+  | 'user-set';
 
 /** A detected recurring series, as the plan consumes it (sign carries direction:
  *  negative = a bill/outflow, positive = income). */
@@ -113,6 +118,15 @@ export interface SpendingPlanInput {
    * fall back to `scheduledFixed` monthly rates (DECISIONS #371).
    */
   trailingMonthlyFixedCents?: number[];
+  /**
+   * Sum of per-category Fixed amounts (budget target else typical spend) for
+   * designated Fixed categories (DECISIONS #377). Used as the suggested fixed
+   * term only when `categoryFixedHasReaderInput` is true — otherwise the #371
+   * median path stays (demo / untouched accounts stay golden-safe).
+   */
+  categoryFixedCents?: number;
+  /** Gate for `categoryFixedCents` — see resolveFixedCategoryAmounts. */
+  categoryFixedHasReaderInput?: boolean;
   /**
    * Optional user-set monthly income (cents). When set, replaces the suggested
    * pattern (DECISIONS #372). null/undefined = use the suggestion.
@@ -488,16 +502,30 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
     incomeMonths = 0;
   }
 
-  // Fixed suggestion (#371): non-discretionary pattern, floored by recurring.
+  // Fixed suggestion (#371 / #377): prefer per-category budget|typical rollup
+  // when the reader has set a Fixed designation or a budget on a fixed category;
+  // otherwise the non-discretionary monthly median, floored by recurring.
   const trailingFixed = (input.trailingMonthlyFixedCents ?? []).slice(-3);
   const recurringFixedCents = input.scheduledFixed.reduce(
     (sum, s) => sum + monthlyRateCents(-s.amountCents, s.cadence),
     0,
   );
+  const categoryFixedCents =
+    typeof input.categoryFixedCents === 'number' &&
+    Number.isSafeInteger(input.categoryFixedCents) &&
+    input.categoryFixedCents > 0
+      ? input.categoryFixedCents
+      : 0;
+  const useCategoryFixed = Boolean(input.categoryFixedHasReaderInput) && categoryFixedCents > 0;
+
   let suggestedFixedCents: number;
   let suggestedFixedBasis: Exclude<FixedBasis, 'user-set'>;
   let fixedMonths: number;
-  if (trailingFixed.length > 0) {
+  if (useCategoryFixed) {
+    suggestedFixedCents = Math.max(categoryFixedCents, recurringFixedCents);
+    suggestedFixedBasis = 'category-designations';
+    fixedMonths = 0;
+  } else if (trailingFixed.length > 0) {
     const patternFixed = Math.round(median(trailingFixed));
     suggestedFixedCents = Math.max(patternFixed, recurringFixedCents);
     suggestedFixedBasis = 'non-discretionary-median';

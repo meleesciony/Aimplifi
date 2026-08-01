@@ -15,6 +15,14 @@ test('budgets shows Fixed vs guilt-free sections from category suggestions', asy
   await clickMoreNav(page, 'nav-budgets');
   await page.waitForURL('**/budgets**');
 
+  // B.2 composition: income − savings − fixed = guilt-free on one page.
+  await expect(page.getByTestId('budgeting-composition')).toBeVisible();
+  await expect(page.getByTestId('budgeting-income')).toBeVisible();
+  await expect(page.getByTestId('budgeting-savings')).toBeVisible();
+  await expect(page.getByTestId('budgeting-fixed')).toBeVisible();
+  await expect(page.getByTestId('budgeting-guilt-free')).toBeVisible();
+  await expect(page.getByTestId('plan-figures-form')).toBeVisible();
+
   await expect(page.getByTestId('spend-class-panel')).toBeVisible();
   await expect(page.getByTestId('spend-class-fixed')).toBeVisible();
   await expect(page.getByTestId('spend-class-guilt-free')).toBeVisible();

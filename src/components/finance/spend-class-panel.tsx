@@ -1,21 +1,28 @@
 'use client';
 
 /**
- * Fixed vs guilt-free category designations on /budgets (DECISIONS #376).
+ * Fixed vs guilt-free category designations on /budgets (DECISIONS #376/#377).
  * Each filed category's transactions inherit this class for Plan guilt-free.
  */
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendClassCategoryRow } from '@/lib/engine/spending-plan/spend-class';
+import type { FixedAmountBasis } from '@/lib/engine/spending-plan/fixed-category-amounts';
 import { setCategoryFixed } from '@/server/category-fixed-actions';
+
+export type SpendClassFixedRow = SpendClassCategoryRow & {
+  /** Monthly amount in the Plan rollup (budget target else typical). */
+  planAmountCents?: number;
+  planAmountBasis?: FixedAmountBasis;
+};
 
 export function SpendClassPanel({
   fixed,
   guiltFree,
   canEdit,
 }: {
-  fixed: SpendClassCategoryRow[];
+  fixed: SpendClassFixedRow[];
   guiltFree: SpendClassCategoryRow[];
   canEdit: boolean;
 }) {
@@ -27,8 +34,9 @@ export function SpendClassPanel({
       <h2 className="text-sm font-semibold">Fixed vs guilt-free</h2>
       <p className="mt-1 text-xs text-muted-foreground">
         Every filed transaction inherits its category&apos;s class. Fixed costs
-        (utilities, groceries, rent…) come out before guilt-free. Move a
-        category if our suggestion is wrong — Plan guilt-free uses this list.
+        (utilities, groceries, rent…) come out before guilt-free. Set a monthly
+        target under By category to lock a Fixed line&apos;s amount; otherwise we
+        use typical spend.
       </p>
       {!canEdit ? (
         <p className="mt-2 text-xs text-muted-foreground" data-testid="spend-class-demo-note">
@@ -67,7 +75,7 @@ function ClassList({
 }: {
   title: string;
   testId: string;
-  rows: SpendClassCategoryRow[];
+  rows: SpendClassFixedRow[];
   empty: string;
   canEdit: boolean;
   /** True when this list is the Fixed column (move action → guilt-free). */
@@ -102,7 +110,7 @@ function SpendClassRow({
   canEdit,
   moveToFixed,
 }: {
-  row: SpendClassCategoryRow;
+  row: SpendClassFixedRow;
   canEdit: boolean;
   moveToFixed: boolean;
 }) {
@@ -129,6 +137,15 @@ function SpendClassRow({
             <span className="ml-1">· suggested</span>
           )}
         </p>
+        {row.isFixed && row.planAmountCents != null && row.planAmountCents > 0 ? (
+          <p
+            className="text-xs text-muted-foreground tabular-nums"
+            data-testid={`spend-class-plan-amount-${row.categoryId}`}
+          >
+            Plan uses {formatCents(cents(row.planAmountCents))}
+            {row.planAmountBasis === 'budget-target' ? ' (your target)' : ' (typical)'}
+          </p>
+        ) : null}
         {error ? (
           <p className="text-xs text-rose-500" data-testid="spend-class-error">
             {error}

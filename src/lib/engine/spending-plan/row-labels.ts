@@ -150,6 +150,12 @@ function incomeLabel(plan: SpendingPlan): string {
 function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): PlanRowLabel {
   if (plan.fixedExpensesCents !== 0 || plan.scheduledFixed.length > 0) {
     if (plan.fixedBasis === 'user-set') return { label: 'Fixed costs (you set)' };
+    if (plan.fixedBasis === 'category-designations') {
+      return {
+        label: 'Fixed costs (your Fixed categories — budget target or typical spend)',
+        action: { label: 'Review Fixed on Spending', href: '/budgets' },
+      };
+    }
     return plan.fixedBasis === 'non-discretionary-median'
       ? {
           label: `Fixed costs (non-discretionary, median of last ${plan.fixedMonths} month${plan.fixedMonths === 1 ? '' : 's'})`,

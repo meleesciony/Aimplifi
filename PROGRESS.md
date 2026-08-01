@@ -1,5 +1,12 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — Budgeting composition + Fixed amounts (#377) DONE (B.2)
+
+Owner continue: income / savings % / fixed / guilt-free on one page; set fixed
+amounts. `/budgets` composition card + PlanFiguresForm; per-category
+budget|typical; Plan `category-designations` when reader input. verify GREEN
+5592 tests. Open: hostile critic; B.3 band.
+
 ## 2026-08-01 — Fixed vs guilt-free by category (#376) PARTIAL (B.1 start)
 
 Owner: budgeting is a start; missing sections to set fixed expenses; start by
