@@ -39,9 +39,23 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(basis).toContainText('our default 7.00% return assumption');
   await expect(basis).not.toContainText('your 7.00%');
 
+  // W.12 — payoff sits ABOVE the basis paragraph (fold), and neither the headline nor Coast
+  // restates the 4.50% the basis owns. Measured on the painted card, not the copy functions.
+  const years = page.getByTestId('years-to-fi');
+  const payoff = page.getByTestId('freedom-dividend');
+  const coast = page.getByTestId('coast-fi');
+  await expect(years).not.toContainText('4.50%');
+  await expect(payoff).not.toContainText('4.50%');
+  await expect(coast).not.toContainText('4.50%');
+  const payoffBox = await payoff.boundingBox();
+  const basisBox = await basis.boundingBox();
+  expect(payoffBox).toBeTruthy();
+  expect(basisBox).toBeTruthy();
+  expect(payoffBox!.y).toBeLessThan(basisBox!.y);
+
   // W.9 — the Coast horizon says the app chose it. An unlabelled "25 years" beside a monthly
   // dollar figure is the shape the owner called "arbitrary time" on the card below.
-  await expect(page.getByTestId('coast-fi')).toContainText('not a date you set');
+  await expect(coast).toContainText('not a date you set');
 
   // W.11 — first paint is the unchanged branch. A hard 70% ceiling used to clamp a high
   // saver and fire "Lowering your savings rate…" before anyone dragged; the demo sits

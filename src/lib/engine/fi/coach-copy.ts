@@ -85,12 +85,12 @@ export const COACH_COPY = {
 
   // ---- W.2 · the FI projections' basis --------------------------------------------------
   // Every projection on this card compounds at the REAL return, because the FI number it is
-  // aiming at is built from TODAY'S spending. The three sentences below therefore say "after
-  // inflation" and are handed the REAL rate; `fiProjectionBasis` is where that rate's origin
-  // is shown, once, rather than three times.
+  // aiming at is built from TODAY'S spending. W.12: the rate is named ONCE, in
+  // `fiProjectionBasis` — the headline, Coast line and payoff used to restate it in four
+  // wordings and pushed the payoff past the fold. They now defer to that paragraph.
 
-  yearsToFI: (years: number, months: number, realReturnBps: number) =>
-    `At your current savings rate you'd reach it in about ${years} years${months > 0 ? ` ${months} months` : ''}, assuming ${pct(realReturnBps)} average annual growth after inflation. Markets wobble — reasonable beats rational, and this number will too.`,
+  yearsToFI: (years: number, months: number) =>
+    `At your current savings rate you'd reach it in about ${years} years${months > 0 ? ` ${months} months` : ''}, under this card's return assumptions. Markets wobble — reasonable beats rational, and this number will too.`,
 
   /**
    * The provenance line for the rate the three projections above and below compound at.
@@ -164,8 +164,8 @@ export const COACH_COPY = {
    * Saving, but not fast enough to land inside the projection horizon. The honest answer is
    * the horizon, not a claim about the reader's behaviour.
    */
-  beyondProjectionHorizon: (realReturnBps: number) =>
-    `You are saving, but at this pace and ${pct(realReturnBps)} growth after inflation the finish line sits beyond the 100 years we're willing to project — so we won't put a date on it. The opportunities below move it more than any market assumption will.`,
+  beyondProjectionHorizon: () =>
+    `You are saving, but at this pace the finish line sits beyond the 100 years we're willing to project — so we won't put a date on it. The opportunities below move it more than any market assumption will.`,
 
   /**
    * WHICH of the four sentences above the FI card's headline slot gets — the selection itself,
@@ -180,18 +180,16 @@ export const COACH_COPY = {
     monthsToFI: number | null;
     monthlySavingsCents: number;
     coastIsCoast: boolean;
-    projectionReturnBps: number;
   }): string => {
     if (input.monthsToFI !== null) {
       return COACH_COPY.yearsToFI(
         Math.floor(input.monthsToFI / 12),
         input.monthsToFI % 12,
-        input.projectionReturnBps,
       );
     }
     // Saving, but the engine's 1200-month cap bound — NOT the same fact as "not saving".
     if (input.monthlySavingsCents > 0) {
-      return COACH_COPY.beyondProjectionHorizon(input.projectionReturnBps);
+      return COACH_COPY.beyondProjectionHorizon();
     }
     // Not saving, but already coasting — the flat refusal would contradict the Coast line.
     if (input.coastIsCoast) return COACH_COPY.notOnTrackButCoasting();
@@ -204,16 +202,17 @@ export const COACH_COPY = {
    * figure reads as arbitrary — which is precisely what the owner said about the wealth card
    * one slice earlier ("arbitrary savings for arbitrary time").
    */
-  coastFI: (targetYears: number, realReturnBps: number, targetYearsIsAppDefault: boolean) =>
-    `You're already Coast FI: assuming ${pct(realReturnBps)} average growth after inflation, what you've invested would grow to your FI number within ${targetYears} years without another dollar added${targetYearsIsAppDefault ? ` — ${targetYears} years being the working lifetime we picked to measure against, not a date you set` : ''}.`,
+  // W.12 — no rate here. `fiProjectionBasis` one slot up already owns the growth assumption;
+  // restating it made 4.50% appear four times before the reader reached the payoff.
+  coastFI: (targetYears: number, targetYearsIsAppDefault: boolean) =>
+    `You're already Coast FI: under this card's return assumptions, what you've invested would grow to your FI number within ${targetYears} years without another dollar added${targetYearsIsAppDefault ? ` — ${targetYears} years being the working lifetime we picked to measure against, not a date you set` : ''}.`,
 
   notCoastFI: (
     requiredMonthly: Cents,
     targetYears: number,
-    realReturnBps: number,
     targetYearsIsAppDefault: boolean,
   ) =>
-    `To be on pace over the next ${targetYears} years — ${targetYearsIsAppDefault ? `a working lifetime we picked to measure against, not a date you set` : `the horizon you set`} — it takes about ${formatCents(requiredMonthly)}/month in today's money, assuming ${pct(realReturnBps)} average growth after inflation.`,
+    `To be on pace over the next ${targetYears} years — ${targetYearsIsAppDefault ? `a working lifetime we picked to measure against, not a date you set` : `the horizon you set`} — it takes about ${formatCents(requiredMonthly)}/month in today's money, under this card's return assumptions.`,
 
   sliderCaption: (fromBps: number, toBps: number, fromYears: number, toYears: number) => {
     if (toBps === fromBps) {
@@ -665,12 +664,11 @@ export const COACH_COPY = {
     `Room for error: ${months} months of expenses in cash — you're ${band === 'below' ? 'approaching' : band === 'in' ? 'inside' : 'past'} the classic 3–6 month range. The richest feeling money buys is not needing the next paycheck.`,
 
   // C13 · Housel, Sethi, Perkins — years-to-FI reframed as time bought back (sibling to yearsToFI)
-  // W.2 names the rate rather than pointing at it: "the return rate above" was unambiguous
-  // when one rate appeared above this line, and there are now two (the nominal dial and the
-  // real rate derived from it) with the paragraph directly above saying the higher one is NOT
-  // what the projections use.
-  freedomDividend: (years: number, realReturnBps: number) =>
-    `That's about ${years} years until your time becomes fully yours — the highest dividend money pays, assuming the ${pct(realReturnBps)} after inflation above holds. Every point of savings rate buys some of it back sooner.`,
+  // W.12 — no rate and no screen position. The rate lived here as "the 4.50% after inflation
+  // above", which both restated a figure the basis owns and pointed at a position that moved
+  // when the payoff was pulled above the fold. The growth assumption is one paragraph down.
+  freedomDividend: (years: number) =>
+    `That's about ${years} years until your time becomes fully yours — the highest dividend money pays. Every point of savings rate buys some of it back sooner.`,
 
   // C13 · Housel, Stanley & Danko — the FI number is anchored to your life, never the feed
   yourEnough: () =>

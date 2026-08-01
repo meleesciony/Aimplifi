@@ -364,13 +364,11 @@ describe('W.2 critic — the four states `monthsToFI: null` was collapsing into 
     monthsToFINow: number | null;
     monthlySavingsCents: number;
     coastIsCoast: boolean;
-    projectionReturnBps: number;
   }): string =>
     COACH_COPY.fiHeadline({
       monthsToFI: o.monthsToFINow,
       monthlySavingsCents: o.monthlySavingsCents,
       coastIsCoast: o.coastIsCoast,
-      projectionReturnBps: o.projectionReturnBps,
     });
 
   it('a saver past the projection cap is NOT told they aren\'t saving (F1)', () => {
@@ -384,7 +382,6 @@ describe('W.2 critic — the four states `monthsToFI: null` was collapsing into 
       monthsToFINow: months,
       monthlySavingsCents: 74_000,
       coastIsCoast: false,
-      projectionReturnBps: 0,
     });
     expect(line).not.toContain("aren't outpacing spending");
     expect(line).toContain('You are saving');
@@ -404,7 +401,6 @@ describe('W.2 critic — the four states `monthsToFI: null` was collapsing into 
       monthsToFINow: months,
       monthlySavingsCents: -500_000,
       coastIsCoast: coast.isCoastFI,
-      projectionReturnBps: 450,
     });
     expect(line).toContain('see the Coast line below');
     expect(line).not.toContain("a projection date wouldn't be honest");
@@ -415,7 +411,6 @@ describe('W.2 critic — the four states `monthsToFI: null` was collapsing into 
       monthsToFINow: null,
       monthlySavingsCents: -500_000,
       coastIsCoast: false,
-      projectionReturnBps: 450,
     });
     expect(line).toBe(COACH_COPY.notOnTrack());
   });
@@ -439,7 +434,7 @@ describe('W.2 critic — claims the copy may not make', () => {
     // sentence. The engine's convention (`retirement.ts`) is level contributions at a real
     // rate = today's dollars, so an untouched standing order lands short — the same caveat
     // the sibling wealth card already carried for the identical figure.
-    expect(COACH_COPY.notCoastFI(cents(145_462), 25, 450, true)).toContain("in today's money");
+    expect(COACH_COPY.notCoastFI(cents(145_462), 25, true)).toContain("in today's money");
     const basis = COACH_COPY.fiProjectionBasis(450, 700, 250, false, OWNS_BOTH);
     expect(basis).toContain('would need to rise with inflation');
   });
@@ -455,10 +450,14 @@ describe('W.2 critic — claims the copy may not make', () => {
   it('no sentence points at a screen POSITION for a rate (UI-8 / UI-9)', () => {
     // "the dates above" was false — the Coast line and the slider are below the disclosure —
     // and "the return rate above" became ambiguous once two rates appeared above it.
+    // W.12 — freedomDividend used to say "the 4.50% after inflation above"; that both pointed
+    // at a position and restated a rate the basis owns. It now names neither.
     const vol = COACH_COPY.volatilityPrice(700, 450);
     expect(vol).toContain('the projections on this card');
     expect(vol).not.toContain('the dates above');
-    expect(COACH_COPY.freedomDividend(17, 450)).toContain('4.50% after inflation above');
+    const payoff = COACH_COPY.freedomDividend(17);
+    expect(payoff).not.toMatch(/\d+\.\d+%/);
+    expect(payoff).not.toMatch(/\b(above|below)\b/);
   });
 });
 
@@ -494,19 +493,64 @@ describe('W.9 — the Coast horizon says who chose it', () => {
   });
 
   it('both Coast sentences disclaim an app-chosen horizon, and neither does when it is the reader\'s', () => {
-    const appChose = COACH_COPY.notCoastFI(cents(120_000), 25, REAL_BPS, true);
+    const appChose = COACH_COPY.notCoastFI(cents(120_000), 25, true);
     expect(appChose).toContain('not a date you set');
-    expect(COACH_COPY.coastFI(25, REAL_BPS, true)).toContain('not a date you set');
+    expect(COACH_COPY.coastFI(25, true)).toContain('not a date you set');
 
     // The false branch must be a real alternative, not dead decoration: if a control ever
     // sets the horizon, the sentence has to stop disclaiming it.
-    const readerChose = COACH_COPY.notCoastFI(cents(120_000), 25, REAL_BPS, false);
+    const readerChose = COACH_COPY.notCoastFI(cents(120_000), 25, false);
     expect(readerChose).toContain('the horizon you set');
     expect(readerChose).not.toContain('not a date you set');
-    expect(COACH_COPY.coastFI(25, REAL_BPS, false)).not.toContain('not a date you set');
+    expect(COACH_COPY.coastFI(25, false)).not.toContain('not a date you set');
   });
 });
 
+
+// ════════════════════════════════════════════════════════════════════════════════════════════
+/**
+ * TASKS W.12 — rate-copy accretion on the FI card.
+ *
+ * After W.2 the same real rate appeared four times in four wordings before the reader
+ * reached the payoff line, which an 800px viewport pushed past the fold. The rate lives
+ * in `fiProjectionBasis` once; headline / Coast / payoff defer without restating the %.
+ */
+describe('W.12 — the FI card names the real rate once', () => {
+  const RATE = '4.50%';
+
+  it('headline, Coast and payoff do not restate the real-rate percentage', () => {
+    expect(COACH_COPY.yearsToFI(17, 3)).not.toContain(RATE);
+    expect(COACH_COPY.beyondProjectionHorizon()).not.toContain(RATE);
+    expect(COACH_COPY.coastFI(25, true)).not.toContain(RATE);
+    expect(COACH_COPY.notCoastFI(cents(120_000), 25, true)).not.toContain(RATE);
+    expect(COACH_COPY.freedomDividend(17)).not.toContain(RATE);
+    // And not any other xx.xx% — the deferral is "this card's return assumptions", not a
+    // different number silently substituted.
+    for (const line of [
+      COACH_COPY.yearsToFI(17, 3),
+      COACH_COPY.coastFI(25, true),
+      COACH_COPY.notCoastFI(cents(120_000), 25, true),
+      COACH_COPY.freedomDividend(17),
+    ]) {
+      expect(line).not.toMatch(/\d+\.\d+%/);
+    }
+  });
+
+  it('the basis paragraph is still the one place that names both dials and the real rate', () => {
+    const basis = COACH_COPY.fiProjectionBasis(450, 700, 250, false, OWNS_BOTH);
+    expect(basis).toContain(RATE);
+    expect(basis).toContain('7.00%');
+    expect(basis).toContain('2.50%');
+  });
+
+  it('fail-old: restoring a rate into yearsToFI would re-accrete the copy this slice removed', () => {
+    // Pins the invariant the task named. If a later edit puts "assuming 4.50% … after
+    // inflation" back into the headline, this dies with a message that explains itself.
+    const headline = COACH_COPY.yearsToFI(17, 3);
+    expect(headline).toContain("this card's return assumptions");
+    expect(headline).not.toMatch(/after inflation/);
+  });
+});
 
 // ════════════════════════════════════════════════════════════════════════════════════════════
 /**

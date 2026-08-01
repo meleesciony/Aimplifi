@@ -2,6 +2,19 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-08-01 — W.12: the FI card names the real rate once (DECISIONS #368)
+
+After W.2 the same 4.50% appeared four times in four wordings and the new basis
+paragraph pushed the payoff (`freedom-dividend`) past an 800px viewport. Headline,
+Coast and payoff now defer with "under this card's return assumptions" (or silence)
+and never restate a `xx.xx%`; the payoff sits ABOVE the basis so a scanner sees it
+first. `fiProjectionBasis` remains the sole namer of both dials and the derived
+real rate. The opt-in volatility disclosure still names both rates — deliberate.
+
+Gate: `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0, **5549 unit /
+335 files**, build clean; empty `prisma/` diff. phase3-coach e2e 1/1 (painted order
++ absence of 4.50% outside the basis). Self-review on the money-copy axis; 0 P0/P1.
+
 ## ✅ BUILT 2026-08-01 — W.13: the return dial is no longer called the reader's (DECISIONS #367)
 
 `User.expectedReturnBps` is `Int @default(700)` and NOT nullable, and the /settings field is
@@ -43,7 +56,7 @@ comment.
 An 85% saver used to see "Lowering your savings rate from 85.0% to 70.0%…" on first paint
 because the thumb was hard-clamped to 70% while the caption compared against the real pace.
 Ceiling is now `Math.max(7000, currentRateBps)`; initial thumb = current pace; both bounds
-share `fi-slider-bounds.ts`. W.12 (rate-copy accretion) remains open.
+share `fi-slider-bounds.ts`. W.12 (rate-copy accretion) shipped — see its section above.
 
 ### Critic / locks
 

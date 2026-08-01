@@ -71,13 +71,12 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'fiNumber', text: COACH_COPY.fiNumber(cents(150_000_000), 400, cents(6_000_000)), isProjection: true },
   { label: 'savingsRateNegative', text: COACH_COPY.savingsRateHeadline(-2500, 'May 2026'), isProjection: false },
   { label: 'sliderContext', text: COACH_COPY.sliderContext(2330, 3734, 'May 2026'), isProjection: false },
-  // W.2 — the FI projections run on the REAL rate, so these are handed 450 (7.00% less
-  // 2.50%), not 700. Both branches of every W.2/W.9 sentence get a row: the guardrail sweeps
-  // below scan this table, so a branch absent from it has never been scanned at all.
-  { label: 'yearsToFI', text: COACH_COPY.yearsToFI(17, 3, 450), isProjection: true },
+  // W.12 — headline / Coast defer to `fiProjectionBasis` for the rate number; they still
+  // say "assumptions" so the projection sweep keeps them honest, without restating 4.50%.
+  { label: 'yearsToFI', text: COACH_COPY.yearsToFI(17, 3), isProjection: true },
   { label: 'notOnTrack', text: COACH_COPY.notOnTrack(), isProjection: false },
   // The two states W.2 split out of `notOnTrack`'s null overload. `beyondProjectionHorizon`
-  // names a rate, so it is a projection and must state its assumption.
+  // refuses a date rather than projecting one — not a projection for the assumption sweep.
   {
     label: 'notOnTrackButCoasting',
     text: COACH_COPY.notOnTrackButCoasting(),
@@ -85,8 +84,8 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   },
   {
     label: 'beyondProjectionHorizon',
-    text: COACH_COPY.beyondProjectionHorizon(450),
-    isProjection: true,
+    text: COACH_COPY.beyondProjectionHorizon(),
+    isProjection: false,
   },
   // The SELECTOR over those four, scanned through all four of its states — so the sweeps see
   // what the card actually renders, not only the strings in isolation.
@@ -96,7 +95,6 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
       monthsToFI: 207,
       monthlySavingsCents: 200_000,
       coastIsCoast: false,
-      projectionReturnBps: 450,
     }),
     isProjection: true,
   },
@@ -106,9 +104,8 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
       monthsToFI: null,
       monthlySavingsCents: 74_000,
       coastIsCoast: false,
-      projectionReturnBps: 0,
     }),
-    isProjection: true,
+    isProjection: false,
   },
   {
     label: 'fiHeadline:coasting',
@@ -116,7 +113,6 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
       monthsToFI: null,
       monthlySavingsCents: -500_000,
       coastIsCoast: true,
-      projectionReturnBps: 450,
     }),
     isProjection: false,
   },
@@ -126,7 +122,6 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
       monthsToFI: null,
       monthlySavingsCents: -500_000,
       coastIsCoast: false,
-      projectionReturnBps: 450,
     }),
     isProjection: false,
   },
@@ -165,16 +160,16 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     text: COACH_COPY.fiProjectionBasis(0, 700, 1000, true, DEFAULT_RETURN),
     isProjection: true,
   },
-  { label: 'coastFI', text: COACH_COPY.coastFI(25, 450, true), isProjection: true },
-  { label: 'coastFI:readerHorizon', text: COACH_COPY.coastFI(25, 450, false), isProjection: true },
+  { label: 'coastFI', text: COACH_COPY.coastFI(25, true), isProjection: true },
+  { label: 'coastFI:readerHorizon', text: COACH_COPY.coastFI(25, false), isProjection: true },
   {
     label: 'notCoastFI',
-    text: COACH_COPY.notCoastFI(cents(120000), 25, 450, true),
+    text: COACH_COPY.notCoastFI(cents(120000), 25, true),
     isProjection: true,
   },
   {
     label: 'notCoastFI:readerHorizon',
-    text: COACH_COPY.notCoastFI(cents(120000), 25, 450, false),
+    text: COACH_COPY.notCoastFI(cents(120000), 25, false),
     isProjection: true,
   },
   { label: 'sliderCaption', text: COACH_COPY.sliderCaption(2200, 3000, 23, 17), isProjection: true },
@@ -434,7 +429,8 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'runwayBanded:below', text: COACH_COPY.runwayBanded(1.8, 'below'), isProjection: false },
   { label: 'runwayBanded:in', text: COACH_COPY.runwayBanded(4.2, 'in'), isProjection: false },
   { label: 'runwayBanded:above', text: COACH_COPY.runwayBanded(9.5, 'above'), isProjection: false },
-  { label: 'freedomDividend', text: COACH_COPY.freedomDividend(17, 450), isProjection: true },
+  // W.12 — payoff reframes the headline years; it is not a second projection with its own rate.
+  { label: 'freedomDividend', text: COACH_COPY.freedomDividend(17), isProjection: false },
   { label: 'yourEnough', text: COACH_COPY.yourEnough(), isProjection: false },
   { label: 'biggestLever', text: COACH_COPY.biggestLever(), isProjection: false },
   { label: 'dialTag', text: COACH_COPY.dialTag('Dining Out'), isProjection: false },

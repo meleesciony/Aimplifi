@@ -2384,3 +2384,31 @@ fallback IS 250 — directly beneath a comment I had just written claiming every
 with its flags. Three rows corrected to `DEFAULT_RETURN`, which is reachable (a reader sets
 inflation, never touches the return), plus the same pairing in `fi-real-basis.test.ts` where
 `NOMINAL_BPS` is 700.
+
+## #368 (W.12) — The FI card names the real rate once, and the payoff sits above the fold
+
+Opened by the W.2 UI critic and deferred through W.10/W.11/W.13: after the basis paragraph landed,
+the same real rate appeared four times in four wordings (`yearsToFI`, `fiProjectionBasis`,
+`freedomDividend`, `coastFI`/`notCoastFI`) across 243 words, and the new 96px basis pushed
+`freedom-dividend` from ~y955 to ~y1051 — past an 800px viewport. Each sentence was individually
+true and individually justified, which is exactly how accretion happens.
+
+**DECIDED: both of the task's options, together.** (1) Drop the rate *number* from the headline,
+Coast, and payoff — they defer with "under this card's return assumptions" (or silence, for the
+payoff) so the projection-assumption sweep still holds without restating 4.50%. (2) Move the
+payoff ABOVE the basis paragraph so a scanner who came for "when do I get my time back" sees it
+before the provenance. `fiProjectionBasis` remains the one place that names both dials and the
+derived real rate. The opt-in volatility `<details>` still names both rates; that is deliberate —
+it is the place a reader who asked "why these return assumptions?" goes.
+
+**What was refused.** Pointing at a screen POSITION ("the rate below" / "above") — W.2 already
+killed that class, and freedomDividend's old "4.50% after inflation above" was both a restatement
+AND a position claim. Naming the card ("this card's return assumptions") matches the volatility
+precedent and survives reorder. Softening the basis paragraph itself was refused: it is the load-
+bearing provenance line, and shortening it would trade accretion for a quieter lie.
+
+**Locks.** Unit: headline / Coast / payoff contain no `xx.xx%` and no "after inflation"; the basis
+still names 4.50%/7.00%/2.50%. Fail-old pin that restoring a rate into `yearsToFI` re-accretes.
+Rendered: `phase3-coach.spec.ts` asserts painted years/payoff/coast lack 4.50% and that
+`freedom-dividend.y < fi-projection-basis.y`. No schema change. Self-review on the money-copy axis
+(small mechanical slice — no separate critic subagent); 0 P0/P1.

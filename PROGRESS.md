@@ -1,5 +1,12 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — W.12 DONE (#368) — FI card names the real rate once; payoff above the fold
+
+Deferred from W.2 through W.10/W.11/W.13. Headline / Coast / payoff no longer restate
+4.50%; they defer with "under this card's return assumptions". Payoff moved above
+`fi-projection-basis`. Gate: verify GREEN — 5549 unit / 335 files; phase3-coach 1/1.
+Empty prisma diff. Next open in Wave W: W.3 / W.4 / W.5 / W.6 / W.7 / W.8 (and Wave B).
+
 ## 2026-07-27 — O.4 DONE (#321) — sessions now expire after 30 min idle (was 30 DAYS)
 
 Owner: *"Please put standard login procedures for this app. The password appears persistent despite

@@ -142,13 +142,20 @@ export function FICard({
             monthsToFI: monthsToFINow,
             monthlySavingsCents,
             coastIsCoast,
-            projectionReturnBps,
           })}
         </p>
-        {/* W.2 — where the rate above came from, stated once for the whole card rather than
-            re-asserted by each projection. Rendered even in the `notOnTrack` branch: the Coast
-            line below still prints a date on this basis, and the slider can leave the branch
-            without the reader learning anything new about the assumptions. */}
+        {/* W.12 — payoff BEFORE the basis paragraph. On an 800px viewport the 96px basis
+            pushed this line past the fold; a scanner who came for "when do I get my time
+            back" never saw it. The rate lives one slot down, once. */}
+        {monthsToFINow !== null && (
+          <p className="text-sm text-emerald-600 dark:text-emerald-400" data-testid="freedom-dividend">
+            {COACH_COPY.freedomDividend(Math.floor(monthsToFINow / 12))}
+          </p>
+        )}
+        {/* W.2 / W.12 — where the rate above came from, stated once for the whole card rather
+            than re-asserted by each projection. Rendered even in the `notOnTrack` branch: the
+            Coast line below still prints a date on this basis, and the slider can leave the
+            branch without the reader learning anything new about the assumptions. */}
         <p className="text-xs text-muted-foreground" data-testid="fi-projection-basis">
           {COACH_COPY.fiProjectionBasis(
             projectionReturnBps,
@@ -163,11 +170,6 @@ export function FICard({
             {frozenPortfolioNote}
           </p>
         ) : null}
-        {monthsToFINow !== null && (
-          <p className="text-sm text-emerald-600 dark:text-emerald-400" data-testid="freedom-dividend">
-            {COACH_COPY.freedomDividend(Math.floor(monthsToFINow / 12), projectionReturnBps)}
-          </p>
-        )}
         <details className="text-xs text-muted-foreground" data-testid="volatility-note">
           <summary className="flex min-h-11 cursor-pointer select-none items-center">
             Why these return assumptions?
@@ -179,16 +181,11 @@ export function FICard({
 
         <p className="text-sm text-muted-foreground" data-testid="coast-fi">
           {coastIsCoast
-            ? COACH_COPY.coastFI(
-                coastTargetYears,
-                projectionReturnBps,
-                coastTargetYearsIsAppDefault,
-              )
+            ? COACH_COPY.coastFI(coastTargetYears, coastTargetYearsIsAppDefault)
             : coastRequiredMonthlyCents !== null
               ? COACH_COPY.notCoastFI(
                   coastRequiredMonthlyCents,
                   coastTargetYears,
-                  projectionReturnBps,
                   coastTargetYearsIsAppDefault,
                 )
               : null}
