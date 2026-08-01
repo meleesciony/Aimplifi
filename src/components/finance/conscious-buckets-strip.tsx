@@ -5,18 +5,33 @@
  * is ever colored red — this is a lens, not a guilt meter.
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConsciousBucketRow } from '@/components/finance/conscious-bucket-row';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
-import { mapToConsciousBuckets, type ConsciousBucketKey } from '@/lib/engine/spending-plan/conscious';
+import { traceConsciousBuckets } from '@/lib/engine/glass-box/trace';
+import {
+  CONSCIOUS_BUCKET_LABELS,
+  mapToConsciousBuckets,
+  type ConsciousBucketKey,
+} from '@/lib/engine/spending-plan/conscious';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
 import { cents, formatCents } from '@/lib/money';
 
 const META: Record<ConsciousBucketKey, { label: string; bar: string; text: string }> = {
   // #295: the fixed bucket now also holds this month's card payments, so the
-  // label must not claim bills+spending alone (critic P3-13).
-  fixed: { label: 'Fixed costs', bar: 'bg-slate-400/80 dark:bg-slate-500/80', text: 'text-slate-600 dark:text-slate-300' },
-  savings: { label: 'Savings & investing', bar: 'bg-sky-400/80', text: 'text-sky-600 dark:text-sky-400' },
-  guiltFree: { label: 'Guilt-free', bar: 'bg-emerald-500/80', text: 'text-emerald-600 dark:text-emerald-400' },
+  // label must not claim bills+spending alone (critic P3-13). Labels come from
+  // the engine's one-author record (O.18b): the legend, the panel share text
+  // and any future surface must not spell a bucket two ways.
+  fixed: { label: CONSCIOUS_BUCKET_LABELS.fixed, bar: 'bg-slate-400/80 dark:bg-slate-500/80', text: 'text-slate-600 dark:text-slate-300' },
+  savings: { label: CONSCIOUS_BUCKET_LABELS.savings, bar: 'bg-sky-400/80', text: 'text-sky-600 dark:text-sky-400' },
+  guiltFree: { label: CONSCIOUS_BUCKET_LABELS.guiltFree, bar: 'bg-emerald-500/80', text: 'text-emerald-600 dark:text-emerald-400' },
+};
+
+/** Kebab-case testid prefixes — three panels share this card. */
+const TESTID: Record<ConsciousBucketKey, string> = {
+  fixed: 'conscious-fixed',
+  savings: 'conscious-savings',
+  guiltFree: 'conscious-guilt-free',
 };
 
 /** Display percent of a bps share, clamped to a renderable [0, 100]. */
@@ -49,6 +64,12 @@ export function ConsciousBucketsStrip({
   // No income pattern → a percentage-of-income lens has nothing meaningful to show.
   if (patternIncomeCents <= 0) return null;
 
+  // O.18b: each legend amount expands to the plan's own rows for that bucket,
+  // reshaped from the safe-to-spend identity and reconciled against the very
+  // figure the legend prints — see traceConsciousBuckets. Built here, once,
+  // from the same plan object the figures above came from.
+  const traces = traceConsciousBuckets(plan, disclosures);
+
   const share = (k: ConsciousBucketKey) => buckets.find((b) => b.key === k)!.shareBps;
 
   // Bar widths come from NON-NEGATIVE bucket magnitudes normalized to sum to
@@ -77,18 +98,22 @@ export function ConsciousBucketsStrip({
         </div>
         <ul className="space-y-1 text-xs">
           {buckets.map((b) => (
-            <li key={b.key} className="flex items-baseline justify-between gap-2">
-              <span className={`inline-flex items-center gap-1.5 font-medium ${META[b.key].text}`}>
-                <span className={`size-2 rounded-full ${META[b.key].bar}`} aria-hidden />
-                {META[b.key].label}
-              </span>
-              <span className="tabular-nums text-muted-foreground">
-                {formatCents(cents(b.cents))} · {pctLabel(b.shareBps)}%{' '}
-                <span className="text-[10px]">
-                  (target {b.targetLoBps / 100}–{b.targetHiBps / 100}%)
-                </span>
-              </span>
-            </li>
+            <ConsciousBucketRow
+              key={b.key}
+              label={META[b.key].label}
+              swatchClass={META[b.key].bar}
+              textClass={META[b.key].text}
+              trace={traces[b.key]}
+              testIdPrefix={TESTID[b.key]}
+              shareLabel={
+                <>
+                  · {pctLabel(b.shareBps)}%{' '}
+                  <span className="text-[10px]">
+                    (target {b.targetLoBps / 100}–{b.targetHiBps / 100}%)
+                  </span>
+                </>
+              }
+            />
           ))}
         </ul>
         {/* L.29 (critic P2-4: a surface the first sweep did not visit). This strip
