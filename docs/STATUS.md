@@ -15,6 +15,11 @@ Gate: `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0, **5549 
 335 files**, build clean; empty `prisma/` diff. phase3-coach e2e 1/1 (painted order
 + absence of 4.50% outside the basis). Self-review on the money-copy axis; 0 P0/P1.
 
+**Deploy:** Vercel `dpl_5USJrJk5WskcN1NJbKV9Pm1rHSpo` **READY** on `cd46ef1`
+(code `716e529`), www aliased. Live demo /coach: years contains "this card's
+return assumptions", years/payoff/coast lack 4.50%, basis has 4.50%, payoff
+y=430 < basis y=506.
+
 ## ✅ BUILT 2026-08-01 — W.13: the return dial is no longer called the reader's (DECISIONS #367)
 
 `User.expectedReturnBps` is `Int @default(700)` and NOT nullable, and the /settings field is
