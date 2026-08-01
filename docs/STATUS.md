@@ -10492,3 +10492,8 @@ is weaker than an independent pass because the checks were chosen by the author 
 W.10 has had one full critic cycle (#363's two critics, both FAIL, converging independently on
 two P1s); W.10a has had none. A second pass over `opportunityBasis`'s branches is owed and is
 filed, not waived.
+
+**Deploy-verified.** `npx vercel ls aimplifi --meta githubCommitSha=926e94c…` returns exactly
+one production deployment, `aimplifi-kdwy902zz`, status ● Ready — and `npx vercel inspect` on it
+lists `https://www.aimplifi.app` among its aliases. The commit-sha filter is the proof rather
+than a 200: an old deployment answers 200 perfectly well.
