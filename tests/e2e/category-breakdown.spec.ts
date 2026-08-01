@@ -182,34 +182,6 @@ test('Trends: a mover expands to the transactions in the month it compares', asy
   expect(params.get('to')).toBe('2026-05-31');
 });
 
-test('Dashboard: the Top spending rows expand, and the card still reaches Reports', async ({
-  page,
-}) => {
-  // This card was the one category table left inert, because the WHOLE card was a
-  // single `<a href="/reports">` and a button cannot live inside an anchor. O.18's
-  // first cut recorded that as a deliberate refusal; a critic's answer was that
-  // the owner said "every table" and that /dashboard was already computing these
-  // breakdowns and discarding them. The anchor moved to the header instead.
-  await signInDemo(page);
-  const card = page.getByTestId('dashboard-top-spending');
-  await expect(card).toBeVisible();
-
-  const toggles = card.locator('[data-testid^="top-spending-breakdown-toggle-"]');
-  expect(await toggles.count()).toBeGreaterThan(0);
-  const categoryId = (await toggles.first().getAttribute('data-testid'))!.replace(
-    'top-spending-breakdown-toggle-',
-    '',
-  );
-  await toggles.first().click();
-  const panel = page.getByTestId(`top-spending-breakdown-panel-${categoryId}`);
-  await expect(panel).toBeVisible();
-  expect(await panel.locator('li').count()).toBeGreaterThan(0);
-
-  // The route the card existed for must survive the restructure.
-  await page.getByTestId('dashboard-top-spending-link').click();
-  await page.waitForURL('**/reports');
-});
-
 test('the panel states what it counts, and every row can be opened for a closer look', async ({
   page,
 }) => {

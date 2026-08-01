@@ -159,22 +159,8 @@ test('reports: the category list visibly recomposes the header total, tail inclu
   expect(openTexts.reduce((s, t) => s + parseCents(t), 0)).toBe(10500);
 });
 
-test('dashboard top spending: four rows plus a stated remainder equal the printed total', async ({
-  page,
-}) => {
-  const email = await signUpThrowaway(page);
-  seedFourteenCategories(email);
-
-  await page.goto('/dashboard');
-  const card = page.getByTestId('dashboard-top-spending');
-  await expect(card).toBeVisible();
-  await expect(card).toContainText('$105.00 this month');
-  // Top 4 = 14+13+12+11 = $50.00, so the stated remainder must be $55.00
-  // across the other 10 — the identity the card silently failed before.
-  const rest = page.getByTestId('top-spending-rest');
-  await expect(rest).toContainText('$55.00');
-  await expect(rest).toContainText('10 more categories');
-});
+// Owner 2026-08-01: the former "dashboard top spending" remainder lock is covered
+// by the /reports test above (Top spending left the Home stack).
 
 // ─── O.19d — residual locks from the O.19 critic (P2-5) ──────────────────────
 

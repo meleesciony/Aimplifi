@@ -1,21 +1,10 @@
 /**
- * TASKS L.11(D) — a card payment dated PAST the end of the month the plan describes.
+ * Owner 2026-08-01 — card payments dated past the month are cash-needed liquidity,
+ * not guilt-free subtractions. This fixture still seeds a July-due statement against
+ * a June plan (the L.11(D) shape) and asserts the plan page does NOT subtract it:
+ * headline = full pattern income, three-line identity, basis points at Cash needed.
  *
- * The owner's report ("It's worse now"): all seven of his cards were dated Aug 5, five days past
- * the July window, so the card-payments term was $0.00 and /spending-plan handed back his entire
- * month's income — $22,254.09, at $3,709.01 a day — directly beneath the same app's own sentence
- * saying $18,814.14 had to be in the account by Aug 5.
- *
- * The engine's arithmetic and the trace's strings are locked by unit tests. What no unit test can
- * see is whether the new row REACHES the page: extracting copy makes the STRING testable and
- * leaves the RENDERING untested (the L.20 lesson). So this drives the real page and asserts the
- * row, the note, the reconciliation claim, and the headline the reader acts on.
- *
- * The demo user cannot exercise this at all — its three cards are due Jun 15, Jun 15 and Jun 28
- * against a pinned Jun 10 today, so every one of them lands INSIDE the month (verified in
- * src/lib/seed/build.ts). A throwaway signup user, never the shared demo row (the shared-demo
- * lesson), and the fixture's hard case is asserted present so this can never degrade into
- * measuring an empty page.
+ * Throwaway signup user only (never the shared demo row).
  */
 import Database from 'better-sqlite3';
 import { expect, test, type Page } from './helpers/test';
@@ -185,60 +174,38 @@ test('a card dated past the month’s edge is reserved, shown as its own line, a
   await expect(page.getByTestId('safe-to-spend')).toBeVisible();
   expect(TODAY.slice(0, 7)).toBe('2026-06');
 
-  // The headline a reader acts on: $10,000 income − $9,000 already dated = $1,000.
-  await expect(page.getByTestId('safe-to-spend')).toHaveText('$1,000.00');
+  // Owner 2026-08-01: guilt-free = pattern income − fixed − savings. A $9,000 card
+  // due past the month's edge is cash-needed liquidity, not a plan subtraction —
+  // so this fixture's headline is the full $10,000 pattern.
+  await expect(page.getByTestId('safe-to-spend')).toHaveText('$10,000.00');
 
-  // The fixture's hard case is present — the row exists, names the amount, and carries the date in
-  // the product's own voice rather than a raw ISO string.
-  const breakdown = page.getByText(`Card payments already dated, due after this month (through ${DUE_LABEL})`);
-  await expect(breakdown).toBeVisible();
-  await expect(page.getByTestId('plan-held-note')).toContainText('$9,000.00');
-  await expect(page.getByTestId('plan-held-note')).toContainText(DUE_LABEL);
-  await expect(page.getByTestId('plan-held-note')).not.toContainText(DUE_DATE);
+  // Card dues are not a breakdown row (they would double-count spend).
+  await expect(
+    page.getByText(`Card payments already dated, due after this month (through ${DUE_LABEL})`),
+  ).toHaveCount(0);
+  await expect(page.getByTestId('plan-held-note')).toHaveCount(0);
 
-  // …and the panel still certifies its own arithmetic, now over five lines
-  // (income, fixed, card payments, savings, the beyond-month row).
+  // Three-line identity: income, fixed, savings.
   await expect(page.getByTestId('plan-reconciled')).toContainText('matched to the penny');
-  await expect(page.getByTestId('plan-reconciled')).toContainText('These 5 lines');
-  await expect(page.getByTestId('plan-total')).toHaveText('$1,000.00');
+  await expect(page.getByTestId('plan-reconciled')).toContainText('These 3 lines');
+  await expect(page.getByTestId('plan-total')).toHaveText('$10,000.00');
 
-  // TASKS L.29, on the one fixture in the suite that renders three of the new zero
-  // labels at once (the demo user renders one). This reader's card IS dated — past
-  // the edge — his fixed term is empty and he has no savings input, so all three of
-  // his $0.00 lines used to be indistinguishable from the L.26 defect.
-  //
-  // FAIL-OLD, per label: the card row read "Card payments due this month", the fixed
-  // row "Fixed & recurring expenses (monthly pattern)", the savings row "Planned
-  // savings (goals)" — and neither control existed.
-  //
-  // L.30 keeps this reader on "(none counted)", and that is a deliberate LIMIT
-  // rather than an oversight. The first cut printed "(no repeating bills found yet)"
-  // here, on the strength of the stored table being empty — and both L.30 critics
-  // executed the case that breaks it: a series is stored only when its merchant has
-  // a Merchant row, which the manual-entry and CSV-import writers never create, so
-  // an empty table also describes a reader who typed his bills in himself. An empty
-  // table is not an empty world, so the branch was removed rather than narrowed.
   const labels = await page.getByTestId('plan-row-label').allTextContents();
+  expect(labels).toHaveLength(3);
   expect(labels[1]).toContain('Fixed & recurring expenses (none counted)');
-  expect(labels[2]).toContain('Card payments (none due until after this month)');
-  expect(labels[3]).toContain('Planned savings (no monthly amount set)');
-  // Each control is a real link to a route that offers the input it names.
+  expect(labels[2]).toContain('Planned savings (no monthly amount set)');
   await expect(page.getByTestId('plan-row-action')).toHaveCount(2);
   await expect(page.getByTestId('plan-row-action').nth(0)).toHaveAttribute('href', '/recurring');
   await expect(page.getByTestId('plan-row-action').nth(1)).toHaveAttribute('href', '/settings');
-  // An unproven zero may NOT borrow the alarm's wording: this reader has no bill we
-  // know of, which is not the same claim as "we found one and lost it".
   expect(labels[1]).not.toContain('not counted here');
-  // No control is offered beside a working figure — income and the dated card row.
   expect(labels[0]).not.toContain('http');
-  // …and the reconciliation claim is untouched by any of it (no non-money text
-  // entered the amount cells).
-  await expect(page.getByTestId('plan-total')).toHaveText('$1,000.00');
+  await expect(page.getByTestId('plan-total')).toHaveText('$10,000.00');
 
-  // The dashboard card is the surface most readers ever see: it must carry the fact too, or the
-  // figure arrives with no way to learn that a line the reader cannot see is inside it.
+  // Basis points cards at Cash needed instead of subtracting them.
+  await expect(page.getByText(/Card statement payments are not subtracted here/i)).toBeVisible();
+
   await page.goto('/dashboard');
-  await expect(page.getByTestId('dashboard-safe-to-spend-amount')).toHaveText('$1,000.00');
-  await expect(page.getByTestId('safe-to-spend-held-note')).toContainText('$9,000.00');
-  await expect(page.getByTestId('safe-to-spend-held-note')).toContainText(DUE_LABEL);
+  await expect(page.getByTestId('dashboard-safe-to-spend-amount')).toHaveText('$10,000.00');
+  await expect(page.getByTestId('safe-to-spend-held-note')).toHaveCount(0);
+  await expect(page.getByTestId('dashboard-recent-transactions')).toBeVisible();
 });

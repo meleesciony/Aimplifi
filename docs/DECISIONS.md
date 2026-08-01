@@ -2412,3 +2412,30 @@ still names 4.50%/7.00%/2.50%. Fail-old pin that restoring a rate into `yearsToF
 Rendered: `phase3-coach.spec.ts` asserts painted years/payoff/coast lack 4.50% and that
 `freedom-dividend.y < fi-projection-basis.y`. No schema change. Self-review on the money-copy axis
 (small mechanical slice — no separate critic subagent); 0 P0/P1.
+
+## #369 — Guilt-free drops card pay; Home is allocation + activity + cash needed
+
+Owner 2026-08-01: Home was cluttered; Plan math treated card statement payments as a fixed cost;
+transactions and categorization were buried in the menu. The product loop is categorize → dials →
+guilt-free; card pay is the *settlement* of spend already done, not a third cost class.
+
+**DECIDED:**
+1. **Formula.** `leftToSpend = patternIncome − fixedExpenses − plannedSavings`.
+   `cardObligationsCents` / `obligationsBeyondMonthCents` still ride the plan payload for
+   cash-needed cross-checks and disclosures, but are not subtracted and are not Glass-Box rows.
+   Conscious buckets: `fixed = fixedExpenses` only.
+2. **Home composition.** Guilt-free → Cash needed → Recent transactions (needs-file highlighted) →
+   Today feed → health banners → Radar → Net worth. Removed from Home: Ask card, Top spending,
+   Trends, Recurring summary, Payment reminders, Savings-rate card (each keeps its own route).
+3. **Copy.** Surfaces say card statement payments are not subtracted here; liquidity lives under
+   Cash needed.
+
+**Supersedes** the L.11(C)/(D) choice to fold card dues into the guilt-free subtraction (DECISIONS
+#307/#309 arithmetic terms). L.11(D)'s *detection* of beyond-month dues remains for cash-needed;
+only the plan subtraction is retired.
+
+**Locks.** `tests/unit/spending-plan.test.ts` (card obligation alone does not overspend);
+glass-box / conscious-trace / Ask / server suites aligned to the three-row identity;
+`spending-plan-month-edge.spec.ts` asserts $10,000 headline with no beyond-month plan row;
+`phase1-cash-needed.spec.ts` asserts guilt-free above the fold + recent transactions on Home.
+No schema change.

@@ -1,5 +1,12 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — Home polish + guilt-free without card pay (#369)
+
+Owner: Mint/Simplifi polish baseline — too many words; transactions buried; Plan math
+broken (card pay as fixed). Done: formula = income − fixed − savings; Home reorder with
+recent transactions + needs-file; clutter cards demoted to their routes. Next: verify +
+deploy; optionally propose which categories are "fixed" dials.
+
 ## 2026-08-01 — W.12 DONE (#368) — FI card names the real rate once; payoff above the fold
 
 Deferred from W.2 through W.10/W.11/W.13. Headline / Coast / payoff no longer restate

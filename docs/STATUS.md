@@ -2,6 +2,14 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-08-01 — Home polish + guilt-free without card pay (DECISIONS #369)
+
+Owner: cluttered Home; Plan math treated card pay as fixed; transactions buried.
+Shipped: three-term guilt-free (`income − fixed − savings`); card dues stay on cash-needed
+only; Home = guilt-free → cash needed → recent transactions (needs-file) → Today → banners →
+Radar → net worth. Ask / top spending / trends / recurring / reminders / savings-rate left
+their own routes.
+
 ## ✅ BUILT 2026-08-01 — W.12: the FI card names the real rate once (DECISIONS #368)
 
 After W.2 the same 4.50% appeared four times in four wordings and the new basis

@@ -7,24 +7,26 @@
  */
 import { expect, test } from './helpers/test';
 
-test('demo sign-in lands on the dashboard with the cash-needed answer above the fold', async ({ page }) => {
+test('demo sign-in lands on the dashboard with guilt-free, cash-needed, and recent transactions', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveURL(/\/sign-in/);
 
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
 
-  // THE answer: $5,412.33 by Fri, Jun 26
+  // Owner 2026-08-01: guilt-free is the monthly allocation answer — above the fold.
+  const guiltFree = page.getByTestId('dashboard-safe-to-spend-amount');
+  await expect(guiltFree).toBeVisible();
+  const guiltBox = await guiltFree.boundingBox();
+  expect(guiltBox).not.toBeNull();
+  expect(guiltBox!.y + guiltBox!.height).toBeLessThanOrEqual(800);
+
+  // Cash needed — liquidity for cards this cycle (still on Home, under guilt-free).
   const amount = page.getByTestId('cash-needed-amount');
   await expect(amount).toHaveText('$5,412.33');
   const headline = page.getByTestId('cash-needed-headline');
   await expect(headline).toContainText('needed in Everyday Checking by Fri, Jun 26');
   await expect(headline).toContainText('to pay all 3 cards in full this cycle');
-
-  // Above the fold on 380×800: the headline answer requires zero scrolling.
-  const box = await amount.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.y + box!.height).toBeLessThanOrEqual(800);
 
   // Intra-period dip surfaced with the transfer recommendation
   const alert = page.getByTestId('shortfall-alert');
@@ -34,13 +36,13 @@ test('demo sign-in lands on the dashboard with the cash-needed answer above the 
   );
   await expect(page.getByTestId('transfer-recommendation')).toContainText('by Tue, Jun 23');
 
+  // Recent transactions on Home (categorization loop) — not buried in Activity.
+  await expect(page.getByTestId('dashboard-recent-transactions')).toBeVisible();
+  await expect(page.getByTestId('dashboard-recent-row').first()).toBeVisible();
+
   // Net worth + trend present (Phase 1 acceptance #7)
   await expect(page.getByTestId('net-worth-amount')).toHaveText('$144,804.74');
 
-  // At-a-glance summary cards (dashboard redesign): safe-to-spend + top spending,
-  // each present and linking to their full view.
-  await expect(page.getByTestId('dashboard-safe-to-spend-amount')).toBeVisible();
-  await expect(page.getByTestId('dashboard-top-spending')).toBeVisible();
   await page.getByTestId('dashboard-safe-to-spend').click();
   await page.waitForURL('**/spending-plan');
   await expect(page.getByTestId('safe-to-spend')).toBeVisible();
