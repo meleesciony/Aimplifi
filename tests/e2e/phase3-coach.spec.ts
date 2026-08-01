@@ -37,8 +37,14 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   // dollar figure is the shape the owner called "arbitrary time" on the card below.
   await expect(page.getByTestId('coast-fi')).toContainText('not a date you set');
 
-  // interactive slider: dragging to a higher rate CHANGES the live caption
+  // W.11 — first paint is the unchanged branch. A hard 70% ceiling used to clamp a high
+  // saver and fire "Lowering your savings rate…" before anyone dragged; the demo sits
+  // below 70%, so this also locks the ordinary case.
   const before = await page.getByTestId('slider-result').textContent();
+  expect(before ?? '').toContain('current pace');
+  expect(before ?? '').not.toMatch(/Lowering|Raising/);
+
+  // interactive slider: dragging to a different rate CHANGES the live caption
   await page.getByTestId('fi-slider').fill('6000'); // 60% savings rate
   const after = await page.getByTestId('slider-result').textContent();
   expect(after).not.toBe(before);

@@ -8586,6 +8586,17 @@ transaction sets and want a constituents panel rather than a filter).
 
 ---
 
+## 2026-08-01 — W.11 shipped (DECISIONS #364)
+
+W.10 was already live (`db2a5e1`). Next open item from that session's handoff: W.11.
+Root cause as filed: hard `max={7000}` + `Math.min(7000, currentRateBps)` initial made an
+85% saver's first paint take `sliderCaption`'s Lowering branch. Fix: shared
+`fi-slider-bounds.ts` (`max = Math.max(7000, current)`, initial = current pace). Rejected
+touched-flag-with-hard-ceiling (rate label would still lie at 70% beside "current pace
+85%"). Locks in `tests/unit/fi-slider-bounds.test.ts` + e2e first-paint assertion.
+Gate: `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **5511 unit / 334 files** /
+build clean; phase3-coach e2e 1/1. Empty prisma diff.
+
 ## 2026-08-01 — W.10 resumed + shipped (DECISIONS #363)
 
 Prior session implemented W.10 in the working tree (engine + copy + tests +

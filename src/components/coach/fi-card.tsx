@@ -16,6 +16,7 @@ import {
 import { FROZEN_COACH_TESTID } from '@/lib/engine/account/feed-dropped-view';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { monthsToFI } from '@/lib/engine/fi/fi';
+import { fiSliderInitialBps, fiSliderMaxBps } from '@/lib/engine/fi/fi-slider-bounds';
 import { type Cents, cents, formatCents } from '@/lib/money';
 
 export function FICard({
@@ -87,7 +88,11 @@ export function FICard({
 }) {
   const currentRateBps =
     monthlyIncomeCents > 0 ? Math.round((monthlySavingsCents / monthlyIncomeCents) * 10000) : 0;
-  const [sliderBps, setSliderBps] = useState(Math.min(7000, Math.max(0, currentRateBps)));
+  // W.11 — max tracks the current pace so the thumb can sit on it. A hard 7000 ceiling
+  // clamped an 85% saver to 70% on first paint and fired the "Lowering…" caption before
+  // anyone dragged; both bounds come from one helper so they cannot drift apart.
+  const sliderMaxBps = fiSliderMaxBps(currentRateBps);
+  const [sliderBps, setSliderBps] = useState(fiSliderInitialBps(currentRateBps));
 
   const sliderMonths = useMemo(() => {
     const savings = cents(Math.round((monthlyIncomeCents * sliderBps) / 10000));
@@ -198,7 +203,7 @@ export function FICard({
             id="fi-slider"
             type="range"
             min={0}
-            max={7000}
+            max={sliderMaxBps}
             step={100}
             value={sliderBps}
             aria-valuetext={`${(sliderBps / 100).toFixed(0)}% savings rate`}

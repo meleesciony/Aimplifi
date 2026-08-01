@@ -2178,3 +2178,30 @@ hand-verified anchor with both intermediate values is in `docs/EDGE_CASES.md`.
 /settings — the possessive `inflationIsDefault` exists to prevent for the *other* dial. It is
 pre-existing, identical on two other cards, and fixing it here alone would make three cards
 disagree; a nullable column is the real fix. Filed as W.13.
+
+## #364 (W.11) — The FI slider's first paint may not claim the reader just changed their rate
+
+**The defect.** `fi-card.tsx` initialised the savings-rate slider at
+`Math.min(7000, currentRateBps)` against a hard `max={7000}`. An 85% saver therefore landed
+on a 70% thumb before touching anything, and `sliderCaption` took the CHANGED branch —
+"Lowering your savings rate from 85.0% to 70.0% moves FI from ~11 years out to ~12 years" —
+while `sliderContext` still said the slider was at the 6-month average (85%). The two year
+figures were on different inputs: `fromYears` from the server's `monthsToFINow` (85% pace),
+`toYears` from the client's 70% recompute. Opened by the W.2 money critic; deferred rather
+than left unrecorded.
+
+**The decision.** Raise the ceiling so the thumb can sit on the current pace
+(`max = Math.max(7000, currentRateBps)`), and initialise at that pace. The unchanged caption
+branch then fires on first paint by construction (`toBps === fromBps`), and a typical saver
+below 70% still has headroom up to 70%. Rejected the alternative of a touched-flag that kept
+the hard ceiling: the rate label shows the thumb value, so the unchanged sentence claiming
+"your current pace (85.0%)" beside a thumb painted at 70% would still be a lie.
+
+Both bounds live in one pure helper (`fi-slider-bounds.ts`) so the initial value and the
+`max` attribute cannot drift apart. A high saver cannot explore *above* their current pace
+(ceiling = pace when pace > 70%); that is the deliberate cost of an honest first paint, and
+matches the TASKS row's stated fix.
+
+**Locks.** Fail-old pin of the hard-clamp expression producing "Lowering…"; first-paint
+caption lock for an 85% saver; e2e asserts the painted `slider-result` contains "current
+pace" and neither Lowering nor Raising before any drag.

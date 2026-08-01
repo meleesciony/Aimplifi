@@ -2,6 +2,21 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-08-01 — W.11: FI slider first paint is the unchanged branch (DECISIONS #364)
+
+An 85% saver used to see "Lowering your savings rate from 85.0% to 70.0%…" on first paint
+because the thumb was hard-clamped to 70% while the caption compared against the real pace.
+Ceiling is now `Math.max(7000, currentRateBps)`; initial thumb = current pace; both bounds
+share `fi-slider-bounds.ts`. W.12 (rate-copy accretion) remains open.
+
+### Critic / locks
+
+Self-review against the money-copy axis (small, mechanical slice — no separate critic
+subagent). Fail-old pin of the hard clamp; unit lock that an 85% first paint says "current
+pace" and does not leak the mixed year pair; e2e asserts the same on the painted card.
+Gate: `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0, **5511 unit / 334
+files**, build clean; empty `prisma/` diff.
+
 ## ✅ BUILT 2026-08-01 — W.10: the opportunity list is in today's money (DECISIONS #363)
 
 Opened by the W.2 money critic: /coach's "Worth a look" rows printed 30-year
@@ -32,8 +47,8 @@ each stating its own model.
   /settings. The possessive `inflationIsDefault` exists to prevent this for the
   *other* dial. Pre-existing and identical on two other cards; fixing it here
   alone would make three cards disagree. Filed as **W.13**.
-- **W.11 and W.12** remain open (slider caption / rate accretion on the FI
-  card) — deliberately not folded into this figure change.
+- **W.12** remains open (rate-copy accretion on the FI card) — deliberately not
+  folded into this figure change. W.11 shipped 2026-08-01 — see its section above.
 
 ### Critic cycle
 
@@ -134,11 +149,9 @@ copy told the reader both cards agreed; and `realReturnBps` was clamped at only 
 
 ### OPEN / stated limitations
 
-- **Two findings deliberately deferred, each with its own row** — W.11 (a >70% saver sees a
-  "Lowering your savings rate…" caption before touching the slider, mixing a server year with
-  a client one), W.12 (the same rate is now stated four times in four wordings, pushing the
-  payoff line past the fold at 380×800). The third, W.10, shipped 2026-08-01 — see its section
-  above.
+- **One finding deliberately deferred** — W.12 (the same rate is now stated four times in
+  four wordings, pushing the payoff line past the fold at 380×800). W.10 and W.11 shipped
+  2026-08-01 — see their sections above.
 - **The Coast horizon's "reader chose it" branch is unreachable today.** No control sets
   `COAST_TARGET_YEARS`; the flag is a server field rather than a literal so that adding one
   later changes a line instead of a copy branch that has quietly become false. Stated in the
