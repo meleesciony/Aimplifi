@@ -42,6 +42,13 @@ export function TopSpendingCard({
   ym: string;
 }) {
   const top = breakdown.byCategory.slice(0, 4);
+  // O.19a (owner report 2026-07-31): the header prints `totalCents` — the WHOLE
+  // month — beside four rows, so the card's own numbers did not add up on
+  // screen. The remainder is summed from the same array the header total sums;
+  // the card stays a summary and /reports (linked in the header) holds the
+  // full, expandable list.
+  const rest = breakdown.byCategory.slice(4);
+  const restCents = rest.reduce((s, c) => s + c.amountCents, 0);
   const max = Math.max(1, ...top.map((c) => c.amountCents));
   return (
     <section className={SURFACE_CARD_CLASS} data-testid="dashboard-top-spending">
@@ -88,6 +95,12 @@ export function TopSpendingCard({
               />
             </div>
           ))}
+          {rest.length > 0 && (
+            <p className="text-xs text-muted-foreground" data-testid="top-spending-rest">
+              + {formatCents(cents(restCents))} across {rest.length} more categor
+              {rest.length === 1 ? 'y' : 'ies'} — the full list is in Reports.
+            </p>
+          )}
         </div>
       )}
     </section>

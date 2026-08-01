@@ -6,6 +6,7 @@
  * bars for the category breakdown (crisp, no axis clutter).
  */
 import Link from 'next/link';
+import { useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
@@ -20,6 +21,9 @@ const monthLabel = (ym: string) => `${MONTHS[Number(ym.slice(5, 7))] ?? ym}`;
 
 // Palette cycled across categories/groups (kept consistent within a render).
 const PALETTE = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa', '#fb923c', '#22d3ee', '#f472b6', '#4ade80', '#94a3b8'];
+
+/** How many category rows render before the tail folds into "Everything else". */
+const TOP_CATEGORY_ROWS = 12;
 
 export function ReportsView({
   data,
@@ -41,7 +45,26 @@ export function ReportsView({
     income: m.incomeCents / 100,
     expense: m.expensesCents / 100,
   }));
-  const top = data.breakdown.byCategory.slice(0, 12);
+  // O.19 (owner report 2026-07-31, with screenshots): the header beside this
+  // list prints `totalCents`, which the engine sums over EVERY category — so a
+  // list that silently stopped at 12 rows put "$28,253.04 total" above rows
+  // summing to ~$19k, and the reader was right that the page's own numbers do
+  // not add up. The cap stays (the ranking is what this card is for), but the
+  // tail becomes a visible ROW: `restCents` is summed from the exact elements
+  // the header total summed, same array, so the on-screen identity
+  // `top rows + Everything else = total` holds by construction.
+  const top = data.breakdown.byCategory.slice(0, TOP_CATEGORY_ROWS);
+  const rest = data.breakdown.byCategory.slice(TOP_CATEGORY_ROWS);
+  const restCents = rest.reduce((s, c) => s + c.amountCents, 0);
+  const [showRest, setShowRest] = useState(false);
+  // One map renders top and (when opened) tail rows, so the tail reuses the
+  // identical row markup — link rules, bars, expander panels — rather than a
+  // second copy that could drift. Palette index continues through the tail so
+  // expanding cannot recolor the rows already on screen.
+  const visibleRows = [
+    ...top.map((c, i) => ({ c, i })),
+    ...(showRest ? rest.map((c, i) => ({ c, i: i + TOP_CATEGORY_ROWS })) : []),
+  ];
   const max = Math.max(1, ...top.map((c) => c.amountCents));
   const hasFlows = data.months.some((m) => m.incomeCents !== 0 || m.expensesCents !== 0);
   // #135 residual 25: state the currency-exclusion assumption at the totals (null when
@@ -114,7 +137,7 @@ export function ReportsView({
           <p className="py-6 text-center text-sm text-muted-foreground">No spending this month yet.</p>
         ) : (
           <div className="space-y-2.5" data-testid="category-breakdown">
-            {top.map((c, i) => {
+            {visibleRows.map(({ c, i }) => {
               const href = categoryMonthRegisterHref(
                 { categoryId: c.categoryId, month: data.ym, amountCents: c.amountCents },
                 linkable,
@@ -217,6 +240,49 @@ export function ReportsView({
               </div>
               );
             })}
+            {/* O.19: the tail's subtotal is a row, so the list visibly recomposes
+                the header total in BOTH states — collapsed it is the 13th line,
+                open it is the footer under the members it sums. No bar: a sum of
+                many categories drawn against single-category bars would invite a
+                comparison the chart does not mean. Not a link either: this is not
+                one category, and O.5 refuses an href whose destination cannot
+                display the filter. The amount is plain text; the control is the
+                same chip gesture every expandable row on this page already uses. */}
+            {rest.length > 0 && (
+              <div data-testid="reports-everything-else">
+                <div className="flex items-baseline justify-between text-sm">
+                  <span className="min-w-0 truncate">
+                    Everything else{' '}
+                    <span className="text-xs text-muted-foreground">
+                      · {rest.length} smaller categor{rest.length === 1 ? 'y' : 'ies'}
+                    </span>
+                  </span>
+                  <span
+                    className="ml-2 shrink-0 tabular-nums"
+                    data-testid="reports-everything-else-amount"
+                  >
+                    {formatCents(cents(restCents))}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRest((o) => !o)}
+                  aria-expanded={showRest}
+                  aria-label={`Everything else: ${showRest ? 'hide' : 'show'} the ${rest.length} smaller categor${rest.length === 1 ? 'y' : 'ies'}`}
+                  data-testid="reports-everything-else-toggle"
+                  className="mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  <span aria-hidden="true" className={`inline-block transition-transform ${showRest ? 'rotate-90' : ''}`}>
+                    ›
+                  </span>
+                  <span>
+                    {showRest
+                      ? 'Hide'
+                      : `Show ${rest.length} more categor${rest.length === 1 ? 'y' : 'ies'}`}
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>

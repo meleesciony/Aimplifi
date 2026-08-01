@@ -224,6 +224,25 @@ describe('the shipped server functions hand the panel the figure they print', ()
     expect(sawRows).toBe(true);
   });
 
+  it('O.19: the header total is the sum of the WHOLE category list — the premise the "Everything else" row renders on', async () => {
+    // The owner's screenshots showed "$28,253.04 total" above twelve rows that
+    // sum to ~$19k: the view capped the list while the header summed everything.
+    // The fix renders the tail's subtotal from the same array — which is only
+    // honest while totalCents IS that array's sum. Pin the premise here so an
+    // engine change that breaks it (a total that starts including what the list
+    // does not) fails a test that names the row relying on it.
+    const { getReports } = await import('@/server/reports');
+    const data = await getReports('user-demo');
+    const sum = data.breakdown.byCategory.reduce((s, c) => s + c.amountCents, 0);
+    expect(data.breakdown.totalCents).toBe(sum);
+    // MEASURED 2026-07-31: the demo month carries 11 spend categories, so the
+    // "Everything else" row does not render on the demo (11 rows already sum
+    // visibly to the total, which is correct). The >12 hard case therefore
+    // cannot live here — the e2e seeds its own throwaway user with a 13-plus
+    // category month and asserts the row against that fixture.
+    expect(data.breakdown.byCategory.length).toBeGreaterThan(1);
+  });
+
   it('trends-breakdown-parity: every mover figure equals its listed rows, over comparedYm', async () => {
     const { getSpendingTrends } = await import('@/server/trends');
     const trends = await getSpendingTrends('user-demo');
