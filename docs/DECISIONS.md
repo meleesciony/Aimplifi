@@ -2500,3 +2500,19 @@ on the plan for comparison. Demo writes fenced. Empty field clears override.
 **Locks.** `tests/unit/plan-overrides.test.ts` +
 `test_regression__user_set_overrides_replace_suggestions`. Schema additive → Neon
 `prisma db push` on deploy.
+
+## #373 — Intention vs data: slide / overspend, not a forced retype
+
+Owner 2026-08-01: *"Why do I have to set income. It’s already categorized."* Then:
+set only what you need; defer to locks when data differs; treat differing data as a
+**slide** and overspend from original intention.
+
+**DECIDED:**
+1. **What you need to set:** savings % (pay-yourself-first). Income and fixed default
+   from categorized transactions — no retype.
+2. **Optional locks** on income/fixed are *intention*. Plan math uses the lock.
+3. When categorized suggestion ≠ lock, expose `incomeSlideCents` / `fixedSlideCents`
+   (`suggested − intention`). Positive fixed slide = overspend vs intention. Never
+   silently rewrite the locked plan to match drifting data.
+
+**Locks.** `test_regression__data_diff_from_intention_is_a_slide_not_a_rewrite`.

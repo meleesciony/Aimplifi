@@ -1,5 +1,11 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — Intention vs slide (#373) SHIPPING
+
+Owner: set savings %; income/fixed from categories; lock only as intention; data ≠ lock
+= slide / overspend, not a rewrite. Engine `incomeSlideCents`/`fixedSlideCents`/`hasSlide`;
+Plan form + `plan-slide` notice. `bash scripts/verify.sh` GREEN (sqlite `DATABASE_URL`).
+
 ## 2026-08-01 — Fixed non-discretionary (#371) + Plan figure overrides (#372) DONE
 
 Owner: income − savings% − non-disc fixed = guilt-free; dining/golf discretionary;

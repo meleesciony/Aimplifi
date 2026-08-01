@@ -28,6 +28,9 @@ export default async function SpendingPlanPage() {
       incomeOverrideCents={p.incomeOverrideCents}
       fixedOverrideCents={p.fixedOverrideCents}
       savingsTargetBps={p.savingsTargetBps}
+      incomeSlideCents={p.incomeSlideCents}
+      fixedSlideCents={p.fixedSlideCents}
+      hasSlide={p.hasSlide}
       canEdit={canEditFigures}
     />
   );
@@ -214,12 +217,12 @@ export default async function SpendingPlanPage() {
             so income, transfers, and bills land in the right buckets.
           </li>
           <li>
-            Set or confirm income, non-discretionary fixed costs, and savings % in{' '}
-            <span className="text-foreground">Your plan figures</span> above (or{' '}
+            Set savings % under <span className="text-foreground">Your plan</span> (or{' '}
             <Link href="/settings" className="underline underline-offset-2 hover:text-foreground">
               Settings
             </Link>
-            ).
+            ). Income and fixed follow categories; lock them only as intention — later
+            differences show as a slide.
           </li>
           <li>
             Guilt-free = income − savings% − fixed. Dining out and golf are discretionary;

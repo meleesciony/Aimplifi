@@ -106,4 +106,29 @@ describe('computeSpendingPlan — non-discretionary fixed (#371)', () => {
     expect(p.plannedSavingsCents).toBe(750_000);
     expect(p.leftToSpendCents).toBe(3_000_000 - 750_000 - 1_200_000); // 1_050_000
   });
+
+  it('test_regression__data_diff_from_intention_is_a_slide_not_a_rewrite', () => {
+    // Intention: $10k fixed. Categories show $13k fixed → slide +$3k (overspend vs plan).
+    const p = computeSpendingPlan({
+      today: isoDate('2026-08-01'),
+      trailingMonthlyIncomeCents: [3_000_000, 3_000_000, 3_000_000],
+      scheduledIncome: [],
+      scheduledFixed: [],
+      trailingMonthlyFixedCents: [1_300_000],
+      incomeOverrideCents: null,
+      fixedOverrideCents: 1_000_000,
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: 2500,
+    });
+    expect(p.fixedExpensesCents).toBe(1_000_000); // intention wins the math
+    expect(p.suggestedFixedCents).toBe(1_300_000);
+    expect(p.fixedSlideCents).toBe(300_000);
+    expect(p.hasSlide).toBe(true);
+    expect(p.leftToSpendCents).toBe(3_000_000 - 750_000 - 1_000_000); // still on intention
+  });
 });

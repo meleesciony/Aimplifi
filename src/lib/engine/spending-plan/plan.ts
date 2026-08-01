@@ -278,6 +278,17 @@ export interface SpendingPlan extends SpendingPlanInput {
   fixedMonths: number;
   /** Suggested fixed before any user override (same as fixed when unset). */
   suggestedFixedCents: number;
+  /**
+   * When an intention is locked (user-set income/fixed), how categorized data
+   * differs from that intention (DECISIONS #373). Positive fixed slide = data
+   * shows more non-discretionary spend than planned — overspend vs intention.
+   * Zero when that side is not locked. Never changes the plan math; the slide
+   * is the variance signal.
+   */
+  incomeSlideCents: number;
+  fixedSlideCents: number;
+  /** True when any locked intention differs from the data suggestion. */
+  hasSlide: boolean;
   /** Resolved planned savings: the LARGER of goal contributions and the
    *  savings-% target applied to pattern income. A floor, never a sum — both
    *  express "pay yourself first", so adding them would count the intent twice. */
@@ -501,7 +512,8 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
     fixedMonths = 0;
   }
 
-  // User overrides (#372) replace the suggestion when set; savings % stays a dial.
+  // Intention locks (#372/#373): when set, plan math uses the intention.
+  // Categorized suggestions stay visible; a difference is a slide, not a rewrite.
   const hasIncomeOverride =
     typeof input.incomeOverrideCents === 'number' && Number.isSafeInteger(input.incomeOverrideCents) && input.incomeOverrideCents >= 0;
   const hasFixedOverride =
@@ -511,6 +523,11 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
   const incomeBasis: IncomeBasis = hasIncomeOverride ? 'user-set' : suggestedIncomeBasis;
   const fixedExpensesCents = hasFixedOverride ? input.fixedOverrideCents! : suggestedFixedCents;
   const fixedBasis: FixedBasis = hasFixedOverride ? 'user-set' : suggestedFixedBasis;
+
+  const incomeSlideCents = hasIncomeOverride ? suggestedIncomeCents - patternIncomeCents : 0;
+  const fixedSlideCents = hasFixedOverride ? suggestedFixedCents - fixedExpensesCents : 0;
+  const hasSlide =
+    (hasIncomeOverride && incomeSlideCents !== 0) || (hasFixedOverride && fixedSlideCents !== 0);
 
   const targetCents = savingsTargetCents(patternIncomeCents, input.savingsTargetBps);
   const plannedSavingsCents = Math.max(input.goalContributionsCents, targetCents);
@@ -533,6 +550,9 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
     fixedBasis,
     fixedMonths: hasFixedOverride ? 0 : fixedMonths,
     suggestedFixedCents,
+    incomeSlideCents,
+    fixedSlideCents,
+    hasSlide,
     plannedSavingsCents,
     savingsSource,
     unallocatedSavingsCents,
