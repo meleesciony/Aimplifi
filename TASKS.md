@@ -559,3 +559,37 @@ what is inside, and its footer still offers the register, which is where a row g
 | O.18c | **/recurring rows need their own panel, because their figure is not a sum.** A series row prints `typicalAmountCents` — a median, not a total — so listing its sightings under the "these rows add up to exactly the figure above" contract would be false. The right panel here lists the CHARGES the detector saw and says plainly that the amount above is the typical one, not their total; it also wants the detector's own reasoning (cadence, occurrence count, amount plateaus), which is the real answer to "what is the system classifying as a bill". `RecurringSeriesResult` carries `occurrences` as a COUNT only, so this needs the rows carried out of the detector. | Opus 4.8 | medium | 60k | **[ ] OPEN** |
 | O.18d | **The register's own rows are single transactions and already open a detail view** — nothing to expand, and an expander there would duplicate `/transactions/[id]`. Recorded only so "every table" has a complete accounting. | — | — | — | **[x] N/A by construction.** |
 | O.18e | **/trends' other two lists are merchant-scoped, and one of them is a different basis.** "Biggest purchases" rows are single settled charges whose name links to the merchant-filtered register across ALL history — nothing to expand, though the row arguably wants its own `/transactions/[id]`. "New this month" rows ARE an aggregate (a merchant's month) and could carry a panel, but not this one: `buildCategoryBreakdowns` keys on category, and that card's amount applies a `<= today` guard /reports does not, so it is a THIRD basis whose panel would have to state it. Needs a merchant-keyed sibling builder, not a new argument on this one. | Opus 4.8 | small | 35k | **[ ] OPEN** |
+
+## Wave O.19 — "These numbers do not add up to July monthly total" (owner report 2026-07-31, LIVE)
+
+Owner, with two /reports screenshots (header "Jul · $28,253.04 total", eleven visible rows
+summing to $19,312.25): *"Notate this. These numbers do not add up to July monthly total: 28k
+and change. Make it make sense."*
+
+Measured cause, same session: `reports-view.tsx:44` renders `byCategory.slice(0, 12)` under a
+header printing `totalCents`, which the engine computes over the WHOLE array
+(`engine/reports/reports.ts:101`) — a silent top-12 cap beside an uncapped total, the exact
+"no silent caps" class. O.18's per-row expanders sharpened the contradiction: each row now
+proves itself to the penny while the page-level identity is silently ~$8.9k short. The
+dashboard Top Spending card is the same disease at `slice(0, 4)` beside "`totalCents` this
+month" (`top-spending-card.tsx:44,58`). Swept the rest of the rendered surfaces: /budgets and
+/trends lists are uncapped or labeled without a total claim; Ask's "biggest" phrasings print
+no adjacent total.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+| O.19 | **/reports: the category list must visibly recompose its own total.** Keep the top 12, then an "Everything else · N categories" row carrying `sum(byCategory[12:])` — computed from the SAME array the header total sums, so the identity holds by construction — expanding in place to the tail rows, each with its existing link + breakdown panel (the server already builds panels for EVERY category). E2e asserts rendered rows + remainder === header total, and that the demo fixture actually HAS a 13th category so the lock cannot pass vacuously. | **Fable 5** | small | 30k | **[ ] IN PROGRESS this session** |
+| O.19a | **Dashboard Top Spending: the same identity, stated not expanded.** Four rows + "`$X` across N more categories" line under them; the card stays a summary and /reports (already linked) is the destination. | **Fable 5** | small | — | **[ ] IN PROGRESS this session (same slice)** |
+
+## Wave U — Full user-experience cohesion pass (owner request 2026-07-31)
+
+Owner, verbatim: *"App is not very cohesive. Eventually we need to do a full user experience
+pass."* Filed as its own wave because it is a PLANNING deliverable first, not a slice: an
+inventory of the app's surfaces against a single set of interaction idioms (which figures tap,
+which rows expand, which pages answer which question — the N.1 menu descriptions are the seed),
+then a ranked fix list. Do not start it inside another slice; it needs its own session and an
+owner review of the plan before any code moves.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+| U.1 | **UX cohesion audit → ranked plan.** Inventory every route's idioms (tap targets, expanders, disclosure style, empty states, copy voice), name the inconsistencies with screenshots, rank by reader confusion, and propose the unifying rules as a doc the owner approves before implementation waves begin. | Fable 5 | large | 100k | **[ ] OPEN — owner said "eventually"; queue after the LIVE waves** |
