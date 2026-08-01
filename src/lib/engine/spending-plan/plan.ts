@@ -1,12 +1,16 @@
 /**
- * Spending Plan engine (DECISIONS #66; #295/L.11(C) reframe; L.22 re-spec, owner
- * instruction 2026-07-26) — the "guilt-free spending" answer in the I Will Teach
- * You to Be Rich sense, computed as the owner stated it:
+ * Spending Plan engine (DECISIONS #66; #295/L.11(C) reframe; L.22 re-spec;
+ * owner 2026-08-01: card pay is NOT a fixed expense) — the "guilt-free
+ * spending" answer in the I Will Teach You to Be Rich sense:
  *
  *   guilt-free = income (ALL sources, from the trailing pattern)
  *              − savings % of that income (set in Settings)
  *              − fixed and recurring expenses (the pattern, never discretionary)
- *              − card payment obligations already dated
+ *
+ * Card statement payments are the SETTLEMENT of spend already done (fixed or
+ * guilt-free charged to a card). Subtracting them here double-counts. Liquidity
+ * — "how much cash do I need for cards, and when?" — lives on the cash-needed
+ * engine / dashboard hero, which still receives the same obligation rows.
  *
  * WHY THE CASH-MONTH MODEL WAS REPLACED (owner, verbatim: "your logic on guilt
  * free spending is broken, for one i don't have 22k or so income coming in...
@@ -54,12 +58,12 @@
  *    detected recurring series is NEVER
  *    fixed — discretionary spending subtracts nowhere in this plan (the owner's
  *    formula: "not discretionary or budgeted for").
- *  - Card payments stay REAL: the cash-needed engine's own obligation rows due
- *    this month, plus the L.11(D) beyond-month reservation for payments already
- *    dated past its edge. These are fixed commitments too, but they are actual
- *    dated statements/estimates, not a pattern — mixing them would be the
- *    borrowed-window error, so they ride as their own terms with their own
- *    estimate flags, exactly as L.11(C)/(D) left them.
+ *  - Card payment fields (`cardObligationsCents`, `obligationsBeyondMonthCents`)
+ *    still ride the plan so disclosures and cash-needed cross-checks share one
+ *    payload, but they are NOT subtracted from guilt-free (owner 2026-08-01).
+ *    Paying the card is not a third cost class — it settles spend already
+ *    categorized. The L.11(D) "beyond month" reservation likewise belongs to
+ *    cash-needed timing, not this allocation.
  *  - Savings is the LARGER of named-goal contributions and the Settings
  *    savings-% target applied to the pattern income. The owner's formula names
  *    only the %; the max() is its safe superset — identical whenever goals ≤
@@ -460,11 +464,9 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
   const unallocatedSavingsCents =
     savingsSource === 'target' ? plannedSavingsCents - input.goalContributionsCents : 0;
 
-  const committed =
-    fixedExpensesCents +
-    input.cardObligationsCents +
-    input.obligationsBeyondMonthCents +
-    plannedSavingsCents;
+  // Owner 2026-08-01: card obligations are NOT committed spend in this plan —
+  // they settle prior spend. Cash-needed answers the liquidity question.
+  const committed = fixedExpensesCents + plannedSavingsCents;
   const leftToSpendCents = patternIncomeCents - committed;
 
   return {

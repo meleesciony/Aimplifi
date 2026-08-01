@@ -4,8 +4,8 @@
  * computeSpendingPlan's quantities, so they must ALWAYS sum back to
  * patternIncomeCents — there is no second spend definition. Anchored on the
  * real engine output, never on hand-built plans. Under L.22 the partition IS
- * the owner's formula: fixed = recurring bills at a monthly rate + card
- * payments, with no discretionary term anywhere.
+ * the owner's formula: fixed = recurring bills at a monthly rate (card payments
+ * are settlement, not a bucket), with no discretionary term anywhere.
  */
 import { describe, expect, it } from 'vitest';
 import { isoDate } from '@/lib/dates';
@@ -51,11 +51,11 @@ describe('mapToConsciousBuckets — provably equal re-partition', () => {
     expect(b.investingTracked).toBe(false);
   });
 
-  it('card obligations land in the fixed bucket and the partition still holds', () => {
+  it('card obligations do not enter any bucket — guilt-free stays the income remainder', () => {
     const b = mapToConsciousBuckets(plan({ cardObligationsCents: 100_000 }));
     const byKey = Object.fromEntries(b.buckets.map((x) => [x.key, x]));
-    expect(byKey.fixed.cents).toBe(400_000); // 300k bills + 100k card payments
-    expect(byKey.guiltFree.cents).toBe(50_000); // 150k − 100k
+    expect(byKey.fixed.cents).toBe(300_000); // bills only
+    expect(byKey.guiltFree.cents).toBe(150_000); // unchanged by card dues
     expect(sumCents(b)).toBe(500_000);
   });
 

@@ -26,7 +26,8 @@ export type ConsciousBucketKey = 'fixed' | 'savings' | 'guiltFree';
  * O.18b): the strip's legend, the per-bucket Glass-Box panels, and the share
  * snapshot's headline all print these — two spellings of one bucket would be
  * two answers to one question. "Fixed costs" deliberately does not say
- * "bills": since #295 the bucket also holds this month's card payments.
+ * "bills": recurring fixed costs only — card statement payments are settlement
+ * of spend, not a fixed cost class (owner 2026-08-01).
  */
 export const CONSCIOUS_BUCKET_LABELS: Record<ConsciousBucketKey, string> = {
   fixed: 'Fixed costs',
@@ -73,23 +74,19 @@ function shareBps(cents: number, incomeCents: number): number {
 
 /**
  * Re-partition a SpendingPlan into the conscious-spending buckets. The identity
- * preserved (the L.22 formula):
- *   patternIncome = fixedExpenses + cardObligations + obligationsBeyondMonth + plannedSavings + leftToSpend
+ * preserved (owner 2026-08-01 formula):
+ *   patternIncome = fixedExpenses + plannedSavings + leftToSpend
  * maps to:
- *   fixed     = fixedExpenses + cardObligations + obligationsBeyondMonth
- *               (recurring bills at a monthly rate + this-cycle card payments +
- *                card payments already dated past the month's edge, L.11(D) —
- *                a card payment belongs on the FIXED side whichever side of a
- *                month boundary its due date fell on)
- *   savings   = plannedSavings               (max of goal contributions and the
- *                                             savings-% target; investing folded in)
- *   guiltFree = leftToSpend                  (the discretionary remainder; <0 when overspent)
+ *   fixed     = fixedExpenses   (recurring bills at a monthly rate — not card pay)
+ *   savings   = plannedSavings  (max of goal contributions and the savings-%
+ *                                target; investing folded in)
+ *   guiltFree = leftToSpend     (the discretionary remainder; <0 when overspent)
  * so `fixed + savings + guiltFree === patternIncome` by construction.
  */
 export function mapToConsciousBuckets(plan: SpendingPlan): ConsciousBuckets {
   const income = plan.patternIncomeCents;
   const cellsByKey: Record<ConsciousBucketKey, number> = {
-    fixed: plan.fixedExpensesCents + plan.cardObligationsCents + plan.obligationsBeyondMonthCents,
+    fixed: plan.fixedExpensesCents,
     savings: plan.plannedSavingsCents,
     guiltFree: plan.leftToSpendCents,
   };

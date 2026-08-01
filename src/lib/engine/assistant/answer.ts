@@ -20,7 +20,7 @@ import {
   type SpendingBreakdown,
 } from '@/lib/engine/reports/reports';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
-import { planCardNotes, planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
+import { planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
@@ -1071,30 +1071,12 @@ export function answerSafeToSpend(
   // dropped here — the label still names the missing input, and this answer's
   // source link opens the panel that offers it.
   const labels = planRowLabels(plan, disclosures);
+  // Owner 2026-08-01: three-term formula only. Card payments settle spend; they
+  // are answered under Cash needed, not as plan facts that must sum to the headline.
   const facts: AssistantFact[] = [
     { label: labels.income.label, value: fmt(plan.patternIncomeCents) },
     { label: labels.fixed.label, value: fmt(plan.fixedExpensesCents) },
-    {
-      label: plan.cardObligationsEstimated
-        ? `${labels.cardPayments.label} (estimated)`
-        : labels.cardPayments.label,
-      value: fmt(plan.cardObligationsCents),
-    },
     { label: labels.savings.label, value: fmt(plan.plannedSavingsCents) },
-    // L.11(D). Without this row the facts add to a number that is not the
-    // headline, and Ask is the one surface with no breakdown page to explain
-    // the gap — the reader would be told a smaller figure and shown the
-    // arithmetic for a larger one.
-    ...(plan.obligationsBeyondMonthCents > 0
-      ? [
-          {
-            label: plan.obligationsBeyondMonthEstimated
-              ? `Card payments due after this month, estimated (through ${plan.obligationsBeyondMonthThroughDate})`
-              : `Card payments due after this month (through ${plan.obligationsBeyondMonthThroughDate})`,
-            value: fmt(plan.obligationsBeyondMonthCents),
-          },
-        ]
-      : []),
   ];
   // Each qualifier states its own DIRECTION, and states it for THE FIGURE THIS
   // BRANCH RENDERS (critic P1-1: the overspent branch shows the OVERAGE — the
@@ -1102,17 +1084,8 @@ export function answerSafeToSpend(
   // Directions never share a sentence (a-disclosure-is-several-claims lesson).
   const over = plan.overspent;
   const qualifiers: string[] = [];
-  // The all-estimate state (cycle-2 critic F2-1): this answer is untraced, so
-  // the trace's estimate basis can never reach the reader — the qualifier must
-  // live here, or Ask claims statement provenance the term does not have.
-  if (plan.cardObligationsEstimated) {
-    qualifiers.push(
-      'No statement has been generated yet, so the card-payments figure is estimated from current balances.',
-    );
-  }
-  // A repeating bill the projection did not count (L.30). Ask needs this for the
-  // same reason it needs the estimate qualifier above: this answer is UNTRACED, so
-  // the /spending-plan basis list that carries the sentence can never reach a
+  // A repeating bill the projection did not count (L.30). Ask needs this because
+  // this answer is UNTRACED, so the /spending-plan basis list cannot reach a
   // reader who asked here. Authored in `row-labels.ts` with the labels; the
   // direction argument is this branch's own fact — `over` renders the OVERAGE, and
   // an uncounted bill makes an overage bigger where it makes room to spend smaller.
@@ -1122,32 +1095,13 @@ export function answerSafeToSpend(
     'the fixed-expenses line',
   );
   if (fixedShortfall) qualifiers.push(fixedShortfall);
-  // O.18f: Ask was the FOURTH hand-rolled author of these four facts — the one the
-  // residual's own task row did not know about. Its duplicate sentence was the worst
-  // of the four: it said "Two cards" while naming every card in every pair, so a
-  // reader with two suspected pairs was told "Two cards (A and B; C and D)".
-  qualifiers.push(
-    ...planCardNotes(disclosures, {
-      // The overspent branch renders the OVERAGE, the negation of left-to-spend.
-      headline: over ? 'overage' : 'left-to-spend',
-      container: 'the card-payments figure',
-      // A spoken answer names the cards, like /spending-plan.
-      detail: 'named',
-      // Ask states the fixed-expenses line separately, just above.
-      fixedCostsName: null,
-    }),
-  );
-  // A fact about how the figure was reached, not a hedge about accuracy, so it
-  // is stated on BOTH branches and before the uncertainty qualifiers. The
-  // preposition is load-bearing: the money was set aside BEFORE the headline,
-  // never "of" it — "$18,814.14 of that" said $18,814.14 was inside $3,439.95
-  // on the positive branch, and inside an OVERAGE on the other (cycle-2 P1).
-  if (plan.reservesBeyondMonth) {
-    // Stated on BOTH branches, and before the uncertainty qualifiers: this is
-    // not a hedge about accuracy, it is a fact about which payments the figure
-    // already holds back — and Ask has no breakdown page to carry it instead.
-    qualifiers.unshift(
-      `${fmt(plan.obligationsBeyondMonthCents)} was set aside before that figure, for card payments dated after this month (through ${plan.obligationsBeyondMonthThroughDate}) — only the part your scheduled income does not arrive in time to cover.`,
+  if (
+    disclosures.creditCardCount > 0 ||
+    plan.cardObligationsCents !== 0 ||
+    plan.obligationsBeyondMonthCents !== 0
+  ) {
+    qualifiers.push(
+      'Card statement payments are not subtracted here — paying the card settles spending already counted. How much cash you need for cards is answered under Cash needed on the dashboard.',
     );
   }
   const withQualifiers = (base: string) => [base, ...qualifiers].join(' ');
@@ -1156,13 +1110,13 @@ export function answerSafeToSpend(
     // inflated one-month pattern UNDERSTATES the overage — the dangerous direction).
     const basis =
       plan.incomeBasis === 'trailing-median'
-        ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of income across everything that arrived in your checking and savings accounts, minus fixed and recurring expenses, the card payments due this month, and your planned savings. ${
+        ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of income across everything that arrived in your checking and savings accounts, minus fixed and recurring expenses and your planned savings. ${
             plan.incomeMonths >= 3
               ? ''
               : 'With fewer than three complete months behind it, a one-time deposit can still count — the real overage may be smaller as the pattern steadies. '
           }`
         : plan.incomeBasis === 'detected-series'
-          ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses, the card payments due this month, and your planned savings. A deposit on a rhythm longer than monthly — quarterly, twice a year, or yearly — is not counted here — one long gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows such a deposit at a share of a month; this figure leaves it out. '
+          ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses and your planned savings. A deposit on a rhythm longer than monthly — quarterly, twice a year, or yearly — is not counted here — one long gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows such a deposit at a share of a month; this figure leaves it out. '
           : 'There is no income pattern yet — nothing here is invented. ';
     return {
       kind: 'safe_to_spend',
@@ -1179,13 +1133,13 @@ export function answerSafeToSpend(
     headline: `Your guilt-free allocation this month is ${fmt(plan.leftToSpendCents)}.`,
     detail: withQualifiers(
       plan.incomeBasis === 'trailing-median'
-        ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of income across everything that arrived in your checking and savings accounts, minus fixed and recurring expenses, the card payments due this month, and your planned savings. ${
+        ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of income across everything that arrived in your checking and savings accounts, minus fixed and recurring expenses and your planned savings. ${
             plan.incomeMonths >= 3
               ? 'A one-time deposit is not income here — the median ignores the month it landed in.'
               : 'With fewer than three complete months behind it, a one-time deposit can still count — the pattern steadies as the third month arrives.'
-          } Discretionary spending is never subtracted. Card purchases count when their statement’s payment comes due, not again at purchase time.`
+          } Discretionary spending is never subtracted.`
         : plan.incomeBasis === 'detected-series'
-          ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses, the card payments due this month, and your planned savings. A deposit on a rhythm longer than monthly — quarterly, twice a year, or yearly — is not counted here — one long gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows such a deposit at a share of a month; this figure leaves it out. Card purchases count when their statement’s payment comes due, not again at purchase time.'
+          ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses and your planned savings. A deposit on a rhythm longer than monthly — quarterly, twice a year, or yearly — is not counted here — one long gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows such a deposit at a share of a month; this figure leaves it out.'
           : 'There is no income pattern yet — nothing here is invented. Once a complete month of income posts, the figure comes from that pattern.',
     ),
     facts,

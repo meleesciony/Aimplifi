@@ -2,10 +2,11 @@
  * Spending Plan engine known-answer tests (DECISIONS #66; #295 reframe; L.22
  * pattern re-spec, owner instruction 2026-07-26). Hand-verified to the cent.
  *
- * The owner's formula: guilt-free = pattern income (all sources) − savings % −
- * fixed & recurring expenses − card obligations. The locks here are mostly
- * about what is NOT in the number anymore: this month's received income, any
- * remaining-occurrence count, discretionary spending, and the per-day framing.
+ * The owner's formula (2026-08-01): guilt-free = pattern income − savings % −
+ * fixed & recurring expenses. Card obligations are settlement of spend, not a
+ * plan term. The locks here are mostly about what is NOT in the number: this
+ * month's received income, remaining-occurrence counts, discretionary spending,
+ * card payments, and the per-day framing.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -180,9 +181,9 @@ describe('computeSpendingPlan — the L.22 pattern model', () => {
     expect(p.overspent).toBe(false);
   });
 
-  it('guilt-free = pattern income − fixed − card payments − savings; NO discretionary term exists', () => {
+  it('guilt-free = pattern income − fixed − savings; card payments and discretionary are never subtracted', () => {
     // $6,000 pattern income; fixed: $250/week streaming (25000×52/12=108333) + $1,200/yr
-    // insurance (120000/12=10000) + $2,200 rent = 338333; cards $900; goals $800.
+    // insurance (120000/12=10000) + $2,200 rent = 338333; cards $900 ignored; goals $800.
     const p = computeSpendingPlan(
       input({
         trailingMonthlyIncomeCents: [600000, 600000, 600000],
@@ -196,16 +197,18 @@ describe('computeSpendingPlan — the L.22 pattern model', () => {
       }),
     );
     expect(p.fixedExpensesCents).toBe(108333 + 10000 + 220000);
-    expect(p.leftToSpendCents).toBe(600000 - 338333 - 90000 - 80000);
+    expect(p.cardObligationsCents).toBe(90000); // still carried for cash-needed disclosures
+    expect(p.leftToSpendCents).toBe(600000 - 338333 - 80000);
     expect(p.overspent).toBe(false);
   });
 
-  it('a card obligation alone can drive the plan overspent — the shortfall and this figure agree in direction', () => {
+  it('a card obligation alone does NOT drive the plan overspent — cards settle spend, they are not a cost class', () => {
     const p = computeSpendingPlan(
       input({ trailingMonthlyIncomeCents: [600000], cardObligationsCents: 700000 }),
     );
-    expect(p.leftToSpendCents).toBe(-100000);
-    expect(p.overspent).toBe(true);
+    expect(p.leftToSpendCents).toBe(600000);
+    expect(p.overspent).toBe(false);
+    expect(p.cardObligationsCents).toBe(700000);
   });
 
   it('savings target is a floor: the larger of goals and income×bps wins, never the sum', () => {
@@ -243,28 +246,23 @@ describe('computeSpendingPlan — the L.22 pattern model', () => {
 });
 
 /**
- * TASKS L.11(D) — the month's edge, carried into the pattern model. Regression
- * tests from the owner's report of 2026-07-25, "It's worse now".
- * FAIL-OLD: before L.11(D) the same inputs returned $22,254.09 at $3,709.01/day;
- * before L.22 the income term itself was the $22,254.09 he does not have.
+ * Owner 2026-08-01 — card payments (including L.11(D) beyond-month) are carried
+ * for cash-needed / disclosures but never subtract from guilt-free.
  */
-describe("computeSpendingPlan — card payments dated past the month's edge", () => {
+describe("computeSpendingPlan — card payments do not reduce guilt-free", () => {
   const OWNER = input({
-    // His dashboard read: 7 cards, $18,814.14 needed by Wed Aug 5, while the
-    // plan beneath it offered the whole month's income — and the old income
-    // term itself was $22,254.09 he does not have. His pattern income here:
-    // three ordinary months.
     trailingMonthlyIncomeCents: [650000, 640000, 645000],
     obligationsBeyondMonthCents: 1881414,
     obligationsBeyondMonthThroughDate: 'Wed, Aug 5',
   });
 
-  it('reserves a dated statement from the moment it is known, against the PATTERN income', () => {
+  it('still carries the beyond-month obligation, but guilt-free ignores it', () => {
     const p = computeSpendingPlan(OWNER);
-    expect(p.patternIncomeCents).toBe(645000); // the median — never the $22,254.09 spike
-    expect(p.leftToSpendCents).toBe(645000 - 1881414);
+    expect(p.patternIncomeCents).toBe(645000);
+    expect(p.obligationsBeyondMonthCents).toBe(1881414);
     expect(p.reservesBeyondMonth).toBe(true);
-    expect(p.overspent).toBe(true); // honestly over plan — not a $3,709/day invitation
+    expect(p.leftToSpendCents).toBe(645000);
+    expect(p.overspent).toBe(false);
   });
 
   it('changes nothing for the ordinary month, where every card is due inside it', () => {
@@ -273,9 +271,10 @@ describe("computeSpendingPlan — card payments dated past the month's edge", ()
     expect(p.reservesBeyondMonth).toBe(false);
   });
 
-  it('composes with the in-month term rather than replacing it — neither statement is counted twice', () => {
+  it('in-month card dues likewise leave guilt-free equal to pattern income', () => {
     const p = computeSpendingPlan({ ...OWNER, cardObligationsCents: 500000 });
-    expect(p.leftToSpendCents).toBe(645000 - 1881414 - 500000);
-    expect(p.overspent).toBe(true);
+    expect(p.cardObligationsCents).toBe(500000);
+    expect(p.leftToSpendCents).toBe(645000);
+    expect(p.overspent).toBe(false);
   });
 });

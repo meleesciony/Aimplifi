@@ -745,13 +745,12 @@ export const COACH_COPY = {
 
   // ── Wave 2: P0.4 Conscious-spending lens (C6 · Sethi) ──────────────────────
   // Investing is folded into savings (no per-month contribution flow in the data); stated inline.
-  // L.22: the fixed bucket is recurring bills at a monthly rate + card payments — no cash
-  // spending term exists in the plan any longer, so the caption must not name one.
+  // Owner 2026-08-01: fixed = recurring bills only; card pay is settlement, not a bucket.
   consciousSpending: (fixedPct: number, savePct: number, funPct: number) =>
-    `This month, about ${fixedPct}% is going to recurring bills and card payments, ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free to spend. A rough target is 50–60% / 15–20% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
+    `This month, about ${fixedPct}% is going to fixed and recurring costs, ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free to spend. A rough target is 50–60% / 15–20% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
 
   consciousOverspent: () =>
-    `Fixed costs, card payments, and savings have outpaced this month's income pattern, so guilt-free has gone negative — one month is weather, not climate. The trend is what matters.`,
+    `Fixed costs and savings have outpaced this month's income pattern, so guilt-free has gone negative — one month is weather, not climate. The trend is what matters.`,
 
   // ── Wave 2: P0.5 Automation blueprint (C7 · Sethi, Babylon, Ramsey) ────────
   automationBlueprintBanner: () =>

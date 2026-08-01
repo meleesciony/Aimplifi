@@ -196,10 +196,7 @@ interface SafeToSpendParts {
   rows: {
     income: TraceRow;
     fixed: TraceRow;
-    cardPayments: TraceRow;
     savings: TraceRow;
-    /** Present only when the L.11(D) reservation acted — see the row comment. */
-    beyondMonth: TraceRow | null;
   };
   basis: {
     income: string[];
@@ -207,9 +204,8 @@ interface SafeToSpendParts {
     shortfall: string[];
     discretionary: string[];
     longCadence: string[];
+    /** Points readers at cash-needed — cards are not a guilt-free subtraction. */
     card: string[];
-    cardEstimated: string[];
-    beyondMonth: string[];
     savings: string[];
   };
 }
@@ -233,16 +229,6 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
       notes: [],
       action: labels.fixed.action,
     },
-    cardPayments: {
-      id: 'card-payments',
-      label: labels.cardPayments.label,
-      amountCents: cents(-plan.cardObligationsCents || 0), // `|| 0` normalizes the -0 a zero term would negate to
-      // True in the all-estimate state (no card has a generated statement) —
-      // the fact rides the plan so this row cannot claim statement provenance
-      // it does not have (critic P1-3).
-      isEstimated: plan.cardObligationsEstimated,
-      notes: [],
-    },
     savings: {
       id: 'savings',
       // The resolved figure is max(goal contributions, the savings-% target),
@@ -254,24 +240,6 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
       notes: [],
       action: labels.savings.action,
     },
-    // Card payments already dated but falling past this month's edge (L.11(D)).
-    // A real subtraction, in the same units as every row above it, so this
-    // panel's claim — that its lines add up to the number above — stays a
-    // claim that could fail. Present only when such a payment exists: a $0 row
-    // would name a mechanism that did not act, for a reader who owns no cards.
-    beyondMonth:
-      plan.obligationsBeyondMonthCents > 0
-        ? {
-            id: 'card-payments-next',
-            label: `Card payments already dated, due after this month (through ${plan.obligationsBeyondMonthThroughDate})`,
-            amountCents: cents(-plan.obligationsBeyondMonthCents),
-            // Its own flag: when every card is dated past the edge the in-month
-            // one is false by construction, and this row would then claim
-            // statement provenance for a figure that is entirely an estimate.
-            isEstimated: plan.obligationsBeyondMonthEstimated,
-            notes: [],
-          }
-        : null,
   };
 
   const basis: SafeToSpendParts['basis'] = {
@@ -341,34 +309,14 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
       // table `monthlyRateCents` divides by, so the sentence cannot claim a
       // third while the arithmetic takes a twelfth.
     longCadence: longCadenceSentences(plan, 'subtracts'),
-      // Gated on a card existing at all (L.29, same rule as the clause above):
-      // "assumes each is paid in full" and "comes from the same obligation rows"
-      // describe a mechanism that cannot have acted for a reader with no linked
-      // card, beside a row that now says exactly that. A reader who HAS cards
-      // still gets it whether or not any is due this month — the assumption is
-      // what makes a $0 in-month line readable.
+      // Owner 2026-08-01: card statement payments are settlement, not a plan
+    // subtraction. Point at Cash needed when the reader has cards.
     card:
-      disclosures.creditCardCount > 0 || plan.cardObligationsCents !== 0
+      disclosures.creditCardCount > 0 ||
+      plan.cardObligationsCents !== 0 ||
+      plan.obligationsBeyondMonthCents !== 0
         ? [
-            'Spending on credit cards is counted when its statement’s payment comes due, not again at purchase time. The card-payments line covers your own cards due this month, assumes each is paid in full, and comes from the same obligation rows as the cash-needed answer.',
-          ]
-        : [],
-    cardEstimated: plan.cardObligationsEstimated
-      ? [
-          'No statement has been generated yet, so the card-payments line is estimated from current balances.',
-        ]
-      : [],
-      // Why a monthly plan is quoting a figure smaller than its own arithmetic.
-      // The fact a reader needs and cannot see: the money is not gone (it is
-      // reserved for a payment already dated). The reservation's income side
-      // reads every scheduled income series (user rows on any account,
-      // detected rows scoped to the payment account) — never a balance — so
-      // the figure says nothing about cash held elsewhere (the L.11(C)
-      // account-set rule).
-    beyondMonth:
-      plan.obligationsBeyondMonthCents > 0
-        ? [
-            `A statement can come due after the month it belongs to, and one dated ${plan.obligationsBeyondMonthThroughDate} would otherwise sit in no plan you can see — this month would call it next month's business, and next month's plan would arrive after the money was spent. Only the part your scheduled income does not arrive in time to cover is set aside here, so a payment your next paycheck already pays for is not reserved twice. Whatever is set aside will also appear in next month's card-payments line until it is paid.`,
+            'Card statement payments are not subtracted here — paying the card settles spending already counted as fixed or guilt-free. How much cash you need for cards, and when, is answered on the dashboard under Cash needed.',
           ]
         : [],
     savings:
@@ -401,8 +349,8 @@ function longCadenceSentences(plan: SpendingPlan, verb: 'subtracts' | 'counts'):
  *  asserts membership only — O.18b critic P2-2 caught this comment claiming a
  *  lock that did not exist). */
 function assembleSafeToSpend(plan: SpendingPlan, parts: SafeToSpendParts): NumberTrace {
-  const { income, fixed, cardPayments, savings, beyondMonth } = parts.rows;
-  const rows: TraceRow[] = [income, fixed, cardPayments, savings, ...(beyondMonth ? [beyondMonth] : [])];
+  const { income, fixed, savings } = parts.rows;
+  const rows: TraceRow[] = [income, fixed, savings];
   const sum = sumCents(rows.map((r) => r.amountCents));
   const b = parts.basis;
   return {
@@ -418,8 +366,6 @@ function assembleSafeToSpend(plan: SpendingPlan, parts: SafeToSpendParts): Numbe
       ...b.discretionary,
       ...b.longCadence,
       ...b.card,
-      ...b.cardEstimated,
-      ...b.beyondMonth,
       ...b.savings,
     ],
   };
@@ -427,10 +373,10 @@ function assembleSafeToSpend(plan: SpendingPlan, parts: SafeToSpendParts): Numbe
 
 /**
  * Rows behind the guilt-free-spending headline: the identity
- * left = pattern income − fixed expenses − card payments − planned savings
- * (− card payments already dated past this month), carried as SIGNED rows so
- * the same plain-summation invariant holds. All fields live on the
- * SpendingPlan result itself (it extends its input), so nothing is re-derived.
+ * left = pattern income − fixed expenses − planned savings, carried as SIGNED
+ * rows so the same plain-summation invariant holds. Card payments are not a
+ * term (owner 2026-08-01). All fields live on the SpendingPlan result itself
+ * (it extends its input), so nothing is re-derived.
  */
 export function traceSafeToSpend(
   plan: SpendingPlan,
@@ -486,11 +432,7 @@ export function traceConsciousBuckets(
   // must stay one text (critic P2-2).
   const cardNotes = planCardNotes(disclosures, BUDGETS_CARD_NOTE_SURFACE);
 
-  const fixedRows = [
-    flip(parts.rows.fixed),
-    flip(parts.rows.cardPayments),
-    ...(parts.rows.beyondMonth ? [flip(parts.rows.beyondMonth)] : []),
-  ];
+  const fixedRows = [flip(parts.rows.fixed)];
   const fixedSum = sumCents(fixedRows.map((r) => r.amountCents));
   const savingsRows = [flip(parts.rows.savings)];
   const savingsSum = sumCents(savingsRows.map((r) => r.amountCents));
@@ -519,8 +461,6 @@ export function traceConsciousBuckets(
         ...b.shortfall,
         ...longCadenceSentences(plan, 'counts'),
         ...b.card,
-        ...b.cardEstimated,
-        ...b.beyondMonth,
         ...cardNotes,
       ],
     },
