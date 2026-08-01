@@ -41,11 +41,18 @@ test('wealth target: typing a target and dragging the horizon move the live answ
   // The assumption that makes compounding a cash leftover at an investing rate coherent.
   await expect(startingFrom).toContainText('invested too rather than left as cash');
 
-  // 2. The DIALS, named as the reader's own and reachable in one tap rather than described.
+  // 2. The DIALS, attributed honestly and reachable in one tap rather than described.
   const dials = page.getByTestId('wealth-target-dials');
-  // The demo user has no stored `inflationBps`, so this is the DEFAULTED branch — the card must
-  // not call Aimplifi's own 2.50% "yours" while /settings calls the same number "our defaults".
-  await expect(dials).toContainText("Aimplifi's default");
+  // The demo user has no stored `inflationBps` AND has never changed the return dial, so this
+  // is the both-defaulted branch — the card must not call either of Aimplifi's own numbers
+  // "yours" while /settings calls them ours.
+  //
+  // W.13 — the second half is why this assertion was strengthened. The sentence used to open
+  // "7.00% return is your setting" for EVERY reader, unconditionally, on the same line that
+  // correctly disclaimed the inflation dial one clause later.
+  await expect(dials).toContainText("Both rates are Aimplifi's defaults");
+  await expect(dials).toContainText('7.00% return and 2.50% inflation');
+  await expect(dials).not.toContainText('your setting');
   await expect(dials).not.toContainText('Both rates are yours');
   await expect(dials).toContainText('How long the target takes');
   await expect(page.getByTestId('wealth-target-dials-link')).toHaveAttribute(

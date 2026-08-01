@@ -54,6 +54,51 @@ export const DIAL_LIMITS = {
   savingsTargetBps: { min: 0, max: 9000 }, // 0.00% – 90.00%
 } as const;
 
+/**
+ * The app's expected-return dial, in bps — the SAME 700 as `User.expectedReturnBps
+ * @default(700)` in prisma/schema.prisma, which is asserted against this constant in
+ * `tests/unit/return-dial-default.test.ts` (the whole possessive below rests on that equality).
+ *
+ * W.13. Unlike `inflationBps`, this column is NOT nullable and the /settings field is
+ * REQUIRED, so there is no stored "unset" state to read: every reader who has never chosen a
+ * return carries the app's 700 and is indistinguishable, in the row, from one who typed 7.
+ * The copy therefore attributes the dial by VALUE — see `returnIsAppDefault`.
+ */
+export const DEFAULT_EXPECTED_RETURN_BPS = 700;
+
+/**
+ * Whether the reader's return dial is still the number Aimplifi picked.
+ *
+ * This is a claim the money copy makes out loud ("our default 7.00% return assumption"), so
+ * it may only assert what value-equality proves: that 7.00% IS our default and IS the rate in
+ * use. It may NOT say "which you haven't changed" — a reader who deliberately typed 7 is
+ * inside this branch and no column records the difference.
+ *
+ * The one reachable error runs in the safe direction: a reader who chose exactly 7.00% is
+ * told the app's default is 7.00%, which is true and merely under-credits them. The inverse —
+ * telling a reader who never opened /settings that 7.00% is "your return assumption" — is the
+ * false claim W.13 exists to remove (`an-answer-is-only-as-believable-as-its-visible-inputs`:
+ * a possessive is a claim). Making the column nullable would not fix it: every row already in
+ * the database holds 700, so the new meaning would describe none of them
+ * (`a-new-meaning-for-an-old-column-is-a-migration`).
+ */
+export function returnIsAppDefault(expectedReturnBps: number): boolean {
+  return expectedReturnBps === DEFAULT_EXPECTED_RETURN_BPS;
+}
+
+/**
+ * Who chose each of the two rates a projection is worked out from. Passed as ONE named object
+ * rather than two positional booleans: the copy functions below take both, `boolean` is not
+ * distinguishable from `boolean` to tsc, and a silent swap would put each dial's possessive on
+ * the other dial's rate.
+ */
+export interface DialOwnership {
+  /** True when `expectedReturnBps` is still `DEFAULT_EXPECTED_RETURN_BPS` (see above). */
+  returnIsDefault: boolean;
+  /** True when `User.inflationBps` was null and the read fell back to `RETIREMENT_ASSUMPTIONS`. */
+  inflationIsDefault: boolean;
+}
+
 /** Account types from which a card payment may legitimately be drawn. */
 export const PAYMENT_ACCOUNT_TYPES = ['CHECKING', 'SAVINGS'] as const;
 

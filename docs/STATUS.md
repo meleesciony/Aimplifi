@@ -2,6 +2,42 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-08-01 — W.13: the return dial is no longer called the reader's (DECISIONS #367)
+
+`User.expectedReturnBps` is `Int @default(700)` and NOT nullable, and the /settings field is
+required and pre-filled — so a reader who has never opened that page still carries the app's own
+7.00%, and six sentences across three cards called it **"your 7.00% return assumption"**. The
+wealth card said it outright: *"7.00% return is your setting; 2.50% inflation is Aimplifi's
+default, which you haven't changed"* — one sentence attributing one dial correctly and the other
+falsely, shipped for four slices, live on the demo.
+
+**Decided by VALUE, not by a new column.** There is no stored "unset" to read the way
+`inflationIsDefault` reads a null column, and making the column nullable would describe none of
+the rows already in the database (every one holds 700), so `returnIsAppDefault(bps)` is
+`bps === DEFAULT_EXPECTED_RETURN_BPS`. The one reachable error — a reader who deliberately typed
+7 is told 7.00% is our default — runs in the safe direction and is pinned in
+`tests/unit/return-dial-default.test.ts` so it cannot be re-litigated as a bug. The copy claims
+only what the equality proves: **"our default 7.00% return assumption"**, never "which you
+haven't changed" (true for the nullable inflation column, unprovable for this one).
+
+Both flags now travel as one `DialOwnership` object rather than two positional booleans, because
+`boolean` and `boolean` are indistinguishable to tsc and a swap would put each dial's possessive
+on the other dial's rate. Surfaces changed: the FI card's projection basis, the opportunity
+list's basis, the wealth card's basis / dials / sensitivity intro / required-contribution, and
+/investments' retirement outlook. Each has a RENDERED lock (a unit test on a copy function cannot
+see the page handing over the wrong answer); the /investments path was mutation-proven through a
+rebuild.
+
+**Deliberately unchanged, enumerated rather than overlooked:** `/goals` (×3) and the Goals
+empty state say "assuming your current savings rate and expected return" — no rate is printed
+and the phrase means the settings that apply to the reader's plan, so there is no number whose
+provenance a reader could question; `money-dials-form` says "your expected return" twice while
+the reader is editing that very field, and now carries "The 7% here is our default." beside it so
+the page /coach links to says what /coach says. `COACH_COPY.opportunity`'s "your 0.00% return
+assumption" is untouched because that branch is `nominalReturnBps === 0` and the app's default is
+700 — a possessive kept true by arithmetic, asserted about the constant rather than left in a
+comment.
+
 ## ✅ BUILT 2026-08-01 — W.11: FI slider first paint is the unchanged branch (DECISIONS #364)
 
 An 85% saver used to see "Lowering your savings rate from 85.0% to 70.0%…" on first paint

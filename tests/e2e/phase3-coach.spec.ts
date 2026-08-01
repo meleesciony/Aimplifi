@@ -32,6 +32,12 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(basis).toContainText('4.50%'); // 7.00% nominal less the 2.50% default
   await expect(basis).toContainText('our default 2.50% inflation assumption');
   await expect(basis).not.toContainText('your 2.50%');
+  // W.13 — and the same is true of the OTHER dial on the same line, which this sentence went
+  // on calling "your 7.00% return assumption" for four slices while correctly disclaiming the
+  // inflation half one clause later. `expectedReturnBps` is non-nullable with the app's own 700
+  // as its default, so the demo — and every reader who has never opened /settings — is here.
+  await expect(basis).toContainText('our default 7.00% return assumption');
+  await expect(basis).not.toContainText('your 7.00%');
 
   // W.9 — the Coast horizon says the app chose it. An unlabelled "25 years" beside a monthly
   // dollar figure is the shape the owner called "arbitrary time" on the card below.
@@ -67,8 +73,21 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(page.getByTestId('opportunities-list')).toContainText('$20,350.61 in today\'s money over 30 years');
   await expect(page.getByTestId('opportunities-list')).not.toContainText('future wealth');
   // The provenance sentence renders once, beside the rows, naming both dials in their roles.
-  await expect(page.getByTestId('opportunities-basis')).toContainText('7.00% return assumption');
-  await expect(page.getByTestId('opportunities-basis')).toContainText('2.50% inflation assumption');
+  //
+  // W.13 — and naming WHOSE they are. The demo user has never opened /settings, so both dials
+  // hold the app's own numbers and the sentence may not call either one the reader's. This is
+  // the rendered half of the fix: the flag is computed in `getCoachData` and threaded through
+  // the page, so a unit test on the copy function cannot see the page handing over the wrong
+  // answer — which is the same reason the golden figure above lives here.
+  await expect(page.getByTestId('opportunities-basis')).toContainText(
+    'our default 7.00% return assumption',
+  );
+  await expect(page.getByTestId('opportunities-basis')).not.toContainText(
+    'your 7.00% return assumption',
+  );
+  await expect(page.getByTestId('opportunities-basis')).toContainText(
+    'our default 2.50% inflation assumption',
+  );
   await expect(page.getByTestId('opportunities-basis')).toContainText('what the total would buy today');
   // W.10a critic — the payoff clause is now gated on the printed figures rather than on the
   // return dial alone, and the demo's 7.00%/2.50% is a pair where nothing trails. Asserting it

@@ -17,6 +17,7 @@ import { FROZEN_COACH_TESTID } from '@/lib/engine/account/feed-dropped-view';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { monthsToFI } from '@/lib/engine/fi/fi';
 import { fiSliderInitialBps, fiSliderMaxBps } from '@/lib/engine/fi/fi-slider-bounds';
+import type { DialOwnership } from '@/lib/engine/settings/dials';
 import { type Cents, cents, formatCents } from '@/lib/money';
 
 export function FICard({
@@ -30,7 +31,7 @@ export function FICard({
   expectedReturnBps,
   projectionReturnBps,
   inflationBps,
-  inflationIsDefault,
+  dialOwnership,
   realReturnFloored,
   coastIsCoast,
   coastRequiredMonthlyCents,
@@ -73,10 +74,14 @@ export function FICard({
    */
   projectionReturnBps: number;
   inflationBps: number;
-  /** True when `inflationBps` fell back to `RETIREMENT_ASSUMPTIONS` because the reader never
-   *  set one — so the basis copy may not call it "yours". Required, not optional: a caller
-   *  that forgets it would silently claim a setting the reader does not have. */
-  inflationIsDefault: boolean;
+  /**
+   * Who chose each rate the basis copy names. Required, not optional: a caller that forgets it
+   * would silently claim a setting the reader does not have — `inflationBps` falls back to
+   * `RETIREMENT_ASSUMPTIONS` when the reader never set one, and `expectedReturnBps` is still
+   * the app's default for everyone who never opened /settings (W.13). One object rather than
+   * two booleans so the two dials' answers cannot be handed to each other.
+   */
+  dialOwnership: DialOwnership;
   /** True when `projectionReturnBps` is the 0 floor rather than the subtraction; selects the
    *  basis branch that may not show its working. */
   realReturnFloored: boolean;
@@ -150,7 +155,7 @@ export function FICard({
             expectedReturnBps,
             inflationBps,
             realReturnFloored,
-            inflationIsDefault,
+            dialOwnership,
           )}
         </p>
         {frozenPortfolioNote ? (

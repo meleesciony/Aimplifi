@@ -70,6 +70,11 @@ describe('getRetirementOutlook — grounded mapping', () => {
       annualRetirementSpendingCents: 6_000_000,
       annualReturnBps: realReturnBps,
       nominalReturnBps: 700,
+      // W.13 — the mocked coach data leaves `expectedReturnBps` at the app's own 700, so the
+      // outlook copy may not call it "your expected return". The exhaustive `toEqual` is what
+      // makes this field unforgettable: a new input that the card can print has to be answered
+      // here before the suite goes green.
+      returnIsDefault: true,
       inflationBps,
       swrBps: 400,
     });

@@ -18,6 +18,8 @@ import {
   ageToInput,
   bpsToPercentInput,
   centsToDollarInput,
+  DEFAULT_EXPECTED_RETURN_BPS,
+  returnIsAppDefault,
   type DialField,
 } from '@/lib/engine/settings/dials';
 import { updateMoneyDials, type DialsResult } from '@/server/settings-actions';
@@ -175,6 +177,16 @@ export function MoneyDialsForm({
               The long-run return assumed when projecting how your savings grow and what a
               recurring expense could be worth invested. Markets are not guaranteed; this is
               an assumption you can change.
+              {/* W.13 — the retirement fieldset below says "leave any blank to use our
+                  defaults" and this field cannot: it is required and arrives pre-filled, so
+                  the number sitting in the box reads as one the reader chose. /coach now calls
+                  the same rate "our default 7.00% return assumption", and the page it links to
+                  had better say the same thing. Value-equality, so a reader who typed exactly
+                  7 also sees it — the sentence claims only that 7% IS our default, never that
+                  they have not changed it. */}
+              {returnIsAppDefault(current.expectedReturnBps) ? (
+                <> The {bpsToPercentInput(DEFAULT_EXPECTED_RETURN_BPS)}% here is our default.</>
+              ) : null}
             </span>
             <FieldError id="dials-error-expectedReturn" message={err('expectedReturn')} />
           </label>

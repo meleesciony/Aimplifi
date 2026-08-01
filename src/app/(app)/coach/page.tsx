@@ -57,6 +57,15 @@ export default async function CoachPage() {
   // crons; this only ever adds rows for newly detected increases.
   await recordReceipts(session.user.id, receiptsFromOpportunities(data.opportunities));
   const receipts = await getValueReceiptsSummary(session.user.id);
+  // W.13 — who chose the two rates every projection on this page is worked out from. Built
+  // ONCE and handed to both cards and the opportunity basis, because the three surfaces print
+  // the same two numbers and a possessive that disagrees between them is a reader watching one
+  // card call 7.00% theirs while the next calls it ours. `getCoachData` decides both flags: the
+  // inflation one from a null column, the return one by value (`returnIsAppDefault`).
+  const dialOwnership = {
+    returnIsDefault: data.fi.returnIsDefault,
+    inflationIsDefault: data.fi.inflationIsDefault,
+  };
 
   return (
     <div className="space-y-4">
@@ -82,7 +91,7 @@ export default async function CoachPage() {
           // the dates were computed, so the card cannot describe a basis its figures did not use.
           projectionReturnBps={data.fi.projectionReturnBps}
           inflationBps={data.fi.inflationBps}
-          inflationIsDefault={data.fi.inflationIsDefault}
+          dialOwnership={dialOwnership}
           realReturnFloored={data.fi.realReturnFloored}
           coastIsCoast={data.fi.coastIsCoast}
           coastRequiredMonthlyCents={data.fi.coastRequiredMonthlyCents}
@@ -117,11 +126,8 @@ export default async function CoachPage() {
         monthlyIncomeCents={data.fi.monthlyIncomeCents}
         safeToSpendCents={cents(plan.leftToSpendCents)}
         expectedReturnBps={data.fi.expectedReturnBps}
-        // `User.inflationBps` is nullable, and `getCoachData` applies the same
-        // `RETIREMENT_ASSUMPTIONS` fallback and reports whether it fired. /settings calls that
-        // same 2.50% "our defaults"; the card may not call it "yours".
         inflationBps={data.fi.inflationBps}
-        inflationIsDefault={data.fi.inflationIsDefault}
+        dialOwnership={dialOwnership}
         monthlySavingsMonths={data.fi.monthlySavingsMonths}
         // Same note the FI card above already carries: a withheld non-USD investment account is
         // absent from `portfolioCents`, and the starting-balance sentence enumerates exclusions.
@@ -239,7 +245,7 @@ export default async function CoachPage() {
               {COACH_COPY.opportunityBasis(
                 data.fi.expectedReturnBps,
                 data.fi.inflationBps,
-                data.fi.inflationIsDefault,
+                dialOwnership,
               )}
             </p>
           )}

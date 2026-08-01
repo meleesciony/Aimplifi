@@ -11,6 +11,7 @@ import { formatCents, type Cents } from '@/lib/money';
 import { formatISODate, formatMonth, type ISODate } from '@/lib/dates';
 import type { FrozenFunding } from '@/lib/engine/account/feed-dropped-view';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
+import type { DialOwnership } from '@/lib/engine/settings/dials';
 // The basis sentence decides WHICH claim to make from the same engine the figures come from —
 // a guard reading exactly what it guards, rather than a second rule about the dials that can
 // drift from the arithmetic (it already had, by 1,579 horizon-cases).
@@ -43,6 +44,33 @@ export interface PendingTransfer {
 const pct = (bps: number) => `${(bps / 100).toFixed(2)}%`;
 const pct1 = (bps: number) => `${(bps / 100).toFixed(1)}%`;
 
+/**
+ * The two dial clauses, written ONCE (W.13).
+ *
+ * Six sentences across three cards name one or both of these rates, and each of them was a
+ * separate hand-written possessive before this — which is how the return dial ended up
+ * attributed to the reader on every surface while the inflation dial was attributed correctly
+ * on the same line (`a-disclosure-is-several-claims-in-one-sentence`: a qualifying sentence's
+ * subject, mechanism and possessive are each true or false on their own).
+ *
+ * "our default" is deliberately the whole claim. The nullable inflation column could also
+ * support "which you haven't changed"; the return column cannot (see `returnIsAppDefault`), and
+ * a sentence carrying both rates has nowhere to put a clause that is true of only one of them
+ * without the reader attaching it to both.
+ */
+const returnClause = (nominalBps: number, owner: DialOwnership) =>
+  owner.returnIsDefault
+    ? `our default ${pct(nominalBps)} return assumption`
+    : `your ${pct(nominalBps)} return assumption`;
+
+const inflationClause = (inflationBps: number, owner: DialOwnership) =>
+  owner.inflationIsDefault
+    ? `our default ${pct(inflationBps)} inflation assumption`
+    : `your ${pct(inflationBps)} inflation assumption`;
+
+/** Capitalize a clause that has become the start of a sentence. */
+const sentenceCase = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
+
 export const COACH_COPY = {
   savingsRateHeadline: (rateBps: number, monthLabel: string) =>
     rateBps >= 0
@@ -72,20 +100,20 @@ export const COACH_COPY = {
    * answer (`the-arithmetic-was-never-the-risk`). It says what the floor MEANS and which
    * direction it errs in instead, because a clamp that flatters is the expensive one.
    *
-   * `inflationIsDefault` decides a possessive, not a decoration: `User.inflationBps` is
-   * nullable, and /settings calls the same 2.50% "our defaults", so the card may not call it
-   * "yours" until the reader has set one.
+   * `owner` decides two possessives, not a decoration: `User.inflationBps` is nullable and
+   * `User.expectedReturnBps` still holds the app's 700 for anyone who never chose one, and
+   * /settings calls both numbers ours — so the card may not call either "yours" until the
+   * reader has set it (W.13).
    */
   fiProjectionBasis: (
     realReturnBps: number,
     nominalBps: number,
     inflationBps: number,
     realReturnFloored: boolean,
-    inflationIsDefault: boolean,
+    owner: DialOwnership,
   ) => {
-    const infl = inflationIsDefault
-      ? `our default ${pct(inflationBps)} inflation assumption`
-      : `your ${pct(inflationBps)} inflation assumption`;
+    const infl = inflationClause(inflationBps, owner);
+    const ret = returnClause(nominalBps, owner);
     // The monthly figures on this card are LEVEL contributions compounded at a REAL rate,
     // which by the engine's own convention (`retirement.ts`) means they are today's dollars
     // and a standing order left alone falls behind. The sibling wealth card says so about its
@@ -98,15 +126,15 @@ export const COACH_COPY = {
       // reads as a bug. Same clamp, same silence about the subtraction, honest wording.
       const relation =
         nominalBps === inflationBps
-          ? `Your ${pct(nominalBps)} return assumption exactly matches ${infl}`
-          : `Your ${pct(nominalBps)} return assumption is below ${infl}`;
+          ? `${sentenceCase(ret)} exactly matches ${infl}`
+          : `${sentenceCase(ret)} is below ${infl}`;
       return `Dates on this card are in today's money. ${relation}, so they are worked out assuming no growth after inflation at all — and if inflation really did outrun returns, they would arrive later than they say, not sooner. ${money}`;
     }
     // NO "years earlier": the gap between the two bases is months for a reader near their
     // number and exactly zero for one a month out — both critics measured it independently.
     // The card has no cheap access to the true gap, so it states the DIRECTION, which is
     // always true, instead of a magnitude that is often false.
-    return `Dates on this card are in today's money: your FI number is built from what you spend now, so the portfolio is grown at ${pct(realReturnBps)} — your ${pct(nominalBps)} return assumption less ${infl}. A date at the full ${pct(nominalBps)} would arrive sooner and buy less than it looks like. ${money}`;
+    return `Dates on this card are in today's money: your FI number is built from what you spend now, so the portfolio is grown at ${pct(realReturnBps)} — ${ret} less ${infl}. A date at the full ${pct(nominalBps)} would arrive sooner and buy less than it looks like. ${money}`;
   },
 
   /**
@@ -212,12 +240,13 @@ export const COACH_COPY = {
     nominalBps: number,
     inflationBps: number,
     realReturnFloored: boolean,
+    owner: DialOwnership,
   ) =>
     // The floored branch may NOT print the subtraction: 7.00% less 10.00% is not 0.00%, and
     // a reader can do that arithmetic in their head. It says what the floor means instead.
     realReturnFloored
-      ? `${formatCents(targetCents)} in today's money. Your ${pct(nominalBps)} return assumption is at or below your ${pct(inflationBps)} inflation assumption, so this is worked out assuming no growth after inflation at all — and if inflation really did outrun returns, anything below would arrive later than it says, not sooner.`
-      : `${formatCents(targetCents)} in today's money, assuming ${pct(realBps)} growth after inflation — your ${pct(nominalBps)} return assumption less ${pct(inflationBps)} inflation. Every figure below is in today's dollars, so the target means what it means to you now.`,
+      ? `${formatCents(targetCents)} in today's money. ${sentenceCase(returnClause(nominalBps, owner))} is at or below ${inflationClause(inflationBps, owner)}, so this is worked out assuming no growth after inflation at all — and if inflation really did outrun returns, anything below would arrive later than it says, not sooner.`
+      : `${formatCents(targetCents)} in today's money, assuming ${pct(realBps)} growth after inflation — ${returnClause(nominalBps, owner)} less ${pct(inflationBps)} inflation. Every figure below is in today's dollars, so the target means what it means to you now.`,
 
   /**
    * The reconciliation sentence. /coach stacks this card under the FI card, and stacking two
@@ -325,11 +354,27 @@ export const COACH_COPY = {
    *  · **"every figure on this card moves"**. The target, the starting balance, the pace figure
    *    and the guilt-free figure are all inputs from elsewhere and move for none of it — an
    *    enumeration is a claim, and this one was false four times over.
+   *
+   * W.13 — and this sentence went on faking the OTHER half of exactly that claim for four
+   * slices: `7.00% return is your setting` was printed unconditionally, to every reader,
+   * including the one the paragraph above was written to protect. Four branches, because two
+   * dials each attributed two ways is four sentences and not one with a flag in it. The
+   * "which you haven't changed" clause is gone: it is provable for a null inflation column and
+   * not for the return dial, and no branch here carries only one rate.
    */
-  wealthTargetDials: (nominalBps: number, inflationBps: number, inflationIsDefault: boolean) =>
-    inflationIsDefault
-      ? `${pct(nominalBps)} return is your setting; ${pct(inflationBps)} inflation is Aimplifi's default, which you haven't changed. How long the target takes, and what it costs a month, are worked out from these two.`
-      : `Both rates are yours to change — ${pct(nominalBps)} return and ${pct(inflationBps)} inflation. How long the target takes, and what it costs a month, are worked out from these two.`,
+  wealthTargetDials: (nominalBps: number, inflationBps: number, owner: DialOwnership) => {
+    const tail = `How long the target takes, and what it costs a month, are worked out from these two.`;
+    if (owner.returnIsDefault && owner.inflationIsDefault) {
+      return `Both rates are Aimplifi's defaults — ${pct(nominalBps)} return and ${pct(inflationBps)} inflation. ${tail}`;
+    }
+    if (owner.returnIsDefault) {
+      return `${pct(inflationBps)} inflation is your setting; ${pct(nominalBps)} return is Aimplifi's default. ${tail}`;
+    }
+    if (owner.inflationIsDefault) {
+      return `${pct(nominalBps)} return is your setting; ${pct(inflationBps)} inflation is Aimplifi's default. ${tail}`;
+    }
+    return `Both rates are yours to change — ${pct(nominalBps)} return and ${pct(inflationBps)} inflation. ${tail}`;
+  },
 
   /**
    * The FI card's refusal, in this card's words: nothing is going in, so no date is honest.
@@ -364,15 +409,16 @@ export const COACH_COPY = {
     inflationBps: number,
     /** W.2 critic P2 — this sentence called the inflation dial "your own assumption" while
      *  `wealthTargetDials`, 633px up the same card, called the same number "Aimplifi's
-     *  default, which you haven't changed". A possessive is a claim, and it was false on the
-     *  shared demo. Required, so no caller can go on omitting the question. */
-    inflationIsDefault: boolean,
+     *  default". A possessive is a claim, and it was false on the shared demo. Required, so no
+     *  caller can go on omitting the question; W.13 moved it into the shared `DialOwnership`
+     *  so the two dials' flags cannot be swapped for each other at a call site. */
+    owner: DialOwnership,
   ) =>
     // "In today's money" is the load-bearing clause. The simulation adds a LEVEL REAL
     // contribution, so a flat standing order set once loses ground every year and lands
     // short — the card says "every figure is in today's dollars" directly above, which
     // makes the omission worse by implying it is already handled.
-    `To land it in ${years} year${years === 1 ? '' : 's'} it takes about ${formatCents(requiredMonthlyCents)}/month in today's money, assuming ${pct(realBps)} growth after inflation. A standing order set once and left alone would need to rise with inflation — ${pct(inflationBps)} a year ${inflationIsDefault ? 'on our default assumption' : 'on your own assumption'} — to keep that pace.`,
+    `To land it in ${years} year${years === 1 ? '' : 's'} it takes about ${formatCents(requiredMonthlyCents)}/month in today's money, assuming ${pct(realBps)} growth after inflation. A standing order set once and left alone would need to rise with inflation — ${pct(inflationBps)} a year ${owner.inflationIsDefault ? 'on our default assumption' : 'on your own assumption'} — to keep that pace.`,
 
   /** The share of income, split out so it can be withheld when the denominator can't carry it. */
   wealthTargetRequiredShare: (rateBps: number) =>
@@ -407,10 +453,12 @@ export const COACH_COPY = {
    * "the spread is wider than any budgeting change you could make" sits directly above three
    * rows with no spread at all.
    */
-  wealthTargetSensitivityIntro: (hasSpread: boolean) =>
+  wealthTargetSensitivityIntro: (hasSpread: boolean, owner: DialOwnership) =>
     hasSpread
       ? `The same target at three return assumptions, all at what you're putting away today — the horizon above doesn't change these. Nobody knows which one you'll get, and the spread between them is usually wider than any budgeting change you could make, which is why the assumption is worth seeing rather than trusting.`
-      : `The same target at three return assumptions, all at what you're putting away today. They agree here only because your return assumption is at or below your inflation assumption, so all three floor to no real growth — the spread reappears as soon as the return assumption clears inflation.`,
+      : // No rate is printed in this branch, so the clauses name the dials without one — but
+        // the possessive is the same claim it is everywhere else on the card (W.13).
+        `The same target at three return assumptions, all at what you're putting away today. They agree here only because ${owner.returnIsDefault ? 'our default return assumption' : 'your return assumption'} is at or below ${owner.inflationIsDefault ? 'our default inflation assumption' : 'your inflation assumption'}, so all three floor to no real growth — the spread reappears as soon as the return assumption clears inflation.`,
 
   wealthTargetSensitivityRow: (nominalBps: number, realBps: number, years: number | null) =>
     years === null
@@ -455,7 +503,12 @@ export const COACH_COPY = {
     const horizons = `${formatCents(o.todayValue30Cents)} in today's money over 30 years (${formatCents(o.todayValue20Cents)} over 20, ${formatCents(o.todayValue10Cents)} over 10)`;
     const fv =
       nominalReturnBps === 0
-        ? `is ${horizons}, assuming your 0.00% return assumption — no growth at all, so that is the money itself with inflation taken off.`
+        ? // W.13 — the only possessive on this card that survives untouched, and it survives by
+          // ARITHMETIC rather than by having been checked: this branch is `nominalReturnBps === 0`
+          // and `DEFAULT_EXPECTED_RETURN_BPS` is 700, so a reader who never chose a return can
+          // never reach it. That is an inference about a constant, so it is asserted about the
+          // constant in `tests/unit/return-dial-default.test.ts` rather than left as a comment.
+          `is ${horizons}, assuming your 0.00% return assumption — no growth at all, so that is the money itself with inflation taken off.`
         : opportunityRowTrailsContributions(o)
           ? `is ${horizons}, assuming ${pct(nominalReturnBps)} average annual returns.`
           : `is ${horizons}, assuming ${pct(nominalReturnBps)} average annual returns — compounding does the work, not willpower.`;
@@ -511,15 +564,14 @@ export const COACH_COPY = {
    * more than the figure. Saying that is what lets the printed number stay the conservative
    * one — the alternative was to compound the optimism in and disclose nothing.
    */
-  opportunityBasis: (nominalBps: number, inflationBps: number, inflationIsDefault: boolean) => {
-    const infl = inflationIsDefault
-      ? `our default ${pct(inflationBps)} inflation assumption`
-      : `your ${pct(inflationBps)} inflation assumption`;
+  opportunityBasis: (nominalBps: number, inflationBps: number, owner: DialOwnership) => {
+    const infl = inflationClause(inflationBps, owner);
+    const ret = returnClause(nominalBps, owner);
     const flat = `They assume you invest that amount every month and never raise it; if what you free up grows over the years, as a subscription price usually does, you would end up with more than they say.`;
     if (inflationBps === 0) {
-      return `The figures in this list grow the monthly amount at your ${pct(nominalBps)} return assumption. ${infl.charAt(0).toUpperCase()}${infl.slice(1)} is ${pct(0)}, so nothing is taken off for inflation and today's money and future dollars are the same thing here. ${flat}`;
+      return `The figures in this list grow the monthly amount at ${ret}. ${sentenceCase(infl)} is ${pct(0)}, so nothing is taken off for inflation and today's money and future dollars are the same thing here. ${flat}`;
     }
-    const mechanism = `The figures in this list grow the monthly amount at your ${pct(nominalBps)} return assumption, then take ${infl} off for every year of the horizon — so each one is what the total would buy today, not what it would say on a statement.`;
+    const mechanism = `The figures in this list grow the monthly amount at ${ret}, then take ${infl} off for every year of the horizon — so each one is what the total would buy today, not what it would say on a statement.`;
     const trails = OPPORTUNITY_HORIZON_MONTHS.map((months) =>
       opportunityValueTrailsContributions(months, nominalBps, inflationBps),
     );

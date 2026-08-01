@@ -32,6 +32,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import type { DialOwnership } from '@/lib/engine/settings/dials';
 import {
   FALLBACK_HORIZON_YEARS,
   MAX_HORIZON_YEARS,
@@ -56,7 +57,7 @@ export function WealthTargetCard({
   safeToSpendCents,
   expectedReturnBps,
   inflationBps,
-  inflationIsDefault,
+  dialOwnership,
   monthlySavingsMonths,
   frozenPortfolioNote,
   currencyNote,
@@ -74,13 +75,16 @@ export function WealthTargetCard({
   expectedReturnBps: number;
   inflationBps: number;
   /**
-   * True when `inflationBps` is `RETIREMENT_ASSUMPTIONS.inflationBps` rather than a value the
-   * reader stored — `User.inflationBps` is nullable and /coach falls back. Required, not
-   * defaulted: the dials sentence claims ownership of these numbers, and a defaulted parameter
-   * fails silent (the repo has a written lesson about exactly that). /settings calls this same
-   * 2.50% "our defaults", so a card calling it "yours" would contradict the page it links to.
+   * Who chose each rate. `inflationIsDefault` is true when `inflationBps` is
+   * `RETIREMENT_ASSUMPTIONS.inflationBps` rather than a value the reader stored (the column is
+   * nullable and /coach falls back); `returnIsDefault` is true when `expectedReturnBps` is
+   * still the app's own 700, which W.13 found this card asserting as "your setting" for every
+   * reader who had never opened /settings. Required, not defaulted: the dials sentence claims
+   * ownership of these numbers, and a defaulted parameter fails silent (the repo has a written
+   * lesson about exactly that). /settings calls both numbers ours, so a card calling either
+   * "yours" contradicts the page it links to.
    */
-  inflationIsDefault: boolean;
+  dialOwnership: DialOwnership;
   /**
    * How many months `monthlySavingsCents` was averaged over — the actual divisor, which is
    * `Math.max(1, last6.length)` and is 3 for a reader three months in. The pace sentence names
@@ -177,6 +181,7 @@ export function WealthTargetCard({
             expectedReturnBps,
             inflationBps,
             result.realReturnFloored,
+            dialOwnership,
           );
 
   const paceLine = (() => {
@@ -213,7 +218,7 @@ export function WealthTargetCard({
       horizonYears,
       result.realReturnBps,
       inflationBps,
-      inflationIsDefault,
+      dialOwnership,
     );
   })();
 
@@ -257,7 +262,7 @@ export function WealthTargetCard({
         {result !== null && result.unreachableReason !== 'target-out-of-range' ? (
           <>
             <p className="text-xs text-muted-foreground" data-testid="wealth-target-dials">
-              {COACH_COPY.wealthTargetDials(expectedReturnBps, inflationBps, inflationIsDefault)}{' '}
+              {COACH_COPY.wealthTargetDials(expectedReturnBps, inflationBps, dialOwnership)}{' '}
             </p>
             {/* The card's only call to action. It was inline `text-xs` — a ~16px tap target, the
                 smallest thing on the card — so it gets its own row and a 44px minimum instead. */}
@@ -371,7 +376,7 @@ export function WealthTargetCard({
             <summary className="flex min-h-11 cursor-pointer select-none items-center">
               How much of this is the return assumption?
             </summary>
-            <p className="mt-1">{COACH_COPY.wealthTargetSensitivityIntro(hasSpread)}</p>
+            <p className="mt-1">{COACH_COPY.wealthTargetSensitivityIntro(hasSpread, dialOwnership)}</p>
             <ul className="mt-2 space-y-1">
               {result.sensitivity.map((s, idx) => (
                 // Keyed by position, not by rate: two rows can share a nominal rate once the

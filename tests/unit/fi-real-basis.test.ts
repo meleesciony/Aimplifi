@@ -22,6 +22,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/db';
 import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import {
+  DEFAULT_EXPECTED_RETURN_BPS,
+  type DialOwnership,
+} from '@/lib/engine/settings/dials';
 import type { Opportunity } from '@/lib/engine/fi/insights';
 import {
   coastFI,
@@ -39,6 +43,16 @@ import {
 import { getCoachData } from '@/server/coach';
 
 const NOMINAL_BPS = 700;
+
+/**
+ * W.13 — who chose each rate. The seeded users below set `expectedReturnBps` EXPLICITLY, so
+ * `OWNS_BOTH` is what the pure-copy cases assert against; `getCoachData` decides the live flag
+ * by value, which is why the two integration cases pass what the server actually returned
+ * rather than one of these.
+ */
+const OWNS_BOTH: DialOwnership = { returnIsDefault: false, inflationIsDefault: false };
+const DEFAULT_BOTH: DialOwnership = { returnIsDefault: true, inflationIsDefault: true };
+const DEFAULT_RETURN: DialOwnership = { returnIsDefault: true, inflationIsDefault: false };
 const INFLATION_BPS = 250;
 /** 7.00% less 2.50%. Written as a literal rather than derived, so a change to the helper has
  *  to come past this file rather than through it. */
@@ -191,9 +205,18 @@ describe('W.2 — the FI projections compound at the REAL return, not the nomina
 // ════════════════════════════════════════════════════════════════════════════════════════════
 describe('W.2 — the inflation dial the reader never set', () => {
   const U = `w2-default-${Date.now()}-${process.pid}`;
+  /**
+   * W.13 — 8.00% rather than the 700 this block used to seed. `returnIsDefault` is decided by
+   * VALUE (there is no nullable column to read), so a fixture seeded at exactly the app's
+   * default cannot express "the reader chose this rate", and the old assertion below — that the
+   * return half stays "yours" while the inflation half is disclaimed — was riding a user whose
+   * return dial was indistinguishable from an untouched one. The sibling block asserts the
+   * default direction on its own fixture.
+   */
+  const CHOSEN_RETURN_BPS = 800;
 
   beforeAll(async () => {
-    await seedUser(U, { expectedReturnBps: NOMINAL_BPS, inflationBps: null });
+    await seedUser(U, { expectedReturnBps: CHOSEN_RETURN_BPS, inflationBps: null });
   });
   afterAll(async () => {
     await prisma.user.deleteMany({ where: { id: U } });
@@ -203,7 +226,9 @@ describe('W.2 — the inflation dial the reader never set', () => {
     const d = await getCoachData(U);
     expect(d.fi.inflationBps).toBe(RETIREMENT_ASSUMPTIONS.inflationBps);
     expect(d.fi.inflationIsDefault).toBe(true);
-    expect(d.fi.projectionReturnBps).toBe(NOMINAL_BPS - RETIREMENT_ASSUMPTIONS.inflationBps);
+    expect(d.fi.projectionReturnBps).toBe(
+      CHOSEN_RETURN_BPS - RETIREMENT_ASSUMPTIONS.inflationBps,
+    );
   });
 
   it('the basis copy will not call an unset dial "yours" (a possessive is a claim)', async () => {
@@ -213,12 +238,67 @@ describe('W.2 — the inflation dial the reader never set', () => {
       d.fi.expectedReturnBps,
       d.fi.inflationBps,
       d.fi.realReturnFloored,
-      d.fi.inflationIsDefault,
+      { returnIsDefault: d.fi.returnIsDefault, inflationIsDefault: d.fi.inflationIsDefault },
     );
     expect(line).toContain('our default 2.50% inflation assumption');
     expect(line).not.toContain('your 2.50% inflation assumption');
-    // The reader's OWN dial is still theirs — only the inflation half is disclaimed.
-    expect(line).toContain('your 7.00% return assumption');
+    // The dial this reader DID set is still theirs — only the inflation half is disclaimed.
+    expect(d.fi.returnIsDefault).toBe(false);
+    expect(line).toContain('your 8.00% return assumption');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════
+/**
+ * W.13 — the mirror of the block above, and the defect it was opened for. `expectedReturnBps`
+ * is NOT nullable: it carries the app's own 700 for every reader who has never opened the
+ * /settings money dials, and until this slice all six sentences that name it called that
+ * number "your 7.00% return assumption". This fixture is the ordinary case — a user row
+ * created with nothing but defaults — so it is the one the live demo and every new signup are
+ * in.
+ */
+describe('W.13 — the return dial the reader never set', () => {
+  const U = `w13-default-${Date.now()}-${process.pid}`;
+
+  beforeAll(async () => {
+    // Both dials left as the app supplies them: `inflationBps` null, `expectedReturnBps` at
+    // its schema default.
+    await seedUser(U, { expectedReturnBps: DEFAULT_EXPECTED_RETURN_BPS, inflationBps: null });
+  });
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: U } });
+  });
+
+  it('reports the return dial as the app’s, and the copy says so on every surface', async () => {
+    const d = await getCoachData(U);
+    expect(d.fi.returnIsDefault).toBe(true);
+    expect(d.fi.inflationIsDefault).toBe(true);
+    const owner = {
+      returnIsDefault: d.fi.returnIsDefault,
+      inflationIsDefault: d.fi.inflationIsDefault,
+    };
+    const basis = COACH_COPY.fiProjectionBasis(
+      d.fi.projectionReturnBps,
+      d.fi.expectedReturnBps,
+      d.fi.inflationBps,
+      d.fi.realReturnFloored,
+      owner,
+    );
+    const list = COACH_COPY.opportunityBasis(d.fi.expectedReturnBps, d.fi.inflationBps, owner);
+    const dials = COACH_COPY.wealthTargetDials(
+      d.fi.expectedReturnBps,
+      d.fi.inflationBps,
+      owner,
+    );
+    for (const line of [basis, list]) {
+      expect(line).toContain('our default 7.00% return assumption');
+      expect(line).not.toContain('your 7.00% return assumption');
+    }
+    // The dials sentence is the one that said it outright — "7.00% return is your setting".
+    expect(dials).toContain("7.00% return and 2.50% inflation");
+    expect(dials).toContain("Aimplifi's defaults");
+    expect(dials).not.toContain('your setting');
+    expect(dials).not.toMatch(/yours to change/i);
   });
 });
 
@@ -246,7 +326,7 @@ describe('W.2 — inflation at or above the return assumption (the floored branc
       d.fi.expectedReturnBps,
       d.fi.inflationBps,
       d.fi.realReturnFloored,
-      d.fi.inflationIsDefault,
+      { returnIsDefault: d.fi.returnIsDefault, inflationIsDefault: d.fi.inflationIsDefault },
     );
     // "2.00% less 10.00%" is not 0.00%, and a reader can do that arithmetic in their head
     // (`the-arithmetic-was-never-the-risk`: a clamped output may not print its inputs).
@@ -349,7 +429,7 @@ describe('W.2 critic — claims the copy may not make', () => {
     const nominal = monthsToFI(cents(89_900_000), cents(200_000), 700, cents(90_000_000));
     expect(real).toBe(nominal); // the gap the retired sentence called "years"
 
-    const line = COACH_COPY.fiProjectionBasis(450, 700, 250, false, false);
+    const line = COACH_COPY.fiProjectionBasis(450, 700, 250, false, OWNS_BOTH);
     expect(line).not.toContain('years earlier');
     expect(line).toContain('would arrive sooner'); // direction only — always true
   });
@@ -360,16 +440,16 @@ describe('W.2 critic — claims the copy may not make', () => {
     // rate = today's dollars, so an untouched standing order lands short — the same caveat
     // the sibling wealth card already carried for the identical figure.
     expect(COACH_COPY.notCoastFI(cents(145_462), 25, 450, true)).toContain("in today's money");
-    const basis = COACH_COPY.fiProjectionBasis(450, 700, 250, false, false);
+    const basis = COACH_COPY.fiProjectionBasis(450, 700, 250, false, OWNS_BOTH);
     expect(basis).toContain('would need to rise with inflation');
   });
 
   it('equal dials read as a match, not as "7.00% is at or below 7.00%" (UI-11)', () => {
-    const equal = COACH_COPY.fiProjectionBasis(0, 700, 700, true, false);
+    const equal = COACH_COPY.fiProjectionBasis(0, 700, 700, true, OWNS_BOTH);
     expect(equal).toContain('exactly matches');
     expect(equal).not.toContain('at or below');
     // The strictly-below case keeps its own wording.
-    expect(COACH_COPY.fiProjectionBasis(0, 200, 1000, true, false)).toContain('is below');
+    expect(COACH_COPY.fiProjectionBasis(0, 200, 1000, true, OWNS_BOTH)).toContain('is below');
   });
 
   it('no sentence points at a screen POSITION for a rate (UI-8 / UI-9)', () => {
@@ -628,7 +708,7 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
     expect(line).toContain('$5,846.49 over 10');
     expect(line).toContain('assuming 7.00% average annual returns.');
     // And the paragraph that renders under the same gate explains it for the list.
-    expect(COACH_COPY.opportunityBasis(nominalBps, inflationBps, false)).toContain(
+    expect(COACH_COPY.opportunityBasis(nominalBps, inflationBps, OWNS_BOTH)).toContain(
       'the shorter horizons land at or below the dollars you would pay in',
     );
   });
@@ -662,7 +742,7 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
   });
 
   it('the basis line states the mechanism it actually performs', () => {
-    const shown = COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, false);
+    const shown = COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, DEFAULT_RETURN);
     expect(shown).toContain('7.00% return assumption');
     expect(shown).toContain('your 2.50% inflation assumption');
     // It may NOT claim a single blended rate: the code grows at one dial and deflates by the
@@ -681,7 +761,7 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
       [NOMINAL_BPS, 0],
       [500, 600],
     ] as const) {
-      const text = COACH_COPY.opportunityBasis(nom, inf, false);
+      const text = COACH_COPY.opportunityBasis(nom, inf, OWNS_BOTH);
       expect(text, `${nom}/${inf}`).toContain('never raise it');
       expect(text, `${nom}/${inf}`).toContain('more than they say');
     }
@@ -689,21 +769,21 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
 
   it('the two degenerate dial pairs get their own sentence', () => {
     // Zero inflation: nothing is deflated, so claiming a deduction would be false.
-    const noInflation = COACH_COPY.opportunityBasis(NOMINAL_BPS, 0, false);
+    const noInflation = COACH_COPY.opportunityBasis(NOMINAL_BPS, 0, DEFAULT_RETURN);
     expect(noInflation).toContain("today's money and future dollars are the same thing here");
     expect(noInflation).not.toContain('for every year of the horizon');
 
     // Inflation at or above the return dial: every horizon lands below the dollars paid in.
     // Executed across 10/20/30 years before the sentence was written — at 5.00%/6.00% the
     // ratios are 0.7226 / 0.5340 / 0.4025.
-    const outrun = COACH_COPY.opportunityBasis(500, 600, false);
+    const outrun = COACH_COPY.opportunityBasis(500, 600, OWNS_BOTH);
     expect(outrun).toContain('every figure lands at or below the dollars you would pay in');
     expect(outrun).toContain('that is the assumptions working, not an error');
     expect(opportunityValueTodayCents(cents(100_000), 360, 500, 600)).toBeLessThan(100_000 * 360);
     expect(opportunityValueTodayCents(cents(100_000), 120, 500, 600)).toBeLessThan(100_000 * 120);
 
     // …and the ordinary pair does NOT say it, so the branch is a real alternative.
-    expect(COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, false)).not.toContain(
+    expect(COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, DEFAULT_RETURN)).not.toContain(
       'below the dollars you would pay in',
     );
   });
@@ -718,7 +798,7 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
     // 10.25% return against 10.00% inflation is one of them, and the old predicate said nothing.
     expect(1025).toBeGreaterThan(1000);
     expect(opportunityValueTrailsContributions(360, 1025, 1000)).toBe(true);
-    expect(COACH_COPY.opportunityBasis(1025, 1000, false)).toContain(
+    expect(COACH_COPY.opportunityBasis(1025, 1000, OWNS_BOTH)).toContain(
       'every figure lands at or below the dollars you would pay in',
     );
 
@@ -728,7 +808,7 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
     expect(opportunityValueTrailsContributions(120, 325, 175)).toBe(true);
     expect(opportunityValueTrailsContributions(240, 325, 175)).toBe(true);
     expect(opportunityValueTrailsContributions(360, 325, 175)).toBe(false);
-    const mixed = COACH_COPY.opportunityBasis(325, 175, false);
+    const mixed = COACH_COPY.opportunityBasis(325, 175, OWNS_BOTH);
     expect(mixed).toContain('the shorter horizons land at or below the dollars you would pay in');
     expect(mixed).not.toContain('every figure lands at or below');
   });
@@ -763,10 +843,10 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
   });
 
   it('will not call an unset inflation dial "yours"', () => {
-    expect(COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, true)).toContain(
+    expect(COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, DEFAULT_BOTH)).toContain(
       'our default 2.50% inflation assumption',
     );
-    expect(COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, false)).toContain(
+    expect(COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, DEFAULT_RETURN)).toContain(
       'your 2.50% inflation assumption',
     );
   });
@@ -780,7 +860,7 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
       [NOMINAL_BPS, 0],
       [500, 600],
     ] as const) {
-      const text = COACH_COPY.opportunityBasis(nom, inf, false);
+      const text = COACH_COPY.opportunityBasis(nom, inf, OWNS_BOTH);
       // Not a bare `/above|below/`: a rate legitimately sits below another rate, which is a
       // comparison, not a location. What is banned is a noun on this screen plus a direction.
       expect(text, `${nom}/${inf}`).not.toMatch(

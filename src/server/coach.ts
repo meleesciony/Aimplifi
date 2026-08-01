@@ -44,7 +44,7 @@ import { buildReviewCandidates, selectReview, type ReviewRole } from '@/lib/engi
 import { DEMO_USER_ID } from '@/lib/demo-user';
 import { aiAuditSink } from '@/server/ai-audit';
 import { orderReviewViaLLM } from './money-review-llm';
-import { parseStoredDials } from '@/lib/engine/settings/dials';
+import { parseStoredDials, returnIsAppDefault } from '@/lib/engine/settings/dials';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { formatISODate } from '@/lib/dates';
@@ -82,6 +82,11 @@ export interface CoachData {
     /** The reader's NOMINAL return dial (`User.expectedReturnBps`). Named in the copy as one
      *  operand of the real return; never itself the rate the FI projections compound at. */
     expectedReturnBps: number;
+    /** W.13 — `expectedReturnBps` is still the app's `DEFAULT_EXPECTED_RETURN_BPS`, so the copy
+     *  may not call it "your return assumption". Unlike `inflationIsDefault` this cannot be read
+     *  off a null column (the column is non-nullable and the /settings field is required), so it
+     *  is decided by value; `returnIsAppDefault` documents which direction that errs in. */
+    returnIsDefault: boolean;
     /**
      * W.2 — the rate `monthsToFI`/`coastFI` above actually compounded at, and the rate the
      * card's slider must recompute with: `realReturnBps(expectedReturnBps, inflationBps)`.
@@ -458,6 +463,7 @@ export async function getCoachData(
       projectionReturnBps,
       inflationBps,
       inflationIsDefault: user.inflationBps == null,
+      returnIsDefault: returnIsAppDefault(user.expectedReturnBps),
       realReturnFloored: isRealReturnFloored(user.expectedReturnBps, inflationBps),
       coastTargetYears: COAST_TARGET_YEARS,
       // No control sets this today, so it is ALWAYS the app's pick. Kept as a field rather

@@ -11,6 +11,17 @@ import type { CreepResult, MonthlyFlow, Opportunity } from '@/lib/engine/fi/insi
 import { type PaymentReminder, reminderLine } from '@/lib/engine/reminders/select';
 import { cents } from '@/lib/money';
 import { isoDate } from '@/lib/dates';
+import type { DialOwnership } from '@/lib/engine/settings/dials';
+
+/**
+ * W.13 — who chose the two rates. Named rather than inlined as `{a, b}` at forty call sites,
+ * because the two fields are both booleans and the whole point of the object was that they
+ * cannot be swapped for each other by a caller who is not paying attention.
+ */
+const OWNS_BOTH: DialOwnership = { returnIsDefault: false, inflationIsDefault: false };
+const DEFAULT_BOTH: DialOwnership = { returnIsDefault: true, inflationIsDefault: true };
+const DEFAULT_INFLATION: DialOwnership = { returnIsDefault: false, inflationIsDefault: true };
+const DEFAULT_RETURN: DialOwnership = { returnIsDefault: true, inflationIsDefault: false };
 
 /** A representative reminder for guardrail-scanning the shared line (used by the digest). */
 const sampleReminder = (over: Partial<PaymentReminder> = {}): PaymentReminder => ({
@@ -119,19 +130,39 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     }),
     isProjection: false,
   },
+  // Four ownership branches, not two (W.13). Each row's RATES agree with its flags, so no row
+  // here pins a sentence production can never print: 800 is a return only a reader can have
+  // chosen and 700 is the app's own, while an inflation rate that is not 250 can never be
+  // `inflationIsDefault` (the fallback IS 250) — which is why every floored row below, needing
+  // inflation above the return, is `DEFAULT_RETURN` rather than `DEFAULT_BOTH`.
   {
     label: 'fiProjectionBasis',
-    text: COACH_COPY.fiProjectionBasis(450, 700, 250, false, false),
+    text: COACH_COPY.fiProjectionBasis(550, 800, 250, false, OWNS_BOTH),
     isProjection: true,
   },
   {
     label: 'fiProjectionBasis:defaultInflation',
-    text: COACH_COPY.fiProjectionBasis(450, 700, 250, false, true),
+    text: COACH_COPY.fiProjectionBasis(550, 800, 250, false, DEFAULT_INFLATION),
+    isProjection: true,
+  },
+  {
+    label: 'fiProjectionBasis:defaultReturn',
+    text: COACH_COPY.fiProjectionBasis(450, 700, 250, false, DEFAULT_RETURN),
+    isProjection: true,
+  },
+  {
+    label: 'fiProjectionBasis:defaultBoth',
+    text: COACH_COPY.fiProjectionBasis(450, 700, 250, false, DEFAULT_BOTH),
     isProjection: true,
   },
   {
     label: 'fiProjectionBasis:floored',
-    text: COACH_COPY.fiProjectionBasis(0, 700, 1000, true, false),
+    text: COACH_COPY.fiProjectionBasis(0, 800, 1000, true, OWNS_BOTH),
+    isProjection: true,
+  },
+  {
+    label: 'fiProjectionBasis:floored+defaultReturn',
+    text: COACH_COPY.fiProjectionBasis(0, 700, 1000, true, DEFAULT_RETURN),
     isProjection: true,
   },
   { label: 'coastFI', text: COACH_COPY.coastFI(25, 450, true), isProjection: true },
@@ -169,28 +200,48 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   // never been scanned by the guardrail sweeps at all.
   {
     label: 'opportunityBasis',
-    text: COACH_COPY.opportunityBasis(700, 250, true),
+    text: COACH_COPY.opportunityBasis(700, 250, DEFAULT_BOTH),
+    isProjection: true,
+  },
+  {
+    label: 'opportunityBasis:ownedDials',
+    text: COACH_COPY.opportunityBasis(800, 250, OWNS_BOTH),
     isProjection: true,
   },
   {
     label: 'opportunityBasis:noInflation',
-    text: COACH_COPY.opportunityBasis(700, 0, false),
+    text: COACH_COPY.opportunityBasis(800, 0, OWNS_BOTH),
+    isProjection: true,
+  },
+  {
+    label: 'opportunityBasis:noInflation+defaultReturn',
+    text: COACH_COPY.opportunityBasis(700, 0, DEFAULT_RETURN),
     isProjection: true,
   },
   {
     label: 'opportunityBasis:inflationOutruns',
-    text: COACH_COPY.opportunityBasis(500, 600, false),
+    text: COACH_COPY.opportunityBasis(500, 600, OWNS_BOTH),
     isProjection: true,
   },
   // Wealth target — every projection here carries BOTH assumptions (rate + today's dollars).
   {
     label: 'wealthTargetBasis',
-    text: COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 450, 700, 250, false),
+    text: COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 550, 800, 250, false, OWNS_BOTH),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetBasis:defaultBoth',
+    text: COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 450, 700, 250, false, DEFAULT_BOTH),
     isProjection: true,
   },
   {
     label: 'wealthTargetBasis:floored',
-    text: COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 0, 700, 1000, true),
+    text: COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 0, 800, 1000, true, OWNS_BOTH),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetBasis:floored+defaultReturn',
+    text: COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 0, 700, 1000, true, DEFAULT_RETURN),
     isProjection: true,
   },
   {
@@ -243,12 +294,22 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   },
   {
     label: 'wealthTargetDials',
-    text: COACH_COPY.wealthTargetDials(1000, 250, false),
+    text: COACH_COPY.wealthTargetDials(1000, 250, OWNS_BOTH),
     isProjection: false,
   },
   {
     label: 'wealthTargetDials:default-inflation',
-    text: COACH_COPY.wealthTargetDials(1000, 250, true),
+    text: COACH_COPY.wealthTargetDials(1000, 250, DEFAULT_INFLATION),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetDials:default-return',
+    text: COACH_COPY.wealthTargetDials(700, 250, DEFAULT_RETURN),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetDials:default-both',
+    text: COACH_COPY.wealthTargetDials(700, 250, DEFAULT_BOTH),
     isProjection: false,
   },
   {
@@ -273,12 +334,12 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   },
   {
     label: 'wealthTargetRequired',
-    text: COACH_COPY.wealthTargetRequired(cents(1_250_00), 25, 450, 250, false),
+    text: COACH_COPY.wealthTargetRequired(cents(1_250_00), 25, 450, 250, OWNS_BOTH),
     isProjection: true,
   },
   {
     label: 'wealthTargetRequired:oneYear+defaultInflation',
-    text: COACH_COPY.wealthTargetRequired(cents(1_250_00), 1, 450, 250, true),
+    text: COACH_COPY.wealthTargetRequired(cents(1_250_00), 1, 450, 250, DEFAULT_INFLATION),
     isProjection: true,
   },
   {
@@ -318,12 +379,17 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   },
   {
     label: 'wealthTargetSensitivityIntro:spread',
-    text: COACH_COPY.wealthTargetSensitivityIntro(true),
+    text: COACH_COPY.wealthTargetSensitivityIntro(true, OWNS_BOTH),
     isProjection: false,
   },
   {
     label: 'wealthTargetSensitivityIntro:degenerate',
-    text: COACH_COPY.wealthTargetSensitivityIntro(false),
+    text: COACH_COPY.wealthTargetSensitivityIntro(false, OWNS_BOTH),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetSensitivityIntro:degenerate+defaultReturn',
+    text: COACH_COPY.wealthTargetSensitivityIntro(false, DEFAULT_RETURN),
     isProjection: false,
   },
   {
@@ -566,15 +632,22 @@ describe('wealth-target copy — the claims the critics broke', () => {
   it('a floored real return never prints a subtraction that does not compute', () => {
     // 7.00% − 10.00% is −3.00%, not 0.00%. The floored branch must not print both operands
     // beside the floor and invite the reader to check the arithmetic.
-    const floored = COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 0, 700, 1000, true);
+    const floored = COACH_COPY.wealthTargetBasis(
+      cents(1_000_000_000),
+      0,
+      700,
+      1000,
+      true,
+      OWNS_BOTH,
+    );
     expect(floored).not.toMatch(/7\.00% return assumption less 10\.00% inflation/);
     expect(floored).toContain('at or below your 10.00% inflation assumption');
     // And it must state the direction of the error the floor introduces.
     expect(floored).toContain('arrive later than it says, not sooner');
     // The unfloored branch still shows its working.
-    expect(COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 450, 700, 250, false)).toContain(
-      'your 7.00% return assumption less 2.50% inflation',
-    );
+    expect(
+      COACH_COPY.wealthTargetBasis(cents(1_000_000_000), 450, 700, 250, false, OWNS_BOTH),
+    ).toContain('your 7.00% return assumption less 2.50% inflation');
   });
 
   it('affordability that cannot be judged names no pool at all', () => {
@@ -610,14 +683,16 @@ describe('wealth-target copy — the claims the critics broke', () => {
   });
 
   it('the sensitivity intro only claims a spread when the rows have one', () => {
-    expect(COACH_COPY.wealthTargetSensitivityIntro(true)).toContain('the spread between them');
-    const degenerate = COACH_COPY.wealthTargetSensitivityIntro(false);
+    expect(COACH_COPY.wealthTargetSensitivityIntro(true, OWNS_BOTH)).toContain(
+      'the spread between them',
+    );
+    const degenerate = COACH_COPY.wealthTargetSensitivityIntro(false, OWNS_BOTH);
     expect(degenerate).not.toMatch(/the spread between them is usually wider/);
     expect(degenerate).toContain('all three floor to no real growth');
   });
 
   it('the required contribution says a flat standing order will not keep pace', () => {
-    const line = COACH_COPY.wealthTargetRequired(cents(183_243), 25, 450, 250, false);
+    const line = COACH_COPY.wealthTargetRequired(cents(183_243), 25, 450, 250, OWNS_BOTH);
     expect(line).toContain("in today's money");
     expect(line).toContain('would need to rise with inflation');
     expect(line).toContain('2.50% a year on your own assumption');
@@ -629,7 +704,13 @@ describe('wealth-target copy — the claims the critics broke', () => {
    * claims about who owns it.
    */
   it('the required contribution will not call an unset inflation dial "your own"', () => {
-    const defaulted = COACH_COPY.wealthTargetRequired(cents(183_243), 25, 450, 250, true);
+    const defaulted = COACH_COPY.wealthTargetRequired(
+      cents(183_243),
+      25,
+      450,
+      250,
+      DEFAULT_INFLATION,
+    );
     expect(defaulted).toContain('2.50% a year on our default assumption');
     expect(defaulted).not.toContain('your own assumption');
   });
@@ -738,8 +819,8 @@ describe('wealth target — every figure names where it came from', () => {
     // `User.inflationBps` is nullable and /coach falls back to 2.50%. /settings calls that same
     // number "our defaults" — a card calling it "yours" contradicts the page it links to, and
     // the possessive is the exact claim the owner asked to be made true.
-    const set = COACH_COPY.wealthTargetDials(1000, 250, false);
-    const defaulted = COACH_COPY.wealthTargetDials(1000, 250, true);
+    const set = COACH_COPY.wealthTargetDials(1000, 250, OWNS_BOTH);
+    const defaulted = COACH_COPY.wealthTargetDials(1000, 250, DEFAULT_INFLATION);
     expect(set).toContain('10.00%');
     expect(set).toContain('2.50%');
     expect(set).toMatch(/yours to change/i);

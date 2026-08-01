@@ -88,6 +88,13 @@ test('retirement outlook projects the seeded portfolio with stated assumptions',
   await expect(card).toContainText(/you.re 40 today/);
   await expect(card).toContainText('inflation');
   await expect(card).toContainText('in today’s dollars');
+  // W.13 — and WHOSE assumption the return is. The demo user has never opened /settings, so
+  // `expectedReturnBps` still holds the app's own 700 and this clause may not call it "your
+  // 7% expected return". Asserted on the rendered card rather than only on the server field:
+  // the flag is computed in `getRetirementOutlook` and read three components away, so a unit
+  // test on the payload cannot see the card ignoring it.
+  await expect(card).toContainText('our default 7% expected return');
+  await expect(card).not.toContainText('your 7% expected return');
 });
 
 test('retirement what-if recomputes the projection live without saving (DECISIONS #123)', async ({ page }) => {

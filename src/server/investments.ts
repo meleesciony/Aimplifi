@@ -14,6 +14,7 @@ import { cents } from '@/lib/money';
 import { type Holding, type Portfolio, summarizePortfolio } from '@/lib/engine/investments/portfolio';
 import { parseTicker } from '@/lib/engine/investments/ticker';
 import { isSupportedCurrency } from '@/lib/providers/currency';
+import { returnIsAppDefault } from '@/lib/engine/settings/dials';
 import {
   RETIREMENT_ASSUMPTIONS,
   buildRetirementInputs,
@@ -127,6 +128,11 @@ export interface RetirementOutlook {
     annualReturnBps: number;
     /** The user's nominal expected-return dial, for honest disclosure in the copy. */
     nominalReturnBps: number;
+    /** W.13 — `nominalReturnBps` is still `DEFAULT_EXPECTED_RETURN_BPS`, i.e. a number the app
+     *  picked rather than one the reader chose, so the outlook copy may not call it "your
+     *  expected return". Decided by value: the column is non-nullable and there is no stored
+     *  "unset" to read (`returnIsAppDefault`). */
+    returnIsDefault: boolean;
     /** The inflation assumption used to derive the real return. */
     inflationBps: number;
     swrBps: number;
@@ -184,6 +190,7 @@ export async function getRetirementOutlook(): Promise<RetirementOutlook> {
       annualRetirementSpendingCents: engineInputs.annualRetirementSpendingCents,
       annualReturnBps: engineInputs.annualReturnBps,
       nominalReturnBps: base.nominalReturnBps,
+      returnIsDefault: returnIsAppDefault(base.nominalReturnBps),
       inflationBps: planning.inflationBps,
       swrBps: base.swrBps,
     },

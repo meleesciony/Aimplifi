@@ -8696,3 +8696,48 @@ errors" and I did not capture the error text before rerunning; three runs before
 full-capture run after it were green on the same tree. That matches the cold-start flake
 CLAUDE.md documents, but since the text is gone I am recording it as unexplained rather than
 diagnosed.
+
+## 2026-08-01 — W.13 shipped: the return dial is no longer called the reader's (DECISIONS #367)
+
+The residual W.10 filed. `User.expectedReturnBps` is `Int @default(700)` and **not** nullable,
+and the /settings field is required and pre-filled, so a reader who has never opened that page
+carries the app's own 7.00% in a row indistinguishable from one who typed it — and six sentences
+across three cards called it "your 7.00% return assumption". The wealth card said it outright:
+"7.00% return is your setting; 2.50% inflation is Aimplifi's default, which you haven't changed",
+one sentence attributing one dial honestly and the other falsely, live on the demo.
+
+Attributed by VALUE (`returnIsAppDefault`), not by the nullable column the task row suggested:
+every row already in the database holds 700, so "null means never chosen" would have described
+none of them. The copy says "our default 7.00% return assumption" and no longer says "which you
+haven't changed" — provable for the nullable inflation column, unprovable for this one. Both
+flags travel as one `DialOwnership` object, because two adjacent positional booleans are a swap
+that puts each dial's possessive on the other dial's rate.
+
+Surfaces: FI card basis, opportunity basis, wealth card basis / dials / sensitivity intro /
+required contribution, /investments retirement outlook, plus a new "The 7% here is our default."
+beside the /settings input so the page /coach links to says what /coach says. Enumerated and
+deliberately unchanged, with reasons in STATUS: /goals ×3 + the Goals empty state, the /settings
+prose, and `opportunity`'s zero-return branch.
+
+### Gate
+
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc 0, eslint 0, **5549 unit / 335 files**, build
+clean. Affected e2e serially on the fresh build: **10/10** (phase3-coach, wealth-target,
+investments). Empty prisma diff — no schema change, so the live database is untouched.
+
+### Mutation proof
+
+Server flag forced `false` → the new W.13 unit test dies; forced `true` → W.2's inflation test
+dies. Constant drifted to 750 → the schema-parity test dies. `/investments` forced `false`,
+**rebuilt**, → the rendered outlook assertion dies; restored, rebuilt, passes. The rebuild was
+paid because that clause reads a field three components away and `next start` serves the last
+build, not the edit (`e2e-runs-a-stale-build`).
+
+### Critic pass — what ran, and what did not
+
+Self-critic against `docs/CRITIC_RUBRIC.md`, not a fresh-context subagent. Two findings on my
+own work, both fixed: the retirement-outlook clause had no rendered lock at all (only a server
+field assertion), and three scan-table rows paired an inflation rate with an ownership flag
+production cannot produce — under a comment I had just written claiming the opposite. The
+surface sweep was re-derived by grepping the rendered strings rather than from my own
+enumeration, which is what turned up /goals and the /settings prose.

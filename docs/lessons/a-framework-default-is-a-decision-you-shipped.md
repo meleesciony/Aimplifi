@@ -65,3 +65,47 @@ answered "is my fix safe", "is this key real", and "is that follow-up cheap".
 - **The remaining friction is real and belongs in the ledger, not in a reassurance.** Idle 30 minutes
   mid-form still loses a draft; the mitigation is a pre-expiry warning, recorded as the follow-up
   rather than hand-waved.
+
+## Extended W.13 — a column `@default` is the same defect, one layer down, and it leaves no evidence
+
+An absent config key is a value you shipped. So is `Int @default(700)`. The database default is the
+**worse** of the two, because it does not merely sit there being unread — it writes itself into
+every row it touches, and from then on it is indistinguishable from an answer.
+
+`User.expectedReturnBps` was `Int @default(700)`, **not nullable**, with a `required` pre-filled
+/settings field. Six sentences across three cards therefore called 7.00% **"your return
+assumption"**, and the wealth card said it outright — *"7.00% return is your setting; 2.50%
+inflation is Aimplifi's default, which you haven't changed"* — one sentence attributing one dial
+honestly and the other falsely, live on the demo, shipped alongside four consecutive slices whose
+entire subject was that a possessive is a claim. The honest dial was honest for one reason: its
+column is **nullable**, so "the reader never set this" was a fact the code could read. Nothing made
+the two dials different except which shape someone reached for the day each was added.
+
+- **Where no column records the choice, attribute by VALUE — and claim only what the equality
+  proves.** `bps === DEFAULT_EXPECTED_RETURN_BPS` proves *this IS our default and IS the rate in
+  use*. It does not prove *you have not changed it*, so that clause was **removed** rather than
+  re-pointed at a different subject. A sentence carrying both dials has nowhere to hang a clause
+  that is true of only one of them without the reader attaching it to both.
+- **Adding the nullable column is the answer that feels right and is worth nothing.** Every row
+  already in the database holds the default, so the new meaning would describe **none** of them —
+  including the owner's, which is the row that reported the bug. Naming the direction each option
+  errs in decided it in one paragraph: value-equality's single reachable error (a reader who
+  deliberately typed 7 is told 7.00% is our default) *under-credits* them, where the shipped
+  behaviour *invented a decision they never made*.
+- **Pin a known imprecision, or the next session "fixes" it.** The trade-off above is a test with a
+  comment, not a note in a doc — otherwise it reads as a bug to whoever finds it next.
+- **Two adjacent positional booleans are a silent swap.** `boolean` is not distinguishable from
+  `boolean` to tsc, and swapping these two puts each dial's possessive on the other dial's rate —
+  the same defect with the operands exchanged. One named object (`DialOwnership`) makes the swap
+  unspellable and makes tsc enumerate the call sites.
+- **Assert the constant against the schema.** If the `@default` moves and the constant does not,
+  every reader on the new default is told it is theirs, and both halves typecheck perfectly. The
+  parity test reads `prisma/schema.prisma` and also fails if the column becomes nullable — at which
+  point value-equality is the wrong rule and should stop being used.
+- **A fixture's ownership flags are part of its reachability.** My own scan table paired inflation
+  at 1000 with `inflationIsDefault: true` — impossible, the fallback IS 250 — directly under a
+  comment I had just written claiming every row's rate agreed with its flags. A scan row pinning a
+  sentence production can never print certifies nothing, and the confident comment is the tell.
+- **The loop closes at the page the copy points at.** The inflation possessive was only defensible
+  because /settings called the same 2.50% "our defaults". The return field said nothing of the kind,
+  so it now does — a claim about provenance is only as good as the surface it defers to.

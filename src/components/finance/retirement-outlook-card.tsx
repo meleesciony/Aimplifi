@@ -80,10 +80,18 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
   const peak = Math.max(...p.yearlyBalances.map((y) => y.balanceCents), 1);
   // When the nominal return is at/below inflation, say "no real growth assumed" rather than
   // show a subtraction that implies a negative rate (the engine floors the real return at 0).
+  // W.13 — whose expected return this is. `User.expectedReturnBps` is non-nullable with the
+  // app's own 700 as its default and the /settings field is required, so calling it "your
+  // expected return" claimed a decision from every reader who has never opened that page. Same
+  // clause, same rate, one honest possessive; the inflation half carries no possessive here
+  // because the reader is editing it in this very card.
+  const ret = inputs.returnIsDefault
+    ? `our default ${pctFromBps(base.nominalReturnBps)} expected return`
+    : `your ${pctFromBps(base.nominalReturnBps)} expected return`;
   const returnClause =
     base.nominalReturnBps <= plan.inflationBps
-      ? `your ${pctFromBps(base.nominalReturnBps)} expected return (at or below ~${pctFromBps(plan.inflationBps)} inflation, so no real growth is assumed)`
-      : `your ${pctFromBps(base.nominalReturnBps)} expected return less ~${pctFromBps(plan.inflationBps)} inflation`;
+      ? `${ret} (at or below ~${pctFromBps(plan.inflationBps)} inflation, so no real growth is assumed)`
+      : `${ret} less ~${pctFromBps(plan.inflationBps)} inflation`;
 
   const rRange = retireRange(currentAge);
   const eRange = endRange(plan.retirementAge);

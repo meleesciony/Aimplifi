@@ -2314,3 +2314,73 @@ where the list sentence stays silent (the predicate is exact at the probe amount
 only appears at one cent). No opportunity kind can mint a row that small — the smallest is a
 detected series or a hard-coded $20.00 retention offer — and a figure equal to the deposits
 does not read as a bug the way one below them does.
+
+## #367 (W.13) — A column default is a decision nobody made, and it leaves no evidence
+
+`User.expectedReturnBps` is `Int @default(700)`, **not nullable**, and the /settings field for it
+is `required` with the stored value pre-filled. So a reader who has never opened that page carries
+7.00% in the same column, with the same shape, as one who typed it — and six sentences across
+three cards called that number **"your 7.00% return assumption"**. The wealth card said it in as
+many words: *"7.00% return is your setting; 2.50% inflation is Aimplifi's default, which you
+haven't changed"* — a single sentence attributing one dial honestly and the other falsely, live on
+the demo, shipped beside four slices whose whole subject was that a possessive is a claim.
+
+This is the sibling of `a-framework-default-is-a-decision-you-shipped` one layer down: an absent
+config key and a column `@default` are both values you shipped without choosing them, and the
+column default is the worse of the two, because it writes itself into every row and then looks
+exactly like an answer.
+
+**DECIDED: attribute by VALUE; no schema change.** `returnIsAppDefault(bps)` is
+`bps === DEFAULT_EXPECTED_RETURN_BPS`. The alternative the task row suggested — a nullable column,
+the way `inflationBps` works — was rejected on execution rather than on taste: every row already
+in the database holds 700, so "null means the reader never chose" would describe **none of them**,
+and the fix would be worth nothing to the owner or to anyone who has already signed up
+(`a-new-meaning-for-an-old-column-is-a-migration`, from the side where the migration is the
+expensive half). A parallel `returnIsDefault` flag column has the same defect and costs a
+`prisma db push` besides.
+
+**What value-equality licenses, and what it does not.** It proves *7.00% IS our default and IS the
+rate in use*; it cannot prove *you have not changed it*. So the copy says "our default 7.00%
+return assumption" and the phrase "which you haven't changed" was **removed** from the dials
+sentence — true for the nullable inflation column, unprovable for this one, and a sentence
+carrying both rates has nowhere to hang a clause true of only one of them. The single reachable
+error (a reader who deliberately typed 7 is told 7.00% is our default) runs in the safe direction —
+it under-credits the reader instead of inventing a decision they never made — and is pinned in
+`tests/unit/return-dial-default.test.ts` so a future session finds a test explaining the
+trade-off rather than a bug to "fix".
+
+**The two flags travel as one object.** `DialOwnership { returnIsDefault, inflationIsDefault }`
+replaces the positional `inflationIsDefault: boolean` at every copy function that attributes a
+dial. `boolean` is not distinguishable from `boolean` to tsc, so two adjacent positional booleans
+are a silent swap waiting to happen — and a swap here puts each dial's possessive on the other
+dial's rate, which is the original defect with the operands exchanged. Making it a TYPE is also
+what made tsc enumerate the call sites (`one-question-one-basis`).
+
+**Locks.** Every changed surface has a RENDERED assertion, because a unit test on a copy function
+calls it with arguments it chose itself and cannot see the page handing over the wrong ones: the
+FI card's basis and the opportunity basis in `phase3-coach.spec.ts`, the dials sentence in
+`wealth-target.spec.ts`, the retirement-outlook clause in `investments.spec.ts`. The server flag
+is mutation-proven **both ways** (forced false kills the W.13 test, forced true kills W.2's) and
+the /investments path was mutation-proven through a full rebuild, since that clause is three
+components away from the field it reads. `DEFAULT_EXPECTED_RETURN_BPS` is asserted against the
+`@default` parsed out of `prisma/schema.prisma`: if the schema moves and the constant does not,
+every reader on the new default is told it is theirs and nothing else in the build notices, because
+both halves typecheck perfectly.
+
+**Enumerated and deliberately left alone.** `/goals` (×3) and the Goals empty state say "assuming
+your current savings rate and expected return" — no rate is printed, "your savings rate" is
+genuinely the reader's own data, and the phrase means the settings that apply to their plan, so
+there is no figure whose provenance a reader could question. `money-dials-form` says "your expected
+return" twice while the reader is editing that very field; it now carries "The 7% here is our
+default." beside the input, so the page /coach links to says what /coach says — which was the whole
+justification the inflation possessive rested on. `COACH_COPY.opportunity`'s "your 0.00% return
+assumption" survives untouched because its branch is `nominalReturnBps === 0` and the default is
+700, so a reader who never chose can never reach it — an inference about a constant, therefore
+asserted about the constant rather than left as a comment.
+
+**Self-inflicted, caught in the critic pass.** The first draft of the copy scan table paired
+inflation at 1000 (or 0) with `inflationIsDefault: true`, which production cannot produce — the
+fallback IS 250 — directly beneath a comment I had just written claiming every row's rate agreed
+with its flags. Three rows corrected to `DEFAULT_RETURN`, which is reachable (a reader sets
+inflation, never touches the return), plus the same pairing in `fi-real-basis.test.ts` where
+`NOMINAL_BPS` is 700.
