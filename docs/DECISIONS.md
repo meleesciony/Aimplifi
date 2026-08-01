@@ -1812,3 +1812,47 @@ Engine untouched. The premise the row renders on — totalCents === Σ byCategor
 a unit test that names this row as its reliant; the demo month carries 11 spend categories
 (measured), so the >12 hard case lives in the e2e's own 14-category throwaway fixture
 ($105.00 hand-computed, tail $3.00), never the shared demo.
+
+## #358 (O.18b) — A bucket is a set of plan terms, so its panel is the plan's own rows, reconciled cross-module
+
+The Conscious Spending strip was the one bar that could not honestly expand to transactions: a
+bucket is not a transaction set (W.7's analysis, superseded by this). Each legend amount is now
+a Glass-Box toggle opening the plan's own rows for that bucket — `traceConsciousBuckets`
+decomposes the safe-to-spend identity ONCE (rows + basis groups; the flatten reproduces the old
+trace byte-for-byte, proven by the critic's diff of the pre-refactor file and pinned by a new
+basis-ORDER lock) and reshapes it per bucket, sign-flipped where a bucket states costs as
+positive amounts. Each bucket's headline comes from `mapToConsciousBuckets`, so `reconciles` is
+a runtime CROSS-MODULE check of the #93 partition for fixed and savings (mutation-proven:
+dropping the beyond-month term from the partition fails 2 tests), and a guard compares the
+guilt-free cell against the trace headline so a future formula divergence paints "can't
+reconcile" rather than a strip whose bar and panel drift. Guilt-free's panel IS the full
+safe-to-spend trace: a remainder's honest panel is the whole subtraction, and the e2e asserts
+the #93 partition from painted money alone (the three legend figures sum to the income row the
+guilt-free panel prints). The panel body was extracted from GlassBoxNumber (`GlassBoxPanelBody`,
+default testid prefix keeps every existing locator byte-identical) and now renders the L.29
+`action` a "not set up" zero carries — inert on the one pre-existing consumer (cash-needed never
+sets it), live on the savings bucket's unset-$0.
+
+/spending-plan's 5-segment bar deliberately gains no expanders: its "How we got there" rows sit
+permanently expanded directly below it, rendering the same engine-authored labels and actions —
+there is no hidden panel there for a tap to reveal. (The O.18b task row's claim that the page
+"renders through GlassBoxNumber" was false — it hand-builds from the same trace; corrected.)
+
+Hostile critic (1 cycle, FAIL→fixed; the engine survived — byte-identity and partition both
+held under executed attack): P1-1 /budgets was the ONE surface printing this figure with no
+excluded-card disclosure, and the panels certified to the penny around the silence — new
+`planCardNotes` (one author, THREE sentences because the three facts point three directions:
+uncounted understates fixed, a duplicate overstates it, frozen is stale unknown) renders
+strip-level and in the fixed + guilt-free panel bases; deliberately NOT in the shared trace,
+which /spending-plan double-prints. P1-2 the fixed panel's share snapshot dropped the
+missing-bill alarm the strip displayed an inch below — the shortfall group now rides the fixed
+basis, so the exported text carries it. P2s: the long-cadence verb is per-surface (guilt-free
+"subtracts" a twelfth, fixed "counts" it — one template, one changed word, byte-locked to each
+other); a comment claimed a basis-order lock that did not exist (now it does); a false
+provenance comment about a dashboard savings panel (corrected — never-guess applies to
+comments); GlassBoxShare's hardcoded testids defeated the prefix (parameterized); a stale
+"(target 5–10%)" comment; the amount toggle grew to a ~24px hit target with zero layout shift.
+
+Residual (TASKS): the excluded-card class now has THREE authors (dashboard card, /spending-plan
+section, `planCardNotes`) — unification is its own slice; and the e2e's savings else-branch
+(no control beside a working figure) is unreachable on the demo dataset, unit-locked only.
