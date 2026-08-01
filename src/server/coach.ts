@@ -295,7 +295,11 @@ export async function getCoachData(
     // app is not a bill would be the app arguing with him from a stale basis.
     await getRecurringOverrides(userId),
   );
-  const opportunities = findOpportunities(series, user.expectedReturnBps);
+  // W.10 — BOTH dials, because these figures are grown at the return assumption and then
+  // deflated by the inflation assumption. They render one scroll below the FI card that W.2
+  // moved into today's money; printing 30-year NOMINAL future values beside it put two dollar
+  // figures in two different units on one page with only the word "future" between them.
+  const opportunities = findOpportunities(series, user.expectedReturnBps, inflationBps);
   // Unusual Charge Radar (#249): pure detection over the SAME already-fetched rows —
   // no re-fetch, no model call, deterministic.
   const unusualCharges = detectUnusualCharges(txns, today);

@@ -92,16 +92,58 @@ export function coastFI(
  * Future value of $X/month for N months at a NOMINAL annual rate (rate/12 per
  * month, end-of-month contributions): FV = P × ((1+i)^n − 1) / i.
  * Rounded to cents once, at the end (a single materialized result).
+ *
+ * FUTURE dollars. No surface prints this directly (W.10): /coach's opportunity list, the only
+ * consumer there has ever been, prints `opportunityValueTodayCents` instead. It stays exported
+ * because it is the primitive that function is built from and because the EDGE_CASES anchors
+ * pin it — a new caller has to decide, in the open, which of the two it wants.
  */
 export function opportunityFVCents(
   monthlyCents: Cents,
   months: number,
   annualRateBps: number,
 ): Cents {
+  return roundHalfAwayFromZero(fvAnnuityUnrounded(monthlyCents, months, annualRateBps));
+}
+
+/** Unrounded, so a composed figure materializes cents exactly once (money rule 3). */
+function fvAnnuityUnrounded(monthlyCents: number, months: number, annualRateBps: number): number {
   const i = annualRateBps / 10000 / 12;
-  if (i === 0) return cents(monthlyCents * months);
-  const fv = monthlyCents * ((Math.pow(1 + i, months) - 1) / i);
-  return roundHalfAwayFromZero(fv);
+  if (i === 0) return monthlyCents * months;
+  return monthlyCents * ((Math.pow(1 + i, months) - 1) / i);
+}
+
+/**
+ * What $X/month invested for N months is worth **in today's money**: the nominal annuity
+ * above, divided by `(1 + inflation)^years`.
+ *
+ * W.10. The contribution stream modelled here is LEVEL IN NOMINAL DOLLARS — the reader frees
+ * up $X a month and invests that same $X every month, never raising it. That is the literal
+ * thing the sentence beside these figures describes, and it is deliberately NOT the same
+ * convention as the FI card's monthly figures, which are level in today's dollars.
+ *
+ * Compounding at the real rate instead — which is what level-in-today's-dollars means — was
+ * the first implementation, and two independent critics killed it on the same row: a
+ * `negotiable-bill` opportunity is a hard-coded flat $20/mo retention offer (`insights.ts`),
+ * so the justification for indexing it ("the price would have risen anyway") is a claim about
+ * a price where there is no price. It printed 30.6% more than a reader investing a flat $20
+ * will ever have. One convention that is conservative for every row beats two conventions with
+ * a per-row argument about which applies.
+ *
+ * Inflation is clamped at 0 the way `realReturnBps` clamps it, so a negative dial cannot
+ * INFLATE the answer above its own nominal future value. There is no clamp on the result: when
+ * inflation outruns the return assumption this is legitimately less than the dollars paid in,
+ * and the copy says so rather than flooring it into a reassuring number.
+ */
+export function opportunityValueTodayCents(
+  monthlyCents: Cents,
+  months: number,
+  nominalRateBps: number,
+  inflationBps: number,
+): Cents {
+  const fv = fvAnnuityUnrounded(monthlyCents, months, nominalRateBps);
+  const deflator = Math.pow(1 + Math.max(0, inflationBps) / 10000, months / 12);
+  return roundHalfAwayFromZero(fv / deflator);
 }
 
 /** Savings rate in bps: (income − expenses) / income. Income ≤ 0 → null. */

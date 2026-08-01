@@ -230,6 +230,19 @@ export default async function CoachPage() {
               ))}
             </ul>
           )}
+          {/* W.10 — how the figures in the rows were worked out, once for the list. Rendered
+              only beside rows: with an empty list there is no figure for it to qualify, and a
+              basis sentence under "nothing to flag" describes money nobody was shown. The two
+              gates are the SAME predicate deliberately, and a test asserts the absence. */}
+          {data.opportunities.length > 0 && (
+            <p className="mt-4 text-xs text-muted-foreground" data-testid="opportunities-basis">
+              {COACH_COPY.opportunityBasis(
+                data.fi.expectedReturnBps,
+                data.fi.inflationBps,
+                data.fi.inflationIsDefault,
+              )}
+            </p>
+          )}
         </CardContent>
       </Card>
 

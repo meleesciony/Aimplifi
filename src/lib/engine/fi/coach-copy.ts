@@ -409,19 +409,84 @@ export const COACH_COPY = {
       ? `Assuming ${pct(nominalBps)} returns (${pct(realBps)} after inflation): not within 100 years.`
       : `Assuming ${pct(nominalBps)} returns (${pct(realBps)} after inflation): about ${years} years.`,
 
-  opportunity: (o: Opportunity, expectedReturnBps: number) => {
-    const base = `${o.merchant}: ${formatCents(o.monthlyCents)}/mo`;
-    const fv = `is ${formatCents(o.fv30Cents)} of future wealth over 30 years (${formatCents(o.fv20Cents)} over 20, ${formatCents(o.fv10Cents)} over 10), assuming ${pct(expectedReturnBps)} average annual returns — compounding does the work, not willpower.`;
+  /**
+   * W.10 — the three figures are in TODAY'S money. They used to be nominal 30-year future
+   * values printed one scroll below a card stating that inflation takes its cut: at the shipped
+   * defaults $500/mo over 30 years read as $609,985.50 where it buys $290,806.13 of today's
+   * goods (both computed), and no reader could tell the two units apart.
+   *
+   * The rate named here is the reader's own RETURN dial, because that is the rate the money
+   * grows at; `opportunityBasis` carries the deflation the total then goes through, once for
+   * the whole list. Two rates in every row would state the same two dials N times, which is the
+   * accretion W.12 is open about.
+   *
+   * `nominalReturnBps === 0` is its own branch, and not a decorative one. "Compounding does the
+   * work, not willpower" is the persuasive payload of this sentence and it is FALSE when
+   * nothing compounds — the figure is then the reader's own deposits, minus what inflation
+   * takes. Both critics found this independently in the first draft (which had the same hole
+   * one rate further along, at a floored real return).
+   */
+  opportunity: (o: Opportunity, nominalReturnBps: number) => {
+    const monthly = formatCents(o.monthlyCents);
+    const horizons = `${formatCents(o.todayValue30Cents)} in today's money over 30 years (${formatCents(o.todayValue20Cents)} over 20, ${formatCents(o.todayValue10Cents)} over 10)`;
+    const fv =
+      nominalReturnBps === 0
+        ? `is ${horizons}, assuming your 0.00% return assumption — no growth at all, so that is the money itself with inflation taken off.`
+        : `is ${horizons}, assuming ${pct(nominalReturnBps)} average annual returns — compounding does the work, not willpower.`;
     switch (o.kind) {
       case 'unused-subscription':
-        return `Still using it? ${base} ${fv}`;
+        return `Still using it? ${o.merchant}: ${monthly}/mo ${fv}`;
       case 'price-increase':
-        return `Quiet price increase — the extra ${base.split(': ')[1]} at ${o.merchant} ${fv}`;
+        return `Quiet price increase — the extra ${monthly} at ${o.merchant} ${fv}`;
+      // Both estimate branches used to run a colon straight into "is $X", leaving a verb with
+      // no subject ("…assuming a standard offer): is $15,187.72…"). The copy sweeps scan for
+      // shame words and assumption clauses, not grammar, so two of the four kinds never parsed.
       case 'insurance-reshop':
-        return `Re-shopping ${o.merchant} typically saves ~15% (an estimate, assuming typical quotes): ${base} ${fv}`;
+        return `Re-shopping ${o.merchant} typically saves ~15% (an estimate, assuming typical quotes) — about ${monthly}/mo, which ${fv}`;
       case 'negotiable-bill':
-        return `A retention call to ${o.merchant} often lands ~$20/mo (an estimate, assuming a standard offer): ${fv}`;
+        return `A retention call to ${o.merchant} often lands ~${monthly}/mo (an estimate, assuming a standard offer), which ${fv}`;
     }
+  },
+
+  /**
+   * W.10 — how the figures in the list were worked out, said ONCE for the list rather than
+   * twice per row.
+   *
+   * The subject is "the figures in this list", never "those totals above/below": a sentence
+   * that points at a screen position is false the moment the grid reflows, which W.2 already
+   * had to retire from `volatilityPrice` (UI-8/UI-9), and a demonstrative with three candidate
+   * referents on one card is the same bug wearing a shorter word.
+   *
+   * It states the mechanism it actually performs — grow at the reader's return dial, then take
+   * inflation off for every year of the horizon — and NOT a single blended "real" rate. The
+   * blended version was the first draft; it is a different arithmetic (a stream level in
+   * today's dollars) and describing this one with it would have been a stated derivation the
+   * code does not do.
+   *
+   * Three branches, because a claim that is safe at the defaults is a lie at the edges of the
+   * two dials `validateDials` actually permits (return 0–15.00%, inflation 0–10.00%): with no
+   * inflation nothing is taken off at all, and with inflation at or above the return
+   * assumption every horizon comes out BELOW the dollars paid in — verified by execution at
+   * 10, 20 and 30 years across the degenerate pairs, not reasoned about.
+   *
+   * The closing clause names the direction this model errs in. It assumes a flat contribution,
+   * so a reader whose freed-up money grows (a subscription price usually does) ends up with
+   * more than the figure. Saying that is what lets the printed number stay the conservative
+   * one — the alternative was to compound the optimism in and disclose nothing.
+   */
+  opportunityBasis: (nominalBps: number, inflationBps: number, inflationIsDefault: boolean) => {
+    const infl = inflationIsDefault
+      ? `our default ${pct(inflationBps)} inflation assumption`
+      : `your ${pct(inflationBps)} inflation assumption`;
+    const flat = `They assume you invest that amount every month and never raise it; if what you free up grows over the years, as a subscription price usually does, you would end up with more than they say.`;
+    if (inflationBps === 0) {
+      return `The figures in this list grow the monthly amount at your ${pct(nominalBps)} return assumption. ${infl.charAt(0).toUpperCase()}${infl.slice(1)} is ${pct(0)}, so nothing is taken off for inflation and today's money and future dollars are the same thing here. ${flat}`;
+    }
+    const mechanism = `The figures in this list grow the monthly amount at your ${pct(nominalBps)} return assumption, then take ${infl} off for every year of the horizon — so each one is what the total would buy today, not what it would say on a statement.`;
+    if (inflationBps >= nominalBps) {
+      return `${mechanism} Your inflation assumption is at or above your return assumption, so every figure lands below the dollars you would pay in: that is the assumption working, not an error. ${flat}`;
+    }
+    return `${mechanism} ${flat}`;
   },
 
   moneyDials: (dials: string[]) =>

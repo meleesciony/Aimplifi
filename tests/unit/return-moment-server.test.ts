@@ -32,9 +32,9 @@ function opp(kind: Opportunity['kind'], merchant: string, monthlyCents: number):
     kind,
     merchant,
     monthlyCents: monthlyCents as Cents,
-    fv10Cents: 0 as Cents,
-    fv20Cents: 0 as Cents,
-    fv30Cents: 0 as Cents,
+    todayValue10Cents: 0 as Cents,
+    todayValue20Cents: 0 as Cents,
+    todayValue30Cents: 0 as Cents,
     isEstimate: false,
   };
 }

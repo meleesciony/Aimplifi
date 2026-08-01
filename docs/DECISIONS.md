@@ -2093,3 +2093,88 @@ change under test. Killing the process turned all three green with no code chang
 directly contradicts the evidence recorded under TASKS V.1, which reports "nothing is
 LISTENING on port 3100 between runs" and treats the leaked-server hypothesis as refuted on
 this machine. It is not refuted; it happens, and it produces a false P0. Filed as V.3.
+
+## #362 (O.20) — BODY NEVER WRITTEN
+
+The /reports bar drill-down shipped 2026-08-01 (commit `682de19`) and its number was claimed in
+`docs/DECISIONS_INDEX.md`, where the full one-paragraph record lives; the narrative section that
+belongs here was never added, and `PROGRESS.md` holds that session's evidence. Recorded as a gap
+rather than reconstructed from memory: this file is the place a later reader trusts, and an entry
+written from recollection is exactly the fabrication the index would then certify. If the detail
+is ever needed, rebuild it from the commit and the index entry, and replace this note.
+
+## #363 (W.10) — The opportunity list is in today's money, on the CONSERVATIVE contribution model
+
+**The defect.** /coach's "Worth a look" rows printed 30-year NOMINAL future values — "$X of
+future wealth over 30 years … assuming 7.00% average annual returns" — one scroll below the FI
+card that #361 had just moved into today's money. Both figures were right about their own unit;
+nothing on screen said which was which, and the two were roughly 2× apart. At the shipped
+defaults $500/mo over 30 years read as **$609,985.50** where it buys **$290,806.13** of today's
+goods.
+
+**The decision that took two critic cycles: WHICH today's-money figure.** There are two, and
+they differ by ~23%:
+
+- **(A) Compound at the REAL rate.** Models a contribution that is level in TODAY'S dollars —
+  i.e. one the reader raises with inflation every year. $500/mo → **$379,693.07**. This is the
+  convention `retirement.ts` documents and the one the FI card's own monthly figures use.
+- **(B) Compound at the NOMINAL dial, then deflate the whole total by inflation over the same
+  years.** Models a contribution level in NOMINAL dollars — the reader redirects that amount and
+  never raises it. $500/mo → **$290,806.13**.
+
+**(A) shipped first and was wrong.** The argument for it was that the money a cancelled
+subscription frees up is its PRICE, and a price rises with inflation on its own, so the freed
+amount is naturally indexed. Two independent fresh-context critics killed it on the same row:
+`findOpportunities` mints a `negotiable-bill` opportunity as a **hard-coded flat $20.00/mo**
+retention offer (`insights.ts`), so there is no price there to argue would have risen — the
+model asserted an indexing property its own input cannot have, and printed **30.6% more** than
+such a reader will ever hold. The justification was true of two kinds, approximately true of a
+third (insurance re-shop is 15% *of* a premium, so it scales for free) and false of the fourth.
+
+The general rule the second attempt is built on: **a modelling assumption that has to be argued
+per row is the wrong assumption.** (B) is conservative for every kind, its premise ("you invest
+that amount every month and never raise it") is the literal thing the sentence beside it says,
+and its error direction is stated in that sentence — a reader whose freed-up money grows ends
+up with more than the figure. A number that argues for giving something up should err small.
+
+**What (B) also bought, unplanned.** There is no clamp anywhere in it. (A) inherited
+`realReturnBps`'s floor at 0, which is why the first draft rendered "assuming 0.00% average
+annual growth after inflation — compounding does the work, not willpower" beside a figure that
+was pure addition, printing the clamped rate the sibling card is forbidden to print. Under (B)
+the only degenerate input is the reader's own 0.00% return dial, which is honest to print
+because it is theirs, and the copy still drops the compounding clause for it.
+
+**Three branches, because a claim safe at the defaults is a lie at the dial limits.**
+`validateDials` permits return 0–15.00% and inflation 0–10.00%. At zero inflation nothing is
+deflated and today's money and future dollars are the same thing; at inflation at or above the
+return assumption every horizon lands BELOW the dollars paid in — executed at 10/20/30 years
+before the sentence was written (at 5.00%/6.00% the ratios are 0.7226 / 0.5340 / 0.4025), not
+reasoned about.
+
+**Two contribution conventions now coexist on /coach deliberately.** The FI card prescribes a
+monthly amount level in today's dollars and says a flat standing order falls behind; this list
+describes a flat amount and says a growing one would do better. They are different questions
+(what you must put in vs. what this costs you), each states its own model, and neither claims
+the other's footing — the first draft's "the same footing as the cards above" clause was
+removed for exactly that reason, and because it pointed at a screen position (#361's UI-8 rule).
+
+**Also fixed, found by asking a critic to read all four rows out loud:** two of the four kinds
+ran a colon straight into "is $X", leaving a verb with no subject ("…assuming a standard
+offer): is $15,187.72…"). The copy sweeps scan for shame words and stated assumptions, not
+grammar, so both had been shipping since Phase 3.
+
+**Locks.** The renamed fields (`fv10/20/30Cents` → `todayValue10/20/30Cents`) made tsc walk
+every reader — re-denominating a money field without changing a character is how the last
+slice's disclosure went stale. A golden SENTENCE (not three containments) pins the three
+horizons in their slots: a critic had mutated the template so the 30- and 20-year figures
+swapped and every assertion in the repo stayed green. A golden dollar figure in the e2e
+(`$20,350.61` for the demo's LA Fitness) is what catches a wrong rate handed over at the render
+site, which no unit test can see because it chooses the argument itself. The two-model gap is
+pinned so re-adopting the flattering one means changing a test that explains itself, and the
+hand-verified anchor with both intermediate values is in `docs/EDGE_CASES.md`.
+
+**Residual, filed not fixed:** `User.expectedReturnBps` is non-nullable with a DB default of
+700, so the copy calls 7.00% "your return assumption" for a reader who has never opened
+/settings — the possessive `inflationIsDefault` exists to prevent for the *other* dial. It is
+pre-existing, identical on two other cards, and fixing it here alone would make three cards
+disagree; a nullable column is the real fix. Filed as W.13.

@@ -8583,3 +8583,19 @@ months of rows instead of one, unmeasured against a heavy real account), O.20c
 (what an unidentified inflow IS), O.20d (the bars still not drillable: /coach's
 strip, /trends "New this month", /recurring, and the three charts that are not
 transaction sets and want a constituents panel rather than a filter).
+
+---
+
+## 2026-08-01 — W.10 resumed + shipped (DECISIONS #363)
+
+Prior session implemented W.10 in the working tree (engine + copy + tests +
+DECISIONS #363) but left it uncommitted: STATUS pointed at a missing section,
+TASKS still OPEN, no REGRESSION_LEDGER rows, no verify output, no push.
+
+This resume: filled STATUS §W.10, marked TASKS W.10 done, filed residual W.13,
+appended 4 REGRESSION_LEDGER rows. Gate: `bash scripts/verify.sh` GREEN —
+tsc 0 / eslint 0 / **5504 unit / 333 files** / build clean (first vitest pass
+under verify hit 6 SQLite `database is locked` flakes; isolated + clean re-run
+both green). Code was already at the critic-approved conservative model
+(nominal grow → deflate); no arithmetic change in this resume. Commit → push →
+deploy-verify for golden `$20,350.61 in today's money over 30 years`.

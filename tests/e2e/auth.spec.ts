@@ -113,6 +113,10 @@ test('first manual account → dashboard explains its sparse cards (no bare $0.0
   await page.goto('/coach');
   await expect(page.getByTestId('opportunities-empty')).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('opportunities-list')).toHaveCount(0);
+  // W.10 — and no basis sentence either. It explains how figures were worked out, so under
+  // "nothing to flag" it would be describing money nobody was shown. The two gates are one
+  // predicate today; hoist the paragraph out of that conditional and this is what fails.
+  await expect(page.getByTestId('opportunities-basis')).toHaveCount(0);
   await expect(page.getByTestId('life-energy-empty')).toBeVisible();
   await expect(page.getByTestId('life-energy-list')).toHaveCount(0);
 });

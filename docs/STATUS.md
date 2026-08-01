@@ -2,6 +2,52 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-08-01 — W.10: the opportunity list is in today's money (DECISIONS #363)
+
+Opened by the W.2 money critic: /coach's "Worth a look" rows printed 30-year
+NOMINAL future values ("$X of future wealth … assuming 7.00%") one scroll below
+the FI card that had just moved into today's money. At the shipped defaults
+$500/mo read as **$609,985.50** where it buys **$290,806.13** of today's goods.
+
+**Decision that took two critic cycles.** Two today's-money figures exist and
+differ by ~23%: (A) compound at the REAL rate (level in today's dollars,
+$379,693.07) or (B) compound at the NOMINAL dial and deflate the whole total
+(level in nominal dollars, $290,806.13). **(A) shipped first and was wrong** —
+two independent critics killed it on `negotiable-bill`, a hard-coded flat
+$20/mo retention offer, so "the price would have risen" is a claim about a
+price that does not exist. (B) is conservative for every kind, and its premise
+is the literal sentence beside the figure.
+
+Also fixed: two of four row kinds ran a colon into "is $X" and had never
+parsed; a zero-return dial no longer credits compounding with the deposits;
+the basis sentence has three branches for the dial edges `validateDials`
+permits. Two contribution conventions now coexist on /coach deliberately —
+the FI card's monthly figures are level-real; this list is flat-nominal —
+each stating its own model.
+
+### OPEN / stated limitations
+
+- **`User.expectedReturnBps` is non-nullable with a DB default of 700**, so the
+  copy calls 7.00% "your return assumption" for a reader who has never opened
+  /settings. The possessive `inflationIsDefault` exists to prevent this for the
+  *other* dial. Pre-existing and identical on two other cards; fixing it here
+  alone would make three cards disagree. Filed as **W.13**.
+- **W.11 and W.12** remain open (slider caption / rate accretion on the FI
+  card) — deliberately not folded into this figure change.
+
+### Critic cycle
+
+Two fresh-context critics across two cycles, both FAIL on the first model,
+converging independently on the indexed-contribution overstatement and the
+floored-real-rate copy lie. All P0/P1 fixed and locked (golden sentence, model
+gap pin, e2e golden dollar figure `$20,350.61` for the demo's LA Fitness).
+Gate: `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0,
+**5504 unit / 333 files**, build clean; empty `prisma/` diff (no schema change).
+First vitest pass under the parallel verify run hit 6 SQLite `database is locked`
+flakes (known contention class); isolated re-run of those files 522/522, then
+full suite alone 5504/5504, then clean verify 5504/5504. E2E golden
+`$20,350.61 in today's money over 30 years` locked in `phase3-coach.spec.ts`.
+
 ## ✅ BUILT 2026-08-01 — O.20: every bar on the /reports chart opens the rows behind it (DECISIONS #362)
 
 Owner, 2026-08-01: *"every single bar and collection of categories needs to be immediately
@@ -81,11 +127,11 @@ copy told the reader both cards agreed; and `realReturnBps` was clamped at only 
 
 ### OPEN / stated limitations
 
-- **Three findings deliberately deferred, each with its own row** — W.10 (the opportunity
-  list still quotes 30-year NOMINAL future values under a card that now says 7.00%
-  overstates), W.11 (a >70% saver sees a "Lowering your savings rate…" caption before touching
-  the slider, mixing a server year with a client one), W.12 (the same rate is now stated four
-  times in four wordings, pushing the payoff line past the fold at 380×800).
+- **Two findings deliberately deferred, each with its own row** — W.11 (a >70% saver sees a
+  "Lowering your savings rate…" caption before touching the slider, mixing a server year with
+  a client one), W.12 (the same rate is now stated four times in four wordings, pushing the
+  payoff line past the fold at 380×800). The third, W.10, shipped 2026-08-01 — see its section
+  above.
 - **The Coast horizon's "reader chose it" branch is unreachable today.** No control sets
   `COAST_TARGET_YEARS`; the flag is a server field rather than a literal so that adding one
   later changes a line instead of a copy branch that has quietly become false. Stated in the

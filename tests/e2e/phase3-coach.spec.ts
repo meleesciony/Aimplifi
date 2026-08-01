@@ -49,6 +49,22 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(page.getByTestId('opportunities-list')).toContainText('Netflix');
   await expect(page.getByTestId('opportunities-card')).toContainText('est.');
 
+  // W.10 — the rendered figures are in today's money. This lives in the e2e and not only in
+  // the unit locks because the defect class is a PROP: a unit test calls the copy with whatever
+  // rate it chooses itself, so it cannot see the page handing over the wrong one.
+  //
+  // The GOLDEN below is what makes that real. LA Fitness is $34.99/mo on the demo seed, and
+  // $20,350.61 is that amount grown at 7.00% for 360 months and deflated at 2.50% — the demo's
+  // two dials. Hand the copy any other rate pair and this figure moves, which a phrase-level
+  // assertion would never notice.
+  await expect(page.getByTestId('opportunities-list')).toContainText("in today's money");
+  await expect(page.getByTestId('opportunities-list')).toContainText('$20,350.61 in today\'s money over 30 years');
+  await expect(page.getByTestId('opportunities-list')).not.toContainText('future wealth');
+  // The provenance sentence renders once, beside the rows, naming both dials in their roles.
+  await expect(page.getByTestId('opportunities-basis')).toContainText('7.00% return assumption');
+  await expect(page.getByTestId('opportunities-basis')).toContainText('2.50% inflation assumption');
+  await expect(page.getByTestId('opportunities-basis')).toContainText('what the total would buy today');
+
   // creep flagged on the engineered seed rise — phrased as a question, not a verdict
   await expect(page.getByTestId('creep-verdict')).toContainText('not a verdict');
 

@@ -42,9 +42,9 @@ const opportunity = (kind: Opportunity['kind']): Opportunity => ({
   kind,
   merchant: 'LA Fitness',
   monthlyCents: cents(3499),
-  fv10Cents: cents(605000),
-  fv20Cents: cents(1822000),
-  fv30Cents: cents(4267000),
+  todayValue10Cents: cents(605000),
+  todayValue20Cents: cents(1822000),
+  todayValue30Cents: cents(4267000),
   isEstimate: kind === 'insurance-reshop' || kind === 'negotiable-bill',
 });
 
@@ -147,10 +147,31 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     isProjection: true,
   },
   { label: 'sliderCaption', text: COACH_COPY.sliderCaption(2200, 3000, 23, 17), isProjection: true },
+  // W.10 — the rate here is the reader's own RETURN dial (the money grows at it); the figures
+  // themselves are then deflated to today's money, which `opportunityBasis` states once.
   { label: 'opportunity:unused', text: COACH_COPY.opportunity(opportunity('unused-subscription'), 700), isProjection: true },
   { label: 'opportunity:price', text: COACH_COPY.opportunity(opportunity('price-increase'), 700), isProjection: true },
   { label: 'opportunity:insurance', text: COACH_COPY.opportunity(opportunity('insurance-reshop'), 700), isProjection: true },
   { label: 'opportunity:bill', text: COACH_COPY.opportunity(opportunity('negotiable-bill'), 700), isProjection: true },
+  // The zero-return branch, where "compounding does the work" would be false and is dropped.
+  { label: 'opportunity:zeroReturn', text: COACH_COPY.opportunity(opportunity('unused-subscription'), 0), isProjection: true },
+  // Every branch of the list's basis line gets a row — a branch absent from this table has
+  // never been scanned by the guardrail sweeps at all.
+  {
+    label: 'opportunityBasis',
+    text: COACH_COPY.opportunityBasis(700, 250, true),
+    isProjection: true,
+  },
+  {
+    label: 'opportunityBasis:noInflation',
+    text: COACH_COPY.opportunityBasis(700, 0, false),
+    isProjection: true,
+  },
+  {
+    label: 'opportunityBasis:inflationOutruns',
+    text: COACH_COPY.opportunityBasis(500, 600, false),
+    isProjection: true,
+  },
   // Wealth target — every projection here carries BOTH assumptions (rate + today's dollars).
   {
     label: 'wealthTargetBasis',

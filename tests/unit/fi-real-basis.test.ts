@@ -20,9 +20,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '@/lib/db';
-import { cents } from '@/lib/money';
+import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
-import { coastFI, monthsToFI } from '@/lib/engine/fi/fi';
+import type { Opportunity } from '@/lib/engine/fi/insights';
+import {
+  coastFI,
+  monthsToFI,
+  opportunityFVCents,
+  opportunityValueTodayCents,
+} from '@/lib/engine/fi/fi';
 import {
   RETIREMENT_ASSUMPTIONS,
   isRealReturnFloored,
@@ -416,5 +422,250 @@ describe('W.9 — the Coast horizon says who chose it', () => {
     expect(readerChose).toContain('the horizon you set');
     expect(readerChose).not.toContain('not a date you set');
     expect(COACH_COPY.coastFI(25, REAL_BPS, false)).not.toContain('not a date you set');
+  });
+});
+
+
+// ════════════════════════════════════════════════════════════════════════════════════════════
+/**
+ * TASKS W.10 — the "Worth a look" figures are in today's money too.
+ *
+ * W.2 moved the FI card into today's money and left this list, one scroll down, printing
+ * NOMINAL 30-year future values under the words "future wealth". Both figures were correct
+ * about their own unit and nothing on screen said which was which.
+ *
+ * These drive the real `getCoachData` for the same reason the W.2 block does: the engine was
+ * never wrong, its ARGUMENTS were, and an argument is invisible from inside the function. A
+ * test calling `findOpportunities(series, rate, inflation)` directly would pass just as happily
+ * with the server handing it the wrong pair.
+ *
+ * The model: grow the monthly amount at the reader's RETURN dial, then deflate the whole total
+ * by the inflation dial over the same years — a contribution that is level in NOMINAL dollars.
+ * The first implementation compounded at the real rate instead (level in TODAY'S dollars, ~30%
+ * more), and two independent critics killed it on the `negotiable-bill` row, whose monthly
+ * amount is a hard-coded flat $20 retention offer: there is no price there to argue would have
+ * risen with inflation.
+ */
+describe("W.10 — the opportunity list is denominated in today's money", () => {
+  const U = `w10-today-${Date.now()}-${process.pid}`;
+  /** $120.00/mo of insurance → an `insurance-reshop` opportunity at 15% = $18.00/mo. */
+  const PREMIUM_CENTS = 12_000;
+
+  beforeAll(async () => {
+    await seedUser(U, { expectedReturnBps: NOMINAL_BPS, inflationBps: INFLATION_BPS });
+    const checking = await prisma.account.findFirstOrThrow({
+      where: { userId: U, type: 'CHECKING' },
+    });
+    // A monthly premium on a subscription category, same merchant and same amount every month:
+    // `detectRecurring` needs the stable cadence and `SUBSCRIPTION_CATEGORIES` needs the leaf.
+    await prisma.transaction.createMany({
+      data: MONTHS.map((m) => ({
+        id: `${U}-ins-${m}`,
+        accountId: checking.id,
+        date: `${m}-20`,
+        amountCents: -PREMIUM_CENTS,
+        rawDescriptor: 'GEICO PREMIUM',
+        categoryId: 'insurance',
+      })),
+    });
+  });
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: U } });
+  });
+
+  it('is the return dial grown then deflated — and the nominal figure it replaced was far larger', async () => {
+    const d = await getCoachData(U);
+    const o = d.opportunities.find((x) => x.kind === 'insurance-reshop');
+    // The fixture's hard case must be PRESENT, or every assertion below passes vacuously.
+    expect(o, 'the seeded premium must surface as an opportunity').toBeDefined();
+    if (!o) return;
+    expect(o.monthlyCents).toBe(Math.round(PREMIUM_CENTS * 0.15));
+
+    const today = opportunityValueTodayCents(o.monthlyCents, 360, NOMINAL_BPS, INFLATION_BPS);
+    const nominal = opportunityFVCents(o.monthlyCents, 360, NOMINAL_BPS);
+    expect(o.todayValue30Cents).toBe(today);
+    // Non-vacuous: pinning only to `today` would pass with the bug restored if the rate moved
+    // with it. The shipped figure is a little under half the future-dollar one it replaced.
+    expect(o.todayValue30Cents).toBeLessThan(nominal);
+    expect(nominal / today).toBeGreaterThan(1.9);
+
+    // All three horizons ride the same pair — a fix applied to one of three is the shape the
+    // disclosure classes here keep re-learning.
+    expect(o.todayValue20Cents).toBe(
+      opportunityValueTodayCents(o.monthlyCents, 240, NOMINAL_BPS, INFLATION_BPS),
+    );
+    expect(o.todayValue10Cents).toBe(
+      opportunityValueTodayCents(o.monthlyCents, 120, NOMINAL_BPS, INFLATION_BPS),
+    );
+  });
+
+  it('the three horizons cannot be printed in the wrong slots', async () => {
+    const d = await getCoachData(U);
+    const o = d.opportunities.find((x) => x.kind === 'insurance-reshop');
+    expect(o).toBeDefined();
+    if (!o) return;
+    // A critic mutated the template so the 30- and 20-year values swapped slots, and every
+    // assertion in the repo stayed green: each one was `toContain(oneFigure)`, which cannot see
+    // WHERE the figure landed. A reader would have been told the 20-year total was the larger.
+    expect(o.todayValue10Cents).toBeLessThan(o.todayValue20Cents);
+    expect(o.todayValue20Cents).toBeLessThan(o.todayValue30Cents);
+    // A golden literal, not three containments: the whole sentence, in order.
+    expect(COACH_COPY.opportunity(o, d.fi.expectedReturnBps)).toBe(
+      // `o.merchant` rather than a literal name: the canonicalizer's output ("Geico", not the
+      // raw "GEICO PREMIUM" descriptor) is a different subject and does not belong in this lock.
+      `Re-shopping ${o.merchant} typically saves ~15% (an estimate, assuming typical quotes) — about ` +
+        `${formatCents(o.monthlyCents)}/mo, which is ${formatCents(o.todayValue30Cents)} in today's money ` +
+        `over 30 years (${formatCents(o.todayValue20Cents)} over 20, ${formatCents(o.todayValue10Cents)} over 10), ` +
+        `assuming 7.00% average annual returns — compounding does the work, not willpower.`,
+    );
+  });
+
+  it('a flat retention estimate is not grown as though it were a price', () => {
+    // The first implementation compounded every row at the REAL rate, which models a stream
+    // that rises with inflation. `findOpportunities` mints `negotiable-bill` as a hard-coded
+    // flat $20.00/mo retention offer, so that model asserted an indexing property its own
+    // input cannot have — and printed about 30% more than such a reader will ever hold.
+    const flat = cents(2000);
+    const shipped = opportunityValueTodayCents(flat, 360, NOMINAL_BPS, INFLATION_BPS);
+    const indexed = opportunityFVCents(flat, 360, realReturnBps(NOMINAL_BPS, INFLATION_BPS));
+    expect(indexed).toBeGreaterThan(shipped);
+    // Pin the gap the two models disagree by, so re-adopting the flattering one means changing
+    // a test that explains itself.
+    expect(indexed / shipped).toBeGreaterThan(1.25);
+  });
+
+  it('the row copy names the unit, and never claims future wealth', async () => {
+    const d = await getCoachData(U);
+    const o = d.opportunities.find((x) => x.kind === 'insurance-reshop');
+    expect(o).toBeDefined();
+    if (!o) return;
+    const line = COACH_COPY.opportunity(o, d.fi.expectedReturnBps);
+    expect(line).toContain("in today's money");
+    // The exact wording the old figure carried. True of a nominal number, false of this one.
+    expect(line).not.toContain('future wealth');
+  });
+
+  it('all four row kinds parse, and each names its own monthly amount', () => {
+    // Two of the four used to run a colon straight into "is $X" — "…assuming a standard
+    // offer): is $15,187.72…" — a verb with no subject. The copy sweeps scan for shame words
+    // and assumption clauses, so nothing caught it until a critic was asked to read them aloud.
+    const kinds = [
+      'unused-subscription',
+      'price-increase',
+      'insurance-reshop',
+      'negotiable-bill',
+    ] as const;
+    for (const kind of kinds) {
+      const o: Opportunity = {
+        kind,
+        merchant: 'Comcast',
+        monthlyCents: cents(2000),
+        todayValue10Cents: cents(200_000),
+        todayValue20Cents: cents(500_000),
+        todayValue30Cents: cents(900_000),
+        isEstimate: kind === 'insurance-reshop' || kind === 'negotiable-bill',
+      };
+      const line = COACH_COPY.opportunity(o, NOMINAL_BPS);
+      expect(line, kind).not.toMatch(/[):]\s+is\s/);
+      expect(line, kind).toContain('$20.00');
+      expect(line, kind).toContain('$9,000.00');
+    }
+  });
+
+  it('a zero return assumption does not credit compounding with the deposits themselves', () => {
+    // At a 0.00% return the figure is the deposits with inflation taken off, so "compounding
+    // does the work, not willpower" — the persuasive payload of the sentence — is simply
+    // false. Both critics found this branch independently in the first draft.
+    const o: Opportunity = {
+      kind: 'unused-subscription',
+      merchant: 'LA Fitness',
+      monthlyCents: cents(3499),
+      todayValue10Cents: cents(300_000),
+      todayValue20Cents: cents(500_000),
+      todayValue30Cents: cents(600_000),
+      isEstimate: false,
+    };
+    const zero = COACH_COPY.opportunity(o, 0);
+    expect(zero).not.toContain('compounding does the work');
+    expect(zero).toContain('no growth at all');
+    // …and the ordinary branch still says it, so the guard is not a silent deletion.
+    expect(COACH_COPY.opportunity(o, NOMINAL_BPS)).toContain('compounding does the work');
+  });
+
+  it('the basis line states the mechanism it actually performs', () => {
+    const shown = COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, false);
+    expect(shown).toContain('7.00% return assumption');
+    expect(shown).toContain('your 2.50% inflation assumption');
+    // It may NOT claim a single blended rate: the code grows at one dial and deflates by the
+    // other, and "grown at 4.50% after inflation" would be a stated derivation it never does.
+    expect(shown).not.toContain('4.50%');
+    expect(shown).not.toContain('after inflation');
+    expect(shown).toContain('what the total would buy today');
+  });
+
+  it('names the direction its flat-contribution model errs in', () => {
+    // The model assumes the reader never raises the amount. That is the conservative reading,
+    // and the sentence has to say so, or the printed number quietly becomes a floor presented
+    // as an estimate.
+    for (const [nom, inf] of [
+      [NOMINAL_BPS, INFLATION_BPS],
+      [NOMINAL_BPS, 0],
+      [500, 600],
+    ] as const) {
+      const text = COACH_COPY.opportunityBasis(nom, inf, false);
+      expect(text, `${nom}/${inf}`).toContain('never raise it');
+      expect(text, `${nom}/${inf}`).toContain('more than they say');
+    }
+  });
+
+  it('the two degenerate dial pairs get their own sentence', () => {
+    // Zero inflation: nothing is deflated, so claiming a deduction would be false.
+    const noInflation = COACH_COPY.opportunityBasis(NOMINAL_BPS, 0, false);
+    expect(noInflation).toContain("today's money and future dollars are the same thing here");
+    expect(noInflation).not.toContain('for every year of the horizon');
+
+    // Inflation at or above the return dial: every horizon lands below the dollars paid in.
+    // Executed across 10/20/30 years before the sentence was written — at 5.00%/6.00% the
+    // ratios are 0.7226 / 0.5340 / 0.4025.
+    const outrun = COACH_COPY.opportunityBasis(500, 600, false);
+    expect(outrun).toContain('below the dollars you would pay in');
+    expect(outrun).toContain('that is the assumption working, not an error');
+    expect(opportunityValueTodayCents(cents(100_000), 360, 500, 600)).toBeLessThan(100_000 * 360);
+    expect(opportunityValueTodayCents(cents(100_000), 120, 500, 600)).toBeLessThan(100_000 * 120);
+
+    // …and the ordinary pair does NOT say it, so the branch is a real alternative.
+    expect(COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, false)).not.toContain(
+      'below the dollars you would pay in',
+    );
+  });
+
+  it('will not call an unset inflation dial "yours"', () => {
+    expect(COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, true)).toContain(
+      'our default 2.50% inflation assumption',
+    );
+    expect(COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, false)).toContain(
+      'your 2.50% inflation assumption',
+    );
+  });
+
+  it('points at no screen position (the UI-8 rule, in the branch that inherited it)', () => {
+    // W.2 retired "the dates above" from `volatilityPrice` for this reason; the first draft of
+    // this sentence re-introduced it as "the same footing as the cards above", and the draft
+    // after that still opened with the bare demonstrative "Those totals".
+    for (const [nom, inf] of [
+      [NOMINAL_BPS, INFLATION_BPS],
+      [NOMINAL_BPS, 0],
+      [500, 600],
+    ] as const) {
+      const text = COACH_COPY.opportunityBasis(nom, inf, false);
+      // Not a bare `/above|below/`: a rate legitimately sits below another rate, which is a
+      // comparison, not a location. What is banned is a noun on this screen plus a direction.
+      expect(text, `${nom}/${inf}`).not.toMatch(
+        /\b(?:cards?|dates?|figures?|projections?|totals?|rows?|numbers?|list|sentence)\s+(?:above|below)\b/i,
+      );
+      expect(text, `${nom}/${inf}`).not.toMatch(/\b(?:above|below|to the right|to the left)\s*[.,]/i);
+      // The subject names the thing it qualifies rather than pointing at it.
+      expect(text, `${nom}/${inf}`).toContain('The figures in this list');
+    }
   });
 });

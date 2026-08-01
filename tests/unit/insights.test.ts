@@ -171,7 +171,7 @@ describe('test_regression__monthly-flows-income-leaves: Income-GROUP leaves coun
 });
 
 describe('savings opportunities ranked by compounded impact', () => {
-  const opportunities = findOpportunities(series, 700);
+  const opportunities = findOpportunities(series, 700, 250);
 
   it('finds the unused gym, the Netflix increase, insurance re-shop, negotiable internet', () => {
     const kinds = opportunities.map((o) => o.kind);
@@ -181,11 +181,14 @@ describe('savings opportunities ranked by compounded impact', () => {
     expect(kinds).toContain('negotiable-bill');
   });
 
-  it('ranks by 30-year future value, descending (gym $34.99 first)', () => {
+  // W.10 renamed the sort key: it is the 30-year value in TODAY'S money now, not a future
+  // value. The ORDER is unchanged — the annuity is linear in the monthly amount and every row
+  // shares one rate pair — which is what this asserts.
+  it('ranks by the 30-year today\'s-money value, descending (gym $34.99 first)', () => {
     expect(opportunities[0].kind).toBe('unused-subscription');
     expect(opportunities[0].merchant).toBe('LA Fitness');
     expect(opportunities[0].monthlyCents).toBe(3499);
-    const fvs = opportunities.map((o) => o.fv30Cents);
+    const fvs = opportunities.map((o) => o.todayValue30Cents);
     expect([...fvs].sort((a, b) => b - a)).toEqual(fvs);
   });
 
@@ -246,7 +249,7 @@ describe('monthly Money Review narrative from seed data', () => {
     const review = generateMoneyReview({
       flows,
       creep: detectLifestyleCreep(seed.transactions, isoDate('2026-06-10')),
-      opportunities: findOpportunities(series, 700),
+      opportunities: findOpportunities(series, 700, 250),
       runwayMonths: 3.2,
       pendingTransfer: { amountCents: cents(105_000), byDate: 'Tue, Jun 23', frozenFunding: null },
     });

@@ -43,9 +43,9 @@ const oppOf = (kind: OpportunityKind, merchant: string, monthlyCents: number): O
   kind,
   merchant,
   monthlyCents: cents(monthlyCents),
-  fv10Cents: cents(monthlyCents * 100),
-  fv20Cents: cents(monthlyCents * 300),
-  fv30Cents: cents(monthlyCents * 700),
+  todayValue10Cents: cents(monthlyCents * 100),
+  todayValue20Cents: cents(monthlyCents * 300),
+  todayValue30Cents: cents(monthlyCents * 700),
   isEstimate: false,
 });
 

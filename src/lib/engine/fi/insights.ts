@@ -13,7 +13,7 @@ import { categorize } from '@/lib/engine/categorize/pipeline';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId } from '@/lib/engine/categorize/categories';
 import type { RecurringSeriesResult } from '@/lib/engine/recurring/detect';
-import { opportunityFVCents, savingsRateBps } from './fi';
+import { opportunityValueTodayCents, savingsRateBps } from './fi';
 
 export interface TxnLike {
   date: string;
@@ -113,9 +113,28 @@ export interface Opportunity {
   kind: OpportunityKind;
   merchant: string;
   monthlyCents: Cents;
-  fv10Cents: Cents;
-  fv20Cents: Cents;
-  fv30Cents: Cents;
+  /**
+   * What this monthly amount is worth if invested instead, **in today's money** — 10, 20 and
+   * 30 years out.
+   *
+   * W.10: these were `fv10/20/30Cents`, compounded at the reader's NOMINAL dial, and they
+   * printed one scroll under an FI card that W.2 had just moved onto the real (after-inflation)
+   * rate. Two dollar figures on one page, one in future dollars and one in today's, with
+   * nothing on screen saying which was which — `a-rate-and-its-target-must-share-a-unit`.
+   *
+   * Renamed rather than re-pointed: re-denominating a money field without changing a character
+   * is exactly how the last slice's disclosure went stale, so the rename makes tsc walk every
+   * reader of these three numbers.
+   *
+   * The stream is level in NOMINAL dollars — the reader invests the same amount every month and
+   * never raises it — and the whole total is then stated in today's money. See
+   * `opportunityValueTodayCents` for why the more flattering level-in-today's-dollars model was
+   * rejected: one of the four kinds below is a hard-coded flat estimate, so there is no price
+   * to argue would have risen, and no per-row exception survives a reader comparing two rows.
+   */
+  todayValue10Cents: Cents;
+  todayValue20Cents: Cents;
+  todayValue30Cents: Cents;
   /** Big-win framing, with the assumption stated. From coach-copy templates. */
   isEstimate: boolean;
   /**
@@ -132,9 +151,18 @@ export interface Opportunity {
   priceToCents?: Cents;
 }
 
+/**
+ * @param nominalReturnBps the reader's own return dial — the rate the money GROWS at.
+ * @param inflationBps the reader's inflation dial — what the grown total is then deflated by.
+ *
+ * Both, not one blended rate: the reader is shown both operands beside the figures, and a
+ * single pre-blended argument would let a caller hand over a real rate and get an answer
+ * deflated twice, with nothing in the types to notice.
+ */
 export function findOpportunities(
   series: readonly RecurringSeriesResult[],
-  expectedReturnBps: number,
+  nominalReturnBps: number,
+  inflationBps: number,
 ): Opportunity[] {
   const out: Opportunity[] = [];
   const push = (
@@ -150,9 +178,9 @@ export function findOpportunities(
       kind,
       merchant,
       monthlyCents: m,
-      fv10Cents: opportunityFVCents(m, 120, expectedReturnBps),
-      fv20Cents: opportunityFVCents(m, 240, expectedReturnBps),
-      fv30Cents: opportunityFVCents(m, 360, expectedReturnBps),
+      todayValue10Cents: opportunityValueTodayCents(m, 120, nominalReturnBps, inflationBps),
+      todayValue20Cents: opportunityValueTodayCents(m, 240, nominalReturnBps, inflationBps),
+      todayValue30Cents: opportunityValueTodayCents(m, 360, nominalReturnBps, inflationBps),
       isEstimate,
       ...(price !== undefined
         ? {
@@ -197,7 +225,11 @@ export function findOpportunities(
     }
   }
 
-  return out.sort((a, b) => b.fv30Cents - a.fv30Cents);
+  // Ranking is unchanged by W.10: the annuity is linear in `monthlyCents` and every row shares
+  // one rate pair and one horizon, so the order over `todayValue30Cents` is the order over the
+  // monthly amounts — the order the nominal figures had. (A critic brute-forced it: 12 amounts
+  // x 12 rate pairs including the degenerate ones, 0 order violations.)
+  return out.sort((a, b) => b.todayValue30Cents - a.todayValue30Cents);
 }
 
 // ── Lifestyle-creep detection (Psychology of Money: growth vs income) ───────
