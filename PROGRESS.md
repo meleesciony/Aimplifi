@@ -1,12 +1,14 @@
 # PROGRESS.md — session resume log
 
-## 2026-08-01 — Guilt-free income scope (#370) + Home charts restored
+## 2026-08-01 — Guilt-free income scope (#370) + Home charts restored DONE
 
 Owner: ~$23k guilt-free impossible; don't count MM / already-saved; restore charts (not
 verbose instructions); move categorize coaching off Home. Done: payment-account income
 scope + earned-pay preference (paycheck over mobile-deposit/interest/investment);
 Home charts back; “Using Aim·plifi” on Plan. Prod probe (read-only Neon): pattern median
-~$21k earned pay (was ~$56k all non-credit). Next: commit/push/prove live.
+~$21,177 earned pay (was ~$56k all non-credit). Deploy READY
+`dpl_73bhYNjkLSkMaDxKnCpa4ig6aRZR` on `481ecfe`; live demo markers: charts + how-to-use +
+earned-pay copy; directive sentence gone from Home.
 
 ## 2026-08-01 — Home polish + guilt-free without card pay (#369) DONE
 
