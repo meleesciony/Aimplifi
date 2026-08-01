@@ -1,10 +1,11 @@
 # PROGRESS.md — session resume log
 
-## 2026-08-01 — Inbox skip + unclear charges (#374) SHIPPING
+## 2026-08-01 — Inbox skip + unclear charges (#374) DONE
 
 Owner: next without filing; unsure what old charges are. Skip rotates queue;
 detail link + age + masked heading; One-by-one row chips (O.12e/O.12f).
-`bash scripts/verify.sh` GREEN; e2e skip test passed.
+`bash scripts/verify.sh` GREEN; e2e skip passed. Deploy READY on `1ce4b9b`
+(`aimplifi-odlfxgf2h`); live markers `triage-skip` + `triage-open-detail`.
 
 ## 2026-08-01 — Intention vs slide (#373) DONE
 
