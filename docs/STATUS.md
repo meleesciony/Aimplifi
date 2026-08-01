@@ -10,6 +10,15 @@ only; Home = guilt-free → cash needed → recent transactions (needs-file) →
 Radar → net worth. Ask / top spending / trends / recurring / reminders / savings-rate left
 their own routes.
 
+Gate: tsc 0, eslint 0, **5549 unit / 335 files**, next build clean; targeted e2e 25/25
+(phase1 + spending-plan-month-edge + ask). Empty `prisma/` diff.
+
+**Deploy:** Vercel `dpl_5Hn8UXcy64hpzsaFeYfYxcAkyWNJ` **READY** on `2e3bf72`, www aliased.
+Live demo /dashboard: guilt-free `$2,215.00` with “after fixed costs”, recent strip +
+“merchants need filing”, cash-needed `$5,412.33`; top-spending/Ask cards absent.
+Live /spending-plan: no “Card payments due this month” row; basis notes card pay is not
+subtracted.
+
 ## ✅ BUILT 2026-08-01 — W.12: the FI card names the real rate once (DECISIONS #368)
 
 After W.2 the same 4.50% appeared four times in four wordings and the new basis

@@ -1,11 +1,12 @@
 # PROGRESS.md — session resume log
 
-## 2026-08-01 — Home polish + guilt-free without card pay (#369)
+## 2026-08-01 — Home polish + guilt-free without card pay (#369) DONE
 
 Owner: Mint/Simplifi polish baseline — too many words; transactions buried; Plan math
 broken (card pay as fixed). Done: formula = income − fixed − savings; Home reorder with
-recent transactions + needs-file; clutter cards demoted to their routes. Next: verify +
-deploy; optionally propose which categories are "fixed" dials.
+recent transactions + needs-file; clutter cards demoted to their routes. Deploy READY
+`dpl_5Hn8UXcy64hpzsaFeYfYxcAkyWNJ` on `2e3bf72`; live demo markers verified. Next open:
+propose which categories are “fixed” for the dials / Plan.
 
 ## 2026-08-01 — W.12 DONE (#368) — FI card names the real rate once; payoff above the fold
 
