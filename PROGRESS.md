@@ -8595,7 +8595,9 @@ Root cause as filed: hard `max={7000}` + `Math.min(7000, currentRateBps)` initia
 touched-flag-with-hard-ceiling (rate label would still lie at 70% beside "current pace
 85%"). Locks in `tests/unit/fi-slider-bounds.test.ts` + e2e first-paint assertion.
 Gate: `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **5511 unit / 334 files** /
-build clean; phase3-coach e2e 1/1. Empty prisma diff.
+build clean; phase3-coach e2e 1/1. Empty prisma diff. Shipped `b1f9600`; Vercel
+`dpl_847yTgBW9j1VFh3vCyRrU9vw6CEC` READY, www aliased; live demo first paint is
+"current pace (23.4%)", no Lowering/Raising.
 
 ## 2026-08-01 — W.10 resumed + shipped (DECISIONS #363)
 

@@ -15,7 +15,11 @@ Self-review against the money-copy axis (small, mechanical slice — no separate
 subagent). Fail-old pin of the hard clamp; unit lock that an 85% first paint says "current
 pace" and does not leak the mixed year pair; e2e asserts the same on the painted card.
 Gate: `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0, **5511 unit / 334
-files**, build clean; empty `prisma/` diff.
+files**, build clean; empty `prisma/` diff. phase3-coach e2e 1/1.
+
+**Deploy:** Vercel `dpl_847yTgBW9j1VFh3vCyRrU9vw6CEC` **READY** on `b1f9600`, www
+aliased. Live demo /coach first paint: "This is your current pace (23.4%…)" — no
+Lowering/Raising; slider `max` stays 7000 for the demo (pace < 70%).
 
 ## ✅ BUILT 2026-08-01 — W.10: the opportunity list is in today's money (DECISIONS #363)
 
