@@ -568,6 +568,51 @@ what is inside, and its footer still offers the register, which is where a row g
 
 | O.18g | **The conscious-buckets e2e cannot reach its savings else-branch.** The branch where a working savings figure carries NO adjacent control is unreachable on the demo dataset, so it is unit-locked only and the e2e passes vacuously over it. Either seed a throwaway user where it provably binds (the pattern `trends-caps.spec.ts` and `reports-total-reconciles.spec.ts` already use) or delete the branch if it turns out no real dataset reaches it — an unreachable branch is a claim that something is handled. Carried forward from O.18f, which did not close it. | Sonnet / Opus 5 | small | 20k | **[ ] OPEN** |
 
+## Wave O.20 — "Every single bar" (owner report 2026-08-01, LIVE)
+
+Owner, 2026-08-01: *"and again, that's not even correct...i said every single bar and collection
+of categories needs to be immediately available...esentially you are filtering
+transactions...why is this so hard, you're not recreating wheel...mint and simplify both do
+this."*
+
+The honest accounting: twelve surfaces already drilled into transactions, and the CHART did not.
+W.3 filed the Recharts charts as a refusal and **its enumeration was itself incomplete** — four
+files named, seven exist, plus six hand-rolled bar surfaces. Scope by whether a bar IS a set of
+transactions: where it is, it opens them; where it is not (balances, projections, holdings) it
+owes a panel of what it IS made of, which is still not a refusal.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+| O.20 | **Every bar on the /reports income-vs-spending chart opens the rows it is made of.** Pure `buildMonthFlowBreakdowns` on `monthlyFlows`' own exported predicates; `CategoryBreakdownPanel` body extracted to a generic `BreakdownPanel` (testids byte-identical); month buttons as the accessible path; `monthRegisterHref` claims a window, never one half of a month. | **Fable 5** | medium | 90k | **[x] done 2026-08-01** — DECISIONS #362, STATUS §O.20. Two critics, both FAIL, all P1s fixed. |
+| O.20a | **/reports prints one month's spending twice on two bases.** The bars are posted-only (`countsInFlows`); the "Spending by category" card counts pending (`isSpendRow`). Measured at $299.93 on the demo. Each panel states its basis and a new sentence names the DIRECTION of the gap without claiming a mechanism (a critic falsified the pending explanation in both directions — at least five rules separate them). Unifying the bases, or giving the card the chart's basis, is a money decision of its own. **Money-visible ⇒ critic.** | **Fable 5** | medium | 60k | **[ ] OPEN** |
+| O.20b | **The /reports payload now carries six months of transaction rows instead of one.** `monthFlows` ships the rows behind all twelve bars so panels reconcile without a second query — the property the whole feature rests on. ~6× this route's RSC payload, unmeasured against a heavy real account. Measure first; only then decide whether a per-bar fetch (which would break the same-array guarantee) is worth it, or whether trimming `rawDescriptor` from chart panels is enough. | Opus 5 | small | 30k | **[ ] OPEN** |
+| O.20c | **Two unfiled deposits that look identical land on opposite sides.** `isIncomeFlowRow` counts a positive row with NO category as income, while one filed to `uncategorized` (group 'Transfers & Other') nets against SPENDING. Pre-existing; O.20's panels make it visible and both basis sentences now name it. The real fix is deciding what an unidentified inflow IS, once, and it moves live figures. **Money-visible ⇒ critic.** | **Fable 5** | medium | 60k | **[ ] OPEN** |
+| O.20d | **The bars still not drillable.** /coach's hand-rolled discretionary strip; /trends "New this month" (O.18e); /recurring rows (O.18c). Plus the three that are NOT transaction sets — net worth, forecast, investments allocation — which want a panel naming their constituents (accounts, projected items, holdings) rather than a transaction filter. The owner said "every single bar", so a refusal is only honest if the panel says what the bar is instead. | Opus 5 | medium | 80k | **[ ] OPEN** |
+
+## Wave B — The budgeting section: what "fixed" actually means (owner request 2026-08-01, LIVE)
+
+Owner, 2026-08-01: *"fixed expenses are things that aren't discretionary...utilities, groceries,
+and other items that we set in the budget section that we weren't built....you can help build it
+and make it smart and suggest what things look like fixed. Guilt free spend is like going to
+movies, going to amusement parks, going skiing, etc...in fact build a budgeting sedction so
+someone can input fixed (with your suggestions), income you have calculated, the savings goal %
+you have and that's how you calculate discretionary or guilt free spending."*
+
+**The identity he describes already exists** — `computeSpendingPlan` sets
+`leftToSpend = patternIncome − fixedExpenses − cardObligations − obligationsBeyondMonth −
+plannedSavings`, and `mapToConsciousBuckets` re-partitions it so the three buckets sum to income
+by construction. The savings-% dial (`User.savingsTargetBps`) exists in Settings, and income is
+already computed. **The broken term is `fixed`**: it counts only DETECTED recurring series (≥3
+occurrences, ≤2 amount plateaus, a recognised cadence) plus card payments, so groceries, fuel and
+any variable utility fall into guilt-free — exactly W.5's finding, now confirmed by the owner.
+Every category already carries a `discretionary` flag, which is the app's suggestion for free.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+| B.1 | **A committed-but-variable term, reader-owned, suggested by the app.** Add a per-user per-category bucket designation (system categories are GLOBAL rows resolving via `CATEGORY_BY_ID`, so the override needs its own additive table — it cannot live on `Category.discretionary`, which is read only for custom rows). Default = `!discretionary`, i.e. the app's suggestion. Amount per designated category = the reader's existing `Budget.monthCents` target where set, else their own typical spend. `fixed` becomes detected series + card obligations + this term; guilt-free stays the remainder, and the partition identity must hold byte-for-byte. **Money-visible ⇒ critic.** | **Fable 5** | large | 120k | **[ ] OPEN** |
+| B.2 | **The budgeting section itself.** One page where the reader sees income (computed, stated), a savings-goal % (the existing dial, surfaced here rather than buried in Settings), the fixed list with suggestions they can accept or move, and guilt-free falling out as the remainder. Must state which figures are theirs and which are the app's guess — the L.31 rule that an answer is only as believable as its visible inputs. | Opus 5 | large | 100k | **[ ] OPEN** |
+| B.3 | **Retire or re-band the Sethi comparison once the numerator changes.** W.5's open question: our fixed bucket is scored against a 50–60% band that assumed a fuller numerator. B.1 widens the numerator, so the band becomes defensible — but the copy claiming what the bucket counts must move with it, and `CONSCIOUS_BUCKET_LABELS` is the one author. | Opus 5 | small | 30k | **[ ] OPEN** |
+
 ## Wave O.19 — "These numbers do not add up to July monthly total" (owner report 2026-07-31, LIVE)
 
 Owner, with two /reports screenshots (header "Jul · $28,253.04 total", eleven visible rows

@@ -31,8 +31,17 @@ export interface TxnLike {
   excludeFromTotals?: boolean | null;
 }
 
-/** The single inclusion rule for flow aggregation (one definition, used everywhere). */
-function countsInFlows(t: TxnLike): boolean {
+/**
+ * The single inclusion rule for flow aggregation (one definition, used everywhere).
+ *
+ * EXPORTED for the same reason `isIncomeFlowRow` below is: the Glass-Box panel
+ * behind the /reports income-vs-spending bars must select the rows this function
+ * admitted, not a re-statement of its clauses. `month-flow-breakdown.ts` calls
+ * it directly, so any change to what counts in a flow moves the bar and the rows
+ * under it in the same commit — the drift `a-link-on-a-figure-asserts-two-engines-agree`
+ * was written about.
+ */
+export function countsInFlows(t: TxnLike): boolean {
   return !t.isTransfer && t.status === 'POSTED' && !t.isSplitParent && !isExcludedFromTotals(t);
 }
 

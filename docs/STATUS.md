@@ -2,6 +2,62 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-08-01 — O.20: every bar on the /reports chart opens the rows behind it (DECISIONS #362)
+
+Owner, 2026-08-01: *"every single bar and collection of categories needs to be immediately
+available … essentially you are filtering transactions … why is this so hard, you're not
+recreating wheel … mint and simplify both do this."*
+
+**What was actually missing.** Twelve surfaces already drilled into transactions (every
+category row on /reports, /trends and /budgets — name, figure and inline bar — plus the O.18
+expandable panels). The CHART did not, and it is the first thing on the page. W.3 had filed the
+charts as a deliberate refusal, and **its own enumeration was incomplete**: it named four
+Recharts files when there are seven, plus six more surfaces drawing hand-rolled bars.
+
+Tapping an income or spending bar now opens the transactions that bar is made of, inline, with
+the register offered in the footer. Six month buttons under the chart reach the same panels —
+the bars are SVG rectangles and cannot be focused, so the buttons are the accessible path and
+the bar tap is an accelerator.
+
+**Built on the flows predicate, not the category one.** `buildMonthFlowBreakdowns` selects rows
+through `monthlyFlows`' own exported predicates, and `getReports` hands both breakdown families
+the same array, so a bar and its rows cannot describe different sets. The register link claims
+only a WINDOW: no `type=expense` filter, because that drops the refunds the bar netted and keeps
+the pending rows it never saw.
+
+### OPEN / stated limitations
+
+- **/reports prints one month's spending twice, on two bases, and they differ.** The bars are
+  posted-only; the "Spending by category" card counts pending charges. Measured on the demo at
+  **$299.93** for the current month. Each panel states its own basis and a new sentence names the
+  DIRECTION of the gap — but it deliberately names no mechanism, because at least five rules
+  separate the two figures and a critic falsified the "pending charges" explanation in both
+  directions. Unifying the two bases is a bigger decision, filed as **O.20a**.
+- **The /reports payload now carries six months of rows instead of one.** `monthFlows` ships the
+  rows behind all twelve bars so the panels can reconcile without a second query. Roughly a 6×
+  increase in this route's RSC payload; not measured against a heavy real account. Filed as
+  **O.20b**.
+- **Two unfiled deposits that look identical land on opposite sides.** A positive row with no
+  category counts as income; one filed to `uncategorized` nets against spending. That is
+  pre-existing engine behaviour which this panel now makes visible; both basis sentences name it
+  rather than pretending there is one rule. Filed as **O.20c**.
+- **Still not drillable:** /coach's hand-rolled discretionary bars, /trends "New this month"
+  (O.18e), /recurring rows (O.18c), and the three charts that are not transaction sets at all —
+  net worth, forecast, and the investments allocation bar, which want a panel showing what they
+  ARE made of rather than a transaction filter. Filed as **O.20d**.
+
+### Critic cycle
+
+Two fresh-context critics, **both FAIL** (3 P1 and 4 P1 respectively), converging independently
+on two findings: the clamp sentence printed *"outran purchases by −$80.00"* — a double negative
+asserting the opposite of the truth — and three positional claims pointed the wrong way. The
+deepest was the flow SPLIT: the basis sentence described it as a rule about refunds, and was
+falsified by rows rendered inside the panel it described. The two critics disagreed about which
+way an unfiled deposit goes, and **executing the predicate settled it** — both were half right.
+All P1s fixed and locked; the sign bug is now impossible by construction rather than correct by
+argument. Gate: **5481 unit / 333 files**, tsc 0, eslint 0, build clean; 10/10 on the affected
+e2e specs, 14/14 mobile-overflow.
+
 ## ✅ BUILT 2026-08-01 — W.2 + W.9: the FI card's dates are in today's money (DECISIONS #361)
 
 **Every FI date on /coach used to arrive early, by the whole inflation gap.** The FI number is

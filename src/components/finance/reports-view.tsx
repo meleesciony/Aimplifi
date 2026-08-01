@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useId, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
+import { MonthFlowPanel } from '@/components/finance/month-flow-panel';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { CATEGORY_LINK_CLASS, categoryMonthRegisterHref } from '@/lib/engine/transactions/links';
 import { formatMonth } from '@/lib/dates';
@@ -42,9 +43,69 @@ export function ReportsView({
   const linkable = new Set(linkableCategoryIds);
   const chartData = data.months.map((m) => ({
     name: monthLabel(m.month),
+    // Carried on the datum so a bar click knows which month it is, without the
+    // handler re-deriving one from an axis label that prints no year.
+    month: m.month,
     income: m.incomeCents / 100,
     expense: m.expensesCents / 100,
   }));
+  /**
+   * Which bar the reader tapped (owner, 2026-08-01: *"every single bar … needs
+   * to be immediately available"*).
+   *
+   * The chart is an SVG and its rectangles are not focusable, so the bar click
+   * is an ACCELERATOR, never the only way in: the month buttons below the chart
+   * are real buttons and reach the same panels. That keeps the feature usable
+   * from a keyboard and from a screen reader, which a click handler bolted onto
+   * a `<path>` would not.
+   */
+  /**
+   * How far the chart's bar for THIS month sits from the category card's total
+   * for the same month — 0 when they agree, which is the common case.
+   *
+   * Both numbers are already on the page and both are the ones the reader sees,
+   * so this is a comparison of painted figures rather than a third derivation
+   * that could be wrong on its own. The chart may not draw the current month at
+   * all (a brand-new account), in which case there is nothing to compare and the
+   * sentence stays silent.
+   */
+  const currentMonthBar = data.months.find((m) => m.month === data.ym);
+  const basisGapCents = currentMonthBar
+    ? data.breakdown.totalCents - currentMonthBar.expensesCents
+    : 0;
+  /**
+   * The chart draws no bar at all for the current month while the card below
+   * still prints a total for it.
+   *
+   * `monthlyFlows` emits only months containing a qualifying row, so a month
+   * whose posted activity is entirely transfers, split containers or excluded
+   * rows — or one with nothing posted yet, which is a just-linked account —
+   * produces no entry, no bar and no month button. The first draft called that
+   * "nothing to compare" and went silent, which is the largest disagreement the
+   * page can show: one surface says the month has a total, the other says the
+   * month does not exist.
+   */
+  const currentMonthMissingFromChart = !currentMonthBar && data.breakdown.totalCents !== 0;
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [autoOpenFlow, setAutoOpenFlow] = useState<'income' | 'expense' | null>(null);
+  /**
+   * Increments on EVERY bar tap, and is part of the tapped panel's key.
+   *
+   * Without it, tapping the same bar twice sets both pieces of state to values
+   * they already hold, React bails out, the key is unchanged and no remount
+   * happens — so after a reader taps a bar, presses Hide, and taps that same bar
+   * again, nothing at all occurs. The chart's most obviously interactive element
+   * goes inert, which is the "an affordance the reader cannot recognise is
+   * indistinguishable from one that was never built" failure this panel's own
+   * comment was written about.
+   */
+  const [barTapSeq, setBarTapSeq] = useState(0);
+  const selectBar = (month: string | undefined, flow: 'income' | 'expense') => {
+    if (!month) return; // a click that carried no datum selects nothing
+    setSelectedMonth(month);
+    setAutoOpenFlow(flow);
+    setBarTapSeq((n) => n + 1);
+  };
   // O.19 (owner report 2026-07-31, with screenshots): the header beside this
   // list prints `totalCents`, which the engine sums over EVERY category — so a
   // list that silently stopped at 12 rows put "$28,253.04 total" above rows
@@ -58,6 +119,7 @@ export function ReportsView({
   const restCents = rest.reduce((s, c) => s + c.amountCents, 0);
   const [showRest, setShowRest] = useState(false);
   const tailId = useId();
+  const panelsId = useId();
   // O.19 critic P1-1 (the label-in-name class this file already documents at
   // its category links): ONE string is the visible label AND the tail of the
   // accessible name, so they cannot diverge again.
@@ -215,8 +277,20 @@ export function ReportsView({
                   formatter={(v) => formatCents(cents(Math.round(Number(v) * 100)))}
                   contentStyle={{ borderRadius: 8, fontSize: 12 }}
                 />
-                <Bar dataKey="income" fill="#34d399" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="expense" fill="#fb7185" radius={[3, 3, 0, 0]} />
+                <Bar
+                  dataKey="income"
+                  fill="#34d399"
+                  radius={[3, 3, 0, 0]}
+                  className="cursor-pointer"
+                  onClick={(d: { payload?: { month?: string } }) => selectBar(d?.payload?.month, 'income')}
+                />
+                <Bar
+                  dataKey="expense"
+                  fill="#fb7185"
+                  radius={[3, 3, 0, 0]}
+                  className="cursor-pointer"
+                  onClick={(d: { payload?: { month?: string } }) => selectBar(d?.payload?.month, 'expense')}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -225,13 +299,154 @@ export function ReportsView({
             No income or spending recorded in the last 6 months.
           </p>
         )}
+
+        {/* Every bar on the chart above opens the rows it is made of. The chart
+            itself is an SVG, so these buttons — not the rectangles — are the
+            accessible path to the same panels; tapping a bar just pre-selects
+            one. Both land on `data.monthFlows`, which was built from the array
+            the bars were summed from. */}
+        {hasFlows && (
+          <div className="mt-3 border-t pt-3" data-testid="month-flow-picker">
+            {/* The two paths do DIFFERENT things and the sentence has to say so:
+                a bar tap opens that bar's rows, a month button shows the month's
+                two figures with their rows one press away. An earlier draft
+                promised "the transactions behind it" for both, which the month
+                path does not deliver — and "it" named one thing where a month
+                yields two. */}
+            <p className="text-xs text-muted-foreground">
+              Tap a bar to open the transactions behind it, or pick a month to see both its
+              figures.
+            </p>
+            {/* Two bases now sit on one page, and this drill-down is what invites
+                the comparison: the bars are POSTED-only (`countsInFlows`) while
+                "Spending by category" below counts pending charges too
+                (`isSpendRow`). Each panel states its own basis, but a reader who
+                adds up one and looks at the other would find a gap with nothing
+                naming it.
+
+                Gated on the COUNTERFACTUAL: it speaks only when the two figures
+                a reader can actually see disagree, and stays silent when they
+                don't.
+
+                It names NO mechanism. An earlier draft said the difference was
+                pending charges; a critic proved that false in both directions —
+                at least five rules separate the two figures (pending, the
+                Income-group rows the card cannot see, the card's per-category
+                net-refund floor against the bar's global netting, income-group
+                outflows, and `transfer`-categorised rows carrying no transfer
+                flag), so a month with no pending rows at all can still show a
+                gap, and the gap can run either way. The wrong mechanism is the
+                dangerous half of a disclosure, so this states the DIRECTION,
+                which is computed, and points at the two panels that each name
+                their own rules. */}
+            {basisGapCents !== 0 && (
+              <p className="mt-1 text-xs text-muted-foreground" data-testid="reports-basis-gap">
+                This chart and “Spending by category” below count on different rules — each
+                says which underneath. For {formatMonth(data.ym)} the list below is{' '}
+                {formatCents(cents(Math.abs(basisGapCents)))}{' '}
+                {basisGapCents > 0 ? 'higher' : 'lower'} than this month’s bar.
+              </p>
+            )}
+            {currentMonthMissingFromChart && (
+              <p className="mt-1 text-xs text-muted-foreground" data-testid="reports-basis-no-bar">
+                This chart has no bar for {formatMonth(data.ym)} — nothing posted there counts
+                on its rules yet — while “Spending by category” below totals{' '}
+                {formatCents(cents(data.breakdown.totalCents))} for the month. Each says what it
+                counts underneath.
+              </p>
+            )}
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {data.months.map((m) => {
+                const active = selectedMonth === m.month;
+                return (
+                  <button
+                    key={m.month}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMonth(active ? null : m.month);
+                      setAutoOpenFlow(null);
+                    }}
+                    aria-pressed={active}
+                    // The panels container is ALWAYS mounted (hidden when
+                    // nothing is picked) so this reference always resolves —
+                    // the same rule the panel component keeps for its own
+                    // toggle.
+                    aria-controls={panelsId}
+                    aria-expanded={active}
+                    data-testid={`month-flow-month-${m.month}`}
+                    className={`min-h-7 rounded-md border px-2 py-0.5 text-xs transition focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                      active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    }`}
+                  >
+                    {formatMonth(m.month, 'short')}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              id={panelsId}
+              hidden={!selectedMonth}
+              className="mt-2 space-y-3"
+              data-testid="month-flow-panels"
+            >
+              {selectedMonth && (
+                <>
+                {(['expense', 'income'] as const).map((flow) => {
+                  const breakdown = data.monthFlows[`${selectedMonth}:${flow}`];
+                  if (!breakdown) return null;
+                  const windowLabel = formatMonth(selectedMonth);
+                  return (
+                    <div key={flow}>
+                      {/* min-w-0 on the label, shrink-0 on the number: the rule
+                          every other money row here follows, and the one the
+                          iOS-Safari truncation lesson prescribes. The page-level
+                          overflow gate cannot see this row — it renders only
+                          after a tap — so it does not get to be the thing that
+                          catches a 7-figure amount. */}
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="min-w-0 truncate font-medium">
+                          {flow === 'income' ? 'Income' : 'Spending'} · {windowLabel}
+                        </span>
+                        <span
+                          className="shrink-0 whitespace-nowrap tabular-nums"
+                          data-testid={`month-flow-headline-${selectedMonth}-${flow}`}
+                        >
+                          {formatCents(cents(breakdown.headlineCents))}
+                        </span>
+                      </div>
+                      {/* The key carries this panel's OWN open-intent, never the
+                          other's: tapping the income bar must not remount — and
+                          so silently collapse — a spending panel the reader had
+                          open, along with their scroll position in a long list.
+                          `barTapSeq` is included only on the panel being opened,
+                          so a repeat tap on the same bar still re-applies
+                          `defaultOpen` after the reader pressed Hide. */}
+                      <MonthFlowPanel
+                        key={
+                          autoOpenFlow === flow
+                            ? `${selectedMonth}-${flow}-open-${barTapSeq}`
+                            : `${selectedMonth}-${flow}-idle`
+                        }
+                        breakdown={breakdown}
+                        windowLabel={windowLabel}
+                        defaultOpen={autoOpenFlow === flow}
+                      />
+                    </div>
+                  );
+                })}
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Spending by category */}
       <section className="rounded-2xl border bg-card p-5 shadow-sm">
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-sm font-semibold">Spending by category</h2>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground" data-testid="reports-category-total">
             {monthLabel(data.ym)} · {formatCents(cents(data.breakdown.totalCents))} total
           </span>
         </div>

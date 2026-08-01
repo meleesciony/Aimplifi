@@ -15,5 +15,10 @@ test('Reports: income/expense chart + category breakdown render for the demo use
 
   await expect(page.getByTestId('income-expense-chart')).toBeVisible();
   await expect(page.getByTestId('category-breakdown')).toBeVisible();
-  await expect(page.getByText('Spending by category')).toBeVisible();
+  // Scoped to the HEADING, which is what this assertion always meant. A bare
+  // text locator went strict-mode-ambiguous once the chart above gained a
+  // sentence naming this section ("…and “Spending by category” below count on
+  // different rules"), which is the same locator-widening failure Wave 0.2
+  // recorded for auth.spec's "Sign out".
+  await expect(page.getByRole('heading', { name: 'Spending by category' })).toBeVisible();
 });

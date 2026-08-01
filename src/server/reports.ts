@@ -8,6 +8,10 @@ import {
   buildCategoryBreakdowns,
   type CategoryBreakdown,
 } from '@/lib/engine/glass-box/category-breakdown';
+import {
+  buildMonthFlowBreakdowns,
+  type MonthFlowBreakdown,
+} from '@/lib/engine/glass-box/month-flow-breakdown';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
@@ -28,6 +32,17 @@ export interface ReportsData {
    * in step between this file and the component's `slice`.
    */
   breakdowns: Record<string, CategoryBreakdown>;
+  /**
+   * The transactions behind each BAR of the income-vs-spending chart, keyed
+   * `"YYYY-MM:income"` / `"YYYY-MM:expense"` — one entry per bar the chart draws.
+   *
+   * Built from the same snapshot array `monthlyFlows` was handed, through that
+   * engine's own exported predicate, so a bar and the rows under it cannot
+   * describe different sets. Deliberately NOT the same basis as `breakdowns`
+   * above: this chart is posted-only and nets refunds against spending, which is
+   * why it has its own builder and its own disclosure sentence.
+   */
+  monthFlows: Record<string, MonthFlowBreakdown>;
 }
 
 export async function getReports(userId: string): Promise<ReportsData> {
@@ -45,16 +60,24 @@ export async function getReports(userId: string): Promise<ReportsData> {
     .slice(-6);
 
   const breakdown = spendingByCategory(snap.transactions, { fromYm: ym, toYm: ym }, meta);
+  // Named once and handed to BOTH builders: two panels that disagree about a
+  // payee's name on the same page would be a defect nobody could explain, and
+  // building the array twice is what would let them.
+  const named = snap.transactions.map((t) => ({
+    ...t,
+    // The register's own display rule, shared with it by construction, so one
+    // charge reads the same in the panel and in the list it links to.
+    merchantName: registerDisplayName(t),
+  }));
   const breakdowns = buildCategoryBreakdowns(
-    snap.transactions.map((t) => ({
-      ...t,
-      // The register's own display rule, shared with it by construction, so one
-      // charge reads the same in the panel and in the list it links to.
-      merchantName: registerDisplayName(t),
-    })),
+    named,
     ym,
     new Map(breakdown.byCategory.map((c) => [c.categoryId, c.amountCents])),
     meta,
   );
-  return { ym, months, breakdown, breakdowns };
+  // `months` is the array the chart renders, so the headlines here are the
+  // figures the reader will actually see — `reconciles` is checked against the
+  // painted number, not against a second derivation of it.
+  const monthFlows = buildMonthFlowBreakdowns(named, months);
+  return { ym, months, breakdown, breakdowns, monthFlows };
 }

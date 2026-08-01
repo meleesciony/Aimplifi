@@ -293,6 +293,34 @@ export function merchantRegisterHref(merchant: string): string {
   return `${REGISTER_PATH}?merchant=${encodeURIComponent(merchant)}`;
 }
 
+/**
+ * The register, windowed to one calendar month and filtered no further.
+ *
+ * Built for the /reports income-vs-spending chart, and the narrowness is the
+ * point. A bar there is one HALF of a month — the rows `monthlyFlows` counted as
+ * income, or the ones it counted as spending — and the register cannot express
+ * either half:
+ *
+ *   - `type=expense` is `amountCents < 0`, which DROPS the refunds the bar
+ *     netted against spending, and KEEPS the pending charges and the rows the
+ *     reader excluded from totals, neither of which the bar ever saw.
+ *   - There is no param for "not income", and adding one would put a fifth
+ *     basis on a page that already has enough.
+ *
+ * So this link deliberately claims LESS than the panel above it: it opens the
+ * month, and its label says so. The rows themselves are already listed in the
+ * panel — each one linking to its own detail page, which is where a row gets
+ * re-filed — so nothing is lost by refusing to assert an equality that would be
+ * false. A link on a figure is a claim that two engines agree
+ * (`a-link-on-a-figure-asserts-two-engines-agree`); this one is a claim about a
+ * window, which is a claim both sides can keep.
+ */
+export function monthRegisterHref(month: string): string {
+  const { from, to } = monthWindow(month);
+  const params = new URLSearchParams({ from, to });
+  return `${REGISTER_PATH}?${params.toString()}`;
+}
+
 /* -------------------------------------------------------------------------- */
 /* O.16 — carrying the reader's PLACE back out of a row action                 */
 /* -------------------------------------------------------------------------- */
