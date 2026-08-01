@@ -8489,3 +8489,97 @@ write, not authorized and not worth it for a copy check.
 
 O.18f is shipped, criticized (PASS 0 P0/P1, four of five P2s fixed in-slice),
 verified locally and live-deployed from the exact commit.
+
+---
+
+## 2026-08-01 — O.20: every bar on the /reports chart opens the rows behind it
+
+Session opened on the W.10 queue and was redirected TWICE by the owner, mid-turn.
+Both redirections are recorded as waves rather than absorbed into this slice:
+
+1. *"fixed expenses are things that aren't discretionary…build a budgeting
+   section"* → **Wave B** (B.1–B.3). Not built this session.
+2. *"every single bar and collection of categories needs to be immediately
+   available…why is this so hard"* → **Wave O.20**, built here.
+
+W.10 was abandoned before any code was written (tree was clean), so nothing is
+half-finished.
+
+### The finding that set the scope
+
+The complaint reads as "you haven't done it", and the honest accounting is that
+TWELVE surfaces already drill into transactions — every category row on /reports,
+/trends and /budgets (name, figure and inline bar) plus the O.18 panels. The gap
+was the CHART, which is the first thing on /reports and had no click handler at
+all. W.3 had filed the charts as a deliberate refusal, and **its enumeration was
+itself incomplete**: it named four Recharts files; `grep` finds seven, plus six
+more surfaces drawing hand-rolled bars. A refusal scoped to an incomplete list is
+what "you haven't done it" feels like from the outside.
+
+### What shipped
+
+`buildMonthFlowBreakdowns` (pure, `engine/glass-box/`) selects rows through
+`monthlyFlows`' own exported predicates — `countsInFlows` newly exported,
+`isIncomeFlowRow` already was — so a bar and the rows under it cannot describe
+different sets. `getReports` hands BOTH breakdown families one `named` array.
+`CategoryBreakdownPanel`'s body became a generic `BreakdownPanel`; a critic
+diffed it attribute-by-attribute against `HEAD` and the five pre-existing
+drill-down e2e passed untouched, which is the real proof the four existing
+surfaces are unchanged.
+
+No `type=expense` link: that filter drops the refunds the bar netted and keeps
+the pending rows it never saw, so `monthRegisterHref` claims only a WINDOW and
+its label says so.
+
+### Critic cycle — two fresh-context critics, both FAIL
+
+Convergence on two findings, independently:
+
+- The clamp sentence printed **"outran purchases by −$80.00"**, a double negative
+  asserting the opposite of the truth. `clampedByNetRefund` is only true when
+  `sumCents < 0`, so the label was ALWAYS negative — and my unit test fed the
+  copy a POSITIVE literal the sole call site can never emit. Fixed by making the
+  function take CENTS and do its own `Math.abs`: a fence, not a correct argument
+  at one call site.
+- Three positional claims pointed the wrong way ("the basis above" renders below;
+  "the rows below" are above).
+
+The deepest finding was the flow SPLIT, and the two critics **disagreed about
+it** — one said an unfiled deposit counts as income, the other said it nets
+against spending. Executing the predicate settled it: both were half right.
+`isIncomeFlowRow` admits a positive row with NO category as income, while one
+filed to `uncategorized` (group 'Transfers & Other') is not income and nets
+against SPENDING, and a NEGATIVE row in an income category is spending. Two
+unfiled deposits that look identical to a reader land on opposite sides. My first
+fix believed one critic without executing anything and shipped a NEW falsehood
+for about four minutes — the lesson is that a delegated finding is a hypothesis
+exactly like a delegated green.
+
+### Measured, not assumed
+
+/reports prints one month's spending twice on two bases. Queried the demo
+directly: **3 pending non-transfer rows worth $299.93** in the current month, so
+the chart bar (posted-only) and the category card (pending included) genuinely
+disagree, and this drill-down is what invites a reader to notice. The disclosure
+is gated on the COUNTERFACTUAL — it speaks only when the two painted figures
+differ — states the DIRECTION, and names NO mechanism, because a critic falsified
+the "pending charges" explanation in both directions (at least five rules
+separate the two figures, and the gap can run either way).
+
+### Gate
+
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc 0, eslint 0, **5481 unit / 333
+files** (from 5455/331), build clean. Affected e2e run serially: 10/10
+(month-flow 4, category-drilldown 5, reports 1), mobile-overflow 14/14.
+
+One self-inflicted regression caught by the gate: the new sentence quotes
+"Spending by category", which made `reports.spec.ts`'s bare text locator
+strict-mode ambiguous — the Wave 0.2 "Sign out" class. Re-scoped to the heading.
+
+### Residuals filed
+
+O.20a (two bases on one page), O.20b (the /reports payload is now ~6× — six
+months of rows instead of one, unmeasured against a heavy real account), O.20c
+(what an unidentified inflow IS), O.20d (the bars still not drillable: /coach's
+strip, /trends "New this month", /recurring, and the three charts that are not
+transaction sets and want a constituents panel rather than a filter).
