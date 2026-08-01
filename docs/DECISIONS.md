@@ -1778,3 +1778,37 @@ claiming a cast had been removed when it had not. Both are now true. A sixth fin
 payee-naming rule existed as the same two-branch expression at six call sites, with its first branch
 (the reader's own renamed payee) indistinguishable from its second on every one of the seed's 847
 rows — became `registerDisplayName`, one author with one mutation-proven test.
+
+## #357 (O.19) — A capped list under an uncapped total must render the tail's subtotal as a row
+
+Owner report 2026-07-31, with two /reports screenshots: "These numbers do not add up to July
+monthly total: 28k and change. Make it make sense." Measured in the same session: the header
+prints `totalCents`, which the engine sums over the WHOLE `byCategory` array
+(engine/reports/reports.ts:101), while the view rendered `slice(0, 12)` — his eleven visible
+rows sum to $19,312.25 under "$28,253.04 total". The dashboard Top Spending card had the same
+defect at `slice(0, 4)` beside "`totalCents` this month". The "no silent caps" rule, on the
+two surfaces where the cap sat directly beside the total it silently broke.
+
+Decision: keep the cap (the ranking is what the card is for), make the tail a VISIBLE row.
+/reports gains "Everything else · N more categories — $X", a chip toggle expanding the tail
+into full rows through the SAME renderer as the top rows (one `renderRow`, so link/refusal
+rules, bars and panels cannot drift), with `restCents` summed from the exact array the header
+sums — the identity holds by construction. The dashboard card states "+ $X across N more
+categories" and stays a summary. No bar and no link on the subtotal row: a sum of many
+categories drawn against single-category bars invites a comparison the chart does not mean,
+and O.5 refuses an href whose destination cannot display the filter.
+
+Hostile critic (1 cycle, FAIL→fixed): P1-1 label-in-name — the toggle's aria-label and
+visible label are now ONE string, locked by an e2e attribute assertion; P2-1 "smaller"
+overclaims at a penny tie — "more" is exactly true; P2-2 the expanded tail rendered BEFORE
+its trigger with no aria-controls — the tail container now follows the toggle and stays
+mounted so the reference always resolves. P1-2: my own sweep note in TASKS claimed Ask prints
+no adjacent total — false (answerTopCategories prints "Total: $X" beside a capped list;
+answerSpendTotal headlines the month over three facts) — the note is corrected in place and
+the class is filed as O.19b/O.19c/O.19d. P1-3 (no execution evidence for the e2e) was already
+discharged in-session: reports-total-reconciles.spec.ts 2/2 on a fresh build, three runs.
+
+Engine untouched. The premise the row renders on — totalCents === Σ byCategory — is pinned by
+a unit test that names this row as its reliant; the demo month carries 11 spend categories
+(measured), so the >12 hard case lives in the e2e's own 14-category throwaway fixture
+($105.00 hand-computed, tail $3.00), never the shared demo.
