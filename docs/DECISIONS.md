@@ -2425,10 +2425,12 @@ guilt-free; card pay is the *settlement* of spend already done, not a third cost
    cash-needed cross-checks and disclosures, but are not subtracted and are not Glass-Box rows.
    Conscious buckets: `fixed = fixedExpenses` only.
 2. **Home composition.** Guilt-free → Cash needed → Recent transactions (needs-file highlighted) →
-   Today feed → health banners → Radar → Net worth. Removed from Home: Ask card, Top spending,
-   Trends, Recurring summary, Payment reminders, Savings-rate card (each keeps its own route).
+   Today feed → health banners → Radar → charts (savings rate, top spending, trends) → Net worth.
+   Cut verbose coaching / menu-redundant reminder stacks — not the useful visualizations
+   (owner follow-up 2026-08-01). Ask card and payment-reminder stacks stay off Home.
 3. **Copy.** Surfaces say card statement payments are not subtracted here; liquidity lives under
-   Cash needed.
+   Cash needed. Categorize→dials→guilt-free coaching lives on Plan under “Using Aim·plifi”,
+   not on the Home recent-txns strip.
 
 **Supersedes** the L.11(C)/(D) choice to fold card dues into the guilt-free subtraction (DECISIONS
 #307/#309 arithmetic terms). L.11(D)'s *detection* of beyond-month dues remains for cash-needed;
@@ -2439,3 +2441,26 @@ glass-box / conscious-trace / Ask / server suites aligned to the three-row ident
 `spending-plan-month-edge.spec.ts` asserts $10,000 headline with no beyond-month plan row;
 `phase1-cash-needed.spec.ts` asserts guilt-free above the fold + recent transactions on Home.
 No schema change.
+
+## #370 — Guilt-free income = payment checking earned pay (not MM / dup / investment)
+
+Owner 2026-08-01: guilt-free still read ~$23k free this month. Production probe showed (1) two
+live CHECKING accounts both receiving the same payroll, (2) SAVINGS/MM inflows under the old
+“every non-credit account” pattern, and (3) on the payment checking itself: “Deposit Mobile
+Banking” and Cardone/CEF distributions filed as Income — already-saved / investment money
+treated as spendable allocation income.
+
+**DECIDED:**
+1. Trailing income (and the no-history scheduled-income fallback) scope to the payment account
+   when set and it is CHECKING or SAVINGS; otherwise every CHECKING account.
+2. Per month, prefer paycheck / bonus / side-income leaves when any exist; else fall back to
+   broad Income-group rows minus `interest-income`, `investment-income`, and descriptors
+   matching Deposit Mobile Banking (`monthlyGuiltFreeIncomeCents`).
+3. Fixed expenses stay every cash account (L.25). Home keeps useful charts; categorize→dials
+   coaching lives on Plan under “Using Aim·plifi”.
+
+**Locks.** `tests/unit/income-pattern.test.ts`;
+`tests/unit/spending-plan-server.test.ts`
+`test_regression__payment_account_income_scope_excludes_dup_checking_and_mm` +
+`test_regression__paycheck_preferred_over_mobile_deposit_and_interest`.
+Extends #369; no schema change.

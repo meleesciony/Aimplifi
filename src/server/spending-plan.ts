@@ -7,13 +7,14 @@
  * THE PATTERN MODEL (why there is no this-month income or spending term here):
  * the owner reported "i don't have 22k or so income coming in" over a July plan
  * whose received+remaining-occurrence income term read $22,254.09. Income is
- * now the MEDIAN of the last three complete months' income over NON-CREDIT
- * accounts (all sources that actually arrived; a one-time inflow touches no
- * month but its own), and fixed expenses are the detected recurring series at a
- * monthly rate. A credit-card row still reaches this plan only through its
- * obligation term (#295 critic F5: a cashback must not count as income while
- * shrinking the next statement); card payments/transfers are excluded by
- * monthlyFlows' isTransfer rule either way.
+ * now the MEDIAN of the last three complete months' income on the payment
+ * CHECKING account (or every CHECKING account when none is set) — never
+ * SAVINGS/money-market or investment activity (owner 2026-08-01: those are
+ * already saved/invested). A one-time inflow touches no month but its own.
+ * Fixed expenses are the detected recurring series at a monthly rate. A
+ * credit-card row still reaches this plan only through its obligation term
+ * (#295 critic F5); card payments/transfers are excluded by monthlyFlows'
+ * isTransfer rule either way.
  *
  * L.11(D) stands: a payment the engine has DATED past the month's edge is in
  * no pattern the reader can see, so what next month's scheduled income has not
@@ -22,7 +23,6 @@
  * pattern against a stock.
  */
 import { prisma } from '@/lib/db';
-import { monthlyFlows } from '@/lib/engine/fi/insights';
 import {
   computeSpendingPlan,
   daysInMonth,
@@ -31,6 +31,7 @@ import {
   type SpendingPlan,
   type SpendingPlanDisclosures,
 } from '@/lib/engine/spending-plan/plan';
+import { monthlyGuiltFreeIncomeCents } from '@/lib/engine/spending-plan/income-pattern';
 import type { SeriesProjectionStatus } from '@/lib/engine/recurring/detect';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance';
@@ -58,15 +59,29 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const ym = today.slice(0, 7);
   const snap = await provider.getFinanceSnapshot(userId);
 
-  // Income pattern: complete prior months' income over NON-CREDIT accounts,
-  // newest three, oldest → newest (the engine medians them). A card row still
-  // never counts as income here (#295 critic F5) — it reaches the plan only
-  // through the obligation term below.
+  // Income pattern (owner 2026-08-01): money that lands in the MAIN bank account
+  // you spend from — the payment account when set. Other cash (second checking,
+  // savings / money-market) and investment accounts are untouchable for this
+  // figure (already saved / invested or a duplicate feed of the same paycheck).
+  // Counting every linked checking DOUBLED the owner's pattern (~$40k →
+  // guilt-free ~$23k after the savings dial). When no payment account is set,
+  // fall back to every CHECKING only (still never SAVINGS/MM). Cards never
+  // count as income (#295 critic F5).
+  const paymentId = snap.paymentAccountId;
+  const paymentAcct = paymentId
+    ? snap.accounts.find((a) => a.id === paymentId)
+    : undefined;
+  const incomeAccountIds = new Set(
+    paymentAcct && (paymentAcct.type === 'CHECKING' || paymentAcct.type === 'SAVINGS')
+      ? [paymentAcct.id]
+      : snap.accounts.filter((a) => a.type === 'CHECKING').map((a) => a.id),
+  );
+  // Still needed for L.29 disclosure math (linked cards vs snapshot-visible cards).
   const creditAccountIds = new Set(snap.accounts.filter((a) => a.type === 'CREDIT').map((a) => a.id));
-  const nonCreditTxns = creditAccountIds.size
-    ? snap.transactions.filter((t) => !creditAccountIds.has(t.accountId))
-    : snap.transactions;
-  const trailingMonthlyIncomeCents = monthlyFlows(nonCreditTxns)
+  const incomeTxns = snap.transactions.filter((t) => incomeAccountIds.has(t.accountId));
+  // Prefer paycheck/bonus/side-gig leaves per month; fall back to broad income
+  // minus interest/investment/mobile-deposit (DECISIONS #370).
+  const trailingMonthlyIncomeCents = monthlyGuiltFreeIncomeCents(incomeTxns)
     .filter((f) => f.month < ym)
     .slice(-3)
     .map((f) => f.incomeCents);
@@ -77,8 +92,11 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   // loanObligations is not a term of this plan (adding it would double-count
   // them; a loan with NO detected series is counted zero times — recorded in
   // docs/STATUS.md §L.11(C)).
+  // Income-series fallback matches the trailing-pattern account set (payment
+  // checking when set). Bills still come from every cash account — a utility
+  // autopaid from savings is a real fixed cost (L.25).
   const scheduledIncome = snap.scheduled
-    .filter((s) => s.amountCents > 0)
+    .filter((s) => s.amountCents > 0 && incomeAccountIds.has(s.accountId))
     .map((s) => ({ amountCents: s.amountCents, cadence: s.cadence }));
   const scheduledFixed = snap.scheduled
     .filter((s) => s.amountCents < 0)

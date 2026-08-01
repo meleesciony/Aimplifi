@@ -25,12 +25,8 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
                   ? '1 merchant needs filing'
                   : `${needsFileCount} merchants need filing`}
               </Link>
-              {' — '}
-              guilt-free depends on getting categories right.
             </p>
-          ) : (
-            <p className="mt-1 text-xs text-muted-foreground">Latest activity across your accounts.</p>
-          )}
+          ) : null}
         </div>
         <Link
           href="/transactions"

@@ -245,7 +245,7 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
   const basis: SafeToSpendParts['basis'] = {
     income: [
       plan.incomeBasis === 'trailing-median'
-        ? `Income is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of income across everything that arrived in your checking and savings accounts — a pattern, so the figure does not swing with what has posted so far this month. ${
+        ? `Income is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of earned pay in the checking account that pays your cards — a pattern, so the figure does not swing with what has posted so far this month. Investment income, interest, and money moved in from savings or a money-market are left out. ${
             plan.incomeMonths >= 3
               ? 'A one-time deposit touches only its own month; the median ignores it.'
               : 'With fewer than three complete months behind it, a one-time deposit can still count — the pattern steadies as the third month arrives.'

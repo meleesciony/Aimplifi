@@ -177,14 +177,35 @@ export default async function SpendingPlanPage() {
           </p>
         ))}
         <p className="mt-3 text-xs text-muted-foreground">
-          Your monthly income pattern minus fixed and recurring expenses and your savings — in the{' '}
-          <em>I Will Teach You to Be Rich</em> sense: once those are covered, what&apos;s left is
-          yours to spend without guilt. Card statement payments are not a line here; they settle
-          spend already counted, and cash needed for cards lives on the dashboard.
+          Income pattern − fixed costs − savings. Card payments settle spend already counted;
+          cash needed for them lives on Home.
           {p.savingsTargetBps == null && p.plannedSavingsCents > 0 ? (
             <> Set a savings target in Settings to reserve a share of income first.</>
           ) : null}
         </p>
+      </section>
+
+      <section
+        className="rounded-2xl border bg-card p-5 shadow-sm"
+        data-testid="spending-plan-how-to-use"
+      >
+        <h2 className="mb-2 text-sm font-semibold">Using Aim·plifi</h2>
+        <ol className="list-decimal space-y-1.5 pl-4 text-xs text-muted-foreground">
+          <li>
+            <Link href="/triage" className="underline underline-offset-2 hover:text-foreground">
+              File transactions
+            </Link>{' '}
+            so income, transfers, and bills land in the right buckets.
+          </li>
+          <li>
+            Confirm your payment account and savings target in{' '}
+            <Link href="/settings" className="underline underline-offset-2 hover:text-foreground">
+              Settings
+            </Link>
+            .
+          </li>
+          <li>Guilt-free is what&apos;s left after fixed costs and savings — spend it freely.</li>
+        </ol>
       </section>
 
       <section

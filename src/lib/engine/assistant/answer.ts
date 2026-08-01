@@ -1110,7 +1110,7 @@ export function answerSafeToSpend(
     // inflated one-month pattern UNDERSTATES the overage — the dangerous direction).
     const basis =
       plan.incomeBasis === 'trailing-median'
-        ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of income across everything that arrived in your checking and savings accounts, minus fixed and recurring expenses and your planned savings. ${
+        ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of earned pay in the checking account that pays your cards, minus fixed and recurring expenses and your planned savings. Investment income, interest, and money moved in from savings are left out. ${
             plan.incomeMonths >= 3
               ? ''
               : 'With fewer than three complete months behind it, a one-time deposit can still count — the real overage may be smaller as the pattern steadies. '
@@ -1133,7 +1133,7 @@ export function answerSafeToSpend(
     headline: `Your guilt-free allocation this month is ${fmt(plan.leftToSpendCents)}.`,
     detail: withQualifiers(
       plan.incomeBasis === 'trailing-median'
-        ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of income across everything that arrived in your checking and savings accounts, minus fixed and recurring expenses and your planned savings. ${
+        ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of earned pay in the checking account that pays your cards, minus fixed and recurring expenses and your planned savings. Investment income, interest, and money moved in from savings are left out. ${
             plan.incomeMonths >= 3
               ? 'A one-time deposit is not income here — the median ignores the month it landed in.'
               : 'With fewer than three complete months behind it, a one-time deposit can still count — the pattern steadies as the third month arrives.'

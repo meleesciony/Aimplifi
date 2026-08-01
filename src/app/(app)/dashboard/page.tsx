@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { CashNeededCard } from '@/components/finance/cash-needed-card';
 import { paintedHeroCards } from '@/lib/engine/account/card-duplicate-view';
 import { dashboardCardIdentity } from '@/components/finance/card-identity-view';
@@ -8,8 +9,10 @@ import { FeedDroppedBanner } from '@/components/finance/feed-dropped-banner';
 import { NetWorthCard } from '@/components/finance/net-worth-card';
 import { CashFlowRadarCard } from '@/components/finance/cash-flow-radar-card';
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
+import { SpendingInsightsCard } from '@/components/finance/spending-insights-card';
 import { StaleDataBanner } from '@/components/finance/stale-data-banner';
 import { ConnectionAlertsCard } from '@/components/finance/connection-alerts-card';
+import { TopSpendingCard } from '@/components/finance/top-spending-card';
 import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
 import { RecentTransactionsCard } from '@/components/dashboard/recent-transactions-card';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
@@ -29,19 +32,18 @@ import { ReturnMomentCard } from '@/components/dashboard/return-moment-card';
 import { TodayFeedCard } from '@/components/dashboard/today-feed-card';
 import { getNudgeDismissedKeys } from '@/server/nudge';
 import { buildNudgeFeed } from '@/lib/engine/nudge/select';
+import { getReports } from '@/server/reports';
 import { getSpendingPlan } from '@/server/spending-plan';
+import { getSpendingTrends } from '@/server/trends';
 import { frozenNothingDueRows } from '@/lib/engine/account/feed-dropped-view';
 
 export const metadata = { title: "Dashboard" };
 
 /**
- * Home composition (owner 2026-08-01 polish):
- *   1. Guilt-free this month (the IWT allocation)
- *   2. Recent transactions + needs-file highlight (categorization loop)
- *   3. Cash needed for cards (liquidity / timing — not a budget line)
- *   4. What needs you now + health banners
- * Analytics (Ask, top spending, trends, recurring, reminders, savings rate)
- * live on their own routes — not stacked here as clutter.
+ * Home (owner 2026-08-01 polish, revised): guilt-free + cash needed + recent
+ * activity first; keep the useful charts (top spending, trends, savings rate,
+ * net worth). Cut verbose coaching copy and menu-redundant reminder stacks —
+ * not the visualizations.
  */
 export default async function DashboardPage({
   searchParams,
@@ -56,12 +58,14 @@ export default async function DashboardPage({
 
   const requestedScope = (await searchParams).scope === 'household' ? 'household' : 'mine';
 
-  const [data, coach, plan, recent, withheld, feedDropped, freshness, connectionAlerts, radar, nudgeDismissedKeys] =
+  const [data, coach, plan, recent, reports, trends, withheld, feedDropped, freshness, connectionAlerts, radar, nudgeDismissedKeys] =
     await Promise.all([
       getDashboardData(session.user.id, requestedScope),
       getCoachData(session.user.id),
       getSpendingPlan(session.user.id),
       getDashboardRecent(session.user.id),
+      getReports(session.user.id),
+      getSpendingTrends(session.user.id),
       getWithheldAccountSummary(session.user.id),
       getFeedDroppedAccounts(session.user.id),
       getDataFreshness(session.user.id),
@@ -143,10 +147,8 @@ export default async function DashboardPage({
         />
       )}
 
-      {/* 1. Monthly allocation — income − savings dial − fixed */}
       <SafeToSpendCard plan={plan} disclosures={plan.disclosures} />
 
-      {/* 2. Liquidity — cash for cards when due (not a guilt-free subtraction) */}
       <CashNeededCard
         result={data.payInFull}
         paymentAccountName={data.paymentAccountName}
@@ -158,7 +160,6 @@ export default async function DashboardPage({
         cardIdentity={cardIdentity}
       />
 
-      {/* 3. Categorization loop — recent rows, needs-file highlighted */}
       <RecentTransactionsCard recent={recent} />
 
       <TodayFeedCard
@@ -177,6 +178,18 @@ export default async function DashboardPage({
       {showOnboarding && <OnboardingNudge />}
 
       <CashFlowRadarCard radar={radar.radar} paymentAccountName={radar.paymentAccountName} />
+
+      {/* Charts + savings dial — keep; cut redundant how-to, not visualizations. */}
+      <div className="grid gap-5 sm:grid-cols-2">
+        <SavingsRateCard flows={coach.flows} currentRateBps={coach.currentRateBps} />
+        <TopSpendingCard
+          breakdown={reports.breakdown}
+          breakdowns={reports.breakdowns}
+          ym={reports.ym}
+        />
+      </div>
+
+      <SpendingInsightsCard trends={trends} />
 
       <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} runwayMonths={coach.runwayMonths} />
     </div>

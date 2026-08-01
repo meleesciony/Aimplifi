@@ -4,10 +4,11 @@
  * test cannot catch a wiring bug — the L.15 lesson). Locks the claims the
  * re-spec makes, plus the critic-cycle fixes that survive it:
  *
- *  1. THE PATTERN: income is the median of complete PRIOR months over
- *     non-credit accounts — the current month's own paycheck is deliberately
- *     NOT in it, a one-time spike is median-immune, and (critic F5) a
- *     credit-card POSITIVE (cashback / statement credit) is not income either.
+ *  1. THE PATTERN: income is the median of complete PRIOR months on the
+ *     payment CHECKING/SAVINGS account (else every CHECKING) — never a second
+ *     checking feed or SAVINGS/MM when a payment account is set. The current
+ *     month's paycheck is deliberately NOT in it, a one-time spike is
+ *     median-immune, and (critic F5) a credit-card POSITIVE is not income.
  *  2. NO OCCURRENCE MATH: a scheduled biweekly paycheck series does not move
  *     the pattern (the F4 windowing the owner hit is gone from the plan; the
  *     walk survives only in the L.11(D) beyond-month reservation).
@@ -648,5 +649,142 @@ describe('getSpendingPlan — a beyond-month term made entirely of estimates (L.
       plan.patternIncomeCents - plan.fixedExpensesCents - plan.plannedSavingsCents,
     );
     expect(trace.reconciles).toBe(true);
+  });
+});
+
+describe('getSpendingPlan — income scoped to payment account (owner 2026-08-01)', () => {
+  /**
+   * FAIL-OLD: trailing income summed every NON-CREDIT account, so (a) a second
+   * checking that mirrors the same paycheck doubled the pattern, and (b) money-
+   * market / savings inflows counted as spendable income. Owner saw ~$23k
+   * guilt-free. Lock: payment checking alone drives the pattern.
+   */
+  const uid = `gfs-pay-scope-${Date.now()}-${process.pid}`;
+  let payChkId = '';
+  let otherChkId = '';
+  let mmId = '';
+
+  const wipe = async () => {
+    await prisma.account.deleteMany({ where: { userId: uid } });
+    await prisma.user.deleteMany({ where: { id: uid } });
+  };
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: uid, email: `${uid}@test.local` } });
+    const pay = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-pay`,
+        name: 'Investor Checking',
+        type: 'CHECKING',
+        currentBalanceCents: 500000,
+        currency: 'USD',
+      },
+    });
+    const other = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-other`,
+        name: 'Schwab Checking Dup',
+        type: 'CHECKING',
+        currentBalanceCents: 500000,
+        currency: 'USD',
+      },
+    });
+    const mm = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-mm`,
+        name: 'Money Market',
+        type: 'SAVINGS',
+        currentBalanceCents: 2_000_000,
+        currency: 'USD',
+      },
+    });
+    payChkId = pay.id;
+    otherChkId = other.id;
+    mmId = mm.id;
+    await prisma.user.update({ where: { id: uid }, data: { paymentAccountId: payChkId } });
+    // Same $5,000 payroll on BOTH checkings (duplicate feed) + $8,000 "income"
+    // into MM each complete month — FAIL-OLD median would be ~$18k.
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: payChkId, date: '2026-04-03', amountCents: 500000, rawDescriptor: 'ACME PAYROLL', categoryId: 'income', confidenceBps: 9900, needsReview: false },
+        { accountId: payChkId, date: '2026-05-03', amountCents: 500000, rawDescriptor: 'ACME PAYROLL', categoryId: 'income', confidenceBps: 9900, needsReview: false },
+        { accountId: otherChkId, date: '2026-04-03', amountCents: 500000, rawDescriptor: 'ACME PAYROLL', categoryId: 'income', confidenceBps: 9900, needsReview: false },
+        { accountId: otherChkId, date: '2026-05-03', amountCents: 500000, rawDescriptor: 'ACME PAYROLL', categoryId: 'income', confidenceBps: 9900, needsReview: false },
+        { accountId: mmId, date: '2026-04-05', amountCents: 800000, rawDescriptor: 'MM INTEREST SWEEP', categoryId: 'income', confidenceBps: 9000, needsReview: false },
+        { accountId: mmId, date: '2026-05-05', amountCents: 800000, rawDescriptor: 'MM INTEREST SWEEP', categoryId: 'income', confidenceBps: 9000, needsReview: false },
+      ],
+    });
+  });
+  afterAll(async () => {
+    await wipe();
+    vi.unstubAllEnvs();
+  });
+  beforeEach(() => {
+    vi.stubEnv('DEMO_TODAY', TODAY);
+  });
+
+  it('test_regression__payment_account_income_scope_excludes_dup_checking_and_mm', async () => {
+    const plan = await getSpendingPlan(uid);
+    // PASS-NEW: only the payment checking's $5,000 × 2 months.
+    expect(plan.trailingMonthlyIncomeCents).toEqual([500000, 500000]);
+    expect(plan.patternIncomeCents).toBe(500000);
+    // FAIL-OLD would have been 500k+500k+800k = 1_800_000 per month → median 1_800_000.
+    expect(plan.patternIncomeCents).toBeLessThan(1_800_000);
+  });
+
+  it('test_regression__paycheck_preferred_over_mobile_deposit_and_interest', async () => {
+    // Owner shape: real payroll filed as paycheck, plus a huge mobile deposit
+    // and fund interest filed as income — FAIL-OLD median followed the junk.
+    await prisma.transaction.deleteMany({ where: { accountId: { in: [payChkId, otherChkId, mmId] } } });
+    await prisma.transaction.createMany({
+      data: [
+        {
+          accountId: payChkId,
+          date: '2026-04-03',
+          amountCents: 500000,
+          rawDescriptor: 'ACME PAYROLL',
+          categoryId: 'paycheck',
+          confidenceBps: 9900,
+          needsReview: false,
+        },
+        {
+          accountId: payChkId,
+          date: '2026-05-03',
+          amountCents: 500000,
+          rawDescriptor: 'ACME PAYROLL',
+          categoryId: 'paycheck',
+          confidenceBps: 9900,
+          needsReview: false,
+        },
+        {
+          accountId: payChkId,
+          date: '2026-05-05',
+          amountCents: 9_546_539,
+          rawDescriptor: 'Deposit Mobile Banking',
+          categoryId: 'income',
+          confidenceBps: 9000,
+          needsReview: false,
+        },
+        {
+          accountId: payChkId,
+          date: '2026-05-15',
+          amountCents: 41250,
+          rawDescriptor: 'CARDONE EQUITY F CEF IX PPD',
+          categoryId: 'interest-income',
+          confidenceBps: 9000,
+          needsReview: false,
+        },
+      ],
+    });
+    const plan = await getSpendingPlan(uid);
+    expect(plan.trailingMonthlyIncomeCents).toEqual([500000, 500000]);
+    expect(plan.patternIncomeCents).toBe(500000);
   });
 });
