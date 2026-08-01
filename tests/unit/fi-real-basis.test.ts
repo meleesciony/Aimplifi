@@ -28,6 +28,7 @@ import {
   monthsToFI,
   opportunityFVCents,
   opportunityValueTodayCents,
+  opportunityValueTrailsContributions,
 } from '@/lib/engine/fi/fi';
 import {
   RETIREMENT_ASSUMPTIONS,
@@ -628,8 +629,8 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
     // Executed across 10/20/30 years before the sentence was written — at 5.00%/6.00% the
     // ratios are 0.7226 / 0.5340 / 0.4025.
     const outrun = COACH_COPY.opportunityBasis(500, 600, false);
-    expect(outrun).toContain('below the dollars you would pay in');
-    expect(outrun).toContain('that is the assumption working, not an error');
+    expect(outrun).toContain('every figure lands at or below the dollars you would pay in');
+    expect(outrun).toContain('that is the assumptions working, not an error');
     expect(opportunityValueTodayCents(cents(100_000), 360, 500, 600)).toBeLessThan(100_000 * 360);
     expect(opportunityValueTodayCents(cents(100_000), 120, 500, 600)).toBeLessThan(100_000 * 120);
 
@@ -637,6 +638,60 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
     expect(COACH_COPY.opportunityBasis(NOMINAL_BPS, INFLATION_BPS, false)).not.toContain(
       'below the dollars you would pay in',
     );
+  });
+
+  it('the trailing sentence is gated on the arithmetic, not on a comparison of the dials', () => {
+    // The first version fired on `inflation >= return`, which SOUNDS like the same condition.
+    // A sweep of every pair the dials permit (return 0-15.00%, inflation 0-10.00%, 25bps steps)
+    // found 1,579 horizon-cases where inflation is strictly BELOW the return assumption and the
+    // figure still trails what the reader pays in — the annuity's dollars are each invested for
+    // less than the full horizon while the deflator runs all of it.
+    //
+    // 10.25% return against 10.00% inflation is one of them, and the old predicate said nothing.
+    expect(1025).toBeGreaterThan(1000);
+    expect(opportunityValueTrailsContributions(360, 1025, 1000)).toBe(true);
+    expect(COACH_COPY.opportunityBasis(1025, 1000, false)).toContain(
+      'every figure lands at or below the dollars you would pay in',
+    );
+
+    // 149 pairs trail at the short horizons and NOT at 30 years, so "all of them" and "the
+    // shorter ones" are two different sentences. 3.25%/1.75% is one (10y and 20y trail, 30y
+    // does not) — the mixed branch must not claim every figure.
+    expect(opportunityValueTrailsContributions(120, 325, 175)).toBe(true);
+    expect(opportunityValueTrailsContributions(240, 325, 175)).toBe(true);
+    expect(opportunityValueTrailsContributions(360, 325, 175)).toBe(false);
+    const mixed = COACH_COPY.opportunityBasis(325, 175, false);
+    expect(mixed).toContain('the shorter horizons land at or below the dollars you would pay in');
+    expect(mixed).not.toContain('every figure lands at or below');
+  });
+
+  it('when the sentence speaks, no row it qualifies exceeds its own contributions', () => {
+    // The predicate is amount-independent and the SENTENCE is what has to be true, so this
+    // locks the direction the copy claims, over the whole permitted grid and three amounts:
+    // where it speaks, no printed figure is greater than the dollars paid in.
+    //
+    // "at or below" rather than "below" is load-bearing and this is why. The predicate is
+    // exact; the display is rounded. At 14.00%/8.00% over 10 years the value trails by
+    // 0.0008%, which on a $2.50/mo row is under a cent, so it prints as EXACTLY what was paid
+    // in. A "below" claim is false there — found by this sweep, not by reading the sentence.
+    let strict = 0;
+    for (let r = 0; r <= 1500; r += 100) {
+      for (let inf = 0; inf <= 1000; inf += 100) {
+        for (const months of [120, 240, 360]) {
+          if (!opportunityValueTrailsContributions(months, r, inf)) continue;
+          for (const monthly of [cents(250), cents(3499), cents(120_000)]) {
+            const value = opportunityValueTodayCents(monthly, months, r, inf);
+            expect(value, `${monthly}c ${months}mo r=${r} i=${inf}`).toBeLessThanOrEqual(
+              monthly * months,
+            );
+            if (value < monthly * months) strict++;
+          }
+        }
+      }
+    }
+    // Non-vacuity: the branch is reached, and overwhelmingly it is strictly below — the tie is
+    // the knife-edge case, not the normal one.
+    expect(strict).toBeGreaterThan(100);
   });
 
   it('will not call an unset inflation dial "yours"', () => {

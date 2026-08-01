@@ -2205,3 +2205,44 @@ matches the TASKS row's stated fix.
 **Locks.** Fail-old pin of the hard-clamp expression producing "Lowering…"; first-paint
 caption lock for an 85% saver; e2e asserts the painted `slider-result` contains "current
 pace" and neither Lowering nor Raising before any drag.
+
+## #365 (W.10a) — A sentence about the arithmetic must be gated on the arithmetic, not on a rule about its inputs
+
+**What shipped in #363 and was wrong.** The opportunity list's basis paragraph carries a
+sentence for readers whose figures come out *smaller than the money they hand over* — without
+it, a total below the contributions reads as a bug. #363 gated that sentence on
+`inflationBps >= nominalBps`: inflation at or above the return assumption. It sounds like the
+same condition and it is not.
+
+**Measured, not argued.** Sweeping every dial pair `validateDials` permits (return 0–15.00%,
+inflation 0–10.00%, 25bps steps) against all three printed horizons:
+
+- **1,579 horizon-cases** have inflation strictly BELOW the return assumption and still trail
+  the contributions. 10.25% against 10.00% trails by 62% at thirty years, and the shipped
+  sentence said nothing at all.
+- **149 dial pairs** trail at ten or twenty years but NOT at thirty — so "every figure" and
+  "the shorter horizons" are two different claims, not one claim with a soft edge. 3.25%
+  against 1.75% is one.
+
+The mechanism the guess missed: each dollar of an annuity is invested for less than the whole
+horizon, while the deflator runs the whole of it. Break-even therefore sits well above equal
+dials, and it moves with the horizon.
+
+**The fix is the general rule.** `opportunityValueTrailsContributions(months, nominal,
+inflation)` computes the relation from the same engine the figures come from, and the copy asks
+it once per horizon — a guard reading exactly what it guards, rather than a second rule about
+the dials that can drift from the arithmetic. It already had drifted, on the day it was written.
+The predicate is amount-independent (the annuity is linear in the monthly amount and the
+deflator does not touch it), which is what lets one card-level sentence stand for every row.
+
+**"at or below", not "below" — one word, found by execution.** The predicate is exact; the
+display is rounded. At 14.00%/8.00% over ten years the value trails by 0.0008%, which on a
+$2.50/mo row is under a cent, so the figure prints as *exactly* what was paid in. The sweep that
+proved the predicate is what caught the tie; reading the sentence would not have.
+
+**Process note, recorded because it changed what this session could claim.** Two fresh-context
+cycle-2 critics were launched and both died on a platform session limit before returning
+anything. These findings came from running their assignment by hand instead. That is weaker
+than an independent pass — the checks were chosen by the same person who wrote the code — and
+W.10a has therefore had **one** full critic cycle (#363's two critics), not two. A second pass
+over `opportunityBasis`'s branches is the honest next step, not a formality.

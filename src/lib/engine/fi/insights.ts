@@ -13,7 +13,10 @@ import { categorize } from '@/lib/engine/categorize/pipeline';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId } from '@/lib/engine/categorize/categories';
 import type { RecurringSeriesResult } from '@/lib/engine/recurring/detect';
-import { opportunityValueTodayCents, savingsRateBps } from './fi';
+import { OPPORTUNITY_HORIZON_MONTHS, opportunityValueTodayCents, savingsRateBps } from './fi';
+
+/** The three horizons the list prints, named once (`fi.ts` owns the order). */
+const [H10, H20, H30] = OPPORTUNITY_HORIZON_MONTHS;
 
 export interface TxnLike {
   date: string;
@@ -178,9 +181,9 @@ export function findOpportunities(
       kind,
       merchant,
       monthlyCents: m,
-      todayValue10Cents: opportunityValueTodayCents(m, 120, nominalReturnBps, inflationBps),
-      todayValue20Cents: opportunityValueTodayCents(m, 240, nominalReturnBps, inflationBps),
-      todayValue30Cents: opportunityValueTodayCents(m, 360, nominalReturnBps, inflationBps),
+      todayValue10Cents: opportunityValueTodayCents(m, H10, nominalReturnBps, inflationBps),
+      todayValue20Cents: opportunityValueTodayCents(m, H20, nominalReturnBps, inflationBps),
+      todayValue30Cents: opportunityValueTodayCents(m, H30, nominalReturnBps, inflationBps),
       isEstimate,
       ...(price !== undefined
         ? {

@@ -146,6 +146,36 @@ export function opportunityValueTodayCents(
   return roundHalfAwayFromZero(fv / deflator);
 }
 
+/** The horizons the opportunity list prints, in the order it prints them. One author, so the
+ *  sentence describing the figures cannot describe a different set of horizons than the rows
+ *  show. */
+export const OPPORTUNITY_HORIZON_MONTHS = [120, 240, 360] as const;
+
+/**
+ * Whether the today's-money value at this horizon lands BELOW the dollars the reader would
+ * hand over — inflation taking more than the growth adds.
+ *
+ * Computed, not inferred from the dials. The first version of the sentence that needs this
+ * fired on `inflationBps >= nominalReturnBps`, which sounds like the same thing and is not: a
+ * sweep of every pair `validateDials` permits (return 0–15.00%, inflation 0–10.00%, 25bps
+ * steps) found **1,579 horizon-cases** where inflation is strictly BELOW the return assumption
+ * and the figure still trails the contributions — 10.25% against 10.00% trails by 62% at 30
+ * years. The annuity's dollars are each invested for less than the full horizon while the
+ * deflator runs the whole of it, so the break-even sits well above equal dials.
+ *
+ * Amount-independent: the annuity is linear in `monthlyCents` and the deflator does not touch
+ * it, so the ratio is a function of (months, rates) alone and the probe below stands in for
+ * every row. It is large enough that a half-cent of rounding cannot flip the comparison.
+ */
+export function opportunityValueTrailsContributions(
+  months: number,
+  nominalRateBps: number,
+  inflationBps: number,
+): boolean {
+  const probe = cents(100_000);
+  return opportunityValueTodayCents(probe, months, nominalRateBps, inflationBps) < probe * months;
+}
+
 /** Savings rate in bps: (income − expenses) / income. Income ≤ 0 → null. */
 export function savingsRateBps(incomeCents: Cents, expensesCents: Cents): number | null {
   if (incomeCents <= 0) return null;

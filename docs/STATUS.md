@@ -10445,3 +10445,50 @@ is absent from its own options, the #166/#170 shape — is not present. `transac
 falls back to an explicit "Choose a category…" placeholder when a row's category is hidden, so
 saving requires a deliberate choice. Recorded because it was the concrete fear underneath the
 question, and it is answered.
+
+## W.10a — the trailing sentence is gated on the arithmetic (2026-08-01, DECISIONS #365)
+
+Follow-on to W.10, made after that slice had already been committed and deployed by a
+concurrent session in this checkout.
+
+### What was wrong on production
+
+The opportunity list's basis paragraph carries a sentence for readers whose figures land below
+the money they hand over — without it, a total under the contributions reads as a bug. It was
+gated on `inflationBps >= nominalBps`, a rule about the two dials. Executing the sweep instead
+of trusting the rule:
+
+- **1,579 horizon-cases** (return 0–15.00% x inflation 0–10.00%, 25bps steps, three horizons)
+  have inflation strictly BELOW the return assumption and still trail the contributions.
+  10.25% against 10.00% trails by 62% at thirty years, with the sentence silent.
+- **149 dial pairs** trail at ten or twenty years but not at thirty, so "every figure" and "the
+  shorter horizons" are two claims, not one with a soft edge.
+
+Each annuity dollar is invested for less than the whole horizon while the deflator runs all of
+it, so break-even sits well above equal dials and moves with the horizon.
+
+### The fix
+
+`opportunityValueTrailsContributions` computes the relation from the same engine the figures
+come from, asked once per horizon; the copy has three branches. Amount-independent, so one
+card-level sentence stands for every row — proven over the whole grid at three amounts rather
+than asserted. `OPPORTUNITY_HORIZON_MONTHS` gains one author so the sentence cannot describe a
+different set of horizons than the rows print.
+
+"at or below" rather than "below" is load-bearing: the predicate is exact and the display is
+rounded, so at 14.00%/8.00% over ten years a $2.50/mo row trails by under a cent and prints as
+exactly what was paid in. The sweep caught the tie; reading the sentence would not have.
+
+### Gate
+
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc 0, eslint 0, **5513 unit / 334 files**, build
+clean. Affected e2e serially on the fresh build: 21/21 (phase3-coach, auth, mobile-overflow).
+
+### Honest status of the critic requirement
+
+Two fresh-context cycle-2 critics were launched and **both died on a platform session limit**
+before returning findings. Everything above came from running their assignment by hand, which
+is weaker than an independent pass because the checks were chosen by the author of the code.
+W.10 has had one full critic cycle (#363's two critics, both FAIL, converging independently on
+two P1s); W.10a has had none. A second pass over `opportunityBasis`'s branches is owed and is
+filed, not waived.

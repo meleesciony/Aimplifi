@@ -11,6 +11,10 @@ import { formatCents, type Cents } from '@/lib/money';
 import { formatISODate, formatMonth, type ISODate } from '@/lib/dates';
 import type { FrozenFunding } from '@/lib/engine/account/feed-dropped-view';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
+// The basis sentence decides WHICH claim to make from the same engine the figures come from —
+// a guard reading exactly what it guards, rather than a second rule about the dials that can
+// drift from the arithmetic (it already had, by 1,579 horizon-cases).
+import { OPPORTUNITY_HORIZON_MONTHS, opportunityValueTrailsContributions } from './fi';
 
 /**
  * The cash-needed cover transfer, as the Money Review consumes it.
@@ -463,11 +467,22 @@ export const COACH_COPY = {
    * today's dollars) and describing this one with it would have been a stated derivation the
    * code does not do.
    *
-   * Three branches, because a claim that is safe at the defaults is a lie at the edges of the
-   * two dials `validateDials` actually permits (return 0–15.00%, inflation 0–10.00%): with no
-   * inflation nothing is taken off at all, and with inflation at or above the return
-   * assumption every horizon comes out BELOW the dollars paid in — verified by execution at
-   * 10, 20 and 30 years across the degenerate pairs, not reasoned about.
+   * Four branches, because a claim that is safe at the defaults is a lie at the edges of the
+   * two dials `validateDials` actually permits (return 0–15.00%, inflation 0–10.00%). With no
+   * inflation nothing is taken off at all. And a figure can land BELOW the dollars the reader
+   * hands over, which reads as a bug unless the card says otherwise — so that sentence is
+   * gated on `opportunityValueTrailsContributions`, the computed relation, PER HORIZON.
+   *
+   * The first version guessed that relation from the dials (`inflation >= return`). Sweeping
+   * every pair the dials permit says otherwise: 1,579 horizon-cases have inflation strictly
+   * below the return assumption and still trail, and 149 pairs trail at 10 or 20 years and not
+   * at 30 — so "all of them" and "the shorter ones" are genuinely different sentences, not one
+   * sentence with a loose edge.
+   *
+   * "at or below", not "below", because the predicate is exact and the DISPLAY is rounded: at
+   * 14.00%/8.00% over 10 years the value trails by 0.0008%, which for a $2.50/mo row is less
+   * than a cent, so the figure prints as exactly what was paid in. One word rather than a
+   * per-row predicate inside a sentence that qualifies the whole list.
    *
    * The closing clause names the direction this model errs in. It assumes a flat contribution,
    * so a reader whose freed-up money grows (a subscription price usually does) ends up with
@@ -483,8 +498,14 @@ export const COACH_COPY = {
       return `The figures in this list grow the monthly amount at your ${pct(nominalBps)} return assumption. ${infl.charAt(0).toUpperCase()}${infl.slice(1)} is ${pct(0)}, so nothing is taken off for inflation and today's money and future dollars are the same thing here. ${flat}`;
     }
     const mechanism = `The figures in this list grow the monthly amount at your ${pct(nominalBps)} return assumption, then take ${infl} off for every year of the horizon — so each one is what the total would buy today, not what it would say on a statement.`;
-    if (inflationBps >= nominalBps) {
-      return `${mechanism} Your inflation assumption is at or above your return assumption, so every figure lands below the dollars you would pay in: that is the assumption working, not an error. ${flat}`;
+    const trails = OPPORTUNITY_HORIZON_MONTHS.map((months) =>
+      opportunityValueTrailsContributions(months, nominalBps, inflationBps),
+    );
+    if (trails.every(Boolean)) {
+      return `${mechanism} At those two assumptions inflation takes more than the growth adds, so every figure lands at or below the dollars you would pay in over the same years: that is the assumptions working, not an error. ${flat}`;
+    }
+    if (trails.some(Boolean)) {
+      return `${mechanism} At those two assumptions the shorter horizons land at or below the dollars you would pay in over the same years — inflation takes more than the growth has had time to add: that is the assumptions working, not an error. ${flat}`;
     }
     return `${mechanism} ${flat}`;
   },
