@@ -14,7 +14,7 @@ import {
   type ConsciousBucketKey,
 } from '@/lib/engine/spending-plan/conscious';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
-import { uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
+import { planCardNotes, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
 import { cents, formatCents } from '@/lib/money';
 
 const META: Record<ConsciousBucketKey, { label: string; bar: string; text: string }> = {
@@ -69,6 +69,12 @@ export function ConsciousBucketsStrip({
   // figure the legend prints — see traceConsciousBuckets. Built here, once,
   // from the same plan object the figures above came from.
   const traces = traceConsciousBuckets(plan, disclosures);
+  // O.18b critic P1-1: /budgets was the one surface printing this figure with
+  // no excluded-card disclosure — the class /spending-plan and the dashboard
+  // card both carry. One author (`planCardNotes`) feeds these visible notes
+  // AND the fixed/guilt-free panel bases, so the share snapshot cannot export
+  // a penny-match the strip is qualifying an inch below it.
+  const cardNotes = planCardNotes(disclosures, 'left-to-spend');
 
   const share = (k: ConsciousBucketKey) => buckets.find((b) => b.key === k)!.shareBps;
 
@@ -118,7 +124,7 @@ export function ConsciousBucketsStrip({
         </ul>
         {/* L.29 (critic P2-4: a surface the first sweep did not visit). This strip
             re-partitions the SAME plan, so its savings bucket prints the same $0.00
-            the breakdown panel now explains — "$0.00 · 0% (target 5–10%)" beside a
+            the breakdown panel now explains — "$0.00 · 0% (target 15–20%)" beside a
             target the reader never set reads as a shortfall he is failing at, not as
             a control he has not used. No plumbing needed: the fact rides the plan. */}
         {plan.plannedSavingsCents === 0 && plan.savingsTargetBps == null && (
@@ -137,6 +143,11 @@ export function ConsciousBucketsStrip({
             {fixedShortfall}
           </p>
         )}
+        {cardNotes.map((n) => (
+          <p key={n} className="text-xs text-amber-600 dark:text-amber-400" data-testid="conscious-card-note">
+            {n}
+          </p>
+        ))}
         {overspent && (
           <p className="text-xs text-amber-600 dark:text-amber-400" data-testid="conscious-overspent">
             {COACH_COPY.consciousOverspent()}

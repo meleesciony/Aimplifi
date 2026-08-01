@@ -204,4 +204,95 @@ describe('traceConsciousBuckets — each bucket panel reconciles to the strip fi
     const t = traceConsciousBuckets(p, D);
     expect(t.guiltFree.reconciles).toBe(false);
   });
+
+  it('the card facts the plan could not count reach the panels that certify around them (critic P1-1)', () => {
+    const d = disclosures({
+      creditCardCount: 3,
+      undatedCards: [{ cardName: 'Freedom', frozenSince: null }],
+      duplicatePairs: [{ aName: 'Sapphire', bName: 'Sapphire 2', confidence: 'high' }],
+      frozenCards: [{ label: 'Slate', frozenSince: '2026-06-01' }],
+    });
+    const p = plan({ cardObligationsCents: 100_000 });
+    const t = traceConsciousBuckets(p, d);
+    const fixedBasis = t.fixed.basis.join(' ');
+    // Three sentences, never one — their directions differ.
+    expect(fixedBasis).toMatch(/no statement or due date yet/);
+    expect(fixedBasis).toMatch(/same card counted twice/);
+    expect(fixedBasis).toMatch(/stopped being shared/);
+    // The remainder inherits every term's error; the savings bucket has no card term.
+    expect(t.guiltFree.basis.join(' ')).toMatch(/no statement or due date yet/);
+    expect(t.savings.basis.join(' ')).not.toMatch(/card/);
+    // NOT in the shared safe-to-spend trace: /spending-plan renders that basis
+    // list AND its own "What this figure can't see" section — adding these
+    // there would print them twice on that page.
+    expect(traceSafeToSpend(p, d).basis.join(' ')).not.toMatch(/no statement or due date yet/);
+  });
+
+  it('the missing-bill alarm rides the fixed bucket basis, so the share snapshot carries it (critic P1-2)', () => {
+    const d = disclosures({
+      fixedSeries: { detected: 3, counted: 1, onCard: 0, lapsed: 0, uncounted: 2, noCashAccount: 0 },
+    });
+    const t = traceConsciousBuckets(plan(), d);
+    expect(t.fixed.basis.join(' ')).toMatch(/not in the fixed-expenses line/);
+    // The exported text — the artifact a reader can copy — must carry the alarm.
+    expect(formatShareText(t.fixed)).toMatch(/not in the fixed-expenses line/);
+  });
+
+  it('the long-cadence verb is a fact about the surface: guilt-free subtracts, fixed counts (critic P2-1)', () => {
+    const p = plan({
+      scheduledFixed: [
+        { amountCents: -300_000, cadence: 'MONTHLY' },
+        { amountCents: -120_000, cadence: 'ANNUAL' },
+      ],
+    });
+    const t = traceConsciousBuckets(p, D);
+    const safe = traceSafeToSpend(p, D);
+    const safeSentence = safe.basis.find((b) => b.startsWith('A yearly bill'));
+    const fixedSentence = t.fixed.basis.find((b) => b.startsWith('A yearly bill'));
+    expect(safeSentence).toMatch(/this figure subtracts a twelfth/);
+    expect(fixedSentence).toMatch(/this figure counts a twelfth/);
+    // Everything but the verb is byte-shared, so the variants cannot drift.
+    expect(fixedSentence).toBe(safeSentence!.replace('figure subtracts', 'figure counts'));
+  });
+
+  it('the safe-to-spend basis ORDER is pinned (critic P2-2 — membership tests cannot see a reorder)', () => {
+    const p = plan({
+      scheduledFixed: [
+        { amountCents: -300_000, cadence: 'MONTHLY' },
+        { amountCents: -120_000, cadence: 'ANNUAL' },
+      ],
+      cardObligationsCents: 100_000,
+      cardObligationsEstimated: true,
+      obligationsBeyondMonthCents: 40_000,
+      obligationsBeyondMonthThroughDate: isoDate('2026-07-05'),
+      savingsTargetBps: 2000,
+    });
+    const d = disclosures({
+      creditCardCount: 1,
+      fixedSeries: { detected: 2, counted: 1, onCard: 0, lapsed: 0, uncounted: 1, noCashAccount: 0 },
+    });
+    const fingerprint = (s: string): string => {
+      if (s.startsWith('Income is')) return 'income';
+      if (s.startsWith('Fixed & recurring expenses are')) return 'fixed-rate';
+      if (s.includes('not in the fixed-expenses line')) return 'shortfall';
+      if (s.startsWith('Discretionary spending')) return 'discretionary';
+      if (s.startsWith('A yearly bill')) return 'long-cadence';
+      if (s.startsWith('Spending on credit cards')) return 'card';
+      if (s.startsWith('No statement has been generated')) return 'card-estimated';
+      if (s.startsWith('A statement can come due')) return 'beyond-month';
+      if (s.startsWith('Planned savings takes')) return 'savings';
+      return `UNRECOGNIZED: ${s.slice(0, 40)}`;
+    };
+    expect(traceSafeToSpend(p, d).basis.map(fingerprint)).toEqual([
+      'income',
+      'fixed-rate',
+      'shortfall',
+      'discretionary',
+      'long-cadence',
+      'card',
+      'card-estimated',
+      'beyond-month',
+      'savings',
+    ]);
+  });
 });

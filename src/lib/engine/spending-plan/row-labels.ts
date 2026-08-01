@@ -290,6 +290,65 @@ export function uncountedFixedNote(
  * the two excluded-card cases already carry their own sentences, each with its own
  * direction, on the same page.
  */
+/**
+ * The card facts the plan could not count, as sentences (O.18b critic P1-1).
+ *
+ * /budgets was the one surface printing this figure with NO excluded-card
+ * disclosure — /spending-plan carries "What this figure can't see" and the
+ * dashboard card carries its own notes, but the strip said nothing, and the
+ * O.18b panels then certified the figure to the penny around the silence.
+ * Authored here so the strip's visible notes and the bucket panels' basis
+ * (which the share snapshot exports) are ONE text.
+ *
+ * Three separate sentences, never one, because their directions differ: an
+ * uncounted card makes fixed costs UNDERstated (the guarded direction — the
+ * reader overspends), a duplicated card makes them OVERstated, and a frozen
+ * card is stale in an unknown direction. A sentence covering two of these
+ * would be false about one of them.
+ *
+ * Scope matches the dashboard note deliberately: undated + statement-pending
+ * only. A currency-withheld card is excluded by a different mechanism with its
+ * own banner, and naming "no statement or due date yet" for it would state a
+ * wrong reason — the dangerous half of a disclosure.
+ *
+ * KNOWN RESIDUAL (filed in TASKS): this is the class's THIRD author — the
+ * dashboard card and /spending-plan each hand-roll their variants. Unifying
+ * all three onto this module is its own slice; this function at least stops
+ * the count growing past three.
+ */
+export function planCardNotes(
+  disclosures: SpendingPlanDisclosures,
+  /** Same contract as `uncountedFixedNote`: the caller states which figure it renders. */
+  headline: 'left-to-spend' | 'overage',
+): string[] {
+  const notes: string[] = [];
+  const lower =
+    headline === 'overage'
+      ? 'the real overage may be bigger than shown'
+      : 'the real amount free to spend may be smaller than shown';
+  const higher =
+    headline === 'overage'
+      ? 'the real overage may be smaller than shown'
+      : 'the real amount free to spend may be bigger than shown';
+  const excluded = disclosures.undatedCards.length + disclosures.statementPendingCards.length;
+  if (excluded > 0) {
+    notes.push(
+      `Doesn’t count ${excluded === 1 ? 'a card' : `${excluded} cards`} with a balance but no statement or due date yet — your real fixed costs are higher than shown and ${lower}.`,
+    );
+  }
+  if (disclosures.duplicatePairs.length > 0) {
+    notes.push(
+      `Two of the cards in the card-payments amount may be the same card counted twice; if so your real fixed costs are lower than shown and ${higher}. Nothing was adjusted — only you can confirm it, on Accounts.`,
+    );
+  }
+  if (disclosures.frozenCards.length > 0) {
+    notes.push(
+      `${disclosures.frozenCards.length === 1 ? 'A card' : `${disclosures.frozenCards.length} cards`} behind the card-payments amount stopped being shared by the bank, so that amount may be stale.`,
+    );
+  }
+  return notes;
+}
+
 function cardPaymentsLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): string {
   if (plan.cardObligationsCents !== 0) return 'Card payments due this month';
   if (disclosures.creditCardCount === 0) return 'Card payments (no credit cards linked)';

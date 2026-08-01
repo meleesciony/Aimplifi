@@ -104,9 +104,13 @@ export function GlassBoxPanelBody({
                 <span className="font-normal">{r.label}</span>
                 {/* The control a "you have not set this up" zero carries (L.29).
                     The ENGINE decides which rows have one; this body used to
-                    drop it, which left the dashboard hero's savings $0 naming a
-                    control the panel then failed to offer. In the label cell,
-                    never the amount cell — amounts are parsed as money. */}
+                    drop the field. Inert on the pre-existing consumer (the
+                    cash-needed card's trace never sets `action` — O.18b critic
+                    P2-3 corrected an earlier claim here that a dashboard
+                    savings-$0 panel existed); live on the bucket panels, whose
+                    savings row carries the Settings control at unset-$0. In the
+                    label cell, never the amount cell — amounts are parsed as
+                    money. */}
                 {r.action && (
                   <Link
                     href={r.action.href}
@@ -171,7 +175,10 @@ export function GlassBoxPanelBody({
           {b}
         </p>
       ))}
-      <GlassBoxShare trace={trace} />
+      {/* Prefix forwarded (O.18b critic P2-4): three bucket panels share
+          /budgets' DOM, and a hardcoded share testid would collide exactly the
+          way this component's own prefix exists to prevent. */}
+      <GlassBoxShare trace={trace} testIdPrefix={testIdPrefix} />
     </>
   );
 }

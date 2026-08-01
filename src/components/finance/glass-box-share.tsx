@@ -16,7 +16,15 @@ import { cn } from '@/lib/utils';
 
 type ShareStatus = 'idle' | 'copied' | 'saved' | 'error';
 
-export function GlassBoxShare({ trace }: { trace: NumberTrace }) {
+export function GlassBoxShare({
+  trace,
+  /** Defaults to the ids this component has always emitted; panels that share
+   *  a page pass their own (O.18b critic P2-4 — strict-mode collision trap). */
+  testIdPrefix = 'glass-box',
+}: {
+  trace: NumberTrace;
+  testIdPrefix?: string;
+}) {
   const [status, setStatus] = useState<ShareStatus>('idle');
 
   if (!trace.reconciles) return null;
@@ -55,22 +63,22 @@ export function GlassBoxShare({ trace }: { trace: NumberTrace }) {
     <div className="mt-3 border-t pt-3">
       <button
         type="button"
-        data-testid="glass-box-share"
+        data-testid={`${testIdPrefix}-share`}
         onClick={() => void share()}
         className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
       >
         Copy redacted snapshot
       </button>
-      <p className="mt-1.5 text-xs text-muted-foreground" data-testid="glass-box-share-hint">
+      <p className="mt-1.5 text-xs text-muted-foreground" data-testid={`${testIdPrefix}-share-hint`}>
         Copies amounts with card names removed. Stays on this device — nothing is uploaded.
       </p>
       {/* Hidden redacted preview for e2e — not shown visually. */}
-      <div className="sr-only" data-testid="glass-box-share-target" aria-hidden="true">
+      <div className="sr-only" data-testid={`${testIdPrefix}-share-target`} aria-hidden="true">
         {formatShareText(trace)}
       </div>
       <p
         className="mt-1.5 text-xs text-muted-foreground"
-        data-testid="glass-box-share-status"
+        data-testid={`${testIdPrefix}-share-status`}
         aria-live="polite"
       >
         {status === 'copied' && 'Copied — names redacted, amounts intact.'}

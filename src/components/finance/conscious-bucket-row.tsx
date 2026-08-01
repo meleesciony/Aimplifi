@@ -55,7 +55,10 @@ export function ConsciousBucketRow({
             aria-controls={panelId}
             aria-label={`${label} ${formatCents(trace.headlineCents)} — show what this number is made of`}
             data-testid={`${testIdPrefix}-toggle`}
-            className="cursor-pointer rounded-sm tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 transition hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            // -my/-mx cancel the padding's layout cost: the visible row is
+            // unchanged while the hit target reaches ~24px (WCAG 2.5.8 —
+            // O.18b critic P2-6 measured the bare text-xs button at ~16px).
+            className="-mx-1 -my-1.5 cursor-pointer rounded-sm px-1 py-1.5 tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 transition hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             {formatCents(trace.headlineCents)}
           </button>{' '}

@@ -25,7 +25,7 @@ import {
 } from '@/lib/engine/spending-plan/conscious';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
-import { planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
+import { planCardNotes, planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
 import {
   type CardDuplicatePairInput,
   cardDuplicateTraceBasis,
@@ -335,10 +335,7 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
       // the L.23 copy critic arrived at — and the fractions come from the same
       // table `monthlyRateCents` divides by, so the sentence cannot claim a
       // third while the arithmetic takes a twelfth.
-    longCadence: longCadencesInTerm(plan.scheduledFixed).map(
-      (c) =>
-        `A ${LONG_CADENCE_WORDS[c].adjective} bill is spread across the ${LONG_CADENCE_WORDS[c].period}: this figure subtracts ${LONG_CADENCE_WORDS[c].share} of it every month. Nothing is actually moved or set aside for you — ${LONG_CADENCE_WORDS[c].landing} the whole amount goes out while this figure only ever counted ${LONG_CADENCE_WORDS[c].share}, so ${LONG_CADENCE_WORDS[c].planLine}.`,
-    ),
+    longCadence: longCadenceSentences(plan, 'subtracts'),
       // Gated on a card existing at all (L.29, same rule as the clause above):
       // "assumes each is paid in full" and "comes from the same obligation rows"
       // describe a mechanism that cannot have acted for a reader with no linked
@@ -380,8 +377,24 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
   return { rows, basis };
 }
 
-/** Flattens the parts back into the pre-O.18b trace, byte-for-byte — row order
- *  and basis order are pinned by tests/unit/glass-box.test.ts. */
+/**
+ * O.18b critic P2-1: the verb is a fact about the SURFACE — the guilt-free
+ * figure SUBTRACTS the monthly share; the fixed-costs figure COUNTS it.
+ * Everything else in the sentence is byte-shared between the two variants (the
+ * wording the L.23/L.24 copy critics arrived at), so they cannot drift apart.
+ */
+function longCadenceSentences(plan: SpendingPlan, verb: 'subtracts' | 'counts'): string[] {
+  return longCadencesInTerm(plan.scheduledFixed).map(
+    (c) =>
+      `A ${LONG_CADENCE_WORDS[c].adjective} bill is spread across the ${LONG_CADENCE_WORDS[c].period}: this figure ${verb} ${LONG_CADENCE_WORDS[c].share} of it every month. Nothing is actually moved or set aside for you — ${LONG_CADENCE_WORDS[c].landing} the whole amount goes out while this figure only ever counted ${LONG_CADENCE_WORDS[c].share}, so ${LONG_CADENCE_WORDS[c].planLine}.`,
+  );
+}
+
+/** Flattens the parts back into the pre-O.18b trace, byte-for-byte. Row order
+ *  is pinned by tests/unit/glass-box.test.ts; basis ORDER is pinned by the
+ *  order lock in tests/unit/conscious-trace.test.ts (the glass-box suite
+ *  asserts membership only — O.18b critic P2-2 caught this comment claiming a
+ *  lock that did not exist). */
 function assembleSafeToSpend(plan: SpendingPlan, parts: SafeToSpendParts): NumberTrace {
   const { income, fixed, cardPayments, savings, beyondMonth } = parts.rows;
   const rows: TraceRow[] = [income, fixed, cardPayments, savings, ...(beyondMonth ? [beyondMonth] : [])];
@@ -441,8 +454,13 @@ export function traceSafeToSpend(
  * headline IS the bucket figure (`leftToSpendCents`, negative when overspent).
  *
  * Basis sentences ride the bucket whose rows they describe; none is authored
- * here. The strip-level notes (savings-unset, uncounted-fixed, overspent) stay
- * on the strip — they qualify the SPLIT, not one bucket's arithmetic.
+ * here. The strip-level notes (savings-unset, uncounted-fixed, overspent, and
+ * the card notes) stay on the strip too — they qualify the SPLIT — but two of
+ * those facts ALSO enter the panel bases below, because a panel is exported by
+ * the share snapshot and a snapshot must carry the alarms the page displays
+ * (O.18b critic P1-2: without this, a reader could copy "Fixed costs: $X …
+ * matched to the penny" with no trace of the missing-bill caveat printed an
+ * inch below it).
  */
 export function traceConsciousBuckets(
   plan: SpendingPlan,
@@ -453,6 +471,13 @@ export function traceConsciousBuckets(
   // `|| 0` normalizes the -0 a zero term would negate to (same rule as the rows).
   const flip = (r: TraceRow): TraceRow => ({ ...r, amountCents: cents(-r.amountCents || 0) });
   const b = parts.basis;
+  // The card facts the plan could not count (O.18b critic P1-1): /budgets was
+  // the one surface printing this figure with no excluded-card disclosure, and
+  // these panels would otherwise certify to the penny around that silence.
+  // NOT added to `parts.basis` / the shared safe-to-spend trace: /spending-plan
+  // renders that basis list AND its own "What this figure can't see" section,
+  // so the shared trace carrying these would print them twice there.
+  const cardNotes = planCardNotes(disclosures, 'left-to-spend');
 
   const fixedRows = [
     flip(parts.rows.fixed),
@@ -463,6 +488,16 @@ export function traceConsciousBuckets(
   const savingsRows = [flip(parts.rows.savings)];
   const savingsSum = sumCents(savingsRows.map((r) => r.amountCents));
 
+  // O.18b critic P2-5: for fixed and savings, `reconciles` really is a runtime
+  // cross-module check (headline from the partition, sum from the trace rows).
+  // Guilt-free's headline and sum both read `plan.leftToSpendCents`, so its
+  // agreement with the partition's cell is checked HERE instead: a future
+  // conscious.ts change (say, clamping guiltFree at zero) turns this panel
+  // into a visible "can't reconcile" rather than a strip whose bar and panel
+  // drift silently. The line is also held by the unit partition suite and the
+  // e2e painted-money sum.
+  const guiltFree = assembleSafeToSpend(plan, parts);
+  const guiltFreeCell = figure.get('guiltFree');
   return {
     fixed: {
       key: 'conscious_fixed',
@@ -470,7 +505,17 @@ export function traceConsciousBuckets(
       rows: fixedRows,
       sumCents: fixedSum,
       reconciles: fixedSum === figure.get('fixed'),
-      basis: [...b.fixedRate, ...b.longCadence, ...b.card, ...b.cardEstimated, ...b.beyondMonth],
+      // Shortfall included (critic P1-2): the missing-bill alarm qualifies this
+      // bucket's own arithmetic, and the share snapshot exports only `basis`.
+      basis: [
+        ...b.fixedRate,
+        ...b.shortfall,
+        ...longCadenceSentences(plan, 'counts'),
+        ...b.card,
+        ...b.cardEstimated,
+        ...b.beyondMonth,
+        ...cardNotes,
+      ],
     },
     savings: {
       key: 'conscious_savings',
@@ -480,6 +525,9 @@ export function traceConsciousBuckets(
       reconciles: savingsSum === figure.get('savings'),
       basis: [...b.savings],
     },
-    guiltFree: assembleSafeToSpend(plan, parts),
+    guiltFree:
+      guiltFreeCell === guiltFree.headlineCents
+        ? { ...guiltFree, basis: [...guiltFree.basis, ...cardNotes] }
+        : { ...guiltFree, basis: [...guiltFree.basis, ...cardNotes], reconciles: false },
   };
 }
