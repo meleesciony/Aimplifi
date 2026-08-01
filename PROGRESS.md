@@ -5,8 +5,10 @@
 Owner: budgeting is a start; missing sections to set fixed expenses; start by
 categorizing every transaction into fixed or not fixed. Shipped: `classifySpendClass`,
 `CategoryFixedOverride`, meta-aware Plan median, `/budgets` Fixed vs guilt-free panel
-(demo read-only). Open: per-category amount term from budget target; B.2 one-page
-composition; hostile critic.
+(demo read-only). `bash scripts/verify.sh` GREEN; e2e spend-class 1/1. Deploy READY
+`aimplifi-4j8jsw0su` on `eedaf1b`; Neon `prisma db push` synced; live marker
+`spend-class-panel` on www `/budgets`. Open: per-category amount term from budget
+target; B.2 one-page composition; hostile critic.
 
 ## 2026-08-01 — Wealth dial + savings% + cut proposals (#375) DONE
 
