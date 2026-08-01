@@ -8461,3 +8461,31 @@ O.18f flipped with its premise correction recorded and the unreachable-branch re
 filed as its own row (O.18g) rather than left inside a closed one.
 `git diff origin/main..main --stat -- prisma/` empty — Neon takes no DDL.
 Committing, pushing, deploy-verifying now.
+
+### O.18f DEPLOY VERIFIED (with a named gap) — 2026-07-31 ~22:5x ET
+
+Deployment `aimplifi-362j91hvu-reiforge.vercel.app` **● READY**, built from
+`githubCommitSha d5374c77a468c3d5a788a0f31eec125356d3f7b4` — byte-equal to local
+HEAD — aliases holding **www.aimplifi.app** + **aimplifi.app** (both answer: 307 /
+308 to the app). `git diff origin/main..main --stat -- prisma/` empty, so Neon took
+no DDL.
+
+MARKER GREP: **not obtainable, and reported as SKIP rather than PASS.**
+`scripts/o18f-live-deploy-check.mjs` signs into the shared demo on production and
+reads all four surfaces. Result: 3 passed, **5 skipped**, 0 failed. The three
+passes are structural (signed in; the safe-to-spend card renders; /spending-plan
+renders its "What this figure can't see" section). The five skips are the
+sentences themselves: every one of them is CONDITIONAL on the reader having an
+undated / statement-pending / duplicated / frozen card, and the shared demo row
+has none — so the disclosure never renders there. Asserting the new wording
+against that page would have passed by never running, which is the exact
+vacuous-lock failure this wave exists to remove; the probe is built to refuse it.
+
+What IS proven about the copy: `dashboard-duplicate-disclosure.spec.ts` 5/5 on the
+production build artifact, driving users seeded WITH duplicate pairs, plus 72 unit
+assertions on the author. Forcing the sentences onto production would mean writing
+card rows into the live database to manufacture the conditions — a production data
+write, not authorized and not worth it for a copy check.
+
+O.18f is shipped, criticized (PASS 0 P0/P1, four of five P2s fixed in-slice),
+verified locally and live-deployed from the exact commit.
