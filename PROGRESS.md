@@ -5,7 +5,9 @@
 Owner continue: income / savings % / fixed / guilt-free on one page; set fixed
 amounts. `/budgets` composition card + PlanFiguresForm; per-category
 budget|typical; Plan `category-designations` when reader input. verify GREEN
-5592 tests. Open: hostile critic; B.3 band.
+5592 tests; e2e spend-class 1/1. First deploy Error (Neon P1001 flake); redeploy
+READY `aimplifi-k3is4kh67` on `8606a74`; live `budgeting-composition` +
+`budgeting-guilt-free`. Open: hostile critic; B.3 band.
 
 ## 2026-08-01 — Fixed vs guilt-free by category (#376) PARTIAL (B.1 start)
 
