@@ -99,35 +99,52 @@ test('reports: the category list visibly recomposes the header total, tail inclu
   // The header total covers all 14 categories: $105.00.
   await expect(page.getByText('$105.00 total')).toBeVisible();
 
-  // Collapsed: 12 rows render, ranks 13–14 do not…
+  // Collapsed: 12 rows render; ranks 13–14 are mounted but hidden (the tail
+  // container stays in the DOM so the toggle's aria-controls always resolves).
   await expect(page.getByTestId('category-link-electronics')).toBeVisible();
-  await expect(page.getByTestId('category-link-hobbies')).toHaveCount(0);
-  await expect(page.getByTestId('category-link-household')).toHaveCount(0);
+  await expect(page.getByTestId('category-link-hobbies')).toBeHidden();
+  await expect(page.getByTestId('category-link-household')).toBeHidden();
 
   // …and the tail is a VISIBLE row, so the page still sums: 2 categories, $3.00.
+  // "more", never "smaller" (critic P2-1: a rank-13 amount can tie rank-12).
   const restRow = page.getByTestId('reports-everything-else');
-  await expect(restRow).toContainText('2 smaller categories');
+  await expect(restRow).toContainText('2 more categories');
   await expect(page.getByTestId('reports-everything-else-amount')).toHaveText('$3.00');
 
   // The page-level identity, parsed from what is actually rendered: every
   // category row's figure plus the Everything-else figure equals the header
   // total to the penny. This is the assertion the owner's screenshots failed.
-  const rowTexts = await page.locator('[data-testid^="category-link-"]').allInnerTexts();
+  // `:visible` matters: hidden tail rows are in the DOM, and innerText of an
+  // unrendered element falls back to textContent — counting them here would
+  // double-count the tail against the Everything-else figure.
+  const rowTexts = await page.locator('[data-testid^="category-link-"]:visible').allInnerTexts();
   expect(rowTexts).toHaveLength(12);
   const renderedSum =
     rowTexts.reduce((s, t) => s + parseCents(t), 0) +
     parseCents(await page.getByTestId('reports-everything-else-amount').innerText());
   expect(renderedSum).toBe(10500);
 
+  // WCAG 2.5.3 lock (critic P1-1): the accessible name CONTAINS the visible
+  // label — they are built from one string, and this assertion is what makes
+  // splitting them again a red test instead of a silent regression.
+  await expect(page.getByTestId('reports-everything-else-toggle')).toHaveAttribute(
+    'aria-label',
+    'Everything else: Show 2 more categories',
+  );
+
   // Expanding shows the tail rows as FULL rows — linked, with their own
-  // expander panels — and the subtotal row stays, now a footer beneath them.
+  // expander panels — and the subtotal row stays beneath the top rows.
   await page.getByTestId('reports-everything-else-toggle').click();
+  await expect(page.getByTestId('category-link-hobbies')).toBeVisible();
   await expect(page.getByTestId('category-link-hobbies')).toContainText('$2.00');
   await expect(page.getByTestId('category-link-household')).toContainText('$1.00');
   await expect(page.getByTestId('reports-breakdown-toggle-hobbies')).toBeVisible();
   await expect(page.getByTestId('reports-everything-else-amount')).toHaveText('$3.00');
   // Open state: all 14 rows + the subtotal row still recompose the total.
-  const openTexts = await page.locator('[data-testid^="category-link-"]').allInnerTexts();
+  const openTexts = await page
+    .locator('[data-testid^="category-link-"]:visible')
+    .allInnerTexts();
+  expect(openTexts).toHaveLength(14);
   expect(openTexts.reduce((s, t) => s + parseCents(t), 0)).toBe(10500);
 });
 

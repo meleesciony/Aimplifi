@@ -572,14 +572,22 @@ header printing `totalCents`, which the engine computes over the WHOLE array
 "no silent caps" class. O.18's per-row expanders sharpened the contradiction: each row now
 proves itself to the penny while the page-level identity is silently ~$8.9k short. The
 dashboard Top Spending card is the same disease at `slice(0, 4)` beside "`totalCents` this
-month" (`top-spending-card.tsx:44,58`). Swept the rest of the rendered surfaces: /budgets and
-/trends lists are uncapped or labeled without a total claim; Ask's "biggest" phrasings print
-no adjacent total.
+month" (`top-spending-card.tsx:44,58`). **Sweep CORRECTED by the O.19 hostile critic (my
+first pass wrote "Ask's 'biggest' phrasings print no adjacent total" — false, verified by
+reading):** `answerTopCategories` (answer.ts:441-458) prints `Total <period>: $X` beside a
+capped fact list, and `answerSpendTotal` (answer.ts:381-398) headlines the whole-month total
+over `byCategory.slice(0, 3)` facts with no count or remainder — the same shape the owner
+photographed, mitigated only by the headline's tap-through trace. /budgets is uncapped;
+/trends caps under completeness-implying headers but prints no adjacent total. Filed as
+O.19b/O.19c below.
 
 | # | Task | Owner/Agent | Effort | Est. budget | Status |
 |---|------|-------------|--------|------------|--------|
 | O.19 | **/reports: the category list must visibly recompose its own total.** Keep the top 12, then an "Everything else · N categories" row carrying `sum(byCategory[12:])` — computed from the SAME array the header total sums, so the identity holds by construction — expanding in place to the tail rows, each with its existing link + breakdown panel (the server already builds panels for EVERY category). E2e asserts rendered rows + remainder === header total, and that the demo fixture actually HAS a 13th category so the lock cannot pass vacuously. | **Fable 5** | small | 30k | **[ ] IN PROGRESS this session** |
 | O.19a | **Dashboard Top Spending: the same identity, stated not expanded.** Four rows + "`$X` across N more categories" line under them; the card stays a summary and /reports (already linked) is the destination. | **Fable 5** | small | — | **[ ] IN PROGRESS this session (same slice)** |
+| O.19b | **Ask prints a period total above a capped category list with no remainder.** Found by the O.19 critic after the first sweep note denied it: `answerSpendTotal` renders the whole-month figure over `slice(0, 3)` category facts (ask-view renders them with no "top 3" label), and `answerTopCategories` prints `Total: $X` beside its capped list; `answerSubscriptions` / `answerMerchantSpend` are the weaker shape (count disclosed, cap silent). Fix is one fact-line per answer: "top 3 of N — $X in other categories", built from the same array the total sums (the O.19 rule). Abstention care: the remainder line must not render when the list is complete. | Opus 4.8 | small | 35k | **[ ] OPEN** |
+| O.19c | **/trends caps two lists under headers that read as complete.** `MAX_MOVERS = 6` ("What changed") and `MAX_NEW_MERCHANTS = 5` ("New this month") with no "top N" wording and no adjacent total — not the O.19 identity break, but a 7th mover is silently absent from a card titled as if exhaustive. Cheapest honest fix is the header stating the cap ("Top 6 changes"); a count of the dropped tail needs the engine to return it. | Opus 4.8 | small | 25k | **[ ] OPEN** |
+| O.19d | **Residual locks from the critic (P2-5):** singular-tail copy (`rest.length === 1`), tie-at-boundary wording, and uncategorized-appearing-in-the-tail (the code path is shared with the top rows, but the O.5 refusal in the tail is asserted nowhere). Each is a small fixture variant on `reports-total-reconciles.spec.ts`. | Sonnet | low | 15k | **[ ] OPEN** |
 
 ## Wave U — Full user-experience cohesion pass (owner request 2026-07-31)
 
