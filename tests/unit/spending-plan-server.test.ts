@@ -118,12 +118,14 @@ describe('getSpendingPlan — guilt-free spending (L.22), real server path', () 
     expect(plan.incomeMonths).toBe(2);
     // No detected recurring series in this fixture → no fixed term.
     expect(plan.fixedExpensesCents).toBe(0);
-    // (3) The statement due June 25 is this month's obligation.
+    // (3) The statement due June 25 is this month's obligation — still carried
+    // for cash-needed / disclosures, but NOT subtracted from leftToSpend
+    // (owner 2026-08-01).
     expect(plan.cardObligationsCents).toBe(30000);
     expect(plan.cardObligationsEstimated).toBe(false);
-    // Full identity: 5000 (pattern) − 0 (fixed) − 300 (card) − 0 (savings).
+    // Full identity: 5000 (pattern) − 0 (fixed) − 0 (savings).
     expect(plan.plannedSavingsCents).toBe(0);
-    expect(plan.leftToSpendCents).toBe(470000);
+    expect(plan.leftToSpendCents).toBe(500000);
     // No suspected duplicates, nothing frozen, nothing excluded.
     expect(plan.disclosures.duplicatePairs).toEqual([]);
     expect(plan.disclosures.frozenCards).toEqual([]);
@@ -179,7 +181,7 @@ describe('getSpendingPlan — guilt-free spending (L.22), real server path', () 
       expect(plan.plannedSavingsCents).toBe(100000);
       expect(plan.savingsSource).toBe('target');
       expect(plan.unallocatedSavingsCents).toBe(50000); // the reserve beyond named goals (critic F3)
-      expect(plan.leftToSpendCents).toBe(370000); // 470000 − 100000
+      expect(plan.leftToSpendCents).toBe(400000); // 500000 − 100000
     } finally {
       await prisma.goal.deleteMany({ where: { userId: uid } });
       await prisma.user.update({ where: { id: uid }, data: { savingsTargetBps: null } });
@@ -392,17 +394,18 @@ describe("getSpendingPlan — card payments dated past the month's edge (L.11(D)
     expect(plan.obligationsBeyondMonthCents).toBe(900000);
     expect(plan.reservesBeyondMonth).toBe(true);
     expect(plan.obligationsBeyondMonthThroughDate).toBe('Wed, Aug 5');
-    expect(plan.leftToSpendCents).toBe(100000); // $10,000 pattern − $9,000 dated
+    // Owner 2026-08-01: cards are not subtracted from leftToSpend.
+    expect(plan.leftToSpendCents).toBe(1000000); // pattern income (no fixed, no savings)
     expect(plan.overspent).toBe(false);
   });
 
   it('holds back exactly what the cash-needed answer demands — the two cannot disagree', async () => {
     const [plan, cash] = await Promise.all([getSpendingPlan(uid), getCashNeeded(uid)]);
-    // The figure the hero prints as "needed by Wed, Aug 5" is the figure this
-    // plan subtracts. Same rows, one filter, opposite sides.
+    // The figure the hero prints as "needed by Wed, Aug 5" is still carried on
+    // the plan for cash-needed / disclosures — but it is not a guilt-free term.
     expect(cash.result.headline.requiredCents).toBe(900000);
     expect(plan.obligationsBeyondMonthCents).toBe(cash.result.headline.requiredCents);
-    expect(plan.leftToSpendCents).toBeLessThan(plan.patternIncomeCents);
+    expect(plan.leftToSpendCents).toBe(plan.patternIncomeCents);
   });
 
   it('splits the SAME set at the boundary — neither side may swallow the other', async () => {
@@ -440,7 +443,8 @@ describe("getSpendingPlan — card payments dated past the month's edge (L.11(D)
       expect(plan.cardObligationsCents + plan.obligationsBeyondMonthCents).toBe(
         cash.result.headline.requiredCents,
       );
-      expect(plan.leftToSpendCents).toBe(1000000 - 120000 - 900000);
+      // Guilt-free ignores both card terms.
+      expect(plan.leftToSpendCents).toBe(1000000);
     } finally {
       await prisma.account.delete({ where: { id: inMonth.id } });
     }
@@ -464,7 +468,7 @@ describe("getSpendingPlan — card payments dated past the month's edge (L.11(D)
     try {
       const plan = await getSpendingPlan(uid);
       expect(plan.obligationsBeyondMonthCents).toBe(300000); // 900000 − 600000 arriving Aug 4
-      expect(plan.leftToSpendCents).toBe(700000);
+      expect(plan.leftToSpendCents).toBe(1000000);
       expect(plan.obligationsBeyondMonthThroughDate).toBe('Wed, Aug 5');
     } finally {
       await prisma.scheduledTransaction.delete({ where: { id: payday.id } });
@@ -486,9 +490,9 @@ describe("getSpendingPlan — card payments dated past the month's edge (L.11(D)
     });
     try {
       const plan = await getSpendingPlan(uid);
-      // $9,000 due Aug 5, $6,000 arriving Aug 1 → this month must cover $3,000.
+      // $9,000 due Aug 5, $6,000 arriving Aug 1 → cash-needed covers $3,000.
       expect(plan.obligationsBeyondMonthCents).toBe(300000);
-      expect(plan.leftToSpendCents).toBe(700000);
+      expect(plan.leftToSpendCents).toBe(1000000);
       // …and the August income is NOT also counted as this month's income.
       expect(plan.patternIncomeCents).toBe(1000000);
     } finally {
@@ -633,12 +637,16 @@ describe('getSpendingPlan — a beyond-month term made entirely of estimates (L.
     expect(plan.cardObligationsEstimated).toBe(false);
   });
 
-  it('the trace row says "estimated" and the panel still reconciles', async () => {
+  it('the guilt-free trace has no beyond-month card row and still reconciles', async () => {
     const plan = await getSpendingPlan(uid);
     const trace = traceSafeToSpend(plan, plan.disclosures);
-    const row = trace.rows.find((r) => r.id === 'card-payments-next');
-    expect(row).toBeDefined();
-    expect(row?.isEstimated).toBe(true);
+    // Owner 2026-08-01: cards (including beyond-month estimates) are not guilt-free rows.
+    expect(trace.rows.find((r) => r.id === 'card-payments-next')).toBeUndefined();
+    expect(trace.rows).toHaveLength(3);
+    expect(trace.rows.map((r) => r.id)).toEqual(['income', 'fixed', 'savings']);
+    expect(plan.leftToSpendCents).toBe(
+      plan.patternIncomeCents - plan.fixedExpensesCents - plan.plannedSavingsCents,
+    );
     expect(trace.reconciles).toBe(true);
   });
 });

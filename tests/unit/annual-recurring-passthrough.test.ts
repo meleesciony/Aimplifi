@@ -800,8 +800,7 @@ describe('the real server path: a detected annual bill reaches the spending plan
     expect(plan.fixedExpensesCents).toBe(10000);
     // And it is a real subtraction, not a display: the guilt-free figure moved by it.
     expect(plan.leftToSpendCents).toBe(
-      plan.patternIncomeCents -
-        (10000 + plan.cardObligationsCents + plan.obligationsBeyondMonthCents + plan.plannedSavingsCents),
+      plan.patternIncomeCents - (10000 + plan.plannedSavingsCents),
     );
   });
 

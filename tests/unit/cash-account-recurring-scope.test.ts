@@ -320,8 +320,7 @@ describe('the real server path: a bill autopaid from SAVINGS reaches the plan (L
     expect(plan.fixedExpensesCents).toBe(4500);
     // And it is a real subtraction, not a display.
     expect(plan.leftToSpendCents).toBe(
-      plan.patternIncomeCents -
-        (4500 + plan.cardObligationsCents + plan.obligationsBeyondMonthCents + plan.plannedSavingsCents),
+      plan.patternIncomeCents - (4500 + plan.plannedSavingsCents),
     );
   });
 });

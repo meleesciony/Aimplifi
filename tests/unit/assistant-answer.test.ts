@@ -244,14 +244,16 @@ describe('answerSafeToSpend', () => {
     const a = answerSafeToSpend(BASE_PLAN, NO_DISCLOSURES);
     expect(a.headline).toBe('Your guilt-free allocation this month is $1,500.00.');
     expect(a.headline).not.toContain('/day');
-    expect(a.facts).toContainEqual({ label: 'Income (median of last 1 month)', value: '$5,000.00' });
-    expect(a.facts).toContainEqual({ label: 'Fixed & recurring expenses (monthly pattern)', value: '$3,000.00' });
-    // L.29: NO_DISCLOSURES carries creditCardCount 0, so the $0 card line names
-    // the reason it is zero instead of printing an unexplained "$0.00".
-    expect(a.facts).toContainEqual({ label: 'Card payments (no credit cards linked)', value: '$0.00' });
-    expect(a.facts).toContainEqual({ label: 'Planned savings (goals)', value: '$500.00' });
+    // Owner 2026-08-01: exactly three facts — income, fixed, savings. No card-payments line.
+    expect(a.facts).toEqual([
+      { label: 'Income (median of last 1 month)', value: '$5,000.00' },
+      { label: 'Fixed & recurring expenses (monthly pattern)', value: '$3,000.00' },
+      { label: 'Planned savings (goals)', value: '$500.00' },
+    ]);
     // The detail states the pattern basis inline (the coaching guardrail).
     expect(a.detail).toContain('median of your last 1 complete month');
+    expect(a.detail).toContain('minus fixed and recurring expenses and your planned savings');
+    expect(a.detail).not.toContain('card payments due this month');
   });
   it('the one-time-deposit claim is qualified by how many months the median actually has (critic P1)', () => {
     // At 3 months the immunity is real; at 1-2 the same sentence was FALSE (a $18k spike
@@ -344,53 +346,62 @@ describe('answerSafeToSpend', () => {
     );
   });
 
-  it('qualifiers state their own directions on the positive branch (the figure is guilt-free-left)', () => {
+  it('when cards exist, detail points at Cash needed — undated/overage card notes are not on guilt-free', () => {
+    // Owner 2026-08-01: card statement payments are settlement, not plan facts.
+    // Undated / duplicate / frozen qualifiers left this answer; the one remaining
+    // card sentence says they are not subtracted here.
     const a = answerSafeToSpend(QUALIFIER_PLAN({}), FULL_DISCLOSURES);
-    expect(a.detail).toContain('no due date yet (Venture)');
-    expect(a.detail).toContain('not been generated yet for Bonvoy (due around 2026-06-28)');
-    // Excluded obligations → the shown amount is too generous → real spendable LOWER.
-    expect(a.detail).toContain('the real amount free to spend may be lower than shown');
-    expect(a.detail).toContain('look like the same card counted twice');
-    // Inflated obligations → real spendable HIGHER.
-    expect(a.detail).toContain('the real amount free to spend is higher than shown');
-    expect(a.detail).toContain('No amount was adjusted');
-    // O.18f: was `behind the card-payments figure (Freedom)`. Ask is now served by the
-    // class's single author, which names the card AND the date sharing stopped. The
-    // since-date is the fact that tells the reader HOW stale the amount is; Ask dropped
-    // it entirely before, and /spending-plan carried it only when exactly one card was
-    // frozen, so a second frozen card silently cost both of them their provenance.
-    expect(a.detail).toContain(
-      'stopped sharing one card in the card-payments figure (Freedom, since 2026-06-01)',
-    );
+    expect(a.facts).toHaveLength(3);
+    expect(a.facts.map((f) => f.label).join(' ')).not.toMatch(/Card payments/i);
+    expect(a.detail).toContain('Card statement payments are not subtracted here');
+    expect(a.detail).toContain('minus fixed and recurring expenses and your planned savings');
+    expect(a.detail).not.toContain('no due date yet');
+    expect(a.detail).not.toContain('not been generated yet');
+    expect(a.detail).not.toContain('same card counted twice');
+    expect(a.detail).not.toContain('stopped sharing');
+    expect(a.detail).not.toContain('card payments due this month');
     expect(a.detail).not.toContain('overage');
   });
 
-  it('the all-estimate state is disclosed HERE — this answer is untraced, so the trace basis can never reach the reader (cycle-2 F2-1)', () => {
+  it('estimated card obligations do not become a guilt-free fact', () => {
     const a = answerSafeToSpend(
       QUALIFIER_PLAN({ cardObligationsEstimated: true }),
-      { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0, fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 } },
+      {
+        undatedCards: [],
+        statementPendingCards: [],
+        duplicatePairs: [],
+        frozenCards: [],
+        creditCardCount: 1,
+        creditCardsOutsideFigure: 0,
+        cardsDatedAfterThisMonth: 0,
+        fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 },
+      },
     );
-    expect(a.facts).toContainEqual({ label: 'Card payments due this month (estimated)', value: '$1,200.00' });
-    expect(a.detail).toContain('estimated from current balances');
-    // And absent when the term is statement-backed.
-    const real = answerSafeToSpend(QUALIFIER_PLAN({}), { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0, fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 } });
-    expect(real.detail).not.toContain('estimated from current balances');
-    expect(real.facts).toContainEqual({ label: 'Card payments due this month', value: '$1,200.00' });
+    expect(a.facts).toHaveLength(3);
+    expect(a.facts.map((f) => f.label).join(' ')).not.toMatch(/Card payments/i);
+    expect(a.detail).not.toContain('estimated from current balances');
+    expect(a.detail).toContain('Card statement payments are not subtracted here');
+    // Silent on the card sentence when there are no cards and no obligations.
+    const none = answerSafeToSpend(
+      { ...BASE_PLAN, cardObligationsCents: 0 },
+      NO_DISCLOSURES,
+    );
+    expect(none.detail).not.toContain('Card statement payments are not subtracted here');
   });
 
-  it('qualifiers FLIP with the overspent branch, whose rendered figure is the overage (critic P1-1)', () => {
+  it('overspent branch keeps the three-term copy and the card-not-subtracted pointer', () => {
     const a = answerSafeToSpend(
       QUALIFIER_PLAN({ leftToSpendCents: -50000, overspent: true }),
       FULL_DISCLOSURES,
     );
     expect(a.headline).toBe("You're $500.00 over your plan for this month.");
-    // Excluded obligations → the overage shown is too SMALL → real overage HIGHER.
-    expect(a.detail).toContain('the real overage may be higher than shown');
-    // Inflated obligations → real overage SMALLER.
-    expect(a.detail).toContain('the real overage is smaller than shown');
-    // The positive-branch phrasings must not leak onto this branch.
+    expect(a.detail).toContain('minus fixed and recurring expenses and your planned savings');
+    expect(a.detail).toContain('Card statement payments are not subtracted here');
+    // Old undated / overage card qualifiers must not return on guilt-free.
+    expect(a.detail).not.toContain('the real overage may be higher than shown');
+    expect(a.detail).not.toContain('the real overage is smaller than shown');
     expect(a.detail).not.toContain('free to spend may be lower');
-    expect(a.detail).not.toContain('free to spend is higher');
+    expect(a.detail).not.toContain('no due date yet');
   });
 });
 

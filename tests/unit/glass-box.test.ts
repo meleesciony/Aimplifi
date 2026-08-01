@@ -15,6 +15,7 @@ import type { CardSnapshot, CashNeededInput } from '@/lib/engine/cash-needed/typ
 import { traceCashNeeded, traceSafeToSpend } from '@/lib/engine/glass-box/trace';
 import { answerSafeToSpend } from '@/lib/engine/assistant/answer';
 import { computeSpendingPlan, type SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
+import { planRowLabels } from '@/lib/engine/spending-plan/row-labels';
 import { cents } from '@/lib/money';
 import { holidayTable, isoDate } from '@/lib/dates';
 
@@ -212,7 +213,7 @@ describe('G7 — a doctored (internally inconsistent) result is REPORTED, not hi
 });
 
 describe('S — guilt-free-spending trace: the pattern-model identity as signed rows (L.22)', () => {
-  it('S1 normal month: +$5,000.00 − $2,023.56 − $0.00 − $500.00 = $2,476.44', () => {
+  it('S1 normal month: +$5,000.00 − $2,023.56 − $500.00 = $2,476.44', () => {
     const plan = computeSpendingPlan({
       today: d('2026-06-10'),
       trailingMonthlyIncomeCents: [500000, 500000],
@@ -227,20 +228,19 @@ describe('S — guilt-free-spending trace: the pattern-model identity as signed 
       savingsTargetBps: null,
     });
     const trace = traceSafeToSpend(plan, NO_CARDS_OR_GOALS);
+    // Owner 2026-08-01: exactly three rows — income, fixed, savings. Cards are not a term.
+    expect(trace.rows.map((r) => r.id)).toEqual(['income', 'fixed', 'savings']);
     expect(trace.rows.map((r) => r.label)).toEqual([
       'Income (median of last 2 months)',
       'Fixed & recurring expenses (monthly pattern)',
-      // L.29: this row is $0 and the fixture has no linked card, so it says which
-      // of the two zeros it is instead of printing an unexplained "$0.00".
-      'Card payments (no credit cards linked)',
       'Planned savings (goals)',
     ]);
-    expect(trace.rows.map((r) => r.amountCents)).toEqual([500000, -202356, 0, -50000]);
+    expect(trace.rows.map((r) => r.amountCents)).toEqual([500000, -202356, -50000]);
     expect(trace.sumCents).toBe(247644);
     expect(trace.headlineCents).toBe(247644);
     expect(trace.reconciles).toBe(true);
   });
-  it('S1b card obligations appear as their own signed row and the identity still reconciles', () => {
+  it('S1b card obligations are carried on the plan but are NOT a guilt-free row', () => {
     const plan = computeSpendingPlan({
       today: d('2026-06-10'),
       trailingMonthlyIncomeCents: [500000],
@@ -254,11 +254,14 @@ describe('S — guilt-free-spending trace: the pattern-model identity as signed 
       goalContributionsCents: 50000,
       savingsTargetBps: null,
     });
-    const trace = traceSafeToSpend(plan, NO_CARDS_OR_GOALS);
-    expect(trace.rows.map((r) => r.amountCents)).toEqual([500000, -202356, -90000, -50000]);
-    expect(trace.sumCents).toBe(157644);
-    expect(trace.headlineCents).toBe(157644);
+    expect(plan.cardObligationsCents).toBe(90000);
+    const trace = traceSafeToSpend(plan, disclosures({ creditCardCount: 1 }));
+    expect(trace.rows.map((r) => r.id)).toEqual(['income', 'fixed', 'savings']);
+    expect(trace.rows.map((r) => r.amountCents)).toEqual([500000, -202356, -50000]);
+    expect(trace.sumCents).toBe(247644);
+    expect(trace.headlineCents).toBe(247644);
     expect(trace.reconciles).toBe(true);
+    expect(trace.basis.some((b) => b.includes('Card statement payments are not subtracted here'))).toBe(true);
   });
   it('S1c a winning savings target renames the savings row so the label matches the deciding input', () => {
     const plan = computeSpendingPlan({
@@ -275,7 +278,8 @@ describe('S — guilt-free-spending trace: the pattern-model identity as signed 
       savingsTargetBps: 2000, // 20% of $5,000 = $1,000 > $500 goals
     });
     const trace = traceSafeToSpend(plan, NO_CARDS_OR_GOALS);
-    const savings = trace.rows[3];
+    const savings = trace.rows[2];
+    expect(savings.id).toBe('savings');
     expect(savings.label).toBe('Savings target (from Settings)');
     expect(savings.amountCents).toBe(-100000);
     expect(trace.reconciles).toBe(true);
@@ -330,7 +334,7 @@ describe('S — guilt-free-spending trace: the pattern-model identity as signed 
     expect(trace.headlineCents).toBe(-50000);
     expect(trace.reconciles).toBe(true);
   });
-  it('S3 empty month: four $0 rows, $0, reconciled', () => {
+  it('S3 empty month: three $0 rows, $0, reconciled', () => {
     const plan = computeSpendingPlan({
       today: d('2026-06-10'),
       trailingMonthlyIncomeCents: [],
@@ -345,7 +349,8 @@ describe('S — guilt-free-spending trace: the pattern-model identity as signed 
       savingsTargetBps: null,
     });
     const trace = traceSafeToSpend(plan, NO_CARDS_OR_GOALS);
-    expect(trace.rows).toHaveLength(4);
+    expect(trace.rows).toHaveLength(3);
+    expect(trace.rows.map((r) => r.id)).toEqual(['income', 'fixed', 'savings']);
     expect(trace.sumCents).toBe(0);
     expect(trace.reconciles).toBe(true);
   });
@@ -378,48 +383,49 @@ describe('S4 — a doctored (inconsistent) plan is REPORTED, not hidden', () => 
   });
 });
 
-describe("S6 — a card dated past the month's edge is a ROW, not an adjustment (L.11(D))", () => {
-  const beyond = (obligationsBeyondMonthCents: number) =>
-    traceSafeToSpend(
-      computeSpendingPlan({
-        today: d('2026-07-26'),
-        trailingMonthlyIncomeCents: [1000000],
-        scheduledIncome: [],
-        scheduledFixed: [],
-        cardObligationsCents: 0,
-        cardObligationsEstimated: false,
-        obligationsBeyondMonthCents,
-        obligationsBeyondMonthThroughDate: obligationsBeyondMonthCents > 0 ? 'Wed, Aug 5' : null,
-        obligationsBeyondMonthEstimated: false,
-        goalContributionsCents: 0,
-        savingsTargetBps: null,
-      }),
-      // A card IS linked here — the beyond-month term proves one exists, and the
-      // L.29 zero label for the in-month row must say so.
-      disclosures({ creditCardCount: 1 }),
-    );
+describe("S6 — cards dated past the month's edge are NOT a guilt-free row (owner 2026-08-01)", () => {
+  const beyond = (obligationsBeyondMonthCents: number) => {
+    const plan = computeSpendingPlan({
+      today: d('2026-07-26'),
+      trailingMonthlyIncomeCents: [1000000],
+      scheduledIncome: [],
+      scheduledFixed: [],
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents,
+      obligationsBeyondMonthThroughDate: obligationsBeyondMonthCents > 0 ? 'Wed, Aug 5' : null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    return {
+      plan,
+      trace: traceSafeToSpend(plan, disclosures({ creditCardCount: 1 })),
+    };
+  };
 
-  it('adds a fifth row the panel can actually falsify, and reconciles to it', () => {
-    const trace = beyond(900000);
-    expect(trace.rows).toHaveLength(5);
-    expect(trace.rows[4].label).toBe(
-      'Card payments already dated, due after this month (through Wed, Aug 5)',
-    );
-    expect(trace.rows[4].amountCents).toBe(-900000);
-    expect(trace.sumCents).toBe(100000);
-    expect(trace.headlineCents).toBe(100000);
+  it('keeps three rows; leftToSpend equals pattern income; basis points at Cash needed', () => {
+    const { plan, trace } = beyond(900000);
+    // Beyond-month obligations are still carried for cash-needed / disclosures…
+    expect(plan.obligationsBeyondMonthCents).toBe(900000);
+    // …but they are not a guilt-free subtraction.
+    expect(trace.rows).toHaveLength(3);
+    expect(trace.rows.map((r) => r.id)).toEqual(['income', 'fixed', 'savings']);
+    expect(trace.rows.find((r) => r.id === 'card-payments-next')).toBeUndefined();
+    expect(trace.sumCents).toBe(1000000);
+    expect(trace.headlineCents).toBe(1000000);
+    expect(plan.leftToSpendCents).toBe(plan.patternIncomeCents);
     expect(trace.reconciles).toBe(true);
-    // The date reads in the product's own voice, never as a raw ISO string.
-    expect(trace.rows[4].label).not.toMatch(/\d{4}-\d{2}-\d{2}/);
-    expect(trace.basis.some((b) => b.includes('would otherwise sit in no plan you can see'))).toBe(true);
-    // And it states the cost it accepts rather than hiding it.
-    expect(trace.basis.some((b) => b.includes("next month's card-payments line"))).toBe(true);
+    expect(trace.basis.some((b) => b.includes('Card statement payments are not subtracted here'))).toBe(true);
+    expect(trace.basis.some((b) => b.includes('no plan you can see'))).toBe(false);
+    expect(trace.basis.some((b) => b.includes("next month's card-payments line"))).toBe(false);
   });
 
-  it('adds no row and no sentence when every card is due inside the month', () => {
-    const trace = beyond(0);
-    expect(trace.rows).toHaveLength(4);
+  it('still has exactly three rows when every card is due inside the month', () => {
+    const { trace } = beyond(0);
+    expect(trace.rows).toHaveLength(3);
     expect(trace.reconciles).toBe(true);
+    expect(trace.basis.some((b) => b.includes('Card statement payments are not subtracted here'))).toBe(true);
     expect(trace.basis.some((b) => b.includes('no plan you can see'))).toBe(false);
   });
 });
@@ -442,8 +448,10 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
     });
   const rowById = (id: string, plan = planWith(), disc = NO_CARDS_OR_GOALS) =>
     traceSafeToSpend(plan, disc).rows.find((r) => r.id === id)!;
+  // Card-payment LABELS still live on planRowLabels for cash-needed / disclosures
+  // surfaces — they are no longer a guilt-free trace row (owner 2026-08-01).
   const cardLabel = (disc: Partial<SpendingPlanDisclosures>, plan = planWith()) =>
-    rowById('card-payments', plan, disclosures(disc)).label;
+    planRowLabels(plan, disclosures(disc)).cardPayments.label;
 
   it('the card-payments zero names WHICH zero it is, and never claims an absence it cannot prove', () => {
     // (a) nothing linked at all.
@@ -484,13 +492,18 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
       }),
     ).toBe('Card payments (none counted this month)');
     // A real obligation keeps the original label, and carries no control.
-    const due = rowById(
-      'card-payments',
+    const due = planRowLabels(
       planWith({ cardObligationsCents: 45000 }),
       disclosures({ creditCardCount: 1 }),
-    );
+    ).cardPayments;
     expect(due.label).toBe('Card payments due this month');
     expect(due.action).toBeUndefined();
+    // And that label is NOT a guilt-free row.
+    expect(
+      traceSafeToSpend(planWith({ cardObligationsCents: 45000 }), disclosures({ creditCardCount: 1 })).rows.find(
+        (r) => r.id === 'card-payments',
+      ),
+    ).toBeUndefined();
   });
 
   it('the fixed-expenses zero names WHICH zero it is, from the recorded reason (L.30)', () => {
@@ -659,11 +672,12 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
 
   it('a basis sentence explaining a mechanism stays silent when the mechanism held nothing', () => {
     // The same rule this builder already states for a $0 ROW, applied to the
-    // sentence beside it: with no bills and no cards, the rate arithmetic and the
-    // paid-in-full assumption both describe something that never ran.
+    // sentence beside it: with no bills, the rate arithmetic describes something
+    // that never ran. Card paid-in-full copy is gone from guilt-free (owner 2026-08-01).
     const empty = traceSafeToSpend(planWith(), NO_CARDS_OR_GOALS).basis.join(' ');
     expect(empty).not.toContain('52/12');
     expect(empty).not.toContain('assumes each is paid in full');
+    expect(empty).not.toContain('Card statement payments are not subtracted here');
     // …while the clause that is true for EVERY reader survives — without it, a $0
     // fixed line could be read as "nothing I spend is counted anywhere".
     expect(empty).toContain('Discretionary spending is never subtracted');
@@ -673,13 +687,15 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
       disclosures({ creditCardCount: 1 }),
     ).basis.join(' ');
     expect(held).toContain('a weekly bill counts 52/12 each month, a biweekly one 26/12');
-    expect(held).toContain('assumes each is paid in full');
+    expect(held).not.toContain('assumes each is paid in full');
+    expect(held).toContain('Card statement payments are not subtracted here');
   });
 
-  it('the Ask answer prints the IDENTICAL four labels — one author, so they cannot drift again', () => {
+  it('the Ask answer prints the IDENTICAL three labels — one author, so they cannot drift again', () => {
     // FAIL-OLD: before L.29 these were two copies of four strings and had already
     // drifted ('Savings target (Settings)' in Ask against '(from Settings)' in the
     // panel) — the L.21 rule (fix the data class, not the reported surface).
+    // Owner 2026-08-01: three standing lines only (income, fixed, savings).
     const fixtures: [ReturnType<typeof planWith>, ReturnType<typeof disclosures>][] = [
       [planWith(), NO_CARDS_OR_GOALS],
       [planWith(), disclosures({ creditCardCount: 3, cardsDatedAfterThisMonth: 1 })],
@@ -698,26 +714,24 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
       ],
     ];
     for (const [plan, disc] of fixtures) {
-      // The four standing lines only: the fifth (beyond-month) row is worded for
-      // its own surface on purpose.
-      const panel = traceSafeToSpend(plan, disc)
-        .rows.filter((r) => r.id !== 'card-payments-next')
-        .map((r) => r.label);
-      const ask = answerSafeToSpend(plan, disc).facts.slice(0, 4).map((f) => f.label);
+      const panel = traceSafeToSpend(plan, disc).rows.map((r) => r.label);
+      const ask = answerSafeToSpend(plan, disc).facts.map((f) => f.label);
+      expect(panel).toHaveLength(3);
       expect(ask).toEqual(panel);
     }
   });
 
-  it('the "(estimated)" suffix is the one thing each surface still composes itself', () => {
-    // Not shared, and worth pinning on both sides: Ask folds it INTO the label
-    // (answer.ts), the page appends it around `TraceRow.isEstimated` (page.tsx) —
-    // so a change to the shared base label has to leave both readable.
+  it('estimated card obligations do not become a guilt-free fact or row', () => {
+    // Card payments left the three-term identity; the label author still names
+    // them for cash-needed / disclosure surfaces, but Ask and the trace do not.
     const est = planWith({ cardObligationsCents: 45000, cardObligationsEstimated: true });
     const disc = disclosures({ creditCardCount: 1 });
-    expect(answerSafeToSpend(est, disc).facts[2].label).toBe('Card payments due this month (estimated)');
-    const row = traceSafeToSpend(est, disc).rows.find((r) => r.id === 'card-payments')!;
-    expect(row.label).toBe('Card payments due this month');
-    expect(row.isEstimated).toBe(true);
+    const ask = answerSafeToSpend(est, disc);
+    expect(ask.facts).toHaveLength(3);
+    expect(ask.facts.map((f) => f.label).join(' ')).not.toMatch(/Card payments/i);
+    expect(traceSafeToSpend(est, disc).rows.find((r) => r.id === 'card-payments')).toBeUndefined();
+    expect(ask.detail).toContain('Card statement payments are not subtracted here');
+    expect(planRowLabels(est, disc).cardPayments.label).toBe('Card payments due this month');
   });
 
   it('no working figure carries a control (a control beside a real number reads as a correction)', () => {
@@ -729,6 +743,7 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
       }),
       disclosures({ creditCardCount: 1 }),
     );
+    expect(working.rows).toHaveLength(3);
     expect(working.rows.map((r) => r.action).filter(Boolean)).toEqual([]);
     expect(working.reconciles).toBe(true);
   });

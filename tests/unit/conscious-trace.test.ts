@@ -12,6 +12,9 @@
  *
  * Anchored on real computeSpendingPlan output, never hand-built plans (the
  * conscious.test.ts house rule). Expected values hand-computed inline.
+ *
+ * Owner 2026-08-01: conscious fixed = fixedExpensesCents only (no cards);
+ * guilt-free trace is income − fixed − savings (three rows).
  */
 import { describe, expect, it } from 'vitest';
 import { isoDate } from '@/lib/dates';
@@ -56,31 +59,31 @@ const disclosures = (over: Partial<SpendingPlanDisclosures> = {}): SpendingPlanD
 const D = disclosures();
 
 describe('traceConsciousBuckets — each bucket panel reconciles to the strip figure', () => {
-  it('fixed: bills + card payments, positive, summing exactly to the bucket', () => {
+  it('fixed: bills only (no cards), positive, summing exactly to the bucket', () => {
     const p = plan({ cardObligationsCents: 100_000 });
     const t = traceConsciousBuckets(p, disclosures({ creditCardCount: 1 }));
-    // 300k bills + 100k card payments; no beyond-month row (that term is $0).
-    expect(t.fixed.rows.map((r) => r.amountCents)).toEqual([300_000, 100_000]);
-    expect(t.fixed.sumCents).toBe(400_000);
-    expect(t.fixed.headlineCents).toBe(400_000);
+    // Owner 2026-08-01: conscious fixed = fixedExpensesCents only.
+    expect(t.fixed.rows.map((r) => r.amountCents)).toEqual([300_000]);
+    expect(t.fixed.sumCents).toBe(300_000);
+    expect(t.fixed.headlineCents).toBe(300_000);
     expect(t.fixed.reconciles).toBe(true);
     expect(t.fixed.key).toBe('conscious_fixed');
   });
 
-  it('fixed: the beyond-month reservation appears as its own row only when it acted', () => {
+  it('fixed: no beyond-month reservation row — cards are not in this bucket', () => {
     const p = plan({
       cardObligationsCents: 100_000,
       obligationsBeyondMonthCents: 40_000,
       obligationsBeyondMonthThroughDate: isoDate('2026-07-05'),
     });
     const t = traceConsciousBuckets(p, disclosures({ creditCardCount: 1 }));
-    expect(t.fixed.rows).toHaveLength(3);
-    expect(t.fixed.rows[2].amountCents).toBe(40_000);
-    expect(t.fixed.sumCents).toBe(440_000);
+    expect(t.fixed.rows).toHaveLength(1);
+    expect(t.fixed.rows[0].amountCents).toBe(300_000);
+    expect(t.fixed.sumCents).toBe(300_000);
     expect(t.fixed.reconciles).toBe(true);
-    // A $0 reservation gets NO row — a row would name a mechanism that did not act.
+    // Still one bills row when reservations are zero.
     const zero = traceConsciousBuckets(plan(), D);
-    expect(zero.fixed.rows).toHaveLength(2);
+    expect(zero.fixed.rows).toHaveLength(1);
   });
 
   it('rows are the safe-to-spend trace’s own rows, negated — labels byte-equal, one author', () => {
@@ -88,13 +91,12 @@ describe('traceConsciousBuckets — each bucket panel reconciles to the strip fi
     const d = disclosures({ creditCardCount: 1 });
     const safe = traceSafeToSpend(p, d);
     const t = traceConsciousBuckets(p, d);
-    // safe rows: [income, fixed, card-payments, savings]
+    // safe rows: [income, fixed, savings]
+    expect(safe.rows.map((r) => r.id)).toEqual(['income', 'fixed', 'savings']);
     expect(t.fixed.rows[0].label).toBe(safe.rows[1].label);
-    expect(t.fixed.rows[1].label).toBe(safe.rows[2].label);
     expect(t.fixed.rows[0].amountCents).toBe(-safe.rows[1].amountCents);
-    expect(t.fixed.rows[1].amountCents).toBe(-safe.rows[2].amountCents);
-    expect(t.savings.rows[0].label).toBe(safe.rows[3].label);
-    expect(t.savings.rows[0].amountCents).toBe(-safe.rows[3].amountCents);
+    expect(t.savings.rows[0].label).toBe(safe.rows[2].label);
+    expect(t.savings.rows[0].amountCents).toBe(-safe.rows[2].amountCents);
   });
 
   it('savings: one row; the unset-$0 keeps its L.29 control, a goals figure does not', () => {
@@ -174,11 +176,13 @@ describe('traceConsciousBuckets — each bucket panel reconciles to the strip fi
     });
     const t = traceConsciousBuckets(p, disclosures({ creditCardCount: 1 }));
     const fixedBasis = t.fixed.basis.join(' ');
-    // fixed owns: the monthly-rate arithmetic, card provenance + estimate, the reservation.
+    // fixed owns: the monthly-rate arithmetic, and the "cards not subtracted" pointer.
     expect(fixedBasis).toMatch(/recurring bills at a monthly rate/);
-    expect(fixedBasis).toMatch(/counted when its statement’s payment comes due/);
-    expect(fixedBasis).toMatch(/estimated from current balances/);
-    expect(fixedBasis).toMatch(/no plan you can see/);
+    expect(fixedBasis).toMatch(/Card statement payments are not subtracted here/);
+    // Old paid-in-full / beyond-month / estimate provenance left the guilt-free formula.
+    expect(fixedBasis).not.toMatch(/counted when its statement/);
+    expect(fixedBasis).not.toMatch(/estimated from current balances/);
+    expect(fixedBasis).not.toMatch(/no plan you can see/);
     // fixed does NOT own income or savings sentences.
     expect(fixedBasis).not.toMatch(/median/);
     expect(fixedBasis).not.toMatch(/pay-yourself-first/);
@@ -193,10 +197,11 @@ describe('traceConsciousBuckets — each bucket panel reconciles to the strip fi
   it('share text names each bucket with the strip’s own label — one author', () => {
     const p = plan({ cardObligationsCents: 100_000 });
     const t = traceConsciousBuckets(p, disclosures({ creditCardCount: 1 }));
-    expect(formatShareText(t.fixed)).toContain(`${CONSCIOUS_BUCKET_LABELS.fixed}: $4,000.00`);
+    // Bills only — cards do not inflate the fixed share amount.
+    expect(formatShareText(t.fixed)).toContain(`${CONSCIOUS_BUCKET_LABELS.fixed}: $3,000.00`);
     expect(formatShareText(t.savings)).toContain(`${CONSCIOUS_BUCKET_LABELS.savings}: $500.00`);
-    // Bucket rows are generic term labels, not card names — they survive redaction.
-    expect(formatShareText(t.fixed)).toContain('Card payments due this month');
+    // Fixed panel has the bills row only — no card-payments row.
+    expect(formatShareText(t.fixed)).not.toContain('Card payments due this month');
   });
 
   it('a doctored plan is REPORTED as a mismatch, never hidden (cardinal rule)', () => {
@@ -277,9 +282,7 @@ describe('traceConsciousBuckets — each bucket panel reconciles to the strip fi
       if (s.includes('not in the fixed-expenses line')) return 'shortfall';
       if (s.startsWith('Discretionary spending')) return 'discretionary';
       if (s.startsWith('A yearly bill')) return 'long-cadence';
-      if (s.startsWith('Spending on credit cards')) return 'card';
-      if (s.startsWith('No statement has been generated')) return 'card-estimated';
-      if (s.startsWith('A statement can come due')) return 'beyond-month';
+      if (s.startsWith('Card statement payments are not subtracted here')) return 'card';
       if (s.startsWith('Planned savings takes')) return 'savings';
       return `UNRECOGNIZED: ${s.slice(0, 40)}`;
     };
@@ -290,8 +293,6 @@ describe('traceConsciousBuckets — each bucket panel reconciles to the strip fi
       'discretionary',
       'long-cadence',
       'card',
-      'card-estimated',
-      'beyond-month',
       'savings',
     ]);
   });
