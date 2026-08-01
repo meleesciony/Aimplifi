@@ -1,5 +1,13 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — Register Fixed / Discretionary labels (#378) DONE (B.1)
+
+Owner: categorize/label every transaction Fixed vs discretionary with a selector
+when wrong. `TxnView.spendClass` + `SpendClassSelect` on register and detail;
+edits go through `setCategoryFixed` (category-wide, same as /budgets). Demo
+label-only. verify GREEN 5592; e2e txn-spend-class 1/1. Ship next: commit/push/
+deploy-prove `txn-spend-class` on live `/transactions`.
+
 ## 2026-08-01 — Budgeting composition + Fixed amounts (#377) DONE (B.2)
 
 Owner continue: income / savings % / fixed / guilt-free on one page; set fixed

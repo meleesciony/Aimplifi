@@ -2601,3 +2601,19 @@ fixed (with suggestions), guilt-free as remainder; set fixed expense amounts.
 **Locks.** `test_regression__budget_target_wins_over_typical_for_fixed_category` +
 `test_regression__category_rollup_drives_plan_only_with_reader_input` +
 e2e `budgeting-composition` markers on spend-class.spec.
+
+## #378 — Register Fixed / Discretionary labels with category selector
+
+Owner: label every transaction Fixed vs discretionary, with a selector when wrong.
+
+**DECIDED:**
+1. Every register (and detail) row carries `TxnView.spendClass` from the same
+   `classifySpendClass` + `CategoryFixedOverride` path as Plan /budgets — one
+   designation, not a second per-txn flag that could disagree with the Plan.
+2. Editable rows show a Fixed / Discretionary `<select>`; changing it calls
+   `setCategoryFixed` (whole category). Transfers, income, uncategorized →
+   "Neither" label only. Shared demo is label-only (`canEditSpendClass=false`).
+3. UI copy says "Discretionary" for the `guilt-free` engine value.
+
+**Locks.** e2e `txn-spend-class.spec.ts` (`txn-spend-class` + `data-spend-class`
+on every visible register row; demo Groceries=fixed / Dining=guilt-free when present).

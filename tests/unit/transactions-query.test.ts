@@ -72,6 +72,7 @@ function txn(over: Partial<TxnView> & Pick<TxnView, 'id' | 'date' | 'amountCents
     reimbursement: null,
     splitParentId: null,
     suggestion: null,
+    spendClass: 'guilt-free',
     ...over,
   };
 }

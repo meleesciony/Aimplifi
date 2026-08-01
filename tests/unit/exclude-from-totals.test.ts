@@ -187,6 +187,7 @@ describe('the register: the one place an excluded row STAYS', () => {
     needsReview: false,
     provenance: { kind: 'not-recorded', label: 'Not recorded', needsConfirm: false } as TxnView['provenance'],
     suggestion: null,
+    spendClass: 'fixed',
     ...over,
   });
 

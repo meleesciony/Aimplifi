@@ -58,5 +58,6 @@ export async function setCategoryFixed(
   revalidatePath('/spending-plan');
   revalidatePath('/dashboard');
   revalidatePath('/coach');
+  revalidatePath('/transactions');
   return { ok: true };
 }

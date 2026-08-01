@@ -1,0 +1,46 @@
+/**
+ * Register Fixed / Discretionary labels (DECISIONS #378).
+ */
+import { expect, test, type Page } from './helpers/test';
+import { clickMoreNav } from './helpers/more-nav';
+
+async function signIn(page: Page) {
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+}
+
+test('every register row shows a Fixed or Discretionary (or Neither) class', async ({ page }) => {
+  await signIn(page);
+  await clickMoreNav(page, 'nav-transactions');
+  await page.waitForURL('**/transactions**');
+
+  const rows = page.getByTestId('txn-row');
+  await expect(rows.first()).toBeVisible();
+  const n = await rows.count();
+  expect(n).toBeGreaterThan(0);
+
+  for (let i = 0; i < Math.min(n, 12); i++) {
+    const cls = rows.nth(i).getByTestId('txn-spend-class');
+    await expect(cls).toBeVisible();
+    const kind = await cls.getAttribute('data-spend-class');
+    expect(['fixed', 'guilt-free', 'out-of-scope']).toContain(kind);
+  }
+
+  // Demo seed: groceries = Fixed (label only — shared demo cannot mutate).
+  const groceries = page.getByTestId('txn-row').filter({ hasText: 'Groceries' }).first();
+  if ((await groceries.count()) > 0) {
+    await expect(groceries.getByTestId('txn-spend-class')).toHaveAttribute(
+      'data-spend-class',
+      'fixed',
+    );
+  }
+  // Dining = Discretionary when present.
+  const dining = page.getByTestId('txn-row').filter({ hasText: 'Dining' }).first();
+  if ((await dining.count()) > 0) {
+    await expect(dining.getByTestId('txn-spend-class')).toHaveAttribute(
+      'data-spend-class',
+      'guilt-free',
+    );
+  }
+});

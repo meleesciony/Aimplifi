@@ -69,6 +69,7 @@ import { FileText, MoreHorizontal } from 'lucide-react';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { provenanceBadgeView } from '@/components/finance/provenance-badge';
+import { SpendClassSelect } from '@/components/finance/spend-class-select';
 import {
   PROJECTIONS_STALE_PARAM,
   UNCONFIRMED_PARAM,
@@ -206,6 +207,7 @@ export function TransactionDetailView({
   projectionsStale,
   returnTo,
   attachments,
+  canEditSpendClass = true,
 }: {
   detail: DetailView;
   categoryGroups: CategoryGroup[];
@@ -232,6 +234,8 @@ export function TransactionDetailView({
    *  table and are fetched one at a time by `/api/attachments/<id>`, so rendering
    *  this page never loads a file. */
   attachments: AttachmentListItem[];
+  /** #378 — Fixed/Discretionary selector; false on the shared demo. */
+  canEditSpendClass?: boolean;
 }) {
   const { row } = detail;
   const [busy, setBusy] = useState(false);
@@ -741,6 +745,24 @@ export function TransactionDetailView({
           </p>
         </form>
       )}
+
+      {/* #378 — Fixed / Discretionary for Plan (same CategoryFixedOverride as register). */}
+      <div
+        className="flex flex-wrap items-center gap-2 rounded-md border p-3"
+        data-testid="detail-spend-class"
+      >
+        <span className="text-sm font-medium">For your Plan</span>
+        <SpendClassSelect
+          transactionId={row.id}
+          categoryId={row.categoryId}
+          spendClass={row.spendClass}
+          canEdit={canEditSpendClass}
+          merchantName={row.merchantName}
+        />
+        <p className="basis-full text-xs text-muted-foreground">
+          Fixed or Discretionary follows this category. Change the selector if we got it wrong.
+        </p>
+      </div>
 
       {/* NOTE + TAX TAG — one gesture, one action, exactly as the register pairs
           them (`setTransactionTax` writes both or neither).

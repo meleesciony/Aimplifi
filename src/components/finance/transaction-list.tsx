@@ -46,6 +46,7 @@ import {
   provenanceBadgeView,
 } from '@/components/finance/provenance-badge';
 import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
+import { SpendClassSelect } from '@/components/finance/spend-class-select';
 
 /**
  * What the row's note/tax control says without being opened.
@@ -74,6 +75,8 @@ export function TransactionList({
   pageInfo,
   categoryGroups = ASSIGNABLE_GROUPS,
   hasFilters = false,
+  /** When false (shared demo), Fixed/Discretionary is a label only. */
+  canEditSpendClass = true,
 }: {
   rows: TxnView[];
   summary: TxnSummary;
@@ -84,6 +87,7 @@ export function TransactionList({
   /** True when any register filter is active — distinguishes "no data yet" from
    *  "filters matched nothing" (ROADMAP ALSO CONSIDER / #186). */
   hasFilters?: boolean;
+  canEditSpendClass?: boolean;
 }) {
   const searchParams = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -632,6 +636,14 @@ export function TransactionList({
                         {/* Why-This-Category (§3.1): who decided this category. The
                             label is the resolver's verdict, rendered verbatim — an
                             AI guess is the ONLY kind that asks for the user's OK. */}
+                        {/* #378: Fixed vs discretionary — selector when wrong. */}
+                        <SpendClassSelect
+                          transactionId={t.id}
+                          categoryId={t.categoryId}
+                          spendClass={t.spendClass}
+                          canEdit={canEditSpendClass}
+                          merchantName={t.merchantName}
+                        />
                         <Badge
                           variant="outline"
                           data-testid={PROVENANCE_BADGE_TESTID}

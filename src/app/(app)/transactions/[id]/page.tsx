@@ -11,6 +11,7 @@ import { getTransactionDetail } from '@/server/transactions';
 import { getRecurringVerdictForTransaction } from '@/server/recurring-overrides';
 import { listAttachmentsForTransaction } from '@/server/attachments';
 import { RETURN_PARAM, decodeRegisterReturn } from '@/lib/engine/transactions/links';
+import { isDemoUser } from '@/lib/demo-user';
 
 export const metadata = { title: 'Transaction' };
 
@@ -80,6 +81,7 @@ export default async function TransactionDetailPage({
         Array.isArray(query[RETURN_PARAM]) ? query[RETURN_PARAM][0] : query[RETURN_PARAM],
       )}
       attachments={attachments}
+      canEditSpendClass={!isDemoUser(session.user.id)}
     />
   );
 }

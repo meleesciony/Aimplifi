@@ -27,6 +27,13 @@ export const FIXED_PATTERN_EXCLUDE_CATEGORY_IDS = new Set([
 
 export type SpendClass = 'fixed' | 'guilt-free' | 'out-of-scope';
 
+/** Short register label — "discretionary" matches the owner's vocabulary. */
+export function spendClassLabel(c: SpendClass): string {
+  if (c === 'fixed') return 'Fixed';
+  if (c === 'guilt-free') return 'Discretionary';
+  return 'Neither';
+}
+
 /** Suggested class from taxonomy alone (no user override). */
 export function suggestedCategoryIsFixed(
   categoryId: string,

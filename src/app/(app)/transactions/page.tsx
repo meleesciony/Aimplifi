@@ -13,6 +13,7 @@ import { SharedTransactionList } from '@/components/finance/shared-transaction-l
 import { getSharedTransactionsView } from '@/server/household';
 import { getTransactions, getWithheldAccountSummary } from '@/server/transactions';
 import { getVisibleGroups } from '@/server/categories';
+import { isDemoUser } from '@/lib/demo-user';
 
 // The `?type=` vocabulary is owned by `links.ts` (O.16) so the return-trip
 // builder and this reader cannot drift into accepting different values.
@@ -135,7 +136,11 @@ export default async function TransactionsPage({
             and more. Cash and other purchases not pulled automatically can be added
             by hand.
           </>
-        )}
+        )}{' '}
+        Each row is labeled Fixed or Discretionary for your Plan
+        {isDemoUser(session.user.id)
+          ? ' (suggestions only on the shared demo).'
+          : ' — change the selector if we got it wrong (applies to that category).'}
       </p>
 
       {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
@@ -158,6 +163,7 @@ export default async function TransactionsPage({
         pageInfo={pageInfo}
         categoryGroups={categoryGroups}
         hasFilters={hasFilters}
+        canEditSpendClass={!isDemoUser(session.user.id)}
       />
 
       {shared.kind === 'member' && (

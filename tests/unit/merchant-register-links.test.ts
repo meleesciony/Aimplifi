@@ -99,6 +99,7 @@ function view(id: string, merchantName: string): TxnView {
     reimbursement: null,
     splitParentId: null,
     suggestion: null,
+    spendClass: 'fixed',
   };
 }
 

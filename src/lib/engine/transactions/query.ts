@@ -116,6 +116,13 @@ export interface TxnView {
     categoryName: string;
     reason: string | null;
   } | null;
+  /**
+   * Fixed vs discretionary for Plan guilt-free (DECISIONS #376/#378). Derived
+   * from the filed category (+ per-user Fixed overrides). REQUIRED so a register
+   * row never silently omits the class the reader is asked to confirm.
+   * `out-of-scope` = transfers / income / uncategorized — not a Fixed dial.
+   */
+  spendClass: 'fixed' | 'guilt-free' | 'out-of-scope';
 }
 
 export type FlowType = 'all' | 'income' | 'expense' | 'transfer';

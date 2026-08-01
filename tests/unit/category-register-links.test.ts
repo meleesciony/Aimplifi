@@ -163,6 +163,7 @@ const asTxnViews = (rows: Row[]): TxnView[] =>
       reimbursement: null,
       splitParentId: null,
       suggestion: null,
+      spendClass: 'guilt-free',
     }));
 
 /** What the register shows after following the href, as the page would build it. */
