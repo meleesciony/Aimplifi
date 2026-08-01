@@ -1,10 +1,11 @@
 # PROGRESS.md — session resume log
 
-## 2026-08-01 — Fixed non-discretionary (#371) + Plan figure overrides (#372) IN FLIGHT
+## 2026-08-01 — Fixed non-discretionary (#371) + Plan figure overrides (#372) DONE
 
 Owner: income − savings% − non-disc fixed = guilt-free; dining/golf discretionary;
-savings is not; must be able to set figures by hand. Code: non-disc median fixed,
-fitness discretionary, Plan “Your plan figures” form + User override columns.
+savings is not; set figures by hand. Deploy READY `dpl_Cc9d117sbWMqYaWK4pZXDx32j9i5`
+on `ae2803e`; live demo Plan markers + guilt-free ~$2,124 (was ~$15k+). Schema pushed
+(planIncomeOverrideCents / planFixedOverrideCents).
 
 ## 2026-08-01 — Guilt-free income scope (#370) + Home charts restored DONE
 
