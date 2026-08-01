@@ -2297,7 +2297,7 @@ a figure trailing by a fraction of a cent prints as exactly what was paid in, wh
 did the work" is still false. ANY of the three, because one sentence enumerates all three.
 
 **The trailing branch adds nothing in place of the payoff.** A per-row explanation would restate
-the two dials N times (the accretion W.12 is open about) and duplicate the paragraph, which
+the two dials N times (the accretion W.12 later closed) and duplicate the paragraph, which
 renders under the identical gate (`opportunities.length > 0`) and already carries the
 every/some distinction. Removing a false claim beats inventing a replacement claim.
 

@@ -100,8 +100,8 @@ each stating its own model.
   /settings. The possessive `inflationIsDefault` exists to prevent this for the
   *other* dial. Pre-existing and identical on two other cards; fixing it here
   alone would make three cards disagree. Filed as **W.13**.
-- **W.12** remains open (rate-copy accretion on the FI card) — deliberately not
-  folded into this figure change. W.11 shipped 2026-08-01 — see its section above.
+- **W.12** (rate-copy accretion) and **W.11** (slider first paint) both shipped
+  2026-08-01 — see their sections above.
 
 ### Critic cycle
 
