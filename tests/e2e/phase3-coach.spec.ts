@@ -23,6 +23,20 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   // Wave 1.4: demo seed has consecutive positive full months → streak and/or PB line
   await expect(page.getByTestId('savings-rate-streak').or(page.getByTestId('savings-rate-personal-best'))).toBeVisible();
 
+  // W.2 — the FI card states the basis its dates were computed on, in the browser, on the
+  // demo. The demo user has no stored `inflationBps`, so this is the DEFAULTED branch: the
+  // card may not call Aimplifi's own 2.50% "yours" while /settings calls the same number "our
+  // defaults" (the possessive rule the wealth card one slice earlier had to learn).
+  const basis = page.getByTestId('fi-projection-basis');
+  await expect(basis).toContainText("today's money");
+  await expect(basis).toContainText('4.50%'); // 7.00% nominal less the 2.50% default
+  await expect(basis).toContainText('our default 2.50% inflation assumption');
+  await expect(basis).not.toContainText('your 2.50%');
+
+  // W.9 — the Coast horizon says the app chose it. An unlabelled "25 years" beside a monthly
+  // dollar figure is the shape the owner called "arbitrary time" on the card below.
+  await expect(page.getByTestId('coast-fi')).toContainText('not a date you set');
+
   // interactive slider: dragging to a higher rate CHANGES the live caption
   const before = await page.getByTestId('slider-result').textContent();
   await page.getByTestId('fi-slider').fill('6000'); // 60% savings rate

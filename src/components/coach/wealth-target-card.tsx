@@ -213,6 +213,7 @@ export function WealthTargetCard({
       horizonYears,
       result.realReturnBps,
       inflationBps,
+      inflationIsDefault,
     );
   })();
 
@@ -268,7 +269,10 @@ export function WealthTargetCard({
               Change your assumptions
             </Link>
             <p className="text-xs text-muted-foreground" data-testid="wealth-target-vs-fi">
-              {COACH_COPY.wealthTargetVsFiCard(expectedReturnBps, inflationBps)}
+              {/* W.2 — the rate BOTH cards now compound at, read off this card's own solved
+                  result rather than re-derived, so the sentence claiming agreement is printed
+                  from the number it claims agreement about. */}
+              {COACH_COPY.wealthTargetVsFiCard(result.realReturnBps)}
             </p>
           </>
         ) : null}
@@ -361,7 +365,10 @@ export function WealthTargetCard({
 
         {result !== null && result.sensitivity.length > 0 ? (
           <details className="text-xs text-muted-foreground" data-testid="wealth-target-sensitivity">
-            <summary className="cursor-pointer select-none">
+            {/* 44px minimum, matching the dials link below — a bare `text-xs` summary measures
+                ~16px tall, under the 24px WCAG 2.5.8 floor and well under this repo's own
+                standard (a W.2 critic measured 314×16 on both cards' disclosures). */}
+            <summary className="flex min-h-11 cursor-pointer select-none items-center">
               How much of this is the return assumption?
             </summary>
             <p className="mt-1">{COACH_COPY.wealthTargetSensitivityIntro(hasSpread)}</p>

@@ -246,12 +246,18 @@ export function MoneyDialsForm({
           <fieldset className="space-y-2 rounded-md border border-input p-3">
             <legend className="px-1 text-sm font-medium">Retirement plan (optional)</legend>
             <p className="text-xs text-muted-foreground">
-              The ages and inflation the retirement outlook on{' '}
+              The ages the retirement outlook on{' '}
               <Link href="/investments" className="underline hover:text-foreground">
                 Investments
               </Link>{' '}
-              projects with. Leave any blank to use our defaults — age 40 today, retiring at
-              65, planning through 95, with 2.5% inflation.
+              projects with. The inflation figure reaches further: since it is subtracted from
+              your expected return to give growth in today&apos;s money, it also moves your FI
+              date, the Coast line and the wealth target on{' '}
+              <Link href="/coach" className="underline hover:text-foreground">
+                Coach
+              </Link>
+              , and every goal&apos;s effect on that date. Leave any blank to use our defaults —
+              age 40 today, retiring at 65, planning through 95, with 2.5% inflation.
             </p>
             <div className="grid grid-cols-3 gap-2">
               <label className="block space-y-1">

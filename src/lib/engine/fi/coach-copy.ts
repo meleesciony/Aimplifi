@@ -47,17 +47,137 @@ export const COACH_COPY = {
   fiNumber: (fi: Cents, swrBps: number, annualExpenses: Cents) =>
     `Your FI number is ${formatCents(fi)}, assuming a ${pct(swrBps)} safe withdrawal rate on ${formatCents(annualExpenses)}/yr of spending — estimated from your last 6 full months × 2, so an unusual month moves it.`,
 
-  yearsToFI: (years: number, months: number, returnBps: number) =>
-    `At your current savings rate you'd reach it in about ${years} years${months > 0 ? ` ${months} months` : ''}, assuming ${pct(returnBps)} average annual returns. Markets wobble — reasonable beats rational, and this number will too.`,
+  // ---- W.2 · the FI projections' basis --------------------------------------------------
+  // Every projection on this card compounds at the REAL return, because the FI number it is
+  // aiming at is built from TODAY'S spending. The three sentences below therefore say "after
+  // inflation" and are handed the REAL rate; `fiProjectionBasis` is where that rate's origin
+  // is shown, once, rather than three times.
 
+  yearsToFI: (years: number, months: number, realReturnBps: number) =>
+    `At your current savings rate you'd reach it in about ${years} years${months > 0 ? ` ${months} months` : ''}, assuming ${pct(realReturnBps)} average annual growth after inflation. Markets wobble — reasonable beats rational, and this number will too.`,
+
+  /**
+   * The provenance line for the rate the three projections above and below compound at.
+   *
+   * The floored branch may NOT print the subtraction — `pct(nominal)` less `pct(inflation)`
+   * is not 0.00%, and a reader can do that arithmetic in their head and get a different
+   * answer (`the-arithmetic-was-never-the-risk`). It says what the floor MEANS and which
+   * direction it errs in instead, because a clamp that flatters is the expensive one.
+   *
+   * `inflationIsDefault` decides a possessive, not a decoration: `User.inflationBps` is
+   * nullable, and /settings calls the same 2.50% "our defaults", so the card may not call it
+   * "yours" until the reader has set one.
+   */
+  fiProjectionBasis: (
+    realReturnBps: number,
+    nominalBps: number,
+    inflationBps: number,
+    realReturnFloored: boolean,
+    inflationIsDefault: boolean,
+  ) => {
+    const infl = inflationIsDefault
+      ? `our default ${pct(inflationBps)} inflation assumption`
+      : `your ${pct(inflationBps)} inflation assumption`;
+    // The monthly figures on this card are LEVEL contributions compounded at a REAL rate,
+    // which by the engine's own convention (`retirement.ts`) means they are today's dollars
+    // and a standing order left alone falls behind. The sibling wealth card says so about its
+    // own instalment; before W.2 this card's figure was nominal and needed no such clause, and
+    // changing the rate silently changed what the dollars MEAN. Said once here, for every
+    // figure on the card, rather than bolted onto each sentence.
+    const money = `Dollar figures here are in today's money too, so a standing order set once and left alone would need to rise with inflation to keep the pace they describe.`;
+    if (realReturnFloored) {
+      // Equal dials are not "at or below" in a reader's ear — "7.00% is at or below 7.00%"
+      // reads as a bug. Same clamp, same silence about the subtraction, honest wording.
+      const relation =
+        nominalBps === inflationBps
+          ? `Your ${pct(nominalBps)} return assumption exactly matches ${infl}`
+          : `Your ${pct(nominalBps)} return assumption is below ${infl}`;
+      return `Dates on this card are in today's money. ${relation}, so they are worked out assuming no growth after inflation at all — and if inflation really did outrun returns, they would arrive later than they say, not sooner. ${money}`;
+    }
+    // NO "years earlier": the gap between the two bases is months for a reader near their
+    // number and exactly zero for one a month out — both critics measured it independently.
+    // The card has no cheap access to the true gap, so it states the DIRECTION, which is
+    // always true, instead of a magnitude that is often false.
+    return `Dates on this card are in today's money: your FI number is built from what you spend now, so the portfolio is grown at ${pct(realReturnBps)} — your ${pct(nominalBps)} return assumption less ${infl}. A date at the full ${pct(nominalBps)} would arrive sooner and buy less than it looks like. ${money}`;
+  },
+
+  /**
+   * `monthsToFI` returns `null` for TWO different reasons — savings at or below zero, and
+   * positive savings that do not clear the target inside the engine's 1200-month cap — and
+   * this sentence asserts the first one as fact. Both W.2 critics found the same consequence
+   * independently: at a low or floored real rate a reader saving $500/month is told
+   * "contributions aren't outpacing spending", because the cap now binds on a clean threshold
+   * (savings below `fiTarget / 1200`). W.2 did not create the overload, but it WIDENED the set
+   * of readers who land in it, so the states get separated here.
+   *
+   * Three facts, three sentences (`an-answer-is-only-as-believable-as-its-visible-inputs`:
+   * count the states before choosing the type — a two-state model locks the missing third).
+   */
   notOnTrack: () =>
     `Contributions aren't outpacing spending yet, so a projection date wouldn't be honest. The opportunities below are the highest-impact places to look — no small-pleasures audit required.`,
 
-  coastFI: (targetYears: number, returnBps: number) =>
-    `You're already Coast FI: assuming ${pct(returnBps)} average returns, what you've invested would grow to your FI number within ${targetYears} years without another dollar added.`,
+  /**
+   * Not saving, but the portfolio alone already gets there — so the flat "a projection date
+   * wouldn't be honest" sits directly above a Coast line handing the reader a date. Two
+   * sentences that contradict each other on one card; this is the reconciling one.
+   */
+  notOnTrackButCoasting: () =>
+    `Contributions aren't outpacing spending right now, so there's no date to project from your saving. What you've already invested is a different story — see the Coast line below.`,
 
-  notCoastFI: (requiredMonthly: Cents, targetYears: number, returnBps: number) =>
-    `To be on pace over the next ${targetYears} years, it takes about ${formatCents(requiredMonthly)}/month, assuming ${pct(returnBps)} average returns.`,
+  /**
+   * Saving, but not fast enough to land inside the projection horizon. The honest answer is
+   * the horizon, not a claim about the reader's behaviour.
+   */
+  beyondProjectionHorizon: (realReturnBps: number) =>
+    `You are saving, but at this pace and ${pct(realReturnBps)} growth after inflation the finish line sits beyond the 100 years we're willing to project — so we won't put a date on it. The opportunities below move it more than any market assumption will.`,
+
+  /**
+   * WHICH of the four sentences above the FI card's headline slot gets — the selection itself,
+   * not just the strings.
+   *
+   * Exported as one function because the alternative is a ternary chain living in the
+   * component and a COPY of that chain living in the test, which is a lock that passes while
+   * the card regresses. The card renders what this returns; the test calls this; there is one
+   * definition of the mapping and both read it.
+   */
+  fiHeadline: (input: {
+    monthsToFI: number | null;
+    monthlySavingsCents: number;
+    coastIsCoast: boolean;
+    projectionReturnBps: number;
+  }): string => {
+    if (input.monthsToFI !== null) {
+      return COACH_COPY.yearsToFI(
+        Math.floor(input.monthsToFI / 12),
+        input.monthsToFI % 12,
+        input.projectionReturnBps,
+      );
+    }
+    // Saving, but the engine's 1200-month cap bound — NOT the same fact as "not saving".
+    if (input.monthlySavingsCents > 0) {
+      return COACH_COPY.beyondProjectionHorizon(input.projectionReturnBps);
+    }
+    // Not saving, but already coasting — the flat refusal would contradict the Coast line.
+    if (input.coastIsCoast) return COACH_COPY.notOnTrackButCoasting();
+    return COACH_COPY.notOnTrack();
+  },
+
+  /**
+   * W.9 — `targetYearsIsAppDefault` says who chose the horizon. `COAST_TARGET_YEARS` is the
+   * app's 25, no control sets it, and an unlabelled constant printed beside a monthly dollar
+   * figure reads as arbitrary — which is precisely what the owner said about the wealth card
+   * one slice earlier ("arbitrary savings for arbitrary time").
+   */
+  coastFI: (targetYears: number, realReturnBps: number, targetYearsIsAppDefault: boolean) =>
+    `You're already Coast FI: assuming ${pct(realReturnBps)} average growth after inflation, what you've invested would grow to your FI number within ${targetYears} years without another dollar added${targetYearsIsAppDefault ? ` — ${targetYears} years being the working lifetime we picked to measure against, not a date you set` : ''}.`,
+
+  notCoastFI: (
+    requiredMonthly: Cents,
+    targetYears: number,
+    realReturnBps: number,
+    targetYearsIsAppDefault: boolean,
+  ) =>
+    `To be on pace over the next ${targetYears} years — ${targetYearsIsAppDefault ? `a working lifetime we picked to measure against, not a date you set` : `the horizon you set`} — it takes about ${formatCents(requiredMonthly)}/month in today's money, assuming ${pct(realReturnBps)} average growth after inflation.`,
 
   sliderCaption: (fromBps: number, toBps: number, fromYears: number, toYears: number) => {
     if (toBps === fromBps) {
@@ -92,15 +212,24 @@ export const COACH_COPY = {
       : `${formatCents(targetCents)} in today's money, assuming ${pct(realBps)} growth after inflation — your ${pct(nominalBps)} return assumption less ${pct(inflationBps)} inflation. Every figure below is in today's dollars, so the target means what it means to you now.`,
 
   /**
-   * The reconciliation sentence. /coach stacks this card under the FI card, which grows the
-   * portfolio at the NOMINAL dial toward a target built from today's expenses — so the two
-   * print different dates for what a reader sees as one question, and a smaller target here
-   * can read as taking LONGER. Each card stating its own basis is not enough once they are
-   * adjacent: stacking them is the invitation to compare. This names the difference and its
-   * direction so the reader has something to reconcile them with.
+   * The reconciliation sentence. /coach stacks this card under the FI card, and stacking two
+   * cards that both print a date is the invitation to compare them.
+   *
+   * REWRITTEN by W.2, because what it used to say stopped being true. It read: "The
+   * financial-independence card above assumes 7.00% before inflation, so its date is earlier
+   * than anything here; this card takes your 2.50% inflation assumption off first." That
+   * sentence existed to disclose a contradiction W.1 deliberately declined to fix — the FI
+   * card grew the portfolio at the NOMINAL dial toward a present-value target — and W.2 has
+   * now fixed it, so both cards run on the same rate in the same dollars. Leaving the old
+   * words in place would have left the card asserting a difference that no longer exists, and
+   * pointing at a card whose date had moved the other way.
+   *
+   * What remains different is the TARGET, not the basis, so that is what this now names. It
+   * takes the real rate because that is the one both cards use; a sentence about agreement
+   * should print the number they agree on.
    */
-  wealthTargetVsFiCard: (nominalBps: number, inflationBps: number) =>
-    `The financial-independence card above assumes ${pct(nominalBps)} before inflation, so its date is earlier than anything here; this card takes your ${pct(inflationBps)} inflation assumption off first.`,
+  wealthTargetVsFiCard: (realReturnBps: number) =>
+    `The financial-independence card above is on the same footing as this one: both are in today's dollars, assuming the same ${pct(realReturnBps)} growth after inflation. What differs is the destination — that card aims at a number built from what you already spend, this one at the number you typed.`,
 
   /**
    * The STARTING BALANCE, printed for every outcome rather than only the already-there one.
@@ -225,12 +354,17 @@ export const COACH_COPY = {
     years: number,
     realBps: number,
     inflationBps: number,
+    /** W.2 critic P2 — this sentence called the inflation dial "your own assumption" while
+     *  `wealthTargetDials`, 633px up the same card, called the same number "Aimplifi's
+     *  default, which you haven't changed". A possessive is a claim, and it was false on the
+     *  shared demo. Required, so no caller can go on omitting the question. */
+    inflationIsDefault: boolean,
   ) =>
     // "In today's money" is the load-bearing clause. The simulation adds a LEVEL REAL
     // contribution, so a flat standing order set once loses ground every year and lands
     // short — the card says "every figure is in today's dollars" directly above, which
     // makes the omission worse by implying it is already handled.
-    `To land it in ${years} year${years === 1 ? '' : 's'} it takes about ${formatCents(requiredMonthlyCents)}/month in today's money, assuming ${pct(realBps)} growth after inflation. A standing order set once and left alone would need to rise with inflation — ${pct(inflationBps)} a year on your own assumption — to keep that pace.`,
+    `To land it in ${years} year${years === 1 ? '' : 's'} it takes about ${formatCents(requiredMonthlyCents)}/month in today's money, assuming ${pct(realBps)} growth after inflation. A standing order set once and left alone would need to rise with inflation — ${pct(inflationBps)} a year ${inflationIsDefault ? 'on our default assumption' : 'on your own assumption'} — to keep that pace.`,
 
   /** The share of income, split out so it can be withheld when the denominator can't carry it. */
   wealthTargetRequiredShare: (rateBps: number) =>
@@ -371,8 +505,12 @@ export const COACH_COPY = {
     `Room for error: ${months} months of expenses in cash — you're ${band === 'below' ? 'approaching' : band === 'in' ? 'inside' : 'past'} the classic 3–6 month range. The richest feeling money buys is not needing the next paycheck.`,
 
   // C13 · Housel, Sethi, Perkins — years-to-FI reframed as time bought back (sibling to yearsToFI)
-  freedomDividend: (years: number) =>
-    `That's about ${years} years until your time becomes fully yours — the highest dividend money pays, assuming the return rate above holds. Every point of savings rate buys some of it back sooner.`,
+  // W.2 names the rate rather than pointing at it: "the return rate above" was unambiguous
+  // when one rate appeared above this line, and there are now two (the nominal dial and the
+  // real rate derived from it) with the paragraph directly above saying the higher one is NOT
+  // what the projections use.
+  freedomDividend: (years: number, realReturnBps: number) =>
+    `That's about ${years} years until your time becomes fully yours — the highest dividend money pays, assuming the ${pct(realReturnBps)} after inflation above holds. Every point of savings rate buys some of it back sooner.`,
 
   // C13 · Housel, Stanley & Danko — the FI number is anchored to your life, never the feed
   yourEnough: () =>
@@ -387,8 +525,19 @@ export const COACH_COPY = {
     `${category} is one of your money dials — spend there proudly; we only hunt savings elsewhere.`,
 
   // C10 (behavioral) · Housel — volatility is the price of the returns, not a malfunction
-  volatilityPrice: (returnBps: number) =>
-    `Those ${pct(returnBps)} returns aren't free — the price is volatility along the way, and the average is never the experience. Staying invested through the dips is the assumption behind every projection here. A fee for admission, not a fine.`,
+  /**
+   * W.2 — takes BOTH rates, because they are the price of two different things and collapsing
+   * them into one number makes the sentence false either way. Volatility is what the market
+   * charges for the NOMINAL return; the real rate is what is left to compound after inflation,
+   * and it is what every projection on this card actually uses. Handing this the real rate
+   * alone would attribute market volatility to a number the market never quotes.
+   */
+  volatilityPrice: (nominalBps: number, realReturnBps: number) =>
+    // "the dates ABOVE" was false: this sits in a disclosure between the years-to-FI line and
+    // both the Coast line and the slider, so two of the three projections it describes are
+    // BELOW it. Naming the card instead of a position also survives the card being reordered
+    // — the same hazard `coach/page.tsx` already documents for the frozen-balance note.
+    `Those ${pct(nominalBps)} returns aren't free — the price is volatility along the way, and the average is never the experience. Staying invested through the dips is the assumption behind every projection here; inflation then takes its cut, which is why the projections on this card compound at ${pct(realReturnBps)} rather than ${pct(nominalBps)}. A fee for admission, not a fine.`,
 
   // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade
   fifteenPercentReference: () =>

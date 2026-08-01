@@ -13,7 +13,6 @@ import { MoneySignatureCard } from '@/components/coach/money-signature-card';
 import { HabitStreaksCard } from '@/components/coach/habit-streaks-card';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { WealthTargetCard } from '@/components/coach/wealth-target-card';
-import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -40,17 +39,17 @@ export default async function CoachPage() {
   if (!session?.user?.id) redirect('/sign-in');
   // No accounts yet → route-framed onboarding (the FI/cash engine needs accounts).
   if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyCoach />;
-  const [data, withheld, plan, planningRow] = await Promise.all([
+  const [data, withheld, plan] = await Promise.all([
     getCoachData(session.user.id, { orderReview: true }),
     getWithheldAccountSummary(session.user.id),
     // The wealth-target card answers affordability against the SAME safe-to-spend the
     // /spending-plan view prints, and deflates by the SAME inflation dial the /investments
     // outlook uses — the inverse-planner grounding idiom (server/assistant.ts:566).
     getSpendingPlan(session.user.id),
-    prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { inflationBps: true },
-    }),
+    // W.2 removed a fourth query here that re-read `User.inflationBps` for the wealth card
+    // alone. `getCoachData` already loads the user row and now needs the dial itself, so both
+    // cards read the one value it returns — two reads of one column is how two cards on one
+    // page come to print two different rates.
   ]);
   // Value receipts (TASKS 1.3): /coach is where price-increase flags are surfaced, so
   // it mints their receipts (key-dedup → idempotent, one row per increase ever), then
@@ -78,9 +77,17 @@ export default async function CoachPage() {
           monthsToFINow={data.fi.monthsToFI}
           swrBps={data.fi.swrBps}
           expectedReturnBps={data.fi.expectedReturnBps}
+          // W.2 — the real rate the server's own monthsToFI/coastFI compounded at, plus the
+          // operands the basis line names. All four come from `getCoachData`, which is where
+          // the dates were computed, so the card cannot describe a basis its figures did not use.
+          projectionReturnBps={data.fi.projectionReturnBps}
+          inflationBps={data.fi.inflationBps}
+          inflationIsDefault={data.fi.inflationIsDefault}
+          realReturnFloored={data.fi.realReturnFloored}
           coastIsCoast={data.fi.coastIsCoast}
           coastRequiredMonthlyCents={data.fi.coastRequiredMonthlyCents}
           coastTargetYears={data.fi.coastTargetYears}
+          coastTargetYearsIsAppDefault={data.fi.coastTargetYearsIsAppDefault}
           latestMonthRateBps={data.currentRateBps}
           latestMonthLabel={
             data.flows.length ? formatMonth(data.flows[data.flows.length - 1].month) : undefined
@@ -100,18 +107,21 @@ export default async function CoachPage() {
 
       {/* Wealth target — the reader states a number ("$10M") and a horizon; the card answers
           both directions (when the current pace arrives, what a chosen date requires) in
-          TODAY'S dollars at the real return. Its own basis line says so, because it differs
-          from the FI card's nominal basis directly above it. */}
+          TODAY'S dollars at the real return. Since W.2 the FI card above runs on that same
+          basis, so this card's reconciliation line names the difference that remains — the
+          destination, not the arithmetic. Both cards take the inflation dial from
+          `data.fi`, one read, so they cannot print two different rates for one setting. */}
       <WealthTargetCard
         portfolioCents={data.fi.portfolioCents}
         monthlySavingsCents={data.fi.monthlySavingsCents}
         monthlyIncomeCents={data.fi.monthlyIncomeCents}
         safeToSpendCents={cents(plan.leftToSpendCents)}
         expectedReturnBps={data.fi.expectedReturnBps}
-        inflationBps={planningRow?.inflationBps ?? RETIREMENT_ASSUMPTIONS.inflationBps}
-        // `User.inflationBps` is nullable, so this fallback IS the "you never set one" signal.
-        // /settings calls the same 2.50% "our defaults"; the card may not call it "yours".
-        inflationIsDefault={planningRow?.inflationBps == null}
+        // `User.inflationBps` is nullable, and `getCoachData` applies the same
+        // `RETIREMENT_ASSUMPTIONS` fallback and reports whether it fired. /settings calls that
+        // same 2.50% "our defaults"; the card may not call it "yours".
+        inflationBps={data.fi.inflationBps}
+        inflationIsDefault={data.fi.inflationIsDefault}
         monthlySavingsMonths={data.fi.monthlySavingsMonths}
         // Same note the FI card above already carries: a withheld non-USD investment account is
         // absent from `portfolioCents`, and the starting-balance sentence enumerates exclusions.

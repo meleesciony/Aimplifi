@@ -2,6 +2,66 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-08-01 — W.2 + W.9: the FI card's dates are in today's money (DECISIONS #361)
+
+**Every FI date on /coach used to arrive early, by the whole inflation gap.** The FI number is
+built from the reader's own last six complete months of spending — a figure in today's dollars
+— and the server grew the portfolio toward it at the NOMINAL return dial. Comparing future
+nominal dollars against a present-value target is a unit mismatch, and it errs in one
+direction only. At the default dials that is 7.00% against 4.50%: decades on a long horizon.
+The projections now compound at the real rate, so **dates move LATER** and /coach carries one
+basis instead of two. W.9 landed with it: the Coast line's "25 years" now says the app chose
+it, not the reader.
+
+**Two fresh-context hostile critics, both FAIL, seven P1s, converging independently on two.**
+All fixed and mutation-proven. The one worth reading twice: `monthsToFI` returns `null` both
+for "not saving" and for "saving, but past the 1200-month projection cap", and the card
+asserted the first for both — so at a low real rate a reader putting away $500 a month was
+told their contributions weren't outpacing their spending. Also fixed: /goals was still
+running the identical simulation against the identical target at the nominal rate (181 months
+there against 221 on the card the reader had just left); the Coast card's monthly figure had
+silently become a today's-dollars instalment that a flat standing order outruns, while new
+copy told the reader both cards agreed; and `realReturnBps` was clamped at only one end.
+
+### OPEN / stated limitations
+
+- **Three findings deliberately deferred, each with its own row** — W.10 (the opportunity
+  list still quotes 30-year NOMINAL future values under a card that now says 7.00%
+  overstates), W.11 (a >70% saver sees a "Lowering your savings rate…" caption before touching
+  the slider, mixing a server year with a client one), W.12 (the same rate is now stated four
+  times in four wordings, pushing the payoff line past the fold at 380×800).
+- **The Coast horizon's "reader chose it" branch is unreachable today.** No control sets
+  `COAST_TARGET_YEARS`; the flag is a server field rather than a literal so that adding one
+  later changes a line instead of a copy branch that has quietly become false. Stated in the
+  test so nobody infers a control exists.
+
+### ⚠️ The full e2e gate is RED, and neither failure belongs to this slice
+
+`bash scripts/verify.sh` is GREEN (tsc 0, eslint 0, **5455 unit / 331 files**, build clean).
+With `VERIFY_E2E=1` two specs fail, both attributed by execution:
+
+1. **`phase2-triage.spec.ts` "singles mode never leaks onto the next card" — deterministic,
+   pre-existing, and probably a LIVE PRODUCT BUG.** It fails alone at `--workers=1` and
+   **fails identically on clean HEAD** (verified by `git stash`), so it is on the deployed
+   commit. Filing the last row of a singles group through the write-in leaves
+   `data-remaining` at 11 when it should read 10 — the group empties but the queue never
+   advances, which is exactly the behaviour that spec was written to lock. Filed as **V.4**;
+   deliberately NOT fixed here, because it is a state-machine change in the categorization
+   path and wants its own diagnosis and critic rather than a ride-along in a money slice.
+2. **`category-rename.spec.ts` — the V.1 rotating flake.** Fails in the full parallel run,
+   passes alone in 1.4s.
+
+**A process finding filed as V.3, worth more than either.** Three specs failed mid-slice with
+/dashboard rendering its "Something went wrong" error boundary — indistinguishable from a P0
+in the change under test. The cause was a **leaked `next start` on port 3100**: with
+`reuseExistingServer: true`, Playwright served a build predating the fixes, so the fresh
+`next build` the gate had just run was ignored. One `taskkill` turned all three green with no
+code change. This **contradicts the evidence recorded under V.1**, which reports "nothing is
+LISTENING on port 3100 between runs" and treats the leaked-server hypothesis as refuted on
+this machine. It is not refuted. `docs/lessons/e2e-runs-a-stale-build.md` has been corrected:
+its claim that the full gate is immune because it builds first is false, since building does
+not help if the port is occupied.
+
 ## ✅ BUILT 2026-07-31 — O.18: every category row expands to the transactions inside it (DECISIONS #356)
 
 Owner, 2026-07-31, with a /budgets screenshot: *"I've asked you many times to make rows expandable

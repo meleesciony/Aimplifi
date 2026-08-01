@@ -116,9 +116,15 @@ test('wealth target: typing a target and dragging the horizon move the live answ
   await expect(additional).not.toContainText('-$');
   await expect(additional).not.toContainText('guilt-free spending you have');
 
-  // The two cards on this page rest on different bases; the newer one names the difference
-  // rather than leaving a reader to reconcile two dates on their own.
-  await expect(page.getByTestId('wealth-target-vs-fi')).toContainText('before inflation');
+  // W.2 — the two cards on this page used to rest on DIFFERENT bases (the FI card compounded
+  // at the nominal dial toward a present-value target), and this line existed to disclose the
+  // contradiction. The FI card now deflates too, so the sentence asserts a shared basis and
+  // names the destination as the thing that still differs. Asserting the retired words is how
+  // this lock would have gone on passing while the page told the reader something false.
+  const vsFi = page.getByTestId('wealth-target-vs-fi');
+  await expect(vsFi).toContainText('same footing');
+  await expect(vsFi).toContainText('What differs is the destination');
+  await expect(vsFi).not.toContainText('before inflation');
 
   // The sensitivity table always carries three rows — the spread is the point, and a
   // single confident date would hide it. Open the disclosure so the assertion is about

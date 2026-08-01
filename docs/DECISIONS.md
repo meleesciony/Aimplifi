@@ -1967,3 +1967,129 @@ totality gap is locked by test rather than by type.
 
 **Gate.** verify GREEN — 330 files / 5406 unit, tsc 0, eslint 0, build clean; affected
 e2e 7/7 on the final build, including the no-duplicate abstention case.
+
+---
+
+## #361 (W.2 + W.9) — The FI card grows the portfolio at the REAL return, because the target it aims at is a present value
+
+**The defect was a unit mismatch, not an arithmetic one.** `getCoachData` computed
+`fiTarget = fiNumberCents(annualExpenses, user.swrBps)` — where `annualExpenses` is the
+reader's last six COMPLETE months of actual spending × 2, so the target is denominated in
+today's dollars — and then grew the portfolio toward it at `user.expectedReturnBps`, the
+NOMINAL dial. Compounding future nominal dollars until they cross a present-value target
+compares two different units, and it errs in one direction only: every FI date, every Coast
+verdict and every slider answer arrived earlier than the truth by the whole inflation gap.
+At the default dials that is 7.00% vs 4.50% — decades on a long horizon, and 40 months on the
+measured /goals fixture below.
+
+**The decision W.2 asked for, made deliberately: switch to real, do not re-base to nominal.**
+The row offered two ways out — deflate the growth rate, or keep nominal growth and state the
+nominal basis as a choice. The second is not available without ALSO inflating the target,
+because a nominal projection against a present-value goal is wrong under any label. Inflating
+the target is the larger change and it produces a nominal FI number in future dollars — a
+figure no reader can hold their own spending up against, and one that would have to be
+re-explained on every surface that prints it. Deflating costs one argument, matches the two
+sibling surfaces that already deflate (`buildRetirementInputs` for /investments, W.1's
+wealth-target card), and moves every figure in the CONSERVATIVE direction. The app had
+already written the argument down: `coach-copy.ts`'s wealth-target block says in its own
+comment that "a $10M answer at a nominal rate against a present-value goal would be
+optimistic by decades."
+
+This is a FIGURE change on a surface readers have used for months, which is why W.1
+deliberately declined to make it as a side effect and filed it as its own task with its own
+critic pass. Dates get LATER.
+
+**One basis on the page, one read of the dial.** `projectionReturnBps`, `inflationBps`,
+`inflationIsDefault` and `realReturnFloored` are returned by `getCoachData` and consumed by
+both cards, and the page's fourth `prisma.user.findUnique` — which re-read `User.inflationBps`
+for the wealth card alone — is deleted. Two reads of one column is how two cards on one page
+come to print two different rates. `isRealReturnFloored` is extracted beside `realReturnBps`
+so the two cards cannot disagree about whether a clamp happened.
+
+**`wealthTargetVsFiCard` was REWRITTEN, not adjusted.** It existed to disclose exactly the
+contradiction this slice removes ("assumes 7.00% before inflation, so its date is earlier
+than anything here"). Left alone it would have gone on asserting a difference that no longer
+exists, pointing at a card whose date had moved the other way. It now claims a shared basis
+and names what still differs — the destination. Both the unit lock and the e2e lock that
+pinned the retired words were rewritten to assert the new claim and to REFUSE the old one; a
+copy lock that survives the change it should have caught is worse than no lock.
+
+**W.9 — the Coast horizon says who chose it.** `COAST_TARGET_YEARS = 25` was printed as bare
+fact ("over the next 25 years") beside a monthly dollar figure, with nothing marking it as the
+app's pick — the twin of W.1a's finding one card down, where an unlabelled constant beside
+money read as "arbitrary time" to the owner. Both Coast sentences now take
+`targetYearsIsAppDefault`. Deliberately NOT seeded from the reader's own arrival the way W.1a
+seeded the wealth card: that card asks "when do I arrive at my pace", so its own arrival is
+the honest default, whereas Coast FI asks what happens if contributions STOP — seeding it from
+a pace that assumes contributions would make the horizon depend on the thing the question
+removes. The `false` branch is unreachable today and is kept as a server field rather than a
+literal so that adding a control later changes one line, not a copy branch that has quietly
+become false.
+
+**Two fresh-context hostile critics (money-math lens, claims/UI lens), both FAIL, seven P1s
+between them — and they converged INDEPENDENTLY on two of them**, which is the strongest
+available signal that a finding is real. Every P1 fixed and regression-locked:
+
+1. **`monthsToFI`'s `null` means two things, and the card asserted the wrong one.** It returns
+   `null` both for "savings <= 0" and for "saving, but past the 1200-month cap" — and the card
+   printed *"Contributions aren't outpacing spending yet"* for both. W.2 did not create the
+   overload but WIDENED it: a lower rate pushes more savers past the cap, and at a floored 0%
+   real rate the cap binds on a clean threshold (savings below `fiTarget / 1200`), so a reader
+   saving $500/month was told they were not saving. Four states now, selected by ONE exported
+   `fiHeadline` the card renders and the test calls — the first version of that test
+   re-implemented the selector, which would have passed while the card regressed.
+2. **"Not on track" and "already Coast FI" rendered together** — a refusal to give a date
+   printed directly above a line handing one over. Pre-existing, same root cause, same fix.
+3. **The monthly figure silently changed meaning.** A level contribution compounded at a REAL
+   rate is today's dollars by the engine's own documented convention, so a standing order set
+   once falls behind — the caveat the sibling card already carried for its identical figure,
+   while the new reconciliation sentence told the reader the two cards agree. Stated once in
+   the basis line for the whole card, plus "in today's money" on the figure itself.
+4. **"A date at the full 7.00% would arrive years earlier"** is false for a reader near their
+   number and off by exactly zero months for one a month out (both critics measured it). The
+   card has no cheap access to the true gap, so it states the DIRECTION, which is always true,
+   instead of a magnitude that is often false.
+5. **/goals still ran the identical simulation against the identical present-value target at
+   the NOMINAL rate** — measured 181 months there against 221 on the card the reader just
+   left. This is W.2's own thesis (a page may not carry two bases for one question) left
+   standing one route over; both call sites now take `projectionReturnBps`, and the page says
+   what basis its dates are on.
+6. **`realReturnBps` was only clamped at one end.** A negative `inflationBps` made the
+   subtraction ADD, producing a real rate ABOVE the reader's own dial while reporting nothing
+   was floored. `validateDials` bounds it and is the only writer today, but the column carries
+   no DB constraint and four surfaces share the helper.
+7. **Copy that pointed at screen POSITIONS went stale.** "the dates above" (two of the three
+   are below it), "the return rate above" (there are now two rates above it). Both name the
+   rate or the card instead.
+
+P2s also fixed in-slice: /settings described the inflation dial as affecting only
+/investments, when it now moves the FI date, the Coast line and every goal; the wealth card
+called the same 2.50% "Aimplifi's default, which you haven't changed" and "your own
+assumption" 633px apart; equal dials read as "7.00% is at or below 7.00%", which looks like a
+bug, and now say "exactly matches"; both cards' disclosure `<summary>` measured 314x16px,
+under the 24px WCAG 2.5.8 floor and this repo's own 44px standard.
+
+**Deferred, each recorded rather than silently dropped** (TASKS W.10–W.12): the opportunity
+list's 30-year NOMINAL future values now sit under a card that says 7.00% overstates; the
+slider's initial clamp gives a >70%-saver a "Lowering your savings rate…" caption before they
+touch anything, mixing a server year with a client one; and the card now states the same rate
+four times in four wordings, pushing the payoff line past the fold on an 800px viewport.
+
+**What the critics tried and could NOT break, recorded so it is not re-spent:** `coastFI`'s
+bisection converges to the exact minimal contribution even at 0% growth (verified by probing
+feasibility at `required` and `required - 1`); no NaN/Infinity/throw at any settings-reachable
+dial pair; the slider agrees with the server at the reader's own pace across ~50,000 swept
+(income, savings) pairs — zero year-level mismatches; /coach and /investments now read the
+same column through the same helper and agree; and the "same footing" claim is true by
+construction because both cards take both operands from the same `data.fi` fields.
+
+**Gate.** `bash scripts/verify.sh` GREEN — tsc 0, eslint 0, **5455 unit / 331 files**, build
+clean; affected e2e green on a fresh build.
+
+**One process finding worth more than any single defect above.** Three e2e specs failed
+against a LEAKED `next start` on port 3100 — `reuseExistingServer: true` handed the new specs
+an OLD build, and /dashboard rendered its error boundary, which reads exactly like a P0 in the
+change under test. Killing the process turned all three green with no code change. This
+directly contradicts the evidence recorded under TASKS V.1, which reports "nothing is
+LISTENING on port 3100 between runs" and treats the leaked-server hypothesis as refuted on
+this machine. It is not refuted; it happens, and it produces a false P0. Filed as V.3.

@@ -60,10 +60,92 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'fiNumber', text: COACH_COPY.fiNumber(cents(150_000_000), 400, cents(6_000_000)), isProjection: true },
   { label: 'savingsRateNegative', text: COACH_COPY.savingsRateHeadline(-2500, 'May 2026'), isProjection: false },
   { label: 'sliderContext', text: COACH_COPY.sliderContext(2330, 3734, 'May 2026'), isProjection: false },
-  { label: 'yearsToFI', text: COACH_COPY.yearsToFI(17, 3, 700), isProjection: true },
+  // W.2 — the FI projections run on the REAL rate, so these are handed 450 (7.00% less
+  // 2.50%), not 700. Both branches of every W.2/W.9 sentence get a row: the guardrail sweeps
+  // below scan this table, so a branch absent from it has never been scanned at all.
+  { label: 'yearsToFI', text: COACH_COPY.yearsToFI(17, 3, 450), isProjection: true },
   { label: 'notOnTrack', text: COACH_COPY.notOnTrack(), isProjection: false },
-  { label: 'coastFI', text: COACH_COPY.coastFI(25, 700), isProjection: true },
-  { label: 'notCoastFI', text: COACH_COPY.notCoastFI(cents(120000), 25, 700), isProjection: true },
+  // The two states W.2 split out of `notOnTrack`'s null overload. `beyondProjectionHorizon`
+  // names a rate, so it is a projection and must state its assumption.
+  {
+    label: 'notOnTrackButCoasting',
+    text: COACH_COPY.notOnTrackButCoasting(),
+    isProjection: false,
+  },
+  {
+    label: 'beyondProjectionHorizon',
+    text: COACH_COPY.beyondProjectionHorizon(450),
+    isProjection: true,
+  },
+  // The SELECTOR over those four, scanned through all four of its states — so the sweeps see
+  // what the card actually renders, not only the strings in isolation.
+  {
+    label: 'fiHeadline:onTrack',
+    text: COACH_COPY.fiHeadline({
+      monthsToFI: 207,
+      monthlySavingsCents: 200_000,
+      coastIsCoast: false,
+      projectionReturnBps: 450,
+    }),
+    isProjection: true,
+  },
+  {
+    label: 'fiHeadline:beyondHorizon',
+    text: COACH_COPY.fiHeadline({
+      monthsToFI: null,
+      monthlySavingsCents: 74_000,
+      coastIsCoast: false,
+      projectionReturnBps: 0,
+    }),
+    isProjection: true,
+  },
+  {
+    label: 'fiHeadline:coasting',
+    text: COACH_COPY.fiHeadline({
+      monthsToFI: null,
+      monthlySavingsCents: -500_000,
+      coastIsCoast: true,
+      projectionReturnBps: 450,
+    }),
+    isProjection: false,
+  },
+  {
+    label: 'fiHeadline:notSaving',
+    text: COACH_COPY.fiHeadline({
+      monthsToFI: null,
+      monthlySavingsCents: -500_000,
+      coastIsCoast: false,
+      projectionReturnBps: 450,
+    }),
+    isProjection: false,
+  },
+  {
+    label: 'fiProjectionBasis',
+    text: COACH_COPY.fiProjectionBasis(450, 700, 250, false, false),
+    isProjection: true,
+  },
+  {
+    label: 'fiProjectionBasis:defaultInflation',
+    text: COACH_COPY.fiProjectionBasis(450, 700, 250, false, true),
+    isProjection: true,
+  },
+  {
+    label: 'fiProjectionBasis:floored',
+    text: COACH_COPY.fiProjectionBasis(0, 700, 1000, true, false),
+    isProjection: true,
+  },
+  { label: 'coastFI', text: COACH_COPY.coastFI(25, 450, true), isProjection: true },
+  { label: 'coastFI:readerHorizon', text: COACH_COPY.coastFI(25, 450, false), isProjection: true },
+  {
+    label: 'notCoastFI',
+    text: COACH_COPY.notCoastFI(cents(120000), 25, 450, true),
+    isProjection: true,
+  },
+  {
+    label: 'notCoastFI:readerHorizon',
+    text: COACH_COPY.notCoastFI(cents(120000), 25, 450, false),
+    isProjection: true,
+  },
   { label: 'sliderCaption', text: COACH_COPY.sliderCaption(2200, 3000, 23, 17), isProjection: true },
   { label: 'opportunity:unused', text: COACH_COPY.opportunity(opportunity('unused-subscription'), 700), isProjection: true },
   { label: 'opportunity:price', text: COACH_COPY.opportunity(opportunity('price-increase'), 700), isProjection: true },
@@ -82,7 +164,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   },
   {
     label: 'wealthTargetVsFiCard',
-    text: COACH_COPY.wealthTargetVsFiCard(700, 250),
+    text: COACH_COPY.wealthTargetVsFiCard(450),
     isProjection: true,
   },
   {
@@ -160,12 +242,12 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   },
   {
     label: 'wealthTargetRequired',
-    text: COACH_COPY.wealthTargetRequired(cents(1_250_00), 25, 450, 250),
+    text: COACH_COPY.wealthTargetRequired(cents(1_250_00), 25, 450, 250, false),
     isProjection: true,
   },
   {
-    label: 'wealthTargetRequired:oneYear',
-    text: COACH_COPY.wealthTargetRequired(cents(1_250_00), 1, 450, 250),
+    label: 'wealthTargetRequired:oneYear+defaultInflation',
+    text: COACH_COPY.wealthTargetRequired(cents(1_250_00), 1, 450, 250, true),
     isProjection: true,
   },
   {
@@ -255,11 +337,11 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'runwayBanded:below', text: COACH_COPY.runwayBanded(1.8, 'below'), isProjection: false },
   { label: 'runwayBanded:in', text: COACH_COPY.runwayBanded(4.2, 'in'), isProjection: false },
   { label: 'runwayBanded:above', text: COACH_COPY.runwayBanded(9.5, 'above'), isProjection: false },
-  { label: 'freedomDividend', text: COACH_COPY.freedomDividend(17), isProjection: true },
+  { label: 'freedomDividend', text: COACH_COPY.freedomDividend(17, 450), isProjection: true },
   { label: 'yourEnough', text: COACH_COPY.yourEnough(), isProjection: false },
   { label: 'biggestLever', text: COACH_COPY.biggestLever(), isProjection: false },
   { label: 'dialTag', text: COACH_COPY.dialTag('Dining Out'), isProjection: false },
-  { label: 'volatilityPrice', text: COACH_COPY.volatilityPrice(700), isProjection: true },
+  { label: 'volatilityPrice', text: COACH_COPY.volatilityPrice(700, 450), isProjection: true },
   { label: 'fifteenPercentReference', text: COACH_COPY.fifteenPercentReference(), isProjection: false },
   { label: 'savingsStreak:3', text: COACH_COPY.savingsStreak(3, 2653), isProjection: false },
   { label: 'savingsPersonalBest', text: COACH_COPY.savingsPersonalBest(3197, 'May 2026'), isProjection: false },
@@ -504,17 +586,40 @@ describe('wealth-target copy — the claims the critics broke', () => {
   });
 
   it('the required contribution says a flat standing order will not keep pace', () => {
-    const line = COACH_COPY.wealthTargetRequired(cents(183_243), 25, 450, 250);
+    const line = COACH_COPY.wealthTargetRequired(cents(183_243), 25, 450, 250, false);
     expect(line).toContain("in today's money");
     expect(line).toContain('would need to rise with inflation');
     expect(line).toContain('2.50% a year on your own assumption');
   });
 
-  it('the FI-card reconciliation names both bases and which one runs earlier', () => {
-    const line = COACH_COPY.wealthTargetVsFiCard(700, 250);
-    expect(line).toContain('7.00% before inflation');
-    expect(line).toContain('its date is earlier');
-    expect(line).toContain('2.50% inflation assumption');
+  /**
+   * A W.2 critic found this card calling the SAME 2.50% "Aimplifi's default, which you haven't
+   * changed" and "your own assumption" 633px apart, live on the demo. One dial, one card, two
+   * claims about who owns it.
+   */
+  it('the required contribution will not call an unset inflation dial "your own"', () => {
+    const defaulted = COACH_COPY.wealthTargetRequired(cents(183_243), 25, 450, 250, true);
+    expect(defaulted).toContain('2.50% a year on our default assumption');
+    expect(defaulted).not.toContain('your own assumption');
+  });
+
+  /**
+   * W.2 REPLACED this lock. It used to assert the sentence said the FI card ran on a nominal
+   * basis and therefore printed an EARLIER date — true when the FI card compounded at the
+   * nominal dial, and false the moment it stopped. A copy lock that survives the change it
+   * should have caught is worse than no lock, so the assertions now pin the new claim: one
+   * shared basis, and the destination as the thing that differs.
+   */
+  it('the FI-card reconciliation claims a SHARED basis and names the real difference', () => {
+    const line = COACH_COPY.wealthTargetVsFiCard(450);
+    expect(line).toContain('same footing');
+    expect(line).toContain("today's dollars");
+    expect(line).toContain('4.50% growth after inflation');
+    expect(line).toContain('What differs is the destination');
+    // The retired claim may not creep back: both cards now deflate, so nothing on this card
+    // may tell a reader the one above it runs earlier or before inflation.
+    expect(line).not.toContain('before inflation');
+    expect(line).not.toContain('earlier');
   });
 });
 

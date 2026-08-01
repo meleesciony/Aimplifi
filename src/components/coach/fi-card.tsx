@@ -27,9 +27,14 @@ export function FICard({
   monthsToFINow,
   swrBps,
   expectedReturnBps,
+  projectionReturnBps,
+  inflationBps,
+  inflationIsDefault,
+  realReturnFloored,
   coastIsCoast,
   coastRequiredMonthlyCents,
   coastTargetYears,
+  coastTargetYearsIsAppDefault,
   latestMonthRateBps,
   latestMonthLabel,
   currencyNote,
@@ -56,10 +61,29 @@ export function FICard({
   monthlySavingsCents: Cents;
   monthsToFINow: number | null;
   swrBps: number;
+  /** The reader's NOMINAL dial. Named in the basis + volatility copy as one operand; it is
+   *  NOT the rate anything on this card compounds at (W.2). */
   expectedReturnBps: number;
+  /**
+   * W.2 — the real (after-inflation) rate every projection on this card uses, including the
+   * slider below. Required and passed in rather than derived here: the server already
+   * compounded `monthsToFI`/`coastFI` at it, and a component that re-derives the rate is a
+   * second definition of the basis that can drift from the one the printed date came from.
+   */
+  projectionReturnBps: number;
+  inflationBps: number;
+  /** True when `inflationBps` fell back to `RETIREMENT_ASSUMPTIONS` because the reader never
+   *  set one — so the basis copy may not call it "yours". Required, not optional: a caller
+   *  that forgets it would silently claim a setting the reader does not have. */
+  inflationIsDefault: boolean;
+  /** True when `projectionReturnBps` is the 0 floor rather than the subtraction; selects the
+   *  basis branch that may not show its working. */
+  realReturnFloored: boolean;
   coastIsCoast: boolean;
   coastRequiredMonthlyCents: Cents | null;
   coastTargetYears: number;
+  /** W.9 — whether the app picked `coastTargetYears` rather than the reader. */
+  coastTargetYearsIsAppDefault: boolean;
 }) {
   const currentRateBps =
     monthlyIncomeCents > 0 ? Math.round((monthlySavingsCents / monthlyIncomeCents) * 10000) : 0;
@@ -67,8 +91,12 @@ export function FICard({
 
   const sliderMonths = useMemo(() => {
     const savings = cents(Math.round((monthlyIncomeCents * sliderBps) / 10000));
-    return monthsToFI(portfolioCents, savings, expectedReturnBps, fiNumberCents);
-  }, [sliderBps, monthlyIncomeCents, portfolioCents, expectedReturnBps, fiNumberCents]);
+    // W.2 — the REAL rate, the same one the server's `monthsToFI` used for `monthsToFINow`.
+    // The slider's whole promise is "same assumptions, different savings rate"; compounding it
+    // at the nominal dial would make dragging to the current pace print a different date from
+    // the one six inches above it.
+    return monthsToFI(portfolioCents, savings, projectionReturnBps, fiNumberCents);
+  }, [sliderBps, monthlyIncomeCents, portfolioCents, projectionReturnBps, fiNumberCents]);
 
   const yearsOf = (m: number | null) => (m === null ? null : Math.floor(m / 12));
 
@@ -93,9 +121,32 @@ export function FICard({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm" data-testid="years-to-fi">
-          {monthsToFINow !== null
-            ? COACH_COPY.yearsToFI(Math.floor(monthsToFINow / 12), monthsToFINow % 12, expectedReturnBps)
-            : COACH_COPY.notOnTrack()}
+          {/* FOUR states, not two. `monthsToFI` returns null both for "not saving" and for
+              "saving, but past the engine's 1200-month cap", and this line used to assert the
+              first as fact for both — so a reader saving $500/month at a low real rate was
+              told their contributions aren't outpacing spending. W.2 lowered the rate and
+              widened that set, which is how both critics found it. The coasting case is
+              separated too: "a projection date wouldn't be honest" printed directly above a
+              Coast line that hands over a date is one card contradicting itself. */}
+          {COACH_COPY.fiHeadline({
+            monthsToFI: monthsToFINow,
+            monthlySavingsCents,
+            coastIsCoast,
+            projectionReturnBps,
+          })}
+        </p>
+        {/* W.2 — where the rate above came from, stated once for the whole card rather than
+            re-asserted by each projection. Rendered even in the `notOnTrack` branch: the Coast
+            line below still prints a date on this basis, and the slider can leave the branch
+            without the reader learning anything new about the assumptions. */}
+        <p className="text-xs text-muted-foreground" data-testid="fi-projection-basis">
+          {COACH_COPY.fiProjectionBasis(
+            projectionReturnBps,
+            expectedReturnBps,
+            inflationBps,
+            realReturnFloored,
+            inflationIsDefault,
+          )}
         </p>
         {frozenPortfolioNote ? (
           <p className="text-xs text-amber-500" data-testid={FROZEN_COACH_TESTID}>
@@ -104,19 +155,32 @@ export function FICard({
         ) : null}
         {monthsToFINow !== null && (
           <p className="text-sm text-emerald-600 dark:text-emerald-400" data-testid="freedom-dividend">
-            {COACH_COPY.freedomDividend(Math.floor(monthsToFINow / 12))}
+            {COACH_COPY.freedomDividend(Math.floor(monthsToFINow / 12), projectionReturnBps)}
           </p>
         )}
         <details className="text-xs text-muted-foreground" data-testid="volatility-note">
-          <summary className="cursor-pointer select-none">Why these return assumptions?</summary>
-          <p className="mt-1">{COACH_COPY.volatilityPrice(expectedReturnBps)}</p>
+          <summary className="flex min-h-11 cursor-pointer select-none items-center">
+            Why these return assumptions?
+          </summary>
+          <p className="mt-1">
+            {COACH_COPY.volatilityPrice(expectedReturnBps, projectionReturnBps)}
+          </p>
         </details>
 
         <p className="text-sm text-muted-foreground" data-testid="coast-fi">
           {coastIsCoast
-            ? COACH_COPY.coastFI(coastTargetYears, expectedReturnBps)
+            ? COACH_COPY.coastFI(
+                coastTargetYears,
+                projectionReturnBps,
+                coastTargetYearsIsAppDefault,
+              )
             : coastRequiredMonthlyCents !== null
-              ? COACH_COPY.notCoastFI(coastRequiredMonthlyCents, coastTargetYears, expectedReturnBps)
+              ? COACH_COPY.notCoastFI(
+                  coastRequiredMonthlyCents,
+                  coastTargetYears,
+                  projectionReturnBps,
+                  coastTargetYearsIsAppDefault,
+                )
               : null}
         </p>
 

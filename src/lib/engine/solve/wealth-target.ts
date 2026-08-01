@@ -36,7 +36,7 @@
  * Pure & deterministic: integer cents in, integer cents out, no I/O, no `new Date()`.
  */
 import { coastFI, monthsToFI } from '@/lib/engine/fi/fi';
-import { realReturnBps } from '@/lib/engine/investments/retirement';
+import { isRealReturnFloored, realReturnBps } from '@/lib/engine/investments/retirement';
 import { cents } from '@/lib/money';
 
 export type WealthTargetOutcome =
@@ -290,7 +290,7 @@ export function solveWealthTarget(input: WealthTargetInput): WealthTargetResult 
   const contributionFloored = rawMonthly <= 0;
   const remainingCents = Math.max(0, targetAmountCents - portfolio);
   const realBps = realReturnBps(input.nominalReturnBps, input.inflationBps);
-  const realReturnFloored = input.nominalReturnBps - input.inflationBps <= 0;
+  const realReturnFloored = isRealReturnFloored(input.nominalReturnBps, input.inflationBps);
   const currentSavingsRateBps = rateOfIncomeBps(currentMonthly, input.monthlyIncomeCents);
 
   // The ±2pp table is built for EVERY outcome, including the unreachable ones: "you don't
@@ -307,7 +307,7 @@ export function solveWealthTarget(input: WealthTargetInput): WealthTargetResult 
         return {
           nominalReturnBps: nominal,
           realReturnBps: real,
-          realReturnFloored: nominal - input.inflationBps <= 0,
+          realReturnFloored: isRealReturnFloored(nominal, input.inflationBps),
           monthsAtCurrentRate:
             portfolio >= targetAmountCents
               ? 0

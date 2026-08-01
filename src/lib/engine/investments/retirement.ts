@@ -118,9 +118,44 @@ export interface RetirementPlanningInputs {
  * today's dollars (the engine's documented inflation convention). Floored at 0 —
  * the engine rejects a negative return, and a sub-inflation nominal return is
  * treated as no real growth. The single definition shared by every caller.
+ *
+ * BOTH ends are clamped. The outer `Math.max` was always here; the inner one closes a
+ * hole a W.2 critic found by execution: a NEGATIVE `inflationBps` made the subtraction
+ * ADD, so the real rate came out ABOVE the reader's own nominal dial (`-250` → 9.50% off
+ * a 7.00% assumption) and `isRealReturnFloored` said nothing was clamped, so the card
+ * would print "grown at 9.50% — your 7.00% return assumption less your -2.50% inflation
+ * assumption": a projection more optimistic than the dial it claims to derive from, on a
+ * card whose entire thesis is the opposite. `validateDials` bounds inflation to [0, 1000]
+ * and is the only writer today, but `User.inflationBps` carries no DB constraint, so a
+ * seed, a direct write, or a second writer reaches it — and this engine is shared by
+ * /coach, /investments, the assistant and the wealth planner. One clamp here is cheaper
+ * than trusting four callers and every future fifth.
  */
 export function realReturnBps(nominalReturnBps: number, inflationBps: number): number {
-  return Math.max(0, nominalReturnBps - inflationBps);
+  return Math.max(0, nominalReturnBps - Math.max(0, inflationBps));
+}
+
+/**
+ * Whether `realReturnBps()` returned its FLOOR rather than the subtraction — i.e. the
+ * nominal assumption is at or below the inflation assumption.
+ *
+ * Extracted (W.2) because two cards on /coach now print a basis sentence off this same
+ * fact, and the floored branch is the one that may NOT show its working: 7.00% less
+ * 10.00% is not 0.00%, and a reader can do that arithmetic in their head
+ * (`the-arithmetic-was-never-the-risk`, rule "a clamped output may not print its
+ * inputs"). Two hand-written copies of `nominal - inflation <= 0` is exactly how the two
+ * cards would come to disagree about whether the reader is being shown a clamp.
+ *
+ * Note the boundary is `<= 0`, not `< 0`: an exactly-equal pair yields 0 bps of real
+ * growth from the subtraction itself, and a sentence offering to show that working would
+ * print "7.00% less 7.00%" beside a projection that never grows — true arithmetic, but it
+ * reads as a rounding artifact rather than the standstill it actually is.
+ *
+ * Mirrors `realReturnBps`'s inner clamp so the pair cannot disagree: without it, a
+ * negative inflation row would report "not floored" about a rate that had been clamped.
+ */
+export function isRealReturnFloored(nominalReturnBps: number, inflationBps: number): boolean {
+  return nominalReturnBps - Math.max(0, inflationBps) <= 0;
 }
 
 /**

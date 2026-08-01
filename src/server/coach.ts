@@ -13,6 +13,11 @@ import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { buildAutomationBlueprint, type BlueprintStep, type PayCadence } from '@/lib/engine/automation/blueprint';
 import { coastFI, fiNumberCents, monthsToFI } from '@/lib/engine/fi/fi';
 import {
+  RETIREMENT_ASSUMPTIONS,
+  isRealReturnFloored,
+  realReturnBps,
+} from '@/lib/engine/investments/retirement';
+import {
   detectLifestyleCreep,
   findOpportunities,
   hoursOfWork,
@@ -74,8 +79,32 @@ export interface CoachData {
     coastIsCoast: boolean;
     coastRequiredMonthlyCents: Cents | null;
     swrBps: number;
+    /** The reader's NOMINAL return dial (`User.expectedReturnBps`). Named in the copy as one
+     *  operand of the real return; never itself the rate the FI projections compound at. */
     expectedReturnBps: number;
+    /**
+     * W.2 — the rate `monthsToFI`/`coastFI` above actually compounded at, and the rate the
+     * card's slider must recompute with: `realReturnBps(expectedReturnBps, inflationBps)`.
+     *
+     * Carried rather than re-derived on the client because the slider calls the same engine,
+     * and a component that re-derives its own rate is a second definition of the basis.
+     */
+    projectionReturnBps: number;
+    inflationBps: number;
+    /** `User.inflationBps` is nullable and this fell back to `RETIREMENT_ASSUMPTIONS` — so the
+     *  copy may not call the rate "yours" (`an-answer-is-only-as-believable-as-its-visible-inputs`:
+     *  a possessive is a claim). /settings calls the same 2.50% "our defaults". */
+    inflationIsDefault: boolean;
+    /** True when `projectionReturnBps` is the 0 FLOOR rather than the subtraction. The copy's
+     *  floored branch may not print its operands. */
+    realReturnFloored: boolean;
+    /**
+     * W.9 — the Coast horizon, and a number the APP picked, not the reader. Exposed with
+     * `coastTargetYearsIsAppDefault` so the copy can say so: an unlabelled constant beside a
+     * money figure reads as arbitrary, which was W.1a's whole finding one card down.
+     */
     coastTargetYears: number;
+    coastTargetYearsIsAppDefault: boolean;
   };
   opportunities: Opportunity[];
   /** Per-merchant median+MAD outliers (#249) — pure recompute, feeds the nudge feed. */
@@ -143,6 +172,22 @@ export interface CoachData {
   outstandingReimbursements: OutstandingReimbursements;
 }
 
+/**
+ * The Coast-FI horizon: "would what you have already invested grow into your FI number
+ * within N years, with nothing added?"
+ *
+ * 25 is the APP'S pick — a conventional working-life span — and no control sets it. W.9
+ * exists because it was printed in `COACH_COPY.notCoastFI` as bare fact ("over the next 25
+ * years") beside a monthly dollar figure, with nothing distinguishing a number the app chose
+ * from one the reader did. It is now labelled at the render site via
+ * `coastTargetYearsIsAppDefault`.
+ *
+ * Deliberately NOT seeded from the reader's own arrival the way W.1a seeded the wealth card's
+ * horizon: that card asks "when do I get there at my pace", so its own arrival is the honest
+ * default, whereas Coast FI asks the opposite question — what happens if contributions STOP —
+ * and seeding it from a pace that assumes contributions would make the horizon depend on the
+ * very thing the question removes.
+ */
 const COAST_TARGET_YEARS = 25;
 
 export async function getCoachData(
@@ -207,9 +252,28 @@ export async function getCoachData(
     liquid: frozenRows(liquidAccounts),
   };
 
+  // TASKS W.2 — the FI projections compound at the REAL (after-inflation) return, not the
+  // nominal dial.
+  //
+  // `fiTarget` is a PRESENT VALUE: `annualExpenses` is the last 6 complete months of this
+  // reader's actual spending × 2, so the target is denominated in today's dollars. Growing
+  // the portfolio at the nominal 7% and stopping when it crosses that target compares future
+  // nominal dollars against today's dollars — a unit mismatch, not a modelling choice, and it
+  // runs optimistic by the whole inflation gap (decades on a long horizon). This card's own
+  // sibling says so in `coach-copy.ts`: "a $10M answer at a nominal rate against a
+  // present-value goal would be optimistic by decades."
+  //
+  // The two other surfaces answering this question already deflate — /investments'
+  // `buildRetirementInputs` and W.1's wealth-target card — through this same shared helper, so
+  // /coach now carries ONE basis rather than two. See DECISIONS #361 for the alternative that
+  // was rejected (keep nominal growth and inflate the target instead): it is the larger change
+  // and it yields a nominal FI number in future dollars, which is not a figure a reader can
+  // hold their own spending up against.
+  const inflationBps = user.inflationBps ?? RETIREMENT_ASSUMPTIONS.inflationBps;
+  const projectionReturnBps = realReturnBps(user.expectedReturnBps, inflationBps);
   const fiTarget = fiNumberCents(annualExpenses, user.swrBps);
-  const months = monthsToFI(portfolio, monthlySavings, user.expectedReturnBps, fiTarget);
-  const coast = coastFI(portfolio, fiTarget, user.expectedReturnBps, COAST_TARGET_YEARS * 12);
+  const months = monthsToFI(portfolio, monthlySavings, projectionReturnBps, fiTarget);
+  const coast = coastFI(portfolio, fiTarget, projectionReturnBps, COAST_TARGET_YEARS * 12);
 
   // Recurring detection universe = SPENDING accounts (checking/savings/credit), the
   // same universe getRecurring (#62) and refreshRecurringForUser read (#251 critic
@@ -387,7 +451,15 @@ export async function getCoachData(
       coastRequiredMonthlyCents: coast.requiredMonthlyContributionCents,
       swrBps: user.swrBps,
       expectedReturnBps: user.expectedReturnBps,
+      projectionReturnBps,
+      inflationBps,
+      inflationIsDefault: user.inflationBps == null,
+      realReturnFloored: isRealReturnFloored(user.expectedReturnBps, inflationBps),
       coastTargetYears: COAST_TARGET_YEARS,
+      // No control sets this today, so it is ALWAYS the app's pick. Kept as a field rather
+      // than a literal `true` at the render site so that giving the reader a control later
+      // changes one server line, not a copy branch that has quietly become false.
+      coastTargetYearsIsAppDefault: true,
     },
     opportunities,
     unusualCharges,

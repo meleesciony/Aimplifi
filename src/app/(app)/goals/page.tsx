@@ -32,8 +32,10 @@ export default async function GoalsPage() {
       <h1 className="text-xl font-semibold">Goals</h1>
       <p className="text-sm text-muted-foreground">
         Every goal shows its effect on your FI date, assuming your savings rate
-        and expected return stay as they are. Goals and FI aren&apos;t enemies —
-        they&apos;re both you, paying yourself first.
+        and expected return stay as they are. Dates here are in today&apos;s money,
+        after inflation — the same basis the FI card on Coach uses, so the two
+        agree. Goals and FI aren&apos;t enemies — they&apos;re both you, paying
+        yourself first.
       </p>
       <p className="text-xs text-muted-foreground" data-testid="cushion-is-a-goal">
         {COACH_COPY.cushionIsAGoal()}
@@ -54,7 +56,11 @@ export default async function GoalsPage() {
               const impact = goalFIImpact({
                 portfolioCents: coach.fi.portfolioCents,
                 monthlySavingsCents: coach.fi.monthlySavingsCents,
-                annualReturnBps: coach.fi.expectedReturnBps,
+                // W.2 — the REAL rate, matching /coach. `goalFIImpact` runs the same
+                // simulation against the same present-value `fiNumberCents`, so the nominal
+                // dial produced an FI baseline this reader never saw on the card they just
+                // left (measured: 181 months here vs 221 on /coach).
+                annualReturnBps: coach.fi.projectionReturnBps,
                 fiTargetCents: coach.fi.fiNumberCents,
                 goalRemainingCents: target,
                 goalMonthlyContributionCents: cents(50000),
@@ -105,7 +111,8 @@ export default async function GoalsPage() {
           const impact = goalFIImpact({
             portfolioCents: coach.fi.portfolioCents,
             monthlySavingsCents: coach.fi.monthlySavingsCents,
-            annualReturnBps: coach.fi.expectedReturnBps,
+            // W.2 — the REAL rate, matching /coach (see the sibling call above).
+            annualReturnBps: coach.fi.projectionReturnBps,
             fiTargetCents: coach.fi.fiNumberCents,
             goalRemainingCents: cents(Math.max(0, goal.targetCents - goal.savedCents)),
             goalMonthlyContributionCents: cents(goal.monthlyContributionCents ?? 0),
