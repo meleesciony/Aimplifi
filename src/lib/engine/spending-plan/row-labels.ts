@@ -311,42 +311,215 @@ export function uncountedFixedNote(
  * own banner, and naming "no statement or due date yet" for it would state a
  * wrong reason — the dangerous half of a disclosure.
  *
- * KNOWN RESIDUAL (filed in TASKS): this is the class's THIRD author — the
- * dashboard card and /spending-plan each hand-roll their variants. Unifying
- * all three onto this module is its own slice; this function at least stops
- * the count growing past three.
+ * O.18f made this the class's ONLY author. It previously carried a note saying
+ * it was the THIRD, with the dashboard card and /spending-plan hand-rolling the
+ * rest — that count was itself wrong: `answer.ts` was a fourth, hand-rolling all
+ * four facts for the safe-to-spend answer. Four copies had drifted apart on the
+ * duplicate count (three of them said "Two" for any number of pairs), on whether
+ * cards are named, on "lower" vs "smaller than shown", and on whether the remedy
+ * is stated at all. Every one of those divergences is now a REQUIRED field on
+ * `CardNoteSurface`, so a new surface must answer them rather than inherit
+ * whichever copy its author read first.
+ *
+ * NOT unified with `card-duplicate-view.ts`, deliberately. That module authors the
+ * same-card-twice fact for the CASH-NEEDED figure, resolved against real card rows
+ * so it can say whether a pair is inside that total. This one qualifies the
+ * SAFE-TO-SPEND figure from the thinner `SpendingPlanDisclosures` channel. One
+ * question, one basis — merging them would import the other engine's window.
  */
-export function planCardNotes(
+export interface CardNoteSurface {
+  /**
+   * Which figure THIS surface prints — required, and derived from the surface, never
+   * from `plan.overspent`. The same exclusion makes left-to-spend SMALLER and an
+   * overage BIGGER, so a caller that renders the signed left-to-spend value states
+   * `'left-to-spend'` even in an overspent month (the L.15/L.30 rule: a required
+   * argument makes a caller answer, so it must be answerable from what it renders).
+   *
+   * `'none'` is the dashboard's no-data state, where the card prints NO figure at
+   * all. Neither direction word is true there, so both are replaced rather than
+   * defaulted — naming the ignorance instead of hiding it.
+   */
+  headline: 'left-to-spend' | 'overage' | 'none';
+  /** What THIS surface calls the thing the cards sit behind. */
+  container:
+    | 'this figure'
+    | 'the card-payments line'
+    | 'the card-payments amount'
+    | 'the card-payments figure';
+  /**
+   * `'named'` where the surface has room to name the cards and split the two
+   * exclusion mechanisms apart (/spending-plan's "What this figure can't see", Ask);
+   * `'compact'` where it has one line per fact and must merge them (dashboard card,
+   * /budgets strip).
+   */
+  detail: 'compact' | 'named';
+  /**
+   * The name of the fixed-costs figure THIS surface also prints, or `null` when it
+   * prints none. The dashboard card and Ask show only the headline, so a clause
+   * about "your real fixed costs" would point at nothing there — the same trap
+   * `uncountedFixedNote`'s `lineName` exists to close.
+   */
+  fixedCostsName: 'your real fixed costs' | null;
+}
+
+/**
+ * A note tagged with the fact it states, so a surface that gives each fact its own
+ * element (the dashboard card's three testids) can place them without indexing into
+ * the array — an index that silently shifts whenever a fact abstains.
+ */
+export interface CardNote {
+  fact: 'excluded' | 'undated' | 'statement-pending' | 'duplicate' | 'frozen';
+  text: string;
+}
+
+/**
+ * The /budgets surface, declared ONCE (critic P2-2).
+ *
+ * Two callers must agree byte-for-byte: the strip's visible notes and
+ * `traceConsciousBuckets`' panel bases, which the share snapshot exports. A
+ * four-field literal copied into both is the same drift channel O.18f exists to
+ * close, just widened from one string to four fields.
+ */
+export const BUDGETS_CARD_NOTE_SURFACE: CardNoteSurface = {
+  // The strip renders the signed left-to-spend value itself, never an overage.
+  headline: 'left-to-spend',
+  container: 'the card-payments amount',
+  // One line per fact beside a bar: no room to name cards.
+  detail: 'compact',
+  // /budgets prints a "Fixed costs" bucket, so the clause has a referent here.
+  fixedCostsName: 'your real fixed costs',
+};
+
+/** The tagged form. `planCardNotes` is this, flattened to text, for callers that render a list. */
+export function planCardNoteParts(
   disclosures: SpendingPlanDisclosures,
-  /** Same contract as `uncountedFixedNote`: the caller states which figure it renders. */
-  headline: 'left-to-spend' | 'overage',
-): string[] {
-  const notes: string[] = [];
-  const lower =
-    headline === 'overage'
-      ? 'the real overage may be bigger than shown'
-      : 'the real amount free to spend may be smaller than shown';
-  const higher =
-    headline === 'overage'
-      ? 'the real overage may be smaller than shown'
-      : 'the real amount free to spend may be bigger than shown';
-  const excluded = disclosures.undatedCards.length + disclosures.statementPendingCards.length;
-  if (excluded > 0) {
-    notes.push(
-      `Doesn’t count ${excluded === 1 ? 'a card' : `${excluded} cards`} with a balance but no statement or due date yet — your real fixed costs are higher than shown and ${lower}.`,
-    );
+  surface: CardNoteSurface,
+): CardNote[] {
+  const { headline, container, detail, fixedCostsName } = surface;
+  const notes: CardNote[] = [];
+  const noFigure = headline === 'none';
+  // The direction the fact pushes the printed figure. Under 'none' there is no
+  // printed figure to push, so both directions collapse to the same statement.
+  // HEDGED, because the exclusion is certain but its size is not: the card really is
+  // missing from the figure, and how much it would move it is unknown.
+  const lower = noFigure
+    ? 'so there is no figure to show for it here'
+    : headline === 'overage'
+      ? 'the real overage may be higher than shown'
+      : 'the real amount free to spend may be lower than shown';
+  // DEFINITE, and the modality is load-bearing rather than a synonym: every sentence
+  // using this clause is governed by an "if so" antecedent that has already taken the
+  // duplicate as given, so under that condition the figure IS wrong in this direction.
+  // Collapsing both clauses to "may be" during O.18f under-stated it.
+  const higher = noFigure
+    ? 'there is no figure to show for it here'
+    : headline === 'overage'
+      ? 'the real overage is smaller than shown'
+      : 'the real amount free to spend is higher than shown';
+  // Suppressed under 'none' for the same reason: nothing is "higher than shown"
+  // when nothing is shown.
+  const fixedHigher = fixedCostsName && !noFigure ? `${fixedCostsName} are higher than shown and ` : '';
+  const fixedLower = fixedCostsName && !noFigure ? `${fixedCostsName} are lower than shown and ` : '';
+
+  const undated = disclosures.undatedCards;
+  const pending = disclosures.statementPendingCards;
+  if (detail === 'compact') {
+    const excluded = undated.length + pending.length;
+    if (excluded > 0) {
+      notes.push({
+        fact: 'excluded',
+        text: `Doesn’t count ${excluded === 1 ? 'a card' : `${excluded} cards`} with a balance but no statement or due date yet — ${fixedHigher}${lower}.`,
+      });
+    }
+  } else {
+    if (undated.length > 0) {
+      const names = undated.map((c) => c.cardName).join(', ');
+      const one = undated.length === 1;
+      notes.push({
+        fact: 'undated',
+        text: `${one ? 'One card has' : `${undated.length} cards have`} a balance but no due date yet (${names}) — ${one ? 'its payment is' : 'their payments are'} not in ${container}, so ${lower}.`,
+      });
+    }
+    if (pending.length > 0) {
+      const parts = pending.map((c) => `${c.cardName} (due around ${c.dueDate})`).join('; ');
+      const one = pending.length === 1;
+      notes.push({
+        fact: 'statement-pending',
+        text: `${one ? 'A statement has' : 'Statements have'} not been generated yet for ${parts}, so ${one ? 'that payment is' : 'those payments are'} not in ${container} — ${lower}.`,
+      });
+    }
   }
-  if (disclosures.duplicatePairs.length > 0) {
-    notes.push(
-      `Two of the cards in the card-payments amount may be the same card counted twice; if so your real fixed costs are lower than shown and ${higher}. Nothing was adjusted — only you can confirm it, on Accounts.`,
-    );
+
+  const pairs = disclosures.duplicatePairs;
+  if (pairs.length > 0) {
+    if (detail === 'named') {
+      // One sentence per pair, which is the only shape that can name them. The
+      // compact branch below cannot, which is where "Two" used to be hardcoded.
+      for (const p of pairs) {
+        const match = p.confidence === 'high' ? 'strong match' : 'possible match';
+        const consequence = noFigure
+          ? ''
+          : ` If so, ${container} is higher than you owe and ${fixedLower}${higher}.`;
+        notes.push({
+          fact: 'duplicate',
+          text: `${p.aName} and ${p.bName} in ${container} look like the same card counted twice (${match}).${consequence} No amount was adjusted — only you can confirm it, on Accounts.`,
+        });
+      }
+    } else {
+      // Count PAIRS, never cards: two pairs may share a card, so "four cards" would
+      // be a claim this channel cannot support. Three of the four pre-O.18f authors
+      // said "Two" regardless of how many pairs there were, and Ask's said "Two"
+      // while naming every card in every pair.
+      // "the same card" needs a referent, and a sentence may not open with a bare
+      // numeral (critic P2-4).
+      const subject =
+        pairs.length === 1
+          ? `Two of the cards behind ${container} may be the same card counted twice`
+          : `We found ${pairs.length} pairs of cards behind ${container} that may each be one card counted twice`;
+      // Under 'none' there is no figure for the antecedent to act on, so the
+      // consequence clause is dropped rather than rendered as "if so there is no
+      // figure to show for it here" — a non-sequitur (critic P2-3).
+      notes.push({
+        fact: 'duplicate',
+        text: noFigure
+          ? `${subject}. Nothing was adjusted — only you can confirm it, on Accounts.`
+          : `${subject}; if so ${fixedLower}${higher}. Nothing was adjusted — only you can confirm it, on Accounts.`,
+      });
+    }
   }
-  if (disclosures.frozenCards.length > 0) {
-    notes.push(
-      `${disclosures.frozenCards.length === 1 ? 'A card' : `${disclosures.frozenCards.length} cards`} behind the card-payments amount stopped being shared by the bank, so that amount may be stale.`,
-    );
+
+  const frozen = disclosures.frozenCards;
+  if (frozen.length > 0) {
+    if (detail === 'named') {
+      // Every count carries its since-date. The pre-O.18f /spending-plan copy carried
+      // it only in the singular branch, so a second frozen card silently dropped the
+      // provenance of both.
+      const labels = frozen.map((c) => `${c.label}, since ${c.frozenSince}`).join('; ');
+      const one = frozen.length === 1;
+      notes.push({
+        fact: 'frozen',
+        text: `The bank stopped sharing ${one ? 'one card' : `${frozen.length} cards`} in ${container} (${labels}), so ${one ? 'its amount' : 'their amounts'} may be stale.`,
+      });
+    } else {
+      // The referent follows the CARD, not the container (critic P2-1). The
+      // pre-O.18f dashboard copy ended "so the card-payments amount may be stale",
+      // which parameterizing turned into "so that amount may be stale" — and with
+      // this surface's container that demonstrative pointed at the guilt-free
+      // headline, naming the wrong figure as the stale one.
+      notes.push({
+        fact: 'frozen',
+        text: `${frozen.length === 1 ? 'A card' : `${frozen.length} cards`} behind ${container} stopped being shared by the bank, so ${frozen.length === 1 ? 'its amount' : 'their amounts'} may be stale.`,
+      });
+    }
   }
   return notes;
+}
+
+export function planCardNotes(
+  disclosures: SpendingPlanDisclosures,
+  surface: CardNoteSurface,
+): string[] {
+  return planCardNoteParts(disclosures, surface).map((n) => n.text);
 }
 
 function cardPaymentsLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): string {

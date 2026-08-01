@@ -20,7 +20,7 @@ import {
   type SpendingBreakdown,
 } from '@/lib/engine/reports/reports';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
-import { planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
+import { planCardNotes, planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
@@ -1122,33 +1122,21 @@ export function answerSafeToSpend(
     'the fixed-expenses line',
   );
   if (fixedShortfall) qualifiers.push(fixedShortfall);
-  if (disclosures.undatedCards.length > 0) {
-    const names = disclosures.undatedCards.map((c) => c.cardName).join(', ');
-    const one = disclosures.undatedCards.length === 1;
-    qualifiers.push(
-      `${one ? 'One card has' : `${disclosures.undatedCards.length} cards have`} a balance but no due date yet (${names}) — ${one ? 'its payment is' : 'their payments are'} not in the card-payments figure, so ${over ? 'the real overage may be higher than shown' : 'the real amount free to spend may be lower than shown'}.`,
-    );
-  }
-  if (disclosures.statementPendingCards.length > 0) {
-    const parts = disclosures.statementPendingCards
-      .map((c) => `${c.cardName} (due around ${c.dueDate})`)
-      .join('; ');
-    qualifiers.push(
-      `${disclosures.statementPendingCards.length === 1 ? 'A statement has' : 'Statements have'} not been generated yet for ${parts}, so ${disclosures.statementPendingCards.length === 1 ? 'that payment is' : 'those payments are'} not counted — ${over ? 'the real overage may be higher than shown' : 'the real amount free to spend may be lower than shown'}.`,
-    );
-  }
-  if (disclosures.duplicatePairs.length > 0) {
-    const pairLines = disclosures.duplicatePairs.map((p) => `${p.aName} and ${p.bName}`).join('; ');
-    qualifiers.push(
-      `Two cards behind the card-payments figure (${pairLines}) look like the same card counted twice. If so, that figure is higher than you owe and ${over ? 'the real overage is smaller than shown' : 'the real amount free to spend is higher than shown'}. No amount was adjusted — only you can confirm it, on Accounts.`,
-    );
-  }
-  if (disclosures.frozenCards.length > 0) {
-    const names = disclosures.frozenCards.map((c) => c.label).join(', ');
-    qualifiers.push(
-      `The bank stopped sharing ${disclosures.frozenCards.length === 1 ? 'one card behind the card-payments figure' : `${disclosures.frozenCards.length} cards behind the card-payments figure`} (${names}), so ${disclosures.frozenCards.length === 1 ? 'its amount' : 'their amounts'} may be stale.`,
-    );
-  }
+  // O.18f: Ask was the FOURTH hand-rolled author of these four facts — the one the
+  // residual's own task row did not know about. Its duplicate sentence was the worst
+  // of the four: it said "Two cards" while naming every card in every pair, so a
+  // reader with two suspected pairs was told "Two cards (A and B; C and D)".
+  qualifiers.push(
+    ...planCardNotes(disclosures, {
+      // The overspent branch renders the OVERAGE, the negation of left-to-spend.
+      headline: over ? 'overage' : 'left-to-spend',
+      container: 'the card-payments figure',
+      // A spoken answer names the cards, like /spending-plan.
+      detail: 'named',
+      // Ask states the fixed-expenses line separately, just above.
+      fixedCostsName: null,
+    }),
+  );
   // A fact about how the figure was reached, not a hedge about accuracy, so it
   // is stated on BOTH branches and before the uncertainty qualifiers. The
   // preposition is load-bearing: the money was set aside BEFORE the headline,

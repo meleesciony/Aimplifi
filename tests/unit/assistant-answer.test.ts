@@ -354,7 +354,14 @@ describe('answerSafeToSpend', () => {
     // Inflated obligations → real spendable HIGHER.
     expect(a.detail).toContain('the real amount free to spend is higher than shown');
     expect(a.detail).toContain('No amount was adjusted');
-    expect(a.detail).toContain('stopped sharing one card behind the card-payments figure (Freedom)');
+    // O.18f: was `behind the card-payments figure (Freedom)`. Ask is now served by the
+    // class's single author, which names the card AND the date sharing stopped. The
+    // since-date is the fact that tells the reader HOW stale the amount is; Ask dropped
+    // it entirely before, and /spending-plan carried it only when exactly one card was
+    // frozen, so a second frozen card silently cost both of them their provenance.
+    expect(a.detail).toContain(
+      'stopped sharing one card in the card-payments figure (Freedom, since 2026-06-01)',
+    );
     expect(a.detail).not.toContain('overage');
   });
 

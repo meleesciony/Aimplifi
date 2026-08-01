@@ -14,7 +14,11 @@ import {
   type ConsciousBucketKey,
 } from '@/lib/engine/spending-plan/conscious';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
-import { planCardNotes, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
+import {
+  BUDGETS_CARD_NOTE_SURFACE,
+  planCardNotes,
+  uncountedFixedNote,
+} from '@/lib/engine/spending-plan/row-labels';
 import { cents, formatCents } from '@/lib/money';
 
 const META: Record<ConsciousBucketKey, { label: string; bar: string; text: string }> = {
@@ -74,7 +78,7 @@ export function ConsciousBucketsStrip({
   // card both carry. One author (`planCardNotes`) feeds these visible notes
   // AND the fixed/guilt-free panel bases, so the share snapshot cannot export
   // a penny-match the strip is qualifying an inch below it.
-  const cardNotes = planCardNotes(disclosures, 'left-to-spend');
+  const cardNotes = planCardNotes(disclosures, BUDGETS_CARD_NOTE_SURFACE);
 
   const share = (k: ConsciousBucketKey) => buckets.find((b) => b.key === k)!.shareBps;
 

@@ -2,6 +2,8 @@ import { Gauge } from 'lucide-react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
+import type { CardNote } from '@/lib/engine/spending-plan/row-labels';
+import { planCardNoteParts } from '@/lib/engine/spending-plan/row-labels';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
@@ -39,21 +41,30 @@ export function SafeToSpendCard({
     plan.obligationsBeyondMonthCents === 0 &&
     plan.plannedSavingsCents === 0;
   const ok = !plan.overspent;
-  // Both exclusion mechanisms share one direction claim, so they share one note.
-  const excludedCount = disclosures.undatedCards.length + disclosures.statementPendingCards.length;
-  const hasDuplicate = disclosures.duplicatePairs.length > 0;
-  const excludedNote =
-    excludedCount > 0 ? (
-      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400" data-testid="safe-to-spend-undated-note">
-        Doesn&rsquo;t count {excludedCount === 1 ? 'a card' : `${excludedCount} cards`} with a
-        balance but no statement or due date yet —{' '}
-        {noData
-          ? 'so there is no figure to show for it here.'
-          : ok
-            ? 'the real amount free to spend may be lower.'
-            : 'the real overage may be higher.'}
-      </p>
-    ) : null;
+  // O.18f: these three notes were hand-rolled here, and had drifted from the three
+  // other authors of the same four facts — including a hardcoded "Two" that was
+  // false for any reader with more than one suspected pair. `planCardNotes` is now
+  // the class's only author; this surface states what only it can know.
+  const cardNotes = planCardNoteParts(disclosures, {
+    // The card prints left-to-spend, or the overage when overspent — and NO figure
+    // at all in the no-data state, where neither direction word is true.
+    headline: noData ? 'none' : ok ? 'left-to-spend' : 'overage',
+    container: 'this figure',
+    detail: 'compact',
+    // The card shows only the headline; a clause about fixed costs points at nothing.
+    fixedCostsName: null,
+  });
+  // Selected by FACT, never by index: a note that abstains would shift every
+  // position after it, so `notes[0]` is only the excluded note by coincidence.
+  const noteFor = (fact: CardNote['fact']) => cardNotes.find((n) => n.fact === fact)?.text ?? null;
+  const excludedNoteText = noteFor('excluded');
+  const duplicateNoteText = noteFor('duplicate');
+  const frozenNoteText = noteFor('frozen');
+  const excludedNote = excludedNoteText ? (
+    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400" data-testid="safe-to-spend-undated-note">
+      {excludedNoteText}
+    </p>
+  ) : null;
   return (
     <TrackedActedLink
       href="/spending-plan"
@@ -133,19 +144,14 @@ export function SafeToSpendCard({
               allows for.
             </p>
           ))}
-          {hasDuplicate && (
+          {duplicateNoteText && (
             <p className="mt-1 text-xs text-muted-foreground" data-testid="safe-to-spend-duplicate-note">
-              Two of the cards behind this figure may be the same card twice; if so{' '}
-              {ok ? 'the real amount free to spend is higher' : 'the real overage is smaller'} than
-              shown. Nothing was adjusted.
+              {duplicateNoteText}
             </p>
           )}
-          {disclosures.frozenCards.length > 0 && (
+          {frozenNoteText && (
             <p className="mt-1 text-xs text-muted-foreground" data-testid="safe-to-spend-frozen-note">
-              {disclosures.frozenCards.length === 1
-                ? 'A card behind this figure'
-                : `${disclosures.frozenCards.length} cards behind this figure`}{' '}
-              stopped being shared by the bank, so the card-payments amount may be stale.
+              {frozenNoteText}
             </p>
           )}
         </>

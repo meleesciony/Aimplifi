@@ -1906,3 +1906,64 @@ new tests, trends-caps 1/1, ask.spec 21/21 incl. the new painted-recomposition t
 locator strict-violation during development (a bare `$0.50` matched the O.18 expander's sums)
 was scoped to the row — the trace artifact, read before instrumenting, showed the feature
 already correct.
+
+### #360 (O.18f) — The excluded-card disclosure has one author, and diffing the copies found a false count
+
+**Context.** `planCardNotes` (#358) closed /budgets' silence but left a residual noted in
+its own docblock: "this is the class's THIRD author — the dashboard card and
+/spending-plan each hand-roll their variants." The count was wrong. Grepping the
+phrases rather than trusting the row found a FOURTH: `answer.ts` hand-rolled all four
+facts (undated, statement-pending, duplicate, frozen) for the Ask safe-to-spend answer,
+listed nowhere.
+
+**The finding was the drift, not the duplication.** Diffing the four copies before
+extracting (the `dedup-must-diff-the-copies-first` rule) surfaced a live falsehood:
+three of the four hardcoded the word **"Two"** for the duplicate-pair note regardless
+of how many pairs existed, and Ask's was the worst — `Two cards behind the
+card-payments figure (A and B; C and D)`, a count of two beside four names in one
+sentence. `duplicatePairs.length > 1` is reachable: `server/spending-plan.ts:278`
+applies no cap over the nested-loop detector, so one card pairing with two others
+(A↔B, A↔C) yields two pairs. Fixed at the single author by counting **pairs, never
+cards** — two pairs may share a card, so "four cards" is a claim this channel cannot
+support.
+
+**Decision.** `planCardNoteParts(disclosures, surface): CardNote[]` is the only author.
+Every divergence the copies had drifted on became a REQUIRED field on
+`CardNoteSurface`, so a new surface must answer it rather than inherit whichever copy
+its author read first: `headline` ('left-to-spend' | 'overage' | **'none'** — the
+dashboard's no-figure state, naming the ignorance rather than defaulting to a
+direction), `container`, `detail` ('compact' merges undated+pending and counts;
+'named' splits them, names cards, one sentence per pair), and `fixedCostsName` (null
+where the surface prints no fixed-costs figure the clause could bind to — the trap
+`uncountedFixedNote`'s `lineName` exists for). Notes are TAGGED by fact so the
+dashboard's three testids select by tag; indexing would shift every position whenever
+a fact abstains.
+
+**NOT unified with `card-duplicate-view.ts`,** deliberately. That module authors the
+same-card-twice fact for the CASH-NEEDED figure, resolved against real card rows via
+`resolvePairs`. This one qualifies the SAFE-TO-SPEND figure from the thinner
+`SpendingPlanDisclosures` channel. One question, one basis.
+
+**Modality decided out loud.** The exclusion clause stays HEDGED ("may be lower than
+shown") because the exclusion is certain but its size is not; the duplicate clause is
+DEFINITE ("is higher than shown") because it is governed by an "if so" antecedent that
+has already taken the duplicate as given. A first cut collapsed both to "may be" and
+was caught by the existing Ask locks. /budgets' duplicate clause was hedged before and
+becomes definite here — the one surface where this is a change rather than a
+preservation.
+
+**Critic (fresh context, Fable) PASS, 0 P0/P1**, having independently proven all five
+`headline` arguments against their surfaces' actual render paths — the L.15/L.30
+failure mode where exactly this argument was passed wrong at a third call site. Four
+of its five P2s fixed in the same slice: the dashboard's frozen note had inherited a
+demonstrative ("so that amount may be stale") whose antecedent, under this surface's
+container, pointed at the guilt-free headline rather than the card-payments component
+(P2-1); the /budgets four-field config was hand-written at BOTH callers that must stay
+byte-identical, re-opening the drift channel one field wider, now `BUDGETS_CARD_NOTE_SURFACE`
+(P2-2); the 'none' branch rendered "if so there is no figure to show for it here", a
+non-sequitur, now drops the consequence clause (P2-3); and the multi-pair sentence
+opened with a bare numeral and left "the same card" without a referent (P2-4). P2-5's
+totality gap is locked by test rather than by type.
+
+**Gate.** verify GREEN — 330 files / 5406 unit, tsc 0, eslint 0, build clean; affected
+e2e 7/7 on the final build, including the no-duplicate abstention case.

@@ -25,7 +25,12 @@ import {
 } from '@/lib/engine/spending-plan/conscious';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
-import { planCardNotes, planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
+import {
+  BUDGETS_CARD_NOTE_SURFACE,
+  planCardNotes,
+  planRowLabels,
+  uncountedFixedNote,
+} from '@/lib/engine/spending-plan/row-labels';
 import {
   type CardDuplicatePairInput,
   cardDuplicateTraceBasis,
@@ -477,7 +482,9 @@ export function traceConsciousBuckets(
   // NOT added to `parts.basis` / the shared safe-to-spend trace: /spending-plan
   // renders that basis list AND its own "What this figure can't see" section,
   // so the shared trace carrying these would print them twice there.
-  const cardNotes = planCardNotes(disclosures, 'left-to-spend');
+  // The SAME surface constant the strip uses — these bases and its visible notes
+  // must stay one text (critic P2-2).
+  const cardNotes = planCardNotes(disclosures, BUDGETS_CARD_NOTE_SURFACE);
 
   const fixedRows = [
     flip(parts.rows.fixed),

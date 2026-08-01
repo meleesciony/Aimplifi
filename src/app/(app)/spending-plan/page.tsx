@@ -4,9 +4,26 @@ import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { traceSafeToSpend } from '@/lib/engine/glass-box/trace';
+import type { CardNote } from '@/lib/engine/spending-plan/row-labels';
+import { planCardNoteParts } from '@/lib/engine/spending-plan/row-labels';
 import { formatCents } from '@/lib/money';
 import { cents } from '@/lib/money';
 import { prisma } from '@/lib/db';
+
+/**
+ * One testid per disclosed fact, unchanged from when these four notes were written
+ * out by hand here. `excluded` is the COMPACT surfaces' merged undated+pending
+ * sentence, which this page never renders (it splits them); it is mapped anyway so
+ * the record is total and a future `detail` change cannot produce an undefined
+ * testid silently.
+ */
+const PLAN_NOTE_TESTID: Record<CardNote['fact'], string> = {
+  excluded: 'plan-undated-note',
+  undated: 'plan-undated-note',
+  'statement-pending': 'plan-statement-pending-note',
+  duplicate: 'plan-duplicate-note',
+  frozen: 'plan-frozen-note',
+};
 
 export const metadata = { title: "Spending plan" };
 
@@ -303,51 +320,23 @@ export default async function SpendingPlanPage() {
               : 'the real overage may be higher than shown'}
             .
           </li>
-          {d.undatedCards.length > 0 && (
-            <li data-testid="plan-undated-note">
-              {d.undatedCards.length === 1 ? 'One card has' : `${d.undatedCards.length} cards have`} a
-              balance but no due date yet ({d.undatedCards.map((c) => c.cardName).join(', ')}) —{' '}
-              {d.undatedCards.length === 1 ? 'its payment is' : 'their payments are'} not in the
-              card-payments line, so{' '}
-              {positive
-                ? 'the real amount free to spend may be lower than shown'
-                : 'the real overage may be higher than shown'}
-              .
-            </li>
-          )}
-          {d.statementPendingCards.length > 0 && (
-            <li data-testid="plan-statement-pending-note">
-              {d.statementPendingCards.length === 1 ? 'A statement has' : 'Statements have'} not
-              been generated yet for{' '}
-              {d.statementPendingCards.map((c) => `${c.cardName} (due around ${c.dueDate})`).join('; ')}, so{' '}
-              {d.statementPendingCards.length === 1 ? 'that payment is' : 'those payments are'} not in
-              the card-payments line —{' '}
-              {positive
-                ? 'the real amount free to spend may be lower than shown'
-                : 'the real overage may be higher than shown'}
-              .
-            </li>
-          )}
-          {d.duplicatePairs.map((pair, i) => (
-            <li key={i} data-testid="plan-duplicate-note">
-              {pair.aName} and {pair.bName} in the card-payments line look like the same card
-              counted twice ({pair.confidence === 'high' ? 'strong match' : 'possible match'}).
-              If so, that line is higher than you owe and{' '}
-              {positive
-                ? 'the real amount free to spend is higher than shown'
-                : 'the real overage is smaller than shown'}
-              . No amount was adjusted — only you can confirm it, on Accounts.
+          {/* O.18f: these four notes were hand-rolled here and had drifted from the
+              three other authors of the same facts. `planCardNoteParts` is now the
+              class's only author; the testid per fact is preserved, and the sentences
+              are selected by TAG so an abstaining fact cannot shift the others. */}
+          {planCardNoteParts(d, {
+            // This section sits under a figure that flips to an overage when negative.
+            headline: positive ? 'left-to-spend' : 'overage',
+            container: 'the card-payments line',
+            // The full "What this figure can't see" list — room to name every card.
+            detail: 'named',
+            // The page states the fixed-expenses line separately, above.
+            fixedCostsName: null,
+          }).map((n, i) => (
+            <li key={`${n.fact}-${i}`} data-testid={PLAN_NOTE_TESTID[n.fact]}>
+              {n.text}
             </li>
           ))}
-          {d.frozenCards.length > 0 && (
-            <li data-testid="plan-frozen-note">
-              The bank stopped sharing{' '}
-              {d.frozenCards.length === 1
-                ? `one card in the card-payments line (${d.frozenCards[0].label}, since ${d.frozenCards[0].frozenSince})`
-                : `${d.frozenCards.length} cards in the card-payments line (${d.frozenCards.map((c) => c.label).join(', ')})`}
-              , so {d.frozenCards.length === 1 ? 'its amount' : 'their amounts'} may be stale.
-            </li>
-          )}
         </ul>
       </section>
     </div>

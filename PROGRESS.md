@@ -8379,3 +8379,85 @@ Deployment `aimplifi-h5x8a2w6j-reiforge.vercel.app` ● Ready, build log
 `Cloning github.com/meleesciony/Aimplifi (Branch: main, Commit: e13f9de)` matching HEAD,
 aliases holding www.aimplifi.app + aimplifi.app. No prisma diff — Neon untouched.
 All three O.19 residual slices are shipped, criticized, verified and live.
+
+## 2026-07-31 (session 3) — O.18f IN PROGRESS
+
+### O.18f — the excluded-card disclosure has ONE author
+
+Premise CORRECTED before any code moved: the task row (and `planCardNotes`' own
+docblock) said the class had THREE authors — dashboard `safe-to-spend-card.tsx`,
+/spending-plan's "What this figure can't see", and `planCardNotes`. There were
+FOUR. `answer.ts:1125-1151` hand-rolled all four facts for the Ask safe-to-spend
+answer, unlisted anywhere. Found by grepping the phrases rather than trusting the
+row (lessons: a task row's premise is a hypothesis; a sweep bounded by the
+surfaces you already had in mind is not a sweep).
+
+DEFECT found by diffing the copies before extracting (lesson
+`dedup-must-diff-the-copies-first`): three of the four authors hardcoded the word
+**"Two"** for the duplicate-pair note regardless of pair count, and Ask's was the
+worst — `Two cards behind the card-payments figure (A and B; C and D)`, a count of
+two beside four names in one sentence. `duplicatePairs.length > 1` is REACHABLE:
+`src/server/spending-plan.ts:278` applies no cap over the nested-loop detector in
+`engine/account/duplicates.ts:268`, so one card pairing with two others (A↔B, A↔C)
+produces two pairs. Fixed at the single author by counting PAIRS, never cards —
+two pairs may share a card, so "four cards" is a claim this channel cannot support.
+
+NOT unified with `card-duplicate-view.ts`, deliberately and recorded in the
+docblock: that module authors the same-card-twice fact for the CASH-NEEDED figure,
+resolved against real card rows via `resolvePairs`. This one qualifies the
+SAFE-TO-SPEND figure from the thinner `SpendingPlanDisclosures` channel. One
+question, one basis.
+
+Shape: `planCardNoteParts(disclosures, surface): CardNote[]` where every divergence
+the four copies had drifted on is now a REQUIRED field — `headline`
+('left-to-spend' | 'overage' | **'none'**, the dashboard's no-figure state, naming
+the ignorance rather than defaulting to a direction), `container`, `detail`
+('compact' merges undated+pending and counts; 'named' splits, names cards, one
+sentence per pair), `fixedCostsName` (null where the surface prints no fixed-costs
+figure the clause could refer to). Notes are TAGGED by fact so the dashboard's
+three testids select by tag — indexing would shift every position whenever a fact
+abstains. `planCardNotes` is the flattened-to-text wrapper for list callers.
+
+Copy decided out loud: the exclusion clause stays HEDGED ("may be lower than
+shown") because the size of the exclusion is unknown; the duplicate clause stays
+DEFINITE ("is higher than shown") because it is governed by an "if so" antecedent
+that has already taken the duplicate as given. A first cut collapsed both to
+"may be" and was caught by the existing Ask locks.
+
+Gates so far: verify.sh GREEN — 330 files (+1) / 5403 unit (+13), tsc 0, eslint 0,
+build clean. Affected e2e on that build 7/7 (dashboard-duplicate-disclosure 5/5
+incl. the no-duplicate abstention case, conscious-buckets 1/1, spending-plan 1/1).
+One lock updated deliberately (assistant-answer.test.ts:357 — Ask's frozen note now
+carries the since-date it dropped before). New `tests/unit/plan-card-notes.test.ts`.
+
+NEXT: hostile critic (running, fresh context, Fable), then DECISIONS + ledger +
+TASKS flip, then push + deploy-verify.
+
+### O.18f SHIPPED-READY — 2026-07-31 (session 3)
+
+Fresh-context critic (Fable, read-only): **PASS, 0 P0/P1**. It independently proved
+all five `headline` arguments against their surfaces' actual render paths — the
+L.15/L.30 failure mode where exactly that argument was passed wrong at a third call
+site — and confirmed the "Two" defect and its reachability. It also corrected one of
+my own claims: /budgets' duplicate clause was HEDGED before and BECOMES definite here;
+it did not "stay" definite.
+
+Four of its five P2s fixed in the same slice: the dashboard's frozen note had inherited
+a demonstrative ("so that amount may be stale") that, under this surface's container,
+named the guilt-free headline as the stale figure instead of the card-payments
+component (P2-1); the /budgets four-field config was hand-written at BOTH callers that
+must stay byte-identical, re-opening the drift channel one field wider — now
+`BUDGETS_CARD_NOTE_SURFACE` (P2-2); the `'none'` branch rendered "if so there is no
+figure to show for it here", a non-sequitur, and now drops the consequence clause
+(P2-3); the multi-pair sentence opened with a bare numeral and left "the same card"
+without a referent (P2-4). P2-5's totality gap is locked by test.
+
+Definitive gates on the FINAL tree: verify.sh ✅ GREEN — tsc 0, eslint 0,
+**5406 unit / 330 files**, build clean; affected e2e rebuilt + rerun **7/7**
+(dashboard-duplicate-disclosure 5/5 incl. the no-duplicate abstention case,
+conscious-buckets 1/1, spending-plan 1/1). DECISIONS #360 + index, 2 REGRESSION_LEDGER
+entries, new lesson `a-demonstrative-is-an-undeclared-parameter.md` + index, TASKS
+O.18f flipped with its premise correction recorded and the unreachable-branch residual
+filed as its own row (O.18g) rather than left inside a closed one.
+`git diff origin/main..main --stat -- prisma/` empty — Neon takes no DDL.
+Committing, pushing, deploy-verifying now.
