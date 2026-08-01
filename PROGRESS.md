@@ -1,9 +1,9 @@
 # PROGRESS.md — session resume log
 
-## 2026-08-01 — Wealth dial + savings% + cut proposals (#375) IN PROGRESS
+## 2026-08-01 — Wealth dial + savings% + cut proposals (#375) SHIPPING
 
 Owner: interactive years dial; use settings savings % as new-money flow; $/mo + %
-income; propose cutting non-dial discretionary. Engines + wealth card wired.
+income; propose cutting non-dial discretionary. `verify.sh` GREEN; wealth-target e2e 2/2.
 
 ## 2026-08-01 — Inbox skip + unclear charges (#374) DONE
 
