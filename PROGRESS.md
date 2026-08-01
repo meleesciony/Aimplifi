@@ -8270,3 +8270,44 @@ HTML-marker grep not possible anonymously — /reports 307s to /sign-in for a co
 client — so verification is the L.23 build-log-commit method, which is exact.
 
 O.18 + O.18a are shipped, criticized, fixed, verified and live.
+
+## 2026-07-31 — O.19 (owner LIVE) + O.18b IN PROGRESS
+
+### O.19 — "These numbers do not add up to July monthly total" (owner, two screenshots)
+Measured, not hypothesized: /reports header prints `totalCents` (engine sums the WHOLE
+byCategory array, reports.ts:101) above a view capped at `slice(0, 12)` — his eleven visible
+rows sum to $19,312.25 under "$28,253.04 total". Dashboard Top Spending card: same class,
+`slice(0, 4)` beside "`totalCents` this month". Swept: /budgets, /trends, Ask, coach lists are
+uncapped or carry no adjacent total claim.
+
+Fix (view-only, engine untouched): /reports folds the tail into an "Everything else · N
+smaller categories" row summed from the SAME array the header sums, chip-toggle expands the
+tail into full rows (one shared map — links, bars, panels identical); dashboard card states
+"+ $X across N more categories". Locks: unit pins totalCents === Σ byCategory (the premise the
+row renders on; demo has 11 spend categories, measured, so the >12 hard case lives in the e2e's
+own throwaway fixture); e2e `reports-total-reconciles.spec.ts` seeds 14 categories ($105.00
+hand-computed) and asserts the painted page recomposes the total in both states, 2/2 PASSED.
+Gate: `bash scripts/verify.sh` ✅ VERIFY GREEN. Committed. Hostile critic RUNNING (read-only,
+money display). NOT yet pushed — push after critic.
+
+### O.18b — the Conscious Spending strip expands per bucket
+Engine (committed 8befdc4): `traceConsciousBuckets` in glass-box/trace.ts — safe-to-spend
+identity decomposed once (rows + basis GROUPS, flatten byte-identical, pinned by the existing
+glass-box suite), per-bucket NumberTraces reshaped from those rows, headline =
+`mapToConsciousBuckets` figure, so `reconciles` is a CROSS-MODULE check of the #93 partition.
+Guilt-free panel IS the safe-to-spend trace (a remainder's honest panel is the whole
+subtraction). New keys `conscious_fixed`/`conscious_savings` in redact HEADLINE via
+`CONSCIOUS_BUCKET_LABELS` (one author). Unit conscious-trace.test.ts 10/10; glass-box 47/47.
+
+UI (uncommitted): GlassBoxPanelBody extracted from GlassBoxNumber (default testid prefix keeps
+existing ids byte-identical) + it now renders TraceRow.action (L.29 control an unset-$0 row
+carries — the body silently dropped it before); ConsciousBucketRow client expander (amount is
+the toggle, house dotted-underline); strip legend wired, labels from CONSCIOUS_BUCKET_LABELS.
+E2e conscious-buckets.spec.ts 1/1 PASSED on fresh build: per-bucket penny match, fixed ≥2 rows,
+guilt-free income row + subtractions, partition identity from painted money, savings-unset
+action both-branches, collapse stable.
+
+OPEN: /spending-plan second-bar decision to record (its bar sits directly above the full trace
+rows — "How we got there" — so it is already expanded in place; record in DECISIONS rather than
+duplicate expanders); O.18b hostile critic (after O.19 critic returns); full verify; TASKS
+flips; push + deploy-verify both slices.
