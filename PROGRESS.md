@@ -8596,6 +8596,8 @@ This resume: filled STATUS §W.10, marked TASKS W.10 done, filed residual W.13,
 appended 4 REGRESSION_LEDGER rows. Gate: `bash scripts/verify.sh` GREEN —
 tsc 0 / eslint 0 / **5504 unit / 333 files** / build clean (first vitest pass
 under verify hit 6 SQLite `database is locked` flakes; isolated + clean re-run
-both green). Code was already at the critic-approved conservative model
-(nominal grow → deflate); no arithmetic change in this resume. Commit → push →
-deploy-verify for golden `$20,350.61 in today's money over 30 years`.
+both green). E2E phase3-coach + auth 7/7. Code was already at the
+critic-approved conservative model (nominal grow → deflate); no arithmetic
+change in this resume. Shipped `db2a5e1`; Vercel
+`dpl_9qp3dkEUNLRs1W7httzq4P58JMUV` READY on that SHA, www aliased; live /coach
+(demo) shows `$20,350.61 in today's money over 30 years`, no `"future wealth"`.

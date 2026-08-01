@@ -46,7 +46,14 @@ Gate: `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0,
 First vitest pass under the parallel verify run hit 6 SQLite `database is locked`
 flakes (known contention class); isolated re-run of those files 522/522, then
 full suite alone 5504/5504, then clean verify 5504/5504. E2E golden
-`$20,350.61 in today's money over 30 years` locked in `phase3-coach.spec.ts`.
+`$20,350.61 in today's money over 30 years` locked in `phase3-coach.spec.ts`
+(7/7 with auth.spec).
+
+**Deploy:** Vercel `dpl_9qp3dkEUNLRs1W7httzq4P58JMUV` **READY** on
+`db2a5e1`, target production, aliased to www.aimplifi.app (GitHub Production
+deployment sha `db2a5e1`). Live marker via demo sign-in on /coach:
+`$20,350.61 in today's money over 30 years` present; old `"future wealth"`
+absent; `data-testid="opportunities-basis"` rendered.
 
 ## ✅ BUILT 2026-08-01 — O.20: every bar on the /reports chart opens the rows behind it (DECISIONS #362)
 
