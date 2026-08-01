@@ -8741,3 +8741,15 @@ field assertion), and three scan-table rows paired an inflation rate with an own
 production cannot produce — under a comment I had just written claiming the opposite. The
 surface sweep was re-derived by grepping the rendered strings rather than from my own
 enumeration, which is what turned up /goals and the /settings prose.
+
+### Deploy-verified on production
+
+Shipped `d3268b9`; Vercel `aimplifi-d9fu4jn7r` **READY** on that exact SHA
+(`vercel ls --meta githubCommitSha=d3268b9a4ce...`), www aliased. `/coach`,
+`/investments` and `/settings` are auth-gated, so a `curl | grep` gets a 307 and proves
+nothing — `scripts/w13-live-deploy-check.mjs` signs into the shared demo and reads the real
+pages: **15 passed / 0 failed**. Every check is a pair (new possessive present AND old one
+absent) on an element asserted to exist first, and the demo row is the exact case W.13 is
+about, so the old build cannot pass a single line of it. Live text now reads *"Both rates are
+Aimplifi's defaults — 7.00% return and 2.50% inflation"* where it read *"7.00% return is your
+setting"*.
