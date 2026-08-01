@@ -634,3 +634,74 @@ describe('O.8a — what the net-<=-0 drop actually removes', () => {
     expect(r.newMerchants[0]).toMatchObject({ merchant: 'Fresh Roasters', amountCents: 5500 });
   });
 });
+
+// ─── O.19c — pre-cap counts beside the capped lists ──────────────────────────
+// "What changed" / "New this month" read as complete; the UI can only state a
+// binding cap if the engine reports how many QUALIFIED before the slice. Both
+// counts come from the same array the slice truncates, so `total > shown` is
+// exactly "the cap bound" — and equality is the abstention case the UI renders
+// nothing on.
+describe('O.19c — moverTotal / newMerchantTotal', () => {
+  it('7 qualifying movers: 6 listed, moverTotal 7', () => {
+    // Seven categories each new in May at ≥ $20 (baseline empty) → all surface.
+    const txns: TrendTxn[] = [
+      T('2026-05-01', -10000, 'dining'),
+      T('2026-05-02', -9000, 'groceries'),
+      T('2026-05-03', -8000, 'coffee'),
+      T('2026-05-04', -7000, 'shopping'),
+      T('2026-05-05', -6000, 'alcohol'),
+      T('2026-05-06', -5000, 'fuel'),
+      T('2026-05-07', -4000, 'entertainment'),
+    ];
+    const r = computeSpendingTrends({ txns, today: '2026-06-10' });
+    expect(r.movers).toHaveLength(6);
+    expect(r.moverTotal).toBe(7);
+    // The listed six are the biggest — the $40 mover is the one the cap dropped.
+    expect(r.movers.map((m) => m.categoryId)).not.toContain('entertainment');
+  });
+
+  it('uncapped movers: moverTotal equals the listed count (abstention basis)', () => {
+    const txns: TrendTxn[] = [T('2026-05-01', -10000, 'dining'), T('2026-05-02', -9000, 'groceries')];
+    const r = computeSpendingTrends({ txns, today: '2026-06-10' });
+    expect(r.movers).toHaveLength(2);
+    expect(r.moverTotal).toBe(2);
+  });
+
+  it('6 qualifying new merchants: 5 listed, newMerchantTotal 6', () => {
+    const m = (name: string) => ({ merchant: name, aggregateMerchant: false });
+    const txns: TrendTxn[] = [
+      T('2026-06-01', -6000, 'dining', m('Alpha Cafe')),
+      T('2026-06-02', -5000, 'dining', m('Bravo Bistro')),
+      T('2026-06-03', -4000, 'dining', m('Charlie Deli')),
+      T('2026-06-04', -3000, 'dining', m('Delta Diner')),
+      T('2026-06-05', -2000, 'dining', m('Echo Eats')),
+      T('2026-06-06', -1000, 'dining', m('Foxtrot Food')),
+    ];
+    const r = computeSpendingTrends({ txns, today: '2026-06-10' });
+    expect(r.newMerchants).toHaveLength(5);
+    expect(r.newMerchantTotal).toBe(6);
+    expect(r.newMerchants.map((n) => n.merchant)).not.toContain('Foxtrot Food'); // smallest dropped
+  });
+
+  it('uncapped new merchants: total equals the listed count', () => {
+    const txns: TrendTxn[] = [
+      T('2026-06-01', -6000, 'dining', { merchant: 'Alpha Cafe', aggregateMerchant: false }),
+    ];
+    const r = computeSpendingTrends({ txns, today: '2026-06-10' });
+    expect(r.newMerchants).toHaveLength(1);
+    expect(r.newMerchantTotal).toBe(1);
+  });
+
+  it('a net-refunded merchant is outside BOTH the list and the total', () => {
+    // The `amountCents <= 0 → drop` rule runs before the cap, so the count may
+    // not quietly include a merchant the list rule excludes.
+    const txns: TrendTxn[] = [
+      T('2026-06-01', -6000, 'dining', { merchant: 'Alpha Cafe', aggregateMerchant: false }),
+      T('2026-06-02', -3000, 'dining', { merchant: 'Refund Mart', aggregateMerchant: false }),
+      T('2026-06-03', 3000, 'dining', { merchant: 'Refund Mart', aggregateMerchant: false }),
+    ];
+    const r = computeSpendingTrends({ txns, today: '2026-06-10' });
+    expect(r.newMerchants.map((n) => n.merchant)).toEqual(['Alpha Cafe']);
+    expect(r.newMerchantTotal).toBe(1);
+  });
+});

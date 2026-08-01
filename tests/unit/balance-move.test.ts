@@ -28,6 +28,7 @@ const mover = (o: Partial<CategoryMover> & Pick<CategoryMover, 'categoryId' | 'n
 });
 const trendsWith = (movers: CategoryMover[], baselineMonths = ['2026-04', '2026-05', '2026-06']): SpendingTrends => ({
   asOfYm: '2026-07', comparedYm: '2026-06', baselineMonths, pace: null, movers, largest: [], newMerchants: [],
+  moverTotal: movers.length, newMerchantTotal: 0,
 });
 const DINING = mover({ categoryId: 'dining', name: 'Dining', currentCents: 84000, baselineCents: 60000, deltaCents: 24000, pctChange: 0.4, direction: 'up' });
 const GAS = mover({ categoryId: 'gas', name: 'Gas', group: 'Transport', currentCents: 24000, baselineCents: 30000, deltaCents: -6000, pctChange: -0.2, direction: 'down' });

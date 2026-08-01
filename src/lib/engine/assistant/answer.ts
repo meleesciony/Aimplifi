@@ -16,6 +16,7 @@ import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import {
   isSpendRow,
   spendContributionCents,
+  type CategorySpend,
   type SpendingBreakdown,
 } from '@/lib/engine/reports/reports';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
@@ -378,6 +379,41 @@ export function answerAccountBalance(
 
 const REPORTS_SOURCE: AssistantSource = { label: 'See reports', href: '/reports' };
 
+/**
+ * O.19b: a capped category list rendered beneath a PERIOD TOTAL must state its
+ * remainder, summed from the SAME array the total sums (the O.19 rule), so the
+ * on-screen identity `listed facts + this line = the printed total` holds by
+ * construction — the owner's /reports complaint ("these numbers do not add up")
+ * applied to Ask's answers. Returns null when the list is complete: a remainder
+ * line under a complete list would claim money that does not exist, and the
+ * common short-list case must stay byte-identical.
+ *
+ * Untagged deliberately (no traceKey/cents): the tail is many categories, not
+ * one trace group, so a tap could never reconcile it — plain text per the
+ * ask-view fact gate.
+ */
+/** `null → []` so an absent remainder line spreads to nothing at the call sites. */
+function listOrEmpty(fact: AssistantFact | null): AssistantFact[] {
+  return fact === null ? [] : [fact];
+}
+
+function categoryRemainderFact(
+  byCategory: CategorySpend[],
+  shown: number,
+  /** Set on the SCOPED answers (umbrella/group): a bare "Everything else" under
+   *  "You spent $X on bills" reads as all NON-bills spending (critic P3) — the
+   *  scope word pins the tail to the headline's own subject. */
+  scopeLabel?: string,
+): AssistantFact | null {
+  if (byCategory.length <= shown) return null;
+  const rest = byCategory.slice(shown);
+  const restCents = rest.reduce((s, c) => s + c.amountCents, 0);
+  return {
+    label: `Everything else${scopeLabel ? ` in ${scopeLabel}` : ''} · ${rest.length} more categor${rest.length === 1 ? 'y' : 'ies'}`,
+    value: fmt(restCents),
+  };
+}
+
 export function answerSpendTotal(breakdown: SpendingBreakdown, tf: Timeframe): AssistantAnswer {
   if (breakdown.totalCents <= 0) {
     return { kind: 'spend_total', headline: `No spending recorded ${tf.label}.`, facts: [], source: REPORTS_SOURCE };
@@ -391,9 +427,14 @@ export function answerSpendTotal(breakdown: SpendingBreakdown, tf: Timeframe): A
     detail: 'Purchases only — transfers and income are excluded.',
     // Tagged (slice 2b): each top category is a trace group, so its figure is
     // independently tappable. traceKey/cents come from the SAME breakdown entry.
-    facts: breakdown.byCategory
-      .slice(0, 3)
-      .map((c) => ({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents })),
+    // O.19b: the headline is the WHOLE period total, so the capped list carries
+    // its remainder line (null → omitted when ≤3 categories exist).
+    facts: [
+      ...breakdown.byCategory
+        .slice(0, 3)
+        .map((c) => ({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents })),
+      ...listOrEmpty(categoryRemainderFact(breakdown.byCategory, 3)),
+    ],
     source: REPORTS_SOURCE,
   };
 }
@@ -412,11 +453,17 @@ export function answerSpendByCategory(breakdown: SpendingBreakdown, target: Spen
     // Tagged (slice 2b): each member category is a trace group when >1 are cited.
     for (const c of matches.slice(0, 3))
       facts.push({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents });
+    // O.19b: the headline sums EVERY matched leaf; a 4th+ leaf gets the
+    // remainder line so the listed facts recompose the headline figure.
+    facts.push(...listOrEmpty(categoryRemainderFact(matches, 3, target.label)));
   } else {
     const g = breakdown.byGroup.find((x) => x.group === target.group);
     amount = g?.amountCents ?? 0;
     for (const c of g?.categories.slice(0, 3) ?? [])
       facts.push({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents });
+    // O.19b: same identity for the group branch — `g.amountCents` sums all of
+    // `g.categories`, of which only three are listed.
+    facts.push(...listOrEmpty(categoryRemainderFact(g?.categories ?? [], 3, target.label)));
   }
 
   if (amount <= 0) {
@@ -453,7 +500,12 @@ export function answerTopCategories(breakdown: SpendingBreakdown, tf: Timeframe,
     // Tagged (slice 2b): every listed category rides in the trace as a reconciled
     // group, so each fact is independently tappable — including the non-top ones
     // the HEADLINE panel honestly hides (they don't sum to the tapped figure).
-    facts: top.map((c) => ({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents })),
+    // O.19b: `detail` prints the whole period total beside this capped list, so
+    // the list carries its remainder line (omitted when the list is complete).
+    facts: [
+      ...top.map((c) => ({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents })),
+      ...listOrEmpty(categoryRemainderFact(breakdown.byCategory, limit)),
+    ],
     source: REPORTS_SOURCE,
   };
 }
@@ -884,9 +936,23 @@ function excludedAggregateClause(res: MerchantSpendResult): string {
 }
 
 export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): AssistantAnswer {
-  const rowFacts = res.items
+  const rowFacts: AssistantFact[] = res.items
     .slice(0, 5)
     .map((i) => ({ label: `${i.merchant} · ${humanDate(i.date)}`, value: fmt(i.amountCents) }));
+  // O.19b: the headline figures are computed over ALL matched rows while this
+  // list caps at five, so the tail gets a line summed from the same `items`
+  // array (which sums to `totalCents` by contract). SIGNED deliberately: items
+  // are contribution-desc, so the tail truncates refunds first (O.10c) and a
+  // refund-heavy tail netting negative renders "-$X" — hiding the sign would
+  // rebuild the bias this line exists to disclose. Omitted when complete.
+  if (res.items.length > 5) {
+    const rest = res.items.slice(5);
+    const restCents = rest.reduce((s, i) => s + i.amountCents, 0);
+    rowFacts.push({
+      label: `${rest.length} more transaction${rest.length === 1 ? '' : 's'}`,
+      value: fmt(restCents),
+    });
+  }
 
   // Five distinct facts, five sentences — never one shared "no spending" (L.29:
   // "you asked about a non-store", "nothing matched", "only $0 holds matched",
@@ -1709,9 +1775,20 @@ export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer 
   if (summary.activeSubscriptionCount === 0) {
     return { kind: 'subscriptions', headline: "I'm not detecting any active subscriptions yet.", facts: [], source };
   }
-  const facts = summary.subscriptions
+  const facts: AssistantFact[] = summary.subscriptions
     .slice(0, 5)
     .map((s) => ({ label: s.merchantCanonical, value: `${fmt(s.monthlyEquivalentCents)}/mo` }));
+  // O.19b: the headline totals ALL active subscriptions while this list caps at
+  // five, so the tail gets its own line from the same array the headline sums —
+  // omitted when the list is complete, keeping the ≤5 case byte-identical.
+  if (summary.subscriptions.length > 5) {
+    const rest = summary.subscriptions.slice(5);
+    const restMonthlyCents = rest.reduce((a, s) => a + s.monthlyEquivalentCents, 0);
+    facts.push({
+      label: `Everything else · ${rest.length} more subscription${rest.length === 1 ? '' : 's'}`,
+      value: `${fmt(restMonthlyCents)}/mo`,
+    });
+  }
   // #166: the headline must total SUBSCRIPTIONS only. monthlyRecurringSpendCents
   // is subs + bills, so the old copy attributed rent/loans to "subscriptions"
   // (~7× off for the demo: $2,552.43 claimed vs the true $367.43) — visibly

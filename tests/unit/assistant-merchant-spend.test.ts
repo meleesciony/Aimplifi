@@ -417,3 +417,78 @@ describe('the spend-family basis copy states only what the predicate does', () =
     expect(basis).not.toMatch(/posted/i); // it is no longer POSTED-only
   });
 });
+
+// ─── O.19b — the capped row list states its tail ─────────────────────────────
+// The headline figures sum ALL matched rows while the fact list caps at five;
+// the tail line is summed from the same `items` array (which sums to
+// `totalCents` by contract), SIGNED, so a refund-heavy tail shows "-$X" rather
+// than hiding the truncation bias O.10c records.
+describe('O.19b — merchant row list states its remainder', () => {
+  const purchase = (date: string, cents: number): AskTxnRow => ({
+    date,
+    amountCents: -cents,
+    categoryId: 'groceries',
+    merchant: 'Costco',
+    status: 'POSTED',
+    merchantCategoryId: null,
+    aggregateMerchant: false,
+  });
+  // A counted refund: positive inflow in a SPEND category (income-category
+  // inflows are excluded by isSpendRow, per the aggregation tests above).
+  const refund = (date: string, cents: number): AskTxnRow => ({
+    date,
+    amountCents: cents,
+    categoryId: 'groceries',
+    merchant: 'Costco',
+    status: 'POSTED',
+    merchantCategoryId: null,
+    aggregateMerchant: false,
+  });
+
+  it('7 rows: five listed + a signed tail line recomposing the net headline', () => {
+    const rows = [
+      purchase('2026-06-01', 6000),
+      purchase('2026-06-02', 5000),
+      purchase('2026-06-03', 4000),
+      purchase('2026-06-04', 3000),
+      purchase('2026-06-05', 2000),
+      purchase('2026-06-06', 1000),
+      refund('2026-06-07', 500),
+    ];
+    const res = merchantSpend(rows, THIS_MONTH, 'costco', '2026-06-30');
+    expect(res.totalCents).toBe(20500); // 21000 gross − 500 refund
+    const a = answerMerchantSpend(res, THIS_MONTH);
+    expect(a.headline).toBe('You spent $205.00 at Costco this month.');
+    expect(a.facts).toHaveLength(6);
+    expect(a.facts[5].label).toBe('2 more transactions');
+    expect(a.facts[5].value).toBe('$5.00'); // $10.00 purchase − $5.00 refund in the tail
+  });
+
+  it('refund-heavy tail renders signed negative — the bias is visible, not hidden', () => {
+    const rows = [
+      purchase('2026-06-01', 3000),
+      purchase('2026-06-02', 2000),
+      purchase('2026-06-03', 1000),
+      purchase('2026-06-04', 900),
+      purchase('2026-06-05', 800),
+      refund('2026-06-06', 600),
+      refund('2026-06-07', 700),
+    ];
+    const a = answerMerchantSpend(merchantSpend(rows, THIS_MONTH, 'costco', '2026-06-30'), THIS_MONTH);
+    expect(a.facts[5].label).toBe('2 more transactions');
+    expect(a.facts[5].value).toBe('-$13.00'); // both tail rows are refunds
+  });
+
+  it('abstains at exactly five rows', () => {
+    const rows = [
+      purchase('2026-06-01', 3000),
+      purchase('2026-06-02', 2000),
+      purchase('2026-06-03', 1000),
+      purchase('2026-06-04', 900),
+      purchase('2026-06-05', 800),
+    ];
+    const a = answerMerchantSpend(merchantSpend(rows, THIS_MONTH, 'costco', '2026-06-30'), THIS_MONTH);
+    expect(a.facts).toHaveLength(5);
+    expect(a.facts.every((f) => !f.label.endsWith('more transactions'))).toBe(true);
+  });
+});

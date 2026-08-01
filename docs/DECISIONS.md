@@ -1856,3 +1856,53 @@ comments); GlassBoxShare's hardcoded testids defeated the prefix (parameterized)
 Residual (TASKS): the excluded-card class now has THREE authors (dashboard card, /spending-plan
 section, `planCardNotes`) — unification is its own slice; and the e2e's savings else-branch
 (no control beside a working figure) is unreachable on the demo dataset, unit-locked only.
+
+## #359 — O.19b/O.19c/O.19d: the remainder rule sweeps Ask and /trends (2026-07-31)
+
+The O.19 rule — a capped list beneath a total states its tail, summed from the SAME array the
+total sums, and abstains when the list is complete — applied to the surfaces the O.19 critic
+filed.
+
+**O.19b (Ask).** One engine author, `categoryRemainderFact` in `assistant/answer.ts`:
+"Everything else · N more categor(y|ies) — $X", untagged deliberately (many categories are not
+one trace group; the ask-view fact gate renders untagged facts as plain text, never a dead tap).
+Wired to `answerSpendTotal` (headline total over 3 facts), `answerTopCategories` (detail total
+over the caller limit) — and, beyond the task row's enumeration (fix the data class, not the
+listed surfaces), `answerSpendByCategory`'s umbrella and group branches, whose headline sums
+every matched leaf over 3 facts. The SCOPED branches carry the scope in the label ("Everything
+else **in bills**") — critic P3: a bare "Everything else" under "You spent $X on bills" reads as
+all NON-bills spending. `answerSubscriptions` gains a "/mo" tail past 5 subs (headline sums the
+whole array; `activeSubscriptionCount === subscriptions.length` by construction).
+`answerMerchantSpend` gains "N more transactions — $X" past 5 items, SIGNED: items are
+contribution-desc so the tail truncates refunds first (O.10c), and a refund-heavy tail printing
+"-$13.00" is the bias made visible rather than rebuilt; `Σ items === totalCents` on every
+branch (critic-verified). O.10c (which rows are SHOWN) deliberately untouched.
+
+**O.19c (/trends).** The engine now returns `moverTotal` / `newMerchantTotal` — pre-cap counts
+taken from the same arrays the `MAX_MOVERS`/`MAX_NEW_MERCHANTS` slices truncate, after every
+qualifying filter (incl. the new-merchant net-≤0 drop), so `total > shown ⇔ the cap bound`.
+The view renders one sentence per list ONLY then: "Showing the top 6 of 7 changed categories,
+by size of change." / "Showing the top 5 of 6 new merchants, by amount spent." Uncapped pages
+are byte-identical.
+
+**O.19d.** `reports-total-reconciles.spec.ts` seed generalized (null categoryId = unfiled row);
+two new locks: a 13-category month with rank-12/13 tied at $1.50 (singular "1 more category",
+no "smaller" — the tie is why); a 14th unfiled row ranking in the tail (expanded, the
+uncategorized row keeps the O.5 refusal — no register link, "review in Inbox →" → /triage —
+and its unlinked $0.50 still recomposes the header total).
+
+**Hostile critic (fresh-context, read-only): PASS, 0 P0/P1.** Confirmed every remainder line
+sums from the literal same array as its adjacent total (spendingByCategory filters run before
+the array exists, so headline and facts cannot diverge; the untagged fact cannot enter the
+trace — `factView` null-gates). P3 scoped-label ambiguity fixed same-session (above). P2
+accounting note honored here: the two new reports e2e tests lock the PRIOR surface (they pass
+with this diff reverted — that is what O.19d residual locks are); the locks on THIS diff are
+the 15 new unit assertions, ask.spec's fact-count identity, and trends-caps' binding-cap
+assertions, which all fail on revert.
+
+Gates: `bash scripts/verify.sh` ✅ VERIFY GREEN — 5390 unit / 329 files (+15), tsc 0, eslint 0,
+build clean; affected e2e on the FINAL build: 26/26 (reports-total-reconciles 4/4 incl. both
+new tests, trends-caps 1/1, ask.spec 21/21 incl. the new painted-recomposition test). One e2e
+locator strict-violation during development (a bare `$0.50` matched the O.18 expander's sums)
+was scoped to the row — the trace artifact, read before instrumenting, showed the feature
+already correct.

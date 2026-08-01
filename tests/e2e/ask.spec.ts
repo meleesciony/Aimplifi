@@ -518,3 +518,31 @@ test('a learned phrasing answers, discloses itself, and can be forgotten', async
   );
   expect(learnedHeadline).not.toBe(await page.getByTestId('ask-headline').textContent());
 });
+
+test('O.19b: a capped spend answer carries a remainder line recomposing the headline total', async ({ page }) => {
+  // The owner's /reports finding applied to Ask: a period total above a capped
+  // category list must state its tail. The demo seed has >3 spend categories,
+  // so the hard case is guaranteed present — the count assertion below fails if
+  // the fixture ever degrades to a complete (≤3) list, keeping this non-vacuous.
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'How much did I spend this month?');
+
+  const headlineText = (await page.getByTestId('ask-headline').textContent()) ?? '';
+  const headlineAmount = headlineText.match(/\$[\d,]+\.\d{2}/)?.[0];
+  expect(headlineAmount).toBeTruthy();
+
+  const facts = page.getByTestId('ask-fact');
+  await expect(facts).toHaveCount(4); // top 3 + the remainder line
+  const tail = facts.nth(3);
+  await expect(tail).toContainText(/Everything else · \d+ more categor(y|ies)/);
+  // The tail is many categories, not one trace group — plain text, never a dead tap.
+  await expect(tail.getByRole('button')).toHaveCount(0);
+
+  // The painted money recomposes the headline: 3 listed categories + the
+  // remainder value sum to exactly the total the headline prints.
+  const values = await page.getByTestId('ask-fact-value').allTextContents();
+  expect(values).toHaveLength(4);
+  const sumCents = values.reduce((acc, t) => acc + Number(t.replace(/[^0-9]/g, '')), 0);
+  expect(sumCents).toBe(Number(headlineAmount!.replace(/[^0-9]/g, '')));
+});

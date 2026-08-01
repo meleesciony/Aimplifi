@@ -219,6 +219,16 @@ export interface SpendingTrends {
   movers: CategoryMover[];
   largest: LargestTxn[];
   newMerchants: NewMerchant[];
+  /**
+   * O.19c: how many movers QUALIFIED before the `MAX_MOVERS` display cap. The
+   * "What changed" header reads as complete, so when `moverTotal >
+   * movers.length` a 7th mover is silently absent from a card titled as if
+   * exhaustive — the UI states the cap ("top 6 of N") from these counts, and
+   * stays byte-identical when the cap did not bind (the O.19b abstention rule).
+   */
+  moverTotal: number;
+  /** O.19c: qualifying new merchants before the `MAX_NEW_MERCHANTS` cap. */
+  newMerchantTotal: number;
 }
 
 export interface TrendsInput {
@@ -308,7 +318,7 @@ function computeMovers(
   txns: readonly TrendTxn[],
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
-): { comparedYm: string | null; baselineMonths: string[]; movers: CategoryMover[] } {
+): { comparedYm: string | null; baselineMonths: string[]; movers: CategoryMover[]; moverTotal: number } {
   const current = addMonthsToMonthKey(monthKey(today), -(1)); // last completed month
   const currentMap = categorySpendMap(txns, current, meta);
 
@@ -324,7 +334,7 @@ function computeMovers(
   }
 
   if (currentMap.size === 0 && baselineMaps.length === 0) {
-    return { comparedYm: null, baselineMonths: [], movers: [] };
+    return { comparedYm: null, baselineMonths: [], movers: [], moverTotal: 0 };
   }
 
   const ids = new Set<string>([...currentMap.keys(), ...baselineMaps.flatMap((b) => [...b.map.keys()])]);
@@ -374,6 +384,9 @@ function computeMovers(
     comparedYm: current,
     baselineMonths: baselineMaps.map((b) => b.ym),
     movers: movers.slice(0, MAX_MOVERS),
+    // Pre-cap count (O.19c) — from the SAME array the slice truncates, so
+    // `moverTotal > movers.length` is exactly "the cap bound".
+    moverTotal: movers.length,
   };
 }
 
@@ -427,7 +440,7 @@ function computeNewMerchants(
   txns: readonly TrendTxn[],
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
-): NewMerchant[] {
+): { newMerchants: NewMerchant[]; newMerchantTotal: number } {
   const ym = monthKey(today);
   const earliestPrior = addMonthsToMonthKey(ym, -(NEW_MERCHANT_LOOKBACK_MONTHS)); // inclusive lower bound
   const merchantKey = (m: string) => m.trim().toLowerCase();
@@ -488,9 +501,9 @@ function computeNewMerchants(
     rows.push({ merchant: n.merchant, categoryName: n.categoryName, amountCents, firstDate: n.firstDate });
   }
 
-  return rows
-    .sort((a, b) => b.amountCents - a.amountCents || (a.merchant < b.merchant ? -1 : 1))
-    .slice(0, MAX_NEW_MERCHANTS);
+  rows.sort((a, b) => b.amountCents - a.amountCents || (a.merchant < b.merchant ? -1 : 1));
+  // Pre-cap count beside the sliced list (O.19c) — same array, same rule as movers.
+  return { newMerchants: rows.slice(0, MAX_NEW_MERCHANTS), newMerchantTotal: rows.length };
 }
 
 /** Compute all spending-trend insights from a posted-spend transaction list. */
@@ -498,7 +511,7 @@ export function computeSpendingTrends(
   { txns, today }: TrendsInput,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): SpendingTrends {
-  const { comparedYm, baselineMonths, movers } = computeMovers(txns, today, meta);
+  const { comparedYm, baselineMonths, movers, moverTotal } = computeMovers(txns, today, meta);
   // O.6 — the one place the two bases part company; see `TrendTxn.status`.
   // Category figures read every row; the row-naming insights read settled rows
   // only, which is also what Ask's `largestPurchases` reads (O.7 moved that filter off
@@ -511,10 +524,11 @@ export function computeSpendingTrends(
     baselineMonths,
     pace: computePace(txns, today, meta),
     movers,
+    moverTotal,
     largest: computeLargest(settled, today, meta),
     // ALL rows (O.8a) — `computeNewMerchants` applies the settled narrowing to
     // its naming pass itself, because only half of what that card prints is a
     // claim about a settled event; the money beside it is an aggregate.
-    newMerchants: computeNewMerchants(txns, today, meta),
+    ...computeNewMerchants(txns, today, meta),
   };
 }

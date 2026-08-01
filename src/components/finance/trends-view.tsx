@@ -182,7 +182,8 @@ export function TrendsView({
   /** O.6: the register's own category option list — see getLinkableCategoryIds. */
   linkableCategoryIds?: string[];
 }) {
-  const { pace, movers, largest, newMerchants, comparedYm, baselineMonths, breakdowns } = trends;
+  const { pace, movers, moverTotal, largest, newMerchants, newMerchantTotal, comparedYm, baselineMonths, breakdowns } =
+    trends;
   const paceUp = pace ? pace.deltaVsPriorCents > 0 : false;
   // money dials are user-configured category labels; tag a mover when its category is one
   const dialSet = new Set(dials.map((d) => d.toLowerCase()));
@@ -246,6 +247,15 @@ export function TrendsView({
             </span>
           )}
         </div>
+        {/* O.19c: the header reads as complete, so when the MAX_MOVERS cap
+            actually bound, say so — a 7th mover silently absent from a card
+            titled as if exhaustive is the O.19 class. Abstains (renders
+            nothing) when every qualifying change is listed. */}
+        {moverTotal > movers.length && (
+          <p className="mb-1 text-xs text-muted-foreground" data-testid="trends-movers-cap">
+            Showing the top {movers.length} of {moverTotal} changed categories, by size of change.
+          </p>
+        )}
         {/* O.6 / L.29: these figures moved too, and unlike Pace they are also the
             ones carrying links — so the basis a reader would need in order to
             check them against the register belongs beside them. */}
@@ -361,6 +371,15 @@ export function TrendsView({
                - naming Ask as the surface it agrees with would be false for
                  prefix-family merchants (see TASKS O.10), so no surface is named.
               Every clause here is about THIS card and nothing else. */}
+          {/* O.19c: same rule as the movers cap above — state the truncation
+              only when it happened, its own sentence (one claim per sentence,
+              not folded into the basis paragraph below). */}
+          {newMerchantTotal > newMerchants.length && (
+            <p className="mb-1 text-xs text-muted-foreground" data-testid="trends-new-merchants-cap">
+              Showing the top {newMerchants.length} of {newMerchantTotal} new merchants, by amount
+              spent.
+            </p>
+          )}
           <p className="mb-2 text-xs text-muted-foreground" data-testid="trends-new-merchants-basis">
             A merchant is confirmed here by a settled purchase. The amount counts charges still
             pending and nets refunds against them, so a merchant whose refunds cancelled the month

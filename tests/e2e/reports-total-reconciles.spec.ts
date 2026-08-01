@@ -50,14 +50,16 @@ async function signUpThrowaway(page: Page): Promise<string> {
   return email;
 }
 
-function seedFourteenCategories(email: string) {
+/** Seed one checking account + one POSTED spend row per entry. A null
+ *  categoryId seeds an UNFILED row (folds into the uncategorized bucket). */
+function seedCategoryMonth(email: string, rows: ReadonlyArray<readonly [string | null, number]>) {
   const file = E2E_DB_URL.replace(/^file:/, '');
   const db = new Database(file, { timeout: 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as
       | { id: string }
       | undefined;
-    if (!user) throw new Error(`seedFourteenCategories: user ${email} not found`);
+    if (!user) throw new Error(`seedCategoryMonth: user ${email} not found`);
     const stamp = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
     const checkingId = `e2e-chk-${stamp}`;
@@ -71,13 +73,22 @@ function seedFourteenCategories(email: string) {
       `INSERT INTO "Transaction" (id, accountId, date, amountCents, rawDescriptor, categoryId, status, isTransfer, isSplitParent)
        VALUES (?, ?, ?, ?, ?, ?, 'POSTED', 0, 0)`,
     );
-    for (const [categoryId, cents] of CATS) {
-      txn.run(`e2e-${categoryId}-${stamp}`, checkingId, IN_MONTH, -cents, `E2E ${categoryId}`, categoryId);
-    }
+    rows.forEach(([categoryId, cents], i) => {
+      txn.run(
+        `e2e-${i}-${categoryId ?? 'unfiled'}-${stamp}`,
+        checkingId,
+        IN_MONTH,
+        -cents,
+        `E2E ${categoryId ?? 'unfiled'}`,
+        categoryId,
+      );
+    });
   } finally {
     db.close();
   }
 }
+
+const seedFourteenCategories = (email: string) => seedCategoryMonth(email, CATS);
 
 /** "$102.00" → 10200. */
 const parseCents = (s: string): number => {
@@ -163,4 +174,110 @@ test('dashboard top spending: four rows plus a stated remainder equal the printe
   const rest = page.getByTestId('top-spending-rest');
   await expect(rest).toContainText('$55.00');
   await expect(rest).toContainText('10 more categories');
+});
+
+// ─── O.19d — residual locks from the O.19 critic (P2-5) ──────────────────────
+
+test('singular tail + tie at the boundary: "1 more category", never "smaller"', async ({
+  page,
+}) => {
+  // 13 categories where rank 12 TIES rank 13 ($1.50 each). The tail is one row,
+  // so the copy must be singular — and the tied amounts are why every string
+  // says "more", not "smaller": the hidden category is not smaller than the
+  // visible rank-12, and "smaller" would be a false claim exactly here.
+  const TIED: ReadonlyArray<readonly [string, number]> = [
+    ['rent', 1300],
+    ['groceries', 1200],
+    ['dining', 1100],
+    ['shopping', 1000],
+    ['utilities', 900],
+    ['electricity', 800],
+    ['clothing', 700],
+    ['coffee', 600],
+    ['fast-food', 500],
+    ['alcohol', 400],
+    ['food-delivery', 300],
+    ['electronics', 150], // rank 12 — visible
+    ['hobbies', 150], // rank 13 — the tail, tied with rank 12
+  ];
+  const email = await signUpThrowaway(page);
+  seedCategoryMonth(email, TIED);
+
+  await page.goto('/reports');
+  await expect(page.getByTestId('category-breakdown')).toBeVisible();
+  await expect(page.getByText('$91.00 total')).toBeVisible(); // Σ = 9100
+
+  const restRow = page.getByTestId('reports-everything-else');
+  await expect(restRow).toContainText('1 more category'); // singular
+  await expect(restRow).not.toContainText('categories');
+  await expect(restRow).not.toContainText('smaller');
+  await expect(page.getByTestId('reports-everything-else-amount')).toHaveText('$1.50');
+  await expect(page.getByTestId('reports-everything-else-toggle')).toHaveAttribute(
+    'aria-label',
+    'Everything else: Show 1 more category',
+  );
+
+  // Identity with the tie: 12 visible rows ($89.50) + tail ($1.50) = $91.00.
+  const rowTexts = await page.locator('[data-testid^="category-link-"]:visible').allInnerTexts();
+  expect(rowTexts).toHaveLength(12);
+  const renderedSum =
+    rowTexts.reduce((s, t) => s + parseCents(t), 0) +
+    parseCents(await page.getByTestId('reports-everything-else-amount').innerText());
+  expect(renderedSum).toBe(9100);
+});
+
+test('uncategorized in the tail keeps the O.5 refusal and still counts in the identity', async ({
+  page,
+}) => {
+  // 13 filed categories + one UNFILED row ($0.50) that ranks 14th, inside the
+  // tail. The shared row renderer applies the O.5 refusal there too — but no
+  // assertion said so until now: expanded, the uncategorized row must render
+  // UNLINKED (its affordance is the Inbox, not the register) and its money must
+  // still be part of the recomposed total.
+  const WITH_UNFILED: ReadonlyArray<readonly [string | null, number]> = [
+    ['rent', 1300],
+    ['groceries', 1200],
+    ['dining', 1100],
+    ['shopping', 1000],
+    ['utilities', 900],
+    ['electricity', 800],
+    ['clothing', 700],
+    ['coffee', 600],
+    ['fast-food', 500],
+    ['alcohol', 400],
+    ['food-delivery', 300],
+    ['electronics', 200], // rank 12 — visible
+    ['hobbies', 100], // rank 13 — tail
+    [null, 50], // rank 14 — the uncategorized bucket, in the tail
+  ];
+  const email = await signUpThrowaway(page);
+  seedCategoryMonth(email, WITH_UNFILED);
+
+  await page.goto('/reports');
+  const section = page.getByTestId('category-breakdown');
+  await expect(section).toBeVisible();
+  await expect(page.getByText('$91.50 total')).toBeVisible(); // Σ = 9150
+
+  const restRow = page.getByTestId('reports-everything-else');
+  await expect(restRow).toContainText('2 more categories');
+  await expect(page.getByTestId('reports-everything-else-amount')).toHaveText('$1.50'); // 100 + 50
+
+  await page.getByTestId('reports-everything-else-toggle').click();
+  // The refusal, asserted where it was previously only inherited: no register
+  // link for the uncategorized bucket — its affordance is the Inbox…
+  await expect(section.locator('[data-testid="category-link-uncategorized"]')).toHaveCount(0);
+  const inboxLink = section.getByRole('link', { name: 'review in Inbox →' });
+  await expect(inboxLink).toBeVisible();
+  await expect(inboxLink).toHaveAttribute('href', '/triage');
+  // …and its money is on the page: the ROW prints $0.50 beside "Uncategorized".
+  // Scoped to the row's parent div — a bare getByText('$0.50') strict-violates,
+  // because the O.18 expander panel prints the same sum twice more.
+  await expect(section.getByText('Uncategorized ·')).toBeVisible();
+  const uncatRow = section.getByText('Uncategorized ·').locator('..');
+  await expect(uncatRow).toContainText('$0.50');
+  // Expanded identity: 13 LINKED rows ($91.00) + the unlinked uncategorized
+  // row ($0.50, hand-computed — it carries no testid) = the $91.50 header.
+  const openTexts = await page.locator('[data-testid^="category-link-"]:visible').allInnerTexts();
+  expect(openTexts).toHaveLength(13);
+  expect(openTexts.reduce((s, t) => s + parseCents(t), 0) + 50).toBe(9150);
 });

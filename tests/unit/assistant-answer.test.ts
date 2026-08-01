@@ -148,7 +148,18 @@ describe('answerSpend*', () => {
       THIS_MONTH,
     );
     expect(a.headline).toBe('You spent $270.00 on utilities this month.'); // 120+60+40+30+20, NOT just the $20 residual
-    expect(a.facts.map((f) => f.label)).toEqual(['Electricity', 'Water & Sewer', 'Trash & Recycling']); // top 3, dining excluded
+    // O.19b: the headline sums all five matched leaves, so the capped list must
+    // carry its remainder — top 3 + the tail line recompose $270 on screen.
+    expect(a.facts.map((f) => f.label)).toEqual([
+      'Electricity',
+      'Water & Sewer',
+      'Trash & Recycling',
+      // Scoped label (critic P3): a bare "Everything else" under a scoped
+      // headline reads as all NON-utilities spending.
+      'Everything else in utilities · 2 more categories',
+    ]); // top 3, dining excluded
+    expect(a.facts[3].value).toBe('$50.00'); // natural-gas $30 + internet $20 — $220 listed + $50 = the $270 headline
+    expect(a.facts[3].traceKey).toBeUndefined(); // many categories, not one trace group — never a dead tap
   });
   it('zero category', () => {
     const a = answerSpendByCategory(BREAKDOWN, { type: 'category', categoryId: 'coffee', label: 'Coffee Shops' }, THIS_MONTH);
@@ -496,5 +507,127 @@ describe('answerUnknown', () => {
     expect(a.suggestions).toContain('Can I retire at 60?');
     expect(a.suggestions).toContain('How much did I spend at Costco this month?'); // #168 merchant intent
     expect(a.source).toBeUndefined();
+  });
+});
+
+// ─── O.19b — a capped list under a period total states its remainder ─────────
+// The owner's /reports complaint ("these numbers do not add up") applied to Ask:
+// wherever a headline/detail figure sums the WHOLE array and the fact list is
+// capped, a tail line summed from the SAME array recomposes the total on
+// screen. Abstention is the other half of the lock: a complete list must stay
+// byte-identical (no remainder line claiming money that does not exist).
+describe('O.19b — capped category lists state their remainder', () => {
+  const WIDE: SpendingBreakdown = {
+    totalCents: 150000, // = Σ byCategory, the engine identity (reports.ts:101)
+    byCategory: [
+      { categoryId: 'rent', name: 'Rent', group: 'Housing', amountCents: 50000 },
+      { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 40000 },
+      { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 30000 },
+      { categoryId: 'fuel', name: 'Gas & Fuel', group: 'Transport', amountCents: 20000 },
+      { categoryId: 'fun', name: 'Entertainment', group: 'Lifestyle', amountCents: 10000 },
+    ],
+    byGroup: [],
+  };
+
+  it('spend_total: top 3 + remainder recompose the headline total', () => {
+    const a = answerSpendTotal(WIDE, THIS_MONTH);
+    expect(a.headline).toBe('You spent $1,500.00 this month.');
+    expect(a.facts).toHaveLength(4);
+    const tail = a.facts[3];
+    expect(tail.label).toBe('Everything else · 2 more categories');
+    expect(tail.value).toBe('$300.00'); // 20000 + 10000 — $1,200 listed + $300 = $1,500
+    expect(tail.traceKey).toBeUndefined(); // many categories ≠ one trace group: never a dead tap
+  });
+
+  it('spend_total: singular tail copy ("1 more category")', () => {
+    const four: SpendingBreakdown = { ...WIDE, totalCents: 140000, byCategory: WIDE.byCategory.slice(0, 4) };
+    const a = answerSpendTotal(four, THIS_MONTH);
+    expect(a.facts[3].label).toBe('Everything else · 1 more category');
+    expect(a.facts[3].value).toBe('$200.00');
+  });
+
+  it('spend_total: abstains when the list is complete (≤3 categories)', () => {
+    const a = answerSpendTotal(BREAKDOWN, THIS_MONTH); // 2 categories
+    expect(a.facts).toHaveLength(2);
+    expect(a.facts.every((f) => !f.label.startsWith('Everything else'))).toBe(true);
+  });
+
+  it('top_categories: remainder against the caller limit; abstains at/over the full length', () => {
+    const capped = answerTopCategories(WIDE, THIS_MONTH, 2);
+    expect(capped.detail).toBe('Total this month: $1,500.00.');
+    expect(capped.facts).toHaveLength(3);
+    expect(capped.facts[2].label).toBe('Everything else · 3 more categories');
+    expect(capped.facts[2].value).toBe('$600.00'); // 30000+20000+10000
+
+    const complete = answerTopCategories(WIDE, THIS_MONTH, 5);
+    expect(complete.facts).toHaveLength(5); // exact fit → no remainder line
+    const over = answerTopCategories(BREAKDOWN, THIS_MONTH, 5);
+    expect(over.facts).toHaveLength(2); // limit past the end → no remainder line
+  });
+
+  it('spend_by_category group branch: 4th leaf gets the remainder line', () => {
+    const grouped: SpendingBreakdown = {
+      totalCents: 150000,
+      byCategory: WIDE.byCategory,
+      byGroup: [
+        {
+          group: 'Bills & Utilities',
+          amountCents: 25000,
+          categories: [
+            { categoryId: 'electricity', name: 'Electricity', group: 'Bills & Utilities', amountCents: 12000 },
+            { categoryId: 'water', name: 'Water & Sewer', group: 'Bills & Utilities', amountCents: 6000 },
+            { categoryId: 'trash', name: 'Trash & Recycling', group: 'Bills & Utilities', amountCents: 4000 },
+            { categoryId: 'natural-gas', name: 'Natural Gas', group: 'Bills & Utilities', amountCents: 3000 },
+          ],
+        },
+      ],
+    };
+    const a = answerSpendByCategory(grouped, { type: 'group', group: 'Bills & Utilities', label: 'bills' }, THIS_MONTH);
+    expect(a.headline).toBe('You spent $250.00 on bills this month.');
+    expect(a.facts.map((f) => f.label)).toEqual([
+      'Electricity',
+      'Water & Sewer',
+      'Trash & Recycling',
+      'Everything else in bills · 1 more category',
+    ]);
+    expect(a.facts[3].value).toBe('$30.00'); // $220 listed + $30 = the $250 headline
+  });
+
+  it('subscriptions: 6th sub gets a /mo tail line from the same array the headline sums', () => {
+    const summary = {
+      activeSubscriptionCount: 6,
+      monthlyRecurringSpendCents: 0,
+      subscriptions: [
+        { merchantCanonical: 'NETFLIX', monthlyEquivalentCents: 1799 },
+        { merchantCanonical: 'SPOTIFY', monthlyEquivalentCents: 1199 },
+        { merchantCanonical: 'HULU', monthlyEquivalentCents: 1999 },
+        { merchantCanonical: 'MAX', monthlyEquivalentCents: 1599 },
+        { merchantCanonical: 'DISNEY+', monthlyEquivalentCents: 1399 },
+        { merchantCanonical: 'PEACOCK', monthlyEquivalentCents: 599 },
+      ],
+      bills: [],
+      priceIncreases: [],
+    } as unknown as RecurringSummary;
+    const a = answerSubscriptions(summary);
+    expect(a.headline).toBe("You're paying about $85.94/mo across 6 active subscriptions.");
+    expect(a.facts).toHaveLength(6);
+    expect(a.facts[5]).toEqual({ label: 'Everything else · 1 more subscription', value: '$5.99/mo' });
+  });
+
+  it('subscriptions: abstains at exactly 5', () => {
+    const summary = {
+      activeSubscriptionCount: 5,
+      monthlyRecurringSpendCents: 0,
+      subscriptions: [
+        { merchantCanonical: 'A', monthlyEquivalentCents: 1000 },
+        { merchantCanonical: 'B', monthlyEquivalentCents: 900 },
+        { merchantCanonical: 'C', monthlyEquivalentCents: 800 },
+        { merchantCanonical: 'D', monthlyEquivalentCents: 700 },
+        { merchantCanonical: 'E', monthlyEquivalentCents: 600 },
+      ],
+      bills: [],
+      priceIncreases: [],
+    } as unknown as RecurringSummary;
+    expect(answerSubscriptions(summary).facts).toHaveLength(5);
   });
 });

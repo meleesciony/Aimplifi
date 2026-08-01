@@ -8326,3 +8326,49 @@ Deployment `aimplifi-f02ddvhui-reiforge.vercel.app` **● Ready**, build log
 `Cloning github.com/meleesciony/Aimplifi (Branch: main, Commit: e24cee9)` matching HEAD,
 aliases holding **www.aimplifi.app** + **aimplifi.app**. `git diff 5badb2a..HEAD --stat -- prisma/`
 empty, so Neon took no DDL. Both slices are shipped, criticized, fixed, verified and live.
+
+## 2026-07-31 (evening session 2) — O.19b + O.19c + O.19d IN PROGRESS
+
+### O.19b — Ask states the remainder under capped lists (engine answer.ts)
+`categoryRemainderFact` (one author): "Everything else · N more categor(y|ies)" summed from
+the SAME byCategory array the total sums; wired into answerSpendTotal (slice 3),
+answerTopCategories (caller limit), AND answerSpendByCategory's umbrella+group branches
+(same disease, not in the task row's enumeration — data-class sweep). answerSubscriptions
+(>5 subs → "/mo" tail from the same array the headline sums) and answerMerchantSpend
+(>5 items → "N more transactions", SIGNED so a refund-heavy tail shows −$X rather than
+rebuilding the O.10c bias; items sums to totalCents by contract). Abstention everywhere:
+complete list → byte-identical. O.10c (which rows are SHOWN) deliberately untouched.
+Locks: assistant-answer.test.ts O.19b block (43 pass; the old utilities-umbrella
+assertion pinned the silent cap and was updated to expect the tail),
+assistant-merchant-spend.test.ts O.19b block (36 pass, signed-negative tail case),
+ask.spec e2e added (painted recomposition on demo spend_total: 3 facts + tail === headline).
+
+### O.19c — /trends states its caps (engine + view)
+SpendingTrends gains `moverTotal`/`newMerchantTotal` (pre-cap counts from the same arrays
+the slices truncate). trends-view renders one sentence per list ONLY when the cap bound:
+"Showing the top 6 of 7 changed categories, by size of change." /
+"Showing the top 5 of 6 new merchants, by amount spent."
+(testids trends-movers-cap / trends-new-merchants-cap). Locks: trends.test.ts O.19c block
+(42 pass — 7 movers → 6 listed/total 7; net-refunded merchant outside list AND total;
+uncapped → equal counts); new e2e trends-caps.spec.ts seeds a throwaway user where both
+caps provably bind (7 May new-category movers, 6 June merchants).
+
+### O.19d — residual locks on reports-total-reconciles.spec.ts
+Seed helper generalized (seedCategoryMonth, null categoryId = unfiled row). Two new tests:
+(1) 13 cats with rank-12/13 TIE at $1.50 → "1 more category" singular, no "smaller",
+identity holds; (2) 14th row unfiled ($0.50) → tail includes uncategorized, expanded state
+asserts the O.5 refusal (no category-link-uncategorized, "review in Inbox →" → /triage)
+and the identity counts the unlinked row.
+
+STATE: tsc 0; unit green on all touched files. `next build` RUNNING (background) for the
+e2e runs (reports-total-reconciles ×3, trends-caps, ask.spec). Then full verify, TASKS
+flips, DECISIONS, push + deploy-verify.
+
+### O.19b + O.19c + O.19d SHIPPED-READY — 2026-07-31 (session 2)
+
+Critic (fresh-context, read-only): PASS, 0 P0/P1; P3 scoped-label fixed same-session
+("Everything else in bills"); P2 accounting recorded (the two new reports e2e tests lock
+O.19d's prior surface, not this diff — by design). Definitive gates on the FINAL tree:
+verify.sh ✅ GREEN — 5390 unit / 329 files (+15), tsc 0, eslint 0, build clean; affected
+e2e rebuilt + rerun: 26/26 (reports-total-reconciles 4/4, trends-caps 1/1, ask.spec 21/21).
+DECISIONS #359 + index; TASKS O.19b/c/d flipped. Committing, pushing, deploy-verifying now.
