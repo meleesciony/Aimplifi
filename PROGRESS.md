@@ -5,8 +5,9 @@
 Owner: categorize/label every transaction Fixed vs discretionary with a selector
 when wrong. `TxnView.spendClass` + `SpendClassSelect` on register and detail;
 edits go through `setCategoryFixed` (category-wide, same as /budgets). Demo
-label-only. verify GREEN 5592; e2e txn-spend-class 1/1. Ship next: commit/push/
-deploy-prove `txn-spend-class` on live `/transactions`.
+label-only. verify GREEN 5592; e2e txn-spend-class 1/1. Deploy READY
+`aimplifi-9wuz5ui0y` on `b29c576`; live demo `/transactions`: 100×
+`txn-spend-class` (mixed fixed/guilt-free/out-of-scope) + standing copy.
 
 ## 2026-08-01 — Budgeting composition + Fixed amounts (#377) DONE (B.2)
 
