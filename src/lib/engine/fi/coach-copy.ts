@@ -14,7 +14,11 @@ import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
 // The basis sentence decides WHICH claim to make from the same engine the figures come from —
 // a guard reading exactly what it guards, rather than a second rule about the dials that can
 // drift from the arithmetic (it already had, by 1,579 horizon-cases).
-import { OPPORTUNITY_HORIZON_MONTHS, opportunityValueTrailsContributions } from './fi';
+import {
+  OPPORTUNITY_HORIZON_MONTHS,
+  opportunityRowTrailsContributions,
+  opportunityValueTrailsContributions,
+} from './fi';
 
 /**
  * The cash-needed cover transfer, as the Money Review consumes it.
@@ -429,6 +433,22 @@ export const COACH_COPY = {
    * nothing compounds — the figure is then the reader's own deposits, minus what inflation
    * takes. Both critics found this independently in the first draft (which had the same hole
    * one rate further along, at a floored real return).
+   *
+   * W.10a critic — and the zero dial is NOT the only input that falsifies the payload. #363
+   * recorded that it was ("the only degenerate input is the reader's own 0.00% return dial"),
+   * and W.10a's own sweep disproved it one function away without the claim being revisited: of
+   * the 2,400 non-zero return/inflation pairs `validateDials` permits, **1,275 put every
+   * printed figure at or below the dollars paid in and another 149 put one or two of them
+   * there**. At 10.25%/10.00% a $50/mo row printed $6,833.08 against $18,000 handed over and
+   * credited compounding with it; a reader on the DEFAULT 7.00% return dial reaches the same
+   * sentence by setting inflation to 3.75%. So the guard is the arithmetic of the figures this
+   * sentence prints, not a rule about one dial — the same correction W.10a made to
+   * `opportunityBasis`, which renders under the identical gate (`opportunities.length > 0`) and
+   * states the every/some distinction once for the list.
+   *
+   * The trailing branch drops the payoff and puts nothing in its place. A second explanation
+   * per row would restate the two dials N times (the accretion W.12 is open about), and the
+   * paragraph that carries it is on screen whenever a row is.
    */
   opportunity: (o: Opportunity, nominalReturnBps: number) => {
     const monthly = formatCents(o.monthlyCents);
@@ -436,7 +456,9 @@ export const COACH_COPY = {
     const fv =
       nominalReturnBps === 0
         ? `is ${horizons}, assuming your 0.00% return assumption — no growth at all, so that is the money itself with inflation taken off.`
-        : `is ${horizons}, assuming ${pct(nominalReturnBps)} average annual returns — compounding does the work, not willpower.`;
+        : opportunityRowTrailsContributions(o)
+          ? `is ${horizons}, assuming ${pct(nominalReturnBps)} average annual returns.`
+          : `is ${horizons}, assuming ${pct(nominalReturnBps)} average annual returns — compounding does the work, not willpower.`;
     switch (o.kind) {
       case 'unused-subscription':
         return `Still using it? ${o.merchant}: ${monthly}/mo ${fv}`;

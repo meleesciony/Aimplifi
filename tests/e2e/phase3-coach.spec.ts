@@ -70,6 +70,14 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(page.getByTestId('opportunities-basis')).toContainText('7.00% return assumption');
   await expect(page.getByTestId('opportunities-basis')).toContainText('2.50% inflation assumption');
   await expect(page.getByTestId('opportunities-basis')).toContainText('what the total would buy today');
+  // W.10a critic — the payoff clause is now gated on the printed figures rather than on the
+  // return dial alone, and the demo's 7.00%/2.50% is a pair where nothing trails. Asserting it
+  // STILL renders is the half a unit test cannot see: the guard must be a predicate at the
+  // render site, not a deletion. (The refusing direction is locked in fi-real-basis.test.ts,
+  // where the dials that trail are ones no seeded user has.)
+  await expect(page.getByTestId('opportunities-list')).toContainText(
+    'compounding does the work, not willpower',
+  );
 
   // creep flagged on the engineered seed rise — phrased as a question, not a verdict
   await expect(page.getByTestId('creep-verdict')).toContainText('not a verdict');

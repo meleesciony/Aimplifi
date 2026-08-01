@@ -2144,6 +2144,13 @@ was pure addition, printing the clamped rate the sibling card is forbidden to pr
 the only degenerate input is the reader's own 0.00% return dial, which is honest to print
 because it is theirs, and the copy still drops the compounding clause for it.
 
+> **AMENDED by #366 (W.10a critic).** That last sentence is false and W.10a's own sweep is what
+> disproved it. The zero dial is not the only degenerate input: 1,275 of the 2,400 non-zero
+> return/inflation pairs `validateDials` permits put *every* printed figure at or below the
+> dollars handed over, and 149 more put one or two there. The compounding clause is now dropped
+> whenever a figure the row prints trails what was paid in, guarded by
+> `opportunityRowTrailsContributions` reading those printed values.
+
 **Three branches, because a claim safe at the defaults is a lie at the dial limits.**
 `validateDials` permits return 0–15.00% and inflation 0–10.00%. At zero inflation nothing is
 deflated and today's money and future dollars are the same thing; at inflation at or above the
@@ -2246,3 +2253,64 @@ anything. These findings came from running their assignment by hand instead. Tha
 than an independent pass — the checks were chosen by the same person who wrote the code — and
 W.10a has therefore had **one** full critic cycle (#363's two critics), not two. A second pass
 over `opportunityBasis`'s branches is the honest next step, not a formality.
+
+## #366 (W.10a critic) — A sweep that falsifies a premise falsifies every decision resting on it
+
+**The cycle #365 said was owed.** #365 shipped W.10a's fix and recorded, honestly, that both
+cycle-2 critics had died on a platform session limit and that a second pass over
+`opportunityBasis`'s branches was owed rather than waived. This is that pass, run from a fresh
+context whose only prior exposure was the STATUS narrative.
+
+**The branches survived.** Every claim #365 makes about `opportunityBasis` holds under
+execution over the whole permitted grid at 25bps steps:
+
+- The `trails` array is always a PREFIX — 0 of 2,501 dial pairs trail at a longer horizon
+  without trailing at every shorter one. The mixed branch's "the shorter horizons" was an
+  unproven monotonicity claim when it shipped; it is true. Four distinct patterns exist and no
+  others: `[F,F,F]` ×1,037, `[T,T,T]` ×1,315, `[T,F,F]` ×84, `[T,T,F]` ×65.
+- "at or below" survives the ROUNDED display: 0 violations across the 25bps grid at five
+  amounts down to $0.01/mo, with 12 exact ties — the knife-edge #365 predicted.
+- The sentence is gated on the same rate pair the rows are computed with (`fi.expectedReturnBps`
+  / `fi.inflationBps` are the very arguments `findOpportunities` received), and no other
+  surface prints these figures.
+
+**The P1 it found instead, one function above.** `COACH_COPY.opportunity` — the ROW sentence,
+which prints all three figures — ends "compounding does the work, not willpower", guarded only
+by `nominalReturnBps === 0`. #363 wrote that guard and recorded its reasoning explicitly:
+*"the only degenerate input is the reader's own 0.00% return dial."* W.10a's own sweep is a
+disproof of exactly that sentence, and it was applied to the paragraph while the claim one
+function above it was left standing. Of the **2,400 non-zero** return/inflation pairs
+`validateDials` permits, **1,275 put every printed figure at or below the dollars handed over
+and 149 put one or two there** — 59% of the grid. At 10.25%/10.00% a $50/mo row printed
+$6,833.08 against $18,000 paid in and credited compounding with it. It is reachable from the
+DEFAULT return dial: keep 7.00% and set inflation to 3.75% and the ten-year figure trails; at
+4.25% all three do. The card then contradicted itself, the row crediting compounding and the
+paragraph beneath saying inflation took more than the growth added.
+
+**The fix reads the printed values, not the dials.** `opportunityRowTrailsContributions(row)`
+compares the three figures the sentence is about against `monthlyCents × months`. The sibling
+`opportunityValueTrailsContributions` answers the same question for the LIST from the dials,
+which is right there (one sentence, all rows) and wrong here: a row-level claim recomputed from
+a rate pair is a second derivation that can be handed different arguments than the row was
+built with, and the printed integers are the thing the claim is about. `<=` for #365's reason —
+a figure trailing by a fraction of a cent prints as exactly what was paid in, where "compounding
+did the work" is still false. ANY of the three, because one sentence enumerates all three.
+
+**The trailing branch adds nothing in place of the payoff.** A per-row explanation would restate
+the two dials N times (the accretion W.12 is open about) and duplicate the paragraph, which
+renders under the identical gate (`opportunities.length > 0`) and already carries the
+every/some distinction. Removing a false claim beats inventing a replacement claim.
+
+**A test was certifying the defect.** `fi-real-basis.test.ts`'s zero-return test closed with
+*"…and the ordinary branch still says it, so the guard is not a silent deletion"* — on a
+hand-built fixture whose ten-year figure ($3,000.00) is below the $4,198.80 a $34.99/mo row
+hands over in ten years. The assertion's intent was right and its fixture was an instance of
+the bug, so the fixture now carries real 7.00%/2.50% figures for that row. Both new locks are
+mutation-proven in both directions: disabling the guard kills two, forcing it to fire always
+kills three (including that both-directions assertion).
+
+**Not fixed, recorded.** A $0.01/mo row ties its contributions at ten years for 12 dial pairs
+where the list sentence stays silent (the predicate is exact at the probe amount and the tie
+only appears at one cent). No opportunity kind can mint a row that small — the smallest is a
+detected series or a hard-coded $20.00 retention offer — and a figure equal to the deposits
+does not read as a bug the way one below them does.

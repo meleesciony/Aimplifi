@@ -8661,3 +8661,38 @@ is weaker than an independent pass because the checks were chosen by the author 
 W.10 has had one full critic cycle (#363's two critics, both FAIL, converging independently on
 two P1s); W.10a has had none. A second pass over `opportunityBasis`'s branches is owed and is
 filed, not waived.
+
+## 2026-08-01 — W.10a's owed critic cycle, run (DECISIONS #366)
+
+Fresh-context adversarial pass over `opportunityBasis`, the thing #365 filed as owed rather
+than waived. Its branches all held under execution (the `trails` array is a PREFIX in 0/2,501
+counterexamples, so the mixed branch's unproven "the shorter horizons" is true; "at or below"
+survives the rounded display at $0.01/mo with 12 exact ties; the sentence is gated on the same
+rate pair `findOpportunities` received).
+
+**The P1 was one function above.** `COACH_COPY.opportunity` still ended every row "compounding
+does the work, not willpower" guarded by `nominalReturnBps === 0`, because #363 had recorded
+that the zero dial was "the only degenerate input" — a claim W.10a's own sweep disproved without
+the neighbouring decision being re-read. 1,275 of 2,400 non-zero dial pairs put every printed
+figure at or below the dollars handed over; at 10.25%/10.00% a $50/mo row printed $6,833.08
+against $18,000 paid in, and 7.00%/3.75% reaches it from the default return dial.
+
+Fixed with `opportunityRowTrailsContributions`, reading the row's PRINTED integers rather than
+re-deriving from the dials, `<=` (a sub-cent trail prints as exactly what was paid in) and ANY
+of the three (one sentence enumerates all three). The trailing branch drops the payoff and adds
+nothing — the paragraph that explains it renders under the identical gate.
+
+An existing test was certifying the defect ("…and the ordinary branch still says it") on a
+fixture whose 10-year figure was below its own contributions; fixture corrected. #363's
+falsified sentence amended in place rather than left to lapse.
+
+Gate: `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **5518 unit / 334 files** / build
+clean; `phase3-coach.spec.ts` 1/1 serially with a new render-site assertion for the
+non-trailing direction. Both locks mutation-proven both ways (disabled kills 2, forced-on
+kills 3).
+
+One verify invocation out of five failed at the build step with "Turbopack build failed with 2
+errors" and I did not capture the error text before rerunning; three runs before it and the
+full-capture run after it were green on the same tree. That matches the cold-start flake
+CLAUDE.md documents, but since the text is gone I am recording it as unexplained rather than
+diagnosed.

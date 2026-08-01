@@ -10497,3 +10497,62 @@ filed, not waived.
 one production deployment, `aimplifi-kdwy902zz`, status ● Ready — and `npx vercel inspect` on it
 lists `https://www.aimplifi.app` among its aliases. The commit-sha filter is the proof rather
 than a 200: an old deployment answers 200 perfectly well.
+
+## W.10a critic cycle — the owed independent pass (2026-08-01, DECISIONS #366)
+
+#365 shipped W.10a and recorded that both cycle-2 critics had died on a platform session limit,
+so the findings came from running their assignment by hand and an independent pass was owed.
+This is that pass, from a fresh context.
+
+### The branches held
+
+Every claim #365 makes about `opportunityBasis` survives execution over the whole permitted dial
+grid (return 0–15.00%, inflation 0–10.00%, 25bps steps):
+
+- The `trails` array is always a **prefix** — 0 of 2,501 pairs trail at a longer horizon without
+  trailing at every shorter one. The mixed branch's "the shorter horizons" was an unproven
+  monotonicity claim when it shipped, and it is true. Exactly four patterns occur:
+  `[F,F,F]` ×1,037, `[T,T,T]` ×1,315, `[T,F,F]` ×84, `[T,T,F]` ×65.
+- "at or below" survives the **rounded display**: 0 violations at five amounts down to $0.01/mo,
+  with 12 exact ties — the knife-edge #365 predicted.
+- The sentence is gated on the same rate pair the rows were computed with, and no other surface
+  prints these figures.
+
+### The P1, one function above
+
+`COACH_COPY.opportunity` — the ROW sentence, which prints all three figures — still ended
+"compounding does the work, not willpower", guarded only by `nominalReturnBps === 0`. #363 had
+recorded the reasoning for that guard explicitly: *"the only degenerate input is the reader's own
+0.00% return dial."* W.10a's sweep is a disproof of that sentence, and it was applied to the
+paragraph while the claim one function above was left standing.
+
+Of the **2,400 non-zero** dial pairs `validateDials` permits, **1,275 put every printed figure at
+or below the dollars handed over** and 149 more put one or two there. At 10.25%/10.00% a $50/mo
+row printed **$6,833.08 against $18,000 paid in** and credited compounding with it. Reachable from
+the DEFAULT return dial: keep 7.00% and set inflation to 3.75% and the ten-year figure trails; at
+4.25% all three do. The card contradicted itself — the row crediting compounding, the paragraph
+beneath saying inflation took more than the growth added.
+
+Fixed by `opportunityRowTrailsContributions`, which reads the row's **printed integers** rather
+than re-deriving from the dials. The trailing branch drops the payoff and adds nothing in its
+place; the paragraph carrying the explanation renders under the identical gate.
+
+A test was certifying the defect: the zero-return test closed with *"…and the ordinary branch
+still says it"* on a fixture whose ten-year figure was itself below its own contributions. The
+fixture now carries real 7.00%/2.50% figures.
+
+### Gate
+
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc 0, eslint 0, **5518 unit / 334 files** (from
+5513/334), build clean. `phase3-coach.spec.ts` 1/1 serially on that build, with a new render-site
+assertion that the demo — a pair where nothing trails — still shows the clause.
+
+Both new locks mutation-proven in both directions: disabling the guard kills two tests, forcing
+it to fire always kills three.
+
+### Residual, not fixed
+
+A $0.01/mo row ties its contributions at ten years for 12 dial pairs where the list sentence
+stays silent. No opportunity kind can mint a row that small (the smallest is a detected series or
+a hard-coded $20.00 retention offer), and a figure equal to the deposits does not read as a bug
+the way one below them does.

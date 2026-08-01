@@ -27,6 +27,7 @@ import {
   coastFI,
   monthsToFI,
   opportunityFVCents,
+  opportunityRowTrailsContributions,
   opportunityValueTodayCents,
   opportunityValueTrailsContributions,
 } from '@/lib/engine/fi/fi';
@@ -581,9 +582,13 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
       kind: 'unused-subscription',
       merchant: 'LA Fitness',
       monthlyCents: cents(3499),
-      todayValue10Cents: cents(300_000),
-      todayValue20Cents: cents(500_000),
-      todayValue30Cents: cents(600_000),
+      // W.10a critic: these were 300_000 / 500_000 / 600_000, and the 10-year figure of that
+      // fixture ($3,000.00) is BELOW the $4,198.80 a $34.99/mo row hands over in ten years — so
+      // the closing assertion here was certifying the defect below rather than the guard above.
+      // Real 7.00%/2.50% figures for this row, where nothing trails.
+      todayValue10Cents: cents(605_000),
+      todayValue20Cents: cents(1_822_000),
+      todayValue30Cents: cents(4_267_000),
       isEstimate: false,
     };
     const zero = COACH_COPY.opportunity(o, 0);
@@ -591,6 +596,69 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
     expect(zero).toContain('no growth at all');
     // …and the ordinary branch still says it, so the guard is not a silent deletion.
     expect(COACH_COPY.opportunity(o, NOMINAL_BPS)).toContain('compounding does the work');
+  });
+
+  it('will not credit compounding beside a figure at or below the dollars paid in', () => {
+    // W.10a critic. #363 recorded that the reader's own 0.00% return dial was "the only
+    // degenerate input" for the clause above; W.10a's sweep of the same dial grid disproved it
+    // one function away and the row was never revisited. 7.00% return against a 4.00%
+    // inflation dial — both inside `validateDials`, and reachable from the DEFAULT return —
+    // makes the 10- and 20-year figures land below what the reader hands over while the
+    // 30-year one clears it.
+    const nominalBps = 700;
+    const inflationBps = 400;
+    const monthlyCents = cents(5000);
+    const o: Opportunity = {
+      kind: 'unused-subscription',
+      merchant: 'Streamflix',
+      monthlyCents,
+      todayValue10Cents: opportunityValueTodayCents(monthlyCents, 120, nominalBps, inflationBps),
+      todayValue20Cents: opportunityValueTodayCents(monthlyCents, 240, nominalBps, inflationBps),
+      todayValue30Cents: opportunityValueTodayCents(monthlyCents, 360, nominalBps, inflationBps),
+      isEstimate: false,
+    };
+    // The hard case is present: two of the three printed figures trail, one does not.
+    expect(o.todayValue10Cents).toBeLessThan(monthlyCents * 120);
+    expect(o.todayValue20Cents).toBeLessThan(monthlyCents * 240);
+    expect(o.todayValue30Cents).toBeGreaterThan(monthlyCents * 360);
+
+    const line = COACH_COPY.opportunity(o, nominalBps);
+    expect(line).not.toContain('compounding does the work');
+    // The figures and the rate they were grown at are still stated — the payoff is what goes.
+    expect(line).toContain('$5,846.49 over 10');
+    expect(line).toContain('assuming 7.00% average annual returns.');
+    // And the paragraph that renders under the same gate explains it for the list.
+    expect(COACH_COPY.opportunityBasis(nominalBps, inflationBps, false)).toContain(
+      'the shorter horizons land at or below the dollars you would pay in',
+    );
+  });
+
+  it('the row guard reads the figures it prints, not the dials it was grown at', () => {
+    // A recomputation from the rate pair would be a second derivation that can be handed
+    // different arguments than the row was built with. This row carries a trailing 30-year
+    // figure while the rate argument is the untroubled default, so only a predicate reading
+    // the printed values can refuse.
+    const monthlyCents = cents(2000);
+    const o: Opportunity = {
+      kind: 'negotiable-bill',
+      merchant: 'Comcast',
+      monthlyCents,
+      todayValue10Cents: cents(900_000),
+      todayValue20Cents: cents(1_800_000),
+      todayValue30Cents: cents(720_000), // $7,200.00 against $7,200.00 handed over: the tie
+      isEstimate: true,
+    };
+    expect(o.todayValue30Cents).toBe(monthlyCents * 360);
+    expect(opportunityRowTrailsContributions(o)).toBe(true);
+    expect(COACH_COPY.opportunity(o, NOMINAL_BPS)).not.toContain('compounding does the work');
+    // Both directions: lift the tie by one cent and the clause returns, so the guard is a
+    // predicate on the figures rather than a deletion.
+    expect(
+      opportunityRowTrailsContributions({ ...o, todayValue30Cents: cents(720_001) }),
+    ).toBe(false);
+    expect(
+      COACH_COPY.opportunity({ ...o, todayValue30Cents: cents(720_001) }, NOMINAL_BPS),
+    ).toContain('compounding does the work');
   });
 
   it('the basis line states the mechanism it actually performs', () => {

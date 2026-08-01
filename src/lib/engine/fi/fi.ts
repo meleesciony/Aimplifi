@@ -176,6 +176,39 @@ export function opportunityValueTrailsContributions(
   return opportunityValueTodayCents(probe, months, nominalRateBps, inflationBps) < probe * months;
 }
 
+/**
+ * Whether ANY figure an opportunity row prints lands at or below the dollars the reader would
+ * hand over across the same months.
+ *
+ * W.10a critic. The sibling above answers the same question for the LIST, from the dials. This
+ * one answers it for one ROW, and deliberately reads the values that row will actually print
+ * rather than re-deriving them: the sentence it gates enumerates those three figures, so the
+ * claim has to be true of the numbers in the string, not of a recomputation that could be
+ * handed a different rate pair than the one the row was built with.
+ *
+ * `<=`, not `<`, for the reason the list sentence says "at or below": the values are integer
+ * cents and a figure trailing by a fraction of a cent prints as exactly what was paid in, where
+ * a claim that compounding added something is still false.
+ *
+ * Any, not all: the row prints all three horizons in one sentence, so one trailing figure is
+ * enough to falsify a payoff clause about the set. At 7.00% return against a 4.00% inflation
+ * dial — both inside `validateDials` — the 10- and 20-year figures trail and the 30-year one
+ * does not.
+ */
+export function opportunityRowTrailsContributions(row: {
+  monthlyCents: number;
+  todayValue10Cents: number;
+  todayValue20Cents: number;
+  todayValue30Cents: number;
+}): boolean {
+  const [m10, m20, m30] = OPPORTUNITY_HORIZON_MONTHS;
+  return (
+    row.todayValue10Cents <= row.monthlyCents * m10 ||
+    row.todayValue20Cents <= row.monthlyCents * m20 ||
+    row.todayValue30Cents <= row.monthlyCents * m30
+  );
+}
+
 /** Savings rate in bps: (income − expenses) / income. Income ≤ 0 → null. */
 export function savingsRateBps(incomeCents: Cents, expensesCents: Cents): number | null {
   if (incomeCents <= 0) return null;

@@ -155,6 +155,16 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'opportunity:bill', text: COACH_COPY.opportunity(opportunity('negotiable-bill'), 700), isProjection: true },
   // The zero-return branch, where "compounding does the work" would be false and is dropped.
   { label: 'opportunity:zeroReturn', text: COACH_COPY.opportunity(opportunity('unused-subscription'), 0), isProjection: true },
+  // W.10a critic — the same payload dropped for the other reason: a printed figure at or below
+  // the dollars handed over. A non-zero rate reaches it, so it is its own branch and its own row.
+  {
+    label: 'opportunity:trailsContributions',
+    text: COACH_COPY.opportunity(
+      { ...opportunity('unused-subscription'), todayValue10Cents: cents(400_000) },
+      700,
+    ),
+    isProjection: true,
+  },
   // Every branch of the list's basis line gets a row — a branch absent from this table has
   // never been scanned by the guardrail sweeps at all.
   {

@@ -178,3 +178,41 @@ sentence that qualifies a whole list.
 - **Verify a deploy by the commit SHA, not by a 200 or by timing.**
   `vercel ls <project> --meta githubCommitSha=<sha>` returning exactly the READY production
   deployment, plus `vercel inspect` showing the apex domain among its aliases, is the proof.
+
+### Extended by the owed critic cycle (W.10a, #366): a sweep that falsifies a premise falsifies every decision resting on it
+
+The independent pass W.10a had filed as *owed* found nothing wrong with the sentence W.10a
+fixed. Its branches all held under execution — including a monotonicity claim ("the shorter
+horizons") that had shipped unproven and turned out to be true in 0/2,501 counterexamples. The
+P1 was **one function above**, and W.10a's own sweep is what had disproved it:
+
+> #363 recorded, as the reason its guard was sound: *"the only degenerate input is the reader's
+> own 0.00% return dial."* W.10a then swept the same dial grid and found 1,275 of 2,400
+> non-zero pairs put **every** printed figure at or below the dollars the reader hands over. It
+> applied that finding to the basis paragraph and never re-read the sentence next door, so
+> every opportunity row went on ending *"compounding does the work, not willpower"* beside
+> $6,833.08 against $18,000 paid in — reachable from the **default** return dial by setting
+> inflation to 3.75%.
+
+**The rule: when a measurement contradicts a written premise, grep for every decision that
+premise supports.** This is the mirror of `new-egress-means-auditing-every-live-claim` — there,
+new *code* falsified old claims; here, a new *fact* falsified an old argument. The tell is
+specific and searchable: a recorded rationale containing "the only", "always", "never", or
+"by construction". #363's was one sentence long, in the file the fix was already open in.
+
+Corollaries from the same pass:
+
+- **A row-level claim is gated on the row's printed values, not on a recomputation.** The list
+  sentence may ask the dials (one sentence, all rows, amount-independent); the row sentence
+  compares the three integers it is about, because a second derivation can be handed different
+  arguments than the row was built with. It also gets the rounding tie for free.
+- **`<=` where the display rounds, and ANY where the sentence enumerates.** One trailing figure
+  out of three falsifies a payoff clause about the set.
+- **Removing a false claim beats inventing a replacement claim.** The trailing branch says
+  nothing extra: the paragraph carrying the explanation renders under the identical gate, and a
+  per-row explanation would restate both dials N times.
+- **A test can certify the defect while asserting the right intent.** The closing line of the
+  zero-return test — *"…and the ordinary branch still says it, so the guard is not a silent
+  deletion"* — is exactly the both-directions assertion this class needs, and its hand-built
+  fixture was itself a trailing row ($3,000.00 printed against $4,198.80 paid in). Check that a
+  fixture's *easy* case is actually easy, not just that the hard one is present.
