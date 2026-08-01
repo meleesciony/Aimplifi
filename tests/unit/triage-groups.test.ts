@@ -15,7 +15,9 @@ import { auth } from '@/auth';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import {
   groupReviewRows,
+  inboxMerchantHeading,
   isConfidentGroup,
+  rotateSkippedGroup,
   selectConfidentGroups,
   summarizeConfident,
   type ReviewRow,
@@ -231,10 +233,25 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(groups.map((g) => g.merchantCanonical)).toEqual(['Busy', 'Local One']); // 2 rows beat 1
     expect(groups[0].suggestedCategoryId).toBeNull(); // MIXED verdicts → null, no fake unanimity
     expect(groups[0].rows.map((r) => r.id)).toEqual(['b1', 'b2']); // newest-first preserved
+    // O.12e: per-row ladder rungs survive grouping even when the card is mixed.
+    expect(groups[0].rows.map((r) => r.suggestedCategoryId)).toEqual(['coffee', 'dining']);
     // Merchantless fallback keys by EXACT DESCRIPTOR — the same scope the file
     // action uses, so card count ≡ action scope (checker P0).
     expect(groups[1].key).toBe('raw:LOCAL ONE');
     expect(groups[1].ruleEligible).toBe(false); // no merchantId → no rule offer
+  });
+
+  it('test_regression__skip_rotates_front_card_without_dropping_it', () => {
+    const q = ['a', 'b', 'c'];
+    expect(rotateSkippedGroup(q)).toEqual(['b', 'c', 'a']);
+    expect(rotateSkippedGroup(['only'])).toEqual(['only']);
+    expect(rotateSkippedGroup([])).toEqual([]);
+  });
+
+  it('test_regression__masked_descriptor_heading_is_honest', () => {
+    expect(inboxMerchantHeading('.')).toBe('Masked charge (bank hid the name)');
+    expect(inboxMerchantHeading('****')).toBe('Masked charge (bank hid the name)');
+    expect(inboxMerchantHeading('Starbucks')).toBe('Starbucks');
   });
 
   // ── L.12: provider (Plaid) fallback suggestion — pure engine ──

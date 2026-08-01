@@ -5,6 +5,7 @@ import { EmptyTriage } from '@/components/onboarding/route-empty';
 import { AccuracyCard } from '@/components/triage/accuracy-card';
 import { BackfillButton } from '@/components/triage/backfill-button';
 import { TriageInbox } from '@/components/triage/triage-inbox';
+import { businessToday } from '@/lib/business-today';
 import { prisma } from '@/lib/db';
 import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getTriageGroups } from '@/server/triage';
@@ -44,7 +45,11 @@ export default async function TriagePage() {
       <CurrencyExclusionBanner summary={withheld} />
       <div className="mx-auto max-w-md space-y-4">
         <AccuracyCard result={accuracy} />
-        <TriageInbox initialGroups={groups} categories={categories} />
+        <TriageInbox
+          initialGroups={groups}
+          categories={categories}
+          today={businessToday(session.user.id)}
+        />
       </div>
     </div>
   );

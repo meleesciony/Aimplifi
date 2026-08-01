@@ -1,5 +1,10 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — Inbox skip + unclear charges (#374) IN PROGRESS
+
+Owner: next without filing; unsure what old charges are. Skip rotates queue;
+detail link + age + masked heading; One-by-one row chips (O.12e/O.12f).
+
 ## 2026-08-01 — Intention vs slide (#373) DONE
 
 Owner: set savings %; income/fixed from categories; lock only as intention; data ≠ lock

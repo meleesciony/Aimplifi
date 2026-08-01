@@ -14,6 +14,10 @@ import {
   proposeCategory,
   type CategoryProposal,
 } from '@/lib/engine/categorize/propose';
+import {
+  registerSuggestionFor,
+  type RegisterSuggestionKind,
+} from '@/lib/engine/categorize/register-suggestion';
 import { cents, formatCents } from '@/lib/money';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
@@ -208,8 +212,22 @@ function unanimousProposal(
   return proposals[0]!;
 }
 
+/** Per-row ladder chip for singles drill-down (O.12e / DECISIONS #374). */
+export interface TriageRowSuggestionView {
+  kind: RegisterSuggestionKind;
+  categoryId: string;
+  categoryName: string;
+  /** History-rung evidence sentence; null for ruleset/provider. */
+  reason: string | null;
+}
+
+export type TriageGroupRowView = TriageGroup['rows'][number] & {
+  rowSuggestion: TriageRowSuggestionView | null;
+};
+
 /** A triage group enriched with display names + quick-pick alternatives. */
-export interface TriageGroupView extends TriageGroup {
+export interface TriageGroupView extends Omit<TriageGroup, 'rows'> {
+  rows: TriageGroupRowView[];
   suggestedCategoryName: string | null;
   /** Display name of the provider (Plaid) guess, shown as "Plaid's guess" when our
    *  own suggestion is null (L.12). null when there is no provider fallback. */
@@ -330,8 +348,44 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
           c !== (proposal?.categoryId ?? null),
       )
       .slice(0, 3);
+    const rows: TriageGroupRowView[] = g.rows.map((r) => {
+      // Same ladder as the register (O.12e): a mixed group can say "none yet"
+      // at card level while individual rows still earn a confirmable chip.
+      const s = registerSuggestionFor(
+        {
+          currentCategoryId: 'uncategorized',
+          isTransfer: false,
+          reviewPinned: false,
+          pipelineCategoryId: r.suggestedCategoryId ?? 'uncategorized',
+          providerCategoryId: r.providerCategoryId,
+          txn: { rawDescriptor: r.rawDescriptor, amountCents: r.amountCents },
+        },
+        corrections,
+      );
+      if (!s) return { ...r, rowSuggestion: null };
+      const catLabel = categoryName(s.categoryId, meta);
+      return {
+        ...r,
+        rowSuggestion: {
+          kind: s.kind,
+          categoryId: s.categoryId,
+          categoryName: catLabel,
+          reason:
+            s.proposal === null
+              ? null
+              : proposalReason(s.proposal, {
+                  categoryLabel: catLabel,
+                  amount:
+                    s.proposal.matchedAmountCents === null
+                      ? null
+                      : formatCents(cents(Math.abs(s.proposal.matchedAmountCents))),
+                }),
+        },
+      };
+    });
     return {
       ...g,
+      rows,
       suggestedCategoryName: g.suggestedCategoryId ? categoryName(g.suggestedCategoryId, meta) : null,
       providerSuggestedCategoryName: g.providerSuggestedCategoryId
         ? categoryName(g.providerSuggestedCategoryId, meta)

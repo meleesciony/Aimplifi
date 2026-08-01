@@ -17,7 +17,10 @@
  *    (+ write-in custom categories, #136/#139) — the pick files the whole group
  *  - "☰ One by one" (or long-press) = drill into the group's rows for the rare
  *    mixed-merchant case: per-row pick / split, with the classic "Always / Just
- *    this once" rule prompt (#36) for singles
+ *    this once" rule prompt (#36) for singles — each row shows its register
+ *    ladder chip when the group card cannot (O.12e)
+ *  - "Skip" = rotate this merchant to the end without filing (#374) so unclear
+ *    old charges don't block the queue
  *  - universal undo (inverse corrections; created rules removed)
  *  - aggregates (Zelle/checks/ATM/Venmo) group by EXACT descriptor and never
  *    create rules (#23)
@@ -27,13 +30,19 @@
  * budget. See tests/e2e/phase2-triage.spec.ts.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { PartyPopper, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { formatISODate, isoDate } from '@/lib/dates';
+import { formatISODate, formatRelativeDays, isoDate, type ISODate } from '@/lib/dates';
 import { CUSTOM_CATEGORY_GROUPS, filterCategoryOptions } from '@/lib/engine/categorize/assign';
-import { isConfidentGroup, summarizeConfident } from '@/lib/engine/categorize/group';
+import {
+  inboxMerchantHeading,
+  isConfidentGroup,
+  rotateSkippedGroup,
+  summarizeConfident,
+} from '@/lib/engine/categorize/group';
 import { SPLIT_BLOCKED_REIMBURSED } from '@/lib/engine/transactions/actions';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { cents, centsFromDollarString, formatCents } from '@/lib/money';
@@ -81,9 +90,12 @@ const PASS_SIZE = 15;
 export function TriageInbox({
   initialGroups,
   categories,
+  today,
 }: {
   initialGroups: TriageGroupView[];
   categories: { id: string; name: string; group?: string }[];
+  /** Business today — relative age of old charges (#374). */
+  today: ISODate;
 }) {
   const [groups, setGroups] = useState(initialGroups);
   const [mode, setMode] = useState<'idle' | 'picker' | 'split' | 'singles'>('idle');
@@ -181,6 +193,14 @@ export function TriageInbox({
 
   function advanceGroup() {
     setGroups((gs) => gs.slice(1));
+    resetTransient();
+  }
+
+  /** Skip without filing — rotate to end so unclear charges don't block. */
+  function skipGroup() {
+    if (groups.length < 2) return;
+    logInteraction('tap', `skip ${groups[0]?.merchantCanonical ?? '?'}`);
+    setGroups((gs) => rotateSkippedGroup(gs));
     resetTransient();
   }
 
@@ -920,6 +940,9 @@ export function TriageInbox({
 
   const one = top.count === 1;
   const anchorRow = top.rows[0];
+  const heading = inboxMerchantHeading(top.merchantCanonical);
+  const ageHint = formatRelativeDays(today, isoDate(top.newestDate));
+  const rowsWithChip = top.rows.filter((r) => r.rowSuggestion !== null).length;
   // L.12: when our own pipeline produced no suggestion, fall back to Plaid's persisted
   // guess — shown labelled "Plaid's guess", never presented as our confident verdict.
   // One tap files all N as that category (an ordinary, undoable user Correction); the
@@ -1009,7 +1032,9 @@ export function TriageInbox({
       >
         <CardContent className="space-y-2 pt-4">
           <div className="flex items-baseline justify-between gap-2">
-            <span className="font-medium">{top.merchantCanonical}</span>
+            <span className="font-medium" data-testid="triage-merchant-heading">
+              {heading}
+            </span>
             <span className="text-lg font-semibold tabular-nums">
               {formatCents(cents(top.totalCents), { signDisplay: 'always' })}
             </span>
@@ -1018,19 +1043,26 @@ export function TriageInbox({
             {one
               ? `1 transaction · ${formatISODate(isoDate(top.newestDate), 'long')} · ${anchorRow.accountName}`
               : `${top.count} transactions · ${formatISODate(isoDate(top.oldestDate), 'long')} – ${formatISODate(isoDate(top.newestDate), 'long')}`}
+            {ageHint.includes('ago') && (
+              <span data-testid="triage-age"> · {ageHint}</span>
+            )}
             {one && anchorRow.status === 'PENDING' && (
               <Badge variant="outline" className="ml-1">
                 pending
               </Badge>
             )}
           </p>
-          {top.variants.slice(0, 2).map((v) => (
+          <p className="text-[11px] text-muted-foreground">
+            As on your statement
+            {heading !== top.merchantCanonical ? ' (name masked by the bank)' : ''}:
+          </p>
+          {top.variants.slice(0, 3).map((v) => (
             <p key={v} className="break-all font-mono text-xs text-muted-foreground">
               {v}
             </p>
           ))}
-          {top.variants.length > 2 && (
-            <p className="text-xs text-muted-foreground">+ {top.variants.length - 2} more descriptor variants</p>
+          {top.variants.length > 3 && (
+            <p className="text-xs text-muted-foreground">+ {top.variants.length - 3} more descriptor variants</p>
           )}
           <div className="flex items-center gap-2 pt-1">
             <span className="text-sm text-muted-foreground">Suggestion:</span>
@@ -1049,6 +1081,9 @@ export function TriageInbox({
             ) : (
               <span className="text-sm text-muted-foreground" data-testid="triage-no-suggestion">
                 none yet — pick once for {one ? 'this' : `all ${top.count}`}
+                {!one && rowsWithChip > 0
+                  ? ` · or open One by one (${rowsWithChip} row${rowsWithChip === 1 ? '' : 's'} have a guess)`
+                  : ''}
               </span>
             )}
           </div>
@@ -1057,6 +1092,20 @@ export function TriageInbox({
               {top.proposalReason} Confirm below, or pick a different one.
             </p>
           )}
+          <p className="pt-1">
+            <Link
+              href={`/transactions/${top.anchorTransactionId}`}
+              className="text-xs text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400"
+              data-testid="triage-open-detail"
+              onClick={() => logInteraction('tap', 'open-detail')}
+            >
+              Open full details
+            </Link>
+            <span className="text-xs text-muted-foreground">
+              {' '}
+              if you&rsquo;re not sure what this is
+            </span>
+          </p>
         </CardContent>
       </Card>
 
@@ -1074,17 +1123,48 @@ export function TriageInbox({
       {mode === 'singles' && (
         <div className="space-y-2 rounded-lg border p-2" data-testid="triage-singles">
           <p className="px-1 text-xs text-muted-foreground">
-            One by one — pick or split individual {top.merchantCanonical} transactions:
+            One by one — pick or split individual {heading} transactions:
           </p>
           {top.rows.map((r) => (
             <div key={r.id} className="rounded-md border px-2 py-1.5" data-testid="triage-single-row">
               <div className="flex items-center justify-between gap-2 text-sm">
                 <span className="text-xs text-muted-foreground">
                   {formatISODate(isoDate(r.date), 'long')} · {r.accountName}
+                  {formatRelativeDays(today, isoDate(r.date)).includes('ago')
+                    ? ` · ${formatRelativeDays(today, isoDate(r.date))}`
+                    : ''}
                 </span>
                 <span className="tabular-nums">{formatCents(cents(r.amountCents), { signDisplay: 'always' })}</span>
               </div>
               <p className="break-all font-mono text-[10px] text-muted-foreground">{r.rawDescriptor}</p>
+              {r.rowSuggestion && (
+                <div className="mt-1 flex flex-wrap items-center gap-2" data-testid="triage-row-suggestion">
+                  <Badge variant="outline" className="text-[10px]">
+                    {r.rowSuggestion.categoryName}
+                    <span className="ml-1 font-normal text-muted-foreground">
+                      ·{' '}
+                      {r.rowSuggestion.kind === 'provider'
+                        ? "Plaid's guess"
+                        : r.rowSuggestion.kind === 'history'
+                          ? 'from your history'
+                          : 'suggested'}
+                    </span>
+                  </Badge>
+                  <Button
+                    size="sm"
+                    disabled={pending}
+                    data-testid="single-confirm-suggestion"
+                    onClick={() =>
+                      fileRow(top, r, r.rowSuggestion!.categoryId, 'tap-row-suggestion')
+                    }
+                  >
+                    ✓ File this
+                  </Button>
+                </div>
+              )}
+              {r.rowSuggestion?.reason && (
+                <p className="mt-0.5 text-[10px] text-muted-foreground">{r.rowSuggestion.reason}</p>
+              )}
               <div className="mt-1 flex gap-2">
                 <Button
                   size="sm"
@@ -1112,13 +1192,20 @@ export function TriageInbox({
                 >
                   Split
                 </Button>
+                <Link
+                  href={`/transactions/${r.id}`}
+                  className="inline-flex h-8 items-center px-2 text-xs text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400"
+                  data-testid="single-open-detail"
+                >
+                  Details
+                </Link>
               </div>
               {activeRow?.id === r.id && singlesTool === 'pick' && (
                 <div className="mt-2">
                   {renderPicker(
                     top.alternativeIds,
                     top.alternativeNames,
-                    top.suggestedCategoryId,
+                    r.rowSuggestion?.categoryId ?? top.suggestedCategoryId,
                     (id, name) => fileRow(top, r, id, name ? 'new-category' : 'select', name),
                     null,
                   )}
@@ -1189,6 +1276,21 @@ export function TriageInbox({
           {one ? '⑂ Split' : '☰ One by one'}
         </Button>
       </div>
+
+      <Button
+        variant="ghost"
+        className="w-full"
+        onClick={skipGroup}
+        disabled={pending || groups.length < 2}
+        data-testid="triage-skip"
+        title={
+          groups.length < 2
+            ? 'This is the last merchant left — file it, or leave the Inbox and come back later.'
+            : 'Move this merchant to the end of the queue without filing. Nothing is categorized.'
+        }
+      >
+        Skip for now → next
+      </Button>
 
       <p className="text-center text-xs text-muted-foreground" data-testid="triage-consent-line">
         {groupFooter}

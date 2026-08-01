@@ -2516,3 +2516,23 @@ set only what you need; defer to locks when data differs; treat differing data a
    silently rewrite the locked plan to match drifting data.
 
 **Locks.** `test_regression__data_diff_from_intention_is_a_slide_not_a_rewrite`.
+
+## #374 — Inbox: skip to next + help for unclear / old charges
+
+Owner 2026-08-01: *"Review inbox logic. User should be able to go to next
+transaction. I’m not sure what some of the charges are. Been too long."*
+
+**DECIDED:**
+1. **Skip for now → next** rotates the front merchant group to the end of the
+   client queue without filing (pure `rotateSkippedGroup`). Badge/count unchanged.
+   Disabled when only one group remains (no next card).
+2. **Context for unclear charges:** statement descriptors labeled as such;
+   relative age when posted in the past; link to full transaction detail; masked
+   bank payees (`.` / punctuation) get an honest heading (O.12f).
+3. **O.12e drill-down:** One-by-one rows carry the same suggestion ladder as the
+   register (`registerSuggestionFor`) so a mixed/silent group card can still offer
+   a per-row confirm chip.
+
+**Locks.** `test_regression__skip_rotates_front_card_without_dropping_it` +
+`test_regression__masked_descriptor_heading_is_honest` + e2e
+`Skip for now rotates to the next merchant without filing (#374)`.

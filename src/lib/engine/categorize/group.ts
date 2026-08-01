@@ -81,7 +81,18 @@ export interface TriageGroup {
   providerSuggestedCategoryId: string | null;
   /** Every queued row, newest first — powers expand-to-singles and the card meta. */
   rows: Array<
-    Pick<ReviewRow, 'id' | 'date' | 'amountCents' | 'rawDescriptor' | 'status' | 'accountName' | 'reimbursement'>
+    Pick<
+      ReviewRow,
+      | 'id'
+      | 'date'
+      | 'amountCents'
+      | 'rawDescriptor'
+      | 'status'
+      | 'accountName'
+      | 'reimbursement'
+      | 'suggestedCategoryId'
+      | 'providerCategoryId'
+    >
   >;
 }
 
@@ -154,6 +165,10 @@ export function groupReviewRows(rows: ReviewRow[]): TriageGroup[] {
         status: m.status,
         accountName: m.accountName,
         reimbursement: m.reimbursement,
+        // O.12e: singles drill-down needs the same ladder rungs the register
+        // already has — group-level unanimity can be null while a row has a chip.
+        suggestedCategoryId: m.suggestedCategoryId,
+        providerCategoryId: m.providerCategoryId,
       })),
     });
   }
@@ -200,4 +215,27 @@ export function summarizeConfident(
     }
   }
   return { merchants, transactions };
+}
+
+/**
+ * Skip / next without filing (DECISIONS #374): move the front card to the end
+ * of the queue so the reader can clear what they recognize first. Pure rotation
+ * — nothing is filed, nothing leaves the queue. No-op when fewer than 2 groups
+ * (there is no "next" card).
+ */
+export function rotateSkippedGroup<T>(groups: readonly T[]): T[] {
+  if (groups.length < 2) return [...groups];
+  return [...groups.slice(1), groups[0]];
+}
+
+/**
+ * Honest heading when the bank masked the payee (O.12f — canonical "." or
+ * punctuation-only). Amount/date still identify the charge; the name does not.
+ */
+export function inboxMerchantHeading(canonical: string): string {
+  const t = canonical.trim();
+  if (t === '' || t === '.' || /^[.*•·]+$/.test(t)) {
+    return 'Masked charge (bank hid the name)';
+  }
+  return canonical;
 }

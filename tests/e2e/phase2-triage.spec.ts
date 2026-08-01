@@ -391,6 +391,19 @@ test('categorization accuracy card shows a measured value (DECISIONS #37)', asyn
   await expect(page.getByTestId('accuracy-value')).toContainText('%');
 });
 
+test('Skip for now rotates to the next merchant without filing (#374)', async ({ page }) => {
+  await signInToTriage(page);
+  const inbox = page.getByTestId('triage-inbox');
+  await expect(page.getByTestId('triage-card')).toBeVisible();
+  const before = Number(await inbox.getAttribute('data-remaining'));
+  expect(before).toBeGreaterThan(1);
+  const firstHeading = await page.getByTestId('triage-merchant-heading').innerText();
+  await expect(page.getByTestId('triage-open-detail')).toBeVisible();
+  await page.getByTestId('triage-skip').click();
+  await expect(inbox).toHaveAttribute('data-remaining', String(before));
+  await expect(page.getByTestId('triage-merchant-heading')).not.toHaveText(firstHeading);
+});
+
 // "Accept all confident" is INERT on the golden demo (DECISIONS #162): every one
 // of the seed's review groups is genuinely ambiguous (Zelle payees, checks, an
 // estimated Store Card) → 0 confident groups → the bulk-accept banner must NOT
