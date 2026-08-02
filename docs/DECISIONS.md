@@ -2808,3 +2808,30 @@ index is derived by one author again instead of two.
 load-bearing three assert against the real committed files: every decision is
 indexed, no number is indexed twice, and nothing in the index is unaccounted
 for. Before the fix, one failed and named all 34 missing decisions.
+
+## #387 — Dashboard Trends card names its divisor, assumption, and mover window (C.3)
+
+Wave C / CALC_AUDIT 2026-08-02 P1-2 / P1-3 / P1-5. `/trends` already said "spent
+in the first N days" and "a projection, not a prediction"; the dashboard card
+printed neither though `pace.daysElapsed` was on the object — the surface the
+owner landed on. The pace delta wore rose/emerald, an evaluative claim on the
+least reliable figure on the page, and `delta > 0` put an exact tie in the
+"less / green" branch. "Biggest change" was a completed-month fact under an
+in-progress-month headline with no window label; `/trends` already labels the
+same figure.
+
+**DECIDED.** Shared pure helpers in `src/lib/engine/trends/labels.ts`
+(`paceDaysPhrase`, `paceDeltaRelation`, `PACE_ASSUMPTION`, `moverWindowLabel`,
+`baselineLabel`) feed both the dashboard card and `/trends`, so the two cannot
+drift. Pace copy on the card is muted (no evaluative colour). A zero delta is
+its own relation ("on pace with last month"), not "$0.00 less". The top mover
+carries `(Jul '26 vs Apr '26–Jun '26 average)` beside the name.
+
+**Deliberately unchanged.** The projected dollar itself — C.2 owns the model
+(bill calendar); this slice adds the words that make the existing figure
+readable. `/trends` still colours its pace delta; C.3's task text named the
+dashboard card. C.1's zero-spend abstention is Opus-owned and untouched.
+
+**Locks.** `tests/unit/trends-labels.test.ts` (day phrase, tie relation, mover
+window golden, assumption string); e2e `trends.spec.ts` asserts the three
+dashboard testids + muted class + mover window on the painted card.

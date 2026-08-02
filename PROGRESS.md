@@ -1,5 +1,36 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-02 — #387 — C.3 dashboard Trends card names divisor / assumption / mover window
+
+Session opened on `continue` with `main` clean and level with `origin/main`.
+Wave C had just been scoped: Grok takes C.3 (not C.1/C.2). Owner's reply to the
+audit was that nothing looked fixed — C.3 does not move the $8,971.25 (that is
+C.2) but it is what makes the existing figure readable on the surface he lands
+on.
+
+### Done
+
+Shared pure helpers in `src/lib/engine/trends/labels.ts` (`paceDaysPhrase`,
+`paceDeltaRelation`, `PACE_ASSUMPTION`, `moverWindowLabel`, `baselineLabel`).
+Dashboard card + `/trends` both consume them. Card now prints day count,
+assumption, muted pace comparison (tie → "on pace with last month"), and
+`(May '26 vs Feb '26–Apr '26 average)`-style window on Biggest change.
+
+### Gate
+
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc 0, eslint 0, **5636 unit /
+345 files**, next build clean. Targeted e2e `trends.spec.ts` **3/3**. Empty
+`prisma/` diff.
+
+### Not this slice
+
+C.1 (zero-spend abstention), C.2 (bill-calendar pace model), `/trends` pace
+colour, ledger.ts multi-line argv truncation (still OPEN in STATUS).
+
+### Deploy
+
+Filled after push.
+
 ## 2026-08-02 — #386 — reindex reads both formats and cannot delete; #384 deploy-verified
 
 Session opened on `continue` with `main` clean and level with `origin/main`. Two

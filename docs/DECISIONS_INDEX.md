@@ -382,3 +382,4 @@ refuses to write if it would drop any number this file already carries.
 - **#384** (Phase ?): Median Fixed fallback unions uncovered recurring (not Math.max)
 - **#385** (Phase ?): Second paycheck on generic Income is not dropped when one is filed as paycheck
 - **#386** (Phase ?): `reindex` reads both ledger formats, and refuses to write a deletion
+- **#387** (Phase ?): Dashboard Trends card names its divisor, assumption, and mover window (C.3)

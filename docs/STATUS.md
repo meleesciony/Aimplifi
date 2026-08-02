@@ -2,6 +2,21 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-08-02 — C.3: Dashboard Trends card names divisor, assumption, mover window (DECISIONS #387)
+
+Wave C P1-2 / P1-3 / P1-5. The dashboard card now prints "in the first N days",
+the shared `PACE_ASSUMPTION` line, a muted (not green/rose) pace comparison with
+a real zero-delta branch, and `(Jul '26 vs Apr '26–Jun '26 average)` on Biggest
+change. The projected dollar is unchanged — that is C.2.
+
+**Deliberately left to other rows:** C.1 (zero-spend abstention, Opus), C.2
+(bill-calendar pace model, Fable), `/trends` pace colour (task named the
+dashboard card).
+
+Gate: `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0, **5636
+unit / 345 files**, build clean; `trends.spec.ts` e2e **3/3**. Empty `prisma/`
+diff. Deploy: filled after push.
+
 ## ⚠️ OPEN 2026-08-02 — `ledger.ts` truncates a multi-line body to its FIRST LINE, and reports success
 
 Found by using the tool: writing this session's PROGRESS entry via

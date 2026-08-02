@@ -7,7 +7,7 @@
  */
 import Link from 'next/link';
 import { ArrowDownRight, ArrowUpRight, Gauge, Receipt, Sparkles, Store } from 'lucide-react';
-import { formatISODate, formatMonth, isoDate } from '@/lib/dates';
+import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import {
@@ -17,6 +17,7 @@ import {
   categoryMonthRegisterHref,
   merchantRegisterHref,
 } from '@/lib/engine/transactions/links';
+import { baselineLabel, PACE_ASSUMPTION, shortMonth } from '@/lib/engine/trends/labels';
 import type { CategoryMover } from '@/lib/engine/trends/trends';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
 import type { CategoryBreakdown } from '@/lib/engine/glass-box/category-breakdown';
@@ -26,16 +27,6 @@ import type { SpendingTrendsData } from '@/server/trends';
 const money = (n: number, signed = false) =>
   formatCents(cents(n), signed ? { signDisplay: 'always' } : undefined);
 const pct = (p: number) => `${p > 0 ? '+' : ''}${Math.round(p * 100)}%`;
-const shortMonth = (ym: string) => formatMonth(ym, 'short');
-
-function baselineLabel(months: string[]): string {
-  if (months.length === 0) return 'earlier months';
-  if (months.length === 1) return shortMonth(months[0]);
-  // months are most-recent-first; read them oldest→newest for the range label
-  const oldest = shortMonth(months[months.length - 1]);
-  const newest = shortMonth(months[0]);
-  return `${oldest}–${newest}`;
-}
 
 /**
  * O.6 — which number on this row may carry the link.
@@ -228,7 +219,7 @@ export function TrendsView({
             than last month ({money(pace.priorMonthCents)})
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Assumes spending continues at the current daily rate — a projection, not a prediction.
+            {PACE_ASSUMPTION}
             {/* O.6: this figure MOVED (pending charges now count), so it states its
                 basis for the same reason /budgets does — a reader comparing pages
                 otherwise has no way to know which rows each one summed. */}{' '}

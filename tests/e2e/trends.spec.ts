@@ -17,6 +17,22 @@ test('trends is discoverable from the dashboard insights card', async ({ page })
   const card = page.getByTestId('dashboard-spending-insights');
   await expect(card).toBeVisible();
   await expect(card).toContainText('Trends');
+
+  // C.3: the dashboard card must name the day-count divisor and the projection
+  // assumption that /trends already printed — without them the owner's "$8,971
+  // on day 1" reading has no way to see how the number was made. Colour on the
+  // pace line is gone (no rose/emerald class); the mover keeps its window.
+  await expect(card.getByTestId('dashboard-trends-pace-days')).toContainText('in the first');
+  await expect(card.getByTestId('dashboard-trends-pace-days')).toContainText('day');
+  await expect(card.getByTestId('dashboard-trends-pace-assumption')).toContainText(
+    'a projection, not a prediction',
+  );
+  // Neutral — the pace delta used to wear rose/emerald; muted is the lock.
+  await expect(card.getByTestId('dashboard-trends-pace-days')).toHaveClass(/text-muted-foreground/);
+  await expect(card.getByTestId('dashboard-trends-mover-window')).toBeVisible();
+  await expect(card.getByTestId('dashboard-trends-mover-window')).toContainText('vs');
+  await expect(card.getByTestId('dashboard-trends-mover-window')).toContainText('average');
+
   await card.click();
   await page.waitForURL('**/trends');
 });
