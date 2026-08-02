@@ -29,7 +29,11 @@ colour, ledger.ts multi-line argv truncation (still OPEN in STATUS).
 
 ### Deploy
 
-Filled after push.
+`8511e9d` → `aimplifi-nklnbw1pe` **READY** on that exact SHA, `www.aimplifi.app`
+aliased. Live demo /dashboard (Playwright demo-sign-in): pace days =
+"in the first 10 days · on pace for $1,469.34 less than last month", assumption
+contains "a projection, not a prediction", mover window =
+"(May '26 vs Feb '26–Apr '26 average)", pace line class is muted (no rose/emerald).
 
 ## 2026-08-02 — #386 — reindex reads both formats and cannot delete; #384 deploy-verified
 

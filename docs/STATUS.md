@@ -15,7 +15,12 @@ dashboard card).
 
 Gate: `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0, **5636
 unit / 345 files**, build clean; `trends.spec.ts` e2e **3/3**. Empty `prisma/`
-diff. Deploy: filled after push.
+diff.
+
+**Deploy:** Vercel `aimplifi-nklnbw1pe` **READY** on `8511e9d`, www aliased.
+Live demo /dashboard: `dashboard-trends-pace-days` ("in the first 10 days"),
+`dashboard-trends-pace-assumption` ("a projection, not a prediction"),
+`dashboard-trends-mover-window` ("May '26 vs Feb '26–Apr '26 average"), muted.
 
 ## ⚠️ OPEN 2026-08-02 — `ledger.ts` truncates a multi-line body to its FIRST LINE, and reports success
 
