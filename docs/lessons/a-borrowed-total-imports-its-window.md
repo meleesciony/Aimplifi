@@ -68,3 +68,46 @@ Corollaries from the L.11(C) critic cycle:
 - A direction word ("the real figure may be lower") is relative to THE FIGURE THE BRANCH
   RENDERS: the overspent branch prints the negation (the overage), so every shared qualifier
   must flip with the branch, on every surface (cycle-1 P1, three surfaces).
+
+## C.2 extension — the money you ADD needs the same passport as the money you borrow
+
+L.11(C) was about borrowing a total whose window did not fit. C.2 was the inverse: the
+pace projection was *missing* the bills the app already owned, and the fix had to ADD
+money into a figure that is compared against another figure. Same rule, other direction —
+**a value may only enter a total on the basis that total is compared against.**
+
+The trap that made it concrete: `snap.scheduled` holds an auto-loan ACH, because
+`detectRecurring` deliberately keeps that one `isTransfer` class. Those charges are in
+NEITHER side of the pace comparison (both sides are `spendingByCategory`, which drops
+transfer rows), so adding that bill would have reported the month as heavier than the
+month it is measured against — a defect nothing in the arithmetic could reveal.
+
+Three transferable moves:
+
+1. **Prove admission from the data, not from a category list.** The rule shipped is "a
+   bill enters only if the app has EVER counted a purchase at that merchant, on this very
+   basis". One executable predicate, and it covers the auto-loan ACH, a savings sweep, and
+   a hand-authored seed label that no merchant can match — including future classes nobody
+   has thought of. A hand-maintained exclusion list would have covered the one case I knew.
+
+2. **A window has an edge, so decompose by ROWS, not by dates.** The first design split
+   bills at `today` — "dated before today, so it is already inside spent-so-far". That is
+   false on the day itself and for every ACH lag, and on the owner's own month it answered
+   $578.79: it deleted the mortgage from BOTH terms. Counting occurrences over the whole
+   calendar month and crediting them against `min(posted at that merchant, the bill's own
+   amount)` has no edge to be wrong at, and the `min` is what stops a merchant that is also
+   a shop ($15 of Prime inside $415 of Amazon) from swallowing real discretionary spend.
+
+3. **Stability across days is the observable, and it belongs in a test.** The old model
+   read $8,681.85 on the 2nd and $27,282.00 on the 10th off the same month, green to red,
+   because a lump entered a rate. The lock that matters is not one golden figure but the
+   PAIR: two fixtures, same underlying month, asserting the projections land within a
+   dollar of each other. It fails for every model that extrapolates a bill.
+
+Corollary about the demo: the seeded scheduled rows are hand-authored labels, so the
+public demo admits no bills and its pace is unchanged. That is the right answer and it
+means the demo cannot exercise the feature — so pin the zero explicitly (a test asserting
+the demo admits none) and write the e2e against a throwaway user with a real stored row,
+or the surface quietly stops being covered. And when the whole design rests on two writers
+agreeing about a KEY, test the writers: transactions -> `detectRecurring` ->
+`toScheduledTransactions` -> the consumer, in one test, or the match is an assumption.

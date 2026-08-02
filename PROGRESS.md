@@ -9314,3 +9314,11 @@ The demo seed admits no bills — its scheduled rows are hand-authored labels
 now PINNED so the demo cannot stop exercising the feature silently. It does mean
 the public demo's pace is unchanged; the e2e proves the bill path on a throwaway
 user with a real `ScheduledTransaction` row.
+
+### Deploy (#390)
+`4007534` -> `aimplifi-6k7acc7b3` **● Ready** Production, sha-matched via
+`npx vercel ls aimplifi --meta githubCommitSha=4007534...`. Empty prisma diff, so
+the live Neon database is untouched. As with #388/#389 there is no fetchable live
+marker — /trends and the dashboard are behind auth, so the rendered bills line
+cannot be curl'd from here; the evidence is the commit sha on a READY production
+deployment plus the local e2e against a fresh build.
