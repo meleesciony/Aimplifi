@@ -2,8 +2,9 @@ import { ArrowDownRight, ArrowUpRight, LineChart, Sparkles } from 'lucide-react'
 import { cents, formatCents } from '@/lib/money';
 import {
   moverWindowLabel,
-  PACE_ASSUMPTION,
+  paceAssumption,
   PACE_NO_SPEND_YET,
+  paceBillsPhrase,
   paceDaysPhrase,
   paceDeltaRelation,
 } from '@/lib/engine/trends/labels';
@@ -23,11 +24,18 @@ const money = (n: number) => formatCents(cents(n));
  * colour was an evaluative claim on the least reliable figure on the page,
  * and `> 0` put an exact tie in the "less / green" branch. The top mover is
  * a completed-month fact and keeps its window label next to the name.
+ *
+ * C.2 changed what the projection IS — money counted, plus the bills the app can
+ * see still due, plus the rest at the discretionary daily rate — so the card
+ * names those bills and the assumption sentence describes all three parts. A
+ * reader cannot divide spent-so-far by the day count and reproduce the figure
+ * any more, which is precisely why the sentence has to say what it did.
  */
 export function SpendingInsightsCard({ trends }: { trends: SpendingTrends }) {
   const { pace, movers, comparedYm, baselineMonths } = trends;
   const top = movers[0];
   const delta = pace ? paceDeltaRelation(pace.deltaVsPriorCents) : null;
+  const billsPhrase = pace ? paceBillsPhrase(pace) : null;
   const moverWindow = moverWindowLabel(comparedYm, baselineMonths);
 
   return (
@@ -65,8 +73,17 @@ export function SpendingInsightsCard({ trends }: { trends: SpendingTrends }) {
               </>
             )}
           </p>
+          {/* C.2: the bills the projection ADDED, named. The owner's report was
+              "$8,971.25 makes no sense since our mortgage is ~6200" — a figure is
+              only as believable as its visible inputs, so the bill it now counts
+              is on screen beside it rather than folded into one number. */}
+          {billsPhrase && (
+            <p className="mt-0.5 text-xs text-muted-foreground" data-testid="dashboard-trends-pace-bills">
+              {billsPhrase}
+            </p>
+          )}
           <p className="mt-0.5 text-xs text-muted-foreground" data-testid="dashboard-trends-pace-assumption">
-            {PACE_ASSUMPTION}
+            {paceAssumption(pace)}
           </p>
         </div>
       ) : (

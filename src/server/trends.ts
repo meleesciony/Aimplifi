@@ -152,7 +152,11 @@ export async function getSpendingTrends(userId: string): Promise<SpendingTrendsD
   // express the failure — an argument no fixture can falsify is not a guarantee.
   // Handing both the same array removes the argument instead of defending it.
   const txns = toTrendTxns(snap.transactions);
-  const trends = computeSpendingTrends({ txns, today }, meta);
+  // The bill calendar, passed straight through (C.2): the pace projection reads
+  // `description`, `amountCents`, `nextDate` and `cadence`, which is every field
+  // a `ScheduledLike` carries besides `accountId` — so there is no hand-built
+  // payload here to drop a fact out of (`the-narrowing-you-did-not-list`).
+  const trends = computeSpendingTrends({ txns, today, scheduled: snap.scheduled }, meta);
 
   // No movers ⇒ `comparedYm` is null ⇒ no panel can be opened, so there is
   // nothing to build and no month to build it over.

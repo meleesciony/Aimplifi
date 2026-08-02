@@ -17,7 +17,14 @@ import {
   categoryMonthRegisterHref,
   merchantRegisterHref,
 } from '@/lib/engine/transactions/links';
-import { baselineLabel, PACE_ASSUMPTION, PACE_NO_SPEND_YET, shortMonth } from '@/lib/engine/trends/labels';
+import {
+  baselineLabel,
+  paceAssumption,
+  PACE_NO_SPEND_YET,
+  paceBillsPhrase,
+  paceDeltaRelation,
+  shortMonth,
+} from '@/lib/engine/trends/labels';
 import type { CategoryMover } from '@/lib/engine/trends/trends';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
 import type { CategoryBreakdown } from '@/lib/engine/glass-box/category-breakdown';
@@ -175,7 +182,12 @@ export function TrendsView({
 }) {
   const { pace, movers, moverTotal, largest, newMerchants, newMerchantTotal, comparedYm, baselineMonths, breakdowns } =
     trends;
-  const paceUp = pace ? pace.deltaVsPriorCents > 0 : false;
+  // C.3 gave the dashboard card the shared relation helper and left this surface
+  // on a bare `> 0`, which put an exact tie in the "less" branch and tinted it
+  // green — the same defect on the second surface fed by the same field. Both
+  // now read one helper (fix the data class, not the reported surface).
+  const paceDelta = pace ? paceDeltaRelation(pace.deltaVsPriorCents) : null;
+  const paceBills = pace ? paceBillsPhrase(pace) : null;
   // money dials are user-configured category labels; tag a mover when its category is one
   const dialSet = new Set(dials.map((d) => d.toLowerCase()));
   const linkable = new Set(linkableCategoryIds);
@@ -213,13 +225,32 @@ export function TrendsView({
           <p className="mt-1 text-sm text-muted-foreground">
             {money(pace.spentSoFarCents)} spent in the first {pace.daysElapsed} day
             {pace.daysElapsed === 1 ? '' : 's'} ·{' '}
-            <span className={paceUp ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
-              {money(Math.abs(pace.deltaVsPriorCents))} {paceUp ? 'more' : 'less'}
-            </span>{' '}
-            than last month ({money(pace.priorMonthCents)})
+            {paceDelta!.relation === 'same' ? (
+              <span data-testid="trends-pace-delta">on pace with last month</span>
+            ) : (
+              <>
+                <span
+                  data-testid="trends-pace-delta"
+                  className={
+                    paceDelta!.relation === 'more'
+                      ? 'text-rose-600 dark:text-rose-400'
+                      : 'text-emerald-600 dark:text-emerald-400'
+                  }
+                >
+                  {money(paceDelta!.absCents)} {paceDelta!.relation}
+                </span>{' '}
+                than last month
+              </>
+            )}{' '}
+            ({money(pace.priorMonthCents)})
           </p>
+          {paceBills && (
+            <p className="mt-1 text-sm text-muted-foreground" data-testid="trends-pace-bills">
+              {paceBills}
+            </p>
+          )}
           <p className="mt-2 text-xs text-muted-foreground">
-            {PACE_ASSUMPTION}
+            {paceAssumption(pace)}
             {/* O.6: this figure MOVED (pending charges now count), so it states its
                 basis for the same reason /budgets does — a reader comparing pages
                 otherwise has no way to know which rows each one summed. */}{' '}

@@ -5,8 +5,20 @@
 import { describe, expect, it } from 'vitest';
 import { buildSeedData } from '@/lib/seed/build';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
-import { computeSpendingTrends, type TrendTxn } from '@/lib/engine/trends/trends';
+import type { CategoryMeta } from '@/lib/engine/categorize/categories';
+import { computeSpendingTrends, type TrendsInput, type TrendTxn } from '@/lib/engine/trends/trends';
 import { toTrendTxns } from '@/server/trends';
+
+/**
+ * C.2 made the bill calendar a REQUIRED input, so every fixture has to say what
+ * bills its month holds. These predate bills and describe months that have none;
+ * the bill-aware cases below call `computeSpendingTrends` directly, so the
+ * default lives in one named place instead of being a silent `[]` in the engine.
+ */
+const trendsNoBills = (
+  input: Omit<TrendsInput, 'scheduled'>,
+  meta?: ReadonlyMap<string, CategoryMeta>,
+) => computeSpendingTrends({ ...input, scheduled: [] }, meta);
 
 const T = (
   date: string,
@@ -53,14 +65,14 @@ describe('computeSpendingTrends — movers (completed-month comparison)', () => 
   ];
 
   it('compares the last completed month to the 3-month prior average', () => {
-    const r = computeSpendingTrends({ txns, today: TODAY });
+    const r = trendsNoBills({ txns, today: TODAY });
     expect(r.asOfYm).toBe('2026-06');
     expect(r.comparedYm).toBe('2026-05');
     expect(r.baselineMonths).toEqual(['2026-04', '2026-03', '2026-02']);
   });
 
   it('surfaces only material movers, sorted by absolute delta', () => {
-    const r = computeSpendingTrends({ txns, today: TODAY });
+    const r = trendsNoBills({ txns, today: TODAY });
     expect(r.movers.map((m) => m.categoryId)).toEqual(['shopping', 'dining', 'coffee']);
 
     const [shopping, dining, coffee] = r.movers;
@@ -102,7 +114,7 @@ describe('computeSpendingTrends — pace (in-progress month projection)', () => 
   ];
 
   it('projects month-end at the current daily rate and compares to last month', () => {
-    const r = computeSpendingTrends({ txns, today: TODAY });
+    const r = trendsNoBills({ txns, today: TODAY });
     expect(r.pace).toMatchObject({
       ym: '2026-06',
       daysElapsed: 10,
@@ -132,7 +144,7 @@ describe('computeSpendingTrends — pace abstains on a month with nothing counte
 
   for (const day of ['2026-06-01', '2026-06-02', '2026-06-03']) {
     it(`returns null on ${day} when nothing has been counted this month, however large last month was`, () => {
-      const r = computeSpendingTrends({ txns: priorMonthOnly, today: day });
+      const r = trendsNoBills({ txns: priorMonthOnly, today: day });
       expect(r.pace).toBeNull();
       // The prior month is still real — this is an abstention about JUNE, not a
       // claim that the reader has no history. /trends and the dashboard card go
@@ -142,7 +154,7 @@ describe('computeSpendingTrends — pace abstains on a month with nothing counte
   }
 
   it('still projects from a single day-1 charge — the abstention is zero, not "too early"', () => {
-    const r = computeSpendingTrends({
+    const r = trendsNoBills({
       txns: [...priorMonthOnly, T('2026-06-01', -57879, 'dining')],
       today: '2026-06-01',
     });
@@ -156,7 +168,7 @@ describe('computeSpendingTrends — pace abstains on a month with nothing counte
   });
 
   it('abstains when the month HAS rows that net to zero — a computed zero, not an empty set', () => {
-    const r = computeSpendingTrends({
+    const r = trendsNoBills({
       txns: [...priorMonthOnly, T('2026-06-02', -4000, 'dining'), T('2026-06-03', 4000, 'dining')],
       today: '2026-06-03',
     });
@@ -175,7 +187,7 @@ describe('computeSpendingTrends — largest purchases this month', () => {
   ];
 
   it('ranks real purchases by size, excluding refunds/transfers/future', () => {
-    const r = computeSpendingTrends({ txns, today: TODAY });
+    const r = trendsNoBills({ txns, today: TODAY });
     expect(r.largest).toEqual([
       { date: '2026-06-04', merchant: 'BIG TV', categoryName: 'Electronics', amountCents: 8000 },
       { date: '2026-06-02', merchant: 'WHOLE FOODS', categoryName: 'Groceries', amountCents: 3000 },
@@ -202,7 +214,7 @@ describe('computeSpendingTrends — new merchants this month', () => {
   ];
 
   it('flags merchants absent from the prior 6 months, respecting the window boundary', () => {
-    const r = computeSpendingTrends({ txns, today: TODAY });
+    const r = trendsNoBills({ txns, today: TODAY });
     expect(r.newMerchants.map((m) => m.merchant)).toEqual(['NEW GYM', 'OLD SHOP']);
     expect(r.newMerchants[0]).toMatchObject({ amountCents: 5000, firstDate: '2026-06-03' });
     expect(r.newMerchants[1]).toMatchObject({ amountCents: 4000, firstDate: '2026-06-04' });
@@ -223,7 +235,7 @@ describe('computeSpendingTrends — non-actionable categories & aggregate mercha
       T('2026-03-05', -4000, 'dining'),
       T('2026-02-05', -4000, 'dining'),
     ];
-    const r = computeSpendingTrends({ txns, today: TODAY });
+    const r = trendsNoBills({ txns, today: TODAY });
     const ids = r.movers.map((m) => m.categoryId);
     expect(ids).toContain('dining');
     expect(ids).not.toContain('cash');
@@ -234,7 +246,7 @@ describe('computeSpendingTrends — non-actionable categories & aggregate mercha
       T('2026-06-03', -20000, 'cash', { merchant: 'ATM Withdrawal', aggregateMerchant: true }),
       T('2026-06-04', -8000, 'electronics', { merchant: 'BIG TV' }),
     ];
-    const r = computeSpendingTrends({ txns, today: TODAY });
+    const r = trendsNoBills({ txns, today: TODAY });
     expect(r.largest.map((l) => l.merchant)).toEqual(['BIG TV']);
   });
 
@@ -243,7 +255,7 @@ describe('computeSpendingTrends — non-actionable categories & aggregate mercha
       T('2026-06-03', -5000, 'shopping', { merchant: 'Store Card Purchase', aggregateMerchant: true }),
       T('2026-06-04', -3000, 'shopping', { merchant: 'Real Boutique' }),
     ];
-    const r = computeSpendingTrends({ txns, today: TODAY });
+    const r = trendsNoBills({ txns, today: TODAY });
     expect(r.newMerchants.map((m) => m.merchant)).toEqual(['Real Boutique']);
   });
 });
@@ -270,7 +282,7 @@ describe('computeSpendingTrends on the seed (real-volume, default normalization)
       aggregateMerchant: m.aggregate,
     };
   });
-  const r = computeSpendingTrends({ txns, today: '2026-06-10' });
+  const r = trendsNoBills({ txns, today: '2026-06-10' });
 
   it('anchors on the in-progress month, last completed month, and 3-month baseline', () => {
     expect(r.asOfYm).toBe('2026-06');
@@ -292,12 +304,17 @@ describe('computeSpendingTrends on the seed (real-volume, default normalization)
       // Failure direction is the safe one: pace now projects HIGHER, because money
       // already committed but not yet settled is money the reader cannot spend twice.
       spentSoFarCents: 125358,
-      projectedCents: 376074, // round(125358 / 10 * 30)
+      // 125358 + 125358 × 20 / 10 = 376074. This fixture passes NO bills, so
+      // every cent is discretionary and the three-part projection collapses to
+      // the old single rate — which is what makes the bill cases below visible.
+      projectedCents: 376074,
       priorMonthCents: 458700,
     });
-    expect(r.pace!.projectedCents).toBe(
-      Math.round((r.pace!.spentSoFarCents / r.pace!.daysElapsed) * r.pace!.daysInMonth),
-    );
+    // The tautological assertion that used to sit here — `projectedCents ===
+    // round(spentSoFar / daysElapsed × daysInMonth)` — was deleted (audit P2).
+    // It restated the implementation, so it passed for any model, correct or
+    // wrong, and it would have "failed" this fix while the fix was right. The
+    // hand-derived literal above is the lock.
   });
 
   it('ranks category movers by absolute delta, excluding non-actionable groups', () => {
@@ -367,7 +384,7 @@ describe('computeSpendingTrends — integrated with normalizeMerchant (server pa
       fromRaw('2026-06-04', -2000, 'CHECK # 1842'), // aggregate → excluded
       fromRaw('2026-06-05', -1500, 'SQ *BLUE BOTTLE COFFEE'), // real merchant → new
     ];
-    const names = computeSpendingTrends({ txns, today: TODAY }).newMerchants.map((n) => n.merchant);
+    const names = trendsNoBills({ txns, today: TODAY }).newMerchants.map((n) => n.merchant);
     expect(names).toContain('Blue Bottle Coffee');
     expect(names).not.toContain('Zelle Payment');
     expect(names).not.toContain('Check');
@@ -378,14 +395,14 @@ describe('computeSpendingTrends — integrated with normalizeMerchant (server pa
     // merchant (rules ARE offered), so trends surfaces it too — consistent with
     // /reports. This locks the resolution of the #74 critic P1.
     const txns: TrendTxn[] = [fromRaw('2026-06-06', -4350, 'STORE CARD PURCHASE 0064 ATL')];
-    const r = computeSpendingTrends({ txns, today: TODAY });
+    const r = trendsNoBills({ txns, today: TODAY });
     expect(r.newMerchants.map((n) => n.merchant)).toContain('Store Card Purchase');
   });
 });
 
 describe('computeSpendingTrends — degenerate input', () => {
   it('returns empty insights for no transactions', () => {
-    const r = computeSpendingTrends({ txns: [], today: TODAY });
+    const r = trendsNoBills({ txns: [], today: TODAY });
     expect(r.pace).toBeNull();
     expect(r.comparedYm).toBeNull();
     expect(r.baselineMonths).toEqual([]);
@@ -419,7 +436,7 @@ describe('O.6 — pending rows count as spending, but are never named as settled
     T('2026-06-02', -90000, 'shopping', { status: 'PENDING', merchant: 'Provisional Motors' }),
     T('2026-06-03', -1500, 'shopping', { merchant: 'Settled Corner Store' }),
   ];
-  const r = computeSpendingTrends({ txns, today: TODAY });
+  const r = trendsNoBills({ txns, today: TODAY });
 
   it('counts a PENDING row in the category mover it belongs to', () => {
     const dining = r.movers.find((m) => m.categoryId === 'dining');
@@ -447,7 +464,7 @@ describe('O.6 — pending rows count as spending, but are never named as settled
   });
 
   it('the pending row is doing the work — stripping it moves the mover (anti-vacuity)', () => {
-    const withoutPending = computeSpendingTrends({
+    const withoutPending = trendsNoBills({
       txns: txns.filter((t) => t.status !== 'PENDING'),
       today: TODAY,
     });
@@ -475,7 +492,7 @@ describe('O.6 — an unfiled row is Uncategorized here, exactly as everywhere el
     T('2026-04-05', -1000, 'dining'),
     T('2026-03-05', -1000, 'dining'),
   ];
-  const r = computeSpendingTrends({ txns, today: TODAY });
+  const r = trendsNoBills({ txns, today: TODAY });
 
   it('does not invent a category bucket for a row nobody filed', () => {
     // The movers list skips the non-actionable group, which includes
@@ -488,7 +505,7 @@ describe('O.6 — an unfiled row is Uncategorized here, exactly as everywhere el
   it('mutation guard: filing that same row DOES produce the grocery mover', () => {
     // Proves the assertion above is about the missing category and not about the
     // fixture failing to reach the movers at all.
-    const filed = computeSpendingTrends({
+    const filed = trendsNoBills({
       txns: txns.map((t) => (t.categoryId === null ? { ...t, categoryId: 'groceries' } : t)),
       today: TODAY,
     });
@@ -570,7 +587,7 @@ describe('O.8a — new-merchant amounts read the register basis', () => {
     T('2026-06-15', 1500, 'coffee', { merchant: 'Fresh Roasters' }), // a REFUND
   ];
   const nm = (txns: TrendTxn[], today = NM_TODAY) =>
-    computeSpendingTrends({ txns, today }).newMerchants.find((n) => n.merchant === 'Fresh Roasters');
+    trendsNoBills({ txns, today }).newMerchants.find((n) => n.merchant === 'Fresh Roasters');
 
   it('counts a PENDING charge and nets a REFUND: 40 + 25 + 30 − 15 = $80.00', () => {
     // Fail-old: the settled-gross rule returned 4000 + 2500 = 6500.
@@ -588,7 +605,7 @@ describe('O.8a — new-merchant amounts read the register basis', () => {
       T('2026-06-18', -3000, 'coffee', { merchant: 'Fresh Roasters', status: 'PENDING' }),
       T('2026-06-03', -1000, 'coffee', { merchant: 'Anchor Cafe' }), // anti-vacuity
     ];
-    const r = computeSpendingTrends({ txns: pendingOnly, today: NM_TODAY });
+    const r = trendsNoBills({ txns: pendingOnly, today: NM_TODAY });
     expect(r.newMerchants.map((n) => n.merchant)).toEqual(['Anchor Cafe']);
   });
 
@@ -600,7 +617,7 @@ describe('O.8a — new-merchant amounts read the register basis', () => {
       T('2026-06-09', 4200, 'coffee', { merchant: 'Fresh Roasters' }),
       T('2026-06-03', -1000, 'coffee', { merchant: 'Anchor Cafe' }), // anti-vacuity
     ];
-    const r = computeSpendingTrends({ txns: cancelled, today: NM_TODAY });
+    const r = trendsNoBills({ txns: cancelled, today: NM_TODAY });
     expect(r.newMerchants.map((n) => n.merchant)).toEqual(['Anchor Cafe']);
   });
 
@@ -620,7 +637,7 @@ describe('O.8a — new-merchant amounts read the register basis', () => {
       T('2026-06-03', -4900, null, { merchant: 'ATM Withdrawal', aggregateMerchant: true }),
       T('2026-06-03', -1000, 'coffee', { merchant: 'Anchor Cafe' }),
     ];
-    const r = computeSpendingTrends({ txns: withAggregate, today: NM_TODAY });
+    const r = trendsNoBills({ txns: withAggregate, today: NM_TODAY });
     expect(r.newMerchants.map((n) => n.merchant)).toEqual(['Anchor Cafe']);
   });
 });
@@ -636,7 +653,7 @@ describe('O.8a — what the net-<=-0 drop actually removes', () => {
   const D_TODAY = '2026-06-20';
   const other = T('2026-06-03', -1000, 'coffee', { merchant: 'Anchor Cafe' }); // anti-vacuity
   const names = (txns: TrendTxn[]) =>
-    computeSpendingTrends({ txns, today: D_TODAY }).newMerchants.map((n) => n.merchant);
+    trendsNoBills({ txns, today: D_TODAY }).newMerchants.map((n) => n.merchant);
 
   it('a settled purchase fully refunded drops off, while Biggest purchases still names it', () => {
     const txns = [
@@ -644,7 +661,7 @@ describe('O.8a — what the net-<=-0 drop actually removes', () => {
       T('2026-06-09', 4000, 'coffee', { merchant: 'Fresh Roasters' }),
       other,
     ];
-    const r = computeSpendingTrends({ txns, today: D_TODAY });
+    const r = trendsNoBills({ txns, today: D_TODAY });
     expect(r.newMerchants.map((n) => n.merchant)).toEqual(['Anchor Cafe']);
     // The same page still names the purchase on the other card — the two cards
     // answer different questions, and the basis line says which this one asks.
@@ -673,7 +690,7 @@ describe('O.8a — what the net-<=-0 drop actually removes', () => {
   it('once NAMED, a non-actionable row at the same merchant reaches the money (parity, by decision)', () => {
     // The guard the money pass deliberately does NOT re-apply — see the
     // NON_ACTIONABLE_GROUP docblock. Bounded in practice by the aggregate gate.
-    const r = computeSpendingTrends({
+    const r = trendsNoBills({
       txns: [
         T('2026-06-03', -4000, 'coffee', { merchant: 'Fresh Roasters' }),
         T('2026-06-06', -1500, 'cash', { merchant: 'Fresh Roasters' }),
@@ -702,7 +719,7 @@ describe('O.19c — moverTotal / newMerchantTotal', () => {
       T('2026-05-06', -5000, 'fuel'),
       T('2026-05-07', -4000, 'entertainment'),
     ];
-    const r = computeSpendingTrends({ txns, today: '2026-06-10' });
+    const r = trendsNoBills({ txns, today: '2026-06-10' });
     expect(r.movers).toHaveLength(6);
     expect(r.moverTotal).toBe(7);
     // The listed six are the biggest — the $40 mover is the one the cap dropped.
@@ -711,7 +728,7 @@ describe('O.19c — moverTotal / newMerchantTotal', () => {
 
   it('uncapped movers: moverTotal equals the listed count (abstention basis)', () => {
     const txns: TrendTxn[] = [T('2026-05-01', -10000, 'dining'), T('2026-05-02', -9000, 'groceries')];
-    const r = computeSpendingTrends({ txns, today: '2026-06-10' });
+    const r = trendsNoBills({ txns, today: '2026-06-10' });
     expect(r.movers).toHaveLength(2);
     expect(r.moverTotal).toBe(2);
   });
@@ -726,7 +743,7 @@ describe('O.19c — moverTotal / newMerchantTotal', () => {
       T('2026-06-05', -2000, 'dining', m('Echo Eats')),
       T('2026-06-06', -1000, 'dining', m('Foxtrot Food')),
     ];
-    const r = computeSpendingTrends({ txns, today: '2026-06-10' });
+    const r = trendsNoBills({ txns, today: '2026-06-10' });
     expect(r.newMerchants).toHaveLength(5);
     expect(r.newMerchantTotal).toBe(6);
     expect(r.newMerchants.map((n) => n.merchant)).not.toContain('Foxtrot Food'); // smallest dropped
@@ -736,7 +753,7 @@ describe('O.19c — moverTotal / newMerchantTotal', () => {
     const txns: TrendTxn[] = [
       T('2026-06-01', -6000, 'dining', { merchant: 'Alpha Cafe', aggregateMerchant: false }),
     ];
-    const r = computeSpendingTrends({ txns, today: '2026-06-10' });
+    const r = trendsNoBills({ txns, today: '2026-06-10' });
     expect(r.newMerchants).toHaveLength(1);
     expect(r.newMerchantTotal).toBe(1);
   });
@@ -749,7 +766,7 @@ describe('O.19c — moverTotal / newMerchantTotal', () => {
       T('2026-06-02', -3000, 'dining', { merchant: 'Refund Mart', aggregateMerchant: false }),
       T('2026-06-03', 3000, 'dining', { merchant: 'Refund Mart', aggregateMerchant: false }),
     ];
-    const r = computeSpendingTrends({ txns, today: '2026-06-10' });
+    const r = trendsNoBills({ txns, today: '2026-06-10' });
     expect(r.newMerchants.map((n) => n.merchant)).toEqual(['Alpha Cafe']);
     expect(r.newMerchantTotal).toBe(1);
   });

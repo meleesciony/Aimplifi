@@ -2888,3 +2888,74 @@ inert divs with a `title` tooltip, which is not an affordance on a phone.
 drawn month keyed, every panel reconciles against `flows`; mutation-proven twice)
 and `savings-rate-drilldown.spec.ts` (the gesture, the toggle, the keyboard path,
 the labels).
+
+## #390 — The pace projection reads the bill calendar, and names the bills it read (C.2)
+
+Owner: *"'on pace for 19,713.85 less than last month' how? we've spent 578.79 on
+the first day of the month… 8971.25 makes no sense since our mortgage is
+~6200."* `computePace` read nothing but transactions and extrapolated a single
+daily rate, while `snap.scheduled` — the bill calendar — was already on the very
+snapshot `getSpendingTrends` loads. A household month is a few large bills plus
+noise, so that rate is biased in a KNOWN direction: low before the bills land,
+then wildly high the morning they do (a critic executed the same account reading
+"$6,200.18 less than last month, green" for four days and "$32,239.82 more, red"
+overnight).
+
+**DECIDED:**
+
+1. **Three named parts, not one rate:** `projected = spent so far + bills still
+   due + discretionary × days left`. Spent-so-far is measured; the bills come
+   from the stored calendar; the rate is taken over what is LEFT once the bill
+   money is out, which is the only part a daily rate can honestly describe. On
+   the fixture built from the owner's own figures the projection moves 15 cents
+   between day 2 and day 10, where the old model swung $18,600 overnight.
+
+2. **A bill is matched to its charges by an exact merchant key, never by dates
+   or amounts.** `toScheduledRow` stores `series.merchantCanonical` and
+   `toTrendTxns` puts the same normalizer's canonical on the row, so the link is
+   structural — the money-matching heuristic #134 rejected is not needed and is
+   not used. Credit is capped at the bill's own size (`min(posted, expected)`),
+   because a merchant can be both a bill and a shop: $15 of Prime inside $415 of
+   Amazon must not delete $400 of discretionary spending from the rate.
+
+3. **Bills are counted over the WHOLE calendar month, never split at `today`.**
+   Dating them against today is the L.11(D) edge: a mortgage dated the 1st that
+   has not posted yet is still to come, and the date-split model answered $578.79
+   for the owner's month — worse than the defect. The occurrence count is a new
+   local helper (`billOccurrencesInMonth`) because all five existing expanders
+   anchor at `today` and walk forward; it shares the one `monthsPerCadence` table.
+
+4. **ADMISSION: a bill enters the projection only if the app has ever counted a
+   purchase at that merchant on the basis being compared against.** One rule,
+   three jobs — it keeps out the auto-loan ACH (the one `isTransfer` class
+   detection deliberately keeps, so its money is in NEITHER side of the
+   comparison and adding it would import another basis), the demo's
+   `Auto-transfer to savings`, and any hand-authored label that no merchant can
+   match. Aggregate pseudo-merchants are refused too: "Zelle Payment" is one name
+   over many payees, so it is a pattern, not an identity.
+
+5. **The projection names its bills.** `paceBillsPhrase` prints "$6,200.00 of
+   bills still due: Mr Cooper" on both surfaces, and `paceAssumption` gained three
+   branches — no bills, bills still due, bills already charged — because a reader
+   can no longer divide spent-so-far by the day count and reproduce the figure.
+   The sentence may never claim completeness: a bill charged to a credit card
+   produces no scheduled row at all ('on-card'), so the copy says card-charged and
+   unspotted bills are NOT in the figure.
+
+6. **C.1 still governs.** A bill calendar is not a rate; a month with nothing
+   counted still abstains, however large the bills.
+
+7. Same slice, same field: /trends was still tinting an exact tie green off a
+   bare `> 0` — C.3 fixed that on the dashboard card only. Both surfaces now read
+   `paceDeltaRelation` (fix the data class, not the reported surface).
+
+**Locks.** `trends-pace-bills.test.ts` — 16 known-answer cases including the
+owner's own day-2 shape, the day-10 stability pair, the Prime-inside-Amazon cap,
+three refusals, the whole-month occurrence counts, and the INTAKE test that runs
+transactions → `detectRecurring` → `toScheduledTransactions` → pace to prove the
+merchant key round-trips in production shape. The demo's zero-bill outcome is
+pinned so it cannot stop exercising the feature silently.
+`trends-pace-bills.spec.ts` drives a stored `ScheduledTransaction` row through
+the server to both surfaces. Six mutations proven to kill locks; the tautological
+assertion in `trends.test.ts` (`projected === round(spentSoFar / days × dim)`,
+which passes for any model and would have "failed" this fix) is deleted.

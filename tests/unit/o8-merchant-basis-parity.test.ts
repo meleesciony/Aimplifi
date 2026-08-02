@@ -62,7 +62,7 @@ const asAsk = (r: Row): AskTxnRow => ({
 
 /** Both figures for the same merchant and month, from the same rows. */
 function bothSurfaces(rows: Row[]) {
-  const trends = computeSpendingTrends({ txns: rows.map(asTrend), today: TODAY });
+  const trends = computeSpendingTrends({ txns: rows.map(asTrend), today: TODAY, scheduled: [] });
   const card = trends.newMerchants.find((n) => n.merchant === MERCHANT);
   const ask = merchantSpend(rows.map(asAsk), TF, MERCHANT.toLowerCase(), TODAY);
   return { trendsCents: card?.amountCents, askCents: ask.totalCents };
@@ -128,7 +128,7 @@ describe('O.8a — /trends new-merchant amount equals Ask merchantSpend', () => 
  */
 describe('O.8a — the merchant SCOPE is not unified, and that is where they still differ', () => {
   const seed = buildSeedData('2026-06-10');
-  const trends = computeSpendingTrends({ txns: toTrendTxns(seed.transactions), today: '2026-06-10' });
+  const trends = computeSpendingTrends({ txns: toTrendTxns(seed.transactions), today: '2026-06-10', scheduled: [] });
   const askRows = toAskTxnRows(seed.transactions);
   const askFor = (q: string) =>
     merchantSpend(askRows, { fromYm: '2026-06', toYm: '2026-06', label: 'this month' }, q, '2026-06-10');

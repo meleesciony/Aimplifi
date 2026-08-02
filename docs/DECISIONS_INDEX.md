@@ -385,3 +385,4 @@ refuses to write if it would drop any number this file already carries.
 - **#387** (Phase ?): Dashboard Trends card names its divisor, assumption, and mover window (C.3)
 - **#388** (Phase ?): The pace projection abstains on zero observations, and says so (C.1)
 - **#389** (Phase ?): A savings-rate bar expands into its two inputs, because a ratio has no rows
+- **#390** (Phase ?): The pace projection reads the bill calendar, and names the bills it read (C.2)

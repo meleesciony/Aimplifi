@@ -11,16 +11,26 @@
  * hand-verifiable to the cent.
  *
  * Four insights, each honest about its own basis:
- *  - pace      : the IN-PROGRESS month projected to month-end at the current
- *                daily rate (a stated assumption), vs last month's actual.
+ *  - pace      : the IN-PROGRESS month projected to month-end — money already
+ *                counted, plus the bills the app can see still due this month,
+ *                plus the rest of the month at the discretionary daily rate
+ *                (a stated assumption) — vs last month's actual.
  *  - movers    : the LAST COMPLETED month vs the average of up to 3 completed
  *                months before it — exact, no partial-month distortion.
  *  - largest   : the biggest single purchases so far this month.
  *  - newMerchants: merchants you spent at this month but not in the prior 6.
  */
-import { addMonthsToMonthKey, daysInMonth, monthKey } from '@/lib/dates';
+import {
+  addMonthsToMonthKey,
+  daysBetween,
+  daysInMonth,
+  isoDate,
+  monthKey,
+  monthWindow,
+} from '@/lib/dates';
 import { roundHalfAwayFromZero } from '@/lib/money';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import {
   spendingByCategory,
@@ -142,12 +152,48 @@ export interface TrendTxn extends ReportTxn {
   merchantName?: string;
 }
 
+/**
+ * One stored `ScheduledTransaction` row, as the pace projection reads it.
+ *
+ * Structurally the snapshot's `ScheduledLike` minus `accountId`, which this
+ * engine has no use for: an expense series is projected from every cash account
+ * (L.25) and a purchase counts as spending whichever account it left, so there
+ * is nothing to filter on. `description` is the canonical merchant name —
+ * `toScheduledRow` writes `series.merchantCanonical`, the same value
+ * `normalizeMerchant` puts on `TrendTxn.merchant`, which is what lets a bill be
+ * matched to its own charges by an exact key rather than by a money heuristic
+ * (the kind #134 rejected).
+ */
+export interface PaceBillInput {
+  description: string;
+  amountCents: number; // signed: outflow negative, inflow positive
+  nextDate: string; // YYYY-MM-DD
+  cadence: string | null; // the DB column's type, not the Cadence union
+}
+
+/** A known bill this month that the counted spend has not covered yet. */
+export interface PaceBillDue {
+  merchant: string;
+  /** Positive magnitude still expected before month end. */
+  amountCents: number;
+}
+
 export interface SpendingPace {
   ym: string; // the in-progress month, YYYY-MM
   daysElapsed: number; // 1..daysInMonth (inclusive of today)
   daysInMonth: number;
+  /** Counted spend so far this month — measured, never modelled. */
   spentSoFarCents: number;
-  projectedCents: number; // spentSoFar / daysElapsed * daysInMonth, rounded
+  /** Known bills still expected this month (Σ `billsStillDue`). */
+  billsStillDueCents: number;
+  /** Those bills by merchant, largest first — the projection's visible inputs. */
+  billsStillDue: PaceBillDue[];
+  /** Spent so far MINUS the bill money already counted; the rate's numerator. */
+  discretionarySoFarCents: number;
+  /** discretionarySoFar / daysElapsed × the days left, rounded. */
+  projectedRemainderCents: number;
+  /** spentSoFar + billsStillDue + projectedRemainder. Never < spentSoFar. */
+  projectedCents: number;
   priorMonthCents: number; // last full month's total spend
   deltaVsPriorCents: number; // projected − prior (positive = trending higher)
 }
@@ -234,6 +280,15 @@ export interface SpendingTrends {
 export interface TrendsInput {
   txns: readonly TrendTxn[];
   today: string; // YYYY-MM-DD anchor
+  /**
+   * The bill calendar the app already owns (`snap.scheduled`). REQUIRED rather
+   * than defaulted (C.2): a silent `[]` is the difference between "this reader
+   * has no known bills" and "the caller forgot the bill calendar", and the
+   * second one reads on screen as the first — a projection that ignores a
+   * mortgage while claiming to describe the month. Every caller has to answer;
+   * a fixture answering `[]` is stating that its month has no bills.
+   */
+  scheduled: readonly PaceBillInput[];
 }
 
 const groupOf = (id: string | null | undefined, meta: ReadonlyMap<string, CategoryMeta>) =>
@@ -286,9 +341,187 @@ function categorySpendMap(
   return new Map(byCategory.map((c) => [c.categoryId, c.amountCents]));
 }
 
+/**
+ * How many times a scheduled row falls inside the calendar month `ym` — the
+ * WHOLE month, including occurrences already past.
+ *
+ * The repo has five forward expanders (cash-needed/assemble, forecast, calendar,
+ * the plan's `scheduledOccurrencesBetween`, and radar's cycle synthesis) and
+ * none of them fits: every one is anchored at `today` and walks forward, because
+ * every one of them is answering "what is still coming". This asks a different
+ * question — how much of THIS month is bill money at all, including the mortgage
+ * that landed on the 1st — so the window opens before `today` and a row whose
+ * `nextDate` is next month still has an occurrence here.
+ *
+ * It shares the one cadence table (`monthsPerCadence`) rather than carrying a
+ * sixth copy of the ternary chain, which is the failure that table exists to
+ * prevent: a missed branch falls through to "one occurrence" in silence.
+ *
+ * Month-family cadences need no walking at all — an occurrence lands in `ym`
+ * exactly when the month distance from `nextDate` is a whole number of steps,
+ * which is also why stepping backwards through `addMonthsClamped` is avoided
+ * (that function is not invertible: Jan 31 → Feb 28 → Mar 28).
+ */
+export function billOccurrencesInMonth(bill: PaceBillInput, ym: string): number {
+  const monthStep = monthsPerCadence(bill.cadence);
+  if (monthStep > 0) {
+    const billYm = monthKey(bill.nextDate);
+    const diff =
+      (Number(ym.slice(0, 4)) - Number(billYm.slice(0, 4))) * 12 +
+      (Number(ym.slice(5, 7)) - Number(billYm.slice(5, 7)));
+    // Symmetric modulo — `diff` is negative for every month before `nextDate`,
+    // and JS's `%` keeps the sign.
+    return ((diff % monthStep) + monthStep) % monthStep === 0 ? 1 : 0;
+  }
+  if (bill.cadence === 'WEEKLY' || bill.cadence === 'BIWEEKLY') {
+    const step = bill.cadence === 'WEEKLY' ? 7 : 14;
+    const anchor = isoDate(bill.nextDate);
+    const { from, to } = monthWindow(ym);
+    // Occurrences are anchor + k·step for any INTEGER k, so count the k's that
+    // land in [from, to] instead of walking (a stale anchor could be years off).
+    const first = Math.ceil(daysBetween(anchor, from) / step);
+    const last = Math.floor(daysBetween(anchor, to) / step);
+    return Math.max(0, last - first + 1);
+  }
+  // One-off (null cadence): the DB column allows it and the seeder writes it,
+  // though `toScheduledRow` never emits one.
+  return monthKey(bill.nextDate) === ym ? 1 : 0;
+}
+
+/**
+ * The bills this month, keyed by canonical merchant, with the money already
+ * counted against each one.
+ *
+ * ADMISSION RULE — a bill enters the projection only if the app has EVER counted
+ * a purchase at that merchant, on the very basis the projection is compared
+ * against. "Ever", not "this month": the whole case this fix exists for is a
+ * mortgage that has not been charged yet, so requiring a charge in the month
+ * being projected would refuse exactly the bill the owner asked about. The two
+ * windows below are therefore different on purpose — admission looks at all the
+ * history the engine holds, and the credit that says "this bill already landed"
+ * looks only at this month.
+ *
+ * Everything else follows from that one rule:
+ *
+ *  - It keeps out the auto-loan ACH, the one `isTransfer` class `detectRecurring`
+ *    deliberately keeps (detect.ts:380). That payment is real money, and it is in
+ *    NEITHER side of this comparison — not in `spentSoFarCents`, not in
+ *    `priorMonthCents` — so adding its bill to the projection would import a
+ *    figure from another basis and report the month as heavier than the month it
+ *    is being compared with (`a-borrowed-total-imports-its-window`).
+ *  - It keeps out the demo seed's `Auto-transfer to savings`, and any other
+ *    scheduled row that moves money rather than spending it, without this engine
+ *    needing to know what a transfer is.
+ *  - It keeps out a hand-authored row whose `description` is a label rather than
+ *    a merchant ("Rent — Peachtree Properties"), where the key cannot match and a
+ *    guess would be exactly the money heuristic #134 rejected.
+ *
+ * AGGREGATE merchants are excluded for the same reason `computeNewMerchants`
+ * excludes them: "Zelle Payment" is one canonical name over many unrelated
+ * payees, so matching a bill to it would credit one gardener's charge with
+ * another payee's money (`a-typed-key-is-a-pattern-not-an-identity`).
+ */
+function billsThisMonth(
+  scheduled: readonly PaceBillInput[],
+  txns: readonly TrendTxn[],
+  today: string,
+  ym: string,
+  meta: ReadonlyMap<string, CategoryMeta>,
+): { stillDue: PaceBillDue[]; stillDueCents: number; creditedCents: number } {
+  const key = (m: string) => m.trim().toLowerCase();
+
+  // Expected: one entry per merchant, so two series on one name cannot be
+  // compared against the same charges twice.
+  const expected = new Map<string, { merchant: string; cents: number }>();
+  for (const bill of scheduled) {
+    if (bill.amountCents >= 0) continue; // income and $0 rows are not bills
+    const occurrences = billOccurrencesInMonth(bill, ym);
+    if (occurrences === 0) continue;
+    const k = key(bill.description);
+    if (!k) continue;
+    const prev = expected.get(k);
+    const cents = Math.abs(bill.amountCents) * occurrences;
+    if (prev) prev.cents += cents;
+    else expected.set(k, { merchant: bill.description.trim(), cents });
+  }
+  if (expected.size === 0) return { stillDue: [], stillDueCents: 0, creditedCents: 0 };
+
+  // ONE walk, two questions. `counted` answers the admission rule over all the
+  // history the engine holds — a purchase at this merchant has landed in a spend
+  // total at some point, so its money is inside the basis being projected.
+  // `posted` answers "has this month's occurrence already been charged", and is
+  // therefore scoped to this month, `<= today`, and summed on the register basis
+  // (refunds net down) exactly as the month total the credit is taken out of.
+  const counted = new Set<string>();
+  const posted = new Map<string, number>();
+  const aggregate = new Set<string>();
+  for (const t of txns) {
+    if (!t.merchant) continue;
+    const k = key(t.merchant);
+    if (!expected.has(k)) continue;
+    if (isSpendRow(t, meta)) counted.add(k);
+    if (t.aggregateMerchant) aggregate.add(k);
+    if (t.date > today) continue;
+    if (!isRegisterSpendRow(t, { fromYm: ym, toYm: ym }, meta)) continue;
+    posted.set(k, (posted.get(k) ?? 0) + spendContributionCents(t));
+  }
+
+  const stillDue: PaceBillDue[] = [];
+  let stillDueCents = 0;
+  let creditedCents = 0;
+  for (const [k, exp] of expected) {
+    // Never counted anywhere ⇒ this merchant's money is not in the basis at all
+    // (see the admission rule above). Aggregate keys are not identities.
+    if (!counted.has(k) || aggregate.has(k)) continue;
+    const seen = Math.max(0, posted.get(k) ?? 0);
+    // Credit at most what the bill itself is worth. A merchant can be both a
+    // bill and a shop — $15 of Prime inside $415 of Amazon — and crediting the
+    // whole $415 would delete $400 of real discretionary spending from the rate.
+    const credited = Math.min(seen, exp.cents);
+    creditedCents += credited;
+    const due = exp.cents - credited;
+    if (due > 0) {
+      stillDueCents += due;
+      stillDue.push({ merchant: exp.merchant, amountCents: due });
+    }
+  }
+  stillDue.sort((a, b) => b.amountCents - a.amountCents || (a.merchant < b.merchant ? -1 : 1));
+  return { stillDue, stillDueCents, creditedCents };
+}
+
+/**
+ * The in-progress month projected to month end (C.2, CALC_AUDIT P1-1).
+ *
+ * It used to be `spentSoFar / daysElapsed × daysInMonth` — a household month
+ * modelled as a uniform stream, when a household month is a few large bills plus
+ * noise. The bias is not random, it has a shape: low before the bills land, then
+ * wildly high overnight when they do. On the owner's own report, $578.79 over two
+ * days projected $8,971.25 for a month whose mortgage alone is ~$6,200, and a
+ * critic executed the other side of the same defect — the same account reading
+ * "$6,200.18 LESS than last month" for four days, then "$32,239.82 MORE" the
+ * morning the mortgage posted.
+ *
+ * So the month is projected in three named parts instead of one:
+ *
+ *     projected = spent so far  +  bills still due  +  discretionary × days left
+ *
+ * `spent so far` is measured. `bills still due` comes from the stored bill
+ * calendar, matched to its own charges by merchant so a bill that has already
+ * landed is not demanded twice — and never DATED against `today`, because a
+ * mortgage dated the 1st that has not posted yet is still to come (the edge
+ * L.11(D) is about). `discretionary` is what is left of spent-so-far once the
+ * bill money is taken out, which is the only part a daily rate can honestly
+ * describe.
+ *
+ * What it still does not know, and what the copy beside it may therefore never
+ * claim to have counted: bills charged to a credit card (those series are
+ * 'on-card' and produce no scheduled row), and bills the detector has not spotted
+ * yet. Both keep being extrapolated by the daily rate, exactly as before.
+ */
 function computePace(
   txns: readonly TrendTxn[],
   today: string,
+  scheduled: readonly PaceBillInput[],
   meta: ReadonlyMap<string, CategoryMeta>,
 ): SpendingPace | null {
   const ym = monthKey(today);
@@ -312,12 +545,27 @@ function computePace(
   const [y, m] = [Number(ym.slice(0, 4)), Number(ym.slice(5, 7))];
   const dim = daysInMonth(y, m);
   const daysElapsed = Math.min(Number(today.slice(8, 10)), dim); // ≥1 for a real date
-  const projectedCents = roundHalfAwayFromZero((spentSoFarCents / daysElapsed) * dim);
+  const { stillDue, stillDueCents, creditedCents } = billsThisMonth(scheduled, txns, today, ym, meta);
+  // Clamped because the month total nets refunds by CATEGORY and drops a
+  // net-refunded category to zero, while the credit above is summed per
+  // MERCHANT: in a refund-heavy month the two can cross. A negative rate is not
+  // a thing, and the clamp errs toward projecting less rather than inventing.
+  const discretionarySoFarCents = Math.max(0, spentSoFarCents - creditedCents);
+  // Multiply before dividing (audit P2): `(a / b) * c` rounds twice and violated
+  // the repo's stated half-away-from-zero rule 140 times on the demo seed.
+  const projectedRemainderCents = roundHalfAwayFromZero(
+    (discretionarySoFarCents * (dim - daysElapsed)) / daysElapsed,
+  );
+  const projectedCents = spentSoFarCents + stillDueCents + projectedRemainderCents;
   return {
     ym,
     daysElapsed,
     daysInMonth: dim,
     spentSoFarCents,
+    billsStillDueCents: stillDueCents,
+    billsStillDue: stillDue,
+    discretionarySoFarCents,
+    projectedRemainderCents,
     projectedCents,
     priorMonthCents,
     deltaVsPriorCents: projectedCents - priorMonthCents,
@@ -518,7 +766,7 @@ function computeNewMerchants(
 
 /** Compute all spending-trend insights from a posted-spend transaction list. */
 export function computeSpendingTrends(
-  { txns, today }: TrendsInput,
+  { txns, today, scheduled }: TrendsInput,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): SpendingTrends {
   const { comparedYm, baselineMonths, movers, moverTotal } = computeMovers(txns, today, meta);
@@ -532,7 +780,7 @@ export function computeSpendingTrends(
     asOfYm: monthKey(today),
     comparedYm,
     baselineMonths,
-    pace: computePace(txns, today, meta),
+    pace: computePace(txns, today, scheduled, meta),
     movers,
     moverTotal,
     largest: computeLargest(settled, today, meta),

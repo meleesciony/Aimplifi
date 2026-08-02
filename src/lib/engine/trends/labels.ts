@@ -4,6 +4,10 @@
  * copy of either label is how they drift (CALC_AUDIT 2026-08-02 P1-2 / P1-5).
  */
 import { formatMonth } from '@/lib/dates';
+import { cents, formatCents } from '@/lib/money';
+import type { SpendingPace } from '@/lib/engine/trends/trends';
+
+const money = (n: number) => formatCents(cents(n));
 
 /** Short month name for a YYYY-MM (e.g. "Jun"). */
 export function shortMonth(ym: string): string {
@@ -45,9 +49,71 @@ export function paceDeltaRelation(
   };
 }
 
-/** Assumption stated beside every pace figure (dashboard + /trends). */
-export const PACE_ASSUMPTION =
-  'Assumes spending continues at the current daily rate — a projection, not a prediction.';
+/** How many bills are named before the phrase falls back to a count. */
+export const PACE_BILLS_NAMED = 2;
+
+/**
+ * The bills the projection added, named — null when it added none, so a surface
+ * cannot render an empty list as a fact (`an-empty-set-is-not-a-fact-about-money`)
+ * and there is ONE decision point instead of a guard per call site.
+ *
+ * Naming them is the point: the owner's report was "$8,971.25 makes no sense
+ * since our mortgage is ~6200", and a corrected figure with the same hidden
+ * inputs invites exactly the same reply (`an-answer-is-only-as-believable-as-
+ * its-visible-inputs`).
+ */
+export function paceBillsPhrase(
+  pace: Pick<SpendingPace, 'billsStillDueCents' | 'billsStillDue'>,
+): string | null {
+  const names = pace.billsStillDue.map((b) => b.merchant);
+  if (names.length === 0) return null;
+  const shown = names.slice(0, PACE_BILLS_NAMED);
+  const rest = names.length - shown.length;
+  const list =
+    rest > 0
+      ? `${shown.join(', ')} and ${rest} more`
+      : shown.length === 1
+        ? shown[0]!
+        : shown.join(' and ');
+  return `${money(pace.billsStillDueCents)} of bills still due: ${list}`;
+}
+
+/**
+ * Assumption stated beside every pace figure (dashboard + /trends).
+ *
+ * C.2 split it into three branches, because the projection stopped being one
+ * model. It is now `spent so far + bills still due + discretionary × days left`,
+ * and a sentence that describes only the daily rate would be describing a term
+ * the reader cannot find in the figure: the mortgage is counted once, at its
+ * amount, not extrapolated — and the daily rate is taken over what is LEFT after
+ * the bill money, so `spentSoFar / daysElapsed` no longer reproduces it.
+ *
+ * The third clause of branch B is the completeness hedge, and it is the reason
+ * this may not be shortened to "we counted your bills": a bill charged to a
+ * credit card produces no scheduled row at all (the series is 'on-card'), and a
+ * bill the detector has not spotted produces none either. Both are still being
+ * extrapolated by the rate, exactly as the whole month used to be.
+ */
+export function paceAssumption(
+  pace: Pick<SpendingPace, 'spentSoFarCents' | 'billsStillDueCents' | 'discretionarySoFarCents'>,
+): string {
+  const other = money(pace.discretionarySoFarCents);
+  if (pace.billsStillDueCents > 0) {
+    const bills = money(pace.billsStillDueCents);
+    return (
+      `Adds ${bills} of bills we can see still due, then assumes the other ${other} ` +
+      `continues at its current daily rate — a projection, not a prediction. ` +
+      `Bills charged to a card, and any we have not spotted, are not in that ${bills}.`
+    );
+  }
+  if (pace.discretionarySoFarCents < pace.spentSoFarCents) {
+    return (
+      `The bills we can see for this month have already been charged; the other ${other} ` +
+      `is what continues at its current daily rate — a projection, not a prediction.`
+    );
+  }
+  return 'Assumes spending continues at the current daily rate — a projection, not a prediction.';
+}
 
 /**
  * Shown in place of the pace figure when `computePace` abstains (C.1). That

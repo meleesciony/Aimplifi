@@ -9237,3 +9237,80 @@ e2e against a fresh build.
   reverses DECISIONS #378 and its real work is the money half: every Fixed
   figure is derived at CATEGORY level today, so the sums must move to rows in
   the same slice or /budgets and the plan will disagree.
+
+## #390 — The pace projection reads the bill calendar (C.2, 2026-08-02)
+
+**Shipped.** Owner's report, verbatim: *"'on pace for 19,713.85 less than last
+month' how? we've spent 578.79 on the first day of the month... 8971.25 makes no
+sense since our mortgage is ~6200."* C.1 (#388) stopped the projection speaking
+from zero observations and C.3 (#387) made it name its divisor; neither moved
+the figure. This is the one that moves it.
+
+### What was wrong
+`computePace` read transactions and nothing else, and extrapolated a single daily
+rate to month end. The bill calendar — `snap.scheduled` — was already on the very
+snapshot `getSpendingTrends` loads. A household month is a few large dated bills
+plus noise, so the uniform-stream model is biased in a direction you can predict:
+low before the bills land, then wildly high the morning they do. A critic
+executed the same account reading "$6,200.18 less than last month" in green for
+four days and "$32,239.82 more" in red overnight.
+
+### The model
+    projected = spent so far  +  bills still due  +  discretionary x days left
+
+Spent-so-far is measured. Bills come from the stored calendar, matched to their
+own charges by an EXACT merchant key — `toScheduledRow` stores
+`series.merchantCanonical` and `toTrendTxns` puts the same normalizer's canonical
+on the row, so the link is structural rather than the money-matching heuristic
+#134 rejected — and credited at `min(posted, expected)` so a merchant that is both
+a bill and a shop ($15 of Prime inside $415 of Amazon) cannot swallow $400 of
+discretionary spending. The rate is taken over what is LEFT after the bill money,
+which is the only part a daily rate honestly describes.
+
+Two decisions worth carrying:
+
+- **Bills are counted over the whole calendar month, never split at `today`.** The
+  first design dated them against today, which is the L.11(D) edge: a mortgage
+  dated the 1st that has not posted yet is still to come, and that model answered
+  $578.79 for the owner's month — worse than the defect it replaced.
+- **Admission: a bill enters only where the app has EVER counted a purchase at
+  that merchant, on the basis being compared against.** One rule does three jobs —
+  it keeps out the auto-loan ACH (the one `isTransfer` class detection keeps, so
+  its money is in neither side of the comparison), the demo's savings sweep, and
+  any hand-authored label no merchant can match. Aggregate pseudo-merchants are
+  refused as well: "Zelle Payment" is a pattern, not an identity.
+
+### Owner-visible effect
+On the fixture built from his own figures, day 2 of the month projects $14,881.85
+instead of $8,681.85, and the bill is named on screen: "$6,200.00 of bills still
+due: Mr Cooper". Day 10 of the same month projects $14,882.00 — 15 cents apart,
+where the old model swung $18,600 overnight. The assumption sentence gained three
+branches (no bills / bills still due / bills already charged) because a reader can
+no longer divide spent-so-far by the day count and reproduce the figure, and it
+states what it cannot see: bills charged to a credit card produce no scheduled row
+at all, so the copy says card-charged and unspotted bills are NOT in the total.
+
+Also in this slice, same field: /trends still tinted an exact tie green off a bare
+`> 0`. C.3 fixed that on the dashboard card only; both surfaces now read
+`paceDeltaRelation`.
+
+### Gate
+`bash scripts/verify.sh` -> **VERIFY GREEN**: tsc clean, eslint clean, **5669 unit
+tests / 347 files** (was 5647/346), `next build` clean. e2e: `trends.spec`,
+`trends-pace-abstain.spec` and the new `trends-pace-bills.spec` **5/5** together,
+serialized, against a fresh build.
+
+### Mutation proof (six, each killed a lock)
+- bills never counted -> 5 locks fail (incl. the intake test)
+- credit uncapped -> the Prime-inside-Amazon lock fails
+- admission rule dropped -> the three-refusal lock AND the demo-seed pin fail
+- aggregate guard dropped -> the aggregate refusal fails
+- admission scoped to this month (the bug I shipped and caught mid-slice) -> 3 fail
+- bill money left inside the daily rate -> 2 fail
+
+### Not done
+The demo seed admits no bills — its scheduled rows are hand-authored labels
+("Rent — Peachtree Properties") plus payroll, which is the correct outcome and is
+now PINNED so the demo cannot stop exercising the feature silently. It does mean
+the public demo's pace is unchanged; the e2e proves the bill path on a throwaway
+user with a real `ScheduledTransaction` row.

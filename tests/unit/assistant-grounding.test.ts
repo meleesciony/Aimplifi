@@ -150,7 +150,7 @@ describe('largest purchases == /trends computeLargest (POSTED only), pinned', ()
     // the engine's own split — not this test's filter — keeping the pending
     // Amazon row out of both sides.
     const trendTxns: TrendTxn[] = toTrendTxns(seed.transactions);
-    const trendsLargest = computeSpendingTrends({ txns: trendTxns, today: '2026-06-10' }).largest;
+    const trendsLargest = computeSpendingTrends({ txns: trendTxns, today: '2026-06-10', scheduled: [] }).largest;
     const mine = largestPurchases(purchaseRows, THIS_MONTH, trendsLargest.length || 5, '2026-06-10');
     expect(mine).toEqual(trendsLargest); // byte-for-byte parity with /trends (same window, <= today, tie-break)
 
