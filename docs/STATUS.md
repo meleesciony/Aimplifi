@@ -2,6 +2,35 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ⚠️ OPEN 2026-08-02 — `ledger.ts` truncates a multi-line body to its FIRST LINE, and reports success
+
+Found by using the tool: writing this session's PROGRESS entry via
+`tsx scripts/ledger.ts progress "<title>" "<body>"` wrote **one line** of a
+70-line body and printed `PROGRESS.md: prepended "…"`. The entry was repaired
+with an editor; nothing is currently lost.
+
+Not a quoting mistake on the caller's side — it is the process boundary. Probe:
+
+```
+$ npx tsx -e 'console.log(JSON.stringify(process.argv[1]))' "$(printf 'line one\nline two\n')"
+"line one"
+```
+
+So every `ledger.ts` subcommand that takes prose as an ARGUMENT (`progress`,
+`decision`, `regression`) silently keeps the first line on Windows. Same family
+as #386 — a ledger script losing content while reporting that it wrote it —
+which is why it is filed the day #386 closed rather than folded into it.
+
+**Until fixed:** append to the ledgers with a heredoc into the file (`cat >> … <<
+'EOF'`), which goes through stdin and is unaffected, or use an editor; then run
+`tsx scripts/ledger.ts reindex`, which reads files rather than arguments and is
+now safe. This is the same class `docs/lessons/windows-codegen-via-shell.md`
+already warns about.
+
+**Fix when picked up:** read prose from stdin or a `--file` path instead of
+argv, and refuse to write a body that arrives shorter than some floor without
+saying so. A script that can write less than it was given must not print success.
+
 ## ✅ CLOSED 2026-08-02 — `scripts/ledger.ts reindex` is safe to run (DECISIONS #386)
 
 Was: the script parsed only the legacy pipe-table rows (#1–#337) and was blind to

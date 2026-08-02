@@ -1,5 +1,82 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-02 — #386 — reindex reads both formats and cannot delete; #384 deploy-verified
+
+Session opened on `continue` with `main` clean and level with `origin/main`. Two
+things were owed: #384 had shipped without the deploy-verified record every other
+commit in the run carries, and `docs/STATUS.md`'s top item was an OPEN warning
+telling readers not to run one of the repo's own scripts.
+
+### #384's missing deploy record
+
+`npx vercel ls aimplifi --meta githubCommitSha=9b665d42…` → `aimplifi-9ssolqjp8`
+**READY**, Production, and `vercel inspect` shows `www.aimplifi.app` among its
+aliases. **Limit, stated rather than papered over:** #384 is engine math on the
+trailing-median Fixed fallback with no new user-visible string, so there is no
+marker to grep the live HTML for. This is SHA-and-alias verification, not
+behavioural confirmation on live data — that branch needs an account whose
+history actually reaches it.
+
+### #386 — the script that destroyed the decisions index
+
+Measured before touching anything: 329 table rows + 46 headings = 375 decisions
+in `DECISIONS.md`, 341 rows in the index, **34 absent** (#338–#373 less the
+#353/#360 numbering gaps), no duplicates, no orphans. Exactly what STATUS said.
+
+The fix is in two parts and the second is the one that matters.
+`scripts/ledger-parse.ts` (pure, no `fs`, unit-testable) teaches the parser the
+heading era, including the bare `## #354` shape whose summary comes from its
+first bold body line, and the rule that only a LEADING parenthetical is a phase.
+Then `reindex` diffs the numbers it is about to write against the numbers the
+index already carries and **refuses to write if any would disappear** — throws,
+names every one, touches nothing.
+
+Part 1 repairs the format I know about. Part 2 is why this does not recur: the
+next format the parser fails to understand fails in the terminal instead of in
+the file. Proven by mutation rather than argued — the heading parser was reverted
+to its blind state, `reindex` refused, named all 46, exited 1, and the index was
+byte-identical afterward.
+
+Found in the same read and repaired: `nextDecisionNumber` counted only table
+rows, so the next `ledger.ts decision` would have returned **338**, a number
+#338 has held since 2026-07-31, and appended a duplicate under it.
+
+Filed rather than fixed: `decision` still appends a legacy TABLE row while
+sessions hand-write heading sections. The number it picks is now right; the shape
+it writes is not.
+
+Deliberate loss recorded: regenerating replaced the hand-written summaries for
+#374–#385 with their headings' own titles. Nothing left `DECISIONS.md`, and the
+index has one author again instead of two.
+
+### A third defect, found by using the tool
+
+Writing this entry through `tsx scripts/ledger.ts progress "<title>" "<body>"`
+**silently truncated the body to its first line** — everything above was lost and
+the command reported success. Same family as the bug this session came to fix: a
+ledger script losing content and saying it wrote it. Not diagnosed further here
+(the entry was repaired directly with an editor); filed in STATUS as OPEN, since
+the safe workaround — do not push multi-line prose through a shell argument on
+Windows — is exactly what `docs/lessons/windows-codegen-via-shell.md` already
+says, and the script offers no other way in.
+
+### Gate
+
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc 0, eslint 0, **5626 unit / 344
+files**, next build clean. Run twice — once before the ledger/STATUS edits, once
+after. The new `tests/unit/ledger-decisions-index.test.ts` failed-old on the
+completeness assertion and named all 34 missing decisions before the fix; 16/16
+after. Empty `prisma/` diff, and no `src/` change at all — the deployed app is
+behaviourally identical.
+
+### Deploy
+
+`df10a84` → `aimplifi-asgx1ieni` **READY** on that exact SHA, `www.aimplifi.app`
+aliased, `/sign-in` 200. **No marker grep is possible for this change** and none
+is claimed: it touches `scripts/`, `tests/` and docs only, so nothing it does can
+appear in the live HTML. The honest proof is the SHA, the alias, and the fact
+that the app still serves.
+
 ## 2026-08-01 — #384 median Fixed fallback union (critic on #382) DONE
 
 P0: Math.max(median, recurring) dropped complementary Fixed. Fix: same union
