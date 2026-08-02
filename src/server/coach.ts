@@ -27,6 +27,11 @@ import {
   type MonthlyFlow,
   type Opportunity,
 } from '@/lib/engine/fi/insights';
+import {
+  buildMonthFlowBreakdowns,
+  type MonthFlowBreakdown,
+} from '@/lib/engine/glass-box/month-flow-breakdown';
+import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import type { DiscretionaryCategorySpend } from '@/lib/engine/fi/discretionary-cuts';
 import { averageDiscretionaryCategorySpend } from '@/lib/engine/fi/discretionary-spend';
 import { categoryName } from '@/lib/engine/categorize/categories';
@@ -60,6 +65,23 @@ export interface CoachData {
   today: string;
   flows: MonthlyFlow[]; // last 12 full months, ascending
   currentRateBps: number | null;
+  /**
+   * The rows behind each bar of the savings-rate chart, keyed `YYYY-MM:income`
+   * and `YYYY-MM:expense` — the same builder and the same keys /reports uses
+   * under its income-vs-spending chart.
+   *
+   * Owner request, 2026-08-02: *"if i want to know why and where cash come from
+   * that caused greater savings for a specific month, i should be able to click
+   * on the graph itself"*. A savings rate is a ratio of two figures and has no
+   * rows of its own, so what a bar expands into is its NUMERATOR's two halves:
+   * the income counted that month and the spending counted that month.
+   *
+   * Built from `txns` — the very array `monthlyFlows` summed — with `flows` as
+   * the headlines, so each panel reconciles against the figure this page
+   * actually rendered rather than a second derivation of it. Only the 12 months
+   * the chart draws are keyed; nothing else is queried.
+   */
+  monthFlows: Record<string, MonthFlowBreakdown>;
   fi: {
     fiNumberCents: Cents;
     annualExpensesCents: Cents;
@@ -223,6 +245,13 @@ export async function getCoachData(
     date: t.date,
     amountCents: t.amountCents,
     rawDescriptor: t.rawDescriptor,
+    // The register's own display rule, so one charge reads the same name in the
+    // savings-rate panel as in the list it links to. Carried on THIS array —
+    // the one `monthlyFlows` sums — rather than on a second mapping, for the
+    // reason `getReports` states where it does the same thing: two panels that
+    // disagree about a payee's name on one page would be a defect nobody could
+    // explain, and building the array twice is what would let them.
+    merchantName: registerDisplayName(t),
     accountId: t.accountId,
     isTransfer: t.isTransfer,
     status: t.status,
@@ -240,6 +269,10 @@ export async function getCoachData(
   const currentMonth = today.slice(0, 7);
   const fullFlows = allFlows.filter((f) => f.month < currentMonth);
   const flows = fullFlows.slice(-12);
+  // `flows` is the array the chart draws, so these headlines are the figures the
+  // reader will actually see — `reconciles` is checked against the painted
+  // numbers, not against a second derivation of them.
+  const monthFlows = buildMonthFlowBreakdowns(txns, flows);
   const last6 = fullFlows.slice(-6);
 
   const expenses6 = last6.reduce((s, f) => s + f.expensesCents, 0);
@@ -460,6 +493,7 @@ export async function getCoachData(
     today,
     flows,
     currentRateBps: flows[flows.length - 1]?.savingsRateBps ?? null,
+    monthFlows,
     fi: {
       fiNumberCents: fiTarget,
       annualExpensesCents: annualExpenses,

@@ -181,7 +181,11 @@ export default async function DashboardPage({
 
       {/* Charts + savings dial — keep; cut redundant how-to, not visualizations. */}
       <div className="grid gap-5 sm:grid-cols-2">
-        <SavingsRateCard flows={coach.flows} currentRateBps={coach.currentRateBps} />
+        <SavingsRateCard
+          flows={coach.flows}
+          currentRateBps={coach.currentRateBps}
+          monthFlows={coach.monthFlows}
+        />
         <TopSpendingCard
           breakdown={reports.breakdown}
           breakdowns={reports.breakdowns}

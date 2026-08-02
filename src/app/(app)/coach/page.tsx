@@ -83,7 +83,11 @@ export default async function CoachPage() {
       <CurrencyExclusionBanner summary={withheld} />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <SavingsRateCard flows={data.flows} currentRateBps={data.currentRateBps} />
+        <SavingsRateCard
+          flows={data.flows}
+          currentRateBps={data.currentRateBps}
+          monthFlows={data.monthFlows}
+        />
         <FICard
           fiNumberCents={data.fi.fiNumberCents}
           annualExpensesCents={data.fi.annualExpensesCents}
