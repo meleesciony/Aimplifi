@@ -1,9 +1,11 @@
 # PROGRESS.md — session resume log
 
-## 2026-08-01 — Always-on Fixed category rollup (#380) IN PROGRESS (B.1)
+## 2026-08-01 — Always-on Fixed category rollup (#380) DONE (B.1)
 
-Remove reader-input gate: Plan uses category budget|typical whenever > 0,
-floored by recurring. Copy/basis notes updated. Next: verify → e2e → ship.
+Plan Fixed = max(category budget|typical, recurring floor) whenever rollup > 0;
+no reader-input gate. Copy names the floor. verify GREEN 5595; e2e spend-class +
+spending-plan 2/2. Deploy READY `aimplifi-q3962vvqu` on `73010be`; live
+`budgeting-fixed-basis` + Plan Fixed label. Wave B open: fuller hostile critic.
 
 ## 2026-08-01 — Sethi Fixed band + widened-numerator copy (#379) DONE (B.3)
 
