@@ -288,7 +288,7 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
             ]
           : plan.fixedBasis === 'non-discretionary-median'
             ? [
-                `Fixed costs are the median of your last ${plan.fixedMonths} complete month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spending (groceries, housing, utilities, insurance, and similar — not dining out, golf, or shopping). Savings is separate from this line.`,
+                `Fixed costs are the median of your last ${plan.fixedMonths} complete month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spending (groceries, housing, utilities, insurance, and similar — not dining out, golf, or shopping), plus detected recurring bills not already in that spend (for example an auto-loan ACH tagged as a transfer). Savings is separate from this line.`,
               ]
             : plan.scheduledFixed.length > 0
               ? [

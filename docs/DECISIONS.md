@@ -2719,3 +2719,19 @@ refuses by construction (O.5).
 
 **Locks.** `filterTransactions` spendClass unit + `spend-class-register-links`
 + e2e `spend-class-drilldown.spec.ts`.
+
+## #384 — Median Fixed fallback unions uncovered recurring (not Math.max)
+
+Hostile critic on #382: category-designations path was sound, but when
+`categoryFixedCents === 0` the trailing-median branch still used
+`Math.max(median, recurring)` — complementary Fixed (transfer auto-loan) dropped
+on sparse-history paths; basis copy still claimed “median” when recurring won.
+
+**DECIDED:** Median path uses the same union as #381/#382:
+`median + recurringOutsideFixedCategoryCents`. Covered ids on that path are
+Fixed categories that fed the trailing median months (`fixedSpendCategoryIdsInMonths`),
+so grocery series is not double-counted and auto-loan (never in median spend)
+still unions in. Copy names the union. No scalar max.
+
+**Locks.** `test_regression__median_fallback_unions_uncovered_auto_loan_not_max` +
+`test_regression__isTransfer_auto_loan_absent_from_category_rollup`.

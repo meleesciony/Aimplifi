@@ -36,7 +36,10 @@ import {
   type SpendingPlanDisclosures,
 } from '@/lib/engine/spending-plan/plan';
 import { monthlyGuiltFreeIncomeCents } from '@/lib/engine/spending-plan/income-pattern';
-import { monthlyNonDiscretionaryCents } from '@/lib/engine/spending-plan/fixed-pattern';
+import {
+  fixedSpendCategoryIdsInMonths,
+  monthlyNonDiscretionaryCents,
+} from '@/lib/engine/spending-plan/fixed-pattern';
 import { resolveFixedCategoryAmounts } from '@/lib/engine/spending-plan/fixed-category-amounts';
 import { resolveCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
 import { categoryName } from '@/lib/engine/categorize/categories';
@@ -117,14 +120,18 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     getCategoryMeta(userId),
     getCategoryFixedOverrides(userId),
   ]);
-  const trailingMonthlyFixedCents = monthlyNonDiscretionaryCents(
+  const trailingFixedMonths = monthlyNonDiscretionaryCents(
     snap.transactions,
     categoryMeta,
     fixedOverrides,
   )
     .filter((f) => f.month < ym)
-    .slice(-3)
-    .map((f) => f.expenseCents);
+    .slice(-3);
+  const trailingMonthlyFixedCents = trailingFixedMonths.map((f) => f.expenseCents);
+  // #384: when the category rollup is empty, the median path still needs a
+  // covered-id set so Fixed grocery spend in those months is not double-counted
+  // when we union uncovered recurring (auto-loan ACH).
+  const trailingFixedMonthKeys = new Set(trailingFixedMonths.map((f) => f.month));
 
   // Income series: still from the stored snapshot (L.11(D) walk + no-history
   // fallback), scoped to the payment-account set. Expense series for the Fixed
@@ -266,11 +273,19 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   });
   const categoryIsFixed = (categoryId: string) =>
     resolveCategoryIsFixed(categoryId, categoryMeta, fixedOverrides);
-  // Only ids that actually contribute mass — Fixed-category series absent from
-  // this set (auto-loan ACH with isTransfer) still union into Fixed (#381 critic).
-  const categoryFixedCoveredIds = new Set(
-    categoryFixed.rows.filter((r) => r.amountCents > 0).map((r) => r.categoryId),
-  );
+  // Covered ids for the Fixed∪recurring union (#381/#384):
+  //   rollup > 0 → categories that contribute mass to the rollup
+  //   median path → Fixed categories that fed the trailing months (so grocery
+  //     series is not double-counted; transfer auto-loan stays uncovered)
+  const categoryFixedCoveredIds =
+    categoryFixed.totalCents > 0
+      ? new Set(categoryFixed.rows.filter((r) => r.amountCents > 0).map((r) => r.categoryId))
+      : fixedSpendCategoryIdsInMonths(
+          snap.transactions,
+          trailingFixedMonthKeys,
+          categoryMeta,
+          fixedOverrides,
+        );
 
   const plan = computeSpendingPlan({
     today,

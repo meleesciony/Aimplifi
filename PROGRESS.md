@@ -1,5 +1,10 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — #384 median Fixed fallback union (critic on #382) IN PROGRESS
+
+P0: Math.max(median, recurring) dropped complementary Fixed. Fix: same union
+as rollup path + median-month covered ids. Next: unit green + ship.
+
 ## 2026-08-01 — W.7 Fixed/Guilt-free heading → transactions (#383) DONE
 
 Owner: click aggregate headings (Fixed expenses) → every txn under that class.
