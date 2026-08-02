@@ -1,10 +1,11 @@
 # PROGRESS.md — session resume log
 
-## 2026-08-01 — Wave B Fixed = purchases ∪ uncovered recurring (#381) SHIPPING
+## 2026-08-01 — Wave B Fixed = purchases ∪ uncovered recurring (#381) DONE
 
 Owner: card bills ≠ expenses; Fixed = Fixed-category purchases (incl. CREDIT).
-Union (not max) + never union credit-card-payment; retire "card holds Fixed" copy.
-Verify: tsc/eslint/vitest 5599/next build green; e2e + push next.
+Union (not max) + never credit-card-payment; retire "card holds Fixed" copy.
+Shipped `8263eff`; Vercel READY `aimplifi-filpliwpa`; live `/budgets` fixed-basis
+names union (not floored).
 
 ## 2026-08-01 — Always-on Fixed category rollup (#380) DONE (B.1)
 
