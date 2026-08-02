@@ -9408,3 +9408,69 @@ it before believing it.
   existing rendered lock proves the call site and the unit goldens prove all
   three branches. What is genuinely uncovered is a rendered branch-B string, and
   that is noted rather than claimed.
+
+## #392 — "First of all the monthly income is wrong" (2026-08-02)
+
+**Owner-reported mid-session, and it was real: /spending-plan showed $10,681.30
+where the median of his three complete months is $30,937.91.**
+
+### The session started somewhere else
+The queue said C.0 next (the read-only mortgage replay gating C.4/C.5). That work
+had got as far as pulling production env and confirming the C.4 mechanism in
+source — `detectRecurring` groups on `normalizeMerchant(rawDescriptor).categoryId`
+(the normalizer's GUESS) while the Fixed rollup keys on `Transaction.categoryId`
+(the FILED category), so the two halves of the union genuinely dedupe on
+different fields. Then the owner reported the income figure and that outranked
+it. C.0 is still open; the env pull and the mechanism confirmation carry over.
+
+### Measured before touching anything
+`scripts/audit-probes/income-replay.mts` — read-only, reproduces the consumer's
+whole scope clause by clause and runs the REAL engine functions over the real
+rows. It found the cause in one run:
+
+- 26 active reconciliation links. Link #24: his SimpleFIN Schwab checking is the
+  PREDECESSOR of the Plaid "Investor Checking", cutover **2026-07-21** — and the
+  successor is his payment account.
+- `applyReconciliationBoundary` decides which side OWNS a date. It does **not**
+  re-key transactions, so pre-cutover paychecks keep the predecessor's id.
+- The income scope is `{paymentAccountId}`. Every row before 07-21 fell outside
+  it: **3 positive rows in scope, one complete month**, so the "median of up to 3
+  complete months" was a median of one part-month.
+- Counterfactual in the same run: scope + successor re-key gives
+  May $30,937.91 / Jun $21,117.48 / Jul $31,408.61, median **$30,937.91** —
+  identical to "every CHECKING", and July sums the two feeds without
+  double-counting because the boundary had already dropped 96 overlap rows.
+
+### The fix, and why it is one line
+The two sibling paths in the same file already do this. The boundary re-keys
+`snap.scheduled` itself (F6 — its comment literally says "so the successor's
+payment-account filter finds them") and `countedExpenseSeriesForPlan` remaps
+detected series 280 lines below. The income transactions were the one scoped
+path that never inherited the rule. `getSpendingPlan` now reads each row's
+account through `activeTerminalSuccessorMap` before testing the scope.
+
+Demo is byte-identical by construction: no links → empty map → same id.
+
+### Gate + mutation proof
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc clean, eslint clean,
+**5688 unit tests / 349 files** (was 5685/348), `next build` clean.
+`spending-plan.spec` + `spending-plan-month-edge.spec` 3/3 serialized.
+Mutation: reverting the filter yields `[400000]` — a single part-month, the
+production defect in miniature — and kills all three new locks.
+
+### The sibling, and the assumption the probe killed
+`radar.ts:145` narrows POSTED rows the same structural way (183 rows against 402)
+to detect the committed merchants it excludes from discretionary burn. I wrote
+down that this "overstates burn" and then measured it: `detectRecurring` finds
+**9** series as shipped and **4** with the re-key, because one merchant arriving
+under two feeds' descriptors loses the gap regularity each feed had alone. The
+naive remap would have moved five merchants INTO burn. Queued as **C.22** needing
+a descriptor-level merge, not an id remap — direction not yet established.
+
+### Ship
+Pushed `e1b0241`; no `prisma/` diff, so the live database is untouched.
+Vercel **● Ready** on production, sha-matched via `--meta githubCommitSha`.
+/spending-plan is behind auth so the rendered figure cannot be curl'd from here —
+the evidence is the sha-matched READY deployment plus the local e2e against a
+fresh build. The figure is computed at READ time, so a page reload shows it; no
+sync or cron is involved.
