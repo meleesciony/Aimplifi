@@ -160,7 +160,7 @@ function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): P
     }
     return plan.fixedBasis === 'non-discretionary-median'
       ? {
-          label: `Fixed costs (non-discretionary, median of last ${plan.fixedMonths} month${plan.fixedMonths === 1 ? '' : 's'})`,
+          label: `Fixed costs (non-discretionary median of last ${plan.fixedMonths} month${plan.fixedMonths === 1 ? '' : 's'} + recurring not in that spend)`,
         }
       : { label: 'Fixed & recurring expenses (monthly pattern)' };
   }

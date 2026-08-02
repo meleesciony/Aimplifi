@@ -32,7 +32,7 @@ function fixedBasisNote(plan: SpendingPlan): string {
     return 'app calculated — Fixed categories (budget or typical), plus recurring bills not already in that rollup';
   }
   if (plan.fixedBasis === 'non-discretionary-median') {
-    return `app calculated — median of last ${plan.fixedMonths} month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spend`;
+    return `app calculated — median of last ${plan.fixedMonths} month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spend, plus recurring not already in that spend`;
   }
   if (plan.fixedBasis === 'detected-series') return 'app calculated — from recurring bills';
   return 'none counted yet';

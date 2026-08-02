@@ -2720,6 +2720,34 @@ refuses by construction (O.5).
 **Locks.** `filterTransactions` spendClass unit + `spend-class-register-links`
 + e2e `spend-class-drilldown.spec.ts`.
 
+## #384 — Median Fixed fallback unions uncovered recurring (not Math.max)
+
+Hostile critic on #382: category-designations path was sound, but when
+`categoryFixedCents === 0` the trailing-median branch still used
+`Math.max(median, recurring)` — complementary Fixed (transfer auto-loan) dropped
+on sparse-history paths; basis copy still claimed “median” when recurring won.
+
+**DECIDED:** Median path uses the same union as #381/#382:
+`median + recurringOutsideFixedCategoryCents`. Covered ids on that path are
+Fixed categories that fed the trailing median months (`fixedSpendCategoryIdsInMonths`),
+so grocery series is not double-counted and auto-loan (never in median spend)
+still unions in. Copy names the union. No scalar max.
+
+**SCOPE CORRECTION (gate, first run).** The changeset as written ALSO routed the
+`detected-series` last-resort branch through the designation-aware sum. That
+branch is not a designation judgement — it is "committed money leaves on a
+rhythm and nothing else is known" — and the rewrite silently zeroed a `fitness`
+gym bill autopaid from savings, reproducing the exact L.25/L.26 symptom of a
+real bill projected nowhere. Two locked tests failed. `detected-series` is
+reverted to `recurringFixedCents`; #384 is the trailing-median branch ONLY.
+Under-counting Fixed overstates guilt-free, which is the dangerous direction.
+
+**Locks.** `test_regression__median_fallback_unions_uncovered_auto_loan_not_max` +
+`test_regression__isTransfer_auto_loan_absent_from_category_rollup` +
+`test_regression__detected_series_fallback_counts_discretionary_recurring`
+(fails-old at 0, passes-new at 4500) + the two L.25/L.26 server-path tests in
+`tests/unit/cash-account-recurring-scope.test.ts`.
+
 ## #385 — Second paycheck on generic Income is not dropped when one is filed as paycheck
 
 Owner 2026-08-01: Plan income ~$10k / “only one paycheck” while pay is steady and

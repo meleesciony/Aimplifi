@@ -50,3 +50,26 @@ export function monthlyNonDiscretionaryCents(
     .map(([month, expenseCents]) => ({ month, expenseCents }))
     .sort((a, b) => (a.month < b.month ? -1 : 1));
 }
+
+/**
+ * Category ids that contributed Fixed spend in the given calendar months —
+ * the covered set for the trailing-median Fixed union (#384). Transfer
+ * auto-loan ACH never appears here (`classifySpendClass` → out-of-scope), so
+ * it still unions in via `recurringOutsideFixedCategoryCents`.
+ */
+export function fixedSpendCategoryIdsInMonths(
+  transactions: readonly TxnLike[],
+  months: ReadonlySet<string>,
+  meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+  overrides: ReadonlyMap<string, boolean> = new Map(),
+): Set<string> {
+  const ids = new Set<string>();
+  if (months.size === 0) return ids;
+  for (const t of transactions) {
+    if (!isGuiltFreeFixedSpendRow(t, meta, overrides)) continue;
+    if (!months.has(monthKey(t.date))) continue;
+    const id = t.categoryId;
+    if (id) ids.add(id);
+  }
+  return ids;
+}

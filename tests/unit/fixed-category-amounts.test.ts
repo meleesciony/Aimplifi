@@ -7,6 +7,7 @@ import {
   resolveFixedCategoryAmounts,
 } from '@/lib/engine/spending-plan/fixed-category-amounts';
 import { computeSpendingPlan } from '@/lib/engine/spending-plan/plan';
+import { resolveCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import type { TxnLike } from '@/lib/engine/fi/insights';
 import { isoDate } from '@/lib/dates';
@@ -156,6 +157,111 @@ describe('resolveFixedCategoryAmounts', () => {
     expect(p.leftToSpendCents).toBe(381_500);
   });
 
+  it('test_regression__median_fallback_unions_uncovered_auto_loan_not_max', () => {
+    // #382 critic P0: category rollup empty → trailing median path. Scalar
+    // Math.max(median, recurring) dropped complementary Fixed (auto-loan).
+    // Median of grocery months = 200_000; loan 38_500 must ADD, not lose.
+    const p = computeSpendingPlan({
+      today,
+      trailingMonthlyIncomeCents: [500_000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -38_500, cadence: 'MONTHLY', categoryId: 'auto-loan' }],
+      trailingMonthlyFixedCents: [200_000, 200_000, 200_000],
+      categoryFixedCents: 0,
+      // Groceries fed the median months — covered so a grocery series would not
+      // double-count; auto-loan is absent (never in median spend).
+      categoryFixedCoveredIds: new Set(['groceries']),
+      categoryIsFixed: (id) => (id === 'groceries' || id === 'auto-loan' ? true : null),
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(p.fixedBasis).toBe('non-discretionary-median');
+    // FAIL-OLD: Math.max(200_000, 38_500) === 200_000
+    expect(p.fixedExpensesCents).toBe(238_500);
+    expect(p.leftToSpendCents).toBe(261_500);
+  });
+
+  it('test_regression__isTransfer_auto_loan_absent_from_category_rollup', () => {
+    // Soft-lock close (#382 critic P1-2): end-to-end through the rollup helper.
+    const rows = [
+      txn({
+        date: '2026-05-05',
+        amountCents: -80_000,
+        categoryId: 'groceries',
+        rawDescriptor: 'KROGER',
+      }),
+      txn({
+        date: '2026-06-05',
+        amountCents: -80_000,
+        categoryId: 'groceries',
+        rawDescriptor: 'KROGER',
+      }),
+      txn({
+        date: '2026-07-05',
+        amountCents: -80_000,
+        categoryId: 'groceries',
+        rawDescriptor: 'KROGER',
+      }),
+      txn({
+        date: '2026-05-10',
+        amountCents: -38_500,
+        categoryId: 'auto-loan',
+        isTransfer: true,
+        rawDescriptor: 'CARMAX AUTO',
+      }),
+      txn({
+        date: '2026-06-10',
+        amountCents: -38_500,
+        categoryId: 'auto-loan',
+        isTransfer: true,
+        rawDescriptor: 'CARMAX AUTO',
+      }),
+      txn({
+        date: '2026-07-10',
+        amountCents: -38_500,
+        categoryId: 'auto-loan',
+        isTransfer: true,
+        rawDescriptor: 'CARMAX AUTO',
+      }),
+    ];
+    const r = resolveFixedCategoryAmounts({
+      transactions: rows,
+      today,
+      meta: CATEGORY_BY_ID,
+      overrides: new Map(),
+      budgetByCategory: new Map(),
+      nameOf: (id) => CATEGORY_BY_ID.get(id)?.name ?? id,
+    });
+    expect(r.rows.map((x) => x.categoryId)).toEqual(['groceries']);
+    expect(r.totalCents).toBe(80_000);
+    const covered = new Set(r.rows.filter((x) => x.amountCents > 0).map((x) => x.categoryId));
+    expect(covered.has('auto-loan')).toBe(false);
+
+    const p = computeSpendingPlan({
+      today,
+      trailingMonthlyIncomeCents: [500_000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -38_500, cadence: 'MONTHLY', categoryId: 'auto-loan' }],
+      trailingMonthlyFixedCents: [80_000],
+      categoryFixedCents: r.totalCents,
+      categoryFixedCoveredIds: covered,
+      categoryIsFixed: (id) => resolveCategoryIsFixed(id, CATEGORY_BY_ID, new Map()),
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(p.fixedExpensesCents).toBe(118_500);
+  });
+
   it('test_regression__fixed_category_recurring_is_not_double_counted', () => {
     // Rent series filed under housing is already inside the rollup — do not add again.
     const p = computeSpendingPlan({
@@ -241,6 +347,33 @@ describe('resolveFixedCategoryAmounts', () => {
     });
     expect(p.fixedBasis).toBe('detected-series');
     expect(p.fixedExpensesCents).toBe(100_000); // payment not Fixed
+  });
+
+  it('test_regression__detected_series_fallback_counts_discretionary_recurring', () => {
+    // #384 follow-up. LAST-RESORT basis: no category rollup, no non-discretionary
+    // spend history — a gym bill autopaid from savings is all we know about.
+    // `fitness` is discretionary, so routing this branch through the
+    // designation-aware union zeroed it and the bill was projected NOWHERE
+    // (the L.25/L.26 owner symptom). Under-counting Fixed overstates guilt-free,
+    // so every detected recurring outflow counts on this branch.
+    const p = computeSpendingPlan({
+      today,
+      trailingMonthlyIncomeCents: [500_000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -4_500, cadence: 'MONTHLY', categoryId: 'fitness' }],
+      trailingMonthlyFixedCents: [],
+      categoryFixedCents: 0,
+      categoryIsFixed: (id) => resolveCategoryIsFixed(id, CATEGORY_BY_ID, new Map()),
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(p.fixedBasis).toBe('detected-series');
+    expect(p.fixedExpensesCents).toBe(4_500); // FAIL-OLD (#384): 0
   });
 
   it('test_regression__credit_card_purchases_count_in_fixed_card_payment_does_not', () => {

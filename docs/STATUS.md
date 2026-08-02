@@ -2,6 +2,22 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ⚠️ OPEN 2026-08-01 — `scripts/ledger.ts reindex` destroys the decisions index
+
+**Do not run `tsx scripts/ledger.ts reindex` until this is fixed.** The script
+parses only the legacy pipe-table rows in `docs/DECISIONS.md` (#1–#337, 329 rows)
+and does not recognise the `## #N — title` heading sections that every decision
+since #338 uses (46 of them). Running it regenerates the index with 329 entries
+and silently drops all 46 — measured, not theorised. The generated header
+("Do not hand-edit; run `tsx scripts/ledger.ts reindex` to regenerate") therefore
+instructs the reader to destroy data, and a Cursor agent following it in good
+faith deleted #374–#382 during #384.
+
+Interim state: index restored + #383/#384/#385 hand-added. **34 decisions
+(#338–#373) are still absent from the index.** Fix is to teach the parser the
+heading format, then regenerate once and confirm every `## #N` in DECISIONS.md
+has exactly one index row.
+
 ## ✅ BUILT 2026-08-01 — Home polish + guilt-free without card pay (DECISIONS #369)
 
 Owner: cluttered Home; Plan math treated card pay as fixed; transactions buried.

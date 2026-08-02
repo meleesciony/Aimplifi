@@ -1,5 +1,33 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — #384 median Fixed fallback union (critic on #382) DONE
+
+P0: Math.max(median, recurring) dropped complementary Fixed. Fix: same union
+as rollup path + median-month covered ids (`fixedSpendCategoryIdsInMonths`).
+
+Work was stashed in Cursor (`stash@{0}` / `cursor/cloud-agent-1785640921945-a5pb8`)
+and never reached main; cherry-picked onto `3dc0f82`. Source files landed
+byte-identical to the Cursor changeset.
+
+**Gate caught a P0 the draft carried.** #384 as written also routed the
+`detected-series` last-resort branch through the designation-aware sum; `fitness`
+is discretionary, so a $45 gym bill autopaid from savings went $4500 → $0 and
+L.25/L.26 failed (2 tests). That branch is reverted to `recurringFixedCents` —
+it is not a designation judgement. New lock
+`test_regression__detected_series_fallback_counts_discretionary_recurring`
+verified fails-old (0) / passes-new (4500).
+
+**Also repaired:** the changeset deleted #374–#382 from `docs/DECISIONS_INDEX.md`.
+Root cause is `scripts/ledger.ts reindex` itself — it parses only the pipe-table
+rows (#1–#337) and is blind to the 46 heading-style sections (#338–#385), so the
+regenerate command the file's own header prescribes DESTROYS 46 entries. Index
+restored from main and #383/#384/#385 added by hand (net +3, zero deletions).
+**Open:** 34 decisions (#338–#373) remain unindexed and the script is still
+unsafe to run — see docs/STATUS.md.
+
+Gate: tsc 0, eslint 0, **5610 unit / 343 files**, next build clean. Empty
+`prisma/` diff (live Neon untouched).
+
 ## 2026-08-01 — Income half/one-paycheck regression (#385) DONE
 
 Owner: Plan income ~$10k / one paycheck; pay is steady higher. Cause: #370

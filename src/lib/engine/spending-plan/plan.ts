@@ -140,11 +140,12 @@ export interface SpendingPlanInput {
    */
   categoryFixedCoveredIds?: ReadonlySet<string>;
   /**
-   * Resolves whether a recurring series' category is Fixed. Required for the
-   * category-designations union when `categoryFixedCents > 0`; ignored otherwise.
-   * Pass `resolveCategoryIsFixed` bound to the reader's meta/overrides.
-   * When omitted under category-designations, outside recurring is 0 (safe:
-   * never double-count; never invent uncovered bills without a resolver).
+   * Resolves whether a recurring series' category is Fixed. Used for the
+   * category-designations union AND the trailing-median union (#384) — both
+   * add recurring not already in `categoryFixedCoveredIds`. Pass
+   * `resolveCategoryIsFixed` bound to the reader's meta/overrides.
+   * When omitted, outside recurring is 0 (safe: never double-count; never
+   * invent uncovered bills without a resolver).
    */
   categoryIsFixed?: (categoryId: string) => boolean | null;
   /**
@@ -578,11 +579,13 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
     incomeMonths = 0;
   }
 
-  // Fixed suggestion (#371 / #377 / #380 / #381): prefer per-category
+  // Fixed suggestion (#371 / #377 / #380 / #381 / #384): prefer per-category
   // budget|typical rollup whenever it has positive mass (always-on — B.1),
   // UNION'd with recurring not already in that rollup (not scalar max).
-  // Otherwise the non-discretionary monthly median, floored by recurring
-  // (settlement categories excluded from the recurring term).
+  // Otherwise the non-discretionary monthly median, UNION'd the same way
+  // (#384 — Math.max dropped complementary Fixed, e.g. transfer auto-loan).
+  // Covered ids: rollup contributors when rollup > 0; Fixed categories that
+  // fed the trailing median months when on the median path (server).
   const trailingFixed = (input.trailingMonthlyFixedCents ?? []).slice(-3);
   const recurringFixedCents = recurringPlanExpenseCents(input.scheduledFixed);
   const categoryFixedCents =
@@ -592,29 +595,39 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
       ? input.categoryFixedCents
       : 0;
   const useCategoryFixed = categoryFixedCents > 0;
+  const outsideRecurring =
+    typeof input.categoryIsFixed === 'function'
+      ? recurringOutsideFixedCategoryCents(
+          input.scheduledFixed,
+          input.categoryIsFixed,
+          input.categoryFixedCoveredIds ?? new Set(),
+        )
+      : 0;
 
   let suggestedFixedCents: number;
   let suggestedFixedBasis: Exclude<FixedBasis, 'user-set'>;
   let fixedMonths: number;
   if (useCategoryFixed) {
     // No resolver ⇒ outside 0 (never double-count Fixed series as "unknown").
-    const outside =
-      typeof input.categoryIsFixed === 'function'
-        ? recurringOutsideFixedCategoryCents(
-            input.scheduledFixed,
-            input.categoryIsFixed,
-            input.categoryFixedCoveredIds ?? new Set(),
-          )
-        : 0;
-    suggestedFixedCents = categoryFixedCents + outside;
+    suggestedFixedCents = categoryFixedCents + outsideRecurring;
     suggestedFixedBasis = 'category-designations';
     fixedMonths = 0;
   } else if (trailingFixed.length > 0) {
     const patternFixed = Math.round(median(trailingFixed));
-    suggestedFixedCents = Math.max(patternFixed, recurringFixedCents);
+    suggestedFixedCents = patternFixed + outsideRecurring;
     suggestedFixedBasis = 'non-discretionary-median';
     fixedMonths = trailingFixed.length;
   } else if (recurringFixedCents > 0) {
+    // LAST-RESORT basis: no category rollup AND no non-discretionary spend
+    // history. Every detected recurring outflow counts here, INCLUDING ones
+    // whose category is discretionary — this branch is not a designation
+    // judgement, it is "committed money leaves on a rhythm and nothing else
+    // is known." #384 briefly routed this through the designation-aware sum;
+    // that silently zeroed a `fitness` gym bill autopaid from savings, which
+    // is exactly the L.25/L.26 owner-reported symptom (a real bill projected
+    // nowhere). Under-counting Fixed OVERSTATES guilt-free — the dangerous
+    // direction — so the settlement-filtered total stays.
+    // Locked by tests/unit/cash-account-recurring-scope.test.ts (L.25/L.26).
     suggestedFixedCents = recurringFixedCents;
     suggestedFixedBasis = 'detected-series';
     fixedMonths = 0;
