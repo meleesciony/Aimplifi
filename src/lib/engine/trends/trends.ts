@@ -297,7 +297,17 @@ function computePace(
   const spentSoFarCents = spendingByCategory(soFar, { fromYm: ym, toYm: ym }, meta).totalCents;
   const prior = addMonthsToMonthKey(ym, -(1));
   const priorMonthCents = spendingByCategory(txns, { fromYm: prior, toYm: prior }, meta).totalCents;
-  if (spentSoFarCents === 0 && priorMonthCents === 0) return null; // nothing to say yet
+  // C.1 (CALC_AUDIT 2026-08-02, P0-7): abstain on ZERO observations, whatever
+  // last month did. The old guard was an AND, so a reader whose feed had not
+  // yet delivered an August row was shown "$0.00 projected by month end" and a
+  // green "on pace for $28,685.10 less than last month" — a claim about a month
+  // nothing has been counted in. `spentSoFar / daysElapsed` is not a rate when
+  // the numerator is zero; it is the absence of a measurement, and a true zero
+  // (spent nothing) is indistinguishable here from a broken one (nothing synced,
+  // or a charge and its refund netting out). The surfaces say so in words —
+  // `PACE_NO_SPEND_YET` is written against exactly this, the only condition on
+  // which this function returns null.
+  if (spentSoFarCents === 0) return null;
 
   const [y, m] = [Number(ym.slice(0, 4)), Number(ym.slice(5, 7))];
   const dim = daysInMonth(y, m);

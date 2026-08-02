@@ -50,6 +50,22 @@ export const PACE_ASSUMPTION =
   'Assumes spending continues at the current daily rate — a projection, not a prediction.';
 
 /**
+ * Shown in place of the pace figure when `computePace` abstains (C.1). That
+ * happens on exactly one condition — nothing counted in the in-progress month —
+ * so this sentence states the condition rather than guessing at a cause.
+ *
+ * "Counted", not "spent": a zero here can equally be a feed that has not
+ * delivered yet or a charge netted out by its own refund, and the app can only
+ * prove what it counted (`a-zero-is-a-claim-and-must-name-which-zero`). It
+ * replaces the dashboard's older "Not enough activity yet to spot trends",
+ * which this fix would have made false on the first days of most months — the
+ * biggest-change row beneath it is drawn from completed months and goes on
+ * rendering.
+ */
+export const PACE_NO_SPEND_YET =
+  'No spending counted yet this month — there is no daily rate to project from.';
+
+/**
  * Window the top mover describes. Null when movers have no compared month
  * (not enough history) — the caller must not invent an "this month" label.
  */

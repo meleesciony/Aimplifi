@@ -3,6 +3,7 @@ import { cents, formatCents } from '@/lib/money';
 import {
   moverWindowLabel,
   PACE_ASSUMPTION,
+  PACE_NO_SPEND_YET,
   paceDaysPhrase,
   paceDeltaRelation,
 } from '@/lib/engine/trends/labels';
@@ -69,7 +70,9 @@ export function SpendingInsightsCard({ trends }: { trends: SpendingTrends }) {
           </p>
         </div>
       ) : (
-        <p className="mt-3 text-xs text-muted-foreground">Not enough activity yet to spot trends.</p>
+        <p className="mt-3 text-xs text-muted-foreground" data-testid="dashboard-trends-pace-empty">
+          {PACE_NO_SPEND_YET}
+        </p>
       )}
 
       {top && (

@@ -17,7 +17,7 @@ import {
   categoryMonthRegisterHref,
   merchantRegisterHref,
 } from '@/lib/engine/transactions/links';
-import { baselineLabel, PACE_ASSUMPTION, shortMonth } from '@/lib/engine/trends/labels';
+import { baselineLabel, PACE_ASSUMPTION, PACE_NO_SPEND_YET, shortMonth } from '@/lib/engine/trends/labels';
 import type { CategoryMover } from '@/lib/engine/trends/trends';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
 import type { CategoryBreakdown } from '@/lib/engine/glass-box/category-breakdown';
@@ -197,7 +197,7 @@ export function TrendsView({
       </div>
 
       {/* Pace — the in-progress month projected forward */}
-      {pace && (
+      {pace ? (
         <section
           className="rounded-2xl border bg-card p-5 shadow-sm"
           data-testid="trends-pace"
@@ -225,6 +225,21 @@ export function TrendsView({
                 otherwise has no way to know which rows each one summed. */}{' '}
             <span data-testid="trends-pace-basis">Includes pending charges.</span>
           </p>
+        </section>
+      ) : (
+        // C.1: the engine abstains when nothing has been counted this month.
+        // Dropping the card silently left the page with no answer at all on the
+        // first days of a month; it keeps its heading and says why, in the same
+        // words the dashboard card uses (the labels module's shared-wording rule).
+        <section
+          className="rounded-2xl border bg-card p-5 shadow-sm"
+          data-testid="trends-pace-empty"
+          aria-label="Spending pace this month"
+        >
+          <h2 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <Gauge className="size-3.5" aria-hidden /> Pace · {shortMonth(trends.asOfYm)}
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">{PACE_NO_SPEND_YET}</p>
         </section>
       )}
 

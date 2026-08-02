@@ -115,6 +115,55 @@ describe('computeSpendingTrends — pace (in-progress month projection)', () => 
   });
 });
 
+/**
+ * C.1 (CALC_AUDIT 2026-08-02, P0-7) — zero observations is not a rate.
+ *
+ * The old guard abstained only when BOTH this month and last month were zero,
+ * so a reader opening the app before any row had landed was shown "$0.00
+ * projected by month end" and, in green, "on pace for $20,000.00 less than last
+ * month". Every pre-C.1 pace test ran at `daysElapsed: 10`, which is why the
+ * first days of a month — the whole reachable window for this defect — were
+ * never exercised. These run at days 1, 2 and 3, and the last two cases hold the
+ * fix to abstaining for the RIGHT reason: it may not refuse a real day-1 charge,
+ * and it must refuse a month whose only rows cancel out.
+ */
+describe('computeSpendingTrends — pace abstains on a month with nothing counted (C.1)', () => {
+  const priorMonthOnly: TrendTxn[] = [T('2026-05-15', -20000, 'dining')];
+
+  for (const day of ['2026-06-01', '2026-06-02', '2026-06-03']) {
+    it(`returns null on ${day} when nothing has been counted this month, however large last month was`, () => {
+      const r = computeSpendingTrends({ txns: priorMonthOnly, today: day });
+      expect(r.pace).toBeNull();
+      // The prior month is still real — this is an abstention about JUNE, not a
+      // claim that the reader has no history. /trends and the dashboard card go
+      // on rendering completed-month movers beside it.
+      expect(r.comparedYm).toBe('2026-05');
+    });
+  }
+
+  it('still projects from a single day-1 charge — the abstention is zero, not "too early"', () => {
+    const r = computeSpendingTrends({
+      txns: [...priorMonthOnly, T('2026-06-01', -57879, 'dining')],
+      today: '2026-06-01',
+    });
+    expect(r.pace).toMatchObject({
+      daysElapsed: 1,
+      daysInMonth: 30,
+      spentSoFarCents: 57879,
+      projectedCents: 1736370, // 57,879 × 30 — the owner-reported extrapolation shape
+      priorMonthCents: 20000,
+    });
+  });
+
+  it('abstains when the month HAS rows that net to zero — a computed zero, not an empty set', () => {
+    const r = computeSpendingTrends({
+      txns: [...priorMonthOnly, T('2026-06-02', -4000, 'dining'), T('2026-06-03', 4000, 'dining')],
+      today: '2026-06-03',
+    });
+    expect(r.pace).toBeNull();
+  });
+});
+
 describe('computeSpendingTrends — largest purchases this month', () => {
   const txns: TrendTxn[] = [
     T('2026-06-02', -3000, 'groceries', { merchant: 'WHOLE FOODS' }),
