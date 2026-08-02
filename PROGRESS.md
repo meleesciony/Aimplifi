@@ -9140,3 +9140,48 @@ that has ALREADY posted this month**: any projection of the form
 `spentSoFar + remaining scheduled` must exclude occurrences dated on or before `today`, and must
 not re-add a bill whose transaction is already inside `spentSoFarCents`. Decide that dedupe rule
 explicitly and lock it, or the fix trades an understatement for an overstatement.
+
+## #388 — C.1: the pace card abstains on a month with nothing counted (2026-08-02)
+
+**Shipped and deploy-verified.** `computePace` returned a projection whenever LAST
+month had spending, so a reader whose feed had not yet delivered a row for the
+in-progress month saw "$0.00 projected by month end" beside a green "on pace for
+$28,685.10 less than last month". The guard is now the single condition
+`spentSoFarCents === 0`, and the abstention speaks instead of the card vanishing:
+`PACE_NO_SPEND_YET` is authored once in `engine/trends/labels.ts` and rendered by
+both the dashboard card and /trends.
+
+The copy change is not cosmetic. The dashboard's old fallback — "Not enough
+activity yet to spot trends" — was only ever reachable when the reader had no
+history at all; C.1 makes it common on the first days of a month, where the
+biggest-change row directly beneath it is naming a completed-month fact. The
+sentence had to move with the branch (`a-fix-that-cannot-fail-a-test-is-a-hypothesis`:
+making an old path newly reachable means owning its latent defects).
+
+### Gate
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc clean, eslint clean, **5643 unit
+tests / 345 files**, `next build` clean. `trends.spec.ts` 3/3 (the positive path is
+untouched on demo data) and the new `trends-pace-abstain.spec.ts` 1/1.
+
+### Mutation proof (both layers)
+Reverting the guard to `spentSoFarCents === 0 && priorMonthCents === 0`:
+- 4 unit locks fail — days 1/2/3 and the netted-to-zero month.
+- The e2e fails **through a fresh `next build`** (`e2e-runs-a-stale-build`), and it
+  fails at the right assertion: the fixture's hard case (the mover row proving the
+  reader HAS history) passes first, then the abstention is absent.
+The false-abstention control (a single day-1 charge still projects, $578.79 × 30)
+passes on both old and new code, which is what makes it a control.
+
+### Deploy
+`8c52d04` → `aimplifi-dcaszq901` **● Ready** Production, confirmed by
+`vercel ls aimplifi --meta githubCommitSha=8c52d04663…`. Empty prisma diff — the
+live database is untouched. **No live-HTML marker exists for this change and none
+was faked:** both surfaces are server components, so the new sentence ships in no
+client chunk, and its branch cannot render on the public demo (847 seeded
+transactions in the current month). The commit sha on a READY production
+deployment is the verification here.
+
+### Owner-visible effect
+On his account this changes nothing *today* — his August has spending, so his card
+still reads the C.3 wording. It removes the false green from the shape he will hit
+on the 1st of September, and any morning a sync is behind.
