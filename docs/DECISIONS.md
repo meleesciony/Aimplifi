@@ -2835,3 +2835,56 @@ dashboard card. C.1's zero-spend abstention is Opus-owned and untouched.
 **Locks.** `tests/unit/trends-labels.test.ts` (day phrase, tie relation, mover
 window golden, assumption string); e2e `trends.spec.ts` asserts the three
 dashboard testids + muted class + mover window on the painted card.
+
+## #388 — The pace projection abstains on zero observations, and says so (C.1)
+
+`computePace` abstained only when the in-progress month AND the prior month were
+both zero, so last month's total — a fact about a different month — licensed a
+projection built by dividing zero by the days elapsed.
+
+**DECIDED:**
+1. The guard is `spentSoFarCents === 0` alone. That is now the ONLY condition on
+   which `computePace` returns null, which is what lets one sentence describe it.
+2. The abstention speaks rather than the card vanishing. `PACE_NO_SPEND_YET` is
+   authored once in `engine/trends/labels.ts` and rendered by both the dashboard
+   card and /trends; /trends keeps its Pace heading above it.
+3. "Counted", never "you spent nothing": a true zero, a feed that has not
+   delivered, and a charge netted out by its own refund are indistinguishable
+   here, and the app can only claim what it counted.
+4. The dashboard's "Not enough activity yet to spot trends" is DELETED, not kept
+   as a second branch. C.1 makes that sentence common on the first days of a
+   month, where the biggest-change row directly beneath it is naming a
+   completed-month fact — the two would contradict each other on one card.
+
+**Locks.** `trends.test.ts` days 1/2/3 + a false-abstention control + a
+netted-to-zero month; `trends-labels.test.ts` the sentence and a two-surface
+authorship scan; `trends-pace-abstain.spec.ts` both surfaces. Mutation-proven
+through a rebuild.
+
+## #389 — A savings-rate bar expands into its two inputs, because a ratio has no rows
+
+Owner asked to click the graph itself to see why a month saved more. /reports'
+income-vs-spending chart already did this (O.20); /coach's savings-rate chart was
+inert divs with a `title` tooltip, which is not an affordance on a phone.
+
+**DECIDED:**
+1. A bar opens TWO panels — that month's income rows and that month's spending
+   rows. A savings rate is a ratio and has no rows of its own; its two inputs do.
+   Any future chart expander asks the same question first: does this figure have
+   rows, or only its inputs?
+2. Reuse `buildMonthFlowBreakdowns` rather than a savings-specific builder. It is
+   handed the very array `monthlyFlows` summed, with `flows` — the array the
+   chart draws — as the headlines, so `reconciles` is checked against the painted
+   figure. `merchantName` moved onto that one array, not a second mapping.
+3. The bars become buttons with `aria-expanded` and an accessible name carrying
+   the month AND its true rate: the drawn height is clamped to ±100% and colour
+   is the only other cue. The hit target is the full 72px column, because a
+   −0.2% month draws 4px. The container's `role="img"` is gone — an image may not
+   contain interactive children.
+4. A month with no income says so ("counted no income, so it has no savings
+   rate") rather than presenting 0% as a rate.
+
+**Locks.** `savings-rate-breakdown.test.ts` (real `getCoachData` + Prisma: every
+drawn month keyed, every panel reconciles against `flows`; mutation-proven twice)
+and `savings-rate-drilldown.spec.ts` (the gesture, the toggle, the keyboard path,
+the labels).

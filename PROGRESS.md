@@ -9185,3 +9185,55 @@ deployment is the verification here.
 On his account this changes nothing *today* — his August has spending, so his card
 still reads the C.3 wording. It removes the false green from the shape he will hit
 on the 1st of September, and any morning a sync is behind.
+
+## #389 — /coach savings-rate bars expand into the rows behind them (2026-08-02)
+
+**Shipped and deploy-verified.** Owner: *"again, make all charts and summaries,
+expandable … if i want to know why and where cash come from that caused greater
+savings for a specific month, i should be able to click on the graph itself"*.
+
+**First, what was already true** (`a-repeated-request-is-about-the-gesture`
+says to establish this before building): /reports' income-vs-spending chart has
+had exactly this gesture since O.20 — tap a bar, the month's transactions open
+in place. So the request was not for a capability the app lacks; it was for a
+chart that lacked it. The savings-rate chart on /coach — the headline metric of
+the page — was twelve inert `<div>`s carrying a `title` tooltip, which is a
+hover affordance and therefore nothing at all on the phone he uses.
+
+**Design point worth carrying to C.18:** a savings rate is a RATIO and has no
+rows. Its two inputs do. So a bar opens two panels — the income counted that
+month and the spending counted that month — rather than one panel pretending to
+be "the rows behind the rate". Every remaining chart gets asked the same
+question first, and the retirement-outlook chart is the one where the answer is
+"this figure has no rows at all, so refuse".
+
+### Gate
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc clean, eslint clean, **5647 unit
+tests / 346 files**, `next build` clean. e2e: `savings-rate-drilldown` 2/2 (new),
+and `phase5-a11y` + `phase3-coach` + `mobile-overflow` **24/24** together — the
+a11y run matters because the bars stopped being decorative divs and the
+container's `role="img"` had to go (an image may not contain interactive
+children).
+
+### Mutation proof
+- Keying fewer months than the chart draws (`flows.slice(0,1)`) → all 4 unit
+  locks fail.
+- Drifting a headline by one cent → exactly the reconciliation lock fails, and
+  only that one.
+
+### Deploy
+`2383d84` → `aimplifi-dbjv1ckf4` **● Ready** Production, sha-matched via
+`vercel ls --meta githubCommitSha=…`. Empty prisma diff. As with #388 there is
+no fetchable live marker: /coach is behind auth, so the rendered bars cannot be
+curl'd from here; the evidence is the sha on a READY deployment plus the local
+e2e against a fresh build.
+
+### Not done, and queued as its own rows
+- **C.18** — the other five charts are still inert (net worth, forecast,
+  retirement outlook, life energy, cards breakdown), each with its own note on
+  what its figure is actually made of.
+- **C.19** — the owner's second message, per-transaction Fixed/Discretionary
+  with the category-wide setting demoted to an explicit rule. NOT started. It
+  reverses DECISIONS #378 and its real work is the money half: every Fixed
+  figure is derived at CATEGORY level today, so the sums must move to rows in
+  the same slice or /budgets and the plan will disagree.

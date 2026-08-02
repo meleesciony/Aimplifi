@@ -383,3 +383,5 @@ refuses to write if it would drop any number this file already carries.
 - **#385** (Phase ?): Second paycheck on generic Income is not dropped when one is filed as paycheck
 - **#386** (Phase ?): `reindex` reads both ledger formats, and refuses to write a deletion
 - **#387** (Phase ?): Dashboard Trends card names its divisor, assumption, and mover window (C.3)
+- **#388** (Phase ?): The pace projection abstains on zero observations, and says so (C.1)
+- **#389** (Phase ?): A savings-rate bar expands into its two inputs, because a ratio has no rows
