@@ -9571,3 +9571,9 @@ Production replay with the shipped code mirrored: union **$0.00** (was
 +$296.40), suggested Fixed **$9,785.24** (was $8,237.50; education now
 $593.00). The remaining gap to the owner's ~$12.4k truth is the mortgage
 (C.24).
+
+**Shipped:** `8ff5208` pushed; no `prisma/` diff (live database untouched).
+Vercel production deployment `aimplifi-lh27qquvc` — **● Ready**, sha-matched
+via `vercel ls --meta githubCommitSha=8ff5208…`, aliased to www.aimplifi.app.
+Fixed is computed at read time, so a page reload shows the new basis; no sync
+or cron involved.
