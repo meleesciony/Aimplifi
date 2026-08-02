@@ -1,10 +1,10 @@
 # PROGRESS.md — session resume log
 
-## 2026-08-01 — Wave B Fixed union covered-ids fix (#382) SHIPPING
+## 2026-08-01 — Wave B Fixed union covered-ids fix (#382) DONE
 
-Critic FAIL on #381: auto-loan isTransfer dropped when rollup active. Fix:
-`categoryFixedCoveredIds`; skip Fixed recurring only if covered.
-verify: tsc/eslint/vitest 5602/build + e2e 3/3.
+Critic FAIL on #381: auto-loan isTransfer dropped when rollup active.
+Shipped `6ece059`; Vercel READY `aimplifi-os9257med`; live copy names
+auto-loan ACH + "not already in that rollup".
 
 ## 2026-08-01 — Wave B Fixed = purchases ∪ uncovered recurring (#381) DONE
 
