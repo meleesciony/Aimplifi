@@ -4,7 +4,9 @@
 
 Kept 50–60% / 15–20% / 20–35%. `CONSCIOUS_BUCKET_COUNTS` + `consciousSpending`
 name must-pay Fixed (groceries/utilities / Spending designations). Closes W.5.
-Ship: verify → e2e spend-class → push → live `conscious-caption` greps groceries.
+verify GREEN 5594; e2e spend-class 1/1. Deploy READY `aimplifi-gfoe2pej6` on
+`164176f`; live `/budgets` caption names groceries + 50–60%. Wave B open:
+hostile critic on B.1; always-on category Fixed term (vs gated).
 
 ## 2026-08-01 — Register Fixed / Discretionary labels (#378) DONE (B.1)
 
