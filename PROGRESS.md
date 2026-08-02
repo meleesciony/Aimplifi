@@ -1,5 +1,11 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — Wave B Fixed = purchases ∪ uncovered recurring (#381) SHIPPING
+
+Owner: card bills ≠ expenses; Fixed = Fixed-category purchases (incl. CREDIT).
+Union (not max) + never union credit-card-payment; retire "card holds Fixed" copy.
+Verify: tsc/eslint/vitest 5599/next build green; e2e + push next.
+
 ## 2026-08-01 — Always-on Fixed category rollup (#380) DONE (B.1)
 
 Plan Fixed = max(category budget|typical, recurring floor) whenever rollup > 0;

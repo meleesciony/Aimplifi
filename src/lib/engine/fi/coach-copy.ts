@@ -774,7 +774,7 @@ export const COACH_COPY = {
   // Fixed numerator = must-pay Fixed categories (Wave B) — band copy must name that
   // (CONSCIOUS_BUCKET_COUNTS), not "recurring costs" alone. Card pay stays out.
   consciousSpending: (fixedPct: number, savePct: number, funPct: number) =>
-    `This month, about ${fixedPct}% is going to Fixed costs (${CONSCIOUS_BUCKET_COUNTS.fixed}), ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free to spend. A rough target is 50–60% / 15–20% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
+    `About ${fixedPct}% of your income pattern goes to Fixed costs (${CONSCIOUS_BUCKET_COUNTS.fixed}), ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free. A rough target is 50–60% / 15–20% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
 
   consciousOverspent: () =>
     `Fixed costs and savings have outpaced this month's income pattern, so guilt-free has gone negative — one month is weather, not climate. The trend is what matters.`,

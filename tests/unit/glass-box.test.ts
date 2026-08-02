@@ -536,42 +536,25 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
     expect(noCash.label).toBe('Fixed & recurring expenses (no checking or savings account linked)');
     expect(noCash.action).toEqual({ label: 'Link an account', href: '/accounts' });
 
-    // (c) and (d) are CORRECT zeros, so neither offers a control: a link beside a
-    // figure that is right reads as a correction (the L.29 rule).
-    //
-    // "All charged to a card" claims ANOTHER line holds the money, so it requires
-    // that line to be acting: a non-zero card term with no card excluded from it.
-    // Otherwise an undated or statement-pending card's bills sit in NO term and both
-    // lines read $0.00 -- the false all-clear this thread exists to remove (copy
-    // critic P1-2, executed).
-    const cardHolds = { cardObligationsCents: 45000 };
+    // (c) Card-charged series are absent from the cash projection, but the card
+    // bill is NOT Plan Fixed (owner 2026-08-01). Point at Spending — Fixed is
+    // purchase categories on the card, never "the card-payments line holds it".
     const censusOnCard = { detected: 2, counted: 0, onCard: 2, lapsed: 0, uncounted: 0, noCashAccount: 0 };
     const onCard = rowById(
       'fixed',
-      planWith(cardHolds),
+      planWith({ cardObligationsCents: 45000 }),
       disclosures({ creditCardCount: 1, fixedSeries: censusOnCard }),
     );
-    expect(onCard.label).toBe('Fixed & recurring expenses (all charged to a card)');
-    expect(onCard.action).toBeUndefined();
-    // FAIL-OLD, every exclusion mechanism: the bills are on cards and nothing holds
-    // them, so the reassuring sentence may not be printed.
-    const excludedShapes: Partial<SpendingPlanDisclosures>[] = [
-      { undatedCards: [{ cardName: 'Sapphire', frozenSince: null }] },
-      { statementPendingCards: [{ cardName: 'Bonvoy', dueDate: '2026-07-28' }] },
-      { creditCardsOutsideFigure: 1 },
-    ];
-    for (const excluded of excludedShapes) {
-      const notHeld = rowById(
-        'fixed',
-        planWith(cardHolds),
-        disclosures({ creditCardCount: 2, ...excluded, fixedSeries: censusOnCard }),
-      );
-      expect(notHeld.label).toBe('Fixed & recurring expenses (none counted)');
-    }
-    // ...and with no card term at all, the same rule.
+    expect(onCard.label).toBe(
+      'Fixed & recurring expenses (card charges — mark Fixed categories on Spending)',
+    );
+    expect(onCard.action).toEqual({ label: 'Review Fixed on Spending', href: '/budgets' });
+    expect(onCard.label).not.toMatch(/all charged to a card/i);
+    // Same honest label whether or not a card obligation term is acting — the
+    // statement payment never substitutes for Fixed purchases.
     expect(
       rowById('fixed', planWith(), disclosures({ creditCardCount: 1, fixedSeries: censusOnCard })).label,
-    ).toBe('Fixed & recurring expenses (none counted)');
+    ).toBe('Fixed & recurring expenses (card charges — mark Fixed categories on Spending)');
 
     const lapsed = census({ detected: 2, lapsed: 2 });
     expect(lapsed.label).toBe('Fixed & recurring expenses (none still charging)');

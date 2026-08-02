@@ -624,8 +624,9 @@ export interface ProjectionScope {
 export type SeriesProjectionStatus =
   /** Projected: this series became a ScheduledTransaction row. */
   | 'counted'
-  /** Not projected: the charge lands on a CREDIT account, so the card-payment
-   *  term already holds it. A CORRECT absence. */
+  /** Not projected as a cash ScheduledTransaction: the charge lands on a CREDIT
+   *  account. Correct for cash-needed (the payment settles later). Plan Fixed
+   *  still counts those purchases via Fixed categories — the card bill does not. */
   | 'on-card'
   /** Not projected: a long-rhythm series that has stopped charging
    *  (`isSeriesActive`). A CORRECT absence. */
@@ -656,10 +657,10 @@ export function classifySeriesProjection(
   series: RecurringSeriesResult,
   scope: ProjectionScope & {
     /**
-     * The user's CREDIT accounts. Needed only to NAME an absence: a bill charged
-     * to a card is correctly absent from the fixed term, a bill charged to an
-     * account the projection cannot read is not, and those two facts must not
-     * share a label.
+     * The user's CREDIT accounts. Needed only to NAME an absence from the cash
+     * projection: a bill charged to a card is correctly absent from ScheduledTransaction
+     * rows; a bill charged to an account the projection cannot read is not. Plan
+     * Fixed still counts card purchases via Fixed categories separately.
      */
     creditAccountIds: ReadonlySet<string>;
   },
@@ -677,9 +678,9 @@ export function classifySeriesProjection(
   //
   // THEN THE CARD, ahead of the cash gap (critic P2-1, executed): a reader who has
   // linked only credit cards, with every bill charged to them, was told "no checking
-  // or savings account linked" — literally true, not the operative mechanism, and
-  // printed beside a control that provably cannot move the figure, because the
-  // card-payment term is what holds those bills.
+  // or savings account linked" — literally true, not the operative mechanism for
+  // cash projection. Plan Fixed does not use this status as "held by the card bill"
+  // (owner 2026-08-01): purchases on the card enter Fixed via category rollup.
   if (LONG_CADENCES.has(series.cadence)) {
     if (series.isIncome) return 'long-cadence-income';
     if (!isSeriesActive(series, today)) return 'lapsed';

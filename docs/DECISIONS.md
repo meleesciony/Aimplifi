@@ -2645,5 +2645,34 @@ from designations by default.
 recurring wins the max, "Fixed categories" alone would lie).
 
 **Locks.** `test_regression__category_rollup_drives_plan_whenever_positive` +
-`test_regression__category_rollup_floors_at_recurring_series` +
 e2e spend-class `budgeting-fixed-basis` contains "Fixed categories".
+(Scalar max floor superseded by #381 union.)
+
+## #381 — Fixed = Fixed-category purchases ∪ uncovered cash recurring
+
+Hostile critic on #376–#380: `max(categoryRollup, recurring)` dropped complementary
+members (groceries when mortgage ACH won; mortgage when rollup won). Owner
+correction (2026-08-01): credit-card bills are NOT expenses — Fixed comes from
+purchase transactions (including on CREDIT). The old `on-card` story assumed the
+card-payment Plan term "held" those charges; after card pay left guilt-free math,
+that exclusion dropped card spend without a substitute.
+
+**DECIDED:**
+1. When `categoryFixedCents > 0`, Fixed =
+   `categoryRollup + recurringOutsideFixedCategoryCents` (union, not max).
+2. Rollup includes CREDIT-account purchases in Fixed categories (budget|typical).
+3. Outside = expense series out of the Fixed dial (e.g. transfer mortgage) — not
+   Fixed-category series, not discretionary, and never `credit-card-payment` /
+   cash / investment (settlement / savings).
+4. `on-card` still means "absent from cash ScheduledTransaction projection"; it
+   does not mean Plan Fixed is held by the card bill. $0 Fixed copy points at
+   Spending, never "all charged to a card".
+5. Conscious caption says "income pattern". Demo fence for `setCategoryFixed`
+   unit-locked.
+
+**Locks.** `test_regression__category_rollup_unions_out_of_scope_recurring` +
+`test_regression__fixed_category_recurring_is_not_double_counted` +
+`test_regression__discretionary_recurring_stays_out_of_fixed_union` +
+`test_regression__credit_card_purchases_count_in_fixed_card_payment_does_not` +
+`test_regression__set_category_fixed_refuses_shared_demo` +
+e2e Plan/budgets union copy + hardened txn-spend-class.

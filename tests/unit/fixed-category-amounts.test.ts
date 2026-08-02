@@ -104,14 +104,19 @@ describe('resolveFixedCategoryAmounts', () => {
     expect(noRollup.fixedExpensesCents).toBe(100_000);
   });
 
-  it('test_regression__category_rollup_floors_at_recurring_series', () => {
+  it('test_regression__category_rollup_unions_out_of_scope_recurring', () => {
+    // Critic P0: groceries in rollup + mortgage ACH (transfer) must BOTH survive.
     const p = computeSpendingPlan({
       today,
       trailingMonthlyIncomeCents: [500_000],
       scheduledIncome: [],
-      scheduledFixed: [{ amountCents: -250_000, cadence: 'MONTHLY' }],
+      scheduledFixed: [
+        { amountCents: -80_000, cadence: 'MONTHLY', categoryId: 'groceries' },
+        { amountCents: -250_000, cadence: 'MONTHLY', categoryId: 'transfer' },
+      ],
       trailingMonthlyFixedCents: [80_000],
-      categoryFixedCents: 100_000,
+      categoryFixedCents: 80_000,
+      categoryIsFixed: (id) => (id === 'groceries' ? true : id === 'transfer' ? null : false),
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -121,7 +126,176 @@ describe('resolveFixedCategoryAmounts', () => {
       savingsTargetBps: null,
     });
     expect(p.fixedBasis).toBe('category-designations');
-    expect(p.fixedExpensesCents).toBe(250_000); // max(100k rollup, 250k recurring)
+    expect(p.fixedExpensesCents).toBe(330_000); // 80k rollup + 250k transfer (not max)
+    expect(p.leftToSpendCents).toBe(170_000);
+  });
+
+  it('test_regression__fixed_category_recurring_is_not_double_counted', () => {
+    // Rent series filed under housing is already inside the rollup — do not add again.
+    const p = computeSpendingPlan({
+      today,
+      trailingMonthlyIncomeCents: [500_000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -200_000, cadence: 'MONTHLY', categoryId: 'rent' }],
+      trailingMonthlyFixedCents: [200_000],
+      categoryFixedCents: 350_000, // rent + groceries typical
+      categoryIsFixed: (id) => (id === 'rent' || id === 'groceries' ? true : null),
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(p.fixedExpensesCents).toBe(350_000); // not 550k
+  });
+
+  it('test_regression__discretionary_recurring_stays_out_of_fixed_union', () => {
+    const p = computeSpendingPlan({
+      today,
+      trailingMonthlyIncomeCents: [500_000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -5_000, cadence: 'MONTHLY', categoryId: 'subscriptions' }],
+      trailingMonthlyFixedCents: [100_000],
+      categoryFixedCents: 100_000,
+      categoryIsFixed: (id) => (id === 'subscriptions' ? false : true),
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(p.fixedExpensesCents).toBe(100_000); // Netflix not added
+  });
+
+  it('test_regression__credit_card_purchases_count_in_fixed_card_payment_does_not', () => {
+    // Owner: May Visa Whole Foods $120 + Shell $40 Fixed; Netflix $15 discretionary;
+    // June checking pays Visa $175 = settlement, not an expense. Fixed ≈ $160.
+    const visa = 'visa';
+    const checking = 'chk';
+    const months = [
+      txn({
+        accountId: visa,
+        date: '2026-05-05',
+        amountCents: -12_000,
+        categoryId: 'groceries',
+        rawDescriptor: 'WHOLE FOODS',
+      }),
+      txn({
+        accountId: visa,
+        date: '2026-05-06',
+        amountCents: -4_000,
+        categoryId: 'fuel',
+        rawDescriptor: 'SHELL',
+      }),
+      txn({
+        accountId: visa,
+        date: '2026-05-07',
+        amountCents: -1_500,
+        categoryId: 'subscriptions',
+        rawDescriptor: 'NETFLIX',
+      }),
+      txn({
+        accountId: visa,
+        date: '2026-06-05',
+        amountCents: -12_000,
+        categoryId: 'groceries',
+        rawDescriptor: 'WHOLE FOODS',
+      }),
+      txn({
+        accountId: visa,
+        date: '2026-06-06',
+        amountCents: -4_000,
+        categoryId: 'fuel',
+        rawDescriptor: 'SHELL',
+      }),
+      txn({
+        accountId: visa,
+        date: '2026-06-07',
+        amountCents: -1_500,
+        categoryId: 'subscriptions',
+        rawDescriptor: 'NETFLIX',
+      }),
+      txn({
+        accountId: visa,
+        date: '2026-07-05',
+        amountCents: -12_000,
+        categoryId: 'groceries',
+        rawDescriptor: 'WHOLE FOODS',
+      }),
+      txn({
+        accountId: visa,
+        date: '2026-07-06',
+        amountCents: -4_000,
+        categoryId: 'fuel',
+        rawDescriptor: 'SHELL',
+      }),
+      txn({
+        accountId: visa,
+        date: '2026-07-07',
+        amountCents: -1_500,
+        categoryId: 'subscriptions',
+        rawDescriptor: 'NETFLIX',
+      }),
+      // Card payment from checking — transfer settlement, never Fixed.
+      txn({
+        accountId: checking,
+        date: '2026-06-15',
+        amountCents: -17_500,
+        categoryId: 'credit-card-payment',
+        isTransfer: true,
+        rawDescriptor: 'PAYMENT THANK YOU VISA',
+      }),
+      txn({
+        accountId: checking,
+        date: '2026-07-15',
+        amountCents: -17_500,
+        categoryId: 'credit-card-payment',
+        isTransfer: true,
+        rawDescriptor: 'PAYMENT THANK YOU VISA',
+      }),
+    ];
+    const r = resolveFixedCategoryAmounts({
+      transactions: months,
+      today,
+      meta: CATEGORY_BY_ID,
+      overrides: new Map(),
+      budgetByCategory: new Map(),
+      nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
+    });
+    expect(r.totalCents).toBe(16_000); // groceries 120 + fuel 40; Netflix out
+    expect(r.rows.map((x) => x.categoryId).sort()).toEqual(['fuel', 'groceries']);
+    expect(r.rows.find((x) => x.categoryId === 'subscriptions')).toBeUndefined();
+
+    // Card-payment series must not union into Fixed even if somehow scheduled.
+    const p = computeSpendingPlan({
+      today,
+      trailingMonthlyIncomeCents: [500_000],
+      scheduledIncome: [],
+      scheduledFixed: [
+        { amountCents: -17_500, cadence: 'MONTHLY', categoryId: 'credit-card-payment' },
+      ],
+      trailingMonthlyFixedCents: [],
+      categoryFixedCents: r.totalCents,
+      categoryIsFixed: (id) => {
+        if (id === 'groceries' || id === 'fuel') return true;
+        if (id === 'subscriptions') return false;
+        return null;
+      },
+      cardObligationsCents: 17_500,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(p.fixedBasis).toBe('category-designations');
+    expect(p.fixedExpensesCents).toBe(16_000); // not 16k + 175 payment
+    expect(p.leftToSpendCents).toBe(484_000);
   });
 });
 

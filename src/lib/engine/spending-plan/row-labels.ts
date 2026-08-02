@@ -108,16 +108,17 @@ function incomeLabel(plan: SpendingPlan): string {
  * the reason for every repeating expense the detector found, recorded by the
  * same pass that admits the rows, and each of these zeros is a different fact:
  *
- *  - every one of them charges to a CREDIT card AND that card's payment is really
- *    in the card-payments term, so this $0.00 is exactly right;
+ *  - every one of them charges to a CREDIT card — Plan Fixed still comes from
+ *    Fixed-category *purchases* on that card (budget|typical), never from the
+ *    card bill (owner 2026-08-01). A $0 here means no Fixed purchase pattern yet;
  *  - every one of them has stopped charging;
  *  - one or more charges on an account this projection does not read — the L.26
  *    signature, where the figure is simply WRONG and too low.
  *
  * ORDERED BY FAILURE DIRECTION, not by likelihood. Every branch here is a $0 the
  * reader may spend against, so the two that mean "this number is missing money"
- * are asserted first: a reader shown "all charged to a card" when a bill was in
- * fact dropped has been told his zero is correct, which is the false all-clear
+ * are asserted first: a reader shown a reassuring "card holds it" when a bill was
+ * in fact dropped has been told his zero is correct, which is the false all-clear
  * this whole thread exists to remove. The reverse mistake — hedging a line that is
  * genuinely fine — only sends him to a list, which costs him a look and nothing else.
  * There is no "nothing was found" branch at all, for the reason the module header
@@ -152,7 +153,7 @@ function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): P
     if (plan.fixedBasis === 'user-set') return { label: 'Fixed costs (you set)' };
     if (plan.fixedBasis === 'category-designations') {
       return {
-        label: 'Fixed costs (Fixed categories, floored by recurring bills if higher)',
+        label: 'Fixed costs (Fixed categories + uncovered recurring bills)',
         action: { label: 'Review Fixed on Spending', href: '/budgets' },
       };
     }
@@ -186,23 +187,15 @@ function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): P
       action: { label: 'Link an account', href: '/accounts' },
     };
   }
-  // A CORRECT absence gets no control: a link beside a figure that is right reads
-  // as a correction (the L.29 rule).
-  //
-  // "All charged to a card" is a claim about ANOTHER LINE holding the money, so it
-  // is only true while that line is actually acting (critic P1-2, executed). When
-  // a card has no due date yet, or no statement generated, or is currency-withheld,
-  // its obligation is excluded from `cardObligationsCents` ENTIRELY — `detect.ts`
-  // says so out loud — so those bills are in NO term of this plan and BOTH lines
-  // print $0.00. Asserting the card line holds them would be the false all-clear
-  // this thread exists to remove, on the panel that removed it.
-  const cardTermActs =
-    plan.cardObligationsCents !== 0 &&
-    disclosures.undatedCards.length === 0 &&
-    disclosures.statementPendingCards.length === 0 &&
-    disclosures.creditCardsOutsideFigure === 0;
+  // Card-charged recurring series are absent from the cash projection on purpose,
+  // but the card bill is NOT Plan Fixed (owner 2026-08-01). Point the reader at
+  // Spending — Fixed is those purchase categories (incl. on the card), not the
+  // statement payment. Never claim another Plan line "holds" the money.
   if (absent > 0 && seen.onCard === absent) {
-    return cardTermActs ? { label: 'Fixed & recurring expenses (all charged to a card)' } : unexplained;
+    return {
+      label: 'Fixed & recurring expenses (card charges — mark Fixed categories on Spending)',
+      action: { label: 'Review Fixed on Spending', href: '/budgets' },
+    };
   }
   if (absent > 0 && seen.lapsed === absent) {
     return { label: 'Fixed & recurring expenses (none still charging)' };

@@ -27,20 +27,19 @@ test('every register row shows a Fixed or Discretionary (or Neither) class', asy
     expect(['fixed', 'guilt-free', 'out-of-scope']).toContain(kind);
   }
 
-  // Demo seed: groceries = Fixed (label only — shared demo cannot mutate).
+  // Demo seed must expose both classes — soft ifs let this lock decay.
   const groceries = page.getByTestId('txn-row').filter({ hasText: 'Groceries' }).first();
-  if ((await groceries.count()) > 0) {
-    await expect(groceries.getByTestId('txn-spend-class')).toHaveAttribute(
-      'data-spend-class',
-      'fixed',
-    );
-  }
-  // Dining = Discretionary when present.
+  await expect(groceries).toBeVisible();
+  await expect(groceries.getByTestId('txn-spend-class')).toHaveAttribute(
+    'data-spend-class',
+    'fixed',
+  );
   const dining = page.getByTestId('txn-row').filter({ hasText: 'Dining' }).first();
-  if ((await dining.count()) > 0) {
-    await expect(dining.getByTestId('txn-spend-class')).toHaveAttribute(
-      'data-spend-class',
-      'guilt-free',
-    );
-  }
+  await expect(dining).toBeVisible();
+  await expect(dining.getByTestId('txn-spend-class')).toHaveAttribute(
+    'data-spend-class',
+    'guilt-free',
+  );
+  // Shared demo: label only (no select).
+  await expect(groceries.locator('select[data-testid="txn-spend-class"]')).toHaveCount(0);
 });

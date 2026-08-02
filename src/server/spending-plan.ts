@@ -11,10 +11,13 @@
  * CHECKING account (or every CHECKING account when none is set) — never
  * SAVINGS/money-market or investment activity (owner 2026-08-01: those are
  * already saved/invested). A one-time inflow touches no month but its own.
- * Fixed expenses are the detected recurring series at a monthly rate. A
- * credit-card row still reaches this plan only through its obligation term
- * (#295 critic F5); card payments/transfers are excluded by monthlyFlows'
- * isTransfer rule either way.
+ * Fixed expenses prefer Fixed-category purchase rollups (budget|typical),
+ * including spend on CREDIT accounts (#381 / owner 2026-08-01). Card statement
+ * payments are settlement — never Fixed, never guilt-free. Recurring series on
+ * CREDIT stay out of the cash projection (`on-card`) but those purchases still
+ * count via the category rollup; uncovered cash recurring (e.g. transfer mortgage)
+ * unions in. Card payments/transfers are excluded by monthlyFlows' isTransfer
+ * rule either way.
  *
  * L.11(D) stands: a payment the engine has DATED past the month's edge is in
  * no pattern the reader can see, so what next month's scheduled income has not
@@ -28,20 +31,32 @@ import {
   daysInMonth,
   scheduledOccurrencesBetween,
   type FixedSeriesCensus,
+  type PlanScheduledItem,
   type SpendingPlan,
   type SpendingPlanDisclosures,
 } from '@/lib/engine/spending-plan/plan';
 import { monthlyGuiltFreeIncomeCents } from '@/lib/engine/spending-plan/income-pattern';
 import { monthlyNonDiscretionaryCents } from '@/lib/engine/spending-plan/fixed-pattern';
 import { resolveFixedCategoryAmounts } from '@/lib/engine/spending-plan/fixed-category-amounts';
+import { resolveCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
 import { categoryName } from '@/lib/engine/categorize/categories';
-import type { SeriesProjectionStatus } from '@/lib/engine/recurring/detect';
+import {
+  classifySeriesProjection,
+  detectRecurring,
+  type RecurringTxn,
+  type SeriesProjectionStatus,
+} from '@/lib/engine/recurring/detect';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getCategoryFixedOverrides } from '@/server/category-fixed';
+import { getRecurringOverrides } from '@/server/recurring-overrides';
+import { activeTerminalSuccessorMap } from '@/server/reconciliation';
 import { getProvider } from '@/lib/providers/demo';
-import { formatISODate, isoDate } from '@/lib/dates';
+import { formatISODate, isoDate, type ISODate } from '@/lib/dates';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
+import type { FinanceSnapshot } from '@/lib/providers/types';
 
 export interface SpendingPlanWithNotes extends SpendingPlan {
   /**
@@ -111,23 +126,19 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     .slice(-3)
     .map((f) => f.expenseCents);
 
-  // The recurring series, split by sign: income feeds only the no-history
-  // fallback (and the L.11(D) walk below); expenses are the FALLBACK for the
-  // fixed term when no non-discretionary pattern exists yet (#371), and still
-  // floor the term via max() so a thin filing month cannot understate bills
-  // the detector already sees. Detected recurring LOAN payments arrive here —
-  // which is why loanObligations is not a separate term (adding it would
-  // double-count them; a loan with NO detected series is counted zero times
-  // until filed — recorded in docs/STATUS.md §L.11(C)).
-  // Income-series fallback matches the trailing-pattern account set (payment
-  // checking when set). Bills still come from every cash account — a utility
-  // autopaid from savings is a real fixed cost (L.25).
+  // Income series: still from the stored snapshot (L.11(D) walk + no-history
+  // fallback), scoped to the payment-account set. Expense series for the Fixed
+  // term: live detect with categoryId so #381 can union rollup with
+  // out-of-scope recurring without double-counting Fixed-category bills
+  // (snap.scheduled has no categoryId today).
   const scheduledIncome = snap.scheduled
     .filter((s) => s.amountCents > 0 && incomeAccountIds.has(s.accountId))
     .map((s) => ({ amountCents: s.amountCents, cadence: s.cadence }));
-  const scheduledFixed = snap.scheduled
-    .filter((s) => s.amountCents < 0)
-    .map((s) => ({ amountCents: s.amountCents, cadence: s.cadence }));
+  const scheduledFixed = await countedExpenseSeriesForPlan(
+    userId,
+    snap,
+    isoDate(today),
+  );
   const endOfMonth = `${ym}-${String(daysInMonth(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)))).padStart(2, '0')}`;
 
   // Card obligations DUE THIS CALENDAR MONTH (critic F1: subtracting the
@@ -243,8 +254,8 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const obligationsBeyondMonthEstimated =
     worstGapCents > 0 && beyondMonthPoints.some((p) => p.cards.some((c) => c.isEstimated));
 
-  // #377/#380: per-category Fixed amounts (budget else typical). Always-on when
-  // the rollup has positive mass — B.1's committed-but-variable term.
+  // #377/#380/#381: per-category Fixed amounts (budget else typical). Always-on
+  // when the rollup has positive mass; union with out-of-scope recurring.
   const categoryFixed = resolveFixedCategoryAmounts({
     transactions: snap.transactions,
     today,
@@ -253,6 +264,8 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     budgetByCategory: new Map(budgetRows.map((b) => [b.categoryId, b.monthCents])),
     nameOf: (id) => categoryName(id, categoryMeta),
   });
+  const categoryIsFixed = (categoryId: string) =>
+    resolveCategoryIsFixed(categoryId, categoryMeta, fixedOverrides);
 
   const plan = computeSpendingPlan({
     today,
@@ -261,6 +274,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     scheduledFixed,
     trailingMonthlyFixedCents,
     categoryFixedCents: categoryFixed.totalCents,
+    categoryIsFixed,
     incomeOverrideCents: user?.planIncomeOverrideCents ?? null,
     fixedOverrideCents: user?.planFixedOverrideCents ?? null,
     cardObligationsCents,
@@ -294,6 +308,68 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
       fixedSeries,
     }),
   };
+}
+
+/**
+ * Counted expense series with categoryId for the Fixed-term union (#381).
+ * Same admission rules as `refreshRecurringForUser` / L.25 (cash expenses,
+ * payment-scoped income is irrelevant here). Live detect — not snap.scheduled —
+ * because stored ScheduledTransaction rows do not yet carry categoryId.
+ */
+async function countedExpenseSeriesForPlan(
+  userId: string,
+  snap: FinanceSnapshot,
+  today: ISODate,
+): Promise<PlanScheduledItem[]> {
+  const spendingIds = new Set(
+    snap.accounts
+      .filter((a) => (SPENDING_ACCOUNT_TYPES as readonly string[]).includes(a.type))
+      .map((a) => a.id),
+  );
+  const txns: RecurringTxn[] = snap.transactions
+    .filter((t) => t.status === 'POSTED' && !t.isSplitParent && spendingIds.has(t.accountId))
+    .map((t, i) => ({
+      id: String(i),
+      accountId: t.accountId,
+      date: t.date,
+      amountCents: t.amountCents,
+      rawDescriptor: t.rawDescriptor,
+      isTransfer: t.isTransfer,
+    }));
+  const [overrides, terminalOf] = await Promise.all([
+    getRecurringOverrides(userId),
+    activeTerminalSuccessorMap(userId),
+  ]);
+  const series = detectRecurring(txns, today, overrides);
+  const superseded = new Set(terminalOf.keys());
+  const cashAccountIds = new Set(
+    snap.accounts
+      .filter(
+        (a) =>
+          (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type) && !superseded.has(a.id),
+      )
+      .map((a) => a.id),
+  );
+  const creditAccountIds = new Set(snap.accounts.filter((a) => a.type === 'CREDIT').map((a) => a.id));
+  const paymentAccountId =
+    (snap.paymentAccountId && cashAccountIds.has(snap.paymentAccountId)
+      ? snap.paymentAccountId
+      : null) ??
+    snap.accounts.find((a) => cashAccountIds.has(a.id))?.id ??
+    null;
+  const scope = { paymentAccountId, cashAccountIds, creditAccountIds };
+  return series
+    .filter((s) => !s.isIncome)
+    .map((s) => {
+      const to = terminalOf.get(s.accountId);
+      return to === undefined || to === s.accountId ? s : { ...s, accountId: to };
+    })
+    .filter((s) => classifySeriesProjection(s, scope, today) === 'counted')
+    .map((s) => ({
+      amountCents: s.typicalAmountCents,
+      cadence: s.cadence,
+      categoryId: s.categoryId,
+    }));
 }
 
 /**

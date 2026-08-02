@@ -98,6 +98,12 @@ export type FixedBasis =
 export interface PlanScheduledItem {
   amountCents: number;
   cadence: string | null;
+  /**
+   * Detector category when known (#381). Used to union Fixed-category rollup
+   * with out-of-scope recurring (e.g. mortgage ACH as transfer) without
+   * double-counting rent that is already in the rollup.
+   */
+  categoryId?: string | null;
 }
 
 export interface SpendingPlanInput {
@@ -120,11 +126,18 @@ export interface SpendingPlanInput {
   trailingMonthlyFixedCents?: number[];
   /**
    * Sum of per-category Fixed amounts (budget target else typical spend) for
-   * designated Fixed categories (DECISIONS #377 / #380). When > 0 this is the
-   * preferred suggested fixed term (max'd with the recurring floor); otherwise
-   * fall back to the #371 non-discretionary median / detected series.
+   * designated Fixed categories (DECISIONS #377 / #380 / #381). When > 0 this
+   * is the preferred suggested fixed term, UNION'd with recurring outflows
+   * whose category is out of the Fixed dial (not scalar max); otherwise fall
+   * back to the #371 non-discretionary median / detected series.
    */
   categoryFixedCents?: number;
+  /**
+   * Resolves whether a recurring series' category is Fixed. Required for the
+   * category-designations union when `categoryFixedCents > 0`; ignored otherwise.
+   * Pass `resolveCategoryIsFixed` bound to the reader's meta/overrides.
+   */
+  categoryIsFixed?: (categoryId: string) => boolean | null;
   /**
    * Optional user-set monthly income (cents). When set, replaces the suggested
    * pattern (DECISIONS #372). null/undefined = use the suggestion.
@@ -253,7 +266,12 @@ export interface FixedSeriesCensus {
   detected: number;
   /** In the figure. */
   counted: number;
-  /** Absent CORRECTLY: charged to a credit card, so the card-payments line holds it. */
+  /**
+   * Absent from the cash projection: charged to a CREDIT account. That is
+   * correct for ScheduledTransaction / cash-needed (the payment settles later).
+   * It is NOT "held by the card-payments Plan line" — Plan Fixed counts those
+   * purchases via Fixed categories when designated (owner 2026-08-01).
+   */
   onCard: number;
   /** Absent CORRECTLY: the series has stopped charging. */
   lapsed: number;
@@ -416,6 +434,35 @@ export function monthlyRateCents(amountCents: number, cadence: string | null): n
 }
 
 /**
+ * Monthly-rate sum of recurring expenses NOT already in the Fixed category
+ * rollup (#381 / owner 2026-08-01). Fixed-category series are skipped (inside
+ * typical|budget). Discretionary series are skipped (guilt-free). Settlement
+ * categories (`credit-card-payment`, cash, investment) are never Fixed — the
+ * card bill settles purchases already counted. Transfer / null / unknown ids
+ * are added (e.g. mortgage ACH filed as transfer).
+ */
+export function recurringOutsideFixedCategoryCents(
+  items: readonly PlanScheduledItem[],
+  categoryIsFixed: (categoryId: string) => boolean | null,
+): number {
+  let sum = 0;
+  for (const s of items) {
+    if (s.amountCents >= 0) continue;
+    const rate = monthlyRateCents(-s.amountCents, s.cadence);
+    const id = s.categoryId;
+    if (typeof id === 'string' && id !== '') {
+      // Card bill / cash / investment — never a Plan Fixed cost class.
+      if (id === 'credit-card-payment' || id === 'cash' || id === 'investment') continue;
+      const fixed = categoryIsFixed(id);
+      if (fixed === true) continue;
+      if (fixed === false) continue;
+    }
+    sum += rate;
+  }
+  return sum;
+}
+
+/**
  * The cadences this plan SMOOTHS — each counted at a fraction of itself every
  * month — with the reader-facing words for that fraction.
  *
@@ -500,9 +547,10 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
     incomeMonths = 0;
   }
 
-  // Fixed suggestion (#371 / #377 / #380): prefer per-category budget|typical
-  // rollup whenever it has positive mass (always-on — B.1); otherwise the
-  // non-discretionary monthly median, floored by recurring in both cases.
+  // Fixed suggestion (#371 / #377 / #380 / #381): prefer per-category
+  // budget|typical rollup whenever it has positive mass (always-on — B.1),
+  // UNION'd with out-of-scope recurring (not scalar max — critic P0). Otherwise
+  // the non-discretionary monthly median, floored by full recurring.
   const trailingFixed = (input.trailingMonthlyFixedCents ?? []).slice(-3);
   const recurringFixedCents = input.scheduledFixed.reduce(
     (sum, s) => sum + monthlyRateCents(-s.amountCents, s.cadence),
@@ -520,7 +568,9 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
   let suggestedFixedBasis: Exclude<FixedBasis, 'user-set'>;
   let fixedMonths: number;
   if (useCategoryFixed) {
-    suggestedFixedCents = Math.max(categoryFixedCents, recurringFixedCents);
+    const resolver = input.categoryIsFixed ?? (() => null);
+    const outside = recurringOutsideFixedCategoryCents(input.scheduledFixed, resolver);
+    suggestedFixedCents = categoryFixedCents + outside;
     suggestedFixedBasis = 'category-designations';
     fixedMonths = 0;
   } else if (trailingFixed.length > 0) {

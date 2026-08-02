@@ -118,6 +118,8 @@ describe('B.3 — Sethi band stays; Fixed copy names the widened numerator', () 
     const text = COACH_COPY.consciousSpending(58, 14, 28);
     expect(text).toContain(CONSCIOUS_BUCKET_COUNTS.fixed);
     expect(text).toMatch(/50–60%/);
+    expect(text).toMatch(/income pattern/);
+    expect(text).not.toMatch(/This month/);
     expect(text).not.toMatch(/fixed and recurring costs/);
   });
 });

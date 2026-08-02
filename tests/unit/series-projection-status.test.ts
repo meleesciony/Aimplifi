@@ -62,7 +62,7 @@ describe('classifySeriesProjection — the closed set of reasons', () => {
 
   it("'on-card': a bill charged to a credit card is CORRECTLY absent", () => {
     // The card-payments term already holds it. This is the branch that lets the
-    // label say "all charged to a card" — a true zero — instead of hedging.
+    // label point at Spending for Fixed categories — not claim the card bill holds it.
     expect(classifySeriesProjection(series({ accountId: CARD }), scope, TODAY)).toBe('on-card');
   });
 
