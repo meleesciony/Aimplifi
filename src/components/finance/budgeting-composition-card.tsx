@@ -2,10 +2,20 @@
  * Wave B.2 — the budgeting identity on one screen (DECISIONS #377).
  * Income (computed), savings %, fixed, guilt-free remainder — each line states
  * whether the figure is the app's suggestion or the reader's.
+ *
+ * Fixed / Guilt-free HEADINGS drill to the register (W.7 / DECISIONS #383) —
+ * every transaction under that class this month. The Plan dollar amounts stay
+ * plain text: they are budget|typical (or income−savings−fixed), not the
+ * window sum the register would show.
  */
 import Link from 'next/link';
+import { monthKey } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
+import {
+  CATEGORY_NAME_LINK_CLASS,
+  spendClassMonthRegisterHref,
+} from '@/lib/engine/transactions/links';
 
 function incomeBasisNote(plan: SpendingPlan): string {
   if (plan.incomeBasis === 'user-set') return 'you locked this intention';
@@ -45,6 +55,18 @@ export function BudgetingCompositionCard({
   savingsTargetBps: number | null;
 }) {
   const positive = !plan.overspent;
+  const month = monthKey(plan.today);
+  const fixedHref = spendClassMonthRegisterHref({
+    spendClass: 'fixed',
+    month,
+    amountCents: plan.fixedExpensesCents,
+  });
+  const guiltFreeHref = spendClassMonthRegisterHref({
+    spendClass: 'guilt-free',
+    month,
+    amountCents: Math.max(0, plan.leftToSpendCents),
+  });
+
   return (
     <section
       className="rounded-2xl border bg-card p-5 shadow-sm"
@@ -53,7 +75,8 @@ export function BudgetingCompositionCard({
       <h2 className="text-sm font-semibold">Your monthly plan</h2>
       <p className="mt-1 text-xs text-muted-foreground">
         Guilt-free = income − savings − fixed. Each line says whether the number is
-        yours or the app&apos;s suggestion.
+        yours or the app&apos;s suggestion. Tap Fixed or Guilt-free to see every
+        matching transaction this month.
       </p>
 
       <dl className="mt-4 divide-y text-sm">
@@ -86,7 +109,13 @@ export function BudgetingCompositionCard({
 
         <div className="flex items-start justify-between gap-3 py-2">
           <dt className="min-w-0 text-muted-foreground">
-            <span className="text-foreground">Fixed expenses</span>
+            <Link
+              href={fixedHref}
+              className={`text-foreground ${CATEGORY_NAME_LINK_CLASS}`}
+              data-testid="budgeting-fixed-heading"
+            >
+              Fixed expenses
+            </Link>
             <span className="mt-0.5 block text-xs" data-testid="budgeting-fixed-basis">
               {fixedBasisNote(plan)}
             </span>
@@ -97,7 +126,15 @@ export function BudgetingCompositionCard({
         </div>
 
         <div className="flex items-start justify-between gap-3 py-2.5">
-          <dt className="font-semibold">Guilt-free to spend</dt>
+          <dt className="font-semibold">
+            <Link
+              href={guiltFreeHref}
+              className={CATEGORY_NAME_LINK_CLASS}
+              data-testid="budgeting-guilt-free-heading"
+            >
+              Guilt-free to spend
+            </Link>
+          </dt>
           <dd
             className={`shrink-0 text-base font-bold tabular-nums ${
               positive ? 'text-emerald-500' : 'text-rose-500'

@@ -4,11 +4,17 @@
  * Fixed vs guilt-free category designations on /budgets (DECISIONS #376/#377).
  * Each filed category's transactions inherit this class for Plan guilt-free.
  */
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendClassCategoryRow } from '@/lib/engine/spending-plan/spend-class';
 import type { FixedAmountBasis } from '@/lib/engine/spending-plan/fixed-category-amounts';
+import { SPEND_CLASS_PANEL_ID } from '@/lib/engine/spending-plan/fixed-review';
+import {
+  CATEGORY_NAME_LINK_CLASS,
+  spendClassMonthRegisterHref,
+} from '@/lib/engine/transactions/links';
 import { setCategoryFixed } from '@/server/category-fixed-actions';
 
 export type SpendClassFixedRow = SpendClassCategoryRow & {
@@ -21,14 +27,29 @@ export function SpendClassPanel({
   fixed,
   guiltFree,
   canEdit,
+  month,
 }: {
   fixed: SpendClassFixedRow[];
   guiltFree: SpendClassCategoryRow[];
   canEdit: boolean;
+  /** Calendar month ("YYYY-MM") for heading → register deep links (W.7). */
+  month: string;
 }) {
+  // Deep link /budgets#spend-class (Plan "Review Fixed on Spending") — scroll after
+  // soft nav; same-path hash clicks are handled by PlanRowActionLink.
+  useEffect(() => {
+    if (window.location.hash !== `#${SPEND_CLASS_PANEL_ID}`) return;
+    requestAnimationFrame(() => {
+      document
+        .getElementById(SPEND_CLASS_PANEL_ID)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
+
   return (
     <section
-      className="rounded-2xl border bg-card p-5 shadow-sm"
+      id={SPEND_CLASS_PANEL_ID}
+      className="scroll-mt-20 rounded-2xl border bg-card p-5 shadow-sm"
       data-testid="spend-class-panel"
     >
       <h2 className="text-sm font-semibold">Fixed vs guilt-free</h2>
@@ -52,6 +73,11 @@ export function SpendClassPanel({
         empty="No fixed spending this month yet — file groceries, bills, and rent and they land here by default."
         canEdit={canEdit}
         makeFixed={true}
+        registerHref={spendClassMonthRegisterHref({
+          spendClass: 'fixed',
+          month,
+          amountCents: 0,
+        })}
       />
       <ClassList
         title="Guilt-free (not fixed)"
@@ -60,6 +86,11 @@ export function SpendClassPanel({
         empty="No discretionary spending this month yet — dining out, entertainment, and shopping land here by default."
         canEdit={canEdit}
         makeFixed={false}
+        registerHref={spendClassMonthRegisterHref({
+          spendClass: 'guilt-free',
+          month,
+          amountCents: 0,
+        })}
       />
     </section>
   );
@@ -72,6 +103,7 @@ function ClassList({
   empty,
   canEdit,
   makeFixed,
+  registerHref,
 }: {
   title: string;
   testId: string;
@@ -80,11 +112,18 @@ function ClassList({
   canEdit: boolean;
   /** True when this list is the Fixed column (move action → guilt-free). */
   makeFixed: boolean;
+  registerHref: string;
 }) {
   return (
     <div className="mt-4" data-testid={testId}>
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {title}
+        <Link
+          href={registerHref}
+          className={CATEGORY_NAME_LINK_CLASS}
+          data-testid={`${testId}-heading`}
+        >
+          {title}
+        </Link>
       </h3>
       {rows.length === 0 ? (
         <p className="text-xs text-muted-foreground">{empty}</p>

@@ -8,7 +8,7 @@ import { TransactionFilters } from '@/components/finance/transaction-filters';
 import { TransactionList } from '@/components/finance/transaction-list';
 import { buttonVariants } from '@/components/ui/button';
 import type { FlowType, TxnFilter } from '@/lib/engine/transactions/query';
-import { VALID_FLOW_TYPES } from '@/lib/engine/transactions/links';
+import { VALID_FLOW_TYPES, VALID_SPEND_CLASSES } from '@/lib/engine/transactions/links';
 import { SharedTransactionList } from '@/components/finance/shared-transaction-list';
 import { getSharedTransactionsView } from '@/server/household';
 import { getTransactions, getWithheldAccountSummary } from '@/server/transactions';
@@ -52,6 +52,10 @@ export default async function TransactionsPage({
   // that names rows must open on those rows. Unknown values read as "no filter".
   const reimbRaw = str(sp.reimb);
   const reimbursement = reimbRaw === 'awaiting' || reimbRaw === 'received' ? reimbRaw : null;
+  const spendClassRaw = str(sp.spendClass);
+  const spendClass = (VALID_SPEND_CLASSES as readonly string[]).includes(spendClassRaw)
+    ? (spendClassRaw as 'fixed' | 'guilt-free')
+    : null;
   const page = Math.max(1, parseInt(str(sp.page), 10) || 1);
 
   const filter: TxnFilter = {
@@ -64,6 +68,7 @@ export default async function TransactionsPage({
     to: to || null,
     unclassified,
     reimbursement,
+    spendClass,
   };
   // Same predicate as TransactionFilters.hasFilters — empty-register copy
   // branches on it (ROADMAP ALSO CONSIDER / #186).
@@ -71,7 +76,8 @@ export default async function TransactionsPage({
     !!(search || account || category || merchant || from || to) ||
     type !== 'all' ||
     unclassified ||
-    reimbursement !== null;
+    reimbursement !== null ||
+    spendClass !== null;
 
   const [{ rows, summary, accountOptions, pageInfo, lens, unclassifiedCount }, categoryGroups, withheld, shared] =
     await Promise.all([
@@ -150,9 +156,30 @@ export default async function TransactionsPage({
       <TransactionFilters
         accountOptions={accountOptions}
         categoryOptions={categoryGroups.flatMap((g) => g.categories)}
-        current={{ search, account, category, merchant, type, from, to, unclassified, reimbursement }}
+        current={{
+          search,
+          account,
+          category,
+          merchant,
+          type,
+          from,
+          to,
+          unclassified,
+          reimbursement,
+          spendClass: spendClass ?? '',
+        }}
         unclassifiedCount={unclassifiedCount}
       />
+
+      {/* W.7: Plan Fixed is budget|typical, not this window's outflows — say so
+          when the Class filter is what brought the reader here. */}
+      {spendClass !== null && (
+        <p className="text-xs text-muted-foreground" data-testid="txn-spend-class-basis">
+          {spendClass === 'fixed'
+            ? 'Showing transactions classified Fixed in this date window. Your Plan Fixed figure uses budget or typical averages, so it may not match Net below.'
+            : 'Showing transactions classified Discretionary in this date window. Your Plan guilt-free figure is income − savings − fixed, so it may not match Net below.'}
+        </p>
+      )}
 
       {/* Merchant Pattern Lens (§Later #19, DECISIONS #250): deterministic
           profile of the filtered merchant; absent when the engine abstains. */}

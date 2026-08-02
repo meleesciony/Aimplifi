@@ -1,5 +1,14 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — W.7 Fixed/Guilt-free heading → transactions (#383) DONE
+
+Owner: click aggregate headings (Fixed expenses) → every txn under that class.
+Register `?spendClass=` + Class select; headings on /budgets composition /
+Conscious / Fixed-vs-guilt-free panel + Plan legend. Plan $ stays unlinked
+(budget|typical ≠ month outflows); register basis note says so. Review Fixed
+hash (`#spend-class`) kept for designation panel. verify: tsc/eslint green;
+5606 unit; e2e drilldown + conscious-buckets + spend-class 7/7. Ship next.
+
 ## 2026-08-01 — Wave B Fixed union covered-ids fix (#382) DONE
 
 Critic FAIL on #381: auto-loan isTransfer dropped when rollup active.

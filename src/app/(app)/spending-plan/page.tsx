@@ -3,12 +3,19 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { PlanFiguresForm } from '@/components/finance/plan-figures-form';
+import { PlanRowActionLink } from '@/components/finance/plan-row-action-link';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { traceSafeToSpend } from '@/lib/engine/glass-box/trace';
+import { REVIEW_FIXED_HREF } from '@/lib/engine/spending-plan/fixed-review';
+import { monthKey } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
 import { cents } from '@/lib/money';
 import { prisma } from '@/lib/db';
 import { isDemoUser } from '@/lib/demo-user';
+import {
+  CATEGORY_NAME_LINK_CLASS,
+  spendClassMonthRegisterHref,
+} from '@/lib/engine/transactions/links';
 
 export const metadata = { title: "Spending plan" };
 
@@ -128,14 +135,42 @@ export default async function SpendingPlanPage() {
         >
           {(
             [
-              { swatch: 'bg-amber-400/80', label: 'Fixed expenses' },
-              { swatch: 'bg-sky-400/80', label: 'Savings' },
-              { swatch: 'bg-emerald-500/80', label: 'Guilt-free' },
+              {
+                swatch: 'bg-amber-400/80',
+                label: 'Fixed expenses',
+                href: spendClassMonthRegisterHref({
+                  spendClass: 'fixed',
+                  month: monthKey(p.today),
+                  amountCents: p.fixedExpensesCents,
+                }),
+                testId: 'plan-legend-fixed',
+              },
+              { swatch: 'bg-sky-400/80', label: 'Savings', href: null, testId: 'plan-legend-savings' },
+              {
+                swatch: 'bg-emerald-500/80',
+                label: 'Guilt-free',
+                href: spendClassMonthRegisterHref({
+                  spendClass: 'guilt-free',
+                  month: monthKey(p.today),
+                  amountCents: Math.max(0, p.leftToSpendCents),
+                }),
+                testId: 'plan-legend-guilt-free',
+              },
             ] as const
           ).map((item) => (
             <li key={item.label} className="inline-flex items-center gap-1.5">
               <span className={`size-2 shrink-0 rounded-full ${item.swatch}`} aria-hidden />
-              {item.label}
+              {item.href ? (
+                <Link
+                  href={item.href}
+                  className={CATEGORY_NAME_LINK_CLASS}
+                  data-testid={item.testId}
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <span data-testid={item.testId}>{item.label}</span>
+              )}
             </li>
           ))}
         </ul>
@@ -151,13 +186,12 @@ export default async function SpendingPlanPage() {
                 {r.action ? (
                   <>
                     {' '}
-                    <Link
+                    <PlanRowActionLink
                       href={r.action.href}
+                      label={r.action.label}
                       className="whitespace-nowrap underline underline-offset-2 hover:text-foreground"
-                      data-testid="plan-row-action"
-                    >
-                      {r.action.label}
-                    </Link>
+                      testId="plan-row-action"
+                    />
                   </>
                 ) : null}
               </dt>
@@ -226,7 +260,7 @@ export default async function SpendingPlanPage() {
           </li>
           <li>
             Mark categories Fixed or Guilt-free on{' '}
-            <Link href="/budgets" className="underline underline-offset-2 hover:text-foreground">
+            <Link href={REVIEW_FIXED_HREF} className="underline underline-offset-2 hover:text-foreground">
               Spending
             </Link>
             . Guilt-free = income − savings% − fixed. Dining out and golf start as

@@ -39,6 +39,7 @@
  * figure these labels sit beside is computed by the engine and copied verbatim.
  */
 import type { SpendingPlan, SpendingPlanDisclosures } from './plan';
+import { REVIEW_FIXED_HREF } from './fixed-review';
 
 /** One printed line's label, plus the control a "not set up" zero should offer. */
 export interface PlanRowLabel {
@@ -154,7 +155,7 @@ function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): P
     if (plan.fixedBasis === 'category-designations') {
       return {
         label: 'Fixed costs (Fixed categories + recurring not in that rollup)',
-        action: { label: 'Review Fixed on Spending', href: '/budgets' },
+        action: { label: 'Review Fixed on Spending', href: REVIEW_FIXED_HREF },
       };
     }
     return plan.fixedBasis === 'non-discretionary-median'
@@ -194,7 +195,7 @@ function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): P
   if (absent > 0 && seen.onCard === absent) {
     return {
       label: 'Fixed & recurring expenses (card charges — mark Fixed categories on Spending)',
-      action: { label: 'Review Fixed on Spending', href: '/budgets' },
+      action: { label: 'Review Fixed on Spending', href: REVIEW_FIXED_HREF },
     };
   }
   if (absent > 0 && seen.lapsed === absent) {

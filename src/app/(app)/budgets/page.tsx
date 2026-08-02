@@ -273,6 +273,7 @@ export default async function BudgetsPage() {
         fixed={fixedRows}
         guiltFree={spendClasses.guiltFree}
         canEdit={canEdit}
+        month={month}
       />
       <Card>
         <CardHeader className="pb-2">

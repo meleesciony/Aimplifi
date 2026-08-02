@@ -52,20 +52,28 @@ test('each bucket amount opens a panel whose rows sum to exactly that amount', a
     await expect(page.getByTestId(`${prefix}-reconciled`)).toBeVisible();
   }
 
-  // Anti-vacuity: the fixed bucket on the demo is a real figure made of at
-  // least two terms (recurring bills + card payments due), so the lock cannot
-  // decay into matching a single trivial row against itself.
+  // Anti-vacuity: Fixed is ONE plan term in this panel (category rollup ∪
+  // uncovered recurring — card payments left guilt-free math in #369/#381).
+  // Vacuity would be a $0 Fixed that still "reconciles"; require a real figure
+  // whose single panel row matches, plus the W.7 heading that opens every
+  // Fixed transaction (the multi-row audit lives on the register now).
   expect(legendCents['conscious-fixed']).toBeGreaterThan(0);
   const fixedRows = page.getByTestId('conscious-fixed-rows').locator('li');
-  expect(await fixedRows.count()).toBeGreaterThanOrEqual(2);
+  expect(await fixedRows.count()).toBe(1);
+  expect(parseCents(await page.getByTestId('conscious-fixed-row-amount').innerText())).toBe(
+    legendCents['conscious-fixed'],
+  );
+  const fixedHeading = page.getByTestId('conscious-fixed-heading');
+  await expect(fixedHeading).toBeVisible();
+  await expect(fixedHeading).toHaveAttribute('href', /spendClass=fixed/);
 
-  // Guilt-free is the REMAINDER, so its panel is the whole subtraction: its
-  // first row is income (positive) and at least one later row subtracts.
+  // Guilt-free is the REMAINDER, so its panel is the whole subtraction: income
+  // minus fixed minus savings (3 rows after card pay left the identity).
   const gfAmounts = await page
     .getByTestId('conscious-guilt-free-rows')
     .locator('[data-testid="conscious-guilt-free-row-amount"]')
     .allInnerTexts();
-  expect(gfAmounts.length).toBeGreaterThanOrEqual(4);
+  expect(gfAmounts.length).toBe(3);
   expect(parseCents(gfAmounts[0])).toBeGreaterThan(0);
   expect(gfAmounts.slice(1).some((t) => parseCents(t) < 0)).toBe(true);
 

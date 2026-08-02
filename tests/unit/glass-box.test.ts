@@ -548,7 +548,10 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
     expect(onCard.label).toBe(
       'Fixed & recurring expenses (card charges — mark Fixed categories on Spending)',
     );
-    expect(onCard.action).toEqual({ label: 'Review Fixed on Spending', href: '/budgets' });
+    expect(onCard.action).toEqual({
+      label: 'Review Fixed on Spending',
+      href: '/budgets#spend-class',
+    });
     expect(onCard.label).not.toMatch(/all charged to a card/i);
     // Same honest label whether or not a card obligation term is acting — the
     // statement payment never substitutes for Fixed purchases.

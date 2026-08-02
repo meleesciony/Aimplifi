@@ -145,6 +145,13 @@ export interface TxnFilter {
    *  A separate axis from `type` and from `categoryId` on purpose: it is a question
    *  about whether the app has decided, not about what it decided. */
   unclassified?: boolean;
+  /**
+   * W.7 / DECISIONS #383: Fixed or Discretionary bucket — the register control
+   * that lets a Plan / Spending heading open every transaction under that
+   * heading. Only `fixed` and `guilt-free` are filterable (`out-of-scope` is
+   * the residual, not a bucket heading).
+   */
+  spendClass?: 'fixed' | 'guilt-free' | null;
 }
 
 /**
@@ -247,6 +254,7 @@ export function filterTransactions(rows: readonly TxnView[], filter: TxnFilter =
     if (filter.reimbursement && reimbursementState(t.reimbursement) !== filter.reimbursement) return false;
     if (filter.accountId && t.accountId !== filter.accountId) return false;
     if (filter.categoryId && t.categoryId !== filter.categoryId) return false;
+    if (filter.spendClass && t.spendClass !== filter.spendClass) return false;
     if (merchant && t.merchantName.toLowerCase() !== merchant) return false;
     if (from && compareDates(isoDate(t.date), from) < 0) return false;
     if (to && compareDates(isoDate(t.date), to) > 0) return false;

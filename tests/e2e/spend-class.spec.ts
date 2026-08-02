@@ -46,4 +46,14 @@ test('budgets shows Fixed vs guilt-free sections from category suggestions', asy
   await expect(caption).toBeVisible();
   await expect(caption).toContainText('groceries');
   await expect(caption).toContainText('50–60%');
+
+  // "Review Fixed on Spending" from the Fixed glass-box must scroll to the panel
+  // (same-page /budgets href was a no-op and looked broken).
+  await page.getByTestId('conscious-fixed-toggle').click();
+  const review = page.getByTestId('conscious-fixed-row-action');
+  await expect(review).toBeVisible();
+  await expect(review).toHaveAttribute('href', /#spend-class/);
+  await review.click();
+  await expect(page).toHaveURL(/\/budgets#spend-class/);
+  await expect(page.getByTestId('spend-class-panel')).toBeInViewport();
 });

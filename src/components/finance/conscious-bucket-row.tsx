@@ -3,20 +3,23 @@
  * table" gesture applied to the one bar that could not honestly expand to
  * transactions). A bucket is a set of PLAN TERMS, not a transaction list, so
  * the panel behind each amount is the plan's own rows for that bucket — built
- * by `traceConsciousBuckets` from the safe-to-spend identity's rows and
+ * by `traceConsciousBuckets` from the safe-to-spend identity and
  * reconciled against the very figure this row prints. The panel body is the
  * shared Glass-Box markup (`GlassBoxPanelBody`), so rows, total, penny-match
  * copy and basis sentences cannot drift from the app's other trace panels.
  *
  * The toggle is the AMOUNT, dotted-underlined — "tap a number, see the rows
- * it's made of" is the app's one gesture for this (#178), and this surface
- * must not invent a second one.
+ * it's made of" is the app's one gesture for this (#178). The LABEL separately
+ * drills to the register when `registerHref` is set (W.7) — Fixed / guilt-free
+ * are transaction sets; savings is not.
  */
 'use client';
 
+import Link from 'next/link';
 import { useId, useState, type ReactNode } from 'react';
 import { GlassBoxPanelBody } from '@/components/finance/glass-box';
 import type { NumberTrace } from '@/lib/engine/glass-box/trace';
+import { CATEGORY_NAME_LINK_CLASS } from '@/lib/engine/transactions/links';
 import { formatCents } from '@/lib/money';
 
 export function ConsciousBucketRow({
@@ -26,6 +29,7 @@ export function ConsciousBucketRow({
   shareLabel,
   trace,
   testIdPrefix,
+  registerHref,
 }: {
   label: string;
   swatchClass: string;
@@ -36,6 +40,8 @@ export function ConsciousBucketRow({
   trace: NumberTrace;
   /** e.g. "conscious-fixed" — three of these panels share one page. */
   testIdPrefix: string;
+  /** W.7 — Fixed / Discretionary headings open every matching transaction. */
+  registerHref?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -45,7 +51,17 @@ export function ConsciousBucketRow({
       <div className="flex items-baseline justify-between gap-2">
         <span className={`inline-flex items-center gap-1.5 font-medium ${textClass}`}>
           <span className={`size-2 rounded-full ${swatchClass}`} aria-hidden />
-          {label}
+          {registerHref ? (
+            <Link
+              href={registerHref}
+              className={CATEGORY_NAME_LINK_CLASS}
+              data-testid={`${testIdPrefix}-heading`}
+            >
+              {label}
+            </Link>
+          ) : (
+            label
+          )}
         </span>
         <span className="tabular-nums text-muted-foreground">
           <button

@@ -15,6 +15,12 @@ const TYPE_OPTIONS = [
   { value: 'transfer', label: 'Transfers' },
 ] as const;
 
+const SPEND_CLASS_OPTIONS = [
+  { value: '', label: 'All classes' },
+  { value: 'fixed', label: 'Fixed' },
+  { value: 'guilt-free', label: 'Discretionary' },
+] as const;
+
 const selectClass =
   'h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground';
 
@@ -28,7 +34,19 @@ export function TransactionFilters({
   /** Category dropdown options — the user's visible assignable set incl. customs
    *  (DECISIONS #111). Hidden categories are still findable via the search box. */
   categoryOptions: { id: string; name: string }[];
-  current: { search: string; account: string; category: string; merchant: string; type: string; from: string; to: string; unclassified: boolean; reimbursement: 'awaiting' | 'received' | null };
+  current: {
+    search: string;
+    account: string;
+    category: string;
+    merchant: string;
+    type: string;
+    from: string;
+    to: string;
+    unclassified: boolean;
+    reimbursement: 'awaiting' | 'received' | null;
+    /** W.7 — empty string = all classes. */
+    spendClass: string;
+  };
   /** How many rows in the register still need a category decision, BEFORE this
    *  filter is applied — so the toggle can say what it would find, and can say so
    *  while it is already on. Zero hides the control: a filter that can only ever
@@ -54,6 +72,7 @@ export function TransactionFilters({
     // cleared by Clear, like every other axis (critic P1-4: a filter the bar
     // denies is a dead end wearing a page).
     if (merged.reimbursement) q.set('reimb', merged.reimbursement);
+    if (merged.spendClass) q.set('spendClass', merged.spendClass);
     const qs = q.toString();
     router.push(qs ? `/transactions?${qs}` : '/transactions');
   }
@@ -62,7 +81,8 @@ export function TransactionFilters({
     !!(current.search || current.account || current.category || current.merchant || current.from || current.to) ||
     current.type !== 'all' ||
     current.unclassified ||
-    current.reimbursement !== null;
+    current.reimbursement !== null ||
+    !!current.spendClass;
 
   return (
     <div className="space-y-2" data-testid="txn-filters">
@@ -173,6 +193,20 @@ export function TransactionFilters({
           {categoryOptions.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          aria-label="Class"
+          value={current.spendClass}
+          onChange={(e) => commit({ spendClass: e.target.value })}
+          data-testid="txn-filter-spend-class"
+          className={selectClass}
+        >
+          {SPEND_CLASS_OPTIONS.map((o) => (
+            <option key={o.value || 'all'} value={o.value}>
+              {o.label}
             </option>
           ))}
         </select>

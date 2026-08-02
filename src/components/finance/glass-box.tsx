@@ -7,11 +7,11 @@
  */
 'use client';
 
-import Link from 'next/link';
 import { useId, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { CardTitle } from '@/components/ui/card';
 import { GlassBoxShare } from '@/components/finance/glass-box-share';
+import { PlanRowActionLink } from '@/components/finance/plan-row-action-link';
 import type { NumberTrace } from '@/lib/engine/glass-box/trace';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
@@ -112,13 +112,12 @@ export function GlassBoxPanelBody({
                     label cell, never the amount cell — amounts are parsed as
                     money. */}
                 {r.action && (
-                  <Link
+                  <PlanRowActionLink
                     href={r.action.href}
+                    label={r.action.label}
                     className="ml-1.5 whitespace-nowrap text-xs underline underline-offset-2 hover:text-foreground"
-                    data-testid={`${testIdPrefix}-row-action`}
-                  >
-                    {r.action.label}
-                  </Link>
+                    testId={`${testIdPrefix}-row-action`}
+                  />
                 )}
                 {r.date && (
                   <span className="ml-1.5 text-xs text-muted-foreground">

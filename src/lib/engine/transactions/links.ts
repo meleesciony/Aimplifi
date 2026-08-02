@@ -321,6 +321,39 @@ export function monthRegisterHref(month: string): string {
   return `${REGISTER_PATH}?${params.toString()}`;
 }
 
+/**
+ * W.7 / DECISIONS #383 — register filtered to one spend-class bucket over one
+ * calendar month.
+ *
+ * Always returns a string (never null): both `fixed` and `guilt-free` are values
+ * the register's own Class `<select>` can DISPLAY, which is the O.5 fence that
+ * blocked this link while `TxnFilter` only had `categoryId`.
+ *
+ * The Plan / Conscious Fixed DOLLAR is budget|typical ∪ uncovered recurring —
+ * not "this month's Fixed outflows". Callers must hang this href on the
+ * HEADING (or a "see transactions" control), never on that Plan figure, so the
+ * destination Net is not asked to equal a number built on a different basis.
+ * `amountCents` is declared for call-site honesty the same way
+ * `CategoryFigure.amountCents` is — unused in the URL.
+ */
+export const VALID_SPEND_CLASSES = ['fixed', 'guilt-free'] as const;
+export type RegisterSpendClass = (typeof VALID_SPEND_CLASSES)[number];
+
+export function spendClassMonthRegisterHref({
+  spendClass,
+  month,
+  amountCents,
+}: {
+  spendClass: RegisterSpendClass;
+  month: string;
+  amountCents: number;
+}): string {
+  void amountCents;
+  const { from, to } = monthWindow(month);
+  const params = new URLSearchParams({ spendClass, from, to });
+  return `${REGISTER_PATH}?${params.toString()}`;
+}
+
 /* -------------------------------------------------------------------------- */
 /* O.16 — carrying the reader's PLACE back out of a row action                 */
 /* -------------------------------------------------------------------------- */
@@ -343,7 +376,7 @@ export const RETURN_PARAM = 'back';
  *
  * This list is the security boundary AND the correctness boundary, so it is
  * pinned here beside `REGISTER_PATH` rather than derived: `transactions/page.tsx`
- * reads exactly these ten and treats every unknown value as "no filter", so a
+ * reads exactly these keys and treats every unknown value as "no filter", so a
  * key that is not on this list could not narrow the destination even if it were
  * carried. Anything else the caller happens to be holding is dropped.
  */
@@ -357,6 +390,7 @@ const REGISTER_VIEW_PARAMS = [
   'to',
   'unclassified',
   'reimb',
+  'spendClass',
   'page',
 ] as const;
 
@@ -402,6 +436,8 @@ function isMeaningfulValue(key: (typeof REGISTER_VIEW_PARAMS)[number], value: st
       return value === '1';
     case 'reimb':
       return value === 'awaiting' || value === 'received';
+    case 'spendClass':
+      return (VALID_SPEND_CLASSES as readonly string[]).includes(value);
     case 'page':
       return /^\d+$/.test(value) && Number(value) >= 1;
     default:
@@ -473,6 +509,8 @@ function labelFor(params: URLSearchParams): string {
     if (params.get('unclassified') === '1') return 'Needs a category';
     if (params.get('reimb') === 'awaiting') return 'Awaiting reimbursement';
     if (params.get('reimb') === 'received') return 'Reimbursement received';
+    if (params.get('spendClass') === 'fixed') return 'Fixed transactions';
+    if (params.get('spendClass') === 'guilt-free') return 'Discretionary transactions';
   }
   // Deep in an unfiltered register (page 7 of everything) is still a place worth
   // returning to, but calling it "filtered" would be a claim about a narrowing

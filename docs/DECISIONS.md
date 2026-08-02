@@ -2692,3 +2692,30 @@ names auto-loan transfer, not a mortgage-as-transfer path detect cannot emit.
 **Locks.** `test_regression__transfer_fixed_auto_loan_unions_when_absent_from_rollup` +
 `test_regression__omitted_categoryIsFixed_does_not_double_count_recurring` +
 `test_regression__fallback_recurring_excludes_credit_card_payment`.
+
+## #383 — Fixed / Guilt-free headings drill to every transaction under that class (W.7)
+
+Owner (repeated): every field that aggregates transactions (e.g. Fixed expenses)
+must open a page with every transaction under that heading. W.7 was blocked
+because `TxnFilter` had only `categoryId`, so a bucket link would land
+unfiltered or on one arbitrary member — the class `categoryRegisterHref`
+refuses by construction (O.5).
+
+**DECIDED:**
+1. Register grows a Class filter: `?spendClass=fixed|guilt-free`, with a visible
+   `<select>` (`txn-filter-spend-class`) so the control can DISPLAY the value.
+2. One builder: `spendClassMonthRegisterHref` (month window required, same as
+   category links). Always returns a string — both classes are displayable.
+3. Hang the href on the HEADING, never on the Plan Fixed / guilt-free DOLLAR.
+   Plan Fixed is budget|typical ∪ uncovered recurring; guilt-free is
+   income − savings − fixed. Neither equals "this month's Fixed/Discretionary
+   outflows." Linking the amount would assert a false equality.
+4. Surfaces wired: `/budgets` composition + Conscious strip + Fixed vs
+   guilt-free panel headings; `/spending-plan` legend (Savings stays unlinkable —
+   not a transaction set). Amount taps on Conscious still expand the plan
+   Glass-Box panel (O.18b).
+5. Register shows a one-line basis note when Class is filtered, so Net is not
+   mistaken for the Plan figure.
+
+**Locks.** `filterTransactions` spendClass unit + `spend-class-register-links`
++ e2e `spend-class-drilldown.spec.ts`.

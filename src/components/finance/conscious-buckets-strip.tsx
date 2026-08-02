@@ -19,7 +19,9 @@ import {
   planCardNotes,
   uncountedFixedNote,
 } from '@/lib/engine/spending-plan/row-labels';
+import { monthKey } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
+import { spendClassMonthRegisterHref } from '@/lib/engine/transactions/links';
 
 const META: Record<ConsciousBucketKey, { label: string; bar: string; text: string }> = {
   // Labels from the engine's one-author record (O.18b / B.3). Fixed is must-pay
@@ -87,6 +89,27 @@ export function ConsciousBucketsStrip({
   const widthBasis = buckets.reduce((s, b) => s + Math.max(0, b.cents), 0) || 1;
   const barPct = (b: { cents: number }) => (Math.max(0, b.cents) / widthBasis) * 100;
 
+  // W.7: heading → every Fixed / Discretionary transaction this month. Savings
+  // is a % / goals term, not a transaction set — no register link.
+  const month = monthKey(plan.today);
+  const registerHrefFor = (k: ConsciousBucketKey): string | null => {
+    if (k === 'fixed') {
+      return spendClassMonthRegisterHref({
+        spendClass: 'fixed',
+        month,
+        amountCents: buckets.find((b) => b.key === 'fixed')!.cents,
+      });
+    }
+    if (k === 'guiltFree') {
+      return spendClassMonthRegisterHref({
+        spendClass: 'guilt-free',
+        month,
+        amountCents: Math.max(0, buckets.find((b) => b.key === 'guiltFree')!.cents),
+      });
+    }
+    return null;
+  };
+
   return (
     <Card data-testid="conscious-buckets">
       <CardHeader className="pb-2">
@@ -113,6 +136,7 @@ export function ConsciousBucketsStrip({
               textClass={META[b.key].text}
               trace={traces[b.key]}
               testIdPrefix={TESTID[b.key]}
+              registerHref={registerHrefFor(b.key)}
               shareLabel={
                 <>
                   · {pctLabel(b.shareBps)}%{' '}

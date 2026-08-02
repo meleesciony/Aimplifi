@@ -132,6 +132,20 @@ describe('filterTransactions', () => {
     expect(summarizeTransactions(out).outflowCents).toBe(5750);
   });
 
+  // W.7 — Fixed / Discretionary heading → every transaction under that class.
+  it('filters by spendClass (Fixed vs Discretionary)', () => {
+    const mixed = [
+      txn({ id: 'f1', date: '2026-06-02', amountCents: -8000, categoryId: 'groceries', spendClass: 'fixed' }),
+      txn({ id: 'g1', date: '2026-06-03', amountCents: -4500, categoryId: 'dining', spendClass: 'guilt-free' }),
+      txn({ id: 'x1', date: '2026-06-04', amountCents: -100000, isTransfer: true, spendClass: 'out-of-scope' }),
+    ];
+    expect(filterTransactions(mixed, { spendClass: 'fixed' }).map((t) => t.id)).toEqual(['f1']);
+    expect(filterTransactions(mixed, { spendClass: 'guilt-free' }).map((t) => t.id)).toEqual(['g1']);
+    // Absent / null must be a no-op — same failure direction as unclassified.
+    expect(filterTransactions(mixed, {}).length).toBe(3);
+    expect(filterTransactions(mixed, { spendClass: null }).length).toBe(3);
+  });
+
   // Owner request 2026-07-27: "make it easier to see unclassified items in activity".
   // The register had no control for this at all — and the category dropdown could
   // never have supplied one, because the 'uncategorized' placeholder is deliberately
