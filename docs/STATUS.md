@@ -2,21 +2,26 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
-## ⚠️ OPEN 2026-08-01 — `scripts/ledger.ts reindex` destroys the decisions index
+## ✅ CLOSED 2026-08-02 — `scripts/ledger.ts reindex` is safe to run (DECISIONS #386)
 
-**Do not run `tsx scripts/ledger.ts reindex` until this is fixed.** The script
-parses only the legacy pipe-table rows in `docs/DECISIONS.md` (#1–#337, 329 rows)
-and does not recognise the `## #N — title` heading sections that every decision
-since #338 uses (46 of them). Running it regenerates the index with 329 entries
-and silently drops all 46 — measured, not theorised. The generated header
-("Do not hand-edit; run `tsx scripts/ledger.ts reindex` to regenerate") therefore
-instructs the reader to destroy data, and a Cursor agent following it in good
-faith deleted #374–#382 during #384.
+Was: the script parsed only the legacy pipe-table rows (#1–#337) and was blind to
+the `## #N — title` sections every decision since #338 uses, so regenerating wrote
+329 rows where 375 belong — and the header it generates prescribes that exact
+command, which is how a Cursor agent deleted #374–#382 in good faith during #384.
+34 decisions (#338–#373) were still absent when this session measured.
 
-Interim state: index restored + #383/#384/#385 hand-added. **34 decisions
-(#338–#373) are still absent from the index.** Fix is to teach the parser the
-heading format, then regenerate once and confirm every `## #N` in DECISIONS.md
-has exactly one index row.
+Now: `scripts/ledger-parse.ts` reads both formats (including the bare `## #354`
+shape, whose summary comes from its first bold body line), and **regenerating
+refuses to write if it would drop any number the index already carries** — it
+throws, names every one, and leaves the file untouched. The second half is the
+real fix: the next format the parser fails to understand fails in the terminal
+instead of in the file. `nextDecisionNumber` was blind the same way and would
+have returned 338, a number already used; it now counts both formats.
+
+**376 of 376 decisions indexed, exactly one row each**, asserted against the real
+committed files by `tests/unit/ledger-decisions-index.test.ts`. Residual, filed
+not waived: `ledger.ts decision` still appends a legacy TABLE row while sessions
+hand-write heading sections — the number is right, the shape is not.
 
 ## ✅ BUILT 2026-08-01 — Home polish + guilt-free without card pay (DECISIONS #369)
 

@@ -13,12 +13,27 @@
  *   tsx scripts/ledger.ts progress "<title>" "<body markdown>" [date]
  *   tsx scripts/ledger.ts reindex
  *
- * "decision" auto-detects the next decision number from the existing table and
- * regenerates docs/DECISIONS_INDEX.md afterward. "reindex" only regenerates the
- * index (useful after a hand-edit, or to build it the first time).
+ * "decision" auto-detects the next decision number (across BOTH ledger formats —
+ * see scripts/ledger-parse.ts) and regenerates docs/DECISIONS_INDEX.md afterward.
+ * "reindex" only regenerates the index (useful after a hand-edit, or to build it
+ * the first time), and refuses to write if regenerating would drop any decision
+ * the index already carries.
+ *
+ * NOTE: "decision" still appends a legacy `| n | … |` TABLE ROW, while every
+ * decision since #338 is hand-written as a `## #n — title` section. The number it
+ * picks is now correct, but the shape it writes is the old one; sessions have been
+ * writing the heading form by hand. Converging the two is its own task.
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import {
+  collectDecisionEntries,
+  droppedNumbers,
+  duplicateNumbers,
+  nextDecisionNumber,
+  parseIndexNumbers,
+  renderIndexBody,
+} from "./ledger-parse";
 
 const ROOT = join(__dirname, "..");
 const DECISIONS_PATH = join(ROOT, "docs", "DECISIONS.md");
@@ -65,16 +80,6 @@ function ensureTrailingNewline(text: string, eol: string): string {
 // decision
 // ---------------------------------------------------------------------------
 
-function nextDecisionNumber(contents: string): number {
-  const rows = contents.split("\n").filter((line) => /^\|\s*\d+\s*\|/.test(line));
-  let max = 0;
-  for (const row of rows) {
-    const match = row.match(/^\|\s*(\d+)\s*\|/);
-    if (match) max = Math.max(max, Number(match[1]));
-  }
-  return max + 1;
-}
-
 function appendDecision(phase: string, decision: string, rationale: string): void {
   const contents = readFile(DECISIONS_PATH);
   const eol = detectEol(contents);
@@ -86,47 +91,50 @@ function appendDecision(phase: string, decision: string, rationale: string): voi
   regenerateDecisionsIndex();
 }
 
-/** Best-effort parse of one `| n | phase | rest... |` row for the index. Some
- * legacy rows contain unescaped `|` inside inline code spans (valid GFM,
- * invalid naive split), so this deliberately does NOT try to split decision
- * from rationale — it keeps everything after the phase column as one summary,
- * which is exact for correctly-escaped rows and still useful (grep-able,
- * truncated) for the legacy ones. */
-function parseDecisionRow(line: string): { num: string; phase: string; summary: string } | null {
-  const withPhase = line.match(/^\|\s*(\d+)\s*\|\s*([^|]*?)\s*\|\s*(.*)\|\s*$/);
-  // Fallback for legacy malformed rows missing the Phase column (e.g. #165):
-  // `| n | rest... |` with only 3 top-level pipes. Still indexed, phase "?".
-  const withoutPhase = line.match(/^\|\s*(\d+)\s*\|\s*(.*)\|\s*$/);
-  const match = withPhase ?? withoutPhase;
-  if (!match) return null;
-  const [num, phase, rest] = withPhase ? [match[1], match[2], match[3]] : [match[1], "?", match[2]];
-  const clean = rest
-    .replace(/\\\|/g, "|") // unescape for display
-    .replace(/\s+/g, " ")
-    .trim();
-  const summary = clean.length > 220 ? `${clean.slice(0, 220)}…` : clean;
-  return { num, phase: phase.trim(), summary };
-}
-
 function regenerateDecisionsIndex(): void {
   const contents = readFile(DECISIONS_PATH);
   const eol = detectEol(contents);
-  const lines = contents.split(/\r?\n/);
-  const entries = lines
-    .map(parseDecisionRow)
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-    .sort((a, b) => Number(a.num) - Number(b.num));
+  const entries = collectDecisionEntries(contents);
+
+  // A number carried by BOTH a table row and a heading means two texts claim to
+  // describe the same decision. Emitting both would put two rows under one
+  // number; picking one silently would hide the other. Neither is ours to choose.
+  const dupes = duplicateNumbers(entries);
+  if (dupes.length > 0) {
+    throw new Error(
+      `ledger.ts reindex: docs/DECISIONS.md defines these numbers more than once: ` +
+        `${dupes.map((n) => `#${n}`).join(", ")}. Resolve the duplicate before reindexing.`,
+    );
+  }
+
+  // Regenerating must never be a deletion. `reindex` destroyed 46 heading-era
+  // decisions once already (docs/STATUS.md) because the parser could not see
+  // them and wrote the shortfall out as if it were the answer. Whatever the
+  // parser fails to understand NEXT, it fails here instead of in the file.
+  if (existsSync(DECISIONS_INDEX_PATH)) {
+    const dropped = droppedNumbers(parseIndexNumbers(readFile(DECISIONS_INDEX_PATH)), entries);
+    if (dropped.length > 0) {
+      throw new Error(
+        `ledger.ts reindex: REFUSING to write — ${dropped.length} decision(s) indexed today ` +
+          `would be dropped: ${dropped.map((n) => `#${n}`).join(", ")}. ` +
+          `docs/DECISIONS_INDEX.md is unchanged. Either those decisions are missing from ` +
+          `docs/DECISIONS.md, or they use a format this parser does not recognise ` +
+          `(see scripts/ledger-parse.ts).`,
+      );
+    }
+  }
 
   const header = [
     "# Decisions Index",
     "",
-    "Auto-generated by `scripts/ledger.ts` — one line per `docs/DECISIONS.md` row, so a",
+    "Auto-generated by `scripts/ledger.ts` — one line per `docs/DECISIONS.md` decision",
+    "(both the legacy `| n | … |` table rows and the `## #n — title` sections), so a",
     "session can find a decision by number or keyword without loading the full ledger.",
-    "Do not hand-edit; run `tsx scripts/ledger.ts reindex` to regenerate.",
+    "Do not hand-edit; run `tsx scripts/ledger.ts reindex` to regenerate. Regenerating",
+    "refuses to write if it would drop any number this file already carries.",
     "",
   ];
-  const body = entries.map((e) => `- **#${e.num}** (Phase ${e.phase}): ${e.summary}`);
-  const out = [...header, ...body].join(eol);
+  const out = [...header, ...renderIndexBody(entries)].join(eol);
   writeFileSync(DECISIONS_INDEX_PATH, ensureTrailingNewline(out, eol), "utf8");
   console.log(`DECISIONS_INDEX.md: regenerated (${entries.length} entries)`);
 }

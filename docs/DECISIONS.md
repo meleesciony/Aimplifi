@@ -2762,3 +2762,49 @@ Tax refund / rental / interest stay off that path (fallback-only when no earned
 leaves). Rest of #370 (payment-account scope) unchanged.
 
 **Locks.** `test_regression__second_paycheck_still_on_generic_income_is_not_dropped`.
+
+## #386 — `reindex` reads both ledger formats, and refuses to write a deletion
+
+`docs/STATUS.md` has carried an OPEN warning since 2026-08-01: **do not run
+`tsx scripts/ledger.ts reindex`**. Its parser read only the legacy `| n | … |`
+table rows (#1–#337) and was blind to the `## #n — title` sections every
+decision since #338 uses, so regenerating wrote 329 rows where 375 belong —
+and the header it generates *prescribes that command*. A Cursor agent followed
+that instruction in good faith during #384 and deleted #374–#382.
+
+Measured before touching anything: 329 table rows + 46 headings = 375
+decisions, 341 indexed, **34 absent** (#338–#373 less the #353/#360 numbering
+gaps) — exactly what STATUS claimed.
+
+**DECIDED (two parts, and the second is the one that matters).**
+
+1. `scripts/ledger-parse.ts` — pure, testable, no `fs` — reads both formats.
+   Headings: `## #n (phase): title`, `## #n (phase) — title`, `## #n — title`,
+   and the bare `## #n` (#354/#355), whose summary falls back to the first bold
+   body line, phase and all. Only a LEADING parenthetical is a phase; #384's
+   trailing `(not Math.max)` is a sentence.
+2. **Regenerating can no longer delete.** `reindex` diffs the numbers it is
+   about to write against the numbers the index already carries and, if any
+   would disappear, throws naming every one of them and writes nothing.
+
+Part 2 is the actual fix. Part 1 repairs the parser I know about; part 2 means
+the NEXT format this parser fails to understand fails loudly in the terminal
+instead of silently in the file. Proven by mutation: the heading parser was
+reverted to its blind state, `reindex` refused, named all 46, exited 1, and the
+index was byte-identical afterward.
+
+Also repaired in the same read: `nextDecisionNumber` counted only table rows, so
+the next `ledger.ts decision` would have returned **338** — a number #338 has
+held since 2026-07-31 — and appended a duplicate. It now counts both formats.
+
+**Not fixed, filed instead:** `decision` still appends a legacy table ROW while
+sessions hand-write heading sections. The number is now right, the shape is not.
+
+**Deliberate loss:** regenerating replaces the hand-written summaries for
+#374–#385 with their headings' own titles. Nothing leaves `DECISIONS.md`; the
+index is derived by one author again instead of two.
+
+**Locks.** `tests/unit/ledger-decisions-index.test.ts` — 16 tests, of which the
+load-bearing three assert against the real committed files: every decision is
+indexed, no number is indexed twice, and nothing in the index is unaccounted
+for. Before the fix, one failed and named all 34 missing decisions.
