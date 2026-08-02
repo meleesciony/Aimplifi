@@ -9322,3 +9322,89 @@ the live Neon database is untouched. As with #388/#389 there is no fetchable liv
 marker — /trends and the dashboard are behind auth, so the rendered bills line
 cannot be curl'd from here; the evidence is the commit sha on a READY production
 deployment plus the local e2e against a fresh build.
+
+## #391 — The owed C.2 hostile-critic cycle, and C.7 (2026-08-02)
+
+**Two things shipped: the critic cycle #390 never got, and the frozen-transfer-source P0.**
+
+### Why this session existed
+#390 shipped C.2 and its two hostile critics both died on an API session limit
+before reporting. `a-rate-and-its-target-must-share-a-unit` is explicit that a
+critic that did not run is not a pass, so the cycle was re-run before anything
+new was built on top of the pace work. Both critics were read-only (no Edit/Write
+tools) so neither could leave a mutation in the tree — the failure recorded twice
+in `a-subagents-green-is-a-hypothesis` and `a-repeated-request-is-about-the-gesture`.
+
+### Cycle 1 result: FAIL from both critics, independently
+Money-math lens: 2 P1 + 2 P2. Copy/claims lens: 1 P0 + 4 P1 + 3 P2. They
+overlapped on nothing, which is the argument for running two lenses.
+
+**P0 — branch B claimed completeness.** "The bills we can see for this month have
+already been charged" was the only branch that declares the projection finished
+and the only one carrying no limitation. It is false by scope: the engine refuses
+scheduled rows it can plainly see (an aggregate "Zelle Payment" landlord, a
+hand-authored label, a transfer-paid obligation), and **/calendar renders those
+same refused rows as bills still due, one click away, off the same array**.
+Branch A's hedge was no better — an enumeration of two exclusions where at least
+five classes exist. Both now carry one positively-stated coverage clause: *only
+bills we can match to a merchant you have spent at are counted*. A positive rule
+cannot decay as an exclusion list does; every refusal added later is covered by
+construction.
+
+**P1 — a future-dated row could admit a bill.** `counted.add` sat above the
+`date > today` guard, so a transaction the app says has not happened could put a
+$500 bill into the projection while contributing $0 to the month total. Fixed by
+moving one line; `aggregateMerchant` deliberately stays outside the guard because
+it only ever refuses.
+
+**P1 — the clamp deleted real money.** `Math.max(0, spentSoFar − credited)`
+absorbed a basis crossing (the month total nets refunds by CATEGORY, the credit
+sums per MERCHANT) by wiping the daily rate: a genuine $30/day of dining became
+$0/day and the month flat-lined, reading as "on pace to spend less". Now the
+crossing is detected and no credit is taken, which errs toward tightening.
+
+### C.7 — the dashboard could tell you to move money you do not have
+`dashboard/page.tsx` derived its own funding source with `type === 'SAVINGS'`
+sorted by balance — none of the four guards `radar.ts` applies to the same
+account array on the same page. A frozen balance is stale and reads HIGH, so it
+sorted FIRST. The mutation run printed the defect in full: **"Transfer $8,500.00
+from Rainy Day Reserve ($50,000.00 available) by Wed, Jun 24"** on an account
+frozen since May 20. The rule now lives in `eligibleTransferSources` and both
+surfaces obtain it there; `sufficient` stays at the radar call site because it is
+a claim about that engine's own figure.
+
+Nothing on the seeded demo moves: High-Yield Savings still wins and the payment
+account is correctly excluded.
+
+### Gate
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc clean, eslint clean, **5685 unit
+tests / 348 files** (was 5669/347), `next build` clean. e2e serialized against
+that build: `trends`, `trends-pace-abstain`, `trends-pace-bills`,
+`transfer-source-frozen`, `phase1-cash-needed` — **8/8**.
+
+### Mutation proof (five, each killed its own lock and only its own)
+- old branch-B sentence restored → 3 label locks fail
+- admission line order restored → the future-dated lock fails
+- `Math.max(0, …)` restored → the net-refund lock fails, discretionary 0 where $30.00 belongs
+- frozen guard dropped from the selector → 2 of the 9 selector locks fail
+- local derivation restored in `page.tsx`, **through a full rebuild** → the e2e fails and renders the P0 verbatim
+
+One lock failed honestly on first write: the future-dated fixture reused a
+merchant whose prior-month charge admitted the bill legitimately, so it passed on
+the old code. The fixture was doing the work, not the guard — caught by running
+it before believing it.
+
+### Not done, queued
+- **C.20 (new)** — the two bases are prevented from crossing destructively, not
+  unified. `spentSoFarCents` nets by category; the bill credit sums by merchant.
+  The real fix attributes the credit through the same netting.
+- **Branch C still says nothing about bills.** It fires when NO bill was admitted,
+  which conflates "you have no bills" with "we matched none of yours" — the
+  `a-zero-is-a-claim-and-must-name-which-zero` shape. It needs a refused-count
+  fact from the engine, so it is C.21 rather than a copy tweak.
+- The critic's rendered-coverage finding (branches B and C never render in a
+  test) is **partly declined on purpose**: both surfaces call `paceAssumption(pace)`
+  unconditionally and the branch is chosen inside the pure function, so the
+  existing rendered lock proves the call site and the unit goldens prove all
+  three branches. What is genuinely uncovered is a rendered branch-B string, and
+  that is noted rather than claimed.
