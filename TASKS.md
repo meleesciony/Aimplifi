@@ -678,6 +678,14 @@ seem like it's fixed at all"* — the review shipped a document and his number i
 next session writes CODE; the analysis is done and lives in the audit doc. Then C.7, then C.0 →
 C.4/C.5, then C.6 in its own session.
 
+**Grok 4.5 scope in this wave (owner asked 2026-08-02).** Per the routing policy above, Grok may
+take **C.3**, **C.16** (excluding F5's confirm-step and F7's split-container fence — both are
+data-integrity), the **wiring half of C.15** once the return encoder exists, and the **copy-only
+P2s in C.17**. Grok may NOT take C.1, C.2, C.4, C.5, C.6, C.7, C.9, C.11, C.12, C.13, C.14's
+`goalFIImpact` floor, C.15's encoder (a URL-construction boundary), or C.17's float-rounding fix.
+Note for expectation-setting: **C.3 does not change the $8,971.25** — it adds the day count, the
+assumption and the horizon and removes the false green. The figure itself moves only in C.2.
+
 **C.0 gates the Fixed cluster ONLY** — it is a read-only database measurement that produces
 nothing the owner can see, so it is not the place to start. Per
 `three-sessions-of-hypothesis-one-query-of-evidence`, three prior sessions each shipped a
