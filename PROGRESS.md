@@ -9072,3 +9072,36 @@ above and then adds "nothing is invented". That is the app's designated trust su
 build` cannot be affected by a markdown file, so a green gate here would prove nothing about the
 findings — every P0 above is UNFIXED and the suite is expected to pass with all of them present.
 Empty prisma diff; the live database is untouched.
+
+### Owner's response to the audit, same session — READ THIS BEFORE STARTING ANYTHING
+
+*"doesn't seem like it's fixed at all"*, then a `/clear`. He is right and it is the correct
+reaction: this session shipped a document, and the $8,971.25 he reported is still on his screen.
+
+**The next session's job is SHIPPING FIXES, not more analysis.** The audit is done; do not
+re-review, do not re-derive the findings, do not open a second critic wave. `docs/CALC_AUDIT_2026-08-02.md`
+plus TASKS.md Wave C already hold every mechanism with file:line evidence — start from those and
+write code.
+
+**Start with the number he actually reported**, not with C.0. My earlier "C.0 first" ordering was
+right about the FIXED cluster and wrong as an overall plan — C.0 is a database measurement that
+gates C.4/C.5 only, and it produces nothing the owner can see. Correct order:
+
+1. **C.1 + C.3 + C.2, as one slice on /trends** — the zero-spend abstention, the dashboard card's
+   missing day-count/assumption/horizon and its false green, and the projection model itself.
+   That is his complaint end to end, and C.1/C.3 are small and verified.
+   Delete `tests/unit/trends.test.ts:249-251` FIRST — it asserts the formula against itself and
+   will pass for whatever C.2 does, correct or not.
+2. **C.7** (frozen transfer source) — small, verified, and the fix is deleting a local derivation
+   in favour of `radar.coverTransfer.sources[0]` that already exists.
+3. **C.0**, then the C.4/C.5 Fixed cluster.
+4. C.6 (`CardPayment` intake) is the largest money defect and deserves its own session.
+
+Design note already gathered for C.2, so it need not be rediscovered: `snap.scheduled`
+(`providers/types.ts:38`) is on the snapshot `getSpendingTrends` already loads, and
+`expandScheduled` (`forecast/forecast.ts:71-116`) already expands cadences into dated
+occurrences — so the pieces exist. The correctness hazard is **double-counting a scheduled bill
+that has ALREADY posted this month**: any projection of the form
+`spentSoFar + remaining scheduled` must exclude occurrences dated on or before `today`, and must
+not re-add a bill whose transaction is already inside `spentSoFarCents`. Decide that dedupe rule
+explicitly and lock it, or the fix trades an understatement for an overstatement.

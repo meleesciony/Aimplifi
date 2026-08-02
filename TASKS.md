@@ -673,10 +673,17 @@ Both owner numbers resolved exactly: `57879 / 2 days * 31 = 897125c` and July ac
 `$28,685.10`. Seven of the eight P0s were reproduced in the main thread against source, not taken
 on a subagent's word (`a-subagents-green-is-a-hypothesis`).
 
-**C.0 gates the Fixed cluster.** Per `three-sessions-of-hypothesis-one-query-of-evidence`, three
-prior sessions each shipped a plausible Fixed-figure fix without measuring and none was the cause.
-C.4/C.5 move Fixed in the OPPOSITE direction from the pace defect the owner reported; do not guess
-which is live on his account.
+**START HERE: C.1 + C.3 + C.2 as one /trends slice.** Owner's reply to the audit was *"doesn't
+seem like it's fixed at all"* — the review shipped a document and his number is unchanged. The
+next session writes CODE; the analysis is done and lives in the audit doc. Then C.7, then C.0 →
+C.4/C.5, then C.6 in its own session.
+
+**C.0 gates the Fixed cluster ONLY** — it is a read-only database measurement that produces
+nothing the owner can see, so it is not the place to start. Per
+`three-sessions-of-hypothesis-one-query-of-evidence`, three prior sessions each shipped a
+plausible Fixed-figure fix without measuring and none was the cause. C.4/C.5 move Fixed in the
+OPPOSITE direction from the pace defect the owner reported; do not guess which is live on his
+account.
 
 | # | Task | Owner/Agent | Effort | Est. budget | Status |
 |---|------|-------------|--------|------------|--------|
