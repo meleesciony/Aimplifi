@@ -266,6 +266,11 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   });
   const categoryIsFixed = (categoryId: string) =>
     resolveCategoryIsFixed(categoryId, categoryMeta, fixedOverrides);
+  // Only ids that actually contribute mass — Fixed-category series absent from
+  // this set (auto-loan ACH with isTransfer) still union into Fixed (#381 critic).
+  const categoryFixedCoveredIds = new Set(
+    categoryFixed.rows.filter((r) => r.amountCents > 0).map((r) => r.categoryId),
+  );
 
   const plan = computeSpendingPlan({
     today,
@@ -274,6 +279,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     scheduledFixed,
     trailingMonthlyFixedCents,
     categoryFixedCents: categoryFixed.totalCents,
+    categoryFixedCoveredIds,
     categoryIsFixed,
     incomeOverrideCents: user?.planIncomeOverrideCents ?? null,
     fixedOverrideCents: user?.planFixedOverrideCents ?? null,

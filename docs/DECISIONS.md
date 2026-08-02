@@ -2676,3 +2676,19 @@ that exclusion dropped card spend without a substitute.
 `test_regression__credit_card_purchases_count_in_fixed_card_payment_does_not` +
 `test_regression__set_category_fixed_refuses_shared_demo` +
 e2e Plan/budgets union copy + hardened txn-spend-class.
+
+## #382 — Fixed union: skip only categories actually in the rollup
+
+Hostile critic on #381: `fixed === true ⇒ skip` dropped the demo auto-loan ACH
+($385, `isTransfer`) whenever any Fixed rollup was active — complementary
+undercount of the same class #381 claimed to close.
+
+**DECIDED:** Pass `categoryFixedCoveredIds` (rollup rows with amount > 0). Skip
+Fixed-category recurring only when that id is covered. Uncovered Fixed
+recurring (auto-loan transfer) unions in. Omit `categoryIsFixed` ⇒ outside 0
+(no double-count). Fallback recurring excludes settlement categories. Glass-box
+names auto-loan transfer, not a mortgage-as-transfer path detect cannot emit.
+
+**Locks.** `test_regression__transfer_fixed_auto_loan_unions_when_absent_from_rollup` +
+`test_regression__omitted_categoryIsFixed_does_not_double_count_recurring` +
+`test_regression__fallback_recurring_excludes_credit_card_payment`.

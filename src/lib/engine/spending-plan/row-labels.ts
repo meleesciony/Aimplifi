@@ -153,7 +153,7 @@ function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): P
     if (plan.fixedBasis === 'user-set') return { label: 'Fixed costs (you set)' };
     if (plan.fixedBasis === 'category-designations') {
       return {
-        label: 'Fixed costs (Fixed categories + uncovered recurring bills)',
+        label: 'Fixed costs (Fixed categories + recurring not in that rollup)',
         action: { label: 'Review Fixed on Spending', href: '/budgets' },
       };
     }
@@ -249,10 +249,9 @@ export function uncountedFixedNote(
   /**
    * What THIS surface calls the thing the bill is missing from — also required,
    * for the same reason as `headline`. /spending-plan and Ask both print a line
-   * called "Fixed & recurring expenses"; /budgets prints no such line at all, only
-   * a "Fixed costs" bucket that also contains card payments, so naming a line
-   * there points at nothing (critic P2-3, executed against the component's own
-   * labels).
+   * called "Fixed & recurring expenses"; /budgets prints a "Fixed costs" line
+   * that does NOT include card payments (settlement — owner 2026-08-01), so the
+   * caller must pass a `lineName` that matches what that surface actually shows.
    */
   lineName: 'the fixed-expenses line' | 'your fixed costs',
 ): string | null {

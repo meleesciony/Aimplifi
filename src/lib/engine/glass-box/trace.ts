@@ -284,7 +284,7 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
           ]
         : plan.fixedBasis === 'category-designations'
           ? [
-              'Fixed costs are the sum of Fixed categories (budget target when set, otherwise typical spend), plus detected recurring bills whose category is outside that dial (for example a mortgage ACH filed as a transfer) — so those bills are counted once, not dropped by a max() against the rollup. Change Fixed vs guilt-free on Spending.',
+              'Fixed costs are the sum of Fixed categories (budget target when set, otherwise typical spend), plus detected recurring bills that are not already in that rollup (for example an auto-loan ACH tagged as a transfer — transfers never enter typical spend). Change Fixed vs guilt-free on Spending.',
             ]
           : plan.fixedBasis === 'non-discretionary-median'
             ? [

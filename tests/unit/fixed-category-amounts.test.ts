@@ -105,7 +105,7 @@ describe('resolveFixedCategoryAmounts', () => {
   });
 
   it('test_regression__category_rollup_unions_out_of_scope_recurring', () => {
-    // Critic P0: groceries in rollup + mortgage ACH (transfer) must BOTH survive.
+    // Critic P0: groceries in rollup + out-of-dial transfer series must BOTH survive.
     const p = computeSpendingPlan({
       today,
       trailingMonthlyIncomeCents: [500_000],
@@ -116,6 +116,7 @@ describe('resolveFixedCategoryAmounts', () => {
       ],
       trailingMonthlyFixedCents: [80_000],
       categoryFixedCents: 80_000,
+      categoryFixedCoveredIds: new Set(['groceries']),
       categoryIsFixed: (id) => (id === 'groceries' ? true : id === 'transfer' ? null : false),
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
@@ -130,6 +131,31 @@ describe('resolveFixedCategoryAmounts', () => {
     expect(p.leftToSpendCents).toBe(170_000);
   });
 
+  it('test_regression__transfer_fixed_auto_loan_unions_when_absent_from_rollup', () => {
+    // #381 critic P0: CarMax-style auto-loan is isTransfer → never in typical
+    // rollup, but Fixed + counted — must not be skipped as "already in rollup".
+    const p = computeSpendingPlan({
+      today,
+      trailingMonthlyIncomeCents: [500_000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -38_500, cadence: 'MONTHLY', categoryId: 'auto-loan' }],
+      trailingMonthlyFixedCents: [80_000],
+      categoryFixedCents: 80_000, // groceries only
+      categoryFixedCoveredIds: new Set(['groceries']),
+      categoryIsFixed: (id) => (id === 'groceries' || id === 'auto-loan' ? true : null),
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(p.fixedBasis).toBe('category-designations');
+    expect(p.fixedExpensesCents).toBe(118_500); // 80k + 385 loan
+    expect(p.leftToSpendCents).toBe(381_500);
+  });
+
   it('test_regression__fixed_category_recurring_is_not_double_counted', () => {
     // Rent series filed under housing is already inside the rollup — do not add again.
     const p = computeSpendingPlan({
@@ -139,6 +165,7 @@ describe('resolveFixedCategoryAmounts', () => {
       scheduledFixed: [{ amountCents: -200_000, cadence: 'MONTHLY', categoryId: 'rent' }],
       trailingMonthlyFixedCents: [200_000],
       categoryFixedCents: 350_000, // rent + groceries typical
+      categoryFixedCoveredIds: new Set(['rent', 'groceries']),
       categoryIsFixed: (id) => (id === 'rent' || id === 'groceries' ? true : null),
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
@@ -159,6 +186,7 @@ describe('resolveFixedCategoryAmounts', () => {
       scheduledFixed: [{ amountCents: -5_000, cadence: 'MONTHLY', categoryId: 'subscriptions' }],
       trailingMonthlyFixedCents: [100_000],
       categoryFixedCents: 100_000,
+      categoryFixedCoveredIds: new Set(['groceries']),
       categoryIsFixed: (id) => (id === 'subscriptions' ? false : true),
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
@@ -169,6 +197,50 @@ describe('resolveFixedCategoryAmounts', () => {
       savingsTargetBps: null,
     });
     expect(p.fixedExpensesCents).toBe(100_000); // Netflix not added
+  });
+
+  it('test_regression__omitted_categoryIsFixed_does_not_double_count_recurring', () => {
+    const p = computeSpendingPlan({
+      today,
+      trailingMonthlyIncomeCents: [500_000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -80_000, cadence: 'MONTHLY', categoryId: 'groceries' }],
+      trailingMonthlyFixedCents: [],
+      categoryFixedCents: 80_000,
+      categoryFixedCoveredIds: new Set(['groceries']),
+      // categoryIsFixed omitted on purpose
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(p.fixedExpensesCents).toBe(80_000); // not 160k
+  });
+
+  it('test_regression__fallback_recurring_excludes_credit_card_payment', () => {
+    const p = computeSpendingPlan({
+      today,
+      trailingMonthlyIncomeCents: [500_000],
+      scheduledIncome: [],
+      scheduledFixed: [
+        { amountCents: -100_000, cadence: 'MONTHLY', categoryId: 'rent' },
+        { amountCents: -50_000, cadence: 'MONTHLY', categoryId: 'credit-card-payment' },
+      ],
+      trailingMonthlyFixedCents: [],
+      categoryFixedCents: 0,
+      cardObligationsCents: 50_000,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(p.fixedBasis).toBe('detected-series');
+    expect(p.fixedExpensesCents).toBe(100_000); // payment not Fixed
   });
 
   it('test_regression__credit_card_purchases_count_in_fixed_card_payment_does_not', () => {
@@ -280,6 +352,7 @@ describe('resolveFixedCategoryAmounts', () => {
       ],
       trailingMonthlyFixedCents: [],
       categoryFixedCents: r.totalCents,
+      categoryFixedCoveredIds: new Set(r.rows.map((x) => x.categoryId)),
       categoryIsFixed: (id) => {
         if (id === 'groceries' || id === 'fuel') return true;
         if (id === 'subscriptions') return false;

@@ -27,7 +27,9 @@ test('Spending Plan: guilt-free headline + breakdown render for the demo user', 
       { exact: false },
     ),
   ).toBeVisible();
-  await expect(page.getByText(/Fixed categories \+ uncovered recurring|uncovered recurring/i)).toBeVisible();
+  await expect(
+    page.getByText(/Fixed categories \+ recurring not in that rollup|recurring not in that rollup/i),
+  ).toBeVisible();
   // Owner 2026-08-01: card payments are not a Plan row (settlement, not a cost class).
   await expect(page.getByText('Card payments due this month', { exact: true })).toHaveCount(0);
 
@@ -71,5 +73,5 @@ test('Spending Plan: guilt-free headline + breakdown render for the demo user', 
   await expect(page.getByText('A yearly bill is spread across the year', { exact: false })).toHaveCount(0);
   // #381: glass-box names the union (not scalar max / "floored").
   await expect(page.getByText(/sum of Fixed categories/i)).toBeVisible();
-  await expect(page.getByText(/plus detected recurring bills/i)).toBeVisible();
+  await expect(page.getByText(/plus detected recurring bills that are not already in that rollup/i)).toBeVisible();
 });

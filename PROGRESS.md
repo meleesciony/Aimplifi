@@ -1,11 +1,16 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — Wave B Fixed union covered-ids fix (#382) SHIPPING
+
+Critic FAIL on #381: auto-loan isTransfer dropped when rollup active. Fix:
+`categoryFixedCoveredIds`; skip Fixed recurring only if covered.
+verify: tsc/eslint/vitest 5602/build + e2e 3/3.
+
 ## 2026-08-01 — Wave B Fixed = purchases ∪ uncovered recurring (#381) DONE
 
 Owner: card bills ≠ expenses; Fixed = Fixed-category purchases (incl. CREDIT).
 Union (not max) + never credit-card-payment; retire "card holds Fixed" copy.
-Shipped `8263eff`; Vercel READY `aimplifi-filpliwpa`; live `/budgets` fixed-basis
-names union (not floored).
+Shipped `8263eff`; Vercel READY `aimplifi-filpliwpa` (P0 residual → #382).
 
 ## 2026-08-01 — Always-on Fixed category rollup (#380) DONE (B.1)
 
