@@ -1,12 +1,13 @@
 /**
- * Guilt-free income pattern inputs (DECISIONS #370).
+ * Guilt-free income pattern inputs (DECISIONS #370 / #385).
  *
  * Trailing months should reflect money you *earn to allocate* — not investment
  * distributions, interest, or cash moved in from a money-market / other account.
- * When the reader has filed paycheck (or bonus / side-gig) rows, those leave
- * drive each month; otherwise we fall back to broad income minus investment /
- * interest leaves so demo + users who only use the generic Income category
- * still get a pattern.
+ * When the reader has filed paycheck (or bonus / side-gig) rows, those leaves
+ * count — and so does pay still filed under the generic Income parent (a second
+ * biweekly deposit the categorizer has not refined yet). Tax refunds / rental /
+ * interest stay out of that path. When no earned leaves exist, fall back to
+ * broad income minus untouchable leaves (demo + Income-only filers).
  */
 import { countsInFlows, type TxnLike } from '@/lib/engine/fi/insights';
 import { isIncomeCategoryId } from '@/lib/engine/categorize/categories';
@@ -44,6 +45,20 @@ export function isEarnedIncomeRow(t: TxnLike): boolean {
 }
 
 /**
+ * Generic Income parent — still-unfiled pay (second biweekly deposit, etc.).
+ * Counted WITH earned leaves (#385); never alone as a substitute for the
+ * earned path's exclusions (tax-refund / rental stay on the fallback-only path).
+ */
+export function isGenericIncomePayRow(t: TxnLike): boolean {
+  return (
+    countsInFlows(t) &&
+    t.amountCents > 0 &&
+    t.categoryId === 'income' &&
+    !isUntouchableIncomeRow(t)
+  );
+}
+
+/**
  * Broad income used only when a month has no earned-pay rows: Income-group
  * (and uncategorized positives), minus untouchable investment/interest and
  * mobile-deposit transfers.
@@ -62,21 +77,26 @@ export interface MonthlyIncomeCents {
 
 /**
  * Per complete-month income for the guilt-free trailing median.
- * Prefer earned-pay leaves when present in that month; else fallback income.
+ *
+ * When any earned-pay leaf exists: earned leaves + generic Income parent rows
+ * (sibling paychecks not yet refined to `paycheck`). Else: fallback income.
  */
 export function monthlyGuiltFreeIncomeCents(transactions: readonly TxnLike[]): MonthlyIncomeCents[] {
-  const byMonth = new Map<string, { earned: number; fallback: number }>();
+  const byMonth = new Map<string, { earned: number; generic: number; fallback: number }>();
   for (const t of transactions) {
     const m = monthKey(t.date);
-    const slot = byMonth.get(m) ?? { earned: 0, fallback: 0 };
+    const slot = byMonth.get(m) ?? { earned: 0, generic: 0, fallback: 0 };
     if (isEarnedIncomeRow(t)) slot.earned += t.amountCents;
+    if (isGenericIncomePayRow(t)) slot.generic += t.amountCents;
     if (isFallbackGuiltFreeIncomeRow(t)) slot.fallback += t.amountCents;
     byMonth.set(m, slot);
   }
   return [...byMonth.entries()]
-    .map(([month, { earned, fallback }]) => ({
+    .map(([month, { earned, generic, fallback }]) => ({
       month,
-      incomeCents: earned > 0 ? earned : fallback,
+      // #385: do NOT drop generic Income pay just because one deposit is filed
+      // as paycheck — that under-counted biweekly months by ~half.
+      incomeCents: earned > 0 ? earned + generic : fallback,
     }))
     .sort((a, b) => (a.month < b.month ? -1 : 1));
 }

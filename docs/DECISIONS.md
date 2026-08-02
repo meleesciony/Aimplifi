@@ -2719,3 +2719,18 @@ refuses by construction (O.5).
 
 **Locks.** `filterTransactions` spendClass unit + `spend-class-register-links`
 + e2e `spend-class-drilldown.spec.ts`.
+
+## #385 — Second paycheck on generic Income is not dropped when one is filed as paycheck
+
+Owner 2026-08-01: Plan income ~$10k / “only one paycheck” while pay is steady and
+higher. #370 preferred paycheck/bonus/side-income leaves whenever ANY existed in
+the month — so a biweekly twin still filed under the generic Income parent was
+excluded. Mobile-deposit / interest exclusions were right; the all-or-nothing
+leaf gate was not.
+
+**DECIDED:** When earned leaves exist, month income = earned leaves + generic
+`income` parent rows that are not untouchable (Deposit Mobile Banking etc.).
+Tax refund / rental / interest stay off that path (fallback-only when no earned
+leaves). Rest of #370 (payment-account scope) unchanged.
+
+**Locks.** `test_regression__second_paycheck_still_on_generic_income_is_not_dropped`.

@@ -97,4 +97,38 @@ describe('monthlyGuiltFreeIncomeCents', () => {
       ),
     ).toBe(true);
   });
+
+  it('test_regression__second_paycheck_still_on_generic_income_is_not_dropped', () => {
+    // Owner 2026-08-01: income ~half of steady pay — #370 used ONLY paycheck
+    // leaves once any existed, so a biweekly twin still filed as Income vanished.
+    const months = monthlyGuiltFreeIncomeCents([
+      txn({
+        date: '2026-07-01',
+        amountCents: 1_000_000,
+        categoryId: 'paycheck',
+        rawDescriptor: 'EMPLOYER PAYROLL 1',
+      }),
+      txn({
+        date: '2026-07-15',
+        amountCents: 1_000_000,
+        categoryId: 'income',
+        rawDescriptor: 'EMPLOYER PAYROLL 2',
+      }),
+      // Must still exclude MM / interest on the earned path.
+      txn({
+        date: '2026-07-20',
+        amountCents: 200_000,
+        categoryId: 'income',
+        rawDescriptor: 'Deposit Mobile Banking',
+      }),
+      txn({
+        date: '2026-07-22',
+        amountCents: 50_000,
+        categoryId: 'tax-refund',
+        rawDescriptor: 'IRS TREAS',
+      }),
+    ]);
+    // FAIL-OLD: earned-only → 1_000_000
+    expect(months).toEqual([{ month: '2026-07', incomeCents: 2_000_000 }]);
+  });
 });

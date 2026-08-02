@@ -7,6 +7,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-08-01 | Plan income ~half / “only one paycheck” on steady biweekly pay | #370 used only paycheck leaves once any existed; twin still on Income parent dropped | earned + generic Income (not untouchable); tax-refund stays out | `test_regression__second_paycheck_still_on_generic_income_is_not_dropped` |
 | 2026-08-01 | Fixed / Guilt-free aggregate headings were dead — owner could not open every transaction under that heading | TxnFilter had only categoryId; bucket link would be unfiltered or false equality vs Plan $ | Register spendClass filter + heading links; never Plan dollar (different basis) | `spend-class-register-links` + e2e `spend-class-drilldown` |
 | 2026-08-01 | Conscious-spending caption still said "fixed and recurring costs" after Fixed widened to groceries/utilities | W.5 band assumed fuller numerator; B.1 widened math but copy stayed narrow | Keep 50–60% band; CONSCIOUS_BUCKET_COUNTS + consciousSpending name must-pay Fixed | `test_regression__conscious_caption_names_must_pay_fixed_not_bills_alone` + e2e conscious-caption |
 | 2026-08-01 | #381 union skipped all Fixed-category recurring — demo auto-loan ($385, isTransfer) vanished whenever groceries rollup was active | `fixed===true` treated as "in rollup" without checking covered ids | Skip Fixed series only if category id is in `categoryFixedCoveredIds` | `test_regression__transfer_fixed_auto_loan_unions_when_absent_from_rollup` |
