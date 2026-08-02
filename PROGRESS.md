@@ -9474,3 +9474,62 @@ Vercel **● Ready** on production, sha-matched via `--meta githubCommitSha`.
 the evidence is the sha-matched READY deployment plus the local e2e against a
 fresh build. The figure is computed at READ time, so a page reload shows it; no
 sync or cron is involved.
+
+## #393 — C.0: the mortgage replay (2026-08-02)
+
+**The read-only measurement that gates C.4/C.5 ran
+(`scripts/audit-probes/mortgage-replay.mts` + `mortgage-pair-check.mts`), and it
+settles the audit's central question: the owner's Fixed figure is dominated by
+P1-13 (a transfer-flagged bill invisible to both halves of the union), not by
+P0-4's double-count — though P0-4 is ALSO live, at $296.40/mo in the opposite
+direction.**
+
+### The mortgage row, answered exactly as the audit asked
+- `TRUIST MORTG OLB MTGPMT`, $6,217.07 monthly, four occurrences Apr 20 → Jul 20.
+- `Transaction.categoryId` = `rent` on ALL four rows (the normalizer's guess is
+  `uncategorized` — no mortgage pattern, as P0-4 predicted — but the rows were
+  FILED correctly).
+- `isTransfer` is **mixed: May and June true, April and July false.** The pair
+  detector matched each payment against the linked Plaid mortgage account
+  ("Mortgage 1192"), which posts the same $6,217.07 as a `Payment` INFLOW. May
+  settled 2 days apart (paired), June 2 days (paired), July 4 days (outside the
+  ±3-day window — NOT paired), April had no mortgage-side row at all.
+- **No stored `RecurringSeries` exists for it, and live detect finds nothing**:
+  `detectRecurring` drops transfer rows at intake unless the normalizer guesses
+  `auto-loan`, so the group keeps only Apr 20 and Jul 20 — 91 days apart, no
+  cadence. The app's own mechanism for "loan payment tagged as transfer" (the
+  union's documented auto-loan case) fails on mortgages purely because
+  `normalize.ts` cannot say "mortgage".
+
+### What the plan actually computes for him (replayed with the real functions)
+- Rollup `resolveFixedCategoryAmounts` = **$7,941.10**, of which `rent` is
+  **$2,072.36** — July's single counted payment ÷ 3, because the flagged May and
+  June rows fail `countsInFlows`. The mortgage alone under-counts Fixed by
+  ~$4,144.71/mo, the dangerous direction, and matches the owner's report.
+- Union `recurringOutsideFixedCategoryCents` = **+$296.40**, and both rows are
+  REAL double-counts (P0-4 live): Principal life insurance $146.40 (series id
+  `uncategorized`, rows filed `life-insurance`, which is IN the rollup) and
+  Zelle house cleaning $150.00 (series id `uncategorized`, rows filed
+  `home-services`, in the rollup). Suggested Fixed = $8,237.50; no fixed
+  override set, so this IS the term he sees.
+- C.5's constant divisor, measured per category: Mathnasium (`education`,
+  detected MONTHLY, first charge July) prints $197.67 where $593.00 is true —
+  the July-start-mortgage shape the audit predicted. BUT the same table shows
+  the prescription "divide by months with a charge" is wrong for long-cadence
+  bills: `auto-insurance` $1,553.00 charged once in the window is CORRECTLY
+  smoothed to $517.67 by ÷3; months-with-charge would triple it. The honest
+  divisor is "months the category could have been observed", not "months it
+  charged".
+
+### Queued / carried
+- **C.4 and C.5 are UNBLOCKED** — mechanism and magnitude both measured.
+- **P1-13 gets its own row (C.24)**: the mortgage's Fixed starvation is the
+  transfer-pair flag (timing-luck inconsistent month to month) plus the
+  normalizer's missing mortgage vocabulary plus the union's category-level
+  dedupe, and none of C.4/C.5 as specified repairs it. Direction question
+  included: paying a linked mortgage IS an own-account transfer for cash-flow
+  purposes, and is ALSO the owner's largest fixed cost — the fix must decide
+  where that money is represented, not just unflag it.
+- Also seen in passing (not acted on): July's `CAPITAL ONE CRCARDPMT` is filed
+  `transfer` where its six siblings are `credit-card-payment`; a `fuel`-filed
+  ±$5.4k reversal pair in May/June nets to a plausible-looking $166.78/mo.
