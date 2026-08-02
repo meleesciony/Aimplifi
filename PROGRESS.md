@@ -8985,3 +8985,90 @@ absent) on an element asserted to exist first, and the demo row is the exact cas
 about, so the old build cannot pass a single line of it. Live text now reads *"Both rates are
 Aimplifi's defaults — 7.00% return and 2.50% inflation"* where it read *"7.00% return is your
 setting"*.
+
+## 2026-08-02 — Calculation audit: six-critic adversarial review (assessment only, no code changed)
+
+Owner asked for "a multi agent adversarial review of every displayed calculation in this app",
+triggered by /trends telling him he was **"on pace for $19,713.85 less than last month"** on the
+2nd, having spent $578.79 — *"8971.25 makes no sense since our mortgage is ~6200"*.
+
+**Deliverable: `docs/CALC_AUDIT_2026-08-02.md`. Queue: TASKS.md Wave C (C.0–C.17).** This session
+wrote no source. `git diff --stat` was empty before the commit — checked deliberately, because a
+critic has left a mutation in this tree twice (`a-subagents-green-is-a-hypothesis`, O.17c and the
+L.31 expander slice).
+
+### Both owner numbers resolved exactly, before any critic ran
+
+`57879 / 2 days * 31 = 897125c = $8,971.25`, and `897125 + 1971385 = $28,685.10` = July actual.
+So the projection is `(spentSoFar / daysElapsed) * daysInMonth` over 48 hours, multiplied by 15.5,
+published as the month's forecast on a card that states no assumption and paints it green.
+Resolving the arithmetic first is what made the critic briefs specific enough to be useful.
+
+### Method
+
+Six parallel read-only critics, each a different lens: (A) /trends + dashboard card, (B) spending
+plan / Fixed vs discretionary / budgets, (C) money INSTRUCTIONS — cash-needed, forecast, radar,
+cards, calendar, (D) long-horizon — coach / FI / wealth target / investments / goals, (E)
+cross-surface parity, (F) transaction + rules UX. Each was told: no edits, no `verify.sh`, no
+build, no Playwright (parallelise for FINDING, serialize for PROVING), `node -e` arithmetic only,
+label anything unexecuted `HYPOTHESIS`, and end with "what I could not break".
+
+**Result: 8 P0, 29 P1, ~20 P2, plus 7 UX P1.** Seven of the eight P0s were reproduced in the main
+thread against source before being written down.
+
+### The P0s (see the audit doc for evidence per finding)
+
+1. **`CardPayment` has no production writer** — only `prisma/seed.ts`. So on real linked cards a
+   paid bill is demanded again AND double-counted, because the checking debit is seen and the card
+   credit is not. `engine.ts:15`, `EDGE_CASES.md §B` and `ROADMAP.md` all claim it works.
+2. **Dashboard hero can name a FROZEN account as the transfer source** — `dashboard/page.tsx:112-117`
+   filters only `type === 'SAVINGS'`, sorted by balance desc, missing the three guards
+   `radar.ts:370-378` applies on the same page. A frozen balance reads high, so it is chosen
+   *preferentially*. `failure-direction-is-per-role-not-per-value`, on the surface that lesson was
+   written about, never swept.
+3. **/calendar places each card/loan due exactly once, ever** — busy grid, "0 payments due".
+4. **Fixed union double-counts a mortgage** — the rollup dedupes on the filed `categoryId`, the
+   series on the normalizer's guess, and there is no mortgage pattern in `normalize.ts`, so it
+   resolves `uncategorized` → null → added ("Out-of-dial / null ids are added", `plan.ts:475`).
+5. **"Typical spend" divides by a constant 3** regardless of occurrences.
+6. **`annualExpenses = expenses6 * 2`** (`coach.ts:247`) while the three lines around it divide by
+   `last6.length` — every long-horizon figure exactly half at 3 months of history.
+7. **Pace abstains on an AND** (`trends.ts:300`), so a zero-spend day renders "$0.00 projected by
+   month end" + a green "$28,685.10 less than last month".
+8. **Wealth-target card calls an aspirational target "what was left after spending"**, and the
+   floored-contribution refusal is bypassed because the flag tests the passed-in value.
+
+Also worth flagging on its own: **the Glass-Box "matched to the penny" certification cannot fail**
+(`trace.ts:365-386` checks an expression against itself), so it returns green for every defect
+above and then adds "nothing is invented". That is the app's designated trust surface.
+
+### Two things this session deliberately did NOT do
+
+- **No fix.** The owner asked for a review; LOOP_ENGINEERING's assessment-vs-fix rule makes the
+  findings the deliverable.
+- **No guess at the Fixed cause.** C.4/C.5 move Fixed in the OPPOSITE direction from the pace
+  defect the owner actually reported. Three prior sessions each shipped a plausible Fixed-figure
+  fix without measuring and none was the cause
+  (`three-sessions-of-hypothesis-one-query-of-evidence`), so C.0 — a read-only production replay of
+  the owner's mortgage row — gates that cluster.
+
+### Method notes worth keeping
+
+- Resolving the reported numbers arithmetically BEFORE dispatching critics turned a vague brief
+  into an anchored one, and it killed the comfortable reading (the figure is not noise, it is a
+  correct computation of the wrong model).
+- The six lenses earned their cost in the NON-overlap: A found the zero-spend P0 the owner had not
+  hit yet, B found the double-count pointing the opposite way from the reported symptom, C found
+  the missing `CardPayment` writer, F found that **three of the owner's four UX asks already
+  exist** — which changed the UX work from "build affordances" to "the return link is rooted at
+  the wrong path literal and the spend-class control is in the wrong place".
+- `tests/unit/trends.test.ts:249-251` asserts `projectedCents` equals its own formula. It cannot
+  fail for any model and will resist C.2 — delete it before touching the projection.
+
+### Gate
+
+**Not run, and not applicable.** No source file was changed; the only edits are
+`docs/CALC_AUDIT_2026-08-02.md`, this entry, and TASKS.md Wave C. `tsc`/`eslint`/`vitest`/`next
+build` cannot be affected by a markdown file, so a green gate here would prove nothing about the
+findings — every P0 above is UNFIXED and the suite is expected to pass with all of them present.
+Empty prisma diff; the live database is untouched.
