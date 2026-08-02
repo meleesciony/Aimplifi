@@ -52,3 +52,45 @@ downstream of the fix rather than as a claim with its own truth conditions. A fr
 with no stake in the fix read the sentence as a reader would and then executed the classifier to
 check it. **Copy that describes a limitation is load-bearing and needs its own adversarial pass,
 run against the code and not against the previous sentence.**
+
+---
+
+## Extended #391 (C.2's critic cycle): prefer a POSITIVE admission rule to any list of exclusions
+
+The same disease, one step earlier — and this time the fix generalises.
+
+C.2 taught the pace projection to read the bill calendar, then hedged the new figure by listing
+what it leaves out: *"Bills charged to a card, and any we have not spotted, are not in that
+$6,200.00."* Two items. The engine refuses at least five classes, three of which the app can
+plainly see and renders as bills still due on **/calendar, one click away, off the same array**:
+an aggregate pseudo-merchant ("Zelle Payment"), a hand-authored label ("Rent — Peachtree
+Properties"), and a transfer-paid obligation. A reader whose landlord is paid by Zelle read the
+two-item list, found that neither item described them, and correctly concluded their rent was
+inside the figure.
+
+A sibling branch was worse: it declared the projection finished — *"The bills we can see for this
+month have already been charged"* — and carried no limitation at all. It was the only branch
+telling the reader nothing more is coming, and the only one with no hedge.
+
+**The transferable rule: an enumeration of exclusions beside a money figure is a claim to be
+complete, and it must be extended by hand forever. A positive statement of the admission rule
+cannot decay that way** — it says what IS counted, so every refusal the engine makes, including
+ones added by a later session, is covered by construction:
+
+> Only bills we can match to a merchant you have spent at are counted here — one charged to a
+> card, paid as a transfer, or that we have not spotted is not.
+
+The examples after the dash are illustrative and can go stale harmlessly; the clause before it is
+the one doing the work. A positive rule also tells the reader something they can act on, because
+the rule is about matching a merchant and the reader is the one who knows where they have spent.
+
+Two corollaries from the same cycle:
+
+- **Ask which branch has no hedge, and check that one first.** The P0 was not in the branch full
+  of qualifications; it was in the confident one. The branch that says "done" is the branch a
+  reader stops reading after.
+- **A lock whose fixture does the work passes on the old code.** The first draft of the
+  future-dated-admission test reused a merchant whose *prior-month* charge admitted the bill
+  legitimately, so it passed before the fix and proved nothing. It was caught only by running it
+  before believing it — the fixture, not the guard, was deciding the outcome. Ask of any lock what
+  value would make it fail, then make that value the fixture.
