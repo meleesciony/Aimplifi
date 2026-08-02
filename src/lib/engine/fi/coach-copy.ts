@@ -20,6 +20,7 @@ import {
   opportunityRowTrailsContributions,
   opportunityValueTrailsContributions,
 } from './fi';
+import { CONSCIOUS_BUCKET_COUNTS } from '@/lib/engine/spending-plan/conscious';
 
 /**
  * The cash-needed cover transfer, as the Money Review consumes it.
@@ -768,11 +769,12 @@ export const COACH_COPY = {
   assumptionsChange: () =>
     `These rates are assumptions, and assumptions change — revisit them as your life does. Play your own game; someone else's numbers don't have to be yours.`,
 
-  // ── Wave 2: P0.4 Conscious-spending lens (C6 · Sethi) ──────────────────────
-  // Investing is folded into savings (no per-month contribution flow in the data); stated inline.
-  // Owner 2026-08-01: fixed = recurring bills only; card pay is settlement, not a bucket.
+  // ── Wave 2: P0.4 Conscious-spending lens (C6 · Sethi; B.3 / W.5) ───────────
+  // Investing folded into savings (no per-month contribution flow); stated inline.
+  // Fixed numerator = must-pay Fixed categories (Wave B) — band copy must name that
+  // (CONSCIOUS_BUCKET_COUNTS), not "recurring costs" alone. Card pay stays out.
   consciousSpending: (fixedPct: number, savePct: number, funPct: number) =>
-    `This month, about ${fixedPct}% is going to fixed and recurring costs, ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free to spend. A rough target is 50–60% / 15–20% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
+    `This month, about ${fixedPct}% is going to Fixed costs (${CONSCIOUS_BUCKET_COUNTS.fixed}), ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free to spend. A rough target is 50–60% / 15–20% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
 
   consciousOverspent: () =>
     `Fixed costs and savings have outpaced this month's income pattern, so guilt-free has gone negative — one month is weather, not climate. The trend is what matters.`,

@@ -1,13 +1,16 @@
 /**
- * Conscious Spending lens (P0.4, DECISIONS #93) — Ramit Sethi's bucket frame
- * laid OVER the existing spending plan. This is NOT a new spend calculation: it
- * is a pure re-partition of computeSpendingPlan's exact quantities, so the
- * bucket totals provably sum back to `patternIncomeCents` (one definition of
- * spend — DECISIONS #74/#75). Since the L.22 pattern re-spec (owner
- * 2026-07-26) the partition is exactly his formula — fixed costs are genuinely
- * fixed (the old `spentSoFarCents` term, which mixed fixed and variable, is
- * gone, and with it this module's oldest honest-departure note). One honest
- * departure from the book remains, surfaced inline in the UI copy:
+ * Conscious Spending lens (P0.4, DECISIONS #93; B.3 / W.5) — Ramit Sethi's
+ * bucket frame laid OVER the existing spending plan. This is NOT a new spend
+ * calculation: it is a pure re-partition of computeSpendingPlan's exact
+ * quantities, so the bucket totals provably sum back to `patternIncomeCents`
+ * (one definition of spend — DECISIONS #74/#75).
+ *
+ * Fixed (Wave B): the plan's fixed term is must-pay / Fixed-designated spending
+ * (bills, groceries, housing, utilities, …) — not detected recurring series
+ * alone — so Sethi's 50–60% band is scored against a numerator that matches
+ * what the band assumed. Card statement payments stay OUT (settlement of spend,
+ * owner 2026-08-01). One honest departure from the book remains, surfaced
+ * inline in the UI copy:
  *
  *   - Investing is FOLDED INTO Savings. Aimplifi tracks investments as a
  *     balance (a stock), not a per-month contribution (a flow) — see
@@ -25,14 +28,24 @@ export type ConsciousBucketKey = 'fixed' | 'savings' | 'guiltFree';
  * The buckets' display names, authored once (L.29's one-author rule applied to
  * O.18b): the strip's legend, the per-bucket Glass-Box panels, and the share
  * snapshot's headline all print these — two spellings of one bucket would be
- * two answers to one question. "Fixed costs" deliberately does not say
- * "bills": recurring fixed costs only — card statement payments are settlement
- * of spend, not a fixed cost class (owner 2026-08-01).
+ * two answers to one question.
  */
 export const CONSCIOUS_BUCKET_LABELS: Record<ConsciousBucketKey, string> = {
   fixed: 'Fixed costs',
   savings: 'Savings & investing',
   guiltFree: 'Guilt-free',
+};
+
+/**
+ * What each bucket counts — one author for the Sethi-lens caption (B.3). The
+ * short label alone under-claimed when Fixed was only detected bills (W.5);
+ * this sentence moves with the numerator.
+ */
+export const CONSCIOUS_BUCKET_COUNTS: Record<ConsciousBucketKey, string> = {
+  fixed:
+    'bills plus other must-pay spending like groceries and utilities — whatever is marked Fixed on Spending',
+  savings: 'savings and investing goals',
+  guiltFree: 'guilt-free discretionary spending',
 };
 
 export interface ConsciousBucket {
@@ -59,8 +72,10 @@ export interface ConsciousBuckets {
  * Sethi's canonical bands, adapted to the three buckets the data honestly
  * supports. His 10% investing + 5–10% savings collapse into a single 15–20%
  * "pay yourself first" band because investing is folded into savings here.
+ * Fixed stays 50–60% (B.3): Wave B widened the numerator to must-pay Fixed
+ * categories, so the band is no longer scored against a flattering narrow set.
  */
-const TARGET_BPS: Record<ConsciousBucketKey, readonly [number, number]> = {
+export const CONSCIOUS_TARGET_BPS: Record<ConsciousBucketKey, readonly [number, number]> = {
   fixed: [5000, 6000], // 50–60%
   savings: [1500, 2000], // 15–20% (10% investing + 5–10% savings, combined)
   guiltFree: [2000, 3500], // 20–35%
@@ -77,7 +92,7 @@ function shareBps(cents: number, incomeCents: number): number {
  * preserved (owner 2026-08-01 formula):
  *   patternIncome = fixedExpenses + plannedSavings + leftToSpend
  * maps to:
- *   fixed     = fixedExpenses   (recurring bills at a monthly rate — not card pay)
+ *   fixed     = fixedExpenses   (must-pay Fixed — not card statement pay)
  *   savings   = plannedSavings  (max of goal contributions and the savings-%
  *                                target; investing folded in)
  *   guiltFree = leftToSpend     (the discretionary remainder; <0 when overspent)
@@ -95,8 +110,8 @@ export function mapToConsciousBuckets(plan: SpendingPlan): ConsciousBuckets {
     key,
     cents: cellsByKey[key],
     shareBps: shareBps(cellsByKey[key], income),
-    targetLoBps: TARGET_BPS[key][0],
-    targetHiBps: TARGET_BPS[key][1],
+    targetLoBps: CONSCIOUS_TARGET_BPS[key][0],
+    targetHiBps: CONSCIOUS_TARGET_BPS[key][1],
   }));
 
   return {

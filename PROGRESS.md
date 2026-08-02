@@ -1,5 +1,11 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — Sethi Fixed band + widened-numerator copy (#379) DONE (B.3)
+
+Kept 50–60% / 15–20% / 20–35%. `CONSCIOUS_BUCKET_COUNTS` + `consciousSpending`
+name must-pay Fixed (groceries/utilities / Spending designations). Closes W.5.
+Ship: verify → e2e spend-class → push → live `conscious-caption` greps groceries.
+
 ## 2026-08-01 — Register Fixed / Discretionary labels (#378) DONE (B.1)
 
 Owner: categorize/label every transaction Fixed vs discretionary with a selector

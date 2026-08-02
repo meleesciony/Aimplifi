@@ -9,8 +9,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import { isoDate } from '@/lib/dates';
+import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { computeSpendingPlan } from '@/lib/engine/spending-plan/plan';
-import { mapToConsciousBuckets } from '@/lib/engine/spending-plan/conscious';
+import {
+  CONSCIOUS_BUCKET_COUNTS,
+  CONSCIOUS_TARGET_BPS,
+  mapToConsciousBuckets,
+} from '@/lib/engine/spending-plan/conscious';
 
 const plan = (over: Partial<Parameters<typeof computeSpendingPlan>[0]> = {}) =>
   computeSpendingPlan({
@@ -99,5 +104,20 @@ describe('mapToConsciousBuckets — provably equal re-partition', () => {
     expect([byKey.fixed.targetLoBps, byKey.fixed.targetHiBps]).toEqual([5000, 6000]);
     expect([byKey.savings.targetLoBps, byKey.savings.targetHiBps]).toEqual([1500, 2000]);
     expect([byKey.guiltFree.targetLoBps, byKey.guiltFree.targetHiBps]).toEqual([2000, 3500]);
+  });
+});
+
+describe('B.3 — Sethi band stays; Fixed copy names the widened numerator', () => {
+  it('test_regression__conscious_fixed_band_stays_50_60_after_widened_numerator', () => {
+    expect(CONSCIOUS_TARGET_BPS.fixed).toEqual([5000, 6000]);
+    expect(CONSCIOUS_BUCKET_COUNTS.fixed).toMatch(/groceries/i);
+    expect(CONSCIOUS_BUCKET_COUNTS.fixed).toMatch(/Fixed on Spending/);
+  });
+
+  it('test_regression__conscious_caption_names_must_pay_fixed_not_bills_alone', () => {
+    const text = COACH_COPY.consciousSpending(58, 14, 28);
+    expect(text).toContain(CONSCIOUS_BUCKET_COUNTS.fixed);
+    expect(text).toMatch(/50–60%/);
+    expect(text).not.toMatch(/fixed and recurring costs/);
   });
 });

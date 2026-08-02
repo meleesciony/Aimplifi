@@ -22,10 +22,8 @@ import {
 import { cents, formatCents } from '@/lib/money';
 
 const META: Record<ConsciousBucketKey, { label: string; bar: string; text: string }> = {
-  // #295: the fixed bucket now also holds this month's card payments, so the
-  // label must not claim bills+spending alone (critic P3-13). Labels come from
-  // the engine's one-author record (O.18b): the legend, the panel share text
-  // and any future surface must not spell a bucket two ways.
+  // Labels from the engine's one-author record (O.18b / B.3). Fixed is must-pay
+  // Fixed categories — card statement payments stay out (settlement of spend).
   fixed: { label: CONSCIOUS_BUCKET_LABELS.fixed, bar: 'bg-slate-400/80 dark:bg-slate-500/80', text: 'text-slate-600 dark:text-slate-300' },
   savings: { label: CONSCIOUS_BUCKET_LABELS.savings, bar: 'bg-sky-400/80', text: 'text-sky-600 dark:text-sky-400' },
   guiltFree: { label: CONSCIOUS_BUCKET_LABELS.guiltFree, bar: 'bg-emerald-500/80', text: 'text-emerald-600 dark:text-emerald-400' },

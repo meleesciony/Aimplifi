@@ -2617,3 +2617,17 @@ Owner: label every transaction Fixed vs discretionary, with a selector when wron
 
 **Locks.** e2e `txn-spend-class.spec.ts` (`txn-spend-class` + `data-spend-class`
 on every visible register row; demo Groceries=fixed / Dining=guilt-free when present).
+
+## #379 — Sethi Fixed band kept; copy names the widened numerator (B.3 / W.5)
+
+W.5: scoring a narrow Fixed (detected bills only) against Sethi's 50–60% band
+flattered the reader. Wave B widened Fixed to must-pay / Fixed categories.
+
+**DECIDED:** Keep the 50–60% / 15–20% / 20–35% bands (`CONSCIOUS_TARGET_BPS`).
+Author what Fixed counts once in `CONSCIOUS_BUCKET_COUNTS`; `COACH_COPY.consciousSpending`
+embeds that sentence so the caption cannot drift back to "fixed and recurring costs"
+alone. No re-band — the numerator moved to match the band.
+
+**Locks.** `test_regression__conscious_fixed_band_stays_50_60_after_widened_numerator` +
+`test_regression__conscious_caption_names_must_pay_fixed_not_bills_alone` +
+e2e spend-class `conscious-caption` (groceries + 50–60%).

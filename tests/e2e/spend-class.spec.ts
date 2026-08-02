@@ -37,4 +37,10 @@ test('budgets shows Fixed vs guilt-free sections from category suggestions', asy
   );
   // Shared demo cannot mutate designations.
   await expect(page.getByTestId('spend-class-move-groceries')).toHaveCount(0);
+
+  // B.3: Sethi strip caption names the widened Fixed numerator (not bills alone).
+  const caption = page.getByTestId('conscious-caption');
+  await expect(caption).toBeVisible();
+  await expect(caption).toContainText('groceries');
+  await expect(caption).toContainText('50–60%');
 });
