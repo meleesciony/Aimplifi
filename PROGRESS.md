@@ -7,7 +7,8 @@ Register `?spendClass=` + Class select; headings on /budgets composition /
 Conscious / Fixed-vs-guilt-free panel + Plan legend. Plan $ stays unlinked
 (budget|typical ≠ month outflows); register basis note says so. Review Fixed
 hash (`#spend-class`) kept for designation panel. verify: tsc/eslint green;
-5606 unit; e2e drilldown + conscious-buckets + spend-class 7/7. Ship next.
+5606 unit; e2e drilldown + conscious-buckets. Shipped `e74ef28`; Vercel READY
+`aimplifi-96f1pdn0x`; live Class=Fixed + basis note + Fixed rows on register.
 
 ## 2026-08-01 — Wave B Fixed union covered-ids fix (#382) DONE
 
