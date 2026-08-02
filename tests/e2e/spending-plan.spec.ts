@@ -20,12 +20,14 @@ test('Spending Plan: guilt-free headline + breakdown render for the demo user', 
   // L.22: income is a trailing pattern, expenses a monthly-rate pattern — the
   // demo seed has complete months, so the median basis renders.
   await expect(page.getByText(/Income \(median of last \d months?/, { exact: false })).toBeVisible();
-  // #371: non-discretionary pattern when history exists; else recurring series.
+  // #380: category rollup when Fixed cats have spend; else #371 median / series.
   await expect(
-    page.getByText(/Fixed (costs \(non-discretionary|& recurring expenses \(monthly pattern\))/, {
-      exact: false,
-    }),
+    page.getByText(
+      /Fixed (costs \(Fixed categories|costs \(non-discretionary|& recurring expenses \(monthly pattern\))/,
+      { exact: false },
+    ),
   ).toBeVisible();
+  await expect(page.getByText(/floored by recurring bills/i)).toBeVisible();
   // Owner 2026-08-01: card payments are not a Plan row (settlement, not a cost class).
   await expect(page.getByText('Card payments due this month', { exact: true })).toHaveCount(0);
 
@@ -67,6 +69,7 @@ test('Spending Plan: guilt-free headline + breakdown render for the demo user', 
   );
   await expect(page.getByTestId('plan-long-cadence-overdue-note')).toContainText('half a cycle overdue');
   await expect(page.getByText('A yearly bill is spread across the year', { exact: false })).toHaveCount(0);
-  // And the audit panel names the biweekly rate it used to omit.
-  await expect(page.getByText('a biweekly one 26/12', { exact: false })).toBeVisible();
+  // #380: demo Fixed is the category rollup — glass-box names that path + floor.
+  await expect(page.getByText(/sum of Fixed categories/i)).toBeVisible();
+  await expect(page.getByText(/floored by detected recurring bills/i)).toBeVisible();
 });

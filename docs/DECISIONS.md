@@ -2599,8 +2599,8 @@ fixed (with suggestions), guilt-free as remainder; set fixed expense amounts.
    non-discretionary median (demo has neither → golden-safe).
 
 **Locks.** `test_regression__budget_target_wins_over_typical_for_fixed_category` +
-`test_regression__category_rollup_drives_plan_only_with_reader_input` +
 e2e `budgeting-composition` markers on spend-class.spec.
+(Plan gate superseded by #380 always-on.)
 
 ## #378 — Register Fixed / Discretionary labels with category selector
 
@@ -2631,3 +2631,19 @@ alone. No re-band — the numerator moved to match the band.
 **Locks.** `test_regression__conscious_fixed_band_stays_50_60_after_widened_numerator` +
 `test_regression__conscious_caption_names_must_pay_fixed_not_bills_alone` +
 e2e spend-class `conscious-caption` (groceries + 50–60%).
+
+## #380 — Always-on Fixed category rollup for Plan (B.1 residual)
+
+#377 gated the category rollup on reader input (override or Fixed budget) so the
+demo stayed on the #371 median. B.1's spec is the committed-but-variable term
+from designations by default.
+
+**DECIDED:** When `categoryFixedCents > 0`, Plan suggested fixed =
+`max(rollup, recurring floor)`, basis `category-designations` — no
+`hasReaderInput` gate. Empty rollup still falls back to non-discretionary median
+/ detected series. Copy always names the recurring floor (critic: when
+recurring wins the max, "Fixed categories" alone would lie).
+
+**Locks.** `test_regression__category_rollup_drives_plan_whenever_positive` +
+`test_regression__category_rollup_floors_at_recurring_series` +
+e2e spend-class `budgeting-fixed-basis` contains "Fixed categories".

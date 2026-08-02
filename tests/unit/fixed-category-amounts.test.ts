@@ -64,15 +64,15 @@ describe('resolveFixedCategoryAmounts', () => {
     expect(r.totalCents).toBe(50_000);
   });
 
-  it('test_regression__category_rollup_drives_plan_only_with_reader_input', () => {
-    const without = computeSpendingPlan({
+  it('test_regression__category_rollup_drives_plan_whenever_positive', () => {
+    // #380: always-on — no reader-input gate. Positive rollup wins over median.
+    const withRollup = computeSpendingPlan({
       today,
       trailingMonthlyIncomeCents: [300_000, 300_000, 300_000],
       scheduledIncome: [],
       scheduledFixed: [],
       trailingMonthlyFixedCents: [100_000, 100_000, 100_000],
       categoryFixedCents: 200_000,
-      categoryFixedHasReaderInput: false,
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -81,17 +81,17 @@ describe('resolveFixedCategoryAmounts', () => {
       goalContributionsCents: 0,
       savingsTargetBps: null,
     });
-    expect(without.fixedBasis).toBe('non-discretionary-median');
-    expect(without.fixedExpensesCents).toBe(100_000);
+    expect(withRollup.fixedBasis).toBe('category-designations');
+    expect(withRollup.fixedExpensesCents).toBe(200_000);
+    expect(withRollup.leftToSpendCents).toBe(100_000);
 
-    const withInput = computeSpendingPlan({
+    const noRollup = computeSpendingPlan({
       today,
       trailingMonthlyIncomeCents: [300_000, 300_000, 300_000],
       scheduledIncome: [],
       scheduledFixed: [],
       trailingMonthlyFixedCents: [100_000, 100_000, 100_000],
-      categoryFixedCents: 200_000,
-      categoryFixedHasReaderInput: true,
+      categoryFixedCents: 0,
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -100,9 +100,28 @@ describe('resolveFixedCategoryAmounts', () => {
       goalContributionsCents: 0,
       savingsTargetBps: null,
     });
-    expect(withInput.fixedBasis).toBe('category-designations');
-    expect(withInput.fixedExpensesCents).toBe(200_000);
-    expect(withInput.leftToSpendCents).toBe(100_000);
+    expect(noRollup.fixedBasis).toBe('non-discretionary-median');
+    expect(noRollup.fixedExpensesCents).toBe(100_000);
+  });
+
+  it('test_regression__category_rollup_floors_at_recurring_series', () => {
+    const p = computeSpendingPlan({
+      today,
+      trailingMonthlyIncomeCents: [500_000],
+      scheduledIncome: [],
+      scheduledFixed: [{ amountCents: -250_000, cadence: 'MONTHLY' }],
+      trailingMonthlyFixedCents: [80_000],
+      categoryFixedCents: 100_000,
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+    });
+    expect(p.fixedBasis).toBe('category-designations');
+    expect(p.fixedExpensesCents).toBe(250_000); // max(100k rollup, 250k recurring)
   });
 });
 

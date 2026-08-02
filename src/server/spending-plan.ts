@@ -243,9 +243,8 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const obligationsBeyondMonthEstimated =
     worstGapCents > 0 && beyondMonthPoints.some((p) => p.cards.some((c) => c.isEstimated));
 
-  // #377: per-category Fixed amounts (budget else typical). Plan prefers this
-  // rollup only when the reader has set a Fixed override or a budget on a
-  // fixed category — otherwise the #371 median stays (demo golden-safe).
+  // #377/#380: per-category Fixed amounts (budget else typical). Always-on when
+  // the rollup has positive mass — B.1's committed-but-variable term.
   const categoryFixed = resolveFixedCategoryAmounts({
     transactions: snap.transactions,
     today,
@@ -262,7 +261,6 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     scheduledFixed,
     trailingMonthlyFixedCents,
     categoryFixedCents: categoryFixed.totalCents,
-    categoryFixedHasReaderInput: categoryFixed.hasReaderInput,
     incomeOverrideCents: user?.planIncomeOverrideCents ?? null,
     fixedOverrideCents: user?.planFixedOverrideCents ?? null,
     cardObligationsCents,

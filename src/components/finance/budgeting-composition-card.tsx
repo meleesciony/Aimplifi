@@ -19,7 +19,7 @@ function incomeBasisNote(plan: SpendingPlan): string {
 function fixedBasisNote(plan: SpendingPlan): string {
   if (plan.fixedBasis === 'user-set') return 'you locked this intention';
   if (plan.fixedBasis === 'category-designations') {
-    return 'your Fixed categories — budget target or typical spend';
+    return 'app calculated — Fixed categories (budget or typical), floored by recurring bills if higher';
   }
   if (plan.fixedBasis === 'non-discretionary-median') {
     return `app calculated — median of last ${plan.fixedMonths} month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spend`;

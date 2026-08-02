@@ -152,7 +152,7 @@ function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): P
     if (plan.fixedBasis === 'user-set') return { label: 'Fixed costs (you set)' };
     if (plan.fixedBasis === 'category-designations') {
       return {
-        label: 'Fixed costs (your Fixed categories — budget target or typical spend)',
+        label: 'Fixed costs (Fixed categories, floored by recurring bills if higher)',
         action: { label: 'Review Fixed on Spending', href: '/budgets' },
       };
     }

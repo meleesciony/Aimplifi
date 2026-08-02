@@ -284,7 +284,7 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
           ]
         : plan.fixedBasis === 'category-designations'
           ? [
-              'Fixed costs are the sum of your Fixed categories: each uses the monthly budget target you set when present, otherwise typical spend from recent complete months. Change Fixed vs guilt-free on Spending.',
+              'Fixed costs are the sum of Fixed categories (budget target when set, otherwise typical spend), floored by detected recurring bills at a monthly rate when those are higher — so a mortgage in recurring is never under-counted. Change Fixed vs guilt-free on Spending.',
             ]
           : plan.fixedBasis === 'non-discretionary-median'
             ? [

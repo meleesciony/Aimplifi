@@ -1,10 +1,9 @@
 /**
- * Per-category fixed amounts (Wave B.1 residual / DECISIONS #377).
+ * Per-category fixed amounts (Wave B.1 / DECISIONS #377 / #380).
  *
  * For each category designated Fixed: amount = Budget.monthCents when set,
  * else typical monthly spend over the last complete months. Sum is the
- * category-rollup candidate for the Plan fixed term (used when the reader has
- * given input — a budget on a fixed category or a designation override).
+ * category-rollup for the Plan fixed term whenever totalCents > 0 (always-on).
  */
 import { addMonthsClamped, isoDate, monthKey, type ISODate } from '@/lib/dates';
 import type { CategoryMeta } from '@/lib/engine/categorize/categories';
@@ -28,8 +27,8 @@ export interface FixedCategoryAmountsResult {
   totalCents: number;
   /**
    * True when the reader has touched Fixed (a designation override) or set a
-   * budget target on any fixed category — the gate for Plan to prefer this
-   * rollup over the #371 whole-median (demo has neither → golden-safe).
+   * budget target on any fixed category. Informational for UI — Plan no longer
+   * gates on this (#380); the rollup drives whenever totalCents > 0.
    */
   hasReaderInput: boolean;
   windowMonths: number;

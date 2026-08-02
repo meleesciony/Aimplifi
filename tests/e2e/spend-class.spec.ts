@@ -22,6 +22,9 @@ test('budgets shows Fixed vs guilt-free sections from category suggestions', asy
   await expect(page.getByTestId('budgeting-fixed')).toBeVisible();
   await expect(page.getByTestId('budgeting-guilt-free')).toBeVisible();
   await expect(page.getByTestId('plan-figures-form')).toBeVisible();
+  // #380: Plan Fixed is always the category rollup when Fixed cats have spend.
+  await expect(page.getByTestId('budgeting-fixed-basis')).toContainText('Fixed categories');
+  await expect(page.getByTestId('budgeting-fixed-basis')).toContainText('floored by recurring');
 
   await expect(page.getByTestId('spend-class-panel')).toBeVisible();
   await expect(page.getByTestId('spend-class-fixed')).toBeVisible();

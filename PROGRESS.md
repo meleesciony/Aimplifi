@@ -1,5 +1,10 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-01 — Always-on Fixed category rollup (#380) IN PROGRESS (B.1)
+
+Remove reader-input gate: Plan uses category budget|typical whenever > 0,
+floored by recurring. Copy/basis notes updated. Next: verify → e2e → ship.
+
 ## 2026-08-01 — Sethi Fixed band + widened-numerator copy (#379) DONE (B.3)
 
 Kept 50–60% / 15–20% / 20–35%. `CONSCIOUS_BUCKET_COUNTS` + `consciousSpending`
