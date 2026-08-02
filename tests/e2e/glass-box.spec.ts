@@ -89,11 +89,13 @@ test('spending plan: the breakdown lines sum to "Guilt-free to spend" exactly', 
   await expect(page.getByTestId('spending-plan-hero')).toBeVisible();
 
   const rowTexts = await page.getByTestId('plan-row-amount').allTextContents();
-  // The SUM is the invariant; the count is not. A fifth row appears whenever a
-  // card is dated past the month's edge (L.11(D)) — the demo user has none, so
-  // a hardcoded 4 would pass here forever and break on the first real user who
-  // did, which is a golden that cannot observe the feature it sits next to.
-  expect(rowTexts.length).toBeGreaterThanOrEqual(4);
+  // The SUM is the invariant; the count follows the identity. Three rows —
+  // income − fixed − savings — since 2026-08-01 (owner: card payments settle
+  // spend already counted, so they are not a guilt-free term; 9087d26 removed
+  // the fourth row). The old ">= 4" here was a stale golden from the 4-row
+  // model, invisible until this spec was next run because verify.sh skips
+  // Playwright by default (`fencing-a-write-path-breaks-the-tests-that-drove-it`).
+  expect(rowTexts.length).toBeGreaterThanOrEqual(3);
   const rowSum = rowTexts.reduce((acc, t) => acc + textToCents(t), 0);
   const totalCents = textToCents((await page.getByTestId('plan-total').textContent()) ?? '');
   expect(rowSum).toBe(totalCents);
@@ -107,7 +109,8 @@ test('spending plan: every $0.00 line says WHICH zero it is (TASKS L.29)', async
   await expect(page.getByTestId('spending-plan-hero')).toBeVisible();
 
   const rows = await page.getByTestId('plan-row').all();
-  expect(rows.length).toBeGreaterThanOrEqual(4);
+  // Three identity rows since 2026-08-01 (see the sum test above).
+  expect(rows.length).toBeGreaterThanOrEqual(3);
   let zeros = 0;
   for (const row of rows) {
     const amount = (await row.getByTestId('plan-row-amount').textContent()) ?? '';

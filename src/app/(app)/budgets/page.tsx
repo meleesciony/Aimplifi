@@ -229,6 +229,7 @@ export default async function BudgetsPage() {
       ...row,
       planAmountCents: planAmt?.amountCents,
       planAmountBasis: planAmt?.basis,
+      planAmountMonths: planAmt?.typicalMonths,
     };
   });
   // Fixed categories with a budget/override but no spend this month still belong
@@ -245,6 +246,7 @@ export default async function BudgetsPage() {
       overridden: fixedOverrides.has(r.categoryId),
       planAmountCents: r.amountCents,
       planAmountBasis: r.basis,
+      planAmountMonths: r.typicalMonths,
     });
   }
 

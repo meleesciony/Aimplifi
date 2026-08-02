@@ -29,6 +29,7 @@ import { prisma } from '@/lib/db';
 import {
   computeSpendingPlan,
   daysInMonth,
+  PLAN_FIXED_NEVER_CATEGORY_IDS,
   scheduledOccurrencesBetween,
   type FixedSeriesCensus,
   type PlanScheduledItem,
@@ -40,7 +41,10 @@ import {
   fixedSpendCategoryIdsInMonths,
   monthlyNonDiscretionaryCents,
 } from '@/lib/engine/spending-plan/fixed-pattern';
-import { resolveFixedCategoryAmounts } from '@/lib/engine/spending-plan/fixed-category-amounts';
+import {
+  filedCategoryByMerchant,
+  resolveFixedCategoryAmounts,
+} from '@/lib/engine/spending-plan/fixed-category-amounts';
 import { resolveCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import {
@@ -353,6 +357,21 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
  * Same admission rules as `refreshRecurringForUser` / L.25 (cash expenses,
  * payment-scoped income is irrelevant here). Live detect — not snap.scheduled —
  * because stored ScheduledTransaction rows do not yet carry categoryId.
+ *
+ * THE CATEGORY IS RESOLVED FROM THE SERIES' OWN ROWS (C.4, measured #393): a
+ * detected series carries the merchant normalizer's GUESS at the raw
+ * descriptor, while the rollup this union dedupes against keys on the FILED
+ * `Transaction.categoryId`. Where the merchant table doesn't know a payee but
+ * the reader filed its rows, the guess is `uncategorized`, the dedupe cannot
+ * match, and the union re-adds money the rollup already counted — live at
+ * +$296.40/mo on the owner's account. The filed id wins (weighted by outflow
+ * cents, rollup window first — see `filedCategoryByMerchant`); the guess
+ * survives for merchants with no filed row (whose money is in no rollup
+ * category by construction, so adding them cannot double-count — which is also
+ * why a null id still unions in rather than being skipped; see DECISIONS), for
+ * aggregate pseudo-merchants that are not fully filed into one supermajority
+ * category, and where a remap would enter the settlement-never set (critic
+ * cycles 1–3).
  */
 async function countedExpenseSeriesForPlan(
   userId: string,
@@ -364,16 +383,18 @@ async function countedExpenseSeriesForPlan(
       .filter((a) => (SPENDING_ACCOUNT_TYPES as readonly string[]).includes(a.type))
       .map((a) => a.id),
   );
-  const txns: RecurringTxn[] = snap.transactions
-    .filter((t) => t.status === 'POSTED' && !t.isSplitParent && spendingIds.has(t.accountId))
-    .map((t, i) => ({
-      id: String(i),
-      accountId: t.accountId,
-      date: t.date,
-      amountCents: t.amountCents,
-      rawDescriptor: t.rawDescriptor,
-      isTransfer: t.isTransfer,
-    }));
+  const source = snap.transactions.filter(
+    (t) => t.status === 'POSTED' && !t.isSplitParent && spendingIds.has(t.accountId),
+  );
+  const filedByMerchant = filedCategoryByMerchant(source, today);
+  const txns: RecurringTxn[] = source.map((t, i) => ({
+    id: String(i),
+    accountId: t.accountId,
+    date: t.date,
+    amountCents: t.amountCents,
+    rawDescriptor: t.rawDescriptor,
+    isTransfer: t.isTransfer,
+  }));
   const [overrides, terminalOf] = await Promise.all([
     getRecurringOverrides(userId),
     activeTerminalSuccessorMap(userId),
@@ -403,11 +424,28 @@ async function countedExpenseSeriesForPlan(
       return to === undefined || to === s.accountId ? s : { ...s, accountId: to };
     })
     .filter((s) => classifySeriesProjection(s, scope, today) === 'counted')
-    .map((s) => ({
-      amountCents: s.typicalAmountCents,
-      cadence: s.cadence,
-      categoryId: s.categoryId,
-    }));
+    .map((s) => {
+      const filed = filedByMerchant.get(s.merchantCanonical);
+      // A remap may not move a series INTO the settlement set the union refuses
+      // (critic cycle 1 P0-3): the normalizer's auto-loan identity is specific
+      // pattern evidence, and a filed `credit-card-payment` on those rows would
+      // silently DROP a real obligation from Fixed — a missed standing payment
+      // instructs overspending, where the alternative error (double-counting a
+      // settlement) only shrinks guilt-free. Out of the set is fine (the
+      // reader's filing wins); into it is not.
+      const categoryId =
+        filed === undefined ||
+        (typeof filed === 'string' &&
+          PLAN_FIXED_NEVER_CATEGORY_IDS.has(filed) &&
+          !(typeof s.categoryId === 'string' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(s.categoryId)))
+          ? s.categoryId
+          : filed;
+      return {
+        amountCents: s.typicalAmountCents,
+        cadence: s.cadence,
+        categoryId,
+      };
+    });
 }
 
 /**

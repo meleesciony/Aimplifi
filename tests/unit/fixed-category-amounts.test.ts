@@ -3,7 +3,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  AGGREGATE_RESOLVE_MIN_SHARE_BPS,
   averageMonthlySpendByCategory,
+  filedCategoryByMerchant,
+  fixedAmountBasisClause,
   resolveFixedCategoryAmounts,
 } from '@/lib/engine/spending-plan/fixed-category-amounts';
 import { computeSpendingPlan } from '@/lib/engine/spending-plan/plan';
@@ -518,6 +521,271 @@ describe('averageMonthlySpendByCategory', () => {
       3,
     );
     // (−8000 + −8000 + −8000) / 3 = 8000 after netting July to −8000
-    expect(m.get('groceries')).toBe(8_000);
+    expect(m.get('groceries')).toEqual({ amountCents: 8_000, months: 3 });
+  });
+
+  it('test_regression__typical_divides_by_observable_months_not_window (C.5/#393)', () => {
+    // The owner's Mathnasium shape: a MONTHLY bill whose first-ever charge landed
+    // in the window's last month. FAIL-OLD: 59_300 / 3 = 19_767 — Fixed short by
+    // two thirds, guilt-free over-generous (the dangerous direction).
+    const m = averageMonthlySpendByCategory(
+      [txn({ date: '2026-07-02', amountCents: -59_300, categoryId: 'education' })],
+      isoDate('2026-08-01'),
+      3,
+    );
+    expect(m.get('education')).toEqual({ amountCents: 59_300, months: 1 });
+  });
+
+  it('test_regression__established_long_cadence_keeps_window_smoothing (C.5/#393)', () => {
+    // The owner's auto-insurance shape: a quarterly $1,553 premium charging since
+    // BEFORE the window, once inside it. ÷3 = $517.67/mo is the correct monthly
+    // reserve; dividing by months-WITH-a-charge would print $1,553/mo (3× over).
+    // This pins the deliberate choice: an established category divides by the
+    // whole window, however few months it happened to charge.
+    const m = averageMonthlySpendByCategory(
+      [
+        txn({ date: '2026-04-15', amountCents: -155_300, categoryId: 'auto-insurance' }),
+        txn({ date: '2026-07-15', amountCents: -155_300, categoryId: 'auto-insurance' }),
+      ],
+      isoDate('2026-08-01'),
+      3,
+    );
+    expect(m.get('auto-insurance')).toEqual({ amountCents: 51_767, months: 3 });
+  });
+
+  it('a category two months old divides by two', () => {
+    const m = averageMonthlySpendByCategory(
+      [
+        txn({ date: '2026-06-20', amountCents: -20_000, categoryId: 'kids' }),
+        txn({ date: '2026-07-20', amountCents: -30_000, categoryId: 'kids' }),
+      ],
+      isoDate('2026-08-01'),
+      3,
+    );
+    expect(m.get('kids')).toEqual({ amountCents: 25_000, months: 2 });
+  });
+
+  it('a refund does not start the clock, and cannot dilute the average (critic cycle 1)', () => {
+    // First EVENT is a June refund; the first OUTFLOW is July. The divisor
+    // follows the outflow AND the numerator shares its basis: a stray refund
+    // landing before the category's first charge would otherwise print a
+    // $100/mo bill as "$50.00 (typical)" — a false money claim both critics
+    // found independently.
+    const m = averageMonthlySpendByCategory(
+      [
+        txn({ date: '2026-06-10', amountCents: 5_000, categoryId: 'internet' }),
+        txn({ date: '2026-07-10', amountCents: -10_000, categoryId: 'internet' }),
+      ],
+      isoDate('2026-08-01'),
+      3,
+    );
+    expect(m.get('internet')).toEqual({ amountCents: 10_000, months: 1 });
+  });
+
+  it('a refund-only window yields no typical at all', () => {
+    const m = averageMonthlySpendByCategory(
+      [txn({ date: '2026-06-10', amountCents: 5_000, categoryId: 'internet' })],
+      isoDate('2026-08-01'),
+      3,
+    );
+    expect(m.has('internet')).toBe(false);
+  });
+});
+
+describe('fixedAmountBasisClause (P1-8: the label states method + window)', () => {
+  it('renders the golden sentences — and never claims anything about "first charges"', () => {
+    // "since its first charge" was falsified by the critic cycle: the clock
+    // starts at the first COUNTED outflow, while the register can show earlier
+    // charges the flow sums exclude (transfer-flagged, pending). The sentence
+    // claims exactly the computation: an average over the last N complete months.
+    expect(fixedAmountBasisClause({ basis: 'budget-target', typicalMonths: 3 })).toBe(
+      ' (your target)',
+    );
+    expect(fixedAmountBasisClause({ basis: 'typical-spend', typicalMonths: 3 })).toBe(
+      ' (typical — average of your last 3 complete months)',
+    );
+    expect(fixedAmountBasisClause({ basis: 'typical-spend', typicalMonths: 1 })).toBe(
+      ' (typical — average of your last complete month)',
+    );
+    expect(fixedAmountBasisClause({ basis: 'typical-spend', typicalMonths: 2 })).toBe(
+      ' (typical — average of your last 2 complete months)',
+    );
+  });
+});
+
+describe('filedCategoryByMerchant (C.4/#393)', () => {
+  const today = isoDate('2026-08-01');
+
+  it('resolves the FILED id per merchant by outflow cents, ignoring inflows and unfiled rows', () => {
+    const m = filedCategoryByMerchant(
+      [
+        txn({ date: '2026-05-05', amountCents: -14_640, categoryId: 'life-insurance', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-06-05', amountCents: -14_640, categoryId: 'life-insurance', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-07-05', amountCents: -14_640, categoryId: 'insurance', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        // A refund and an unfiled row at the same payee change nothing.
+        txn({ date: '2026-07-06', amountCents: 14_640, categoryId: 'fees', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-07-07', amountCents: -100, categoryId: null, rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        // A merchant with ONLY unfiled rows gets no entry (caller keeps the guess).
+        txn({ date: '2026-07-08', amountCents: -45_000, categoryId: 'uncategorized', rawDescriptor: 'BOAT SLIP DRAFT' }),
+      ],
+      today,
+    );
+    expect(m.get('Principal-ccapnl Prin Finan')).toBe('life-insurance');
+    expect(m.has('Boat Slip Draft')).toBe(false);
+  });
+
+  it('test_regression__window_cents_outvote_stale_history (critic cycle 1 P0-1)', () => {
+    // Four old $1 filings under `storage` must NOT out-vote three live $146.40
+    // charges filed `life-insurance`: an all-time row-count modal resolved to a
+    // category with no current rollup mass, reopening the double-count one
+    // level up (the union would add the series while the rollup counts the
+    // live rows under life-insurance).
+    const m = filedCategoryByMerchant(
+      [
+        txn({ date: '2025-01-05', amountCents: -100, categoryId: 'storage', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2025-02-05', amountCents: -100, categoryId: 'storage', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2025-03-05', amountCents: -100, categoryId: 'storage', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2025-04-05', amountCents: -100, categoryId: 'storage', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-05-05', amountCents: -14_640, categoryId: 'life-insurance', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-06-05', amountCents: -14_640, categoryId: 'life-insurance', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-07-05', amountCents: -14_640, categoryId: 'life-insurance', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+      ],
+      today,
+    );
+    expect(m.get('Principal-ccapnl Prin Finan')).toBe('life-insurance');
+  });
+
+  it('test_regression__mixed_aggregate_does_not_resolve (critic cycle 1 P0-2)', () => {
+    // "Zelle Payment" is ONE canonical over many payees: four dinner Zelles
+    // filed `dining` must not re-file the UNFILED house cleaner's series and
+    // silently drop it from the Fixed union. The unfiled cleaner rows sit in
+    // the supermajority denominator, so `dining` holds only ~26% of the
+    // canonical's cents and no resolution happens.
+    const m = filedCategoryByMerchant(
+      [
+        txn({ date: '2026-05-02', amountCents: -4_000, categoryId: 'dining', rawDescriptor: 'Zelle payment JPM99A11111' }),
+        txn({ date: '2026-06-02', amountCents: -4_000, categoryId: 'dining', rawDescriptor: 'Zelle payment JPM99A22222' }),
+        txn({ date: '2026-07-02', amountCents: -4_000, categoryId: 'dining', rawDescriptor: 'Zelle payment JPM99A33333' }),
+        txn({ date: '2026-07-03', amountCents: -4_000, categoryId: 'dining', rawDescriptor: 'Zelle payment JPM99A44444' }),
+        txn({ date: '2026-05-09', amountCents: -15_000, categoryId: null, rawDescriptor: 'Zelle payment JPM99A55555' }),
+        txn({ date: '2026-06-09', amountCents: -15_000, categoryId: null, rawDescriptor: 'Zelle payment JPM99A66666' }),
+        txn({ date: '2026-07-09', amountCents: -15_000, categoryId: null, rawDescriptor: 'Zelle payment JPM99A77777' }),
+      ],
+      today,
+    );
+    expect(m.has('Zelle Payment')).toBe(false);
+  });
+
+  it('test_regression__aggregate_with_any_unfiled_minority_never_resolves (critic cycle 3 P1-1)', () => {
+    // The dangerous direction above the supermajority bar: 91% of the
+    // canonical's cents filed `dining` (discretionary) + a 9% UNFILED cleaner.
+    // Resolving to dining would make the union skip the series as
+    // guilt-free — the cleaner's draft is in NO rollup category, and the
+    // union is its only chance to be counted. Any unfiled remainder refuses.
+    const m = filedCategoryByMerchant(
+      [
+        txn({ date: '2026-07-01', amountCents: -91_000, categoryId: 'dining', rawDescriptor: 'Zelle payment JPM99A11111' }),
+        txn({ date: '2026-07-09', amountCents: -9_000, categoryId: null, rawDescriptor: 'Zelle payment JPM99A55555' }),
+      ],
+      today,
+    );
+    expect(m.has('Zelle Payment')).toBe(false);
+  });
+
+  it('test_regression__aggregate_supermajority_boundary (critic cycle 3 P1-2)', () => {
+    // Fully-filed aggregates, two categories, no unfiled remainder: 91/9
+    // resolves, 89/11 refuses. Pins the 90% bar itself — without these, the
+    // threshold could drift anywhere between the ~26% and 100% extremes the
+    // other fixtures cover.
+    expect(AGGREGATE_RESOLVE_MIN_SHARE_BPS).toBe(9000);
+    const above = filedCategoryByMerchant(
+      [
+        txn({ date: '2026-07-01', amountCents: -91_000, categoryId: 'home-services', rawDescriptor: 'Zelle payment JPM99A11111' }),
+        txn({ date: '2026-07-02', amountCents: -9_000, categoryId: 'dining', rawDescriptor: 'Zelle payment JPM99A22222' }),
+      ],
+      today,
+    );
+    expect(above.get('Zelle Payment')).toBe('home-services');
+    const below = filedCategoryByMerchant(
+      [
+        txn({ date: '2026-07-01', amountCents: -89_000, categoryId: 'home-services', rawDescriptor: 'Zelle payment JPM99A11111' }),
+        txn({ date: '2026-07-02', amountCents: -11_000, categoryId: 'dining', rawDescriptor: 'Zelle payment JPM99A22222' }),
+      ],
+      today,
+    );
+    expect(below.has('Zelle Payment')).toBe(false);
+  });
+
+  it('test_regression__single_category_aggregate_resolves (critic cycle 2 P0-1)', () => {
+    // The reverse failure: a reader whose aggregate Zelles are ALL filed into
+    // one rollup category. A blanket refusal left the original double-count
+    // alive for exactly this shape — the series unioned in under the
+    // `uncategorized` guess while the same rows fed the home-services rollup.
+    // One category holding 100% of the canonical's cents behaves as the single
+    // payee it is.
+    const m = filedCategoryByMerchant(
+      [
+        txn({ date: '2026-05-09', amountCents: -15_000, categoryId: 'home-services', rawDescriptor: 'Zelle payment JPM99A55555' }),
+        txn({ date: '2026-06-09', amountCents: -15_000, categoryId: 'home-services', rawDescriptor: 'Zelle payment JPM99A66666' }),
+        txn({ date: '2026-07-09', amountCents: -15_000, categoryId: 'home-services', rawDescriptor: 'Zelle payment JPM99A77777' }),
+      ],
+      today,
+    );
+    expect(m.get('Zelle Payment')).toBe('home-services');
+  });
+
+  it('test_regression__window_mass_outvotes_larger_stale_history', () => {
+    // A payee re-filed after a habit change: $5,000 of 2025 rows under
+    // `shopping` vs $439.20 of live window rows under `life-insurance`. The
+    // dedupe question is where the money lives in the rollup's OWN window, so
+    // the window mass wins even against a bigger all-time total.
+    const m = filedCategoryByMerchant(
+      [
+        txn({ date: '2025-03-05', amountCents: -250_000, categoryId: 'shopping', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2025-04-05', amountCents: -250_000, categoryId: 'shopping', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-05-05', amountCents: -14_640, categoryId: 'life-insurance', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-06-05', amountCents: -14_640, categoryId: 'life-insurance', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-07-05', amountCents: -14_640, categoryId: 'life-insurance', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+      ],
+      today,
+    );
+    expect(m.get('Principal-ccapnl Prin Finan')).toBe('life-insurance');
+  });
+
+  it('test_regression__cents_outvote_row_counts_inside_the_window (critic cycle 1 P1-5)', () => {
+    // Three $1 misfilings must not beat one real $146.40 charge in the same
+    // window: the vote is money, not rows.
+    const m = filedCategoryByMerchant(
+      [
+        txn({ date: '2026-07-01', amountCents: -100, categoryId: 'fees', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-07-02', amountCents: -100, categoryId: 'fees', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-07-03', amountCents: -100, categoryId: 'fees', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+        txn({ date: '2026-07-05', amountCents: -14_640, categoryId: 'life-insurance', rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN' }),
+      ],
+      today,
+    );
+    expect(m.get('Principal-ccapnl Prin Finan')).toBe('life-insurance');
+  });
+
+  it('a reader-excluded row does not vote', () => {
+    const m = filedCategoryByMerchant(
+      [
+        txn({ date: '2026-07-05', amountCents: -90_000, categoryId: 'shopping', rawDescriptor: 'ATT PAYMENT', excludeFromTotals: true }),
+        txn({ date: '2026-07-06', amountCents: -1_000, categoryId: 'phone', rawDescriptor: 'ATT PAYMENT' }),
+      ],
+      today,
+    );
+    expect(m.get('AT&T')).toBe('phone');
+  });
+
+  it('breaks a full tie toward the most recent row', () => {
+    const m = filedCategoryByMerchant(
+      [
+        txn({ date: '2026-05-05', amountCents: -1_000, categoryId: 'phone', rawDescriptor: 'ATT PAYMENT' }),
+        txn({ date: '2026-06-05', amountCents: -1_000, categoryId: 'internet', rawDescriptor: 'ATT PAYMENT' }),
+      ],
+      today,
+    );
+    expect(m.get('AT&T')).toBe('internet');
   });
 });

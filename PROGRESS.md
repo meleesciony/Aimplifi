@@ -9533,3 +9533,41 @@ direction.**
 - Also seen in passing (not acted on): July's `CAPITAL ONE CRCARDPMT` is filed
   `transfer` where its six siblings are `credit-card-payment`; a `fuel`-filed
   ±$5.4k reversal pair in May/June nets to a plausible-looking $166.78/mo.
+
+### C.4 + C.5 shipped in the same session (DECISIONS #393)
+- **C.4:** a counted series' category now resolves from its own rows' FILED ids
+  (`filedCategoryByMerchant`: outflow cents, rollup-window first, all-time
+  fallback, recency tie) in `countedExpenseSeriesForPlan`. The task row's
+  "null → skip" was deliberately NOT shipped (unfiled rows are in no rollup
+  category, so adding them cannot double-count; skipping would open a new
+  under-count) — see DECISIONS #393.
+- **C.5:** the typical divisor is now the months the category could have been
+  observed, numerator sharing the same basis; `typicalMonths` rides the row and
+  the /budgets label states method + window (`fixedAmountBasisClause`).
+- **Three hostile-critic cycles, all fresh-context and read-only.** Cycle 1
+  (two lenses, both FAIL, 3 P0 + 4 P1 money, 3 P1 copy): all-time row-count
+  modal reopened the double-count via stale filings; aggregate canonicals mixed
+  payees; a remap could enter `PLAN_FIXED_NEVER` and drop the CarMax-class
+  obligation; a pre-first-charge refund diluted the average to a false "$50.00
+  (typical)"; the "since its first charge" label was falsified (the clock is
+  COUNTED outflows, the register can show excluded charges). Cycle 2 (FAIL, 1
+  P0): the blanket aggregate refusal preserved the original double-count for a
+  fully-filed aggregate → supermajority rule. Cycle 3 (FAIL, 0 P0 + 2 P1): a
+  bare supermajority swallowed a minority UNFILED payee → any unfiled remainder
+  refuses; 89/91 boundary + threshold-value locks added. Every fix
+  mutation-proven (8 mutations total, each killing exactly its own lock).
+- **Stale e2e goldens repaired in the same slice:** glass-box.spec's `>= 4`
+  plan-row counts dated from the pre-2026-08-01 4-row trace (9087d26 removed
+  the card row; verify.sh never runs Playwright by default, the
+  `fencing-a-write-path-breaks-the-tests-that-drove-it` gap).
+
+### Gate + ship
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc clean, eslint clean,
+**5707 unit tests / 349 files** (was 5688/349), `next build` clean. Affected
+e2e serialized against the final build: spend-class, spend-class-drilldown,
+txn-spend-class, spending-plan, spending-plan-month-edge, budget-targets,
+budgets-basis, glass-box, conscious-buckets — **14/14 + glass-box 4/4**.
+Production replay with the shipped code mirrored: union **$0.00** (was
++$296.40), suggested Fixed **$9,785.24** (was $8,237.50; education now
+$593.00). The remaining gap to the owner's ~$12.4k truth is the mortgage
+(C.24).

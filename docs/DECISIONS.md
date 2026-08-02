@@ -2959,3 +2959,110 @@ pinned so it cannot stop exercising the feature silently.
 the server to both surfaces. Six mutations proven to kill locks; the tautological
 assertion in `trends.test.ts` (`projected === round(spentSoFar / days × dim)`,
 which passes for any model and would have "failed" this fix) is deleted.
+
+## #393 — The Fixed union dedupes on the FILED id, and "typical" divides by observable months (C.4 + C.5)
+
+Both shipped behind the C.0 production replay (PROGRESS #393), which measured
+the mechanisms live on the owner's account: the union re-added $296.40/mo the
+rollup already counted (a life-insurance draft and a Zelle house cleaner, both
+guess-id `uncategorized` over rows FILED into rollup categories), and the
+÷window divisor printed $197.67 for a July-start $593/mo bill.
+
+**DECIDED:**
+
+1. **A detected series' category, for the union's dedupe, is where its rows'
+   money actually lives in the rollup: the FILED `Transaction.categoryId`
+   carrying the most outflow CENTS — rollup-window rows first, all history as
+   fallback, ties → most recent row.** The normalizer's guess survives for
+   merchants with no filed row, for MIXED aggregate pseudo-merchants, and where
+   the remap would move a series INTO `PLAN_FIXED_NEVER` (a filed
+   `credit-card-payment` on an auto-loan-guessed ACH would silently drop a real
+   obligation — a missed standing payment instructs overspending, so out of the
+   settlement set the filing wins, into it never).    AGGREGATES took three critic
+   cycles to get right: "Zelle Payment" is one name over many payees, so cycle
+   1 refused resolution outright (a friend's dinner Zelles must not re-file the
+   unfiled house cleaner's series and drop the draft from Fixed); cycle 2
+   proved the blanket refusal preserved the ORIGINAL double-count for a reader
+   whose aggregate rows are all filed into one rollup category; and cycle 3
+   proved a bare ≥90% supermajority still swallowed a MINORITY UNFILED payee —
+   money in no rollup category, for which the union is the only chance to be
+   counted. The rule that survives all three: an aggregate resolves only when
+   it carries NO unfiled cents on the tested basis AND one filed category holds
+   ≥ `AGGREGATE_RESOLVE_MIN_SHARE_BPS` (90%, value pinned by test) of its total
+   outflow cents — a fully-filed aggregate behaves as the deliberate filing it
+   is; anything else keeps the guess and errs toward Fixed-too-big (the safe
+   side). All three directions mutation-locked, plus 89/91 boundary locks.
+   The first cut used an all-time row-count modal and cycle 1 broke it three
+   ways (stale $1 filings out-voting live charges into a category with no
+   rollup mass; aggregate mixing; the NEVER drop) — each now mutation-locked.
+   `FIXED_TYPICAL_WINDOW_MONTHS` is one exported constant because the rollup's
+   average, the label, and the remap must read the same months (cycle 2 P1).
+   Resolved in `countedExpenseSeriesForPlan` via the pure
+   `filedCategoryByMerchant` (engine), not inside `detectRecurring` — five
+   other surfaces consume the detector and none of them dedupes against the
+   rollup, so the guess keeps its jobs there. Transfer-flagged rows count as
+   filing evidence (the flag removes a row from flow sums, not from what the
+   reader said the money is); reader-excluded rows do not vote. Residual,
+   recorded not fixed: a remap into a GUILT-FREE filed category drops a series
+   from the union by the reader's own filing (deliberate — the filing wins
+   outside the settlement set), and the whole category-granular dedupe is
+   C.19/C.24's rework target.
+
+2. **The task row's "fix `null` → skip" was NOT shipped, and the deviation is
+   deliberate.** That prescription predates the measurement. After row
+   resolution, a null/uncategorized series id means "the reader never filed
+   these rows" — and unfiled rows contribute to NO rollup category
+   (`fixed-category-amounts.ts` skips uncategorized), so adding the series
+   cannot double-count. Skipping it would open a NEW under-count: the reader
+   with an unfiled standing draft would be told that money is guilt-free.
+   Direction checked both ways; the null-unions-in behavior is now pinned by
+   its own lock rather than incidental.
+
+3. **The "typical spend" divisor is the months the category could have been
+   OBSERVED, not the window length and not the months it happened to charge:**
+   `min(windowMonths, window months ≥ the category's first-ever counted
+   outflow month)` — and the NUMERATOR shares that basis (only window months ≥
+   the first-outflow month are summed; the critic cycle found a stray refund
+   landing before a category's first charge printing a $100/mo bill as $50).
+   A July-start monthly bill divides by 1 ($593, not $197.67); an established
+   quarterly premium keeps ÷3 ($517.67 — the months-with-charge divisor the
+   audit sketched would have tripled it, over in the other direction). Refunds
+   do not start the observation clock. Residual, direction checked: a
+   long-cadence bill whose FIRST charge lands mid-window over-reserves until
+   history accumulates (guilt-free too small, the safe side) and self-corrects
+   as months pass; pinned by
+   `test_regression__established_long_cadence_keeps_window_smoothing`.
+
+4. **The label beside "Plan uses $X" states method and window**
+   (`fixedAmountBasisClause`, one author, golden-locked): "(typical — average
+   of your last N complete months)" / "(your target)". One sentence for full
+   and partial windows, because the divisor months are always the LAST N
+   complete months. An earlier draft said "since its first charge" and the
+   critic cycle falsified it: the clock starts at the first COUNTED outflow,
+   while the register can show earlier charges the flow sums exclude
+   (transfer-flagged, pending) — the sentence may only claim what the function
+   measures. P1-8 called the bare "(typical)" unauditable; the rendered clause
+   is e2e-locked so the `typicalMonths` plumbing cannot silently degrade.
+
+5. **What this deliberately does NOT fix (queued as C.24):** the owner's
+   mortgage. Its starvation is the transfer-pair flag (timing-luck
+   inconsistent month to month) plus the normalizer's missing mortgage
+   vocabulary — the union's category-level dedupe cannot express "the rollup
+   covers this category PARTIALLY". These fixes move his Fixed by −$296.40
+   (honest) and +$395.33 (education) but the ~$4,145/mo mortgage gap needs
+   C.24.
+
+**Locks.** `fixed-category-amounts.test.ts`: three divisor locks (mutation:
+restoring `denom = months` kills exactly those three), the long-cadence pin,
+the refund-clock + refund-dilution rule, and per-rule
+`filedCategoryByMerchant` locks (window-mass vs stale history, cents vs row
+counts, aggregate refusal, excluded-row silence, recency tie) plus the golden
+label sentences — five more mutations each killing exactly its own lock.
+`spending-plan-server.test.ts`: the Principal shape through the REAL server
+path with the series' presence asserted (mutation: reverting the wiring line
+yields 29,280 where 14,640 belongs — the production defect in miniature), the
+deliberate null-unions-in direction, and the NEVER-guard (mutation: `filed ??
+guess` drops the $385 CarMax obligation). `spend-class.spec.ts` asserts the
+rendered clause. Hostile critic: two parallel fresh-context read-only critics
+(money-math + claims lenses), cycle 1 both FAIL — 3 P0 + 4 P1 money, 3 P1
+copy — all fixed above; cycle 2 verdicts recorded in PROGRESS #393.

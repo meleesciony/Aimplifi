@@ -41,6 +41,17 @@ test('budgets shows Fixed vs guilt-free sections from category suggestions', asy
   // Shared demo cannot mutate designations.
   await expect(page.getByTestId('spend-class-move-groceries')).toHaveCount(0);
 
+  // C.5/#393 (audit P1-8): the Plan amount states its method AND window — a
+  // bare "(typical)" beside money is unauditable, and the rendered clause is
+  // what proves `typicalMonths` actually reaches the page (critic cycle 1: the
+  // component's `?? 0` fallbacks would degrade to "(typical)" silently).
+  // The demo has no groceries budget target, so the TYPICAL branch is required
+  // outright — an alternation admitting "(your target)" would let a stray
+  // budget row green this without proving the months plumbing (cycle 2 P2-4).
+  await expect(page.getByTestId('spend-class-plan-amount-groceries')).toContainText(
+    /\(typical — average of your last (\d+ complete months|complete month)\)/,
+  );
+
   // B.3: Sethi strip caption names the widened Fixed numerator (not bills alone).
   const caption = page.getByTestId('conscious-caption');
   await expect(caption).toBeVisible();

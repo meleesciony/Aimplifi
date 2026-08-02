@@ -652,6 +652,129 @@ describe('getSpendingPlan — a beyond-month term made entirely of estimates (L.
   });
 });
 
+/**
+ * C.4 (#393, measured on the owner's production data): the Fixed union dedupes
+ * a detected series against the category rollup BY CATEGORY ID, but the series
+ * carried the merchant NORMALIZER'S GUESS at the raw descriptor while the
+ * rollup keys on the FILED `Transaction.categoryId`. For a payee the merchant
+ * table doesn't know (guess `uncategorized`) whose rows the reader HAS filed,
+ * the dedupe could not match and the union re-added money the rollup already
+ * counted — live at +$296.40/mo. Driven through the REAL server path because
+ * the defect is in the wiring (`countedExpenseSeriesForPlan`), which a
+ * pure-builder test cannot see (the L.15 lesson).
+ */
+describe('getSpendingPlan — series category resolves from its own FILED rows (C.4/#393)', () => {
+  const uid = `gfs-c4-${Date.now()}-${process.pid}`;
+  let checkingId = '';
+
+  const wipe = async () => {
+    await prisma.account.deleteMany({ where: { userId: uid } });
+    await prisma.user.deleteMany({ where: { id: uid } });
+  };
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: uid, email: `${uid}@test.local` } });
+    const checking = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-chk`,
+        name: 'Everyday Checking',
+        type: 'CHECKING',
+        currentBalanceCents: 800000,
+        currency: 'USD',
+      },
+    });
+    checkingId = checking.id;
+    await prisma.user.update({ where: { id: uid }, data: { paymentAccountId: checkingId } });
+    // The owner's Principal shape: a monthly life-insurance draft whose
+    // descriptor the merchant table does not know (normalizer guess is
+    // `uncategorized` — verified by executing normalizeMerchant), FILED by the
+    // reader as `life-insurance`. Three complete-month charges (Mar/Apr/May,
+    // today Jun 10) so it is BOTH in the rollup (typical $146.40) and a
+    // detected MONTHLY series.
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: checkingId, date: '2026-03-05', amountCents: -14640, rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN ~ TRAN: ACHD', categoryId: 'life-insurance', confidenceBps: 9000, needsReview: false },
+        { accountId: checkingId, date: '2026-04-05', amountCents: -14640, rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN ~ TRAN: ACHD', categoryId: 'life-insurance', confidenceBps: 9000, needsReview: false },
+        { accountId: checkingId, date: '2026-05-05', amountCents: -14640, rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN ~ TRAN: ACHD', categoryId: 'life-insurance', confidenceBps: 9000, needsReview: false },
+      ],
+    });
+  });
+  afterAll(async () => {
+    await wipe();
+    vi.unstubAllEnvs();
+  });
+  beforeEach(() => {
+    vi.stubEnv('DEMO_TODAY', TODAY);
+  });
+
+  it('test_regression__guess_id_series_over_filed_rows_is_not_added_twice', async () => {
+    const plan = await getSpendingPlan(uid);
+    expect(plan.fixedBasis).toBe('category-designations');
+    // The series must actually be DETECTED and COUNTED for this lock to mean
+    // anything (critic cycle 1 P1-4: the amount alone is also right when
+    // detection silently breaks — a vacuous pass). One counted series, then
+    // the dedupe is what keeps the figure at the rollup alone.
+    expect(plan.scheduledFixed).toHaveLength(1);
+    // The rollup counts the draft once ($146.40 typical). FAIL-OLD: the union
+    // re-added the same series under the normalizer's `uncategorized` guess —
+    // 29_280, the production defect in miniature.
+    expect(plan.fixedExpensesCents).toBe(14640);
+  });
+
+  it('test_regression__remap_may_not_enter_the_settlement_never_set (critic cycle 1 P0-3)', async () => {
+    // The auto-loan class the union exists for: transfer-flagged ACH rows the
+    // normalizer identifies as `auto-loan` (they are in NO rollup, transfers
+    // never enter typical spend) — with the rows FILED `credit-card-payment`.
+    // Honoring that filing would put the series in PLAN_FIXED_NEVER and
+    // silently DROP a real $385/mo obligation from Fixed: a missed standing
+    // payment instructs overspending, so a remap may move a series OUT of the
+    // settlement set (the reader's filing wins) but never INTO it.
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: checkingId, date: '2026-03-10', amountCents: -38500, rawDescriptor: 'ACH WITHDRAWAL CARMAX 4821', categoryId: 'credit-card-payment', isTransfer: true, confidenceBps: 9000, needsReview: false },
+        { accountId: checkingId, date: '2026-04-10', amountCents: -38500, rawDescriptor: 'ACH WITHDRAWAL CARMAX 4821', categoryId: 'credit-card-payment', isTransfer: true, confidenceBps: 9000, needsReview: false },
+        { accountId: checkingId, date: '2026-05-10', amountCents: -38500, rawDescriptor: 'ACH WITHDRAWAL CARMAX 4821', categoryId: 'credit-card-payment', isTransfer: true, confidenceBps: 9000, needsReview: false },
+      ],
+    });
+    try {
+      const plan = await getSpendingPlan(uid);
+      // Rollup: life-insurance $146.40 (transfers never enter it). Union: the
+      // auto-loan series adds at its monthly rate despite the filing.
+      expect(plan.fixedExpensesCents).toBe(14640 + 38500);
+    } finally {
+      await prisma.transaction.deleteMany({
+        where: { accountId: checkingId, rawDescriptor: 'ACH WITHDRAWAL CARMAX 4821' },
+      });
+    }
+  });
+
+  it('a genuinely-unfiled recurring draft still unions in (the DELIBERATE null direction)', async () => {
+    // Rows the reader never filed are in NO rollup category (the rollup skips
+    // uncategorized), so adding the series cannot double-count — and skipping
+    // it would instruct the reader to spend money a standing draft will take.
+    // See DECISIONS (#393): this is why C.4's original "null → skip" was not shipped.
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: checkingId, date: '2026-03-12', amountCents: -45000, rawDescriptor: 'ZZQ MONTHLY DRAFT 0181', categoryId: null, confidenceBps: 0, needsReview: true },
+        { accountId: checkingId, date: '2026-04-12', amountCents: -45000, rawDescriptor: 'ZZQ MONTHLY DRAFT 0181', categoryId: null, confidenceBps: 0, needsReview: true },
+        { accountId: checkingId, date: '2026-05-12', amountCents: -45000, rawDescriptor: 'ZZQ MONTHLY DRAFT 0181', categoryId: null, confidenceBps: 0, needsReview: true },
+      ],
+    });
+    try {
+      const plan = await getSpendingPlan(uid);
+      // Rollup unchanged (unfiled rows feed no category) + the draft unions in.
+      expect(plan.fixedExpensesCents).toBe(14640 + 45000);
+    } finally {
+      await prisma.transaction.deleteMany({
+        where: { accountId: checkingId, rawDescriptor: 'ZZQ MONTHLY DRAFT 0181' },
+      });
+    }
+  });
+});
+
 describe('getSpendingPlan — income scoped to payment account (owner 2026-08-01)', () => {
   /**
    * FAIL-OLD: trailing income summed every NON-CREDIT account, so (a) a second

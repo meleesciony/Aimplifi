@@ -386,3 +386,4 @@ refuses to write if it would drop any number this file already carries.
 - **#388** (Phase ?): The pace projection abstains on zero observations, and says so (C.1)
 - **#389** (Phase ?): A savings-rate bar expands into its two inputs, because a ratio has no rows
 - **#390** (Phase ?): The pace projection reads the bill calendar, and names the bills it read (C.2)
+- **#393** (Phase ?): The Fixed union dedupes on the FILED id, and "typical" divides by observable months (C.4 + C.5)

@@ -17,6 +17,7 @@ import { applyReconciliationBoundary } from '../../src/lib/engine/account/reconc
 import { countsInFlows, type TxnLike } from '../../src/lib/engine/fi/insights';
 import {
   averageMonthlySpendByCategory,
+  filedCategoryByMerchant,
   resolveFixedCategoryAmounts,
 } from '../../src/lib/engine/spending-plan/fixed-category-amounts';
 import { resolveCategoryIsFixed } from '../../src/lib/engine/spending-plan/spend-class';
@@ -292,10 +293,21 @@ console.table(
 
 // 3) the union half — the REAL recurringOutsideFixedCategoryCents, then a
 //    per-item trace using the same rules, asserted equal to the real total.
+// C.4: mirror the server exactly — the series' category resolves from its own
+// rows' FILED ids (window-cents weighted; aggregates and the NEVER set guarded).
+const filedByMerchant = filedCategoryByMerchant(recSource, today);
+const resolveSeriesCategory = (s: (typeof counted)[number]): string | null => {
+  const filed = filedByMerchant.get(s.merchantCanonical);
+  return filed === undefined ||
+    (PLAN_FIXED_NEVER_CATEGORY_IDS.has(filed) &&
+      !(typeof s.categoryId === 'string' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(s.categoryId)))
+    ? s.categoryId
+    : filed;
+};
 const scheduledFixed: PlanScheduledItem[] = counted.map((s) => ({
   amountCents: s.typicalAmountCents,
   cadence: s.cadence,
-  categoryId: s.categoryId,
+  categoryId: resolveSeriesCategory(s),
 }));
 const categoryIsFixed = (id: string) => resolveCategoryIsFixed(id, meta, fixedOverrides);
 const coveredIds =
@@ -318,7 +330,7 @@ head(`THE UNION — recurringOutsideFixedCategoryCents = ${money(realOutside)} (
 let traced = 0;
 const trace = counted.map((s) => {
   const rate = s.typicalAmountCents >= 0 ? 0 : monthlyRateCents(-s.typicalAmountCents, s.cadence);
-  const id = s.categoryId;
+  const id = resolveSeriesCategory(s);
   let decision: string;
   if (s.typicalAmountCents >= 0) decision = 'skip (not an expense)';
   else if (typeof id === 'string' && id !== '' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(id)) decision = 'skip (never-fixed)';
@@ -336,8 +348,9 @@ const trace = counted.map((s) => {
   );
   return {
     canonical: s.merchantCanonical.slice(0, 28),
-    seriesCat: s.categoryId,
-    isFixed: String(categoryIsFixed(s.categoryId ?? '')),
+    guessCat: s.categoryId,
+    resolvedCat: id,
+    isFixed: String(categoryIsFixed(id ?? '')),
     filedCats: [...filed].join(',').slice(0, 30),
     rate: money(rate),
     decision,
@@ -379,7 +392,7 @@ console.table(
       return {
         categoryId: r.categoryId,
         shipped: money(r.typicalCents),
-        engineMap: money(typicalByCat.get(r.categoryId) ?? 0),
+        engineMap: money(typicalByCat.get(r.categoryId)?.amountCents ?? 0),
         monthsWithCharge: monthsWith.size,
         honest: monthsWith.size > 0 ? money(Math.round(-netCents / monthsWith.size)) : '(none)',
         perMonth: perMonth.join('  '),

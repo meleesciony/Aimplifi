@@ -9,7 +9,10 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendClassCategoryRow } from '@/lib/engine/spending-plan/spend-class';
-import type { FixedAmountBasis } from '@/lib/engine/spending-plan/fixed-category-amounts';
+import {
+  fixedAmountBasisClause,
+  type FixedAmountBasis,
+} from '@/lib/engine/spending-plan/fixed-category-amounts';
 import { SPEND_CLASS_PANEL_ID } from '@/lib/engine/spending-plan/fixed-review';
 import {
   CATEGORY_NAME_LINK_CLASS,
@@ -21,6 +24,8 @@ export type SpendClassFixedRow = SpendClassCategoryRow & {
   /** Monthly amount in the Plan rollup (budget target else typical). */
   planAmountCents?: number;
   planAmountBasis?: FixedAmountBasis;
+  /** Divisor behind a typical amount (C.5/#393): months observed, ≤ window. */
+  planAmountMonths?: number;
 };
 
 export function SpendClassPanel({
@@ -182,7 +187,10 @@ function SpendClassRow({
             data-testid={`spend-class-plan-amount-${row.categoryId}`}
           >
             Plan uses {formatCents(cents(row.planAmountCents))}
-            {row.planAmountBasis === 'budget-target' ? ' (your target)' : ' (typical)'}
+            {fixedAmountBasisClause({
+              basis: row.planAmountBasis ?? 'typical-spend',
+              typicalMonths: row.planAmountMonths ?? 0,
+            })}
           </p>
         ) : null}
         {error ? (
