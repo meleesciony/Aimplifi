@@ -94,14 +94,20 @@ test('an unpaid bill is inside the projection and named on both surfaces', async
   // that has no bills, which is the way this lock would silently decay.
   const bills = page.getByTestId('trends-pace-bills');
   await expect(bills).toContainText(MORTGAGE_MERCHANT);
-  await expect(bills).toContainText('$6,200.00 of bills still due');
+  await expect(bills).toContainText('$6,200.00 of bill still due');
 
   // $20.00 counted over the first 10 days used to project $60.00 for the whole
   // month, under a green "less than last month" beside a $6,200.00 mortgage that
   // was about to land. The figure now contains it.
   const pace = page.getByTestId('trends-pace');
   await expect(pace).toContainText('$6,260.00'); // 2000 + 620000 + 2000 × 20 / 10
-  await expect(pace).toContainText('Bills charged to a card, and any we have not spotted');
+  // The coverage clause states the admission rule POSITIVELY (C.2 critic P0/P1):
+  // an enumeration of exclusions beside a money figure claims to be complete,
+  // and it was not — /calendar renders refused rows as bills still due one click
+  // away, off the same array this projection reads.
+  await expect(pace).toContainText(
+    'Only bills we can match to a merchant you have spent at are counted here',
+  );
 
   // ── Dashboard ──────────────────────────────────────────────────────────────
   await page.goto('/dashboard');
@@ -111,6 +117,6 @@ test('an unpaid bill is inside the projection and named on both surfaces', async
   // The assumption sentence must describe the model the reader is looking at:
   // naming the bills it added, not just a daily rate that explains none of it.
   await expect(card.getByTestId('dashboard-trends-pace-assumption')).toContainText(
-    'Adds $6,200.00 of bills we can see still due',
+    'Adds $6,200.00 of bills still due',
   );
 });

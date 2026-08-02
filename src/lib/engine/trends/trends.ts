@@ -459,9 +459,20 @@ function billsThisMonth(
     if (!t.merchant) continue;
     const k = key(t.merchant);
     if (!expected.has(k)) continue;
-    if (isSpendRow(t, meta)) counted.add(k);
+    // Aggregate-ness is learned from EVERY row, future ones included: it is a
+    // fact about the merchant string rather than about money, and it only ever
+    // REFUSES a bill. Learning it from more rows can only make the engine more
+    // cautious, so it is deliberately outside the date guard below.
     if (t.aggregateMerchant) aggregate.add(k);
+    // Admission is not (C.2 critic P1-1). A future-dated row is in NEITHER side
+    // of the comparison — not in `spentSoFarCents` (`soFar` filters it out), not
+    // in `priorMonthCents` — so letting one admit a bill imports a merchant
+    // whose money has never been in the basis, which is the exact import this
+    // rule exists to prevent (`a-borrowed-total-imports-its-window`). Every
+    // sibling in this file already draws the line here: `computeLargest` and
+    // `computeNewMerchants` both refuse to treat a future row as fact.
     if (t.date > today) continue;
+    if (isSpendRow(t, meta)) counted.add(k);
     if (!isRegisterSpendRow(t, { fromYm: ym, toYm: ym }, meta)) continue;
     posted.set(k, (posted.get(k) ?? 0) + spendContributionCents(t));
   }
@@ -546,11 +557,29 @@ function computePace(
   const dim = daysInMonth(y, m);
   const daysElapsed = Math.min(Number(today.slice(8, 10)), dim); // ≥1 for a real date
   const { stillDue, stillDueCents, creditedCents } = billsThisMonth(scheduled, txns, today, ym, meta);
-  // Clamped because the month total nets refunds by CATEGORY and drops a
-  // net-refunded category to zero, while the credit above is summed per
-  // MERCHANT: in a refund-heavy month the two can cross. A negative rate is not
-  // a thing, and the clamp errs toward projecting less rather than inventing.
-  const discretionarySoFarCents = Math.max(0, spentSoFarCents - creditedCents);
+  // The month total nets refunds by CATEGORY and drops a net-refunded category
+  // to zero, while the credit above is summed per MERCHANT — so in a
+  // refund-heavy month the two bases can cross and the credit can exceed the
+  // bill money actually sitting inside `spentSoFarCents`.
+  //
+  // This used to be `Math.max(0, spentSoFar - credited)`, and the clamp had the
+  // wrong FAILURE DIRECTION (C.2 critic P1-2). It absorbed the crossing by
+  // deleting real, unrelated spending from the rate: one net-refunded category
+  // could take a genuine $30/day of dining to $0/day and collapse the rest of
+  // the month to nothing. Under-projecting is this surface's dangerous
+  // direction — "on pace to spend LESS than last month" is the reading that
+  // makes someone relax.
+  //
+  // A crossing is DETECTABLE rather than silent, so it is handled: when the
+  // credit cannot be trusted against this basis, take no credit at all. That
+  // leaves bill money inside the daily rate — over-projecting, which a reader
+  // can only act on by tightening — instead of deleting money that is genuinely
+  // there. The branches are identical whenever the two bases agree, which is
+  // every month without a net-refunded category.
+  const basesCrossed = creditedCents > spentSoFarCents;
+  const discretionarySoFarCents = basesCrossed
+    ? spentSoFarCents
+    : spentSoFarCents - creditedCents;
   // Multiply before dividing (audit P2): `(a / b) * c` rounds twice and violated
   // the repo's stated half-away-from-zero rule 140 times on the demo seed.
   const projectedRemainderCents = roundHalfAwayFromZero(

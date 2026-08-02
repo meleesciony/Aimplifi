@@ -49,6 +49,17 @@ export function paceDeltaRelation(
   };
 }
 
+/**
+ * The tie phrase, authored once (C.2 critic P1-4).
+ *
+ * `paceDeltaRelation` was shared but its RENDERING was not: both surfaces
+ * hard-coded this sentence, in a module whose own header says a local copy is
+ * exactly how two labels drift apart. Sharing the helper that decides WHICH
+ * branch to take, while copying the words in the branch, leaves the drift
+ * surface untouched — the decision was never the part that varies.
+ */
+export const PACE_DELTA_SAME = 'on pace with last month';
+
 /** How many bills are named before the phrase falls back to a count. */
 export const PACE_BILLS_NAMED = 2;
 
@@ -75,8 +86,41 @@ export function paceBillsPhrase(
       : shown.length === 1
         ? shown[0]!
         : shown.join(' and ');
-  return `${money(pace.billsStillDueCents)} of bills still due: ${list}`;
+  // Singular when there is one (C.2 critic P2): "$1,800.00 of bills still due:
+  // Mr Cooper" names one merchant and calls it plural in the same breath.
+  const noun = names.length === 1 ? 'bill' : 'bills';
+  return `${money(pace.billsStillDueCents)} of ${noun} still due: ${list}`;
 }
+
+/**
+ * What the projection can and cannot see — stated POSITIVELY, and on purpose.
+ *
+ * The first version of this clause ENUMERATED exclusions ("Bills charged to a
+ * card, and any we have not spotted, are not in that $6,200.00"), and an
+ * enumeration beside a money figure is a claim to be complete. It was not. The
+ * engine also refuses a scheduled row whose merchant it has never counted as
+ * spending (the auto-loan ACH, a savings sweep), an aggregate pseudo-merchant
+ * ("Zelle Payment" is a pattern, not an identity), and a hand-authored label no
+ * merchant string can match ("Rent — Peachtree Properties"). Every one of those
+ * rows is rendered as a bill still due by /calendar, one click away, off the
+ * same `snap.scheduled` array — so a reader whose landlord is paid by Zelle read
+ * a two-item list, found that neither item applied to them, and concluded their
+ * rent was inside the figure.
+ *
+ * `closing-a-gap-shrinks-the-disclosure-that-described-it` is the rule that was
+ * broken: re-derive the remaining set by EXECUTING the classifier over its whole
+ * input domain, never by editing the old sentence to remove what you fixed. A
+ * positive statement of the admission rule cannot decay that way — it says what
+ * IS counted, so every refusal the engine makes, including ones added later, is
+ * covered by construction rather than by an author remembering to extend a list.
+ *
+ * It also says what a reader can DO about it, which an exclusion list cannot:
+ * the rule is about matching a merchant, and the reader is the one who knows
+ * whether they have spent there.
+ */
+const PACE_BILL_COVERAGE =
+  'Only bills we can match to a merchant you have spent at are counted here — ' +
+  'one charged to a card, paid as a transfer, or that we have not spotted is not.';
 
 /**
  * Assumption stated beside every pace figure (dashboard + /trends).
@@ -88,11 +132,9 @@ export function paceBillsPhrase(
  * amount, not extrapolated — and the daily rate is taken over what is LEFT after
  * the bill money, so `spentSoFar / daysElapsed` no longer reproduces it.
  *
- * The third clause of branch B is the completeness hedge, and it is the reason
- * this may not be shortened to "we counted your bills": a bill charged to a
- * credit card produces no scheduled row at all (the series is 'on-card'), and a
- * bill the detector has not spotted produces none either. Both are still being
- * extrapolated by the rate, exactly as the whole month used to be.
+ * Branches A and B both carry `PACE_BILL_COVERAGE`, and neither may be shortened
+ * to "we counted your bills": the projection sees a strict subset of the bills
+ * the app can see, and the reader is one click from the rest of them.
  */
 export function paceAssumption(
   pace: Pick<SpendingPace, 'spentSoFarCents' | 'billsStillDueCents' | 'discretionarySoFarCents'>,
@@ -101,15 +143,14 @@ export function paceAssumption(
   if (pace.billsStillDueCents > 0) {
     const bills = money(pace.billsStillDueCents);
     return (
-      `Adds ${bills} of bills we can see still due, then assumes the other ${other} ` +
-      `continues at its current daily rate — a projection, not a prediction. ` +
-      `Bills charged to a card, and any we have not spotted, are not in that ${bills}.`
+      `Adds ${bills} of bills still due, then assumes the other ${other} ` +
+      `continues at its current daily rate — a projection, not a prediction. ${PACE_BILL_COVERAGE}`
     );
   }
   if (pace.discretionarySoFarCents < pace.spentSoFarCents) {
     return (
-      `The bills we can see for this month have already been charged; the other ${other} ` +
-      `is what continues at its current daily rate — a projection, not a prediction.`
+      `Every bill we could match to this month's charges is already counted; the other ${other} ` +
+      `is what continues at its current daily rate — a projection, not a prediction. ${PACE_BILL_COVERAGE}`
     );
   }
   return 'Assumes spending continues at the current daily rate — a projection, not a prediction.';

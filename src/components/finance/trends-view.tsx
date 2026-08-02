@@ -20,6 +20,7 @@ import {
 import {
   baselineLabel,
   paceAssumption,
+  PACE_DELTA_SAME,
   PACE_NO_SPEND_YET,
   paceBillsPhrase,
   paceDeltaRelation,
@@ -226,7 +227,7 @@ export function TrendsView({
             {money(pace.spentSoFarCents)} spent in the first {pace.daysElapsed} day
             {pace.daysElapsed === 1 ? '' : 's'} ·{' '}
             {paceDelta!.relation === 'same' ? (
-              <span data-testid="trends-pace-delta">on pace with last month</span>
+              <span data-testid="trends-pace-delta">{PACE_DELTA_SAME}</span>
             ) : (
               <>
                 <span

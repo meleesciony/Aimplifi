@@ -89,9 +89,10 @@ describe('paceAssumption', () => {
         discretionarySoFarCents: 57879,
       }),
     ).toBe(
-      'Adds $6,200.00 of bills we can see still due, then assumes the other $578.79 ' +
+      'Adds $6,200.00 of bills still due, then assumes the other $578.79 ' +
         'continues at its current daily rate — a projection, not a prediction. ' +
-        'Bills charged to a card, and any we have not spotted, are not in that $6,200.00.',
+        'Only bills we can match to a merchant you have spent at are counted here — ' +
+        'one charged to a card, paid as a transfer, or that we have not spotted is not.',
     );
   });
 
@@ -106,9 +107,63 @@ describe('paceAssumption', () => {
         discretionarySoFarCents: 289400,
       }),
     ).toBe(
-      'The bills we can see for this month have already been charged; the other $2,894.00 ' +
-        'is what continues at its current daily rate — a projection, not a prediction.',
+      "Every bill we could match to this month's charges is already counted; the other $2,894.00 " +
+        'is what continues at its current daily rate — a projection, not a prediction. ' +
+        'Only bills we can match to a merchant you have spent at are counted here — ' +
+        'one charged to a card, paid as a transfer, or that we have not spotted is not.',
     );
+  });
+
+  /**
+   * C.2 critic P0 — the branch that says the bills are done may not also imply
+   * they were ALL of the bills.
+   *
+   * Branch B used to open "The bills we can see for this month have already been
+   * charged" and carry no coverage clause at all: it was the one branch telling
+   * the reader the projection is finished, and the only one that named no
+   * limitation. It is false by scope — the engine refuses scheduled rows it can
+   * plainly see (an aggregate "Zelle Payment" landlord, a hand-authored label, a
+   * transfer-paid obligation), and /calendar renders those same refused rows as
+   * bills still due, one click away, off the same array.
+   *
+   * Both directions are asserted, because a hedge that never appears and a hedge
+   * that appears unconditionally are different bugs.
+   */
+  it('every branch that mentions bills also states what "bills" covers', () => {
+    const coverage =
+      'Only bills we can match to a merchant you have spent at are counted here — ' +
+      'one charged to a card, paid as a transfer, or that we have not spotted is not.';
+
+    // Branch A — bills still due.
+    expect(
+      paceAssumption({ spentSoFarCents: 57879, billsStillDueCents: 620000, discretionarySoFarCents: 57879 }),
+    ).toContain(coverage);
+    // Branch B — bills all charged. The branch the P0 was in.
+    expect(
+      paceAssumption({ spentSoFarCents: 909400, billsStillDueCents: 0, discretionarySoFarCents: 289400 }),
+    ).toContain(coverage);
+    // Branch C mentions no bills, so it makes no claim to qualify. A coverage
+    // clause here would assert the app looked and found none, which is a
+    // different fact than "nothing matched" (`a-zero-is-a-claim`).
+    expect(
+      paceAssumption({ spentSoFarCents: 57879, billsStillDueCents: 0, discretionarySoFarCents: 57879 }),
+    ).not.toContain(coverage);
+  });
+
+  /**
+   * The old clause was an ENUMERATION of exclusions, which is a claim to be
+   * complete beside a money figure. Pin that it does not come back: this string
+   * is only reachable by re-listing the excluded classes, and the list will be
+   * wrong again the moment a refusal is added.
+   */
+  it('does not enumerate exclusions — an exclusion list beside a figure claims to be whole', () => {
+    const all = [
+      paceAssumption({ spentSoFarCents: 57879, billsStillDueCents: 620000, discretionarySoFarCents: 57879 }),
+      paceAssumption({ spentSoFarCents: 909400, billsStillDueCents: 0, discretionarySoFarCents: 289400 }),
+      paceAssumption({ spentSoFarCents: 57879, billsStillDueCents: 0, discretionarySoFarCents: 57879 }),
+    ].join(' ');
+    expect(all).not.toContain('are not in that');
+    expect(all).not.toContain('we can see');
   });
 });
 
@@ -122,7 +177,7 @@ describe('paceBillsPhrase', () => {
   it('names one bill', () => {
     expect(
       paceBillsPhrase({ billsStillDueCents: 620000, billsStillDue: [bill('Mr Cooper', 620000)] }),
-    ).toBe('$6,200.00 of bills still due: Mr Cooper');
+    ).toBe('$6,200.00 of bill still due: Mr Cooper');
   });
 
   it('names two with "and"', () => {
@@ -174,6 +229,25 @@ describe('PACE_NO_SPEND_YET (C.1)', () => {
       expect(src, `${f} must render the shared constant`).toContain('PACE_NO_SPEND_YET');
       expect(src, `${f} must not hard-code its own abstention sentence`).not.toContain(
         'Not enough activity yet',
+      );
+    }
+  });
+
+  /**
+   * C.2 critic P1-4 — the same scan for the TIE sentence, which was hand-copied
+   * on both surfaces while only the helper deciding the branch was shared. The
+   * decision was never the part that drifts; the words are.
+   */
+  it('is the single author of the tie copy on both surfaces', () => {
+    const files = [
+      'src/components/finance/spending-insights-card.tsx',
+      'src/components/finance/trends-view.tsx',
+    ];
+    for (const f of files) {
+      const src = readFileSync(join(process.cwd(), f), 'utf8');
+      expect(src, `${f} must render the shared constant`).toContain('PACE_DELTA_SAME');
+      expect(src, `${f} must not hard-code the tie sentence`).not.toContain(
+        'on pace with last month',
       );
     }
   });

@@ -3,6 +3,7 @@ import { cents, formatCents } from '@/lib/money';
 import {
   moverWindowLabel,
   paceAssumption,
+  PACE_DELTA_SAME,
   PACE_NO_SPEND_YET,
   paceBillsPhrase,
   paceDaysPhrase,
@@ -65,7 +66,7 @@ export function SpendingInsightsCard({ trends }: { trends: SpendingTrends }) {
           <p className="mt-0.5 text-xs text-muted-foreground" data-testid="dashboard-trends-pace-days">
             {paceDaysPhrase(pace.daysElapsed)}
             {delta.relation === 'same' ? (
-              <> · on pace with last month</>
+              <> · {PACE_DELTA_SAME}</>
             ) : (
               <>
                 {' '}

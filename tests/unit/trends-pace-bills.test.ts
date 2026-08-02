@@ -323,3 +323,120 @@ describe('C.2 — the demo seed admits no bills, on purpose', () => {
     expect(r.pace!.projectedCents).toBe(376074); // the pinned no-bill figure
   });
 });
+
+/**
+ * C.2 hostile-critic cycle (2026-08-02) — the two P1s the cycle found, plus the
+ * unlocked construction it flagged. Each of these fails on the code as shipped
+ * in #390.
+ */
+describe('C.2 critic — admission and basis seams', () => {
+  /**
+   * P1-1. `counted` (the admission set) used to be filled BEFORE the
+   * `date > today` guard, so a future-dated row admitted a bill.
+   *
+   * That row is in neither side of the comparison — `soFar` filters it out of
+   * `spentSoFarCents`, and it is not in `priorMonthCents` either — so the bill
+   * it admits imports a merchant whose money has never been in the basis. Every
+   * sibling in the file (`computeLargest`, `computeNewMerchants`) already
+   * refuses to treat a future-dated row as fact.
+   */
+  it('a future-dated row does not admit a bill — it is in neither side of the comparison', () => {
+    // FutureCo appears NOWHERE in the reader's history: its only row is dated
+    // after today. (The fixture deliberately avoids `MORTGAGE`, whose May charge
+    // in `may` would admit its bill legitimately — the first draft of this test
+    // used it and passed on the old code for that reason.)
+    const r = computeSpendingTrends({
+      txns: [
+        ...may,
+        T('2026-06-05', -2000, 'dining', { merchant: 'Cafe' }),
+        // Dated AFTER today: the app's own convention says this has not happened.
+        T('2026-06-15', -50000, 'housing', { merchant: 'FutureCo' }),
+      ],
+      today: '2026-06-10',
+      scheduled: [bill({ description: 'FutureCo', amountCents: -50000 })],
+    });
+    // The merchant has never been counted in a spend total that has happened,
+    // so the bill stays out and the projection is the pure discretionary rate.
+    expect(r.pace!.billsStillDue).toEqual([]);
+    expect(r.pace!.billsStillDueCents).toBe(0);
+    expect(r.pace!.spentSoFarCents).toBe(2000);
+  });
+
+  /**
+   * The false-abstention control for the same guard: a PAST row at the same
+   * merchant must still admit the bill. Without this, "never admit anything"
+   * would pass the test above.
+   */
+  it('a past row at the same merchant still admits the bill (control)', () => {
+    const r = computeSpendingTrends({
+      txns: [
+        ...may,
+        T('2026-06-05', -2000, 'dining', { merchant: 'Cafe' }),
+        T('2026-06-08', -620000, null, { merchant: MORTGAGE }),
+      ],
+      today: '2026-06-10',
+      scheduled: [bill({ nextDate: '2026-07-01' })],
+    });
+    // June's occurrence is already charged, so nothing is still due — but the
+    // bill WAS admitted, which is what separates this from the case above.
+    expect(r.pace!.discretionarySoFarCents).toBeLessThan(r.pace!.spentSoFarCents);
+  });
+
+  /**
+   * P1-2. `spentSoFarCents` nets refunds by CATEGORY and drops a net-refunded
+   * category to zero; the bill credit is summed per MERCHANT and is untouched by
+   * that netting, so the two bases can cross.
+   *
+   * The old code absorbed the crossing with `Math.max(0, …)`, which deleted real
+   * unrelated spending from the rate — here a genuine $30 of dining would have
+   * become a $0/day rate, collapsing the rest of the month to nothing and
+   * reporting the reader as on pace to spend LESS. Taking no credit when the
+   * credit cannot be trusted errs the other way instead.
+   */
+  it('a net-refunded category cannot delete unrelated spending from the rate', () => {
+    const r = computeSpendingTrends({
+      txns: [
+        ...may,
+        // `shopping` nets NEGATIVE: 100 + 200 − 350 = −50 → the category is
+        // dropped to 0 by `spendingByCategory`, taking the bill's own charge
+        // with it, while the per-merchant credit still sees the raw $100.
+        T('2026-06-01', -10000, 'shopping', { merchant: 'FinanceCo' }),
+        T('2026-06-02', -20000, 'shopping', { merchant: 'BigBox' }),
+        T('2026-06-03', 35000, 'shopping', { merchant: 'BigBox' }),
+        // Real money, at an unrelated merchant, in a healthy category.
+        T('2026-06-01', -3000, 'dining', { merchant: 'Cafe' }),
+      ],
+      today: '2026-06-10',
+      scheduled: [bill({ description: 'FinanceCo', amountCents: -10000 })],
+    });
+    // The dining money is the only thing left in the month total…
+    expect(r.pace!.spentSoFarCents).toBe(3000);
+    // …and it must survive into the rate rather than being clamped away.
+    expect(r.pace!.discretionarySoFarCents).toBe(3000);
+    // Which means the month still projects forward instead of flat-lining.
+    expect(r.pace!.projectedCents).toBeGreaterThan(r.pace!.spentSoFarCents);
+  });
+
+  /**
+   * P2-4. Two series on one canonical merchant are summed into a single expected
+   * amount by construction, so one merchant's charges cannot be compared against
+   * the same bill twice. Named in the audit brief as this repo's known failure
+   * class and previously unlocked.
+   */
+  it('two series on one merchant sum into one expectation, never two comparisons', () => {
+    const r = computeSpendingTrends({
+      txns: [
+        ...may,
+        T('2026-06-01', -5000, null, { merchant: MORTGAGE }),
+        T('2026-06-02', -1000, 'dining', { merchant: 'Cafe' }),
+      ],
+      today: '2026-06-02',
+      scheduled: [
+        bill({ amountCents: -400000 }),
+        bill({ amountCents: -220000 }),
+      ],
+    });
+    // 400,000 + 220,000 expected, 5,000 already charged ⇒ one row, 615,000 due.
+    expect(r.pace!.billsStillDue).toEqual([{ merchant: MORTGAGE, amountCents: 615000 }]);
+  });
+});
