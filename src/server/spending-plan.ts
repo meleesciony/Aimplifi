@@ -104,7 +104,24 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   );
   // Still needed for L.29 disclosure math (linked cards vs snapshot-visible cards).
   const creditAccountIds = new Set(snap.accounts.filter((a) => a.type === 'CREDIT').map((a) => a.id));
-  const incomeTxns = snap.transactions.filter((t) => incomeAccountIds.has(t.accountId));
+  // Read every row's account through its TERMINAL SUCCESSOR before testing the scope.
+  // `applyReconciliationBoundary` decides which side OWNS a date; it does not re-key
+  // transactions, so a reconciled predecessor's rows keep the predecessor's id — and a
+  // scope built from live account ids silently drops the pre-cutover history of the very
+  // account it names. The two sibling paths already do this: `snap.scheduled` is re-keyed
+  // by the boundary itself (F6, "so the successor's payment-account filter finds them")
+  // and `countedExpenseSeriesForPlan` remaps detected series below. The transactions the
+  // income median reads were the one scoped path that never got it.
+  //
+  // Measured on the owner's production data 2026-08-02 (scripts/audit-probes/income-replay.mts):
+  // a Schwab checking re-linked via Plaid with cutover 2026-07-21 left ONE partial month in
+  // scope, so the "median of up to 3 complete months" was a median of one — $10,681.30,
+  // where the median of his real three (May $30,937.91 / Jun $21,117.48 / Jul $31,408.61)
+  // is $30,937.91. Under-reporting income by 3x moves every figure this plan derives.
+  const incomeTerminalOf = await activeTerminalSuccessorMap(userId);
+  const incomeTxns = snap.transactions.filter((t) =>
+    incomeAccountIds.has(incomeTerminalOf.get(t.accountId) ?? t.accountId),
+  );
   // Prefer paycheck/bonus/side-gig leaves per month; fall back to broad income
   // minus interest/investment/mobile-deposit (DECISIONS #370).
   const trailingMonthlyIncomeCents = monthlyGuiltFreeIncomeCents(incomeTxns)
