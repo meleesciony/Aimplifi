@@ -49,6 +49,63 @@ export const RADAR_PUSH_WINDOW_DAYS = 7;
 /** Account types a cover transfer may be sourced from (adjudicated condition 2). */
 export const TRANSFER_SOURCE_TYPES = new Set(['CHECKING', 'SAVINGS']);
 
+/** The fields a candidate funding account must carry to be judged eligible. */
+export interface TransferSourceCandidate {
+  id: string;
+  /** The label the CALLER will print — resolved before it gets here, so the
+   *  tie-break below orders on the same string the reader sees. */
+  name: string;
+  type: string;
+  currentBalanceCents: number;
+  feedDroppedAt: string | null;
+}
+
+/**
+ * The accounts a transfer instruction may name, best first (C.7).
+ *
+ * Four guards, and every one of them is about an INSTRUCTION rather than a
+ * figure (`failure-direction-is-per-role-not-per-value`): "move $2,900 from
+ * Rainy Day Savings" is an action whose failure is a bounced transfer and an
+ * overdrafted card payment, so an account that cannot actually supply the money
+ * may not be named at all.
+ *
+ *  - not the payment account itself (moving money from an account to itself is
+ *    not an instruction),
+ *  - checking/savings only,
+ *  - a positive balance — nothing to move otherwise,
+ *  - not frozen. A dropped feed's balance is stale and reads HIGH, and because
+ *    sources sort by size a frozen account is preferentially chosen — the exact
+ *    inversion L.14 recorded.
+ *
+ * Shared rather than copied: the dashboard hero derived its own source list with
+ * NONE of these guards (`type === 'SAVINGS'`, sorted by balance) and printed the
+ * result inside "Transfer $X from <name> ($Y available)" on the same page whose
+ * radar applied all four. A guard copied per call site misses call sites
+ * (`fence-by-construction-not-per-call-site`), so the selection lives here and
+ * both surfaces obtain it the same way.
+ */
+export function eligibleTransferSources<T extends TransferSourceCandidate>(
+  accounts: readonly T[],
+  paymentAccountId: string | null | undefined,
+): T[] {
+  return accounts
+    .filter(
+      (a) =>
+        a.id !== paymentAccountId &&
+        TRANSFER_SOURCE_TYPES.has(a.type) &&
+        a.currentBalanceCents > 0 &&
+        a.feedDroppedAt == null,
+    )
+    // `id` after the name (TASKS L.7 critic F12): the name here is the user's own label, so a
+    // rename must not silently reorder which account a transfer instruction names first.
+    .sort(
+      (a, b) =>
+        b.currentBalanceCents - a.currentBalanceCents ||
+        a.name.localeCompare(b.name) ||
+        a.id.localeCompare(b.id),
+    );
+}
+
 export interface RadarCardDue {
   cardId: string;
   cardName: string;
@@ -368,23 +425,22 @@ export function computeRadar(input: RadarInput): RadarResult {
     // that bounces or never happens, and the card payment overdrafts. A fabricated instruction is
     // worse than an honest gap (the an-empty-set-is-not-a-fact lesson): with no eligible source
     // the engine already says so in `assumptions`.
-    const sources: RadarTransferSource[] = input.accounts
-      .filter(
-        (a) =>
-          a.id !== input.paymentAccountId &&
-          TRANSFER_SOURCE_TYPES.has(a.type) &&
-          a.currentBalanceCents > 0 &&
-          a.feedDroppedAt == null,
-      )
-      .map((a) => ({
-        id: a.id,
-        name: accountLabel(a),
-        balanceCents: a.currentBalanceCents,
-        sufficient: a.currentBalanceCents >= amountCents,
-      }))
-      // `id` after the name (TASKS L.7 critic F12): the name here is the user's own label, so a
-      // rename must not silently reorder which account a transfer instruction names first.
-      .sort((a, b) => b.balanceCents - a.balanceCents || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    // Label BEFORE selecting, so the tie-break orders on the string the reader
+    // sees and the shared selector needs no accessor to find it.
+    const sources: RadarTransferSource[] = eligibleTransferSources(
+      input.accounts.map((a) => ({ ...a, name: accountLabel(a) })),
+      input.paymentAccountId,
+    ).map((a) => ({
+      id: a.id,
+      name: a.name,
+      balanceCents: a.currentBalanceCents,
+      // `sufficient` stays HERE, not in the shared selector: it is a claim about
+      // this engine's own `amountCents`, and the dashboard hero prints a
+      // different engine's figure. Sharing the account CHOICE is sound (identity
+      // and balance are facts about the account); sharing a sufficiency verdict
+      // computed against another surface's number would not be.
+      sufficient: a.currentBalanceCents >= amountCents,
+    }));
     // The worst dip and the FIRST shortfall are not always the same day (L.23).
     // Splitting them out here rather than in the component: the amount and the
     // date are one instruction, and only the walk knows whether they belong to

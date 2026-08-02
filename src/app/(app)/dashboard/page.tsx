@@ -27,6 +27,7 @@ import { getDashboardRecent } from '@/server/dashboard-recent';
 import { getFeedDroppedAccounts, getWithheldAccountSummary } from '@/server/transactions';
 import { getConnectionAlerts, getDataFreshness } from '@/server/connection-health';
 import { getCashFlowRadar } from '@/server/radar';
+import { eligibleTransferSources } from '@/lib/engine/radar/radar';
 import { getReturnMoment } from '@/server/return-moment';
 import { ReturnMomentCard } from '@/components/dashboard/return-moment-card';
 import { TodayFeedCard } from '@/components/dashboard/today-feed-card';
@@ -110,11 +111,18 @@ export default async function DashboardPage({
     eligiblePaymentAccountIds,
   );
 
+  // C.7 (CALC_AUDIT P0-2): this used to filter on `type === 'SAVINGS'` and sort
+  // by balance, applying NONE of the four guards `radar.ts` applies on this very
+  // page — so a frozen account, whose stale balance reads high and therefore
+  // sorts first, could be named inside "Transfer $X from <name> ($Y available)".
+  // The eligible-source rule now has one home and this surface obtains it there.
+  // A frozen account withheld here is not withheld silently: `FeedDroppedBanner`
+  // names every dropped account on this same page (invariant D9).
   const transferSource =
-    data.accounts
-      .filter((a) => a.type === 'SAVINGS')
-      .sort((a, b) => b.currentBalanceCents - a.currentBalanceCents)
-      .map((a) => ({ name: a.name, balanceCents: a.currentBalanceCents }))[0] ?? null;
+    eligibleTransferSources(data.accounts, data.paymentAccountId).map((a) => ({
+      name: a.name,
+      balanceCents: a.currentBalanceCents,
+    }))[0] ?? null;
 
   const cardIdentity = dashboardCardIdentity(
     [
