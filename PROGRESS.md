@@ -1,10 +1,11 @@
 # PROGRESS.md — session resume log
 
-## 2026-08-01 — Income half/one-paycheck regression (#385) IN PROGRESS
+## 2026-08-01 — Income half/one-paycheck regression (#385) DONE
 
 Owner: Plan income ~$10k / one paycheck; pay is steady higher. Cause: #370
 earned-only when any paycheck leaf exists dropped sibling still on Income.
-Fix: earned + generic Income (not MM/interest/tax-refund). Ship next.
+Fix: earned + generic Income (not MM/interest/tax-refund). Shipped `5553725`;
+Vercel READY `aimplifi-adzthrksf`.
 
 ## 2026-08-01 — W.7 Fixed/Guilt-free heading → transactions (#383) DONE
 
