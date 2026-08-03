@@ -46,7 +46,7 @@ import {
   provenanceBadgeView,
 } from '@/components/finance/provenance-badge';
 import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
-import { SpendClassSelect } from '@/components/finance/spend-class-select';
+import { SpendClassBadge } from '@/components/finance/spend-class-badge';
 
 /**
  * What the row's note/tax control says without being opened.
@@ -75,8 +75,6 @@ export function TransactionList({
   pageInfo,
   categoryGroups = ASSIGNABLE_GROUPS,
   hasFilters = false,
-  /** When false (shared demo), Fixed/Discretionary is a label only. */
-  canEditSpendClass = true,
 }: {
   rows: TxnView[];
   summary: TxnSummary;
@@ -87,7 +85,6 @@ export function TransactionList({
   /** True when any register filter is active — distinguishes "no data yet" from
    *  "filters matched nothing" (ROADMAP ALSO CONSIDER / #186). */
   hasFilters?: boolean;
-  canEditSpendClass?: boolean;
 }) {
   const searchParams = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -137,7 +134,6 @@ export function TransactionList({
   const [newCatOpen, setNewCatOpen] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatGroup, setNewCatGroup] = useState<string>(CUSTOM_CATEGORY_GROUPS[0] ?? '');
-  const [newCatDiscretionary, setNewCatDiscretionary] = useState(true);
   const [newCatError, setNewCatError] = useState<string | null>(null);
   // Wraps the OPEN row's chip + menu so a mousedown outside it dismisses the picker.
   const menuRef = useRef<HTMLDivElement>(null);
@@ -325,7 +321,6 @@ export function TransactionList({
     const g = categoryGroups.find((grp) => grp.categories.some((c) => c.id === t.categoryId))?.group;
     setNewCatGroup(g && CUSTOM_CATEGORY_GROUPS.includes(g) ? g : (CUSTOM_CATEGORY_GROUPS[0] ?? ''));
     setNewCatName(query.trim());
-    setNewCatDiscretionary(true);
     setNewCatError(null);
     setNewCatOpen(true);
   }
@@ -343,7 +338,7 @@ export function TransactionList({
     let res;
     try {
       res = await withDeadline(
-        createCustomCategory({ name: trimmed, group: newCatGroup, discretionary: newCatDiscretionary }),
+        createCustomCategory({ name: trimmed, group: newCatGroup }),
         FORM_ACTION_DEADLINE_MS,
       );
     } catch (e) {
@@ -636,14 +631,8 @@ export function TransactionList({
                         {/* Why-This-Category (§3.1): who decided this category. The
                             label is the resolver's verdict, rendered verbatim — an
                             AI guess is the ONLY kind that asks for the user's OK. */}
-                        {/* #378: Fixed vs discretionary — selector when wrong. */}
-                        <SpendClassSelect
-                          transactionId={t.id}
-                          categoryId={t.categoryId}
-                          spendClass={t.spendClass}
-                          canEdit={canEditSpendClass}
-                          merchantName={t.merchantName}
-                        />
+                        {/* #378: Fixed vs discretionary — computed from the category. */}
+                        <SpendClassBadge spendClass={t.spendClass} />
                         <Badge
                           variant="outline"
                           data-testid={PROVENANCE_BADGE_TESTID}
@@ -999,15 +988,6 @@ export function TransactionList({
                                         </option>
                                       ))}
                                     </select>
-                                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                      <input
-                                        type="checkbox"
-                                        checked={newCatDiscretionary}
-                                        onChange={(e) => setNewCatDiscretionary(e.target.checked)}
-                                        data-testid="register-new-category-discretionary"
-                                      />
-                                      Discretionary
-                                    </label>
                                     <div className="flex gap-1.5">
                                       <button
                                         type="button"

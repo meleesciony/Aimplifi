@@ -63,33 +63,33 @@ describe('custom category lifecycle (real actions, throwaway data — DECISIONS 
   afterAll(wipe);
 
   it('refuses a name that shadows a built-in category', async () => {
-    const res = await createCustomCategory({ name: 'Dining Out', group: GROUP, discretionary: true });
+    const res = await createCustomCategory({ name: 'Dining Out', group: GROUP });
     expect(res.ok).toBe(false);
   });
 
   it('refuses a per-user duplicate name', async () => {
-    const a = await createCustomCategory({ name: `Dup-${stamp}`, group: GROUP, discretionary: true });
+    const a = await createCustomCategory({ name: `Dup-${stamp}`, group: GROUP });
     expect(a.ok).toBe(true);
-    const b = await createCustomCategory({ name: `Dup-${stamp}`, group: GROUP, discretionary: true });
+    const b = await createCustomCategory({ name: `Dup-${stamp}`, group: GROUP });
     expect(b.ok).toBe(false);
   });
 
   it('refuses an unknown group', async () => {
-    const res = await createCustomCategory({ name: `Boat-${stamp}`, group: 'Not A Group', discretionary: true });
+    const res = await createCustomCategory({ name: `Boat-${stamp}`, group: 'Not A Group' });
     expect(res.ok).toBe(false);
   });
 
   it('refuses the Income and Transfers groups (critic F4 — keeps customs genuine spending)', async () => {
-    const income = await createCustomCategory({ name: `Side-${stamp}`, group: 'Income', discretionary: false });
+    const income = await createCustomCategory({ name: `Side-${stamp}`, group: 'Income' });
     expect(income.ok).toBe(false);
-    const transfer = await createCustomCategory({ name: `Move-${stamp}`, group: 'Transfers & Other', discretionary: false });
+    const transfer = await createCustomCategory({ name: `Move-${stamp}`, group: 'Transfers & Other' });
     expect(transfer.ok).toBe(false);
   });
 
   it('refuses a case-variant duplicate name (critic F6)', async () => {
-    const a = await createCustomCategory({ name: `Case-${stamp}`, group: GROUP, discretionary: true });
+    const a = await createCustomCategory({ name: `Case-${stamp}`, group: GROUP });
     expect(a.ok).toBe(true);
-    const b = await createCustomCategory({ name: `CASE-${stamp}`, group: GROUP, discretionary: true });
+    const b = await createCustomCategory({ name: `CASE-${stamp}`, group: GROUP });
     expect(b.ok).toBe(false);
   });
 
@@ -100,7 +100,7 @@ describe('custom category lifecycle (real actions, throwaway data — DECISIONS 
     const txn = await prisma.transaction.create({
       data: { accountId, date: '2026-06-03', amountCents: -1111, rawDescriptor: 'E2E REGISTER WRITE-IN UNIT', categoryId: 'dining', needsReview: false, confidenceBps: 9900 },
     });
-    const created = await createCustomCategory({ name: 'Padel Unit', group: GROUP, discretionary: true });
+    const created = await createCustomCategory({ name: 'Padel Unit', group: GROUP });
     expect(created.ok).toBe(true);
     const res = await recategorize({ transactionId: txn.id, categoryId: created.id!, scope: 'one' });
     expect(res.affected).toBe(1);
@@ -129,7 +129,7 @@ describe('custom category lifecycle (real actions, throwaway data — DECISIONS 
 
   it('create → rename → budget → delete (re-files + cleans up FKs)', async () => {
     // create
-    const created = await createCustomCategory({ name: 'Golf', group: GROUP, discretionary: true });
+    const created = await createCustomCategory({ name: 'Golf', group: GROUP });
     expect(created.ok).toBe(true);
     const id = created.id!;
     expect(id).not.toBe('golf'); // a cuid, never a slug

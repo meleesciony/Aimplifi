@@ -20,7 +20,6 @@ import { registerSuggestionFor } from '@/lib/engine/categorize/register-suggesti
 import { loadCorrectionInputs, loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { getCategoryMeta } from '@/server/category-meta';
-import { getCategoryFixedOverrides } from '@/server/category-fixed';
 import { classifySpendClass } from '@/lib/engine/spending-plan/spend-class';
 
 /**
@@ -275,7 +274,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   // the SAME loaders getTriageGroups uses, so the register and the inbox can
   // never answer the "what is this row?" question from different inputs.
   // `loadCorrectionInputs` is demo-fenced at its own definition (#332).
-  const [predictions, userRules, tuning, meta, corrections, fixedOverrides] = await Promise.all([
+  const [predictions, userRules, tuning, meta, corrections] = await Promise.all([
     prisma.categoryPrediction.findMany({
       where: { userId },
       select: { transactionId: true, source: true, predictedCategoryId: true, labeledAt: true },
@@ -284,7 +283,6 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     getThresholdTuning(userId),
     getCategoryMeta(userId),
     loadCorrectionInputs(userId),
-    getCategoryFixedOverrides(userId),
   ]);
   const predByTxn = new Map(predictions.map((p) => [p.transactionId, p]));
 
@@ -345,7 +343,6 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
         excludeFromTotals: t.excludeFromTotals,
       },
       meta,
-      fixedOverrides,
     ),
   }));
 
@@ -562,7 +559,7 @@ export async function getTransactionDetail(
   // discard them (critic cycle 2, F8). The gate is the ladder's own first
   // condition, kept next to it so the two cannot drift.
   const needsLadder = (t.categoryId ?? 'uncategorized') === 'uncategorized';
-  const [prediction, userRules, tuning, meta, corrections, fixedOverrides, children] = await Promise.all([
+  const [prediction, userRules, tuning, meta, corrections, children] = await Promise.all([
     prisma.categoryPrediction.findFirst({
       where: { userId, transactionId: t.id },
       select: { source: true, predictedCategoryId: true, labeledAt: true },
@@ -575,7 +572,6 @@ export async function getTransactionDetail(
     // transaction's detail page. A gate must move with the thing it guards.
     getCategoryMeta(userId),
     needsLadder ? loadCorrectionInputs(userId) : null,
-    getCategoryFixedOverrides(userId),
     prisma.transaction.findMany({
       // `account: { userId }` is redundant today (the parent is ownership-verified
       // above and a child is only ever created on its parent's account) but this
@@ -641,7 +637,6 @@ export async function getTransactionDetail(
         excludeFromTotals: t.excludeFromTotals,
       },
       meta,
-      fixedOverrides,
     ),
   };
 

@@ -82,7 +82,6 @@ function isUniqueViolation(e: unknown): boolean {
 export async function createCustomCategory(input: {
   name: string;
   group: string;
-  discretionary: boolean;
 }): Promise<CategoryActionResult> {
   const userId = await requireUserId();
   // The demo is ONE shared row: a category name typed here is a name the next
@@ -99,8 +98,10 @@ export async function createCustomCategory(input: {
   if (conflict) return { ok: false, error: conflict };
 
   try {
+    // No discretionary input (2026-08-03: classification is deterministic,
+    // never typed in) — the column default (discretionary) applies.
     const row = await prisma.category.create({
-      data: { userId, name, group, discretionary: !!input.discretionary, isSystem: false },
+      data: { userId, name, group, isSystem: false },
       select: { id: true },
     });
     await auditLog(userId, 'category.create', { id: row.id, name, group });

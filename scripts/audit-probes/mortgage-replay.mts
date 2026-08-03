@@ -147,11 +147,8 @@ const custom: CustomCategoryInput[] = customRows.map((r) => ({
   id: r.id, name: r.name, group: r.group ?? 'Transfers & Other', discretionary: r.discretionary,
 }));
 const meta = mergeCategoryMeta(custom, new Map(renameRows.map((r) => [r.categoryId, r.name])));
-const overrideRows = await q<{ categoryId: string; isFixed: boolean }>(
-  `select "categoryId", "isFixed" from "CategoryFixedOverride" where "userId" = $1`,
-  [OWNER],
-);
-const fixedOverrides = new Map(overrideRows.map((r) => [r.categoryId, r.isFixed]));
+// 2026-08-03: CategoryFixedOverride is gone (classification is taxonomy-only) —
+// the probe no longer reads it.
 const budgetRows = await q<{ categoryId: string; monthCents: number }>(
   `select "categoryId", "monthCents" from "Budget" where "userId" = $1`,
   [OWNER],
@@ -166,7 +163,7 @@ const recurringOverrideRows = await q<{
 const recurringOverrides = recurringOverrideRows
   .map(parseRecurringOverride)
   .filter((o): o is RecurringOverrideInput => o !== null);
-console.log(`custom=${custom.length} renames=${renameRows.length} fixedOverrides=${fixedOverrides.size} budgets=${budgetRows.length} recurringOverrides=${recurringOverrides.length}`);
+console.log(`custom=${custom.length} renames=${renameRows.length} budgets=${budgetRows.length} recurringOverrides=${recurringOverrides.length}`);
 
 // ------------------------------------------------ find the mortgage rows
 head('MORTGAGE CANDIDATES — outflows ≥ $3,000 grouped by the normalizer canonical');
@@ -328,7 +325,6 @@ const categoryFixed = resolveFixedCategoryAmounts({
   transactions: snapTxns,
   today,
   meta,
-  overrides: fixedOverrides,
   budgetByCategory: new Map(budgetRows.map((b) => [b.categoryId, b.monthCents])),
   nameOf: (id) => categoryName(id, meta),
   excludeMerchantCanonicals: unionedLoanMerchants,
@@ -347,7 +343,7 @@ console.table(
 
 // 3) the union half — the REAL recurringOutsideFixedCategoryCents, then a
 //    per-item trace using the same rules, asserted equal to the real total.
-const categoryIsFixed = (id: string) => resolveCategoryIsFixed(id, meta, fixedOverrides);
+const categoryIsFixed = (id: string) => resolveCategoryIsFixed(id, meta);
 const budgetCategoryIds = new Set(
   budgetRows.filter((b) => b.monthCents > 0).map((b) => b.categoryId),
 );
@@ -357,13 +353,12 @@ const coveredIds =
     : fixedSpendCategoryIdsInMonths(
         snapTxns,
         new Set(
-          monthlyNonDiscretionaryCents(snapTxns, meta, fixedOverrides, unionedLoanMerchants)
+          monthlyNonDiscretionaryCents(snapTxns, meta, unionedLoanMerchants)
             .filter((f) => f.month < today.slice(0, 7))
             .slice(-3)
             .map((f) => f.month),
         ),
         meta,
-        fixedOverrides,
         unionedLoanMerchants,
       );
 const realOutside = recurringOutsideFixedCategoryCents(scheduledFixed, categoryIsFixed, coveredIds, budgetCategoryIds);

@@ -58,7 +58,6 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance';
 import { getCategoryMeta } from '@/server/category-meta';
-import { getCategoryFixedOverrides } from '@/server/category-fixed';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
 import { activeTerminalSuccessorMap } from '@/server/reconciliation';
 import { getProvider } from '@/lib/providers/demo';
@@ -144,12 +143,10 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
 
   // Fixed pattern (#371/#376): non-discretionary spend across spending accounts
   // (checking / savings / credit) — groceries on a card still consume the
-  // allocation. Dining out and shopping stay out unless the reader overrides
-  // the category on /budgets. Custom categories honour their discretionary flag.
-  const [categoryMeta, fixedOverrides] = await Promise.all([
-    getCategoryMeta(userId),
-    getCategoryFixedOverrides(userId),
-  ]);
+  // allocation. Classification is taxonomy-only (deterministic; the per-user
+  // designation dial was removed 2026-08-03). Custom categories classify by
+  // their stored discretionary flag.
+  const categoryMeta = await getCategoryMeta(userId);
   // C.24: merchants structurally identified as LOAN PAYMENTS (a transfer-flagged
   // cash outflow whose ±3-day same-amount pair sits on a linked LOAN/MORTGAGE
   // account — the owner's $6,217.07 Truist mortgage, invisible to both halves
@@ -208,7 +205,6 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const trailingFixedMonths = monthlyNonDiscretionaryCents(
     snap.transactions,
     categoryMeta,
-    fixedOverrides,
     unionedLoanMerchants,
   )
     .filter((f) => f.month < ym)
@@ -343,13 +339,12 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     transactions: snap.transactions,
     today,
     meta: categoryMeta,
-    overrides: fixedOverrides,
     budgetByCategory: new Map(budgetRows.map((b) => [b.categoryId, b.monthCents])),
     nameOf: (id) => categoryName(id, categoryMeta),
     excludeMerchantCanonicals: unionedLoanMerchants,
   });
   const categoryIsFixed = (categoryId: string) =>
-    resolveCategoryIsFixed(categoryId, categoryMeta, fixedOverrides);
+    resolveCategoryIsFixed(categoryId, categoryMeta);
   // Covered ids for the Fixed∪recurring union (#381/#384):
   //   rollup > 0 → categories that contribute mass to the rollup
   //   median path → Fixed categories that fed the trailing months (so grocery
@@ -361,7 +356,6 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
           snap.transactions,
           trailingFixedMonthKeys,
           categoryMeta,
-          fixedOverrides,
           unionedLoanMerchants,
         );
 

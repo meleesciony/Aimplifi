@@ -1,14 +1,18 @@
 /**
- * Fixed vs guilt-free spend class (Wave B.1 / DECISIONS #376).
+ * Fixed vs guilt-free spend class (Wave B.1 / DECISIONS #376; manual dial
+ * removed 2026-08-03 — owner directive: the class is deterministic and
+ * algorithmic, never typed in).
  *
  * Every outflow that counts in flows is one of:
  *   - fixed — non-discretionary (utilities, groceries, rent…)
  *   - guilt-free — discretionary (dining, movies, skiing…)
  *   - out-of-scope — transfers, card payments, income, uncategorized, etc.
  *
- * Classification is by the transaction's filed category. A per-user override
- * map (categoryId → isFixed) wins over the category's suggested `discretionary`
- * flag; custom categories resolve through the same meta map as everywhere else.
+ * Classification is a pure function of the transaction's filed category — the
+ * taxonomy's `discretionary` flag, resolved through the per-user meta map so
+ * custom categories classify like built-ins. There is no per-user override and
+ * no label to set: the reader changes a row's class by refiling the row under
+ * a different category, never by designating the row itself.
  */
 import { countsInFlows, type TxnLike } from '@/lib/engine/fi/insights';
 import {
@@ -34,8 +38,12 @@ export function spendClassLabel(c: SpendClass): string {
   return 'Neither';
 }
 
-/** Suggested class from taxonomy alone (no user override). */
-export function suggestedCategoryIsFixed(
+/**
+ * Effective fixed designation from the taxonomy alone.
+ * `null` = category cannot be designated (out of the fixed/guilt-free dial):
+ * settlement, income, transfers, uncategorized, or unknown.
+ */
+export function resolveCategoryIsFixed(
   categoryId: string,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): boolean | null {
@@ -47,30 +55,14 @@ export function suggestedCategoryIsFixed(
   return !cat.discretionary;
 }
 
-/**
- * Effective fixed flag after user overrides.
- * `null` = category cannot be designated (out of the fixed/guilt-free dial).
- */
-export function resolveCategoryIsFixed(
-  categoryId: string,
-  meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
-  overrides: ReadonlyMap<string, boolean> = new Map(),
-): boolean | null {
-  const suggested = suggestedCategoryIsFixed(categoryId, meta);
-  if (suggested === null) return null;
-  if (overrides.has(categoryId)) return overrides.get(categoryId)!;
-  return suggested;
-}
-
 export function classifySpendClass(
   t: TxnLike,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
-  overrides: ReadonlyMap<string, boolean> = new Map(),
 ): SpendClass {
   if (!countsInFlows(t) || t.amountCents >= 0) return 'out-of-scope';
   const id = t.categoryId;
   if (!id || FIXED_PATTERN_EXCLUDE_CATEGORY_IDS.has(id)) return 'out-of-scope';
-  const isFixed = resolveCategoryIsFixed(id, meta, overrides);
+  const isFixed = resolveCategoryIsFixed(id, meta);
   if (isFixed === null) return 'out-of-scope';
   return isFixed ? 'fixed' : 'guilt-free';
 }
@@ -79,43 +71,27 @@ export interface SpendClassCategoryRow {
   categoryId: string;
   name: string;
   spentCents: number;
-  /** Effective designation after overrides. */
+  /** Taxonomy designation. */
   isFixed: boolean;
-  /** App suggestion before any override. */
-  suggestedFixed: boolean;
-  /** True when the reader has disagreed with the suggestion. */
-  overridden: boolean;
 }
 
 /**
  * Build the Fixed / Guilt-free lists for /budgets from this month's spend.
- * Categories with $0 spend and no override are omitted (nothing to classify yet);
- * an override with $0 still appears so the reader can see / undo their choice.
+ * Categories with $0 spend are omitted (nothing to classify yet).
  */
 export function summarizeSpendClassCategories(
   spendByCategory: ReadonlyMap<string, number>,
   meta: ReadonlyMap<string, CategoryMeta>,
-  overrides: ReadonlyMap<string, boolean>,
   nameOf: (id: string) => string,
 ): { fixed: SpendClassCategoryRow[]; guiltFree: SpendClassCategoryRow[] } {
-  const ids = new Set([...spendByCategory.keys(), ...overrides.keys()]);
   const fixed: SpendClassCategoryRow[] = [];
   const guiltFree: SpendClassCategoryRow[] = [];
-  for (const categoryId of ids) {
-    const suggested = suggestedCategoryIsFixed(categoryId, meta);
-    if (suggested === null) continue;
-    const isFixed = resolveCategoryIsFixed(categoryId, meta, overrides)!;
+  for (const categoryId of spendByCategory.keys()) {
+    const isFixed = resolveCategoryIsFixed(categoryId, meta);
+    if (isFixed === null) continue;
     const spentCents = spendByCategory.get(categoryId) ?? 0;
-    const overridden = overrides.has(categoryId);
-    if (spentCents <= 0 && !overridden) continue;
-    const row: SpendClassCategoryRow = {
-      categoryId,
-      name: nameOf(categoryId),
-      spentCents,
-      isFixed,
-      suggestedFixed: suggested,
-      overridden,
-    };
+    if (spentCents <= 0) continue;
+    const row: SpendClassCategoryRow = { categoryId, name: nameOf(categoryId), spentCents, isFixed };
     if (isFixed) fixed.push(row);
     else guiltFree.push(row);
   }

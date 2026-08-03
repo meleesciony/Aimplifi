@@ -7,9 +7,11 @@
  * the savings dial or settle spend twice. Uncategorized rows are excluded
  * (unknown is not a cost class).
  *
- * #376: classification is meta-aware (custom categories) and honours per-user
- * CategoryFixedOverride. When the trailing pattern is empty, the plan falls
- * back to detected recurring series (the pre-#371 path).
+ * #376: classification is meta-aware (custom categories). As of 2026-08-03 it
+ * is taxonomy-only — the per-user CategoryFixedOverride dial was removed
+ * (owner directive: deterministic, never typed in). When the trailing pattern
+ * is empty, the plan falls back to detected recurring series (the pre-#371
+ * path).
  */
 import { type TxnLike } from '@/lib/engine/fi/insights';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
@@ -25,9 +27,8 @@ export { FIXED_PATTERN_EXCLUDE_CATEGORY_IDS };
 export function isGuiltFreeFixedSpendRow(
   t: TxnLike,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
-  overrides: ReadonlyMap<string, boolean> = new Map(),
 ): boolean {
-  return classifySpendClass(t, meta, overrides) === 'fixed';
+  return classifySpendClass(t, meta) === 'fixed';
 }
 
 export interface MonthlyFixedCents {
@@ -44,12 +45,11 @@ export interface MonthlyFixedCents {
 export function monthlyNonDiscretionaryCents(
   transactions: readonly TxnLike[],
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
-  overrides: ReadonlyMap<string, boolean> = new Map(),
   excludeMerchantCanonicals?: ReadonlySet<string>,
 ): MonthlyFixedCents[] {
   const byMonth = new Map<string, number>();
   for (const t of transactions) {
-    if (!isGuiltFreeFixedSpendRow(t, meta, overrides)) continue;
+    if (!isGuiltFreeFixedSpendRow(t, meta)) continue;
     if (
       excludeMerchantCanonicals !== undefined &&
       excludeMerchantCanonicals.has(normalizeMerchant(t.rawDescriptor).canonical)
@@ -76,13 +76,12 @@ export function fixedSpendCategoryIdsInMonths(
   transactions: readonly TxnLike[],
   months: ReadonlySet<string>,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
-  overrides: ReadonlyMap<string, boolean> = new Map(),
   excludeMerchantCanonicals?: ReadonlySet<string>,
 ): Set<string> {
   const ids = new Set<string>();
   if (months.size === 0) return ids;
   for (const t of transactions) {
-    if (!isGuiltFreeFixedSpendRow(t, meta, overrides)) continue;
+    if (!isGuiltFreeFixedSpendRow(t, meta)) continue;
     if (!months.has(monthKey(t.date))) continue;
     if (
       excludeMerchantCanonicals !== undefined &&

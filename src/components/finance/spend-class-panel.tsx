@@ -1,12 +1,13 @@
 'use client';
 
 /**
- * Fixed vs guilt-free category designations on /budgets (DECISIONS #376/#377).
+ * Fixed vs guilt-free category classes on /budgets (DECISIONS #376/#377).
  * Each filed category's transactions inherit this class for Plan guilt-free.
+ * Display-only since 2026-08-03: the class is deterministic (the taxonomy's
+ * discretionary flag), never typed in — the manual designation dial is gone.
  */
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect } from 'react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendClassCategoryRow } from '@/lib/engine/spending-plan/spend-class';
 import {
@@ -18,7 +19,6 @@ import {
   CATEGORY_NAME_LINK_CLASS,
   spendClassMonthRegisterHref,
 } from '@/lib/engine/transactions/links';
-import { setCategoryFixed } from '@/server/category-fixed-actions';
 
 export type SpendClassFixedRow = SpendClassCategoryRow & {
   /** Monthly amount in the Plan rollup (budget target else typical). */
@@ -31,12 +31,10 @@ export type SpendClassFixedRow = SpendClassCategoryRow & {
 export function SpendClassPanel({
   fixed,
   guiltFree,
-  canEdit,
   month,
 }: {
   fixed: SpendClassFixedRow[];
   guiltFree: SpendClassCategoryRow[];
-  canEdit: boolean;
   /** Calendar month ("YYYY-MM") for heading → register deep links (W.7). */
   month: string;
 }) {
@@ -64,20 +62,12 @@ export function SpendClassPanel({
         target under By category to lock a Fixed line&apos;s amount; otherwise we
         use typical spend.
       </p>
-      {!canEdit ? (
-        <p className="mt-2 text-xs text-muted-foreground" data-testid="spend-class-demo-note">
-          Create your own free account to change these — the demo is shared, so
-          designations stay as suggestions here.
-        </p>
-      ) : null}
 
       <ClassList
         title="Fixed expenses"
         testId="spend-class-fixed"
         rows={fixed}
         empty="No fixed spending this month yet — file groceries, bills, and rent and they land here by default."
-        canEdit={canEdit}
-        makeFixed={true}
         registerHref={spendClassMonthRegisterHref({
           spendClass: 'fixed',
           month,
@@ -89,8 +79,6 @@ export function SpendClassPanel({
         testId="spend-class-guilt-free"
         rows={guiltFree}
         empty="No discretionary spending this month yet — dining out, entertainment, and shopping land here by default."
-        canEdit={canEdit}
-        makeFixed={false}
         registerHref={spendClassMonthRegisterHref({
           spendClass: 'guilt-free',
           month,
@@ -106,17 +94,12 @@ function ClassList({
   testId,
   rows,
   empty,
-  canEdit,
-  makeFixed,
   registerHref,
 }: {
   title: string;
   testId: string;
   rows: SpendClassFixedRow[];
   empty: string;
-  canEdit: boolean;
-  /** True when this list is the Fixed column (move action → guilt-free). */
-  makeFixed: boolean;
   registerHref: string;
 }) {
   return (
@@ -135,13 +118,7 @@ function ClassList({
       ) : (
         <ul className="divide-y text-sm">
           {rows.map((row) => (
-            <SpendClassRow
-              key={row.categoryId}
-              row={row}
-              canEdit={canEdit}
-              /** Button moves OUT of this list. */
-              moveToFixed={!makeFixed}
-            />
+            <SpendClassRow key={row.categoryId} row={row} />
           ))}
         </ul>
       )}
@@ -149,37 +126,17 @@ function ClassList({
   );
 }
 
-function SpendClassRow({
-  row,
-  canEdit,
-  moveToFixed,
-}: {
-  row: SpendClassFixedRow;
-  canEdit: boolean;
-  moveToFixed: boolean;
-}) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
+function SpendClassRow({ row }: { row: SpendClassFixedRow }) {
   return (
     <li
       className="flex items-center justify-between gap-3 py-2"
       data-testid={`spend-class-row-${row.categoryId}`}
       data-fixed={row.isFixed ? 'true' : 'false'}
-      data-overridden={row.overridden ? 'true' : 'false'}
     >
       <div className="min-w-0">
         <p className="truncate font-medium">{row.name}</p>
         <p className="text-xs text-muted-foreground tabular-nums">
           {formatCents(cents(row.spentCents))} this month
-          {row.overridden ? (
-            <span className="ml-1" data-testid={`spend-class-overridden-${row.categoryId}`}>
-              · you set this
-            </span>
-          ) : (
-            <span className="ml-1">· suggested</span>
-          )}
         </p>
         {row.isFixed && row.planAmountCents != null && row.planAmountCents > 0 ? (
           <p
@@ -193,33 +150,7 @@ function SpendClassRow({
             })}
           </p>
         ) : null}
-        {error ? (
-          <p className="text-xs text-rose-500" data-testid="spend-class-error">
-            {error}
-          </p>
-        ) : null}
       </div>
-      {canEdit ? (
-        <button
-          type="button"
-          disabled={pending}
-          data-testid={`spend-class-move-${row.categoryId}`}
-          className="shrink-0 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
-          onClick={() => {
-            setError(null);
-            startTransition(async () => {
-              const res = await setCategoryFixed(row.categoryId, moveToFixed);
-              if (!res.ok) {
-                setError(res.error);
-                return;
-              }
-              router.refresh();
-            });
-          }}
-        >
-          {moveToFixed ? 'Mark fixed' : 'Mark guilt-free'}
-        </button>
-      ) : null}
     </li>
   );
 }

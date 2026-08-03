@@ -55,7 +55,7 @@ describe('manual entry + triage filing with a CUSTOM category (regression #136)'
     accountId = acct.id;
     vi.mocked(auth).mockResolvedValue({ user: { id: USER } } as never);
 
-    const created = await createCustomCategory({ name: `Golf ${stamp}`, group: GROUP, discretionary: true });
+    const created = await createCustomCategory({ name: `Golf ${stamp}`, group: GROUP });
     expect(created.ok).toBe(true);
     golfId = created.id!;
   });
@@ -100,7 +100,7 @@ describe('manual entry + triage filing with a CUSTOM category (regression #136)'
     });
 
     // The triage write-in sequence: await the create, THEN file with the returned id.
-    const res = await createCustomCategory({ name: `Range ${stamp}`, group: GROUP, discretionary: true });
+    const res = await createCustomCategory({ name: `Range ${stamp}`, group: GROUP });
     expect(res.ok).toBe(true);
     const applied = await applyCategory({ transactionId: txn.id, categoryId: res.id! });
     expect(applied.correctionIds).toHaveLength(1);

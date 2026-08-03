@@ -1,5 +1,39 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-03 — #395 — Spend class is deterministic and algorithmic, never typed in
+
+Owner directive mid-session: "none of this should be typed in — make it all
+deterministic and algorithmic." REVERSES the manual half of #376/#378 (the
+owner's ask from two days prior): the per-user `CategoryFixedOverride` table,
+the `setCategoryFixed` action + loader, the register/detail `<select>`, the
+/budgets Mark buttons + "you set this" markers, and the Discretionary checkbox
+on all three custom-category create forms are REMOVED.
+
+### Done
+
+Classification is a pure function of the filed category (taxonomy
+`discretionary`, meta-resolved for customs): `classifySpendClass` /
+`resolveCategoryIsFixed` / `summarizeSpendClassCategories` /
+`monthlyNonDiscretionaryCents` / `fixedSpendCategoryIdsInMonths` /
+`resolveFixedCategoryAmounts` lost their `overrides` params; Plan's
+`categoryIsFixed` binding, the Fixed rollup, median, and union read the same
+classifier (`hasReaderInput` now keys off budget targets alone). Register +
+detail render a display-only `SpendClassBadge`; the /budgets panel keeps both
+computed lists, display-only. The reader changes a row's class by refiling it
+— "never permanent" holds with zero designation UI. New custom categories
+take the column default; stored flags honored as data (nothing rewritten).
+Also same-session, superseded: the morning's dial-gate widening
+(`TxnView.categoryFixed` + `spendClassDialEditable`) — removed with the dial.
+
+### Gate
+
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc 0, eslint 0, **5730 unit /
+349 files** (one index-lock red until #395 was registered in
+DECISIONS_INDEX.md), next build clean. Targeted e2e spend-class +
+txn-spend-class + spend-class-drilldown **4/4** — an earlier 4/4 fail was a
+harness clash (Playwright `next start` serving `.next` while verify.sh's
+`next build` rewrote it), rerun clean after the build finished.
+
 ## 2026-08-03 — #394 — C.24: the transfer-flagged mortgage counts once, at its full monthly rate
 
 Session opened on `continue` with `main` clean at `52cf346` (the C.24 fix

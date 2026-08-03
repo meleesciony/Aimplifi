@@ -40,6 +40,7 @@ test('every register row shows a Fixed or Discretionary (or Neither) class', asy
     'data-spend-class',
     'guilt-free',
   );
-  // Shared demo: label only (no select).
+  // Display-only (2026-08-03): the class is computed from the category — no
+  // account gets a designation select.
   await expect(groceries.locator('select[data-testid="txn-spend-class"]')).toHaveCount(0);
 });

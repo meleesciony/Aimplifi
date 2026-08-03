@@ -131,7 +131,6 @@ export function TriageInbox({
   const [newCatOpen, setNewCatOpen] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatGroup, setNewCatGroup] = useState<string>(CUSTOM_CATEGORY_GROUPS[0] ?? '');
-  const [newCatDiscretionary, setNewCatDiscretionary] = useState(true);
   const [newCatError, setNewCatError] = useState<string | null>(null);
   // Search query for the "any category" picker (#137).
   const [catQuery, setCatQuery] = useState('');
@@ -374,7 +373,6 @@ export function TriageInbox({
           createCustomCategory({
             name: trimmed,
             group: newCatGroup,
-            discretionary: newCatDiscretionary,
           }),
         );
       } catch (e) {
@@ -411,7 +409,6 @@ export function TriageInbox({
         : (CUSTOM_CATEGORY_GROUPS[0] ?? ''),
     );
     setNewCatName(catQuery.trim());
-    setNewCatDiscretionary(true);
     setNewCatError(null);
     setNewCatOpen(true);
   }
@@ -738,15 +735,6 @@ export function TriageInbox({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="flex items-center gap-1.5 pb-2.5 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={newCatDiscretionary}
-                  onChange={(e) => setNewCatDiscretionary(e.target.checked)}
-                  data-testid="new-category-discretionary"
-                />
-                Discretionary
               </label>
             </div>
             <div className="flex gap-2">

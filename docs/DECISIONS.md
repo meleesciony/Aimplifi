@@ -3124,3 +3124,38 @@ burn (TASKS C.25); the month TOTALS still see a lumpy mortgage (July counts
 in flows, May/June don't — the same root flag, out of this slice's Fixed
 scope). /budgets shows this-month rent spend including unflagged mortgage
 months beside a Plan amount that excludes them (display-only, critic F6).
+
+## #395 — Spend class is deterministic and algorithmic, never typed in
+
+Owner directive, 2026-08-03: "none of this should be typed in — make it all
+deterministic and algorithmic." This REVERSES the manual half of #376/#378:
+the per-user `CategoryFixedOverride` table, the register / detail
+Fixed-vs-Discretionary `<select>`, the /budgets "Mark fixed / Mark guilt-free"
+buttons, and the Discretionary checkbox on custom-category creation are all
+removed. The override system existed for one day short of two (2026-08-01 →
+2026-08-03), and its failure mode was the one the owner named first: a row
+whose class he disagreed with read as PERMANENT, and fixing it meant hand-
+labeling categories forever.
+
+**DECIDED:**
+
+1. **A transaction's class is a pure function of its filed category** — the
+   taxonomy's `discretionary` flag, resolved through the per-user meta map so
+   custom categories classify like built-ins. No per-user override channel
+   exists anywhere: no table, no server action, no dial. `classifySpendClass`
+   and `resolveCategoryIsFixed` take `(txn|categoryId, meta)` and nothing else.
+
+2. **The reader's only move is to refile the row** — always possible, always
+   honest. A "wrong" class means the transaction is in the wrong category for
+   him, and the category picker is the fix. This keeps "never permanent" true
+   without any designation UI: the label follows the data, and the data is his.
+
+3. **New custom categories take the column default (discretionary)** — the
+   create forms (Settings, triage write-in, register write-in) no longer ask.
+   Flags stored before this change remain honored as data; nothing existing
+   was rewritten.
+
+4. **Plan math is unchanged in shape** — the Fixed rollup, trailing median,
+   recurring union, and covered-id exactness invariant (#381/#384/C.24) read
+   the same classifier, now without the override argument. `hasReaderInput`
+   keys off budget targets alone.

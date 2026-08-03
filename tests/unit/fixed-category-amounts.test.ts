@@ -43,7 +43,6 @@ describe('resolveFixedCategoryAmounts', () => {
       transactions: history,
       today,
       meta: CATEGORY_BY_ID,
-      overrides: new Map(),
       budgetByCategory: new Map(),
       nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
     });
@@ -58,7 +57,6 @@ describe('resolveFixedCategoryAmounts', () => {
       transactions: history,
       today,
       meta: CATEGORY_BY_ID,
-      overrides: new Map(),
       budgetByCategory: new Map([['groceries', 50_000]]),
       nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
     });
@@ -236,7 +234,6 @@ describe('resolveFixedCategoryAmounts', () => {
       transactions: rows,
       today,
       meta: CATEGORY_BY_ID,
-      overrides: new Map(),
       budgetByCategory: new Map(),
       nameOf: (id) => CATEGORY_BY_ID.get(id)?.name ?? id,
     });
@@ -253,7 +250,7 @@ describe('resolveFixedCategoryAmounts', () => {
       trailingMonthlyFixedCents: [80_000],
       categoryFixedCents: r.totalCents,
       categoryFixedCoveredIds: covered,
-      categoryIsFixed: (id) => resolveCategoryIsFixed(id, CATEGORY_BY_ID, new Map()),
+      categoryIsFixed: (id) => resolveCategoryIsFixed(id, CATEGORY_BY_ID),
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -366,7 +363,7 @@ describe('resolveFixedCategoryAmounts', () => {
       scheduledFixed: [{ amountCents: -4_500, cadence: 'MONTHLY', categoryId: 'fitness' }],
       trailingMonthlyFixedCents: [],
       categoryFixedCents: 0,
-      categoryIsFixed: (id) => resolveCategoryIsFixed(id, CATEGORY_BY_ID, new Map()),
+      categoryIsFixed: (id) => resolveCategoryIsFixed(id, CATEGORY_BY_ID),
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -470,7 +467,6 @@ describe('resolveFixedCategoryAmounts', () => {
       transactions: months,
       today,
       meta: CATEGORY_BY_ID,
-      overrides: new Map(),
       budgetByCategory: new Map(),
       nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
     });
