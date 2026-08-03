@@ -45,7 +45,7 @@ import {
   filedCategoryByMerchant,
   resolveFixedCategoryAmounts,
 } from '@/lib/engine/spending-plan/fixed-category-amounts';
-import { resolveCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
+import { suggestedCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import {
   classifySeriesProjection,
@@ -58,7 +58,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance';
 import { getCategoryMeta } from '@/server/category-meta';
-import { getCategoryFixedOverrides } from '@/server/category-fixed';
+import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
 import { activeTerminalSuccessorMap } from '@/server/reconciliation';
 import { getProvider } from '@/lib/providers/demo';
@@ -142,14 +142,15 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     .slice(-3)
     .map((f) => f.incomeCents);
 
-  // Fixed pattern (#371/#376): non-discretionary spend across spending accounts
-  // (checking / savings / credit) — groceries on a card still consume the
-  // allocation. Dining out and shopping stay out unless the reader overrides
-  // the category from the register / transaction dial (#396). Custom
-  // categories honour their discretionary flag.
-  const [categoryMeta, fixedOverrides] = await Promise.all([
+  // Fixed pattern (#371/#376; per-transaction as of #397): non-discretionary
+  // spend across spending accounts (checking / savings / credit) — groceries on
+  // a card still consume the allocation. Classification is PER ROW: the
+  // reader's verdict on the transaction wins, else the guess — a recurring-bill
+  // merchant (`fixedMerchants`) guesses fixed, else the filed category's
+  // taxonomy flag. Custom categories honour their discretionary flag.
+  const [categoryMeta, fixedMerchants] = await Promise.all([
     getCategoryMeta(userId),
-    getCategoryFixedOverrides(userId),
+    getRecurringBillMerchantCanonicals(userId),
   ]);
   // C.24: merchants structurally identified as LOAN PAYMENTS (a transfer-flagged
   // cash outflow whose ±3-day same-amount pair sits on a linked LOAN/MORTGAGE
@@ -209,7 +210,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const trailingFixedMonths = monthlyNonDiscretionaryCents(
     snap.transactions,
     categoryMeta,
-    fixedOverrides,
+    fixedMerchants,
     unionedLoanMerchants,
   )
     .filter((f) => f.month < ym)
@@ -344,13 +345,16 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     transactions: snap.transactions,
     today,
     meta: categoryMeta,
-    overrides: fixedOverrides,
+    fixedMerchants,
     budgetByCategory: new Map(budgetRows.map((b) => [b.categoryId, b.monthCents])),
     nameOf: (id) => categoryName(id, categoryMeta),
     excludeMerchantCanonicals: unionedLoanMerchants,
   });
+  // #397: the union's category test reads the taxonomy suggestion alone — a
+  // series whose rows the reader flipped to discretionary is neither covered
+  // (no fixed-classified mass) nor unioned here, so the flip rules.
   const categoryIsFixed = (categoryId: string) =>
-    resolveCategoryIsFixed(categoryId, categoryMeta, fixedOverrides);
+    suggestedCategoryIsFixed(categoryId, categoryMeta);
   // Covered ids for the Fixed∪recurring union (#381/#384):
   //   rollup > 0 → categories that contribute mass to the rollup
   //   median path → Fixed categories that fed the trailing months (so grocery
@@ -362,7 +366,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
           snap.transactions,
           trailingFixedMonthKeys,
           categoryMeta,
-          fixedOverrides,
+          fixedMerchants,
           unionedLoanMerchants,
         );
 

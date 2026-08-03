@@ -32,6 +32,9 @@ export interface TxnLike {
   splitParentId?: string | null;
   /** O.15: reader-excluded rows leave every flow via this one basis. */
   excludeFromTotals?: boolean | null;
+  /** #397: the reader's per-row Fixed/Discretionary verdict ('fixed' |
+   *  'guilt-free'); null/absent = the app's guess. */
+  spendClassOverride?: string | null;
 }
 
 /**

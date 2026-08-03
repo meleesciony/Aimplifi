@@ -2,7 +2,7 @@
  * Fixed / Discretionary label on a register row (DECISIONS #378).
  * The display-only rendering of the row's class — used wherever the dial may
  * not write (out-of-scope rows, uncategorized rows, the shared demo). Editable
- * rows get SpendClassSelect instead (DECISIONS #396); the badge and the select
+ * rows get SpendClassSelect instead (DECISIONS #397); the badge and the select
  * share the same testid / data attributes so a surface can assert the class
  * without caring which control rendered it.
  */

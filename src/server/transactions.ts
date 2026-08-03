@@ -20,7 +20,7 @@ import { registerSuggestionFor } from '@/lib/engine/categorize/register-suggesti
 import { loadCorrectionInputs, loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { getCategoryMeta } from '@/server/category-meta';
-import { getCategoryFixedOverrides } from '@/server/category-fixed';
+import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
 import { classifySpendClass } from '@/lib/engine/spending-plan/spend-class';
 
 /**
@@ -275,7 +275,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   // the SAME loaders getTriageGroups uses, so the register and the inbox can
   // never answer the "what is this row?" question from different inputs.
   // `loadCorrectionInputs` is demo-fenced at its own definition (#332).
-  const [predictions, userRules, tuning, meta, corrections, fixedOverrides] = await Promise.all([
+  const [predictions, userRules, tuning, meta, corrections, fixedMerchants] = await Promise.all([
     prisma.categoryPrediction.findMany({
       where: { userId },
       select: { transactionId: true, source: true, predictedCategoryId: true, labeledAt: true },
@@ -284,7 +284,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     getThresholdTuning(userId),
     getCategoryMeta(userId),
     loadCorrectionInputs(userId),
-    getCategoryFixedOverrides(userId),
+    getRecurringBillMerchantCanonicals(userId),
   ]);
   const predByTxn = new Map(predictions.map((p) => [p.transactionId, p]));
 
@@ -332,7 +332,9 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
       currentCategoryId: t.categoryId ?? null,
     }),
     suggestion: suggestionForRow(t, ladder),
-    // #378: Fixed / discretionary for Plan — same classifier as /budgets.
+    // #397: Fixed / Discretionary per ROW — the reader's verdict on this
+    // transaction wins, else the guess (recurring-bill merchant → fixed, else
+    // the category's taxonomy flag). Same classifier as /budgets and Plan.
     spendClass: classifySpendClass(
       {
         accountId: t.accountId,
@@ -343,9 +345,10 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
         status: t.status,
         rawDescriptor: t.rawDescriptor,
         excludeFromTotals: t.excludeFromTotals,
+        spendClassOverride: t.spendClassOverride,
       },
       meta,
-      fixedOverrides,
+      fixedMerchants,
     ),
   }));
 
@@ -562,7 +565,7 @@ export async function getTransactionDetail(
   // discard them (critic cycle 2, F8). The gate is the ladder's own first
   // condition, kept next to it so the two cannot drift.
   const needsLadder = (t.categoryId ?? 'uncategorized') === 'uncategorized';
-  const [prediction, userRules, tuning, meta, corrections, fixedOverrides, children] = await Promise.all([
+  const [prediction, userRules, tuning, meta, corrections, fixedMerchants, children] = await Promise.all([
     prisma.categoryPrediction.findFirst({
       where: { userId, transactionId: t.id },
       select: { source: true, predictedCategoryId: true, labeledAt: true },
@@ -575,7 +578,7 @@ export async function getTransactionDetail(
     // transaction's detail page. A gate must move with the thing it guards.
     getCategoryMeta(userId),
     needsLadder ? loadCorrectionInputs(userId) : null,
-    getCategoryFixedOverrides(userId),
+    getRecurringBillMerchantCanonicals(userId),
     prisma.transaction.findMany({
       // `account: { userId }` is redundant today (the parent is ownership-verified
       // above and a child is only ever created on its parent's account) but this
@@ -639,9 +642,10 @@ export async function getTransactionDetail(
         status: t.status,
         rawDescriptor: t.rawDescriptor,
         excludeFromTotals: t.excludeFromTotals,
+        spendClassOverride: t.spendClassOverride,
       },
       meta,
-      fixedOverrides,
+      fixedMerchants,
     ),
   };
 

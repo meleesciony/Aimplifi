@@ -14,6 +14,9 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { auditLog, requireUserId } from '@/server/authz';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
+import { getCategoryMeta } from '@/server/category-meta';
+import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
+import { guessSpendClass } from '@/lib/engine/spending-plan/spend-class';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { rowOrigin } from '@/lib/engine/transactions/origin';
 import {
@@ -206,5 +209,71 @@ export async function setTransactionStatus(input: {
   revalidatePath('/recurring');
   revalidatePath('/calendar');
   revalidatePath('/forecast');
+  return { ok: true };
+}
+
+/**
+ * #397: the reader's per-TRANSACTION Fixed/Discretionary verdict — 'fixed' |
+ * 'guilt-free' | null (clear, back to the app's guess). Per-row by owner
+ * directive: flipping one transaction never moves its category siblings.
+ *
+ * A choice equal to the guess stores NULL — the guess (recurring-bill
+ * merchant → fixed, else the category's taxonomy flag) stays the source of
+ * truth until the reader actually disagrees, and a re-guess after a recategorize
+ * or a new recurring series can never strand a stale verdict that happens to
+ * agree. The row's eligibility is the engine's own `guessSpendClass`: an
+ * out-of-scope row (transfer, card payment, inflow, uncategorized…) refuses,
+ * the same answer the register's read-only badge gives.
+ */
+export async function setTransactionSpendClass(input: {
+  transactionId: string;
+  spendClass: string | null;
+}): Promise<FlagActionResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+  if (input.spendClass !== null && input.spendClass !== 'fixed' && input.spendClass !== 'guilt-free') {
+    return { ok: false, error: 'That is not a spend class Aimplifi knows — nothing was saved.' };
+  }
+
+  const row = await prisma.transaction.findFirst({
+    where: { id: input.transactionId, account: { userId } },
+    select: {
+      id: true,
+      date: true,
+      amountCents: true,
+      rawDescriptor: true,
+      accountId: true,
+      isTransfer: true,
+      status: true,
+      categoryId: true,
+      isSplitParent: true,
+      splitParentId: true,
+      excludeFromTotals: true,
+    },
+  });
+  if (!row) return { ok: false, error: 'That transaction is no longer available — nothing was changed.' };
+
+  const [meta, fixedMerchants] = await Promise.all([
+    getCategoryMeta(userId),
+    getRecurringBillMerchantCanonicals(userId),
+  ]);
+  const guess = guessSpendClass(row, meta, fixedMerchants);
+  if (guess === 'out-of-scope') {
+    return { ok: false, error: 'That row is not part of Fixed vs Discretionary spending — nothing was saved.' };
+  }
+
+  const stored = input.spendClass === guess ? null : input.spendClass;
+  await prisma.transaction.update({
+    where: { id: row.id },
+    data: { spendClassOverride: stored },
+  });
+  await auditLog(userId, 'transaction.spendClass.set', {
+    transactionId: row.id,
+    spendClass: input.spendClass,
+    stored,
+  });
+  // The class moves the Plan's Fixed figure and the /budgets lists.
+  revalidateTotals();
+  revalidatePath('/spending-plan');
   return { ok: true };
 }

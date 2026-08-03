@@ -10,7 +10,7 @@ import {
   resolveFixedCategoryAmounts,
 } from '@/lib/engine/spending-plan/fixed-category-amounts';
 import { computeSpendingPlan } from '@/lib/engine/spending-plan/plan';
-import { resolveCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
+import { suggestedCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import type { TxnLike } from '@/lib/engine/fi/insights';
 import { isoDate } from '@/lib/dates';
@@ -43,7 +43,7 @@ describe('resolveFixedCategoryAmounts', () => {
       transactions: history,
       today,
       meta: CATEGORY_BY_ID,
-      overrides: new Map(),
+      fixedMerchants: new Set<string>(),
       budgetByCategory: new Map(),
       nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
     });
@@ -58,7 +58,7 @@ describe('resolveFixedCategoryAmounts', () => {
       transactions: history,
       today,
       meta: CATEGORY_BY_ID,
-      overrides: new Map(),
+      fixedMerchants: new Set<string>(),
       budgetByCategory: new Map([['groceries', 50_000]]),
       nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
     });
@@ -236,7 +236,7 @@ describe('resolveFixedCategoryAmounts', () => {
       transactions: rows,
       today,
       meta: CATEGORY_BY_ID,
-      overrides: new Map(),
+      fixedMerchants: new Set<string>(),
       budgetByCategory: new Map(),
       nameOf: (id) => CATEGORY_BY_ID.get(id)?.name ?? id,
     });
@@ -253,7 +253,7 @@ describe('resolveFixedCategoryAmounts', () => {
       trailingMonthlyFixedCents: [80_000],
       categoryFixedCents: r.totalCents,
       categoryFixedCoveredIds: covered,
-      categoryIsFixed: (id) => resolveCategoryIsFixed(id, CATEGORY_BY_ID, new Map()),
+      categoryIsFixed: (id) => suggestedCategoryIsFixed(id, CATEGORY_BY_ID),
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -366,7 +366,7 @@ describe('resolveFixedCategoryAmounts', () => {
       scheduledFixed: [{ amountCents: -4_500, cadence: 'MONTHLY', categoryId: 'fitness' }],
       trailingMonthlyFixedCents: [],
       categoryFixedCents: 0,
-      categoryIsFixed: (id) => resolveCategoryIsFixed(id, CATEGORY_BY_ID, new Map()),
+      categoryIsFixed: (id) => suggestedCategoryIsFixed(id, CATEGORY_BY_ID),
       cardObligationsCents: 0,
       cardObligationsEstimated: false,
       obligationsBeyondMonthCents: 0,
@@ -470,7 +470,7 @@ describe('resolveFixedCategoryAmounts', () => {
       transactions: months,
       today,
       meta: CATEGORY_BY_ID,
-      overrides: new Map(),
+      fixedMerchants: new Set<string>(),
       budgetByCategory: new Map(),
       nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
     });

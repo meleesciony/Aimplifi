@@ -746,7 +746,7 @@ export function TransactionDetailView({
         </form>
       )}
 
-      {/* #378 — Fixed / Discretionary for Plan (same CategoryFixedOverride as register). */}
+      {/* #397 — Fixed / Discretionary for Plan, per transaction. */}
       <div
         className="flex flex-wrap items-center gap-2 rounded-md border p-3"
         data-testid="detail-spend-class"
@@ -754,13 +754,13 @@ export function TransactionDetailView({
         <span className="text-sm font-medium">For your Plan</span>
         <SpendClassSelect
           transactionId={row.id}
-          categoryId={row.categoryId}
           spendClass={row.spendClass}
           canEdit={canEditSpendClass}
           merchantName={row.merchantName}
         />
         <p className="basis-full text-xs text-muted-foreground">
-          Fixed or Discretionary follows this category. Change the selector if we got it wrong.
+          We guess recurring bills as Fixed and everything else from its category. Change the
+          selector if the guess is wrong — it applies to this transaction only.
         </p>
       </div>
 

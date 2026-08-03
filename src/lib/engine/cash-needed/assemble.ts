@@ -96,6 +96,12 @@ export interface TransactionLike {
    * "how much do I need" must keep counting it.
    */
   excludeFromTotals?: boolean | null;
+  /**
+   * #397: the reader's per-row Fixed/Discretionary verdict ('fixed' |
+   * 'guilt-free'); null/absent = the app's guess. Read by the spend-class
+   * engine (Plan Fixed, the /budgets lists); this assembler ignores it.
+   */
+  spendClassOverride?: string | null;
 }
 export interface ScheduledLike {
   accountId: string;

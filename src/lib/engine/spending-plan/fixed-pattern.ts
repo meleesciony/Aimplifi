@@ -1,5 +1,6 @@
 /**
- * Guilt-free fixed-cost pattern (DECISIONS #371 / #376).
+ * Guilt-free fixed-cost pattern (DECISIONS #371 / #376; per-transaction as of
+ * #397, 2026-08-03).
  *
  * Fixed = non-discretionary spend (groceries, housing, utilities, insurance,
  * fuel, loans…) — not dining out / shopping / entertainment. Transfers, card
@@ -7,10 +8,11 @@
  * the savings dial or settle spend twice. Uncategorized rows are excluded
  * (unknown is not a cost class).
  *
- * #376: classification is meta-aware (custom categories) and honours per-user
- * CategoryFixedOverride (dial restored 2026-08-03, DECISIONS #396). When the
- * trailing pattern is empty, the plan falls back to detected recurring series
- * (the pre-#371 path).
+ * Classification is PER ROW (`classifySpendClass`): the reader's verdict on the
+ * transaction wins, else the guess — recurring-bill merchant (`fixedMerchants`)
+ * → fixed, else the filed category's taxonomy flag. When the trailing pattern
+ * is empty, the plan falls back to detected recurring series (the pre-#371
+ * path).
  */
 import { type TxnLike } from '@/lib/engine/fi/insights';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
@@ -26,9 +28,9 @@ export { FIXED_PATTERN_EXCLUDE_CATEGORY_IDS };
 export function isGuiltFreeFixedSpendRow(
   t: TxnLike,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
-  overrides: ReadonlyMap<string, boolean> = new Map(),
+  fixedMerchants: ReadonlySet<string> = new Set(),
 ): boolean {
-  return classifySpendClass(t, meta, overrides) === 'fixed';
+  return classifySpendClass(t, meta, fixedMerchants) === 'fixed';
 }
 
 export interface MonthlyFixedCents {
@@ -45,12 +47,12 @@ export interface MonthlyFixedCents {
 export function monthlyNonDiscretionaryCents(
   transactions: readonly TxnLike[],
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
-  overrides: ReadonlyMap<string, boolean> = new Map(),
+  fixedMerchants: ReadonlySet<string> = new Set(),
   excludeMerchantCanonicals?: ReadonlySet<string>,
 ): MonthlyFixedCents[] {
   const byMonth = new Map<string, number>();
   for (const t of transactions) {
-    if (!isGuiltFreeFixedSpendRow(t, meta, overrides)) continue;
+    if (!isGuiltFreeFixedSpendRow(t, meta, fixedMerchants)) continue;
     if (
       excludeMerchantCanonicals !== undefined &&
       excludeMerchantCanonicals.has(normalizeMerchant(t.rawDescriptor).canonical)
@@ -67,9 +69,10 @@ export function monthlyNonDiscretionaryCents(
 
 /**
  * Category ids that contributed Fixed spend in the given calendar months —
- * the covered set for the trailing-median Fixed union (#384). Transfer
- * auto-loan ACH never appears here (`classifySpendClass` → out-of-scope), so
- * it still unions in via `recurringOutsideFixedCategoryCents`.
+ * the covered set for the trailing-median Fixed union (#384). A category is
+ * covered when it holds fixed-CLASSIFIED rows (#397: per transaction, not per
+ * category). Transfer auto-loan ACH never appears here (`classifySpendClass` →
+ * out-of-scope), so it still unions in via `recurringOutsideFixedCategoryCents`.
  * `excludeMerchantCanonicals` (C.24): same basis as the median above — a
  * structural loan payment must not make its category "covered" here either.
  */
@@ -77,13 +80,13 @@ export function fixedSpendCategoryIdsInMonths(
   transactions: readonly TxnLike[],
   months: ReadonlySet<string>,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
-  overrides: ReadonlyMap<string, boolean> = new Map(),
+  fixedMerchants: ReadonlySet<string> = new Set(),
   excludeMerchantCanonicals?: ReadonlySet<string>,
 ): Set<string> {
   const ids = new Set<string>();
   if (months.size === 0) return ids;
   for (const t of transactions) {
-    if (!isGuiltFreeFixedSpendRow(t, meta, overrides)) continue;
+    if (!isGuiltFreeFixedSpendRow(t, meta, fixedMerchants)) continue;
     if (!months.has(monthKey(t.date))) continue;
     if (
       excludeMerchantCanonicals !== undefined &&

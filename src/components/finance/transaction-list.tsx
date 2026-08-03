@@ -636,10 +636,9 @@ export function TransactionList({
                         {/* Why-This-Category (§3.1): who decided this category. The
                             label is the resolver's verdict, rendered verbatim — an
                             AI guess is the ONLY kind that asks for the user's OK. */}
-                        {/* #378: Fixed vs discretionary — selector when wrong. */}
+                        {/* #397: Fixed vs discretionary — per transaction. */}
                         <SpendClassSelect
                           transactionId={t.id}
-                          categoryId={t.categoryId}
                           spendClass={t.spendClass}
                           canEdit={canEditSpendClass}
                           merchantName={t.merchantName}

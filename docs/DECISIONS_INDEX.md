@@ -390,3 +390,4 @@ refuses to write if it would drop any number this file already carries.
 - **#394** (Phase ?): A transfer-flagged loan payment is one STRUCTURAL class, excluded from the rollup exactly when the union takes it (C.24)
 - **#395** (Phase ?): Spend class is deterministic and algorithmic, never typed in
 - **#396** (Phase ?): The Fixed/Discretionary dial is restored (register, transaction detail, /budgets Mark buttons, custom-category Discretionary checkbox); the #395 removal was never the owner's directive
+- **#397** (Phase ?): Fixed/Discretionary is per transaction — the app guesses (recurring bills → fixed, else the category flag), the reader flips individual rows; supersedes the category-level channel of #376/#378/#396

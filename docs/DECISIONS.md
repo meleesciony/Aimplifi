@@ -3207,3 +3207,51 @@ deterministic classifier as the default underneath.
 visible so it can be undone) in `tests/unit/spend-class.test.ts` + e2e
 `spend-class.spec.ts` (demo note visible, move buttons fenced off the demo)
 and `txn-spend-class.spec.ts` (demo rows show the label, never a select).
+
+## #397 — Fixed/Discretionary is PER TRANSACTION; the app guesses, the reader flips rows
+
+Owner correction, 2026-08-03 (hours after #396 shipped): "fixed vs
+discretionary is not category based — not all hair and beauty is fixed. When
+I switch one transaction in this category to discretionary, they all do."
+The category-level channel (#376/#378, removed by #395, restored by #396) is
+replaced by a per-row verdict with an app guess underneath: "a good guess is
+start with all recurring items — most of those are fixed."
+
+**DECIDED:**
+
+1. **`Transaction.spendClassOverride`** ('fixed' | 'guilt-free' | NULL) is the
+   verdict — per row, so flipping one transaction never moves its category
+   siblings. The `CategoryFixedOverride` table (recreated by #396 hours
+   earlier) is dropped again; its only rows were the owner's disowned test
+   flips.
+
+2. **The guess** (`classifySpendClass`): the row's verdict wins; else a
+   recurring-bill merchant guesses FIXED — one server definition
+   (`getRecurringBillMerchantCanonicals`: stored outflow series + declared
+   BILL − NOT_BILL, `overrideKey`-normalized) feeds the register, the detail
+   view and the spending plan, so no two surfaces guess differently; else
+   the filed category's taxonomy `discretionary` flag (custom categories via
+   meta). A dial choice matching the guess stores NULL, so the guess stays
+   the source of truth until the reader disagrees.
+
+3. **Plan math classifies per row**: the Fixed trailing median, the category
+   rollup (a mixed category contributes only its fixed-classified share; a
+   budget target on a suggested-fixed category still enters), and the
+   union's covered set all read `classifySpendClass` with the merchant set.
+   The union's category test is suggestion-only: a series whose rows the
+   reader flipped discretionary is neither covered nor unioned — the flip
+   rules.
+
+4. **Surfaces**: the register row + transaction detail keep the
+   Fixed/Discretionary selector (now per transaction; the copy says so). The
+   /budgets panel lists each category under the side(s) its rows actually
+   classified into — a mixed category appears in both with its own subtotal;
+   the Mark buttons and "you set this" markers (category-level, one day old)
+   are gone. The custom-category Discretionary checkbox stays — it feeds the
+   fallback guess.
+
+**Locks.** `test_regression__flipping_one_transaction_leaves_category_siblings_alone`
++ the recurring-guess cases in `tests/unit/spend-class.test.ts`;
+`tests/unit/transaction-spend-class-actions.test.ts` (real action: one-row
+flip, matching-guess-stores-NULL, recurring-guess agreement, demo fence,
+out-of-scope refusal); the C.24 union locks re-pinned on the new signatures.

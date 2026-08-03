@@ -1,5 +1,34 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-03 — #397 — Fixed/Discretionary is per transaction (supersedes the #396 category channel)
+
+Owner correction hours after #396 shipped: the class is individual — "not
+all hair and beauty is fixed; when I switch one transaction in this
+category, they all do." Reworked the same-day restoration into a per-row
+verdict: `Transaction.spendClassOverride` ('fixed'/'guilt-free'/NULL),
+`classifySpendClass` reads verdict → recurring-bill merchant guess (one
+server set, `getRecurringBillMerchantCanonicals` = stored outflow series +
+BILL − NOT_BILL, overrideKey-keyed) → category taxonomy flag; a dial choice
+matching the guess stores NULL. `setTransactionSpendClass` lives in
+transaction-flags-actions (demo-fenced, audit-logged). Plan math classifies
+per row (median, rollup with fixed-share pre-filter, union covered set; the
+union's category test is suggestion-only so a flipped-discretionary series
+leaves Fixed). The /budgets panel splits mixed categories across both lists
+(Mark buttons gone again — category-level controls are the rejected model);
+the register/detail dial copy says "this transaction only".
+`CategoryFixedOverride` dropped (its only rows were the owner's disowned
+test flips); the custom-category Discretionary checkbox stays (it feeds the
+fallback guess). mortgage-replay probe mirrors the new path.
+
+### Gate
+
+`bash scripts/verify.sh` → **VERIFY GREEN** (tsc, eslint, next build clean);
+full suite **5739 unit / 350 files**; targeted e2e
+`txn-spend-class.spec.ts` + `spend-class.spec.ts` **2/2** (demo dining
+row still guesses guilt-free — no demo dining merchant is a detected
+series; groceries fixed; the panel carries no category-level control).
+
+
 ## 2026-08-03 — #396 — Fixed/Discretionary dial restored in transactions (#395 reversed — the directive was never given)
 
 Owner correction, same day: he never gave the #395 "never typed in" directive

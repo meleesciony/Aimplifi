@@ -32,7 +32,7 @@ import {
   computeSpendingPlan,
   recurringOutsideFixedCategoryCents,
 } from '@/lib/engine/spending-plan/plan';
-import { resolveCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
+import { suggestedCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import type { TxnLike } from '@/lib/engine/fi/insights';
 import { isoDate } from '@/lib/dates';
@@ -187,7 +187,7 @@ describe('rollup exclusion (C.24 — the merchant leaves the basis ENTIRELY)', (
       transactions: mortgageRows,
       today,
       meta: CATEGORY_BY_ID,
-      overrides: new Map(),
+      fixedMerchants: new Set<string>(),
       budgetByCategory: new Map(),
       nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
     });
@@ -198,7 +198,7 @@ describe('rollup exclusion (C.24 — the merchant leaves the basis ENTIRELY)', (
       transactions: mortgageRows,
       today,
       meta: CATEGORY_BY_ID,
-      overrides: new Map(),
+      fixedMerchants: new Set<string>(),
       budgetByCategory: new Map(),
       nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
       excludeMerchantCanonicals: exclude,
@@ -233,7 +233,7 @@ describe('detection keep (C.24 — the auto-loan precedent, structural)', () => 
 });
 
 describe('union (C.24 — structural loan payments union UNCONDITIONALLY)', () => {
-  const categoryIsFixed = (id: string) => resolveCategoryIsFixed(id, CATEGORY_BY_ID, new Map());
+  const categoryIsFixed = (id: string) => suggestedCategoryIsFixed(id, CATEGORY_BY_ID);
 
   it('test_regression__loan_payment_unions_despite_category_rollup_coverage', () => {
     // The partial-coverage trap that starved the mortgage: `rent` IS in the

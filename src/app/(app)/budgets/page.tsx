@@ -14,7 +14,7 @@ import { prisma } from '@/lib/db';
 import { BudgetTargetForm } from '@/components/finance/budget-target-form';
 import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
 import { getCategoryOverlay } from '@/server/category-meta';
-import { getCategoryFixedOverrides } from '@/server/category-fixed';
+import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
 import { getHiddenCategoryIds, getLinkableCategoryIds } from '@/server/categories';
 import {
   CATEGORY_LINK_CLASS,
@@ -58,7 +58,7 @@ export default async function BudgetsPage() {
   // target can't be set before any account exists).
   if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
-  const [txns, budgets, user, plan, overlay, hiddenCategoryIds, linkableCategoryIds, fixedOverrides] =
+  const [txns, budgets, user, plan, overlay, hiddenCategoryIds, linkableCategoryIds, fixedMerchants] =
     await Promise.all([
     // All non-transfer, non-split activity this month (BOTH signs) so the engine
     // can net refunds against spend — outflow-only would overstate it.
@@ -106,6 +106,9 @@ export default async function BudgetsPage() {
         rawDescriptor: true,
         status: true,
         merchant: { select: { canonical: true } },
+        // #397: the reader's per-row verdict feeds this month's Fixed/guilt-free
+        // split below. isTransfer/isSplitParent are filtered false in the where.
+        spendClassOverride: true,
       },
     }),
     prisma.budget.findMany({ where: { userId } }),
@@ -122,7 +125,7 @@ export default async function BudgetsPage() {
     // O.6: the register's own option list — the fence that decides which rows may
     // become links. Same call /reports and /transactions make.
     getLinkableCategoryIds(userId),
-    getCategoryFixedOverrides(userId),
+    getRecurringBillMerchantCanonicals(userId),
   ]);
   const linkable = new Set(linkableCategoryIds);
 
@@ -200,12 +203,12 @@ export default async function BudgetsPage() {
     meta,
   );
 
-  // Wave B.1: every spend category this month, split Fixed vs guilt-free.
-  // Same spendByCategory the budget rows use — designation does not invent money.
+  // Wave B.1, per transaction (#397): this month's rows classified one by one —
+  // a category whose rows split appears in both lists with that side's subtotal.
   const spendClasses = summarizeSpendClassCategories(
-    spendByCategory,
+    txns.map((t) => ({ ...t, isTransfer: false })),
     meta,
-    fixedOverrides,
+    fixedMerchants,
     (id) => categoryName(id, meta),
   );
 
@@ -219,7 +222,7 @@ export default async function BudgetsPage() {
     transactions: snap.transactions,
     today: isoDate(today),
     meta,
-    overrides: fixedOverrides,
+    fixedMerchants,
     budgetByCategory,
     nameOf: (id) => categoryName(id, meta),
     excludeMerchantCanonicals: new Set(plan.loanPaymentRollupExclusions),
@@ -236,18 +239,16 @@ export default async function BudgetsPage() {
       planAmountMonths: planAmt?.typicalMonths,
     };
   });
-  // Fixed categories with a budget/override but no spend this month still belong
-  // in the Fixed list so the reader can see / change the Plan amount.
+  // Fixed categories with a budget but no fixed-classified spend this month
+  // still belong in the Fixed list so the reader can see / change the Plan amount.
   for (const r of categoryFixedFull.rows) {
     if (fixedRows.some((f) => f.categoryId === r.categoryId)) continue;
-    if (!r.budgetCents && !fixedOverrides.has(r.categoryId)) continue;
+    if (!r.budgetCents) continue;
     fixedRows.push({
       categoryId: r.categoryId,
       name: r.name,
       spentCents: 0,
       isFixed: true,
-      suggestedFixed: true,
-      overridden: fixedOverrides.has(r.categoryId),
       planAmountCents: r.amountCents,
       planAmountBasis: r.basis,
       planAmountMonths: r.typicalMonths,
@@ -278,7 +279,6 @@ export default async function BudgetsPage() {
       <SpendClassPanel
         fixed={fixedRows}
         guiltFree={spendClasses.guiltFree}
-        canEdit={canEdit}
         month={month}
       />
       <Card>

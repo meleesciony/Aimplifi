@@ -22,7 +22,7 @@ import {
   filedCategoryByMerchant,
   resolveFixedCategoryAmounts,
 } from '../../src/lib/engine/spending-plan/fixed-category-amounts';
-import { resolveCategoryIsFixed } from '../../src/lib/engine/spending-plan/spend-class';
+import { suggestedCategoryIsFixed } from '../../src/lib/engine/spending-plan/spend-class';
 import {
   fixedSpendCategoryIdsInMonths,
   monthlyNonDiscretionaryCents,
@@ -45,7 +45,7 @@ import {
   type RecurringTxn,
 } from '../../src/lib/engine/recurring/detect';
 import { loanPaymentMerchantCanonicals } from '../../src/lib/engine/categorize/transfers';
-import { parseRecurringOverride, type RecurringOverrideInput } from '../../src/lib/engine/recurring/override';
+import { overrideKey, parseRecurringOverride, type RecurringOverrideInput } from '../../src/lib/engine/recurring/override';
 import { SPENDING_ACCOUNT_TYPES } from '../../src/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '../../src/lib/engine/settings/dials';
 import { isoDate, monthKey, type ISODate } from '../../src/lib/dates';
@@ -107,10 +107,10 @@ const links = await q<{ predecessorAccountId: string; successorAccountId: string
 const rows = await q<{
   id: string; accountId: string; date: string; amountCents: number; rawDescriptor: string;
   categoryId: string | null; status: string; isTransfer: boolean; isSplitParent: boolean;
-  excludeFromTotals: boolean;
+  excludeFromTotals: boolean; spendClassOverride: string | null;
 }>(
   `select t.id, t."accountId", t.date, t."amountCents", t."rawDescriptor", t."categoryId",
-          t.status, t."isTransfer", t."isSplitParent", t."excludeFromTotals"
+          t.status, t."isTransfer", t."isSplitParent", t."excludeFromTotals", t."spendClassOverride"
      from "Transaction" t join "Account" a on a.id = t."accountId"
     where a."userId" = $1 order by t.date`,
   [OWNER],
@@ -125,6 +125,7 @@ const boundary = applyReconciliationBoundary({
     id: r.id, date: r.date, amountCents: r.amountCents, rawDescriptor: r.rawDescriptor,
     accountId: r.accountId, isTransfer: r.isTransfer, status: r.status,
     categoryId: r.categoryId, isSplitParent: r.isSplitParent, excludeFromTotals: r.excludeFromTotals,
+    spendClassOverride: r.spendClassOverride,
   })),
   balanceSnapshots: [] as Array<{ accountId: string; date: string }>,
   statements: [] as Array<{ accountId: string; cycleEnd: string }>,
@@ -147,11 +148,14 @@ const custom: CustomCategoryInput[] = customRows.map((r) => ({
   id: r.id, name: r.name, group: r.group ?? 'Transfers & Other', discretionary: r.discretionary,
 }));
 const meta = mergeCategoryMeta(custom, new Map(renameRows.map((r) => [r.categoryId, r.name])));
-const overrideRows = await q<{ categoryId: string; isFixed: boolean }>(
-  `select "categoryId", "isFixed" from "CategoryFixedOverride" where "userId" = $1`,
+// #397: no more CategoryFixedOverride — the guess input is the recurring-bill
+// merchant set (stored outflow series + BILL verdicts − NOT_BILL), keyed by
+// overrideKey exactly like src/server/recurring-bill-merchants.ts.
+const seriesRows = await q<{ canonical: string }>(
+  `select m.canonical from "RecurringSeries" rs join "Merchant" m on m.id = rs."merchantId"
+    where rs."userId" = $1 and rs."typicalAmountCents" < 0`,
   [OWNER],
 );
-const fixedOverrides = new Map(overrideRows.map((r) => [r.categoryId, r.isFixed]));
 const budgetRows = await q<{ categoryId: string; monthCents: number }>(
   `select "categoryId", "monthCents" from "Budget" where "userId" = $1`,
   [OWNER],
@@ -166,7 +170,12 @@ const recurringOverrideRows = await q<{
 const recurringOverrides = recurringOverrideRows
   .map(parseRecurringOverride)
   .filter((o): o is RecurringOverrideInput => o !== null);
-console.log(`custom=${custom.length} renames=${renameRows.length} fixedOverrides=${fixedOverrides.size} budgets=${budgetRows.length} recurringOverrides=${recurringOverrides.length}`);
+const fixedMerchants = new Set(seriesRows.map((r) => overrideKey(r.canonical)));
+for (const o of recurringOverrides) {
+  if (o.decision === 'BILL') fixedMerchants.add(overrideKey(o.merchantCanonical));
+  else fixedMerchants.delete(overrideKey(o.merchantCanonical));
+}
+console.log(`custom=${custom.length} renames=${renameRows.length} fixedMerchants=${fixedMerchants.size} budgets=${budgetRows.length} recurringOverrides=${recurringOverrides.length}`);
 
 // ------------------------------------------------ find the mortgage rows
 head('MORTGAGE CANDIDATES — outflows ≥ $3,000 grouped by the normalizer canonical');
@@ -328,7 +337,7 @@ const categoryFixed = resolveFixedCategoryAmounts({
   transactions: snapTxns,
   today,
   meta,
-  overrides: fixedOverrides,
+  fixedMerchants,
   budgetByCategory: new Map(budgetRows.map((b) => [b.categoryId, b.monthCents])),
   nameOf: (id) => categoryName(id, meta),
   excludeMerchantCanonicals: unionedLoanMerchants,
@@ -347,7 +356,7 @@ console.table(
 
 // 3) the union half — the REAL recurringOutsideFixedCategoryCents, then a
 //    per-item trace using the same rules, asserted equal to the real total.
-const categoryIsFixed = (id: string) => resolveCategoryIsFixed(id, meta, fixedOverrides);
+const categoryIsFixed = (id: string) => suggestedCategoryIsFixed(id, meta);
 const budgetCategoryIds = new Set(
   budgetRows.filter((b) => b.monthCents > 0).map((b) => b.categoryId),
 );
@@ -357,13 +366,13 @@ const coveredIds =
     : fixedSpendCategoryIdsInMonths(
         snapTxns,
         new Set(
-          monthlyNonDiscretionaryCents(snapTxns, meta, fixedOverrides, unionedLoanMerchants)
+          monthlyNonDiscretionaryCents(snapTxns, meta, fixedMerchants, unionedLoanMerchants)
             .filter((f) => f.month < today.slice(0, 7))
             .slice(-3)
             .map((f) => f.month),
         ),
         meta,
-        fixedOverrides,
+        fixedMerchants,
         unionedLoanMerchants,
       );
 const realOutside = recurringOutsideFixedCategoryCents(scheduledFixed, categoryIsFixed, coveredIds, budgetCategoryIds);

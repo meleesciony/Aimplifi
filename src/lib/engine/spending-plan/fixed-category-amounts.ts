@@ -1,17 +1,25 @@
 /**
- * Per-category fixed amounts (Wave B.1 / DECISIONS #377 / #380 / #393).
+ * Per-category fixed amounts (Wave B.1 / DECISIONS #377 / #380 / #393;
+ * per-transaction classification as of #397, 2026-08-03).
  *
- * For each category designated Fixed: amount = Budget.monthCents when set,
- * else typical monthly spend — averaged over the months of the window the
- * category could have been OBSERVED (C.5/#393), not blindly over the window
- * length. Sum is the category-rollup for the Plan fixed term whenever
- * totalCents > 0 (always-on).
+ * A category enters the Fixed rollup when it holds fixed-CLASSIFIED spend
+ * (per transaction: the reader's row verdicts and the recurring-bill guess
+ * decide row by row, so a mixed category contributes only its fixed share) —
+ * amount = Budget.monthCents when set, else typical monthly spend, averaged
+ * over the months of the window the category could have been OBSERVED
+ * (C.5/#393), not blindly over the window length. A budget target on a
+ * suggested-fixed category with no fixed mass still enters (the reader's own
+ * number for a committed cost). Sum is the category-rollup for the Plan fixed
+ * term whenever totalCents > 0 (always-on).
  */
 import { addMonthsClamped, isoDate, monthKey, type ISODate } from '@/lib/dates';
 import type { CategoryMeta } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { countsInFlows, type TxnLike } from '@/lib/engine/fi/insights';
-import { resolveCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
+import {
+  classifySpendClass,
+  suggestedCategoryIsFixed,
+} from '@/lib/engine/spending-plan/spend-class';
 
 export type FixedAmountBasis = 'budget-target' | 'typical-spend';
 
@@ -37,9 +45,9 @@ export interface FixedCategoryAmountsResult {
   rows: FixedCategoryAmount[];
   totalCents: number;
   /**
-   * True when the reader has touched Fixed (a designation override) or set a
-   * budget target on any fixed category. Informational for UI — Plan no longer
-   * gates on this (#380); the rollup drives whenever totalCents > 0.
+   * True when the reader has set a budget target on any fixed category.
+   * Informational for UI — Plan no longer gates on this (#380); the rollup
+   * drives whenever totalCents > 0.
    */
   hasReaderInput: boolean;
   windowMonths: number;
@@ -303,7 +311,9 @@ export function resolveFixedCategoryAmounts(input: {
   transactions: readonly TxnLike[];
   today: ISODate;
   meta: ReadonlyMap<string, CategoryMeta>;
-  overrides: ReadonlyMap<string, boolean>;
+  /** #397: recurring-bill merchant canonicals — the per-row guess input to
+   *  `classifySpendClass` (replaces the #376 category-override map). */
+  fixedMerchants: ReadonlySet<string>;
   budgetByCategory: ReadonlyMap<string, number>;
   nameOf: (id: string) => string;
   windowMonths?: number;
@@ -315,8 +325,16 @@ export function resolveFixedCategoryAmounts(input: {
   excludeMerchantCanonicals?: ReadonlySet<string>;
 }): FixedCategoryAmountsResult {
   const windowMonths = input.windowMonths ?? FIXED_TYPICAL_WINDOW_MONTHS;
+  // #397: the typical basis sums only fixed-CLASSIFIED rows — classification
+  // is per transaction, so a mixed category contributes its fixed share and
+  // never its discretionary one. The observation clock and divisor logic in
+  // averageMonthlySpendByCategory are untouched; the fixed subset's first
+  // outflow starts the category's fixed clock.
+  const fixedRows = input.transactions.filter(
+    (t) => classifySpendClass(t, input.meta, input.fixedMerchants) === 'fixed',
+  );
   const typicalByCat = averageMonthlySpendByCategory(
-    input.transactions,
+    fixedRows,
     input.today,
     windowMonths,
     input.excludeMerchantCanonicals,
@@ -325,15 +343,11 @@ export function resolveFixedCategoryAmounts(input: {
   const ids = new Set<string>([
     ...typicalByCat.keys(),
     ...input.budgetByCategory.keys(),
-    ...input.overrides.keys(),
   ]);
 
   const rows: FixedCategoryAmount[] = [];
   let hasBudgetOnFixed = false;
   for (const categoryId of ids) {
-    const isFixed = resolveCategoryIsFixed(categoryId, input.meta, input.overrides);
-    if (isFixed !== true) continue;
-
     const typical = typicalByCat.get(categoryId);
     const typicalCents = typical?.amountCents ?? 0;
     const budgetRaw = input.budgetByCategory.get(categoryId);
@@ -341,10 +355,16 @@ export function resolveFixedCategoryAmounts(input: {
       typeof budgetRaw === 'number' && Number.isSafeInteger(budgetRaw) && budgetRaw > 0
         ? budgetRaw
         : null;
+    // Fixed-classified mass enters whatever the taxonomy suggests (the ROWS
+    // were classified, not the category); a bare budget target enters only on
+    // a suggested-fixed category — the reader's own number for a committed
+    // cost, never a discretionary category's.
+    if (typicalCents <= 0 && !(budgetCents != null && suggestedCategoryIsFixed(categoryId, input.meta) === true)) {
+      continue;
+    }
     if (budgetCents != null) hasBudgetOnFixed = true;
 
     const amountCents = budgetCents ?? typicalCents;
-    if (amountCents <= 0 && !input.overrides.has(categoryId)) continue;
 
     rows.push({
       categoryId,
@@ -364,7 +384,7 @@ export function resolveFixedCategoryAmounts(input: {
   return {
     rows,
     totalCents,
-    hasReaderInput: input.overrides.size > 0 || hasBudgetOnFixed,
+    hasReaderInput: hasBudgetOnFixed,
     windowMonths,
   };
 }
