@@ -28,6 +28,12 @@ full suite **5739 unit / 350 files**; targeted e2e
 row still guesses guilt-free — no demo dining merchant is a detected
 series; groceries fixed; the panel carries no category-level control).
 
+**Shipped:** `88bddd7` pushed; Vercel production deployment
+`aimplifi-1te95vw4n` — **success** ("Deployment has completed"),
+sha-matched via GitHub deployment status (id 5733003138). The build’s
+`prisma db push` added `Transaction.spendClassOverride` and dropped the
+empty `CategoryFixedOverride` table on Neon.
+
 
 ## 2026-08-03 — #396 — Fixed/Discretionary dial restored in transactions (#395 reversed — the directive was never given)
 
