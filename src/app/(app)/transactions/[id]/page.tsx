@@ -10,7 +10,7 @@ import { getRuleSourceTransaction } from '@/server/keyword-rules';
 import { getTransactionDetail } from '@/server/transactions';
 import { getRecurringVerdictForTransaction } from '@/server/recurring-overrides';
 import { listAttachmentsForTransaction } from '@/server/attachments';
-import { RETURN_PARAM, decodeRegisterReturn } from '@/lib/engine/transactions/links';
+import { RETURN_PARAM, activityReturnFromBack } from '@/lib/engine/transactions/links';
 import { isDemoUser } from '@/lib/demo-user';
 
 export const metadata = { title: 'Transaction' };
@@ -72,12 +72,10 @@ export default async function TransactionDetailPage({
       // The verdict saved, but the rebuild that carries it to the cash surfaces
       // did not run — so this page may not promise that they moved.
       projectionsStale={query[PROJECTIONS_STALE_PARAM] === '1'}
-      // O.16 — split, "Recurring…" and the status control all navigate here from
-      // the register, so this page inherits the reader's place and its own
-      // "Back to transactions" link is what hands it back. Decoded here (server)
-      // rather than in the view, so an unrecognised value renders the plain link
-      // it rendered before this slice.
-      returnTo={decodeRegisterReturn(
+      // O.16 — place from Activity rides `?back=` (sentinel when unfiltered).
+      // Always a named Activity return — never null — so the detail page always
+      // offers the list for that row's context (owner 2026-08-03).
+      returnTo={activityReturnFromBack(
         Array.isArray(query[RETURN_PARAM]) ? query[RETURN_PARAM][0] : query[RETURN_PARAM],
       )}
       attachments={attachments}

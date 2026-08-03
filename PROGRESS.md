@@ -1,12 +1,16 @@
-## 2026-08-03 — #399 — Rules Fixed/Discretionary + Return to place
+## 2026-08-03 ? #399 ? Rules Fixed/Discretionary + Return to place
 
 Owner: Rules needed Fixed/Discretionary with algorithmic guess (recurring seed);
 Check what this matches follows; baseline stamp; same-month extras keep guessing;
 Return so Rules does not lose Activity place.
 
 Shipped: `CategorizationRule.setSpendClass`, spend-class-action engine, preview +
-UI, apply/ingest stamp, always-on Return link. `bash scripts/verify.sh` GREEN
-(5753 unit / 351 files). Schema additive (`setSpendClass`).
+UI, apply/ingest stamp. Return clarified same day: `?from=` is prefill only;
+`?back=` (sentinel when unfiltered) restores Activity; `via=row` from detail
+makes primary Return that transaction, with Activity always also offered.
+Detail page has a top Return to Activity. `bash scripts/verify.sh` GREEN
+(5754 unit / 351 files); e2e `register-return` 4/4. Schema additive
+(`setSpendClass`).
 
 # PROGRESS.md — session resume log
 

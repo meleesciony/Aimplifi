@@ -101,9 +101,9 @@ export function TransactionList({
 
   /**
    * O.16 — the reader's place, as it stands right now, for every link that
-   * LEAVES the register. `withRegisterReturn` returns the href untouched when
-   * nothing is narrowed, so an unfiltered register emits exactly the URLs it
-   * emitted before this slice.
+   * LEAVES the register. Unfiltered Activity still attaches a sentinel so
+   * destinations can offer "Return to Activity" without treating `?from=` as
+   * "he was on that one row".
    */
   const currentQuery = searchParams?.toString() ?? '';
 

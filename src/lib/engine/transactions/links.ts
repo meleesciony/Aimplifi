@@ -372,6 +372,15 @@ export function spendClassMonthRegisterHref({
 export const RETURN_PARAM = 'back';
 
 /**
+ * Sentinel written when the reader leaves Activity with no filter/page to carry.
+ * Decodes to bare `/transactions` so Rules/detail always know he came from the
+ * list — `?from=<txnId>` alone means "prefill from this row", never "he was on
+ * the detail page" (owner 2026-08-03: Return from Rules dumped him on one row
+ * after he had been reviewing months on Activity).
+ */
+export const ACTIVITY_RETURN_SENTINEL = '_activity';
+
+/**
  * The register's own filter params — the ONLY keys that survive a round trip.
  *
  * This list is the security boundary AND the correctness boundary, so it is
@@ -465,11 +474,10 @@ function pickRegisterParams(query: string): URLSearchParams {
 /**
  * Attach the reader's current place to a link that LEAVES the register.
  *
- * Returns `href` unchanged when there is nothing worth carrying, which is the
- * whole no-false-claim rule in one line: an unfiltered register on page 1 is
- * where "Back to transactions" already lands, so the destination keeps its
- * existing copy rather than growing an affordance that promises a return to a
- * view the reader never narrowed.
+ * Always attaches `?back=`. An unfiltered Activity list carries
+ * {@link ACTIVITY_RETURN_SENTINEL} so the destination can still offer
+ * "Return to Activity" — without it, a `/rules?from=<id>` link looks identical
+ * to "he was on the detail page" and Return wrongly opens one row.
  *
  * Fragments are re-attached last, not appended over. `renameHref` is
  * `/rules?from=<id>#kw-rename` (`txn-action-menu.tsx`), and a param pasted onto
@@ -477,10 +485,8 @@ function pickRegisterParams(query: string): URLSearchParams {
  * return context and the browser would look for an anchor that does not exist.
  */
 export function withRegisterReturn(href: string, currentQuery: string | null | undefined): string {
-  if (!currentQuery) return href;
-  const carried = pickRegisterParams(currentQuery);
-  const encoded = carried.toString();
-  if (!encoded) return href;
+  const carried = pickRegisterParams(currentQuery ?? '');
+  const encoded = carried.toString() || ACTIVITY_RETURN_SENTINEL;
 
   const hashAt = href.indexOf('#');
   const base = hashAt === -1 ? href : href.slice(0, hashAt);
@@ -532,13 +538,24 @@ function labelFor(params: URLSearchParams): string {
  * is the fence-by-construction rule this repo already applies to demo-fenced
  * capabilities.
  *
- * `null` means "say nothing": an absent, malformed, or wholly-unrecognised value
- * leaves the destination page rendering the copy it had before this slice.
+ * {@link ACTIVITY_RETURN_SENTINEL} decodes to bare Activity. `null` means the
+ * caller did not leave the register through {@link withRegisterReturn}.
  */
 export function decodeRegisterReturn(raw: string | null | undefined): RegisterReturn | null {
   if (!raw) return null;
+  if (raw === ACTIVITY_RETURN_SENTINEL) {
+    return { href: REGISTER_PATH, label: 'Activity' };
+  }
   const carried = pickRegisterParams(raw);
   const query = carried.toString();
   if (!query) return null;
   return { href: `${REGISTER_PATH}?${query}`, label: labelFor(carried) };
+}
+
+/**
+ * Where Rules / detail should send "Return to …" for the list he was working.
+ * Never uses a transaction id — `?from=` on /rules is prefill only.
+ */
+export function activityReturnFromBack(back: string | null | undefined): RegisterReturn {
+  return decodeRegisterReturn(back) ?? { href: REGISTER_PATH, label: 'Activity' };
 }

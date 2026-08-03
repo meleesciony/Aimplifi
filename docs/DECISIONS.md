@@ -3304,10 +3304,13 @@ outside Rules affect only that row until a rule is made.
    (`extraOccurrenceIds`, cadence-aware per-month expected count) get NULL —
    keep guessing. Amount is not an outlier signal.
 
-3. `/rules` always shows **Return to …**: register view from `?back=`, else
-   the `?from=` transaction, else Activity.
+3. Return navigation (clarified same day): `?from=` is prefill only. List place
+   rides `?back=` (sentinel `_activity` when unfiltered). `via=row` means he left
+   a detail page ? primary Return goes to that transaction; **Activity list is
+   always also offered**. Leaving Activity for Rules never treats `?from=` alone
+   as "he was on that row".
 
 **Locks.** `tests/unit/rule-spend-class-action.test.ts` +
-`createKeywordRule — Fixed/Discretionary (extra occurrence abstains)` in
-`tests/unit/keyword-rules-server.test.ts`; e2e `register-return` Return-to-
-transaction when unfiltered.
+`createKeywordRule ? Fixed/Discretionary (extra occurrence abstains)` in
+`tests/unit/keyword-rules-server.test.ts`; e2e `register-return` (Activity from
+list; row + Activity from detail `via=row`); unit sentinel + always-`back`.

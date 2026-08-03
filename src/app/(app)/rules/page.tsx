@@ -11,7 +11,11 @@ import { suggestRuleKeywords } from '@/lib/engine/categorize/rule-prefill';
 import { prisma } from '@/lib/db';
 import { accountLabel } from '@/lib/engine/account/display-name';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
-import { decodeRegisterReturn } from '@/lib/engine/transactions/links';
+import {
+  activityReturnFromBack,
+  REGISTER_PATH,
+  withRegisterReturn,
+} from '@/lib/engine/transactions/links';
 import { getVisibleGroups } from '@/server/categories';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getRuleSourceTransaction, listKeywordRules } from '@/server/keyword-rules';
@@ -38,7 +42,7 @@ export const metadata = { title: 'Rules' };
 export default async function RulesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; back?: string }>;
+  searchParams: Promise<{ from?: string; back?: string; via?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
@@ -50,19 +54,18 @@ export default async function RulesPage({
   // so a guessed id leaks nothing and breaks nothing.
   // O.16 — and WHERE he was standing when he left it. Owner: *"Right now I have
   // to click activity again and needs category."* `?back=` carries the
-  // register's own filter params; `decodeRegisterReturn` rebuilds the trip from
-  // the `/transactions` literal, so this value cannot name another destination,
-  // and returns null for anything it does not recognise — in which case this
-  // page says nothing about where he came from rather than guessing.
-  const { from, back } = await searchParams;
-  // Prefer the register place he left (filters + page). If he came from a
-  // transaction without a carried view, return to that row. Otherwise Activity
-  // — so Rules never leaves him with no way back into years of history.
-  const returnTo =
-    decodeRegisterReturn(back) ??
-    (from
-      ? { href: `/transactions/${from}`, label: 'the transaction you were on' }
-      : { href: '/transactions', label: 'Activity' });
+  // register's own filter params.
+  const { from, back, via } = await searchParams;
+  // `?from=` only prefills. List place rides `?back=`. `via=row` means he left
+  // a single-row detail page — primary Return goes there; Activity is always offered.
+  const activityReturn = activityReturnFromBack(back);
+  const rowReturn =
+    from && via === 'row'
+      ? {
+          href: withRegisterReturn(`/transactions/${from}`, back),
+          label: 'this transaction',
+        }
+      : null;
   const source = from ? await getRuleSourceTransaction(from) : null;
   const prefill: RulePrefillView | null = source
     ? { ...source, transactionId: source.id, ...suggestRuleKeywords(source.rawDescriptor) }
@@ -119,18 +122,47 @@ export default async function RulesPage({
   return (
     <div className="space-y-4">
       {/*
-        Always-on Return — owner 2026-08-03: leaving Activity for Rules must not
-        dump him into a cold start over years of history. Prefer the carried
-        register view, else the `?from=` transaction, else Activity. Deliberately
-        NOT a redirect on save: the confirmation ("filed N…") stays on screen.
+        Owner 2026-08-03: if he was on a single row, Return goes there; there is
+        always also a button to the Activity list for that place. Deliberately
+        not a redirect on save — confirmation stays on screen.
       */}
-      <Link
-        href={returnTo.href}
-        data-testid="rules-return-link"
-        className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
-      >
-        <span aria-hidden="true">&larr;</span> Return to {returnTo.label}
-      </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        {rowReturn ? (
+          <>
+            <Link
+              href={rowReturn.href}
+              data-testid="rules-return-link"
+              className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+            >
+              <span aria-hidden="true">&larr;</span> Return to {rowReturn.label}
+            </Link>
+            <Link
+              href={activityReturn.href}
+              data-testid="rules-return-activity-link"
+              className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+            >
+              Return to {activityReturn.label}
+            </Link>
+          </>
+        ) : (
+          <Link
+            href={activityReturn.href}
+            data-testid="rules-return-link"
+            className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            <span aria-hidden="true">&larr;</span> Return to {activityReturn.label}
+          </Link>
+        )}
+        {activityReturn.href !== REGISTER_PATH && (
+          <Link
+            href={REGISTER_PATH}
+            data-testid="rules-return-activity-home"
+            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            All Activity
+          </Link>
+        )}
+      </div>
 
       <div>
         <h1 className="text-xl font-semibold">Rules</h1>

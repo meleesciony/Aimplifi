@@ -24,11 +24,9 @@
  * user, and ASSERT THE FIXTURE'S HARD CASE IS PRESENT so the lock cannot quietly
  * degrade into measuring an empty page.
  *
- * The negative case is not decoration. A "Back to…" link that renders no matter
- * where the reader came from would pass every positive assertion here while
- * making a false claim about his own history on the visits that arrive from the
- * nav — so the unfiltered case asserting ABSENCE is what stops the affordance
- * from degrading into furniture.
+ * Unfiltered Activity still carries a sentinel so Return restores the list,
+ * never one prefilled row. Detail → Rules sets `via=row` so primary Return is
+ * that transaction, with Activity always offered beside it.
  */
 import { expect, test, type Page } from './helpers/test';
 
@@ -134,7 +132,7 @@ test.describe('O.16 — carrying the place the reader was standing in', () => {
     expect(new URL(page.url()).searchParams.get('unclassified')).toBe('1');
   });
 
-  test('still offers Return to the transaction when he narrowed nothing', async ({ page }) => {
+  test('unfiltered Activity still offers Return to the list, not one row', async ({ page }) => {
     await signUpThrowaway(page);
     await addManualAccount(page, 'O16 Checking');
     await addPurchase(page, UNFILED.descriptor, UNFILED.amount);
@@ -143,15 +141,44 @@ test.describe('O.16 — carrying the place the reader was standing in', () => {
     await page.getByTestId('txn-rule-link').first().click();
     await page.waitForURL('**/rules?**', { timeout: 20000 });
 
-    // No register filters to restore — but `?from=` still names the row he left,
-    // so Return must not dump him into a cold Activity list to start over.
-    expect(new URL(page.url()).searchParams.get('back')).toBeNull();
-    const from = new URL(page.url()).searchParams.get('from');
-    expect(from).toBeTruthy();
+    // Prefill alone must not mean "he was on detail" — sentinel carries the list.
+    expect(new URL(page.url()).searchParams.get('back')).toBe('_activity');
+    expect(new URL(page.url()).searchParams.get('via')).toBeNull();
     const back = page.getByTestId('rules-return-link');
     await expect(back).toBeVisible({ timeout: 20000 });
-    await expect(back).toHaveText(/Return to the transaction you were on/);
+    await expect(back).toHaveText(/Return to Activity/);
     await back.click();
-    await page.waitForURL(`**/transactions/${from}`, { timeout: 20000 });
+    await page.waitForURL('**/transactions', { timeout: 20000 });
+    expect(new URL(page.url()).pathname).toBe('/transactions');
+  });
+
+  test('Rules opened from a detail row returns there, and still offers Activity', async ({
+    page,
+  }) => {
+    await readerInTheQueue(page);
+
+    await page.getByTestId('txn-detail-link').first().click();
+    await page.waitForURL('**/transactions/**', { timeout: 20000 });
+
+    await expect(page.getByTestId('detail-return-activity')).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId('detail-return-activity')).toHaveText(
+      /Return to Needs a category/,
+    );
+
+    await page.getByTestId('detail-rule-link').click();
+    await page.waitForURL('**/rules?**', { timeout: 20000 });
+    const url = new URL(page.url());
+    expect(url.searchParams.get('via')).toBe('row');
+    expect(url.searchParams.get('back')).toBe('unclassified=1');
+    const from = url.searchParams.get('from');
+    expect(from).toBeTruthy();
+
+    const rowBack = page.getByTestId('rules-return-link');
+    await expect(rowBack).toHaveText(/Return to this transaction/);
+    const listBack = page.getByTestId('rules-return-activity-link');
+    await expect(listBack).toHaveText(/Return to Needs a category/);
+
+    await rowBack.click();
+    await page.waitForURL(`**/transactions/${from}**`, { timeout: 20000 });
   });
 });

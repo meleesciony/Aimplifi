@@ -227,9 +227,8 @@ export function TransactionDetailView({
   };
   /** The last verdict saved but its projection rebuild did not run. */
   projectionsStale: boolean;
-  /** O.16 — the filtered register the reader left, already validated and named
-   *  by the engine, or null when he did not arrive from a narrowed view. */
-  returnTo: RegisterReturn | null;
+  /** O.16 — Activity list place for this row (filters/page or bare Activity). */
+  returnTo: RegisterReturn;
   /** O.13h — this row's receipts, METADATA ONLY. The bytes live in their own
    *  table and are fetched one at a time by `/api/attachments/<id>`, so rendering
    *  this page never loads a file. */
@@ -272,7 +271,7 @@ export function TransactionDetailView({
    * `returnTo.href` rather than from raw `window.location`, so nothing that
    * failed the decode can be laundered back into a link.
    */
-  const carriedQuery = returnTo ? (returnTo.href.split('?')[1] ?? '') : '';
+  const carriedQuery = returnTo.href.split('?')[1] ?? '';
   // The effect copy answers "what does pending DO to my figures" — shown while the
   // row IS pending (the state the reader is in) and while the live action WOULD
   // make it pending (what he is about to do), so it is never only after the fact.
@@ -461,6 +460,15 @@ export function TransactionDetailView({
 
   return (
     <div className="space-y-4" data-testid="txn-detail">
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          href={returnTo.href}
+          data-testid="detail-return-activity"
+          className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+        >
+          <span aria-hidden="true">&larr;</span> Return to {returnTo.label}
+        </Link>
+      </div>
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-semibold" data-testid="detail-payee">
@@ -545,11 +553,11 @@ export function TransactionDetailView({
                       runFlag(() => setTransactionStatus({ transactionId: row.id, status })),
                     onRecurring: () => focusEditor('[data-testid="detail-recurring"]'),
                     ruleHref: withRegisterReturn(
-                      `/rules?from=${encodeURIComponent(row.id)}`,
+                      `/rules?from=${encodeURIComponent(row.id)}&via=row`,
                       carriedQuery,
                     ),
                     renameHref: withRegisterReturn(
-                      `/rules?from=${encodeURIComponent(row.id)}#kw-rename`,
+                      `/rules?from=${encodeURIComponent(row.id)}&via=row#kw-rename`,
                       carriedQuery,
                     ),
                   }}
@@ -1216,7 +1224,10 @@ export function TransactionDetailView({
               the ones you already have is your choice at that point.
             </p>
             <Link
-              href={withRegisterReturn(`/rules?from=${encodeURIComponent(row.id)}`, carriedQuery)}
+              href={withRegisterReturn(
+                `/rules?from=${encodeURIComponent(row.id)}&via=row`,
+                carriedQuery,
+              )}
               data-testid="detail-rule-link"
               className="tap-target inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
             >
@@ -1373,11 +1384,11 @@ export function TransactionDetailView({
           link it always was.
         */}
         <Link
-          href={returnTo?.href ?? '/transactions'}
+          href={returnTo.href}
           data-testid="detail-back-link"
           className="underline underline-offset-2 hover:text-foreground"
         >
-          {returnTo ? `Back to ${returnTo.label}` : 'Back to transactions'}
+          Back to {returnTo.label}
         </Link>
         <Link
           href={merchantRegisterHref(row.merchantName)}

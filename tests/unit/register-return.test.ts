@@ -23,7 +23,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  ACTIVITY_RETURN_SENTINEL,
   RETURN_PARAM,
+  activityReturnFromBack,
   decodeRegisterReturn,
   withRegisterReturn,
 } from '@/lib/engine/transactions/links';
@@ -160,12 +162,24 @@ describe('withRegisterReturn — attaching the place on the way out', () => {
     expect(href).toBe(`/transactions/txn_1?${RETURN_PARAM}=unclassified%3D1`);
   });
 
-  it('leaves the link untouched when the reader narrowed nothing', () => {
-    // An unfiltered register on page 1 is exactly where the existing
-    // "Back to transactions" link already lands, so no affordance is promised.
-    expect(withRegisterReturn('/rules?from=txn_1', '')).toBe('/rules?from=txn_1');
-    expect(withRegisterReturn('/rules?from=txn_1', null)).toBe('/rules?from=txn_1');
-    expect(withRegisterReturn('/rules?from=txn_1', 'utm_source=email')).toBe('/rules?from=txn_1');
+  it('attaches the Activity sentinel when the reader narrowed nothing', () => {
+    // Without a sentinel, `/rules?from=<id>` looks like "he was on that row"
+    // and Return dumps him on one transaction after months of Activity review.
+    const expected = `/rules?from=txn_1&${RETURN_PARAM}=${ACTIVITY_RETURN_SENTINEL}`;
+    expect(withRegisterReturn('/rules?from=txn_1', '')).toBe(expected);
+    expect(withRegisterReturn('/rules?from=txn_1', null)).toBe(expected);
+    expect(withRegisterReturn('/rules?from=txn_1', 'utm_source=email')).toBe(expected);
+  });
+
+  it('decodes the Activity sentinel to bare Activity', () => {
+    expect(decodeRegisterReturn(ACTIVITY_RETURN_SENTINEL)).toEqual({
+      href: '/transactions',
+      label: 'Activity',
+    });
+    expect(activityReturnFromBack(undefined)).toEqual({
+      href: '/transactions',
+      label: 'Activity',
+    });
   });
 
   it('does not let the register date bound collide with the rule source id', () => {
