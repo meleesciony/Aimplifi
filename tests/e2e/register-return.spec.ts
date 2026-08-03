@@ -111,7 +111,7 @@ test.describe('O.16 — carrying the place the reader was standing in', () => {
     // Named, not generic: this is the view he actually left.
     const back = page.getByTestId('rules-return-link');
     await expect(back).toBeVisible({ timeout: 20000 });
-    await expect(back).toHaveText(/Back to Needs a category/);
+    await expect(back).toHaveText(/Return to Needs a category/);
 
     await back.click();
     await page.waitForURL('**/transactions?**', { timeout: 20000 });
@@ -134,7 +134,7 @@ test.describe('O.16 — carrying the place the reader was standing in', () => {
     expect(new URL(page.url()).searchParams.get('unclassified')).toBe('1');
   });
 
-  test('says nothing about where he came from when he narrowed nothing', async ({ page }) => {
+  test('still offers Return to the transaction when he narrowed nothing', async ({ page }) => {
     await signUpThrowaway(page);
     await addManualAccount(page, 'O16 Checking');
     await addPurchase(page, UNFILED.descriptor, UNFILED.amount);
@@ -143,9 +143,15 @@ test.describe('O.16 — carrying the place the reader was standing in', () => {
     await page.getByTestId('txn-rule-link').first().click();
     await page.waitForURL('**/rules?**', { timeout: 20000 });
 
-    // No carried view: the page keeps the copy it had before this slice rather
-    // than naming a queue he never opened.
+    // No register filters to restore — but `?from=` still names the row he left,
+    // so Return must not dump him into a cold Activity list to start over.
     expect(new URL(page.url()).searchParams.get('back')).toBeNull();
-    await expect(page.getByTestId('rules-return-link')).toHaveCount(0);
+    const from = new URL(page.url()).searchParams.get('from');
+    expect(from).toBeTruthy();
+    const back = page.getByTestId('rules-return-link');
+    await expect(back).toBeVisible({ timeout: 20000 });
+    await expect(back).toHaveText(/Return to the transaction you were on/);
+    await back.click();
+    await page.waitForURL(`**/transactions/${from}`, { timeout: 20000 });
   });
 });

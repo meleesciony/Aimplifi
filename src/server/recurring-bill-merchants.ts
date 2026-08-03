@@ -15,23 +15,55 @@
  * `Merchant.canonical` can hold case variants (the O.13c residual).
  */
 import { prisma } from '@/lib/db';
+import type { Cadence } from '@/lib/engine/recurring/detect';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
 import { overrideKey } from '@/lib/engine/recurring/override';
+
+const CADENCES = new Set<Cadence>([
+  'WEEKLY',
+  'BIWEEKLY',
+  'MONTHLY',
+  'QUARTERLY',
+  'SEMIANNUAL',
+  'ANNUAL',
+  'IRREGULAR',
+]);
+
+function asCadence(raw: string | null | undefined): Cadence | null {
+  if (raw && CADENCES.has(raw as Cadence)) return raw as Cadence;
+  return null;
+}
 
 export async function getRecurringBillMerchantCanonicals(
   userId: string,
 ): Promise<Set<string>> {
+  const cadenceBy = await getRecurringOutflowCadences(userId);
+  return new Set(cadenceBy.keys());
+}
+
+/**
+ * Payee → cadence for outflow recurring series + BILL declarations.
+ * Used by rule apply to refuse EXTRA OCCURRENCES when stamping Fixed/Discretionary
+ * (utilities vary in amount; a second charge in the same month is the outlier).
+ */
+export async function getRecurringOutflowCadences(
+  userId: string,
+): Promise<Map<string, Cadence | null>> {
   const [series, verdicts] = await Promise.all([
     prisma.recurringSeries.findMany({
       where: { userId, typicalAmountCents: { lt: 0 } },
-      select: { merchant: { select: { canonical: true } } },
+      select: { cadence: true, merchant: { select: { canonical: true } } },
     }),
     getRecurringOverrides(userId),
   ]);
-  const out = new Set(series.map((s) => overrideKey(s.merchant.canonical)));
+  const out = new Map<string, Cadence | null>();
+  for (const s of series) {
+    out.set(overrideKey(s.merchant.canonical), asCadence(s.cadence));
+  }
   for (const v of verdicts) {
-    if (v.decision === 'BILL') out.add(overrideKey(v.merchantCanonical));
-    else out.delete(overrideKey(v.merchantCanonical));
+    const key = overrideKey(v.merchantCanonical);
+    if (v.decision === 'BILL') out.set(key, asCadence(v.cadence) ?? out.get(key) ?? 'MONTHLY');
+    else out.delete(key);
   }
   return out;
 }

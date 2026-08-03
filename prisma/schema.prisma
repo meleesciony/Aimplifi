@@ -530,6 +530,12 @@ model CategorizationRule {
   // `resolveRuleTaxStamp` in categorize/tax-action.ts. Null = this rule tags
   // nothing, which is every rule stored before this slice.
   setTaxClass    String?
+  // Fixed / Discretionary THEN-action (2026-08-03). When this rule files a row,
+  // the row's `spendClassOverride` becomes 'fixed' | 'guilt-free' — unless the
+  // row is an EXTRA OCCURRENCE in its payee's billing period (see
+  // categorize/spend-class-action.ts), which takes no override so the app keeps
+  // guessing. Null = this rule sets no spend class (every pre-slice rule).
+  setSpendClass  String?
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   category Category @relation(fields: [categoryId], references: [id])

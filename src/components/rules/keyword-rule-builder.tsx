@@ -48,6 +48,7 @@ import { cents } from '@/lib/money';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { parseKeywords } from '@/lib/engine/categorize/keyword-rule';
 import { TAX_CLASSES, TAX_CLASS_LABELS, taxClassLabel } from '@/lib/engine/tax/classes';
+import { spendClassChoiceLabel } from '@/lib/engine/categorize/spend-class-action';
 import {
   type KeywordRulePreview,
   type StoredKeywordRule,
@@ -157,6 +158,13 @@ export function KeywordRuleBuilder({
   const [editing, setEditing] = useState<StoredKeywordRule | null>(null);
   const [formKey, setFormKey] = useState(0);
   /**
+   * Algorithmic Fixed/Discretionary default. Remounts with the preview's guess
+   * when the reader has not already chosen a different value (uncontrolled input
+   * recipe — the DOM owns the live choice after that).
+   */
+  const [spendClassDefault, setSpendClassDefault] = useState(editing?.setSpendClass ?? '');
+  const [spendClassKey, setSpendClassKey] = useState(0);
+  /**
    * The OR-lines currently on screen: one entry per keyword input, holding a
    * STABLE key plus its DEFAULT value only (the DOM owns the live text). The
    * key must be stable per line — an index key would hand line N+1's DOM input
@@ -197,6 +205,7 @@ export function KeywordRuleBuilder({
       categoryId: String(fd.get('categoryId') ?? ''),
       renameTo: String(fd.get('renameTo') ?? ''),
       setTaxClass: String(fd.get('setTaxClass') ?? ''),
+      setSpendClass: String(fd.get('setSpendClass') ?? ''),
       accountId: String(fd.get('accountId') ?? '') || null,
       minAmountRaw: String(fd.get('minAmount') ?? ''),
       maxAmountRaw: String(fd.get('maxAmount') ?? ''),
@@ -242,6 +251,8 @@ export function KeywordRuleBuilder({
     setOrLines(freshLines(['']));
     setPreview(null);
     setApplyToExisting(false);
+    setSpendClassDefault('');
+    setSpendClassKey((k) => k + 1);
     setFormKey((k) => k + 1);
   }
 
@@ -252,6 +263,8 @@ export function KeywordRuleBuilder({
     setApplyToExisting(false);
     setEditing(rule);
     setOrLines(freshLines(rule.groups.map((g) => g.join(' '))));
+    setSpendClassDefault(rule.setSpendClass ?? '');
+    setSpendClassKey((k) => k + 1);
     setFormKey((k) => k + 1);
   }
 
@@ -262,17 +275,26 @@ export function KeywordRuleBuilder({
     setDone(null);
     setBusy('preview');
     try {
-      const { keywordsRaw, categoryId, accountId, minAmountRaw, maxAmountRaw, setTaxClass } = read();
-      setPreview(
-        await previewKeywordRule({
-          keywordsRaw,
-          categoryId: categoryId || undefined,
-          accountId,
-          minAmountRaw,
-          maxAmountRaw,
-          setTaxClass,
-        }),
-      );
+      const values = read();
+      const next = await previewKeywordRule({
+        keywordsRaw: values.keywordsRaw,
+        categoryId: values.categoryId || undefined,
+        accountId: values.accountId,
+        minAmountRaw: values.minAmountRaw,
+        maxAmountRaw: values.maxAmountRaw,
+        setTaxClass: values.setTaxClass,
+        setSpendClass: values.setSpendClass,
+      });
+      setPreview(next);
+      // Pre-select the algorithmic guess when the reader has not already chosen.
+      if (
+        !editing &&
+        next.suggestedSpendClass &&
+        (!values.setSpendClass || values.setSpendClass === spendClassDefault)
+      ) {
+        setSpendClassDefault(next.suggestedSpendClass);
+        setSpendClassKey((k) => k + 1);
+      }
     } catch (err) {
       setError(
         err instanceof Error && err.message
@@ -315,14 +337,23 @@ export function KeywordRuleBuilder({
         res.taxAlreadyTagged > 0
           ? ` ${res.taxAlreadyTagged} already carried a tax tag, so the rule left ${res.taxAlreadyTagged === 1 ? 'it' : 'them'} alone.`
           : '';
+      const spendLabel = spendClassChoiceLabel(res.setSpendClass);
+      const spendNote =
+        res.spendClassStamped > 0 && spendLabel
+          ? ` ${res.spendClassStamped} ${res.spendClassStamped === 1 ? 'was' : 'were'} marked ${spendLabel} for your plan.`
+          : '';
+      const extraNote =
+        res.spendClassExtras > 0
+          ? ` ${res.spendClassExtras} extra ${res.spendClassExtras === 1 ? 'charge' : 'charges'} in the same billing period ${res.spendClassExtras === 1 ? 'was' : 'were'} left for the app to guess — usually a one-off on top of the baseline bill.`
+          : '';
       const keptNote =
         res.preservedHandFiled > 0
           ? ` ${res.preservedHandFiled} ${res.preservedHandFiled === 1 ? 'transaction you filed yourself was' : 'transactions you filed yourself were'} left as ${res.preservedHandFiled === 1 ? 'it was' : 'they were'}.`
           : '';
       setDone(
         res.affected > 0
-          ? `Rule ${editing ? 'updated' : 'saved'}, and ${res.affected} ${res.affected === 1 ? 'transaction' : 'transactions'} filed as ${label}.${renamedNote}${taggedNote}${alreadyTaggedNote}${keptNote}${skipped}`
-          : `Rule ${editing ? 'updated' : 'saved'}. It will file matching transactions from now on.${renamedNote}${taggedNote}${alreadyTaggedNote}${keptNote}${skipped}`,
+          ? `Rule ${editing ? 'updated' : 'saved'}, and ${res.affected} ${res.affected === 1 ? 'transaction' : 'transactions'} filed as ${label}.${renamedNote}${taggedNote}${alreadyTaggedNote}${spendNote}${extraNote}${keptNote}${skipped}`
+          : `Rule ${editing ? 'updated' : 'saved'}. It will file matching transactions from now on.${renamedNote}${taggedNote}${alreadyTaggedNote}${spendNote}${extraNote}${keptNote}${skipped}`,
       );
       setUndoable(res.correctionIds);
       // Built from the action's own RETURN, never a guess about what was stored.
@@ -332,6 +363,7 @@ export function KeywordRuleBuilder({
         categoryId: values.categoryId,
         renameTo: res.renameTo,
         setTaxClass: res.setTaxClass,
+        setSpendClass: res.setSpendClass,
         accountId: res.accountId,
         minAmountCents: res.minAmountCents,
         maxAmountCents: res.maxAmountCents,
@@ -601,6 +633,31 @@ export function KeywordRuleBuilder({
             </div>
 
             <div className="space-y-1">
+              <label htmlFor="kw-spend-class" className="text-sm font-medium">
+                Fixed or discretionary{' '}
+                <span className="font-normal text-muted-foreground">(for your plan)</span>
+              </label>
+              <select
+                key={`spend-${spendClassKey}`}
+                id="kw-spend-class"
+                name="setSpendClass"
+                defaultValue={spendClassDefault}
+                data-testid="kw-spend-class"
+                className={INPUT_CLASS}
+              >
+                <option value="">Leave for the app to guess</option>
+                <option value="fixed">Fixed</option>
+                <option value="guilt-free">Discretionary</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                After you check matches, Aimplifi pre-selects a guess from your history — recurring
+                bills start as Fixed. Baseline matches get this label; an extra charge in the same
+                billing period (on top of the usual one) is left alone so the app keeps guessing.
+                Amounts that change month to month, like utilities, still count as Fixed.
+              </p>
+            </div>
+
+            <div className="space-y-1">
               <label htmlFor="kw-rename" className="text-sm font-medium">
                 Rename the payee to <span className="font-normal text-muted-foreground">(optional)</span>
               </label>
@@ -795,6 +852,25 @@ export function KeywordRuleBuilder({
                       still files new transactions that match.
                     </p>
                   )}
+                  {preview.suggestedSpendClass && (
+                    <p className="text-xs text-muted-foreground" data-testid="kw-spend-class-guess">
+                      Plan guess from your history:{' '}
+                      <b className="text-foreground">
+                        {spendClassChoiceLabel(preview.suggestedSpendClass)}
+                      </b>
+                      {preview.wouldStampSpendClassCount != null && (
+                        <>
+                          {' '}
+                          — would mark {preview.wouldStampSpendClassCount} baseline{' '}
+                          {preview.wouldStampSpendClassCount === 1 ? 'row' : 'rows'}
+                          {preview.spendClassExtraCount != null && preview.spendClassExtraCount > 0
+                            ? `, leaving ${preview.spendClassExtraCount} extra ${preview.spendClassExtraCount === 1 ? 'charge' : 'charges'} for the app to guess`
+                            : ''}
+                          .
+                        </>
+                      )}
+                    </p>
+                  )}
                   {/* The tag action's own two counts (O.15 slice 6). Kept apart from
                       the filing counts above because they describe different rows:
                       a transaction already sitting in the right category is written
@@ -917,6 +993,15 @@ export function KeywordRuleBuilder({
                       <span className="text-muted-foreground" data-testid="kw-rule-tax">
                         , tagged <b className="break-words text-foreground">{taxClassLabel(r.setTaxClass)}</b>{' '}
                         for taxes
+                      </span>
+                    )}
+                    {spendClassChoiceLabel(r.setSpendClass) && (
+                      <span className="text-muted-foreground" data-testid="kw-rule-spend-class">
+                        ,{' '}
+                        <b className="break-words text-foreground">
+                          {spendClassChoiceLabel(r.setSpendClass)}
+                        </b>{' '}
+                        for your plan
                       </span>
                     )}
                   </div>

@@ -46,6 +46,7 @@ export interface PreparedTxn {
    * branch, which consults no rule.
    */
   taxClassStamp?: string | null;
+  spendClassStamp?: string | null;
 }
 
 const NO_EXTRA_IDS: ReadonlySet<string> = new Set();
@@ -120,5 +121,6 @@ export function prepareManualTransaction(
     // O.15 slice 6: a hand-entered row is categorized by the same rules as an
     // ingested one, so it takes the same tag action too.
     taxClassStamp: result.taxClassStamp,
+    spendClassStamp: result.spendClassStamp,
   };
 }

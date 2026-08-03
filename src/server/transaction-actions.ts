@@ -180,6 +180,9 @@ export async function createManualTransaction(
       // no tag of its own to protect. Written only when a rule with the action
       // actually filed the row; the pipeline decided that, not this call site.
       ...(prepared.taxClassStamp ? { taxClass: prepared.taxClassStamp } : {}),
+      ...(prepared.spendClassStamp
+        ? { spendClassOverride: prepared.spendClassStamp }
+        : {}),
     },
   });
   // Log the pipeline/LLM verdict for the accuracy metric + threshold tuning
@@ -281,6 +284,7 @@ export async function importTransactionsCsv(
       // no rule settled, and a row no rule settled carries no stamp, so the two
       // can never contradict each other.
       taxClassStamp: p.taxClassStamp ?? null,
+      spendClassStamp: p.spendClassStamp ?? null,
       // Provenance for the prediction log (Why-This-Category §3.1). NOT a
       // Transaction column — stripped before the DB write below, carried only to
       // logCategoryPredictions. assistUnsureRows may stamp it 'llm'.
@@ -313,6 +317,7 @@ export async function importTransactionsCsv(
         // O.15 slice 6 — see the manual-entry write above; same reasoning, same
         // brand-new row with no tag to protect.
         ...(r.taxClassStamp ? { taxClass: r.taxClassStamp } : {}),
+        ...(r.spendClassStamp ? { spendClassOverride: r.spendClassStamp } : {}),
       })),
     });
     // Log each pipeline/LLM verdict + its provenance for the accuracy metric +

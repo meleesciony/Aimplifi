@@ -67,6 +67,7 @@ interface Refile {
    * claim about a deduction, so it always passes null.
    */
   taxClassStamp: string | null;
+  spendClassStamp: string | null;
 }
 
 export async function runBackfillForUser(
@@ -153,6 +154,7 @@ export async function runBackfillForUser(
       confidenceBps: a.confidenceBps,
       source: 'llm' as const,
       taxClassStamp: null,
+      spendClassStamp: null,
     }));
 
   const allRefiles: Refile[] = [
@@ -162,6 +164,7 @@ export async function runBackfillForUser(
       confidenceBps: r.confidenceBps,
       source: 'rule' as const,
       taxClassStamp: r.taxClassStamp,
+      spendClassStamp: r.spendClassStamp,
     })),
     ...llmRefiles,
   ];
@@ -186,15 +189,23 @@ export async function runBackfillForUser(
   // together would write one row's stamp onto the other's.
   const groups = new Map<
     string,
-    { categoryId: string; confidenceBps: number; source: 'rule' | 'llm'; taxClassStamp: string | null; ids: string[] }
+    {
+      categoryId: string;
+      confidenceBps: number;
+      source: 'rule' | 'llm';
+      taxClassStamp: string | null;
+      spendClassStamp: string | null;
+      ids: string[];
+    }
   >();
   for (const rf of allRefiles) {
-    const key = `${rf.source}|${rf.toCategoryId}|${rf.confidenceBps}|${rf.taxClassStamp ?? ''}`;
+    const key = `${rf.source}|${rf.toCategoryId}|${rf.confidenceBps}|${rf.taxClassStamp ?? ''}|${rf.spendClassStamp ?? ''}`;
     const g = groups.get(key) ?? {
       categoryId: rf.toCategoryId,
       confidenceBps: rf.confidenceBps,
       source: rf.source,
       taxClassStamp: rf.taxClassStamp,
+      spendClassStamp: rf.spendClassStamp,
       ids: [],
     };
     g.ids.push(rf.id);
@@ -255,6 +266,17 @@ export async function runBackfillForUser(
           data: { taxClass: g.taxClassStamp },
         });
         taxTagged += tagged.count;
+      }
+      if (g.spendClassStamp) {
+        await tx.transaction.updateMany({
+          where: {
+            id: { in: g.ids },
+            account: { userId },
+            splitParentId: null,
+            isSplitParent: false,
+          },
+          data: { spendClassOverride: g.spendClassStamp },
+        });
       }
     }
   });

@@ -55,7 +55,14 @@ export default async function RulesPage({
   // and returns null for anything it does not recognise — in which case this
   // page says nothing about where he came from rather than guessing.
   const { from, back } = await searchParams;
-  const returnTo = decodeRegisterReturn(back);
+  // Prefer the register place he left (filters + page). If he came from a
+  // transaction without a carried view, return to that row. Otherwise Activity
+  // — so Rules never leaves him with no way back into years of history.
+  const returnTo =
+    decodeRegisterReturn(back) ??
+    (from
+      ? { href: `/transactions/${from}`, label: 'the transaction you were on' }
+      : { href: '/transactions', label: 'Activity' });
   const source = from ? await getRuleSourceTransaction(from) : null;
   const prefill: RulePrefillView | null = source
     ? { ...source, transactionId: source.id, ...suggestRuleKeywords(source.rawDescriptor) }
@@ -112,29 +119,18 @@ export default async function RulesPage({
   return (
     <div className="space-y-4">
       {/*
-        O.16 — the way back to the queue he was working. Rendered ONLY when the
-        register handed us a view it recognises, because "Back to <name>" for a
-        view he never narrowed is a false claim about his own history; with no
-        context the page keeps the plain "The transaction list" sentence it
-        already ends with.
-
-        Deliberately an affordance rather than a redirect on save. The builder's
-        confirmation ("filed N transactions") is the evidence that the write
-        landed, and bouncing him out of the page would take it off screen the
-        moment it appeared — while a reader minting several rules in one sitting
-        would be thrown back to the register after each. One click, and the
-        context survives the `router.refresh()` that follows a save because it
-        rides in the URL rather than in state.
+        Always-on Return — owner 2026-08-03: leaving Activity for Rules must not
+        dump him into a cold start over years of history. Prefer the carried
+        register view, else the `?from=` transaction, else Activity. Deliberately
+        NOT a redirect on save: the confirmation ("filed N…") stays on screen.
       */}
-      {returnTo && (
-        <Link
-          href={returnTo.href}
-          data-testid="rules-return-link"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
-        >
-          <span aria-hidden="true">&larr;</span> Back to {returnTo.label}
-        </Link>
-      )}
+      <Link
+        href={returnTo.href}
+        data-testid="rules-return-link"
+        className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+      >
+        <span aria-hidden="true">&larr;</span> Return to {returnTo.label}
+      </Link>
 
       <div>
         <h1 className="text-xl font-semibold">Rules</h1>

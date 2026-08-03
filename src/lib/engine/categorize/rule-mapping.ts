@@ -39,6 +39,8 @@ export interface RuleRow {
   renameTo?: string | null;
   /** Tag-for-taxes action (O.15 slice 6). Null on every row written before it. */
   setTaxClass?: string | null;
+  /** Fixed/Discretionary action. Null on every row written before it. */
+  setSpendClass?: string | null;
 }
 
 /**
@@ -146,6 +148,7 @@ export function mapStoredRule(
     // pipeline decides whether it may be USED (only an explicit rule that files),
     // and every OR-group of one stored rule shares the same THEN actions.
     setTaxClass: rule.setTaxClass ?? null,
+    setSpendClass: rule.setSpendClass ?? null,
     minAmountCents: rule.minAmountCents,
     maxAmountCents: rule.maxAmountCents,
     weekendOnly: rule.weekendOnly,

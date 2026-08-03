@@ -216,6 +216,7 @@ export interface IngestedSfTransaction {
    * CREATING — see the Plaid writer for why an update path may not.
    */
   taxClassStamp: string | null;
+  spendClassStamp: string | null;
 }
 
 /**
@@ -260,5 +261,6 @@ export function prepareSimplefinTransaction(
     status: txn.pending ? 'PENDING' : 'POSTED',
     source: result.source,
     taxClassStamp: result.taxClassStamp,
+    spendClassStamp: result.spendClassStamp,
   };
 }

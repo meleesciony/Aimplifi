@@ -3284,3 +3284,30 @@ a popup that asks, make fixed for all other transactions or just this one."
 **Locks.** `tests/unit/transaction-spend-class-actions.test.ts` â€” the
 merchant-wide flip marks every payee row and no other payee, agreement
 stores NULL merchant-wide, demo fence.
+
+## #399 — Rules Fixed/Discretionary THEN action + Return to place
+
+Owner, 2026-08-03: Rules lacked Fixed/Discretionary; leaving Activity for Rules
+lost his place in years of history. Guess must be algorithmic (recurring ? Fixed
+seed); apply stamps baseline past+future; EXTRA OCCURRENCE in a billing period
+takes no override (utilities vary in amount and stay Fixed). Per-txn flips
+outside Rules affect only that row until a rule is made.
+
+**DECIDED:**
+
+1. `CategorizationRule.setSpendClass` ('fixed' | 'guilt-free' | null) — THEN
+   action beside tax/rename. Algorithmic pre-select via `guessRuleSpendClass`
+   over matched history (classifySpendClass / recurring merchants). Preview shows
+   the guess and baseline/extra counts; reader can override.
+
+2. Apply + ingest stamp `Transaction.spendClassOverride`. Extra occurrences
+   (`extraOccurrenceIds`, cadence-aware per-month expected count) get NULL —
+   keep guessing. Amount is not an outlier signal.
+
+3. `/rules` always shows **Return to …**: register view from `?back=`, else
+   the `?from=` transaction, else Activity.
+
+**Locks.** `tests/unit/rule-spend-class-action.test.ts` +
+`createKeywordRule — Fixed/Discretionary (extra occurrence abstains)` in
+`tests/unit/keyword-rules-server.test.ts`; e2e `register-return` Return-to-
+transaction when unfiltered.

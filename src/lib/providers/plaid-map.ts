@@ -661,6 +661,8 @@ export interface IngestedTransaction {
    * it, and a sync may not answer a question the reader has already answered.
    */
   taxClassStamp: string | null;
+  /** Fixed/Discretionary override from a matched rule, or null. */
+  spendClassStamp: string | null;
 }
 
 /**
@@ -723,5 +725,6 @@ export function prepareIngestedTransaction(
     providerCategoryId: persistedGuess?.categoryId ?? null,
     providerCategoryConfidenceBps: persistedGuess?.confidenceBps ?? null,
     taxClassStamp: result.taxClassStamp,
+    spendClassStamp: result.spendClassStamp,
   };
 }

@@ -17,6 +17,7 @@ import { keywordSpecificity, keywordsMatch } from './keyword-rule';
 import { normalizeMerchant } from './normalize';
 import { computeDescriptorSignature } from './signature';
 import { resolveRuleTaxStamp } from './tax-action';
+import { resolveRuleSpendClassStamp } from './spend-class-action';
 import { TRANSFER_CONFIDENCE_BPS } from './transfers';
 
 export const AUTO_SILENT_BPS = 9000;
@@ -82,6 +83,13 @@ export interface RuleLike {
    * before this slice and on learned rules, so existing behavior is byte-identical.
    */
   setTaxClass?: string | null;
+  /**
+   * Fixed/Discretionary action. When the rule FILES a transaction, the row's
+   * `spendClassOverride` becomes this value — except extra occurrences, which
+   * the apply path refuses (spend-class-action.ts). Absent/null on every rule
+   * stored before this slice and on learned rules.
+   */
+  setSpendClass?: string | null;
   minAmountCents: number | null;
   maxAmountCents: number | null;
   weekendOnly: boolean | null;
@@ -222,6 +230,14 @@ export interface CategorizedTxn {
    * provider-category rescue and a fallback all tag nothing, exactly as before.
    */
   taxClassStamp: string | null;
+  /**
+   * Spend-class override to WRITE, or null for "leave alone". Non-null only when
+   * an explicit (non-learned) rule that FILES carries `setSpendClass`. Extra-
+   * occurrence refusal is applied by the write path that has history; ingest
+   * stamps the baseline class and a later extra in the same period is a one-row
+   * flip until the reader tightens the rule.
+   */
+  spendClassStamp: string | null;
 }
 
 export function ruleMatches(rule: RuleLike, txn: TxnInput, merchantCanonical: string): boolean {
@@ -282,6 +298,7 @@ export function categorize(
       // which is also why `matchableWhere` excludes transfers from a rule's apply
       // set. The two paths agree by construction.
       taxClassStamp: null,
+      spendClassStamp: null,
     };
   }
 
@@ -364,6 +381,15 @@ export function categorize(
             ruleTaxClass: rule.setTaxClass,
             currentTaxClass: txn.currentTaxClass,
           }),
+      // Fixed/Discretionary — same `!learned` gate as tax/rename. Extra-occurrence
+      // abstention needs peer history the pure pipeline does not have; ingest
+      // stamps the class, and apply-to-history refuses extras.
+      spendClassStamp: learned
+        ? null
+        : resolveRuleSpendClassStamp({
+            ruleSpendClass: rule.setSpendClass,
+            isExtraOccurrence: false,
+          }),
     };
   }
 
@@ -392,6 +418,7 @@ export function categorize(
       // No rule filed this row (the reader declared the amount context ambiguous),
       // so no rule tags it either.
       taxClassStamp: null,
+      spendClassStamp: null,
     };
   }
 
@@ -421,6 +448,7 @@ export function categorize(
       matchedRuleId: null,
       // The provider's guess is not the reader's instruction, so it tags nothing.
       taxClassStamp: null,
+      spendClassStamp: null,
     };
   }
 
@@ -447,6 +475,7 @@ export function categorize(
       source: 'fallback',
       matchedRuleId: null,
       taxClassStamp: null,
+      spendClassStamp: null,
     };
   }
 
@@ -462,6 +491,7 @@ export function categorize(
     // A merchant default is the app's own inference about an identity, not an
     // instruction — the same line the rename action draws.
     taxClassStamp: null,
+    spendClassStamp: null,
   };
 }
 

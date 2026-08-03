@@ -891,3 +891,89 @@ describe('createKeywordRule — tag for taxes', () => {
     ).toBe(3);
   });
 });
+
+describe('createKeywordRule — Fixed/Discretionary (extra occurrence abstains)', () => {
+  it('stamps baseline months and leaves a same-month extra with no override', async () => {
+    await prisma.transaction.deleteMany({ where: { account: { userId: USER } } });
+    const account = await prisma.account.findFirstOrThrow({ where: { userId: USER } });
+    const merchant = await prisma.merchant.upsert({
+      where: { canonical: 'Duke Energy' },
+      create: { canonical: 'Duke Energy', defaultCategoryId: 'utilities' },
+      update: {},
+    });
+    await prisma.recurringSeries.deleteMany({ where: { userId: USER } });
+    await prisma.recurringSeries.create({
+      data: {
+        userId: USER,
+        merchantId: merchant.id,
+        cadence: 'MONTHLY',
+        typicalAmountCents: -12000,
+        lastAmountCents: -12000,
+        lastSeenAt: '2026-08-05',
+        isSubscription: false,
+      },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        {
+          accountId: account.id,
+          date: '2026-07-05',
+          amountCents: -11000,
+          rawDescriptor: 'DUKE ENERGY EPAY',
+          categoryId: 'utilities',
+          status: 'POSTED',
+          needsReview: false,
+          confidenceBps: 9000,
+        },
+        {
+          accountId: account.id,
+          date: '2026-07-20',
+          amountCents: -4500,
+          rawDescriptor: 'DUKE ENERGY EPAY EXTRA',
+          categoryId: 'utilities',
+          status: 'POSTED',
+          needsReview: false,
+          confidenceBps: 9000,
+        },
+        {
+          accountId: account.id,
+          date: '2026-08-05',
+          amountCents: -13000,
+          rawDescriptor: 'DUKE ENERGY EPAY',
+          categoryId: 'utilities',
+          status: 'POSTED',
+          needsReview: false,
+          confidenceBps: 9000,
+        },
+      ],
+    });
+
+    const preview = await previewKeywordRule({
+      keywordsRaw: 'duke energy',
+      categoryId: 'utilities',
+      setSpendClass: 'fixed',
+    });
+    expect(preview.suggestedSpendClass).toBe('fixed');
+    expect(preview.wouldStampSpendClassCount).toBe(2);
+    expect(preview.spendClassExtraCount).toBe(1);
+
+    const res = await createKeywordRule({
+      keywordsRaw: 'duke energy',
+      categoryId: 'utilities',
+      setSpendClass: 'fixed',
+      applyToExisting: true,
+    });
+    expect(res.spendClassStamped).toBe(2);
+    expect(res.spendClassExtras).toBe(1);
+
+    const rows = await prisma.transaction.findMany({
+      where: { account: { userId: USER }, rawDescriptor: { contains: 'DUKE' } },
+      select: { date: true, spendClassOverride: true, rawDescriptor: true },
+      orderBy: { date: 'asc' },
+    });
+    expect(rows).toHaveLength(3);
+    expect(rows[0]!.spendClassOverride).toBe('fixed'); // Jul 5 baseline
+    expect(rows[1]!.spendClassOverride).toBeNull(); // Jul 20 extra — keep guessing
+    expect(rows[2]!.spendClassOverride).toBe('fixed'); // Aug 5 baseline
+  });
+});

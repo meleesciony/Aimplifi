@@ -1480,6 +1480,9 @@ export class PlaidProvider implements DataProvider {
                       // whatever tag its reader put there, and a sync may not
                       // re-answer a question they have already answered.
                       ...(row.taxClassStamp ? { taxClass: row.taxClassStamp } : {}),
+                      ...(row.spendClassStamp
+                        ? { spendClassOverride: row.spendClassStamp }
+                        : {}),
                     },
                   });
                   // Log the pipeline's verdict for the accuracy metric + threshold

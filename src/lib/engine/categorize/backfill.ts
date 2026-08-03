@@ -62,6 +62,7 @@ export interface BackfillRefile {
    * field just carries it out to the writer so the plan stays pure.
    */
   taxClassStamp: string | null;
+  spendClassStamp: string | null;
 }
 
 export interface BackfillPlan {
@@ -131,6 +132,7 @@ export function planBackfill(
       confidenceBps: out.confidenceBps,
       source: out.source,
       taxClassStamp: out.taxClassStamp,
+      spendClassStamp: out.spendClassStamp,
     });
   }
 

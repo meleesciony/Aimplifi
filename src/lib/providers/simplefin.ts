@@ -656,6 +656,7 @@ async function runSimplefinSync(
             // row. `guardedVerdictRefresh` above deliberately does not tag — that
             // row already exists and its tag is the reader's.
             ...(row.taxClassStamp ? { taxClass: row.taxClassStamp } : {}),
+            ...(row.spendClassStamp ? { spendClassOverride: row.spendClassStamp } : {}),
           },
         });
         // Log the pipeline's verdict for the accuracy metric + threshold tuning

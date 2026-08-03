@@ -176,6 +176,7 @@ export interface PreparedImportRow {
    * by construction — a CSV that dictates a category consults no rule at all.
    */
   taxClassStamp?: string | null;
+  spendClassStamp?: string | null;
 }
 
 /**
@@ -227,5 +228,6 @@ export function prepareImportedTransaction(
     // O.15 slice 6: a rule that files an imported row tags it too, so a CSV row
     // and a synced row that match the same rule end up identical.
     taxClassStamp: result.taxClassStamp,
+    spendClassStamp: result.spendClassStamp,
   };
 }

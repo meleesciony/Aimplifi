@@ -1,3 +1,13 @@
+## 2026-08-03 � #399 � Rules Fixed/Discretionary + Return to place
+
+Owner: Rules needed Fixed/Discretionary with algorithmic guess (recurring seed);
+Check what this matches follows; baseline stamp; same-month extras keep guessing;
+Return so Rules does not lose Activity place.
+
+Shipped: `CategorizationRule.setSpendClass`, spend-class-action engine, preview +
+UI, apply/ingest stamp, always-on Return link. `bash scripts/verify.sh` GREEN
+(5753 unit / 351 files). Schema additive (`setSpendClass`).
+
 # PROGRESS.md — session resume log
 
 ## 2026-08-03 — #398 — Spend-class dial asks scope: this one, or all of the payee’s

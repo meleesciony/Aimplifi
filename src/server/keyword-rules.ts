@@ -52,13 +52,25 @@ import {
   normalizeSetTaxClass,
   resolveRuleTaxStamp,
 } from '@/lib/engine/categorize/tax-action';
+import {
+  extraOccurrenceIds,
+  guessRuleSpendClass,
+  isSpendClassChoice,
+  normalizeSetSpendClass,
+  resolveRuleSpendClassStamp,
+  type SpendClassChoice,
+} from '@/lib/engine/categorize/spend-class-action';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { overrideKey } from '@/lib/engine/recurring/override';
+import { guessSpendClass } from '@/lib/engine/spending-plan/spend-class';
 import { isTaxClass } from '@/lib/engine/tax/classes';
 import { parseDollarInput } from '@/lib/money';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { auditLog, requireUserId } from '@/server/authz';
-import { assertOwnedCategory } from '@/server/category-meta';
+import { assertOwnedCategory, getCategoryMeta } from '@/server/category-meta';
 import { ensureCategories } from '@/server/ensure-categories';
+import { getRecurringOutflowCadences } from '@/server/recurring-bill-merchants';
 
 export interface KeywordRulePreview {
   /**
@@ -134,6 +146,16 @@ export interface KeywordRulePreview {
    * are outside the class.
    */
   alreadyTaggedCount: number | null;
+  /**
+   * Algorithmic Fixed/Discretionary guess for the matched set (recurring → Fixed
+   * seed). Null until there is at least one classifiable match. The builder
+   * pre-selects this; the reader can override.
+   */
+  suggestedSpendClass: SpendClassChoice | null;
+  /** Rows the spend-class action would stamp (baseline — extras abstain). */
+  wouldStampSpendClassCount: number | null;
+  /** Matched rows refused as extra occurrences in their billing period. */
+  spendClassExtraCount: number | null;
 }
 
 /**
@@ -211,6 +233,7 @@ type MatchRow = {
   rawDescriptor: string;
   amountCents: number;
   date: string;
+  accountId: string;
   categoryId: string | null;
   needsReview: boolean;
   taxClass: string | null;
@@ -222,6 +245,7 @@ const MATCH_SELECT = {
   rawDescriptor: true,
   amountCents: true,
   date: true,
+  accountId: true,
   categoryId: true,
   // Half of the hand-filed test — see `handFiledIds`.
   needsReview: true,
@@ -521,6 +545,8 @@ export async function previewKeywordRule(input: {
   maxAmountRaw?: string;
   /** O.15 slice 6 — the tag-for-taxes action, so its counts preview like the rest. */
   setTaxClass?: string | null;
+  /** Fixed/Discretionary THEN action — preview uses the same baseline/extra split as apply. */
+  setSpendClass?: string | null;
 }): Promise<KeywordRulePreview> {
   const userId = await requireUserId();
   const conditions = await resolveConditions(userId, input);
@@ -560,6 +586,54 @@ export async function previewKeywordRule(input: {
   // Suppressed until a category is chosen too: the sign guard is part of the set,
   // so counting before then would show a number the save reduces (critic P3).
   const tagCountsReady = setTaxClass !== null && known;
+
+  const [meta, cadenceBy] = await Promise.all([
+    getCategoryMeta(userId),
+    getRecurringOutflowCadences(userId),
+  ]);
+  const fixedMerchants = new Set(cadenceBy.keys());
+  // Guess as if the rule had already filed the target category (preview honesty).
+  const classes = rows.map((r) =>
+    guessSpendClass(
+      {
+        date: r.date,
+        amountCents: r.amountCents,
+        rawDescriptor: r.rawDescriptor,
+        accountId: r.accountId,
+        categoryId: known ? target! : filedCategory(r.categoryId),
+        isTransfer: false,
+        status: 'POSTED',
+        isSplitParent: false,
+        splitParentId: null,
+        excludeFromTotals: r.excludeFromTotals,
+        spendClassOverride: null,
+      },
+      meta,
+      fixedMerchants,
+    ),
+  );
+  const suggestedSpendClass =
+    classes.some((c) => c === 'fixed' || c === 'guilt-free') ? guessRuleSpendClass(classes) : null;
+  const setSpendClass = normalizeSetSpendClass(input.setSpendClass) ?? suggestedSpendClass;
+  const occurrenceRows = rows
+    .filter((r) => !handFiled.has(r.id) && (known ? !signWouldErase(target!, r.amountCents) : true))
+    .map((r) => ({
+      id: r.id,
+      date: r.date,
+      groupKey: overrideKey(normalizeMerchant(r.rawDescriptor).canonical),
+    }));
+  const extras = extraOccurrenceIds(occurrenceRows, cadenceBy);
+  const spendReady = setSpendClass !== null && known;
+  const wouldStamp = spendReady
+    ? occurrenceRows.filter(
+        (r) =>
+          resolveRuleSpendClassStamp({
+            ruleSpendClass: setSpendClass,
+            isExtraOccurrence: extras.has(r.id),
+          }) !== null,
+      ).length
+    : null;
+
   return {
     groups: conditions.groups,
     matchCount: rows.length,
@@ -572,6 +646,9 @@ export async function previewKeywordRule(input: {
     handFiledCount: preserved,
     wouldTagCount: tagCountsReady ? tags.toTag.length : null,
     alreadyTaggedCount: tagCountsReady ? tags.alreadyTagged : null,
+    suggestedSpendClass,
+    wouldStampSpendClassCount: wouldStamp,
+    spendClassExtraCount: spendReady ? extras.size : null,
     inflowCount: rows.filter((r) => r.amountCents > 0).length,
     outflowCount: rows.filter((r) => r.amountCents < 0).length,
     samples: rows.slice(0, 5).map((r) => ({
@@ -611,9 +688,14 @@ export interface CreateKeywordRuleResult {
   taxTagged: number;
   /** Matched rows left alone because they already carried a tag. */
   taxAlreadyTagged: number;
+  /** Baseline rows stamped Fixed/Discretionary (extras excluded). */
+  spendClassStamped: number;
+  /** Extra occurrences left with no override. */
+  spendClassExtras: number;
   /** The stored THEN action + conditions, echoed for the client's optimistic list. */
   renameTo: string | null;
   setTaxClass: string | null;
+  setSpendClass: string | null;
   accountId: string | null;
   minAmountCents: number | null;
   maxAmountCents: number | null;
@@ -641,7 +723,13 @@ export interface CreateKeywordRuleResult {
  */
 async function applyRuleToHistory(
   userId: string,
-  rule: { id: string; categoryId: string; renameTo: string | null; setTaxClass: string | null },
+  rule: {
+    id: string;
+    categoryId: string;
+    renameTo: string | null;
+    setTaxClass: string | null;
+    setSpendClass: string | null;
+  },
   conditions: KeywordRuleConditions,
   opts: { claimLineage: boolean },
 ): Promise<{
@@ -651,6 +739,8 @@ async function applyRuleToHistory(
   preserved: number;
   taxTagged: number;
   taxAlreadyTagged: number;
+  spendClassStamped: number;
+  spendClassExtras: number;
 }> {
   return serializableTx(async (tx) => {
     const targets = await matchingRows(userId, conditions, tx);
@@ -786,7 +876,53 @@ async function applyRuleToHistory(
       });
       taxTagged = res.count;
     }
-    return { ids, wrongSign, renamed, preserved, taxTagged, taxAlreadyTagged: tags.alreadyTagged };
+
+    // Fixed/Discretionary — stamp baseline matches; EXTRA OCCURRENCES take no
+    // override (utilities vary in amount; a second charge in the month is the
+    // outlier). Sign-refused and hand-filed rows are skipped like tax.
+    let spendClassStamped = 0;
+    let spendClassExtras = 0;
+    if (isSpendClassChoice(rule.setSpendClass)) {
+      const cadenceBy = await getRecurringOutflowCadences(userId);
+      const stampCandidates = targets.filter(
+        (t) => !handFiled.has(t.id) && !signWouldErase(rule.categoryId, t.amountCents),
+      );
+      const occurrenceRows = stampCandidates.map((t) => ({
+        id: t.id,
+        date: t.date,
+        groupKey: overrideKey(normalizeMerchant(t.rawDescriptor).canonical),
+      }));
+      const extras = extraOccurrenceIds(occurrenceRows, cadenceBy);
+      spendClassExtras = extras.size;
+      const toStamp = stampCandidates.filter(
+        (t) =>
+          resolveRuleSpendClassStamp({
+            ruleSpendClass: rule.setSpendClass,
+            isExtraOccurrence: extras.has(t.id),
+          }) !== null,
+      );
+      if (toStamp.length > 0) {
+        const res = await tx.transaction.updateMany({
+          where: {
+            id: { in: toStamp.map((t) => t.id) },
+            ...matchableWhere(userId, conditions.accountId),
+          },
+          data: { spendClassOverride: rule.setSpendClass },
+        });
+        spendClassStamped = res.count;
+      }
+    }
+
+    return {
+      ids,
+      wrongSign,
+      renamed,
+      preserved,
+      taxTagged,
+      taxAlreadyTagged: tags.alreadyTagged,
+      spendClassStamped,
+      spendClassExtras,
+    };
   });
 }
 
@@ -815,6 +951,11 @@ export interface KeywordRuleInput {
    * closed set in engine/tax/classes.ts; blank or unrecognized = no tag action.
    */
   setTaxClass?: string | null;
+  /**
+   * Optional THEN action: Fixed or Discretionary on matched baseline rows.
+   * Blank = no spend-class action. Extra occurrences in a period take no override.
+   */
+  setSpendClass?: string | null;
   /** Optional IF condition: only rows on this account (O.13c). Falsy = any account. */
   accountId?: string | null;
   /** Optional IF condition: minimum absolute amount, as typed ("$25"). Blank = none. */
@@ -838,6 +979,7 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
   assertUsableKey(conditions.groups);
   const renameTo = normalizeRenameTo(input.renameTo);
   const setTaxClass = normalizeSetTaxClass(input.setTaxClass);
+  const setSpendClass = normalizeSetSpendClass(input.setSpendClass);
   // Both writes reference Category rows by id (#65) — the same guard
   // `applyCategory` and `fileMerchantGroup` run for exactly this reason.
   await ensureCategories();
@@ -850,6 +992,7 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
       ...keywordColumns(conditions.groups),
       renameTo,
       setTaxClass,
+      setSpendClass,
       accountId: conditions.accountId,
       minAmountCents: conditions.minAmountCents,
       maxAmountCents: conditions.maxAmountCents,
@@ -864,6 +1007,7 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
     hasRename: renameTo !== null,
     // The CLASS, never a count of rows: it is a closed-set slug, not the reader's text.
     taxClass: setTaxClass,
+    spendClass: setSpendClass,
   });
 
   let affected = 0;
@@ -872,6 +1016,8 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
   let renamed = 0;
   let taxTagged = 0;
   let taxAlreadyTagged = 0;
+  let spendClassStamped = 0;
+  let spendClassExtras = 0;
   const correctionIds: string[] = [];
   if (input.applyToExisting) {
     // Re-read INSIDE the transaction (applyRuleToHistory) — DECISIONS #146: a
@@ -879,7 +1025,7 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
     // `fromCategoryId` the row never had.
     const written = await applyRuleToHistory(
       userId,
-      { id: rule.id, categoryId: input.categoryId, renameTo, setTaxClass },
+      { id: rule.id, categoryId: input.categoryId, renameTo, setTaxClass, setSpendClass },
       conditions,
       // The rule was minted by THIS action, so its undo may delete it.
       { claimLineage: true },
@@ -891,13 +1037,17 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
     renamed = written.renamed;
     taxTagged = written.taxTagged;
     taxAlreadyTagged = written.taxAlreadyTagged;
-    if (affected > 0 || renamed > 0 || taxTagged > 0) {
+    spendClassStamped = written.spendClassStamped;
+    spendClassExtras = written.spendClassExtras;
+    if (affected > 0 || renamed > 0 || taxTagged > 0 || spendClassStamped > 0) {
       await auditLog(userId, 'rule.batch-apply', {
         ruleId: rule.id,
         categoryId: input.categoryId,
         affected,
         renamed,
         taxTagged,
+        spendClassStamped,
+        spendClassExtras,
       });
     }
   }
@@ -907,6 +1057,7 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
   revalidatePath('/rules');
   revalidatePath('/transactions');
   revalidatePath('/triage');
+  revalidatePath('/spending-plan');
   return {
     ruleId: rule.id,
     groups: conditions.groups,
@@ -917,8 +1068,11 @@ export async function createKeywordRule(input: KeywordRuleInput): Promise<Create
     renamed,
     taxTagged,
     taxAlreadyTagged,
+    spendClassStamped,
+    spendClassExtras,
     renameTo,
     setTaxClass,
+    setSpendClass,
     accountId: conditions.accountId,
     minAmountCents: conditions.minAmountCents,
     maxAmountCents: conditions.maxAmountCents,
@@ -954,6 +1108,7 @@ export async function updateKeywordRule(
   assertUsableKey(conditions.groups);
   const renameTo = normalizeRenameTo(input.renameTo);
   const setTaxClass = normalizeSetTaxClass(input.setTaxClass);
+  const setSpendClass = normalizeSetSpendClass(input.setSpendClass);
   await ensureCategories();
 
   await prisma.categorizationRule.update({
@@ -963,6 +1118,7 @@ export async function updateKeywordRule(
       ...keywordColumns(conditions.groups),
       renameTo,
       setTaxClass,
+      setSpendClass,
       accountId: conditions.accountId,
       minAmountCents: conditions.minAmountCents,
       maxAmountCents: conditions.maxAmountCents,
@@ -976,6 +1132,7 @@ export async function updateKeywordRule(
     hasRename: renameTo !== null,
     // The CLASS, never a count of rows: it is a closed-set slug, not the reader's text.
     taxClass: setTaxClass,
+    spendClass: setSpendClass,
   });
 
   let affected = 0;
@@ -984,11 +1141,13 @@ export async function updateKeywordRule(
   let renamed = 0;
   let taxTagged = 0;
   let taxAlreadyTagged = 0;
+  let spendClassStamped = 0;
+  let spendClassExtras = 0;
   const correctionIds: string[] = [];
   if (input.applyToExisting) {
     const written = await applyRuleToHistory(
       userId,
-      { id: existing.id, categoryId: input.categoryId, renameTo, setTaxClass },
+      { id: existing.id, categoryId: input.categoryId, renameTo, setTaxClass, setSpendClass },
       conditions,
       // The rule PRE-EXISTED this edit, so undoing the re-apply must put the
       // transactions back WITHOUT deleting a rule the reader only changed (P1-1).
@@ -1001,13 +1160,17 @@ export async function updateKeywordRule(
     renamed = written.renamed;
     taxTagged = written.taxTagged;
     taxAlreadyTagged = written.taxAlreadyTagged;
-    if (affected > 0 || renamed > 0 || taxTagged > 0) {
+    spendClassStamped = written.spendClassStamped;
+    spendClassExtras = written.spendClassExtras;
+    if (affected > 0 || renamed > 0 || taxTagged > 0 || spendClassStamped > 0) {
       await auditLog(userId, 'rule.batch-apply', {
         ruleId: existing.id,
         categoryId: input.categoryId,
         affected,
         renamed,
         taxTagged,
+        spendClassStamped,
+        spendClassExtras,
       });
     }
   }
@@ -1015,6 +1178,7 @@ export async function updateKeywordRule(
   revalidatePath('/rules');
   revalidatePath('/transactions');
   revalidatePath('/triage');
+  revalidatePath('/spending-plan');
   return {
     ruleId: existing.id,
     groups: conditions.groups,
@@ -1025,8 +1189,11 @@ export async function updateKeywordRule(
     renamed,
     taxTagged,
     taxAlreadyTagged,
+    spendClassStamped,
+    spendClassExtras,
     renameTo,
     setTaxClass,
+    setSpendClass,
     accountId: conditions.accountId,
     minAmountCents: conditions.minAmountCents,
     maxAmountCents: conditions.maxAmountCents,
@@ -1042,6 +1209,8 @@ export interface StoredKeywordRule {
   renameTo: string | null;
   /** Tag-for-taxes THEN action (O.15 slice 6). Null when the rule tags nothing. */
   setTaxClass: string | null;
+  /** Fixed/Discretionary THEN action. Null when the rule sets no spend class. */
+  setSpendClass: string | null;
   accountId: string | null;
   minAmountCents: number | null;
   maxAmountCents: number | null;
@@ -1063,6 +1232,7 @@ export async function listKeywordRules(): Promise<StoredKeywordRule[]> {
       categoryId: true,
       renameTo: true,
       setTaxClass: true,
+      setSpendClass: true,
       accountId: true,
       minAmountCents: true,
       maxAmountCents: true,
@@ -1081,6 +1251,7 @@ export async function listKeywordRules(): Promise<StoredKeywordRule[]> {
       // unrecognized slug must render as "no tag action" on the list for exactly
       // the same reason `resolveRuleTaxStamp` refuses to write one.
       setTaxClass: isTaxClass(r.setTaxClass) ? r.setTaxClass : null,
+      setSpendClass: isSpendClassChoice(r.setSpendClass) ? r.setSpendClass : null,
       accountId: r.accountId,
       minAmountCents: r.minAmountCents,
       maxAmountCents: r.maxAmountCents,
