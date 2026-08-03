@@ -18,6 +18,11 @@ tests/unit/transaction-spend-class-actions.test.ts.
 full suite **5742 unit / 350 files**; targeted e2e
 `txn-spend-class.spec.ts` + `spend-class.spec.ts` **2/2**.
 
+**Shipped:** `75fe7ba` pushed; Vercel production deployment
+`aimplifi-fcctk0mzq` — **success** ("Deployment has completed"),
+sha-matched via GitHub deployment status (id 5733291424). No schema
+change in this slice.
+
 
 ## 2026-08-03 — #397 — Fixed/Discretionary is per transaction (supersedes the #396 category channel)
 
