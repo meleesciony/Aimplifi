@@ -12,6 +12,10 @@ Detail page has a top Return to Activity. `bash scripts/verify.sh` GREEN
 (5754 unit / 351 files); e2e `register-return` 4/4. Schema additive
 (`setSpendClass`).
 
+**Shipped:** `3a61ac0` pushed; Vercel production `aimplifi-21xy3ojlk` Ready;
+GitHub deployment 5734309451 **success** (sha-matched). No schema change in
+the return-nav follow-up.
+
 # PROGRESS.md — session resume log
 
 ## 2026-08-03 ? #398 ? Spend-class dial asks scope: this one, or all of the payee's
