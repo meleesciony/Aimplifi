@@ -34,6 +34,11 @@ visibility case). Playwright `txn-spend-class.spec.ts` +
 demo fence intact; /budgets shows the demo note, move buttons fenced off
 the demo).
 
+**Shipped:** `0a10f04` pushed; Vercel production deployment
+`aimplifi-kx55wvmr1` — **success** ("Deployment has completed"),
+sha-matched via GitHub deployment status (id 5732218938). The build's
+`prisma db push` recreated `CategoryFixedOverride` on Neon (additive).
+
 ## 2026-08-03 — #395 — Spend class is deterministic and algorithmic, never typed in
 
 Owner directive mid-session: "none of this should be typed in — make it all
