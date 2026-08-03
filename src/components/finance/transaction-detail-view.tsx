@@ -757,10 +757,12 @@ export function TransactionDetailView({
           spendClass={row.spendClass}
           canEdit={canEditSpendClass}
           merchantName={row.merchantName}
+          bulkCount={detail.spendClassSiblingCount ?? undefined}
         />
         <p className="basis-full text-xs text-muted-foreground">
           We guess recurring bills as Fixed and everything else from its category. Change the
-          selector if the guess is wrong — it applies to this transaction only.
+          selector if the guess is wrong — you can apply it to this transaction only or to every
+          transaction from this payee.
         </p>
       </div>
 

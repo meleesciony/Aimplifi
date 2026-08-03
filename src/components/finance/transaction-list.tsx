@@ -642,6 +642,7 @@ export function TransactionList({
                           spendClass={t.spendClass}
                           canEdit={canEditSpendClass}
                           merchantName={t.merchantName}
+                          bulkCount={t.ruleEligible ? t.merchantCount : undefined}
                         />
                         <Badge
                           variant="outline"

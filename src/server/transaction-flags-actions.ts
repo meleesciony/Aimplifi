@@ -17,6 +17,9 @@ import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
 import { guessSpendClass } from '@/lib/engine/spending-plan/spend-class';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { similarTransactionsWhere } from '@/server/triage';
+import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { rowOrigin } from '@/lib/engine/transactions/origin';
 import {
@@ -276,4 +279,89 @@ export async function setTransactionSpendClass(input: {
   revalidateTotals();
   revalidatePath('/spending-plan');
   return { ok: true };
+}
+
+export type SpendClassBulkResult = { ok: true; affected: number } | { ok: false; error: string };
+
+/**
+ * #397 scope popup: mark EVERY transaction of this row's payee Fixed or
+ * Discretionary in one gesture ("Chun's Martial Arts — all of them"). The
+ * scope is the register's own merchant-wide where
+ * (`similarTransactionsWhere`, onlyNeedsReview:false — the "Always — re-file
+ * all N" basis, DECISIONS #36/#42), reconciliation-filtered, so the count the
+ * reader confirmed is the set this writes. Merchantless and aggregate
+ * payees (Zelle, checks) carry no merchant-wide meaning — the write falls
+ * back to the single row, the recategorize rule (#23).
+ *
+ * Per row the same agreement rule as the single-row dial applies: a row
+ * whose guess already IS the choice stores NULL, so the guess stays the
+ * source of truth wherever the reader is not actually disagreeing.
+ * Out-of-scope rows (transfers, inflows, uncategorized…) take no verdict.
+ */
+export async function setMerchantSpendClass(input: {
+  transactionId: string;
+  spendClass: string | null;
+}): Promise<SpendClassBulkResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+  if (input.spendClass !== null && input.spendClass !== 'fixed' && input.spendClass !== 'guilt-free') {
+    return { ok: false, error: 'That is not a spend class Aimplifi knows — nothing was saved.' };
+  }
+
+  const row = await prisma.transaction.findFirst({
+    where: { id: input.transactionId, account: { userId } },
+    select: { id: true, merchantId: true, rawDescriptor: true },
+  });
+  if (!row) return { ok: false, error: 'That transaction is no longer available — nothing was changed.' };
+
+  const aggregate = normalizeMerchant(row.rawDescriptor).aggregate;
+  if (row.merchantId === null || aggregate) {
+    const single = await setTransactionSpendClass(input);
+    return single.ok ? { ok: true, affected: 1 } : single;
+  }
+
+  const keepsReconciled = await getReconciliationTxnKeep(userId);
+  const targets = (
+    await prisma.transaction.findMany({
+      where: similarTransactionsWhere(
+        userId,
+        { merchantId: row.merchantId, rawDescriptor: row.rawDescriptor, aggregate },
+        { onlyNeedsReview: false },
+      ),
+      select: {
+        id: true, date: true, amountCents: true, rawDescriptor: true, accountId: true,
+        isTransfer: true, status: true, categoryId: true, isSplitParent: true,
+        splitParentId: true, excludeFromTotals: true,
+      },
+    })
+  ).filter((t) => keepsReconciled(t.accountId, t.date));
+
+  const [meta, fixedMerchants] = await Promise.all([
+    getCategoryMeta(userId),
+    getRecurringBillMerchantCanonicals(userId),
+  ]);
+  const fixedIds: string[] = [];
+  const guiltFreeIds: string[] = [];
+  const clearIds: string[] = [];
+  for (const t of targets) {
+    const guess = guessSpendClass(t, meta, fixedMerchants);
+    if (guess === 'out-of-scope') continue;
+    const stored = input.spendClass === guess ? null : input.spendClass;
+    (stored === null ? clearIds : stored === 'fixed' ? fixedIds : guiltFreeIds).push(t.id);
+  }
+  await prisma.$transaction([
+    prisma.transaction.updateMany({ where: { id: { in: fixedIds } }, data: { spendClassOverride: 'fixed' } }),
+    prisma.transaction.updateMany({ where: { id: { in: guiltFreeIds } }, data: { spendClassOverride: 'guilt-free' } }),
+    prisma.transaction.updateMany({ where: { id: { in: clearIds } }, data: { spendClassOverride: null } }),
+  ]);
+  const affected = fixedIds.length + guiltFreeIds.length + clearIds.length;
+  await auditLog(userId, 'transaction.spendClass.setMerchant', {
+    transactionId: row.id,
+    merchantId: row.merchantId,
+    spendClass: input.spendClass,
+    affected,
+  });
+  revalidateTotals();
+  revalidatePath('/spending-plan');
+  return { ok: true, affected };
 }

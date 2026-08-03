@@ -3255,3 +3255,32 @@ start with all recurring items — most of those are fixed."
 `tests/unit/transaction-spend-class-actions.test.ts` (real action: one-row
 flip, matching-guess-stores-NULL, recurring-guess agreement, demo fence,
 out-of-scope refusal); the C.24 union locks re-pinned on the new signatures.
+
+## #398 — The spend-class dial asks the scope: this transaction, or all of the payee’s
+
+Owner, 2026-08-03 (after trying #397): "if it’s the same exact transaction,
+such as chuns martial a sale for 445, and I mark that as fixed, there can be
+a popup that asks, make fixed for all other transactions or just this one."
+
+**DECIDED:**
+
+1. **Scope popup on the dial** — changing a row’s Fixed/Discretionary where
+   the payee has more than one transaction asks "Make <class> for: Just this
+   one / All N <payee>", the register’s once/always idiom (#36/#42). The
+   count rides the existing `TxnView.merchantCount` on the register; the
+   detail page computes its own on the bulk action’s targeting basis,
+   reconciliation-filtered, so the number confirmed is the set written.
+
+2. **`setMerchantSpendClass`** writes the verdict to every transaction of
+   the payee via the register’s own merchant-wide where
+   (`similarTransactionsWhere`, onlyNeedsReview:false), reconciliation-keep
+   filtered. Per row the #397 agreement rule holds (a row whose guess is the
+   choice stores NULL); out-of-scope rows take no verdict. Merchantless and
+   aggregate payees (Zelle, checks) fall back to the single-row write — the
+   recategorize rule (#23). Unlike recategorize’s "Always", no durable rule
+   is minted: the recurring-bill guess already covers FUTURE rows of a bill,
+   and a non-recurring payee’s next row gets the category guess.
+
+**Locks.** `tests/unit/transaction-spend-class-actions.test.ts` — the
+merchant-wide flip marks every payee row and no other payee, agreement
+stores NULL merchant-wide, demo fence.

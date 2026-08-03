@@ -21,6 +21,8 @@ import { loadCorrectionInputs, loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
+import { similarTransactionsWhere } from '@/server/triage';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { classifySpendClass } from '@/lib/engine/spending-plan/spend-class';
 
 /**
@@ -483,6 +485,14 @@ export interface TransactionDetailView {
    * figure. Null when untracked, still awaiting, or nothing matches.
    */
   reimbursementMatch: { id: string; date: string; amountCents: number; merchantName: string } | null;
+  /**
+   * #397: how many transactions share this row's payee — the count on the
+   * spend-class dial's "All N <payee>" scope choice, computed on the action's
+   * OWN targeting basis (`similarTransactionsWhere`, reconciliation-filtered)
+   * so the number confirmed is the set the write touches. Null when there is
+   * no merchant-wide scope (merchantless / aggregate payee, split container).
+   */
+  spendClassSiblingCount: number | null;
 }
 
 /**
@@ -691,7 +701,33 @@ export async function getTransactionDetail(
     // which may only offer a write on a row no feed will overwrite).
     descriptorOrigin: rowOrigin({ providerRef: t.providerRef, accountProvider: t.account.provider }),
     reimbursementMatch: await reimbursementMatchFor(userId, t),
+    spendClassSiblingCount: await spendClassSiblingCountOf(userId, t, keepsReconciled),
   };
+}
+
+/**
+ * #397: the "All N <payee>" count for the detail page's spend-class dial.
+ * Counted on the bulk action's own where, then reconciliation-filtered —
+ * the register's merchantCounts are built from the kept set, and a count
+ * here that disagreed with the write would be the silent over-match this
+ * page's rules exist to prevent.
+ */
+async function spendClassSiblingCountOf(
+  userId: string,
+  t: { merchantId: string | null; rawDescriptor: string; isSplitParent: boolean },
+  keepsReconciled: (accountId: string, date: string) => boolean,
+): Promise<number | null> {
+  const aggregate = normalizeMerchant(t.rawDescriptor).aggregate;
+  if (t.isSplitParent || t.merchantId === null || aggregate) return null;
+  const siblings = await prisma.transaction.findMany({
+    where: similarTransactionsWhere(
+      userId,
+      { merchantId: t.merchantId, rawDescriptor: t.rawDescriptor, aggregate },
+      { onlyNeedsReview: false },
+    ),
+    select: { id: true, accountId: true, date: true },
+  });
+  return siblings.filter((s) => keepsReconciled(s.accountId, s.date)).length;
 }
 
 /**

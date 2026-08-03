@@ -1,5 +1,24 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-03 — #398 — Spend-class dial asks scope: this one, or all of the payee’s
+
+Owner: marking "Chuns Martial $4.45" fixed should ask whether to apply it to
+all matching transactions. The dial now asks when the payee has >1 row:
+"Just this one" (​setTransactionSpendClass) vs "All N <payee>" (new
+setMerchantSpendClass — the register’s similarTransactionsWhere merchant
+scope, reconciliation-keep filtered, per-row agreement→NULL, out-of-scope
+rows skipped, aggregate/merchantless falls back to single, no rule minted).
+Register count rides TxnView.merchantCount; the detail page counts on the
+action’s own basis. Locks: 3 merchant-wide cases in
+tests/unit/transaction-spend-class-actions.test.ts.
+
+### Gate
+
+`bash scripts/verify.sh` → **VERIFY GREEN** (tsc, eslint, next build clean);
+full suite **5742 unit / 350 files**; targeted e2e
+`txn-spend-class.spec.ts` + `spend-class.spec.ts` **2/2**.
+
+
 ## 2026-08-03 — #397 — Fixed/Discretionary is per transaction (supersedes the #396 category channel)
 
 Owner correction hours after #396 shipped: the class is individual — "not

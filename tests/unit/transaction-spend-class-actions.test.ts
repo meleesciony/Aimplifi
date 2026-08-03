@@ -15,7 +15,10 @@ vi.mock('@/auth', () => ({ auth: vi.fn(), signOut: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { auth } from '@/auth';
-import { setTransactionSpendClass } from '@/server/transaction-flags-actions';
+import {
+  setMerchantSpendClass,
+  setTransactionSpendClass,
+} from '@/server/transaction-flags-actions';
 import { DEMO_ENTRY_BLOCKED, DEMO_USER_ID } from '@/lib/demo-user';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { prisma } from '@/lib/db';
@@ -126,5 +129,82 @@ describe('setTransactionSpendClass (real action, throwaway data — DECISIONS #3
     expect(res.ok).toBe(false);
     const bad = await setTransactionSpendClass({ transactionId: diningA, spendClass: 'essential' });
     expect(bad.ok).toBe(false);
+  });
+});
+
+describe('setMerchantSpendClass — the "all of this payee" scope (#397)', () => {
+  const stamp = `${Date.now()}-${process.pid}`;
+  const USER = `spend-class-bulk-${stamp}`;
+  let accountId = '';
+  let chunsA = '';
+  let chunsB = '';
+  let other = '';
+
+  async function wipe() {
+    await prisma.user.deleteMany({ where: { id: USER } });
+  }
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: USER, email: `${USER}@test.local` } });
+    const acct = await prisma.account.create({
+      data: { userId: USER, provider: 'demo', name: 'Checking', type: 'CHECKING', currentBalanceCents: 0 },
+    });
+    accountId = acct.id;
+    const chuns = await prisma.merchant.create({ data: { canonical: `Chuns Martial ${stamp}` } });
+    const otherMerchant = await prisma.merchant.create({ data: { canonical: `Other Gym ${stamp}` } });
+    const base = {
+      accountId,
+      amountCents: -445,
+      categoryId: 'fitness',
+      status: 'POSTED',
+      needsReview: false,
+    };
+    chunsA = (
+      await prisma.transaction.create({
+        data: { ...base, date: '2026-06-04', rawDescriptor: `CHUNS MARTIAL ${stamp}`, merchantId: chuns.id },
+      })
+    ).id;
+    chunsB = (
+      await prisma.transaction.create({
+        data: { ...base, date: '2026-07-04', rawDescriptor: `CHUNS MARTIAL ${stamp}`, merchantId: chuns.id },
+      })
+    ).id;
+    other = (
+      await prisma.transaction.create({
+        data: { ...base, date: '2026-07-05', rawDescriptor: `OTHER GYM ${stamp}`, merchantId: otherMerchant.id },
+      })
+    ).id;
+    vi.mocked(auth).mockResolvedValue({ user: { id: USER } } as never);
+  });
+
+  afterAll(wipe);
+
+  it('marks every transaction of the payee — and no other payee', async () => {
+    const res = await setMerchantSpendClass({ transactionId: chunsA, spendClass: 'fixed' });
+    expect(res).toEqual({ ok: true, affected: 2 });
+    const [a, b, o] = await Promise.all([
+      prisma.transaction.findUniqueOrThrow({ where: { id: chunsA } }),
+      prisma.transaction.findUniqueOrThrow({ where: { id: chunsB } }),
+      prisma.transaction.findUniqueOrThrow({ where: { id: other } }),
+    ]);
+    expect(a.spendClassOverride).toBe('fixed');
+    expect(b.spendClassOverride).toBe('fixed');
+    expect(o.spendClassOverride).toBeNull();
+  });
+
+  it('stores NULL on rows whose guess already agrees', async () => {
+    // fitness guesses guilt-free by taxonomy, so a merchant-wide
+    // "Discretionary" is agreement everywhere — nothing to store.
+    const res = await setMerchantSpendClass({ transactionId: chunsA, spendClass: 'guilt-free' });
+    expect(res).toEqual({ ok: true, affected: 2 });
+    const b = await prisma.transaction.findUniqueOrThrow({ where: { id: chunsB } });
+    expect(b.spendClassOverride).toBeNull();
+  });
+
+  it('is fenced off the shared demo', async () => {
+    vi.mocked(auth).mockResolvedValueOnce({ user: { id: DEMO_USER_ID } } as never);
+    const res = await setMerchantSpendClass({ transactionId: chunsA, spendClass: 'fixed' });
+    expect(res).toEqual({ ok: false, error: DEMO_ENTRY_BLOCKED });
   });
 });
