@@ -1,3 +1,10 @@
+﻿## 2026-08-03 - Pending at top + Fixed/Discretionary dial on pending
+
+Owner: pending (Hair Capital etc.) showed Not counted with no dial, and sat
+under their auth date instead of at the top like Mint/Simplifi. Fix:
+classifySpendClass admits PENDING categorized outflows; register sort pins
+pending first under one Pending sticky section. verify GREEN (5756).
+Shipped: `c3fcb7d`.
 ## 2026-08-03 ? #399 ? Rules Fixed/Discretionary + Return to place
 
 Owner: Rules needed Fixed/Discretionary with algorithmic guess (recurring seed);
