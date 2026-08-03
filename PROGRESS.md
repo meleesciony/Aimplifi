@@ -47,8 +47,13 @@ burn; month totals still lumpy). C.22, C.23, C.19 unchanged.
 
 ### Deploy
 
-NOT deployed — local verify green, ledgers written, awaiting the owner's
-go-ahead for commit/push (git mutations need per-session confirmation).
+`217147d` pushed 2026-08-03; Vercel `aimplifi-ptgrkst2j` (dpl_3cmiqAtB6Rh6cfLjUvaCxei6u218)
+**READY**, **sha-matched** via the GitHub deployment status on the exact commit
+(state `success`, environment_url = the same deployment), `www.aimplifi.app`
+aliased. No UI marker exists for this slice by construction — the demo figures
+are deliberately unchanged (the seed's loan account has no transactions), so
+the sha-match IS the live proof. Production's money moves only for linked-loan
+users: the owner's replay predicts Fixed $9,785.24 → $13,929.95.
 
 ## 2026-08-02 — #387 — C.3 dashboard Trends card names divisor / assumption / mover window
 

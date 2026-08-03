@@ -35,6 +35,10 @@ vanish-on-detection-failure, F2 budget double-price, F3 aggregate strip, F5
 query guards), all fixed and locked; cycle 2 self-critic PASS (the
 fresh-context subagent died on an account quota 403 — recorded, not hidden).
 
+**Deploy:** `217147d` → Vercel `aimplifi-ptgrkst2j` **READY**, sha-matched via
+the GitHub deployment status on the exact commit, www aliased. No UI marker by
+construction (demo unchanged); the sha-match is the live proof.
+
 **Residuals → TASKS C.25:** the radar, the stored-series refresh (and with it
 /calendar, cash-needed, the L.30 census) still cannot see the bill the plan
 now reserves, and the unflagged mortgage months still feed discretionary
