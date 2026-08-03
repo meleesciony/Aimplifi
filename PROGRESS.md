@@ -1,4 +1,4 @@
-## 2026-08-03 � #399 � Rules Fixed/Discretionary + Return to place
+## 2026-08-03 — #399 — Rules Fixed/Discretionary + Return to place
 
 Owner: Rules needed Fixed/Discretionary with algorithmic guess (recurring seed);
 Check what this matches follows; baseline stamp; same-month extras keep guessing;
@@ -10,7 +10,7 @@ UI, apply/ingest stamp, always-on Return link. `bash scripts/verify.sh` GREEN
 
 # PROGRESS.md — session resume log
 
-## 2026-08-03 — #398 — Spend-class dial asks scope: this one, or all of the payee’s
+## 2026-08-03 ? #398 ? Spend-class dial asks scope: this one, or all of the payee's
 
 Owner: marking "Chuns Martial $4.45" fixed should ask whether to apply it to
 all matching transactions. The dial now asks when the payee has >1 row:
