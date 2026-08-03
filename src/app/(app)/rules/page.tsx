@@ -132,14 +132,14 @@ export default async function RulesPage({
             <Link
               href={rowReturn.href}
               data-testid="rules-return-link"
-              className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+              className="tap-target inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <span aria-hidden="true">&larr;</span> Return to {rowReturn.label}
             </Link>
             <Link
               href={activityReturn.href}
               data-testid="rules-return-activity-link"
-              className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+              className="tap-target inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               Return to {activityReturn.label}
             </Link>
@@ -148,7 +148,7 @@ export default async function RulesPage({
           <Link
             href={activityReturn.href}
             data-testid="rules-return-link"
-            className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+            className="tap-target inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <span aria-hidden="true">&larr;</span> Return to {activityReturn.label}
           </Link>
@@ -157,7 +157,7 @@ export default async function RulesPage({
           <Link
             href={REGISTER_PATH}
             data-testid="rules-return-activity-home"
-            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            className="tap-target inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground"
           >
             All Activity
           </Link>

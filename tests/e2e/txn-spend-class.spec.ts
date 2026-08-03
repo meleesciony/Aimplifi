@@ -40,6 +40,9 @@ test('every register row shows a Fixed or Discretionary (or Not counted) class',
     'data-spend-class',
     'guilt-free',
   );
-  // Shared demo: label only (no select) — the dial is fenced off the demo (#396).
+  // Shared demo: badge only — the dial is fenced off the demo (#396). The
+  // live dial is a button chip (not a native select — iOS floors selects at
+  // 16px and blew past Details/Rules).
+  await expect(groceries.locator('button[data-testid="txn-spend-class"]')).toHaveCount(0);
   await expect(groceries.locator('select[data-testid="txn-spend-class"]')).toHaveCount(0);
 });

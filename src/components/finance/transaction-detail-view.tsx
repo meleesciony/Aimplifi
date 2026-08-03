@@ -464,7 +464,7 @@ export function TransactionDetailView({
         <Link
           href={returnTo.href}
           data-testid="detail-return-activity"
-          className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+          className="tap-target inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <span aria-hidden="true">&larr;</span> Return to {returnTo.label}
         </Link>
