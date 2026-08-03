@@ -283,6 +283,23 @@ describe('sortByDateDesc', () => {
     ];
     expect(sortByDateDesc(sameDay).map((t) => t.id)).toEqual(['c', 'b', 'a']);
   });
+
+  it('test_regression__pending_stays_at_top_until_cleared', () => {
+    // Mint / Simplifi: uncleared charges pin to the top of Activity, not under
+    // an older authorization date below today's posted rows.
+    const mixed: TxnView[] = [
+      txn({ id: 'posted-today', date: '2026-08-03', amountCents: -100, status: 'POSTED' }),
+      txn({ id: 'pending-old', date: '2026-08-01', amountCents: -5500, status: 'PENDING' }),
+      txn({ id: 'pending-new', date: '2026-08-02', amountCents: -4000, status: 'PENDING' }),
+      txn({ id: 'posted-mid', date: '2026-08-02', amountCents: -200, status: 'POSTED' }),
+    ];
+    expect(sortByDateDesc(mixed).map((t) => t.id)).toEqual([
+      'pending-new',
+      'pending-old',
+      'posted-today',
+      'posted-mid',
+    ]);
+  });
 });
 
 describe('groupAccounts — assets, liabilities, net worth', () => {

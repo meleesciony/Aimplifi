@@ -4,10 +4,15 @@
  * #376/#378/#396, which the owner rejected: "not all hair and beauty is
  * fixed — when I switch one transaction, they all switch").
  *
- * Every outflow that counts in flows is one of:
+ * Every spending outflow (posted OR pending) is one of:
  *   - fixed — non-discretionary (utilities, groceries, rent…)
  *   - guilt-free — discretionary (dining, movies, skiing…)
  *   - out-of-scope — transfers, card payments, income, uncategorized, etc.
+ *
+ * Pending is NOT out-of-scope: the charge already reduced what the reader can
+ * spend, and the dial must work on the row they are looking at (owner 2026-08-03:
+ * pending Hair Capital showed "Not counted" with no control). Plan intake stays
+ * POSTED-only; /budgets already sums pending into its instruction.
  *
  * The class is individual: flipping one row never moves its category
  * siblings. The reader's per-row verdict (`Transaction.spendClassOverride`)
@@ -19,7 +24,7 @@
  * until the reader disagrees (setTransactionSpendClass in
  * src/server/transaction-flags-actions.ts).
  */
-import { countsInFlows, type TxnLike } from '@/lib/engine/fi/insights';
+import { type TxnLike } from '@/lib/engine/fi/insights';
 import {
   CATEGORY_BY_ID,
   type CategoryMeta,
@@ -27,6 +32,7 @@ import {
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { isBudgetable } from '@/lib/engine/budgets/status';
 import { overrideKey } from '@/lib/engine/recurring/override';
+import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 
 /** Settlement / savings / noise — never part of the fixed allocation bucket. */
 export const FIXED_PATTERN_EXCLUDE_CATEGORY_IDS = new Set([
@@ -75,7 +81,18 @@ export function classifySpendClass(
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
   fixedMerchants: ReadonlySet<string> = new Set(),
 ): SpendClass {
-  if (!countsInFlows(t) || t.amountCents >= 0) return 'out-of-scope';
+  // Same exclusions as `countsInFlows`, except PENDING is admitted — settlement
+  // status is not a spend-class axis (see module doc). Unknown statuses still
+  // refuse rather than invent a class.
+  if (
+    t.isTransfer ||
+    Boolean(t.isSplitParent) ||
+    isExcludedFromTotals(t) ||
+    t.amountCents >= 0 ||
+    (t.status !== 'POSTED' && t.status !== 'PENDING')
+  ) {
+    return 'out-of-scope';
+  }
   const id = t.categoryId;
   if (!id || FIXED_PATTERN_EXCLUDE_CATEGORY_IDS.has(id)) return 'out-of-scope';
   const suggested = suggestedCategoryIsFixed(id, meta);

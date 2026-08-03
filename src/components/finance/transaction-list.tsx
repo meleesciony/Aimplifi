@@ -2,7 +2,8 @@
 
 /**
  * Transaction register (380px-first). Rows arrive pre-sorted most-recent-first
- * and are grouped by date. Each row's category is inline-editable (DECISIONS
+ * and are grouped by date (pending share one top "Pending" section). Each row's
+ * category is inline-editable (DECISIONS
  * #36): tap it → pick a category → "Just this once" (this transaction) or
  * "Always · all <merchant>" (re-file every transaction of the merchant + a
  * durable rule).
@@ -466,12 +467,23 @@ export function TransactionList({
     query,
   );
 
-  // Group consecutive rows by date (input is already date-desc sorted).
-  const groups: { date: string; items: TxnView[] }[] = [];
+  // Group consecutive rows. Pending are sorted to the front of the page
+  // (`sortByDateDesc`) and share one "Pending" sticky header — Mint/Simplifi
+  // keep uncleared charges at the top until the bank posts them, not buried
+  // under their authorization date among cleared rows.
+  const groups: { key: string; label: string; items: TxnView[] }[] = [];
   for (const t of rows) {
+    const pending = t.status === 'PENDING';
+    const key = pending ? '__pending__' : t.date;
     const last = groups[groups.length - 1];
-    if (last && last.date === t.date) last.items.push(t);
-    else groups.push({ date: t.date, items: [t] });
+    if (last && last.key === key) last.items.push(t);
+    else {
+      groups.push({
+        key,
+        label: pending ? 'Pending' : formatISODate(isoDate(t.date), 'long'),
+        items: [t],
+      });
+    }
   }
 
   return (
@@ -523,11 +535,12 @@ export function TransactionList({
         </div>
       ) : (
         groups.map((g) => (
-          <div key={g.date}>
+          <div key={g.key} data-testid={g.key === '__pending__' ? 'txn-pending-group' : undefined}>
             {/* 'long' (#166): the register spans years — "Wed, Jan 15" with no year
-                made Jan 2025 indistinguishable from Jan 2026. */}
+                made Jan 2025 indistinguishable from Jan 2026. Pending is one
+                section at the top, not a calendar day. */}
             <div className="sticky top-0 bg-background/95 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
-              {formatISODate(isoDate(g.date), 'long')}
+              {g.label}
             </div>
             <ul className="divide-y rounded-md border">
               {g.items.map((t) => {

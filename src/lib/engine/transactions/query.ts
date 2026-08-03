@@ -218,9 +218,16 @@ export interface TxnSummary {
   excludedCount: number;
 }
 
-/** Most-recent-first, with a stable id tiebreak so order is fully deterministic. */
+/**
+ * Register order: pending first (Mint / Simplifi — they stay at the top until
+ * the bank clears them), then most-recent-first among each tier, with a stable
+ * id tiebreak so order is fully deterministic.
+ */
 export function sortByDateDesc(rows: readonly TxnView[]): TxnView[] {
   return [...rows].sort((a, b) => {
+    const aPending = a.status === 'PENDING' ? 0 : 1;
+    const bPending = b.status === 'PENDING' ? 0 : 1;
+    if (aPending !== bPending) return aPending - bPending;
     const byDate = compareDates(isoDate(b.date), isoDate(a.date));
     if (byDate !== 0) return byDate;
     return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;

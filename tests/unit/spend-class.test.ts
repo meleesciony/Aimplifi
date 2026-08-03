@@ -61,6 +61,45 @@ describe('classifySpendClass', () => {
     ).toBe('out-of-scope');
   });
 
+  it('test_regression__pending_categorized_outflow_keeps_the_dial', () => {
+    // Owner screenshot 2026-08-03: pending Hair Capital / Whole Foods showed
+    // "Not counted" with no Fixed/Discretionary control — classifySpendClass
+    // had reused countsInFlows (POSTED-only), so the dial never rendered.
+    expect(
+      classifySpendClass(
+        txn({
+          date: '2026-08-02',
+          amountCents: -5500,
+          categoryId: 'hair-beauty',
+          status: 'PENDING',
+          rawDescriptor: 'HAIR CAPITAL',
+        }),
+      ),
+    ).toBe('guilt-free');
+    expect(
+      classifySpendClass(
+        txn({
+          date: '2026-08-02',
+          amountCents: -2692,
+          categoryId: 'gifts',
+          status: 'PENDING',
+        }),
+      ),
+    ).toBe('guilt-free');
+    // A pending transfer still has no class — only settlement was loosened.
+    expect(
+      classifySpendClass(
+        txn({
+          date: '2026-08-02',
+          amountCents: -5500,
+          categoryId: 'transfer',
+          status: 'PENDING',
+          isTransfer: true,
+        }),
+      ),
+    ).toBe('out-of-scope');
+  });
+
   it('test_regression__flipping_one_transaction_leaves_category_siblings_alone', () => {
     // The #397 owner complaint verbatim: "when I switch one transaction in
     // this category to discretionary, they all do." The verdict is a property

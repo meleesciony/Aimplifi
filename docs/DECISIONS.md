@@ -3226,13 +3226,16 @@ start with all recurring items — most of those are fixed."
    flips.
 
 2. **The guess** (`classifySpendClass`): the row's verdict wins; else a
-   recurring-bill merchant guesses FIXED — one server definition
+   recurring-bill merchant guesses FIXED ? one server definition
    (`getRecurringBillMerchantCanonicals`: stored outflow series + declared
-   BILL − NOT_BILL, `overrideKey`-normalized) feeds the register, the detail
+   BILL ? NOT_BILL, `overrideKey`-normalized) feeds the register, the detail
    view and the spending plan, so no two surfaces guess differently; else
    the filed category's taxonomy `discretionary` flag (custom categories via
    meta). A dial choice matching the guess stores NULL, so the guess stays
-   the source of truth until the reader disagrees.
+   the source of truth until the reader disagrees. **Pending outflows with a
+   designatable category carry a class** (same day clarification): settlement
+   is not a spend-class axis ? reusing `countsInFlows` (POSTED-only) had made
+   pending Hair Capital "Not counted" with no dial.
 
 3. **Plan math classifies per row**: the Fixed trailing median, the category
    rollup (a mixed category contributes only its fixed-classified share; a
