@@ -911,3 +911,188 @@ describe('getSpendingPlan — income scoped to payment account (owner 2026-08-01
     expect(plan.patternIncomeCents).toBe(500000);
   });
 });
+
+/**
+ * C.24 (#394), the owner's mortgage in miniature, through the REAL server path
+ * (the defect was in the wiring — the L.15 lesson again). Measured live in
+ * C.0/#393: the $6,217.07 Truist mortgage paired against the linked MORTGAGE
+ * account's inflow in the months settlement landed ≤3 days out, so the flag was
+ * per-month timing luck — flagged months left every flow (the rollup printed
+ * "rent" at one payment ÷ 3), and detection saw only the unflagged rows, too
+ * far apart for a series. Invisible to both halves of the union.
+ *
+ * Fixture: four monthly payments (Feb–May), Mar/Apr transfer-flagged with the
+ * pair inflow on the MORTGAGE account inside the window, plus a $146.40/mo
+ * life-insurance draft so the category rollup has real mass (the owner has
+ * other Fixed categories; the median path is not what is being locked here).
+ */
+describe('getSpendingPlan — a transfer-flagged mortgage unions at its full monthly rate (C.24/#394)', () => {
+  const uid = `gfs-c24-${Date.now()}-${process.pid}`;
+  let checkingId = '';
+
+  const wipe = async () => {
+    await prisma.account.deleteMany({ where: { userId: uid } });
+    await prisma.user.deleteMany({ where: { id: uid } });
+  };
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: uid, email: `${uid}@test.local` } });
+    const checking = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-chk`,
+        name: 'Everyday Checking',
+        type: 'CHECKING',
+        currentBalanceCents: 800000,
+        currency: 'USD',
+      },
+    });
+    checkingId = checking.id;
+    await prisma.user.update({ where: { id: uid }, data: { paymentAccountId: checkingId } });
+    const mortgage = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'plaid',
+        providerRef: `${uid}-mtg`,
+        name: 'Mortgage 1192',
+        type: 'MORTGAGE',
+        currentBalanceCents: 41200000,
+        currency: 'USD',
+      },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        // The Fixed rollup's real mass — three complete months of a draft the
+        // union must NOT double-count (the C.4 locks cover its dedupe).
+        { accountId: checkingId, date: '2026-03-05', amountCents: -14640, rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN ~ TRAN: ACHD', categoryId: 'life-insurance', confidenceBps: 9000, needsReview: false },
+        { accountId: checkingId, date: '2026-04-05', amountCents: -14640, rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN ~ TRAN: ACHD', categoryId: 'life-insurance', confidenceBps: 9000, needsReview: false },
+        { accountId: checkingId, date: '2026-05-05', amountCents: -14640, rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN ~ TRAN: ACHD', categoryId: 'life-insurance', confidenceBps: 9000, needsReview: false },
+        // The mortgage: four payments, the middle two flagged by the pair
+        // detector (counterpart inflow on the MORTGAGE account within ±3 days).
+        { accountId: checkingId, date: '2026-02-03', amountCents: -621707, rawDescriptor: 'TRUIST MORTG OLB MTGPMT', categoryId: 'rent', confidenceBps: 9000, needsReview: false },
+        { accountId: checkingId, date: '2026-03-03', amountCents: -621707, rawDescriptor: 'TRUIST MORTG OLB MTGPMT', categoryId: 'rent', isTransfer: true, confidenceBps: 9000, needsReview: false },
+        { accountId: checkingId, date: '2026-04-03', amountCents: -621707, rawDescriptor: 'TRUIST MORTG OLB MTGPMT', categoryId: 'rent', isTransfer: true, confidenceBps: 9000, needsReview: false },
+        { accountId: checkingId, date: '2026-05-03', amountCents: -621707, rawDescriptor: 'TRUIST MORTG OLB MTGPMT', categoryId: 'rent', confidenceBps: 9000, needsReview: false },
+        { accountId: mortgage.id, date: '2026-03-04', amountCents: 621707, rawDescriptor: 'Payment', categoryId: null, isTransfer: true, confidenceBps: 9000, needsReview: false },
+        { accountId: mortgage.id, date: '2026-04-04', amountCents: 621707, rawDescriptor: 'Payment', categoryId: null, isTransfer: true, confidenceBps: 9000, needsReview: false },
+      ],
+    });
+  });
+  afterAll(async () => {
+    await wipe();
+    vi.unstubAllEnvs();
+  });
+  beforeEach(() => {
+    vi.stubEnv('DEMO_TODAY', TODAY);
+  });
+
+  it('test_regression__transfer_flagged_loan_payment_counts_once_at_full_rate', async () => {
+    const plan = await getSpendingPlan(uid);
+    expect(plan.fixedBasis).toBe('category-designations');
+    // Non-vacuous: the series must actually be DETECTED (four rows, two of
+    // them transfer-flagged) and riding the unconditional-union mark — the
+    // amount assertions below are also right by accident if detection broke.
+    const mortgage = plan.scheduledFixed.find((s) => s.amountCents === -621707);
+    expect(mortgage).toMatchObject({ cadence: 'MONTHLY', categoryId: 'rent', loanPayment: true });
+    // FAIL-OLD: rollup held the May fragment $6,217.07 ÷ 3 = $2,072.36 and no
+    // series existed → 14_640 + 207_236 = 221_876 (the owner's ~$4,145/mo
+    // under-count). PASS-NEW: the merchant's rows left the rollup entirely and
+    // the series unions at its full monthly rate, counted exactly once.
+    expect(plan.fixedExpensesCents).toBe(14640 + 621707);
+  });
+
+  it('test_regression__reader_priced_category_is_not_double_priced (critic cycle 1 F2)', async () => {
+    // The reader sets an $8,000/mo rent target intending rent+mortgage. The
+    // rollup contributes THEIR number (budget wins over typical), so the
+    // mortgage series must NOT union on top of it.
+    await prisma.budget.create({ data: { userId: uid, categoryId: 'rent', monthCents: 800000 } });
+    try {
+      const plan = await getSpendingPlan(uid);
+      // FAIL-OLD: 14_640 + 800_000 + 621_707 = 1_436_347 — the category priced twice.
+      expect(plan.fixedExpensesCents).toBe(14640 + 800000);
+    } finally {
+      await prisma.budget.deleteMany({ where: { userId: uid } });
+    }
+  });
+});
+
+/**
+ * C.24 critic cycle 1 F1 — THE EXACTNESS INVARIANT, through the real server
+ * path. The rollup exclusion is unconditional but the union re-entry is not:
+ * detection can legitimately refuse (here: an escrow adjustment splits the
+ * amount into three plateaus, `detectSeries` allows two). An excluded merchant
+ * with no series would see the mortgage VANISH from Fixed — worse than the
+ * pre-fix partial coverage. So the basis excludes only merchants whose series
+ * actually unioned; otherwise the unflagged months stay counted.
+ */
+describe('getSpendingPlan — a loan payment detection cannot series keeps its rollup mass (C.24 F1)', () => {
+  const uid = `gfs-c24f1-${Date.now()}-${process.pid}`;
+
+  const wipe = async () => {
+    await prisma.account.deleteMany({ where: { userId: uid } });
+    await prisma.user.deleteMany({ where: { id: uid } });
+  };
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: uid, email: `${uid}@test.local` } });
+    const checking = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'manual',
+        providerRef: `${uid}-chk`,
+        name: 'Everyday Checking',
+        type: 'CHECKING',
+        currentBalanceCents: 800000,
+        currency: 'USD',
+      },
+    });
+    await prisma.user.update({ where: { id: uid }, data: { paymentAccountId: checking.id } });
+    const mortgage = await prisma.account.create({
+      data: {
+        userId: uid,
+        provider: 'plaid',
+        providerRef: `${uid}-mtg`,
+        name: 'Mortgage 1192',
+        type: 'MORTGAGE',
+        currentBalanceCents: 41200000,
+        currency: 'USD',
+      },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: checking.id, date: '2026-03-05', amountCents: -14640, rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN ~ TRAN: ACHD', categoryId: 'life-insurance', confidenceBps: 9000, needsReview: false },
+        { accountId: checking.id, date: '2026-04-05', amountCents: -14640, rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN ~ TRAN: ACHD', categoryId: 'life-insurance', confidenceBps: 9000, needsReview: false },
+        { accountId: checking.id, date: '2026-05-05', amountCents: -14640, rawDescriptor: 'PRINCIPAL-CCAPNL PRIN FINAN ~ TRAN: ACHD', categoryId: 'life-insurance', confidenceBps: 9000, needsReview: false },
+        // The mortgage with TWO escrow adjustments: three amount plateaus, so
+        // detection must refuse a series even though every row is present.
+        { accountId: checking.id, date: '2026-02-03', amountCents: -621707, rawDescriptor: 'TRUIST MORTG OLB MTGPMT', categoryId: 'rent', confidenceBps: 9000, needsReview: false },
+        { accountId: checking.id, date: '2026-03-03', amountCents: -621707, rawDescriptor: 'TRUIST MORTG OLB MTGPMT', categoryId: 'rent', isTransfer: true, confidenceBps: 9000, needsReview: false },
+        { accountId: checking.id, date: '2026-04-03', amountCents: -624300, rawDescriptor: 'TRUIST MORTG OLB MTGPMT', categoryId: 'rent', isTransfer: true, confidenceBps: 9000, needsReview: false },
+        { accountId: checking.id, date: '2026-05-03', amountCents: -631150, rawDescriptor: 'TRUIST MORTG OLB MTGPMT', categoryId: 'rent', confidenceBps: 9000, needsReview: false },
+        { accountId: mortgage.id, date: '2026-03-04', amountCents: 621707, rawDescriptor: 'Payment', categoryId: null, isTransfer: true, confidenceBps: 9000, needsReview: false },
+        { accountId: mortgage.id, date: '2026-04-04', amountCents: 624300, rawDescriptor: 'Payment', categoryId: null, isTransfer: true, confidenceBps: 9000, needsReview: false },
+      ],
+    });
+  });
+  afterAll(async () => {
+    await wipe();
+    vi.unstubAllEnvs();
+  });
+  beforeEach(() => {
+    vi.stubEnv('DEMO_TODAY', TODAY);
+  });
+
+  it('test_regression__excluded_only_when_unioned__detection_failure_keeps_partial_coverage', async () => {
+    const plan = await getSpendingPlan(uid);
+    // Non-vacuous premise: detection really did refuse — no mortgage series.
+    expect(plan.scheduledFixed.find((s) => s.merchantCanonical?.startsWith('Truist'))).toBeUndefined();
+    // The merchant is NOT excluded (its series never unioned), so the one
+    // unflagged in-window month still counts: $6,311.50 ÷ 3 = $2,103.83.
+    // FAIL-OLD (unconditional exclusion): the rollup held only life-insurance
+    // and the union added nothing — Fixed $146.40, the mortgage GONE.
+    expect(plan.fixedExpensesCents).toBe(14640 + Math.round(631150 / 3));
+  });
+});

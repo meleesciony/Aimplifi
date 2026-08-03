@@ -104,6 +104,22 @@ export interface PlanScheduledItem {
    * double-counting rent that is already in the rollup.
    */
   categoryId?: string | null;
+  /**
+   * TRUE marks a structurally-identified loan payment (C.24 — the pair
+   * counterpart sits on a linked LOAN/MORTGAGE account). The category-level
+   * covered-skip cannot express "the rollup covers this category only
+   * PARTIALLY", so these union at their monthly rate unconditionally — their
+   * rows have already left the rollup input entirely, which is what makes
+   * adding them here exact rather than a double count.
+   */
+  loanPayment?: boolean;
+  /**
+   * The series' merchant canonical, when the item came from live detection
+   * (C.24). The server reads it to derive the exactness invariant's set: a
+   * merchant's rows leave the rollup basis ONLY when its series made the
+   * union.
+   */
+  merchantCanonical?: string;
 }
 
 export interface SpendingPlanInput {
@@ -139,6 +155,13 @@ export interface SpendingPlanInput {
    * `isTransfer` never enters the rollup (critic #381 follow-up P0).
    */
   categoryFixedCoveredIds?: ReadonlySet<string>;
+  /**
+   * Categories the reader priced themselves (Budget.monthCents > 0). Only the
+   * C.24 unconditional leg reads it: a loan-payment series whose category the
+   * READER priced is skipped — adding it on top of the reader's own number
+   * would double-price the category (critic cycle 1 F2).
+   */
+  budgetCategoryIds?: ReadonlySet<string>;
   /**
    * Resolves whether a recurring series' category is Fixed. Used for the
    * category-designations union AND the trailing-median union (#384) — both
@@ -472,19 +495,36 @@ export function recurringPlanExpenseCents(items: readonly PlanScheduledItem[]): 
  * only when that category id is in `rollupCategoryIds` (actually in the
  * rollup); otherwise they are kept (auto-loan ACH tagged as transfer).
  * Out-of-dial / null ids are added.
+ *
+ * Structural LOAN PAYMENTS (C.24) union UNCONDITIONALLY: the covered-skip is
+ * category-level and cannot express "the rollup covers this category only
+ * partially" — a mortgage filed `rent` with one of three payments counted
+ * read as "covered" and was starved. The merchant's rows have left the rollup
+ * input entirely (`excludeMerchantCanonicals`), so adding the series' monthly
+ * rate counts the money exactly once, whatever else shares the category. Two
+ * guards still win: the settlement-never set (a loan payment is never card
+ * settlement), and a BUDGET-PRICED category (`budgetCategoryIds`, critic
+ * cycle 1 F2) — there the reader has set the category's whole monthly number
+ * themselves, and adding the series on top would double-price it.
  */
 export function recurringOutsideFixedCategoryCents(
   items: readonly PlanScheduledItem[],
   categoryIsFixed: (categoryId: string) => boolean | null,
   rollupCategoryIds: ReadonlySet<string> = new Set(),
+  budgetCategoryIds?: ReadonlySet<string>,
 ): number {
   let sum = 0;
   for (const s of items) {
     if (s.amountCents >= 0) continue;
     const rate = monthlyRateCents(-s.amountCents, s.cadence);
     const id = s.categoryId;
+    if (typeof id === 'string' && id !== '' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(id)) continue;
+    if (s.loanPayment === true) {
+      if (typeof id === 'string' && id !== '' && budgetCategoryIds?.has(id) === true) continue;
+      sum += rate;
+      continue;
+    }
     if (typeof id === 'string' && id !== '') {
-      if (PLAN_FIXED_NEVER_CATEGORY_IDS.has(id)) continue;
       const fixed = categoryIsFixed(id);
       if (fixed === false) continue;
       if (fixed === true && rollupCategoryIds.has(id)) continue;
@@ -601,6 +641,7 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
           input.scheduledFixed,
           input.categoryIsFixed,
           input.categoryFixedCoveredIds ?? new Set(),
+          input.budgetCategoryIds,
         )
       : 0;
 

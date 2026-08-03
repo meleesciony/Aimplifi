@@ -53,6 +53,8 @@ import {
   type RecurringTxn,
   type SeriesProjectionStatus,
 } from '@/lib/engine/recurring/detect';
+import { loanPaymentMerchantCanonicals } from '@/lib/engine/categorize/transfers';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance';
 import { getCategoryMeta } from '@/server/category-meta';
@@ -81,6 +83,13 @@ export interface SpendingPlanWithNotes extends SpendingPlan {
   /** Stored overrides (null = using suggestion). For the Plan figures form. */
   incomeOverrideCents: number | null;
   fixedOverrideCents: number | null;
+  /**
+   * C.24: merchant canonicals the Fixed rollup excluded because their
+   * detected series unioned at full monthly rate (the exactness invariant —
+   * excluded ⇔ unioned). Surfaces that re-derive the rollup's basis
+   * (/budgets) must apply the same set.
+   */
+  loanPaymentRollupExclusions: string[];
 }
 
 export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithNotes> {
@@ -141,18 +150,33 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     getCategoryMeta(userId),
     getCategoryFixedOverrides(userId),
   ]);
-  const trailingFixedMonths = monthlyNonDiscretionaryCents(
-    snap.transactions,
-    categoryMeta,
-    fixedOverrides,
-  )
-    .filter((f) => f.month < ym)
-    .slice(-3);
-  const trailingMonthlyFixedCents = trailingFixedMonths.map((f) => f.expenseCents);
-  // #384: when the category rollup is empty, the median path still needs a
-  // covered-id set so Fixed grocery spend in those months is not double-counted
-  // when we union uncovered recurring (auto-loan ACH).
-  const trailingFixedMonthKeys = new Set(trailingFixedMonths.map((f) => f.month));
+  // C.24: merchants structurally identified as LOAN PAYMENTS (a transfer-flagged
+  // cash outflow whose ±3-day same-amount pair sits on a linked LOAN/MORTGAGE
+  // account — the owner's $6,217.07 Truist mortgage, invisible to both halves
+  // of the Fixed union while the flag was per-month timing luck). TWO sets
+  // drive the moves below: the broad structural set feeds DETECTION (kept rows,
+  // the auto-loan precedent) and the series marks; the narrow UNIONED set —
+  // derived after detection — feeds the exclusions.
+  //
+  // The snapshot WITHHOLDS loan-account rows (#62 — loan activity isn't
+  // spending), which is exactly where the pair counterpart sits, so the
+  // structural test reads that side through a targeted query instead (POSTED,
+  // USD-only — the same guards the pipeline applies everywhere else; critic
+  // cycle 1 F5). The rows are handed only to `loanPaymentMerchantCanonicals` —
+  // they never join the snapshot, so no flow sum can start counting loan
+  // activity.
+  const loanSideInflows = await prisma.transaction.findMany({
+    where: {
+      account: { userId, type: { in: ['LOAN', 'MORTGAGE'] }, OR: [{ currency: null }, { currency: 'USD' }] },
+      amountCents: { gt: 0 },
+      status: 'POSTED',
+    },
+    select: { accountId: true, date: true, amountCents: true, rawDescriptor: true },
+  });
+  const loanPaymentMerchants = loanPaymentMerchantCanonicals(
+    [...snap.transactions, ...loanSideInflows],
+    new Map(snap.accounts.map((a) => [a.id, a.type])),
+  );
 
   // Income series: still from the stored snapshot (L.11(D) walk + no-history
   // fallback), scoped to the payment-account set. Expense series for the Fixed
@@ -166,7 +190,34 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     userId,
     snap,
     isoDate(today),
+    loanPaymentMerchants,
   );
+  // THE EXACTNESS INVARIANT (critic cycle 1 F1): a merchant's rows leave the
+  // rollup / median basis ONLY when its series actually made the union. The
+  // exclusion is unconditional but the re-entry is not — detection can
+  // legitimately refuse (an escrow adjustment splits the amount plateau, an
+  // irregular gap, a lapsed bill) — and an excluded merchant with no series
+  // would see its mortgage VANISH from Fixed where the pre-fix partial
+  // coverage at least counted the unflagged months. Where the union cannot
+  // take the money, the basis keeps it.
+  const unionedLoanMerchants = new Set(
+    scheduledFixed
+      .filter((s) => s.loanPayment === true && typeof s.merchantCanonical === 'string')
+      .map((s) => s.merchantCanonical!),
+  );
+  const trailingFixedMonths = monthlyNonDiscretionaryCents(
+    snap.transactions,
+    categoryMeta,
+    fixedOverrides,
+    unionedLoanMerchants,
+  )
+    .filter((f) => f.month < ym)
+    .slice(-3);
+  const trailingMonthlyFixedCents = trailingFixedMonths.map((f) => f.expenseCents);
+  // #384: when the category rollup is empty, the median path still needs a
+  // covered-id set so Fixed grocery spend in those months is not double-counted
+  // when we union uncovered recurring (auto-loan ACH).
+  const trailingFixedMonthKeys = new Set(trailingFixedMonths.map((f) => f.month));
   const endOfMonth = `${ym}-${String(daysInMonth(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)))).padStart(2, '0')}`;
 
   // Card obligations DUE THIS CALENDAR MONTH (critic F1: subtracting the
@@ -284,6 +335,10 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
 
   // #377/#380/#381: per-category Fixed amounts (budget else typical). Always-on
   // when the rollup has positive mass; union with out-of-scope recurring.
+  // C.24: UNIONED loan-payment merchants (the exactness invariant above) leave
+  // the rollup ENTIRELY and re-enter Fixed through the union at the series'
+  // monthly rate — both halves read the SAME set, so they cannot disagree
+  // about which merchants moved.
   const categoryFixed = resolveFixedCategoryAmounts({
     transactions: snap.transactions,
     today,
@@ -291,6 +346,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     overrides: fixedOverrides,
     budgetByCategory: new Map(budgetRows.map((b) => [b.categoryId, b.monthCents])),
     nameOf: (id) => categoryName(id, categoryMeta),
+    excludeMerchantCanonicals: unionedLoanMerchants,
   });
   const categoryIsFixed = (categoryId: string) =>
     resolveCategoryIsFixed(categoryId, categoryMeta, fixedOverrides);
@@ -306,6 +362,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
           trailingFixedMonthKeys,
           categoryMeta,
           fixedOverrides,
+          unionedLoanMerchants,
         );
 
   const plan = computeSpendingPlan({
@@ -316,6 +373,11 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     trailingMonthlyFixedCents,
     categoryFixedCents: categoryFixed.totalCents,
     categoryFixedCoveredIds,
+    // C.24 critic F2: a loan-payment series whose category the reader priced
+    // themselves is NOT added on top of the reader's own number.
+    budgetCategoryIds: new Set(
+      budgetRows.filter((b) => b.monthCents > 0).map((b) => b.categoryId),
+    ),
     categoryIsFixed,
     incomeOverrideCents: user?.planIncomeOverrideCents ?? null,
     fixedOverrideCents: user?.planFixedOverrideCents ?? null,
@@ -332,6 +394,11 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     ...plan,
     incomeOverrideCents: user?.planIncomeOverrideCents ?? null,
     fixedOverrideCents: user?.planFixedOverrideCents ?? null,
+    // C.24: the merchants the rollup excluded because their series unioned
+    // (the exactness invariant). /budgets re-derives the same per-category
+    // basis and must apply the SAME exclusion or the two surfaces print
+    // different "typical" figures for the same category.
+    loanPaymentRollupExclusions: [...unionedLoanMerchants],
     disclosures: await buildDisclosures(userId, snap, computed, endOfMonth, {
       // The three facts that separate one $0 card-payments line from another (L.29).
       // Each is about a different way of not owing money this month, and each is
@@ -377,6 +444,7 @@ async function countedExpenseSeriesForPlan(
   userId: string,
   snap: FinanceSnapshot,
   today: ISODate,
+  loanPaymentMerchants: ReadonlySet<string>,
 ): Promise<PlanScheduledItem[]> {
   const spendingIds = new Set(
     snap.accounts
@@ -394,6 +462,11 @@ async function countedExpenseSeriesForPlan(
     amountCents: t.amountCents,
     rawDescriptor: t.rawDescriptor,
     isTransfer: t.isTransfer,
+    // C.24: only flagged rows need the mark (unflagged rows pass detection
+    // anyway) — a structural loan payment is kept like the auto-loan ACH.
+    ...(t.isTransfer
+      ? { loanPayment: loanPaymentMerchants.has(normalizeMerchant(t.rawDescriptor).canonical) }
+      : null),
   }));
   const [overrides, terminalOf] = await Promise.all([
     getRecurringOverrides(userId),
@@ -444,6 +517,14 @@ async function countedExpenseSeriesForPlan(
         amountCents: s.typicalAmountCents,
         cadence: s.cadence,
         categoryId,
+        // C.24: rides into `recurringOutsideFixedCategoryCents`, which unions
+        // a structural loan payment unconditionally — the covered-skip cannot
+        // express a PARTIALLY covered category (rent holding one counted
+        // mortgage month of three). The canonical rides too: the caller
+        // derives the exactness invariant's exclusion set from the series
+        // that actually made the union.
+        loanPayment: loanPaymentMerchants.has(s.merchantCanonical),
+        merchantCanonical: s.merchantCanonical,
       };
     });
 }

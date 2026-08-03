@@ -1,5 +1,7 @@
 /**
  * READ-ONLY production replay — C.0: the owner's mortgage row (gates C.4/C.5).
+ * Post-C.24 (#394) it also measures the fix: the structural loan-payment set,
+ * the rollup with `excludeMerchantCanonicals`, and the unconditional union leg.
  *
  * Every statement is a SELECT. Nothing is written.
  *
@@ -42,6 +44,7 @@ import {
   detectRecurring,
   type RecurringTxn,
 } from '../../src/lib/engine/recurring/detect';
+import { loanPaymentMerchantCanonicals } from '../../src/lib/engine/categorize/transfers';
 import { parseRecurringOverride, type RecurringOverrideInput } from '../../src/lib/engine/recurring/override';
 import { SPENDING_ACCOUNT_TYPES } from '../../src/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '../../src/lib/engine/settings/dials';
@@ -225,28 +228,22 @@ if (seriesRows.length) {
 }
 
 // ------------------------------------------- the REAL plan pipeline, replayed
-// 1) rollup — resolveFixedCategoryAmounts exactly as server/spending-plan.ts:283
-const categoryFixed = resolveFixedCategoryAmounts({
-  transactions: snapTxns,
-  today,
-  meta,
-  overrides: fixedOverrides,
-  budgetByCategory: new Map(budgetRows.map((b) => [b.categoryId, b.monthCents])),
-  nameOf: (id) => categoryName(id, meta),
-});
-head(`FIXED CATEGORY ROLLUP (resolveFixedCategoryAmounts) — total ${money(categoryFixed.totalCents)}`);
+// C.24: the structural loan-payment set, exactly as getSpendingPlan computes it
+// (the probe reads ALL accounts' rows directly, so the loan-side counterpart
+// the snapshot withholds is already here).
+const accountTypeById = new Map(accounts.map((a) => [a.id, a.type]));
+const loanPaymentMerchants = loanPaymentMerchantCanonicals(snapTxns, accountTypeById);
+head(`C.24 STRUCTURAL LOAN-PAYMENT MERCHANTS (${loanPaymentMerchants.size})`);
 console.table(
-  categoryFixed.rows.map((r) => ({
-    categoryId: r.categoryId,
-    name: r.name.slice(0, 24),
-    amount: money(r.amountCents),
-    basis: r.basis,
-    typical: money(r.typicalCents),
-    budget: r.budgetCents == null ? '' : money(r.budgetCents),
+  [...loanPaymentMerchants].map((canon) => ({
+    canonical: canon.slice(0, 44),
+    rows: snapTxns.filter((t) => normalizeMerchant(t.rawDescriptor ?? '').canonical === canon).length,
   })),
 );
 
-// 2) counted expense series — countedExpenseSeriesForPlan reproduced verbatim
+// 1) counted expense series — countedExpenseSeriesForPlan reproduced verbatim
+//    (BEFORE the rollup: the exactness invariant derives the exclusion set
+//    from the series that actually made the union — excluded ⇔ unioned)
 const spendingIds = new Set(
   accounts.filter((a) => (SPENDING_ACCOUNT_TYPES as readonly string[]).includes(a.type)).map((a) => a.id),
 );
@@ -256,6 +253,10 @@ const recSource = snapTxns.filter(
 const recTxns: RecurringTxn[] = recSource.map((t, i) => ({
   id: String(i), accountId: t.accountId, date: t.date,
   amountCents: t.amountCents, rawDescriptor: t.rawDescriptor ?? '', isTransfer: t.isTransfer,
+  // C.24: the same mark countedExpenseSeriesForPlan now sets on flagged rows.
+  ...(t.isTransfer
+    ? { loanPayment: loanPaymentMerchants.has(normalizeMerchant(t.rawDescriptor ?? '').canonical) }
+    : null),
 }));
 const terminalOf = new Map(links.map((l) => [l.predecessorAccountId, l.successorAccountId]));
 const series = detectRecurring(recTxns, isoDate(today), recurringOverrides);
@@ -308,32 +309,79 @@ const scheduledFixed: PlanScheduledItem[] = counted.map((s) => ({
   amountCents: s.typicalAmountCents,
   cadence: s.cadence,
   categoryId: resolveSeriesCategory(s),
+  loanPayment: loanPaymentMerchants.has(s.merchantCanonical),
+  merchantCanonical: s.merchantCanonical,
 }));
+// C.24 exactness invariant (critic F1): only merchants whose series UNIONED
+// leave the rollup / median basis.
+const unionedLoanMerchants = new Set(
+  scheduledFixed
+    .filter((s) => s.loanPayment === true && typeof s.merchantCanonical === 'string')
+    .map((s) => s.merchantCanonical!),
+);
+head(`C.24 UNIONED LOAN-PAYMENT MERCHANTS (${unionedLoanMerchants.size}) — the rollup/median exclusion set`);
+console.log([...unionedLoanMerchants].join(', ') || '(none)');
+
+// 2) rollup — resolveFixedCategoryAmounts exactly as server/spending-plan.ts
+//    (C.24: with the same excludeMerchantCanonicals the server now passes)
+const categoryFixed = resolveFixedCategoryAmounts({
+  transactions: snapTxns,
+  today,
+  meta,
+  overrides: fixedOverrides,
+  budgetByCategory: new Map(budgetRows.map((b) => [b.categoryId, b.monthCents])),
+  nameOf: (id) => categoryName(id, meta),
+  excludeMerchantCanonicals: unionedLoanMerchants,
+});
+head(`FIXED CATEGORY ROLLUP (resolveFixedCategoryAmounts) — total ${money(categoryFixed.totalCents)}`);
+console.table(
+  categoryFixed.rows.map((r) => ({
+    categoryId: r.categoryId,
+    name: r.name.slice(0, 24),
+    amount: money(r.amountCents),
+    basis: r.basis,
+    typical: money(r.typicalCents),
+    budget: r.budgetCents == null ? '' : money(r.budgetCents),
+  })),
+);
+
+// 3) the union half — the REAL recurringOutsideFixedCategoryCents, then a
+//    per-item trace using the same rules, asserted equal to the real total.
 const categoryIsFixed = (id: string) => resolveCategoryIsFixed(id, meta, fixedOverrides);
+const budgetCategoryIds = new Set(
+  budgetRows.filter((b) => b.monthCents > 0).map((b) => b.categoryId),
+);
 const coveredIds =
   categoryFixed.totalCents > 0
     ? new Set(categoryFixed.rows.filter((r) => r.amountCents > 0).map((r) => r.categoryId))
     : fixedSpendCategoryIdsInMonths(
         snapTxns,
         new Set(
-          monthlyNonDiscretionaryCents(snapTxns, meta, fixedOverrides)
+          monthlyNonDiscretionaryCents(snapTxns, meta, fixedOverrides, unionedLoanMerchants)
             .filter((f) => f.month < today.slice(0, 7))
             .slice(-3)
             .map((f) => f.month),
         ),
         meta,
         fixedOverrides,
+        unionedLoanMerchants,
       );
-const realOutside = recurringOutsideFixedCategoryCents(scheduledFixed, categoryIsFixed, coveredIds);
+const realOutside = recurringOutsideFixedCategoryCents(scheduledFixed, categoryIsFixed, coveredIds, budgetCategoryIds);
 
 head(`THE UNION — recurringOutsideFixedCategoryCents = ${money(realOutside)} (added ON TOP of the ${money(categoryFixed.totalCents)} rollup)`);
 let traced = 0;
 const trace = counted.map((s) => {
   const rate = s.typicalAmountCents >= 0 ? 0 : monthlyRateCents(-s.typicalAmountCents, s.cadence);
   const id = resolveSeriesCategory(s);
+  const loan = loanPaymentMerchants.has(s.merchantCanonical);
   let decision: string;
   if (s.typicalAmountCents >= 0) decision = 'skip (not an expense)';
   else if (typeof id === 'string' && id !== '' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(id)) decision = 'skip (never-fixed)';
+  else if (loan && typeof id === 'string' && id !== '' && budgetCategoryIds.has(id)) decision = 'skip (reader-priced category — C.24 F2)';
+  else if (loan) {
+    decision = `ADDED ${money(rate)} — LOAN PAYMENT, unconditional (C.24)`;
+    traced += rate;
+  }
   else if (typeof id === 'string' && id !== '' && categoryIsFixed(id) === false) decision = 'skip (discretionary)';
   else if (typeof id === 'string' && id !== '' && categoryIsFixed(id) === true && coveredIds.has(id)) decision = 'skip (covered by rollup)';
   else {

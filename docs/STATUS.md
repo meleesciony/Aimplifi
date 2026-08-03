@@ -2,6 +2,45 @@
 
 Living document; updated at each phase boundary and critic cycle.
 
+## ✅ BUILT 2026-08-03 — C.24: the transfer-flagged mortgage counts once, at its full rate (DECISIONS #394)
+
+Audit P1-13, measured live in C.0/#393: the owner's $6,217.07 Truist mortgage
+was transfer-flagged only in months the linked MORTGAGE account's inflow
+settled ≤3 days out, so it vanished from both halves of the Fixed union —
+rollup fragment "rent $2,072.36", no series, Fixed ~$4,145/mo under.
+
+The class is now STRUCTURAL (`loanPaymentMerchantCanonicals`: flagged cash
+outflow whose ±3-day same-|amount| pair sits on a linked LOAN/MORTGAGE
+account; per-merchant; aggregate canonicals refused). Detection keeps the
+flagged rows (auto-loan precedent); the rollup/median exclusions read only
+the UNIONED set (the exactness invariant: excluded ⇔ unioned — a merchant
+detection cannot series, e.g. an escrow-adjusted amount, keeps its counted
+rows instead of vanishing); the union adds the series at its monthly rate
+unconditionally except the settlement-NEVER set and reader-priced (budget)
+categories. Loan-side rows come from a targeted POSTED/USD query — the
+snapshot keeps withholding loan activity (#62). /budgets reads the plan's
+exclusion set, so the two surfaces print one basis.
+
+Production replay (`scripts/audit-probes/mortgage-replay.mts`, read-only):
+structural set = exactly {Truist Mortg Olb Mtgpmt}; rollup $9,785.24 →
+$7,712.88 (the fragment gone); union +$6,217.07; **suggested Fixed
+$9,785.24 → $13,929.95**; per-item trace matches the real function.
+
+Gate: `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0, **5731
+unit / 350 files** (21 pure + 3 real-server locks new), next build clean.
+Targeted e2e `spending-plan.spec.ts` + `budgets-basis.spec.ts` **2/2** (demo
+figures unchanged — the seed's loan account has no transactions, so the
+structural set is empty on the golden dataset). Critic cycle 1 FAIL (4 P1 — F1
+vanish-on-detection-failure, F2 budget double-price, F3 aggregate strip, F5
+query guards), all fixed and locked; cycle 2 self-critic PASS (the
+fresh-context subagent died on an account quota 403 — recorded, not hidden).
+
+**Residuals → TASKS C.25:** the radar, the stored-series refresh (and with it
+/calendar, cash-needed, the L.30 census) still cannot see the bill the plan
+now reserves, and the unflagged mortgage months still feed discretionary
+burn; the month totals still see a lumpy mortgage (July counts in flows,
+May/June don't — same root flag, out of this slice's Fixed scope).
+
 ## ✅ BUILT 2026-08-02 — C.3: Dashboard Trends card names divisor, assumption, mover window (DECISIONS #387)
 
 Wave C P1-2 / P1-3 / P1-5. The dashboard card now prints "in the first N days",

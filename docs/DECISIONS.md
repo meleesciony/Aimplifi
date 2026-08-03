@@ -3066,3 +3066,61 @@ guess` drops the $385 CarMax obligation). `spend-class.spec.ts` asserts the
 rendered clause. Hostile critic: two parallel fresh-context read-only critics
 (money-math + claims lenses), cycle 1 both FAIL — 3 P0 + 4 P1 money, 3 P1
 copy — all fixed above; cycle 2 verdicts recorded in PROGRESS #393.
+
+## #394 — A transfer-flagged loan payment is one STRUCTURAL class, excluded from the rollup exactly when the union takes it (C.24)
+
+Measured live in C.0/#393 and confirmed by the owner ("Mortgage is the 6200 and
+change figure"): his $6,217.07 Truist mortgage paired against the linked Plaid
+MORTGAGE account's inflow only in months settlement landed ≤3 days out, so the
+flag was per-month timing luck — flagged months left every flow sum (the
+rollup printed "rent $2,072.36", one counted payment ÷ 3), detection saw only
+the unflagged rows 91 days apart (no series), and the union's category-level
+covered-skip read the fragment as "rent is covered". Fixed ran ~$4,145/mo
+under. Production replay after the fix: structural set = exactly
+{Truist Mortg Olb Mtgpmt}; rollup $9,785.24 → $7,712.88 (the fragment gone);
+the union adds $6,217.07; suggested Fixed $9,785.24 → **$13,929.95**.
+
+**DECIDED:**
+
+1. **The class is identified STRUCTURALLY, never by descriptor vocabulary** —
+   `loanPaymentMerchantCanonicals` (transfers.ts): a transfer-FLAGGED outflow
+   on a CHECKING/SAVINGS account whose same-|amount| ±3-day counterpart (the
+   pair detector's own rule) sits on a linked LOAN/MORTGAGE account. The
+   problem only exists when such a liability is linked, which is exactly when
+   the pair is identifiable. The class is PER MERCHANT: a payee whose outflows
+   pair in SOME months is one payee, not two classes of row. Aggregate
+   canonicals ('Check', 'Zelle Payment', …) are REFUSED (critic cycle 1 F3 —
+   one coincidental pair must not strip every payee sharing one name).
+
+2. **Two sets, one invariant: excluded ⇔ unioned.** The broad structural set
+   feeds detection (flagged rows kept, the auto-loan precedent) and the series
+   marks; the NARROW set — canonicals whose series actually made the union —
+   feeds the rollup / trailing-median / covered-id exclusions. Cycle 1 F1
+   caught why: the exclusion is unconditional but detection can legitimately
+   refuse (an escrow adjustment splits the amount plateau, an irregular gap),
+   and an excluded merchant with no series would see the bill VANISH from
+   Fixed where the pre-fix partial coverage at least counted the unflagged
+   months. Where the union cannot take the money, the basis keeps it.
+
+3. **The union adds a loan-payment series at its monthly rate
+   UNCONDITIONALLY**, with exactly two guards: the settlement-NEVER set (a
+   loan payment is never card settlement), and a READER-PRICED category
+   (cycle 1 F2 — a budget target is the reader's own number for the whole
+   category; adding the series on top would double-price it). The
+   covered-skip cannot express "the rollup covers this category only
+   PARTIALLY", so it does not apply to this class.
+
+4. **The loan-side rows come from a targeted query, never the snapshot.** The
+   snapshot withholds loan-account rows by design (#62 — loan activity isn't
+   spending); the query (POSTED, positive, USD-only, LOAN/MORTGAGE accounts —
+   cycle 1 F5) feeds only the structural test, so no flow sum can start
+   counting loan activity.
+
+**Named residuals (filed, not waived):** the radar's committed-merchant
+detection, the stored-series refresh (and with it /calendar, cash-needed, and
+the L.30 census) do not get the keep — the plan counts the mortgage while
+those surfaces stay blind, and the unflagged months still feed discretionary
+burn (TASKS C.25); the month TOTALS still see a lumpy mortgage (July counts
+in flows, May/June don't — the same root flag, out of this slice's Fixed
+scope). /budgets shows this-month rent spend including unflagged mortgage
+months beside a Plan amount that excludes them (display-only, critic F6).

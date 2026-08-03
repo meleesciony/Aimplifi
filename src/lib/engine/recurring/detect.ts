@@ -26,6 +26,13 @@ export interface RecurringTxn {
   amountCents: number; // signed
   rawDescriptor: string;
   isTransfer?: boolean;
+  /**
+   * TRUE marks a structurally-identified loan payment (C.24 —
+   * `loanPaymentMerchantCanonicals`: the pair counterpart sits on a linked
+   * LOAN/MORTGAGE account). The same class of recurring obligation as the
+   * auto-loan ACH below: kept despite the transfer flag.
+   */
+  loanPayment?: boolean;
 }
 
 export type Cadence =
@@ -376,8 +383,10 @@ export function detectRecurring(
   for (const t of transactions) {
     const m = normalizeMerchant(t.rawDescriptor);
     // Own-account transfers (incl. card payments) are not subscriptions;
-    // the auto-loan ACH is a recurring OBLIGATION and is kept.
-    if (t.isTransfer && m.categoryId !== 'auto-loan') continue;
+    // the auto-loan ACH is a recurring OBLIGATION and is kept — and so is a
+    // structurally-identified loan payment (C.24: the pair counterpart sits
+    // on a linked LOAN/MORTGAGE account), which is the same class.
+    if (t.isTransfer && m.categoryId !== 'auto-loan' && t.loanPayment !== true) continue;
     const entry = byMerchant.get(m.canonical) ?? { txns: [], categoryId: m.categoryId };
     entry.txns.push(t);
     byMerchant.set(m.canonical, entry);

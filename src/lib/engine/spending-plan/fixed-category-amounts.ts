@@ -89,11 +89,23 @@ function lastCompleteMonthKeys(today: ISODate, n: number): string[] {
  * whose FIRST charge lands mid-window is over-reserved until history
  * accumulates — Fixed too big makes guilt-free too small, the safe direction —
  * and it self-corrects as months pass.
+ *
+ * `excludeMerchantCanonicals` (C.24): LOAN-PAYMENT merchants whose series
+ * made the Fixed union leave the rollup ENTIRELY — every row, including the
+ * months the transfer flag's timing luck left counted. The server derives the
+ * set from the union itself (the exactness invariant: excluded ⇔ unioned),
+ * so an excluded merchant always re-enters at its series' monthly rate and a
+ * merchant detection could not series keeps its previously-counted rows. A
+ * partial stay is the trap the exclusion exists to kill: one counted
+ * $6,217.07 mortgage month ÷ a 3-month divisor printed "rent $2,072.36"
+ * while the union's category-level covered-skip read that fragment as "rent
+ * is covered" and starved the series.
  */
 export function averageMonthlySpendByCategory(
   transactions: readonly TxnLike[],
   today: ISODate,
   windowMonths: number = FIXED_TYPICAL_WINDOW_MONTHS,
+  excludeMerchantCanonicals?: ReadonlySet<string>,
 ): Map<string, CategoryTypicalSpend> {
   const monthKeys = lastCompleteMonthKeys(today, windowMonths);
   const months = monthKeys.length;
@@ -110,6 +122,15 @@ export function averageMonthlySpendByCategory(
     if (!countsInFlows(t)) continue;
     const id = t.categoryId;
     if (!id || id === 'uncategorized') continue;
+    // C.24: a structural loan payment's rows leave the rollup entirely — see
+    // the docblock. Checked before the first-outflow clock so the merchant
+    // cannot start a category's observation either.
+    if (
+      excludeMerchantCanonicals !== undefined &&
+      excludeMerchantCanonicals.has(normalizeMerchant(t.rawDescriptor).canonical)
+    ) {
+      continue;
+    }
     const m = monthKey(t.date);
     if (t.amountCents < 0 && m <= lastWindowMonth) {
       const cur = firstOutflowMonth.get(id);
@@ -286,12 +307,19 @@ export function resolveFixedCategoryAmounts(input: {
   budgetByCategory: ReadonlyMap<string, number>;
   nameOf: (id: string) => string;
   windowMonths?: number;
+  /**
+   * C.24: structural loan-payment merchants whose rows leave the typical
+   * basis entirely (see `averageMonthlySpendByCategory`). A budget target on
+   * the category still wins — that is the reader's own number.
+   */
+  excludeMerchantCanonicals?: ReadonlySet<string>;
 }): FixedCategoryAmountsResult {
   const windowMonths = input.windowMonths ?? FIXED_TYPICAL_WINDOW_MONTHS;
   const typicalByCat = averageMonthlySpendByCategory(
     input.transactions,
     input.today,
     windowMonths,
+    input.excludeMerchantCanonicals,
   );
 
   const ids = new Set<string>([

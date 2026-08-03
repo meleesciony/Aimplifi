@@ -6,6 +6,7 @@
  * two of the user's own accounts within ±3 days.
  */
 import { daysBetween, isoDate } from '@/lib/dates';
+import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
 import { normalizeMerchant } from './normalize';
 
 /** The confidence a descriptor-recognized transfer verdict carries (pipeline.ts). */
@@ -132,4 +133,77 @@ export function incomeExcludingTransfers(
     if (t.amountCents > 0 && !transferIds.has(t.id) && !t.isSplitParent) total += t.amountCents;
   }
   return total;
+}
+
+/** Account types a loan payment's pair counterpart can sit on (Plaid maps
+ *  loan+mortgage → 'MORTGAGE', other loans → 'LOAN'; plaid-map.ts). */
+export const LOAN_ACCOUNT_TYPES: ReadonlySet<string> = new Set(['LOAN', 'MORTGAGE']);
+
+export interface LoanPairTxn {
+  accountId: string;
+  date: string;
+  amountCents: number;
+  rawDescriptor: string;
+  isTransfer?: boolean;
+}
+
+/**
+ * The merchant canonicals that are LOAN PAYMENTS in disguise (C.24, measured
+ * live in C.0/#393): a transfer-flagged OUTFLOW on a cash (payment) account
+ * whose pair counterpart — same |amount|, opposite sign, ±3 days, the same
+ * rule `detectTransfers` applies — sits on a linked LOAN/MORTGAGE account.
+ *
+ * Identified STRUCTURALLY, never by descriptor vocabulary: the problem only
+ * exists when such a liability is linked, which is exactly when the pair is
+ * identifiable (the owner's $6,217.07 Truist mortgage paired against the
+ * Plaid MORTGAGE account's `Payment` inflow in the months settlement landed
+ * within the window). The class is PER MERCHANT, not per row — a payee whose
+ * outflows pair in SOME months is one payee, not two classes of row — so one
+ * paired month classifies every month, which is what lets the Fixed union
+ * stop being timing luck (a 4-day settlement or a missing counterpart row
+ * left that month's payment looking like ordinary rent spend).
+ *
+ * Consumers: recurring detection keeps the merchant's flagged rows (the
+ * auto-loan precedent); the Fixed rollup then drops ALL of the merchant's
+ * rows — but only once its series actually made the union (the server's
+ * exactness invariant: excluded ⇔ unioned), which is what kills the
+ * partial-coverage trap — one counted month ÷ a 3-month divisor printed
+ * "rent $2,072.36" — without ever dropping a bill detection could not
+ * series. The union adds the series at its monthly rate unconditionally.
+ */
+export function loanPaymentMerchantCanonicals(
+  transactions: readonly LoanPairTxn[],
+  accountTypeById: ReadonlyMap<string, string>,
+): Set<string> {
+  const loanInflowsByAmount = new Map<number, LoanPairTxn[]>();
+  for (const t of transactions) {
+    if (t.amountCents <= 0) continue;
+    if (!LOAN_ACCOUNT_TYPES.has(accountTypeById.get(t.accountId) ?? '')) continue;
+    const list = loanInflowsByAmount.get(t.amountCents) ?? [];
+    list.push(t);
+    loanInflowsByAmount.set(t.amountCents, list);
+  }
+  const out = new Set<string>();
+  for (const t of transactions) {
+    if (t.amountCents >= 0 || t.isTransfer !== true) continue;
+    if (!(PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(accountTypeById.get(t.accountId) ?? '')) {
+      continue;
+    }
+    const m = normalizeMerchant(t.rawDescriptor);
+    // An aggregate canonical ('Check', 'Zelle Payment', …) is ONE NAME OVER
+    // MANY PAYEES, not one merchant (the C.4 doctrine) — classifying it would
+    // strip every unrelated payee sharing the name from the rollup with no
+    // single series to re-enter their money (critic cycle 1, F3).
+    if (m.aggregate) continue;
+    const candidates = loanInflowsByAmount.get(-t.amountCents);
+    if (candidates === undefined) continue;
+    for (const b of candidates) {
+      if (b.accountId === t.accountId) continue;
+      if (Math.abs(daysBetween(isoDate(t.date), isoDate(b.date))) <= 3) {
+        out.add(m.canonical);
+        break;
+      }
+    }
+  }
+  return out;
 }

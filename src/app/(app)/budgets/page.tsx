@@ -211,6 +211,9 @@ export default async function BudgetsPage() {
 
   // #377: per-category Plan amounts (budget else typical) for Fixed rows —
   // same pure helper getSpendingPlan uses for the category-designations basis.
+  // C.24: with the SAME exclusion the plan applied (excluded ⇔ unioned — the
+  // exactness invariant the plan owns), or this page would print the partial
+  // "rent" fragment the plan no longer counts.
   const snap = await provider.getFinanceSnapshot(userId);
   const categoryFixedFull = resolveFixedCategoryAmounts({
     transactions: snap.transactions,
@@ -219,6 +222,7 @@ export default async function BudgetsPage() {
     overrides: fixedOverrides,
     budgetByCategory,
     nameOf: (id) => categoryName(id, meta),
+    excludeMerchantCanonicals: new Set(plan.loanPaymentRollupExclusions),
   });
   const planAmountByCat = new Map(
     categoryFixedFull.rows.map((r) => [r.categoryId, r] as const),

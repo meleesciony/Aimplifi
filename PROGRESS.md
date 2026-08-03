@@ -1,5 +1,55 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-03 — #394 — C.24: the transfer-flagged mortgage counts once, at its full monthly rate
+
+Session opened on `continue` with `main` clean at `52cf346` (the C.24 fix
+direction recorded, owner-confirmed). Built it.
+
+### Done
+
+`loanPaymentMerchantCanonicals` (transfers.ts) — the class is STRUCTURAL: a
+transfer-flagged cash outflow whose ±3-day same-|amount| pair sits on a linked
+LOAN/MORTGAGE account; per-merchant; aggregate canonicals refused. Detection
+keeps the flagged rows (`RecurringTxn.loanPayment`, the auto-loan precedent).
+Rollup + trailing median + covered-ids exclude only the UNIONED set (the
+exactness invariant — excluded ⇔ unioned). The union adds the series at its
+monthly rate unconditionally except the NEVER set and reader-priced (budget)
+categories. Loan-side rows via a targeted POSTED/USD prisma query (the
+snapshot withholds loan accounts, #62). /budgets reads
+`plan.loanPaymentRollupExclusions` — one basis on both surfaces.
+
+### Gate
+
+`bash scripts/verify.sh` → **VERIFY GREEN**: tsc 0, eslint 0, **5731 unit /
+350 files**, next build clean. Targeted e2e spending-plan + budgets-basis
+**2/2** (demo unchanged — the seed's loan account has no transactions).
+Production replay (`mortgage-replay.mts`, read-only): structural set =
+exactly {Truist Mortg Olb Mtgpmt}; rollup $9,785.24 → $7,712.88; union
++$6,217.07; **Fixed $9,785.24 → $13,929.95**; trace MATCH.
+
+### Critic
+
+Cycle 1 (fresh-context subagent) FAIL — 4 P1: F1 exclusion unconditional
+while re-entry depends on detection (escrow adjustment → the bill VANISHES);
+F2 budget-priced category double-priced by the unconditional leg; F3 one
+coincidental pair strips an aggregate canonical's every payee; F5 loan-side
+query unguarded (pending, non-USD). All four fixed and locked (21 pure + 3
+real-server tests, controls pin the fail-old shapes; the integration lock was
+mutation-proven live — a mid-fix run printed exactly the fail-old 221,876).
+Cycle 2 self-critic PASS — the fresh-context subagent died on an account
+quota 403, recorded here rather than dressed up as an independent pass.
+
+### Not this slice
+
+TASKS C.25 (radar / stored-series refresh / calendar / census stay blind to
+the bill the plan now reserves; unflagged months still feed discretionary
+burn; month totals still lumpy). C.22, C.23, C.19 unchanged.
+
+### Deploy
+
+NOT deployed — local verify green, ledgers written, awaiting the owner's
+go-ahead for commit/push (git mutations need per-session confirmation).
+
 ## 2026-08-02 — #387 — C.3 dashboard Trends card names divisor / assumption / mover window
 
 Session opened on `continue` with `main` clean and level with `origin/main`.

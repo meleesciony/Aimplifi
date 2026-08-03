@@ -13,6 +13,7 @@
  */
 import { type TxnLike } from '@/lib/engine/fi/insights';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { monthKey } from '@/lib/dates';
 import {
   classifySpendClass,
@@ -34,15 +35,27 @@ export interface MonthlyFixedCents {
   expenseCents: number;
 }
 
-/** Per-month non-discretionary outflows for the guilt-free trailing median. */
+/** Per-month non-discretionary outflows for the guilt-free trailing median.
+ *  `excludeMerchantCanonicals` (C.24): loan-payment merchants whose series
+ *  made the Fixed union leave the median's basis too (the same exactness
+ *  invariant the rollup applies) — the union adds their series at its monthly
+ *  rate, so an unflagged month's payment still in the median would
+ *  double-count it. */
 export function monthlyNonDiscretionaryCents(
   transactions: readonly TxnLike[],
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
   overrides: ReadonlyMap<string, boolean> = new Map(),
+  excludeMerchantCanonicals?: ReadonlySet<string>,
 ): MonthlyFixedCents[] {
   const byMonth = new Map<string, number>();
   for (const t of transactions) {
     if (!isGuiltFreeFixedSpendRow(t, meta, overrides)) continue;
+    if (
+      excludeMerchantCanonicals !== undefined &&
+      excludeMerchantCanonicals.has(normalizeMerchant(t.rawDescriptor).canonical)
+    ) {
+      continue;
+    }
     const m = monthKey(t.date);
     byMonth.set(m, (byMonth.get(m) ?? 0) + -t.amountCents);
   }
@@ -56,18 +69,27 @@ export function monthlyNonDiscretionaryCents(
  * the covered set for the trailing-median Fixed union (#384). Transfer
  * auto-loan ACH never appears here (`classifySpendClass` → out-of-scope), so
  * it still unions in via `recurringOutsideFixedCategoryCents`.
+ * `excludeMerchantCanonicals` (C.24): same basis as the median above — a
+ * structural loan payment must not make its category "covered" here either.
  */
 export function fixedSpendCategoryIdsInMonths(
   transactions: readonly TxnLike[],
   months: ReadonlySet<string>,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
   overrides: ReadonlyMap<string, boolean> = new Map(),
+  excludeMerchantCanonicals?: ReadonlySet<string>,
 ): Set<string> {
   const ids = new Set<string>();
   if (months.size === 0) return ids;
   for (const t of transactions) {
     if (!isGuiltFreeFixedSpendRow(t, meta, overrides)) continue;
     if (!months.has(monthKey(t.date))) continue;
+    if (
+      excludeMerchantCanonicals !== undefined &&
+      excludeMerchantCanonicals.has(normalizeMerchant(t.rawDescriptor).canonical)
+    ) {
+      continue;
+    }
     const id = t.categoryId;
     if (id) ids.add(id);
   }
