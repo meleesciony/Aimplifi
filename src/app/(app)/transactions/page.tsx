@@ -190,6 +190,7 @@ export default async function TransactionsPage({
         pageInfo={pageInfo}
         categoryGroups={categoryGroups}
         hasFilters={hasFilters}
+        canEditSpendClass={!isDemoUser(session.user.id)}
       />
 
       {shared.kind === 'member' && (

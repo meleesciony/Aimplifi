@@ -3159,3 +3159,51 @@ labeling categories forever.
    recurring union, and covered-id exactness invariant (#381/#384/C.24) read
    the same classifier, now without the override argument. `hasReaderInput`
    keys off budget targets alone.
+
+## #396 — The Fixed/Discretionary dial is restored in transactions; the #395 removal was never the owner's directive
+
+Owner correction, 2026-08-03 (hours after #395 shipped): he never gave the
+"none of this should be typed in" directive #395 records. He wants the dial
+back, directly in transactions. This RESTORES the manual half of #376/#378
+that #395 removed — narrowed to the transactions surfaces — and keeps #395's
+deterministic classifier as the default underneath.
+
+**DECIDED:**
+
+1. **The dial lives on the register row and the transaction detail page** —
+   `SpendClassSelect` (Fixed / Discretionary) writes the restored per-user
+   `CategoryFixedOverride` table through `setCategoryFixed` (demo-fenced,
+   ownership-asserted, audit-logged, revalidating as before). The choice
+   applies to the whole CATEGORY, so the register, the detail page, and Plan
+   math can never disagree — a per-transaction flag silently would.
+
+2. **The deterministic taxonomy classifier stays the default suggestion** —
+   `suggestedCategoryIsFixed` is the source of truth until the reader
+   disagrees. A dial choice that matches the suggestion DELETES the override
+   row, so the override set holds only genuine disagreements and the #395 goal
+   (deterministic, nothing typed in) remains true for every category the
+   reader has never touched.
+
+3. **Plan math honours the override again** — `classifySpendClass` /
+   `resolveCategoryIsFixed` / `monthlyNonDiscretionaryCents` /
+   `fixedSpendCategoryIdsInMonths` / `resolveFixedCategoryAmounts` take the
+   override map (default empty, so pure-engine callers are byte-identical);
+   `getSpendingPlan`, the register list, the detail view, and the /budgets
+   rollup all thread the reader's rows.
+
+4. **Owner follow-up, same day: the rest of #395 is reversed too** — the /budgets Mark buttons, the "you set
+   this" markers, and the Discretionary checkbox on the three custom-category
+   create forms are all restored: the /budgets panel again carries Mark fixed
+   / Mark guilt-free with "you set this" markers (demo-fenced,
+   `spend-class-demo-note`), and the settings manager, register write-in and
+   triage write-in forms again pass `discretionary` to `createCustomCategory`.
+   The out-of-scope register label is renamed "Neither" → "Not counted" (the
+   owner asked what "Neither" meant).
+
+**Locks.** `tests/unit/category-fixed-actions.test.ts` +
+`test_regression__user_override_moves_dining_into_fixed_median` +
+`test_regression__custom_nondiscretionary_category_counts_as_fixed` +
+`summarizeSpendClassCategories` override cases (a $0 overridden category stays
+visible so it can be undone) in `tests/unit/spend-class.test.ts` + e2e
+`spend-class.spec.ts` (demo note visible, move buttons fenced off the demo)
+and `txn-spend-class.spec.ts` (demo rows show the label, never a select).

@@ -29,6 +29,7 @@ test('budgets shows Fixed vs guilt-free sections from category suggestions', asy
   await expect(page.getByTestId('spend-class-panel')).toBeVisible();
   await expect(page.getByTestId('spend-class-fixed')).toBeVisible();
   await expect(page.getByTestId('spend-class-guilt-free')).toBeVisible();
+  await expect(page.getByTestId('spend-class-demo-note')).toBeVisible();
 
   // Demo June seed: groceries/fuel are fixed; shopping/entertainment/fitness are guilt-free.
   await expect(page.getByTestId('spend-class-row-groceries')).toHaveAttribute('data-fixed', 'true');
@@ -37,8 +38,7 @@ test('budgets shows Fixed vs guilt-free sections from category suggestions', asy
     'data-fixed',
     'false',
   );
-  // 2026-08-03: classes are computed from the taxonomy — there is no
-  // designation control for ANY account, demo or otherwise.
+  // Shared demo cannot mutate designations — the dial is fenced off the demo (#396).
   await expect(page.getByTestId('spend-class-move-groceries')).toHaveCount(0);
 
   // C.5/#393 (audit P1-8): the Plan amount states its method AND window — a

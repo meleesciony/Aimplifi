@@ -187,6 +187,7 @@ describe('system rename lifecycle (real actions, throwaway data)', () => {
     const custom = await createCustomCategory({
       name: `Sailing ${stamp}`,
       group: 'Entertainment',
+      discretionary: true,
     });
     expect(custom.ok).toBe(true);
     expect(
@@ -338,12 +339,13 @@ describe('system rename lifecycle (real actions, throwaway data)', () => {
     await renameSystemCategory({ categoryId: 'groceries', name: 'Food shop' });
     // The name now on screen is spoken for...
     expect(
-      await createCustomCategory({ name: 'Food shop', group: 'Shopping' }),
+      await createCustomCategory({ name: 'Food shop', group: 'Shopping', discretionary: true }),
     ).toMatchObject({ ok: false });
     // ...and the built-in's ORIGINAL name is free, because nothing shows it now.
     const freed = await createCustomCategory({
       name: 'Groceries',
       group: 'Shopping',
+      discretionary: true,
     });
     expect(freed.ok).toBe(true);
     const labels = (await getVisibleCategories(USER)).map((c) => c.name.toLowerCase());
@@ -399,7 +401,7 @@ describe('system rename lifecycle (real actions, throwaway data)', () => {
     expect(await prisma.categoryRename.count({ where: { userId: DEMO_USER_ID } })).toBe(0);
     // A custom category is the same leak by another door, fenced in the same slice.
     expect(
-      await createCustomCategory({ name: 'Whatever', group: 'Shopping' }),
+      await createCustomCategory({ name: 'Whatever', group: 'Shopping', discretionary: true }),
     ).toMatchObject({ ok: false, error: DEMO_ENTRY_BLOCKED });
     // Reset carries no words of the visitor's, so it stays allowed.
     expect(await resetSystemCategoryName({ categoryId: 'doctor' })).toMatchObject({ ok: true });

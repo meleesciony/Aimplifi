@@ -74,6 +74,7 @@ model User {
   hiddenCategories    HiddenCategory[]
   categoryRenames     CategoryRename[]
   customCategories    Category[]
+  categoryFixedOverrides CategoryFixedOverride[]
   pushSubscriptions   PushSubscription[]
   notificationsSent   NotificationSent[]
   valueReceipts       ValueReceipt[]
@@ -148,6 +149,26 @@ model CategoryRename {
   categoryId String
   name       String
   updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId])
+  @@index([userId])
+}
+
+// Per-user Fixed vs guilt-free designation for a spending category (Wave B.1 /
+// DECISIONS #376; restored 2026-08-03 by DECISIONS #396 after the owner
+// corrected the #395 directive he never gave). System Category.discretionary
+// is GLOBAL and cannot carry a reader choice; this overlay is the override.
+// Absence = app suggestion (`!discretionary` for expense categories). Applied
+// in ONE place — the pure spend-class / fixed-pattern engines — so Plan
+// guilt-free and the register agree.
+model CategoryFixedOverride {
+  id         String  @id @default(cuid())
+  userId     String
+  categoryId String
+  /** true = fixed (non-discretionary); false = guilt-free (discretionary). */
+  isFixed    Boolean
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

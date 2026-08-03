@@ -1,8 +1,10 @@
 /**
  * Fixed / Discretionary label on a register row (DECISIONS #378).
- * Display-only since 2026-08-03 (owner directive): the class is computed from
- * the row's filed category — deterministic, never typed in. The reader changes
- * it by refiling the transaction, not by labeling the row.
+ * The display-only rendering of the row's class — used wherever the dial may
+ * not write (out-of-scope rows, uncategorized rows, the shared demo). Editable
+ * rows get SpendClassSelect instead (DECISIONS #396); the badge and the select
+ * share the same testid / data attributes so a surface can assert the class
+ * without caring which control rendered it.
  */
 import {
   spendClassLabel,

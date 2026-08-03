@@ -1,5 +1,39 @@
 # PROGRESS.md — session resume log
 
+## 2026-08-03 — #396 — Fixed/Discretionary dial restored in transactions (#395 reversed — the directive was never given)
+
+Owner correction, same day: he never gave the #395 "never typed in" directive
+and wants the dial back, directly in transactions. Restored the pre-#395
+implementation from `ad23e40^`: the `CategoryFixedOverride` table (db push —
+additive, no data loss; the rows #395 deleted are gone, so the dial starts
+fresh), `setCategoryFixed` + `getCategoryFixedOverrides` (demo fence,
+ownership assertion, audit log, revalidates intact), the override params back
+on `classifySpendClass` / `resolveCategoryIsFixed` /
+`monthlyNonDiscretionaryCents` / `fixedSpendCategoryIdsInMonths` /
+`resolveFixedCategoryAmounts` (default empty — pure-engine callers unchanged),
+threading in getSpendingPlan, the register list, the detail view, and the
+/budgets rollup, and `SpendClassSelect` on the register row + the detail
+"For your Plan" section (demo-fenced via `canEditSpendClass`). The
+out-of-scope label is renamed "Neither" → "Not counted". Owner follow-up
+the same day reversed the rest of #395 too: the /budgets Mark fixed /
+Mark guilt-free buttons + "you set this" markers are back (demo-fenced),
+and the Discretionary checkbox returned to all three custom-category
+create forms (settings manager, register write-in, triage write-in).
+`summarizeSpendClassCategories` takes the override map again (a $0
+overridden category stays visible so it can be undone). The
+deterministic classifier remains the default — a dial choice matching
+the suggestion deletes the override row.
+
+### Gate
+
+`bash scripts/verify.sh` → **VERIFY GREEN** after the widened restore (tsc
+clean, eslint clean, `next build` clean); full suite re-run standalone —
+**5733 unit tests / 350 files** (the +1 is the restored $0-override
+visibility case). Playwright `txn-spend-class.spec.ts` +
+`spend-class.spec.ts` — **2/2** (register rows carry the class with the
+demo fence intact; /budgets shows the demo note, move buttons fenced off
+the demo).
+
 ## 2026-08-03 — #395 — Spend class is deterministic and algorithmic, never typed in
 
 Owner directive mid-session: "none of this should be typed in — make it all

@@ -46,6 +46,7 @@ export function CustomCategoryManager({
   const items = categories; // server truth; every success path reloads
   const [name, setName] = useState('');
   const [group, setGroup] = useState(groups[0] ?? '');
+  const [discretionary, setDiscretionary] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -83,7 +84,7 @@ export function CustomCategoryManager({
     const trimmed = name.trim();
     if (!trimmed) return;
     runMutation(
-      () => createCustomCategory({ name: trimmed, group }),
+      () => createCustomCategory({ name: trimmed, group, discretionary }),
       'Could not create that category.',
     );
   }
@@ -146,6 +147,15 @@ export function CustomCategoryManager({
               </option>
             ))}
           </select>
+        </label>
+        <label className="flex items-center gap-1.5 pb-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={discretionary}
+            onChange={(e) => setDiscretionary(e.target.checked)}
+            data-testid="custom-category-discretionary"
+          />
+          Discretionary
         </label>
         <Button
           type="button"

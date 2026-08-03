@@ -10,7 +10,7 @@ async function signIn(page: Page) {
   await page.waitForURL('**/dashboard');
 }
 
-test('every register row shows a Fixed or Discretionary (or Neither) class', async ({ page }) => {
+test('every register row shows a Fixed or Discretionary (or Not counted) class', async ({ page }) => {
   await signIn(page);
   await clickMoreNav(page, 'nav-transactions');
   await page.waitForURL('**/transactions**');
@@ -40,7 +40,6 @@ test('every register row shows a Fixed or Discretionary (or Neither) class', asy
     'data-spend-class',
     'guilt-free',
   );
-  // Display-only (2026-08-03): the class is computed from the category — no
-  // account gets a designation select.
+  // Shared demo: label only (no select) — the dial is fenced off the demo (#396).
   await expect(groceries.locator('select[data-testid="txn-spend-class"]')).toHaveCount(0);
 });

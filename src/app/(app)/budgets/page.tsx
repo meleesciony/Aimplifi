@@ -14,6 +14,7 @@ import { prisma } from '@/lib/db';
 import { BudgetTargetForm } from '@/components/finance/budget-target-form';
 import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
 import { getCategoryOverlay } from '@/server/category-meta';
+import { getCategoryFixedOverrides } from '@/server/category-fixed';
 import { getHiddenCategoryIds, getLinkableCategoryIds } from '@/server/categories';
 import {
   CATEGORY_LINK_CLASS,
@@ -57,7 +58,7 @@ export default async function BudgetsPage() {
   // target can't be set before any account exists).
   if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
-  const [txns, budgets, user, plan, overlay, hiddenCategoryIds, linkableCategoryIds] =
+  const [txns, budgets, user, plan, overlay, hiddenCategoryIds, linkableCategoryIds, fixedOverrides] =
     await Promise.all([
     // All non-transfer, non-split activity this month (BOTH signs) so the engine
     // can net refunds against spend — outflow-only would overstate it.
@@ -121,6 +122,7 @@ export default async function BudgetsPage() {
     // O.6: the register's own option list — the fence that decides which rows may
     // become links. Same call /reports and /transactions make.
     getLinkableCategoryIds(userId),
+    getCategoryFixedOverrides(userId),
   ]);
   const linkable = new Set(linkableCategoryIds);
 
@@ -203,6 +205,7 @@ export default async function BudgetsPage() {
   const spendClasses = summarizeSpendClassCategories(
     spendByCategory,
     meta,
+    fixedOverrides,
     (id) => categoryName(id, meta),
   );
 
@@ -216,6 +219,7 @@ export default async function BudgetsPage() {
     transactions: snap.transactions,
     today: isoDate(today),
     meta,
+    overrides: fixedOverrides,
     budgetByCategory,
     nameOf: (id) => categoryName(id, meta),
     excludeMerchantCanonicals: new Set(plan.loanPaymentRollupExclusions),
@@ -232,16 +236,18 @@ export default async function BudgetsPage() {
       planAmountMonths: planAmt?.typicalMonths,
     };
   });
-  // Fixed categories with a budget but no spend this month still belong in the
-  // Fixed list so the reader can see / change the Plan amount.
+  // Fixed categories with a budget/override but no spend this month still belong
+  // in the Fixed list so the reader can see / change the Plan amount.
   for (const r of categoryFixedFull.rows) {
     if (fixedRows.some((f) => f.categoryId === r.categoryId)) continue;
-    if (!r.budgetCents) continue;
+    if (!r.budgetCents && !fixedOverrides.has(r.categoryId)) continue;
     fixedRows.push({
       categoryId: r.categoryId,
       name: r.name,
       spentCents: 0,
       isFixed: true,
+      suggestedFixed: true,
+      overridden: fixedOverrides.has(r.categoryId),
       planAmountCents: r.amountCents,
       planAmountBasis: r.basis,
       planAmountMonths: r.typicalMonths,
@@ -272,6 +278,7 @@ export default async function BudgetsPage() {
       <SpendClassPanel
         fixed={fixedRows}
         guiltFree={spendClasses.guiltFree}
+        canEdit={canEdit}
         month={month}
       />
       <Card>

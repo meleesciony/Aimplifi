@@ -303,6 +303,7 @@ export function resolveFixedCategoryAmounts(input: {
   transactions: readonly TxnLike[];
   today: ISODate;
   meta: ReadonlyMap<string, CategoryMeta>;
+  overrides: ReadonlyMap<string, boolean>;
   budgetByCategory: ReadonlyMap<string, number>;
   nameOf: (id: string) => string;
   windowMonths?: number;
@@ -324,12 +325,13 @@ export function resolveFixedCategoryAmounts(input: {
   const ids = new Set<string>([
     ...typicalByCat.keys(),
     ...input.budgetByCategory.keys(),
+    ...input.overrides.keys(),
   ]);
 
   const rows: FixedCategoryAmount[] = [];
   let hasBudgetOnFixed = false;
   for (const categoryId of ids) {
-    const isFixed = resolveCategoryIsFixed(categoryId, input.meta);
+    const isFixed = resolveCategoryIsFixed(categoryId, input.meta, input.overrides);
     if (isFixed !== true) continue;
 
     const typical = typicalByCat.get(categoryId);
@@ -342,7 +344,7 @@ export function resolveFixedCategoryAmounts(input: {
     if (budgetCents != null) hasBudgetOnFixed = true;
 
     const amountCents = budgetCents ?? typicalCents;
-    if (amountCents <= 0) continue;
+    if (amountCents <= 0 && !input.overrides.has(categoryId)) continue;
 
     rows.push({
       categoryId,
@@ -362,7 +364,7 @@ export function resolveFixedCategoryAmounts(input: {
   return {
     rows,
     totalCents,
-    hasReaderInput: hasBudgetOnFixed,
+    hasReaderInput: input.overrides.size > 0 || hasBudgetOnFixed,
     windowMonths,
   };
 }

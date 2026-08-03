@@ -389,3 +389,4 @@ refuses to write if it would drop any number this file already carries.
 - **#393** (Phase ?): The Fixed union dedupes on the FILED id, and "typical" divides by observable months (C.4 + C.5)
 - **#394** (Phase ?): A transfer-flagged loan payment is one STRUCTURAL class, excluded from the rollup exactly when the union takes it (C.24)
 - **#395** (Phase ?): Spend class is deterministic and algorithmic, never typed in
+- **#396** (Phase ?): The Fixed/Discretionary dial is restored (register, transaction detail, /budgets Mark buttons, custom-category Discretionary checkbox); the #395 removal was never the owner's directive
